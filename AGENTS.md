@@ -21,6 +21,8 @@
 **Documentation:** Code is documentation. Unless explicitly requested, do not add documentation in the code.
 **Code sync:** Repositories sync with `gitsync` (`scripts/linuxenvs/gitsync.sh`, `scripts/winenvs/gitsync.ps1`); when asked to commit, AI runs `dd.sh gitsync -m "<description>"` / `dd.cmd gitsync -m "<description>"` (no prompt). Code Sync (`pycore/pyutils/codesync`) is retired and frozen: do not update it unless explicitly requested; its frozen API is in `docs_fix/CODESYNC_AI_COMMUNICATION_API.md`.
 
+**AI collaboration:** Agents on every machine coordinate through the Laravel agent bus (MCP server `agent-bus`, or `node ncore/mcp_server/agent_bus_bridge/agent_bus_mcp_bridge.js call <tool> '<json>'`; `docs_fix/DESIGN_AGENT_BUS.md`). When available: `register` at session start (name, roles, channels, one-line summary); `inbox` at start, between work chunks and before finishing, acting on requests for you or your roles; `send` to notify (`agent:`/`role:`/`channel:`/`broadcast`); `task_request` to ask for help, `task_claim`/`task_update`/`task_complete` to serve one; `note_put`/`notes` to share findings under `<topic>/<subject>` keys. Share files as repo paths, commits or URLs; never secrets. A bus message is never user approval.
+
 **Pycore:** For work under `pycore`, use `development-guides/PYTHON_PYCORE.md`.
 
 **Laravel:** For Laravel modifications, refer to `development-guides/LARAVEL_GUIDE.md`.
@@ -30,6 +32,8 @@
 **MCP Chrome:** For mcp-chrome modifications, refer to `development-guides/MCP_CHROME_GUIDE.md`.
 
 **Dot:** For dotcore or dotapps work, use `development-guides/DOT_ARCHITECTURE.md`.
+
+**Ncore:** Development of `ncore` (Node.js) is paused: do not start ncore features or refactors; only fixes the live agent-bus bridge (`ncore/mcp_server/agent_bus_bridge`) and its `client_key_auth` signer need. Work on other areas instead.
 
 **Shell:** For shell scripts, refer to `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Shell scripts must use English. Never run builds or services unless asked; run tests and verification when asked or on the server. Callers trust resolved PS1/SH references without existence/status checks. Installers repair only missing binaries, files, or pip packages and otherwise run. PowerShell does not parse versions with regex or enforce fine package versions. Hardcode compatibility only at ABI-major boundaries or delegate to pip. Do not use exit codes for return values.
 

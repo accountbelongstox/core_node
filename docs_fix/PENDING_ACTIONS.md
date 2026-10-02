@@ -12,13 +12,14 @@ Run together: the relay contract digest and the lease/gap schema changed, so Lar
 2. On the Laravel server: `git pull`.
 3. `php artisan sys:init`. It applies the pending migrations and self-heals:
    - `database/migrations/AppQyV1_2026_10_02_000001_add_media_gap_partial_indexes.php` (media gap and lease indexes);
-   - `database/migrations/AppQyV1_2026_10_02_000002_ensure_hot_path_gap_lease_indexes.php` (word and sentence gap, failed-free lease claim, lease expiry and failed indexes for every aligned language; built `CONCURRENTLY` outside a transaction, so writes continue; a rerun repairs an interrupted build);
-   - `database/migrations/global_Relay_2026_10_01_000001_create_relay_ledger_table.php` (`global_relay_ledger`).
+   - `database/migrations/AppQyV1_2026_10_02_000002_ensure_hot_path_gap_lease_indexes.php` (word and sentence gap, failed-free lease claim, lease expiry and failed indexes for every language, each index once its columns exist (the sys:init alignment builds the rest); built `CONCURRENTLY` outside a transaction, so writes continue; a rerun repairs an interrupted build);
+   - `database/migrations/global_Relay_2026_10_01_000001_create_relay_ledger_table.php` (`global_relay_ledger`);
+   - `database/migrations/global_AgentBus_2026_10_02_000001_create_agent_bus_tables.php` (`global_agent_bus_*`, `DESIGN_AGENT_BUS.md`).
 4. Restart the FrankenPHP/Octane workers: systemd unit `ncore-laravel-frankenphp` (contracts are cached per worker); `php artisan optimize:clear` when config/route caches are used.
 5. Run step 175 once on the server (book seed).
 6. Restart the Windows pycore after its tree is synced (it must run the current `task_puller`).
 7. Keep `CORE_NODE_CLIENT_KEY_1` identical on Laravel, every pycore, ncore, the mcp-chrome native host and wordnew.
-8. Post-deploy checks: `php artisan route:list --path=relay`; Redis connection `relay` (db 3) reachable; the `mercure_hub` public URL shares the origin that `laravel_endpoint_manager.resolve()` returns; `taskTypeExecution("tts_synthesize")` returns `remote_compute`; redeploy every device and UI build.
+8. Post-deploy checks: `php artisan route:list --path=relay`; `php artisan route:list --path=agent-bus` (20 routes) and an agent-bus MCP `initialize` + `tools/list` through the bridge (`DESIGN_AGENT_BUS.md` §5); Redis connection `relay` (db 3) reachable; the `mercure_hub` public URL shares the origin that `laravel_endpoint_manager.resolve()` returns; `taskTypeExecution("tts_synthesize")` returns `remote_compute`; redeploy every device and UI build.
 
 Host actions (see `DESIGN_SHELL_HOSTS.md` Open items):
 - Every Linux host: rerun `175 --domains-only`.
@@ -71,11 +72,11 @@ Data files (no code reads them):
 
 ## 3. Open user decisions
 
-- Owners for `ncore` (the Node runtime) and `poly_apps/flutter_bloom`. Flutter (`flutter_bloom`, pycore `pyutils/flutter_dev_tools`, `pyctl/flutter_dev_tools`) stays frozen until then; its dead files (`flutter_dev_tools/config/routes_config.py`, the last `SerializedSingletonProvider` user; `utils/update_to_english.py`; `design_structure_auto_expand`, whose root resolves to `pycore/` and whose fix would enable a destructive `cleanup_deprecated_files()`) are decided with it.
+- Owner for `poly_apps/flutter_bloom` (`ncore` development is paused, `AGENTS.md`). Flutter (`flutter_bloom`, pycore `pyutils/flutter_dev_tools`, `pyctl/flutter_dev_tools`) stays frozen until then; its dead files (`flutter_dev_tools/config/routes_config.py`, the last `SerializedSingletonProvider` user; `utils/update_to_english.py`; `design_structure_auto_expand`, whose root resolves to `pycore/` and whose fix would enable a destructive `cleanup_deprecated_files()`) are decided with it.
 - Larger lease prefetch while Laravel is unstable: raise `work_leases.prefetch_fraction` (0.25) / batch toward `batch_max` (500) in `config/queue_center_contract.json` so nodes ride out Laravel outages, at the cost of longer-held leases.
-- Team launcher `ServerAliveCountMax`: code and contract use 3 (`service_contract.json` `ssh_client.server_alive_count_max`, read by `claude_team_common.sh` and `ClaudeTeamCommon.ps1`); confirm 3 and correct the shell parity ledgers (`.claude/agents_shared/shell_parity/linux.md` SPL-134, `windows.md` SPW-054) that still say 4.
 - Relay owner routes accept a client-key signature (shared fleet owner) or any logged-in user (`client.key_or_dashboard:user`), and the loopback debug bypass binds a debug user (`DESIGN_RELAY.md` §2): keep, or tighten to admin level / refuse the bypass.
 - qwen3tts 0.6B variant for bulk sentence audio (8 GB / 24-SM GPU: batch 4 vs 2 for 1.7B).
 - Azure TTS without the SDK: align status ("not installed") with the on-request "package missing" code.
 - `AppQyV1BackfillGlobalTasks` writes unclaimable `word_audio` GlobalTask rows: retire it or make it write history rows only; drop the stale `idx_sent_<lang>_gap_audio_id` / `_gap_audio_live_id` indexes and, once `<prefix>_gap_audio_free_lease` exists, the superseded word and sentence `<prefix>_gap_audio_lease` indexes.
 - The SQLAlchemy layer under `pycore/database` and okx `lib/models.py` + `foundation/database_handler.py`, deleted without explicit approval in `e3cf19e10`: keep deleted (DB audit: safe) or restore from `e3cf19e10^`.
+- Secret password prompts (`secret_tool_common.sh::secret_prompt_password`, used by step 27 and the dd secret menus) show the typed password (`shown as typed`); keep, or read it without echo.

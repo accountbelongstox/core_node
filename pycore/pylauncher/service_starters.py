@@ -127,6 +127,7 @@ def start_rpc(config: Dict[str, Any]) -> Any:
     port = config.get('port', PYCORE_HTTP_PORT)
     host = config.get('host', HTTP_BIND_HOST)
     debug = config.get('debug', False)
+    listen = config.get('listen', True)
 
     # Extract router and static mount configurations
     fastapi_routers = config.get('fastapi_routers', [])
@@ -135,7 +136,10 @@ def start_rpc(config: Dict[str, Any]) -> Any:
     enable_http_events = config.get('enable_http_events', True)
     http_keep_alive_timeout = config.get('http_keep_alive_timeout', HTTP_KEEP_ALIVE_TIMEOUT_SECONDS)
 
-    ColorPrint.blue(f"[rpc] Starting RPC Server on {host}:{port}...")
+    if listen:
+        ColorPrint.blue(f"[rpc] Starting RPC Server on {host}:{port}...")
+    else:
+        ColorPrint.blue("[rpc] Local HTTP listener disabled: registering routes for in-process dispatch only")
     if fastapi_routers:
         ColorPrint.blue(f"[rpc] Will register {len(fastapi_routers)} FastAPI router(s)")
     if static_mounts:
@@ -143,6 +147,7 @@ def start_rpc(config: Dict[str, Any]) -> Any:
 
 
     instance = HttpServerRunner(
+        listen=listen,
         host=host,
         port=port,
         debug=debug,
@@ -172,6 +177,10 @@ def start_rpc(config: Dict[str, Any]) -> Any:
         priority=priority,
         name="rpc"
     )
+
+    if not listen:
+        ColorPrint.green("[rpc] RPC routes ready (in-process dispatch, no listening socket)")
+        return instance
 
     ColorPrint.green(f"[rpc] RPC Server started on {instance.host}:{port}")
     ColorPrint.blue(f"[rpc] HTTP controllers: http://{instance.host}:{port}{HTTP_API_PREFIX}/<path>")

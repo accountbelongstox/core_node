@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle, Check, Handshake, Loader2, Play, Power, RefreshCw, WifiOff,
 } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AssistCapabilities, AssistStatus } from '@/apps/pycore-manager/api';
 import {
   laravelEndpointMismatch, laravelLiveSyncOffline, useQueueCenterHub, workerEndpointMismatch,
 } from '../hooks/useQueueCenterHub';
+import { pcCaughtErrorMessage, pcErrorCodeText, pcFailureMessage } from '../utils/pcErrorCodes';
 
 type AssistCapKey = keyof AssistCapabilities;
 const ADVANCED_CAPABILITIES: AssistCapKey[] = ['subtitle', 'stt'];
@@ -41,14 +41,13 @@ export const PcAssistStrip: React.FC = () => {
     setRunningCycle(true);
     setMessage(null);
     try {
-      const response = await pycoreApi.runAssistCycle(hub.laravelActiveEndpoint || '');
+      const response = await hub.runAssistCycle();
       if (!mounted.current) return;
       setMessage(response.ok
         ? { failed: false, text: t('queueCenter.assist.triggered', { count: response.processed ?? 0 }) }
-        : { failed: true, text: t('queueCenter.assist.runFailed', { reason: response.errors?.join(' · ') || response.error || t('queueCenter.assist.unavailable') }) });
-      void hub.refreshHub();
-    } catch {
-      if (mounted.current) setMessage({ failed: true, text: t('queueCenter.assist.runFailed', { reason: t('queueCenter.assist.unreachable') }) });
+        : { failed: true, text: t('queueCenter.assist.runFailed', { reason: pcFailureMessage(response, t('queueCenter.assist.unavailable')) }) });
+    } catch (error: unknown) {
+      if (mounted.current) setMessage({ failed: true, text: t('queueCenter.assist.runFailed', { reason: pcCaughtErrorMessage(error, t('queueCenter.assist.unreachable')) }) });
     } finally {
       if (mounted.current) setRunningCycle(false);
     }
@@ -61,10 +60,9 @@ export const PcAssistStrip: React.FC = () => {
     setMessage(null);
     setOptimistic((held) => ({ ...held, [capability]: next }));
     try {
-      await pycoreApi.setAssistConfig({ capabilities: { [capability]: next } }, next ? hub.laravelActiveEndpoint : null);
-      void hub.refreshHub();
-    } catch {
-      if (mounted.current) setMessage({ failed: true, text: t('queueCenter.assist.toggleFailed', { reason: t('queueCenter.assist.unreachable') }) });
+      await hub.setAssistCapability(capability, next);
+    } catch (error: unknown) {
+      if (mounted.current) setMessage({ failed: true, text: t('queueCenter.assist.toggleFailed', { reason: pcCaughtErrorMessage(error, t('queueCenter.assist.unreachable')) }) });
     } finally {
       if (mounted.current) {
         setOptimistic((held) => { const { [capability]: _settled, ...rest } = held; return rest; });
@@ -78,7 +76,7 @@ export const PcAssistStrip: React.FC = () => {
       <section className="pc-glass p-3 flex items-center gap-2 text-xs text-slate-500">
         <Handshake className="w-4 h-4 text-rose-400 shrink-0" />
         <span className="font-bold text-slate-600 dark:text-slate-300">{t('queueCenter.assist.title')}</span>
-        <span className="truncate">{hub.error || t('queueCenter.assist.loading')}</span>
+        <span className="truncate">{hub.error ? pcErrorCodeText(hub.error) : t('queueCenter.assist.loading')}</span>
         <button type="button" onClick={() => hub.refreshHub()} disabled={loading}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 disabled:opacity-50">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />

@@ -4,7 +4,8 @@ import {
 } from '../../contracts/RelayContract';
 import { Backoff } from '../../tasks/Backoff';
 import { appendLog } from '../../logstore/logStore';
-import { isRelayAuthorizationFailure, laravelRelayApi } from './LaravelRelayAPI';
+import { isRelayAuthorizationFailure, laravelRelayApi, relayModeActive } from './LaravelRelayAPI';
+import { subscribePycoreTarget } from '../pycore/pycoreTarget';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
 import { subscribeAuthSession } from '../../auth/AuthSession';
 
@@ -32,6 +33,7 @@ const DEVICE_RECHECK_MS = 10_000;
 const GRANT_BLOCK_MIN_MS = 30_000;
 const GRANT_BLOCK_MAX_MS = 300_000;
 const AUTHENTICATION_REQUIRED = 'authentication_required';
+const MODE_INACTIVE = 'relay_mode_inactive';
 
 export class RelayGrantUnavailableError extends Error {
   readonly reason: string;
@@ -66,6 +68,7 @@ class LaravelRelayStream {
   private readonly reconnectBackoff = new Backoff(RECONNECT_MIN_MS, RECONNECT_MAX_MS);
   private active: StreamEntry | null = null;
   private candidate: StreamEntry | null = null;
+  private epoch = 0;
   private consumers = 0;
   private lastUseAt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -89,6 +92,22 @@ class LaravelRelayStream {
       this.reconnectBackoff.reset();
       if (this.wanted()) this.ensureOpen();
     });
+    subscribePycoreTarget(() => this.modeChanged());
+  }
+
+  /** The relay link exists only in relay mode: leaving it drops every grant, timer and connection; entering it reopens for the consumers. */
+  private modeChanged(): void {
+    this.authGeneration += 1;
+    this.close();
+    this.grantState = null;
+    this.grantExpiresAt = 0;
+    this.grantFetchedAt = 0;
+    this.grantFlight = null;
+    this.blockedUntil = 0;
+    this.authorizationBlocked = false;
+    this.grantBackoff.reset();
+    this.reconnectBackoff.reset();
+    if (this.wanted()) this.ensureOpen();
   }
 
   /** Hold the stream open while a consumer (roster, event tunnel) needs it. */
@@ -110,6 +129,11 @@ class LaravelRelayStream {
 
   isConnected(): boolean {
     return this.active !== null;
+  }
+
+  /** Counts every time the stream went down: a frame published while it was down is gone, whatever the stream does later. */
+  connectionEpoch(): number {
+    return this.epoch;
   }
 
   grant(): RelayGrant | null {
@@ -179,6 +203,7 @@ class LaravelRelayStream {
   }
 
   async ensureGrant(force: boolean): Promise<RelayGrant> {
+    if (!relayModeActive()) throw new RelayGrantUnavailableError(MODE_INACTIVE);
     if (this.authorizationBlocked) throw new RelayGrantUnavailableError(AUTHENTICATION_REQUIRED);
     const now = performance.now();
     const current = this.grantState;
@@ -198,11 +223,12 @@ class LaravelRelayStream {
   }
 
   private wanted(): boolean {
+    if (!relayModeActive()) return false;
     return this.consumers > 0 || Date.now() - this.lastUseAt <= STREAM_IDLE_STOP_MS;
   }
 
   private ensureOpen(): void {
-    if (this.authorizationBlocked) return;
+    if (this.authorizationBlocked || !relayModeActive()) return;
     if (this.active || this.candidate || this.reconnectTimer) return;
     const grant = this.grantState;
     if (grant && performance.now() < this.grantExpiresAt - GRANT_REFRESH_MARGIN_MS) {
@@ -315,6 +341,7 @@ class LaravelRelayStream {
       if (this.rotateTimer) clearTimeout(this.rotateTimer);
       this.rotateTimer = null;
       if (performance.now() - entry.subscribedAt >= STREAM_STABLE_MS) this.reconnectBackoff.reset();
+      this.epoch += 1;
       this.notifyState(false);
     } else if (this.candidate === entry) {
       this.candidate = null;

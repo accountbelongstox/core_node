@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Persistent DIFF cursor, ID-page, and lazy task-data segments."""
+"""Claimed-task staging and remote diff cursors of the typed Laravel pull.
 
-import re
-import time
-from typing import Any, Dict, List
+Only tasks the node claimed one by one through the typed pull are staged
+(bounded by its pull capacity); the work-lease lanes never come through here.
+Persistence is an indexed SQLite store written row by row."""
 
+import json
+from typing import Any, Dict, List, Optional
+
+from pycore.database.repositories.queue_diff_repository import QueueDiffRepository
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -12,186 +17,130 @@ from pycore.pyfoundations.serialized_worker import (
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
 from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_DIFF_DELIVERY,
+    QUEUE_CENTER_WORK_LEASES,
     task_order_key,
 )
-from pycore.pyutils.common.user_data_store import UserDataStore
 
 
-_INTEGER_TEXT = re.compile(r"\s*[+-]?\d+\s*")
-
-
-CURSOR_NAMESPACE = "queue_diff_cursors"
-ID_PAGE_NAMESPACE = "queue_diff_id_pages"
-DATA_SEGMENT_NAMESPACE = "queue_diff_data_segments"
-STORE_FILE_NAME = "queue_center_segments.json"
-STORE_DEFAULTS_DIR = APP_CONFIG_DIR / "queue_center_empty_defaults"
-PAGE_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_page_limit"])
-ID_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_limit"])
+STORE_FILE_NAME = "queue_diff.sqlite3"
+LEGACY_JSON_FILE_NAME = "queue_center_segments.json"
+LEGACY_DATA_NAMESPACE = "queue_diff_data_segments"
+LEGACY_CURSOR_NAMESPACE = "queue_diff_cursors"
+STAGED_TASK_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_limit"])
 DATA_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["data_segment_limit"])
-# Staged claimed rows per scope; DATA_LIMIT is only the page size.
-STAGED_TASK_LIMIT = ID_LIMIT
-RETRY_AFTER_KEY = "_segment_retry_after"
+LEASE_LANES = frozenset(str(lane) for lane in QUEUE_CENTER_WORK_LEASES["lanes"])
 
 
 class _DiffTaskSegmentCenter:
-    """Own all persistent DIFF segments through one shared serialized instance."""
+    """Own the staged claimed tasks through one shared serialized instance."""
 
     def __init__(self) -> None:
         self._delivered: set[str] = set()
-        self._store = UserDataStore(
-            file_name=STORE_FILE_NAME,
-            defaults_dir=STORE_DEFAULTS_DIR,
-        )
+        self._repo: Optional[QueueDiffRepository] = None
         init_serialized_owner(
             self,
             "queue_center.diff_segments",
             "DiffTaskSegmentCenter",
         )
 
+    def _repository(self) -> QueueDiffRepository:
+        if self._repo is None:
+            self._repo = QueueDiffRepository(APP_CONFIG_DIR / STORE_FILE_NAME)
+            self._migrate_legacy_json(self._repo)
+        return self._repo
+
+    @staticmethod
+    def _migrate_legacy_json(repository: QueueDiffRepository) -> None:
+        """One shot: the former JSON mirror (every lease-lane row and cursor
+        of every worker id and server, rewritten whole on each change) is
+        dropped; only claimed rows and cursors of non-lease task types move
+        into the store. Its leaked temp files go with it."""
+        legacy_path = APP_CONFIG_DIR / LEGACY_JSON_FILE_NAME
+        leaked = [
+            *APP_CONFIG_DIR.glob(f"{LEGACY_JSON_FILE_NAME}.tmp.*"),
+            *APP_CONFIG_DIR.glob(f".{LEGACY_JSON_FILE_NAME}.tmp.*"),
+        ]
+        if not legacy_path.is_file() and not leaked:
+            return
+        kept = dropped = 0
+        if legacy_path.is_file():
+            try:
+                legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                ColorPrint.yellow(f"[DiffTaskSegments] legacy {legacy_path} unreadable ({exc}); dropped")
+                legacy = {}
+            for scope, rows in dict(legacy.get(LEGACY_DATA_NAMESPACE) or {}).items():
+                tasks = [task for task in dict(rows or {}).values() if isinstance(task, dict) and task.get("task_id")]
+                live = [task for task in tasks if str(task.get("task_type") or "") not in LEASE_LANES]
+                kept += len(repository.insert_new(str(scope), live, STAGED_TASK_LIMIT))
+                dropped += len(tasks) - len(live)
+            for scope, cursor in dict(legacy.get(LEGACY_CURSOR_NAMESPACE) or {}).items():
+                for task_type, revision in dict(dict(cursor or {}).get("remote_revisions") or {}).items():
+                    if str(task_type) not in LEASE_LANES:
+                        repository.set_remote_cursor(str(scope), str(task_type), int(revision or 0))
+            legacy_path.unlink()
+        for path in leaked:
+            path.unlink(missing_ok=True)
+        ColorPrint.cyan(
+            f"[DiffTaskSegments] migrated {LEGACY_JSON_FILE_NAME}: kept {kept} claimed task(s), "
+            f"dropped {dropped} lease-lane row(s), removed {len(leaked)} leaked temp file(s)"
+        )
+
     @serialized_method
     def remote_cursor(self, scope: str, task_type: str) -> int:
-        cursors = self._store.get_section(CURSOR_NAMESPACE)
-        cursor = dict(cursors.get(scope) or {})
-        remote_revisions = dict(cursor.get("remote_revisions") or {})
-        return max(0, int(remote_revisions.get(str(task_type)) or 0))
+        return self._repository().remote_cursor(scope, str(task_type))
 
     @serialized_method
     def set_remote_cursor(self, scope: str, task_type: str, revision: int) -> None:
-        cursors = self._store.get_section(CURSOR_NAMESPACE)
-        cursor = dict(cursors.get(scope) or {})
-        remote_revisions = dict(cursor.get("remote_revisions") or {})
-        remote_revisions[str(task_type)] = max(0, int(revision))
-        cursor["remote_revisions"] = remote_revisions
-        cursor["updated_at"] = time.time()
-        cursors[scope] = cursor
-        self._store.set_section(CURSOR_NAMESPACE, cursors)
+        self._repository().set_remote_cursor(scope, str(task_type), revision)
 
     @serialized_method
     def forget_worker_scopes(self, worker_id: str) -> int:
-        """Drop every diff scope of one retired worker id (cursors, id pages,
-        data segments); the new id re-syncs its mirror from Laravel."""
-        marker = f":{worker_id}:"
-        dropped = 0
-        for namespace in (CURSOR_NAMESPACE, ID_PAGE_NAMESPACE, DATA_SEGMENT_NAMESPACE):
-            section = self._store.get_section(namespace)
-            retired = [scope for scope in section if marker in str(scope)]
-            for scope in retired:
-                section.pop(scope)
-            if retired:
-                self._store.set_section(namespace, section)
-                dropped += len(retired)
-        return dropped
+        """Drop every row and cursor of one retired worker id; the new id
+        re-syncs from Laravel."""
+        return self._repository().forget_worker(worker_id)
 
     @serialized_method
-    def stage(
-        self,
-        scope: str,
-        tasks: List[Dict[str, Any]],
-        mark_delivered: bool = True,
-    ) -> List[Dict[str, Any]]:
-        """Persist newly fetched task payloads and return the new rows.
-
-        mark_delivered=True (default) records each row as already dispatched
-        in this process: callers that dispatch the returned rows immediately
-        (the bounded claim-pull path) keep pending()/has_pending() from
-        redelivering them. The full-sync mirror stages rows for a LATER
-        dispatch sweep and passes False, otherwise the mirrored backlog
-        would be born undispatchable within this process.
-        """
-        cursors = self._store.get_section(CURSOR_NAMESPACE)
-        pages = self._store.get_section(ID_PAGE_NAMESPACE)
-        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-        scope_segments = dict(segments.get(scope) or {})
-        new_tasks: List[Dict[str, Any]] = []
-        ids: List[str] = []
-
-        for task in tasks:
-            task_id = str(task.get("task_id") or "")
-            if not task_id or task_id in scope_segments:
-                continue
-            if len(scope_segments) >= STAGED_TASK_LIMIT:
-                break
-            scope_segments[task_id] = dict(task)
-            if mark_delivered:
-                self._delivered.add(self._delivery_key(scope, task_id))
-            ids.append(task_id)
-            new_tasks.append(task)
-
-        if not ids:
-            return []
-
-        cursor = dict(cursors.get(scope) or {})
-        cursor["revision"] = int(cursor.get("revision") or 0) + 1
-        cursor["last_id"] = ids[-1]
-        cursor["updated_at"] = time.time()
-        cursors[scope] = cursor
-
-        scope_pages = list(pages.get(scope) or [])
-        scope_pages.append({
-            "page_id": cursor["revision"],
-            "ids": ids,
-            "state": "ready",
-            "created_at": time.time(),
-        })
-        pages[scope] = self._trim_pages(scope_pages)
-        segments[scope] = scope_segments
-        self._store.set_sections({
-            CURSOR_NAMESPACE: cursors,
-            ID_PAGE_NAMESPACE: pages,
-            DATA_SEGMENT_NAMESPACE: segments,
-        })
-        return new_tasks
+    def stage(self, scope: str, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Persist newly claimed task payloads and return the new rows. They
+        count as dispatched in this process: the caller dispatches them at
+        once, so ``pending`` never redelivers them."""
+        repository = self._repository()
+        claimed = [
+            task for task in tasks
+            if str(task.get("task_id") or "") and str(task.get("task_type") or "") not in LEASE_LANES
+        ]
+        staged = repository.insert_new(scope, claimed, max(0, STAGED_TASK_LIMIT - repository.count(scope)))
+        for task in staged:
+            self._delivered.add(self._delivery_key(scope, task["task_id"]))
+        return staged
 
     @serialized_method
-    def pending(
-        self,
-        scope: str,
-        limit: int = DATA_LIMIT,
-        mark_delivered: bool = True,
-    ) -> List[Dict[str, Any]]:
-        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-        scope_segments = dict(segments.get(scope) or {})
-        candidates: List[Dict[str, Any]] = []
-        now = time.time()
-        for task_id, task in scope_segments.items():
-            delivery_key = self._delivery_key(scope, task_id)
-            if delivery_key in self._delivered or not isinstance(task, dict):
-                continue
-            if float(task.get(RETRY_AFTER_KEY) or 0) > now:
-                continue
-            item = dict(task)
-            item.pop(RETRY_AFTER_KEY, None)
-            candidates.append(item)
-        candidates.sort(key=self._task_order)
+    def pending(self, scope: str, task_types: List[str], limit: int = DATA_LIMIT) -> List[Dict[str, Any]]:
+        """Staged tasks of ``task_types`` not yet dispatched in this process
+        (recovery after a restart), in contract order; they count as
+        dispatched once returned."""
+        candidates = [
+            task for task in self._repository().tasks(scope, self._pull_types(task_types))
+            if self._delivery_key(scope, task["task_id"]) not in self._delivered
+        ]
+        candidates.sort(key=task_order_key)
         pending = candidates[:max(0, int(limit))]
-        if mark_delivered:
-            for task in pending:
-                self._delivered.add(
-                    self._delivery_key(scope, str(task.get("task_id") or ""))
-                )
+        for task in pending:
+            self._delivered.add(self._delivery_key(scope, task["task_id"]))
         return pending
 
     @serialized_method
-    def has_pending(self, scope: str) -> bool:
-        """Return whether a persisted task is eligible for local redelivery."""
-        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-        scope_segments = dict(segments.get(scope) or {})
-        now = time.time()
-        for task_id, task in scope_segments.items():
-            if not isinstance(task, dict):
-                continue
-            if self._delivery_key(scope, task_id) in self._delivered:
-                continue
-            if float(task.get(RETRY_AFTER_KEY) or 0) <= now:
-                return True
-        return False
+    def has_pending(self, scope: str, task_types: List[str]) -> bool:
+        return any(
+            self._delivery_key(scope, task["task_id"]) not in self._delivered
+            for task in self._repository().tasks(scope, self._pull_types(task_types))
+        )
 
     @serialized_method
     def available_capacity(self, scope: str) -> int:
-        """Return free persistent payload slots without loading business rows."""
-        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-        scope_segments = segments.get(scope) or {}
-        return max(0, STAGED_TASK_LIMIT - len(scope_segments))
+        """Free staging slots of one scope."""
+        return max(0, STAGED_TASK_LIMIT - self._repository().count(scope))
 
     @serialized_method
     def consume(self, scope: str, task_id: Any) -> None:
@@ -199,108 +148,26 @@ class _DiffTaskSegmentCenter:
 
     @serialized_method
     def consume_many(self, scope: str, task_ids: List[Any]) -> None:
-        task_keys = {str(task_id or "") for task_id in task_ids if str(task_id or "")}
+        task_keys = sorted({str(task_id or "") for task_id in task_ids if str(task_id or "")})
         if not task_keys:
             return
-        pages = self._store.get_section(ID_PAGE_NAMESPACE)
-        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-        scope_segments = dict(segments.get(scope) or {})
+        self._repository().delete(scope, task_keys)
         for task_key in task_keys:
-            scope_segments.pop(task_key, None)
             self._delivered.discard(self._delivery_key(scope, task_key))
 
-        scope_pages = list(pages.get(scope) or [])
-        remaining = set(scope_segments)
-        for page in scope_pages:
-            ids = [str(value) for value in page.get("ids", [])]
-            if task_keys.intersection(ids) and not any(value in remaining for value in ids):
-                page["state"] = "consumed"
-                page["consumed_at"] = time.time()
-
-        pages[scope] = self._trim_pages(scope_pages)
-        segments[scope] = scope_segments
-        self._store.set_sections({
-            ID_PAGE_NAMESPACE: pages,
-            DATA_SEGMENT_NAMESPACE: segments,
-        })
-
     @serialized_method
-    def set_priority(
-        self,
-        scope: str,
-        task_id: Any,
-        priority: int,
-        move_to_head: bool,
-    ) -> None:
+    def set_priority(self, scope: str, task_id: Any, priority: int, move_to_head: bool) -> None:
         task_key = str(task_id or "")
-        cursors = self._store.get_section(CURSOR_NAMESPACE)
-        pages = self._store.get_section(ID_PAGE_NAMESPACE)
-        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-        cursor = dict(cursors.get(scope) or {})
-        cursor["revision"] = int(cursor.get("revision") or 0) + 1
-        if move_to_head:
-            cursor["head_id"] = task_key
-        elif str(cursor.get("head_id") or "") == task_key:
-            cursor["head_id"] = None
-        cursor["updated_at"] = time.time()
-        cursors[scope] = cursor
-
-        scope_pages: List[Dict[str, Any]] = []
-        for page in list(pages.get(scope) or []):
-            if page.get("state") != "priority":
-                scope_pages.append(page)
-                continue
-            ids = [str(value) for value in page.get("ids", []) if str(value) != task_key]
-            if ids:
-                scope_pages.append({**page, "ids": ids})
-        if move_to_head:
-            scope_pages.insert(0, {
-                "page_id": f"head-{cursor['revision']}",
-                "ids": [task_key],
-                "state": "priority",
-                "created_at": time.time(),
-            })
-        pages[scope] = self._trim_pages(scope_pages)
-
-        scope_segments = dict(segments.get(scope) or {})
-        task = scope_segments.get(task_key)
-        if isinstance(task, dict):
-            task["priority"] = (
-                max(int(task.get("priority") or 0), int(priority))
-                if move_to_head
-                else int(priority)
-            )
-            scope_segments[task_key] = task
-            segments[scope] = scope_segments
-
-        self._store.set_sections({
-            CURSOR_NAMESPACE: cursors,
-            ID_PAGE_NAMESPACE: pages,
-            DATA_SEGMENT_NAMESPACE: segments,
-        })
+        repository = self._repository()
+        task = repository.task(scope, task_key)
+        if task is None:
+            return
+        task["priority"] = max(int(task.get("priority") or 0), int(priority)) if move_to_head else int(priority)
+        repository.replace_body(scope, task_key, task)
 
     @staticmethod
-    def _trim_pages(pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        head = [page for page in pages if page.get("state") == "head"]
-        priority = [page for page in pages if page.get("state") == "priority"]
-        ready = [page for page in pages if page.get("state") == "ready"]
-        consumed = [page for page in pages if page.get("state") == "consumed"]
-        candidates = head + priority + list(reversed(ready)) + list(reversed(consumed))
-        total_ids = 0
-        bounded: List[Dict[str, Any]] = []
-        for page in candidates:
-            if len(bounded) >= PAGE_LIMIT:
-                break
-            ids = list(page.get("ids") or [])
-            if total_ids + len(ids) > ID_LIMIT:
-                continue
-            bounded.append(page)
-            total_ids += len(ids)
-        return bounded
-
-    @staticmethod
-    def _task_order(task: Dict[str, Any]) -> tuple[int]:
-        return task_order_key(task)
+    def _pull_types(task_types: List[str]) -> List[str]:
+        return [str(task_type) for task_type in task_types if str(task_type) not in LEASE_LANES]
 
     @staticmethod
     def _delivery_key(scope: str, task_id: Any) -> str:

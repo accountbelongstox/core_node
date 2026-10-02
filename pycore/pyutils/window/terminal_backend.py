@@ -19,7 +19,14 @@ TERMINAL_SCROLL_CHROME_HEIGHT_PX = 36
 TERMINAL_SCROLL_DEFAULT_LINES = 3
 TERMINAL_SCROLL_BOTTOM_STEPS = 4096
 FOCUS_DELAY_SECONDS = 0.05
-PASTE_DELAY_SECONDS = 0.12
+# Enter must reach the terminal application as its own input event: a bracketed
+# paste (Claude Code, shells) swallows or merges an Enter that arrives while the
+# paste is still being consumed, so the settle time grows with the pasted text.
+PASTE_SETTLE_BASE_SECONDS = 0.3
+PASTE_SETTLE_PER_CHARACTER_SECONDS = 0.0004
+PASTE_SETTLE_MAX_SECONDS = 3.0
+ENTER_HOLD_SECONDS = 0.04
+FOCUS_READY_TIMEOUT_SECONDS = 1.0
 SELECT_ALL_DELAY_SECONDS = 0.15
 TERMINAL_HISTORY_DIRECTIONS = frozenset({"up", "down"})
 TERMINAL_KEY_ENTER = "Return"
@@ -31,10 +38,37 @@ TERMINAL_KEY_END = "End"
 TERMINAL_KEY_INSERT = "Insert"
 TERMINAL_KEY_A = "a"
 TERMINAL_KEY_C = "c"
+TERMINAL_KEY_K = "k"
+TERMINAL_KEY_U = "u"
+TERMINAL_KEY_PAGE_UP = "Prior"
+TERMINAL_KEY_PAGE_DOWN = "Next"
+TERMINAL_KEY_ESCAPE = "Escape"
+TERMINAL_KEY_TAB = "Tab"
 HISTORY_DIRECTION_KEYS = {
     "up": TERMINAL_KEY_UP,
     "down": TERMINAL_KEY_DOWN,
 }
+SCROLL_PAGE_KEYS = {
+    TERMINAL_SCROLL_PAGE_UP: TERMINAL_KEY_PAGE_UP,
+    TERMINAL_SCROLL_PAGE_DOWN: TERMINAL_KEY_PAGE_DOWN,
+}
+# Quick keys sent to the terminal application as-is.
+TERMINAL_KEY_ACTIONS = {
+    "escape": (TERMINAL_KEY_ESCAPE,),
+    "ctrl_c": (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C),
+    "tab": (TERMINAL_KEY_TAB,),
+    "shift_tab": (TERMINAL_KEY_SHIFT, TERMINAL_KEY_TAB),
+}
+# Clears the input line before a paste: Ctrl+K deletes to the line end, repeated
+# Ctrl+U deletes to the line start across lines (Claude Code multiline input,
+# readline shells). Ctrl+C / Esc are not used: they interrupt a running turn.
+CLEAR_INPUT_LINE_END_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_K)
+CLEAR_INPUT_LINE_START_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_U)
+CLEAR_INPUT_LINE_START_REPEAT = 32
+CLEAR_INPUT_SETTLE_SECONDS = 0.15
+# Force run: Ctrl+C stops the running command, then the input line is cleared.
+INTERRUPT_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C)
+INTERRUPT_SETTLE_SECONDS = 0.5
 POINTER_BUTTON_LEFT = 1
 POINTER_BUTTON_RIGHT = 3
 CONTROL_NONE = "none"
@@ -101,6 +135,13 @@ def build_terminal_window(
         "rect": {"x": int(x), "y": int(y), "width": int(width), "height": int(height)},
         "center": {"x": int(x) + int(width) // 2, "y": int(y) + int(height) // 2},
     }
+
+
+def paste_settle_seconds(content_length: int) -> float:
+    return min(
+        PASTE_SETTLE_MAX_SECONDS,
+        PASTE_SETTLE_BASE_SECONDS + max(0, int(content_length)) * PASTE_SETTLE_PER_CHARACTER_SECONDS,
+    )
 
 
 def failure(error_code: str, **extra: Any) -> Dict[str, Any]:
@@ -174,16 +215,37 @@ class TerminalWindowBackend:
         with self._input_guard():
             return self._press_enter(window)
 
+    def press_key(self, window_id: str, key: str) -> Dict[str, Any]:
+        window = self.find_window(window_id)
+        if window is None:
+            return failure("terminal_window_not_found")
+        keys = TERMINAL_KEY_ACTIONS.get(key)
+        if keys is None:
+            return failure("terminal_key_invalid")
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            sent = self._keys(window, list(keys))
+        if not sent:
+            return failure("terminal_key_failed")
+        return success(window)
+
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         if mode not in TERMINAL_SCROLL_MODES:
             return failure("terminal_scroll_mode_invalid")
-        bottom_keys = self._scroll_bottom_keys(window) if mode == TERMINAL_SCROLL_BOTTOM else None
-        if bottom_keys:
+        # Keys scroll the emulator's own scrollback; a wheel event reaches an
+        # alternate-screen app (Claude Code, less, vim) as Up/Down arrows instead.
+        scroll_keys = (
+            self._scroll_bottom_keys(window)
+            if mode == TERMINAL_SCROLL_BOTTOM
+            else self._scroll_page_keys(window, mode)
+        )
+        if scroll_keys:
             with self._input_guard():
-                scrolled = self._keys(window, bottom_keys)
+                scrolled = self._keys(window, scroll_keys)
         else:
             steps = terminal_scroll_steps(
                 mode,
@@ -195,14 +257,28 @@ class TerminalWindowBackend:
             return failure("terminal_scroll_failed")
         return success(window)
 
-    def paste_and_submit(self, window_id: str) -> Dict[str, Any]:
+    def paste_and_submit(
+        self,
+        window_id: str,
+        content_length: int = 0,
+        clear_first: bool = False,
+        interrupt_first: bool = False,
+    ) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            if interrupt_first:
+                if not self._keys(window, list(INTERRUPT_KEYS)):
+                    return failure("terminal_key_failed")
+                time.sleep(INTERRUPT_SETTLE_SECONDS)
+            if (clear_first or interrupt_first) and not self._clear_input(window):
+                return failure("terminal_clear_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
-            time.sleep(PASTE_DELAY_SECONDS)
+            time.sleep(paste_settle_seconds(content_length))
             return self._press_enter(window)
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:
@@ -241,10 +317,25 @@ class TerminalWindowBackend:
         return False
 
     def _press_enter(self, window: Dict[str, Any]) -> Dict[str, Any]:
+        if not self._input_target_ready(window):
+            return failure("terminal_focus_failed")
         time.sleep(FOCUS_DELAY_SECONDS)
-        if not self._keys(window, [TERMINAL_KEY_ENTER]):
+        if not self._keys(window, [TERMINAL_KEY_ENTER], ENTER_HOLD_SECONDS):
             return failure("terminal_enter_failed")
         return success(window)
+
+    def _input_target_ready(self, window: Dict[str, Any]) -> bool:
+        """True once synthesized keys will reach this window; backends that cannot verify focus accept."""
+        return True
+
+    def _clear_input(self, window: Dict[str, Any]) -> bool:
+        if not self._keys(window, list(CLEAR_INPUT_LINE_END_KEYS)):
+            return False
+        for _ in range(CLEAR_INPUT_LINE_START_REPEAT):
+            if not self._keys(window, list(CLEAR_INPUT_LINE_START_KEYS)):
+                return False
+        time.sleep(CLEAR_INPUT_SETTLE_SECONDS)
+        return True
 
     def _pointer_action(
         self,
@@ -289,7 +380,7 @@ class TerminalWindowBackend:
     def _click(self, window: Dict[str, Any], x: int, y: int, button: int) -> bool:
         raise NotImplementedError
 
-    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str]) -> bool:
+    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str], hold_seconds: float = 0.0) -> bool:
         raise NotImplementedError
 
     def _input_guard(self) -> ContextManager[None]:
@@ -301,6 +392,10 @@ class TerminalWindowBackend:
 
     def _wheel_lines(self) -> int:
         return TERMINAL_SCROLL_DEFAULT_LINES
+
+    def _scroll_page_keys(self, window: Dict[str, Any], mode: str) -> Optional[List[str]]:
+        """Scrollback page keys of the terminal emulator; None falls back to the mouse wheel."""
+        return None
 
     def _scroll_bottom_keys(self, window: Dict[str, Any]) -> Optional[List[str]]:
         return None
@@ -344,10 +439,19 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
     def press_enter(self, window_id: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
+    def press_key(self, window_id: str, key: str) -> Dict[str, Any]:
+        return failure("unsupported_platform")
+
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
-    def paste_and_submit(self, window_id: str) -> Dict[str, Any]:
+    def paste_and_submit(
+        self,
+        window_id: str,
+        content_length: int = 0,
+        clear_first: bool = False,
+        interrupt_first: bool = False,
+    ) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:

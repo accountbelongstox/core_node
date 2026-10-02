@@ -10,7 +10,7 @@ server is launched + lifecycle-managed as a class-C
 service by tts_service_manager.py / managed_service.py. This module talks to it over
 HTTP GET/POST for synthesis, queue control, and status probes.
 
-See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
+See docs_fix/DESIGN_TTS_AI_RUNTIME.md §7.
 
 Config:
   QWEN3TTS_HOST / QWEN3TTS_PORT - server bind + client target (default 0.0.0.0:57210)

@@ -191,40 +191,8 @@ _tailscale_menu_login_logout() {
     read -r
 }
 
-_tailscale_menu_run_rc() {
-    printf "\033c"
-    "$@"
-    rc_pause
-}
-
-# Remote Control (RDP/SSH, Windows <-> Linux over the tailnet): every
-# Tailscale IP is printed above the menu; actions live in remote_control_common.sh.
-_tailscale_menu_remote_control() {
-    local selected_index=0
-    local menu_items=(
-        "Enable this machine to control remote (RDP/SSH client + shared key)"
-        "Allow remote control of this machine (SSH + RDP, login password)"
-        "Connect to a peer (RDP or SSH)"
-        "Endpoints (all Tailscale IPs + connect commands)"
-        "Status"
-        "Help (manual UI steps + official docs)"
-        "Back"
-    )
-
-    while true; do
-        rc_load_peer_rows
-        arrow_menu_select "Remote Control (Windows <-> Linux)" menu_items "$selected_index" 6 rc_render_peer_table
-        selected_index=$ARROW_MENU_SELECTED_INDEX
-        case "$selected_index" in
-            0) _tailscale_menu_run_rc rc_enable_controller ;;
-            1) _tailscale_menu_run_rc rc_enable_host ;;
-            2) _tailscale_menu_run_rc rc_connect_peer ;;
-            3) _tailscale_menu_run_rc rc_show_endpoints ;;
-            4) _tailscale_menu_run_rc rc_show_status ;;
-            5) _tailscale_menu_run_rc rc_show_help ;;
-            6) return 0 ;;
-        esac
-    done
+_tailscale_menu_header() {
+    echo "Tailscale ($(hostname))"
 }
 
 show_tailscale_management_menu() {
@@ -245,12 +213,12 @@ show_tailscale_management_menu() {
             "Status (install, service, backend state, IPs)"
             "Restart Service (sudo systemctl restart tailscaled)"
             "$login_logout_label"
-            "Remote Control (Windows <-> Linux: RDP/SSH, all Tailscale IPs)"
+            "Remote control (Windows <-> Linux: VNC/RDP/SSH)  >"
             "Help (dispatcher usage + official doc links)"
             "Back to Linux System Tools"
         )
 
-        arrow_menu_select "[T] Tailscale [$(ts_quick_menu_label)]" menu_items "$selected_index" 9
+        numeric_menu_select "Tailscale [$(ts_quick_menu_label)]" menu_items 9 _tailscale_menu_header
         selected_index=$ARROW_MENU_SELECTED_INDEX
         case "$selected_index" in
             0) _tailscale_menu_run_installer ;;
@@ -260,7 +228,7 @@ show_tailscale_management_menu() {
             4) _tailscale_menu_status ;;
             5) _tailscale_menu_restart ;;
             6) _tailscale_menu_login_logout ;;
-            7) _tailscale_menu_remote_control ;;
+            7) rc_show_menu ;;
             8)
                 printf "\033c"
                 ts_show_help

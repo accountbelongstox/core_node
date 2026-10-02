@@ -216,6 +216,7 @@
       ],
       "configFilePaths": [
         "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+        "D:\\programing\\core_node\\NuGet.Config",
         "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
@@ -264,7 +265,7 @@
           "OpenCvSharp4.Extensions": "4.10.0.20240616",
           "OpenCvSharp4.Windows": "4.10.0.20240616",
           "PaddleOCRSharp": "6.1.0",
-          "System.Drawing.Common": "8.0.0"
+          "System.Drawing.Common": "8.0.7"
         },
         "imports": [
           "net461",

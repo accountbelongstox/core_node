@@ -1,6 +1,6 @@
 # Authentication and Identity
 
-Scope: how machines, devices, browsers and humans authenticate to Laravel, pycore, ncore, mcp-chrome and CodeSync; where the shared key lives; device and relay identity; the security rules from the 2026-09-27 team audit that stay in force.
+Scope: how machines, devices, browsers and humans authenticate to Laravel, pycore, ncore, mcp-chrome and CodeSync; where the shared key lives; device and relay identity; the security rules from the team security audit that stay in force.
 
 Authority: code > config/*_contract.json > this document.
 
@@ -18,6 +18,7 @@ Related: `DESIGN_LARAVEL_PLATFORM.md` (Laravel runtime and the pycore boundary),
 | End-user routes (wordnew, codemart) | users | Sanctum or public reads; never the machine key |
 | Payment callbacks | payment gateway | gateway signature plus amount check, or admin confirm; never the client key |
 | Relay owner routes (grant, frames, telemetry, stats, roster, claim, pairings, owner blobs) | UIs (signed builds, logged-in users) | `client.key_or_dashboard:user`; owner identity = client key → shared fleet owner `RelayFleetScope::clientKeyOwner()`, OR the Sanctum user (`RelayOwnerResolver`, `DESIGN_RELAY.md` §2) |
+| Agent bus (`/api/agent-bus/*` REST and `/api/agent-bus/mcp`; `info` is public) | AI agents through the K3-signing bridge, operators | `client.key_or_dashboard` (admin); agent id = K3 machine id (or `user-<id>`) + name (`DESIGN_AGENT_BUS.md` §3) |
 | Relay device enrollment | pycore | Ed25519 relay flow (`DESIGN_RELAY.md`); an enrollment that also carries a valid K3 signature is approved at once (`RelayDeviceCtl` → `approveWithClientKey`) |
 | pycore RPC 59000, ncore 58000 and its HTTP stack, translation service, WebLocalAreaNetwork, mcp-chrome native server | local UI, relay, LAN peers | K7 (§7) |
 | CodeSync workspace | LAN pycore peers | K3 only; no bearer secret |
@@ -104,7 +105,7 @@ Current:
 - Relay devices enroll with Ed25519 keys through the relay flow (`DESIGN_RELAY.md`). A K3-signed enrollment request is approved without a web-login step.
 - DingDuoDuo licenses: the extension accepts only Ed25519-signed, device-bound `DDK2` codes (`config/service_contract.json#dingdoudou`, spec `.claude/agents_shared/client_key_auth/dingdoudou_super_code_v2.md`). The seed is the store secret `DINGDUODUO_SUPER_CODE_SIGNING_KEY_1`; minting is only `php artisan dingduoduo:super-code <device>` (no web route) and refuses a seed that does not match the contract public key. Seeded master codes stay revoked.
 
-Target design (requirement, not implemented; replaces the shared symmetric key step by step, each step accepted alongside the old one through `client_key_auth.protocol_version`):
+Target design (requirement, not implemented; moves identity off the shared symmetric key step by step, each step accepted alongside the shared key through `client_key_auth.protocol_version`):
 1. Stop compiling the shared key into any app package; apps use the logged-in user's token until step 2.
 2. Phone/app device keys: Ed25519/P-256 key pair generated in Android Keystore (StrongBox when available) / iOS Secure Enclave, never exported; one-time enrollment by a Laravel challenge plus key attestation, authorized by a logged-in user or a pycore-displayed pairing code; Laravel keeps a device registry (public key, device, owner, revoked). Requests are signed per RFC 9421 over the same fields as K3 with the same skew/nonce rules. Attestation is hardening; registry plus revocation is the control.
 3. User access tokens become short-lived and DPoP-bound (RFC 9449) to the device key.
@@ -112,7 +113,7 @@ Target design (requirement, not implemented; replaces the shared symmetric key s
 5. Owner root of trust: an Ed25519 owner root key encrypted with the user's password as `.secret_keys/already_encrypted/CORE_NODE_OWNER_ROOT_1.js`, public anchor `config/trust/owner_root.pub`. dd.sh / dd.cmd generate it on a fresh system (password typed twice, private key only in memory), then issue each host a certificate `{v, subject, kind: machine|device, public_key, roles, not_before, not_after}` signed with the root (canonical JSON, Ed25519). Verifiers check root signature, validity window, revocation list (root-signed, held by Laravel and synced to pycores), roles, then the request signature. Losing a host = revoke its certificate; changing the password = re-encrypt only the root file.
 6. Per-host vault unlock: the vault data key is additionally wrapped for each enrolled host's machine key (age/X25519, `.secret_keys/hosts/<machine>.age`); dd tries the machine key first and falls back to the password; excluding a host = re-wrap without it.
 
-## 10. Security rules carried from the 2026-09-27 audit
+## 10. Security rules from the team audit
 
 Still binding on every end:
 - Destructive or remote-reachable actions need K7/K3 plus explicit allow-lists: pycore `thread_bus/trigger_event` accepts only allow-listed UI event names with validated payloads; "open path" routes accept only paths contained (after resolve) in known output roots and never shell-execute files; document/setting routes validate roots and schema (base URLs only from the Laravel endpoint catalog).
@@ -134,6 +135,8 @@ Still binding on every end:
 
 ## 12. Open items
 
+ncore development is paused (`AGENTS.md`); the `ncore:` items below wait for its resumption, except fixes the agent-bus bridge needs.
+
 - §9 target design: nothing implemented (`config/trust/`, `CORE_NODE_OWNER_ROOT_1`, `CORE_NODE_MACHINE_KEY`, device registry, RFC 9421/DPoP absent). LAN phone access depends on step 2 or a default-off unsigned LAN read policy in `local_rpc_guard`.
 - dd secrets submenu (reset the vault password and re-encrypt every secret with a decrypt round-trip before replace; encrypt missing `.js` for raw secrets; show key fingerprints) is not present in `scripts/shells/linux/dd_helper/secret_functions.sh` or `SecretManager.ps1`.
 - `apps/mcp-chrome/app/chrome-extension/key.pem` is tracked in git.
@@ -141,3 +144,6 @@ Still binding on every end:
 - Rotation of the third-party keys still in git history (OCR.space, Unsplash, dict API Client-Token, sqlpub MySQL, Xata, deepbricks, and the `config/index.js` JWT secrets, MYSQL_PWD, Azure speech key, Strapi/Gitea tokens, salts) and deletion of old `ENC:` files in host `global_var`: user action.
 - Secret store modes on ntfs3 mounts without permission support cannot be enforced; keep `.secret_keys/.secret_ignore` on a native filesystem or mount with permissions.
 - Front proxies (FrankenPHP/Caddy, tailnet) that answer `OPTIONS` themselves must allow the `X-Core-Node-*` headers; unverified on the server.
+- ncore: `foundation/express_utils/libs/RouterManager.js` `truncateUserAgent` calls `.indexOf` on an undefined User-Agent, so a request without that header throws a TypeError (the `http_rpc` copy is guarded); `express_utils` also requires `#@gconfig`, `#@global_dir` and `#@global_vars` upward from foundation.
+- ncore: the explorer / `xdg-open` launch logic is duplicated in `launcher/app_executable_launcher.js` and `utils/systool/libs/explorer.js`; extract one shared helper.
+- ncore: about 400 `throw new Error` sites remain across ncore against the never-throw rule of `development-guides/NODE_NCORE_GUIDE.md`; the entry modules (`DualModeRunner`, `HttpRpcServer`, `SingleInstanceManager`, `docker_control`, `TampermonkeyServer`) have none.

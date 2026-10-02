@@ -10,7 +10,7 @@ use App\Services\EdgeTTS\EdgeTTSService;
 use App\Utils\FileSystemManager;
 use App\Services\AiGateway\AiGateway;
 use App\Services\TTSCacheManager;
-use App\Services\TranslationService;
+use App\Services\Translation\TranslationPromptCatalog;
 
 class VoiceSubtitleProcessor
 {
@@ -18,6 +18,8 @@ class VoiceSubtitleProcessor
     private $progressReporter;
     /** Resumable state: extracted source text, speech text and paragraphs, pycore waits by key. */
     private array $checkpoint = [];
+    /** Reason of the step failure processInput() turned into null. */
+    private string $lastError = '';
 
     public function __construct()
     {
@@ -33,6 +35,11 @@ class VoiceSubtitleProcessor
     public function checkpoint(): array
     {
         return $this->checkpoint;
+    }
+
+    public function lastError(): string
+    {
+        return $this->lastError;
     }
 
     public function setProgressReporter(?callable $reporter): void
@@ -95,6 +102,7 @@ class VoiceSubtitleProcessor
         } catch (VoiceSubtitleV1PipelineSuspended $e) {
             throw $e;
         } catch (\Exception $e) {
+            $this->lastError = $e->getMessage();
             Log::error('[VoiceSubtitleProcessor] Error processing input', [
                 'type' => $type,
                 'error' => $e->getMessage(),
@@ -537,6 +545,6 @@ class VoiceSubtitleProcessor
     private function resolveLanguageName(string $language): string
     {
         $code = strtolower(trim($language));
-        return TranslationService::LANGUAGES[$code] ?? $language;
+        return TranslationPromptCatalog::LANGUAGES[$code] ?? $language;
     }
 }

@@ -24,7 +24,7 @@ THREAD_BUS ('engine_load_status_update'); a listener is registered in
 callmodule/rpc_routes/thread_bus_routes.py. The polled endpoint is authoritative;
 the broadcast is an optimization.
 
-State is owned by one serialized worker (no locks). See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md 'Model-load progress'.
+State is owned by one serialized worker (no locks). See docs_fix/DESIGN_TTS_AI_RUNTIME.md §2 (engine load log).
 """
 
 import time

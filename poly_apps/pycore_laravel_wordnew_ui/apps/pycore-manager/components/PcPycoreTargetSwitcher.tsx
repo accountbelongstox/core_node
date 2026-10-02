@@ -27,8 +27,11 @@ import {
   type PycoreEndpoint, type PycoreProbeResult, type PycoreTarget,
 } from '@/apps/pycore-manager/api';
 import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
-import { relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
+import { isHeadlessRelayDevice, relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
+import { pcCaughtErrorMessage } from '../utils/pcErrorCodes';
 import { PYCORE_BACKEND_PORT } from '@/apps/pycore-manager/api';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { PcIndexBadge } from './PcIndexBadge';
 
 interface Props {
   variant?: 'header' | 'block';
@@ -73,8 +76,11 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const [claiming, setClaiming] = useState(false);
   const [claimNotice, setClaimNotice] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
+  // Phones show the header chip as an icon with the active endpoint's number.
+  const compact = useIsMobile() && variant === 'header';
 
   const activeEndpoint = endpoints.find((endpoint) => endpoint.url === target.url);
+  const activeIndex = endpoints.findIndex((endpoint) => endpoint.url === target.url) + 1;
   const label = activeEndpoint?.label || hostOf(target.url);
 
   const readProbes = useCallback((list: PycoreEndpoint[]) => {
@@ -174,9 +180,10 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   };
 
   const designate = (machineId: string) => {
+    setNotice('');
     void designateLaravelRelayDevice(machineId)
       .then((pair) => setDesignated(pair.device_id))
-      .catch(() => undefined); // roster stays; the pair badge explains the failure
+      .catch((error: unknown) => setNotice(pcCaughtErrorMessage(error, t('relayTarget.designateFailed'))));
   };
   const undesignate = () => {
     void clearLaravelRelayDevice()
@@ -196,7 +203,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
         const pairing = await designateLaravelRelayDevice(device.device_id);
         setDesignated(pairing.device_id);
       })
-      .catch(() => setClaimNotice(t('relayTarget.enrollmentFailed')))
+      .catch((error: unknown) => setClaimNotice(pcCaughtErrorMessage(error, t('relayTarget.enrollmentFailed'))))
       .finally(() => setClaiming(false));
   };
 
@@ -273,7 +280,8 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
       <button
         onClick={() => setOpen((v) => !v)}
         title={t('pycoreTarget.chipTitle')}
-        className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-mono font-bold transition-all ${
+        aria-label={t('pycoreTarget.chipTitle')}
+        className={`flex items-center gap-1.5 rounded-full border ${compact ? 'shrink-0 px-2' : 'px-3'} py-1.5 text-xs font-mono font-bold transition-all ${
           relayMode
             ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
             : target.kind === 'proxy'
@@ -282,9 +290,15 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
         }`}
       >
         <span className={`w-2 h-2 rounded-full ${healthDot}`} />
-        {chipIcon}
-        <span className="max-w-[140px] truncate">pycore: {label}</span>
-        {relayMode && (
+        <span className="relative inline-flex">
+          {chipIcon}
+          <PcIndexBadge
+            index={activeIndex}
+            title={t('pycoreTarget.activeIndex', { index: activeIndex, total: endpoints.length, label })}
+          />
+        </span>
+        {!compact && <span className="max-w-[140px] truncate">pycore: {label}</span>}
+        {relayMode && !compact && (
           <span
             className={`px-1.5 rounded text-[9px] font-bold uppercase ${
               designated ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
@@ -294,11 +308,11 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             {designated ? t('pycoreTarget.paired') : t('pycoreTarget.unpaired')}
           </span>
         )}
-        <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+        {!compact && <ChevronDown className="w-3.5 h-3.5 opacity-70" />}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 z-50 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-3 text-sm max-h-[75vh] overflow-y-auto">
+        <div className={`${compact ? 'fixed inset-x-2 top-14' : 'absolute right-0 mt-2 w-80'} z-50 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-3 text-sm max-h-[75vh] overflow-y-auto overflow-x-hidden`}>
           <div className="flex items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-400">
             <span className="flex items-center gap-2"><Server className="w-3.5 h-3.5" /> {t('pycoreTarget.heading')}</span>
             <button
@@ -415,6 +429,14 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                         title={entry.online ? t('relayTarget.heartbeatFresh') : t('relayTarget.heartbeatStale')}
                       />
                       {entry.label}
+                      {isHeadlessRelayDevice(entry) && (
+                        <span
+                          className="px-1 rounded text-[9px] font-bold uppercase bg-slate-500/15 text-slate-500"
+                          title={t('relayTarget.headlessTitle')}
+                        >
+                          {t('relayTarget.headless')}
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] font-mono text-slate-400 pl-4 truncate">
                       {entry.device_id} · {entry.online ? t('relayTarget.online') : t('relayTarget.offline')}

@@ -34,6 +34,7 @@ from pycore.pyutils.laravel.delivery.model import (
 )
 from pycore.pyutils.laravel.delivery.store import delivery_store
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.server_schema_gate import SCHEMA_PENDING_CODE, server_schema_gate
 
 
 class DeliveryScheduler:
@@ -114,11 +115,11 @@ class DeliveryScheduler:
             if definition.ready is not None and not definition.ready():
                 return False
             THREAD_BUS.clear_signal(wake)
-            pause = delivery_breaker.pause_seconds(kind)
+            namespaces = deliverable_namespaces(kind)
+            pause = max(delivery_breaker.pause_seconds(kind), server_schema_gate.paused_for_any(namespaces))
             if pause > 0:
                 THREAD_BUS.wait_signal(wake, timeout=pause)
                 continue
-            namespaces = deliverable_namespaces(kind)
             ready = self._unique_identities(delivery_store.list_ready(kind, definition.batch_limit, namespaces))
             if ready:
                 if definition.deliver_batch is not None:
@@ -185,8 +186,10 @@ class DeliveryScheduler:
             )
             return None
         attempts = int(claimed.get("delivery_attempts") or 0) + 1
-        delivery_store.patch(delivery_id, {"delivery_attempts": attempts, "last_attempt_at": _now(), "base_url": base_url}, owner=owner)
+        started_at = _now()
+        delivery_store.patch(delivery_id, {"delivery_attempts": attempts, "last_attempt_at": started_at, "base_url": base_url}, owner=owner)
         claimed["delivery_attempts"] = attempts
+        claimed["last_attempt_at"] = started_at
         claimed["base_url"] = base_url
         return claimed
 
@@ -257,6 +260,14 @@ class DeliveryScheduler:
         delivery_id = str(claimed.get("delivery_id") or "")
         status = str(outcome.get("status") or OUTCOME_RETRY)
         error = str(outcome.get("error") or "")
+        namespace = str(claimed.get("namespace") or "")
+        paused = server_schema_gate.paused_seconds(namespace)
+        if status == OUTCOME_RETRY and (
+            paused > 0 or server_schema_gate.server_error_since(namespace, float(claimed.get("last_attempt_at") or 0.0))
+        ):
+            # The server's failure, not the row's: no attempt, no failure.
+            delivery_store.defer(delivery_id, owner, SCHEMA_PENDING_CODE, paused or definition.retry_max_seconds, error)
+            return {"delivery_id": delivery_id, "processed": True, "success": False, "paused": True, "error": error}
         if outcome.get("server_error") or status == OUTCOME_DONE:
             delivery_breaker.note(definition.name, bool(outcome.get("server_error")))
         if status == OUTCOME_DONE:
@@ -272,7 +283,7 @@ class DeliveryScheduler:
         if status == OUTCOME_DEAD_LETTER:
             delivery_store.mark_dead_letter(delivery_id, owner, error)
         elif outcome.get("offline"):
-            delivery_store.defer_offline(delivery_id, owner, error)
+            delivery_store.defer(delivery_id, owner, ERROR_SERVER_OFFLINE, SERVER_OFFLINE_DEFER_SECONDS, error)
         else:
             retry_at = float(outcome.get("retry_at") or 0.0) or _now() + retry_delay(
                 int(claimed.get("delivery_attempts") or 1), definition.retry_initial_seconds, definition.retry_max_seconds,

@@ -7,7 +7,7 @@ pycore.pyutils.common.python_env.isolated_venv, launched by tts_service_manager.
 (production and the qwen3tts tester) -
 NEVER the main pycore interpreter, because qwen-tts owns transformer dependencies that
 conflicts with the main interpreter's ~4.46.x pin. No pycore imports here - standalone
-script. Lifecycle spec: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
+script. Lifecycle spec: docs_fix/DESIGN_TTS_AI_RUNTIME.md §6-§7.
 
 Official: https://github.com/QwenLM/Qwen3-TTS  pip install -U qwen-tts
 
@@ -28,8 +28,8 @@ Env:
   QWEN3TTS_SPEED                 - default playback-speed factor for every
                                    generation (default: the shared constant
                                    QWEN3TTS_DEFAULT_SPEED = 0.75; 1.0 = natural
-                                   speed). Slower speed also shrinks the
-                                   character budget per chunk (duration-bound).
+                                   speed). Applied once to the final waveform; it
+                                   does not change chunk budgets.
                                    A request-level "speed" overrides it per job.
   QWEN3TTS_SPEAKER               - explicit speaker pin. When unset, every
                                    TASK (job) gets ONE uniform-random voice
@@ -38,14 +38,13 @@ Env:
                                    of the task reuse that voice.
   QWEN3TTS_INSTRUCT              - optional style/emotion instruction
   QWEN3TTS_MAX_PARALLEL          - override auto GPU-tuned batch size
-  The service accepts one active job. GPU capacity is used inside that job for
-  native sentence-chunk batching; callers retain and retry additional work.
+  Jobs run from a process-local FIFO queue (QWEN3TTS_QUEUE_MAX). GPU capacity is
+  used for native sentence-chunk batching (batch size = capacity plan).
   QWEN3TTS_QUEUE_RESULT_TTL_S    - completed result retention (default 900)
   QWEN3TTS_QUEUE_RESULT_MAX      - maximum retained terminal jobs (default 200)
   QWEN3TTS_CHUNK_MAX_CHARS       - per-chunk character budget at speed 1.0
                                    (default 280, ~20s); sentence merging stays
-                                   within ~60% of it, and slower speeds shrink
-                                   the budget proportionally. Longer inputs are
+                                   within 85% of it (SENTENCE_MERGE_RATIO). Longer inputs are
                                    synthesized per sentence-sized chunk and
                                    concatenated (single-shot long text degrades
                                    into noise, QwenLM/Qwen3-TTS#258)

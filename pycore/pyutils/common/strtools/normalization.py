@@ -1,4 +1,5 @@
 import hashlib
+import html
 import re
 from typing import Any
 
@@ -18,6 +19,15 @@ def collapse_whitespace(value: str, strip: bool = True) -> str:
 
 def media_content_id(text: str) -> str:
     return hashlib.md5(collapse_whitespace(strip_punctuation(text).lower()).encode("utf-8")).hexdigest()
+
+
+def word_text(value: str) -> str:
+    """The text of a dictionary word as it is spoken: HTML entities of an
+    import that stored them undecoded (``wretch&#39;s``) become their
+    characters, whitespace is collapsed. A word with no letter or digit left
+    is "" (nothing to speak)."""
+    text = collapse_whitespace(html.unescape(value or ""))
+    return text if any(char.isalnum() for char in text) else ""
 
 
 def collapse_horizontal_whitespace(value: str, strip: bool = True) -> str:

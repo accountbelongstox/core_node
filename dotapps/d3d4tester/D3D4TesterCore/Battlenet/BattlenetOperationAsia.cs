@@ -21,6 +21,16 @@ public sealed class BattlenetOperationAsia : BattlenetOperationBase
 
     public override string Region => C.RegionAsia;
 
+    /// <summary>Asia login: email step, password step, then any other Asia login UI (combined / switch account).</summary>
+    protected override BattlenetClientState? ClassifyLoginScreen(IReadOnlyList<BattlenetControl> controls)
+    {
+        var judge = new BattlenetRegionJudge(controls);
+        if (judge.IsAsiaEmailStep()) return BattlenetClientState.LoginAsiaEmail;
+        if (judge.IsAsiaPasswordStep()) return BattlenetClientState.LoginAsiaPassword;
+        if (judge.IsAsiaLoginUi()) return BattlenetClientState.LoginAsia;
+        return null;
+    }
+
     public BattlenetAsiaOps AsiaOps => _asiaOps;
 
     /// <summary>Exact automation id, then name (excluding Playing Now / Game Version). 1:1 Python click_d3_tab.</summary>
@@ -91,7 +101,7 @@ public sealed class BattlenetOperationAsia : BattlenetOperationBase
 
     public override bool IsOnLoginScreen() => false;
 
-    public override bool IsOnAsiaLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionAsia).IsAsiaLoginUi();
+    public override bool IsOnAsiaLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight()).IsAsiaLoginUi();
 
     public bool IsOnAsiaEmailStep() => _asiaOps.IsOnAsiaEmailStep();
 
@@ -107,7 +117,7 @@ public sealed class BattlenetOperationAsia : BattlenetOperationBase
 
     public override bool PerformAsiaLoginFillAndSubmit(string? email, string? password) => _asiaOps.PerformAsiaLoginFillAndSubmit(email, password);
 
-    public override bool IsLoggedIn() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionAsia).HasAsiaMainUi();
+    public override bool IsLoggedIn() => new BattlenetRegionJudge(T.EnumerateLight()).HasAsiaMainUi();
 
     public override bool PerformCnLoginFlow(double waitAfterNetEaseSec = C.CnAfterNetEaseClickSettleSec) => false;
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { CloudOff, HardDrive, Layers, ListMusic, Plus, Play, Server, Clock } from 'lucide-react';
+import { AudioLines, CloudOff, HardDrive, Layers, ListMusic, Plus, Play, Server, Clock } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import { subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
 import { formatClockTime } from '../../utils/WordNewTimeFormat';
@@ -7,6 +7,8 @@ import { formatBytes } from '../../../../core/utils/formatBytes';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchClipStore } from '../../services/orchestration/WordNewOrchClipStore';
 import { wordNewOrchComposer } from '../../services/orchestration/WordNewOrchComposer';
+// Runs reaching `ready` publish playback editions whichever page is open.
+import '../../services/orchestration/WordNewOrchEditionStore';
 import type { OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { WordNewOrchAudioSourceBadge } from '../orch-audio/WordNewOrchAudioListPage';
 import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
@@ -17,7 +19,10 @@ import { WfNewApiCenterDialog } from '../api-center/WfNewApiCenterDialog';
 interface Props {
   theme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
+  /** The task's resources page. */
   onOpen: (taskId: string) => void;
+  /** The task's player page. */
+  onPlay: (taskId: string) => void;
 }
 
 const STATUS_CLASS: Record<OrchComposeTask['status'] | 'paused', string> = {
@@ -55,7 +60,7 @@ const TaskProgressBadge: React.FC<{ task: OrchComposeTask; trans: Props['trans']
 };
 
 /** The client compositions (device list, mirrored in Laravel) and the pycore link. */
-export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }) => {
+export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen, onPlay }) => {
   const [tasks, setTasks] = useState<OrchComposeTask[]>([]);
   const [creating, setCreating] = useState(false);
   const [showLink, setShowLink] = useState(false);
@@ -123,14 +128,14 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
       ) : (
         <ul className="space-y-2.5">
           {tasks.map((task) => (
-            <li key={task.id}>
+            <li key={task.id} className={`group flex items-center gap-2 rounded-2xl border border-slate-200 dark:border-white/5 p-3 transition-all hover:border-indigo-500/30 ${theme.cardClass}`}>
               <button
                 type="button"
                 onClick={() => onOpen(task.id)}
-                className={`group flex w-full items-start gap-3 rounded-2xl border border-slate-200 dark:border-white/5 p-4 text-left transition-all hover:border-indigo-500/30 hover:bg-slate-50 dark:hover:bg-white/[0.03] ${theme.cardClass}`}
+                className="flex min-w-0 flex-1 items-start gap-3 rounded-xl text-left"
               >
                 <span className="mt-0.5 shrink-0 rounded-xl bg-indigo-500/10 p-2.5 text-indigo-600 dark:text-indigo-300 group-hover:bg-indigo-500/20">
-                  <Play className="h-4 w-4" />
+                  <AudioLines className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1 space-y-1.5">
                   <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -154,6 +159,15 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
                     <span>{new Date(task.updatedAt).toLocaleString()}</span>
                   </span>
                 </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onPlay(task.id)}
+                aria-label={trans('orchAudio.play')}
+                title={trans('orchAudio.play')}
+                className={`shrink-0 rounded-full border p-3 shadow-md transition-transform hover:scale-105 active:scale-95 ${theme.accentBg}`}
+              >
+                <Play className="h-4 w-4 translate-x-px" />
               </button>
             </li>
           ))}

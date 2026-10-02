@@ -16,6 +16,8 @@ import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreMa
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { usePcSingleAudio } from '../hooks/usePcSingleAudio';
 import { PcAudioLaneQueueView } from './PcAudioLaneQueueView';
+import { PcLaneBlockedBadge } from './PcQueueProgress';
+import { pcCaughtErrorMessage } from '../utils/pcErrorCodes';
 import { readQueueProgress } from '../../../core/contracts/QueueProgress';
 
 export function PcWordAudioPanel(): ReactElement {
@@ -82,7 +84,7 @@ export function PcWordAudioPanel(): ReactElement {
       const source = await laravelApi.getWordAudioMediaDataUrl(row.text, row.lang);
       await playClip(source);
     } catch (error: unknown) {
-      setActionError(error instanceof Error ? error.message : t('queueCenter.wordAudioQueue.errors.playbackFailed'));
+      setActionError(pcCaughtErrorMessage(error, t('queueCenter.wordAudioQueue.errors.playbackFailed')));
     }
   }, [playClip, t]);
 
@@ -101,6 +103,7 @@ export function PcWordAudioPanel(): ReactElement {
             ? t('queueCenter.wordAudioQueue.workerState', { state: sectionWorkerLabel })
             : t('queueCenter.wordAudioQueue.workerOff')}
         </span>
+        <PcLaneBlockedBadge assist={wordLane?.assist} />
         <span className="text-[10px] text-slate-500 truncate flex-1 min-w-0">
           {t('queueCenter.wordAudioQueue.queueSummary', { pending: pending ?? '—', leased: leased ?? '—' })}
           {queueProgress?.total != null

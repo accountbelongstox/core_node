@@ -566,6 +566,12 @@
     },
     {
       "match": "exact",
+      "value": "ui/terminal/commands",
+      "profile": "terminal_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
       "value": "ui/terminal/enter",
       "profile": "terminal_action",
       "methods": [ "POST" ]
@@ -573,6 +579,12 @@
     {
       "match": "exact",
       "value": "ui/terminal/input",
+      "profile": "terminal_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/key",
       "profile": "terminal_action",
       "methods": [ "POST" ]
     },
@@ -615,6 +627,12 @@
     {
       "match": "exact",
       "value": "ui/terminal/backups/delete",
+      "profile": "terminal_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/backups/state",
       "profile": "terminal_action",
       "methods": [ "POST" ]
     },

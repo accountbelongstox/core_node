@@ -23,6 +23,8 @@ from functools import partial
 from typing import Any, Dict
 
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
+from pycore.pyutils.common.strtools.normalization import word_text
+from pycore.pyutils.tts.audio_queue_model import LOCAL_SOURCE_LEASE
 from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyutils.laravel.delivery.model import (
@@ -124,6 +126,10 @@ class AudioLaneDelivery:
     def deliver(self, handler: Any, claimed: Dict[str, Any], owner: str) -> Dict[str, Any]:
         delivery_id = str(claimed.get("delivery_id") or "")
         info = dict(claimed.get("info") or {})
+        if info.get("kind") == "word":
+            word = word_text(str(info.get("word") or info.get("text") or ""))
+            if word:
+                info["word"] = info["text"] = word
         task_id = claimed.get("task_id")
         provider = str(claimed.get("provider") or "")
         audio_path = str(claimed.get("payload_path") or "")
@@ -261,7 +267,8 @@ class AudioLaneDelivery:
                 text=(info.get("text") or "")[:120],
                 language=info.get("language") or "",
             )
-        handler._record_backend_delivery_success()
+        if not info.get("_local_source") or info.get("_local_source") == LOCAL_SOURCE_LEASE:
+            handler._record_backend_delivery_success()
         handler._log_event(
             "delivery_done",
             f"via {provider}; backend_upload={'ok' if outcome.get('domain_uploaded') else 'fallback'}; result=ok",

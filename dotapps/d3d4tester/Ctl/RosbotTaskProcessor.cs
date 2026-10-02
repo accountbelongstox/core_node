@@ -10,6 +10,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Core.D4;
 using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
@@ -173,13 +174,17 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         EventCenter.TriggerExtensionRosbotStop();
     }
 
-    /// <summary>"Ensure Battle.net only" toggle: on -> status refresh (tick runs the BN segment); off -> reset B block. 1:1 Python _ensure_battlenet_only.</summary>
-    public void ToggleEnsureBattlenetOnly()
+    /// <summary>"Ensure Battle.net" button: flips the persisted guard switch; BattlenetGuardService applies it. 1:1 Python _ensure_battlenet_only.</summary>
+    public void ToggleEnsureBattlenetOnly() =>
+        ConfigBinding.SetValue(ConfigKeys.BattlenetEnsureNormal, !RosbotFlowState.Instance.BnOnlyEnabled);
+
+    /// <summary>Apply the BN-only guard (idempotent): on -> status refresh (tick runs the BN segment); off -> reset B blocks.</summary>
+    public void SetEnsureBattlenetOnly(bool enabled)
     {
         var state = RosbotFlowState.Instance;
-        bool next = !state.BnOnlyEnabled;
-        state.SetBnOnlyEnabled(next);
-        if (next)
+        if (state.BnOnlyEnabled == enabled) return;
+        state.SetBnOnlyEnabled(enabled);
+        if (enabled)
         {
             RequestStatusRefresh();
             return;
@@ -205,8 +210,18 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
             NotifyStateSync();
             return null;
         }
+        return RefreshAllGameStatus(d3Dynamic: false);
+    }
+
+    /// <summary>
+    /// Battle.net + D3 (+ dynamic capture when d3Dynamic) + D4 running + ROSBOT into GameInterfaceData, then notify once.
+    /// Single full refresh path for the window monitor and the "refresh game status" debug action. Returns the D3 window or null.
+    /// </summary>
+    public WindowFinder.WindowInfo? RefreshAllGameStatus(bool d3Dynamic)
+    {
         BattlenetStatusProvider.Refresh();
-        var d3 = D3StatusProvider.RefreshD3Status(skipDynamic: true);
+        var d3 = D3StatusProvider.RefreshD3Status(skipDynamic: !d3Dynamic);
+        GameInterfaceData.Instance.D4.GameRunning = D4Manager.Instance.IsRunning();
         RosbotStatusProvider.Refresh();
         NotifyStateSync();
         return d3;
@@ -246,6 +261,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         if (flowMaster)
             FlowMasterDriver.Tick(flowTick, StartRosbotTask, statusPrefix);
         CheckBattlenetStuck();
+        BattlenetStateWatchdog.Tick();
     }
 
     /// <summary>

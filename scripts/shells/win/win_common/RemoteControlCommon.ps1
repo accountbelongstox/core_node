@@ -4,8 +4,12 @@
 
 .DESCRIPTION
     Windows counterpart of scripts/shells/linux/common/remote_control_common.sh.
-    Two channels, reachable only through the tailnet (100.64.0.0/10):
+    Three channels, reachable only through the tailnet (100.64.0.0/10):
+      VNC (shared desktop, DEFAULT): host = TightVNC in service mode (shares the real console, so the
+                     local and the remote user work at the same time; Windows Home too);
+                     client = TightVNC viewer (tvnviewer.exe), Remmina on Linux.
       RDP (desktop): host = built-in Remote Desktop (Pro/Enterprise/Education); client = mstsc.
+                     RDP takes over the console and locks the local screen.
       SSH (shell):   host = OpenSSH Server + the shared decrypted key (Step5_InstallGitSSH.ps1);
                      client = OpenSSH Client.
     Password = Windows sign-in password (RDP/SSH authenticate against the local account).
@@ -16,14 +20,15 @@
       https://learn.microsoft.com/windows-hardware/customize/desktop/unattend/microsoft-windows-terminalservices-localsessionmanager-fdenytsconnections
       https://support.microsoft.com/windows/how-to-use-remote-desktop-5fe128d5-8fb1-7a23-3b8a-41e636865e8c
       https://tailscale.com/kb/1095/secure-rdp-windows
+      https://www.tightvnc.com/doc/win/TightVNC_2.8_for_Windows_Installing_from_MSI.pdf
       https://tailscale.com/kb/1193/tailscale-ssh   (Tailscale SSH server: Linux/macOS only)
 
 .NOTES
-    powershell -File RemoteControlCommon.ps1 -Action Menu|Endpoints|Controller|Host|Connect|Status|Diagnose|ClaudePeer|Help
+    powershell -File RemoteControlCommon.ps1 -Action Menu|Endpoints|Controller|OneClickHost|Host|Vnc|VncReset|Connect|Status|Diagnose|ClaudePeer|Help
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('', 'Menu', 'Endpoints', 'Controller', 'Host', 'Connect', 'Status', 'Diagnose', 'ClaudePeer', 'Help')]
+    [ValidateSet('', 'Menu', 'Endpoints', 'Controller', 'OneClickHost', 'Host', 'Vnc', 'VncReset', 'Connect', 'Status', 'Diagnose', 'ClaudePeer', 'Help')]
     [string]$Action = ''
 )
 
@@ -34,12 +39,15 @@ $script:REMOTE_CONTROL_SCRIPT = $PSCommandPath
 $script:TAILSCALE_COMMON_FOR_RC = Join-Path $script:REMOTE_CONTROL_DIR 'TailscaleCommon.ps1'
 $script:INSTALL_POWERSHELLS_DIR_FOR_RC = Join-Path (Split-Path $script:REMOTE_CONTROL_DIR -Parent) 'install_powershells'
 $script:SHARED_KEY_INSTALLER = Join-Path $script:INSTALL_POWERSHELLS_DIR_FOR_RC 'Step5_InstallGitSSH.ps1'
+$script:RC_HOST_PREINSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR_FOR_RC 'Step72_InstallRemoteControlHost.ps1'
 # Claude Peer Link reuses the Claude team installer checks (account, Remote Control blockers).
 $script:CLAUDE_TEAM_INSTALL_COMMON_FOR_RC = Join-Path $script:REMOTE_CONTROL_DIR 'ClaudeTeamInstallCommon.ps1'
 . $script:TAILSCALE_COMMON_FOR_RC
+. (Join-Path $script:REMOTE_CONTROL_DIR 'NssmServiceManager.ps1')
 
 $script:RcRdpPort = 3389
 $script:RcSshPort = 22
+$script:RcVncPort = 5900
 $script:RcTailscaleCidr = '100.64.0.0/10'
 $script:RcSharedKeyName = 'id_ed25519'
 $script:RcTerminalServerKey = 'HKLM:\System\CurrentControlSet\Control\Terminal Server'
@@ -48,6 +56,7 @@ $script:RcCurrentVersionKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersio
 $script:RcMsaIdentityKey = 'HKCU:\Software\Microsoft\IdentityCRL\UserExtendedProperties'
 $script:RcRdpFirewallRules = @('RemoteDesktop-UserMode-In-TCP', 'RemoteDesktop-UserMode-In-UDP')
 $script:RcRdpTailscaleRule = 'CoreNode-RemoteControl-RDP-Tailscale'
+$script:RcVncTailscaleRule = 'CoreNode-RemoteControl-VNC-Tailscale'
 $script:RcSshFirewallRule = 'OpenSSH-Server-In-TCP'
 $script:RcSshServerCapability = 'OpenSSH.Server~~~~0.0.1.0'
 $script:RcSshClientCapability = 'OpenSSH.Client~~~~0.0.1.0'
@@ -61,6 +70,26 @@ $script:RcOpenSshRegistryKey = 'HKLM:\SOFTWARE\OpenSSH'
 $script:RcClaudePeerLogPrefix = 'claude_peer_link'
 $script:RcClaudePeerLatestLog = Join-Path $Global:LOGS_DIR ('{0}_latest.log' -f $script:RcClaudePeerLogPrefix)
 $script:RcClaudePeerSessionName = 'win-desktop'
+$script:RcVncServiceName = 'tvnserver'
+$script:RcVncWingetId = 'GlavSoft.TightVNC'
+$script:RcVncServerExeName = 'tvnserver.exe'
+$script:RcVncViewerExeName = 'tvnviewer.exe'
+$script:RcVncInstallDirs = @(@($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { Join-Path $_ 'TightVNC' })
+$script:RcVncRegistryKey64 = 'HKLM:\SOFTWARE\TightVNC\Server'
+$script:RcVncRegistryKey32 = 'HKLM:\SOFTWARE\WOW6432Node\TightVNC\Server'
+$script:RcVncServerMsiProperties = @('ADDLOCAL=Server,Viewer', 'SERVER_REGISTER_AS_SERVICE=1', 'SERVER_ALLOW_SAS=1', 'SERVER_ADD_FIREWALL_EXCEPTION=0', 'SET_USEVNCAUTHENTICATION=1', 'VALUE_OF_USEVNCAUTHENTICATION=1')
+$script:RcVncViewerMsiProperties = @('ADDLOCAL=Viewer')
+$script:RcVncPasswordLength = 8
+$script:RcVncPasswordChars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+$script:RcVncDesKey = [byte[]](0xE8, 0x4A, 0xD6, 0x60, 0xC4, 0x72, 0x1A, 0xE0)
+$script:RcVncWaitSeconds = 15
+$script:RcAppCompatLayersKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers'
+$script:RcDpiAwareFlag = 'HIGHDPIAWARE'
+$script:RcVncViewerScale = 'auto'
+$script:RcPortProbeTimeoutMs = 3000
+$script:RcModeVnc = 'vnc'
+$script:RcModeRdp = 'rdp'
+$script:RcModeSsh = 'ssh'
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -172,6 +201,257 @@ function Invoke-RemoteControlElevated {
 }
 
 # ---------------------------------------------------------------------------
+# VNC helpers (TightVNC; shared console desktop, default channel)
+# ---------------------------------------------------------------------------
+
+function Find-RemoteControlVncExe {
+    param([Parameter(Mandatory = $true)][string]$ExeName)
+    $candidate = ''
+
+    foreach ($dir in $script:RcVncInstallDirs) {
+        $candidate = Join-Path $dir $ExeName
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    return $null
+}
+
+# 32-bit TightVNC (Program Files (x86)) keeps its settings under WOW6432Node.
+function Get-RemoteControlVncRegistryKey {
+    $serverExe = Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName
+    $programFilesX86 = ${env:ProgramFiles(x86)}
+
+    if ($null -ne $serverExe -and -not [string]::IsNullOrWhiteSpace($programFilesX86) -and
+        $env:ProgramFiles -ne $programFilesX86 -and $serverExe.StartsWith($programFilesX86, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $script:RcVncRegistryKey32
+    }
+    return $script:RcVncRegistryKey64
+}
+
+# Installs TightVNC through winget with the given MSI properties (passed with --custom, so the
+# installer defaults stay). No secret is ever put on this command line (winget logs it).
+function Install-RemoteControlVncPackage {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$MsiProperties,
+        [switch]$Force
+    )
+    $wingetArgs = @('install', '--id', $script:RcVncWingetId, '-e', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--custom', ($MsiProperties -join ' '))
+
+    if (-not (Ensure-Winget -RepoRootDir $Global:PROJECT_DIR)) {
+        Write-ColorMessage -Message '  winget is unavailable; cannot install TightVNC automatically.' -Type 'Error'
+        return
+    }
+    if ($Force) { $wingetArgs += '--force' }
+    Write-ColorMessage -Message "  Installing TightVNC via winget ($script:RcVncWingetId) ..." -Type 'Info'
+    & winget.exe @wingetArgs | Out-Host
+    Update-SessionPathFromRegistry
+}
+
+# Viewer for the client side; reuses an existing install (Server+Viewer or Viewer only).
+function Install-RemoteControlVncViewer {
+    if ($null -ne (Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName)) { return }
+    Install-RemoteControlVncPackage -MsiProperties $script:RcVncViewerMsiProperties
+}
+
+# Server for the host side; a viewer-only install is upgraded in place (--force) to Server+Viewer.
+function Install-RemoteControlVncServer {
+    $viewerOnly = $null -ne (Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName)
+
+    if ($null -ne (Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName)) { return }
+    Install-RemoteControlVncPackage -MsiProperties $script:RcVncServerMsiProperties -Force:$viewerOnly
+}
+
+# Random default shown once on the console; unbiased pick from the unambiguous character set.
+function New-RemoteControlVncRandomPassword {
+    $chars = $script:RcVncPasswordChars
+    $limit = 256 - (256 % $chars.Length)
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $buffer = New-Object byte[] 1
+    $result = ''
+
+    try {
+        while ($result.Length -lt $script:RcVncPasswordLength) {
+            $rng.GetBytes($buffer)
+            if ($buffer[0] -lt $limit) { $result += $chars[$buffer[0] % $chars.Length] }
+        }
+    } finally {
+        $rng.Dispose()
+    }
+    return $result
+}
+
+# VNC authentication uses at most 8 printable ASCII characters; typed in plain text (VNC passwords are low-entropy shared secrets).
+function Read-RemoteControlVncPassword {
+    $generated = New-RemoteControlVncRandomPassword
+    $plain = ''
+
+    Write-ColorMessage -Message "  Suggested VNC password: $generated" -Type 'Warning'
+    while ($true) {
+        $plain = [string](Read-Host -Prompt "  VNC password (max $script:RcVncPasswordLength printable ASCII chars; Enter = use $generated)")
+        if ($plain.Length -eq 0) { return $generated }
+        if ($plain -notmatch '^[ -~]+$') {
+            Write-ColorMessage -Message '  Use printable ASCII characters only.' -Type 'Error'
+            continue
+        }
+        if ($plain.Length -gt $script:RcVncPasswordLength) {
+            Write-ColorMessage -Message "  VNC authentication ignores characters past $script:RcVncPasswordLength; the password was truncated." -Type 'Warning'
+            $plain = $plain.Substring(0, $script:RcVncPasswordLength)
+        }
+        return $plain
+    }
+}
+
+# TightVNC stores the password as 8 bytes: DES-ECB of the zero-padded password with the fixed VNC key.
+function Invoke-RemoteControlVncDes {
+    param([Parameter(Mandatory = $true)][byte[]]$Block, [switch]$Decrypt)
+    $des = New-Object System.Security.Cryptography.DESCryptoServiceProvider
+    $transform = $null
+
+    $des.Mode = [System.Security.Cryptography.CipherMode]::ECB
+    $des.Padding = [System.Security.Cryptography.PaddingMode]::None
+    $des.Key = $script:RcVncDesKey
+    $des.IV = New-Object byte[] 8
+    $transform = if ($Decrypt) { $des.CreateDecryptor() } else { $des.CreateEncryptor() }
+    try {
+        return ,$transform.TransformFinalBlock($Block, 0, 8)
+    } finally {
+        $transform.Dispose()
+        $des.Dispose()
+    }
+}
+
+function ConvertTo-RemoteControlVncPasswordBytes {
+    param([Parameter(Mandatory = $true)][string]$Password)
+    $plainBytes = New-Object byte[] 8
+
+    [System.Text.Encoding]::ASCII.GetBytes($Password.Substring(0, [Math]::Min($Password.Length, 8))).CopyTo($plainBytes, 0)
+    return ,(Invoke-RemoteControlVncDes -Block $plainBytes)
+}
+
+# Current VNC password from the TightVNC registry value ('' when not configured).
+function Get-RemoteControlVncPassword {
+    $settings = Get-ItemProperty -Path (Get-RemoteControlVncRegistryKey) -ErrorAction SilentlyContinue
+    $plainBytes = $null
+
+    if ($null -eq $settings -or $null -eq $settings.PSObject.Properties['Password'] -or @($settings.Password).Count -ne 8) { return '' }
+    $plainBytes = Invoke-RemoteControlVncDes -Block ([byte[]]$settings.Password) -Decrypt
+    return ([System.Text.Encoding]::ASCII.GetString($plainBytes)).TrimEnd([char]0)
+}
+
+# Display scaling > 100% makes a DPI-unaware tvnserver capture a virtualized (partial) screen;
+# the compatibility layer makes it capture the full physical framebuffer. True when changed.
+function Set-RemoteControlVncDpiAware {
+    $changed = $false
+    $current = ''
+    $exePath = ''
+
+    if (-not (Test-Path -LiteralPath $script:RcAppCompatLayersKey)) { New-Item -Path $script:RcAppCompatLayersKey -Force | Out-Null }
+    foreach ($exeName in @($script:RcVncServerExeName, $script:RcVncViewerExeName)) {
+        $exePath = Find-RemoteControlVncExe -ExeName $exeName
+        if ($null -eq $exePath) { continue }
+        $current = Get-RemoteControlAppCompatLayer -ExePath $exePath
+        if ($current -match $script:RcDpiAwareFlag) { continue }
+        Set-ItemProperty -Path $script:RcAppCompatLayersKey -Name $exePath -Value ($(if ([string]::IsNullOrWhiteSpace($current)) { "~ $script:RcDpiAwareFlag" } else { "$current $script:RcDpiAwareFlag" })) -Type String
+        $changed = $true
+    }
+    return $changed
+}
+
+# Compatibility layers of one executable ('' when none).
+function Get-RemoteControlAppCompatLayer {
+    param([Parameter(Mandatory = $true)][string]$ExePath)
+    $layers = Get-ItemProperty -Path $script:RcAppCompatLayersKey -ErrorAction SilentlyContinue
+
+    if ($null -eq $layers -or $null -eq $layers.PSObject.Properties[$ExePath]) { return '' }
+    return [string]$layers.PSObject.Properties[$ExePath].Value
+}
+
+function Test-RemoteControlVncDpiAware {
+    $exePath = Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName
+
+    if ($null -eq $exePath) { return $false }
+    return ((Get-RemoteControlAppCompatLayer -ExePath $exePath) -match $script:RcDpiAwareFlag)
+}
+
+function Test-RemoteControlVncConfigured {
+    $settings = Get-ItemProperty -Path (Get-RemoteControlVncRegistryKey) -ErrorAction SilentlyContinue
+
+    if ($null -eq $settings) { return $false }
+    if ($null -eq $settings.PSObject.Properties['Password'] -or $null -eq $settings.PSObject.Properties['UseVncAuthentication']) { return $false }
+    return ($settings.UseVncAuthentication -eq 1 -and @($settings.Password).Count -gt 0)
+}
+
+# Writes the VNC authentication settings; the service must be stopped by the caller.
+function Set-RemoteControlVncConfig {
+    param([Parameter(Mandatory = $true)][string]$Password)
+    $key = Get-RemoteControlVncRegistryKey
+    $passwordBytes = ConvertTo-RemoteControlVncPasswordBytes -Password $Password
+
+    if (-not (Test-Path -LiteralPath $key)) { New-Item -Path $key -Force | Out-Null }
+    Set-ItemProperty -Path $key -Name 'UseVncAuthentication' -Value 1 -Type DWord
+    Set-ItemProperty -Path $key -Name 'UseControlAuthentication' -Value 1 -Type DWord
+    Set-ItemProperty -Path $key -Name 'AcceptRfbConnections' -Value 1 -Type DWord
+    Set-ItemProperty -Path $key -Name 'AcceptHttpConnections' -Value 0 -Type DWord
+    Set-ItemProperty -Path $key -Name 'Password' -Value $passwordBytes -Type Binary
+    Set-ItemProperty -Path $key -Name 'ControlPassword' -Value $passwordBytes -Type Binary
+}
+
+# True when the TCP connect to the peer succeeds within the probe timeout.
+function Test-RemoteControlPeerPort {
+    param(
+        [Parameter(Mandatory = $true)][string]$Address,
+        [Parameter(Mandatory = $true)][int]$Port
+    )
+    $client = New-Object System.Net.Sockets.TcpClient
+    $pending = $null
+
+    try {
+        $pending = $client.BeginConnect($Address, $Port, $null, $null)
+        if (-not $pending.AsyncWaitHandle.WaitOne($script:RcPortProbeTimeoutMs, $false)) { return $false }
+        $client.EndConnect($pending)
+        return $client.Connected
+    } catch {
+        return $false
+    } finally {
+        $client.Close()
+    }
+}
+
+function Show-RemoteControlVncConnectHint {
+    $selfIp = Get-RemoteControlSelfIPv4
+    $password = Get-RemoteControlVncPassword
+
+    Write-Host ''
+    Write-ColorMessage -Message '== Connect to this PC ==' -Type 'Info'
+    Write-Host "  Address:      ${selfIp}:$script:RcVncPort  (VNC, shared desktop: the local user keeps working)"
+    Write-Host "  VNC password: $(if ([string]::IsNullOrWhiteSpace($password)) { 'not set' } else { $password })"
+    Write-Host ''
+    Write-ColorMessage -Message '== Linux setup (Debian/Ubuntu, once) ==' -Type 'Info'
+    Write-Host '  1. Join the same tailnet:   dd.sh > Linux System Tools > [T] Tailscale > Install / Repair, then Login'
+    Write-Host '                              (manual: curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up)'
+    Write-Host '  2. Install the VNC client:  dd.sh > Linux System Tools > Management & Backup > Remote control > Install clients'
+    Write-Host '                              (manual: sudo apt install remmina remmina-plugin-vnc)'
+    Write-Host "  3. Connect:                 dd.sh > ... > Remote Control > Connect to a peer   (manual: remmina -c vnc://${selfIp}:$script:RcVncPort)"
+    Write-Host '  4. Enter the VNC password above when Remmina asks.'
+    Write-Host ''
+    Write-Host "  From Windows: tvnviewer.exe -host=${selfIp}::$script:RcVncPort -scale=$script:RcVncViewerScale"
+    Write-Host ''
+    Write-ColorMessage -Message '== Full screen / scaling ==' -Type 'Info'
+    Write-Host "  This PC sends its own desktop ($(Get-RemoteControlScreenSize)); TightVNC cannot resize it to the viewer."
+    Write-Host '  Remmina: profiles from dd.sh open full screen + scaled to fit (scale=1, viewmode=4);'
+    Write-Host '           toggle in a session: Right Ctrl+S = scaled mode, Right Ctrl+F = full screen.'
+    Write-Host '           repair saved profiles: dd.sh > ... > Remote control > Fix VNC full screen + scaling.'
+    Write-Host '  Text too small: lower this PC''s Settings > System > Display > Scale or resolution; the VNC image follows.'
+}
+
+# Physical size of the primary screen (what VNC sends).
+function Get-RemoteControlScreenSize {
+    $mode = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.CurrentHorizontalResolution } | Select-Object -First 1
+
+    if ($null -eq $mode) { return 'unknown size' }
+    return ('{0}x{1}' -f $mode.CurrentHorizontalResolution, $mode.CurrentVerticalResolution)
+}
+
+# ---------------------------------------------------------------------------
 # 1) Endpoints
 # ---------------------------------------------------------------------------
 
@@ -184,11 +464,18 @@ function Show-RemoteControlEndpoints {
     foreach ($peer in $peers) {
         if ($peer.Self -or ($script:RcConnectOsNames -notcontains $peer.OS.ToLower())) { continue }
         Write-Host "  $($peer.HostName) [$($peer.OS.ToLower())]"
-        Write-Host "    From Windows: mstsc /v:$($peer.IPv4)   |   ssh <user>@$($peer.IPv4)"
-        Write-Host "    From Linux:   xfreerdp3 /v:$($peer.IPv4) /u:<user> /dynamic-resolution +clipboard /cert:tofu   |   ssh <user>@$($peer.IPv4)"
+        if ($peer.OS.ToLower() -eq 'windows') {
+            Write-Host "    From Windows: tvnviewer.exe -host=$($peer.IPv4)::$script:RcVncPort (VNC shared desktop, default)   |   mstsc /v:$($peer.IPv4) (RDP, locks the local screen)   |   ssh <user>@$($peer.IPv4)"
+            Write-Host "    From Linux:   remmina -c vnc://$($peer.IPv4):$script:RcVncPort (VNC shared desktop, default)   |   xfreerdp3 /v:$($peer.IPv4) /u:<user> /dynamic-resolution +clipboard /cert:tofu (RDP)   |   ssh <user>@$($peer.IPv4)"
+        } else {
+            Write-Host "    From Windows: mstsc /v:$($peer.IPv4)   |   ssh <user>@$($peer.IPv4)"
+            Write-Host "    From Linux:   xfreerdp3 /v:$($peer.IPv4) /u:<user> /dynamic-resolution +clipboard /cert:tofu   |   ssh <user>@$($peer.IPv4)"
+        }
     }
     Write-Host ''
-    Write-ColorMessage -Message "This machine accepts: RDP $script:RcRdpPort (Windows sign-in password), SSH $script:RcSshPort (shared key or password)." -Type 'Info'
+    Write-ColorMessage -Message "Connect from Linux to a Windows peer: remmina -c vnc://<ip>:$script:RcVncPort  (menu: dd.sh > Linux System Tools > Management & Backup > Remote Control > Connect to a peer)" -Type 'Info'
+    Write-ColorMessage -Message "This machine accepts: VNC $script:RcVncPort (VNC password, shared desktop, default), RDP $script:RcRdpPort (Windows sign-in password, locks the local screen), SSH $script:RcSshPort (shared key or password)." -Type 'Info'
+    Show-RemoteControlViewerScalingHint
 }
 
 # ---------------------------------------------------------------------------
@@ -198,32 +485,127 @@ function Show-RemoteControlEndpoints {
 function Enable-RemoteControlClient {
     $mstsc = Join-Path $env:WINDIR 'System32\mstsc.exe'
     $sshCommand = $null
+    $vncViewer = $null
 
     Write-ColorMessage -Message '== Enable remote-control client (this machine -> Linux/Windows) ==' -Type 'Info'
     if (-not $Global:IS_RUN_ADMIN) { Invoke-RemoteControlElevated -ElevatedAction 'Controller'; return }
+    Install-RemoteControlVncViewer
+    $vncViewer = Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName
+    if ($null -ne $vncViewer -and (Set-RemoteControlVncDpiAware)) {
+        Write-ColorMessage -Message '  TightVNC viewer marked DPI-aware (sharp scaling with display scaling > 100%).' -Type 'Success'
+    }
     Install-RemoteControlCapability -Name $script:RcSshClientCapability
     [void](Confirm-RemoteControlSharedKey)
     $sshCommand = Get-Command -Name 'ssh.exe' -ErrorAction SilentlyContinue
+    Write-ColorMessage -Message "  VNC viewer (default for Windows peers): $(if ($null -ne $vncViewer) { $vncViewer } else { 'not found (TightVNC install failed; see the messages above)' })" -Type 'Info'
     Write-ColorMessage -Message "  RDP client: $(if (Test-Path -LiteralPath $mstsc) { $mstsc } else { 'not found' })" -Type 'Info'
     Write-ColorMessage -Message "  SSH client: $(if ($null -ne $sshCommand) { $sshCommand.Source } else { 'not found (reopen the console after install)' })" -Type 'Info'
     Write-ColorMessage -Message "  Shared key: $(if ($null -ne (Find-RemoteControlSharedKey)) { Find-RemoteControlSharedKey } else { 'not installed (password login only)' })" -Type 'Info'
     if ((Get-TailscaleQuickStateLabel) -ne $script:TailscaleRunningState) {
         Write-ColorMessage -Message 'Tailscale is not connected; use Login in the Tailscale menu.' -Type 'Warning'
     }
-    Write-ColorMessage -Message 'Remote Linux must allow control: dd.sh > Linux System Tools > [T] Tailscale > Remote Control > Allow remote control of this machine.' -Type 'Info'
+    Write-ColorMessage -Message 'Remote Linux must allow control: dd.sh > Linux System Tools > Management & Backup > One-click: allow remote control of this machine.' -Type 'Info'
+    Show-RemoteControlViewerScalingHint
+}
+
+# Viewer-side display hint shared by client setup, connect and endpoints.
+function Show-RemoteControlViewerScalingHint {
+    Write-ColorMessage -Message "  VNC display: the viewer opens scaled to fit (-scale=$script:RcVncViewerScale); Ctrl+Alt+Shift+F toggles full screen; the remote resolution cannot follow the window (TightVNC)." -Type 'Info'
+    Write-ColorMessage -Message '  Only part of the remote screen visible (no scroll bars): run the one-click on that PC (marks TightVNC DPI-aware).' -Type 'Info'
 }
 
 # ---------------------------------------------------------------------------
 # 3) Host: allow remote control of this machine
 # ---------------------------------------------------------------------------
 
+# TightVNC in service mode shares the real console desktop, so the local and the remote user work
+# at the same time (RDP locks the local screen). Idempotent: an installed server is never reinstalled;
+# the password is (re)applied only on first setup or when the user asks for a reset.
+function Enable-RemoteControlVncHost {
+    param([switch]$ResetPassword, [switch]$KeepPassword, [switch]$NoConnectHint)
+    $serverExe = $null
+    $service = $null
+    $answer = ''
+    $password = ''
+    $applyPassword = $false
+    $waited = 0
+
+    Write-ColorMessage -Message '-- VNC shared desktop (TightVNC service; default, simultaneous local + remote) --' -Type 'Info'
+    Install-RemoteControlVncServer
+    $serverExe = Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName
+    if ($null -eq $serverExe) {
+        Write-ColorMessage -Message "  $script:RcVncServerExeName not found after install; run: winget install --id $script:RcVncWingetId -e" -Type 'Error'
+        return
+    }
+    $service = Get-Service -Name $script:RcVncServiceName -ErrorAction SilentlyContinue
+    if ($null -eq $service) {
+        & $serverExe -install -silent | Out-Null
+        $service = Get-Service -Name $script:RcVncServiceName -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $service) {
+        Write-ColorMessage -Message "  Service $script:RcVncServiceName could not be registered; run: `"$serverExe`" -install -silent" -Type 'Error'
+        return
+    }
+
+    $applyPassword = $ResetPassword.IsPresent -or -not (Test-RemoteControlVncConfigured)
+    if ($KeepPassword -and -not $applyPassword) {
+        Write-ColorMessage -Message '  VNC password already configured; kept (change it: Remote Control > Reset VNC password).' -Type 'Info'
+    } elseif (-not $applyPassword) {
+        $answer = Read-Host '  VNC password is already configured; reset it? [y/N]'
+        $applyPassword = ($answer -match '^(?i)y')
+    }
+    if ($applyPassword) {
+        $password = Read-RemoteControlVncPassword
+        Stop-Service -Name $script:RcVncServiceName -Force -ErrorAction SilentlyContinue
+        Set-RemoteControlVncConfig -Password $password
+        Write-ColorMessage -Message "  VNC password applied: $password" -Type 'Success'
+    }
+
+    if (Set-RemoteControlVncDpiAware) {
+        Write-ColorMessage -Message '  TightVNC marked DPI-aware (full-screen capture with display scaling > 100%).' -Type 'Success'
+        if ((Get-Service -Name $script:RcVncServiceName).Status -eq 'Running') { Restart-Service -Name $script:RcVncServiceName -Force -ErrorAction SilentlyContinue }
+    }
+    if ($service.StartType -ne 'Automatic') { Set-Service -Name $script:RcVncServiceName -StartupType 'Automatic' }
+    if ((Get-Service -Name $script:RcVncServiceName).Status -ne 'Running') { Start-Service -Name $script:RcVncServiceName -ErrorAction SilentlyContinue }
+
+    if (-not (Get-NetFirewallRule -Name $script:RcVncTailscaleRule -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -Name $script:RcVncTailscaleRule -DisplayName 'VNC shared desktop (Tailscale)' -Enabled True -Direction Inbound `
+            -Protocol TCP -LocalPort $script:RcVncPort -RemoteAddress $script:RcTailscaleCidr -Action Allow -Profile Any | Out-Null
+    } else {
+        Get-NetFirewallRule -Name $script:RcVncTailscaleRule | Enable-NetFirewallRule
+    }
+
+    while (-not (Test-RemoteControlPortListening -Port $script:RcVncPort) -and $waited -lt $script:RcVncWaitSeconds) {
+        Start-Sleep -Seconds 1
+        $waited++
+    }
+    if ((Get-Service -Name $script:RcVncServiceName).Status -eq 'Running' -and (Test-RemoteControlPortListening -Port $script:RcVncPort)) {
+        Write-ColorMessage -Message "  TightVNC service running (Automatic) and listening on $script:RcVncPort (firewall open for $script:RcTailscaleCidr only)." -Type 'Success'
+        if (-not $NoConnectHint) { Show-RemoteControlVncConnectHint }
+    } else {
+        Write-ColorMessage -Message "  Service $script:RcVncServiceName is not running or port $script:RcVncPort is NOT listening; check services.msc > TightVNC Server." -Type 'Error'
+    }
+}
+
+function Enable-RemoteControlVncChannel {
+    Write-ColorMessage -Message "== Allow VNC shared-desktop access (user $env:USERNAME) ==" -Type 'Info'
+    if (-not $Global:IS_RUN_ADMIN) { Invoke-RemoteControlElevated -ElevatedAction 'Vnc'; return }
+    Enable-RemoteControlVncHost
+}
+
+function Reset-RemoteControlVncPassword {
+    Write-ColorMessage -Message '== Reset VNC password ==' -Type 'Info'
+    if (-not $Global:IS_RUN_ADMIN) { Invoke-RemoteControlElevated -ElevatedAction 'VncReset'; return }
+    Enable-RemoteControlVncHost -ResetPassword
+}
+
 function Enable-RemoteControlRdpHost {
     $msAccount = ''
     $termService = $null
 
-    Write-ColorMessage -Message '-- Remote Desktop (RDP) --' -Type 'Info'
+    Write-ColorMessage -Message '-- Remote Desktop (RDP; secondary channel, locks the local screen) --' -Type 'Info'
     if (-not (Test-RemoteControlRdpHostSupported)) {
-        Write-ColorMessage -Message 'Windows Home cannot host Remote Desktop; SSH (below) and RustDesk still work.' -Type 'Warning'
+        Write-ColorMessage -Message 'Windows Home cannot host Remote Desktop; VNC (above) and SSH (below) still work.' -Type 'Warning'
         Write-ColorMessage -Message '  To get RDP: Settings > System > Activation > Upgrade your edition of Windows.' -Type 'Info'
         return
     }
@@ -289,28 +671,74 @@ function Enable-RemoteControlSshHost {
 }
 
 function Enable-RemoteControlHost {
+    $vncListening = $false
     $rdpListening = $false
     $sshListening = $false
 
     Write-ColorMessage -Message "== Allow remote control of this machine (user $env:USERNAME) ==" -Type 'Info'
     if (-not $Global:IS_RUN_ADMIN) { Invoke-RemoteControlElevated -ElevatedAction 'Host'; return }
+    Enable-RemoteControlVncHost
+    Write-Host ''
     Enable-RemoteControlRdpHost
     Write-Host ''
     Enable-RemoteControlSshHost
     Write-Host ''
+    $vncListening = Test-RemoteControlPortListening -Port $script:RcVncPort
     $rdpListening = Test-RemoteControlPortListening -Port $script:RcRdpPort
     $sshListening = Test-RemoteControlPortListening -Port $script:RcSshPort
     Write-ColorMessage -Message '== Verification (safe to re-run; every step above is idempotent) ==' -Type 'Info'
+    Write-Host "  VNC $script:RcVncPort listening (default, shared desktop): $(if ($vncListening) { 'yes' } else { 'no' })"
     Write-Host "  RDP $script:RcRdpPort listening: $(if ($rdpListening) { 'yes' } else { 'no' })"
     Write-Host "  SSH $script:RcSshPort listening:  $(if ($sshListening) { 'yes' } else { 'no' })"
     Write-Host "  Tailscale IPv4:   $(Get-RemoteControlSelfIPv4)"
-    if (-not $rdpListening -and -not $sshListening) {
-        Write-ColorMessage -Message 'Neither channel is up; see the messages above and Help for manual steps.' -Type 'Error'
+    if (-not $vncListening -and -not $rdpListening -and -not $sshListening) {
+        Write-ColorMessage -Message 'No channel is up; see the messages above and Help for manual steps.' -Type 'Error'
         return
     }
     Write-Host ''
-    Write-ColorMessage -Message "Connect from Linux: dd.sh > [T] Tailscale > Remote Control > Connect to a peer (or: xfreerdp3 /v:$(Get-RemoteControlSelfIPv4) /u:$env:USERNAME /dynamic-resolution +clipboard /cert:tofu)" -Type 'Info'
+    Write-ColorMessage -Message "Connect from Linux: dd.sh > Linux System Tools > Management & Backup > Remote Control > Connect to a peer (or: remmina -c vnc://$(Get-RemoteControlSelfIPv4):$script:RcVncPort ; RDP alternative: xfreerdp3 /v:$(Get-RemoteControlSelfIPv4) /u:$env:USERNAME /dynamic-resolution +clipboard /cert:tofu)" -Type 'Info'
+    Write-ColorMessage -Message 'RDP takes over the console and locks the local screen; use VNC when the local and the remote user must work at the same time.' -Type 'Info'
     Write-ColorMessage -Message 'If a step could not be automated, see Help for the manual UI steps.' -Type 'Info'
+}
+
+# One-click host body (run elevated by the pre-install Step72_InstallRemoteControlHost.ps1):
+# Tailscale + VNC shared desktop + SSH. RDP is left as it is, so Linux viewers share the console.
+function Install-RemoteControlSharedDesktopHost {
+    $installInfo = $null
+    $summary = $null
+    $vncListening = $false
+    $sshListening = $false
+    $selfIp = ''
+
+    Write-ColorMessage -Message "== One-click: allow remote control of this machine (VNC shared desktop, user $env:USERNAME) ==" -Type 'Info'
+    Write-ColorMessage -Message '-- Tailscale --' -Type 'Info'
+    if (Install-TailscaleWinget) {
+        $installInfo = Get-TailscaleInstallInfo
+        $summary = Get-TailscaleStatusSummary -TailscaleExe $installInfo.ExePath
+        if ($summary.BackendState -ne $script:TailscaleRunningState) { [void](Invoke-TailscaleLogin) }
+    }
+    Write-Host ''
+    Enable-RemoteControlVncHost -KeepPassword -NoConnectHint
+    Write-Host ''
+    Enable-RemoteControlSshHost
+    Write-Host ''
+    $vncListening = Test-RemoteControlPortListening -Port $script:RcVncPort
+    $sshListening = Test-RemoteControlPortListening -Port $script:RcSshPort
+    $selfIp = Get-RemoteControlSelfIPv4
+    Write-ColorMessage -Message '== Verification (safe to re-run; every step above is idempotent) ==' -Type 'Info'
+    Write-Host "  VNC $script:RcVncPort listening (shared desktop): $(if ($vncListening) { 'yes' } else { 'no' })"
+    Write-Host "  SSH $script:RcSshPort listening:                  $(if ($sshListening) { 'yes' } else { 'no' })"
+    Write-Host "  Tailscale IPv4:                   $selfIp"
+    if (-not $vncListening) {
+        Write-ColorMessage -Message 'VNC is not up; see the messages above, then Remote Control > Diagnostics.' -Type 'Error'
+        return
+    }
+    Show-RemoteControlVncConnectHint
+}
+
+# Menu entry: delegates to the pre-install script, which elevates itself when needed.
+function Enable-RemoteControlOneClickHost {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:RC_HOST_PREINSTALL_SCRIPT
 }
 
 # ---------------------------------------------------------------------------
@@ -344,28 +772,79 @@ function Connect-RemoteControlSsh {
     & ssh.exe @sshArgs
 }
 
+function Connect-RemoteControlVnc {
+    param([string]$Address)
+    $viewer = Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName
+
+    Write-ColorMessage -Message "$script:RcVncViewerExeName -host=${Address}::$script:RcVncPort -scale=$script:RcVncViewerScale" -Type 'Info'
+    Start-Process -FilePath $viewer -ArgumentList @("-host=${Address}::$script:RcVncPort", "-scale=$script:RcVncViewerScale") | Out-Null
+    Show-RemoteControlViewerScalingHint
+}
+
 function Connect-RemoteControlPeer {
     $peers = @(Get-RemoteControlPeers)
     $choice = ''
     $address = ''
     $userName = ''
+    $modeAnswer = ''
     $mode = ''
+    $peerOs = ''
+    $modeOrder = @()
+    $modePorts = @{ $script:RcModeVnc = $script:RcVncPort; $script:RcModeRdp = $script:RcRdpPort; $script:RcModeSsh = $script:RcSshPort }
+    $modeLabels = @{ $script:RcModeVnc = 'VNC shared desktop'; $script:RcModeRdp = 'RDP desktop'; $script:RcModeSsh = 'SSH shell' }
+    $resolved = ''
+    $matchedPeer = $null
 
     Show-RemoteControlPeerTable -Peers $peers
     if ($peers.Count -eq 0) { return }
     $choice = Read-Host 'Peer number (or a Tailscale IP)'
     if ($choice -match '^\d+$' -and [int]$choice -lt $peers.Count) {
         $address = $peers[[int]$choice].IPv4
+        $peerOs = $peers[[int]$choice].OS.ToLower()
     } elseif ($choice.StartsWith('100.')) {
         $address = $choice.Trim()
+        $matchedPeer = @($peers | Where-Object { $_.IPv4 -eq $address }) | Select-Object -First 1
+        if ($null -ne $matchedPeer) { $peerOs = $matchedPeer.OS.ToLower() }
     } else {
         Write-ColorMessage -Message 'Invalid selection.' -Type 'Error'
         return
     }
+
+    if ($peerOs -eq 'linux') {
+        $modeOrder = @($script:RcModeRdp, $script:RcModeSsh)
+        $modeAnswer = Read-Host 'Mode: [1] RDP desktop  [2] SSH shell  [1]'
+    } else {
+        $modeOrder = @($script:RcModeVnc, $script:RcModeRdp, $script:RcModeSsh)
+        $modeAnswer = Read-Host 'Mode: [1] VNC shared desktop (local + remote at once)  [2] RDP desktop (locks the local screen)  [3] SSH shell  [1]'
+    }
+    $mode = $modeOrder[0]
+    if ($modeAnswer -match '^\d+$' -and [int]$modeAnswer -ge 1 -and [int]$modeAnswer -le $modeOrder.Count) { $mode = $modeOrder[[int]$modeAnswer - 1] }
+
+    foreach ($candidate in (@($mode) + @($modeOrder | Where-Object { $_ -ne $mode }))) {
+        if ($candidate -eq $script:RcModeVnc -and $null -eq (Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName)) {
+            Write-ColorMessage -Message "  $($modeLabels[$candidate]): TightVNC viewer not installed here; run 'Enable this machine to control remote' first." -Type 'Warning'
+            continue
+        }
+        if (-not (Test-RemoteControlPeerPort -Address $address -Port $modePorts[$candidate])) {
+            Write-ColorMessage -Message "  $($modeLabels[$candidate]): $address port $($modePorts[$candidate]) is not reachable (peer offline, service not enabled, or firewall); on the peer run 'Allow remote control of this machine'." -Type 'Warning'
+            continue
+        }
+        $resolved = $candidate
+        break
+    }
+    if ($resolved -eq '') {
+        Write-ColorMessage -Message "No channel of $address is reachable; check Tailscale, then enable remote control on that machine." -Type 'Error'
+        return
+    }
+    if ($resolved -ne $mode) { Write-ColorMessage -Message "  Falling back to $($modeLabels[$resolved]) (requested: $($modeLabels[$mode]))." -Type 'Warning' }
+
+    if ($resolved -eq $script:RcModeVnc) {
+        Connect-RemoteControlVnc -Address $address
+        return
+    }
     $userName = Read-Host "Remote username [$env:USERNAME]"
     if ([string]::IsNullOrWhiteSpace($userName)) { $userName = $env:USERNAME }
-    $mode = Read-Host 'Mode: [1] RDP desktop  [2] SSH shell  [1]'
-    if ($mode -eq '2') {
+    if ($resolved -eq $script:RcModeSsh) {
         Connect-RemoteControlSsh -Address $address -UserName $userName
     } else {
         Connect-RemoteControlRdp -Address $address -UserName $userName
@@ -380,10 +859,20 @@ function Show-RemoteControlStatus {
     $rdpDenied = (Get-ItemProperty -Path $script:RcTerminalServerKey -Name 'fDenyTSConnections' -ErrorAction SilentlyContinue).fDenyTSConnections
     $sshd = Get-Service -Name 'sshd' -ErrorAction SilentlyContinue
     $sharedKey = Find-RemoteControlSharedKey
+    $vncService = $null
+    $vncRule = $null
 
     Write-ColorMessage -Message '== Remote control status ==' -Type 'Info'
     Write-Host "  Tailscale:      $(Get-TailscaleQuickStateLabel)  IPv4 $(Get-RemoteControlSelfIPv4)"
     Write-Host "  Login user:     $env:USERNAME"
+    $vncService = Get-Service -Name $script:RcVncServiceName -ErrorAction SilentlyContinue
+    $vncRule = Get-NetFirewallRule -Name $script:RcVncTailscaleRule -ErrorAction SilentlyContinue
+    Write-Host "  VNC host:       $(if ($null -ne $vncService) { "TightVNC $($vncService.Status), $($vncService.StartType)" } else { 'not installed' }) (default, shared desktop)"
+    Write-Host "  VNC listening:  $(if (Test-RemoteControlPortListening -Port $script:RcVncPort) { "yes ($script:RcVncPort)" } else { 'no' })"
+    Write-Host "  VNC firewall:   $(if ($null -ne $vncRule -and "$($vncRule.Enabled)" -eq 'True') { "$script:RcVncTailscaleRule ($script:RcTailscaleCidr)" } else { 'rule missing' })"
+    Write-Host "  VNC viewer:     $(if ($null -ne (Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName)) { 'installed' } else { 'not installed' })"
+    Write-Host "  VNC password:   $(if (Test-RemoteControlVncConfigured) { Get-RemoteControlVncPassword } else { 'not set' })"
+    Write-Host "  VNC DPI-aware:  $(if (Test-RemoteControlVncDpiAware) { 'yes' } else { 'no (run one-click / Allow VNC)' }) (screen $(Get-RemoteControlScreenSize))"
     Write-Host "  RDP host:       $(if (-not (Test-RemoteControlRdpHostSupported)) { 'unsupported (Windows Home)' } elseif ($rdpDenied -eq 0) { 'enabled' } else { 'disabled' })"
     Write-Host "  RDP listening:  $(if (Test-RemoteControlPortListening -Port $script:RcRdpPort) { "yes ($script:RcRdpPort)" } else { 'no' })"
     Write-Host "  SSH server:     $(if ($null -ne $sshd) { $sshd.Status } else { 'not installed' })"
@@ -411,7 +900,7 @@ function Write-RemoteControlCheck {
     return $Ok
 }
 
-# Per-item readiness audit of everything a Linux client (xfreerdp/remmina/ssh
+# Per-item readiness audit of everything a Linux client (remmina VNC/xfreerdp/ssh
 # over Tailscale) needs from this Windows host. Read-only; safe to re-run.
 function Show-RemoteControlDiagnostics {
     $passed = 0
@@ -434,6 +923,8 @@ function Show-RemoteControlDiagnostics {
     $pubLine = ''
     $tsState = ''
     $summaryType = 'Success'
+    $vncService = $null
+    $vncDetail = 'not installed'
 
     Write-ColorMessage -Message '== Remote control diagnostics (what the Linux side needs from this host) ==' -Type 'Info'
     Write-Host ''
@@ -444,7 +935,31 @@ function Show-RemoteControlDiagnostics {
     $ok = ($tsState -eq $script:TailscaleRunningState)
     if (Write-RemoteControlCheck -Name 'Tailscale backend' -Ok $ok -Detail "state=$tsState, IPv4=$selfIp") { $passed++ } else { $failed++ }
 
-    Write-ColorMessage -Message '-- RDP host --' -Type 'Info'
+    Write-ColorMessage -Message '-- VNC host (default; shared desktop) --' -Type 'Info'
+    $ok = ($null -ne (Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName))
+    if (Write-RemoteControlCheck -Name 'TightVNC server installed' -Ok $ok -Detail "$(if ($ok) { Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName } else { "winget install --id $script:RcVncWingetId" })") { $passed++ } else { $failed++ }
+
+    $vncService = Get-Service -Name $script:RcVncServiceName -ErrorAction SilentlyContinue
+    if ($null -ne $vncService) { $vncDetail = "Status=$($vncService.Status), StartType=$($vncService.StartType)" }
+    $ok = ($null -ne $vncService -and $vncService.Status -eq 'Running' -and $vncService.StartType -eq 'Automatic')
+    if (Write-RemoteControlCheck -Name "Service $script:RcVncServiceName" -Ok $ok -Detail $vncDetail) { $passed++ } else { $failed++ }
+
+    $ok = Test-RemoteControlPortListening -Port $script:RcVncPort
+    if (Write-RemoteControlCheck -Name "TCP $script:RcVncPort listening" -Ok $ok -Detail "$(if ($ok) { 'VNC reachable over the tailnet' } else { 'no listener; Remmina/TightVNC viewer get connection refused' })") { $passed++ } else { $failed++ }
+
+    $rule = Get-NetFirewallRule -Name $script:RcVncTailscaleRule -ErrorAction SilentlyContinue
+    $ruleDetail = 'rule missing'
+    if ($null -ne $rule) { $ruleDetail = "Enabled=$($rule.Enabled), RemoteAddress=$script:RcTailscaleCidr" }
+    $ok = ($null -ne $rule -and "$($rule.Enabled)" -eq 'True')
+    if (Write-RemoteControlCheck -Name "Firewall: $script:RcVncTailscaleRule" -Ok $ok -Detail $ruleDetail) { $passed++ } else { $failed++ }
+
+    $ok = Test-RemoteControlVncDpiAware
+    if (Write-RemoteControlCheck -Name 'TightVNC DPI-aware (full-screen capture)' -Ok $ok -Detail "$(if ($ok) { "screen $(Get-RemoteControlScreenSize) captured in full" } else { 'with display scaling > 100% the viewer may show only part of the screen; run the one-click (idempotent)' })") { $passed++ } else { $failed++ }
+
+    $ok = ($null -ne $vncService -and (Test-RemoteControlVncConfigured))
+    if (Write-RemoteControlCheck -Name 'VNC password configured' -Ok $ok -Detail 'shown by Status / Connection info; change it with Reset VNC password') { $passed++ } else { $failed++ }
+
+    Write-ColorMessage -Message '-- RDP host (secondary; locks the local screen) --' -Type 'Info'
     $editionId = [string](Get-ItemProperty -Path $script:RcCurrentVersionKey -Name 'EditionID' -ErrorAction SilentlyContinue).EditionID
     $ok = Test-RemoteControlRdpHostSupported
     if (Write-RemoteControlCheck -Name 'Edition supports RDP host' -Ok $ok -Detail "EditionID=$editionId (Core* = Home, no RDP host)") { $passed++ } else { $failed++ }
@@ -523,7 +1038,7 @@ function Show-RemoteControlDiagnostics {
     if ($failed -gt 0) {
         Write-ColorMessage -Message "Fix: run 'Allow remote control of this machine' (idempotent) from this menu, then re-run Diagnostics." -Type 'Info'
     }
-    Write-ColorMessage -Message "Linux side: dd.sh > [T] Tailscale > Remote Control > Connect to a peer (this host: $selfIp)" -Type 'Info'
+    Write-ColorMessage -Message "Linux side: dd.sh > Linux System Tools > Management & Backup > Remote Control > Connect to a peer (this host: $selfIp; remmina -c vnc://${selfIp}:$script:RcVncPort)" -Type 'Info'
 }
 
 # Section header for the Claude Peer Link log (numbered, easy to quote back).
@@ -662,7 +1177,7 @@ function Invoke-RemoteControlClaudePeerLink {
             Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 5 -ErrorAction SilentlyContinue | Format-List TimeCreated, LevelDisplayName, Message
         }
 
-        Write-RemoteControlSection -Title '5. Readiness audit (Tailscale / RDP / SSH)'
+        Write-RemoteControlSection -Title '5. Readiness audit (Tailscale / VNC / RDP / SSH)'
         Show-RemoteControlDiagnostics
 
         Write-RemoteControlSection -Title '6. Claude Code (cross-machine messaging = Remote Control)'
@@ -699,25 +1214,37 @@ function Show-RemoteControlHelp {
     Write-ColorMessage -Message 'Remote control over Tailscale (Windows 10/11 <-> Debian 12/13, Ubuntu 24.04/26.04)' -Type 'Info'
     Write-Host ''
     Write-Host 'Automated here:'
-    Write-Host '  Windows host:   Remote Desktop (fDenyTSConnections=0 + firewall), OpenSSH Server + shared key'
-    Write-Host '  Windows client: OpenSSH Client, mstsc (built in), shared key'
+    Write-Host "  Windows host:   VNC shared desktop FIRST (default: TightVNC service, tcp $script:RcVncPort, tailnet-only firewall rule),"
+    Write-Host '                  then Remote Desktop (fDenyTSConnections=0 + firewall), OpenSSH Server + shared key'
+    Write-Host '  Windows client: TightVNC viewer (tvnviewer.exe, default for Windows peers), OpenSSH Client, mstsc (built in), shared key'
+    Write-Host ''
+    Write-Host 'Why VNC is the default: a VNC server in service mode shares the real console desktop, so the local and the'
+    Write-Host '  remote user can work at the same time (Windows Home too). RDP takes over the console and LOCKS the local'
+    Write-Host '  screen, so it is the secondary channel. VNC password: max 8 characters, typed in plain text (Enter = the'
+    Write-Host '  suggested random one); shown again by Status / one-click; change it with Reset VNC password.'
+    Write-Host "  From Linux: remmina -c vnc://<ip>:$script:RcVncPort   |   from Windows: tvnviewer.exe -host=<ip>::$script:RcVncPort -scale=$script:RcVncViewerScale"
+    Write-Host '  Full screen / scaling: VNC sends the Windows screen at its own size (TightVNC cannot resize it);'
+    Write-Host '    the viewer scales it: Remmina profiles from dd.sh use scale=1 + viewmode=4 (Right Ctrl+S / Right Ctrl+F),'
+    Write-Host '    TightVNC viewer -scale=auto (Ctrl+Alt+Shift+F). The host is marked DPI-aware so scaling > 100% is captured'
+    Write-Host '    in full. Text too small: lower Windows Settings > System > Display > Scale or resolution.'
     Write-Host '  Diagnostics:    per-item readiness checks with details (menu item / -Action Diagnose)'
-    Write-Host '  Linux side:     dd.sh > Linux System Tools > [T] Tailscale > Remote Control'
+    Write-Host '  Linux side:     dd.sh > Linux System Tools > Management & Backup > Remote Control'
     Write-Host ''
     Write-Host 'Manual UI steps when automation is not possible:'
     Write-Host '  Windows 10/11 Pro: Settings > System > Remote Desktop > On (+ keep "Require NLA").'
-    Write-Host '  Windows Home: cannot host RDP -- use SSH or RustDesk; controlling Linux from Home works.'
+    Write-Host '  Windows Home: cannot host RDP -- use VNC (default) or SSH; controlling Linux from Home works.'
     Write-Host '  Microsoft account: RDP user = account e-mail, password = account password (not PIN);'
     Write-Host '    Settings > Accounts > Sign-in options > turn off "Only allow Windows Hello sign-in".'
     Write-Host '  GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >'
     Write-Host '    Remote Desktop (GNOME 43): enable Remote Desktop + Remote Control, credentials = login user/password.'
-    Write-Host "  Tailscale ACL: default policy allows all devices; custom ACLs must allow tcp:$script:RcRdpPort and tcp:$script:RcSshPort."
+    Write-Host "  Tailscale ACL: default policy allows all devices; custom ACLs must allow tcp:$script:RcVncPort, tcp:$script:RcRdpPort and tcp:$script:RcSshPort."
     Write-Host '  Tailscale SSH (tailscale set --ssh) works only on Linux/macOS hosts, not on Windows.'
     Write-Host ''
     Write-Host "Shared key: $($Global:SSH_DIR)\$script:RcSharedKeyName (decrypted by Step5_InstallGitSSH.ps1 / 27_install_git_ssh.sh)."
     Write-Host ''
     Write-Host 'Docs:'
     Write-Host '  https://tailscale.com/kb/1095/secure-rdp-windows'
+    Write-Host '  https://www.tightvnc.com/doc/win/TightVNC_2.8_for_Windows_Installing_from_MSI.pdf'
     Write-Host '  https://learn.microsoft.com/windows-server/administration/openssh/openssh_install_firstuse'
     Write-Host '  https://learn.microsoft.com/windows-server/administration/openssh/openssh_keymanagement'
     Write-Host '  https://gitlab.gnome.org/GNOME/gnome-remote-desktop/-/blob/master/README.md'
@@ -725,59 +1252,22 @@ function Show-RemoteControlHelp {
 
 # Every Tailscale IP is printed above the items; each item calls a function above.
 function Show-RemoteControlMenu {
-    $menuItems = @(
-        @{ Text = 'Enable this machine to control remote (RDP/SSH client + shared key)'; Action = { Enable-RemoteControlClient } },
-        @{ Text = 'Allow remote control of this machine (RDP + SSH, sign-in password)';  Action = { Enable-RemoteControlHost } },
-        @{ Text = 'Connect to a peer (RDP or SSH)';                                       Action = { Connect-RemoteControlPeer } },
-        @{ Text = 'Endpoints (all Tailscale IPs + connect commands)';                     Action = { Show-RemoteControlEndpoints } },
-        @{ Text = 'Status';                                                               Action = { Show-RemoteControlStatus } },
-        @{ Text = 'Diagnostics (per-item RDP/SSH/Tailscale readiness checks)';            Action = { Show-RemoteControlDiagnostics } },
-        @{ Text = 'Claude Peer Link (SSH host + Claude Remote Control checks, full log)'; Action = { Invoke-RemoteControlClaudePeerLink } },
-        @{ Text = 'Help (manual UI steps + official docs)';                               Action = { Show-RemoteControlHelp } },
-        @{ Text = 'Back';                                                                 Action = { return } }
+    Show-NumberedMenu -Title 'Remote Control (Windows <-> Linux over Tailscale)' -Header { Show-RemoteControlPeerTable -Peers @(Get-RemoteControlPeers) } -Items @(
+        @{ Text = '-- Let others control this PC --'; IsHeader = $true },
+        @{ Text = 'One-click: allow Linux to control this PC (VNC shared desktop)'; Action = { Enable-RemoteControlOneClickHost } },
+        @{ Text = 'Reset VNC password';                                            Action = { Reset-RemoteControlVncPassword } },
+        @{ Text = 'Allow all channels (VNC + RDP + SSH; RDP locks the local screen)'; Action = { Enable-RemoteControlHost } },
+        @{ Text = '-- Control another machine --'; IsHeader = $true },
+        @{ Text = 'Connect to a peer (VNC default, RDP or SSH)';                   Action = { Connect-RemoteControlPeer } },
+        @{ Text = 'Install clients (TightVNC viewer, SSH, shared key)';            Action = { Enable-RemoteControlClient } },
+        @{ Text = '-- Info --'; IsHeader = $true },
+        @{ Text = 'Connection info + Linux setup steps';                           Action = { Show-RemoteControlVncConnectHint } },
+        @{ Text = 'Endpoints (all Tailscale IPs + connect commands)';              Action = { Show-RemoteControlEndpoints } },
+        @{ Text = 'Status';                                                        Action = { Show-RemoteControlStatus } },
+        @{ Text = 'Diagnostics (per-item readiness checks)';                       Action = { Show-RemoteControlDiagnostics } },
+        @{ Text = 'Claude peer link (SSH host + Claude Remote Control checks)';    Action = { Invoke-RemoteControlClaudePeerLink } },
+        @{ Text = 'Help (manual steps + official docs)';                           Action = { Show-RemoteControlHelp } }
     )
-    $selected = 0
-    $peers = @(Get-RemoteControlPeers)
-    $key = $null
-    $chosenItem = $null
-
-    while ($true) {
-        Clear-Host
-        Write-ColorMessage -Message 'Remote Control (Windows <-> Linux) - Up/Down, Enter, Q/Escape to go back' -Type 'Info'
-        Show-RemoteControlPeerTable -Peers $peers
-        Write-Host ''
-        for ($i = 0; $i -lt $menuItems.Count; $i++) {
-            if ($i -eq $selected) {
-                Write-Host -NoNewline '>'
-                Write-Host -NoNewline -ForegroundColor Black -BackgroundColor White (" {0,-72}" -f $menuItems[$i].Text)
-                Write-Host ''
-            } else {
-                Write-Host ("  {0,-72}" -f $menuItems[$i].Text)
-            }
-        }
-
-        try {
-            $key = [Console]::ReadKey($true).Key
-        } catch {
-            $key = Read-Host 'Selection number (q = back)'
-            if ($key -eq 'q') { return }
-            if ($key -match '^\d+$' -and [int]$key -ge 1 -and [int]$key -le $menuItems.Count) { $selected = [int]$key - 1; $key = 'Enter' } else { continue }
-        }
-        switch ($key) {
-            'UpArrow'   { if ($selected -gt 0) { $selected-- } else { $selected = $menuItems.Count - 1 } }
-            'DownArrow' { if ($selected -lt $menuItems.Count - 1) { $selected++ } else { $selected = 0 } }
-            'Enter' {
-                $chosenItem = $menuItems[$selected]
-                if ($chosenItem.Text -eq 'Back') { return }
-                Clear-Host
-                & $chosenItem.Action
-                Wait-MenuContinue
-                $peers = @(Get-RemoteControlPeers)
-            }
-            'Q' { return }
-            'Escape' { return }
-        }
-    }
 }
 
 switch ($script:RcRequestedAction) {
@@ -785,7 +1275,10 @@ switch ($script:RcRequestedAction) {
     'Menu'       { Show-RemoteControlMenu }
     'Endpoints'  { Show-RemoteControlEndpoints }
     'Controller' { Enable-RemoteControlClient; Wait-MenuContinue }
+    'OneClickHost' { Enable-RemoteControlOneClickHost; Wait-MenuContinue }
     'Host'       { Enable-RemoteControlHost; Wait-MenuContinue }
+    'Vnc'        { Enable-RemoteControlVncChannel; Wait-MenuContinue }
+    'VncReset'   { Reset-RemoteControlVncPassword; Wait-MenuContinue }
     'Connect'    { Connect-RemoteControlPeer }
     'Status'     { Show-RemoteControlStatus }
     'ClaudePeer' { Invoke-RemoteControlClaudePeerLink; Wait-MenuContinue }

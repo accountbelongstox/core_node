@@ -13,10 +13,12 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
     ->prefix('app_qy_v1/delivery')
     ->group(function () {
         Route::get('/info', [AppQyV1DeliveryCtl::class, 'info']);
-        Route::post('/diff', [AppQyV1DeliveryCtl::class, 'diff']);
-        Route::post('/batch', [AppQyV1DeliveryCtl::class, 'registerBatch']);
-        Route::post('/batch/{batchId}/content', [AppQyV1DeliveryCtl::class, 'batchContent'])
-            ->where('batchId', '[a-f0-9]{40}');
-        Route::get('/batch/{batchId}', [AppQyV1DeliveryCtl::class, 'batchStatus'])
-            ->where('batchId', '[a-f0-9]{40}');
+        Route::middleware('schema.gate')->group(function () {
+            Route::post('/diff', [AppQyV1DeliveryCtl::class, 'diff']);
+            Route::post('/batch', [AppQyV1DeliveryCtl::class, 'registerBatch']);
+            Route::post('/batch/{batchId}/content', [AppQyV1DeliveryCtl::class, 'batchContent'])
+                ->where('batchId', '[a-f0-9]{40}');
+            Route::get('/batch/{batchId}', [AppQyV1DeliveryCtl::class, 'batchStatus'])
+                ->where('batchId', '[a-f0-9]{40}');
+        });
     });

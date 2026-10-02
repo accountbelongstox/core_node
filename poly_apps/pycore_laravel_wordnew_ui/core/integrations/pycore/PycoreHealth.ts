@@ -29,7 +29,10 @@ import { isHttpConnected, onHttpStatus, reportHttpDiag } from './PycoreEventClie
 import { requestPycoreStatus } from './PycoreHttp';
 import { recordPycoreProbe } from './PycoreEndpointProbe';
 import { pycoreLink } from './PycoreServiceLink';
-import { pycoreTargetBackendUrl } from './pycoreTarget';
+import { isPycoreRelayMode, pycoreTargetBackendUrl } from './pycoreTarget';
+import { laravelRelayDeviceId } from './RelayPairing';
+import { laravelRelayRoster } from '../laravel/LaravelRelayRoster';
+import { RELAY_CONTRACT } from '../../contracts/RelayContract';
 import {
   PYCORE_HEALTH_DEFAULTS,
   PYCORE_HEALTH_EVENT,
@@ -72,6 +75,18 @@ let lastPayload: any = null;
 let inFlight: Promise<boolean> | null = null;
 let consecutiveFailures = 0;
 let probeRetryTimer: ReturnType<typeof setTimeout> | null = null;
+const RELAY_PING_TIMEOUT_MS = RELAY_CONTRACT.durations.stall_window_seconds * 1000;
+
+/** Relay mode: the designated machine's presence (its heartbeat), never the Laravel stream, says the backend is alive. */
+function relayDevicePresent(): boolean {
+  const deviceId = laravelRelayDeviceId();
+  return deviceId !== null && laravelRelayRoster.list().some((entry) => entry.device_id === deviceId && entry.online);
+}
+
+/** The live link vouching for the backend when a probe fails: the event socket (direct) or the machine's presence (relay). */
+function liveLinkVouches(): boolean {
+  return isPycoreRelayMode() ? relayDevicePresent() : isHttpConnected();
+}
 
 export function getPycoreRecheckIntervalMs(): number {
   const raw = StorageManager.getRaw(StorageKeys.HEALTH_RECHECK_INTERVAL_MS);
@@ -108,10 +123,10 @@ export function checkPycoreNow(): Promise<boolean> {
     let httpOk = false;
     let probeError = '';
     try {
-      lastPayload = await requestPycoreStatus(PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
+      lastPayload = await requestPycoreStatus(isPycoreRelayMode() ? RELAY_PING_TIMEOUT_MS : PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
       httpOk = true;
     } catch (error: any) {
-      httpOk = isHttpConnected();
+      httpOk = liveLinkVouches();
       probeError = error?.message || String(error);
     }
     const ms = Math.round(performance.now() - start);
@@ -219,11 +234,20 @@ export function stopPycoreOfflineRecheckLoop(): void {
 // is healthy without waiting for the offline cadence.
 onHttpStatus((connected) => {
   if (connected) {
-    if (lastState.up !== true) {
-      consecutiveFailures = 0;
-      applyReachability('healthy', lastState.responseTime);
+    if (lastState.up === true) return;
+    if (isPycoreRelayMode()) {
+      void checkPycoreNow();
+      return;
     }
+    consecutiveFailures = 0;
+    applyReachability('healthy', lastState.responseTime);
     return;
   }
   if (lastState.up === true) void checkPycoreNow();
+});
+
+// Relay mode: the designated machine coming or going (roster presence) re-probes at once.
+laravelRelayRoster.onChange(() => {
+  if (!isPycoreRelayMode()) return;
+  if (relayDevicePresent() !== (lastState.up === true)) void checkPycoreNow();
 });

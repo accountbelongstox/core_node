@@ -12,9 +12,14 @@ import { useTranslation } from 'react-i18next';
 import {
   Server, Check, RefreshCw, ChevronDown, ChevronUp, WifiOff, AlertTriangle,
 } from 'lucide-react';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import type { PycoreLaravelEndpointRow } from '@/apps/pycore-manager/api';
+import { usePcDirectOnly } from '../hooks/usePcDirectOnly';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { PcIndexBadge } from './PcIndexBadge';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 import { pcErrorCodeMessage, pcErrorCodeText } from '../utils/pcErrorCodes';
+import { useServerSchemaGate } from '../../../core/integrations/laravel';
 
 const EPOCH_MS_THRESHOLD = 1e12;
 const MS_PER_SECOND = 1000;
@@ -56,9 +61,13 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
     loading, probing, switching, error, actionError, reload, select, reprobe,
   } = usePcLaravelEndpoint();
 
+  const schemaGate = useServerSchemaGate();
+  const bindDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.assistBindLaravelEndpoint);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const inHeader = variant === 'header';
+  // Phones show the header chip as an icon with the active endpoint's number.
+  const compact = useIsMobile() && inHeader;
 
   useEffect(() => {
     if (!open) return;
@@ -68,6 +77,33 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
+
+  if (error && endpoints.length === 0 && compact) {
+    return (
+      <div ref={boxRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label={t('endpoint.unavailable')}
+          title={t('endpoint.unavailable')}
+          className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-amber-600 dark:text-amber-400"
+        >
+          <Server className="w-3.5 h-3.5 text-rose-500" />
+          <WifiOff className="w-3.5 h-3.5" />
+        </button>
+        {open && (
+          <div className="fixed inset-x-2 top-14 z-50 flex items-start gap-2 rounded-2xl border border-amber-500/30 bg-white p-3 text-xs text-amber-600 shadow-xl dark:bg-slate-900 dark:text-amber-400">
+            <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="min-w-0 flex-1 break-words">{t('endpoint.unavailable')} ({pcErrorCodeText(error)})</span>
+            <button type="button" onClick={reload} disabled={loading}
+              className="shrink-0 whitespace-nowrap px-2 py-1 text-[11px] font-bold rounded-lg bg-amber-500/15 hover:bg-amber-500/25 transition flex items-center gap-1 disabled:opacity-50">
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> {t('endpoint.retry')}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (error && endpoints.length === 0) {
     return (
@@ -85,6 +121,7 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
   }
 
   const cur = endpoints.find((e) => e.url === current) || null;
+  const activeIndex = endpoints.findIndex((e) => e.url === current) + 1;
 
   return (
     <div
@@ -94,18 +131,28 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02] hover:bg-slate-200/50 dark:hover:bg-white/[0.05] transition text-left ${
-          inHeader
-            ? 'max-w-[min(20rem,calc(100vw-var(--shell-dock-right-gutter,264px)-1.5rem))]'
-            : 'w-full sm:w-auto'
+        aria-label={t('endpoint.title')}
+        className={`flex items-center ${compact ? 'gap-1.5 px-2 shrink-0' : 'gap-2 px-3'} py-2 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02] hover:bg-slate-200/50 dark:hover:bg-white/[0.05] transition text-left ${
+          compact
+            ? ''
+            : inHeader
+              ? 'max-w-[min(20rem,calc(100vw-var(--shell-dock-right-gutter,264px)-1.5rem))]'
+              : 'w-full sm:w-auto'
         }`}
         title={serverMismatch
           ? t('endpoint.serverMismatch', { url: browserCurrent })
           : cur ? `${cur.url} · ${latencyText(cur, t)}` : t('endpoint.title')}
       >
-        <Server className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+        <span className="relative inline-flex shrink-0">
+          <Server className="w-3.5 h-3.5 text-rose-500" />
+          <PcIndexBadge
+            index={activeIndex}
+            title={t('endpoint.activeIndex', { index: activeIndex, total: endpoints.length, url: current })}
+          />
+        </span>
         {serverMismatch && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
         <span className={`w-2 h-2 rounded-full shrink-0 transition-all ${dotCls(cur)}`} />
+        {!compact && (
         <span className="min-w-0 flex flex-col">
           <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('endpoint.title')}</span>
           <span className={`text-xs font-mono text-slate-700 dark:text-slate-200 truncate ${
@@ -114,25 +161,33 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
             {loading && !current ? '…' : (current || t('endpoint.empty'))}
           </span>
         </span>
-        {cur && (
+        )}
+        {schemaGate.schema === 'pending' && !(compact && serverMismatch) && (
+          <span
+            className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-amber-500"
+            title={t('queueCenter.schema.hint', { seconds: schemaGate.retryAfterSeconds })}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            {!compact && t('queueCenter.schema.title')}
+          </span>
+        )}
+        {cur && !compact && (
           <span className={`shrink-0 text-[10px] font-bold ${
             cur.healthy == null ? 'text-slate-400' : cur.healthy ? 'text-emerald-500' : 'text-rose-500'
           }`}>
             {latencyText(cur, t)}
           </span>
         )}
-        {open
+        {!compact && (open
           ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          : <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+          : <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />)}
       </button>
 
       {open && (
         // Dropdown opens downward, right-aligned to the chip. PcTopBar already
         // pads right by shellDockRightGutterPx() so the panel stays left of
         // ShellControls (Apps / Home / theme / language).
-        <div className={`absolute top-full mt-2 w-full sm:w-96 z-50 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden ${
-          inHeader ? 'right-0' : 'left-0'
-        }`}>
+        <div className={`${compact ? 'fixed inset-x-2 top-14' : `absolute top-full mt-2 w-full sm:w-96 ${inHeader ? 'right-0' : 'left-0'}`} z-50 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden`}>
           <div className="px-3 py-2 flex items-center justify-between border-b border-slate-200/60 dark:border-white/5 bg-slate-100/60 dark:bg-white/[0.03]">
             <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
               <Server className="w-3.5 h-3.5 text-rose-500" /> {t('endpoint.title')}
@@ -160,7 +215,7 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
               const inFlight = switching === ep.url;
               return (
                 <li key={ep.url} className="flex items-center gap-1">
-                  <button type="button" onClick={() => { void select(ep.url); setOpen(false); }} disabled={!!switching}
+                  <button type="button" onClick={() => { void select(ep.url); setOpen(false); }} disabled={!!switching || bindDirectOnly}
                     className={`flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition border ${
                       isCurrent
                         ? 'border-rose-500/30 bg-rose-500/10'
@@ -191,6 +246,7 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
             {actionError && (
               <p className="text-[11px] text-amber-500 break-words">{pcErrorCodeMessage(actionError) || t('endpoint.pycoreBindFailed')}</p>
             )}
+            {bindDirectOnly && <p className="text-[10px] text-amber-500">{t('endpoint.relayBindHint')}</p>}
             <p className="text-[10px] text-slate-400">{t('endpoint.hint')}</p>
           </div>
         </div>

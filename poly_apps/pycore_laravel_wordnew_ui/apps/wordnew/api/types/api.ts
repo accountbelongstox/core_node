@@ -17,6 +17,8 @@ import type {
   WfNewOrchAudioDetail,
   WfNewOrchAudioPage,
   WfNewOrchAudioSentencePage,
+  WfNewOrchClientPlaybackPage,
+  WfNewOrchClientPlaybackRow,
   WfNewOrchClientTaskPage,
   WfNewOrchClientTaskRow,
   WfNewOrchClientTaskWrite,
@@ -248,6 +250,10 @@ export interface WfNewApi {
   saveOrchClientTask(row: WfNewOrchClientTaskRow): Promise<WfNewOrchClientTaskWrite>;
   /** Tombstone one composition (propagates the deletion to other devices). */
   deleteOrchClientTask(clientTaskId: string, clientUpdatedAt: string): Promise<void>;
+  /** The user's playback state of client compositions (resume + history; `since` for newer rows). */
+  getOrchClientPlayback(page?: number, since?: string | null): Promise<WfNewOrchClientPlaybackPage>;
+  /** Upsert one composition's playback state; Laravel keeps the newest `clientUpdatedAt`. */
+  saveOrchClientPlayback(row: WfNewOrchClientPlaybackRow): Promise<{ row: WfNewOrchClientPlaybackRow; applied: boolean }>;
   /** The user's virtual read batches (max 20; Laravel prunes unreferenced, then stale ones). */
   getVirtualReadBatches(): Promise<WfNewVirtualReadBatchList>;
   /** Record reads of played words (dictionary ids) into a batch; idempotent per request key. */
@@ -317,7 +323,7 @@ export interface WfNewApi {
   // ---- Audio ordering (Laravel owns the queue + worker notification) ----
   /** Insert missing sentence-audio tasks or move existing tasks to the queue head. */
   moveSentenceAudioToHead(
-    items: Array<{ text: string; language: string }>,
+    items: Array<{ language: string; text?: string; content_id?: string }>,
   ): Promise<WfNewQueueCommandResult>;
   /** Insert missing word-audio tasks or move existing tasks to the queue head. */
   moveWordAudioToHead(

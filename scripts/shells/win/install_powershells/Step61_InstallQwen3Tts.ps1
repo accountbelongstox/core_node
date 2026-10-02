@@ -11,7 +11,7 @@
     so the CUDA torch group is reused, while qwen-tts owns its local dependency overrides.
     Production runs qwen3tts as a class-C HTTP server under that venv; the main interpreter only
     talks to it over HTTP. Contract:
-    development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
+    docs_fix/DESIGN_TTS_AI_RUNTIME.md §9.
     Official: https://github.com/QwenLM/Qwen3-TTS
 
     GPU: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice; CPU: 0.6B-CustomVoice.

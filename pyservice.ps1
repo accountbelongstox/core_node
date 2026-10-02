@@ -390,7 +390,7 @@ function Invoke-PycorePrerequisites {
     $prerequisiteArgs = @{ Python = $PythonPath }
     Write-Host '[i] Installation is idempotent and SELF-REPAIRING: re-running repairs missing artifacts' -ForegroundColor Cyan
     Write-Host '    (installed pip distributions are preserved; incomplete model' -ForegroundColor Cyan
-    Write-Host '    weights resume). Safe to re-run any time. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
+    Write-Host '    weights resume). Safe to re-run any time. See docs_fix/DESIGN_TTS_AI_RUNTIME.md.' -ForegroundColor Cyan
     Write-Host '[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...' -ForegroundColor Yellow
     if (-not $env:NEURAL_TTS_INSTALL) { $env:NEURAL_TTS_INSTALL = '1' }
     if ($InstallInclude.Count -gt 0) { $prerequisiteArgs['Include'] = $InstallInclude }
@@ -723,7 +723,7 @@ switch ($Command.ToLowerInvariant()) {
     { $_ -in @('colab', 'kaggle') } {
         Write-Host ("[i] '{0}': hosted notebook platforms run on their Linux VM through pyservice.sh." -f $Command) -ForegroundColor Yellow
         Write-Host ("    In a notebook cell: %run <repo>/pycore/bootstrap/notebook_boot.py {0}" -f $Command) -ForegroundColor DarkYellow
-        Write-Host ("    Or in a notebook shell: ./pyservice.sh {0} [--export-identity]" -f $Command) -ForegroundColor DarkYellow
+        Write-Host ("    then: !bash <repo>/pyservice.sh {0} [--export-identity]" -f $Command) -ForegroundColor DarkYellow
         return
     }
     { $_ -in $pycoreServiceCommands } {

@@ -120,6 +120,12 @@ final class AppQyV1AudioBundleService
             ? MediaIngestService::computeContentId($item['text'])
             : mb_strtolower(trim($item['text']));
 
-        return hash('sha256', $item['kind'] . ':' . $item['language'] . ':' . $content);
+        return self::resourceKey($item['kind'], $item['language'], $content);
+    }
+
+    /** Resource id from already normalized content (sentence content id, trimmed lower-case word). */
+    public static function resourceKey(string $kind, string $language, string $content): string
+    {
+        return hash('sha256', $kind . ':' . $language . ':' . $content);
     }
 }

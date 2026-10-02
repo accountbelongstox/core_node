@@ -21,6 +21,8 @@ $ROSBOT_ID = 'rosbot'
 $DOTNET_COMMAND = 'dotnet'
 $ARTIFACTS_SUBDIR = 'dotnet-artifacts'
 $ARTIFACTS_NAME = 'd3d4tester'
+$APP_PROCESS_NAME = 'd3d4tester'
+$DOTNET_PROCESS_FILTER = "Name='dotnet.exe'"
 
 $scriptDir = Split-Path -Parent $PSCommandPath
 $appDir = Split-Path -Parent $scriptDir
@@ -43,6 +45,7 @@ $restoreStamp = $null
 $restoreStale = $true
 $dotcoreDir = $null
 $restoreInputs = $null
+$previousRun = @()
 
 function Write-StartLog {
     param([Parameter(Mandatory = $true)][string]$Message)
@@ -95,6 +98,29 @@ function Update-ProcessPath {
 function Get-ProgramRoots {
     $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA)
     return @($roots | Where-Object { -not [string]::IsNullOrEmpty($_) })
+}
+
+function Get-PreviousRunProcess {
+    $ancestors = @{}
+    $current = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+    while ($null -ne $current -and -not $ancestors.ContainsKey([int]$current.ProcessId)) {
+        $ancestors[[int]$current.ProcessId] = $true
+        $current = Get-CimInstance Win32_Process -Filter "ProcessId=$($current.ParentProcessId)"
+    }
+    $dotnetRuns = @(Get-CimInstance Win32_Process -Filter $DOTNET_PROCESS_FILTER |
+        Where-Object { -not $ancestors.ContainsKey([int]$_.ProcessId) -and $null -ne $_.CommandLine -and $_.CommandLine.Contains($csprojPath) })
+    $appRuns = @(Get-Process -Name $APP_PROCESS_NAME -ErrorAction SilentlyContinue)
+    return @($dotnetRuns | ForEach-Object { [int]$_.ProcessId }) + @($appRuns | ForEach-Object { $_.Id })
+}
+
+function Stop-PreviousRun {
+    $previousRun = @(Get-PreviousRunProcess)
+    if ($previousRun.Count -eq 0) {
+        return
+    }
+    Write-StartLog "Stopping previous d3d4tester run (pid $($previousRun -join ', ')) so builds do not share obj/pdb files"
+    Stop-Process -Id $previousRun -Force -ErrorAction SilentlyContinue
+    Wait-Process -Id $previousRun -Timeout 15 -ErrorAction SilentlyContinue
 }
 
 function Invoke-PrereqInstaller {
@@ -249,6 +275,9 @@ New-CnNamespaceDirectory -Path $artifactsPath
 Write-StartLog "Artifacts: $artifactsPath"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_NOLOGO = '1'
+$env:MSBUILDDISABLENODEREUSE = '1'
+$env:DOTNET_WATCH_RESTART_ON_RUDE_EDIT = 'true'
+Stop-PreviousRun
 
 $dotcoreDir = Join-Path $repoRoot 'dotcore'
 $restoreStamp = Join-Path (Join-Path (Join-Path $artifactsPath 'obj') $ARTIFACTS_NAME) 'project.assets.json'

@@ -11,7 +11,7 @@
 | U-Boot 从内存临时启动 | [MX4200 V1 initramfs ITB](https://downloads.openwrt.org/releases/25.12.4/targets/qualcommax/ipq807x/openwrt-25.12.4-qualcommax-ipq807x-linksys_mx4200v1-initramfs-uImage.itb) | `c5174f0c7fe33883f52fc9c402df403af41f91e93c619168fa1667e8090699cc` |
 | 写入两组固件槽 | [MX4200 V1 sysupgrade BIN](https://downloads.openwrt.org/releases/25.12.4/targets/qualcommax/ipq807x/openwrt-25.12.4-qualcommax-ipq807x-linksys_mx4200v1-squashfs-sysupgrade.bin) | `df42fde7919ae4c37fee9bfeeb64af5d8c5d20864d90afa4d718c5bd05941bb2` |
 
-ITB 只负责将临时 OpenWrt 启动到内存；永久安装使用 `squashfs-sysupgrade.bin`。此前提供的 snapshot ITB 直链返回过 404，本记录统一采用上述固定版本。
+ITB 只负责将临时 OpenWrt 启动到内存；永久安装使用 `squashfs-sysupgrade.bin`。本记录统一采用上述固定版本，不使用 snapshot 直链。
 
 ## 2 分区与设备核对
 

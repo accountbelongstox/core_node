@@ -450,7 +450,7 @@ show_usage() {
     echo "  --help                    Show this help message"
     echo ""
     echo "Create-app parameters:"
-    echo "  --create-app <name> <display_name> <binary> <icon> [category] [description] [wm_class] [userdata_dir]"
+    echo "  --create-app <name> <display_name> <binary> <icon> [category] [description] [wm_class] [userdata_dir] [use_root_mode] [exec_wrapper]"
     echo ""
     echo "Examples:"
     echo "  $0                                                    # Scan and create entries"
@@ -503,9 +503,10 @@ main() {
             local app_wm_class="${8:-}"
             local app_userdata_dir="${9:-}"
             local use_root_mode="${10:-true}"
+            local app_exec_wrapper="${11:-}"
 
             check_permissions
-            create_entry_for_app "$app_name" "$app_display_name" "$app_binary" "$app_icon" "$app_category" "$app_description" "$app_wm_class" "$app_userdata_dir" "$use_root_mode"
+            create_entry_for_app "$app_name" "$app_display_name" "$app_binary" "$app_icon" "$app_category" "$app_description" "$app_wm_class" "$app_userdata_dir" "$use_root_mode" "$app_exec_wrapper"
             ;;
         --manager|manager)
             display_banner

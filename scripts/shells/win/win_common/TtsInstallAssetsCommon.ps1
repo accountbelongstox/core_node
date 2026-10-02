@@ -651,7 +651,8 @@ function Invoke-HfFileDownloadResumable {
         Write-Host ("{0} [!] curl.exe missing; cannot download {1}" -f $Prefix, $FileName) -ForegroundColor DarkYellow
         return $false
     }
-    & $curl.Source -f $curlRedirect -C - --retry 3 --connect-timeout 30 @curlHeaders -o $OutPath $url
+    # One attempt per file per run: a dropped transfer keeps its partial bytes and resumes (-C -) next run.
+    & $curl.Source -f $curlRedirect -C - --connect-timeout 30 @curlHeaders -o $OutPath $url
     if (-not (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected)) {
         return $false
     }
@@ -979,7 +980,7 @@ function Install-WhisperModelWeights {
         return $false
     }
     Write-Host ("{0} [..] downloading whisper '{1}' -> {2}" -f $Prefix, $Model, $out) -ForegroundColor Yellow
-    & $curl.Source -f -L -C - --retry 3 --connect-timeout 30 -o $out $url
+    & $curl.Source -f -L -C - --connect-timeout 30 -o $out $url
     if (-not (Test-HfFileDownloadComplete -Path $out -ExpectedBytes $expected)) { return $false }
     # openai/whisper verifies the checkpoint against the sha256 embedded in the official URL path.
     $expectedSha = ($url -split '/')[-2]
@@ -1096,7 +1097,7 @@ function Install-NltkDataResources {
 # interpreter, so they run their api server inside a DEDICATED per-engine venv.  #
 # These helpers invoke the SYSTEM Python to build/verify/resolve that venv;      #
 # ensure_venv() is self-repairing (repairs a broken venv in place) and idempotent.#
-# See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md. #
+# See docs_fix/DESIGN_TTS_AI_RUNTIME.md. #
 # --------------------------------------------------------------------------- #
 function ConvertTo-PyStringLiteral {
     # Emit a Python single-quoted string literal. Backslashes are folded to forward

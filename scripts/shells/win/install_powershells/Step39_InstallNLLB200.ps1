@@ -2,7 +2,7 @@
 # Install-PinnedTransformers (version-idempotent, never --upgrade, self-heals a
 # clobbered pin) so NLLB-200 stays aligned with the other LLM steps in the one
 # system Python 3.13. Contract:
-# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+# docs_fix/DESIGN_TTS_AI_RUNTIME.md §9.
 
 $scriptRoot = $PSScriptRoot
 $shellsWinRoot = Split-Path $scriptRoot -Parent

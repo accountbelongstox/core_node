@@ -96,23 +96,23 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
 
         // pycore word-audio result report-back (client key); work comes from the
         // word_audio lane, never from a row claim.
-        Route::post('/worker/report', [AppQyV1TTSWorkerController::class, 'report'])->middleware('client.key');
+        Route::post('/worker/report', [AppQyV1TTSWorkerController::class, 'report'])->middleware(['client.key', 'schema.gate']);
 
         // Sentence-library audio surface (pycore worker + FE resolve). File on
         // disk is the source of truth; see
         // development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md §4.1-§4.3.
         // Reports come from pycore (client key); the claim summary is also
         // read by laravel-manager. Every artifact is validated server-side.
-        Route::post('/sentence/claim', [AppQyV1SentenceAudioController::class, 'claim'])->middleware('client.key_or_dashboard');
-        Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report'])->middleware('client.key');
-        Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
+        Route::post('/sentence/claim', [AppQyV1SentenceAudioController::class, 'claim'])->middleware(['client.key_or_dashboard', 'schema.gate']);
+        Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report'])->middleware(['client.key', 'schema.gate']);
+        Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio'])->middleware('schema.gate');
         Route::post('/sentence/audio/head', [AppQyV1SentenceAudioController::class, 'moveAudioToHead'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
         // Many word / sentence clips in one framed response (clip bundle, shared with pycore).
         Route::post('/audio/bundle', [AppQyV1AudioBundleCtl::class, 'bundle']);
         // Read-only word / sentence audio URL lookup (no queue write, no head move).
         Route::post('/audio/lookup', [AppQyV1AudioLookupCtl::class, 'lookup'])->middleware('client.key_or_dashboard:user');
-        Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing']);
-        Route::get('/sentence/without_audio', [AppQyV1SentenceAudioController::class, 'withoutAudio']);
+        Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing'])->middleware('schema.gate');
+        Route::get('/sentence/without_audio', [AppQyV1SentenceAudioController::class, 'withoutAudio'])->middleware('schema.gate');
 
         // Voice-variant specs CRUD (per-lang accent/gender voices). Drives the
         // "N voices per sentence/word" default; count is dynamic via

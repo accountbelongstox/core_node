@@ -23,6 +23,7 @@ import { persistSharedBaseURL, setSharedBaseURL, setSharedServiceLink } from './
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 import { EndpointProbeAPI } from './transport/EndpointProbeAPI';
+import { serverSchemaGate } from './ServerSchemaGate';
 import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from './transport/ApiContract';
 
 /** Fired whenever a full health pass settles (startup, interval retry, manual re-detect). */
@@ -61,6 +62,12 @@ class ApiManager {
       return endpoint ? (await this.checkEndpoint(endpoint)).isHealthy : false;
     },
   });
+
+  constructor() {
+    serverSchemaGate.setHealthProbe(async () => {
+      if (this.currentEndpoint) await this.checkEndpoint(this.currentEndpoint);
+    });
+  }
 
   /** Select in memory and re-point every centralized Laravel transport. */
   private activateEndpoint(endpoint: BackendApiEndpoint): BackendApiEndpoint {
@@ -221,8 +228,11 @@ class ApiManager {
     try {
       const response = await this.endpointProbe.probeHealth(baseURL, timeout);
       const responseTime = Math.round(performance.now() - startTime);
-      const payload = response.data;
-      const healthy = response.success && !!payload && (payload.status !== undefined || payload.service !== undefined);
+      const payload = response.data ?? (response.debugInfo as typeof response.data);
+      const schema = serverSchemaGate.readHealth(payload);
+      const healthy = (response.success || schema === 'pending') && !!payload
+        && (payload.status !== undefined || payload.service !== undefined || schema !== 'unknown');
+      if (endpoint.id === this.currentEndpoint?.id) serverSchemaGate.observeHealth(payload);
       result = {
         endpoint,
         isHealthy: healthy,

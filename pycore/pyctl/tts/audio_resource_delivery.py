@@ -26,7 +26,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
-from pycore.pyutils.common.strtools.normalization import media_content_id
+from pycore.pyutils.common.strtools.normalization import media_content_id, word_text
 from pycore.pyutils.laravel.delivery_diff import (
     BATCH_STORED_STATUSES,
     BATCH_TERMINAL_REJECTIONS,
@@ -99,6 +99,9 @@ def is_terminal_delivery_rejection(
     if str(error_code or "") == WORD_NOT_FOUND_REJECTION_CODE:
         return True
     normalized = str(detail or "").lower()
+    # A raised transport error arrives as "RuntimeError: HTTP 404: ..."; the
+    # exception class prefix never changes the rule.
+    normalized = normalized.split(": ", 1)[1] if normalized.startswith(("runtimeerror: ", "valueerror: ", "oserror: ")) else normalized
     if normalized.startswith("server validation rejected"):
         return True
     if normalized.startswith("unknown task on server"):
@@ -307,6 +310,13 @@ class AudioResourceDelivery:
     # delivery                                                            #
     # ------------------------------------------------------------------ #
     @staticmethod
+    def _clip_text(resource: Dict[str, Any]) -> str:
+        """Text of a stored clip row as it is delivered: a word row queued
+        before entity decoding is decoded here (its key and md5 stay)."""
+        text = str(resource.get("text") or "")
+        return (word_text(text) or text) if resource.get("kind") == "word" else text
+
+    @staticmethod
     def _deliver_resources(claimed: List[Dict[str, Any]], owners: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
         """W7 batch upload (one manifest + one offset-v1 content stream per
         server batch); rows it does not take fall back to the single upload."""
@@ -334,7 +344,7 @@ class AudioResourceDelivery:
                 "provider": resource.get("provider") or "cache",
                 "delivery_id": row["delivery_id"],
             }
-            item["cleaned_word" if resource["kind"] == "word" else "text"] = resource["text"]
+            item["cleaned_word" if resource["kind"] == "word" else "text"] = AudioResourceDelivery._clip_text(resource)
             by_kind.setdefault(diff_kind, []).append(item)
         for diff_kind, items in by_kind.items():
             for batch in laravel_delivery_diff_client.split_batches(base_url, server_id, items):
@@ -377,13 +387,14 @@ class AudioResourceDelivery:
             if not receipt.get("upload_complete"):
                 raise RuntimeError("sentence_upload_incomplete")
             return {"status": OUTCOME_DONE}
+        clip_text = AudioResourceDelivery._clip_text(resource)
         word_audio_service.word_audio_media(
-            resource["text"], resource["language"], base_url=base_url, metadata_only=True,
+            clip_text, resource["language"], base_url=base_url, metadata_only=True,
         )
         clip_md5 = word_md5(resource.get("resource_key"))
         upload_payload = {
             "lang": resource["language"], "provider": resource.get("provider") or "cache",
-            "cleaned_word": resource["text"],
+            "cleaned_word": clip_text,
             "audio_base64": base64.b64encode(payload).decode("ascii"),
         }
         if clip_md5:

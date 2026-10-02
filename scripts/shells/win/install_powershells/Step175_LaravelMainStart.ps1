@@ -23,8 +23,18 @@ $codemartInitDefault = 'no'
 $autoContinueValues = @('1', 'true')
 $autoContinue = $autoContinueValues -contains ([string]$env:DD_AUTO_CONTINUE).Trim().ToLowerInvariant()
 $interactiveSession = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
+$step175Failed = $false
+$phpModules = @()
+$commandExit = 0
 . $managerPath
 . $certificateManagerPath
+
+function Set-Step175Failure {
+    # One `ERROR: step 175: <reason>` line per failure; the script ends with a non-zero exit.
+    param([Parameter(Mandatory = $true)][string]$Reason)
+    $script:step175Failed = $true
+    [Console]::Error.WriteLine("ERROR: step ${STEP_NUMBER}: $Reason")
+}
 
 $laravelDirectory = Get-FrankenPhpLaravelDirectory
 $phpPath = Get-FrankenPhpPhpPath
@@ -53,42 +63,69 @@ if (-not (Ensure-LaravelBookSeedExtracted)) {
 }
 
 if (-not (Test-AdminPrivileges)) {
-    Write-FrankenPhpLog -Message "Step ${STEP_NUMBER} installs the Windows service $(Get-FrankenPhpServiceName) and its certificate renewal task: re-run it from an elevated (Administrator) PowerShell." -Type 'Error'
-    return
+    Set-Step175Failure -Reason "an elevated (Administrator) PowerShell is required to install the Windows service $(Get-FrankenPhpServiceName) and its certificate renewal task"
+    exit 1
+}
+
+if (-not (Test-Path -LiteralPath $laravelDirectory -PathType Container)) {
+    Set-Step175Failure -Reason "Laravel directory missing: $laravelDirectory"
+    exit 1
 }
 
 & $step93Path
 & $step94Path
 & $step96Path
 
-if ((Test-Path -LiteralPath $composerPath -PathType Leaf) -and
-    (Test-Path -LiteralPath $laravelDirectory -PathType Container)) {
+if (-not (Test-Path -LiteralPath $phpPath -PathType Leaf)) {
+    Set-Step175Failure -Reason "PHP is missing after its installer: $phpPath"
+}
+elseif (-not (Test-Path -LiteralPath $composerPath -PathType Leaf)) {
+    Set-Step175Failure -Reason "Composer is missing after its installer: $composerPath"
+}
+else {
+    $phpModules = @(& $phpPath -m)
+    if ($phpModules -notcontains 'pdo_pgsql') {
+        Set-Step175Failure -Reason 'pdo_pgsql is not loaded by the configured PHP (Step96_ConfigurePHP85.ps1 must enable it)'
+    }
+}
+
+if (-not $step175Failed) {
     Push-Location $laravelDirectory
     try {
         & $composerPath install --no-interaction --prefer-dist --optimize-autoloader
+        $commandExit = $LASTEXITCODE
     }
     finally {
         Pop-Location
     }
-}
-if (-not (Test-Path -LiteralPath $vendorAutoloadPath -PathType Leaf)) {
-    Write-FrankenPhpLog -Message "Composer dependency postcondition failed: $vendorAutoloadPath" -Type 'Error'
+    if ($commandExit -ne 0) {
+        Set-Step175Failure -Reason "composer install failed (exit $commandExit) in $laravelDirectory"
+    }
+    elseif (-not (Test-Path -LiteralPath $vendorAutoloadPath -PathType Leaf)) {
+        Set-Step175Failure -Reason "composer dependency postcondition failed: $vendorAutoloadPath"
+    }
 }
 
-if ((Test-Path -LiteralPath $phpPath -PathType Leaf) -and
+if (-not $step175Failed -and
     (Test-Path -LiteralPath $artisanPath -PathType Leaf) -and
     -not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
     Push-Location $laravelDirectory
     try {
         & $phpPath $artisanPath octane:install --server=frankenphp --no-interaction
+        $commandExit = $LASTEXITCODE
     }
     finally {
         Pop-Location
     }
+    if ($commandExit -ne 0) {
+        Set-Step175Failure -Reason "artisan octane:install failed (exit $commandExit)"
+    }
 }
-if (-not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
-    Write-FrankenPhpLog -Message "Octane worker postcondition failed: $workerPath" -Type 'Error'
+if (-not $step175Failed -and -not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
+    Set-Step175Failure -Reason "Octane worker postcondition failed: $workerPath"
 }
+
+if ($step175Failed) { exit 1 }
 
 # Optional: force CodeMart demo data via `php artisan sys:codemartinit` (idempotent).
 # sys:init already seeds it unless the environment is production or
@@ -114,9 +151,14 @@ if ($codemartInit -eq 'yes' -and (Test-Path -LiteralPath $artisanPath -PathType 
     Push-Location $laravelDirectory
     try {
         & $phpPath $artisanPath sys:codemartinit
+        $commandExit = $LASTEXITCODE
     }
     finally {
         Pop-Location
+    }
+    if ($commandExit -ne 0) {
+        Set-Step175Failure -Reason "artisan sys:codemartinit failed (exit $commandExit)"
+        exit 1
     }
 }
 
@@ -149,5 +191,6 @@ if ($serviceReady) {
     Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete." -Type 'Success'
 }
 else {
-    Write-FrankenPhpLog -Message "Step $STEP_NUMBER service postcondition failed." -Type 'Error'
+    Set-Step175Failure -Reason "service $(Get-FrankenPhpServiceName) is not running after convergence"
+    exit 1
 }

@@ -46,7 +46,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
 
     // Per-language dictionary drill-down (Vocabulary page stats). Read-only,
     // paginated rows from app_qy_v1_tts_cache_<lang> with a coverage filter.
-    Route::get('/dictionary/words', [AppQyV1VocabularyStatsController::class, 'dictionaryWords']);
+    Route::get('/dictionary/words', [AppQyV1VocabularyStatsController::class, 'dictionaryWords'])->middleware('schema.gate');
     // Validity breakdown (valid/invalid/unchecked + invalid-by-source) for the
     // dashboard's Word Validity management panel.
     Route::get('/dictionary/validity-summary', [AppQyV1VocabularyStatsController::class, 'validitySummary']);

@@ -10,6 +10,7 @@ import os
 import time
 import webbrowser
 
+from pycore.pyfoundations.notebook_policy import notebook_assist_node
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -153,14 +154,15 @@ def register_event_handlers(
     """
     ColorPrint.blue("[EventHandlers] Registering tray event handlers...")
 
-    apply_tray_codesync_cache_refresh(push_menu=False)
-    start_tray_codesync_cache(
-        launcher,
-        port=port,
-        singleton_port=singleton_port,
-        menu_update_callback=update_tray_menu_with_singleton,
-    )
-    THREAD_BUS.register_event_handler(BusSignals.CODE_SYNC_UPDATE, on_code_sync_update, priority=5)
+    if not notebook_assist_node():
+        apply_tray_codesync_cache_refresh(push_menu=False)
+        start_tray_codesync_cache(
+            launcher,
+            port=port,
+            singleton_port=singleton_port,
+            menu_update_callback=update_tray_menu_with_singleton,
+        )
+        THREAD_BUS.register_event_handler(BusSignals.CODE_SYNC_UPDATE, on_code_sync_update, priority=5)
 
     # Guard so the pystray fallback is started at most once
     fallback_started = {'value': False}
@@ -471,10 +473,11 @@ def register_runtime_workers() -> None:
     _run_runtime_step("queue_center_snapshot", queue_center_snapshot_service.start)
     _run_runtime_step("audio_lane_state_publisher", audio_lane_state.start)
     _run_runtime_step("laravel_delivery", start_laravel_delivery)
-    _run_runtime_step("agent_history", register_agent_history_extraction)
-    _run_runtime_step("prompt_derive_service", start_prompt_derive_service)
-    _run_runtime_step("prompt_rewrite_service", start_prompt_rewrite_service)
-    _run_runtime_step("prompt_notify_service", start_prompt_notify_service)
+    if not notebook_assist_node():
+        _run_runtime_step("agent_history", register_agent_history_extraction)
+        _run_runtime_step("prompt_derive_service", start_prompt_derive_service)
+        _run_runtime_step("prompt_rewrite_service", start_prompt_rewrite_service)
+        _run_runtime_step("prompt_notify_service", start_prompt_notify_service)
 
     # Startup AI availability probe: network-bound, cached for the process lifetime.
     _run_runtime_step("ai_probe_startup", start_bus_task, warm_startup_probe, thread_name="AiProbeStartupThread")

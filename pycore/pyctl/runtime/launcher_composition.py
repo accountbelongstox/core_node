@@ -14,6 +14,7 @@ from pycore.pyctl.runtime.callmodule_config import Config as CallmoduleConfig
 from pycore.pyctl.terminal.terminal_backup_service import terminal_backup_service
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.notebook_policy import local_http_enabled
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_LINUX, IS_WINDOWS
 from pycore.pyfoundations.system_info import get_screen_resolution
@@ -134,16 +135,18 @@ def build_launcher_config(
     # Sync native i18n with the saved UI language before tray texts are baked.
     apply_saved_language()
 
+    listen = local_http_enabled()
     services = {
         "heartbeat": {},
         "rpc": {
+            "listen": listen,
             "port": port,
             "host": host,
             "debug": debug,
             "fastapi_routers": [],
             "static_mounts": [],
             "init_callback": init_rpc_routes,
-            "enable_http_events": to_bool(os.environ.get(HTTP_EVENTS_ENV, "1")),
+            "enable_http_events": listen and to_bool(os.environ.get(HTTP_EVENTS_ENV, "1")),
         },
     }
     if IS_WINDOWS and local_ui_enabled:

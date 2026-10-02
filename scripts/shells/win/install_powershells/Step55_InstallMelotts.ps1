@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Bucket B (isolated), see
-    development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5/§7:
+    docs_fix/DESIGN_TTS_AI_RUNTIME.md §9:
     MeloTTS owns transformer dependencies that may conflict with the shared system stack.
     Therefore melo is NEVER installed into the main interpreter. Instead this step builds a
     DEDICATED per-engine venv via pycore/pyutils/common/python_env/isolated_venv.ensure_venv('melotts', ...)

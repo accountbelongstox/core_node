@@ -99,6 +99,7 @@ from pycore.pyctl.laravel.worker_base import (
     ASSIST_BLOCKED,
     BaseLaravelWorkerService,
 )
+from pycore.pyutils.tts.audio_queue_model import LOCAL_SOURCE_LEASE
 from pycore.pyctl.tts.word_audio_backend_progress import (
     word_audio_backend_progress,
 )
@@ -383,6 +384,11 @@ class BaseLaravelAudioWorker(
             return
         success = outcome == TASK_OUTCOME_COMPLETED
         if bool(task.get("_delivery_staged")):
+            if task.get("_local_source") and task.get("_local_source") != LOCAL_SOURCE_LEASE:
+                # A node-local clip is generated and served from the local
+                # cache already; its Laravel delivery is background outbox
+                # work and neither blocks nor counts as this task's failure.
+                word_audio_backend_progress.record_result(True)
             self._log_event(
                 "delivery_staged",
                 "audio cached; durable Laravel delivery is pending "
@@ -765,15 +771,10 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
     LOG_ACCEPTED_RESULTS = False
     PROGRESS_EVENTS_ENABLED = True
 
-    def run_pull_cycle(self, prefer_remote: bool = False) -> Dict[str, Any]:
-        base_url = self.active_base_url()
-        try:
-            word_audio_backend_progress.refresh(base_url)
-        except Exception as exc:  # noqa: BLE001 - progress is best-effort metadata
-            ColorPrint.yellow(
-                f"{self._log_prefix} Backend table progress refresh failed: {exc}"
-            )
-        return super().run_pull_cycle(prefer_remote=prefer_remote)
+    def record_queue_progress(self, task_type: str, progress: Any) -> None:
+        super().record_queue_progress(task_type, progress)
+        if task_type == self.QUEUE_KEY and isinstance(progress, dict):
+            word_audio_backend_progress.apply_template(progress)
 
 
 class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):

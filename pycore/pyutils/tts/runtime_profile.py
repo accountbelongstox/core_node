@@ -13,6 +13,8 @@ process lifetime:
                    with qwen3tts for the GPU),
                    sentence / long text: qwen3tts.
   * CPU only    -> every capability pinned to kokoro.
+  * Notebook platform with contract notebook_defaults.tts_engines (Colab:
+    kokoro, qwen3tts) -> every chain keeps only those engines.
 
 Engines OUTSIDE the pinned set are never auto-scheduled or auto-started: the
 pinned chains below replace the persisted/legacy engine orders for every
@@ -36,6 +38,7 @@ Config (environment):
 import os
 from typing import Any, Callable, Dict, Optional, Tuple
 
+from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.service_contract import value as service_contract_value
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
@@ -51,6 +54,7 @@ from pycore.pyutils.tts.memory_gate import (
 TTS_RUNTIME_PROFILE_ENV = "TTS_RUNTIME_PROFILE"
 
 _TTS_RUNTIME_PLAN_KEY = "tts_runtime_plan"
+_PLATFORM_TTS_ENGINES_KEY = "notebook_defaults.tts_engines"
 WORD_BATCH_PROFILE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["profile"])
 WORD_BATCH_DEVICE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["device"])
 _GB = BYTES_PER_GIB
@@ -89,6 +93,22 @@ def _detect_mode() -> str:
     return "gpu" if gpu_present() else "cpu"
 
 
+def _platform_engines() -> Optional[frozenset]:
+    """Engines a notebook platform allows (contract notebook_defaults.tts_engines), else None."""
+    platform = notebook_platform()
+    engines = service_contract_value(_PLATFORM_TTS_ENGINES_KEY).get(platform) if platform else None
+    return frozenset(str(engine) for engine in engines) if engines else None
+
+
+def _restrict_plan(plan: Dict[str, Tuple[str, ...]], allowed: Optional[frozenset]) -> Dict[str, Tuple[str, ...]]:
+    if allowed is None:
+        return plan
+    return {
+        capability: tuple(engine for engine in chain if engine in allowed) or (WORD_BATCH_ENGINE,)
+        for capability, chain in plan.items()
+    }
+
+
 def _fmt_gb(num_bytes: Optional[int]) -> str:
     return "unknown" if num_bytes is None else f"{num_bytes / _GB:.1f}GB"
 
@@ -101,7 +121,7 @@ def _compute_profile() -> Dict[str, Any]:
         # processes when free VRAM is below the recommended floor (6 GB),
         # before the snapshot below; other processes are never touched.
         reclaim_vram()
-    plan = dict((_GPU_PLAN if mode == "gpu" else _CPU_PLAN)) if enabled else {}
+    plan = _restrict_plan(dict(_GPU_PLAN if mode == "gpu" else _CPU_PLAN), _platform_engines()) if enabled else {}
     scheduled = frozenset(engine for chain in plan.values() for engine in chain)
     gpu_util, free_vram, total_vram = gpu_stats()
     profile = {

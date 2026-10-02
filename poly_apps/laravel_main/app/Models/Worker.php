@@ -52,6 +52,7 @@ class Worker extends Model
     const STATUS_ONLINE = 'online';
     const STATUS_OFFLINE = 'offline';
     const STATUS_BUSY = 'busy';
+    private const LANE_DECLARED_AT = 'declared_at';
 
     /**
      * Capability tags this worker advertised (empty array when none / NULL in DB).
@@ -178,9 +179,10 @@ class Worker extends Model
 
     /**
      * Records a work-lease node seen now (a claim or renew doubles as its
-     * heartbeat): compute class, declared lanes and its throughput seed.
+     * heartbeat): compute class, declared lanes, its throughput seed and its
+     * identity (platform, host label; only the fields the claim carried).
      */
-    public static function touchWorkNode(string $workerId, string $computeClass, array $lanes, array $throughputSeed): self
+    public static function touchWorkNode(string $workerId, string $computeClass, array $lanes, array $throughputSeed, array $identity = []): self
     {
         $worker = self::findByWorkerId($workerId) ?? new self([
             'worker_id' => $workerId,
@@ -189,8 +191,15 @@ class Worker extends Model
         ]);
         $metadata = is_array($worker->metadata) ? $worker->metadata : [];
         $metadata['compute_class'] = $computeClass;
-        // One worker may claim for one lane at a time: merge, never replace.
-        $metadata['work_lanes'] = array_merge((array) ($metadata['work_lanes'] ?? []), $lanes);
+        if ($identity !== []) {
+            $metadata['work_identity'] = array_merge((array) ($metadata['work_identity'] ?? []), $identity);
+        }
+        // One worker may claim for one lane at a time: merge, never replace;
+        // each lane carries its own declaration time (liveWorkLanes).
+        $metadata['work_lanes'] = array_merge(
+            (array) ($metadata['work_lanes'] ?? []),
+            array_map(static fn (array $spec): array => [self::LANE_DECLARED_AT => time()] + $spec, $lanes)
+        );
         $metadata['work_throughput_seed'] = array_merge((array) ($metadata['work_throughput_seed'] ?? []), $throughputSeed);
         $worker->metadata = $metadata;
         $worker->status = self::STATUS_ONLINE;
@@ -198,6 +207,44 @@ class Worker extends Model
         $worker->save();
 
         return $worker;
+    }
+
+    /** A renew is the heartbeat of the node and of the lanes its renewed leases cover. */
+    public static function touchWorkLanes(string $workerId, array $laneNames): void
+    {
+        $worker = self::findByWorkerId($workerId);
+        $metadata = [];
+
+        if ($worker === null) {
+            return;
+        }
+        $metadata = is_array($worker->metadata) ? $worker->metadata : [];
+        foreach ($laneNames as $lane) {
+            if (is_array($metadata['work_lanes'][$lane] ?? null)) {
+                $metadata['work_lanes'][$lane][self::LANE_DECLARED_AT] = time();
+            }
+        }
+        $worker->metadata = $metadata;
+        $worker->status = self::STATUS_ONLINE;
+        $worker->last_heartbeat_at = now();
+        $worker->save();
+    }
+
+    /**
+     * Lanes this node still works: declared by a claim or kept by a renew
+     * within $ttlSeconds. A lane the node stopped drops out after one TTL, so
+     * it no longer keeps cpu nodes off a gpu_preferred lane.
+     *
+     * @return array<string,array>
+     */
+    public function liveWorkLanes(int $ttlSeconds): array
+    {
+        $cutoff = time() - $ttlSeconds;
+
+        return array_filter(
+            (array) ($this->metadata['work_lanes'] ?? []),
+            static fn ($spec): bool => is_array($spec) && (int) ($spec[self::LANE_DECLARED_AT] ?? 0) >= $cutoff
+        );
     }
 
     /** Nodes that declared work-lease lanes. */

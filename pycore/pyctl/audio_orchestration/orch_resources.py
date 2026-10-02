@@ -9,6 +9,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_SENTENCE_AUDIO, laravel_delivery_diff_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
 from pycore.pyutils.tts import runtime_profile
@@ -19,6 +20,7 @@ from pycore.pyutils.tts.audio_queue_model import (
     owner_signal,
 )
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyutils.tts.audio_resource_ledger import resource_key
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts.engine_policy import (
@@ -116,6 +118,28 @@ def _store_sentence_cache(text: str, language: str, data: bytes) -> Optional[Pat
     )
 
 
+def server_sentence_presence(resources: List[Dict[str, Any]], base_url: Optional[str]) -> set:
+    """Resource ids of the sentences the Laravel server already stores audio
+    for: ONE content-keyed delivery diff for the whole batch instead of one
+    lookup per sentence. A server without the diff API, or a failed diff,
+    answers an empty set (the sentences are generated locally and reach the
+    server through the delivery outbox)."""
+    if not resources:
+        return set()
+    endpoint = str(base_url or laravel_endpoint_manager.get_active_base_url()).rstrip("/")
+    server_id = str(laravel_endpoint_manager.server_identity(endpoint).get("server_id") or "")
+    if not laravel_delivery_diff_client.supports(endpoint, server_id, DIFF_KIND_SENTENCE_AUDIO):
+        return set()
+    wire_keys = {resource_key("sentence", item["language"], item["text"]): item["resource_id"] for item in resources}
+    result = laravel_delivery_diff_client.diff(
+        endpoint, server_id, DIFF_KIND_SENTENCE_AUDIO, [{"key": key} for key in wire_keys],
+    )
+    if not result.get("success"):
+        return set()
+    absent = {str(entry.get("key") or "") for entry in (*result["need"], *result["rejected"])}
+    return {resource_id for key, resource_id in wire_keys.items() if key not in absent}
+
+
 def _sentence_metadata(resource: Dict[str, Any], base_url: Optional[str]) -> Dict[str, Any]:
     response = laravel_client.get(
         SENTENCE_AUDIO_PATH, base_url=base_url,
@@ -160,9 +184,11 @@ def resolve_sentence_audio(
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     cache_checked: bool = False,
     excluded_engines: Optional[tuple] = None,
+    server_has: bool = False,
 ) -> Dict[str, Any]:
-    """One sentence: central cache -> Laravel -> local synthesis. Words never
-    come here; they resolve only through the Kokoro batch in resolve_batch."""
+    """One sentence: central cache -> Laravel (only when the batch presence
+    diff says the server stores it) -> local synthesis. Words never come
+    here; they resolve only through the Kokoro batch in resolve_batch."""
     text = resource["text"]
     language = resource["language"]
     target = staging / f"{resource['resource_id']}.mp3"
@@ -172,11 +198,12 @@ def resolve_sentence_audio(
         hit = sentence_cache_hit(text, language)
         if hit is not None and validate_mp3(str(hit))[0]:
             return {"audio_path": str(hit), "source": "cache", "provider": "cache", "status": "ready"}
-    if progress_callback is not None:
-        progress_callback({"stage": ORCH_MSG_RESOURCE_FETCHING_LARAVEL})
-    downloaded = _laravel_sentence_audio(resource, target, base_url)
-    if downloaded is not None:
-        return {"audio_path": str(downloaded), "source": "laravel", "provider": "laravel", "status": "ready", "synced": True}
+    if server_has:
+        if progress_callback is not None:
+            progress_callback({"stage": ORCH_MSG_RESOURCE_FETCHING_LARAVEL})
+        downloaded = _laravel_sentence_audio(resource, target, base_url)
+        if downloaded is not None:
+            return {"audio_path": str(downloaded), "source": "laravel", "provider": "laravel", "status": "ready", "synced": True}
     if progress_callback is not None:
         progress_callback({"stage": ORCH_MSG_RESOURCE_GENERATING})
     result = synthesize(
@@ -410,17 +437,20 @@ def resolve_batch(
             str(resource["kind"]), resource["language"], resource["resource_id"],
         )
 
+    sentence_misses = [resource for resource in misses if resource["kind"] == "sentence"]
+    server_has = server_sentence_presence(sentence_misses, base_url) if sentence_misses else set()
+
     def _resolve_miss(resource: Dict[str, Any], cache_checked: bool = True) -> Dict[str, Any]:
         try:
             return resolve_sentence_audio(
                 resource, staging, base_url=base_url, cache_checked=cache_checked,
                 excluded_engines=_engine_exclusions(resource),
+                server_has=resource["resource_id"] in server_has,
             )
         except Exception as error:
             ColorPrint.red(f"[AudioOrch] resource={resource['resource_id']} failed: {error}")
             return {"source": "missing", "status": "failed", "error": str(error)}
 
-    sentence_misses = [resource for resource in misses if resource["kind"] == "sentence"]
     for chunk_start in range(0, len(sentence_misses), RESOLVE_CHUNK_SIZE):
         if _cancelled():
             break

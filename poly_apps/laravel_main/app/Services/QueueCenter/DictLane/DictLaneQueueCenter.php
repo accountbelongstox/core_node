@@ -8,6 +8,7 @@ use App\Models\GlobalTask;
 use App\Services\QueueCenter\QueueCenterCacheStore;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
+use App\Support\LockedCache;
 use App\Support\QueueProgress;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +20,8 @@ use Illuminate\Support\Facades\Log;
  * - keyset listing (pageAfterId): `predicate AND id > cursor ORDER BY id LIMIT n`;
  * - claim head (ensureMaterialized): `predicate ORDER BY query_count DESC, id`,
  *   minus the words already owned by live claim tasks (database truth);
- * - counts: one COUNT on the partial index, cached per dictionary write version.
+ * - counts: one COUNT on the partial index, cached COUNT_FRESH_SECONDS with a
+ *   single-flight refill that serves the last value meanwhile (LockedCache).
  *
  * Just-in-time materialization: global_tasks rows for a dict lane exist only
  * for words a worker actually pulled, one task per batch. word_audio is never
@@ -27,9 +29,9 @@ use Illuminate\Support\Facades\Log;
  */
 final class DictLaneQueueCenter
 {
-    private const WRITE_VERSION_PREFIX = 'dict_lane:write_version:';
     private const COUNT_CACHE_PREFIX = 'dict_lane:count:';
-    private const COUNT_CACHE_SECONDS = 30;
+    private const COUNT_FRESH_SECONDS = 30;
+    private const COUNT_STALE_SECONDS = 300;
     private const MATERIALIZE_LOCK_PREFIX = 'dict_lane:materialize:';
     private const MATERIALIZE_LOCK_SECONDS = 30;
     private const LIVE_PAYLOAD_SCAN_LIMIT = 500;
@@ -41,15 +43,6 @@ final class DictLaneQueueCenter
         ?TaskManagerService $taskManager = null
     ) {
         $this->taskManager = $taskManager ?? app(TaskManagerService::class);
-    }
-
-    /**
-     * Called from AppQyV1LangDictionaryModel::forgetMetricsCache on every
-     * metric-relevant dictionary write: new counts are read on the next serve.
-     */
-    public static function noteDictionaryWrite(string $langCode): void
-    {
-        QueueCenterCacheStore::increment(self::WRITE_VERSION_PREFIX . strtolower($langCode));
     }
 
     /**
@@ -73,16 +66,18 @@ final class DictLaneQueueCenter
         return $this->cachedCount($lane, $langCode, static fn (): int => DictLaneCatalog::laneCount($lane, strtolower($langCode)));
     }
 
-    /** One count per dictionary write version (a write makes the next serve recount). */
+    /**
+     * One count per lane, language and fresh window: one caller refills while
+     * the others get the last value, so concurrent listings and claims never
+     * stack the same COUNT.
+     */
     private function cachedCount(string $key, string $langCode, \Closure $count): int
     {
-        $langCode = strtolower($langCode);
-        $version = (int) QueueCenterCacheStore::get()->get(self::WRITE_VERSION_PREFIX . $langCode, 0);
-
-        return (int) QueueCenterCacheStore::get()->remember(
-            self::COUNT_CACHE_PREFIX . $key . ':' . $langCode . ':' . $version,
-            self::COUNT_CACHE_SECONDS,
-            $count
+        return (int) LockedCache::flexible(
+            self::COUNT_CACHE_PREFIX . $key . ':' . strtolower($langCode),
+            [self::COUNT_FRESH_SECONDS, self::COUNT_STALE_SECONDS],
+            $count,
+            0
         );
     }
 
@@ -157,6 +152,9 @@ final class DictLaneQueueCenter
         foreach (DictLaneCatalog::languages() as $langCode) {
             if ($created >= $limit) {
                 break;
+            }
+            if ($this->count($lane, $langCode) === 0) {
+                continue;
             }
             $created += $this->materializeLanguage(
                 $taskType,

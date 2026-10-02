@@ -12,6 +12,9 @@ WINE_WPF_DOTNET_URL="https://aka.ms/dotnet/$WINE_WPF_DOTNET_MAJOR.0/windowsdeskt
 WINE_WPF_VCREDIST_URL="https://aka.ms/vs/17/release/vc_redist.x64.exe"
 WINE_WPF_DOWNLOAD_SUBDIR="downloads"
 WINE_WPF_VCRUN_MARKER=".cn_vcrun2022"
+WINE_WPF_FONT_MARKER="drive_c/windows/Fonts/arial.ttf"
+WINE_WPF_DLL_OVERRIDES_INSTALL="mscoree,mshtml="
+WINE_WPF_DLL_OVERRIDES_RUN="mshtml="
 WINE_WPF_INSTALL_TIMEOUT=1200
 WINE_WPF_USER=""
 WINE_WPF_RUNTIME_DIR=""
@@ -36,7 +39,12 @@ wine_wpf_prefix_dir() {
 wine_wpf_runtime_present() {
     local prefix="${1:-$(wine_wpf_prefix_dir)}"
     command -v wine >/dev/null 2>&1 || return 1
+    [ -f "$prefix/$WINE_WPF_FONT_MARKER" ] || return 1
     compgen -G "$prefix/drive_c/Program Files/dotnet/shared/Microsoft.WindowsDesktop.App/$WINE_WPF_DOTNET_MAJOR.*" >/dev/null 2>&1
+}
+
+wine_wpf_dotnet_present() {
+    compgen -G "$1/drive_c/Program Files/dotnet/shared/Microsoft.WindowsDesktop.App/$WINE_WPF_DOTNET_MAJOR.*" >/dev/null 2>&1
 }
 
 wine_wpf_target_user() {
@@ -49,7 +57,7 @@ wine_wpf_target_user() {
 
 wine_wpf_run() {
     run_as_user_plain "$WINE_WPF_USER" env WINEPREFIX="$WINE_WPF_PREFIX" WINEDEBUG=-all \
-        ${WINE_WPF_RUNTIME_DIR:+XDG_RUNTIME_DIR=$WINE_WPF_RUNTIME_DIR} WINEDLLOVERRIDES="mscoree,mshtml=" "$@"
+        ${WINE_WPF_RUNTIME_DIR:+XDG_RUNTIME_DIR=$WINE_WPF_RUNTIME_DIR} WINEDLLOVERRIDES="$WINE_WPF_DLL_OVERRIDES_INSTALL" "$@"
 }
 
 wine_wpf_run_headless() {
@@ -111,7 +119,7 @@ wine_wpf_ensure_prefix() {
 
 wine_wpf_ensure_dotnet() {
     local installer="$CN_WINE_WPF_ROOT/$WINE_WPF_DOWNLOAD_SUBDIR/windowsdesktop-runtime-win-x64.exe"
-    if wine_wpf_runtime_present "$WINE_WPF_PREFIX"; then
+    if wine_wpf_dotnet_present "$WINE_WPF_PREFIX"; then
         wine_wpf_log ".NET $WINE_WPF_DOTNET_MAJOR Windows Desktop Runtime already in the prefix"
         return 0
     fi
@@ -120,11 +128,11 @@ wine_wpf_ensure_dotnet() {
         wine_wpf_run_headless wine "$installer" /install /quiet /norestart >/dev/null 2>&1
         wine_wpf_run_headless wineserver -w >/dev/null 2>&1
     fi
-    wine_wpf_runtime_present "$WINE_WPF_PREFIX" && return 0
+    wine_wpf_dotnet_present "$WINE_WPF_PREFIX" && return 0
     wine_wpf_log "Official installer did not complete; falling back to winetricks dotnetdesktop$WINE_WPF_DOTNET_MAJOR"
     wine_wpf_ensure_winetricks || return 1
     wine_wpf_run_headless "$WINE_WPF_WINETRICKS" -q "dotnetdesktop$WINE_WPF_DOTNET_MAJOR" >/dev/null 2>&1
-    wine_wpf_runtime_present "$WINE_WPF_PREFIX"
+    wine_wpf_dotnet_present "$WINE_WPF_PREFIX"
 }
 
 wine_wpf_ensure_vcrun() {
@@ -140,6 +148,17 @@ wine_wpf_ensure_vcrun() {
     wine_wpf_run touch "$WINE_WPF_PREFIX/$WINE_WPF_VCRUN_MARKER"
 }
 
+wine_wpf_ensure_fonts() {
+    if [ -f "$WINE_WPF_PREFIX/$WINE_WPF_FONT_MARKER" ]; then
+        wine_wpf_log "Core fonts already installed in the prefix"
+        return 0
+    fi
+    wine_wpf_log "Installing core fonts into the prefix (WPF text layout needs them)"
+    wine_wpf_ensure_winetricks || return 1
+    wine_wpf_run_headless "$WINE_WPF_WINETRICKS" -q corefonts >/dev/null 2>&1
+    [ -f "$WINE_WPF_PREFIX/$WINE_WPF_FONT_MARKER" ]
+}
+
 wine_wpf_ensure() {
     WINE_WPF_INSTALL_FAILED=false
     wine_wpf_target_user
@@ -147,6 +166,7 @@ wine_wpf_ensure() {
     wine_wpf_ensure_winetricks || wine_wpf_log "Warning: winetricks unavailable (only needed as a fallback)"
     wine_wpf_ensure_prefix || { wine_wpf_log "Wine prefix init failed"; WINE_WPF_INSTALL_FAILED=true; return 0; }
     wine_wpf_ensure_dotnet || { wine_wpf_log ".NET Windows Desktop Runtime install failed"; WINE_WPF_INSTALL_FAILED=true; return 0; }
+    wine_wpf_ensure_fonts || { wine_wpf_log "Core fonts install failed"; WINE_WPF_INSTALL_FAILED=true; return 0; }
     wine_wpf_ensure_vcrun || wine_wpf_log "Warning: VC++ runtime install failed (native OCR libraries may not load)"
     wine_wpf_log "WPF runtime ready: user=$WINE_WPF_USER prefix=$WINE_WPF_PREFIX"
 }

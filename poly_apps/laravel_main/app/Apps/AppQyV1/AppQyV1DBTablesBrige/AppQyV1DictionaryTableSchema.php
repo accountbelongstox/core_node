@@ -108,7 +108,7 @@ final class AppQyV1DictionaryTableSchema
         return $results;
     }
 
-    private static function formalStructure(): array
+    public static function formalStructure(): array
     {
         return [
             'columns' => self::withMd5(self::BASE_COLUMNS, ['unique' => true]) + self::FORMAL_COLUMNS,

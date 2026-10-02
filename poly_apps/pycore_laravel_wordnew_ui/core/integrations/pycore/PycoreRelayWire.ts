@@ -87,3 +87,15 @@ export function allowedHeaders(init: HeadersInit | undefined, body?: BodyInit | 
 export function relayRoutePath(url: URL): string {
   return url.pathname.replace(/^\/api(?=\/)/, '');
 }
+
+/** A multipart form bound for the relay must fit one relayed body (contract `request_body_bytes`); refused before it is encoded. */
+export function assertRelayFormFits(form: FormData): void {
+  const encoder = new TextEncoder();
+  let total = 0;
+  form.forEach((value) => {
+    total += value instanceof Blob ? value.size : encoder.encode(String(value)).byteLength;
+  });
+  if (total > RELAY_CONTRACT.limits.request_body_bytes) {
+    throw new PycoreRelayError('too-large', 'RELAY_REQUEST_BODY_TOO_LARGE', 413);
+  }
+}

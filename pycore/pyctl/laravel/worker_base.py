@@ -28,6 +28,7 @@ from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS, lane_state_code
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.server_schema_gate import ASSIST_BLOCK_SERVER_SCHEMA_PENDING, server_schema_gate
 from pycore.pyutils.laravel.worker_results import (
     HTTP_STATUS_TASK_REASSIGNED,
     WORKER_RESULT_KIND,
@@ -138,6 +139,10 @@ class BaseLaravelWorkerService:
     def results_blocked(self) -> bool:
         return worker_result_channel.circuit_open(self.worker_id)
 
+    def server_paused_seconds(self) -> float:
+        """Seconds the selected server's schema gate keeps claims paused."""
+        return server_schema_gate.paused_for(self.active_base_url())
+
     def pending_result_task_ids(self, task_ids: List[str]) -> List[str]:
         return worker_result_channel.pending_task_ids(self.worker_id, task_ids)
 
@@ -147,6 +152,10 @@ class BaseLaravelWorkerService:
 
     def laravel_online(self, base_url: str) -> None:
         self._on_laravel_online(base_url)
+
+    def server_heartbeat(self, base_url: str) -> None:
+        """A successful work-lease claim/renew refreshed the worker row."""
+        self._registration.heartbeat(base_url)
 
     def registration_renewed(self) -> None:
         """A fresh registration may face a newly deployed Laravel."""
@@ -310,14 +319,15 @@ class BaseLaravelWorkerService:
         attempt: Optional[int] = None,
     ) -> ResultPostOutcome:
         """One immediate result POST (progress pings, outbox delivery steps).
-        A non-terminal ping is skipped while its server is known offline or
-        during shutdown."""
+        A non-terminal ping is skipped while its server is known offline,
+        paused by its schema gate, or during shutdown."""
         worker_result = self._worker_result(task_id, status_role, result, error, progress, attempt)
         if worker_result is None:
             return ResultPostOutcome(False, 0, "task_type_unknown")
         if not worker_result.terminal and (
             THREAD_BUS.is_shutdown_requested()
             or laravel_endpoint_manager.is_reachable(worker_result.base_url) is False
+            or server_schema_gate.paused_for(worker_result.base_url) > 0
         ):
             return ResultPostOutcome(False, 0, "skipped")
         outcome = worker_result_channel.post(worker_result)
@@ -383,7 +393,9 @@ class BaseLaravelWorkerService:
         """``{device, engine, state, reason_code}``: device and engine only
         while an engine works (null when idle), reason_code only when blocked."""
         running, engine, block_code = self._assist_activity()
-        if self.results_blocked():
+        if self.server_paused_seconds() > 0:
+            block_code = ASSIST_BLOCK_SERVER_SCHEMA_PENDING
+        elif self.results_blocked():
             block_code = ASSIST_BLOCK_RESULT_CIRCUIT_OPEN
         elif self._lane_halt_requested():
             block_code = ASSIST_BLOCK_LANE_HALTED

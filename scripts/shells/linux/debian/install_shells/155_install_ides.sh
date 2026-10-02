@@ -1,8 +1,10 @@
 #!/bin/bash
-# Usage: 155_install_ides.sh [--only cursor|vscode|antigravity[,...]] [--refresh|--cleanup]
+# Usage: 155_install_ides.sh [--only cursor|vscode|antigravity[,...]] [--refresh|--cleanup] [--yes]
 # Default: idempotent install of every IDE (installed ones are refreshed and only
-# upgraded on a known newer version). --refresh re-asserts launchers, desktop
-# entries and IME config without downloading; --cleanup removes the selection.
+# upgraded on a known newer version). --refresh re-asserts launchers, update
+# shims, desktop entries, URL handlers and IME config without downloading;
+# --cleanup removes the selection; --yes answers the install/upgrade prompts
+# with yes (used by the menu icon's launch-time upgrade, ide_update_launcher.sh).
 
 SCRIPT_INDEX="155"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,6 +44,7 @@ ide_parse_args() {
                 ;;
             refresh|--refresh|reload|--reload) IDE_ACTION="refresh"; shift ;;
             cleanup|--cleanup|remove|--remove|uninstall|--uninstall) IDE_ACTION="cleanup"; shift ;;
+            -y|--yes) IDE_ASSUME_YES=true; shift ;;
             *) shift ;;
         esac
     done

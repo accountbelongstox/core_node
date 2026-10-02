@@ -31,6 +31,7 @@ from pycore.pyutils.laravel.delivery.store import delivery_store
 from pycore.pyutils.laravel.delivery_diff import NEED_STALE, laravel_delivery_diff_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.identity import URL_NAMESPACE_PREFIX
+from pycore.pyutils.laravel.server_schema_gate import SCHEMA_PENDING_CODE, server_schema_gate
 
 
 class DeliveryReconciler:
@@ -137,6 +138,9 @@ class DeliveryReconciler:
 
     def _reconcile_server(self, namespace: str, base_url: str, reason: str, kinds: Optional[List[str]]) -> None:
         if laravel_endpoint_manager.is_reachable(base_url) is False:
+            return
+        if server_schema_gate.paused_seconds(namespace) > 0:
+            ColorPrint.yellow(f"[LaravelDelivery] reconcile {namespace} deferred: {SCHEMA_PENDING_CODE}")
             return
         server = laravel_endpoint_manager.server_identity(base_url)
         server_id = str(server.get("server_id") or "")

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import getpass
-import json
 import os
 import re
 import shutil
@@ -15,6 +14,11 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+
+from adb_connect import (
+    ADB_DEFAULT_PORT, adb, connect_authorized, load_json, log, log_lines, pair_device, resolve_device, scan_and_connect,
+    show_mdns, switch_usb_devices_to_wifi, timed_yes_no, unique_serials, write_json,
+)
 
 
 SERVICE_CONTRACT = Path("config") / "service_contract.json"
@@ -35,7 +39,11 @@ SESSION_ARCHIVE_PREFIX = "session-"
 SESSION_ARCHIVE_KEEP = 10
 DEBUG_ROUTE = "/__debug"
 CAPACITOR_CONFIG = "capacitor.config.json"
-APK_GLOB = "native/*/android/app/build/outputs/apk/*/*.apk"
+APK_GLOB = "native/{app}/android/app/build/outputs/apk/*/*.apk"
+FLAVOR_MANIFEST = Path("flavors") / "{app}" / "flavor.json"
+SIGNATURE_MISMATCH = "INSTALL_FAILED_UPDATE_INCOMPATIBLE"
+# Signature-mismatch prompt: uninstall + reinstall is the default after this many seconds.
+UNINSTALL_PROMPT_SECONDS = 3
 DEVTOOLS_SOCKET = "localabstract:webview_devtools_remote_{pid}"
 JS_CONSOLE_TAG = " Capacitor/Console"
 ENV_DEBUG_LOG = "CORE_DEBUG_LOG"
@@ -50,26 +58,9 @@ LEVEL_COLORS = {"V": "\033[90m", "D": "\033[36m", "I": "\033[32m", "W": "\033[33
 COLOR_RESET = "\033[0m"
 
 
-def log(message: str) -> None:
-    print(f"[debug] {message}", flush=True)
-
-
 def fail(message: str, code: int = 2) -> None:
     log(f"ERROR: {message}")
     raise SystemExit(code)
-
-
-def load_json(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def write_json(path: Path, data: dict) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    os.replace(temporary, path)
 
 
 def contract(root: Path) -> dict:
@@ -228,30 +219,11 @@ def ensure_live_server(root: Path, app: dict, bun: str, environment: dict[str, s
     return url
 
 
-def adb(adb_bin: str, serial: str, *arguments: str) -> str:
-    result = subprocess.run([adb_bin, "-s", serial, *arguments], capture_output=True, text=True, errors="replace",
-                            check=False)
-    return (result.stdout + result.stderr).replace("\r", "")
-
-
-def unique_serials(adb_bin: str) -> list[str]:
-    listing = subprocess.run([adb_bin, "devices"], capture_output=True, text=True, check=False).stdout
-    serials: list[str] = []
-    hardware_seen: set[str] = set()
-    for line in listing.splitlines()[1:]:
-        fields = line.split()
-        if len(fields) < 2 or fields[1] != "device":
-            continue
-        hardware = adb(adb_bin, fields[0], "shell", "getprop", "ro.serialno").strip() or fields[0]
-        if hardware in hardware_seen:
-            continue
-        hardware_seen.add(hardware)
-        serials.append(fields[0])
-    return serials
-
-
-def app_id(root: Path) -> str:
-    identifier = load_json(root / CAPACITOR_CONFIG).get("appId")
+def app_id(root: Path, app: str = "") -> str:
+    identifier = ""
+    if app:
+        identifier = load_json(root / str(FLAVOR_MANIFEST).format(app=app)).get("appId")
+    identifier = identifier or load_json(root / CAPACITOR_CONFIG).get("appId")
     if not identifier:
         fail(f"appId is missing in {root / CAPACITOR_CONFIG}")
     return str(identifier)
@@ -262,29 +234,47 @@ def app_pid(adb_bin: str, serial: str, identifier: str) -> str:
     return fields[0] if fields and fields[0].isdigit() else ""
 
 
-def latest_apk(root: Path) -> str:
-    candidates = sorted(root.glob(APK_GLOB), key=lambda candidate: candidate.stat().st_mtime)
+def latest_apk(root: Path, app: str = "") -> str:
+    candidates = sorted(root.glob(APK_GLOB.format(app=app or "*")), key=lambda candidate: candidate.stat().st_mtime)
     return str(candidates[-1]) if candidates else ""
 
 
-def install(root: Path, adb_bin: str, apk: str) -> bool:
-    identifier = app_id(root)
+def confirm_uninstall(adb_bin: str, serial: str, identifier: str, interactive: bool) -> bool:
+    log(f"Install blocked on {serial}: {identifier} is installed but signed with a different keystore "
+        f"({SIGNATURE_MISMATCH}). Typical cause: the installed build came from the other OS of this dual-boot "
+        "machine (each OS has its own debug keystore) or from a release build.")
+    log("Uninstalling erases the app's on-device data (login, local files). Nothing has been uninstalled.")
+    if not interactive:
+        log(f"Non-interactive run: not uninstalling. To replace it manually: {adb_bin} -s {serial} uninstall {identifier}")
+        return False
+    return timed_yes_no(f"Uninstall {identifier} from {serial} (erases its data) and reinstall? "
+                        f"Default yes in {UNINSTALL_PROMPT_SECONDS}s;", UNINSTALL_PROMPT_SECONDS, True)
+
+
+def install_one(adb_bin: str, serial: str, apk: str, identifier: str, interactive: bool) -> bool:
+    log(f"Installing {apk} to {serial}...")
+    output = adb(adb_bin, serial, "install", "-r", apk)
+    if "Success" not in output and SIGNATURE_MISMATCH in output:
+        if not confirm_uninstall(adb_bin, serial, identifier, interactive):
+            return False
+        log_lines(adb(adb_bin, serial, "uninstall", identifier))
+        output = adb(adb_bin, serial, "install", "-r", apk)
+    if "Success" not in output:
+        log(f"Install failed on {serial}: {output.strip()}")
+        return False
+    package = adb(adb_bin, serial, "shell", "dumpsys", "package", identifier)
+    details = [line.strip() for line in package.splitlines() if line.strip().startswith(("versionName=", "lastUpdateTime="))]
+    log(f"Installed on {serial}: {' '.join(details[:2])}")
+    return True
+
+
+def install(root: Path, adb_bin: str, apk: str, app: str, interactive: bool) -> bool:
+    identifier = app_id(root, app)
     serials = unique_serials(adb_bin)
     if not serials:
-        log("No online device. Connect one first (device menu option 1).")
+        log("No online device. Connect one first (one-click debug or a WiFi connect action).")
         return False
-    installed = True
-    for serial in serials:
-        log(f"Installing {apk} to {serial}...")
-        output = adb(adb_bin, serial, "install", "-r", apk)
-        if "Success" not in output:
-            log(f"Install failed on {serial}: {output.strip()}")
-            installed = False
-            continue
-        package = adb(adb_bin, serial, "shell", "dumpsys", "package", identifier)
-        details = [line.strip() for line in package.splitlines() if line.strip().startswith(("versionName=", "lastUpdateTime="))]
-        log(f"Installed on {serial}: {' '.join(details[:2])}")
-    return installed
+    return all([install_one(adb_bin, serial, apk, identifier, interactive) for serial in serials])
 
 
 def rotate_session_log(directory: Path) -> Path:
@@ -305,9 +295,9 @@ def stop_collector(root: Path) -> None:
         stop_process_tree(int(state["collector_pid"]))
 
 
-def attach(root: Path, adb_bin: str, follow_logs: bool) -> None:
+def attach(root: Path, adb_bin: str, follow_logs: bool, app: str) -> None:
     directory = live_dir(root)
-    identifier = app_id(root)
+    identifier = app_id(root, app)
     live_port = int(contract(root)["ports"][LIVE_RELOAD_PORT_KEY])
     stop_collector(root)
     rotate_session_log(directory)
@@ -336,6 +326,15 @@ def attach(root: Path, adb_bin: str, follow_logs: bool) -> None:
     print_info(root)
     if follow_logs and sys.stdin.isatty() and sys.stdout.isatty():
         follow(root)
+
+
+def watch_app_pid(adb_bin: str, serial: str, identifier: str, pid: str, stream: subprocess.Popen) -> None:
+    """Terminates the logcat stream once the app's pid is no longer `pid` (restart, exit, kill)."""
+    while stream.poll() is None:
+        time.sleep(POLL_SECONDS)
+        if app_pid(adb_bin, serial, identifier) != pid:
+            stream.terminate()
+            return
 
 
 def collect(root: Path, adb_bin: str, identifier: str, serials: list[str]) -> None:
@@ -369,6 +368,11 @@ def collect(root: Path, adb_bin: str, identifier: str, serials: list[str]) -> No
                 publish()
             stream = subprocess.Popen([adb_bin, "-s", serial, "logcat", "-v", "threadtime", f"--pid={pid}"],
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+            # `logcat --pid` keeps running after the process dies: stop it when the app restarts or
+            # exits, so the loop re-attaches to the new process instead of following a dead pid.
+            threading.Thread(target=watch_app_pid, args=(adb_bin, serial, identifier, pid, stream), daemon=True).start()
+            with lock:
+                sink.write(f"{serial} [collector] attached to {identifier} pid {pid}\n")
             for line in stream.stdout:
                 if JS_CONSOLE_TAG in line:
                     continue
@@ -437,29 +441,53 @@ def follow(root: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Device-side native debugging: install, attach, live logs, DevTools.")
-    parser.add_argument("action", choices=("latest-apk", "install", "attach", "collect", "follow", "info", "stop"))
+    parser = argparse.ArgumentParser(description="Device-side native debugging: connect, install, attach, live logs, DevTools.")
+    parser.add_argument("action", choices=("latest-apk", "install", "attach", "collect", "follow", "info", "stop",
+                                           "connect", "scan", "pair", "tcpip", "mdns"))
     parser.add_argument("--root", required=True, help="UI project root")
     parser.add_argument("--adb", default="adb", help="adb binary")
     parser.add_argument("--apk", default="", help="APK to install (latest build when omitted)")
+    parser.add_argument("--app", default="", help="app flavor id (selects its APK and appId)")
     parser.add_argument("--app-id", default="")
     parser.add_argument("--serials", nargs="*", default=[])
+    parser.add_argument("--target", default="", help="connect/pair target (connect: IP[:PORT]; pair: IP:PAIR_PORT)")
+    parser.add_argument("--code", default="", help="pairing code")
+    parser.add_argument("--port", type=int, default=ADB_DEFAULT_PORT, help="adb tcpip port")
     parser.add_argument("--no-follow", action="store_true")
+    parser.add_argument("--non-interactive", action="store_true")
     return parser.parse_args()
+
+
+def device_action(args: argparse.Namespace, root: Path, interactive: bool) -> None:
+    state_dir = live_dir(root)
+    if args.action == "connect":
+        if args.target:
+            connect_authorized(args.adb, args.target)
+        else:
+            resolve_device(args.adb, state_dir, interactive)
+    elif args.action == "scan":
+        scan_and_connect(args.adb, state_dir)
+    elif args.action == "pair":
+        pair_device(args.adb, args.target, args.code, interactive)
+    elif args.action == "tcpip":
+        switch_usb_devices_to_wifi(args.adb, state_dir, args.port)
+    elif args.action == "mdns":
+        show_mdns(args.adb)
 
 
 def main() -> int:
     args = parse_args()
     root = Path(args.root).resolve()
+    interactive = not args.non_interactive and sys.stdin.isatty() and sys.stdout.isatty()
     if args.action == "latest-apk":
-        print(latest_apk(root))
+        print(latest_apk(root, args.app))
     elif args.action == "install":
-        apk = args.apk or latest_apk(root)
+        apk = args.apk or latest_apk(root, args.app)
         if not apk:
             fail("APK not found. Build first.")
-        return 0 if install(root, args.adb, apk) else 1
+        return 0 if install(root, args.adb, apk, args.app, interactive) else 1
     elif args.action == "attach":
-        attach(root, args.adb, not args.no_follow)
+        attach(root, args.adb, not args.no_follow, args.app)
     elif args.action == "collect":
         collect(root, args.adb, args.app_id, args.serials)
     elif args.action == "follow":
@@ -468,6 +496,8 @@ def main() -> int:
         print_info(root)
     elif args.action == "stop":
         stop_collector(root)
+    else:
+        device_action(args, root, interactive)
     return 0
 
 

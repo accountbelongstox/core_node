@@ -12,6 +12,7 @@ from typing import (
     Tuple,
 )
 from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_delivery
+from pycore.pyutils.tts.audio_queue_model import LOCAL_SOURCE_LEASE
 from pycore.pyctl.tts.word_audio_backend_progress import word_audio_backend_progress
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import (
@@ -66,6 +67,10 @@ class LaravelAudioWorkerReportingMixin:
                 "success": "true" if success else "false",
                 "provider": provider or "none",
             }
+            if success and info.get("_local_source") and info.get("_local_source") != LOCAL_SOURCE_LEASE and info.get("text"):
+                # A node-local sentence (orchestration / manual) may have no
+                # Laravel row: the text lets the report create it.
+                fields["text"] = str(info["text"])
             if info.get("variant_key"):
                 fields["variant_key"] = str(info["variant_key"])
             if info.get("accent"):

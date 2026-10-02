@@ -32,7 +32,8 @@
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs (args after
 #                                                     # `--` go to prepare.sh)
 #   ./pyservice.sh colab                 # Google Colab VM: Relay agent (mode 2) with
-#   ./pyservice.sh kaggle                # persisted caches (notebook_runtime.sh)
+#   ./pyservice.sh kaggle                # persisted caches (notebook_runtime.sh); the
+#                                        # cell first runs pycore/bootstrap/notebook_boot.py
 #   ./pyservice.sh colab --export-identity   # encrypt the Relay device identity
 #
 # Subcommands: run (default) | config | install | start | stop | restart |
@@ -203,6 +204,7 @@ resolve_python() {
         set +euo pipefail
         source "$SCRIPT_DIR/scripts/shells/linux/common/gvar_common.sh" >/dev/null 2>&1
         source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh" >/dev/null 2>&1
+        venv_notebook_platform_from_common && exit 0
         [ -n "${VENV_PYTHON3:-}" ] && [ -x "$VENV_PYTHON3" ] && printf '%s' "$VENV_PYTHON3"
     )" || true
     if [[ -n "$venv_py" && -x "$venv_py" ]]; then
@@ -251,12 +253,16 @@ Modes:
 Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
   colab        Google Colab VM: outbound-only Relay agent to Laravel. Config,
                Relay identity and model/pip caches persist under
-               /content/drive/MyDrive/core_node_notebook (mount Drive first).
+               /content/drive/MyDrive/core_node_notebook, decrypted secrets
+               backed up there; only kokoro and qwen3tts are installed/scheduled.
   kaggle       Kaggle notebook VM; persist root /kaggle/working/core_node_notebook.
                Secrets in .secret_keys/already_encrypted are decrypted with one
                password: \$CORE_NODE_SECRET_PASSWORD or a terminal prompt.
                Override the persist root with \$NOTEBOOK_PERSIST_DIR.
-               Launcher cell: %run <repo>/pycore/bootstrap/notebook_boot.py colab
+               Cell: %run <repo>/pycore/bootstrap/notebook_boot.py colab
+                     !bash <repo>/pyservice.sh colab
+               (the kernel step mounts Drive, reuses decrypted secrets with a
+               3 s y/N prompt to type the password, default N)
                Third-party AI keys/services are off; translation and AI run on
                local models (Ollama + config/service_contract.json
                local_ai.translate_model, installed by default).
@@ -646,7 +652,7 @@ client_key_ensure_ready
 # Bucket-A LLM stack shares ONE pinned transformers (never --upgrade) and Bucket-B engines
 # with incompatible pins (qwen3tts, melotts, gptsovits - each in its own isolated per-engine
 # venv; melotts/gptsovits build opt-in only) never touch the main interpreter. See
-# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7.
+# docs_fix/DESIGN_TTS_AI_RUNTIME.md §9.
 # A notebook VM starts without venvs or system packages: its first run always
 # installs (initializing the persist-root caches); later runs honor --no-install.
 if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
@@ -815,7 +821,7 @@ if [[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]]; then
 fi
 
 # Free the RPC port from a foreign Docker publisher before binding it.
-stop_docker_publisher "$PORT" || true
+[[ -n "$NOTEBOOK_PLATFORM" ]] || stop_docker_publisher "$PORT" || true
 
 # --- drop privileges for the worker on desktop sessions -------------------- #
 # The worker's system tray (AppIndicator/StatusNotifierItem) registers on the

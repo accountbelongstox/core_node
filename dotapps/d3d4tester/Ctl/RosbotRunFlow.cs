@@ -65,6 +65,11 @@ public static class RosbotRunFlow
     /// <summary>[E4] Start the ROSBOT process; on success set the F3 baseline.</summary>
     public static bool RunE4Start()
     {
+        if (GameInterfaceData.Instance.GetStateSnapshot().BattlenetWakingUp)
+        {
+            ColorPrinter.Yellow("[E4] Battle.net is waking up (sleep / fetching account), skip ROSBOT start this round");
+            return false;
+        }
         bool ok = RosbotManager.Instance.Start();
         if (ok)
             F3LogTimeout.SetRosbotStartedAt();

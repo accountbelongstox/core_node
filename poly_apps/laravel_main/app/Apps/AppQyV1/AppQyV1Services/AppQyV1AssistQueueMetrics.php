@@ -112,10 +112,10 @@ trait AppQyV1AssistQueueMetrics
      */
     public function wordAudioCounts(): array
     {
-        $byLanguage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
-            ->counts(\App\Services\QueueCenter\DictLane\DictLaneCatalog::LANE_WORD_AUDIO);
+        $lane = \App\Services\QueueCenter\GapLaneSnapshot::lane(\App\Services\WorkLeases\WorkLeaseLanes::WORD_AUDIO);
+        $byLanguage = array_filter(array_map(static fn (array $figures): int => $figures['gap'], $lane), static fn (int $gap): bool => $gap > 0);
         // The gap is worked through work leases: leased = rows under a live lease.
-        $leased = array_sum(app(\App\Services\WorkLeases\WorkLeaseService::class)->leasedByLanguage('word_audio'));
+        $leased = array_sum(array_column($lane, 'leased'));
         $total = array_sum($byLanguage);
 
         return [

@@ -7,6 +7,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SourceDir</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\dotcore\DotCore.Foundations\DotCore.Foundations.csproj" />
     <ProjectReference Include="..\..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
     <ProjectReference Include="..\..\..\dotcore\DotCore.Utils\DotCore.Utils.csproj" />

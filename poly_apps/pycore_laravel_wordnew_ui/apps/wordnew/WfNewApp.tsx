@@ -158,7 +158,7 @@ export const WfNewApp: React.FC = () => {
 
   return (
     <div className={dark ? 'dark' : ''}>
-      <div className={`min-h-screen transition-all duration-1000 overflow-x-hidden ${activeTheme.bgClass} ${
+      <div className={`min-h-screen transition-all duration-1000 overflow-x-clip ${activeTheme.bgClass} ${
         activeTheme.id === 'nordic' ? 'text-slate-800 dark:text-slate-100' : (dark ? 'text-slate-100' : 'text-slate-900')
       }`}>
       
@@ -584,7 +584,7 @@ export const WfNewApp: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
             >
-              <Suspense fallback={null}><WordNewOrchAudioRoute theme={activeTheme} trans={trans} dark={dark} /></Suspense>
+              <Suspense fallback={null}><WordNewOrchAudioRoute theme={activeTheme} trans={trans} dark={dark} isLoggedIn={currentUser.isLoggedIn} /></Suspense>
             </motion.div>
           )}
 

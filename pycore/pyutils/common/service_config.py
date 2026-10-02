@@ -4,6 +4,7 @@
 import os
 import time
 
+from pycore.pyfoundations.notebook_policy import notebook_assist_node
 from pycore.pyfoundations.service_contract import laravel_api_catalog_urls, service_domain
 from pycore.pyutils.common.strtools.normalization import to_bool
 
@@ -28,7 +29,7 @@ NO_TRAY_ENV = "PYCORE_NO_TRAY"
 
 
 def tray_disabled() -> bool:
-    return to_bool(os.environ.get(NO_TRAY_ENV, ""))
+    return to_bool(os.environ.get(NO_TRAY_ENV, "")) or notebook_assist_node()
 
 
 def qt_tray_enabled() -> bool:

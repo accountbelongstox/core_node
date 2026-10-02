@@ -202,7 +202,7 @@ function Install-PinnedTransformers {
         Idempotent transformers install for the shared Bucket-A LLM stack.
     .DESCRIPTION
         Implements the Bucket-A rule in
-        development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7:
+        docs_fix/DESIGN_TTS_AI_RUNTIME.md §9:
         DeepSeek-VL/DeepSeek-OCR/Qwen2.5/NLLB-200/Bark share the system interpreter.
         Existing distributions are preserved; missing packages are delegated to pip.
     #>

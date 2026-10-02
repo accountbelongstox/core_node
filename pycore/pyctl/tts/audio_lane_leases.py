@@ -33,6 +33,7 @@ from pycore.pyctl.laravel.worker.work_leases import (
     LeaseBook,
     WANT_MAX,
     work_lease_client,
+    work_node_identity,
 )
 
 LEASE_RETRY_INITIAL_SECONDS = 5.0
@@ -72,7 +73,7 @@ class AudioLaneLeases:
         """Cheap heartbeat check: a renew, release or claim is due."""
         if not self._worker._is_enabled():
             return bool(self._book.held_ids())
-        if self._worker._lane_halt_requested():
+        if self._worker._lane_halt_requested() or self._worker.server_paused_seconds() > 0:
             return False
         if self._book.renew_due():
             return True
@@ -93,6 +94,10 @@ class AudioLaneLeases:
             return {"leased": 0}
         if worker._lane_halt_requested():
             return {"leased": 0}
+        paused = worker.server_paused_seconds()
+        if paused > 0:
+            self._book.defer_claim(paused)
+            return {"leased": 0, "paused": round(paused, 1)}
         base_url = worker.active_base_url()
         urgent = urgent and not worker.intake_stopped()
         if self._base_url and self._base_url != base_url:
@@ -105,8 +110,13 @@ class AudioLaneLeases:
             due = self._book.renew_due()
             if due:
                 self._apply_renewal(work_lease_client.renew(base_url, worker.worker_id, due))
+                worker.server_heartbeat(base_url)
             return {"leased": 0}
         except (OSError, RuntimeError, ValueError) as exc:
+            paused = worker.server_paused_seconds()
+            if paused > 0:
+                self._book.defer_claim(paused)
+                return {"leased": 0, "paused": round(paused, 1)}
             error = redacted_http_error(exc)
             self._book.defer_claim(self._backoff.next_delay())
             if error != self._error_logged:
@@ -121,6 +131,7 @@ class AudioLaneLeases:
         request = {
             "worker_id": worker.worker_id,
             "compute_class": worker.compute_identity["compute_class"],
+            **work_node_identity(),
             "throughput_per_hour": {self._lane: max(self._book.throughput_per_hour(), worker.capacity_per_hour())},
             "lanes": {self._lane: {**capability, "max_items": max(0, BATCH_MAX - len(open_keys))}},
             "want": self._want(open_keys),
@@ -129,18 +140,25 @@ class AudioLaneLeases:
         data = work_lease_client.claim(base_url, request)
         self._backoff.reset()
         self._error_logged = ""
+        worker.server_heartbeat(base_url)
         self._apply_renewal(data)
         lease_id = str(data.get("lease_id") or "")
         tasks: List[Dict[str, Any]] = []
         book_items: List[Dict[str, Any]] = []
+        unspeakable: List[Dict[str, Any]] = []
         for item in data.get("items") or []:
             task = self._task(item, base_url) if isinstance(item, dict) else None
             if task is None:
+                if isinstance(item, dict) and item.get("row_id") not in (None, ""):
+                    unspeakable.append({"lane": self._lane, "row_id": item["row_id"]})
                 continue
             tasks.append(task)
             book_items.append({"key": audio_dedup_key_from_task(task, self._lane), "lane": self._lane, "row_id": item["row_id"]})
         if lease_id and book_items:
             self._book.add(lease_id, float(data.get("ttl_seconds") or LEASE_TTL_SECONDS), book_items)
+        if unspeakable:
+            work_lease_client.release(base_url, worker.worker_id, rows=unspeakable)
+            ColorPrint.yellow(f"{worker.log_prefix} released {len(unspeakable)} leased row(s) with no speakable text")
         admitted = audio_queue_center.accept_leased(self._lane, tasks)
         retry_after = 0.0 if tasks else float(data.get("retry_after_seconds") or EMPTY_RETRY_AFTER_SECONDS)
         pooled = [entry for entry in data.get("pooled") or [] if isinstance(entry, dict)]
@@ -177,8 +195,10 @@ class AudioLaneLeases:
         return task
 
     def _want(self, open_keys: set) -> List[Dict[str, str]]:
-        """Content this node's orchestration queued locally: Laravel leases
-        those rows here first, so no other node generates them."""
+        """This node's local generation list (orchestration / manual head, ids
+        only): Laravel raises those rows for the other nodes and never leases
+        them back to this node, so both sides generate in parallel with no
+        overlap. A word without a Laravel md5 sends its cleaned text instead."""
         want: List[Dict[str, str]] = []
         for task in audio_queue_center.get_head(self._lane, WANT_MAX):
             if str(task.get("_local_source") or "") not in _WANT_SOURCES:
@@ -186,9 +206,16 @@ class AudioLaneLeases:
             if audio_dedup_key_from_task(task, self._lane) in open_keys:
                 continue
             payload = task.get("payload") or {}
-            content_key = str(payload.get("content_id") or "") if self._lane == "sentence_audio" else str(payload.get("md5") or "")
-            if content_key:
-                want.append({"lane": self._lane, "language": str(payload.get("language") or ""), "content_key": content_key})
+            language = str(payload.get("language") or "")
+            if self._lane == "sentence_audio":
+                content_key = str(payload.get("content_id") or "")
+                entry = {"content_key": content_key} if content_key else {}
+            else:
+                content_key = str(payload.get("md5") or "")
+                text = str(payload.get("word") or payload.get("text") or "").strip()
+                entry = {"content_key": content_key} if content_key else {"text": text} if text else {}
+            if entry:
+                want.append({"lane": self._lane, "language": language, **entry})
         return want
 
     def _apply_renewal(self, data: Dict[str, Any]) -> None:

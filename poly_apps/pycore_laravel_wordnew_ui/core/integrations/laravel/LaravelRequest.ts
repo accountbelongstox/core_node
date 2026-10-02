@@ -6,6 +6,7 @@ import { coordinateRequest } from '../../network/RequestCoordinator';
 import i18n from '../../i18n/UiI18n';
 import { requestGlobalLogin } from './transport/LoginRequestBridge';
 import { clientKeyFailureCode, clientKeyFailureMessage } from './ClientKeyFailure';
+import { serverSchemaGate } from './ServerSchemaGate';
 
 type LaravelMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -30,6 +31,7 @@ export async function readLaravelResponse<T>(response: Response, path: string): 
     : typeof body?.code === 'string' ? body.code : `LARAVEL_HTTP_${response.status}`;
   const message = typeof body?.message === 'string' ? body.message.slice(0, 512) : code;
   if (!response.ok) {
+    serverSchemaGate.observeHttp(response.status, body);
     throw Object.assign(new Error(`${code}: ${path}: ${message}`), {
       status: response.status, code, path, payload: body,
     });

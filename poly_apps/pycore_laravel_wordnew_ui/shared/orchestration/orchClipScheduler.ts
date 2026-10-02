@@ -74,7 +74,7 @@ import {
   type OrchBundleSink,
   type OrchBundleTransport,
 } from './orchClipBundle';
-import { orchPool, orchRetry, type OrchClipSource, type OrchClipSourceContext } from './orchClipResolver';
+import { OrchChannelPaused, orchPool, orchRetry, type OrchClipSource, type OrchClipSourceContext } from './orchClipResolver';
 import type { OrchChannelId, OrchComposeResource, OrchResolvedClip } from './orchTypes';
 
 type Found = (resource: OrchComposeResource, clip: OrchResolvedClip) => void;
@@ -314,16 +314,24 @@ function generateStage(stage: OrchClipStageId, channel: OrchClipChannel, gate: (
       let accepted = 0;
       let batchesDone = 0;
       let complete = true;
+      let paused: OrchChannelPaused | null = null;
       for (const kind of RESOURCE_KINDS) {
         const batch = next.filter((resource) => resource.kind === kind);
         if (batch.length === 0 || context.signal?.aborted) continue;
         const baseUrl = channel.bundle.baseUrl();
-        if (await orchRetry(async () => ((await channel.generate?.(kind, batch)) ? true : null), context.signal)) {
-          context.answered(channel.bundle.origin, baseUrl);
-          batch.forEach((resource) => context.generating(resource, channel.id));
-          accepted += batch.length;
-        } else {
+        try {
+          if (await orchRetry(async () => ((await channel.generate?.(kind, batch)) ? true : null), context.signal)) {
+            context.answered(channel.bundle.origin, baseUrl);
+            batch.forEach((resource) => context.generating(resource, channel.id));
+            accepted += batch.length;
+          } else {
+            complete = false;
+          }
+        } catch (error) {
+          if (!(error instanceof OrchChannelPaused)) throw error;
+          paused = error;
           complete = false;
+          break;
         }
         batchesDone += 1;
         context.stage(stage, { batchesDone, found: requested.length + accepted });
@@ -332,7 +340,9 @@ function generateStage(stage: OrchClipStageId, channel: OrchClipChannel, gate: (
       if (complete && next.length > 0) {
         context.cursors.advance(stage, endpoint, Math.max(...next.map((resource) => planIndex(context, resource))) + 1);
       }
-      context.stage(stage, { state: complete ? 'done' : 'failed', found: requested.length + accepted });
+      context.stage(stage, paused
+        ? { state: 'paused', reason: paused.code, retryAfterSeconds: paused.retryAfterSeconds, found: requested.length + accepted }
+        : { state: complete ? 'done' : 'failed', found: requested.length + accepted });
     },
   };
 }

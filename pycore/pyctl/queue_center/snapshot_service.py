@@ -170,7 +170,6 @@ class _QueueCenterRealtimeThread(threading.Thread):
                     continue
                 connection = self._service.realtime_connection(endpoint)
                 self._subscribed_endpoint = endpoint
-                self._service.replay_realtime_events(endpoint)
                 subscriber = MercureSubscriber(
                     str(connection["hub_url"]),
                     [str(topic) for topic in (connection.get("topics") or [])],

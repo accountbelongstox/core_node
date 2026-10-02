@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Apply default user profile path mappings (all dot-prefixed folders) from dd Windows Management menu.
+    Apply default user profile path mappings (all dot-prefixed folders) from dd Management & Backup menu.
 #>
 
 #region Variable Declarations

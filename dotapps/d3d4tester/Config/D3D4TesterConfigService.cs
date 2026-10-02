@@ -27,6 +27,8 @@ public sealed class D3D4TesterConfigService
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    public const string DefaultConfigResourceName = "d3d4tester.default_config.json";
+
     public static D3D4TesterConfigService Instance { get; } = new();
 
     private D3D4TesterConfigService()
@@ -145,88 +147,15 @@ public sealed class D3D4TesterConfigService
         _file.WriteAllText(ConfigPaths.ConfigUserPath, template.ToJsonString(_jsonOptions));
     }
 
+    /// <summary>
+    /// Default config shipped inside the app (Config/default_config.json, embedded): written as the user config on first run and
+    /// merged into it (missing keys only) on every start, so the user config is the single source and code holds no defaults.
+    /// </summary>
     private static JsonObject GetDefaultTemplate()
     {
-        var o = new JsonObject
-        {
-            ["ui_settings"] = new JsonObject
-            {
-                ["window_geometry"] = AppConstants.DefaultWindowGeometry,
-                ["app_icon"] = "",
-                ["current_language"] = "en",
-                ["skip_taskbar_win32_fix"] = false
-            },
-            ["macro_configs"] = new JsonObject
-            {
-                ["current_skill_config"] = "config1",
-                ["skill_configs"] = new JsonObject
-                {
-                    ["config1"] = new JsonObject { ["skills"] = new JsonObject() },
-                    ["config2"] = new JsonObject { ["skills"] = new JsonObject() },
-                    ["config3"] = new JsonObject { ["skills"] = new JsonObject() },
-                    ["config4"] = new JsonObject { ["skills"] = new JsonObject() }
-                },
-                ["auxiliary_config"] = new JsonObject
-                {
-                    ["macro_start_hotkey"] = "F2",
-                    ["assistant_hotkey"] = "F3",
-                    ["animation_speed"] = "Medium",
-                    ["game_language"] = "English",
-                    ["sound_feedback"] = true,
-                    ["smart_pause"] = true,
-                    ["blood_shard"] = new JsonObject { ["enabled"] = false, ["type"] = AuxiliaryFeatureOptions.BloodShardTypeDefault },
-                    ["quick_pickup"] = new JsonObject { ["enabled"] = false },
-                    ["blacksmith"] = new JsonObject { ["enabled"] = false },
-                    ["kanai_reforge"] = new JsonObject { ["enabled"] = false, ["mode"] = AuxiliaryFeatureOptions.KanaiReforgeModeDefault },
-                    ["kanai_upgrade"] = new JsonObject { ["enabled"] = false },
-                    ["kanai_convert"] = new JsonObject { ["enabled"] = false, ["material"] = AuxiliaryFeatureOptions.KanaiConvertMaterialDefault },
-                    ["auto_salvage"] = new JsonObject { ["enabled"] = false, ["keep"] = AuxiliaryFeatureOptions.AutoSalvageKeepDefault },
-                    ["drop_equipment"] = new JsonObject { ["enabled"] = false }
-                }
-            },
-            ["ui_analysis"] = new JsonObject
-            {
-                ["bag_offset"] = new JsonObject { ["left"] = 0, ["right"] = 0, ["top"] = 0, ["bottom"] = 0, ["use_in_calculation"] = false }
-            },
-            ["ros_settings"] = new JsonObject { ["ros_directory"] = "", ["auto_enable_latest_ros"] = true, ["battlenet_region_cache"] = "" },
-            ["battlenet"] = new JsonObject { ["battlenet_path"] = "", ["timeout_restart"] = true },
-            ["battlenet_asia_credentials"] = new JsonObject { ["email"] = "", ["password"] = "" },
-            ["battlenet_cn_credentials"] = new JsonObject { ["email"] = "", ["password"] = "" },
-            ["d3"] = new JsonObject { ["d3_path"] = "" },
-            ["rosbot"] = new JsonObject
-            {
-                ["pickup_blood_shards"] = false,
-                ["prevent_stuck"] = false,
-                ["blue_portal_priority"] = false,
-                ["smart_echo"] = false,
-                ["smart_echo_wait_seconds"] = 15,
-                ["startup"] = false,
-                ["firstborn_blue_gate_reuse"] = false,
-                ["test_mode"] = false,
-                ["test_timeout_minutes"] = 30,
-                ["timeout_minutes"] = 8
-            },
-            ["anti_stuck"] = new JsonObject { ["enabled"] = true },
-            ["log_settings"] = new JsonObject
-            {
-                ["show_debug_logs"] = true,
-                ["auto_scroll"] = true,
-                ["log_level"] = "INFO",
-                ["debug_log_latency"] = false
-            },
-            ["log_detection"] = new JsonObject
-            {
-                ["login_try"] = "Login try"
-            },
-            ["coord_calibration"] = new JsonObject
-            {
-                ["client_type"] = AppConstants.ClientTypeBattlenet,
-                ["yolo_data_root"] = "",
-                ["yolo_current_project"] = "",
-                ["yolo_project_list"] = new JsonArray()
-            }
-        };
-        return o;
+        using var stream = typeof(D3D4TesterConfigService).Assembly.GetManifestResourceStream(DefaultConfigResourceName)
+            ?? throw new InvalidOperationException($"Embedded default config missing: {DefaultConfigResourceName}");
+        return JsonNode.Parse(stream) as JsonObject ?? new JsonObject();
     }
 
     /// <summary>

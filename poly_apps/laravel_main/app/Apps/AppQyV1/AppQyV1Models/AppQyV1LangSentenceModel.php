@@ -9,8 +9,6 @@ use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Support\Collection;
-use App\Support\LockedCache;
-use App\Support\TableRowEstimate;
 
 /**
  * Per-language authoritative sentence store (Books v3 unified model — see
@@ -25,7 +23,6 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
 {
     use BindsAppQyV1LanguageTable, QueriesDiffIdPages, RunsModelTransactions;
 
-    private const GAP_COUNT_CACHE_SECONDS = 30;
 
     /** Row origin: a content source (book/subtitle/document/article, study gen) or an ad-hoc playback text. */
     public const ORIGIN_CONTENT = 'content';
@@ -104,8 +101,8 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         $map = [];
         self::onLang($lang)
             ->whereIn('content_id', array_values(array_unique($contentIds)))
-            ->select(['content_id', 'text'])
-            ->chunk(1000, static function ($rows) use (&$map): void {
+            ->select(['id', 'content_id', 'text'])
+            ->chunkById(1000, static function ($rows) use (&$map): void {
                 foreach ($rows as $row) {
                     $map[(string) $row->content_id] = (string) $row->text;
                 }
@@ -117,8 +114,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
     /**
      * Keyset page of sentences still lacking audio (AppQyV1MediaGaps::SENTENCE_AUDIO),
      * ordered by id: rows with id > $afterId, at most $limit rows. Read-only
-     * listing consumed by the pycore sentence full pull (Part2 backlog mirror
-     * of the sentence_audio lane); no OFFSET and no COUNT per page.
+     * keyset listings (without_audio, Queue Center "awaiting audio"); no OFFSET and no COUNT per page.
      */
     public static function withoutAudioKeysetPage(string $lang, int $afterId, int $limit, array $columns = ['id', 'content_id', 'text', 'language']): Collection
     {
@@ -132,44 +128,6 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             ->orderBy('id')
             ->limit($limit)
             ->get($columns);
-    }
-
-    public static function withoutAudioCount(string $lang): int
-    {
-        if (!self::tableExists($lang)) {
-            return 0;
-        }
-
-        return self::onLang($lang)
-            ->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
-            ->count();
-    }
-
-    /**
-     * Contract progress_template counts of the sentence audio gap (cached
-     * briefly: a keyset walk and every lease claim ask). gap = failed +
-     * pending is the without-audio listing total, counted exactly on the gap
-     * and failed partial indexes; done = the planner's row estimate minus the
-     * gap (an estimate: no whole-table count). While another caller fills a
-     * cold key, zeros are served.
-     *
-     * @return array{done:int,failed:int,pending:int}
-     */
-    public static function audioGapCounts(string $lang): array
-    {
-        if (!self::tableExists($lang)) {
-            return ['done' => 0, 'failed' => 0, 'pending' => 0];
-        }
-
-        return LockedCache::flexible('appqyv1:sentence_audio_gap:' . $lang, [self::GAP_COUNT_CACHE_SECONDS, self::GAP_COUNT_CACHE_SECONDS * 2], static function () use ($lang): array {
-            $gap = self::onLang($lang)->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')->toBase()->count();
-            $failed = self::onLang($lang)->whereRaw(AppQyV1MediaGaps::TTS_FAILED . ' AND (' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')->toBase()->count();
-            // done = live library rows with audio: the table estimate minus the
-            // gap and the rows outside the library (obsolete / ad-hoc), both exact.
-            $notLive = self::onLang($lang)->whereRaw(AppQyV1MediaGaps::SENTENCE_NOT_LIVE)->toBase()->count();
-
-            return ['done' => max(0, TableRowEstimate::rows(self::for($lang)) - $gap - $notLive), 'failed' => $failed, 'pending' => $gap - $failed];
-        }, ['done' => 0, 'failed' => 0, 'pending' => 0]);
     }
 
     /**

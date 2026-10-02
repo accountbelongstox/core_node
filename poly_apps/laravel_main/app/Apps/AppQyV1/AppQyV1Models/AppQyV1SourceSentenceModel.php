@@ -298,8 +298,7 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
             ->where('source_key', $sourceKey)
             ->where('grain', $grain)
             ->where('seq', '>=', $fromSeq)
-            ->orderBy('seq')
-            ->lazy($chunk);
+            ->lazyById($chunk, 'seq');
     }
 
     /**

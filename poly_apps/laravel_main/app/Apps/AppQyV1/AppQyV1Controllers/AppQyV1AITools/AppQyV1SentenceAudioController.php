@@ -8,6 +8,8 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Http\Controllers\Controller;
+use App\Services\QueueCenter\GapLaneSnapshot;
+use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Support\QueueProgress;
 use App\Traits\ApiResponse;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
@@ -310,7 +312,8 @@ class AppQyV1SentenceAudioController extends Controller
 
     /**
      * POST /api/app_qy_v1/ai_tools/tts/sentence/audio/head
-     * Body: { items: [{ text, language }] }
+     * Body: { items: [{ language, text } | { language, content_id }] }; an id-only item moves a
+     * sentence Laravel already holds (an unknown id is answered with status unknown_id: resend it with text).
      *
      * Book-reader chapter/page switch: move every visible missing-audio sentence
      * to the global queue head in one round-trip.
@@ -319,7 +322,8 @@ class AppQyV1SentenceAudioController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1|max:400',
-            'items.*.text' => 'required|string',
+            'items.*.text' => 'required_without:items.*.content_id|nullable|string',
+            'items.*.content_id' => 'required_without:items.*.text|nullable|string|size:32',
             'items.*.language' => 'required|string|max:20',
         ]);
         if ($validator->fails()) {
@@ -362,10 +366,9 @@ class AppQyV1SentenceAudioController extends Controller
         $language = trim((string) $request->query('language', ''));
         if ($language === '') {
             $languages = [];
-            foreach (AppQyV1TableMaps::getSupportedLanguages() as $code) {
-                $count = AppQyV1LangSentenceModel::withoutAudioCount((string) $code);
-                if ($count > 0) {
-                    $languages[] = ['language' => (string) $code, 'without_audio' => $count];
+            foreach (GapLaneSnapshot::lane(WorkLeaseLanes::SENTENCE_AUDIO) as $code => $figures) {
+                if ($figures['gap'] > 0) {
+                    $languages[] = ['language' => (string) $code, 'without_audio' => $figures['gap']];
                 }
             }
             return response()->json(['success' => true, 'data' => ['languages' => $languages]]);
@@ -378,7 +381,7 @@ class AppQyV1SentenceAudioController extends Controller
         $rows = $rows->take($limit)->values();
         $last = $rows->last();
         $nextCursor = $last !== null ? (int) $last->id : $cursor;
-        $gap = AppQyV1LangSentenceModel::audioGapCounts($code);
+        $gap = GapLaneSnapshot::language(WorkLeaseLanes::SENTENCE_AUDIO, $code);
         $data = [
             'language' => $code,
             'items' => $rows->map(static fn ($row): array => [
@@ -389,7 +392,7 @@ class AppQyV1SentenceAudioController extends Controller
             ])->all(),
             'next_cursor' => $nextCursor,
             'has_more' => $hasMore,
-            'total' => $gap['pending'] + $gap['failed'],
+            'total' => $gap['gap'],
             'progress' => QueueProgress::make($gap['done'], $gap['failed'], $gap['pending'], $nextCursor),
         ];
         return response()->json(['success' => true, 'data' => $data]);

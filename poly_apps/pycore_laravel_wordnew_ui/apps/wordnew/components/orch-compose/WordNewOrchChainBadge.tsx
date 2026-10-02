@@ -121,14 +121,14 @@ export const WordNewOrchChainBadge: React.FC<{ session: OrchComposeSession | nul
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div ref={rootRef} className="relative min-w-0 max-w-full">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-label={trans('orchChain.title')}
         title={trans('orchChain.title')}
-        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-1.5 py-1 font-mono text-[10px] leading-none hover:bg-slate-200/70 dark:hover:bg-white/10"
+        className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-1.5 py-1 font-mono text-[10px] leading-none hover:bg-slate-200/70 dark:hover:bg-white/10"
       >
         {views.map((stage) => {
           const Icon = stage.icon;
@@ -165,7 +165,7 @@ export const WordNewOrchChainBadge: React.FC<{ session: OrchComposeSession | nul
                       return work ? (
                         <span className="block font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
                           {trans(`orchChain.work.${work.state}`, {
-                            done: work.batchesDone, batches: work.batches, asked: work.asked, known: work.known, found: work.found,
+                            done: work.batchesDone, batches: work.batches, asked: work.asked, known: work.known, found: work.found, reason: work.reason ?? '',
                           })}
                         </span>
                       ) : null;

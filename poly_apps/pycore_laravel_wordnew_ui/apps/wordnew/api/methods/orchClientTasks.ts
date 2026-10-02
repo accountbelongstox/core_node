@@ -1,4 +1,8 @@
 import type {
+  WfNewOrchClientPlaybackPage,
+  WfNewOrchClientPlaybackRow,
+  WfNewOrchPlaybackHistoryEntry,
+  WfNewOrchPlaybackPosition,
   WfNewOrchClientTaskPage,
   WfNewOrchClientTaskRow,
   WfNewOrchClientTaskWrite,
@@ -59,6 +63,46 @@ export function fromOrchClientTaskRow(row: WfNewOrchClientTaskRow): Record<strin
   };
 }
 
+function toPlaybackPosition(raw: any): WfNewOrchPlaybackPosition | null {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    segment: count(raw.segment),
+    time: count(raw.time),
+    anchor: text(raw.anchor),
+    offset: count(raw.offset),
+    label: text(raw.label),
+    editionId: text(raw.edition_id),
+    at: text(raw.at),
+  };
+}
+
+function fromPlaybackPosition(position: WfNewOrchPlaybackPosition): Record<string, unknown> {
+  return {
+    segment: position.segment,
+    time: position.time,
+    anchor: position.anchor,
+    offset: position.offset,
+    label: position.label,
+    edition_id: position.editionId,
+    at: position.at,
+  };
+}
+
+export function toOrchClientPlaybackRow(raw: any): WfNewOrchClientPlaybackRow {
+  const history = (Array.isArray(raw?.history) ? raw.history : [])
+    .map((entry: any): WfNewOrchPlaybackHistoryEntry | null => {
+      const position = toPlaybackPosition(entry);
+      return position && text(entry?.id) ? { ...position, id: text(entry.id) } : null;
+    })
+    .filter((entry: WfNewOrchPlaybackHistoryEntry | null): entry is WfNewOrchPlaybackHistoryEntry => entry !== null);
+  return {
+    clientTaskId: text(raw?.client_task_id),
+    resume: toPlaybackPosition(raw?.resume),
+    history,
+    clientUpdatedAt: text(raw?.client_updated_at),
+  };
+}
+
 export const orchClientTaskMethods = {
   async getOrchClientTasks(page = 1, since: string | null = null): Promise<WfNewOrchClientTaskPage> {
     const res = await authedGetFreshJSON<any>(WfNewApiPaths.orchClientTasks(page, ORCH_CLIENT_TASK_PAGE_SIZE, since), null);
@@ -82,6 +126,28 @@ export const orchClientTaskMethods = {
     requireAuthToken();
     await deleteJSON(WfNewApiPaths.orchClientTaskDelete(clientTaskId, clientUpdatedAt));
   },
+
+  async getOrchClientPlayback(page = 1, since: string | null = null): Promise<WfNewOrchClientPlaybackPage> {
+    const res = await authedGetFreshJSON<any>(WfNewApiPaths.orchClientPlaybackList(page, ORCH_CLIENT_TASK_PAGE_SIZE, since), null);
+    const items = (Array.isArray(res?.items) ? res.items : []).map(toOrchClientPlaybackRow);
+    return {
+      items,
+      total: count(res?.total ?? items.length),
+      page: count(res?.page ?? page),
+      perPage: count(res?.per_page ?? ORCH_CLIENT_TASK_PAGE_SIZE),
+      serverTime: text(res?.server_time) || null,
+    };
+  },
+
+  async saveOrchClientPlayback(row: WfNewOrchClientPlaybackRow): Promise<{ row: WfNewOrchClientPlaybackRow; applied: boolean }> {
+    const res = unwrapEnvelope(await authedPostJSON<any>(WfNewApiPaths.orchClientPlayback(row.clientTaskId), {
+      resume: row.resume ? fromPlaybackPosition(row.resume) : null,
+      history: row.history.map((entry) => ({ ...fromPlaybackPosition(entry), id: entry.id })),
+      client_updated_at: row.clientUpdatedAt,
+    }));
+    const stored = res?.playback ?? res;
+    return { row: stored?.client_task_id ? toOrchClientPlaybackRow(stored) : row, applied: res?.applied !== false };
+  },
 };
 
 export const mockOrchClientTaskMethods = {
@@ -94,4 +160,12 @@ export const mockOrchClientTaskMethods = {
   },
 
   async deleteOrchClientTask(_clientTaskId: string, _clientUpdatedAt: string): Promise<void> {},
+
+  async getOrchClientPlayback(page = 1): Promise<WfNewOrchClientPlaybackPage> {
+    return { items: [], total: 0, page, perPage: ORCH_CLIENT_TASK_PAGE_SIZE, serverTime: null };
+  },
+
+  async saveOrchClientPlayback(row: WfNewOrchClientPlaybackRow): Promise<{ row: WfNewOrchClientPlaybackRow; applied: boolean }> {
+    return { row, applied: true };
+  },
 };

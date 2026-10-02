@@ -28,7 +28,9 @@
 #   rc_connect_peer          - one-click: number = RDP, +r = Remmina, +s = SSH (cached user)
 #   rc_show_status           - host/client readiness summary
 #   rc_show_help             - manual UI steps + doc links
-#   remote_control_common_main <endpoints|controller|host|rdp|connect|status|help>
+#   rc_vnc_display_fix       - idempotent: full screen + scaled mode on every saved Remmina VNC profile
+#   rc_show_menu             - Remote Control numbered menu (Management & Backup, Tailscale)
+#   remote_control_common_main <menu|endpoints|controller|host|rdp|connect|vnc-display|status|help>
 # =============================================================================
 
 if [ "${REMOTE_CONTROL_COMMON_LOADED:-false}" = "true" ]; then
@@ -38,6 +40,7 @@ REMOTE_CONTROL_COMMON_LOADED="true"
 
 REMOTE_CONTROL_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_CONTROL_ROOT_DIR="$(cd "$REMOTE_CONTROL_COMMON_DIR/../../../.." && pwd)"
+REMOTE_CONTROL_ARROW_MENU_SCRIPT="$REMOTE_CONTROL_COMMON_DIR/arrow_menu.sh"
 # shellcheck source=/dev/null
 . "$REMOTE_CONTROL_COMMON_DIR/tailscale_common.sh"
 
@@ -68,6 +71,9 @@ RC_REMMINA_DATA_SUBDIR=".local/share/remmina"
 RC_REMMINA_PROFILE_PREFIX="core_node_"
 RC_REMMINA_GROUP="Tailscale"
 RC_REMMINA_VNC_SUFFIX="_vnc"
+# TightVNC cannot resize the Windows desktop to the viewer, so Remmina scales it:
+# scale=1 = scaled to the window (aspect kept), viewmode=4 = viewport full screen.
+RC_REMMINA_VNC_DISPLAY_OPTIONS=("scale=1" "viewmode=4")
 RC_RDP_MODE="${RC_RDP_MODE:-shared}"
 RC_REMMINA_PROFILE=""
 RC_CONNECT_CACHE_FILE="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/rc_connect_users"
@@ -345,6 +351,9 @@ rc_enable_controller() {
     # shellcheck disable=SC2086
     rc_apt_install $RC_CLIENT_EXTRA_PACKAGES || echo "  (openssh-client install failed)"
     bash "$RC_REMMINA_INSTALLER" || echo "  (remmina optional; xfreerdp is enough)"
+    if command -v remmina >/dev/null 2>&1; then
+        rc_vnc_display_fix missing
+    fi
     rc_ensure_shared_key
     echo ""
     echo "  RDP client: $(rc_rdp_client_bin || echo 'not found')"
@@ -355,8 +364,8 @@ rc_enable_controller() {
         echo "Tailscale is not connected (state: $(ts_backend_state)); use Login in the Tailscale menu."
     fi
     echo ""
-    echo "Remote Windows must allow RDP: run dd.cmd > Windows Management > [T] Tailscale >"
-    echo "Remote Control > Allow remote control of this machine (Windows Home cannot host RDP)."
+    echo "Remote Windows must host VNC (default) or RDP: run dd.cmd > Management & Backup >"
+    echo "One-click: allow Linux to control this PC (VNC shared desktop; also works on Windows Home)."
 }
 
 # ---------------------------------------------------------------------------
@@ -583,15 +592,81 @@ rc_remmina_profile_ensure() {
         if [ "$protocol" = "VNC" ]; then
             rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
                 --set-option "server=$server" >/dev/null 2>&1
+            rc_remmina_vnc_display_ensure "$RC_REMMINA_PROFILE" missing
         else
             rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
                 --set-option "server=$server" --set-option "username=$remote_user" >/dev/null 2>&1
         fi
         return 0
     fi
+    if [ "$protocol" = "VNC" ]; then
+        user_line="$(printf '%s\n' "${RC_REMMINA_VNC_DISPLAY_OPTIONS[@]}")"
+    fi
     printf '[remmina]\nname=%s\ngroup=%s\nprotocol=%s\nserver=%s\n%s\n' \
         "${key:-$ipv4}${suffix:+ (VNC)}" "$RC_REMMINA_GROUP" "$protocol" "$server" "$user_line" \
         | rc_run_gui_as_desktop_user sh -c 'umask 077 && mkdir -p "$(dirname "$1")" && cat > "$1"' _ "$RC_REMMINA_PROFILE"
+}
+
+# Applies RC_REMMINA_VNC_DISPLAY_OPTIONS to one profile: mode "missing" adds only absent keys
+# (keeps what the user changed in Remmina), mode "force" sets every key.
+rc_remmina_vnc_display_ensure() {
+    local profile="$1" mode="${2:-missing}" option="" option_key=""
+    for option in "${RC_REMMINA_VNC_DISPLAY_OPTIONS[@]}"; do
+        option_key="${option%%=*}"
+        if [ "$mode" = "force" ] || ! rc_run_gui_as_desktop_user grep -q "^${option_key}=" "$profile"; then
+            rc_run_gui_as_desktop_user remmina --update-profile "$profile" --set-option "$option" >/dev/null 2>&1
+        fi
+    done
+}
+
+# Idempotent repair for "VNC is not full screen": every saved core_node VNC profile opens
+# full screen and scaled to fit (a Windows desktop larger than this screen otherwise scrolls).
+rc_vnc_display_fix() {
+    local mode="${1:-force}" data_dir="" profile="" fixed=0
+    local -a profiles=()
+    echo "== VNC full screen + scaling (Remmina profiles) =="
+    command -v remmina >/dev/null 2>&1 || { echo "remmina not installed; run 'Install clients' first."; return 1; }
+    data_dir="$(rc_run_gui_as_desktop_user sh -c 'printf "%s" "$HOME"')" || return 1
+    data_dir="$data_dir/$RC_REMMINA_DATA_SUBDIR"
+    mapfile -t profiles < <(rc_run_gui_as_desktop_user find "$data_dir" -maxdepth 1 -name "$RC_REMMINA_PROFILE_PREFIX*$RC_REMMINA_VNC_SUFFIX.remmina" 2>/dev/null)
+    for profile in "${profiles[@]}"; do
+        [ -n "$profile" ] || continue
+        rc_remmina_vnc_display_ensure "$profile" "$mode"
+        echo "  [OK] $profile (${RC_REMMINA_VNC_DISPLAY_OPTIONS[*]})"
+        fixed=$((fixed + 1))
+    done
+    [ "$fixed" -gt 0 ] || echo "  No saved VNC profile yet; Connect to a peer creates one with these settings."
+    echo ""
+    rc_vnc_scaling_hint
+}
+
+# Viewer-side display hint shared by the fix, connect, client setup and help.
+rc_vnc_scaling_hint() {
+    echo "VNC display: Right Ctrl+S = toggle scaled mode, Right Ctrl+F = toggle full screen (Remmina host key = Right Ctrl)."
+    echo "  Remote resolution = the Windows screen size; TightVNC cannot resize it (no dynamic resolution)."
+    echo "  Only part of the screen, no scroll bars: run the one-click on that Windows PC (marks TightVNC DPI-aware)."
+    echo "  Text too small: on Windows lower Settings > System > Display > Scale or the resolution."
+}
+
+# "<total> VNC profiles, <ok> scaled + full screen" for the status view.
+rc_vnc_profile_summary() {
+    local data_dir="" profile="" total=0 ok=0
+    local -a profiles=()
+    command -v remmina >/dev/null 2>&1 || { echo "remmina not installed"; return 0; }
+    data_dir="$(rc_run_gui_as_desktop_user sh -c 'printf "%s" "$HOME"' 2>/dev/null)" || { echo "unknown (no desktop session)"; return 0; }
+    mapfile -t profiles < <(rc_run_gui_as_desktop_user find "$data_dir/$RC_REMMINA_DATA_SUBDIR" -maxdepth 1 -name "$RC_REMMINA_PROFILE_PREFIX*$RC_REMMINA_VNC_SUFFIX.remmina" 2>/dev/null)
+    for profile in "${profiles[@]}"; do
+        [ -n "$profile" ] || continue
+        total=$((total + 1))
+        if rc_run_gui_as_desktop_user grep -q '^scale=1$' "$profile" && rc_run_gui_as_desktop_user grep -q '^viewmode=4$' "$profile"; then
+            ok=$((ok + 1))
+        fi
+    done
+    if [ "$ok" -lt "$total" ]; then
+        echo "$total VNC profiles, $ok scaled + full screen (run Fix VNC full screen + scaling)"
+    else
+        echo "$total VNC profiles, $ok scaled + full screen"
+    fi
 }
 
 # Remmina GUI in the background on the peer's saved profile: it stays open
@@ -605,6 +680,12 @@ rc_connect_remmina() {
     rc_run_gui_as_desktop_user remmina -c "$RC_REMMINA_PROFILE" >/dev/null 2>&1 &
     disown 2>/dev/null || true
     echo "Remmina launched on the desktop (saved profile; tick \"Save password\" once to keep the password in the keyring)."
+    if [ "$protocol" = "VNC" ]; then
+        if ! rc_run_gui_as_desktop_user grep -q '^scale=1$' "$RC_REMMINA_PROFILE"; then
+            echo "This profile is not in scaled mode (changed in Remmina); run 'Fix VNC full screen + scaling' to restore it."
+        fi
+        rc_vnc_scaling_hint
+    fi
 }
 
 rc_connect_ssh() {
@@ -681,11 +762,11 @@ rc_connect_peer() {
         echo "Cannot reach $ipv4:$port -- the remote machine may not be hosting this service yet."
         case "$os" in
             windows)
-                echo "On that Windows PC run: dd.cmd > [T] Tailscale > Remote Control > Allow remote control of this machine (VNC shared desktop is enabled by default)."
+                echo "On that Windows PC run: dd.cmd > Management & Backup > One-click: allow Linux to control this PC (VNC shared desktop)."
                 echo "(Windows Home cannot host RDP, but VNC and OpenSSH Server work there.)"
                 ;;
             linux)
-                echo "On that Linux machine run: dd.sh > [T] Tailscale > Remote Control > Allow remote control of this machine."
+                echo "On that Linux machine run: dd.sh > Linux System Tools > Management & Backup > One-click: allow remote control of this machine."
                 ;;
             *)
                 echo "Enable the service on the remote machine first (RDP $RC_RDP_PORT / SSH $RC_SSH_PORT)."
@@ -736,6 +817,7 @@ rc_show_status() {
     fi
     echo "  RDP client:     $(rc_rdp_client_bin || echo 'not installed')"
     echo "  Shared key:     $(rc_shared_private_key || echo 'not installed')"
+    echo "  Remmina VNC:    $(rc_vnc_profile_summary)"
 }
 
 rc_show_help() {
@@ -745,7 +827,7 @@ Remote control over Tailscale (Windows 10/11 <-> Debian 12/13, Ubuntu 24.04/26.0
 Automated here:
   Linux host:   openssh-server + shared key, GNOME Remote Desktop (grdctl) or xrdp, ufw on $RC_TAILSCALE_IFACE
   Linux client: freerdp3 (freerdp2 on Debian 12), remmina, openssh-client, shared key
-  Windows side: dd.cmd > Windows Management > [T] Tailscale > Remote Control
+  Windows side: dd.cmd > Management & Backup > Remote Control
   Connect: peer number = Remmina on the SHARED desktop (default; Windows peer = VNC on
     $RC_VNC_PORT, Linux peer = RDP to the GNOME desktop-sharing session), number+x = xfreerdp
     RDP, number+s = SSH shell (e.g. '1x', '0s'); the port is probed first, and the
@@ -754,16 +836,22 @@ Automated here:
     (RC_RDP_MODE=system selects the separate GDM remote-login session instead); a
     Windows host shares its console through the VNC service. Plain Windows RDP and
     GNOME remote login open another session and lock/replace the local screen.
+  Full screen / scaling (VNC): the Windows screen is sent at its own size (TightVNC cannot resize
+    it); Remmina VNC profiles use scale=1 (fit, aspect kept) + viewmode=4 (full screen), added on
+    connect when missing and forced by 'Fix VNC full screen + scaling' (vnc-display). In a session:
+    Right Ctrl+S = scaled mode, Right Ctrl+F = full screen. Partial image without scroll bars =
+    Windows display scaling: the Windows one-click marks TightVNC DPI-aware. Text too small: lower
+    the Windows display scale or resolution.
 
 Manual UI steps when automation is not possible:
   GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >
     Remote Desktop (GNOME 43): enable "Remote Desktop" + "Remote Control", set user/password
     to the login user and login password.
   Windows 10/11 Pro/Enterprise: Settings > System > Remote Desktop > On.
-  Windows Home: cannot host RDP -- use SSH (OpenSSH Server) or RustDesk instead.
+  Windows Home: cannot host RDP -- use VNC (default, TightVNC service) or SSH instead.
   Windows Microsoft account: RDP user = the account e-mail, password = account password (not PIN);
     Settings > Accounts > Sign-in options > turn off "Only allow Windows Hello sign-in".
-  Tailscale ACL: the default policy allows all devices; custom ACLs must allow tcp:$RC_RDP_PORT and tcp:$RC_SSH_PORT.
+  Tailscale ACL: the default policy allows all devices; custom ACLs must allow tcp:$RC_VNC_PORT, tcp:$RC_RDP_PORT and tcp:$RC_SSH_PORT.
 
 Shared key: ~/.ssh/$RC_SHARED_KEY_NAME (decrypted by 27_install_git_ssh.sh / Step5_InstallGitSSH.ps1).
 
@@ -775,13 +863,54 @@ Docs:
 EOF
 }
 
+rc_run_menu_action() {
+    printf "c"
+    "$@"
+    rc_pause
+}
+
+# Every Tailscale IP is printed above the items; each item calls a function above.
+rc_show_menu() {
+    local menu_items=(
+        "-- Let others control this machine --"
+        "One-click: allow remote control of this machine (shared desktop + SSH)"
+        "-- Control another machine --"
+        "Connect to a peer (Windows: VNC shared desktop default; RDP or SSH)"
+        "Install clients (Remmina VNC/RDP, xfreerdp, SSH, shared key)"
+        "Fix VNC full screen + scaling (saved Remmina VNC profiles)"
+        "-- Info --"
+        "Endpoints (all Tailscale IPs + connect commands)"
+        "Status"
+        "Help (manual UI steps + official docs)"
+        "Back"
+    )
+
+    declare -F numeric_menu_select >/dev/null 2>&1 || . "$REMOTE_CONTROL_ARROW_MENU_SCRIPT"
+    while true; do
+        rc_load_peer_rows
+        numeric_menu_select "Remote Control (Windows <-> Linux over Tailscale)" menu_items 10 rc_render_peer_table
+        case "$ARROW_MENU_SELECTED_INDEX" in
+            1) rc_run_menu_action rc_enable_host ;;
+            3) rc_run_menu_action rc_connect_peer ;;
+            4) rc_run_menu_action rc_enable_controller ;;
+            5) rc_run_menu_action rc_vnc_display_fix ;;
+            7) rc_run_menu_action rc_show_endpoints ;;
+            8) rc_run_menu_action rc_show_status ;;
+            9) rc_run_menu_action rc_show_help ;;
+            *) return 0 ;;
+        esac
+    done
+}
+
 remote_control_common_main() {
     case "${1:-help}" in
+        menu) rc_show_menu ;;
         endpoints) rc_show_endpoints ;;
         controller) rc_enable_controller ;;
         host) rc_enable_host ;;
         rdp) rc_enable_rdp_host "$(rc_target_user)" ;;
         connect) rc_connect_peer ;;
+        vnc-display) rc_vnc_display_fix ;;
         status) rc_show_status ;;
         *) rc_show_help ;;
     esac

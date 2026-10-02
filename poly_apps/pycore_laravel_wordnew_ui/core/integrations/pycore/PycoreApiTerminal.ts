@@ -52,6 +52,23 @@ export interface TerminalLogEntry {
 
 export type TerminalScheduleMode = 'once' | 'interval';
 
+export type TerminalKeyAction = 'escape' | 'ctrl_c' | 'tab' | 'shift_tab';
+
+export interface TerminalQuickCommand {
+  kind: 'system' | 'custom';
+  command: string;
+  script?: string;
+}
+
+export interface TerminalQuickCommands {
+  success: boolean;
+  error_code?: string | null;
+  platform: string;
+  script_dir: string;
+  system: TerminalQuickCommand[];
+  custom: TerminalQuickCommand[];
+}
+
 export interface TerminalScheduleEntry {
   id: string;
   mode: TerminalScheduleMode;
@@ -194,10 +211,16 @@ export interface TerminalCaptureResult extends TerminalActionResult {
 export const TERMINAL_BACKUP_PAGE_SIZE = 50;
 export const TERMINAL_BACKUP_DELETE_CONFIRM = 'DEL';
 
+export type TerminalBackupKind = 'full' | 'delta' | 'same' | '';
+
 export interface TerminalBackupTerminal {
   number: number;
   name: string;
+  /** Full text size. */
   bytes: number;
+  /** Bytes this backup added to the archive (0 when the text matched the previous backup). */
+  stored_bytes: number;
+  kind: TerminalBackupKind;
   changed: boolean;
   error_code?: string | null;
 }
@@ -214,6 +237,7 @@ export interface TerminalBackupItem {
   created_at: number;
   terminal_count: number;
   total_bytes: number;
+  stored_bytes: number;
   terminals: TerminalBackupTerminal[];
   matches?: TerminalBackupMatch[];
 }
@@ -223,13 +247,17 @@ export interface TerminalBackupListResult {
   error_code?: string | null;
   total: number;
   items: TerminalBackupItem[];
+  archive?: { blob_count: number; blob_bytes: number };
 }
 
 export interface TerminalBackupReadResult {
   success: boolean;
   error_code?: string | null;
   text: string;
+  /** Full reconstructed text size. */
   bytes: number;
+  stored_bytes?: number;
+  kind?: TerminalBackupKind;
   truncated: boolean;
 }
 
@@ -243,6 +271,15 @@ export interface TerminalBackupDeleteResult {
   success: boolean;
   error_code?: string | null;
   deleted: number;
+}
+
+export interface TerminalBackupState {
+  success: boolean;
+  error_code?: string | null;
+  paused: boolean;
+  running: boolean;
+  interval_seconds: number;
+  last_pass_at: number | null;
 }
 
 export interface TerminalBackupListParams {
@@ -345,6 +382,11 @@ export const pycoreApiTerminal = {
     window_id: windowId,
     mode,
   }) as Promise<TerminalActionResult>,
+  pressTerminalKey: (windowId: string, key: TerminalKeyAction) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalKey, {
+      window_id: windowId,
+      key,
+    }) as Promise<TerminalActionResult>,
   clickTerminal: (
     windowId: string,
     horizontalRatio: number,
@@ -369,11 +411,22 @@ export const pycoreApiTerminal = {
       window_id: windowId,
       terminal_number: terminalNumber,
     }) as Promise<TerminalActionResult>,
-  inputTerminalText: (windowId: string, terminalNumber: number, text: string) =>
-    requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
-      window_id: windowId,
-      terminal_number: terminalNumber,
-    }) as Promise<TerminalActionResult>,
+  inputTerminalText: (
+    windowId: string,
+    terminalNumber: number,
+    text: string,
+    clearFirst = false,
+    interruptFirst = false,
+  ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
+    window_id: windowId,
+    terminal_number: terminalNumber,
+    clear_first: clearFirst ? '1' : '0',
+    interrupt_first: interruptFirst ? '1' : '0',
+  }) as Promise<TerminalActionResult>,
+  listTerminalCommands: () => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalCommands,
+    {},
+  ) as Promise<TerminalQuickCommands>,
   uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
     const form = new FormData();
     form.append('file', file, file.name);
@@ -428,6 +481,11 @@ export const pycoreApiTerminal = {
     PYCORE_HTTP_ROUTES.terminalBackupsDelete,
     { id, terminal_number: terminalNumber, confirm },
   ) as Promise<TerminalBackupDeleteResult>,
+  /** Reads the automatic-backup state; with `paused` it pauses/resumes it until pycore restarts. */
+  terminalBackupState: (paused?: boolean) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalBackupsState,
+    { paused: paused === undefined ? undefined : (paused ? '1' : '0') },
+  ) as Promise<TerminalBackupState>,
   getTerminalContent: (
     terminalNumber: number,
     kind: 'draft' | 'log' | 'schedule' | 'capture',

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Shared Python venv creation, repair, and command-link helpers for Step13.
 
+PYTHON_VENV_SETUP_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+type venv_notebook_platform_from_common >/dev/null 2>&1 || source "$PYTHON_VENV_SETUP_COMMON_DIR/venv_python_common.sh"
+
 # Establish the command contract on PATH (/usr/local/bin precedes /usr/bin):
 #   pythonorigin                      -> the ORIGINAL system interpreter
 #                                        (/usr/bin/python3), preserved under a
@@ -115,6 +118,10 @@ write_venv_python_wrapper() {
 }
 
 link_commands_to_venv() {
+    if venv_notebook_platform_from_common; then
+        print_info_from_common_functions "Notebook platform ($NOTEBOOK_PLATFORM): python/python3/pip stay on the system interpreter (no venv relink)"
+        return 0
+    fi
     [ -x "$VENV_PYTHON3" ] || return 1
     local sys_python3="/usr/bin/python3"
     local venv_pyver link
@@ -162,6 +169,10 @@ link_commands_to_venv() {
 
 # Function to fix Python symlinks
 fix_python_links() {
+    if venv_notebook_platform_from_common; then
+        print_info_from_common_functions "Notebook platform ($NOTEBOOK_PLATFORM): leaving python/pip links untouched"
+        return 0
+    fi
     print_step_from_common_functions "Fixing Python symlinks in /usr/local/bin..."
 
     # Check if python3 exists
@@ -332,6 +343,10 @@ ensure_venv_user_writable() {
 
 # Function to create Python venv and replace system commands
 create_python_venv_and_replace_system() {
+    if venv_notebook_platform_from_common; then
+        print_info_from_common_functions "Notebook platform ($NOTEBOOK_PLATFORM): keeping the system Python as the default interpreter; no project venv is created"
+        return 0
+    fi
     print_step_from_common_functions "Creating Python virtual environment and replacing system commands..."
 
     # Ensure COMPILE_DIR exists
@@ -486,6 +501,10 @@ create_python_venv_and_replace_system() {
 
 # Function to setup Python venv for production server with high Python version
 setup_production_python_venv() {
+    if venv_notebook_platform_from_common; then
+        print_info_from_common_functions "Notebook platform ($NOTEBOOK_PLATFORM): keeping the system Python; no production venv is created"
+        return 0
+    fi
     print_step_from_common_functions "Setting up Python venv for production server..."
 
     local python_venv_dir="$COMPILE_DIR/python_venv"

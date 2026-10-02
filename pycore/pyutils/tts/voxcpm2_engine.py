@@ -12,8 +12,7 @@ server-side (tts_audio_assembly); this module only POSTs to it over stdlib
 HTTP (urllib), keeping the same public API the orchestrator / capabilities
 probe / engine probe already call.
 
-See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md
-§5.
+See docs_fix/DESIGN_TTS_AI_RUNTIME.md §8a-§9.
 
 Config:
   VOXCPM2_HOST / VOXCPM2_PORT - server bind + client target

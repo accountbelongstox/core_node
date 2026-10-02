@@ -284,7 +284,7 @@ class AppQyV1DictionaryImportService
         //   that genuinely gained a translation/phonetic). Replaces the prior
         //   per-row SELECT+INSERT (~2 queries/row) which was O(rows) and made
         //   re-init very slow on large tables (e.g. EN 100k+).
-        $db->table($staging)->orderBy('id')->chunk(1000, function ($rows) use ($db, $formal, &$inserted, &$enriched, &$processed, &$chunkNo, $stagingTotal, $now, $langCode) {
+        $db->table($staging)->chunkById(1000, function ($rows) use ($db, $formal, &$inserted, &$enriched, &$processed, &$chunkNo, $stagingTotal, $now, $langCode) {
             $chunkMd5s = [];
             foreach ($rows as $row) {
                 $chunkMd5s[] = $row->md5;
@@ -302,15 +302,19 @@ class AppQyV1DictionaryImportService
             $seenInBatch = [];
             foreach ($rows as $row) {
                 if (!isset($existingByMd5[$row->md5])) {
+                    // The formal row stores the canonical word (decoded
+                    // entities; rejected words are not promoted).
+                    $content = AppQyV1LangDictionaryModel::canonicalWord((string) $row->content);
+                    $md5 = $content !== null ? md5($content) : '';
                     // Dedup within the staging chunk itself (md5 is not unique
                     // in staging); insertOrIgnore also guards against races.
-                    if (isset($seenInBatch[$row->md5])) {
+                    if ($content === null || isset($seenInBatch[$md5])) {
                         continue;
                     }
-                    $seenInBatch[$row->md5] = true;
+                    $seenInBatch[$md5] = true;
                     $insertBatch[] = [
-                        'content' => $row->content,
-                        'md5' => $row->md5,
+                        'content' => $content,
+                        'md5' => $md5,
                         'translations' => $row->translations,
                         'has_translation' => $row->has_translation,
                         'phonetic' => $row->phonetic,

@@ -36,6 +36,7 @@ public partial class RunLogPage : UserControl
         I18nKeys.AuxDebugBloodShard, I18nKeys.AuxDebugQuickPickup, I18nKeys.AuxDebugBlacksmith, I18nKeys.AuxDebugKanaiReforge,
         I18nKeys.AuxDebugKanaiUpgrade, I18nKeys.AuxDebugKanaiConvert, I18nKeys.AuxDebugAutoSalvage, I18nKeys.AuxDebugDropEquipment,
         I18nKeys.AuxDebugSoundFeedback, I18nKeys.AuxDebugSmartPause, I18nKeys.RosbotDebugBattlenetUi, I18nKeys.RosbotDebugRosbot,
+        I18nKeys.RosbotDebugGameStatus,
     };
     private static readonly Dictionary<string, (string Start, string Complete)> SelfTestTexts = new(StringComparer.Ordinal)
     {
@@ -63,6 +64,7 @@ public partial class RunLogPage : UserControl
             ConfigBinding.BindComboBox(CmbLogLevel, ConfigKeys.LogSettingsLogLevel, LevelValues, AppConstants.LogLevelDefault);
             RosbotDebugService.RegisterTestAction();
             BattlenetUiAnalyzeService.RegisterTestAction();
+            GameStatusDebugService.RegisterTestAction();
             Ctl.GameAssistantController.RegisterTestActions();
         }
         BuildTestButtons();
@@ -85,6 +87,7 @@ public partial class RunLogPage : UserControl
         ChkAutoScroll.Content = p.GetUiText(I18nKeys.LogPanelAutoScroll);
         BtnScanLogArea.Content = p.GetUiText(I18nKeys.LogPanelScanLogArea);
         LblLogOutput.Text = p.GetUiText(I18nKeys.LogPanelLogOutput);
+        ResourceMonitor.RefreshI18n();
         foreach (var child in TestButtonsGrid.Children)
             if (child is Button { Tag: string key } btn) btn.Content = p.GetUiText(key);
     }

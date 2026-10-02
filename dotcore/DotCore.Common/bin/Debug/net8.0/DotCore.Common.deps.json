@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "DotCore.Common/1.0.0": {
+        "dependencies": {
+          "DotCore.Foundations": "1.0.0"
+        },
+        "runtime": {
+          "DotCore.Common.dll": {}
+        }
+      },
+      "DotCore.Foundations/1.0.0": {
+        "runtime": {
+          "DotCore.Foundations.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "DotCore.Common/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "DotCore.Foundations/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

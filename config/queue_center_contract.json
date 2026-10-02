@@ -1,5 +1,5 @@
 {
- "schema_version": 39,
+ "schema_version": 40,
  "contract": "queue_center",
  "source_path": "config/queue_center_contract.json",
  "word_validity": {
@@ -66,6 +66,8 @@
    "queue_changed": "queue.changed",
    "word_audio_head": "word_audio.head",
    "sentence_audio_head": "sentence_audio.head",
+   "clip_ready": "clip.ready",
+   "clip_leased": "clip.leased",
    "word_image_priority": "word_image.priority",
    "cover_priority": "cover.priority",
    "poster_priority": "poster.priority",
@@ -80,6 +82,16 @@
   "resource_key_formats": {
    "cover_priority": "library:<library_id>",
    "poster_priority": "<media_type>:<media_id>"
+  },
+  "clip_ready": {
+   "payload": "{ids: string[]} resource ids sha256(\"kind:language:content\") of clips whose audio just landed (words: trimmed lower-case word, sentences: content id); the client matches them against the ids it waits for and fetches by id through audio/bundle; no text, no url; ids of one request are coalesced into events of at most max_ids",
+   "max_ids": 200,
+   "fallback": "the client polls audio/lookup at transfer.generation_recheck_seconds only until the stream session has delivered a clip.ready (an older server never emits it) and while the stream is down"
+  },
+  "clip_leased": {
+   "payload": "{node: sid, ids: string[]} resource ids (same sha256 identity as clip.ready) of requested clips (priority at or above the want level: wordnew promotion or want entry) a node just leased, with that node's short id (work_nodes sid); no text; plain backlog rows are not announced; chunked at max_ids",
+   "max_ids": 200,
+   "clear": "a client drops an id on clip.ready, when work_nodes shows the node offline or without leases, and after work_leases.lease_ttl_seconds without a new clip.leased for it"
   }
  },
  "head_parts": {
@@ -107,6 +119,14 @@
   ],
   "activation": "one ON chain per lane: restore local Part1 items -> release the worker's stale leases -> claim a work lease batch -> drain",
   "leases": "lanes.<lane>.leases = {leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled, lost, engines, languages}; lost = {reason_code: LEASE_LOST, leases, rows} once a renew reported a lease lost, else null"
+ },
+ "schema_gate": {
+  "error_code": "SERVER_SCHEMA_PENDING",
+  "http_status": 503,
+  "retry_after_seconds": 60,
+  "health_field": "schema",
+  "health_states": ["ready", "pending"],
+  "rule": "Laravel compares the schema revision its code requires with the revision sys:init last recorded. While they differ, /api/health reports schema=pending, and every work-lease, report, delivery and gap-listing route answers http_status with error_code and retry_after_seconds before touching the gap tables; timers that need the new columns skip. A worker treats the code as a server-side pause: it claims nothing, keeps finished results in its outbox without counting a failure or an attempt, shows assist reason SERVER_SCHEMA_PENDING and retries after retry_after_seconds."
  },
  "diff_delivery": {
   "version": 1,
@@ -217,11 +237,14 @@
   "routing": {
    "language": "a row is leased only to a node that declared its language for the lane; a language no online node declares stays pooled with reason NO_CAPABLE_NODE (never failed)",
    "compute": "lane class from task_types[].compute: gpu_preferred rows go to gpu nodes first; a cpu_only node gets them only while no online gpu node declares the lane+language; gpu_required never goes to a cpu_only node",
+   "fair_share": "per lane and language a claim takes at most free x own_weight / (own_weight + sum of the other eligible online nodes' weights) rows (at least 1; unbounded while no other eligible node serves it); weight = max(1, items/h); a gpu node on a cpu_ok lane weighs gpu_cpu_lane_weight x its rate while a gpu_preferred lane it serves still has free rows, so gpu nodes prefer sentences (qwen3tts), cpu and cpu-colab nodes carry words (kokoro) and no node starves",
    "online": "a node is online while its last claim/renew/heartbeat is younger than lease_ttl_seconds"
   },
   "claim_request": {
    "worker_id": "string",
    "compute_class": "gpu|cpu_only",
+   "platform": "optional notebook platform (colab|kaggle); absent on a desktop or server node",
+   "label": "optional host label, at most 32 chars",
    "throughput_per_hour": "{lane: items/h} the node can do: max(its completions rate, parallel slots / mean task seconds); Laravel sizes the batch from max(this, its own measured rate), so the batch is never capped by how little work the node was given",
    "lanes": {
     "<lane>": {
@@ -238,9 +261,11 @@
     {
      "lane": "lane",
      "language": "iso code",
-     "content_key": "sentence content_id | word md5"
+     "content_key": "sentence content_id | word md5 (optional for a word that sends text)",
+     "text": "word lane only: the cleaned word when the node has no md5 (Laravel computes the md5); never sent for sentences"
     }
    ],
+   "want_rule": "want = the node's local generation list (its orchestration / manual queue head, ids only). Laravel raises the free gap rows to the want priority so the OTHER online nodes lease them first and excludes them from this node's own claims for exclude_ttl_seconds (at most exclude_max keys per lane+language, newest kept), so the node works the list locally and the rest work it from Laravel with no overlap; rows Laravel does not hold (ad-hoc playback text) stay local and reach Laravel through the content-keyed report, which creates them from text",
    "lease_ids": [
     "held leases, renewed in the same call"
    ]
@@ -315,10 +340,15 @@
   "release_response": {
    "released": "int"
   },
+  "nodes_request": "GET work/nodes; ?online=1 lists online nodes only and no pool",
   "nodes_response": {
+   "revision": "int, the work_nodes.changed cursor: a client refetches only when it moved",
    "nodes": [
     {
      "worker_id": "string",
+     "sid": "short stable node id (sid_length hex chars of sha1(worker_id)); the id clip.leased carries",
+     "platform": "colab|kaggle|'' from the claim",
+     "label": "host label from the claim|''",
      "compute_class": "string",
      "online": "bool",
      "lanes": {
@@ -359,6 +389,10 @@
   "throughput_window_seconds": 3600,
   "throughput_min_span_seconds": 60,
   "prefetch_fraction": 0.25,
+  "sid_length": 4,
+  "exclude_max": 1000,
+  "exclude_ttl_seconds": 1800,
+  "gpu_cpu_lane_weight": 0.25,
   "empty_retry_after_seconds": 30,
   "progress_stall_seconds": 120,
   "want_max": 50,
@@ -367,7 +401,8 @@
   "resurface_rule": "Failed resurfacing: per lane and language at most resurface_batch failed rows still in the gap (words also not is_valid false) return to pending with tts_attempts 0, at most once per resurface_interval_seconds, walking a persisted id cursor that wraps at the end of the table, so each row is retried at most once per sweep. One summary log line per finished sweep.",
   "reason_codes": [
    "NO_CAPABLE_NODE",
-   "LEASE_LOST"
+   "LEASE_LOST",
+   "SERVER_SCHEMA_PENDING"
   ],
   "repool_error_codes": ["word_batch_language_unsupported", "NO_CAPABLE_NODE", "LEASE_LOST", "ENGINE_MEMORY_PAUSED"],
   "repool_rule": "A failure report whose error carries one of repool_error_codes is a node capability or scheduling miss (unsupported engine language, no capable node, lost lease, engine memory pause), not a content failure: the row returns to the pool (status pending, attempt not counted) and the node stays excluded by its declared languages."
@@ -468,7 +503,7 @@
   "assist_fields": ["device", "engine", "state", "reason_code"],
   "assist_devices": ["gpu", "cpu"],
   "assist_states": ["running", "idle", "blocked"],
-  "assist_reason_codes": ["RESULT_CIRCUIT_OPEN", "LANE_HALTED", "ENGINE_MEMORY_PAUSED"],
+  "assist_reason_codes": ["RESULT_CIRCUIT_OPEN", "LANE_HALTED", "ENGINE_MEMORY_PAUSED", "SERVER_SCHEMA_PENDING"],
   "skipped_fields": ["reason_code", "count"],
   "assist_summary_interval_seconds": 600,
   "skip_reason_codes": ["TASK_ROW_INVALID", "CLAIM_GONE", "RESULT_PENDING", "LANE_HALTED", "LOCAL_DISPATCH_REJECTED"]

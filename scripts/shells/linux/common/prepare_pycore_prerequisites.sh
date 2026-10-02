@@ -5,8 +5,7 @@
 # Prerequisite chain (after 13_install_default_python.sh / venv):
 #   UI & system -> ffmpeg -> light pip -> OCR -> STT -> TTS -> neural TTS (opt-in) -> melotts (opt-in, last) -> device tools
 #
-# Install-time environment shielding (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 7). Every installer is IDEMPOTENT and
+# Install-time environment shielding (see docs_fix/DESIGN_TTS_AI_RUNTIME.md §9). Every installer is IDEMPOTENT and
 # self-REPAIRING, so re-running this whole sweep preserves installed packages and repairs missing artifacts:
 #   * Bucket A (deepseek/qwen25/nllb/bark): shares the installed transformers distribution
 #     and delegates compatibility to pip only when the package is absent.

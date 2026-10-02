@@ -6,6 +6,7 @@
 using System.Drawing;
 using System.IO;
 using DotApps.d3d4tester.Core.Bag;
+using DotApps.d3d4tester.Core.Battlenet;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.TemplateMatcher;
@@ -42,6 +43,9 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private bool _battlenetDisconnected = false;
     private bool _battlenetWakingUp;
     private bool _battlenetNormalAvailable;
+    private BattlenetClientState _battlenetClientState = BattlenetClientState.Unknown;
+    private string? _battlenetUiRegion;
+    private string? _battlenetStateDetail;
     private string _rosbotFoundExeName = "";
     private string _rosbotFoundWindowTitle = "";
     private bool _rosbotNeedKeyInput = false;
@@ -162,6 +166,9 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 BattlenetDisconnected = _battlenetDisconnected,
                 BattlenetWakingUp = _battlenetWakingUp,
                 BattlenetNormalAvailable = _battlenetNormalAvailable,
+                BattlenetClientState = _battlenetClientState,
+                BattlenetUiRegion = _battlenetUiRegion,
+                BattlenetStateDetail = _battlenetStateDetail,
                 RosbotFoundExeName = _rosbotFoundExeName,
                 RosbotFoundWindowTitle = _rosbotFoundWindowTitle,
                 RosbotNeedKeyInput = _rosbotNeedKeyInput,
@@ -356,15 +363,23 @@ public sealed class GameInterfaceData : IGameInterfaceData
         }
     }
 
-    /// <summary>Set the Battle.net dynamic triple atomically. 1:1 with Python set_battlenet_dynamic_status.</summary>
-    public bool SetBattlenetDynamicStatus(bool onLoginScreen, bool disconnected, bool normalAvailable)
+    /// <summary>
+    /// Set the probed Battle.net client screen state (state, UI region, detail) and the derived dynamic triple atomically.
+    /// 1:1 with Python set_battlenet_dynamic_status for the triple; the screen state is DOT-only.
+    /// </summary>
+    public bool SetBattlenetClientStatus(BattlenetClientStatus status)
     {
+        var (onLogin, disconnected, normal) = status.DynamicTriple;
         lock (_lock)
         {
-            if (_battlenetOnLoginScreen == onLoginScreen && _battlenetDisconnected == disconnected && _battlenetNormalAvailable == normalAvailable) return false;
-            _battlenetOnLoginScreen = onLoginScreen;
+            if (_battlenetClientState == status.State && _battlenetUiRegion == status.UiRegion && _battlenetStateDetail == status.Detail
+                && _battlenetOnLoginScreen == onLogin && _battlenetDisconnected == disconnected && _battlenetNormalAvailable == normal) return false;
+            _battlenetClientState = status.State;
+            _battlenetUiRegion = status.UiRegion;
+            _battlenetStateDetail = status.Detail;
+            _battlenetOnLoginScreen = onLogin;
             _battlenetDisconnected = disconnected;
-            _battlenetNormalAvailable = normalAvailable;
+            _battlenetNormalAvailable = normal;
             return true;
         }
     }

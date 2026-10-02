@@ -3,6 +3,7 @@
 namespace App\Services\TimerTasks;
 
 use App\Services\WorkLeases\WorkLeaseService;
+use App\Support\SchemaGate;
 
 /**
  * Clears expired work leases on the gap rows (accounting only: a claim already
@@ -16,6 +17,11 @@ final class WorkLeaseReaperTask extends OctaneTimerTaskAbstract
     public function getInterval(): int
     {
         return self::INTERVAL_SECONDS;
+    }
+
+    public function isEnabled(): bool
+    {
+        return SchemaGate::allowsTimer($this->getName());
     }
 
     public function exec(): void

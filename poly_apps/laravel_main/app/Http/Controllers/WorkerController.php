@@ -170,15 +170,20 @@ class WorkerController extends Controller
     }
 
     /**
-     * 404 when the path task type is not a contract task type.
+     * 404 TASK_TYPE_UNSUPPORTED when the path task type is not a contract task
+     * type or is a work-lease lane: lease lanes have no task path (pull,
+     * accept, result, release), so a worker drops any staged task of them;
+     * their results go to the content-keyed reports.
      */
     private function invalidTaskType(string $taskType): ?JsonResponse
     {
-        if (in_array($taskType, $this->taskTypeKeys(), true)) {
+        $served = array_values(array_diff($this->taskTypeKeys(), WorkLeaseLanes::lanes()));
+
+        if (in_array($taskType, $served, true)) {
             return null;
         }
 
-        return $this->taskTypeUnsupported($taskType, $this->taskTypeKeys());
+        return $this->taskTypeUnsupported($taskType, $served);
     }
 
     /**
@@ -199,10 +204,6 @@ class WorkerController extends Controller
     {
         if ($invalid = $this->invalidTaskType($taskType)) {
             return $invalid;
-        }
-        // The gap lanes are claimed as work leases (WorkLeaseController), never pulled as tasks.
-        if (WorkLeaseLanes::isLane($taskType)) {
-            return $this->taskTypeUnsupported($taskType, array_values(array_diff($this->taskTypeKeys(), WorkLeaseLanes::lanes())));
         }
         $pullLimit = QueueCenterContract::taskLimit('worker_pull');
         $validated = $request->validate([
@@ -262,10 +263,9 @@ class WorkerController extends Controller
 
         // Dict-lane live queues (docs_fix/DESIGN_QUEUE_PIPELINE.md):
         // the typed pull itself is the producer. Just-in-time claim rows
-        // materialize from the cached lane view (ms-level table probe; zero
-        // database reads when the dictionary table is unchanged), replacing
-        // the retired scanner timer tasks. On-demand maintenance replaces the
-        // 15s global maintenance poller and runs for every lane.
+        // materialize from the lane head of each language with a cached
+        // non-empty count. On-demand maintenance replaces the 15s global
+        // maintenance poller and runs for every lane.
         if (DictLaneCatalog::isDictLaneTaskType($taskType)) {
             app(DictLaneQueueCenter::class)->ensureMaterialized($taskType, $limit);
         }

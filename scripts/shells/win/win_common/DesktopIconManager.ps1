@@ -13,7 +13,7 @@
     Extracted from: Step102_InstallCustomScriptsAndCommands.ps1
     Purpose: Real-time desktop icon management during application installation
 
-    Direct run (dd.ps1 Windows Management menu):
+    Direct run (dd.ps1 Management & Backup menu):
     powershell -File DesktopIconManager.ps1 -DesktopIconAction Organize|Preview|Undo [-DesktopIconUndoManifest <path>]
 #>
 param(

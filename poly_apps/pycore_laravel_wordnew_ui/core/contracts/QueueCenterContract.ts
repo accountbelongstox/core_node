@@ -52,6 +52,13 @@ interface ContractDocument {
     default_batch_size: number;
   };
   http_transfer: QueueCenterHttpTransfer;
+  schema_gate: {
+    error_code: string;
+    http_status: number;
+    retry_after_seconds: number;
+    health_field: string;
+    health_states: string[];
+  };
   realtime: {
     transport: string;
     topic: string;
@@ -184,6 +191,7 @@ export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocu
 export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
 export const QUEUE_CENTER_WORD_AUDIO_BATCH = QUEUE_CENTER_CONTRACT.word_audio_batch;
 export const QUEUE_CENTER_HTTP_TRANSFER = QUEUE_CENTER_CONTRACT.http_transfer;
+export const QUEUE_CENTER_SCHEMA_GATE = QUEUE_CENTER_CONTRACT.schema_gate;
 export const QUEUE_CENTER_ENDPOINTS = QUEUE_CENTER_CONTRACT.endpoints;
 export type QueueCenterEndpointRole = keyof typeof contractDocument.endpoints;
 

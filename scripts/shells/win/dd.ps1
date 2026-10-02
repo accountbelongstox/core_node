@@ -326,9 +326,6 @@ $script:MenuItems = @(
         }
     },
     @{
-        # Merged menu: "Windows Management" + "Backup Management" are now grouped
-        # under one entry that opens a dispatcher with both as sub-menus. Backup
-        # Management also hosts the Python runtime + models + user-data backup.
         Text              = "Management & Backup"
         Values            = @("default")
         CurrentValueIndex = 0

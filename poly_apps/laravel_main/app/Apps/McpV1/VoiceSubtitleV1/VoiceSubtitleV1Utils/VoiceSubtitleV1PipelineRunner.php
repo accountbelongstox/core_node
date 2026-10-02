@@ -2,6 +2,8 @@
 
 namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils;
 
+use Illuminate\Support\Facades\Log;
+
 /**
  * Background half of a voice-subtitle task: the request only records the task
  * (202); the octane-timer background lane advances every live task one pass
@@ -38,6 +40,8 @@ final class VoiceSubtitleV1PipelineRunner
             $this->advance((string) $taskId);
             $advanced++;
         }
+        // Every pass is logged; an idle pass (3 s cadence) only at debug level so the size-capped log is not flooded.
+        Log::log($advanced > 0 ? 'info' : 'debug', '[VoiceSubtitleV1PipelineRunner] pass finished', ['tasks' => $advanced]);
 
         return $advanced;
     }
@@ -87,7 +91,8 @@ final class VoiceSubtitleV1PipelineRunner
         );
 
         if (!$item) {
-            throw new \RuntimeException(__('mcp_v1.voice_subtitle.queue_item_failed'));
+            // The failed step keeps its own reason (e.g. pycore_unavailable), not a generic one.
+            throw new \RuntimeException($processor->lastError() !== '' ? $processor->lastError() : __('mcp_v1.voice_subtitle.queue_item_failed'));
         }
 
         $this->taskManager->markStep($taskId, 'queue_append', 'running', 'Appending item to playback queue');

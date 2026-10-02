@@ -1,9 +1,11 @@
 <UserControl x:Class="DotApps.d3d4tester.Pages.RunLog.RunLogPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Layout 1:1 Python log_panel: test functions, control bar, log output -->
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:components="clr-namespace:DotApps.d3d4tester.Components">
+  <!-- Layout 1:1 Python log_panel: test functions, (DOT) resource monitor, control bar, log output -->
   <Grid Margin="{StaticResource PageMargin}">
     <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
@@ -16,7 +18,9 @@
       </StackPanel>
     </Border>
 
-    <Border Grid.Row="1" Style="{StaticResource ToolbarPanelStyle}">
+    <components:ResourceMonitorBlock x:Name="ResourceMonitor" Grid.Row="1"/>
+
+    <Border Grid.Row="2" Style="{StaticResource ToolbarPanelStyle}">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
@@ -46,7 +50,7 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+    <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}">
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>

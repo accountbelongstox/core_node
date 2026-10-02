@@ -8,10 +8,12 @@ expires. ``WorkLeaseClient`` is the HTTP side, ``LeaseBook`` the node's
 lease state on a THREAD_BUS owner.
 """
 
+import socket
 import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
+from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORK_LEASES, queue_center_endpoint
@@ -27,6 +29,7 @@ THROUGHPUT_MIN_SPAN_SECONDS = float(QUEUE_CENTER_WORK_LEASES["throughput_min_spa
 PROGRESS_STALL_SECONDS = float(QUEUE_CENTER_WORK_LEASES["progress_stall_seconds"])
 BATCH_MAX = int(QUEUE_CENTER_WORK_LEASES["batch_max"])
 WANT_MAX = int(QUEUE_CENTER_WORK_LEASES["want_max"])
+NODE_LABEL_MAX = 32
 
 
 def lease_reason_code(code: str) -> str:
@@ -38,6 +41,19 @@ def lease_reason_code(code: str) -> str:
 
 
 LEASE_LOST = lease_reason_code("LEASE_LOST")
+
+
+def work_node_identity() -> Dict[str, str]:
+    """Claim identity fields beyond the worker id: the notebook platform
+    (colab|kaggle; omitted on other hosts) and the host label."""
+    identity: Dict[str, str] = {}
+    platform_name = notebook_platform()
+    label = (socket.gethostname() or "").strip()[:NODE_LABEL_MAX]
+    if platform_name:
+        identity["platform"] = platform_name
+    if label:
+        identity["label"] = label
+    return identity
 
 
 def _data(response: Any) -> Dict[str, Any]:
@@ -88,6 +104,7 @@ class LeaseBook:
         self._done: Deque[float] = deque()
         self._last_batch = 0
         self._claim_after = 0.0
+        self._idle_after = 0.0
         self._pooled: List[Dict[str, Any]] = []
         self._lost = {"leases": 0, "rows": 0}
         init_serialized_owner(self, f"laravel.worker.lease_book.{name}", f"{name}LeaseBookThread")
@@ -105,8 +122,10 @@ class LeaseBook:
 
     @serialized_method
     def note_claim(self, retry_after: float, pooled: List[Dict[str, Any]]) -> None:
-        """Server answer of a claim: next claim not before ``retry_after``."""
-        self._claim_after = time.monotonic() + max(0.0, retry_after)
+        """Server answer of a claim: next routine claim not before ``retry_after``
+        (an urgent wake, i.e. a promoted row, still claims at once)."""
+        self._claim_after = 0.0
+        self._idle_after = time.monotonic() + max(0.0, retry_after)
         self._pooled = list(pooled)
 
     @serialized_method
@@ -117,10 +136,13 @@ class LeaseBook:
     def claim_due(self, floor: int, urgent: bool) -> bool:
         """Claim when the open items fell to the prefetch level (urgent: a
         priority wake, any time the server allows)."""
-        if time.monotonic() < self._claim_after:
+        now = time.monotonic()
+        if now < self._claim_after:
             return False
         if urgent:
             return True
+        if now < self._idle_after:
+            return False
         return len(self._items) <= max(int(floor), int(self._last_batch * PREFETCH_FRACTION))
 
     @serialized_method
@@ -222,7 +244,7 @@ class LeaseBook:
             "items_leased": len(self._items),
             "last_batch": self._last_batch,
             "done_per_hour": self.throughput_per_hour(),
-            "claim_in_seconds": max(0.0, round(self._claim_after - time.monotonic(), 1)),
+            "claim_in_seconds": max(0.0, round(max(self._claim_after, self._idle_after) - time.monotonic(), 1)),
             "pooled": list(self._pooled),
             "lost": {"reason_code": LEASE_LOST, **self._lost} if self._lost["leases"] else None,
         }
@@ -240,6 +262,7 @@ __all__ = [
     "PROGRESS_STALL_SECONDS",
     "WANT_MAX",
     "WORK_LEASE_LANES",
+    "work_node_identity",
     "WorkLeaseClient",
     "lease_reason_code",
     "work_lease_client",

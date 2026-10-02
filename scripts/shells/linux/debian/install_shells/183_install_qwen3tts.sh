@@ -2,8 +2,7 @@
 SCRIPT_INDEX="183"
 # Qwen3-TTS prerequisite (Linux) - Alibaba qwen-tts, class C (isolated venv + HTTP server).
 #
-# Lifecycle rule (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7, Bucket B): qwen-tts pins
+# Lifecycle rule (see docs_fix/DESIGN_TTS_AI_RUNTIME.md §9, Bucket B): qwen-tts pins
 # qwen-tts owns transformer dependencies that may conflict with the main interpreter
 # pin (Bucket A: deepseek/qwen25/nllb/bark). So qwen-tts is NEVER installed into the main
 # interpreter. It lives in a DEDICATED per-engine venv built + verified by

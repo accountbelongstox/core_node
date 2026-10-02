@@ -85,6 +85,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.notebook_policy import local_http_enabled, notebook_assist_node
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pyfoundations.singleton.detector import on_singleton_superseded
@@ -216,17 +217,20 @@ def main(
     #     (pyservice.ps1/.sh = dashboard UI dev server + worker). Launchers
     #     written by older versions started the bare worker only, so the UI dev
     #     server never came up in boot mode (webview -> ERR_CONNECTION_REFUSED).
-    if refresh_startup_launcher():
+    if not notebook_assist_node() and refresh_startup_launcher():
         ColorPrint.blue("[Main] Auto-start launcher refreshed (next boot uses pyservice + UI)")
 
     # 4. Update tray menu with singleton port.
     #    The tray runs in every service mode (relay reroutes UI content through
     #    Laravel; local desktop surfaces stay), so this signal is never mode-gated.
-    if singleton_port:
+    if singleton_port and not notebook_assist_node():
         update_tray_menu_with_singleton(launcher, port, singleton_port)
 
     ColorPrint.green("=" * 70)
-    ColorPrint.green(f"[Main] RPC: http://localhost:{port}/")
+    if local_http_enabled():
+        ColorPrint.green(f"[Main] RPC: http://localhost:{port}/")
+    else:
+        ColorPrint.green("[Main] RPC: relay-only (local HTTP listener disabled)")
     if singleton_port:
         ColorPrint.green(f"[Main] Singleton: {singleton_port}")
     ColorPrint.green("=" * 70)
@@ -246,7 +250,7 @@ def main(
     # 7. Dev hot-reload: watch .py files and restart the backend on change.
     #    Reuses the proven restart path (request_restart -> graceful stop ->
     #    os.execv re-exec, which re-reads ALL Python). On by default; --no-reload to disable.
-    if reload:
+    if reload and not notebook_assist_node():
         start_reload_watcher()
 
     # 8. Wait for shutdown signal (THREAD_BUS is the event center)

@@ -91,10 +91,11 @@ trait AppQyV1SentenceAudioQueueTrait
             $language = isset($item['language'])
                 ? AppQyV1TableMaps::normalizeLangCode((string) $item['language'])
                 : '';
-            if ($text === '' || $language === '') {
+            $givenId = isset($item['content_id']) ? strtolower(trim((string) $item['content_id'])) : '';
+            if ($language === '' || ($text === '' && !preg_match('/^[0-9a-f]{32}$/', $givenId))) {
                 continue;
             }
-            $contentId = MediaIngestService::computeContentId($text);
+            $contentId = $text !== '' ? MediaIngestService::computeContentId($text) : $givenId;
             $normalized[$language . ':' . $contentId] = [
                 'text' => $text,
                 'language' => $language,
@@ -119,12 +120,18 @@ trait AppQyV1SentenceAudioQueueTrait
                 $queued++;
             }
             if ($alreadyDone) {
-                $available[count($receipts)] = ['text' => $item['text'], 'language' => $item['language']];
+                $availableText = $item['text'] !== ''
+                    ? $item['text']
+                    : (string) (LangSentence::findByContentId($item['language'], $item['content_id'])?->text ?? '');
+                if ($availableText !== '') {
+                    $available[count($receipts)] = ['text' => $availableText, 'language' => $item['language']];
+                }
             }
+            $unknownId = !$ok && $item['text'] === '' && ($result['error'] ?? null) === 'Sentence not found';
             $receipts[] = [
                 'success' => $ok,
-                'status' => $alreadyDone ? 'already_available' : ($ok ? 'laravel_received' : 'failed'),
-                'text' => $item['text'],
+                'status' => $alreadyDone ? 'already_available' : ($ok ? 'laravel_received' : ($unknownId ? 'unknown_id' : 'failed')),
+                'text' => $item['text'] !== '' ? $item['text'] : null,
                 'language' => $item['language'],
                 'content_id' => $item['content_id'],
                 'task_id' => $result['task_id'] ?? null,

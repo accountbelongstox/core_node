@@ -50,7 +50,7 @@ Write-Host '------------------------------------------------------' -ForegroundC
 Write-Host ' Pycore prerequisites (PreparePycorePrerequisites)' -ForegroundColor Cyan
 Write-Host '------------------------------------------------------' -ForegroundColor Cyan
 Write-Host '[i] Idempotent and SELF-REPAIRING: installed pip distributions are preserved; reruns repair' -ForegroundColor Cyan
-Write-Host '    missing package metadata or incomplete model files. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
+Write-Host '    missing package metadata or incomplete model files. See docs_fix/DESIGN_TTS_AI_RUNTIME.md.' -ForegroundColor Cyan
 
 foreach ($entry in $PycorePrerequisiteScripts) {
     $name = $entry.Key

@@ -7,7 +7,7 @@ import {
   type WfNewOrchAudioSource,
   type WfNewOrchAudioSourceCount,
 } from '../../api';
-import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
+import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
 import { ORCH_AUDIO_DEFAULT_PAGE_SIZE } from '../../api/methods/orchAudio';
 import type { WordNewOrchAudioRoute } from '../../routing/WordNewHashRoutes';
 import { WfNewLoadingDots } from '../WfNewLoadingDots';
@@ -63,14 +63,10 @@ export const WordNewOrchAudioListPage: React.FC<Props> = ({ theme, trans, route,
   );
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [authed, setAuthed] = useState(() => wfNewApi.isAuthenticated());
   const requestIdRef = useRef(0);
   const perPage = ORCH_AUDIO_DEFAULT_PAGE_SIZE;
 
-  useEffect(() => subscribeAuthLoginSuccess(() => setAuthed(wfNewApi.isAuthenticated())), []);
-
   useEffect(() => {
-    if (!authed) return;
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setFailed(false);
@@ -90,9 +86,7 @@ export const WordNewOrchAudioListPage: React.FC<Props> = ({ theme, trans, route,
       .finally(() => {
         if (requestId === requestIdRef.current) setLoading(false);
       });
-  }, [authed, route.source, route.page, perPage]);
-
-  if (!authed) return <WordNewOrchAudioLoginPrompt theme={theme} trans={trans} />;
+  }, [route.source, route.page, perPage]);
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const countBySource = new Map(sources.map((source) => [source.id, source.count]));

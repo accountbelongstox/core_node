@@ -255,7 +255,7 @@ class TaskPuller:
 
     def poll_diff_once(self) -> Dict[str, Any]:
         """Poll compact queue revisions and sync/pull only what changed."""
-        if self._host.lane_halt_requested():
+        if self._host.lane_halt_requested() or self._host.server_paused_seconds() > 0:
             return {"ok": True, "changed": False, "processed": 0}
         task_types = self._host.pull_task_types()
         if not task_types:
@@ -267,7 +267,10 @@ class TaskPuller:
             self._idle_until = 0.0
         if outcome["changed"] and self.diff_pull_capacity() > 0:
             return {**self.pull_once(prefer_remote=True), "changed": True}
-        if not outcome["changed"] and self.pull_capacity() > 0 and diff_task_segment_store.has_pending(outcome["scope"]):
+        if (
+            not outcome["changed"] and self.pull_capacity() > 0
+            and diff_task_segment_store.has_pending(outcome["scope"], self._compute_ordered(task_types))
+        ):
             return {**self.pull_once(), "changed": False, "recovered_local": True}
         return {"ok": True, "changed": outcome["changed"], "processed": 0}
 
@@ -409,7 +412,8 @@ class TaskPuller:
         """Staged rows to dispatch again, and how many were held back because
         their terminal result already waits in the outbox (finished work,
         e.g. after a restart: never re-run; the result's settle consumes it)."""
-        recovered = diff_task_segment_store.pending(scope, capacity) if capacity > 0 else []
+        task_types = self._compute_ordered(self._host.pull_task_types())
+        recovered = diff_task_segment_store.pending(scope, task_types, capacity) if capacity > 0 else []
         finished = set(self._host.pending_result_task_ids([str(task.get("task_id") or "") for task in recovered]))
         runnable = [task for task in recovered if str(task.get("task_id") or "") not in finished]
         if runnable:
@@ -441,6 +445,8 @@ class TaskPuller:
         (prefer_remote) always runs."""
         if self._host.results_blocked():
             return {"ok": False, "processed": 0, "reason": "result_circuit_open"}
+        if self._host.server_paused_seconds() > 0:
+            return {"ok": True, "processed": 0, "reason": "server_schema_pending"}
         if not prefer_remote and time.monotonic() < self._idle_until:
             return {"ok": True, "processed": 0, "reason": "idle_backoff"}
         return self._bounded_cycle(prefer_remote)

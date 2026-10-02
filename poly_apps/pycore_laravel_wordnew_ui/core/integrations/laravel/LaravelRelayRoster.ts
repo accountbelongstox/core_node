@@ -1,5 +1,6 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
-import { isRelayAuthorizationFailure, laravelRelayApi as laravelApi } from './LaravelRelayAPI';
+import { isRelayAuthorizationFailure, laravelRelayApi as laravelApi, relayModeActive } from './LaravelRelayAPI';
+import { subscribePycoreTarget } from '../pycore/pycoreTarget';
 import { laravelRelayStream } from './LaravelRelayStream';
 import { Poller } from '../../tasks/Poller';
 import { subscribeAuthSession } from '../../auth/AuthSession';
@@ -34,23 +35,27 @@ class LaravelRelayRoster {
   private unavailableCode: string | null = null;
   private unavailableMessage: string | null = null;
 
+  /** The roster belongs to one owner and to relay mode: an auth or mode change drops it and fetches again when it is wanted. */
   constructor() {
-    subscribeAuthSession(() => {
-      this.generation += 1;
-      this.refreshFlight = null;
-      this.entries.clear();
-      this.refreshedAt = 0;
-      this.refreshError = null;
-      this.authorizationBlocked = false;
-      this.recommendedDeviceId = null;
-      this.selectionReason = '';
-      this.presenceChanges.clear();
-      this.groupId = null;
-      this.unavailableCode = null;
-      this.unavailableMessage = null;
-      this.emit();
-      if (this.started) void this.refresh();
-    });
+    subscribeAuthSession(() => this.reset());
+    subscribePycoreTarget(() => this.reset());
+  }
+
+  private reset(): void {
+    this.generation += 1;
+    this.refreshFlight = null;
+    this.entries.clear();
+    this.refreshedAt = 0;
+    this.refreshError = null;
+    this.authorizationBlocked = false;
+    this.recommendedDeviceId = null;
+    this.selectionReason = '';
+    this.presenceChanges.clear();
+    this.groupId = null;
+    this.unavailableCode = null;
+    this.unavailableMessage = null;
+    this.emit();
+    if (this.started) void this.refresh();
   }
 
   start(): void {
@@ -140,6 +145,7 @@ class LaravelRelayRoster {
   }
 
   refresh(force = false): Promise<void> {
+    if (!relayModeActive()) return Promise.resolve();
     if (force) {
       this.authorizationBlocked = false;
       this.refreshedAt = 0;

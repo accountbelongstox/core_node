@@ -45,6 +45,8 @@ public static class RosbotFlowController
         BattlenetFlowHooks.GetAsiaCredentials = () => AsiaCredentialsService.GetCredentials(AsiaCredentialsService.RegionAsia) is { } c ? (c.email, c.password) : null;
         BattlenetFlowHooks.CredentialsDialogPending = () => AsiaCredentialsService.IsDialogPending;
         BattlenetFlowHooks.ScheduleCredentialsDialog = () => AsiaCredentialsService.ScheduleCredentialsDialog(AsiaCredentialsService.RegionAsia);
+        BattlenetFlowHooks.GetLoginCredentials = region => AsiaCredentialsService.GetCredentials(region) is { } c ? (c.email, c.password) : null;
+        BattlenetFlowHooks.ScheduleLoginCredentialsDialog = region => AsiaCredentialsService.ScheduleCredentialsDialog(region);
         BattlenetFlowHooks.ResetOauthDone = OAuthCallbackState.ResetOauthDone;
         BattlenetFlowHooks.NotifyOauthDone = OAuthCallbackState.NotifyOauthDone;
         BattlenetFlowHooks.TriggerExtensionRosbotStart = EventCenter.TriggerExtensionRosbotStart;

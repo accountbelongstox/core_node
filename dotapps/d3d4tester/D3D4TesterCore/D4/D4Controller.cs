@@ -53,9 +53,9 @@ public sealed class D4Controller
         if (Data.IsExpFarmingRunning())
         {
             int tick = Interlocked.Increment(ref _tickCounter);
-            Console.WriteLine("\n" + Separator80);
+            ColorPrinter.Blue("\n" + Separator80);
             ColorPrinter.Blue($"[D4 EXP Farming] Tick #{tick}");
-            Console.WriteLine(Separator80);
+            ColorPrinter.Blue(Separator80);
             var result = D4Pipeline.Instance.RunExpFarmingSteps();
             D4UiStatusUpdater.Instance.UpdateUiStatus(tick);
             D4EventManager.Instance.CheckStateChanges();
@@ -74,18 +74,18 @@ public sealed class D4Controller
     {
         Volatile.Write(ref _tickCounter, 0);
         Data.ExpFarmingRunning = true;
-        Console.WriteLine("\n" + Separator80);
+        ColorPrinter.Blue("\n" + Separator80);
         ColorPrinter.Green("[D4 EXP Farming] Started");
-        Console.WriteLine(Separator80 + "\n");
+        ColorPrinter.Blue(Separator80 + "\n");
     }
 
     /// <summary>Clear the running flag. 1:1 stop_exp_farming.</summary>
     public void StopExpFarming()
     {
         Data.ExpFarmingRunning = false;
-        Console.WriteLine("\n" + Separator80);
+        ColorPrinter.Blue("\n" + Separator80);
         ColorPrinter.Green($"[D4 EXP Farming] Stopped (Total ticks: {TickCounter})");
-        Console.WriteLine(Separator80 + "\n");
+        ColorPrinter.Blue(Separator80 + "\n");
     }
 
     public bool IsExpFarmingRunning() => Data.IsExpFarmingRunning();
@@ -115,7 +115,7 @@ public sealed class D4Controller
         int pointCount = Data.DetectedPoints?.Count ?? 0;
         var screenshot = Data.LastScreenshotPath;
         var annotated = Data.LastAnnotatedScreenshotPath;
-        Console.WriteLine(Dash80);
+        ColorPrinter.Blue(Dash80);
         ColorPrinter.Green($"[Summary] Status: {(success ? "[OK] Success" : "[ERROR] Failed")}");
         ColorPrinter.Blue($"[Summary] DEBUG Mode: {(D4Pipeline.Instance.DebugImages ? "Enabled" : "Disabled")}");
         ColorPrinter.Blue($"[Summary] Window: {w}x{h} ({(Data.IsWindowedMode() ? "Windowed" : "Fullscreen")})");
@@ -124,7 +124,7 @@ public sealed class D4Controller
             ColorPrinter.Blue($"[Summary] Screenshot: {ShortenPath(screenshot)}");
         if (!string.IsNullOrEmpty(annotated))
             ColorPrinter.Blue($"[Summary] Annotated: {ShortenPath(annotated)}");
-        Console.WriteLine(Separator80 + "\n");
+        ColorPrinter.Blue(Separator80 + "\n");
     }
 
     private static string ShortenPath(string path) =>

@@ -3,8 +3,8 @@
 Unified managed-service lifecycle for pycore.
 
 Implements the shared lifecycle/concurrency contract defined in
-development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md
-(§2 concurrency rules, §3 the manager). This module owns idempotent start /
+docs_fix/DESIGN_TTS_AI_RUNTIME.md
+(§6). This module owns idempotent start /
 single-active / idle auto-shutdown / busy (in-flight) protection; orchestrators
 own priority; the UI only reads status.
 

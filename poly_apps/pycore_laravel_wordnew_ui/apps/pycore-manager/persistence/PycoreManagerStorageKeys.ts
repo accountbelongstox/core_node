@@ -32,6 +32,9 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_TERMINAL_SCHEDULE_EDITOR: 'pc.terminal.scheduleEditor.v1',
   PYCORE_TERMINAL_CAPTURE_OPEN_EDITOR: 'pc.terminal.captureOpenEditor.v1',
   PYCORE_MACHINE_SEND_SHORTCUT: 'pc.machineSend.shortcut',
+  PYCORE_MACHINE_SEND_DOCK_OPEN: 'pc.machineSend.dockOpen',
+  PYCORE_TERMINAL_BACKUP_DOCK_OPEN: 'pc.terminal.backupDockOpen',
+  PYCORE_TERMINAL_RECENT_COMMAND: 'pc.terminal.recentCommand',
 } as const;
 
 export const PycoreManagerStorageKeys = {
