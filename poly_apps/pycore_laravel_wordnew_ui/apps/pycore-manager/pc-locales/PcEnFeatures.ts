@@ -538,6 +538,8 @@ terminal: {
     scheduleModeInterval: 'Repeat interval',
     scheduleTimeLabel: 'Send at',
     scheduleIntervalLabel: 'Interval (seconds)',
+    scheduleSecondsUnit: 's',
+    howSendingWorks: 'How sending works',
     scheduleAdd: 'Add to queue',
     scheduleUpdate: 'Save & replace',
     scheduleEdit: 'Edit this scheduled message',

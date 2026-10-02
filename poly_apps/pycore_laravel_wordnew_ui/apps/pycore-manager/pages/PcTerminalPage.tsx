@@ -12,20 +12,23 @@ import {
   ArrowDown,
   ArrowDownToLine,
   ArrowUp,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ChevronsDown,
   ChevronsUp,
+  Clock3,
   CornerDownLeft,
   Crosshair,
   Eraser,
   History,
+  Info,
   Loader2,
   Maximize2,
   MousePointer2,
-  ChevronDown,
-  ChevronUp,
   Pencil,
-  Check,
+  Plus,
   RefreshCw,
   ScrollText,
   Send,
@@ -514,6 +517,7 @@ const PcTerminalNodeView: React.FC = () => {
   const [jumpTitleVisible, setJumpTitleVisible] = useState(false);
   const [renameText, setRenameText] = useState<string | null>(null);
   const [sendOnce, setSendOnce] = useState<{ clear: boolean; force: boolean }>({ clear: false, force: false });
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
   const [previewExpandedStates, setPreviewExpandedStates] = useState<Record<string, boolean>>({});
   const [previewDirectClick, setPreviewDirectClick] = useState(false);
@@ -1830,199 +1834,197 @@ const PcTerminalNodeView: React.FC = () => {
         )}
       </div>
       {selectedWindow && (
-        <div className="space-y-2.5 rounded-xl border border-slate-500/15 bg-white/40 p-3 dark:bg-slate-950/20">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-              <Timer className="h-3.5 w-3.5 text-indigo-500" />
-              {t('terminal.scheduleTitle')}
-            </h3>
-            {selectedScheduleQueue.length > 0 && (
-              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-500">
-                {t('terminal.scheduleQueueCount', { count: selectedScheduleQueue.length })}
-              </span>
-            )}
-          </div>
-          <div className="space-y-1 text-[10px] text-slate-500 dark:text-slate-400">
-            <p>{t('terminal.scheduleNow')}: {new Date(nowMs).toLocaleString()}</p>
-            <p className={nextQueueRunAt ? 'font-semibold text-indigo-500' : ''}>
-              {t('terminal.scheduleNextRun')}: {
-                nextQueueRunAt
-                  ? `${formatScheduleTime(nextQueueRunAt)} · ${t('terminal.scheduleCountdown')} ${formatScheduleCountdown(nextQueueRunAt - nowMs)}`
-                  : t('terminal.scheduleNone')
-              }
-            </p>
-          </div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-600 dark:text-slate-300">
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="radio"
-                checked={scheduleMode === 'once'}
-                onChange={() => setScheduleMode('once')}
-                className="accent-indigo-500"
-              />
-              {t('terminal.scheduleModeOnce')}
-            </label>
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="radio"
-                checked={scheduleMode === 'interval'}
-                onChange={() => setScheduleMode('interval')}
-                className="accent-indigo-500"
-              />
-              {t('terminal.scheduleModeInterval')}
-            </label>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] text-slate-500">
-              {t('terminal.scheduleQuick')}:
-            </span>
-            {QUICK_SCHEDULE_DELAYS.map((delay) => (
-              <button
-                key={delay.label}
-                type="button"
-                onClick={() => applyQuickScheduleDelay(delay.seconds)}
-                className="rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2 py-1 text-[9px] font-semibold text-indigo-500 hover:bg-indigo-500/20"
-              >
-                {delay.label}
-              </button>
-            ))}
-          </div>
-          {scheduleMode === 'once' ? (
-            <input
-              type="datetime-local"
-              value={scheduleTimeText}
-              onChange={(event) => setScheduleTimeText(event.target.value)}
-              aria-label={t('terminal.scheduleTimeLabel')}
-              className="w-full rounded-lg border border-slate-500/20 bg-white/60 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-slate-950/40 dark:text-slate-100"
-            />
-          ) : (
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min={1}
-                value={scheduleIntervalText}
-                onChange={(event) => setScheduleIntervalText(event.target.value)}
-                aria-label={t('terminal.scheduleIntervalLabel')}
-                className="w-24 rounded-lg border border-slate-500/20 bg-white/60 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-slate-950/40 dark:text-slate-100"
-              />
-              <span className="text-[10px] text-slate-500">
-                {t('terminal.scheduleIntervalLabel')}
-              </span>
-            </div>
-          )}
-          {editingSchedule
-            && editingSchedule.terminalNumber === selectedWindow.terminal_number && (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-              <span className="min-w-0 truncate">
-                {t('terminal.scheduleEditingHint')}
-              </span>
-              <button
-                type="button"
-                onClick={() => setEditingSchedule(null)}
-                disabled={Boolean(actionWindowId)}
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-amber-500/15 px-2 py-1 hover:bg-amber-500/25 disabled:opacity-50"
-              >
-                <X className="h-3 w-3" />
-                {t('terminal.scheduleEditCancel')}
-              </button>
-            </div>
-          )}
+        <div className="rounded-xl border border-slate-500/15 bg-white/40 dark:bg-slate-950/20">
           <button
             type="button"
-            onClick={() => void addScheduleEntry()}
-            disabled={Boolean(actionWindowId)}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+            onClick={() => setScheduleOpen((value) => !value)}
+            aria-expanded={scheduleOpen || Boolean(editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number)}
+            title={`${t('terminal.scheduleNow')}: ${new Date(nowMs).toLocaleString()}`}
+            className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left"
           >
-            <Timer className="h-3.5 w-3.5" />
-            {editingSchedule
-              && editingSchedule.terminalNumber === selectedWindow.terminal_number
-              ? t('terminal.scheduleUpdate')
-              : t('terminal.scheduleAdd')}
+            <Timer className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+            <span className="shrink-0 text-[11px] font-bold text-slate-700 dark:text-slate-200">{t('terminal.scheduleTitle')}</span>
+            {selectedScheduleQueue.length > 0 && (
+              <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-500">
+                {selectedScheduleQueue.length}
+              </span>
+            )}
+            <span className={`min-w-0 flex-1 truncate text-right text-[10px] ${nextQueueRunAt ? 'font-semibold text-indigo-500' : 'text-slate-400'}`}>
+              {nextQueueRunAt
+                ? `${formatScheduleCountdown(nextQueueRunAt - nowMs)} · ${formatScheduleTime(nextQueueRunAt)}`
+                : t('terminal.scheduleNone')}
+            </span>
+            {scheduleOpen || editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number
+              ? <ChevronUp className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
           </button>
-          {selectedScheduleQueue.length > 0 && (
-            <div className={`${overlay ? 'max-h-32' : 'max-h-40'} space-y-1.5 overflow-y-auto pr-0.5`}>
-              {selectedScheduleQueue.map((entry) => (
-                <div
-                  key={entry.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => editScheduleEntry(entry)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      editScheduleEntry(entry);
-                    }
-                  }}
-                  aria-label={t('terminal.scheduleEdit')}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors hover:border-indigo-400/40 dark:hover:border-indigo-400/40 ${
-                    editingSchedule?.entryId === entry.id
-                      ? 'border-amber-500/60 bg-amber-500/10'
-                      : 'border-slate-500/15 bg-white/50 dark:bg-slate-950/30'
-                  }`}
+          {(scheduleOpen || editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number) && (
+            <div className="space-y-1.5 border-t border-slate-500/10 p-1.5">
+              <div className="flex items-center gap-1">
+                <div role="radiogroup" className="flex shrink-0 overflow-hidden rounded-md border border-slate-500/25 text-[10px]">
+                  {(['once', 'interval'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={scheduleMode === mode}
+                      onClick={() => setScheduleMode(mode)}
+                      title={t(mode === 'once' ? 'terminal.scheduleModeOnce' : 'terminal.scheduleModeInterval')}
+                      className={`inline-flex h-7 items-center gap-1 px-1.5 font-semibold ${scheduleMode === mode ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-500/10'}`}
+                    >
+                      {mode === 'once' ? <Clock3 className="h-3 w-3" /> : <RefreshCw className="h-3 w-3" />}
+                      <span className="hidden sm:inline">{t(mode === 'once' ? 'terminal.scheduleModeOnce' : 'terminal.scheduleModeInterval')}</span>
+                    </button>
+                  ))}
+                </div>
+                {scheduleMode === 'once' ? (
+                  <input
+                    type="datetime-local"
+                    value={scheduleTimeText}
+                    onChange={(event) => setScheduleTimeText(event.target.value)}
+                    aria-label={t('terminal.scheduleTimeLabel')}
+                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-500/20 bg-white/60 px-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-slate-950/40 dark:text-slate-100"
+                  />
+                ) : (
+                  <label className="flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md border border-slate-500/20 bg-white/60 px-1.5 focus-within:ring-1 focus-within:ring-indigo-500 dark:bg-slate-950/40">
+                    <input
+                      type="number"
+                      min={1}
+                      value={scheduleIntervalText}
+                      onChange={(event) => setScheduleIntervalText(event.target.value)}
+                      aria-label={t('terminal.scheduleIntervalLabel')}
+                      className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-800 focus:outline-none dark:text-slate-100"
+                    />
+                    <span className="shrink-0 text-[10px] text-slate-400">{t('terminal.scheduleSecondsUnit')}</span>
+                  </label>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void addScheduleEntry()}
+                  disabled={Boolean(actionWindowId)}
+                  title={editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number ? t('terminal.scheduleUpdate') : t('terminal.scheduleAdd')}
+                  aria-label={editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number ? t('terminal.scheduleUpdate') : t('terminal.scheduleAdd')}
+                  className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[10px] font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
                 >
-                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold ${
-                    entry.mode === 'interval'
-                      ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
-                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                  }`}>
-                    {t(
-                      entry.mode === 'interval'
-                        ? 'terminal.scheduleModeInterval'
-                        : 'terminal.scheduleModeOnce',
-                    )}
+                  {editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">
+                    {editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number ? t('terminal.scheduleUpdate') : t('terminal.scheduleAdd')}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-1 truncate text-[10px] font-semibold text-slate-700 dark:text-slate-200">
-                      <span className="min-w-0 truncate">
-                        {entry.preview || t('terminal.scheduleEmptyMessage')}
-                      </span>
-                      <Pencil className="h-2.5 w-2.5 shrink-0 text-slate-400" />
-                    </p>
-                    <p className="text-[9px] text-slate-500">
-                      {entry.next_run_at
-                        ? `${formatScheduleCountdown(entry.next_run_at - nowMs)} · ${formatScheduleTime(entry.next_run_at)}`
-                        : t('terminal.scheduleNone')}
-                      {entry.mode === 'interval' && (
-                        <>
-                          {' · '}
-                          {t('terminal.scheduleEvery', { seconds: entry.interval_seconds })}
-                        </>
-                      )}
-                      {entry.fire_count > 0 && (
-                        <>
-                          {' · '}
-                          {t('terminal.scheduleFires', { count: entry.fire_count })}
-                        </>
-                      )}
-                    </p>
-                  </div>
+                </button>
+              </div>
+              <div className="flex gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none]" aria-label={t('terminal.scheduleQuick')}>
+                {QUICK_SCHEDULE_DELAYS.map((delay) => (
+                  <button
+                    key={delay.label}
+                    type="button"
+                    onClick={() => applyQuickScheduleDelay(delay.seconds)}
+                    className="shrink-0 rounded-md border border-indigo-500/20 bg-indigo-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-indigo-500 hover:bg-indigo-500/20"
+                  >
+                    {delay.label}
+                  </button>
+                ))}
+              </div>
+              {editingSchedule && editingSchedule.terminalNumber === selectedWindow.terminal_number && (
+                <div className="flex items-center justify-between gap-2 rounded-md bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                  <span className="min-w-0 truncate">{t('terminal.scheduleEditingHint')}</span>
                   <button
                     type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void removeScheduleEntry(entry.id);
-                    }}
+                    onClick={() => setEditingSchedule(null)}
                     disabled={Boolean(actionWindowId)}
-                    aria-label={t('terminal.scheduleRemove')}
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"
+                    title={t('terminal.scheduleEditCancel')}
+                    aria-label={t('terminal.scheduleEditCancel')}
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-amber-500/20 disabled:opacity-50"
                   >
-                    <TimerOff className="h-3.5 w-3.5" />
+                    <X className="h-3 w-3" />
                   </button>
                 </div>
-              ))}
+              )}
+              {selectedScheduleQueue.length > 0 && (
+                <div className={`${overlay ? 'max-h-32' : 'max-h-40'} space-y-1 overflow-y-auto pr-0.5`}>
+                  {selectedScheduleQueue.map((entry) => (
+                    <div
+                      key={entry.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => editScheduleEntry(entry)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          editScheduleEntry(entry);
+                        }
+                      }}
+                      aria-label={t('terminal.scheduleEdit')}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 transition-colors hover:border-indigo-400/40 dark:hover:border-indigo-400/40 ${
+                        editingSchedule?.entryId === entry.id
+                          ? 'border-amber-500/60 bg-amber-500/10'
+                          : 'border-slate-500/15 bg-white/50 dark:bg-slate-950/30'
+                      }`}
+                    >
+                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold ${
+                        entry.mode === 'interval'
+                          ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
+                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                      }`}>
+                        {t(
+                          entry.mode === 'interval'
+                            ? 'terminal.scheduleModeInterval'
+                            : 'terminal.scheduleModeOnce',
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-1 truncate text-[10px] font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="min-w-0 truncate">
+                            {entry.preview || t('terminal.scheduleEmptyMessage')}
+                          </span>
+                          <Pencil className="h-2.5 w-2.5 shrink-0 text-slate-400" />
+                        </p>
+                        <p className="text-[9px] text-slate-500">
+                          {entry.next_run_at
+                            ? `${formatScheduleCountdown(entry.next_run_at - nowMs)} · ${formatScheduleTime(entry.next_run_at)}`
+                            : t('terminal.scheduleNone')}
+                          {entry.mode === 'interval' && (
+                            <>
+                              {' · '}
+                              {t('terminal.scheduleEvery', { seconds: entry.interval_seconds })}
+                            </>
+                          )}
+                          {entry.fire_count > 0 && (
+                            <>
+                              {' · '}
+                              {t('terminal.scheduleFires', { count: entry.fire_count })}
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void removeScheduleEntry(entry.id);
+                        }}
+                        disabled={Boolean(actionWindowId)}
+                        aria-label={t('terminal.scheduleRemove')}
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"
+                      >
+                        <TimerOff className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[9px] leading-snug text-slate-400">{t('terminal.scheduleHint')}</p>
             </div>
           )}
-          <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
-            {t('terminal.scheduleHint')}
-          </p>
         </div>
       )}
-      <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
-        {t('terminal.inputSequence')}
-      </p>
-      <p className="text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-        {t('terminal.rightClickHint')}
-      </p>
+      <details className="group text-[10px] text-slate-500 dark:text-slate-400">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+          <Info className="h-3 w-3" />
+          {t('terminal.howSendingWorks')}
+        </summary>
+        <p className="mt-1 leading-relaxed">{t('terminal.inputSequence')}</p>
+        <p className="mt-1 leading-relaxed text-amber-600 dark:text-amber-400">{t('terminal.rightClickHint')}</p>
+      </details>
 
       <PcTerminalSubmissionHistory
         windowInfo={selectedWindow}

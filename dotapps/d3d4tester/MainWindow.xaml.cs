@@ -4,6 +4,8 @@
 // PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
 // PY-REF: pyapps/d3-check/d3utils/path_scanner.py
 // PY-REF: pyapps/d3-check/d3utils/event_center.py
+// PY-REF: pyapps/d3-check/ui/components/status_item.py
+// PY-REF: pyapps/d3-check/ui/components/status_row_config.py
 using System.IO;
 using System.Diagnostics;
 using System.Drawing;

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # DOT-REF: dotapps/d3d4tester/D3D4TesterCore/Battlenet/BattlenetConstants.cs
-# DOT-REF: dotapps/d3d4tester/D3D4TesterCore/Battlenet/BrowserLoginOcrFlow.cs
+# DOT-REF: dotapps/d3d4tester/D3D4TesterCore/Battlenet/BrowserLoginAutomation.cs
 """
 Browser login OCR flow (CN, no Tampermonkey).
 Flow: find browser by BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS -> activate to front + wait ->

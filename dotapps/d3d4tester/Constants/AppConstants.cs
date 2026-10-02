@@ -2,6 +2,8 @@
 // PY-REF: pyapps/d3-check/providor/constants/d3.py
 // PY-REF: pyapps/d3-check/controller/game_interface_controller.py
 // PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
+// PY-REF: pyapps/d3-check/share/values/skill_config_hotkeys.py
+// PY-REF: pyapps/d3-check/providor/constants/ui.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>
@@ -35,6 +37,7 @@ public static class AppConstants
     // ---------- Default hotkeys (1:1 Python game_interface_controller fallback when key missing) ----------
     public const string DefaultMacroStartHotkey = "F9";
     public const string DefaultAssistantHotkey = "F10";
+    /// <summary>Per-config hotkey default (macro_configs.skill_configs.&lt;name&gt;.quick_switch). 1:1 Python PER_CONFIG_HOTKEY_SPEC.</summary>
     public const string DefaultQuickSwitchHotkey = "F1";
 
     // ---------- UI defaults: preset window size for title-bar "Restore" button and config fallback (single source of truth) ----------

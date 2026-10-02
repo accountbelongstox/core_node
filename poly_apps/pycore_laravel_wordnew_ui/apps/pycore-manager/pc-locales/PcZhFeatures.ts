@@ -538,6 +538,8 @@ terminal: {
     scheduleModeInterval: '间隔循环',
     scheduleTimeLabel: '发送时间',
     scheduleIntervalLabel: '间隔（秒）',
+    scheduleSecondsUnit: '秒',
+    howSendingWorks: '发送是如何工作的',
     scheduleAdd: '加入队列',
     scheduleUpdate: '保存替换',
     scheduleEdit: '编辑此定时消息',

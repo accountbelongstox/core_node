@@ -1,5 +1,6 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_update_manager.py
 // PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
+// PY-REF: pyapps/d3-check/d3utils/rosbot_update_check.py
 using System;
 using System.Collections.Generic;
 using System.IO;

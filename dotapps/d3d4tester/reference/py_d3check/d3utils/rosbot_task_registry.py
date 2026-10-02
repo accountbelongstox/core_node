@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/D3D4TesterCore/RosbotFlowHost.cs
 """
 Registry for ROSBOT task start/stop. Used so controller and d3_extension_thread can trigger
 start/stop without importing rosbot_task_processor (avoids circular import with flow_bn_only).

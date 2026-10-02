@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/D3D4TesterCore/Flow/TickDriver.cs
 """
 Task status enum (shared data). Used by task thread manager and UI; thread-safe usage is in the manager (queue + snapshot), not in this module.
 See PROJECT_STANDARDS.md §1.3 data area.

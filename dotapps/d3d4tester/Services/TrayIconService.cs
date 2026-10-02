@@ -1,4 +1,5 @@
 // PY-REF: pyapps/d3-check/ui/components/system_tray.py
+// PY-REF: pyapps/d3-check/ui/components/_tray_deps.py
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;

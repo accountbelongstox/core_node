@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/Services/RosbotLogFileWatcher.cs
+# DOT-REF: dotapps/d3d4tester/Ctl/RosbotTaskProcessor.cs
 """
 Log monitor: single place for LogMonitorThread access. Lifecycle only (thread refs allowed).
 """

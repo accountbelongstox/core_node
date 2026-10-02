@@ -2,6 +2,8 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_task_processor.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_bn_only.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_master_driver.py
+// PY-REF: pyapps/d3-check/share/values/task_status.py
+// PY-REF: pyapps/d3-check/threads/task_thread_manager.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Flow;

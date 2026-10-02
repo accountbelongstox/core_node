@@ -16,7 +16,7 @@ Progress checklist + code conventions for d3d4tester & dotcore. Canonical rules:
 | Phase 4 | Tab/GetPage, 变量与注释统一为 Page | Done |
 | Options Pattern | 配置读 `GetOptions<T>`、写 `SetValueAsync`；控件绑定 `ConfigBinding` | Done |
 | 配置 vs 内存数据中心化 | 区分明确 + `InMemoryCentersCatalog` 单源清单 | Done |
-| Python 1:1 port | pyapps/d3-check 全量移植，见 [PY_DOT_PORT_MAP.md](PY_DOT_PORT_MAP.md) | Done |
+| Python 1:1 port | pyapps/d3-check 全量移植（已复核至 `45175717`：每个 main.py 可达文件均有 PY-REF 或列入 Not ported），见 [PY_DOT_PORT_MAP.md](PY_DOT_PORT_MAP.md) | Done |
 
 Tab content = `Pages/<Feature>/<Feature>Page.xaml` (Main, Rosbot, D4, Calibration, RunLog). MainWindow = shell (`ShellWindowStyle`); dialogs under `Windows/` use `DialogWindowStyle`.
 

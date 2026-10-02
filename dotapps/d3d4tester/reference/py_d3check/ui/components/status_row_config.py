@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/MainWindow.xaml.cs
 """
 Status row config: two rows, (label_i18n_key, var_key, default_fg).
 default_fg: None or color key; BottomBar sets value label fg from state.

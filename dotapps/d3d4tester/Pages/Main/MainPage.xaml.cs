@@ -19,7 +19,6 @@ namespace DotApps.d3d4tester.Pages.Main;
 /// </summary>
 public partial class MainPage : UserControl
 {
-    private const string QuickSwitchDefault = "F1";
     private const string CustomStandKeyDefault = "Shift";
     private static readonly string[] DefaultConfigKeys = { "config1", "config2", "config3", "config4" };
 
@@ -166,7 +165,7 @@ public partial class MainPage : UserControl
     }
 
     private void LoadQuickSwitch(string configName) =>
-        TxtQuickSwitch.Hotkey = ConfigBinding.GetValue(QuickSwitchKey(configName), QuickSwitchDefault) ?? QuickSwitchDefault;
+        TxtQuickSwitch.Hotkey = ConfigBinding.GetValue(QuickSwitchKey(configName), AppConstants.DefaultQuickSwitchHotkey) ?? AppConstants.DefaultQuickSwitchHotkey;
 
     /// <summary>Per-config hotkey. 1:1 Python _on_skill_changed('quick_switch', value).</summary>
     private void SaveQuickSwitch(string hotkey)

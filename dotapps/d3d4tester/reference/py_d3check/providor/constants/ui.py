@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/Constants/AppConstants.cs
 """
 UI constants: tab indices and panel keys.
 All main UI (tabs, panels) exist at startup; use these constants instead of magic numbers.

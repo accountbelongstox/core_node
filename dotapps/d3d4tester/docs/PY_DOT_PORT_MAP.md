@@ -28,7 +28,14 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | `timers/` (window monitor, one-shot tasks) | `Services/WindowMonitorService`, `RosbotDebugService`, `BattlenetUiAnalyzeService`, `RosbotUpdateManager`, `Core/PathScanner` |
 | `ui/panels/*` | `Pages/{Main,Rosbot,D4,Calibration,RunLog}` |
 | `ui/components/*` (title bar, bottom bar, tray, aux options, coordinate picker, record config, update info, debug window) | `Components/`, `StatusBar/`, `Services/TrayIconService`, `Windows/*` |
-| `ui/theme`, `unified_styles` | dotcore `DotCore.UITheme` + `Assets/Styles/` |
+| `ui/theme`, `unified_styles`, `ui/widgets/basic` (themed widgets) | dotcore `DotCore.UITheme` + `Assets/Styles/` |
+| `threads/task_thread_manager` + `share/values/task_status` (1 s `rosbot_task` loop) | `Core/Flow/TickDriver` (see deviations) |
+| `d3utils/log_monitor_api`, `lifecycle/log_monitor`, `d3utils/rosbot_task_registry` | `Core/RosbotFlowHost` (`IRosbotFlowHost`), `Services/RosbotLogFileWatcher`, `Ctl/RosbotTaskProcessor` |
+| `d3utils/rosbot_update_check` (facade), `d3utils/macro_config_provider` | `RosbotUpdateManager`, `Config/MacroConfigLoader` |
+| `share/bag_data_hub` | `Core/Bag/DebugBagHover` (reads `GameInterfaceData` directly) |
+| `share/values/skill_config_hotkeys`, `providor/constants/ui` | `Constants/AppConstants` (`DefaultQuickSwitchHotkey`, `TabCount`, `PopupKeyDebugWindow`) |
+| `config/screenshot_categories` (`MATCH_DEBUG_DIR`) | `Core/D3InterfaceConstants.MatchDebugSubdir` |
+| `ui/components/_tray_deps`, `status_item`, `status_row_config`, `ui/utils/app_root` | `Services/TrayIconService`, `MainWindow` status strip, `Ui/UiRegistry` |
 
 ## Not ported (or unused)
 
@@ -42,7 +49,13 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | `scripts/*`, `athtest/*`, `train.py`, `validate.py`, `controller/training`, `config/training*`, `d4_modules/*` | Dev-only tools; YOLO training stays Python (C# `YoloTrainFlow.Flow6StartTrain` launches the Ultralytics CLI) |
 | Kanai convert (`aux.kanai_convert`) | Python is a TODO stub; config/UI/debug button exist, no flow |
 | GameAISDK record debug overlay window | No native equivalent; recording is native via `DotCore.YoloRecord` |
-| TickDriver SIGINT guard (tick % 1) | Python-only console concern |
+| TickDriver SIGINT guard (tick % 1), `d3utils/signal_utils` | Python-only console concern |
+| `config/unified_config`, `config/grid_config` | Loaded by `config/__init__` only; no live caller (grid only by dead `pathfinding_controller`) |
+| `d3utils/battlenet_capture`, `battlenet_match_debug`, `battlenet_template_matcher`, `ScreenshotCategoryManager` cleanup | Only reached from `LoginTryScreenshotController._capture_battlenet_window` / `debug_all_match_methods` / `capture_screenshot`, which have no caller |
+| `d3utils/rosbot_flow/flow_d_launch_from_bn` | Re-exported by `rosbot_flow/__init__` only; D block lives in `login_try_screenshot_controller` (`LoginTryController`) |
+| `threads/auxiliary_function_thread` | Idle thread that only waits for shutdown |
+| `ui/utils/tk_variables`, `ui/components/bottom_bar_options_block` | tkinter-only (tk.Variable factory; per-tab empty strips); WPF binding replaces them |
+| `providor/common_imports`, `providor/app_constants`, `d3utils/i18n_manager`, `d3utils/rosbot_flow_f3_history_baseline` | No live importer (`app_constants` only in `scripts/`) |
 | `d4utils/d4_red_portal_detector` | Ported but unused (no caller in Python) |
 
 ## DOT deviations from Python (deliberate)
@@ -63,6 +76,7 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | Resource monitor | — | `DotCore.Utils.SystemResourceSampler` (GetSystemTimes, GlobalMemoryStatusEx, PDH GPU counters) + `Components/ResourceMonitorBlock` on the log tab (1 s while visible) |
 | Battle.net waking up | — | `RosbotRunFlow.RunE4Start` skips the ROSBOT start while `BattlenetWakingUp` |
 | Full status refresh | Battle.net + D3 + ROSBOT | `RosbotTaskProcessor.RefreshAllGameStatus` also sets D4 running; RunLog "refresh game status" debug button runs it with the D3 dynamic capture and logs the center |
+| `rosbot_task` status | Stop / login error set `rosbot_task` DISABLED, pausing the whole 1 s loop (flow, smart echo, inactive refresh) until start or BN-only on; 5 errors disable it | `TickDriver` always runs; flow switches gate work; callback errors are logged per tick |
 | Removed duplicates | — | `RosbotFlowController.RunAsync` (second B/D/E path), `Ctl/BattlenetLoginCtl` (third start/login path), `RosbotFlowController.IsD3Running` (`Process` lookup) |
 
 ## Python reference copy and cross-references
