@@ -515,9 +515,11 @@ function Invoke-AiCliChromeMcpEnsure {
     $mcpHost = $null
     $mcpPort = 0
     $mcpUrl = $null
+    $pycoreDevUrl = $null
     $taskName = $null
     $config = $null
     $chromeEntry = $null
+    $pycoreDevEntry = $null
     $entryReady = $false
     $endpointReady = $false
     $tcpClient = $null
@@ -532,6 +534,7 @@ function Invoke-AiCliChromeMcpEnsure {
     $mcpHost = Get-ServiceContractHost -Name "loopback"
     $mcpPort = Get-ServiceContractPort -Name "mcp_chrome"
     $mcpUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpHost -Port $mcpPort -Path "mcp"
+    $pycoreDevUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpHost -Port (Get-ServiceContractPort -Name "pycore_backend") -Path (Get-ServiceContractValue -ContractPath "paths.pycore_dev_mcp")
     $taskName = Get-ServiceContractValue -ContractPath "mcp_chrome.windows_task_name"
 
     if (Test-Path -LiteralPath $claudeConfigPath -PathType Leaf) {
@@ -539,10 +542,13 @@ function Invoke-AiCliChromeMcpEnsure {
             $config = Get-Content -Raw -LiteralPath $claudeConfigPath | ConvertFrom-Json
             if ($null -ne $config.PSObject.Properties["mcpServers"] -and $null -ne $config.mcpServers) {
                 $chromeEntry = $config.mcpServers.PSObject.Properties["chrome"]
+                $pycoreDevEntry = $config.mcpServers.PSObject.Properties["pycore-dev"]
             }
-            if ($null -ne $chromeEntry -and $null -ne $chromeEntry.Value) {
+            if ($null -ne $chromeEntry -and $null -ne $chromeEntry.Value -and $null -ne $pycoreDevEntry -and $null -ne $pycoreDevEntry.Value) {
                 $entryReady = ($chromeEntry.Value.PSObject.Properties["type"] -and $chromeEntry.Value.type -eq "http" -and
-                    $chromeEntry.Value.PSObject.Properties["url"] -and $chromeEntry.Value.url -eq $mcpUrl)
+                    $chromeEntry.Value.PSObject.Properties["url"] -and $chromeEntry.Value.url -eq $mcpUrl -and
+                    $pycoreDevEntry.Value.PSObject.Properties["type"] -and $pycoreDevEntry.Value.type -eq "http" -and
+                    $pycoreDevEntry.Value.PSObject.Properties["url"] -and $pycoreDevEntry.Value.url -eq $pycoreDevUrl)
             }
         } catch {
             $entryReady = $false
@@ -555,7 +561,7 @@ function Invoke-AiCliChromeMcpEnsure {
         if ([string]::IsNullOrWhiteSpace($pythonExe)) {
             Write-Host "[WARN] Chrome MCP: python not found; cannot write the chrome entry to $claudeConfigPath." -ForegroundColor Yellow
         } else {
-            $entriesJson = ConvertTo-Json -InputObject @(@{ name = "chrome"; transport = "http"; url = $mcpUrl }) -Depth 5
+            $entriesJson = ConvertTo-Json -InputObject @(@{ name = "chrome"; transport = "http"; url = $mcpUrl }, @{ name = "pycore-dev"; transport = "http"; url = $pycoreDevUrl }) -Depth 5
             [System.IO.File]::WriteAllText($entriesPath, $entriesJson, (New-Object System.Text.UTF8Encoding($false)))
             try {
                 & $pythonExe -u $jsonHelperPath $claudeConfigPath $entriesPath "claude" | Out-Null

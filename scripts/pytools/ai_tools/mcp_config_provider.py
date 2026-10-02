@@ -23,9 +23,10 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyfoundations.service_contract import build_url, host, port
+from pycore.pyfoundations.service_contract import build_url, host, path_value, port
 
 CHROME_MCP_URL = build_url("http", host("loopback"), port("mcp_chrome"), "mcp")
+PYCORE_DEV_MCP_URL = build_url("http", host("loopback"), port("pycore_backend"), path_value("pycore_dev_mcp"))
 SECRET_MANAGER_PATH = SCRIPT_DIR / "secret_manager.py"
 SECRET_SPEC = importlib.util.spec_from_file_location(
     "ai_tools_secret_manager",
@@ -119,6 +120,15 @@ class MCPConfigProvider:
             url=CHROME_MCP_URL
         )
 
+    @staticmethod
+    def get_pycore_dev_mcp_config() -> MCPConfig:
+        """Get the read-only pycore-dev MCP Server configuration (HTTP transport)."""
+        return MCPConfig(
+            name="pycore-dev",
+            transport_type="http",
+            url=PYCORE_DEV_MCP_URL
+        )
+
     @classmethod
     def get_all_configs(cls, target: str = "claude") -> List[MCPConfig]:
         """
@@ -143,6 +153,7 @@ class MCPConfigProvider:
         # Chrome MCP Server (HTTP transport)
         chrome_config = cls.get_chrome_mcp_config()
         configs.append(chrome_config)
+        configs.append(cls.get_pycore_dev_mcp_config())
 
         print()
         print(f"[INFO] Loaded {len(configs)} MCP configuration(s):")
@@ -167,15 +178,15 @@ class MCPConfigProvider:
         # Can be extended in the future for tool-specific configurations
         filters = {
             'claude': {
-                'include': ['context7', 'chrome'],
+                'include': ['context7', 'chrome', 'pycore-dev'],
                 'exclude': []
             },
             'codex': {
-                'include': ['context7', 'chrome'],
+                'include': ['context7', 'chrome', 'pycore-dev'],
                 'exclude': []
             },
             'droid': {
-                'include': ['context7', 'chrome'],
+                'include': ['context7', 'chrome', 'pycore-dev'],
                 'exclude': []
             }
         }

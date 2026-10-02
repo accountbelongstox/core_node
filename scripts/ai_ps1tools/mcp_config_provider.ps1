@@ -16,6 +16,7 @@ $script:MCP_WIN_COMMON_DIR = Join-Path $script:MCP_PROJECT_ROOT "scripts\shells\
 $script:MCP_SERVICE_CONTRACT_COMMON = Join-Path $script:MCP_WIN_COMMON_DIR "ServiceContract.ps1"
 . $script:MCP_SERVICE_CONTRACT_COMMON
 $script:MCP_CHROME_URL = New-ServiceContractUrl -Protocol "http" -HostName (Get-ServiceContractHost -Name "loopback") -Port (Get-ServiceContractPort -Name "mcp_chrome") -Path "mcp"
+$script:MCP_PYCORE_DEV_URL = New-ServiceContractUrl -Protocol "http" -HostName (Get-ServiceContractHost -Name "loopback") -Port (Get-ServiceContractPort -Name "pycore_backend") -Path (Get-ServiceContractValue -ContractPath "paths.pycore_dev_mcp")
 #endregion
 
 #region Secret Manager
@@ -90,6 +91,11 @@ function Get-ChromeMCPConfig {
         -Url $script:MCP_CHROME_URL)
 }
 
+function Get-PycoreDevMCPConfig {
+    return (New-MCPConfig -Name "pycore-dev" -TransportType "http" `
+        -Url $script:MCP_PYCORE_DEV_URL)
+}
+
 function Get-AllMCPConfigs {
     param(
         [string]$Target = "claude"
@@ -105,6 +111,7 @@ function Get-AllMCPConfigs {
 
     $chromeConfig = Get-ChromeMCPConfig
     $configs += $chromeConfig
+    $configs += (Get-PycoreDevMCPConfig)
 
     Write-Host ""
     Write-Host "[INFO] Loaded $($configs.Count) MCP configuration(s):"
