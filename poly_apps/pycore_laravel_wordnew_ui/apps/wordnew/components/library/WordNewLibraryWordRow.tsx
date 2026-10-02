@@ -5,8 +5,9 @@
  */
 import React from 'react';
 import {
-  ChevronDown, ChevronUp, Image as ImageIcon, BookOpen, Volume2, Languages,
+  ChevronDown, ChevronUp, Image as ImageIcon, BookOpen,
 } from 'lucide-react';
+import { ChipButton } from '@/shared/ui/ChipButton';
 import type { WfNewLibraryWord, WfNewWordMedia, WordNewAudioFileVariant } from '../../api';
 import type { ElementTheme } from '../../WfNewThemes';
 import { WordNewResourceStatusIcon } from '../WordNewResourceStatusIcon';
@@ -16,6 +17,7 @@ import { ttsStatusToCellState, type WordNewAudioCellState } from '../../utils/Wo
 import { pickSentenceAudioUrl, readySentenceVariants } from '../../utils/WordNewSentenceAudioPick';
 import { buildWordCell } from '../../utils/WordNewLibraryWordCell';
 import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
+import { InvalidWordChip, WordPhoneticsLine, WordTranslationsLine, joinTranslations } from './WordDetailParts';
 
 export interface WordNewLibraryWordRowProps {
   word: WfNewLibraryWord;
@@ -92,11 +94,7 @@ export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-slate-100 truncate">{w.word}</span>
-            {!w.isValid && (
-              <span className="text-[9px] font-mono text-amber-500/80 border border-amber-500/30 rounded px-1">
-                {trans('library.invalid')}
-              </span>
-            )}
+            {!w.isValid && <InvalidWordChip label={trans('library.invalid')} />}
           </div>
           {(w.phonetic || w.usPhonetic) && (
             <span className="text-[10px] font-mono text-zinc-500">/{w.phonetic || w.usPhonetic}/</span>
@@ -105,7 +103,7 @@ export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
         {/* meaning (truncated until expanded) */}
         <div className="hidden sm:block min-w-0">
           <p className={`text-[12px] text-zinc-300 ${open ? '' : 'truncate'}`}>
-            {w.translations.length > 0 ? w.translations.join('；') : (w.explanation || '-')}
+            {w.translations.length > 0 ? joinTranslations(w.translations) : (w.explanation || '-')}
           </p>
         </div>
         {/* actions */}
@@ -150,38 +148,23 @@ export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
               <WfNewLoadingDots className="text-violet-300/80" />
             </span>
           ) : null}
-          <button
-            type="button"
-            onClick={() => onToggleExpand(w)}
-            className="p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-400 transition"
-            title={trans('library.detail')}
-          >
+          <ChipButton onClick={() => onToggleExpand(w)} size="icon" title={trans('library.detail')}>
             {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
+          </ChipButton>
         </div>
       </div>
 
       {/* expanded detail: full meaning + explanation + images */}
       {open && (
         <div className="mt-2.5 ml-8 sm:ml-12 space-y-2.5 border-l border-white/10 pl-3">
-          {w.translations.length > 0 && (
-            <div className="flex items-start gap-2">
-              <Languages className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-              <p className="text-[12px] text-zinc-200">{w.translations.join('；')}</p>
-            </div>
-          )}
+          {w.translations.length > 0 && <WordTranslationsLine translations={w.translations} />}
           {w.explanation && (
             <div className="flex items-start gap-2">
               <BookOpen className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
               <p className="text-[12px] text-zinc-300 whitespace-pre-line">{w.explanation}</p>
             </div>
           )}
-          {(w.usPhonetic || w.ukPhonetic) && (
-            <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-500">
-              {w.usPhonetic && <span><Volume2 className="w-3 h-3 inline mr-1" />US /{w.usPhonetic}/</span>}
-              {w.ukPhonetic && <span><Volume2 className="w-3 h-3 inline mr-1" />UK /{w.ukPhonetic}/</span>}
-            </div>
-          )}
+          {(w.usPhonetic || w.ukPhonetic) && <WordPhoneticsLine us={w.usPhonetic} uk={w.ukPhonetic} />}
           {effImages.length > 0 ? (
             <div className="flex flex-wrap gap-2 pt-0.5">
               {effImages.map((src, i) => (

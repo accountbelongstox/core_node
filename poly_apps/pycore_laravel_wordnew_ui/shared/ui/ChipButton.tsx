@@ -2,7 +2,17 @@ import React from 'react';
 
 export type ChipVariant = 'default' | 'active' | 'danger' | 'success' | 'warning' | 'info';
 
-const BASE = 'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border transition disabled:opacity-40';
+export type ChipSize = 'md' | 'icon' | 'wide' | 'pill' | 'tag';
+
+const BASE = 'inline-flex items-center text-[11px] font-mono font-bold border transition disabled:opacity-40';
+
+const SIZE: Record<ChipSize, string> = {
+  md: 'gap-1 px-2.5 py-1.5 rounded-lg',
+  icon: 'gap-1 px-1.5 py-1.5 rounded-lg',
+  wide: 'gap-1.5 px-3 py-1.5 rounded-lg',
+  pill: 'gap-1.5 px-3 py-1.5 rounded-full',
+  tag: 'gap-1 px-2 py-0.5 rounded-lg',
+};
 
 const VARIANT: Record<ChipVariant, string> = {
   default: 'border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300',
@@ -14,13 +24,14 @@ const VARIANT: Record<ChipVariant, string> = {
 };
 
 /** Class string of a chip (for non-button elements such as stat labels). */
-export const chipClass = (variant: ChipVariant = 'default', extra = ''): string => `${BASE} ${VARIANT[variant]} ${extra}`.trim();
+export const chipClass = (variant: ChipVariant = 'default', size: ChipSize = 'md', extra = ''): string => `${BASE} ${SIZE[size]} ${VARIANT[variant]} ${extra}`.trim();
 
 interface ChipButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ChipVariant;
+  size?: ChipSize;
 }
 
 /** The one compact action chip used by toolbars, pagers and row actions. */
-export const ChipButton: React.FC<ChipButtonProps> = ({ variant = 'default', className = '', type = 'button', children, ...rest }) => (
-  <button type={type} className={chipClass(variant, className)} {...rest}>{children}</button>
+export const ChipButton: React.FC<ChipButtonProps> = ({ variant = 'default', size = 'md', className = '', type = 'button', children, ...rest }) => (
+  <button type={type} className={chipClass(variant, size, className)} {...rest}>{children}</button>
 );

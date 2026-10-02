@@ -46,7 +46,7 @@ export const WfNewPager: React.FC<WfNewPagerProps> = ({
             variant={p === page ? 'active' : 'default'}
             onClick={() => onGoTo(p)}
             disabled={loading}
-            className="min-w-[2rem] justify-center px-2"
+            size="icon" className="min-w-[2rem] justify-center"
           >
             {p}
           </ChipButton>

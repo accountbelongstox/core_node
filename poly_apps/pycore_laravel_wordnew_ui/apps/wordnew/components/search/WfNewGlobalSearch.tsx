@@ -8,6 +8,7 @@
  * keyboard (mobile web, Capacitor app); a centered palette on desktop.
  */
 import { OVERLAY_Z } from '@/shared/styles/overlay';
+import { ChipGroup } from '@/shared/ui/ChipGroup';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -270,25 +271,26 @@ export const WfNewGlobalSearch: React.FC<WfNewGlobalSearchProps> = ({
             </div>
 
             {!command && (
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar" role="tablist">
-                {SCOPES.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={scope === id}
-                    onClick={() => setScope(id)}
-                    className={`shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
-                      scope === id
-                        ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-600 dark:text-indigo-200'
-                        : 'bg-transparent border-slate-900/10 dark:border-white/10 text-slate-500 dark:text-zinc-400 hover:bg-slate-900/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    {trans(`search.scope.${id}`)}
-                    {term && <span className="text-[10px] font-mono opacity-70">{counts[id]}</span>}
-                  </button>
-                ))}
-              </div>
+              <ChipGroup<WordNewSearchScope>
+                role="tab"
+                nowrap
+                gapClassName="gap-1.5"
+                className="no-scrollbar !pb-0"
+                value={scope}
+                onChange={setScope}
+                chipClassName="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs"
+                selectedClassName="bg-indigo-500/15 border-indigo-500/40 text-indigo-600 dark:text-indigo-200"
+                idleClassName="bg-transparent border-slate-900/10 dark:border-white/10 text-slate-500 dark:text-zinc-400 hover:bg-slate-900/5 dark:hover:bg-white/5"
+                options={SCOPES.map((id) => ({
+                  value: id,
+                  label: (
+                    <>
+                      {trans(`search.scope.${id}`)}
+                      {term && <span className="text-[10px] font-mono opacity-70">{counts[id]}</span>}
+                    </>
+                  ),
+                }))}
+              />
             )}
             {voiceError && <p className="px-1 text-[11px] text-amber-600 dark:text-amber-400">{voiceError}</p>}
           </div>

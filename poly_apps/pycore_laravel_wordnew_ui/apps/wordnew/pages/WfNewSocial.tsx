@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import {
-  Users, MessageSquare, Send, UserPlus, UserCheck, Search,
-  Activity, Trophy, Check, X, Clock, ChevronRight,
-} from 'lucide-react';
-import { StateMessage } from '@/shared/ui/StateMessage';
-import { TextField } from '@/shared/ui/TextField';
+import { Users } from 'lucide-react';
+import { ChipGroup } from '@/shared/ui/ChipGroup';
 import type { ElementTheme } from '../WfNewThemes';
 import {
   wfNewApi,
@@ -25,8 +21,10 @@ import { WfNewSocialGallery } from '../components/WfNewSocialGallery';
 import { WfNewSocialVideo } from '../components/WfNewSocialVideo';
 import { WfNewSocialLive } from '../components/WfNewSocialLive';
 import { WfNewSocialNearby } from '../components/social/WfNewSocialNearby';
-import { WfNewSocialAvatar } from '../components/social/WfNewSocialAvatar';
+import { WfNewSocialPartners } from '../components/social/WfNewSocialPartners';
+import { WfNewSocialLeaderboard } from '../components/social/WfNewSocialLeaderboard';
 import { useSocialList } from '../components/social/useSocialList';
+import { useLatestRef } from '../../../core/utils/useLatestRef';
 import { formatRelativeTime } from '../../../core/utils/formatters';
 
 interface WfNewSocialProps {
@@ -144,13 +142,9 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [draft, setDraft] = useState('');
 
-  const selectedConvIdRef = useRef<number | null>(null);
-  useEffect(() => { selectedConvIdRef.current = selectedConvId; }, [selectedConvId]);
-
-  const conversationsRef = useRef<WfNewConversation[]>([]);
-  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
-  const discoverRef = useRef<WfNewDiscoverUser[]>([]);
-  useEffect(() => { discoverRef.current = discover; }, [discover]);
+  const selectedConvIdRef = useLatestRef(selectedConvId);
+  const conversationsRef = useLatestRef(conversations);
+  const discoverRef = useLatestRef(discover);
 
   useEffect(() => {
     let alive = true;
@@ -338,17 +332,6 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
     return () => { alive = false; clearInterval(interval); };
   }, [isLoggedIn]);
 
-  // ---- match badge accents ----
-  const matchBadge = (match: WfNewDiscoverUser['match']) => {
-    if (match === 'exchange') {
-      return { label: trans('social.matchExchange'), cls: 'bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white border-fuchsia-400/30' };
-    }
-    if (match === 'native') {
-      return { label: trans('social.matchNative'), cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20' };
-    }
-    return { label: trans('social.matchTarget'), cls: 'bg-sky-500/15 text-sky-300 border-sky-500/20' };
-  };
-
   const subTabs: { id: SubTab; label: string }[] = [
     { id: 'plaza', label: trans('social.tabPlaza') },
     { id: 'post', label: trans('social.tabPost') },
@@ -381,19 +364,18 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
         </div>
 
         <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 self-start overflow-x-auto">
-          {subTabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSubTab(tab.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold font-mono whitespace-nowrap transition-all cursor-pointer ${
-                activeSubTab === tab.id
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <ChipGroup<SubTab>
+            role="tab"
+            nowrap
+            gapClassName="gap-0"
+            className="!pb-0"
+            value={activeSubTab}
+            onChange={setActiveSubTab}
+            chipClassName="px-3.5 py-2 rounded-xl text-xs font-mono whitespace-nowrap border-transparent"
+            selectedClassName="bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg"
+            idleClassName="bg-transparent text-zinc-400 hover:text-zinc-200"
+            options={subTabs.map((tab) => ({ value: tab.id, label: tab.label }))}
+          />
         </div>
       </div>
 
@@ -471,134 +453,23 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
           />
         )}
 
-        {/* ====== PARTNERS ====== */}
         {activeSubTab === 'partners' && (
-          <div className="space-y-6">
-            {/* Incoming friend requests strip */}
-            {incoming.length > 0 && (
-              <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/10 space-y-3">
-                <h4 className="text-[11px] font-black font-mono tracking-widest text-indigo-400 uppercase">
-                  {trans('social.incomingRequests', { n: incoming.length })}
-                </h4>
-                <div className="flex gap-3 overflow-x-auto pb-1">
-                  {incoming.map(req => (
-                    <div key={req.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/4 border border-white/5 shrink-0">
-                      <WfNewSocialAvatar src={req.avatar_url} name={req.name || req.username} size="w-8 h-8" textClass="text-sm" />
-                      <span className="text-xs font-bold text-slate-200 max-w-[100px] truncate">{req.name || req.username}</span>
-                      <button
-                        onClick={() => handleRespond(req, 'accept')}
-                        className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all cursor-pointer"
-                        title={trans('social.accept')}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleRespond(req, 'reject')}
-                        className="p-1.5 rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 transition-all cursor-pointer"
-                        title={trans('social.reject')}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Filter ribbon + search */}
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/5 flex flex-col sm:flex-row gap-4 justify-between items-center">
-              <TextField className="w-full sm:max-w-xs" icon={<Search />} value={partnerSearch} onChange={setPartnerSearch} placeholder={trans('social.searchPh')} />
-              <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 gap-1 overflow-x-auto w-full sm:w-auto">
-                {['all', 'en', 'zh', 'ja', 'es', 'fr', 'ko'].map(langCode => (
-                  <button
-                    key={langCode}
-                    onClick={() => setRibbonLang(langCode)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
-                      ribbonLang === langCode ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    {langCode === 'all' ? trans('social.langAll') : trans('lang.name.' + langCode)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Discover grid */}
-            {discoverLoading && <StateMessage kind="empty" size="page">{trans('social.discoverLoading')}</StateMessage>}
-
-            {!discoverLoading && discover.length === 0 && <StateMessage kind="empty" size="page">{trans('social.noDiscover')}</StateMessage>}
-
-            {!discoverLoading && discover.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {discover.map(user => {
-                  const badge = matchBadge(user.match);
-                  const isPending = pendingIds[user.id];
-                  return (
-                    <div
-                      key={user.id}
-                      className="p-5 rounded-2xl bg-white/3 border border-white/5 hover:border-white/10 transition-all flex flex-col justify-between space-y-4"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div
-                          onClick={() => openProfile(user.id)}
-                          title={trans('social.profile.viewProfile')}
-                          className="group flex items-center gap-3 min-w-0 cursor-pointer"
-                        >
-                          <WfNewSocialAvatar src={user.avatar} name={user.nickname} size="w-11 h-11" textClass="text-xl" presence={presence[user.id] || user.presence || 'offline'} />
-                          <div className="min-w-0">
-                            <h4 className="text-sm font-black text-slate-200 truncate group-hover:text-indigo-300 transition-colors">{user.nickname}</h4>
-                            <p className="text-[10px] text-indigo-400 font-mono">
-                              <span className="uppercase text-slate-300 font-bold">{user.native_language}</span>
-                              {' → '}
-                              <span className="uppercase text-slate-300 font-bold">{(user.learning_languages || []).join(', ')}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <span className={`text-[8px] font-black font-mono tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${badge.cls}`}>
-                          {badge.label}
-                        </span>
-                      </div>
-
-                      {user.stats && (
-                        <div className="flex gap-3 text-[10px] font-mono text-zinc-400">
-                          {typeof user.stats.learned === 'number' && <span>{trans('social.statsLearned', { n: user.stats.learned })}</span>}
-                          {typeof user.stats.streak === 'number' && <span>{trans('social.statsStreak', { n: user.stats.streak })}</span>}
-                        </div>
-                      )}
-
-                      <div className="flex gap-2.5 pt-3 border-t border-white/5">
-                        {user.is_friend ? (
-                          <span className="flex-1 py-1.5 rounded-xl text-[11px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5 border bg-zinc-800/40 border-zinc-700 text-indigo-400">
-                            <UserCheck className="w-3.5 h-3.5" /> {trans('social.alreadyFriend')}
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => handleAddFriend(user)}
-                            disabled={isPending}
-                            className={`flex-1 py-1.5 rounded-xl text-[11px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
-                              isPending
-                                ? 'bg-zinc-800/40 border-zinc-700 text-zinc-400'
-                                : 'bg-indigo-600/90 hover:bg-indigo-600 border-indigo-500/20 text-white'
-                            }`}
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>{isPending ? trans('social.pending') : trans('social.addFriend')}</span>
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleMessageUser(user)}
-                          className="p-2 rounded-xl bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-400 border border-white/5 text-zinc-400 transition-all cursor-pointer"
-                          title={trans('social.message')}
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <WfNewSocialPartners
+            trans={trans}
+            incoming={incoming}
+            discover={discover}
+            loading={discoverLoading}
+            search={partnerSearch}
+            onSearchChange={setPartnerSearch}
+            ribbonLang={ribbonLang}
+            onRibbonLangChange={setRibbonLang}
+            pendingIds={pendingIds}
+            presence={presence}
+            onRespond={handleRespond}
+            onAddFriend={handleAddFriend}
+            onMessage={handleMessageUser}
+            onOpenProfile={openProfile}
+          />
         )}
 
         {/* ====== CHAT ====== */}
@@ -621,79 +492,16 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
           />
         )}
 
-        {/* ====== LEADERBOARD ====== */}
         {activeSubTab === 'leaderboard' && (
-          <div className="space-y-5 max-w-2xl mx-auto">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black font-mono tracking-widest text-amber-400 uppercase flex items-center gap-1.5">
-                <Trophy className="w-4 h-4" />
-                {trans('social.leaderboardTitle')}
-              </h4>
-              <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
-                {(['week', 'all'] as const).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                      period === p ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    {p === 'week' ? trans('social.week') : trans('social.allTime')}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Recent activity digest of followed users (legacy feed, folded in here). */}
-            {!feedLoading && activities.length > 0 && (
-              <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
-                <h5 className="text-[10px] font-black font-mono tracking-widest text-indigo-400 uppercase flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5" /> {trans('social.feedTitle')}
-                </h5>
-                {activities.slice(0, 5).map(act => (
-                  <div key={act.id} className="flex items-center gap-2.5">
-                    <WfNewSocialAvatar src={act.avatar_url} name={act.user_name} size="w-7 h-7" textClass="text-sm" />
-                    <span className="text-[11px] font-bold text-slate-200 truncate">{act.user_name}</span>
-                    <span className="text-[10px] text-zinc-500 truncate flex-1">{act.action || trans('social.feedDefaultAction')}</span>
-                    <span className="text-[9px] text-zinc-600 font-mono shrink-0 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {formatRelativeTime(act.time)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {leaderboardLoading && <StateMessage kind="empty" size="page">{trans('social.leaderboardLoading')}</StateMessage>}
-
-            {!leaderboardLoading && leaderboard.length === 0 && <StateMessage kind="empty" size="page">{trans('social.leaderboardEmpty')}</StateMessage>}
-
-            {!leaderboardLoading && leaderboard.map(entry => (
-              <div
-                key={entry.user_id}
-                className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
-                  entry.is_current_user
-                    ? 'bg-indigo-500/10 border-indigo-500/30'
-                    : 'bg-white/3 border-white/5 hover:border-white/10'
-                }`}
-              >
-                <span className={`w-8 text-center font-black font-mono text-sm ${
-                  entry.rank === 1 ? 'text-amber-400' : entry.rank === 2 ? 'text-slate-300' : entry.rank === 3 ? 'text-orange-400' : 'text-zinc-500'
-                }`}>
-                  #{entry.rank}
-                </span>
-                <WfNewSocialAvatar src={entry.avatar_url} name={entry.name || entry.username} size="w-9 h-9" textClass="text-sm" />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-bold truncate ${entry.is_current_user ? 'text-indigo-300' : 'text-slate-200'}`}>
-                    {entry.name || entry.username}
-                    {entry.is_current_user && <span className="ml-2 text-[9px] font-mono text-indigo-400">{trans('social.you')}</span>}
-                  </p>
-                </div>
-                <span className="text-xs font-black font-mono text-emerald-400 shrink-0">
-                  {trans('social.xp', { n: entry.xp })}
-                </span>
-              </div>
-            ))}
-          </div>
+          <WfNewSocialLeaderboard
+            trans={trans}
+            period={period}
+            onPeriodChange={setPeriod}
+            activities={activities}
+            feedLoading={feedLoading}
+            leaderboard={leaderboard}
+            loading={leaderboardLoading}
+          />
         )}
       </div>
 

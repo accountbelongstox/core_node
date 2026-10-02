@@ -1,4 +1,5 @@
 import { wfNewApi } from '../../api';
+import { wordNewWordGroups } from '../../services/WordNewWordGroupCenter';
 import {
   DEFAULT_VOCAB_GROUP_NAME,
   isDefaultVocabularyGroup,
@@ -115,7 +116,7 @@ export function loadDailyReadingWordGroups(force = false): Promise<WordGroup[]> 
   if (loadPromise) return loadPromise;
   if (!force && snapshot.groups.length > 0) return Promise.resolve(snapshot.groups);
   emit({ loading: true, error: null });
-  loadPromise = wfNewApi.getWordGroups()
+  loadPromise = wordNewWordGroups.load(force)
     .then((groups) => {
       const normalized = Array.isArray(groups) ? groups : [];
       emit({ groups: normalized, loading: false, error: null });

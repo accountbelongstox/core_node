@@ -282,7 +282,7 @@ export const WfNewAdminWords: React.FC<AdminPanelProps> = ({ activeTheme, trans,
             placeholder={trans('admin.w.search')}
             className={adminInputClass(activeTheme, 'flex-1 min-w-[10rem]')}
           />
-          <ChipButton variant="active" onClick={() => setEditor({ mode: 'create', row: null })} className="gap-1.5 hover:bg-indigo-500/25">
+          <ChipButton variant="active" onClick={() => setEditor({ mode: 'create', row: null })} size="wide">
             <Plus className="w-3.5 h-3.5" /> {trans('admin.w.add')}
           </ChipButton>
           <div className="ml-auto flex items-center gap-2">
@@ -312,7 +312,7 @@ export const WfNewAdminWords: React.FC<AdminPanelProps> = ({ activeTheme, trans,
               </ChipButton>
             ))}
             <div className="flex-1" />
-            <ChipButton onClick={() => setSelected(new Set())} disabled={batchBusy !== null} className="px-1.5" title={trans('admin.cancel')}>
+            <ChipButton onClick={() => setSelected(new Set())} disabled={batchBusy !== null} size="icon" title={trans('admin.cancel')}>
               <X className="w-3.5 h-3.5" />
             </ChipButton>
           </motion.div>

@@ -1,0 +1,1 @@
+- [wordnew UI dedupe kit](project_ui_dedupe_kit.md) — shared UI parts/helpers from the 2026-10 dedupe refactor and Tailwind v4 override rules
