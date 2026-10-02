@@ -1,131 +1,42 @@
-/**
- * WfNewAdminLibraries — super-admin "libraries" panel: the vocabulary library
- * catalog manager. Mounted by WfNewAdminPage (loopback super mode only).
- *
- * All data flows through the pinned admin gateway (wfNewAdminApi — page-origin
- * base, never the failover pool):
- *   - getLibraries({language, page, perPage, search})  → paginated card grid
- *   - getLanguageBreakdown()                           → language <select> options
- *   - wfNewAdminCoverTaskModel.enqueue([id], mode)     → regenerate / re-search one cover
- *   - deleteLibrary(id)                                → sanctum-gated destroy
- *
- * Card grid (not a table): each library renders its AI cover (absUrl-resolved,
- * gradient fallback on missing/broken image) with cover status / cover task
- * overlay chips, meta rows and an action strip: "view words" (delegates to the
- * app's existing #/library word-browser via onOpenLibrary), "regenerate cover" /
- * "re-search cover" (disabled while a cover task is live) and delete.
- *
- * The chosen language is persisted in a localStorage key SHARED with the words
- * panel ('wfnew_admin_lang'); the empty 'all' choice is panel-local and never
- * overwrites the stored concrete language. Loads are guarded against
- * out-of-order responses (reqId) and unmount (alive ref); per-card action busy
- * flags swallow double-clicks.
- */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
-import {
-  BookOpen, ChevronLeft, ChevronRight, LibraryBig,
-  Loader2, RotateCw, ScanSearch, Search, Star, Trash2, Wand2,
-} from 'lucide-react';
-import type { ElementTheme } from '../../WfNewThemes';
+import React, { useCallback, useEffect, useState } from 'react';
+import { RotateCw, Search } from 'lucide-react';
+import { ChipButton } from '@/shared/ui/ChipButton';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
 import { wfNewAdminApi, wfNewAdminCoverTaskModel, adminErrorText } from '../../api';
 import type { LibraryCoverMode } from '@/core/integrations/laravel';
-import {
-  LIBRARY_COVER_WAITING_STATUSES,
-  libraryCoverView,
-  useLibraryCoverTasks,
-  type LibraryCoverView,
-} from '../../../../shared/library-cover/LibraryCoverTaskModel';
-import { StorageManager } from '../../../../core/persistence';
-import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
+import { libraryCoverView, useLibraryCoverTasks } from '../../../../shared/library-cover/LibraryCoverTaskModel';
 import { ADMIN_SEARCH_DEBOUNCE_MS } from '../../constants/uiTiming';
-
-/** Language selection shared with the words panel (concrete languages only). */
-/** Shown while the breakdown is loading or when the endpoint fails. */
-const FALLBACK_LANGUAGES = ['english', 'chinese', 'japanese', 'korean', 'french', 'german', 'spanish'];
+import { WfNewPager } from '../WfNewPager';
+import { WfNewAdminLibraryCard } from './WfNewAdminLibraryCard';
+import {
+  AdminAsync, AdminPanel, adminInputClass, useAdminConfirm, useAdminLanguage, useDebouncedValue, useRequestGuard,
+  type AdminPanelProps,
+} from './adminKit';
 
 const PER_PAGE = 24;
 
-function readStoredLanguage(): string {
-  return StorageManager.get(StorageKeys.WORDNEW_ADMIN_LANGUAGE, '');
-}
-
-function writeStoredLanguage(lang: string): void {
-  StorageManager.set(StorageKeys.WORDNEW_ADMIN_LANGUAGE, lang);
-}
-
-const CHIP_CLS = 'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 disabled:opacity-40 transition';
-const COVER_BADGE_CLS = 'absolute top-2 right-2 max-w-[70%] truncate text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border';
-
-interface WfNewAdminLibrariesProps {
-  activeTheme: ElementTheme;
-  trans: (key: string, replacements?: Record<string, string | number>) => string;
-  addToast: (text: string, type?: 'success' | 'info' | 'warning' | 'star') => void;
-  /** Open a library in the app's existing #/library word-browser page. */
+interface WfNewAdminLibrariesProps extends AdminPanelProps {
   onOpenLibrary: (id: string, title?: string, language?: string) => void;
 }
 
-export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
-  activeTheme,
-  trans,
-  addToast,
-  onOpenLibrary,
-}) => {
-  const [languages, setLanguages] = useState<string[]>(FALLBACK_LANGUAGES);
-  const [language, setLanguage] = useState<string>(() => readStoredLanguage());
+export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({ activeTheme, trans, addToast, onOpenLibrary }) => {
+  const { language, setLanguage, options: langOptions } = useAdminLanguage('');
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim(), ADMIN_SEARCH_DEBOUNCE_MS);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<WfNewAdminLibrariesPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  /** In-flight per-card actions, keyed `delete-<id>`. */
   const [busy, setBusy] = useState<Set<string>>(new Set());
-  /** Cover URLs whose <img> failed to load (gradient fallback). */
   const [brokenCovers, setBrokenCovers] = useState<Set<string>>(new Set());
   const coverTasks = useLibraryCoverTasks(wfNewAdminCoverTaskModel);
+  const guard = useRequestGuard();
+  const { confirm, dialog } = useAdminConfirm(trans);
 
-  // Out-of-order + unmount guards for every list load.
-  const reqIdRef = useRef(0);
-  const aliveRef = useRef(true);
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => { aliveRef.current = false; };
-  }, []);
+  useEffect(() => { setPage(1); }, [debouncedSearch]);
 
-  // ---- language options (source of truth: the dictionary breakdown) -------- //
-  useEffect(() => {
-    let alive = true;
-    wfNewAdminApi.getLanguageBreakdown()
-      .then((res) => {
-        if (!alive) return;
-        const langs = (res?.languages ?? []).map((r) => r.language).filter(Boolean);
-        if (langs.length > 0) setLanguages(langs);
-      })
-      .catch(() => { /* keep the fallback list */ });
-    return () => { alive = false; };
-  }, []);
-
-  // Keep a persisted language visible in the <select> even if the breakdown
-  // no longer reports it (e.g. its words were deleted but libraries remain).
-  const langOptions = useMemo(
-    () => (language && !languages.includes(language) ? [...languages, language] : languages),
-    [languages, language],
-  );
-
-  // ---- debounced search ----------------------------------------------------- //
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-      setPage(1);
-    }, ADMIN_SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  // ---- list load ------------------------------------------------------------ //
   const load = useCallback(() => {
-    const id = ++reqIdRef.current;
+    const id = guard.begin();
     setLoading(true);
     setError(null);
     wfNewAdminApi.getLibraries({
@@ -135,41 +46,33 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
       search: debouncedSearch || undefined,
     })
       .then((res) => {
-        if (!aliveRef.current || id !== reqIdRef.current) return;
+        if (!guard.isCurrent(id)) return;
         setData(res);
         wfNewAdminCoverTaskModel.track(res?.libraries ?? []);
         setBrokenCovers(new Set());
       })
       .catch((e: any) => {
-        if (!aliveRef.current || id !== reqIdRef.current) return;
+        if (!guard.isCurrent(id)) return;
         setError(adminErrorText(e));
         setData(null);
       })
       .finally(() => {
-        if (aliveRef.current && id === reqIdRef.current) setLoading(false);
+        if (guard.isCurrent(id)) setLoading(false);
       });
-  }, [language, page, debouncedSearch]);
+  }, [language, page, debouncedSearch, guard]);
 
   useEffect(() => { load(); }, [load]);
 
   const libraries = data?.libraries ?? [];
-  const pg = data?.pagination;
-  const lastPage = pg?.last_page ?? 1;
-  const total = pg?.total ?? 0;
+  const lastPage = data?.pagination?.last_page ?? 1;
+  const total = data?.pagination?.total ?? 0;
 
   const changeLanguage = (value: string): void => {
     setLanguage(value);
-    // The 'all' choice is panel-local — never clobber the shared stored language.
-    if (value) writeStoredLanguage(value);
     setPage(1);
   };
 
-  const goTo = (p: number): void => {
-    setPage(Math.max(1, Math.min(p, lastPage)));
-  };
-
-  // ---- per-card actions ------------------------------------------------------ //
-  const withBusy = (key: string, on: boolean): void => {
+  const setBusyKey = (key: string, on: boolean): void => {
     setBusy((prev) => {
       const next = new Set(prev);
       if (on) next.add(key); else next.delete(key);
@@ -177,74 +80,40 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
     });
   };
 
-  const toastActionError = (e: any): void => {
-    addToast(adminErrorText(e), 'warning');
-  };
-
   const enqueueCover = async (lib: WfNewAdminLibraryRow, mode: LibraryCoverMode): Promise<void> => {
     if (wfNewAdminCoverTaskModel.isActive(lib.id)) return;
     try {
       await wfNewAdminCoverTaskModel.enqueue([lib.id], mode);
-      if (aliveRef.current) addToast(trans('admin.lib.coverQueued'), 'success');
+      if (guard.isAlive()) addToast(trans('admin.lib.coverQueued'), 'success');
     } catch (e: any) {
-      if (aliveRef.current) toastActionError(e);
+      if (guard.isAlive()) addToast(adminErrorText(e), 'warning');
     }
-  };
-
-  const coverBadge = (cover: LibraryCoverView): { label: string; tone: string; title?: string } | null => {
-    if (cover.active) {
-      const label = cover.phase === 'processing'
-        ? (cover.handler
-          ? trans('admin.lib.cover.processingBy', { handler: trans(`admin.lib.cover.handler.${cover.handler}`) })
-          : trans('admin.lib.cover.processing'))
-        : trans('admin.lib.cover.queued');
-      return { label, tone: 'border-sky-500/40 bg-sky-500/20 text-sky-300' };
-    }
-    if (cover.coverStatus === 'failed' || cover.phase === 'failed') {
-      return {
-        label: trans('admin.lib.cover.failed'),
-        tone: 'border-rose-500/40 bg-rose-500/20 text-rose-300',
-        title: cover.taskError || cover.errorMessage || undefined,
-      };
-    }
-    if (cover.coverStatus && LIBRARY_COVER_WAITING_STATUSES.has(cover.coverStatus)) {
-      return { label: trans('admin.lib.cover.pending'), tone: 'border-amber-500/40 bg-amber-500/20 text-amber-300' };
-    }
-    return null;
   };
 
   const deleteLib = async (lib: WfNewAdminLibraryRow): Promise<void> => {
     const key = `delete-${lib.id}`;
     if (busy.has(key)) return;
-    if (!window.confirm(trans('admin.lib.deleteAsk', { name: lib.name }))) return;
-    withBusy(key, true);
+    if (!(await confirm(trans('admin.lib.deleteAsk', { name: lib.name })))) return;
+    setBusyKey(key, true);
     try {
       await wfNewAdminApi.deleteLibrary(lib.id);
-      if (!aliveRef.current) return;
+      if (!guard.isAlive()) return;
       addToast(trans('admin.lib.deleted'), 'success');
-      // Step back a page when the page's last card was deleted (setPage reloads).
       if (libraries.length <= 1 && page > 1) setPage(page - 1);
       else load();
     } catch (e: any) {
-      if (aliveRef.current) toastActionError(e);
+      if (guard.isAlive()) addToast(adminErrorText(e), 'warning');
     } finally {
-      if (aliveRef.current) withBusy(key, false);
+      if (guard.isAlive()) setBusyKey(key, false);
     }
   };
 
   return (
-    <div className={`p-6 rounded-3xl ${activeTheme.cardClass} space-y-4`}>
-      {/* Toolbar: language filter + debounced search + total + refresh */}
+    <AdminPanel theme={activeTheme}>
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={language}
-          onChange={(e) => changeLanguage(e.target.value)}
-          className={`py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none capitalize ${activeTheme.inputClass}`}
-        >
+        <select value={language} onChange={(e) => changeLanguage(e.target.value)} className={adminInputClass(activeTheme, 'capitalize')}>
           <option value="">{trans('admin.w.f.all')}</option>
-          {langOptions.map((l) => (
-            <option key={l} value={l} className="capitalize">{l}</option>
-          ))}
+          {langOptions.map((l) => <option key={l} value={l} className="capitalize">{l}</option>)}
         </select>
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
@@ -253,165 +122,45 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={trans('admin.lib.search')}
-            className={`w-full py-2.5 pl-9 pr-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
+            className={`w-full pl-9 ${adminInputClass(activeTheme)}`}
           />
         </div>
-        <span className="text-[10px] font-mono text-zinc-500 whitespace-nowrap">
-          {trans('admin.lib.total', { n: total })}
-        </span>
-        <button type="button" onClick={load} disabled={loading} className={CHIP_CLS}>
+        <span className="text-[10px] font-mono text-zinc-500 whitespace-nowrap">{trans('admin.lib.total', { n: total })}</span>
+        <ChipButton onClick={load} disabled={loading}>
           <RotateCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> {trans('admin.refresh')}
-        </button>
+        </ChipButton>
       </div>
 
-      {/* Card grid / states */}
-      {loading ? (
-        <div className="p-8 text-center">
-          <p className="text-[12px] font-mono text-zinc-500 animate-pulse">{trans('admin.loading')}</p>
-        </div>
-      ) : error ? (
-        <div className="p-8 text-center space-y-2">
-          <p className="text-[12px] font-mono text-rose-400">{error}</p>
-          <button type="button" onClick={load} className={CHIP_CLS}>
-            {trans('admin.retry')}
-          </button>
-        </div>
-      ) : libraries.length === 0 ? (
-        <div className="p-8 text-center">
-          <p className="text-[12px] font-mono text-zinc-500">{trans('admin.empty')}</p>
-        </div>
-      ) : (
+      <AdminAsync trans={trans} loading={loading} error={error} empty={libraries.length === 0} onRetry={load}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {libraries.map((lib, i) => {
             const coverEntry = coverTasks.entries[lib.id];
             const cover = libraryCoverView(lib, coverEntry);
-            const badge = coverBadge(cover);
-            const coverUrl = wfNewAdminApi.absUrl(cover.imageUrl);
-            const showImg = !!coverUrl && !brokenCovers.has(coverUrl);
-            const deleting = busy.has(`delete-${lib.id}`);
+            const url = wfNewAdminApi.absUrl(cover.imageUrl);
             return (
-              <motion.div
+              <WfNewAdminLibraryCard
                 key={lib.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18, delay: Math.min(i * 0.02, 0.3) }}
-                className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:bg-white/[0.05] transition flex flex-col"
-              >
-                {/* Cover + status overlay */}
-                <div className="relative">
-                  {showImg ? (
-                    <img
-                      src={coverUrl as string}
-                      alt={lib.name}
-                      loading="lazy"
-                      onError={() => setBrokenCovers((prev) => new Set(prev).add(coverUrl as string))}
-                      className="h-28 w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-28 w-full bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/20 flex items-center justify-center">
-                      <LibraryBig className="w-8 h-8 text-white/25" />
-                    </div>
-                  )}
-                  {badge && (
-                    <span className={`${COVER_BADGE_CLS} ${badge.tone}`} title={badge.title}>
-                      {badge.label}
-                    </span>
-                  )}
-                </div>
-
-                {/* Body */}
-                <div className="px-3.5 py-3 space-y-1 flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-sm font-extrabold tracking-tight truncate">{lib.name}</h4>
-                    {lib.is_recommended && (
-                      <span className="shrink-0 p-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
-                        <Star className="w-2.5 h-2.5" />
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[10px] font-mono text-zinc-500 truncate capitalize">
-                    {lib.language} · {lib.category}
-                  </p>
-                  <p className="text-[10px] font-mono text-zinc-500">
-                    {trans('admin.lib.words', { n: lib.word_count })}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="border-t border-white/5 px-3 py-2 flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onOpenLibrary(String(lib.id), lib.name, lib.language)}
-                    className={CHIP_CLS}
-                  >
-                    <BookOpen className="w-3 h-3" /> {trans('admin.lib.view')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => enqueueCover(lib, 'generate')}
-                    disabled={cover.active}
-                    title={trans('admin.lib.regenerateCover')}
-                    aria-label={trans('admin.lib.regenerateCover')}
-                    className={CHIP_CLS}
-                  >
-                    {cover.active && coverEntry?.mode === 'generate'
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <Wand2 className="w-3 h-3" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => enqueueCover(lib, 'search')}
-                    disabled={cover.active}
-                    title={trans('admin.lib.researchCover')}
-                    aria-label={trans('admin.lib.researchCover')}
-                    className={CHIP_CLS}
-                  >
-                    {cover.active && coverEntry?.mode === 'search'
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <ScanSearch className="w-3 h-3" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteLib(lib)}
-                    disabled={deleting}
-                    className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 disabled:opacity-40 transition"
-                  >
-                    {deleting
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <Trash2 className="w-3 h-3" />}
-                    {trans('admin.lib.delete')}
-                  </button>
-                </div>
-              </motion.div>
+                lib={lib}
+                index={i}
+                cover={cover}
+                coverMode={coverEntry?.mode}
+                coverUrl={url && !brokenCovers.has(url) ? url : null}
+                deleting={busy.has(`delete-${lib.id}`)}
+                trans={trans}
+                onCoverError={(broken) => setBrokenCovers((prev) => new Set(prev).add(broken))}
+                onOpen={() => onOpenLibrary(String(lib.id), lib.name, lib.language)}
+                onEnqueueCover={(mode) => { void enqueueCover(lib, mode); }}
+                onDelete={() => { void deleteLib(lib); }}
+              />
             );
           })}
         </div>
-      )}
+      </AdminAsync>
 
-      {/* Pagination */}
-      {!loading && !error && lastPage > 1 && (
-        <div className="flex items-center justify-center gap-1.5 pt-1">
-          <button
-            type="button"
-            onClick={() => goTo(page - 1)}
-            disabled={page <= 1}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" /> {trans('content.prev')}
-          </button>
-          <span className="px-3 text-[11px] font-mono text-zinc-400">
-            {trans('content.pageOf', { page, total: lastPage })}
-          </span>
-          <button
-            type="button"
-            onClick={() => goTo(page + 1)}
-            disabled={page >= lastPage}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-          >
-            {trans('content.next')} <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+      {!loading && !error && (
+        <WfNewPager variant="compact" page={page} totalPages={lastPage} onGoTo={(p) => setPage(Math.max(1, Math.min(p, lastPage)))} trans={trans} />
       )}
-    </div>
+      {dialog}
+    </AdminPanel>
   );
 };

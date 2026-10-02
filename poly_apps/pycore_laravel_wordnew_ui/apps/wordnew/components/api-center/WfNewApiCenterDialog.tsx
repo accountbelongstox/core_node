@@ -1,12 +1,12 @@
 /**
  * WfNewApiCenterDialog - the API center: one tab per backend service
  * (Laravel API, pycore API), each rendered from the service contract.
- * Shared overlay framework (<Portal/> + OVERLAY_Z), Escape closes.
+ * Shared ModalShell overlay, Escape closes.
  */
 import React, { useEffect, useState } from 'react';
 import { Server, X } from 'lucide-react';
-import Portal from '@/shared/ui/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
+import { ChipGroup } from '@/shared/ui/ChipGroup';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import type { ElementTheme } from '../../WfNewThemes';
 import {
   WORDNEW_API_SERVICES,
@@ -16,7 +16,7 @@ import {
   type WordNewApiServiceId,
 } from '../../api/center/WordNewApiCenter';
 import { WfNewApiServiceSection } from './WfNewApiServiceSection';
-import { API_STATE_DOT } from './apiCenterStyles';
+import { ApiStateDot } from './ApiEndpoint';
 
 interface Props {
   open: boolean;
@@ -26,26 +26,17 @@ interface Props {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
-const ServiceTab: React.FC<{
-  service: WordNewApiService;
-  active: boolean;
-  onSelect: () => void;
-  trans: Props['trans'];
-}> = ({ service, active, onSelect, trans }) => {
+const TAB_CLASS = 'inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs transition-all';
+const TAB_SELECTED = 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300';
+const TAB_IDLE = 'border-slate-200 dark:border-white/10 text-zinc-500 hover:bg-slate-500/5';
+
+const ServiceTabLabel: React.FC<{ service: WordNewApiService; trans: Props['trans'] }> = ({ service, trans }) => {
   const snapshot = useWordNewApiService(service);
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onSelect}
-      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
-        active ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300' : 'border-slate-200 dark:border-white/10 text-zinc-500 hover:bg-slate-500/5'
-      }`}
-    >
-      <span className={`w-2 h-2 rounded-full ${API_STATE_DOT[snapshot.state]}`} aria-hidden />
+    <>
+      <ApiStateDot state={snapshot.state} className="h-2 w-2" />
       {trans(service.titleKey)}
-    </button>
+    </>
   );
 };
 
@@ -56,48 +47,42 @@ export const WfNewApiCenterDialog: React.FC<Props> = ({ open, onClose, initialSe
     if (open) setServiceId(initialService);
   }, [open, initialService]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
+  const tabs = WORDNEW_API_SERVICES.map((service) => ({ value: service.id, label: <ServiceTabLabel service={service} trans={trans} /> }));
 
   return (
-    <Portal>
-      <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal}`}>
-        <div className={`absolute inset-0 ${OVERLAY_BACKDROP}`} onClick={onClose} />
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={trans('apiCenter.title')}
-          className={`relative w-full max-w-2xl max-h-[88vh] overflow-y-auto no-scrollbar rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl ${
-            activeTheme.id === 'nordic' ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-100'
-          }`}
-        >
-          <div className="sticky top-0 z-10 space-y-3 px-6 py-4 border-b border-slate-200 dark:border-white/10 backdrop-blur bg-inherit rounded-t-3xl">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Server className="w-5 h-5 text-indigo-500" />
-                <h3 className="text-base font-extrabold tracking-tight">{trans('apiCenter.title')}</h3>
-              </div>
-              <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-500/10" title={trans('api.close')} aria-label={trans('api.close')}>
-                <X className="w-4 h-4" />
-              </button>
+    <ModalShell open={open} onClose={onClose} cardClassName={null}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={trans('apiCenter.title')}
+        className={`relative w-full max-w-2xl max-h-[88vh] overflow-y-auto no-scrollbar rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl ${
+          activeTheme.id === 'nordic' ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-100'
+        }`}
+      >
+        <div className="sticky top-0 z-10 space-y-3 px-6 py-4 border-b border-slate-200 dark:border-white/10 backdrop-blur bg-inherit rounded-t-3xl">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Server className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-base font-extrabold tracking-tight">{trans('apiCenter.title')}</h3>
             </div>
-            <div className="flex flex-wrap gap-2" role="tablist">
-              {WORDNEW_API_SERVICES.map((service) => (
-                <ServiceTab key={service.id} service={service} active={service.id === serviceId} onSelect={() => setServiceId(service.id)} trans={trans} />
-              ))}
-            </div>
+            <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-500/10" title={trans('api.close')} aria-label={trans('api.close')}>
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <div className="p-6" role="tabpanel">
-            <WfNewApiServiceSection service={wordNewApiService(serviceId)} activeTheme={activeTheme} trans={trans} />
-          </div>
+          <ChipGroup
+            role="tab"
+            value={serviceId}
+            options={tabs}
+            onChange={setServiceId}
+            chipClassName={TAB_CLASS}
+            selectedClassName={TAB_SELECTED}
+            idleClassName={TAB_IDLE}
+          />
+        </div>
+        <div className="p-6" role="tabpanel">
+          <WfNewApiServiceSection service={wordNewApiService(serviceId)} activeTheme={activeTheme} trans={trans} />
         </div>
       </div>
-    </Portal>
+    </ModalShell>
   );
 };

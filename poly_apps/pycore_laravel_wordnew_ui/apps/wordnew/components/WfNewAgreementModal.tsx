@@ -1,15 +1,17 @@
-import React, { useEffect } from 'react';
-import { FileText, X } from 'lucide-react';
-import Portal from '@/shared/ui/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
+import React from 'react';
+import { FileText } from 'lucide-react';
+import { ActionButton } from '@/shared/ui/ActionButton';
+import { ModalFooter, ModalHeader } from '@/shared/ui/ModalParts';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import { getUserAgreement } from '../WfNewUserAgreement';
+
+const CARD_CLASS = 'relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-white/10 bg-zinc-900/95 shadow-2xl';
 
 /**
  * WfNewAgreementModal — reusable scrollable modal that renders the WordNew User
- * Agreement (Terms of Service) in the current UI language. Self-contained (Portal
- * + OVERLAY framework, like WfNewLanguagePanel); the content comes from the
- * multi-language WfNewUserAgreement doc. Used at registration behind the "I agree"
- * link and reusable from About / Settings.
+ * Agreement (Terms of Service) in the current UI language. Built on ModalShell;
+ * the content comes from the multi-language WfNewUserAgreement doc. Used at
+ * registration behind the "I agree" link and reusable from About / Settings.
  */
 interface WfNewAgreementModalProps {
   open: boolean;
@@ -20,60 +22,31 @@ interface WfNewAgreementModalProps {
 }
 
 export const WfNewAgreementModal: React.FC<WfNewAgreementModalProps> = ({ open, onClose, lang, trans }) => {
-  // Esc to close.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
-
   const doc = getUserAgreement(lang);
 
   return (
-    <Portal>
-      <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal}`}>
-        <div className={`absolute inset-0 ${OVERLAY_BACKDROP}`} onClick={onClose} />
-        <div className="relative w-full max-w-lg bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh]">
-          {/* Header */}
-          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
-            <div className="min-w-0">
-              <h3 className="text-sm font-black text-slate-100 flex items-center gap-2 truncate">
-                <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
-                {doc.title}
-              </h3>
-              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{doc.updated}</p>
-            </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-white/10 cursor-pointer shrink-0">
-              <X className="w-4 h-4" />
-            </button>
+    <ModalShell onClose={onClose} cardClassName={CARD_CLASS}>
+      <ModalHeader
+        bordered
+        icon={<FileText className="h-4 w-4 shrink-0 text-indigo-400" />}
+        title={doc.title}
+        subtitle={doc.updated}
+        onClose={onClose}
+      />
+      <div className="space-y-4 overflow-y-auto p-5">
+        <p className="text-xs leading-relaxed text-zinc-400">{doc.intro}</p>
+        {doc.sections.map((s) => (
+          <div key={s.heading} className="space-y-1">
+            <h4 className="text-xs font-black text-slate-200">{s.heading}</h4>
+            <p className="text-[11px] leading-relaxed text-zinc-400">{s.body}</p>
           </div>
-
-          {/* Scrollable body */}
-          <div className="p-5 space-y-4 overflow-y-auto">
-            <p className="text-xs text-zinc-400 leading-relaxed">{doc.intro}</p>
-            {doc.sections.map((s) => (
-              <div key={s.heading} className="space-y-1">
-                <h4 className="text-xs font-black text-slate-200">{s.heading}</h4>
-                <p className="text-[11px] text-zinc-400 leading-relaxed">{s.body}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Footer */}
-          <div className="p-4 border-t border-white/10 shrink-0 flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white text-xs font-mono font-black uppercase cursor-pointer shadow-md"
-            >
-              {trans('common.close')}
-            </button>
-          </div>
-        </div>
+        ))}
       </div>
-    </Portal>
+      <ModalFooter bordered>
+        <ActionButton onClick={onClose}>{trans('common.close')}</ActionButton>
+      </ModalFooter>
+    </ModalShell>
   );
 };
 

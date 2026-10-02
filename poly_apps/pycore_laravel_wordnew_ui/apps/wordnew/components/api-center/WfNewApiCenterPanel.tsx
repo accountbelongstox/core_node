@@ -3,18 +3,16 @@
  * backend service (Laravel API, pycore API) with its selected entry and
  * status; a row opens the API center on that service.
  */
-import React, { useEffect, useState } from 'react';
-import { ChevronRight, Loader2, Server, Wifi, WifiOff } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronRight, Server } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import {
   WORDNEW_API_SERVICES,
-  useWordNewApiService,
   type WordNewApiService,
   type WordNewApiServiceId,
 } from '../../api/center/WordNewApiCenter';
 import { WfNewApiCenterDialog } from './WfNewApiCenterDialog';
-import { API_STATE_CHIP } from './apiCenterStyles';
-import { WfNewCopyButton } from '../WfNewCopyButton';
+import { ApiServiceStatusBadge, ApiUrlLine, useApiServiceStatus } from './ApiEndpoint';
 
 interface Props {
   activeTheme: ElementTheme;
@@ -22,11 +20,7 @@ interface Props {
 }
 
 const ServiceRow: React.FC<{ service: WordNewApiService; onOpen: () => void; trans: Props['trans'] }> = ({ service, onOpen, trans }) => {
-  const snapshot = useWordNewApiService(service);
-  const selected = snapshot.entries.find((entry) => entry.selected);
-  const spinning = snapshot.state === 'checking' || snapshot.state === 'reconnecting';
-  const Icon = spinning ? Loader2 : snapshot.state === 'online' ? Wifi : WifiOff;
-  useEffect(() => { service.start(); }, [service]);
+  const snapshot = useApiServiceStatus(service);
 
   return (
     <div
@@ -43,18 +37,12 @@ const ServiceRow: React.FC<{ service: WordNewApiService; onOpen: () => void; tra
     >
       <div className="min-w-0 flex-1">
         <p className="text-xs font-extrabold text-zinc-800 dark:text-zinc-100">{trans(service.titleKey)}</p>
-        <div className="mt-0.5 flex items-start gap-1">
-          <p className="min-w-0 flex-1 break-all text-[11px] font-mono text-zinc-500 dark:text-zinc-400">{snapshot.selectedUrl || trans('apiCenter.noneSelected')}</p>
-          {snapshot.selectedUrl && <WfNewCopyButton value={snapshot.selectedUrl} trans={trans} className="-mt-0.5" />}
-        </div>
+        {snapshot.selectedUrl
+          ? <ApiUrlLine url={snapshot.selectedUrl} trans={trans} className="mt-0.5 text-[11px]" />
+          : <p className="mt-0.5 break-all text-[11px] font-mono text-zinc-500 dark:text-zinc-400">{trans('apiCenter.noneSelected')}</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <span className={`flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-full ${API_STATE_CHIP[snapshot.state]}`}>
-          <Icon className={`w-3.5 h-3.5 ${spinning ? 'animate-spin' : ''}`} />
-          {snapshot.state === 'online' && selected?.latencyMs != null
-            ? trans('api.statusOnline', { ms: selected.latencyMs })
-            : trans(`apiCenter.service.${snapshot.state}`)}
-        </span>
+        <ApiServiceStatusBadge snapshot={snapshot} trans={trans} />
         <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:translate-x-0.5 transition-transform" />
       </div>
     </div>

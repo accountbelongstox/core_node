@@ -3,17 +3,13 @@
  * contract: status, entries (probe, select, remove), user entry, diagnosis.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Activity, Check, Plus, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { Activity, Check, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { notify } from '@/shared/notify/notify';
+import { Pill } from '@/shared/ui/Pill';
 import type { ElementTheme } from '../../WfNewThemes';
 import { WfNewPycoreLanScan } from './WfNewPycoreLanScan';
-import { WfNewCopyButton } from '../WfNewCopyButton';
-import {
-  useWordNewApiService,
-  type WordNewApiDiagnosis,
-  type WordNewApiEntryState,
-  type WordNewApiService,
-} from '../../api/center/WordNewApiCenter';
+import { ApiEntryStateIcon, ApiUrlLine, useApiServiceStatus } from './ApiEndpoint';
+import type { WordNewApiDiagnosis, WordNewApiService } from '../../api/center/WordNewApiCenter';
 
 interface Props {
   service: WordNewApiService;
@@ -21,23 +17,29 @@ interface Props {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
-const ENTRY_TONE: Record<WordNewApiEntryState, string> = {
-  unknown: 'bg-zinc-400/10 text-zinc-400',
-  checking: 'bg-amber-500/10 text-amber-500',
-  online: 'bg-emerald-500/10 text-emerald-500',
-  offline: 'bg-rose-500/10 text-rose-500',
-  refused: 'bg-orange-500/10 text-orange-500',
-  relay: 'bg-sky-500/10 text-sky-500',
-};
+const ACTION_TONE = {
+  indigo: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+  emerald: 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+} as const;
+
+const ToneActionButton: React.FC<{ tone: keyof typeof ACTION_TONE; disabled: boolean; onClick: () => void; className?: string; children: React.ReactNode }> = ({ tone, disabled, onClick, className = '', children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={`flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border transition-all disabled:opacity-50 ${ACTION_TONE[tone]} ${className}`}
+  >
+    {children}
+  </button>
+);
 
 export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, trans }) => {
-  const snapshot = useWordNewApiService(service);
+  const snapshot = useApiServiceStatus(service);
   const [entry, setEntry] = useState('');
   const [switching, setSwitching] = useState<string | null>(null);
   const [diagnosis, setDiagnosis] = useState<WordNewApiDiagnosis | null>(null);
   const [diagnosing, setDiagnosing] = useState(false);
 
-  useEffect(() => { service.start(); }, [service]);
   useEffect(() => { setDiagnosis(null); }, [service]);
 
   const refresh = useCallback(async () => {
@@ -73,15 +75,10 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono leading-relaxed">{trans(service.descriptionKey)}</p>
-        <button
-          type="button"
-          onClick={() => { void refresh(); }}
-          disabled={snapshot.busy}
-          className="shrink-0 flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 transition-all disabled:opacity-50"
-        >
+        <ToneActionButton tone="indigo" disabled={snapshot.busy} onClick={() => { void refresh(); }} className="shrink-0">
           <RefreshCw className={`w-3.5 h-3.5 ${snapshot.busy ? 'animate-spin' : ''}`} />
           {snapshot.busy ? trans('api.testing') : trans('apiCenter.detect')}
-        </button>
+        </ToneActionButton>
       </div>
 
       <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -99,22 +96,15 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
               }`}
             >
               <div className="min-w-0 flex items-center gap-2.5">
-                <span className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${ENTRY_TONE[item.state]}`} title={trans(`apiCenter.state.${item.state}`)}>
-                  {item.state === 'offline' || item.state === 'refused' ? <WifiOff className="w-3.5 h-3.5" /> : <Wifi className="w-3.5 h-3.5" />}
-                </span>
+                <ApiEntryStateIcon state={item.state} title={trans(`apiCenter.state.${item.state}`)} />
                 <div className="min-w-0">
                   <p className="text-xs font-mono font-bold flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="break-all">{item.label}</span>
-                    <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-zinc-500 border border-zinc-500/30 px-1.5 py-0.5 rounded-full">
-                      {trans(item.kindKey)}
-                    </span>
-                    {item.selected && <span className="shrink-0 text-[9px] uppercase text-indigo-500">{trans('api.inUse')}</span>}
-                    {item.temporary && <span className="shrink-0 text-[9px] font-black uppercase text-sky-500">{trans('apiCenter.temporary')}</span>}
+                    <Pill className="font-black uppercase tracking-wider">{trans(item.kindKey)}</Pill>
+                    {item.selected && <Pill tone="indigo" className="uppercase">{trans('api.inUse')}</Pill>}
+                    {item.temporary && <Pill tone="sky" className="font-black uppercase">{trans('apiCenter.temporary')}</Pill>}
                   </p>
-                  <div className="flex items-start gap-1">
-                    <p className="min-w-0 flex-1 break-all font-mono text-[10px] text-zinc-500 dark:text-zinc-400 select-all">{item.url}</p>
-                    <WfNewCopyButton value={item.url} trans={trans} className="-mt-0.5" />
-                  </div>
+                  <ApiUrlLine url={item.url} trans={trans} className="text-[10px] select-all" />
                   <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
                     {item.latencyMs != null ? `${item.latencyMs}ms` : trans(`apiCenter.state.${item.state}`)}
                     {item.detail ? ` · ${item.detail}` : ''}
@@ -175,15 +165,10 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
       <div className="pt-1 border-t border-slate-200 dark:border-white/5 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{trans('api.testPage')}</span>
-          <button
-            type="button"
-            onClick={() => { void diagnose(); }}
-            disabled={diagnosing}
-            className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-full border border-emerald-500/20 transition-all disabled:opacity-50"
-          >
+          <ToneActionButton tone="emerald" disabled={diagnosing} onClick={() => { void diagnose(); }}>
             <Activity className={`w-3.5 h-3.5 ${diagnosing ? 'animate-pulse' : ''}`} />
             {diagnosing ? trans('api.running') : trans('api.runTest')}
-          </button>
+          </ToneActionButton>
         </div>
         <div
           aria-live="polite"

@@ -4,8 +4,10 @@
  * Subscribes via `useSyncExternalStore` (the project's store pattern), so any
  * component re-renders exactly when a setting changes — across components, in
  * the SAME tab, with no manual `window 'storage'` listeners or polling.
+ * `useWfNewSetting(key)` binds ONE field as [value, setter]: the store stays the
+ * single source of truth, pages keep no local copies.
  */
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { wfNewSettings } from './WfNewSettingsStore';
 import type { WfNewSettings } from './WfNewSettingsStore';
 
@@ -15,4 +17,14 @@ export function useWfNewSettings(): WfNewSettings {
     wfNewSettings.getSnapshot,
     wfNewSettings.getSnapshot,
   );
+}
+
+export function useWfNewSetting<K extends keyof WfNewSettings>(key: K): [WfNewSettings[K], (value: WfNewSettings[K]) => void] {
+  const value = useSyncExternalStore(
+    wfNewSettings.subscribe,
+    () => wfNewSettings.get(key),
+    () => wfNewSettings.get(key),
+  );
+  const setValue = useCallback((next: WfNewSettings[K]) => wfNewSettings.setField(key, next), [key]);
+  return [value, setValue];
 }

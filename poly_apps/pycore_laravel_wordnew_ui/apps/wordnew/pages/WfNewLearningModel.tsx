@@ -1,128 +1,100 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Headphones, Layers, Volume2, Minus, Plus, ChevronRight } from 'lucide-react';
+import { Headphones, Layers, Volume2 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
-import { wfNewSettings } from '../WfNewSettingsStore';
+import { NavRow } from '@/shared/ui/NavRow';
+import { useWfNewSetting } from '../useWfNewSettings';
+import { commitDailyGoal } from '../components/WfNewDailyGoalEditor';
+import { StepperSettingRow, SwitchSettingRow, type NumberSettingKey, type BooleanSettingKey } from '../components/settings/WfNewSettingRows';
+import type { Translate } from '../components/settings/WfNewSettingChoices';
 
 /**
  * WfNewLearningModel — the Learning Model settings sub-page.
  *
  * Daily study target + the word-memorization mode (Walkman audio loop, default,
- * or Cards) and, for Walkman, the playback sub-area: play/replay counts, read
- * word/explanation toggles, playback & replay speed, play/replay intervals, and
- * the replay gap (how many words later a word is replayed). All persisted to the
- * shared WfNewSettingsStore. Opens the Review Settings sub-page via onOpenReview.
+ * or Cards) and, for Walkman, the playback sub-area. Every control is bound to
+ * the shared WfNewSettingsStore. Opens the Review Settings sub-page via onOpenReview.
  */
 interface WfNewLearningModelProps {
   activeTheme: ElementTheme;
-  trans: (key: string, replacements?: Record<string, string | number>) => string;
+  trans: Translate;
   onOpenReview: () => void;
 }
 
-/** Compact number stepper persisted on change. */
-const Stepper: React.FC<{
-  value: number; min: number; max: number; step: number; suffix?: string;
-  onChange: (v: number) => void;
-}> = ({ value, min, max, step, suffix, onChange }) => {
-  const clamp = (v: number) => Math.min(max, Math.max(min, Math.round(v * 100) / 100));
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => onChange(clamp(value - step))}
-        className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex items-center justify-center text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-white/10 cursor-pointer"
-      >
-        <Minus className="w-3.5 h-3.5" />
-      </button>
-      <span className="min-w-[48px] text-center text-xs font-black font-mono text-zinc-800 dark:text-slate-100">
-        {value}{suffix}
-      </span>
-      <button
-        type="button"
-        onClick={() => onChange(clamp(value + step))}
-        className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex items-center justify-center text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-white/10 cursor-pointer"
-      >
-        <Plus className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-};
+interface StepperDef {
+  key: NumberSettingKey;
+  labelKey: string;
+  hintKey?: string;
+  min: number;
+  max: number;
+  step: number;
+  suffix?: string;
+}
 
-/** Labelled row wrapper. */
-const Row: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => (
-  <div className="flex items-center justify-between gap-4 py-2.5">
-    <div className="min-w-0">
-      <span className="text-xs font-bold text-zinc-800 dark:text-slate-200 block">{label}</span>
-      {hint && <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{hint}</span>}
-    </div>
-    {children}
-  </div>
-);
+interface SwitchDef {
+  key: BooleanSettingKey;
+  labelKey: string;
+}
 
-/** iOS-style toggle. */
-const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void }> = ({ on, onChange }) => (
-  <button
-    type="button"
-    onClick={() => onChange(!on)}
-    className={`relative w-11 h-6 rounded-full transition-all cursor-pointer shrink-0 ${on ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}
-  >
-    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : ''}`} />
-  </button>
-);
+type WalkmanRow = { kind: 'stepper'; def: StepperDef } | { kind: 'switch'; def: SwitchDef };
+
+const DAILY_GOAL = { min: 5, max: 200, step: 5 };
+
+const WALKMAN_ROWS: readonly WalkmanRow[] = [
+  { kind: 'stepper', def: { key: 'wmPlayCount', labelKey: 'lm.playCount', min: 1, max: 9, step: 1, suffix: '×' } },
+  { kind: 'stepper', def: { key: 'wmReplayCount', labelKey: 'lm.replayCount', min: 0, max: 9, step: 1, suffix: '×' } },
+  { kind: 'switch', def: { key: 'wmReadWord', labelKey: 'lm.readWord' } },
+  { kind: 'switch', def: { key: 'wmReadExplanation', labelKey: 'lm.readExplanation' } },
+  { kind: 'stepper', def: { key: 'wmPlaybackSpeed', labelKey: 'lm.playbackSpeed', min: 0.5, max: 2, step: 0.1, suffix: '×' } },
+  { kind: 'stepper', def: { key: 'wmPlayInterval', labelKey: 'lm.playInterval', hintKey: 'lm.secondsUnit', min: 0, max: 10, step: 0.5, suffix: 's' } },
+  { kind: 'stepper', def: { key: 'wmReplayGapWords', labelKey: 'lm.replayGapWords', hintKey: 'lm.replayGapHint', min: 0, max: 50, step: 1 } },
+  { kind: 'stepper', def: { key: 'wmReplaySpeed', labelKey: 'lm.replaySpeed', min: 0.5, max: 2, step: 0.1, suffix: '×' } },
+  { kind: 'stepper', def: { key: 'wmReplayInterval', labelKey: 'lm.replayInterval', hintKey: 'lm.secondsUnit', min: 0, max: 10, step: 0.5, suffix: 's' } },
+];
+
+const MODES = [
+  { id: 'walkman', Icon: Headphones, labelKey: 'lm.modeWalkman', descKey: 'lm.modeWalkmanDesc' },
+  { id: 'cards', Icon: Layers, labelKey: 'lm.modeCards', descKey: 'lm.modeCardsDesc' },
+] as const;
 
 export const WfNewLearningModel: React.FC<WfNewLearningModelProps> = ({ activeTheme, trans, onOpenReview }) => {
-  const [dailyGoal, setDailyGoal] = useState<number>(() => wfNewSettings.get('dailyGoal'));
-  const [mode, setMode] = useState<'walkman' | 'cards'>(() => wfNewSettings.get('memorizeMode'));
-  const [playCount, setPlayCount] = useState<number>(() => wfNewSettings.get('wmPlayCount'));
-  const [replayCount, setReplayCount] = useState<number>(() => wfNewSettings.get('wmReplayCount'));
-  const [readWord, setReadWord] = useState<boolean>(() => wfNewSettings.get('wmReadWord'));
-  const [readExpl, setReadExpl] = useState<boolean>(() => wfNewSettings.get('wmReadExplanation'));
-  const [speed, setSpeed] = useState<number>(() => wfNewSettings.get('wmPlaybackSpeed'));
-  const [playInterval, setPlayInterval] = useState<number>(() => wfNewSettings.get('wmPlayInterval'));
-  const [replayGap, setReplayGap] = useState<number>(() => wfNewSettings.get('wmReplayGapWords'));
-  const [replaySpeed, setReplaySpeed] = useState<number>(() => wfNewSettings.get('wmReplaySpeed'));
-  const [replayInterval, setReplayInterval] = useState<number>(() => wfNewSettings.get('wmReplayInterval'));
-
-  // Persist helper: set local state + store field together.
-  const persist = <K extends Parameters<typeof wfNewSettings.setField>[0]>(setter: (v: any) => void, key: K) =>
-    (v: any) => { setter(v); wfNewSettings.setField(key, v); };
+  const [mode, setMode] = useWfNewSetting('memorizeMode');
+  const cardClass = `rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-lg`;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Daily target */}
-      <div className={`p-6 rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-lg`}>
-        <Row label={trans('lm.dailyWords')} hint={trans('onb.wordsPerDay')}>
-          <Stepper value={dailyGoal} min={5} max={200} step={5} onChange={persist(setDailyGoal, 'dailyGoal')} />
-        </Row>
+      <div className={`p-6 ${cardClass}`}>
+        <StepperSettingRow
+          settingKey="dailyGoal"
+          label={trans('lm.dailyWords')}
+          hint={trans('onb.wordsPerDay')}
+          {...DAILY_GOAL}
+          onCommit={commitDailyGoal}
+        />
       </div>
 
-      {/* Memorization mode */}
-      <div className={`p-6 rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-lg space-y-3`}>
+      <div className={`p-6 ${cardClass} space-y-3`}>
         <h3 className="text-sm font-black text-slate-100">{trans('lm.mode')}</h3>
         <div className="grid grid-cols-2 gap-3">
-          {([
-            { id: 'walkman', icon: <Headphones className="w-5 h-5" />, label: trans('lm.modeWalkman'), desc: trans('lm.modeWalkmanDesc') },
-            { id: 'cards', icon: <Layers className="w-5 h-5" />, label: trans('lm.modeCards'), desc: trans('lm.modeCardsDesc') },
-          ] as const).map((m) => {
-            const active = mode === m.id;
+          {MODES.map(({ id, Icon, labelKey, descKey }) => {
+            const active = mode === id;
             return (
               <button
-                key={m.id}
+                key={id}
                 type="button"
-                onClick={() => persist(setMode, 'memorizeMode')(m.id)}
+                onClick={() => setMode(id)}
                 className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                   active ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
                 }`}
               >
-                <div className="flex items-center gap-2 font-black text-sm">{m.icon}<span>{m.label}</span></div>
-                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono mt-1">{m.desc}</p>
+                <div className="flex items-center gap-2 font-black text-sm"><Icon className="w-5 h-5" /><span>{trans(labelKey)}</span></div>
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono mt-1">{trans(descKey)}</p>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Walkman sub-area (only when Walkman is selected) */}
       {mode === 'walkman' && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -134,49 +106,27 @@ export const WfNewLearningModel: React.FC<WfNewLearningModelProps> = ({ activeTh
             {trans('lm.walkmanSettings')}
           </h3>
           <div className="divide-y divide-white/5">
-            <Row label={trans('lm.playCount')}>
-              <Stepper value={playCount} min={1} max={9} step={1} suffix={'×'} onChange={persist(setPlayCount, 'wmPlayCount')} />
-            </Row>
-            <Row label={trans('lm.replayCount')}>
-              <Stepper value={replayCount} min={0} max={9} step={1} suffix={'×'} onChange={persist(setReplayCount, 'wmReplayCount')} />
-            </Row>
-            <Row label={trans('lm.readWord')}>
-              <Toggle on={readWord} onChange={persist(setReadWord, 'wmReadWord')} />
-            </Row>
-            <Row label={trans('lm.readExplanation')}>
-              <Toggle on={readExpl} onChange={persist(setReadExpl, 'wmReadExplanation')} />
-            </Row>
-            <Row label={trans('lm.playbackSpeed')}>
-              <Stepper value={speed} min={0.5} max={2} step={0.1} suffix={'×'} onChange={persist(setSpeed, 'wmPlaybackSpeed')} />
-            </Row>
-            <Row label={trans('lm.playInterval')} hint={trans('lm.secondsUnit')}>
-              <Stepper value={playInterval} min={0} max={10} step={0.5} suffix={'s'} onChange={persist(setPlayInterval, 'wmPlayInterval')} />
-            </Row>
-            <Row label={trans('lm.replayGapWords')} hint={trans('lm.replayGapHint')}>
-              <Stepper value={replayGap} min={0} max={50} step={1} onChange={persist(setReplayGap, 'wmReplayGapWords')} />
-            </Row>
-            <Row label={trans('lm.replaySpeed')}>
-              <Stepper value={replaySpeed} min={0.5} max={2} step={0.1} suffix={'×'} onChange={persist(setReplaySpeed, 'wmReplaySpeed')} />
-            </Row>
-            <Row label={trans('lm.replayInterval')} hint={trans('lm.secondsUnit')}>
-              <Stepper value={replayInterval} min={0} max={10} step={0.5} suffix={'s'} onChange={persist(setReplayInterval, 'wmReplayInterval')} />
-            </Row>
+            {WALKMAN_ROWS.map((row) => (row.kind === 'stepper' ? (
+              <StepperSettingRow
+                key={row.def.key}
+                settingKey={row.def.key}
+                label={trans(row.def.labelKey)}
+                hint={row.def.hintKey ? trans(row.def.hintKey) : undefined}
+                min={row.def.min}
+                max={row.def.max}
+                step={row.def.step}
+                suffix={row.def.suffix}
+              />
+            ) : (
+              <SwitchSettingRow key={row.def.key} settingKey={row.def.key} label={trans(row.def.labelKey)} />
+            )))}
           </div>
         </motion.div>
       )}
 
-      {/* Review settings sub-page link */}
-      <button
-        type="button"
-        onClick={onOpenReview}
-        className={`w-full p-5 rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-lg flex items-center justify-between cursor-pointer hover:border-white/10 transition-all`}
-      >
-        <div className="text-left">
-          <span className="text-sm font-black text-slate-100 block">{trans('rev.title')}</span>
-          <span className="text-[11px] text-zinc-500 font-mono">{trans('rev.sub')}</span>
-        </div>
-        <ChevronRight className="w-5 h-5 text-zinc-400" />
-      </button>
+      <div className={`${cardClass} overflow-hidden`}>
+        <NavRow variant="row" label={trans('rev.title')} hint={trans('rev.sub')} onClick={onOpenReview} />
+      </div>
     </div>
   );
 };

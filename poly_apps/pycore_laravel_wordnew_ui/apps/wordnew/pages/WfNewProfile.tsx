@@ -5,12 +5,37 @@ import {
   LogIn, LogOut, ShieldCheck,
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
-import { wfNewSettings } from '../WfNewSettingsStore';
+import { useWfNewSetting } from '../useWfNewSettings';
+import { ActionButton } from '@/shared/ui/ActionButton';
+import { ModalFooter } from '@/shared/ui/ModalParts';
+import { ModalShell } from '@/shared/ui/ModalShell';
+import { ProgressBar } from '@/shared/ui/ProgressBar';
+import { ProgressRing } from '@/shared/ui/ProgressRing';
+import { TextField } from '@/shared/ui/TextField';
 import { wfNewApi } from '../api';
 import { WfNewAvatarView } from '../components/WfNewAvatarView';
 import { WfNewAvatarCropper } from '../components/WfNewAvatarCropper';
 import { deriveAchievements, computeMemberLevel, type WordNewAchievement } from '../services/WordNewAchievementCenter';
 import { useWordNewLearningStats } from '../services/WordNewLearningStatsCenter';
+
+// Per-badge accent palette (cycled) so the trophy case reads as varied, not uniform.
+const BADGE_ACCENTS = [
+  'text-indigo-300 from-indigo-500/25', 'text-emerald-300 from-emerald-500/25',
+  'text-amber-300 from-amber-500/25', 'text-cyan-300 from-cyan-500/25',
+  'text-fuchsia-300 from-fuchsia-500/25', 'text-rose-300 from-rose-500/25',
+  'text-sky-300 from-sky-500/25', 'text-violet-300 from-violet-500/25',
+];
+const STREAK_GOAL_DAYS = 30;
+const PROFILE_INPUT_CLASS = 'border border-white/10 bg-slate-900 text-slate-100 focus:border-indigo-500';
+const LEVEL_SEGMENTS = 10;
+const FALLBACK_ACCURACY_BASE = 60;
+const FALLBACK_ACCURACY_SPAN = 39;
+const LOGOUT_CARD_CLASS = 'relative w-full max-w-sm space-y-5 rounded-3xl border border-white/10 p-6 shadow-2xl';
+const riseIn = (duration: number, delay = 0) => ({
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration, delay },
+});
 
 interface WfNewProfileProps {
   activeTheme: ElementTheme;
@@ -60,8 +85,6 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
   const [uploading, setUploading] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  // Sign-out is destructive → confirm first (the app has no global confirm
-  // component, only the toast center, so we use a small inline dialog).
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
@@ -113,7 +136,8 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
 
   // Streak (real counter) feeds both the member level and the metrics. Prefer the
   // backend streak from /user/statistics when present, else the local setting.
-  const streakDays = statistics?.currentStreak ?? (Number(wfNewSettings.get('streakDays')) || 0);
+  const [localStreak] = useWfNewSetting('streakDays');
+  const streakDays = statistics?.currentStreak ?? (Number(localStreak) || 0);
 
   // Real learned/mastered/total where the stats payload provides them, else the prop.
   const learnedReal = statistics?.totalWordsLearned ?? learnedWordsCount;
@@ -140,27 +164,19 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
     [...achievements].reverse().find((a) => a.unlocked) ?? achievements[0];
   const restBadges = achievements.filter((a) => a.id !== heroBadge.id);
 
-  // Per-badge accent palette (cycled) so the trophy case reads as varied, not uniform.
-  const BADGE_ACCENTS = [
-    'text-indigo-300 from-indigo-500/25', 'text-emerald-300 from-emerald-500/25',
-    'text-amber-300 from-amber-500/25', 'text-cyan-300 from-cyan-500/25',
-    'text-fuchsia-300 from-fuchsia-500/25', 'text-rose-300 from-rose-500/25',
-    'text-sky-300 from-sky-500/25', 'text-violet-300 from-violet-500/25',
-  ];
-
   // synapticRatio = REAL accuracy (averageAccuracy, 0–100) when available.
   // Graceful fallback (logged-out / offline / missing): derive from the member
   // level progress (real counters), NOT a hardcoded constant.
   const hasAccuracy = typeof statistics?.averageAccuracy === 'number';
   const synapticRatioPct = hasAccuracy
     ? Math.round(statistics!.averageAccuracy)
-    : Math.round(60 + member.progress * 39); // 60–99%, derived from real counters
+    : Math.round(FALLBACK_ACCURACY_BASE + member.progress * FALLBACK_ACCURACY_SPAN);
 
   // Learning-metrics tiles: use real accuracy for the ring; else the same
   // counter-derived fallback so the gauge always reflects real data.
   const retentionPct = synapticRatioPct;
-  const streakGoal = 30;
-  const streakDots = Math.min(streakDays, streakGoal);
+  const streakDots = Math.min(streakDays, STREAK_GOAL_DAYS);
+  const tierLabel = `${trans('profile.tier.' + member.tier.id)} · ${trans('profile.levelShort', { level: member.tier.level })}`;
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +208,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
           <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-black text-slate-100 truncate">
-              {trans('profile.loggedInAs', { name: currentUser.nickname || currentUser.email || 'Cadet' })}
+              {trans('profile.loggedInAs', { name: currentUser.nickname || currentUser.email || trans('profile.defaultName') })}
             </p>
             <p className="text-[10px] text-zinc-500 font-mono">{trans('profile.sessionActive')}</p>
           </div>
@@ -204,14 +220,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
             <p className="text-xs font-black text-slate-100">{trans('profile.loggedOutTitle')}</p>
             <p className="text-[10px] text-zinc-500 font-mono">{trans('profile.loggedOutHint')}</p>
           </div>
-          <button
-            type="button"
-            onClick={onLogin}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white text-[11px] font-mono font-black uppercase tracking-wider transition-all cursor-pointer shadow-md"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>{trans('profile.loginCta')}</span>
-          </button>
+          <ActionButton size="sm" onClick={onLogin} icon={<LogIn className="w-3.5 h-3.5" />}>{trans('profile.loginCta')}</ActionButton>
         </div>
       )}
 
@@ -243,10 +252,10 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
 
                 <span className={`inline-flex items-center gap-1 text-[9px] font-mono font-black tracking-widest ${member.tier.accent} bg-white/5 border border-white/10 py-0.5 px-2 rounded-full uppercase self-center`}>
                   <member.tier.Icon className="w-3 h-3" />
-                  {trans('profile.tier.' + member.tier.id)} · Lv.{member.tier.level}
+                  {tierLabel}
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-500 font-mono mt-1">{currentUser.email || 'offline-saved-profile@wordnew.io'}</p>
+              <p className="text-[11px] text-zinc-500 font-mono mt-1">{currentUser.email || trans('profile.offlineEmail')}</p>
               <p className="text-xs text-zinc-400 italic mt-2">"{currentUser.bio || trans('profile.noBio')}"</p>
             </div>
 
@@ -254,13 +263,13 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
             <div className="grid grid-cols-3 gap-3 max-w-md pt-2">
               <div className="p-3 rounded-xl bg-white/2 border border-white/5 text-center">
                 <span className="text-[9px] text-zinc-500 font-mono block uppercase">{trans('profile.learnedPool')}</span>
-                <span className="text-sm font-black text-slate-200">{learnedWordsCount} {trans('profile.wordsUnit')}</span>
+                <span className="text-sm font-black text-slate-200">{learnedReal} {trans('profile.wordsUnit')}</span>
               </div>
 
               <div className="p-3 rounded-xl bg-white/2 border border-white/5 text-center">
                 <span className="text-[9px] text-zinc-500 font-mono block uppercase">{trans('profile.activeStreak')}</span>
                 <span className="text-sm font-black text-orange-400 flex items-center justify-center gap-1">
-                  🔥 {wfNewSettings.get('streakDays')}d
+                  🔥 {streakDays}{trans('profile.daysSuffix')}
                 </span>
               </div>
 
@@ -287,32 +296,17 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
 
       {/* 1b. MEMBER LEVEL banner — prominent, per-tier gradient + progress ring. */}
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        {...riseIn(0.4)}
         className={`p-5 sm:p-6 rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-xl relative overflow-hidden`}
       >
         <div className={`absolute inset-0 bg-gradient-to-br ${member.tier.gradient} pointer-events-none`} />
         <div className="relative z-10 flex flex-col sm:flex-row items-center gap-5">
 
           {/* Tier badge + progress ring */}
-          <div className="relative shrink-0 w-24 h-24">
-            <svg viewBox="0 0 100 100" className="w-24 h-24 -rotate-90">
-              <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="7" className="text-white/10" />
-              <motion.circle
-                cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round"
-                className={member.tier.accent}
-                strokeDasharray={2 * Math.PI * 44}
-                initial={{ strokeDashoffset: 2 * Math.PI * 44 }}
-                animate={{ strokeDashoffset: 2 * Math.PI * 44 * (1 - member.progress) }}
-                transition={{ duration: 0.9, ease: 'easeOut' }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <member.tier.Icon className={`w-7 h-7 ${member.tier.accent}`} />
-              <span className="text-[9px] font-mono font-black text-zinc-300 mt-0.5">Lv.{member.tier.level}</span>
-            </div>
-          </div>
+          <ProgressRing progress={member.progress} sizeClass="w-24 h-24" radius={44} strokeWidth={7} colorClass={member.tier.accent}>
+            <member.tier.Icon className={`w-7 h-7 ${member.tier.accent}`} />
+            <span className="text-[9px] font-mono font-black text-zinc-300 mt-0.5">{trans('profile.levelShort', { level: member.tier.level })}</span>
+          </ProgressRing>
 
           {/* Tier text + to-next */}
           <div className="flex-1 text-center sm:text-left min-w-0">
@@ -357,32 +351,8 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
                 {/* Left column details */}
                 <div className="space-y-4">
                   
-                  {/* Nickname input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                      {trans('profile.nicknameLabel')}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      className={`w-full py-2.5 px-4 rounded-xl text-xs outline-none bg-slate-900 border border-white/10 text-slate-100 focus:border-indigo-500`}
-                    />
-                  </div>
-
-                  {/* Bio motto input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                      {trans('profile.bioLabel')}
-                    </label>
-                    <input
-                      type="text"
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      className={`w-full py-2.5 px-4 rounded-xl text-xs outline-none bg-slate-900 border border-white/10 text-slate-100 focus:border-indigo-500`}
-                    />
-                  </div>
+                  <TextField label={trans('profile.nicknameLabel')} required value={nickname} onChange={setNickname} inputClassName={PROFILE_INPUT_CLASS} />
+                  <TextField label={trans('profile.bioLabel')} value={bio} onChange={setBio} inputClassName={PROFILE_INPUT_CLASS} />
 
                   {/* Language selection lives in Settings → Languages (single source
                       of truth, backend-synced multi-select), not on the profile editor. */}
@@ -447,20 +417,8 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
 
               {/* Actions submit row */}
               <div className="flex gap-3 justify-end pt-3.5 border-t border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono font-bold transition-all border border-white/5 text-zinc-400 cursor-pointer"
-                >
-                  {trans('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white text-xs font-mono font-black uppercase flex items-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>{trans('profile.saveBtn')}</span>
-                </button>
+                <ActionButton variant="secondary" size="sm" onClick={() => setIsEditing(false)}>{trans('common.cancel')}</ActionButton>
+                <ActionButton type="submit" icon={<Save className="w-4 h-4" />}>{trans('profile.saveBtn')}</ActionButton>
               </div>
             </form>
           </div>
@@ -521,13 +479,10 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
                 {restBadges.map((badge, i) => {
                   const Icon = badge.icon;
                   const accent = BADGE_ACCENTS[i % BADGE_ACCENTS.length];
-                  const ratio = badge.maxProgress > 0 ? badge.progress / badge.maxProgress : 0;
                   return (
                     <motion.div
                       key={badge.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.04 * i }}
+                      {...riseIn(0.3, 0.04 * i)}
                       className={`snap-start shrink-0 w-40 sm:w-auto p-3.5 rounded-2xl border relative overflow-hidden ${
                         badge.unlocked
                           ? `bg-gradient-to-br ${accent.split(' ')[1]} to-transparent border-white/10`
@@ -550,9 +505,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
                         </span>
                       ) : (
                         <div className="mt-2 space-y-1">
-                          <div className="w-full bg-slate-900/80 rounded-full h-1 overflow-hidden">
-                            <div className="bg-zinc-500 h-full rounded-full" style={{ width: `${Math.round(ratio * 100)}%` }} />
-                          </div>
+                          <ProgressBar done={badge.progress} total={badge.maxProgress} tone="neutral" className="h-1" />
                           <span className="text-[8px] font-mono text-zinc-500">{badge.progress}/{badge.maxProgress}</span>
                         </div>
                       )}
@@ -574,22 +527,12 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 {/* (a) RADIAL ring gauge — retention. Spans both columns on phone. */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+                  {...riseIn(0.35)}
                   className="col-span-2 p-4 rounded-2xl bg-slate-900/40 border border-white/5 flex items-center gap-4"
                 >
-                  <div className="relative shrink-0 w-20 h-20">
-                    <svg viewBox="0 0 100 100" className="w-20 h-20 -rotate-90">
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-white/10" />
-                      <motion.circle
-                        cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round"
-                        className="text-indigo-400" strokeDasharray={2 * Math.PI * 42}
-                        initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                        animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - retentionPct / 100) }}
-                        transition={{ duration: 0.9, ease: 'easeOut' }}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center text-base font-black text-indigo-300">{retentionPct}%</div>
-                  </div>
+                  <ProgressRing progress={retentionPct / 100} sizeClass="w-20 h-20" colorClass="text-indigo-400">
+                    <span className="text-base font-black text-indigo-300">{retentionPct}%</span>
+                  </ProgressRing>
                   <div>
                     <p className="text-xs font-black text-slate-100">{trans('profile.mRetention')}</p>
                     <p className="text-[10px] text-zinc-500 font-mono">{trans('profile.mRetentionSub')}</p>
@@ -598,7 +541,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
 
                 {/* (b) BIG-NUMBER stat tile — learned words. */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.05 }}
+                  {...riseIn(0.35, 0.05)}
                   className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/15 to-transparent border border-emerald-500/20"
                 >
                   <p className="text-2xl font-black text-emerald-300 leading-none">{learnedReal}</p>
@@ -607,7 +550,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
 
                 {/* (c) BIG-NUMBER stat tile — streak. */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
+                  {...riseIn(0.35, 0.1)}
                   className="p-4 rounded-2xl bg-gradient-to-br from-orange-500/15 to-transparent border border-orange-500/20"
                 >
                   <p className="text-2xl font-black text-orange-300 leading-none flex items-baseline gap-1">{streakDays}<span className="text-xs">🔥</span></p>
@@ -616,7 +559,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
 
                 {/* (d) SEGMENTED bar — level progress. */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.15 }}
+                  {...riseIn(0.35, 0.15)}
                   className="col-span-2 p-4 rounded-2xl bg-slate-900/40 border border-white/5 space-y-2"
                 >
                   <div className="flex justify-between text-[10px] font-mono">
@@ -624,20 +567,20 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
                     <span className={member.tier.accent + ' font-bold'}>{Math.round(member.progress * 100)}%</span>
                   </div>
                   <div className="flex gap-1">
-                    {Array.from({ length: 10 }).map((_, i) => (
-                      <div key={i} className={`flex-1 h-2.5 rounded-sm ${i < Math.round(member.progress * 10) ? 'bg-indigo-400' : 'bg-white/5'}`} />
+                    {Array.from({ length: LEVEL_SEGMENTS }).map((_, i) => (
+                      <div key={i} className={`flex-1 h-2.5 rounded-sm ${i < Math.round(member.progress * LEVEL_SEGMENTS) ? 'bg-indigo-400' : 'bg-white/5'}`} />
                     ))}
                   </div>
                 </motion.div>
 
                 {/* (e) DOT/spark row — streak days toward the monthly goal. */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.2 }}
+                  {...riseIn(0.35, 0.2)}
                   className="col-span-2 p-4 rounded-2xl bg-slate-900/40 border border-white/5 space-y-2"
                 >
-                  <p className="text-[10px] font-mono text-zinc-400">{trans('profile.mStreakGoal', { count: streakGoal })}</p>
+                  <p className="text-[10px] font-mono text-zinc-400">{trans('profile.mStreakGoal', { count: STREAK_GOAL_DAYS })}</p>
                   <div className="flex flex-wrap gap-1">
-                    {Array.from({ length: streakGoal }).map((_, i) => (
+                    {Array.from({ length: STREAK_GOAL_DAYS }).map((_, i) => (
                       <span key={i} className={`w-2 h-2 rounded-full ${i < streakDots ? 'bg-amber-400' : 'bg-white/8'}`} />
                     ))}
                   </div>
@@ -668,45 +611,24 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
         </div>
       )}
 
-      {/* Sign-out confirmation dialog (no global confirm component exists). */}
-      {showLogoutConfirm && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={() => setShowLogoutConfirm(false)}
-        >
-          <div
-            className={`w-full max-w-sm p-6 rounded-3xl ${activeTheme.cardClass} border border-white/10 shadow-2xl space-y-5`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3">
-              <span className="p-2.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400">
-                <LogOut className="w-5 h-5" />
-              </span>
-              <div>
-                <h4 className="text-sm font-black text-slate-100">{trans('profile.logoutConfirmTitle')}</h4>
-                <p className="text-[10px] text-zinc-500 font-mono">{trans('profile.logoutConfirmHint')}</p>
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowLogoutConfirm(false)}
-                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono font-bold border border-white/5 text-zinc-300 transition-all cursor-pointer"
-              >
-                {trans('common.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowLogoutConfirm(false); onLogout(); }}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:opacity-90 text-white text-xs font-mono font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>{trans('profile.logout')}</span>
-              </button>
-            </div>
+      {/* Sign-out confirmation dialog */}
+      <ModalShell open={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)} backdrop="strong" cardClassName={`${LOGOUT_CARD_CLASS} ${activeTheme.cardClass}`}>
+        <div className="flex items-center gap-3">
+          <span className="p-2.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400">
+            <LogOut className="w-5 h-5" />
+          </span>
+          <div>
+            <h4 className="text-sm font-black text-slate-100">{trans('profile.logoutConfirmTitle')}</h4>
+            <p className="text-[10px] text-zinc-500 font-mono">{trans('profile.logoutConfirmHint')}</p>
           </div>
         </div>
-      )}
+        <ModalFooter className="gap-3">
+          <ActionButton variant="secondary" size="sm" onClick={() => setShowLogoutConfirm(false)}>{trans('common.cancel')}</ActionButton>
+          <ActionButton variant="danger" onClick={() => { setShowLogoutConfirm(false); onLogout(); }} icon={<LogOut className="w-4 h-4" />}>
+            {trans('profile.logout')}
+          </ActionButton>
+        </ModalFooter>
+      </ModalShell>
 
       {/* Avatar cropper modal (opens after a file is picked) */}
       {cropFile && (

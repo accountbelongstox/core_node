@@ -16,6 +16,8 @@ interface ChipGroupProps<T extends string | number> {
   role?: 'radio' | 'tab';
   label?: string;
   gapClassName?: string;
+  /** One scrolling row instead of wrapping onto several lines. */
+  nowrap?: boolean;
   /** Shape, padding and type of every chip (the default is the round mono pill). */
   chipClassName?: string;
   selectedClassName?: string;
@@ -28,12 +30,12 @@ const DEFAULT_IDLE = 'border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10
 
 /** Single-choice pill group (speeds, languages, modes) or tab strip. */
 export function ChipGroup<T extends string | number>({
-  value, options, onChange, className = '', role = 'radio', label, gapClassName = 'gap-2',
+  value, options, onChange, className = '', role = 'radio', label, gapClassName = 'gap-2', nowrap = false,
   chipClassName = DEFAULT_CHIP, selectedClassName = DEFAULT_SELECTED, idleClassName = DEFAULT_IDLE,
 }: ChipGroupProps<T>): React.ReactElement {
   const tabs = role === 'tab';
   return (
-    <div role={tabs ? 'tablist' : 'radiogroup'} aria-label={label} className={`flex flex-wrap ${gapClassName} ${className}`}>
+    <div role={tabs ? 'tablist' : 'radiogroup'} aria-label={label} className={`flex ${nowrap ? 'overflow-x-auto pb-1' : 'flex-wrap'} ${gapClassName} ${className}`}>
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -46,7 +48,7 @@ export function ChipGroup<T extends string | number>({
             title={option.title}
             disabled={option.disabled}
             onClick={() => onChange(option.value)}
-            className={`cursor-pointer border font-bold transition-all disabled:cursor-not-allowed disabled:opacity-40 ${chipClassName} ${selected ? selectedClassName : idleClassName}`}
+            className={`${nowrap ? 'shrink-0 ' : ''}cursor-pointer border font-bold transition-all disabled:cursor-not-allowed disabled:opacity-40 ${chipClassName} ${selected ? selectedClassName : idleClassName}`}
           >
             {option.label}
           </button>

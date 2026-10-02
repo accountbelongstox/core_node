@@ -4,6 +4,10 @@ import { Sparkles, ArrowRight, Shield, Target, Paintbrush, Play, Layout, CheckCi
 import type { ElementTheme } from '../WfNewThemes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewLogo } from '../WfNewBrand';
+import { ModalShell } from '@/shared/ui/ModalShell';
+
+const NOOP = (): void => undefined;
+const CARD_CLASS = 'w-full max-w-lg bg-zinc-900/90 border border-white/10 p-6 md:p-8 rounded-[32px] shadow-2xl relative z-10 space-y-6';
 
 interface WfNewOnboardingProps {
   onComplete: () => void;
@@ -135,15 +139,11 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
   const activeStepItem = steps[currentStep];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Heavy frosted glass backing */}
-      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-lg" />
-
-      {/* Onboarding Dialog Card */}
+    <ModalShell onClose={NOOP} locked backdrop="strong" cardClassName={null}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-lg bg-zinc-900/90 border border-white/10 p-6 md:p-8 rounded-[32px] shadow-2xl relative z-10 space-y-6"
+        className={CARD_CLASS}
       >
         {/* Step Indicator Bullets */}
         <div className="flex justify-between items-center border-b border-white/5 pb-4">
@@ -208,6 +208,6 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
           </button>
         </div>
       </motion.div>
-    </div>
+    </ModalShell>
   );
 };

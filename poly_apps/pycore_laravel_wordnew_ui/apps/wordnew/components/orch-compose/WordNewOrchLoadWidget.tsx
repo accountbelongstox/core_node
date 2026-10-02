@@ -5,7 +5,9 @@
  */
 import React from 'react';
 import { AlertCircle, CircleCheck, Loader2 } from 'lucide-react';
+import { TONE_TEXT } from '@/shared/ui/statusTone';
 import type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
+import { orchRunProgress } from './orchRunProgress';
 
 interface Props {
   session: OrchComposeSession | null;
@@ -20,11 +22,7 @@ const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
 export const WordNewOrchLoadWidget: React.FC<Props> = ({ session, trans, onOpen, overlay = false }) => {
   const phase = session?.phase ?? 'inputs';
-  const counts = session?.counts;
-  const total = counts?.total ?? 0;
-  const settled = total - (counts?.pending ?? 0);
-  const percent = total > 0 ? Math.round((settled / total) * 100) : 0;
-  const loading = session?.table?.loading.size ?? 0;
+  const { counts, total, settled, percent, loading } = orchRunProgress(session);
   const missing = counts?.missing ?? 0;
   const busy = phase !== 'ready' && phase !== 'failed';
   const label = trans(`orchCompose.phase.${phase === 'failed' ? 'inputs' : phase}`);
@@ -62,8 +60,8 @@ export const WordNewOrchLoadWidget: React.FC<Props> = ({ session, trans, onOpen,
         <StateIcon className={`h-3 w-3 ${busy ? 'animate-spin text-sky-400' : phase === 'failed' ? 'text-rose-400' : 'text-emerald-400'}`} aria-hidden />
       </span>
       <span className="font-bold">{percent}%</span>
-      {loading > 0 && <span className="text-amber-500 dark:text-amber-300">↓{loading}</span>}
-      {missing > 0 && <span className="text-rose-500 dark:text-rose-300">!{missing}</span>}
+      {loading > 0 && <span className={TONE_TEXT.amber}>↓{loading}</span>}
+      {missing > 0 && <span className={TONE_TEXT.rose}>!{missing}</span>}
     </button>
   );
 };
