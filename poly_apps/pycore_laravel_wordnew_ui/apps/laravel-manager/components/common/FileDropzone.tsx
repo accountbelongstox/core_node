@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { UploadCloud } from 'lucide-react';
 import { useFileDrop } from '@/apps/laravel-manager/hooks/useFileDrop';
 
@@ -18,13 +19,15 @@ export const FileDropzone: React.FC<{
   disabled?: boolean;
   className?: string;
   children?: (state: { isDragging: boolean }) => React.ReactNode;
-}> = ({ onFiles, accept, multiple, maxSizeMB, label = 'Drop files here or click to upload', hint, disabled, className = '', children }) => {
+}> = ({ onFiles, accept, multiple, maxSizeMB, label, hint, disabled, className = '', children }) => {
+  const { t } = useTranslation();
+  const resolvedLabel = label ? label : t('uiCommon.dropzone.default_label');
   const { isDragging, dropProps, inputProps } = useFileDrop(onFiles, { accept, multiple, maxSizeMB });
   return (
     <div
       {...(disabled ? {} : dropProps)}
       aria-disabled={disabled}
-      aria-label={label}
+      aria-label={resolvedLabel}
       className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-2 text-center transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-400
         ${isDragging ? 'border-indigo-400 bg-indigo-50/40 dark:bg-indigo-500/10' : 'border-slate-300 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
@@ -33,7 +36,7 @@ export const FileDropzone: React.FC<{
       {children ? children({ isDragging }) : (
         <>
           <UploadCloud className="w-6 h-6 text-slate-400" />
-          <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{resolvedLabel}</p>
           {hint ? <p className="text-[10px] text-slate-400 dark:text-slate-500">{hint}</p> : null}
         </>
       )}

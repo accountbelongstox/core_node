@@ -1,5 +1,6 @@
 import { ToolDefinition, ToolHistoryItem, ValidationResult } from '../types';
 import { api } from '../api';
+import i18n from '@/apps/laravel-manager/i18n';
 
 /**
  * ToolModel - Base class for tool models
@@ -22,7 +23,7 @@ export class ToolModel {
     // Validate input
     const validation = this.validate(input);
     if (!validation.valid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      throw new Error(i18n.t('uiCommon.tool_model.validation_failed', { errors: validation.errors.join(', ') }));
     }
 
     try {
@@ -31,13 +32,13 @@ export class ToolModel {
       const apiModule = (api as any)[moduleName];
 
       if (!apiModule || typeof apiModule[methodName] !== 'function') {
-        throw new Error(`API method not found: ${this.config.apiMethod}`);
+        throw new Error(i18n.t('uiCommon.tool_model.api_method_not_found', { method: this.config.apiMethod }));
       }
 
       const response = await apiModule[methodName](input);
 
       if (!response.success) {
-        throw new Error(response.error || 'API request failed');
+        throw new Error(response.error || i18n.t('uiCommon.tool_model.api_request_failed'));
       }
 
       // Save to history
@@ -67,7 +68,7 @@ export class ToolModel {
       const required = this.config.inputSchema.required || [];
       for (const field of required) {
         if (input[field] === undefined || input[field] === null || input[field] === '') {
-          errors.push(`Field '${field}' is required`);
+          errors.push(i18n.t('uiCommon.tool_model.field_required', { field }));
         }
       }
     }

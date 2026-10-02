@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Code, Eye, Link as LinkIcon, AlertTriangle } from 'lucide-react';
 import { CopyButton } from './common/CopyButton';
 import Portal from '@/shared/ui/Portal';
@@ -20,6 +21,7 @@ export function HtmlErrorModal({
   url,
   statusCode
 }: HtmlErrorModalProps) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<'preview' | 'source'>('preview');
 
   // Reset tab when reopened
@@ -39,7 +41,7 @@ export function HtmlErrorModal({
 
   const hasContent = (htmlContent || '').trim().length > 0;
   const contentSize = useMemo(() => formatBytes((htmlContent || '').length), [htmlContent]);
-  const statusLabel = statusCode ? `HTTP ${statusCode}` : 'HTTP (unknown)';
+  const statusLabel = statusCode ? `HTTP ${statusCode}` : t('uiCommon.html_error.status_unknown');
 
   if (!isOpen) return null;
 
@@ -59,7 +61,7 @@ export function HtmlErrorModal({
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-slate-800 dark:text-white font-bold tracking-tight">
               <AlertTriangle className="text-rose-500" size={18} />
-              <span className="truncate">HTML Error Response</span>
+              <span className="truncate">{t('uiCommon.html_error.title')}</span>
               <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] text-rose-600 dark:text-rose-400 font-mono">
                 {statusLabel}
               </span>
@@ -72,21 +74,21 @@ export function HtmlErrorModal({
               <div className="flex items-center gap-1.5 min-w-0">
                 <LinkIcon size={14} className="flex-shrink-0" />
                 <span className="truncate" title={url}>
-                  {url || '(no url)'}
+                  {url || t('uiCommon.html_error.no_url')}
                 </span>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
                 <CopyButton
                   text={url || ''}
-                  label="Copy URL"
+                  label={t('uiCommon.html_error.copy_url')}
                   size="sm"
                   variant="outline"
                   className="!border-slate-300 dark:!border-white/20 !text-slate-600 dark:!text-slate-300 hover:!bg-black/5 dark:hover:!bg-white/10"
                 />
                 <CopyButton
                   text={htmlContent || ''}
-                  label="Copy HTML"
+                  label={t('uiCommon.html_error.copy_html')}
                   size="sm"
                   variant="outline"
                   className="!border-slate-300 dark:!border-white/20 !text-slate-600 dark:!text-slate-300 hover:!bg-black/5 dark:hover:!bg-white/10"
@@ -98,7 +100,7 @@ export function HtmlErrorModal({
           <button
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors rounded-full hover:bg-black/5 dark:hover:bg-white/5 flex-shrink-0"
-            title="Close"
+            title={t('common.close')}
             type="button"
           >
             <X size={20} />
@@ -119,7 +121,7 @@ export function HtmlErrorModal({
               `}
             >
               <Eye size={14} />
-              Preview
+              {t('uiCommon.html_error.preview')}
             </button>
 
             <button
@@ -133,12 +135,12 @@ export function HtmlErrorModal({
               `}
             >
               <Code size={14} />
-              Source
+              {t('uiCommon.html_error.source')}
             </button>
           </div>
 
           <div className="text-[11px] text-slate-500 dark:text-slate-400">
-            Scripts are disabled in preview (sandboxed).
+            {t('uiCommon.html_error.sandbox_note')}
           </div>
         </div>
 
@@ -146,13 +148,13 @@ export function HtmlErrorModal({
         <div className="flex-1 min-h-0 p-4 sm:p-6">
           {!hasContent ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
-              <div className="text-5xl font-black opacity-10 mb-4">EMPTY</div>
-              <p className="text-sm">No HTML content captured.</p>
+              <div className="text-5xl font-black opacity-10 mb-4">{t('uiCommon.html_error.empty_badge')}</div>
+              <p className="text-sm">{t('uiCommon.html_error.no_content')}</p>
             </div>
           ) : tab === 'preview' ? (
             <div className="h-full rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white dark:bg-black/20">
               <iframe
-                title="HTML Error Preview"
+                title={t('uiCommon.html_error.preview_title')}
                 className="w-full h-full"
                 sandbox=""
                 srcDoc={htmlContent}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import BentoCard from '@/shared/ui/BentoCard';
 import { FileVideo, Music, Image as ImageIcon, File, Loader2, Check, AlertCircle, X } from 'lucide-react';
 import { UploadItem } from './uploadProgress';
@@ -11,6 +12,7 @@ interface UploadProgressCardProps {
 
 // Presentational only. NO try/catch, NO || or ?? (explicit ternaries/if).
 const UploadProgressCard: React.FC<UploadProgressCardProps> = ({ items, batchPct, onDismiss }) => {
+  const { t } = useTranslation();
   const total = items.length;
   const done = items.filter((it) => it.status === 'done').length;
   const failed = items.filter((it) => it.status === 'failed').length;
@@ -33,7 +35,7 @@ const UploadProgressCard: React.FC<UploadProgressCardProps> = ({ items, batchPct
       type="button"
       onClick={onDismiss}
       className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-      aria-label="Dismiss"
+      aria-label={t('uiCommon.media.upload_card.dismiss')}
     >
       <X className="w-4 h-4" />
     </button>
@@ -41,7 +43,7 @@ const UploadProgressCard: React.FC<UploadProgressCardProps> = ({ items, batchPct
 
   return (
     <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)]">
-      <BentoCard title="Uploading" headerControls={headerControls} glowing className="max-h-[60vh]">
+      <BentoCard title={t('uiCommon.media.upload_card.title')} headerControls={headerControls} glowing className="max-h-[60vh]">
         <div className="px-4 pt-3">
           <div className="h-1.5 w-full rounded-full bg-slate-200/70 dark:bg-white/10 overflow-hidden">
             <div
@@ -50,7 +52,7 @@ const UploadProgressCard: React.FC<UploadProgressCardProps> = ({ items, batchPct
             />
           </div>
           <div className="mt-1 flex items-center justify-between text-[10px] font-medium tracking-wide text-slate-400 dark:text-slate-500">
-            <span>{failed > 0 ? `${done}/${total} done · ${failed} failed` : `${done}/${total} done`}</span>
+            <span>{failed > 0 ? t('uiCommon.media.upload_card.progress_failed', { done, total, failed }) : t('uiCommon.media.upload_card.progress', { done, total })}</span>
             <span>{batchPct}%</span>
           </div>
         </div>

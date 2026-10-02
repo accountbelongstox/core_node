@@ -35,13 +35,18 @@ interface Props {
 
 interface MenuPos { top: number; right: number; }
 
+const ACTION_REGEN_ALL = 'regenerate_all';
+const ACTION_REGEN_FAILED = 'regenerate_failed';
+const ACTION_RETRY_FAILED = 'retry_failed';
+const ACTION_REENQUEUE_MISSING = 'reenqueue_missing';
+
 const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged, libraryIds }) => {
   const toast = useToast();
   const { t } = useTranslation();
   const enqueueCoverTasks = useLibraryCoverEnqueue();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<MenuPos>({ top: 0, right: 0 });
-  // Label of the action currently running (disables the menu + spins its icon).
+  // Id of the action currently running (disables the menu + spins its icon).
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRegenAll, setConfirmRegenAll] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -75,13 +80,14 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged, libraryIds }) 
 
   // Run an action, surface a toast + log, then reload the parent's list.
   const run = useCallback(async (
+    actionId: string,
     label: string,
     fn: () => Promise<{ success: boolean; data?: any; error?: string }>,
     describe: (data: any) => string,
   ) => {
     if (busy) return;
-    setBusy(label);
-    logInfo('covers', `${label}…`);
+    setBusy(actionId);
+    logInfo('covers', `${actionId}…`);
     try {
       const res = await fn();
       if (res.success) {
@@ -90,53 +96,57 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged, libraryIds }) 
         const payload = (res as any).data ?? res;
         const msg = describe(payload);
         toast.success(msg);
-        logSuccess('covers', `${label}: ${msg}`);
+        logSuccess('covers', `${actionId}: ${msg}`);
         onChanged();
       } else {
-        toast.error(res.error || `${label} failed`);
-        logError('covers', `${label} failed: ${res.error || 'unknown error'}`);
+        toast.error(res.error || t('uiVocab.coverManagerMenu.action_failed', { label }));
+        logError('covers', `${actionId} failed: ${res.error || 'unknown error'}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || `${label} failed`);
-      logError('covers', `${label} failed: ${e?.message || e}`);
+      toast.error(e?.message || t('uiVocab.coverManagerMenu.action_failed', { label }));
+      logError('covers', `${actionId} failed: ${e?.message || e}`);
     } finally {
       setBusy(null);
       setOpen(false);
     }
-  }, [busy, toast, onChanged]);
+  }, [busy, toast, onChanged, t]);
 
   const regenerateAll = useCallback(() => {
     setConfirmRegenAll(false);
     void run(
-      'Regenerate all covers',
+      ACTION_REGEN_ALL,
+      t('uiVocab.coverManagerMenu.regenerate_all'),
       () => api.appQyV1.clearCover({ all: true }),
-      (d) => `Cleared ${d.cleared ?? 0} cover(s) (${d.files_deleted ?? 0} image file(s) deleted) — mcp-chrome will replace them.`,
+      (d) => t('uiVocab.coverManagerMenu.cleared_all', { cleared: d.cleared ?? 0, files: d.files_deleted ?? 0 }),
     );
-  }, [run]);
+  }, [run, t]);
 
   const regenerateFailed = useCallback(() => {
     void run(
-      'Regenerate failed covers',
+      ACTION_REGEN_FAILED,
+      t('uiVocab.coverManagerMenu.regenerate_failed'),
       () => api.appQyV1.clearCover({ failed_only: true }),
-      (d) => `Cleared ${d.cleared ?? 0} failed cover(s) for regeneration.`,
+      (d) => t('uiVocab.coverManagerMenu.cleared_failed', { cleared: d.cleared ?? 0 }),
     );
-  }, [run]);
+  }, [run, t]);
 
   const retryFailed = useCallback(() => {
     void run(
-      'Retry failed covers',
+      ACTION_RETRY_FAILED,
+      t('uiVocab.coverManagerMenu.retry_failed'),
       () => api.appQyV1.retryCover({ all: true }),
-      (d) => `Re-queued ${d.reset ?? 0} failed cover(s) (image kept).`,
+      (d) => t('uiVocab.coverManagerMenu.requeued_failed', { count: d.reset ?? 0 }),
     );
-  }, [run]);
+  }, [run, t]);
 
   const reconcileMissing = useCallback(() => {
     void run(
-      'Re-enqueue missing covers',
+      ACTION_REENQUEUE_MISSING,
+      t('uiVocab.coverManagerMenu.reenqueue_missing'),
       () => api.appQyV1.reconcileCovers(),
-      (d) => `Re-queued ${d.reset ?? 0} of ${d.checked ?? 0} cover(s) whose file was missing.`,
+      (d) => t('uiVocab.coverManagerMenu.requeued_missing', { reset: d.reset ?? 0, checked: d.checked ?? 0 }),
     );
-  }, [run]);
+  }, [run, t]);
 
   const enqueueLoaded = useCallback(async (mode: LibraryCoverMode) => {
     if (busy || libraryIds.length === 0) return;
@@ -158,10 +168,10 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged, libraryIds }) 
         ref={btnRef}
         onClick={() => setOpen((v) => !v)}
         className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-        title="Cover management — clear / regenerate / recover covers"
+        title={t('uiVocab.coverManagerMenu.button_title')}
       >
         <Wrench className="w-3.5 h-3.5" />
-        Manage
+        {t('uiVocab.coverManagerMenu.manage')}
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
@@ -174,10 +184,10 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged, libraryIds }) 
           >
             <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                <Wrench className="w-3.5 h-3.5" /> Cover management
+                <Wrench className="w-3.5 h-3.5" /> {t('uiVocab.coverManagerMenu.heading')}
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Covers are generated by pycore (pull-only). These actions re-queue work.
+                {t('uiVocab.coverManagerMenu.intro')}
               </p>
             </div>
 
@@ -208,34 +218,34 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged, libraryIds }) 
             </button>
 
             <button onClick={() => setConfirmRegenAll(true)} disabled={!!busy} className={itemCls}>
-              <Wand2 className={`w-4 h-4 mt-0.5 shrink-0 text-rose-500 ${busy === 'Regenerate all covers' ? 'animate-spin' : ''}`} />
+              <Wand2 className={`w-4 h-4 mt-0.5 shrink-0 text-rose-500 ${busy === ACTION_REGEN_ALL ? 'animate-spin' : ''}`} />
               <span>
-                <span className="font-medium text-slate-800 dark:text-slate-100">Regenerate all covers</span>
-                <span className="block text-[11px] text-slate-400">Delete every cover image and rebuild with a fresh, varied prompt.</span>
+                <span className="font-medium text-slate-800 dark:text-slate-100">{t('uiVocab.coverManagerMenu.regenerate_all')}</span>
+                <span className="block text-[11px] text-slate-400">{t('uiVocab.coverManagerMenu.regenerate_all_hint')}</span>
               </span>
             </button>
 
             <button onClick={regenerateFailed} disabled={!!busy} className={itemCls}>
-              <ImageOff className={`w-4 h-4 mt-0.5 shrink-0 text-amber-500 ${busy === 'Regenerate failed covers' ? 'animate-spin' : ''}`} />
+              <ImageOff className={`w-4 h-4 mt-0.5 shrink-0 text-amber-500 ${busy === ACTION_REGEN_FAILED ? 'animate-spin' : ''}`} />
               <span>
-                <span className="font-medium text-slate-800 dark:text-slate-100">Regenerate failed covers</span>
-                <span className="block text-[11px] text-slate-400">Clear only failed/retry covers and rebuild them.</span>
+                <span className="font-medium text-slate-800 dark:text-slate-100">{t('uiVocab.coverManagerMenu.regenerate_failed')}</span>
+                <span className="block text-[11px] text-slate-400">{t('uiVocab.coverManagerMenu.regenerate_failed_hint')}</span>
               </span>
             </button>
 
             <button onClick={retryFailed} disabled={!!busy} className={itemCls}>
-              <RotateCcw className={`w-4 h-4 mt-0.5 shrink-0 text-indigo-500 ${busy === 'Retry failed covers' ? 'animate-spin' : ''}`} />
+              <RotateCcw className={`w-4 h-4 mt-0.5 shrink-0 text-indigo-500 ${busy === ACTION_RETRY_FAILED ? 'animate-spin' : ''}`} />
               <span>
-                <span className="font-medium text-slate-800 dark:text-slate-100">Retry failed covers</span>
-                <span className="block text-[11px] text-slate-400">Re-queue failed covers without deleting the existing image.</span>
+                <span className="font-medium text-slate-800 dark:text-slate-100">{t('uiVocab.coverManagerMenu.retry_failed')}</span>
+                <span className="block text-[11px] text-slate-400">{t('uiVocab.coverManagerMenu.retry_failed_hint')}</span>
               </span>
             </button>
 
             <button onClick={reconcileMissing} disabled={!!busy} className={itemCls}>
-              <RefreshCw className={`w-4 h-4 mt-0.5 shrink-0 text-emerald-500 ${busy === 'Re-enqueue missing covers' ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mt-0.5 shrink-0 text-emerald-500 ${busy === ACTION_REENQUEUE_MISSING ? 'animate-spin' : ''}`} />
               <span>
-                <span className="font-medium text-slate-800 dark:text-slate-100">Re-enqueue missing covers</span>
-                <span className="block text-[11px] text-slate-400">Recover covers marked ready whose image file is gone.</span>
+                <span className="font-medium text-slate-800 dark:text-slate-100">{t('uiVocab.coverManagerMenu.reenqueue_missing')}</span>
+                <span className="block text-[11px] text-slate-400">{t('uiVocab.coverManagerMenu.reenqueue_missing_hint')}</span>
               </span>
             </button>
           </div>
@@ -244,14 +254,14 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged, libraryIds }) 
 
       <ConfirmModal
         isOpen={confirmRegenAll}
-        onClose={() => { if (busy !== 'Regenerate all covers') setConfirmRegenAll(false); }}
+        onClose={() => { if (busy !== ACTION_REGEN_ALL) setConfirmRegenAll(false); }}
         onConfirm={regenerateAll}
-        title="Regenerate all covers"
-        message="This deletes every cover image and re-queues all libraries for search-based replacement. Existing covers will be gone until mcp-chrome submits replacements. Continue?"
-        confirmText="Regenerate all"
-        cancelText="Cancel"
+        title={t('uiVocab.coverManagerMenu.regenerate_all')}
+        message={t('uiVocab.coverManagerMenu.regenerate_all_confirm')}
+        confirmText={t('uiVocab.coverManagerMenu.regenerate_all_confirm_text')}
+        cancelText={t('common.cancel')}
         variant="danger"
-        loading={busy === 'Regenerate all covers'}
+        loading={busy === ACTION_REGEN_ALL}
       />
     </>
   );

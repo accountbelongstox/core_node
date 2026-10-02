@@ -13,6 +13,7 @@
  * props.
  */
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type {
@@ -100,6 +101,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
   const [bumpingId, setBumpingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const { t: tr } = useTranslation();
   const t = TRANSLATIONS[lang].globalTasks;
 
   // The list is server-filtered by status, so a filter change must refetch.
@@ -297,7 +299,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
             <button
               onClick={() => setNotice(null)}
               className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
-              aria-label="Dismiss notice"
+              aria-label={tr('uiTask.shared.dismiss_notice')}
             >
               <XCircle className="w-4 h-4" />
             </button>
@@ -437,7 +439,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                 }`}
             >
-              All types
+              {tr('uiTask.queue.all_types')}
             </button>
             {TASK_TYPE_KEYS.map((tt) => {
               const meta = taskTypeMeta(tt);

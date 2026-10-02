@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { ChevronUp, ChevronDown, Search, Filter, Download, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Column Definition
@@ -78,11 +79,12 @@ export function DataTable<T = any>({
   search,
   selection,
   actions,
-  emptyMessage = 'No data available',
+  emptyMessage,
   className = '',
   rowClassName,
   onRowClick
 }: DataTableProps<T>) {
+  const { t } = useTranslation();
   const [searchValue, setSearchValue] = useState(search?.value || '');
 
   /**
@@ -148,13 +150,13 @@ export function DataTable<T = any>({
       <div className="flex items-center justify-between px-4 py-3 border-t">
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">
-            Showing {startIndex} to {endIndex} of {total} results
+            {t('uiCommon.data_table.showing', { start: startIndex, end: endIndex, total })}
           </span>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Rows per page:</span>
+            <span className="text-sm text-gray-600">{t('uiCommon.data_table.rows_per_page')}</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
@@ -173,31 +175,31 @@ export function DataTable<T = any>({
               disabled={page === 1}
               className="px-2 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
             >
-              First
+              {t('uiCommon.data_table.first')}
             </button>
             <button
               onClick={() => onPageChange(page - 1)}
               disabled={page === 1}
               className="px-2 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
             >
-              Previous
+              {t('uiCommon.data_table.previous')}
             </button>
             <span className="px-3 py-1 text-sm">
-              Page {page} of {totalPages}
+              {t('uiCommon.data_table.page_of', { page, total: totalPages })}
             </span>
             <button
               onClick={() => onPageChange(page + 1)}
               disabled={page === totalPages}
               className="px-2 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
             >
-              Next
+              {t('uiCommon.data_table.next')}
             </button>
             <button
               onClick={() => onPageChange(totalPages)}
               disabled={page === totalPages}
               className="px-2 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
             >
-              Last
+              {t('uiCommon.data_table.last')}
             </button>
           </div>
         </div>
@@ -218,7 +220,7 @@ export function DataTable<T = any>({
                   type="text"
                   value={searchValue}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder={search.placeholder || 'Search...'}
+                  placeholder={search.placeholder || t('uiCommon.data_table.search_placeholder')}
                   className="pl-10 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -231,7 +233,7 @@ export function DataTable<T = any>({
               <button
                 onClick={actions.onRefresh}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Refresh"
+                title={t('common.refresh')}
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
@@ -240,7 +242,7 @@ export function DataTable<T = any>({
               <button
                 onClick={actions.onExport}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Export"
+                title={t('uiCommon.data_table.export')}
               >
                 <Download className="w-4 h-4" />
               </button>
@@ -307,7 +309,7 @@ export function DataTable<T = any>({
                 >
                   <div className="flex items-center justify-center gap-2">
                     <RefreshCw className="w-5 h-5 animate-spin" />
-                    <span>Loading...</span>
+                    <span>{t('common.loading')}</span>
                   </div>
                 </td>
               </tr>
@@ -317,7 +319,7 @@ export function DataTable<T = any>({
                   colSpan={columns.length + (selection ? 1 : 0)}
                   className="px-4 py-8 text-center text-gray-500"
                 >
-                  {emptyMessage}
+                  {emptyMessage === undefined ? t('uiCommon.data_table.no_data') : emptyMessage}
                 </td>
               </tr>
             ) : (

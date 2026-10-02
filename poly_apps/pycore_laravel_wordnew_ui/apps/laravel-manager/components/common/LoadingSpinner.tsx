@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * LoadingSpinner – small accessible spinner that matches the app aesthetic
@@ -31,7 +32,8 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   className = '',
 }) => {
   // Fallback accessible name so screen readers always announce the busy state.
-  const accessibleLabel = label || 'Loading';
+  const { t } = useTranslation();
+  const accessibleLabel = label || t('common.loading');
 
   return (
     <div

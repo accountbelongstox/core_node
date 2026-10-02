@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Copy, Check } from 'lucide-react';
 import { useClipboard } from '@/apps/laravel-manager/hooks/useClipboard';
 
@@ -97,6 +98,7 @@ export function CopyButton({
   showCheckIcon = true,
   checkIconDuration = 2000
 }: CopyButtonProps) {
+  const { t } = useTranslation();
   const { copy, copyMultiple } = useClipboard();
   const [copied, setCopied] = useState(false);
 
@@ -106,7 +108,7 @@ export function CopyButton({
     const isArray = Array.isArray(textValue);
     const success = isArray 
       ? await copyMultiple(textValue as string[], successMessage)
-      : await copy(textValue as string, successMessage || 'Copied to clipboard');
+      : await copy(textValue as string, successMessage || t('uiCommon.clipboard.copied'));
 
     if (success && showCheckIcon) {
       setCopied(true);
@@ -134,7 +136,7 @@ export function CopyButton({
     <button
       onClick={handleCopy}
       className={baseClasses}
-      title={label || 'Copy to clipboard'}
+      title={label || t('uiCommon.clipboard.copy_to_clipboard')}
       type="button"
     >
       {showIcon && (
@@ -159,9 +161,10 @@ export function CopyButton({
  */
 export function CopyAllButton({
   items,
-  label = 'Copy All',
+  label,
   ...props
 }: Omit<CopyButtonProps, 'text'> & { items: string[] }) {
-  return <CopyButton text={items} label={label} {...props} />;
+  const { t } = useTranslation();
+  return <CopyButton text={items} label={label ? label : t('uiCommon.clipboard.copy_all')} {...props} />;
 }
 

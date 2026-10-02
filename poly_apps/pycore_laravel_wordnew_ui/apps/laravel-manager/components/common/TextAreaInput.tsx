@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface TextAreaInputProps {
   value: string;
@@ -21,6 +22,7 @@ export function TextAreaInput({
   showCharCount = true,
   className = ''
 }: TextAreaInputProps) {
+  const { t } = useTranslation();
   return (
     <div>
       {label && (
@@ -30,7 +32,7 @@ export function TextAreaInput({
           </label>
           {showCharCount && (
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              {value.length} characters
+              {t('uiCommon.text_input.characters', { count: value.length })}
             </span>
           )}
         </div>

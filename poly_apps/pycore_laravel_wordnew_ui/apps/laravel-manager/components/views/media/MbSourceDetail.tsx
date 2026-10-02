@@ -86,6 +86,7 @@ const SentenceRow = ({
   onToggleExpand,
   onPlayAudio,
 }: RowComponentProps<SentenceRowData>) => {
+  const { t } = useTranslation();
   const s = sentences[index];
   const isActive = activeSeq === s.seq;
   const isExpanded = expandedSeq === s.seq;
@@ -126,7 +127,7 @@ const SentenceRow = ({
               type="button"
               onClick={() => onPlayAudio(s)}
               className="shrink-0 p-1.5 rounded-md text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 transition-colors"
-              title="Play sentence audio"
+              title={t('uiCommon.media.source_detail.play_sentence_audio')}
             >
               <Volume2 size={14} />
             </button>
@@ -136,7 +137,7 @@ const SentenceRow = ({
             type="button"
             onClick={() => onToggleExpand(s.seq)}
             className="shrink-0 p-1.5 rounded-md text-slate-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-            title="AI details"
+            title={t('uiCommon.media.source_detail.ai_details')}
           >
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>

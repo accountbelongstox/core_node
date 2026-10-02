@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_Z } from '@/shared/styles/overlay';
 
@@ -173,6 +174,7 @@ export function ToastProvider({
  * ToastItem Component
  */
 function ToastItem({ toast, onClose }: { key?: React.Key; toast: Toast; onClose: () => void }) {
+  const { t } = useTranslation();
   const { type, message, title } = toast;
 
   const styles = {
@@ -224,6 +226,8 @@ function ToastItem({ toast, onClose }: { key?: React.Key; toast: Toast; onClose:
       <button
         onClick={onClose}
         className="flex-shrink-0 hover:bg-black/5 rounded p-1 transition-colors"
+        title={t('common.close')}
+        aria-label={t('common.close')}
       >
         <X className="w-4 h-4" />
       </button>

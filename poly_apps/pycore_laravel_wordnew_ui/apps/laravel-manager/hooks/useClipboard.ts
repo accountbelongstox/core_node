@@ -1,15 +1,17 @@
 import { useToast } from '@/apps/laravel-manager/components/admin';
+import i18n from '@/apps/laravel-manager/i18n';
 
 export function useClipboard() {
   const toast = useToast();
 
-  const copy = async (text: string, message: string = 'Copied to clipboard') => {
+  const copy = async (text: string, message?: string) => {
+    const successMessage = message ? message : i18n.t('uiCommon.clipboard.copied');
     try {
       // Check if clipboard API is available (requires HTTPS or localhost)
       if (navigator.clipboard && window.isSecureContext) {
         // Modern async clipboard API
         await navigator.clipboard.writeText(text);
-        toast.success(message);
+        toast.success(successMessage);
         return true;
       } else {
         // Fallback for older browsers or non-secure contexts
@@ -27,28 +29,28 @@ export function useClipboard() {
           document.body.removeChild(textArea);
           
           if (successful) {
-            toast.success(message);
+            toast.success(successMessage);
             return true;
           } else {
-            toast.error('Failed to copy. Please copy manually.');
+            toast.error(i18n.t('uiCommon.clipboard.copy_failed_manual'));
             return false;
           }
         } catch (err) {
           document.body.removeChild(textArea);
-          toast.error('Failed to copy. Please copy manually.');
+          toast.error(i18n.t('uiCommon.clipboard.copy_failed_manual'));
           return false;
         }
       }
     } catch (error) {
       console.error('Copy to clipboard failed:', error);
-      toast.error('Failed to copy');
+      toast.error(i18n.t('uiCommon.clipboard.copy_failed'));
       return false;
     }
   };
 
   const copyMultiple = async (items: string[], message?: string) => {
     const text = items.join('\n');
-    const defaultMessage = message || `Copied ${items.length} items`;
+    const defaultMessage = message || i18n.t('uiCommon.clipboard.copied_items', { count: items.length });
     return copy(text, defaultMessage);
   };
 

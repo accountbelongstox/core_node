@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useTranslation } from 'react-i18next';
 import BentoCard from '@/shared/ui/BentoCard';
 import { FileNode, Language, StaticFileContent } from '@/apps/laravel-manager/uiTypes';
 import { getSource } from './resourceSources';
@@ -41,6 +42,7 @@ interface FileViewerProps {
 }
 
 const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lang = 'en' }) => {
+  const { t } = useTranslation();
   const activeFile = file;
 
   // Resolve the backend adapter for the active file from its source tag (set by
@@ -216,7 +218,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
     }
     if (!fileContent) {
       return (
-        <div className="h-full flex items-center justify-center text-slate-600 text-sm">No content</div>
+        <div className="h-full flex items-center justify-center text-slate-600 text-sm">{t('uiCommon.media.viewer.no_content')}</div>
       );
     }
 
@@ -230,7 +232,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
           key={activeFile.id}
           fileName={activeFile.name}
           downloadUrl={source.downloadUrl(activeFile)}
-          label="The code editor could not be loaded."
+          label={t('uiCommon.media.viewer.code_editor_failed')}
         >
           <div className="h-full bg-black/40 border border-white/5 rounded-lg overflow-hidden">
             <Suspense fallback={<ViewerLoading />}>
@@ -281,7 +283,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
       return (
         <div className="text-slate-600 text-center p-8">
           <File size={48} className="mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No file selected</p>
+          <p className="text-sm">{t('uiCommon.media.viewer.no_file_selected')}</p>
         </div>
       );
     }
@@ -313,7 +315,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
                 <button
                   onClick={playPreviousInPlaylist}
                   className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
-                  title="Previous Episode"
+                  title={t('uiCommon.media.viewer.prev_episode')}
                 >
                   <SkipBack size={20} />
                 </button>
@@ -322,7 +324,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
                 <button
                   onClick={playNextInPlaylist}
                   className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
-                  title="Next Episode"
+                  title={t('uiCommon.media.viewer.next_episode')}
                 >
                   <SkipForward size={20} />
                 </button>
@@ -341,7 +343,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
                 className="px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 text-white text-sm rounded-lg shadow-lg transition-all hover:scale-105 flex items-center gap-2"
               >
                 <FastForward size={16} />
-                Skip Intro
+                {t('uiCommon.media.viewer.skip_intro')}
               </button>
             </div>
           )}
@@ -389,7 +391,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
           key={activeFile.id}
           fileName={activeFile.name}
           downloadUrl={source.downloadUrl(activeFile)}
-          label="The book reader could not be loaded."
+          label={t('uiCommon.media.viewer.book_reader_failed')}
         >
           <Suspense fallback={<ViewerLoading />}>
             <EpubReader url={source.streamUrl(activeFile)} />
@@ -406,13 +408,13 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
     return (
       <div className="text-slate-500 text-center p-8 flex flex-col items-center gap-3">
         <FileType size={48} className="opacity-50" />
-        <p className="text-sm">No inline preview available</p>
+        <p className="text-sm">{t('uiCommon.media.viewer.no_inline_preview')}</p>
         <p className="text-xs font-mono text-slate-600">{activeFile.name}</p>
         <button
           onClick={() => handleDownload(activeFile)}
           className="mt-2 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
         >
-          <Download size={16} /> Download
+          <Download size={16} /> {t('uiCommon.media.viewer.download')}
         </button>
       </div>
     );
@@ -422,13 +424,13 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
   const isReadingType = activeFile && activeFile.fileType ? ['markdown', 'text', 'code', 'pdf', 'epub'].includes(activeFile.fileType) : false;
 
   return (
-    <BentoCard title="Preview" glowing className="flex-1 flex flex-col min-h-0">
+    <BentoCard title={t('uiCommon.media.viewer.preview')} glowing className="flex-1 flex flex-col min-h-0">
       <div className="flex flex-col gap-4 flex-1 min-h-0">
         {/* Viewer toolbar: edit / save / cancel for editable textual files. */}
         {canEdit && (
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
-              {isDirty && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Unsaved changes" />}
+              {isDirty && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title={t('uiCommon.media.viewer.unsaved_changes')} />}
               <span className="font-mono truncate">{activeFile ? activeFile.name : ''}</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -438,28 +440,28 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
                     onClick={handleSaveContent}
                     disabled={isSaving}
                     className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
-                    title="Save"
+                    title={t('uiCommon.media.viewer.save')}
                   >
                     {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                    Save
+                    {t('uiCommon.media.viewer.save')}
                   </button>
                   <button
                     onClick={handleCancelEdit}
                     className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-slate-300 text-xs rounded-lg transition-colors border border-white/10"
-                    title="Cancel"
+                    title={t('common.cancel')}
                   >
                     <RotateCcw size={13} />
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => setIsEditing(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-slate-300 text-xs rounded-lg transition-colors border border-white/10"
-                  title="Edit"
+                  title={t('uiCommon.media.viewer.edit')}
                 >
                   <Pencil size={13} />
-                  Edit
+                  {t('uiCommon.media.viewer.edit')}
                 </button>
               )}
             </div>
@@ -479,16 +481,16 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
         {activeFile && (
           <div className="text-xs space-y-1 text-slate-400">
             <div className="flex justify-between">
-              <span>Name:</span>
+              <span>{t('uiCommon.media.viewer.name_label')}</span>
               <span className="font-mono text-slate-300">{activeFile.name}</span>
             </div>
             <div className="flex justify-between">
-              <span>Size:</span>
-              <span className="font-mono text-slate-300">{activeFile.size ? activeFile.size : 'N/A'}</span>
+              <span>{t('uiCommon.media.viewer.size_label')}</span>
+              <span className="font-mono text-slate-300">{activeFile.size ? activeFile.size : t('uiCommon.media.viewer.not_available')}</span>
             </div>
             <div className="flex justify-between">
-              <span>Type:</span>
-              <span className="font-mono text-slate-300">{activeFile.fileType ? activeFile.fileType : 'unknown'}</span>
+              <span>{t('uiCommon.media.viewer.type_label')}</span>
+              <span className="font-mono text-slate-300">{activeFile.fileType ? activeFile.fileType : t('uiCommon.media.viewer.unknown')}</span>
             </div>
           </div>
         )}
@@ -501,7 +503,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
               onChange={(e) => setAutoPlay(e.target.checked)}
               className="rounded"
             />
-            <label className="text-slate-400">Auto-play next ({playlist.length} in queue)</label>
+            <label className="text-slate-400">{t('uiCommon.media.viewer.auto_play_next', { count: playlist.length })}</label>
           </div>
 
           <div className="flex items-center gap-2 text-xs">
@@ -511,7 +513,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
               onChange={(e) => setShowFloatingControls(e.target.checked)}
               className="rounded"
             />
-            <label className="text-slate-400">Show floating episode controls</label>
+            <label className="text-slate-400">{t('uiCommon.media.viewer.show_floating_controls')}</label>
           </div>
 
           <div className="flex items-center gap-2 text-xs">
@@ -521,13 +523,13 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
               onChange={(e) => setSkipIntro(prev => ({ ...prev, enabled: e.target.checked }))}
               className="rounded"
             />
-            <label className="text-slate-400">Auto-skip intro</label>
+            <label className="text-slate-400">{t('uiCommon.media.viewer.auto_skip_intro')}</label>
           </div>
 
           {skipIntro.enabled && (
             <div className="ml-5 space-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <label className="text-slate-500 w-12">Start:</label>
+                <label className="text-slate-500 w-12">{t('uiCommon.media.viewer.start_label')}</label>
                 <input
                   type="number"
                   min="0"
@@ -538,10 +540,10 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
                   }}
                   className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-slate-300"
                 />
-                <span className="text-slate-500">sec</span>
+                <span className="text-slate-500">{t('uiCommon.media.viewer.seconds_unit')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-slate-500 w-12">End:</label>
+                <label className="text-slate-500 w-12">{t('uiCommon.media.viewer.end_label')}</label>
                 <input
                   type="number"
                   min="0"
@@ -552,9 +554,9 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
                   }}
                   className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-slate-300"
                 />
-                <span className="text-slate-500">sec</span>
+                <span className="text-slate-500">{t('uiCommon.media.viewer.seconds_unit')}</span>
               </div>
-              <p className="text-[10px] text-slate-600">Skip intro from {skipIntro.start}s to {skipIntro.end}s</p>
+              <p className="text-[10px] text-slate-600">{t('uiCommon.media.viewer.skip_range', { start: skipIntro.start, end: skipIntro.end })}</p>
             </div>
           )}
         </div>

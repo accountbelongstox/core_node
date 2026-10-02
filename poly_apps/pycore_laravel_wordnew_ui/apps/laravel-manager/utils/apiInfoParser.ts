@@ -1,4 +1,5 @@
 import { ApiInfoEndpoint, ApiInfoParsedEndpoint, ApiInfoParam, ApiInfoResponse } from '@/apps/laravel-manager/uiTypes';
+import i18n from '@/apps/laravel-manager/i18n';
 
 /**
  * Parse feature string format:
@@ -16,7 +17,7 @@ export const parseFeatureString = (endpoint: ApiInfoEndpoint, index: number): Ap
       path,
       method: 'GET',
       authType: 'unknown',
-      description: 'No feature information available',
+      description: i18n.t('uiCommon.requests.no_feature_info'),
       controller: 'unknown'
     };
   }

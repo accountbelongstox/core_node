@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import BentoCard from '@/shared/ui/BentoCard';
+import { useTranslation } from 'react-i18next';
 import { FileNode, Language } from '@/apps/laravel-manager/uiTypes';
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 import { isDebugAuthBypass } from '@/apps/laravel-manager/config/auth';
@@ -133,6 +134,7 @@ interface FileTreePanelProps {
 }
 
 const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onSelectFile, onPlaylist, lang = 'en', reloadSignal, source, onRequireLogin }) => {
+  const { t } = useTranslation();
   // Viewing media is open; mutations (upload / new folder / rename / delete)
   // require login. Some sources (code) also require login just to BROWSE. The
   // loopback debug bypass counts as authenticated locally, matching the backend
@@ -229,7 +231,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   };
 
   // Friendly label for the current upload/new-folder target.
-  const targetDirLabel = selectedDir ? selectedDir : '(root)';
+  const targetDirLabel = selectedDir ? selectedDir : t('uiCommon.media.file_tree.root');
 
   // Switching source (files <-> code) clears the upload/new-folder target.
   useEffect(() => {
@@ -389,7 +391,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
          patchItem(i, { status: 'done', pct: 100 });
        } else {
          failures = failures + 1;
-         const failMsg = response.success === true ? 'No file was saved by the server.' : response.error;
+         const failMsg = response.success === true ? t('uiCommon.media.file_tree.no_file_saved') : response.error;
          patchItem(i, { status: 'failed', error: failMsg });
        }
        setBatchPct(Math.round(((i + 1) / total) * 100));
@@ -410,7 +412,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
        }
      }
      if (failures > 0) {
-       setError(`${failures} of ${total} file(s) failed to upload.`);
+       setError(t('uiCommon.media.file_tree.upload_failed_summary', { failures, total }));
      }
   };
 
@@ -499,13 +501,13 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   const showTargetTools = source.canUpload === true ? true : source.canMkdir === true;
 
   return (
-    <BentoCard title={source.label} className="flex-1 flex flex-col min-h-0" glowing>
+    <BentoCard title={t(source.labelKey)} className="flex-1 flex flex-col min-h-0" glowing>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => loadFileTree()}
             className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
-            title="Refresh"
+            title={t('common.refresh')}
           >
             <RefreshCw size={16} />
           </button>
@@ -515,7 +517,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
           {showTargetTools && (
             <span
               className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-400 max-w-[200px]"
-              title={`Target: ${targetDirLabel}`}
+              title={t('uiCommon.media.file_tree.target', { path: targetDirLabel })}
             >
               <Folder size={13} className="text-yellow-500/80 flex-shrink-0" />
               <span className="font-mono truncate">{targetDirLabel}</span>
@@ -525,20 +527,20 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
             <button
               onClick={() => { if (!ensureAuthed()) return; setIsUploadOpen(true); }}
               className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
-              title={authed ? 'Upload files or a folder' : 'Login required to upload'}
+              title={authed ? t('uiCommon.media.file_tree.upload_hint') : t('uiCommon.media.file_tree.upload_login_required')}
             >
               {authed ? <UploadCloud size={16} /> : <Lock size={16} />}
-              {authed ? 'Upload' : 'Login to upload'}
+              {authed ? t('uiCommon.media.file_tree.upload') : t('uiCommon.media.file_tree.login_to_upload')}
             </button>
           )}
           {source.canMkdir && (
             <button
               onClick={() => { if (!ensureAuthed()) return; setIsNewFolderOpen(true); }}
               className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
-              title={authed ? 'Create folder in target' : 'Login required'}
+              title={authed ? t('uiCommon.media.file_tree.new_folder_hint') : t('uiCommon.media.file_tree.login_required')}
             >
               {authed ? <FolderPlus size={16} /> : <Lock size={16} />}
-              New Folder
+              {t('uiCommon.media.file_tree.new_folder')}
             </button>
           )}
         </div>
@@ -553,12 +555,12 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
       {browseBlocked ? (
         <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
           <Lock size={32} className="text-amber-400" />
-          <p className="text-sm">Login required to browse {source.label}.</p>
+          <p className="text-sm">{t('uiCommon.media.file_tree.login_required_browse', { name: t(source.labelKey) })}</p>
           <button
             onClick={() => { if (onRequireLogin) onRequireLogin(); }}
             className="mt-1 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
           >
-            <Lock size={14} /> Login
+            <Lock size={14} /> {t('common.login')}
           </button>
         </div>
       ) : loading ? (
@@ -573,7 +575,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
             onClick={() => loadFileTree()}
             className="mt-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm rounded-lg transition-colors"
           >
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       ) : (
@@ -590,7 +592,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
           {visibleTree.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-500">
               <Folder size={48} className="mb-4 opacity-50" />
-              <p>No files found</p>
+              <p>{t('uiCommon.media.file_tree.no_files')}</p>
             </div>
           ) : (
             visibleTree.map(node => (

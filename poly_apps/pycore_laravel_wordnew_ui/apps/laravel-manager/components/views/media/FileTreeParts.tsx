@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import type { FileNode } from '@/apps/laravel-manager/uiTypes';
 import {
   AlertCircle, BookOpen, ChevronDown, ChevronRight, Code2, Download, File,
@@ -20,6 +21,7 @@ const FileTreeItem: React.FC<{
     onDelete: (node: FileNode) => void;
     onDownload: (node: FileNode) => void;
 }> = ({ node, level, activeId, selectedDir, canRename, canDelete, onSelect, onToggle, onRename, onDelete, onDownload }) => {
+  const { t } = useTranslation();
   const isActive = activeId === node.id;
   const isSelectedDir = node.type === 'folder' && selectedDir === node.id;
   const [isRenaming, setIsRenaming] = useState(false);
@@ -129,7 +131,7 @@ const FileTreeItem: React.FC<{
               <button
                 onClick={beginRename}
                 className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
-                title="Rename"
+                title={t('uiCommon.media.file_tree.rename')}
               >
                 <Pencil size={12} />
               </button>
@@ -138,7 +140,7 @@ const FileTreeItem: React.FC<{
               <button
                 onClick={(e) => { e.stopPropagation(); onDownload(node); }}
                 className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
-                title="Download"
+                title={t('uiCommon.media.file_tree.download')}
               >
                 <Download size={12} />
               </button>
@@ -147,7 +149,7 @@ const FileTreeItem: React.FC<{
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(node); }}
                 className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400"
-                title="Delete"
+                title={t('uiCommon.media.file_tree.delete')}
               >
                 <Trash2 size={12} />
               </button>
@@ -187,6 +189,7 @@ const UploadModal: React.FC<{
 }> = ({ isOpen, onClose, onUpload, targetLabel }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const folderInputRef = useRef<HTMLInputElement>(null);
+    const { t } = useTranslation();
     const [isDragging, setIsDragging] = useState(false);
 
     // webkitdirectory/directory are non-standard attrs that the React types omit; set
@@ -215,11 +218,11 @@ const UploadModal: React.FC<{
             <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                        <UploadCloud className="text-indigo-400" /> Upload Resources
+                        <UploadCloud className="text-indigo-400" /> {t('uiCommon.media.file_tree.upload_modal.title')}
                     </h3>
                     <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X size={20} className="text-slate-400" /></button>
                 </div>
-                <p className="text-xs text-slate-500 mb-6 font-mono truncate">Target: {targetLabel}</p>
+                <p className="text-xs text-slate-500 mb-6 font-mono truncate">{t('uiCommon.media.file_tree.target', { path: targetLabel })}</p>
 
                 <div
                     className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center text-center transition-colors cursor-pointer group ${isDragging ? 'border-indigo-400 bg-indigo-500/10' : 'border-white/10 hover:bg-white/5'}`}
@@ -229,8 +232,8 @@ const UploadModal: React.FC<{
                     onDrop={handleDrop}
                 >
                     <UploadCloud size={48} className="text-slate-500 group-hover:text-indigo-400 transition-colors mb-4" />
-                    <p className="text-slate-300 font-medium">Drag &amp; drop files here, or click to browse</p>
-                    <p className="text-xs text-slate-500 mt-2">Files upload into the selected target directory</p>
+                    <p className="text-slate-300 font-medium">{t('uiCommon.media.file_tree.upload_modal.drop_hint')}</p>
+                    <p className="text-xs text-slate-500 mt-2">{t('uiCommon.media.file_tree.upload_modal.drop_sub')}</p>
                 </div>
 
                 <div className="flex items-center gap-3 mt-4">
@@ -238,13 +241,13 @@ const UploadModal: React.FC<{
                         onClick={() => inputRef.current?.click()}
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
                     >
-                        <UploadCloud size={16} /> Select Files
+                        <UploadCloud size={16} /> {t('uiCommon.media.file_tree.upload_modal.select_files')}
                     </button>
                     <button
                         onClick={() => folderInputRef.current?.click()}
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
                     >
-                        <FolderPlus size={16} /> Select Folder
+                        <FolderPlus size={16} /> {t('uiCommon.media.file_tree.upload_modal.select_folder')}
                     </button>
                 </div>
 
@@ -284,6 +287,7 @@ const NewFolderModal: React.FC<{
     onCreate: (name: string) => void;
     targetLabel: string;
 }> = ({ isOpen, onClose, onCreate, targetLabel }) => {
+    const { t } = useTranslation();
     const [name, setName] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -310,11 +314,11 @@ const NewFolderModal: React.FC<{
             <div className="relative w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
-                        <FolderPlus className="text-indigo-400" size={18} /> New Folder
+                        <FolderPlus className="text-indigo-400" size={18} /> {t('uiCommon.media.file_tree.new_folder')}
                     </h3>
                     <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X size={18} className="text-slate-400" /></button>
                 </div>
-                <p className="text-xs text-slate-500 mb-4 font-mono truncate">In: {targetLabel}</p>
+                <p className="text-xs text-slate-500 mb-4 font-mono truncate">{t('uiCommon.media.file_tree.new_folder_modal.in_path', { path: targetLabel })}</p>
                 <input
                     ref={inputRef}
                     value={name}
@@ -323,12 +327,12 @@ const NewFolderModal: React.FC<{
                       if (e.key === 'Enter') { e.preventDefault(); submit(); }
                       else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
                     }}
-                    placeholder="folder name"
+                    placeholder={t('uiCommon.media.file_tree.new_folder_modal.name_placeholder')}
                     className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono outline-none focus:border-indigo-500/60"
                 />
                 <div className="flex justify-end gap-2 mt-4">
-                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">Cancel</button>
-                    <button onClick={submit} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors">Create</button>
+                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">{t('common.cancel')}</button>
+                    <button onClick={submit} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors">{t('uiCommon.media.file_tree.new_folder_modal.create')}</button>
                 </div>
             </div>
         </div>,
@@ -343,6 +347,7 @@ const DeleteConfirmModal: React.FC<{
     onClose: () => void;
     onConfirm: () => void;
 }> = ({ node, preview, loading, onClose, onConfirm }) => {
+    const { t } = useTranslation();
     if (!node) return null;
 
     return ReactDOM.createPortal(
@@ -353,27 +358,25 @@ const DeleteConfirmModal: React.FC<{
                     <div className="p-2 rounded-full bg-red-500/15">
                         <Trash2 className="text-red-400" size={18} />
                     </div>
-                    <h3 className="text-base font-bold text-white">Delete {node.type === 'folder' ? 'Folder' : 'File'}</h3>
+                    <h3 className="text-base font-bold text-white">{node.type === 'folder' ? t('uiCommon.media.file_tree.delete_modal.title_folder') : t('uiCommon.media.file_tree.delete_modal.title_file')}</h3>
                 </div>
                 <p className="text-sm text-slate-300 mb-1">
-                    Delete <span className="font-mono text-white">{node.name}</span>?
+                    <Trans i18nKey="uiCommon.media.file_tree.delete_modal.confirm" values={{ name: node.name }} components={{ hl: <span className="font-mono text-white" /> }} />
                 </p>
                 {loading ? (
                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
-                        <Loader2 size={14} className="animate-spin" /> Computing impact…
+                        <Loader2 size={14} className="animate-spin" /> {t('uiCommon.media.file_tree.delete_modal.computing')}
                     </div>
                 ) : preview ? (
                     <p className="text-xs text-slate-500 mt-3">
-                        This will remove <span className="text-red-400 font-medium">{preview.files}</span> file(s) and{' '}
-                        <span className="text-red-400 font-medium">{preview.directories}</span> director(ies){' '}
-                        (<span className="text-red-400 font-medium">{preview.total_items}</span> total). This cannot be undone.
+                        <Trans i18nKey="uiCommon.media.file_tree.delete_modal.impact" values={{ files: preview.files, directories: preview.directories, total: preview.total_items }} components={{ hl: <span className="text-red-400 font-medium" /> }} />
                     </p>
                 ) : (
-                    <p className="text-xs text-slate-500 mt-3">This cannot be undone.</p>
+                    <p className="text-xs text-slate-500 mt-3">{t('uiCommon.media.file_tree.delete_modal.irreversible')}</p>
                 )}
                 <div className="flex justify-end gap-2 mt-5">
-                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">Cancel</button>
-                    <button onClick={onConfirm} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors">Delete</button>
+                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">{t('common.cancel')}</button>
+                    <button onClick={onConfirm} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors">{t('uiCommon.media.file_tree.delete')}</button>
                 </div>
             </div>
         </div>,

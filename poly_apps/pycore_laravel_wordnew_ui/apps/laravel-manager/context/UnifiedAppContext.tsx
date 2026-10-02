@@ -27,6 +27,7 @@ import {
 } from '../routing/viewRoute';
 import { userModel } from '../models';
 import { getAuthErrorMessage } from '../utils/authErrors';
+import i18n from '@/apps/laravel-manager/i18n';
 import { useShell } from '../../../shell/ShellContext';
 import { AUTH_SESSION_CHANGED_EVENT } from '../../../core/auth/AuthRequestCenter';
 import { UnifiedAppContext } from './unifiedAppContext.core';
@@ -231,7 +232,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       return true;
     } catch (err: any) {
       const errorCode = err.errorCode as string | undefined;
-      const displayMessage = getAuthErrorMessage(errorCode, err.message || 'Login failed', language);
+      const displayMessage = getAuthErrorMessage(errorCode, err.message || i18n.t('login.errors.default'), language);
       setState(prev => ({ ...prev, loading: false, error: displayMessage }));
       console.error('[UnifiedAppContext] Login failed:', displayMessage);
       return false;
@@ -264,7 +265,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       console.log('[UnifiedAppContext] Registration successful:', UnifiedUser?.username);
       return true;
     } catch (err: any) {
-      const errorMessage = err.message || 'Registration failed';
+      const errorMessage = err.message || i18n.t('uiCommon.auth.registration_failed');
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       console.error('[UnifiedAppContext] Registration failed:', errorMessage);
       return false;
@@ -289,7 +290,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       console.log('[UnifiedAppContext] Logout successful');
       return true;
     } catch (err: any) {
-      const errorMessage = err.message || 'Logout failed';
+      const errorMessage = err.message || i18n.t('uiCommon.auth.logout_failed');
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       console.error('[UnifiedAppContext] Logout failed:', errorMessage);
       return false;
@@ -320,7 +321,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       console.log('[UnifiedAppContext] Preferences updated');
       return true;
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to update preferences';
+      const errorMessage = err.message || i18n.t('uiCommon.auth.update_preferences_failed');
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       console.error('[UnifiedAppContext] Update preferences failed:', errorMessage);
       return false;

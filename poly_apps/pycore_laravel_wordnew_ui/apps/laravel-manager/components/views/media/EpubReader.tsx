@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * EPUB reader for the unified Media explorer ("online reading" for books).
@@ -14,6 +15,7 @@ interface EpubReaderProps {
 }
 
 const EpubReader: React.FC<EpubReaderProps> = ({ url }) => {
+  const { t } = useTranslation();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const renditionRef = useRef<any>(null);
   const [loading, setLoading] = useState(true);
@@ -87,21 +89,21 @@ const EpubReader: React.FC<EpubReaderProps> = ({ url }) => {
       )}
       {failed && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white text-red-500 text-sm px-6 text-center">
-          Failed to open this book.
+          {t('uiCommon.media.epub.open_failed')}
         </div>
       )}
       <div ref={hostRef} className="h-full w-full" />
       <button
         onClick={goPrev}
         className="absolute left-2 top-1/2 -translate-y-1/2 z-20 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
-        title="Previous page"
+        title={t('uiCommon.media.epub.prev_page')}
       >
         <ChevronLeft size={20} />
       </button>
       <button
         onClick={goNext}
         className="absolute right-2 top-1/2 -translate-y-1/2 z-20 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
-        title="Next page"
+        title={t('uiCommon.media.epub.next_page')}
       >
         <ChevronRight size={20} />
       </button>

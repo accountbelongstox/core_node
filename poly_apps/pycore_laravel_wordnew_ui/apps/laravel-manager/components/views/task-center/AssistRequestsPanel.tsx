@@ -209,7 +209,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
             <button
               onClick={() => setNotice(null)}
               className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
-              aria-label={t('uiTask.assist_requests.dismiss_notice')}
+              aria-label={t('uiTask.shared.dismiss_notice')}
             >
               <XCircle className="w-4 h-4" />
             </button>

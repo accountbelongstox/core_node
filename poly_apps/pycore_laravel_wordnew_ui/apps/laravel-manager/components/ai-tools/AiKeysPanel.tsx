@@ -18,6 +18,7 @@ import {
   ShieldCheck, Image as ImageIcon, Link2, CheckCircle2, CircleDashed,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { useToast } from '../admin';
 import { appendLog } from '@/core/logstore/logStore';
 import type { AiKeysProvider, AiKeySlot } from '@/apps/laravel-manager/api';
@@ -39,6 +40,7 @@ const SlotRow: React.FC<{
   onSave: (name: string, value: string) => void;
   onDelete: (name: string) => void;
 }> = ({ slot, extraName, busy, onSave, onDelete }) => {
+  const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [reveal, setReveal] = useState(false);
 
@@ -65,12 +67,12 @@ const SlotRow: React.FC<{
           {slot.name}
         </span>
         {slot.set ? (
-          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-emerald-500/15 text-emerald-500" title={`stored · ${slot.masked ?? ''}`}>
-            <CheckCircle2 className="w-3 h-3" /> set
+          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-emerald-500/15 text-emerald-500" title={t('uiAi.keys.stored_title', { masked: slot.masked ?? '' })}>
+            <CheckCircle2 className="w-3 h-3" /> {t('uiAi.keys.set')}
           </span>
         ) : (
           <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-slate-500/10 text-slate-400">
-            <CircleDashed className="w-3 h-3" /> empty
+            <CircleDashed className="w-3 h-3" /> {t('uiAi.keys.empty')}
           </span>
         )}
       </div>
@@ -78,7 +80,7 @@ const SlotRow: React.FC<{
       {slot.set && (
         <span
           className="font-mono text-[10px] text-slate-400 truncate"
-          title={isConfig ? 'Stored config value' : 'Stored value (masked — raw key is never shown)'}
+          title={isConfig ? t('uiAi.keys.stored_config_title') : t('uiAi.keys.stored_value_title')}
         >
           {slot.masked ?? '••••'}
         </span>
@@ -91,7 +93,9 @@ const SlotRow: React.FC<{
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
-            placeholder={isConfig ? (slot.set ? 'Replace config…' : 'Enter config value…') : (slot.set ? 'Replace value…' : 'Enter value…')}
+            placeholder={isConfig
+              ? (slot.set ? t('uiAi.keys.placeholder_replace_config') : t('uiAi.keys.placeholder_enter_config'))
+              : (slot.set ? t('uiAi.keys.placeholder_replace_value') : t('uiAi.keys.placeholder_enter_value'))}
             autoComplete="off"
             spellCheck={false}
             disabled={busy}
@@ -102,7 +106,7 @@ const SlotRow: React.FC<{
               type="button"
               onClick={() => setReveal((r) => !r)}
               tabIndex={-1}
-              title={reveal ? 'Hide' : 'Show'}
+              title={reveal ? t('uiAi.keys.hide') : t('uiAi.keys.show')}
               className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
               {reveal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -112,7 +116,7 @@ const SlotRow: React.FC<{
         <button
           onClick={save}
           disabled={busy || !value.trim()}
-          title="Save this key"
+          title={t('uiAi.keys.save_title')}
           className="shrink-0 px-2 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {busy ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -120,7 +124,7 @@ const SlotRow: React.FC<{
         <button
           onClick={() => onDelete(slot.name)}
           disabled={busy || !slot.set}
-          title={slot.set ? 'Delete this key' : 'Nothing to delete'}
+          title={slot.set ? t('uiAi.keys.delete_title') : t('uiAi.keys.nothing_to_delete')}
           className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -132,6 +136,7 @@ const SlotRow: React.FC<{
 
 const AiKeysPanel: React.FC = () => {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [providers, setProviders] = useState<AiKeysProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,14 +151,14 @@ const AiKeysPanel: React.FC = () => {
       if (res.success && res.data && Array.isArray(res.data.providers)) {
         setProviders(res.data.providers);
       } else {
-        setError(res.error || res.data?.error || 'AI key inventory unavailable.');
+        setError(res.error || res.data?.error || t('uiAi.keys.unavailable'));
       }
     } catch (e: any) {
-      setError(e?.message || 'AI key backend unreachable.');
+      setError(e?.message || t('uiAi.keys.unreachable'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -166,20 +171,20 @@ const AiKeysPanel: React.FC = () => {
     try {
       const res = await api.aiManagement.setKey(name, value);
       if (res.success && res.data?.success) {
-        toast.success(`${name} saved (${res.data.masked ?? 'set'})`, 'AI keys');
+        toast.success(t('uiAi.keys.toast.saved', { name, value: res.data.masked ?? t('uiAi.keys.set') }), t('uiAi.keys.toast.title'));
         appendLog('success', 'ai', `AI key set: ${name} → ${res.data.masked ?? 'set'}`);
         await load();
       } else {
-        const msg = res.data?.error || res.error || 'Save failed';
-        toast.error(msg, 'AI keys');
+        const msg = res.data?.error || res.error || t('uiAi.keys.toast.save_failed');
+        toast.error(msg, t('uiAi.keys.toast.title'));
         appendLog('error', 'ai', `AI key set failed (${name}): ${msg}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Save failed', 'AI keys');
+      toast.error(e?.message || t('uiAi.keys.toast.save_failed'), t('uiAi.keys.toast.title'));
     } finally {
       markBusy(name, false);
     }
-  }, [load, toast]);
+  }, [load, toast, t]);
 
   const deleteKey = useCallback(async (name: string) => {
     markBusy(name, true);
@@ -187,27 +192,27 @@ const AiKeysPanel: React.FC = () => {
     try {
       const res = await api.aiManagement.deleteKey(name);
       if (res.success && res.data?.success) {
-        toast.success(`${name} deleted`, 'AI keys');
+        toast.success(t('uiAi.keys.toast.deleted', { name }), t('uiAi.keys.toast.title'));
         appendLog('success', 'ai', `AI key deleted: ${name}`);
         await load();
       } else {
-        const msg = res.data?.error || res.error || 'Delete failed';
-        toast.error(msg, 'AI keys');
+        const msg = res.data?.error || res.error || t('uiAi.keys.toast.delete_failed');
+        toast.error(msg, t('uiAi.keys.toast.title'));
         appendLog('error', 'ai', `AI key delete failed (${name}): ${msg}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Delete failed', 'AI keys');
+      toast.error(e?.message || t('uiAi.keys.toast.delete_failed'), t('uiAi.keys.toast.title'));
     } finally {
       markBusy(name, false);
     }
-  }, [load, toast]);
+  }, [load, toast, t]);
 
   return (
     <ToolWrapper
-      title="Provider API Keys"
+      title={t('uiAi.keys.title')}
       icon={KeyRound}
       gradient="indigo"
-      description="Set / list / delete AI provider keys — shared with pycore, with multi-key failover"
+      description={t('uiAi.keys.description')}
       actions={
         <button
           onClick={() => void load()}
@@ -215,7 +220,7 @@ const AiKeysPanel: React.FC = () => {
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
         >
           <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('uiAi.keys.refresh')}
         </button>
       }
     >
@@ -224,10 +229,7 @@ const AiKeysPanel: React.FC = () => {
           <span className="flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="break-words leading-relaxed">
-              Keys are stored in the shared secret store, so they apply to both laravel_main and pycore.
-              Storing more than one key per provider (KEY_1, KEY_2, …) enables automatic failover —
-              when one key is rate limited or out of quota, the gateway rotates to the next. Stored values
-              are shown masked only; the raw key is never returned to the browser.
+              {t('uiAi.keys.info')}
             </span>
           </span>
         </AiToolAlert>
@@ -243,13 +245,13 @@ const AiKeysPanel: React.FC = () => {
 
         {loading && providers.length === 0 ? (
           <div className="text-xs text-slate-500 py-10 text-center flex flex-col items-center gap-2">
-            <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> Loading keys…
+            <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> {t('uiAi.keys.loading')}
           </div>
         ) : providers.length === 0 ? (
           <AiBentoCard>
             <div className="text-center py-12">
               <KeyRound className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
-              <p className="text-slate-500 dark:text-slate-400">No providers reported.</p>
+              <p className="text-slate-500 dark:text-slate-400">{t('uiAi.keys.no_providers')}</p>
             </div>
           </AiBentoCard>
         ) : (
@@ -265,7 +267,7 @@ const AiKeysPanel: React.FC = () => {
                     <div className="min-w-0 flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{prov.provider}</span>
                       {prov.key_base && (
-                        <span className="font-mono text-[10px] text-slate-400 truncate" title="Registry key base">{prov.key_base}</span>
+                        <span className="font-mono text-[10px] text-slate-400 truncate" title={t('uiAi.keys.registry_key_base')}>{prov.key_base}</span>
                       )}
                     </div>
                     {!prov.keyless && (
@@ -273,9 +275,9 @@ const AiKeysPanel: React.FC = () => {
                         className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
                           setCount > 0 ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/10 text-slate-400'
                         }`}
-                        title="Number of stored keys for this provider"
+                        title={t('uiAi.keys.stored_count_title')}
                       >
-                        <KeyRound className="w-3 h-3" /> {setCount} set
+                        <KeyRound className="w-3 h-3" /> {t('uiAi.keys.stored_count', { count: setCount })}
                       </span>
                     )}
                   </div>
@@ -283,7 +285,7 @@ const AiKeysPanel: React.FC = () => {
                   {prov.keyless ? (
                     <div className="rounded-xl px-3 py-3 border border-dashed border-emerald-400/30 bg-emerald-500/5 text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 shrink-0" />
-                      No key required — this provider is free with no API key.
+                      {t('uiAi.keys.keyless')}
                     </div>
                   ) : (
                     <div className="space-y-2">
