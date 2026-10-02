@@ -18,7 +18,7 @@ declare -a MENU_CONFIG=(
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
     "[.] Install .NET SDK|START_DOTNET|false true|false|false|false|false"
     "[G] Install Gitea (Git Service)|INSTALL_GITEA|false true|false|true|true|false"
-    "[T] Install Tailscale (Local-Network Mesh VPN)|INSTALL_TAILSCALE|false true|false|true|true|true"
+    "[T] Mesh VPN After Installation|MESH_VPN_PROVIDER|headscale tailscale none|none|headscale|headscale|headscale"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )
@@ -62,6 +62,16 @@ sync_database_engine() {
 
     "$setter" "START_MYSQL" "$start_mysql"
     "$setter" "START_POSTGRESQL" "$start_postgresql"
+}
+
+# Mirror MESH_VPN_PROVIDER into INSTALL_TAILSCALE (true unless provider is none)
+sync_mesh_vpn_provider() {
+    local setter="$1"
+    local provider="$2"
+    local install_tailscale="true"
+
+    [ "$provider" = "none" ] && install_tailscale="false"
+    "$setter" "INSTALL_TAILSCALE" "$install_tailscale"
 }
 
 # Get preset value based on mode
@@ -128,6 +138,9 @@ reset_to_mode_defaults() {
             set_var "$key" "$new_preset"
             if [ "$key" == "DATABASE_ENGINE" ]; then
                 sync_database_engine set_var "$new_preset"
+            fi
+            if [ "$key" == "MESH_VPN_PROVIDER" ]; then
+                sync_mesh_vpn_provider set_var "$new_preset"
             fi
         fi
     done
@@ -217,6 +230,9 @@ cycle_value() {
     if [ "$key" == "DATABASE_ENGINE" ]; then
         sync_database_engine set_var "${options[$current_idx]}"
     fi
+    if [ "$key" == "MESH_VPN_PROVIDER" ]; then
+        sync_mesh_vpn_provider set_var "${options[$current_idx]}"
+    fi
     
     # Special handling: when mode changes, reset all values to new mode defaults
     if [ "$key" == "INSTALL_MODE" ]; then
@@ -245,6 +261,10 @@ save_configuration() {
             "DATABASE_ENGINE")
                 set_global_var "$key" "${current_values[$key]}"
                 sync_database_engine set_global_var "${current_values[$key]}"
+                ;;
+            "MESH_VPN_PROVIDER")
+                set_global_var "$key" "${current_values[$key]}"
+                sync_mesh_vpn_provider set_global_var "${current_values[$key]}"
                 ;;
             *)
                 set_global_var "$key" "${current_values[$key]}"

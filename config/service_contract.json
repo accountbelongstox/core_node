@@ -45,7 +45,11 @@
         "pycore_backend": 59000,
         "ncore_backend": 58000,
         "postgresql": 5432,
-        "redis": 6379
+        "redis": 6379,
+        "laravel_rescue_httpd": 16888,
+        "headscale": 18086,
+        "headscale_metrics": 19090,
+        "headscale_stun": 3478
     },
     "planes": {
         "web_server_default": "frankenphp",
@@ -78,6 +82,32 @@
                 "127.0.0.1/8",
                 "::1"
             ]
+        },
+        "mesh": {
+            "provider_key": "MESH_VPN_PROVIDER",
+            "provider_default": "headscale",
+            "providers": ["headscale", "tailscale", "none"],
+            "tailscale": {
+                "login_server": "",
+                "dns_suffix": "ts.net",
+                "cert_source": "tailscale_cert"
+            },
+            "headscale": {
+                "server_labels": ["hs", "{region}"],
+                "base_domain_labels": ["mesh"],
+                "root_domain_index": 0,
+                "cert_source": "dns01_dnspod",
+                "user": "core",
+                "authkey_secret": "HEADSCALE_AUTHKEY_1",
+                "config_dir": "/etc/headscale",
+                "data_dir": "/var/lib/headscale",
+                "service": "headscale",
+                "release_repo": "juanfont/headscale",
+                "derp_region_id": 900,
+                "derp_region_code": "core",
+                "ip_prefix_v4": "100.64.0.0/10",
+                "ip_prefix_v6": "fd7a:115c:a1e0::/48"
+            }
         },
         "root_domains": [
             "12gm.com",
@@ -388,6 +418,20 @@
             {"id": "device_tools", "linux": ["149_install_device_tools.sh"], "windows": ["Step27_InstallAndroidPlatformTools.ps1", "Step68_InstallScrcpy.ps1"], "skip_env": "DEVICE_TOOLS_SKIP", "mode": "", "full": false, "provides": ["adb", "scrcpy"]},
             {"id": "frontend_packages", "linux": ["197_install_frontend_packages.sh"], "windows": ["Step69_InstallFrontendPackages.ps1"], "skip_env": "FRONTEND_PACKAGES_SKIP", "mode": "", "full": false}
         ]
+    },
+    "laravel_rescue": {
+        "purpose": "Linux Laravel rescue plane: a busybox httpd (ports.laravel_rescue_httpd) whose signed CGI (client_key_auth, client shell) only writes <epoch>-<nonce>.<action>.request files into <CORE_NODE_DATA_DIR>/<requests_subpath>; the watcher unit polls every poll_seconds, deletes each file at once and runs its Laravel action.",
+        "httpd_service": "ncore-rescue-httpd",
+        "watcher_service": "ncore-laravel-rescue",
+        "root_subpath": "data/laravel_rescue",
+        "docroot_subpath": "data/laravel_rescue/www",
+        "requests_subpath": "data/laravel_rescue/requests",
+        "nonces_subpath": "data/laravel_rescue/nonces",
+        "status_file_subpath": "data/laravel_rescue/status.log",
+        "cgi_name": "laravel",
+        "poll_seconds": 30,
+        "actions": ["start", "restart", "sys-init", "optimize-clear"],
+        "read_actions": ["status"]
     },
     "book_seed": {
         "purpose": "Bible corpus seed: an xz tar disguised as .js, extracted by the shell prerequisite step (175_laravel_main_start.sh / FrankenPhpManager.ps1) and only read by Laravel's sys:init.",

@@ -172,6 +172,46 @@ Rendered only when `tailscale status` succeeds. Contract `access.tailnet` (`dns_
 - The contract also carries `pycore_legacy_paths` (`/pycore`, an alias of the pycore mount for UI clients) and `peers_route` (`/api/tailnet/peers`, `DESIGN_WORDNEW_CLIENT.md`).
 - Laravel `bootstrap/app.php` trusts `X-Forwarded-Prefix` from the loopback proxy only. UI: `BackendApiEndpoint.basePath`; a `.ts.net` origin maps to the same host + `/laravel-api`.
 
+### 6.5 Mesh VPN provider: Headscale (default) / Tailscale
+Contract `access.mesh` + ports `headscale` 18086, `headscale_metrics` 19090, `headscale_stun` 3478/udp. The existing Tailscale code and logic stay intact; Headscale is a parallel branch in separate files, selected by `if`.
+
+**Selector.** Shared gvar `MESH_VPN_PROVIDER` = `headscale|tailscale|none` (default `access.mesh.provider_default` = `headscale`; in `CORE_NODE_SHARED_GVAR_KEYS` and Windows `SharedGlobalVarKeys`). Linux `[T] Mesh VPN After Installation [headscale]` replaces the boolean Tailscale row (modes base/server/full/desktop: `none/headscale/headscale/headscale`) and mirrors `INSTALL_TAILSCALE` = provider != `none`, like `DATABASE_ENGINE` → `START_*`. Windows: the Tailscale quick menu shows `Provider [<value>]` (cycle + `Set-GlobalVar`).
+
+**Client.** Every provider uses the official Tailscale client (apt / winget `Tailscale.Tailscale`), so install, `tailscale status --json`, peer discovery (`tailnet_peers.py`, `TailnetDiscovery.ts`), IPs (100.64.0.0/10, fd7a:115c:a1e0::/48) and `source_ranges` are unchanged. Headscale only adds `--login-server=https://<server>` to `tailscale up`/`login` (plus `--authkey` from secret `HEADSCALE_AUTHKEY_1` when present) and swaps admin URLs (no SaaS admin console; server CLI/menu instead).
+
+**Files (branch dispatch).**
+| Role | Linux | Windows |
+|---|---|---|
+| Resolver (provider, login server URL, base domain, dns suffix, cert source, server-host check) | `common/mesh_common.sh` (`mesh_vpn_provider`, `mesh_login_server_url`, `mesh_base_domain`, `mesh_dns_suffix`, `mesh_cert_source`, `mesh_is_headscale_server_host`) | `win_common/MeshCommon.ps1` (`Get-MeshVpnProvider`, `Get-MeshLoginServerUrl`, `Get-MeshBaseDomain`, `Get-MeshDnsSuffix`, `Get-MeshCertSource`) |
+| Headscale client branch (login args, status labels, cert) | `common/headscale_common.sh` | `win_common/HeadscaleCommon.ps1` |
+| Headscale server (install/config/service/user/preauth key) | `debian/install_shells/98_install_headscale_server.sh` | none: Headscale has no Windows server; a Windows host may host it inside Debian WSL2 |
+| Server admin menu (nodes, users, keys, routes) | `menu_itemshells/headscale_menu.sh` | — |
+Call sites in `97_install_tailscale.sh`, `tailscale_common.sh`, `tailscale_menu.sh`, `domain_setup_common.sh`, `frankenphp_domain_common.sh`, `TailscaleCommon.ps1`, `FrankenPhpManager.ps1`, `Step175`, `RemoteControlCommon.ps1` keep their Tailscale body and gain `if provider = headscale → headscale_* / Invoke-Headscale*` at the login, admin-URL and certificate branch points only.
+
+**Server host.** Auto-discovered, never a static host: the server installs only when `hs.<region>.<root>` resolves to this host's public IP (`network_detect_common.sh` public-IP probe). `98_install_headscale_server.sh` (idempotent): latest `.deb` from `juanfont/headscale` (China region → existing mirror helper); `/etc/headscale/config.yaml` with `server_url https://hs.<region>.<root>`, `listen_addr 127.0.0.1:18086`, `metrics_listen_addr 127.0.0.1:19090`, the contract IP prefixes, SQLite, `dns.magic_dns: true`, `dns.base_domain: mesh.<root>`, region-aware upstream nameservers, embedded DERP (region 900 `core`, STUN `0.0.0.0:3478`) plus the public DERP map as fallback; systemd `headscale`; user `core`; a reusable preauth key written to the raw secret store as `HEADSCALE_AUTHKEY_1` (never printed); FrankenPHP site `hs.<region>.<root>` → `reverse_proxy 127.0.0.1:18086`; udp/3478 opened.
+
+**Domains (from 175 / `access.root_domains`, region `DOMAIN_API_REGION_PREFIX`, DNSPod).**
+| Name | Example | Resolution | TLS |
+|---|---|---|---|
+| Control server | `hs.si.12gm.com` | DNSPod A → server public IP (existing DNSPod domain flow) | Caddy DNS-01 (DNSPod) |
+| MagicDNS base | `mesh.12gm.com` (must not contain the server name) | headscale MagicDNS (100.100.100.100); no public records | — |
+| Machine UI / `/laravel-api` / `/pycore-api` | `<machine>.mesh.12gm.com` | MagicDNS | Caddy DNS-01 (DNSPod) replaces `tailscale cert` |
+| Machine API | `api.<machine>.mesh.12gm.com` | headscale `dns.extra_records` | Caddy DNS-01 (publicly trusted; mkcert only when no DNSPod token) |
+The `TAILSCALE_DOMAIN_1` suffix guard reads `mesh_base_domain` under Headscale. `tailscale cert`/HTTPS-in-admin-console instructions are shown only under the Tailscale provider.
+
+**Mutual exclusion and idempotent switching.** Exactly one provider is active per host; switching is one converge pass, safe to rerun (every step checks live state first; a rerun with no change is a no-op).
+- One setter writes the selection and its mirror together: Linux `set_mesh_vpn_provider` (`MESH_VPN_PROVIDER` + `INSTALL_TAILSCALE`), Windows `Set-MeshVpnProvider`; readers never see them diverge (pattern: `set_web_server_plane`). Menus/installers only call the setter, then the converge.
+- Converge: Linux `mesh_provider_converge` (`mesh_common.sh`, run by 97, 98, the `[T]` menu and the Tailscale/Headscale menus after a switch), Windows `Invoke-MeshProviderConverge` (`MeshCommon.ps1`). Desired control URL = Headscale server URL or `https://controlplane.tailscale.com`; actual = `tailscale debug prefs` `ControlURL` (live state, not a marker).
+  1. `none` → `tailscale down`, tailscaled stopped + disabled (existing `disable_tailscale_service` / Windows service), tailnet FrankenPHP site disabled.
+  2. Provider differs from the actual control URL → `tailscale logout`, then `tailscale up --login-server=<desired>` (+ authkey when present, existing flags, `--reset` fallback); equal and `Running` → nothing.
+  3. Headscale server host: provider `headscale` → step 98 ensures the service + `hs.*` route; any other provider → `headscale` service stopped + disabled and its `hs.*` route disabled. Config, SQLite DB, keys and certificates are kept (never deleted), so switching back resumes the same nodes.
+  4. Tailnet HTTPS: the site for the previous suffix (`*.ts.net` / `*.<mesh base>`) is disabled and the site for the active suffix is rendered with its cert source (tailscale cert ↔ DNS-01); Caddy reloads once; Vite `allowedHosts`/CORS host lists are regenerated from the live MagicDNS name. Old certificate files stay on disk, unreferenced.
+  5. Per-host `MESH_VPN_APPLIED_PROVIDER` (non-shared gvar) is written only after all steps succeed; it is informational (status labels), never a skip condition.
+
+**Migration / rollback.** Deploy the server on the public host (`MESH_VPN_PROVIDER=headscale`, step 98), then per node `tailscale logout` + `tailscale up --login-server=https://hs.<region>.<root> --authkey=…` (97 does it); Android/iOS: app settings → change server. Node IPs are re-assigned, so contract `hosts.tailnet_*` must be refreshed from live discovery. Rollback: `MESH_VPN_PROVIDER=tailscale` and rerun 97.
+
+**Open (app layer, outside the shell scope).** `ServiceContract.php::tailnetCorsOriginPatterns`, UI `ServiceContract.ts`/`pycoreTarget.ts`/`LaravelEndpoints.ts`/`TailnetDiscovery.ts` match only `access.tailnet.dns_suffix` (`ts.net`); they must also accept the Headscale base domain before nodes migrate.
+
 ## 7. Service convergence and host resources
 
 ### 7.1 Declarative convergence
