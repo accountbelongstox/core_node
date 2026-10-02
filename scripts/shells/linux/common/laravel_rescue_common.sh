@@ -23,6 +23,7 @@ LR_BASH_BIN="/bin/bash"
 LR_HTTPD_CPU="10%"
 LR_HTTPD_MEM="32M"
 LR_LOOPBACK_HOST="127.0.0.1"
+LR_FIREWALL_COMMENT="core_node Laravel rescue httpd"
 LR_HTTPD_DESC="core_node Laravel rescue httpd (busybox, signed CGI writes request files)"
 LR_WATCHER_DESC="core_node Laravel rescue watcher (runs queued Laravel actions)"
 LR_LARAVEL_DIR="${LR_LARAVEL_DIR:-}"
@@ -151,8 +152,8 @@ lr_ensure_openssl() {
     [ -n "$LR_OPENSSL_BIN" ] || lr_warn "openssl still unavailable; the CGI rejects every signature"
 }
 
-# httpd/CGI run as the repository permission owner (reads the client key);
-# the watcher runs as root like the Laravel plane unit.
+# Both units run as root; every rescue file is owned by the real (desktop)
+# user so it stays accessible to that user (CGI and watcher re-apply it).
 lr_resolve_owner() {
     resolve_active_permission_owner >/dev/null
     LR_OWNER="${ACTIVE_PERMISSION_USER:-root}"
@@ -198,6 +199,8 @@ export LR_REQUESTS_DIR='$LR_REQUESTS_DIR'
 export LR_NONCES_DIR='$LR_NONCES_DIR'
 export LR_STATUS_FILE='$LR_STATUS_FILE'
 export LR_POLL_SECONDS='$LR_POLL_SECONDS'
+export LR_OWNER='$LR_OWNER'
+export LR_GROUP='$LR_GROUP'
 exec $LR_BASH_BIN '$LR_CGI_SCRIPT'
 EOF
 }
@@ -212,13 +215,21 @@ lr_converge_unit() {
 
 lr_ensure_httpd_unit() {
     lr_converge_unit "$LR_HTTPD_SERVICE" "$LR_HTTPD_DESC" \
-        "$LR_BUSYBOX_BIN httpd -f -p $LR_PORT -h $LR_DOCROOT" "$LR_DOCROOT" "$LR_OWNER" always 5s "$LR_HTTPD_CPU" "$LR_HTTPD_MEM"
+        "$LR_BUSYBOX_BIN httpd -f -p $LR_PORT -h $LR_DOCROOT" "$LR_DOCROOT" root always 5s "$LR_HTTPD_CPU" "$LR_HTTPD_MEM"
 }
 
 lr_ensure_watcher_unit() {
     lr_converge_unit "$LR_WATCHER_SERVICE" "$LR_WATCHER_DESC" \
-        "LR_REQUESTS_DIR=$LR_REQUESTS_DIR LR_STATUS_FILE=$LR_STATUS_FILE LR_POLL_SECONDS=$LR_POLL_SECONDS LR_ACTIONS=${LR_ACTIONS// /,} LR_LARAVEL_DIR=$LR_LARAVEL_DIR LR_LARAVEL_START_SCRIPT=$LR_LARAVEL_START_SCRIPT LR_LARAVEL_SERVICE=${LR_LARAVEL_SERVICE:-none} $LR_BASH_BIN $LR_WATCHER_SCRIPT" \
+        "LR_ROOT_DIR=$LR_ROOT_DIR LR_OWNER=$LR_OWNER LR_GROUP=$LR_GROUP LR_REQUESTS_DIR=$LR_REQUESTS_DIR LR_STATUS_FILE=$LR_STATUS_FILE LR_POLL_SECONDS=$LR_POLL_SECONDS LR_ACTIONS=${LR_ACTIONS// /,} LR_LARAVEL_DIR=$LR_LARAVEL_DIR LR_LARAVEL_START_SCRIPT=$LR_LARAVEL_START_SCRIPT LR_LARAVEL_SERVICE=${LR_LARAVEL_SERVICE:-none} $LR_BASH_BIN $LR_WATCHER_SCRIPT" \
         "$LR_LARAVEL_DIR" root always 10s "" "" "" "" "" interactive
+}
+
+# Shared firewall_manager probe (UFW > firewalld > iptables; never installs one).
+lr_ensure_firewall() {
+    (
+        source "$LR_COMMON_DIR/firewall_manager.sh"
+        firewall_allow_port "$LR_PORT" tcp "$LR_FIREWALL_COMMENT"
+    ) || lr_warn "firewall rule for port $LR_PORT/tcp not confirmed"
 }
 
 lr_report_listening() {
@@ -234,6 +245,7 @@ lr_converge_root() {
     local mode="$1"
 
     lr_ensure_httpd_unit
+    lr_ensure_firewall
     if [ "$mode" = "watcher" ]; then
         lr_ensure_watcher_unit
     fi

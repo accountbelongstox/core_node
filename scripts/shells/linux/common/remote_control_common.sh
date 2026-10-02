@@ -820,6 +820,15 @@ rc_show_status() {
     echo "  Remmina VNC:    $(rc_vnc_profile_summary)"
 }
 
+# ACL note of the active mesh provider (Headscale reads policy.path from its config).
+rc_acl_note() {
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        printf 'Headscale ACL: no policy file allows all nodes; a custom policy (policy.path in config.yaml) must allow'
+    else
+        printf 'Tailscale ACL: the default policy allows all devices; custom ACLs must allow'
+    fi
+}
+
 rc_show_help() {
     cat <<EOF
 Remote control over Tailscale (Windows 10/11 <-> Debian 12/13, Ubuntu 24.04/26.04)
@@ -851,7 +860,7 @@ Manual UI steps when automation is not possible:
   Windows Home: cannot host RDP -- use VNC (default, TightVNC service) or SSH instead.
   Windows Microsoft account: RDP user = the account e-mail, password = account password (not PIN);
     Settings > Accounts > Sign-in options > turn off "Only allow Windows Hello sign-in".
-  Tailscale ACL: the default policy allows all devices; custom ACLs must allow tcp:$RC_VNC_PORT, tcp:$RC_RDP_PORT and tcp:$RC_SSH_PORT.
+  $(rc_acl_note) tcp:$RC_VNC_PORT, tcp:$RC_RDP_PORT and tcp:$RC_SSH_PORT.
 
 Shared key: ~/.ssh/$RC_SHARED_KEY_NAME (decrypted by 27_install_git_ssh.sh / Step5_InstallGitSSH.ps1).
 

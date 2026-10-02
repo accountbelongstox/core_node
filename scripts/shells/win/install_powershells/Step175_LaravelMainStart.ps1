@@ -165,10 +165,12 @@ if ($codemartInit -eq 'yes' -and (Test-Path -LiteralPath $artisanPath -PathType 
 Ensure-FrankenPhpCertificates | Out-Null
 Ensure-FrankenPhpCertificateRenewalTask | Out-Null
 # LAN/desktop hosts and every tailnet member (public servers included):
-# provision the local certificates (mkcert 127.0.0.1, Tailscale ts.net for the
-# UI, mkcert api.<ts.net> for Laravel) and deploy them as Caddy HTTPS sites.
+# provision the local certificates (mkcert 127.0.0.1; the mesh machine name for the
+# UI and api.<machine> for Laravel via Tailscale cert + mkcert, or DNS-01 DNSPod under
+# Headscale) and deploy them as Caddy HTTPS sites.
 # Additive: the public domain routes are untouched. Mirrors
 # fm_domain_tailnet_site_ensure in frankenphp_domain_common.sh.
+Invoke-MeshProviderConverge -SkipSite -NoInteractive | Out-Null
 if ((Test-FrankenPhpLanOnlyHost) -or (Test-FrankenPhpTailnetConnected)) {
     Ensure-FrankenPhpLanLocalCertificates | Out-Null
 }

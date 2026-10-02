@@ -24,6 +24,12 @@ LR_HDR_SIGNATURE="${HTTP_X_CORE_NODE_SIGNATURE:-}"
 
 source "$LR_SIGNATURE_LIB"
 
+# Runs as root: created files go to the real user (LR_OWNER) idempotently.
+lr_own() {
+    [ "$(id -u)" -eq 0 ] && chown "$LR_OWNER:$LR_GROUP" "$@" 2>/dev/null
+    return 0
+}
+
 # lr_reply <http status> <code> [extra json members]
 lr_reply() {
     printf 'Status: %s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n' "$1"
@@ -95,6 +101,7 @@ if ! ( set -C; : > "$LR_NONCE_FILE" ) 2>/dev/null; then
     [ -e "$LR_NONCE_FILE" ] && lr_reply "401 Unauthorized" "client_key_nonce_replayed"
     lr_reply "500 Internal Server Error" "laravel_rescue_nonce_write_failed"
 fi
+lr_own "$LR_NONCE_FILE"
 
 if lr_word_in "$LR_ACTION" "$LR_READ_ACTIONS"; then
     printf 'Status: 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\n\r\n'
@@ -106,7 +113,7 @@ LR_REQUEST_FILE="$LR_REQUESTS_DIR/$LR_NOW-$LR_HDR_NONCE.$LR_ACTION.request"
 LR_REQUEST_TMP="$LR_REQUESTS_DIR/.$LR_NOW-$LR_HDR_NONCE.tmp"
 printf 'action=%s\nclient=%s\nmachine_id=%s\nkey_id=%s\nremote_addr=%s\n' \
     "$LR_ACTION" "$LR_HDR_CLIENT" "$LR_HDR_MACHINE_ID" "$LR_HDR_KEY_ID" "${REMOTE_ADDR:-}" > "$LR_REQUEST_TMP" 2>/dev/null \
-    && mv -f "$LR_REQUEST_TMP" "$LR_REQUEST_FILE" 2>/dev/null
+    && lr_own "$LR_REQUEST_TMP" && mv -f "$LR_REQUEST_TMP" "$LR_REQUEST_FILE" 2>/dev/null
 if [ ! -f "$LR_REQUEST_FILE" ]; then
     rm -f "$LR_REQUEST_TMP" 2>/dev/null
     lr_reply "500 Internal Server Error" "laravel_rescue_request_write_failed"

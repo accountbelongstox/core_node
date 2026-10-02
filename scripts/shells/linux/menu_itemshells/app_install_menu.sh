@@ -59,6 +59,7 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:33_install_nginx.sh|Nginx"
     "script:35_install_certbot.sh|Certbot"
     "script:97_install_tailscale.sh|Tailscale (VPN)"
+    "script:98_install_headscale_server.sh|Headscale server (mesh VPN control plane)"
     "script:103_install_code_server.sh|Code Server"
     "script:159_install_gitea.sh|Gitea"
     "script:161_install_rustdesk_client_1.4.4.sh|RustDesk Client"

@@ -56,6 +56,12 @@ TAILSCALE_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # existing single source of truth; reused here instead of re-implementing it.
 # shellcheck source=/dev/null
 . "$TAILSCALE_COMMON_DIR/network_detect_common.sh"
+# Mesh provider resolver + Headscale branch (selected by `if` below; the
+# Tailscale body of every function stays intact).
+# shellcheck source=/dev/null
+. "$TAILSCALE_COMMON_DIR/mesh_common.sh"
+# shellcheck source=/dev/null
+. "$TAILSCALE_COMMON_DIR/headscale_common.sh"
 
 # The single definition of the systemd unit name (Linux rules: define once).
 # 97_install_tailscale.sh sources this file and no longer declares its own copy.
@@ -140,17 +146,42 @@ except Exception:
 # (gvar_common.sh / global_var_store.sh) is optional here -- this library is
 # also usable standalone (direct dispatcher call) where get_var may not exist.
 ts_quick_menu_label() {
-    local flag="" state=""
+    local flag="" state="" provider=""
     if command -v get_var >/dev/null 2>&1; then
         flag="$(get_var INSTALL_TAILSCALE true 2>/dev/null)"
     fi
     [ -n "$flag" ] || flag="true"
+    provider="$(mesh_vpn_provider)"
+    [ "$provider" = "tailscale" ] || flag="$provider"
     if is_tailscale_installed; then
         state="$(ts_backend_state)"
     else
         state="not installed"
     fi
     printf '%s|%s' "$flag" "$state"
+}
+
+# Title of the quick entry: "Tailscale" for the Tailscale provider, else the
+# selected mesh VPN provider.
+ts_quick_menu_title() {
+    local provider=""
+    provider="$(mesh_vpn_provider)"
+    if [ "$provider" = "tailscale" ]; then
+        printf 'Tailscale'
+    else
+        printf 'Mesh VPN (%s)' "$provider"
+    fi
+}
+
+# `tailscale up` command line hint for the active provider.
+ts_up_command_hint() {
+    local login_arg=""
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        login_arg="$(headscale_login_server_arg)"
+        printf 'sudo tailscale up %s' "$login_arg"
+        return 0
+    fi
+    printf 'sudo tailscale up'
 }
 
 # Human-readable install / service / connection summary.
@@ -181,11 +212,11 @@ ts_show_status() {
         case "$backend" in
             NeedsLogin)
                 echo ""
-                echo "Node is not authenticated. Connect with: sudo tailscale up"
+                echo "Node is not authenticated. Connect with: $(ts_up_command_hint)"
                 ;;
             Stopped)
                 echo ""
-                echo "Node is stopped. Reconnect with: sudo tailscale up"
+                echo "Node is stopped. Reconnect with: $(ts_up_command_hint)"
                 ;;
         esac
     fi
@@ -482,8 +513,12 @@ ts_start_web_ui() {
 ts_open_ui() {
     local backend="unknown" has_desktop=""
 
-    echo "Tailnet admin console (all devices, cloud panel):"
-    echo "  $TAILSCALE_ADMIN_CONSOLE_URL"
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        headscale_print_admin_info
+    else
+        echo "Tailnet admin console (all devices, cloud panel):"
+        echo "  $TAILSCALE_ADMIN_CONSOLE_URL"
+    fi
     echo ""
 
     if ! is_tailscale_installed; then
@@ -505,7 +540,7 @@ ts_open_ui() {
     [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ] && command -v xdg-open >/dev/null 2>&1 && has_desktop="true"
     if [ "$has_desktop" = "true" ]; then
         echo "Opening in the default browser..."
-        ts_open_url "$TAILSCALE_ADMIN_CONSOLE_URL"
+        [ "$(mesh_vpn_provider)" = "headscale" ] || ts_open_url "$TAILSCALE_ADMIN_CONSOLE_URL"
         [ "$backend" = "Running" ] && ts_open_url "$TAILSCALE_WEB_UI_URL"
     else
         echo "No desktop session detected; open the URL(s) above manually."
@@ -608,6 +643,7 @@ ts_apply_setting() {
 # connection attempt. No-op when already Running.
 ts_login() {
     local sudo_prefix="" logfile="" up_pid="" login_url="" waited=0 rc=0
+    local -a up_extra_args=()
 
     if ! is_tailscale_installed; then
         echo "Tailscale is not installed."
@@ -618,24 +654,33 @@ ts_login() {
         return 0
     fi
 
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        up_extra_args+=("$(headscale_login_server_arg)")
+    fi
     sudo_prefix="$(ts_sudo_prefix)"
     logfile="$(mktemp /tmp/tailscale-up.XXXXXX.log)"
     echo "Connecting (tailscale up)..."
     if [ -n "$sudo_prefix" ]; then
-        $sudo_prefix tailscale up >"$logfile" 2>&1 &
+        $sudo_prefix tailscale up "${up_extra_args[@]}" >"$logfile" 2>&1 &
     else
-        tailscale up >"$logfile" 2>&1 &
+        tailscale up "${up_extra_args[@]}" >"$logfile" 2>&1 &
     fi
     up_pid=$!
 
     while kill -0 "$up_pid" 2>/dev/null && [ -z "$login_url" ] && [ "$waited" -lt 20 ]; do
         login_url="$(sed -n 's/.*\(https:\/\/login\.tailscale\.com\/[^ ]*\).*/\1/p' "$logfile" | head -n1)"
+        if [ -z "$login_url" ] && [ "$(mesh_vpn_provider)" = "headscale" ]; then
+            login_url="$(headscale_extract_login_url < "$logfile")"
+        fi
         [ -n "$login_url" ] || { sleep 1; waited=$((waited + 1)); }
     done
     if [ -n "$login_url" ]; then
         echo "Open this URL to authorize this machine:"
         echo "  $login_url"
         ts_open_url "$login_url"
+        if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+            headscale_print_register_hint
+        fi
     fi
     echo "Waiting for authorization to complete (Ctrl+C stops waiting here; the connection finishes in the background)..."
     wait "$up_pid"

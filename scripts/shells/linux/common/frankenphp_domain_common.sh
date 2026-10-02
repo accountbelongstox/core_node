@@ -99,6 +99,28 @@ fm_domain_ensure_routes_dir() {
     echo "[fm-domain] [FAIL] routes directory could not be ensured: $FM_DOMAIN_ROUTES_DIR"
 }
 
+# Single tls-directive gate for one host (no trailing newline): the prebuilt
+# acme.sh DNS-01 certificate pinned explicitly when on disk, else the dnspod
+# module stanza when module + token are ready, else nothing (callers omit the
+# line; a bare tab line would not survive caddy fmt).
+# Usage: fm_domain_tls_directive_for_host <host>
+fm_domain_tls_directive_for_host() {
+    local host="$1"
+    local acme_cert_dir=""
+
+    acme_cert_dir="$(fm_acme_cert_dir_for_host "$host")"
+    if [ -n "$acme_cert_dir" ] \
+        && [ -f "${acme_cert_dir}/fullchain.pem" ] \
+        && [ -f "${acme_cert_dir}/key.pem" ]; then
+        printf '\ttls %s/fullchain.pem %s/key.pem' "$acme_cert_dir" "$acme_cert_dir"
+        return 0
+    fi
+    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
+        && [ -n "$(fm_dnspod_token_value)" ]; then
+        printf '\ttls {\n\t\tdns dnspod {env.%s}\n\t}' "$FRANKENPHP_DNSPOD_TOKEN_KEY"
+    fi
+}
+
 # Render ONE Caddy route file for a domain. The API host always maps to the
 # Laravel backend. Apex, www, regional, and regional-www hosts always map to
 # the UI backend. TLS is rendered only when a prebuilt certificate or the
@@ -108,10 +130,7 @@ fm_domain_render_route() {
     local domain="$1"
     local prefix="$2"
     local api_host="api.${prefix}.${domain}"
-    local dnspod_tls=""
-    local acme_tls=""
     local tls_directive=""
-    local acme_cert_dir=""
     local ui_addresses=""
     local api_http_address=""
     local ui_http_addresses=""
@@ -120,32 +139,9 @@ fm_domain_render_route() {
     local api_http_redirect=""
     local ui_http_redirect=""
 
-    # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
-    # pinned explicitly); the dnspod module stanza is the fallback.
-    acme_cert_dir="$(fm_acme_cert_dir_for_host "$api_host")"
-    if [ -n "$acme_cert_dir" ] \
-        && [ -f "${acme_cert_dir}/fullchain.pem" ] \
-        && [ -f "${acme_cert_dir}/key.pem" ]; then
-        acme_tls="tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem"
-    fi
-
-    # DNS-01 fallback gate: identical to fm_caddyfile_ensure
-    if [ -z "$acme_tls" ] \
-        && [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
-        && [ -n "$(fm_dnspod_token_value)" ]; then
-        dnspod_tls="tls {
-		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
-	}"
-    fi
-
-    # Single tls directive line - omitted entirely when both gates are off
-    # (a bare tab line would not survive caddy fmt).
-    tls_directive=""
-    if [ -n "$acme_tls" ]; then
-        tls_directive="	${acme_tls}
-"
-    elif [ -n "$dnspod_tls" ]; then
-        tls_directive="	${dnspod_tls}
+    tls_directive="$(fm_domain_tls_directive_for_host "$api_host")"
+    if [ -n "$tls_directive" ]; then
+        tls_directive="${tls_directive}
 "
     fi
 
@@ -530,6 +526,20 @@ fm_domain_lan_site_render() {
     local ui_handlers=""
     local api_mount=""
     local pycore_mount=""
+    local ts_tls="	tls ${DOMAIN_LAN_TS_CERT} ${DOMAIN_LAN_TS_KEY}"
+    local ts_api_tls="	tls ${DOMAIN_LAN_TS_API_CERT} ${DOMAIN_LAN_TS_API_KEY}"
+    local ts_enabled="no"
+    local ts_api_enabled="no"
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        ts_tls="$(headscale_lan_tls_directive "$DOMAIN_LAN_TS_CERT" "$DOMAIN_LAN_TS_KEY")"
+        ts_api_tls="$(headscale_lan_tls_directive "$DOMAIN_LAN_TS_API_CERT" "$DOMAIN_LAN_TS_API_KEY")"
+    fi
+    if { [ -n "$DOMAIN_LAN_TS_CERT" ] && [ -n "$DOMAIN_LAN_TS_KEY" ]; } || [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
+        ts_enabled="yes"
+    fi
+    if { [ -n "$DOMAIN_LAN_TS_API_CERT" ] && [ -n "$DOMAIN_LAN_TS_API_KEY" ]; } || [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
+        ts_api_enabled="yes"
+    fi
     api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL" "$FM_DOMAIN_API_EARLY_HINTS_LINK")"
     ui_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_UI_BACKEND_URL" "$FM_DOMAIN_UI_EARLY_HINTS_LINK")"
     api_mount="$(fm_caddy_path_mount_render "$FM_DOMAIN_TAILNET_API_PATH" "$FM_DOMAIN_BACKEND_URL")"
@@ -537,11 +547,11 @@ fm_domain_lan_site_render() {
 
     FM_DOMAIN_LAN_RENDERED="$({
         echo "# ${FM_DOMAIN_MARKER} lan=local_lan ts=${DOMAIN_TS_DNSNAME:-none}"
-        if [ -n "$DOMAIN_LAN_TS_CERT" ] && [ -n "$DOMAIN_LAN_TS_KEY" ]; then
+        if [ "$ts_enabled" = "yes" ]; then
             cat <<EOF
 
 https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} {
-	tls ${DOMAIN_LAN_TS_CERT} ${DOMAIN_LAN_TS_KEY}
+${ts_tls}
 ${pycore_mount}
 ${api_mount}
 	handle {
@@ -554,11 +564,11 @@ http://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTP_PORT} {
 }
 EOF
         fi
-        if [ -n "$DOMAIN_LAN_TS_API_CERT" ] && [ -n "$DOMAIN_LAN_TS_API_KEY" ]; then
+        if [ "$ts_api_enabled" = "yes" ]; then
             cat <<EOF
 
 https://${DOMAIN_TS_API_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} {
-	tls ${DOMAIN_LAN_TS_API_CERT} ${DOMAIN_LAN_TS_API_KEY}
+${ts_api_tls}
 ${api_handlers}
 }
 
@@ -588,6 +598,9 @@ fm_domain_lan_site_ensure() {
     local route_file="${FM_DOMAIN_ROUTES_DIR}/local_lan.caddy"
     local rendered=""
     local existing=""
+    local ts_enabled_log="no"
+    local ts_tls_label="tailscale cert"
+    local ts_api_tls_label="mkcert local CA"
 
     FM_DOMAIN_LAN_SITE_READY="no"
     fm_domain_ensure_routes_dir
@@ -597,7 +610,7 @@ fm_domain_lan_site_ensure() {
     fi
 
     domain_setup_lan_cert_paths_refresh
-    if [ -z "$DOMAIN_LAN_TS_CERT" ] && [ -z "$DOMAIN_LAN_MKCERT_PEM" ]; then
+    if [ -z "$DOMAIN_LAN_TS_CERT" ] && [ -z "$DOMAIN_LAN_MKCERT_PEM" ] && [ "$DOMAIN_LAN_TS_DNS01" != "yes" ]; then
         if [ -f "$route_file" ] && grep -q "$FM_DOMAIN_MARKER" "$route_file" 2>/dev/null; then
             rm -f "$route_file"
             echo "[fm-domain] [OK] Removed LAN route (no local certificates present): $route_file"
@@ -615,13 +628,20 @@ fm_domain_lan_site_ensure() {
     if [ "$existing" = "$rendered" ]; then
         FM_DOMAIN_LAN_SITE_READY="yes"
         echo "[fm-domain] [OK] LAN route file: $route_file"
-        if [ -n "$DOMAIN_LAN_TS_CERT" ]; then
-            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_UI_BACKEND_URL} (tls: tailscale cert)"
-            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}${FM_DOMAIN_TAILNET_API_PATH}/ -> ${FM_DOMAIN_BACKEND_URL} (tls: tailscale cert)"
-            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}${FM_DOMAIN_TAILNET_PYCORE_PATH}/ -> ${FM_DOMAIN_PYCORE_BACKEND_URL} (tls: tailscale cert, tailnet sources only)"
+        if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+            ts_tls_label="$(mesh_cert_source)"
+            [ "$DOMAIN_LAN_TS_DNS01" = "yes" ] && ts_api_tls_label="$(mesh_cert_source)"
         fi
-        if [ -n "$DOMAIN_LAN_TS_API_CERT" ]; then
-            echo "[fm-domain]     https://${DOMAIN_TS_API_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: mkcert local CA)"
+        if [ -n "$DOMAIN_LAN_TS_CERT" ] || [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
+            ts_enabled_log="yes"
+        fi
+        if [ "$ts_enabled_log" = "yes" ]; then
+            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_UI_BACKEND_URL} (tls: ${ts_tls_label})"
+            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}${FM_DOMAIN_TAILNET_API_PATH}/ -> ${FM_DOMAIN_BACKEND_URL} (tls: ${ts_tls_label})"
+            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}${FM_DOMAIN_TAILNET_PYCORE_PATH}/ -> ${FM_DOMAIN_PYCORE_BACKEND_URL} (tls: ${ts_tls_label}, tailnet sources only)"
+        fi
+        if [ -n "$DOMAIN_LAN_TS_API_CERT" ] || [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
+            echo "[fm-domain]     https://${DOMAIN_TS_API_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: ${ts_api_tls_label})"
         fi
         if [ -n "$DOMAIN_LAN_MKCERT_PEM" ]; then
             echo "[fm-domain]     https://127.0.0.1:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: mkcert local CA)"
@@ -716,6 +736,9 @@ fm_domain_install_all() {
 
     fm_domain_cleanup_stale_routes "$DOMAIN_DOMAINS_LIST"
     fm_domain_tailnet_site_ensure
+    if [ "$(mesh_vpn_provider)" = "headscale" ] && [ "$(mesh_is_headscale_server_host)" = "yes" ]; then
+        headscale_server_route_ensure
+    fi
 
     # The main Caddyfile owns only the internal TLS site. Public API and UI
     # hosts remain exclusively owned by the per-domain route files above.
