@@ -11,6 +11,7 @@
  * paint for page 1 before the network confirms it. Same responsive masonry look.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { StateMessage } from '@/shared/ui/StateMessage';
 import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewContentGroup, WfNewContentKind } from '../api';
 import { wfNewPageSize, WFNEW_LIST_ROWS } from '../api';
@@ -118,9 +119,7 @@ export const WfNewContentListPage: React.FC<WfNewContentListPageProps> = ({
 
       {/* Full masonry grid for the current page */}
       {items.length === 0 && !loading ? (
-        <div className="mx-1 p-6 rounded-2xl border border-dashed border-white/10 bg-white/2 text-center">
-          <p className="text-[12px] font-mono text-zinc-500">{trans('content.empty')}</p>
-        </div>
+        <StateMessage kind="empty" className="mx-1 rounded-2xl border border-dashed border-white/10 bg-white/[0.02]">{trans('content.empty')}</StateMessage>
       ) : (
         <WfNewContentGrid groups={items} theme={theme} trans={trans} onOpen={onOpen} />
       )}

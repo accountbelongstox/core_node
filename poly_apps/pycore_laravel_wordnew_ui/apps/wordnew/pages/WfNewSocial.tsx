@@ -3,6 +3,8 @@ import {
   Users, MessageSquare, Send, UserPlus, UserCheck, Search,
   Activity, Trophy, Check, X, Clock, ChevronRight,
 } from 'lucide-react';
+import { StateMessage } from '@/shared/ui/StateMessage';
+import { TextField } from '@/shared/ui/TextField';
 import type { ElementTheme } from '../WfNewThemes';
 import {
   wfNewApi,
@@ -23,6 +25,9 @@ import { WfNewSocialGallery } from '../components/WfNewSocialGallery';
 import { WfNewSocialVideo } from '../components/WfNewSocialVideo';
 import { WfNewSocialLive } from '../components/WfNewSocialLive';
 import { WfNewSocialNearby } from '../components/social/WfNewSocialNearby';
+import { WfNewSocialAvatar } from '../components/social/WfNewSocialAvatar';
+import { useSocialList } from '../components/social/useSocialList';
+import { formatRelativeTime } from '../../../core/utils/formatters';
 
 interface WfNewSocialProps {
   activeTheme: ElementTheme;
@@ -41,7 +46,6 @@ interface WfNewSocialProps {
 
 type SubTab = 'plaza' | 'post' | 'gallery' | 'video' | 'live' | 'partners' | 'nearby' | 'chat' | 'leaderboard';
 
-import { relativeTime, presenceClass } from '../components/social/socialPresence';
 import { WfNewSocialChat } from '../components/social/WfNewSocialChat';
 import { WfNewUserProfileModal } from '../components/social/WfNewUserProfileModal';
 import { PRESENCE_HEARTBEAT_MS, SOCIAL_DISCOVER_PAGE_SIZE, SOCIAL_POSTS_PAGE_SIZE, SOCIAL_PRESENCE_POLL_MS, SOCIAL_SEARCH_DEBOUNCE_MS } from '../constants/uiTiming';
@@ -59,42 +63,14 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   // Presence map (id → status), seeded + updated live across the whole page.
   const [presence, setPresence] = useState<Record<number, WfNewPresenceStatus>>({});
 
-  const [posts, setPosts] = useState<WfNewPost[]>([]);
-  const [plazaLoading, setPlazaLoading] = useState(true);
   const [plazaFilter, setPlazaFilter] = useState<WfNewPostFilter>('all');
+  const { items: posts, setItems: setPosts, loading: plazaLoading } = useSocialList<WfNewPost>(
+    isLoggedIn,
+    () => wfNewApi.getPosts({ filter: plazaFilter, limit: SOCIAL_POSTS_PAGE_SIZE }).then((page) => page.items),
+    [plazaFilter],
+  );
 
-  useEffect(() => {
-    let alive = true;
-    if (!isLoggedIn) {
-      setPosts([]);
-      setPlazaLoading(false);
-      return () => { alive = false; };
-    }
-    setPlazaLoading(true);
-    wfNewApi.getPosts({ filter: plazaFilter, limit: SOCIAL_POSTS_PAGE_SIZE })
-      .then(page => { if (alive) setPosts(page.items); })
-      .catch(() => { if (alive) setPosts([]); })
-      .finally(() => { if (alive) setPlazaLoading(false); });
-    return () => { alive = false; };
-  }, [plazaFilter, isLoggedIn]);
-
-  const [activities, setActivities] = useState<WfNewActivity[]>([]);
-  const [feedLoading, setFeedLoading] = useState(true);
-
-  useEffect(() => {
-    let alive = true;
-    if (!isLoggedIn) {
-      setActivities([]);
-      setFeedLoading(false);
-      return () => { alive = false; };
-    }
-    setFeedLoading(true);
-    wfNewApi.getActivities()
-      .then(rows => { if (alive) setActivities(Array.isArray(rows) ? rows : []); })
-      .catch(() => { if (alive) setActivities([]); })
-      .finally(() => { if (alive) setFeedLoading(false); });
-    return () => { alive = false; };
-  }, [isLoggedIn]);
+  const { items: activities, loading: feedLoading } = useSocialList<WfNewActivity>(isLoggedIn, () => wfNewApi.getActivities(), []);
 
   const [discover, setDiscover] = useState<WfNewDiscoverUser[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(true);
@@ -259,24 +235,8 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const openProfile = useCallback((id: number) => { if (Number.isFinite(id)) setProfileUserId(id); }, []);
 
-  const [leaderboard, setLeaderboard] = useState<WfNewLeaderboardEntry[]>([]);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [period, setPeriod] = useState<'week' | 'all'>('all');
-
-  useEffect(() => {
-    let alive = true;
-    if (!isLoggedIn) {
-      setLeaderboard([]);
-      setLeaderboardLoading(false);
-      return () => { alive = false; };
-    }
-    setLeaderboardLoading(true);
-    wfNewApi.getLeaderboard(period)
-      .then(rows => { if (alive) setLeaderboard(Array.isArray(rows) ? rows : []); })
-      .catch(() => { if (alive) setLeaderboard([]); })
-      .finally(() => { if (alive) setLeaderboardLoading(false); });
-    return () => { alive = false; };
-  }, [period, isLoggedIn]);
+  const { items: leaderboard, loading: leaderboardLoading } = useSocialList<WfNewLeaderboardEntry>(isLoggedIn, () => wfNewApi.getLeaderboard(period), [period]);
 
   useEffect(() => {
     const ids = conversations.map(c => c.peer?.id).filter((n): n is number => typeof n === 'number');
@@ -523,11 +483,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                 <div className="flex gap-3 overflow-x-auto pb-1">
                   {incoming.map(req => (
                     <div key={req.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/4 border border-white/5 shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden text-sm select-none">
-                        {req.avatar_url
-                          ? <img src={req.avatar_url} alt="" className="w-full h-full object-cover" />
-                          : <span>{(req.name || req.username || '?').slice(0, 1)}</span>}
-                      </div>
+                      <WfNewSocialAvatar src={req.avatar_url} name={req.name || req.username} size="w-8 h-8" textClass="text-sm" />
                       <span className="text-xs font-bold text-slate-200 max-w-[100px] truncate">{req.name || req.username}</span>
                       <button
                         onClick={() => handleRespond(req, 'accept')}
@@ -551,16 +507,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
 
             {/* Filter ribbon + search */}
             <div className="p-4 rounded-2xl bg-white/3 border border-white/5 flex flex-col sm:flex-row gap-4 justify-between items-center">
-              <div className="relative w-full sm:max-w-xs">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  type="text"
-                  value={partnerSearch}
-                  onChange={e => setPartnerSearch(e.target.value)}
-                  placeholder={trans('social.searchPh')}
-                  className="w-full bg-slate-900/60 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-200 outline-none placeholder-zinc-500 focus:border-indigo-500/50"
-                />
-              </div>
+              <TextField className="w-full sm:max-w-xs" icon={<Search />} value={partnerSearch} onChange={setPartnerSearch} placeholder={trans('social.searchPh')} />
               <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 gap-1 overflow-x-auto w-full sm:w-auto">
                 {['all', 'en', 'zh', 'ja', 'es', 'fr', 'ko'].map(langCode => (
                   <button
@@ -577,13 +524,9 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
             </div>
 
             {/* Discover grid */}
-            {discoverLoading && (
-              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.discoverLoading')}</div>
-            )}
+            {discoverLoading && <StateMessage kind="empty" size="page">{trans('social.discoverLoading')}</StateMessage>}
 
-            {!discoverLoading && discover.length === 0 && (
-              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.noDiscover')}</div>
-            )}
+            {!discoverLoading && discover.length === 0 && <StateMessage kind="empty" size="page">{trans('social.noDiscover')}</StateMessage>}
 
             {!discoverLoading && discover.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -601,14 +544,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                           title={trans('social.profile.viewProfile')}
                           className="group flex items-center gap-3 min-w-0 cursor-pointer"
                         >
-                          <div className="relative">
-                            <div className="w-11 h-11 rounded-full bg-zinc-800 flex items-center justify-center text-xl select-none overflow-hidden">
-                              {/^https?:/i.test(user.avatar)
-                                ? <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-                                : <span>{user.avatar || (user.nickname || '?').slice(0, 1)}</span>}
-                            </div>
-                            <span className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${presenceClass(presence[user.id] || user.presence)}`} />
-                          </div>
+                          <WfNewSocialAvatar src={user.avatar} name={user.nickname} size="w-11 h-11" textClass="text-xl" presence={presence[user.id] || user.presence || 'offline'} />
                           <div className="min-w-0">
                             <h4 className="text-sm font-black text-slate-200 truncate group-hover:text-indigo-300 transition-colors">{user.nickname}</h4>
                             <p className="text-[10px] text-indigo-400 font-mono">
@@ -716,28 +652,20 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                 </h5>
                 {activities.slice(0, 5).map(act => (
                   <div key={act.id} className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden shrink-0">
-                      {act.avatar_url
-                        ? <img src={act.avatar_url} alt="" className="w-full h-full object-cover" />
-                        : <span>{(act.user_name || '?').slice(0, 1)}</span>}
-                    </div>
+                    <WfNewSocialAvatar src={act.avatar_url} name={act.user_name} size="w-7 h-7" textClass="text-sm" />
                     <span className="text-[11px] font-bold text-slate-200 truncate">{act.user_name}</span>
                     <span className="text-[10px] text-zinc-500 truncate flex-1">{act.action || trans('social.feedDefaultAction')}</span>
                     <span className="text-[9px] text-zinc-600 font-mono shrink-0 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {relativeTime(act.time)}
+                      <Clock className="w-3 h-3" /> {formatRelativeTime(act.time)}
                     </span>
                   </div>
                 ))}
               </div>
             )}
 
-            {leaderboardLoading && (
-              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.leaderboardLoading')}</div>
-            )}
+            {leaderboardLoading && <StateMessage kind="empty" size="page">{trans('social.leaderboardLoading')}</StateMessage>}
 
-            {!leaderboardLoading && leaderboard.length === 0 && (
-              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.leaderboardEmpty')}</div>
-            )}
+            {!leaderboardLoading && leaderboard.length === 0 && <StateMessage kind="empty" size="page">{trans('social.leaderboardEmpty')}</StateMessage>}
 
             {!leaderboardLoading && leaderboard.map(entry => (
               <div
@@ -753,11 +681,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                 }`}>
                   #{entry.rank}
                 </span>
-                <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden shrink-0">
-                  {entry.avatar_url
-                    ? <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
-                    : <span>{(entry.name || entry.username || '?').slice(0, 1)}</span>}
-                </div>
+                <WfNewSocialAvatar src={entry.avatar_url} name={entry.name || entry.username} size="w-9 h-9" textClass="text-sm" />
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs font-bold truncate ${entry.is_current_user ? 'text-indigo-300' : 'text-slate-200'}`}>
                     {entry.name || entry.username}

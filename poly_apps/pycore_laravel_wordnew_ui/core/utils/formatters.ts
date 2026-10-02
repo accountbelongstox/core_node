@@ -74,3 +74,27 @@ export function formatDurationHms(seconds?: number | null, emptyLabel = '-'): st
   const h = Math.floor(m / 60);
   return `${h}h ${String(m % 60).padStart(2, '0')}m`;
 }
+
+const RELATIVE_FORMAT = typeof Intl !== 'undefined' && Intl.RelativeTimeFormat
+  ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  : null;
+const MS_PER_MINUTE = 60_000;
+const MS_PER_HOUR = 3_600_000;
+const MS_PER_DAY = 86_400_000;
+const RELATIVE_DAYS_LIMIT = 30;
+
+/** Relative time label ("5 minutes ago") for an ISO string; falls back to a date past 30 days. */
+export function formatRelativeTime(value?: string | null): string {
+  if (!value) return '';
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return String(value);
+  const diffMs = then - Date.now();
+  const abs = Math.abs(diffMs);
+  if (!RELATIVE_FORMAT) return new Date(then).toLocaleString();
+  if (abs < MS_PER_MINUTE) return RELATIVE_FORMAT.format(Math.round(diffMs / MS_PER_SECOND), 'second');
+  if (abs < MS_PER_HOUR) return RELATIVE_FORMAT.format(Math.round(diffMs / MS_PER_MINUTE), 'minute');
+  if (abs < MS_PER_DAY) return RELATIVE_FORMAT.format(Math.round(diffMs / MS_PER_HOUR), 'hour');
+  if (abs < MS_PER_DAY * RELATIVE_DAYS_LIMIT) return RELATIVE_FORMAT.format(Math.round(diffMs / MS_PER_DAY), 'day');
+  return new Date(then).toLocaleDateString();
+}
+

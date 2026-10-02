@@ -1,5 +1,7 @@
 import React from 'react';
+import { SegmentedControl } from '@/shared/ui/SegmentedControl';
 import type { WordNewAudioFileVariant } from '../api/types/media';
+import { translateActive } from '../WfNewLocales';
 import { sentenceVariantLabel } from '../utils/WordNewSentenceAudioPick';
 
 export interface WordNewAudioVariantPickerProps {
@@ -21,32 +23,17 @@ export const WordNewAudioVariantPicker: React.FC<WordNewAudioVariantPickerProps>
 
   return (
     <div
-      className={`flex flex-wrap gap-0.5 shrink-0 ${className}`}
-      role="group"
-      aria-label={trans?.('reader.variantPicker') ?? 'Voice variant'}
+      className={`shrink-0 ${className}`}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      {variants.map((v) => {
-        const key = v.variantKey ?? '';
-        const active = key === selectedKey;
-        return (
-          <button
-            key={key || 'primary'}
-            type="button"
-            title={sentenceVariantLabel(v, trans)}
-            aria-pressed={active}
-            onClick={() => onSelect(key)}
-            className={`px-1 py-0.5 rounded text-[8px] font-mono uppercase border transition-colors ${
-              active
-                ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-200'
-                : 'border-white/10 bg-white/5 text-zinc-500 hover:text-zinc-300 hover:border-white/20'
-            }`}
-          >
-            {sentenceVariantLabel(v, trans)}
-          </button>
-        );
-      })}
+      <SegmentedControl
+        size="xs"
+        ariaLabel={trans?.('reader.variantPicker') ?? translateActive('reader.variantPicker')}
+        value={selectedKey}
+        onChange={onSelect}
+        options={variants.map((v) => ({ value: v.variantKey ?? '', label: sentenceVariantLabel(v, trans), title: sentenceVariantLabel(v, trans) }))}
+      />
     </div>
   );
 };

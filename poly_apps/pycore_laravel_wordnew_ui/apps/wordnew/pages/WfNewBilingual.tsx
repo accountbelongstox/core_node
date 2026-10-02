@@ -8,6 +8,7 @@ import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type BilingualSentence, type BilingualWord } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { BILINGUAL_SPEECH_BEAT_MS } from '../constants/uiTiming';
+import { cancelSpeech, speakText } from '../utils/WordNewSpeech';
 
 interface WfNewBilingualProps {
   activeTheme: ElementTheme;
@@ -15,6 +16,30 @@ interface WfNewBilingualProps {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   dark?: boolean;
 }
+
+const RATIO_ACTIVE_CLASS = 'bg-indigo-500/15 border-indigo-500 text-indigo-600 dark:text-white';
+const ORDER_ACTIVE_CLASS = 'bg-purple-500/15 border-purple-500 text-purple-600 dark:text-white';
+
+const ChoiceTiles: React.FC<{
+  value: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  activeClass: string;
+  onChange: (value: string) => void;
+}> = ({ value, options, activeClass, onChange }) => (
+  <div className="grid grid-cols-2 gap-2.5">
+    {options.map((option) => (
+      <button
+        key={option.value}
+        onClick={() => onChange(option.value)}
+        className={`py-3 px-4 rounded-xl text-xs font-bold font-mono border text-center transition-all cursor-pointer ${
+          value === option.value ? activeClass : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
+        }`}
+      >
+        {option.label}
+      </button>
+    ))}
+  </div>
+);
 
 export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
   activeTheme,
@@ -80,48 +105,25 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
   };
 
   // Speaks a given piece of text in a specific language
-  const speakText = (text: string, langCode: string, onEnd: () => void) => {
-    if (!('speechSynthesis' in window)) {
-      addToast(trans('bilingual.ttsUnsupported'), "warning");
+  const speakLine = (text: string, langCode: string, onEnd: () => void) => {
+    if (!speakText(text, { lang: langCode, onEnd, onError: onEnd })) {
+      addToast(trans('bilingual.ttsUnsupported'), 'warning');
       onEnd();
-      return;
     }
-    
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Choose appropriate voice code
-    if (langCode === 'en') utterance.lang = 'en-US';
-    else if (langCode === 'zh') utterance.lang = 'zh-CN';
-    else if (langCode === 'fr') utterance.lang = 'fr-FR';
-    else if (langCode === 'de') utterance.lang = 'de-DE';
-    else if (langCode === 'es') utterance.lang = 'es-ES';
-    else if (langCode === 'ja') utterance.lang = 'ja-JP';
-    else if (langCode === 'ko') utterance.lang = 'ko-KR';
-    else utterance.lang = langCode;
-
-    utterance.onend = () => {
-      onEnd();
-    };
-    utterance.onerror = () => {
-      onEnd();
-    };
-
-    window.speechSynthesis.speak(utterance);
   };
 
   // Trigger continuous sequential recital
   const startRecitalChain = (sentence: BilingualSentence) => {
     if (currentlyPlayingChain && speakingSentenceId === sentence.id) {
       // Toggle off
-      window.speechSynthesis.cancel();
+      cancelSpeech();
       setCurrentlyPlayingChain(false);
       setSpeakingSentenceId(null);
       setPlaybackStage('idle');
       return;
     }
 
-    window.speechSynthesis.cancel();
+    cancelSpeech();
     setSpeakingSentenceId(sentence.id);
     setCurrentlyPlayingChain(true);
     
@@ -134,13 +136,13 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
 
     if (type === 'target') {
       // Speak target language (e.g. English)
-      speakText(sentence.targetText, sentence.targetLang, () => {
+      speakLine(sentence.targetText, sentence.targetLang, () => {
         // If ratio is 2en_1zh, should we repeat? We follow the configured layout ratio
         if (bilingualRatio === '2en_1zh') {
           // Play target language one more time before switching to native translation
           setPlaybackStage('target');
           timerRef.current = setTimeout(() => {
-            speakText(sentence.targetText, sentence.targetLang, () => {
+            speakLine(sentence.targetText, sentence.targetLang, () => {
               timerRef.current = setTimeout(() => {
                 executeRecitalStep(sentence, 'native');
               }, BILINGUAL_SPEECH_BEAT_MS);
@@ -155,15 +157,15 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
       });
     } else {
       // Speak native language translation (e.g. Chinese)
-      speakText(sentence.nativeText, sentence.nativeLang, () => {
+      speakLine(sentence.nativeText, sentence.nativeLang, () => {
         timerRef.current = setTimeout(() => {
           if (recitalOrder === 'native_first') {
             // If native was read first, now speak the target sentences
             setPlaybackStage('target');
-            speakText(sentence.targetText, sentence.targetLang, () => {
+            speakLine(sentence.targetText, sentence.targetLang, () => {
               if (bilingualRatio === '2en_1zh') {
                 timerRef.current = setTimeout(() => {
-                  speakText(sentence.targetText, sentence.targetLang, () => {
+                  speakLine(sentence.targetText, sentence.targetLang, () => {
                     stopRecitalGracefully();
                   });
                 }, BILINGUAL_SPEECH_BEAT_MS);
@@ -187,7 +189,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
 
   useEffect(() => {
     return () => {
-      window.speechSynthesis.cancel();
+      cancelSpeech();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
@@ -229,28 +231,15 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
             <span className="text-[10px] font-bold tracking-wider text-zinc-500 font-mono uppercase block">
               {trans('bilingual.ratioLabel')}
             </span>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                onClick={() => handleRatioSwitch('1en_1zh')}
-                className={`py-3 px-4 rounded-xl text-xs font-bold font-mono border text-center transition-all cursor-pointer ${
-                  bilingualRatio === '1en_1zh'
-                    ? 'bg-indigo-500/15 border-indigo-500 text-indigo-600 dark:text-white'
-                    : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
-                }`}
-              >
-                {trans('bilingual.ratioBtn11')}
-              </button>
-              <button
-                onClick={() => handleRatioSwitch('2en_1zh')}
-                className={`py-3 px-4 rounded-xl text-xs font-bold font-mono border text-center transition-all cursor-pointer ${
-                  bilingualRatio === '2en_1zh'
-                    ? 'bg-indigo-500/15 border-indigo-500 text-indigo-600 dark:text-white'
-                    : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
-                }`}
-              >
-                {trans('bilingual.ratioBtn21')}
-              </button>
-            </div>
+            <ChoiceTiles
+              value={bilingualRatio}
+              onChange={handleRatioSwitch}
+              activeClass={RATIO_ACTIVE_CLASS}
+              options={[
+                { value: '1en_1zh', label: trans('bilingual.ratioBtn11') },
+                { value: '2en_1zh', label: trans('bilingual.ratioBtn21') },
+              ]}
+            />
           </div>
 
           {/* Pronunciation Reading Order Sequence */}
@@ -258,28 +247,15 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
             <span className="text-[10px] font-bold tracking-wider text-zinc-500 font-mono uppercase block">
               {trans('bilingual.orderLabel')}
             </span>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                onClick={() => handleOrderSwitch('target_first')}
-                className={`py-3 px-4 rounded-xl text-xs font-bold font-mono border text-center transition-all cursor-pointer ${
-                  recitalOrder === 'target_first'
-                    ? 'bg-purple-500/15 border-purple-500 text-purple-600 dark:text-white'
-                    : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
-                }`}
-              >
-                {trans('bilingual.orderBtnTarget')}
-              </button>
-              <button
-                onClick={() => handleOrderSwitch('native_first')}
-                className={`py-3 px-4 rounded-xl text-xs font-bold font-mono border text-center transition-all cursor-pointer ${
-                  recitalOrder === 'native_first'
-                    ? 'bg-purple-500/15 border-purple-500 text-purple-600 dark:text-white'
-                    : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
-                }`}
-              >
-                {trans('bilingual.orderBtnNative')}
-              </button>
-            </div>
+            <ChoiceTiles
+              value={recitalOrder}
+              onChange={handleOrderSwitch}
+              activeClass={ORDER_ACTIVE_CLASS}
+              options={[
+                { value: 'target_first', label: trans('bilingual.orderBtnTarget') },
+                { value: 'native_first', label: trans('bilingual.orderBtnNative') },
+              ]}
+            />
           </div>
         </div>
 
@@ -452,7 +428,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    speakText(w.text, sentence.targetLang, () => {});
+                                    speakLine(w.text, sentence.targetLang, () => {});
                                   }}
                                   className="absolute right-3.5 bottom-3 text-zinc-400 hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-indigo-600/10"
                                 >

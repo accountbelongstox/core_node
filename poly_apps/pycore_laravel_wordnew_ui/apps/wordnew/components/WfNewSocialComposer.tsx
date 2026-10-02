@@ -8,6 +8,7 @@ import {
   type WfNewPost,
   type WfNewPostVisibility,
 } from '../api';
+import { TextField } from '@/shared/ui/TextField';
 
 interface WfNewSocialComposerProps {
   activeTheme: ElementTheme;
@@ -108,13 +109,7 @@ export const WfNewSocialComposer: React.FC<WfNewSocialComposerProps> = ({
         {trans('social.composeTitle')}
       </h4>
 
-      <textarea
-        rows={4}
-        value={content}
-        onChange={e => setContent(e.target.value)}
-        placeholder={trans('social.composePh')}
-        className="w-full bg-slate-900/60 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500 resize-none"
-      />
+      <TextField rows={4} value={content} onChange={setContent} placeholder={trans('social.composePh')} />
 
       {/* Pending image preview grid */}
       {images.length > 0 && (

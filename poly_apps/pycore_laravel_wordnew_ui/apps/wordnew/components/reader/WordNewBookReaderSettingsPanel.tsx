@@ -79,12 +79,12 @@ export const WordNewBookReaderSettingsPanel: React.FC<WordNewBookReaderSettingsP
         <div className="space-y-2.5">
           <span className="text-[10px] font-mono text-zinc-500 uppercase">{trans('reader.languages')}</span>
           <SegmentedControl
-            value={simul}
-            onChange={onModeChange}
+            value={simul ? 'simul' : 'single'}
+            onChange={(mode) => onModeChange(mode === 'simul')}
             activeClassName={activeTheme.accentBg}
             options={[
-              { value: false, label: trans('reader.modeSingle') },
-              { value: true, label: trans('reader.modeSimul'), disabled: languages.length < 2 },
+              { value: 'single', label: trans('reader.modeSingle') },
+              { value: 'simul', label: trans('reader.modeSimul'), disabled: languages.length < 2 },
             ]}
           />
           <div className="flex flex-wrap gap-1.5">

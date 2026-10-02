@@ -13,6 +13,7 @@ import { CourseBlockCard } from './WfNewCards';
 // for the Default Vocabulary Group deep-dive. See ./study + docs/.
 import { WfNewGroupStudyPanel } from './study/WfNewGroupStudyPanel';
 import { useShelfPriorityBoost } from '../hooks/usePriorityBoost';
+import { WfNewSectionHeader } from './WfNewSectionHeader';
 
 interface WfNewShelfTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
@@ -44,10 +45,7 @@ export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
     <>
               {!selectedCourse ? (
                 <>
-                  <div>
-                    <h2 className="text-2xl font-black tracking-tight">{trans('library.title')}</h2>
-                    <p className="text-zinc-500 text-xs mt-1">{trans('library.subtitle')}</p>
-                  </div>
+                  <WfNewSectionHeader variant="page" title={trans('library.title')} subtitle={trans('library.subtitle')} />
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {gGroups.map(g => (

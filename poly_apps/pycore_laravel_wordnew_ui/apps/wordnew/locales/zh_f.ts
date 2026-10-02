@@ -25,4 +25,7 @@ export const zhLocaleF: Record<string, string> = {
   'home.dailyReading.wordCount': '{count} 个单词',
   'library.loadFailed': '加载词库单词失败。',
   'social.signInToJoinLive': '登录后加入此直播间。',
+  'home.langTag': '语言：{lang}',
+  'social.nearbyRadiusKm': '{n} 公里',
+  'social.nearbyDistance': '距离 {n} 公里',
 };

@@ -5,7 +5,10 @@ import { ModalShell } from '@/shared/ui/ModalShell';
 import type { ElementTheme } from '../WfNewThemes';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { wfNewApi, type WfNewPost } from '../api';
-import { WfNewActorAvatar, wfNewRelativeTime } from './WfNewSocialPlaza';
+import { formatRelativeTime } from '../../../core/utils/formatters';
+import { WfNewActorAvatar } from './social/WfNewSocialAvatar';
+import { useSocialList } from './social/useSocialList';
+import { StateMessage } from '@/shared/ui/StateMessage';
 
 /** A flattened gallery tile: one image + its source post. */
 interface GalleryTile {
@@ -16,6 +19,8 @@ interface GalleryTile {
   post: WfNewPost;
 }
 
+const GALLERY_PAGE_SIZE = 40;
+
 interface WfNewSocialGalleryProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
@@ -24,20 +29,12 @@ interface WfNewSocialGalleryProps {
 }
 
 export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, isLoggedIn, requireAuth }) => {
-  const [posts, setPosts] = useState<WfNewPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: posts, loading } = useSocialList<WfNewPost>(
+    isLoggedIn,
+    () => wfNewApi.getPosts({ filter: 'images', limit: GALLERY_PAGE_SIZE }).then((page) => page.items),
+    [],
+  );
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    if (!isLoggedIn) { setPosts([]); setLoading(false); return () => { alive = false; }; }
-    setLoading(true);
-    wfNewApi.getPosts({ filter: 'images', limit: 40 })
-      .then(page => { if (alive) setPosts(page.items); })
-      .catch(() => { if (alive) setPosts([]); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [isLoggedIn]);
 
   const tiles = useMemo<GalleryTile[]>(() => {
     const out: GalleryTile[] = [];
@@ -68,13 +65,9 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
 
   return (
     <div className="space-y-4">
-      {loading && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.loading')}</div>
-      )}
+      {loading && <StateMessage kind="empty" size="page">{trans('social.loading')}</StateMessage>}
 
-      {!loading && tiles.length === 0 && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.galleryEmpty')}</div>
-      )}
+      {!loading && tiles.length === 0 && <StateMessage kind="empty" size="page">{trans('social.galleryEmpty')}</StateMessage>}
 
       {!loading && tiles.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -132,7 +125,7 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
                 <WfNewActorAvatar actor={current.post.author} size="w-7 h-7" />
                 <div className="text-left">
                   <p className="text-[11px] font-bold text-slate-100">{current.post.author.name}</p>
-                  <p className="text-[9px] text-zinc-400 font-mono">{wfNewRelativeTime(current.post.created_at)}</p>
+                  <p className="text-[9px] text-zinc-400 font-mono">{formatRelativeTime(current.post.created_at)}</p>
                 </div>
                 {current.caption && <span className="text-[11px] text-zinc-300 ml-2">{current.caption}</span>}
               </div>

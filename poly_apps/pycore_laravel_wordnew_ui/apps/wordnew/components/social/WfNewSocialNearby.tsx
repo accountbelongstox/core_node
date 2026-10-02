@@ -1,8 +1,16 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Geolocation } from '@capacitor/geolocation';
 import { LocateFixed, Loader2, MessageSquare, UserPlus } from 'lucide-react';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { wfNewApi, type WfNewNearbyUser } from '../../api';
+import { SelectField } from '@/shared/ui/SelectField';
+import { StateMessage } from '@/shared/ui/StateMessage';
+import { WfNewSocialAvatar } from './WfNewSocialAvatar';
+
+const NEARBY_RADIUS_KM_OPTIONS = [10, 50, 100, 200];
+const NEARBY_FETCH_LIMIT = 50;
+const DEFAULT_RADIUS_KM = 50;
+const GEOLOCATION_TIMEOUT_MS = 15000;
 
 interface WfNewSocialNearbyProps {
   isLoggedIn: boolean;
@@ -17,7 +25,8 @@ export const WfNewSocialNearby: React.FC<WfNewSocialNearbyProps> = ({
 }) => {
   const [users, setUsers] = useState<WfNewNearbyUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const [radiusKm, setRadiusKm] = useState(50);
+  const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
+  const [fetchedRadiusKm, setFetchedRadiusKm] = useState(DEFAULT_RADIUS_KM);
   const [requested, setRequested] = useState<Record<number, boolean>>({});
 
   const refresh = useCallback(async () => {
@@ -29,14 +38,15 @@ export const WfNewSocialNearby: React.FC<WfNewSocialNearbyProps> = ({
         addToast(trans('social.nearbyLocationRequired'), 'warning');
         return;
       }
-      const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 });
+      const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS });
       await wfNewApi.updateSocialLocation({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
         visible: true,
       });
-      setUsers(await wfNewApi.getNearbyUsers(radiusKm, 50));
+      setUsers(await wfNewApi.getNearbyUsers(radiusKm, NEARBY_FETCH_LIMIT));
+      setFetchedRadiusKm(radiusKm);
     } catch {
       setUsers([]);
       addToast(trans('social.nearbyLoadFailed'), 'warning');
@@ -44,6 +54,11 @@ export const WfNewSocialNearby: React.FC<WfNewSocialNearbyProps> = ({
       setLoading(false);
     }
   }, [isLoggedIn, requireAuth, addToast, radiusKm]);
+
+  const visibleUsers = useMemo(
+    () => (radiusKm < fetchedRadiusKm ? users.filter((user) => user.distance_km <= radiusKm) : users),
+    [users, radiusKm, fetchedRadiusKm],
+  );
 
   const stopSharing = useCallback(async () => {
     if (!isLoggedIn) { requireAuth(); return; }
@@ -75,12 +90,12 @@ export const WfNewSocialNearby: React.FC<WfNewSocialNearbyProps> = ({
           <p className="text-[11px] text-zinc-500 font-mono">{trans('social.nearbyHint')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <select value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))} className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-300">
-            <option value={10}>10 km</option>
-            <option value={50}>50 km</option>
-            <option value={100}>100 km</option>
-            <option value={200}>200 km</option>
-          </select>
+          <SelectField<number>
+            variant="compact"
+            value={radiusKm}
+            onChange={setRadiusKm}
+            options={NEARBY_RADIUS_KM_OPTIONS.map((km) => ({ value: km, label: trans('social.nearbyRadiusKm', { n: km }) }))}
+          />
           <button onClick={() => void refresh()} disabled={loading} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer disabled:opacity-50">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
             {trans('social.nearbyRefresh')}
@@ -89,18 +104,16 @@ export const WfNewSocialNearby: React.FC<WfNewSocialNearbyProps> = ({
         </div>
       </div>
 
-      {!loading && users.length === 0 && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.nearbyEmpty')}</div>
+      {!loading && visibleUsers.length === 0 && (
+        <StateMessage kind="empty" size="page">{trans('social.nearbyEmpty')}</StateMessage>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {users.map((user) => (
+        {visibleUsers.map((user) => (
           <div key={user.id} className="p-4 rounded-2xl bg-white/3 border border-white/5 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center shrink-0">
-              {user.avatar ? <img src={mediaUrl(user.avatar)} alt="" className="w-full h-full object-cover" /> : <span>{user.nickname.slice(0, 1)}</span>}
-            </div>
+            <WfNewSocialAvatar src={user.avatar ? mediaUrl(user.avatar) : ''} name={user.nickname} size="w-12 h-12" textClass="text-base" />
             <div className="min-w-0 flex-1">
               <div className="font-bold text-sm text-slate-200 truncate">{user.nickname}</div>
-              <div className="text-[10px] text-indigo-300 font-mono">{user.distance_km.toFixed(1)} km away</div>
+              <div className="text-[10px] text-indigo-300 font-mono">{trans('social.nearbyDistance', { n: user.distance_km.toFixed(1) })}</div>
               <div className="text-[10px] text-zinc-500 truncate">{user.native_language} → {user.learning_languages.join(', ')}</div>
             </div>
             <div className="flex gap-1">

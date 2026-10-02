@@ -2,8 +2,7 @@
  * stays under the 800-line modular limit. Pure presentation: state + handlers
  * come from the shell via props (prop names match the destructured hook bindings). */
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight, Volume2, Play, Languages, BarChart2, AudioLines, Users, GalleryVerticalEnd, SpellCheck, Headphones, BookOpenText } from 'lucide-react';
+import { Volume2, Play, Languages, BarChart2, AudioLines, Users, GalleryVerticalEnd, SpellCheck, Headphones, BookOpenText } from 'lucide-react';
 
 import { DEFAULT_VOCAB_GROUP_NAME } from '../api';
 import type { WordGroup, BentoGroup, WfNewContentGroup, WfNewHomeContent, WfNewLanguage } from '../api';
@@ -14,8 +13,27 @@ import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
 import { WfNewContentGroupCard } from './WfNewContentGroupCard';
 import { WfNewHomeDashboard } from './WfNewHomeDashboard';
 import { WfNewHomeLabCard } from './WfNewHomeLabCard';
+import { WfNewHomeDefaultGroupCard } from './WfNewHomeDefaultGroupCard';
+import { WfNewSectionHeader } from './WfNewSectionHeader';
 import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
 import { dailyReadingHash } from '../routing/WordNewHashRoutes';
+import { cancelSpeech } from '../utils/WordNewSpeech';
+
+const HOME_LAB_CARDS = [
+  { tab: 'walkman', accent: 'indigo', icon: Volume2, iconClassName: 'animate-pulse', title: 'home.walkmanTitle', desc: 'home.walkmanDesc' },
+  { tab: 'subtitles', accent: 'fuchsia', icon: Play, title: 'home.subsTitle', desc: 'home.subsDesc' },
+  { tab: 'bilingual', accent: 'amber', icon: Languages, title: 'home.bilingualTitle', desc: 'home.bilingualDesc' },
+  { tab: 'orch-audio', accent: 'cyan', icon: AudioLines, title: 'home.orchAudioTitle', desc: 'home.orchAudioDesc' },
+  { tab: 'stats', accent: 'emerald', icon: BarChart2, title: 'home.statsTitle', desc: 'home.statsDesc' },
+  { tab: 'social', accent: 'rose', icon: Users, title: 'nav.social', desc: 'home.socialDesc' },
+] as const;
+
+const HOME_MODE_CARDS = [
+  { id: 'study', accent: 'fuchsia', icon: GalleryVerticalEnd, title: 'modes.flashcards', desc: 'home.modeStudyDesc' },
+  { id: 'quiz', accent: 'emerald', icon: SpellCheck, title: 'modes.quiz', desc: 'home.modeQuizDesc' },
+  { id: 'listening', accent: 'amber', icon: Headphones, title: 'modes.listening', desc: 'home.modeListenDesc' },
+  { id: 'reading', accent: 'blue', icon: BookOpenText, title: 'modes.reading', desc: 'home.modeReadDesc' },
+] as const;
 
 interface WfNewHomeTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
@@ -66,19 +84,9 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
 
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
               <div className="space-y-3.5 pt-4 animate-fade-in">
-                <h3 className="flex items-center gap-2 px-1 text-xs font-black font-mono uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                  <span aria-hidden className="h-3.5 w-1 rounded-full bg-gradient-to-b from-indigo-400 to-fuchsia-500" />
-                  {trans('home.labsHeader')}
-                </h3>
+                <WfNewSectionHeader variant="bar" title={trans('home.labsHeader')} />
                 <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4">
-                  {([
-                    { tab: 'walkman', accent: 'indigo', icon: Volume2, iconClassName: 'animate-pulse', title: 'home.walkmanTitle', desc: 'home.walkmanDesc' },
-                    { tab: 'subtitles', accent: 'fuchsia', icon: Play, title: 'home.subsTitle', desc: 'home.subsDesc' },
-                    { tab: 'bilingual', accent: 'amber', icon: Languages, title: 'home.bilingualTitle', desc: 'home.bilingualDesc' },
-                    { tab: 'orch-audio', accent: 'cyan', icon: AudioLines, title: 'home.orchAudioTitle', desc: 'home.orchAudioDesc' },
-                    { tab: 'stats', accent: 'emerald', icon: BarChart2, title: 'home.statsTitle', desc: 'home.statsDesc' },
-                    { tab: 'social', accent: 'rose', icon: Users, title: 'nav.social', desc: 'home.socialDesc' },
-                  ] as const).map((card) => (
+                  {HOME_LAB_CARDS.map((card) => (
                     <WfNewHomeLabCard
                       key={card.tab}
                       theme={activeTheme}
@@ -89,7 +97,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                       description={trans(card.desc)}
                       onOpen={() => {
                         setActiveTab(card.tab);
-                        window.speechSynthesis?.cancel();
+                        cancelSpeech();
                       }}
                     />
                   ))}
@@ -98,17 +106,9 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
 
               {/* Quantum Recitation Portal modes */}
               <div className="space-y-3.5 pt-4">
-                <h3 className="flex items-center gap-2 px-1 text-xs font-black font-mono uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                  <span aria-hidden className="h-3.5 w-1 rounded-full bg-gradient-to-b from-indigo-400 to-fuchsia-500" />
-                  {trans('home.modesHeader')}
-                </h3>
+                <WfNewSectionHeader variant="bar" title={trans('home.modesHeader')} />
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-                  {([
-                    { id: 'study', accent: 'fuchsia', icon: GalleryVerticalEnd, title: 'modes.flashcards', desc: 'home.modeStudyDesc' },
-                    { id: 'quiz', accent: 'emerald', icon: SpellCheck, title: 'modes.quiz', desc: 'home.modeQuizDesc' },
-                    { id: 'listening', accent: 'amber', icon: Headphones, title: 'modes.listening', desc: 'home.modeListenDesc' },
-                    { id: 'reading', accent: 'blue', icon: BookOpenText, title: 'modes.reading', desc: 'home.modeReadDesc' },
-                  ] as const).map((mode) => (
+                  {HOME_MODE_CARDS.map((mode) => (
                     <WfNewHomeLabCard
                       key={mode.id}
                       theme={activeTheme}
@@ -133,190 +133,29 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
 
               {/* Word Groups uses the original dossier artwork as one full-width block. */}
               <div className="space-y-4 pt-4">
-                <div className="flex justify-between items-center px-1">
-                  <div>
-                    <h3 className="text-sm font-black font-mono uppercase tracking-widest text-zinc-400">
-                      {trans('content.section.word')}
-                    </h3>
-                    <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                      {trans('home.dossiersDesc')}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={openWordGroupList}
-                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    {trans('home.allPacks')} <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                <WfNewSectionHeader
+                  title={trans('content.section.word')}
+                  subtitle={trans('home.dossiersDesc')}
+                  action={{ label: trans('home.allPacks'), onClick: openWordGroupList }}
+                />
 
                 {/* The canonical Default Vocabulary Group owns the complete row. */}
                 <div className="grid grid-cols-1 gap-6 auto-rows-auto">
-                  {bentoGroups.filter((group) => group.name === DEFAULT_VOCAB_GROUP_NAME).map((group, idx) => {
-                    // Match decoration variables
-                    const progressVal = group.progress;
-                    
-                    return (
-                      <motion.div
-                        key={group.id}
-                        onClick={() => {
-                          setActiveTab('shelf');
-                          selectBookCourse(group);
-                        }}
-                        whileHover={{ scale: 1.015, y: -4 }}
-                        transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                        className={`w-full h-[160px] rounded-3xl relative overflow-hidden cursor-pointer group flex flex-col justify-between p-6 transition-all duration-300 border backdrop-blur-xl ${
-                          dark 
-                            ? `bg-slate-900/40 border-white/5 hover:border-indigo-500/30 ${activeTheme.glowClass}` 
-                            : `bg-white/40 border-zinc-200 hover:border-indigo-400/40 shadow-sm hover:shadow-indigo-100/40`
-                        }`}
-                      >
-                        {/* A. Premium Photo Backdrops */}
-                        <div 
-                          className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-[0.14] dark:opacity-[0.08] pointer-events-none transition-transform duration-700 group-hover:scale-105"
-                          style={{
-                            backgroundImage: group.id === 'bento-cosmic-1' 
-                              ? 'url("https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?auto=format&fit=crop&q=60&w=800")' 
-                              : group.id === 'bento-silicon-2'
-                              ? 'url("https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&q=60&w=800")' 
-                              : group.id === 'bento-literary-3'
-                              ? 'url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=60&w=800")' 
-                              : 'url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=60&w=800")'
-                          }}
-                        />
-
-                        {/* B. Kinetic Text Waterfall Rainfall Backdrop */}
-                        <div className="absolute inset-0 overflow-hidden opacity-[0.06] dark:opacity-[0.04] pointer-events-none select-none font-mono text-[8px] uppercase tracking-widest leading-none">
-                          <div className={`flex flex-col gap-2 ${idx % 2 === 0 ? 'animate-[pulse_4s_infinite]' : 'animate-pulse'}`}>
-                            {Array.from({ length: 12 }).map((_, rIdx) => (
-                              <div key={rIdx} className="flex gap-4 whitespace-nowrap animate-marquee">
-                                <span>{group.type}</span>
-                                <span>{group.name.split(' ')[0]}</span>
-                                <span>INDEXED</span>
-                                <span>VOCAB</span>
-                                <span>FLOW</span>
-                                <span>SYNAPSE</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* C. Beautiful SVG Decorative Artwork Backdrops */}
-                        <div className="absolute right-2 bottom-2 w-32 h-32 opacity-20 dark:opacity-15 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                          {group.decorativeSvg === 'nebula' && (
-                            <svg className="w-full h-full fill-none stroke-current text-indigo-500" viewBox="0 0 100 100">
-                              <circle cx="50" cy="50" r="30" strokeWidth="1" strokeDasharray="4 2" />
-                              <circle cx="50" cy="50" r="20" strokeWidth="2" strokeDasharray="8 8" className="animate-[spin_20s_linear_infinite]" />
-                              <path d="M10,50 L90,50 M50,10 L50,90" strokeWidth="0.5" strokeDasharray="1 3" />
-                            </svg>
-                          )}
-                          {group.decorativeSvg === 'matrix' && (
-                            <svg className="w-full h-full fill-none stroke-current text-emerald-500" viewBox="0 0 100 100">
-                              <path d="M20,10 V90 M40,20 V80 M60,10 V90 M80,20 V80" strokeWidth="1.5" strokeDasharray="5 15" className="animate-[pulse_2s_infinite]" />
-                              <circle cx="20" cy="40" r="3" fill="currentColor" />
-                              <circle cx="60" cy="70" r="3" fill="currentColor" />
-                            </svg>
-                          )}
-                          {group.decorativeSvg === 'stars' && (
-                            <svg className="w-full h-full fill-none stroke-current text-rose-500" viewBox="0 0 100 100">
-                              <polygon points="50,10 53,40 85,43 55,55 60,85 50,65 40,85 45,55 15,43 47,40" strokeWidth="1" className="animate-pulse" />
-                              <circle cx="15" cy="15" r="2" fill="currentColor" />
-                              <circle cx="85" cy="85" r="2" fill="currentColor" className="animate-ping" />
-                            </svg>
-                          )}
-                          {group.decorativeSvg === 'waves' && (
-                            <svg className="w-full h-full fill-none stroke-current text-sky-500" viewBox="0 0 100 100">
-                              <path d="M10,30 Q30,60 50,30 T90,30" strokeWidth="1.5" className="animate-[bounce_3s_infinite]" />
-                              <path d="M10,50 Q30,80 50,50 T90,50" strokeWidth="1" opacity="0.6" />
-                              <path d="M10,70 Q30,100 50,70 T90,70" strokeWidth="0.5" opacity="0.3" />
-                            </svg>
-                          )}
-                          {group.decorativeSvg === 'rings' && (
-                            <svg className="w-full h-full fill-none stroke-current text-amber-500" viewBox="0 0 100 100">
-                              <circle cx="50" cy="50" r="35" strokeWidth="0.5" />
-                              <circle cx="50" cy="50" r="25" strokeWidth="1" strokeDasharray="2 2" className="animate-[spin_10s_linear_infinite]" />
-                              <circle cx="50" cy="50" r="15" strokeWidth="1.5" />
-                            </svg>
-                          )}
-                          {group.decorativeSvg === 'bars' && (
-                            <svg className="w-full h-full fill-none stroke-current text-fuchsia-500" viewBox="0 0 100 100">
-                              <rect x="20" y="40" width="10" height="40" strokeWidth="1" className="animate-[pulse_1.5s_infinite]" />
-                              <rect x="40" y="20" width="10" height="60" strokeWidth="1.5" className="animate-pulse" />
-                              <rect x="60" y="50" width="10" height="30" strokeWidth="1" className="animate-[pulse_2.5s_infinite]" />
-                            </svg>
-                          )}
-                        </div>
-
-                        {/* Top Metadata Header with One-click Enroll */}
-                        <div className="relative z-10 space-y-1">
-                          <div className="flex justify-between items-center gap-2">
-                            <div className="flex gap-1.5 items-center">
-                              <span className="text-[9px] font-black font-mono uppercase tracking-widest bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/10">
-                                {group.badge}
-                              </span>
-                              <span className="text-[9px] font-mono uppercase tracking-wider bg-zinc-500/10 dark:bg-zinc-500/20 text-zinc-600 dark:text-zinc-300 px-1.5 py-0.5 rounded-full border border-zinc-500/10" title={trans('tip.langCode')}>
-                                lang: {group.language || 'en'}
-                              </span>
-                            </div>
-
-                            {/* One-click Enroll button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addToast(trans('toast.pinned', { name: group.name }), 'success');
-                              }}
-                              className="px-2 py-1 text-[9px] font-mono font-bold tracking-tight uppercase bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-650 hover:to-indigo-750 text-white rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer z-20"
-                              title={trans('tip.sync1click')}
-                            >
-                              <Sparkles className="w-2.5 h-2.5" />
-                              <span>{trans('home.enroll')}</span>
-                            </button>
-                          </div>
-
-                          <h4 className="text-md font-black tracking-tight mt-2.5 group-hover:text-indigo-500 transition-colors">
-                            {group.name}
-                          </h4>
-                          <p className="text-[11px] text-zinc-500 font-sans line-clamp-2 leading-snug mt-1 max-w-[85%]">
-                            {group.description}
-                          </p>
-                        </div>
-
-                        {/* Bottom Status Panel */}
-                        <div className="relative z-10 pt-4 mt-4 border-t border-zinc-200/50 dark:border-white/5 space-y-2">
-                          <div className="flex justify-between items-end text-[10px] font-mono select-none">
-                            <div className="space-y-0.5">
-                              <span className="text-zinc-600 dark:text-zinc-400 block">{group.statsLabel}</span>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setActiveTab('shelf');
-                                  void selectBookCourse(group);
-                                }}
-                                className="font-bold text-sky-500 dark:text-indigo-300 underline decoration-indigo-500/40 underline-offset-2 hover:text-indigo-200"
-                                title={trans('home.openCurrentGroup')}
-                              >
-                                {trans('home.lexAvail', { n: group.count })}
-                              </button>
-                            </div>
-                            <div className="text-right">
-                              <span className="font-bold text-emerald-500">{trans('home.pctMastered', { n: progressVal })}</span>
-                            </div>
-                          </div>
-
-                          {/* Linear progress bar */}
-                          <div className="w-full bg-zinc-200/60 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
-                            <motion.div 
-                              className="h-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full"
-                              initial={{ width: 0 }}
-                              animate={{ width: `${progressVal}%` }}
-                              transition={{ duration: 1.5, delay: idx * 0.1 }}
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+                  {bentoGroups.filter((group) => group.name === DEFAULT_VOCAB_GROUP_NAME).map((group, idx) => (
+                    <WfNewHomeDefaultGroupCard
+                      key={group.id}
+                      group={group}
+                      index={idx}
+                      dark={dark}
+                      activeTheme={activeTheme}
+                      trans={trans}
+                      onOpen={() => {
+                        setActiveTab('shelf');
+                        void selectBookCourse(group);
+                      }}
+                      onEnroll={() => addToast(trans('toast.pinned', { name: group.name }), 'success')}
+                    />
+                  ))}
                 </div>
 
                 {/* Remaining word groups stay below the full-width default group. */}

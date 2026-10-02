@@ -6,7 +6,7 @@ interface TextFieldProps {
   label?: string;
   /** Leading icon drawn inside the input. */
   icon?: React.ReactNode;
-  type?: 'text' | 'password';
+  type?: 'text' | 'password' | 'url';
   placeholder?: string;
   required?: boolean;
   autoComplete?: string;

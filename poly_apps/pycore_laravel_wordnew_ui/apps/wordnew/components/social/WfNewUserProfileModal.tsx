@@ -1,14 +1,9 @@
-/** WfNewUserProfileModal - read-only public profile of another user (avatar,
- * languages, learning stats, presence + follow/friend/message actions), shown as
- * an overlay opened by user id from the partner cards and chat peer headers.
- * Self-contained (Portal + OVERLAY framework, like WfNewAgreementModal); fetches
- * GET /social/users/{id} through wfNewApi.getPublicUserProfile. */
 import React, { useEffect, useState, useCallback } from 'react';
-import { X, UserPlus, UserCheck, MessageSquare, Loader2, RefreshCw } from 'lucide-react';
-import Portal from '@/shared/ui/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
+import { UserPlus, UserCheck, MessageSquare, Loader2, RefreshCw } from 'lucide-react';
+import { ModalHeader } from '@/shared/ui/ModalParts';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import { wfNewApi, type WfNewPublicUserProfile } from '../../api';
-import { presenceClass } from './socialPresence';
+import { WfNewSocialAvatar } from './WfNewSocialAvatar';
 
 interface WfNewUserProfileModalProps {
   /** The user to show; the modal is open while this is a number, closed when null. */
@@ -94,22 +89,12 @@ export const WfNewUserProfileModal: React.FC<WfNewUserProfileModalProps> = ({
   if (userId == null) return null;
 
   const avatarUrl = profile?.avatar_url || '';
-  const avatarIsImg = /^https?:|^data:/i.test(avatarUrl);
   const initial = (profile?.name || '?').slice(0, 1);
   const status = profile?.presence?.status || 'offline';
 
   return (
-    <Portal>
-      <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal}`}>
-        <div className={`absolute inset-0 ${OVERLAY_BACKDROP}`} onClick={onClose} />
-        <div className="relative w-full max-w-sm bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
-            <h3 className="text-sm font-black text-slate-100">{trans('social.profile.title')}</h3>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-white/10 cursor-pointer shrink-0">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+    <ModalShell onClose={onClose} cardClassName="relative w-full max-w-sm bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+          <ModalHeader title={trans('social.profile.title')} onClose={onClose} bordered />
 
           {/* Body */}
           <div className="p-5 overflow-y-auto">
@@ -138,14 +123,7 @@ export const WfNewUserProfileModal: React.FC<WfNewUserProfileModalProps> = ({
               <div className="space-y-5">
                 {/* Identity */}
                 <div className="flex flex-col items-center text-center space-y-2.5">
-                  <div className="relative">
-                    <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center text-4xl select-none overflow-hidden border border-white/10">
-                      {avatarIsImg
-                        ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                        : <span>{avatarUrl || initial}</span>}
-                    </div>
-                    <span className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-zinc-900 ${presenceClass(status)}`} />
-                  </div>
+                  <WfNewSocialAvatar src={avatarUrl} name={initial} size="w-20 h-20" textClass="text-4xl" borderClass="border border-white/10" presence={status} dotClass="bottom-1 right-1 w-4 h-4 border-zinc-900" />
                   <div>
                     <h4 className="text-base font-black text-slate-100">{profile.name}</h4>
                     <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
@@ -227,9 +205,7 @@ export const WfNewUserProfileModal: React.FC<WfNewUserProfileModalProps> = ({
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </Portal>
+    </ModalShell>
   );
 };
 

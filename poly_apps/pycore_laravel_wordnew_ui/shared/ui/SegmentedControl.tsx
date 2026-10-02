@@ -15,6 +15,7 @@ interface SegmentedControlProps<T extends string | number> {
   size?: 'sm' | 'xs';
   /** Classes of the selected segment (theme accent); defaults to the indigo highlight. */
   activeClassName?: string;
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -27,10 +28,10 @@ const DEFAULT_ACTIVE = 'bg-indigo-500/20 text-indigo-200';
 
 /** Joined single-choice toggle (two to six short options). */
 export function SegmentedControl<T extends string | number>({
-  value, options, onChange, size = 'sm', activeClassName = DEFAULT_ACTIVE, className = '',
+  value, options, onChange, size = 'sm', activeClassName = DEFAULT_ACTIVE, ariaLabel, className = '',
 }: SegmentedControlProps<T>): React.ReactElement {
   return (
-    <div role="radiogroup" className={`flex w-fit rounded-lg border border-white/5 bg-white/5 p-0.5 ${className}`}>
+    <div role="radiogroup" aria-label={ariaLabel} className={`flex w-fit rounded-lg border border-white/5 bg-white/5 p-0.5 ${className}`}>
       {options.map((option) => (
         <button
           key={String(option.value)}
