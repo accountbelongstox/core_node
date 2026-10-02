@@ -6,7 +6,9 @@ import React from 'react';
 import { List, type RowComponentProps } from 'react-window';
 import { Send, MessageSquare, ChevronRight } from 'lucide-react';
 import type { WfNewConversation, WfNewMessage, WfNewPresenceStatus } from '../../api';
-import { relativeTime, presenceClass, type MessageRowData } from './socialPresence';
+import { formatRelativeTime } from '../../../../core/utils/formatters';
+import { type MessageRowData } from './socialPresence';
+import { WfNewSocialAvatar } from './WfNewSocialAvatar';
 
 const MessageRow = ({ index, style, messages, peerId }: RowComponentProps<MessageRowData>) => {
   const msg = messages[index];
@@ -24,7 +26,7 @@ const MessageRow = ({ index, style, messages, peerId }: RowComponentProps<Messag
         >
           <p className="text-[11px] leading-relaxed font-sans break-words">{msg.body}</p>
           <span className="block text-[8px] font-mono text-right opacity-60">
-            {relativeTime(msg.created_at)}
+            {formatRelativeTime(msg.created_at)}
           </span>
         </div>
       </div>
@@ -84,14 +86,7 @@ export const WfNewSocialChat: React.FC<WfNewSocialChatProps> = (props) => {
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="relative shrink-0">
-                          <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden">
-                            {/^https?:/i.test(conv.peer?.avatar || '')
-                              ? <img src={conv.peer.avatar} alt="" className="w-full h-full object-cover" />
-                              : <span>{conv.peer?.avatar || (conv.peer?.nickname || '?').slice(0, 1)}</span>}
-                          </div>
-                          <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-slate-950 ${presenceClass(peerStatus)}`} />
-                        </div>
+                        <WfNewSocialAvatar src={conv.peer?.avatar} name={conv.peer?.nickname} size="w-9 h-9" textClass="text-sm" presence={peerStatus || 'offline'} dotClass="-bottom-1 -right-1 w-2.5 h-2.5 border-slate-950" />
                         <div className="min-w-0">
                           <p className={`text-xs font-bold truncate ${isSelected ? 'text-indigo-300' : 'text-slate-200'}`}>
                             {conv.peer?.nickname}
@@ -121,14 +116,7 @@ export const WfNewSocialChat: React.FC<WfNewSocialChatProps> = (props) => {
                     title={onOpenProfile ? trans('social.profile.viewProfile') : undefined}
                     className={`group p-4 bg-white/3 border-b border-white/5 flex items-center gap-3 ${onOpenProfile ? 'cursor-pointer' : ''}`}
                   >
-                    <div className="relative">
-                      <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden">
-                        {/^https?:/i.test(selectedConv.peer?.avatar || '')
-                          ? <img src={selectedConv.peer.avatar} alt="" className="w-full h-full object-cover" />
-                          : <span>{selectedConv.peer?.avatar || (selectedConv.peer?.nickname || '?').slice(0, 1)}</span>}
-                      </div>
-                      <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-slate-950 ${presenceClass(presence[selectedConv.peer?.id] || selectedConv.peer?.presence)}`} />
-                    </div>
+                    <WfNewSocialAvatar src={selectedConv.peer?.avatar} name={selectedConv.peer?.nickname} size="w-9 h-9" textClass="text-sm" presence={presence[selectedConv.peer?.id] || selectedConv.peer?.presence || 'offline'} dotClass="-bottom-1 -right-1 w-2.5 h-2.5 border-slate-950" />
                     <div>
                       <h4 className="text-xs font-bold text-slate-200 group-hover:text-indigo-300 transition-colors">{selectedConv.peer?.nickname}</h4>
                       <p className="text-[10px] text-zinc-500 font-mono">

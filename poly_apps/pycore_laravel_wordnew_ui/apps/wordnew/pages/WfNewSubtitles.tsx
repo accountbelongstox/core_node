@@ -4,6 +4,7 @@ import {
   Play, Pause, Volume2, Star, Sparkles, Languages, Info, SkipBack, SkipForward,
   Repeat, Settings2, ListMusic, ChevronLeft, ChevronRight, Film
 } from 'lucide-react';
+import { SegmentedControl } from '@/shared/ui/SegmentedControl';
 import type { ElementTheme } from '../WfNewThemes';
 import type { Word } from '../api/WfNewApiTypes';
 import {
@@ -18,6 +19,7 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { formatClock } from '../../../core/utils/formatters';
+import { cancelSpeech, speakText } from '../utils/WordNewSpeech';
 import { SUBTITLE_DETAIL_PAGE_SIZE, SUBTITLE_GROUPS_PAGE_SIZE } from '../constants/uiTiming';
 
 interface WfNewSubtitlesProps {
@@ -32,7 +34,7 @@ interface WfNewSubtitlesProps {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
-const SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0] as const;
+const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 2.0].map((sp) => ({ value: sp, label: `${sp}x` }));
 const STRIP_PUNCT = /[.,/#!$%^&*;:{}=\-_`~()"'?]/g;
 
 /** Pick the native/translation text for a sentence (any non-primary language). */
@@ -171,7 +173,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
     setPlaylistPos(0);
     setActiveSegIndex(null);
     if (audioRef.current) { audioRef.current.pause(); }
-    window.speechSynthesis?.cancel();
+    cancelSpeech();
     wfNewApi.getSubtitleDetail(activeSource, { perPage: SUBTITLE_DETAIL_PAGE_SIZE })
       .then((d) => { if (alive) setDetail(d); })
       .catch(() => { if (alive) setDetail(null); })
@@ -181,23 +183,12 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
 
   // ---- speechSynthesis fallback (no mp3 clips) ------------------------------
   const speakLine = useCallback((text: string, onEnd?: () => void) => {
-    if (!('speechSynthesis' in window)) { addToast(trans('subtitles.ttsUnavailable'), 'warning'); return; }
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    u.rate = speed;
-    if (onEnd) u.onend = onEnd;
-    window.speechSynthesis.speak(u);
+    if (!speakText(text, { lang: 'en', rate: speed, onEnd })) addToast(trans('subtitles.ttsUnavailable'), 'warning');
   }, [speed, addToast, trans]);
 
   // Speak a single word for the lookup card.
   const speakWord = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) { addToast(trans('subtitles.ttsUnavailable'), 'warning'); return; }
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    u.rate = 1.0;
-    window.speechSynthesis.speak(u);
+    if (!speakText(text, { lang: 'en', rate: 1.0 })) addToast(trans('subtitles.ttsUnavailable'), 'warning');
   }, [addToast, trans]);
 
   // ---- Core playback: play a segment by playlist position -------------------
@@ -256,7 +247,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   const togglePlay = () => {
     if (isPlaying) {
       setIsPlaying(false);
-      if (hasAudioClips) { audioRef.current?.pause(); } else { window.speechSynthesis?.cancel(); }
+      if (hasAudioClips) { audioRef.current?.pause(); } else { cancelSpeech(); }
     } else {
       if (hasAudioClips) {
         const el = audioRef.current;
@@ -576,15 +567,12 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
               {/* Speed */}
               <div className="flex items-center gap-1.5 font-mono text-[10px]">
                 <span className="text-zinc-600">{trans('subtitles.speed')}</span>
-                {SPEEDS.map((sp) => (
-                  <button
-                    key={sp}
-                    onClick={() => { setSpeed(sp); wfNewSettings.setField('subtitlePlaybackSpeed', sp); if (audioRef.current) audioRef.current.playbackRate = sp; }}
-                    className={`px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${speed === sp ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold' : 'border-white/5 text-zinc-500 hover:text-white'}`}
-                  >
-                    {sp}x
-                  </button>
-                ))}
+                <SegmentedControl
+                  size="xs"
+                  value={speed}
+                  onChange={(sp) => { setSpeed(sp); wfNewSettings.setField('subtitlePlaybackSpeed', sp); if (audioRef.current) audioRef.current.playbackRate = sp; }}
+                  options={SPEED_OPTIONS}
+                />
               </div>
             </div>
           </div>

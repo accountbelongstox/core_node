@@ -4,6 +4,7 @@ import {
   Radio, Users, Send, Loader2, ExternalLink, Plus, X,
 } from 'lucide-react';
 import { ModalShell } from '@/shared/ui/ModalShell';
+import { TextField } from '@/shared/ui/TextField';
 import type { ElementTheme } from '../WfNewThemes';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import {
@@ -12,8 +13,11 @@ import {
   type WfNewLive,
   type WfNewLiveMsg,
 } from '../api';
-import { WfNewActorAvatar, wfNewRelativeTime, wfNewEmbedUrl } from './WfNewSocialPlaza';
+import { formatRelativeTime } from '../../../core/utils/formatters';
+import { WfNewActorAvatar } from './social/WfNewSocialAvatar';
+import { embedUrl } from './social/socialEmbed';
 import { SOCIAL_LIVE_BEAT_MS } from '../constants/uiTiming';
+import { StateMessage } from '@/shared/ui/StateMessage';
 
 interface WfNewSocialLiveProps {
   activeTheme: ElementTheme;
@@ -84,10 +88,10 @@ export const WfNewSocialLive: React.FC<WfNewSocialLiveProps> = ({
       </div>
 
       {loading && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.loading')}</div>
+        <StateMessage kind="empty" size="page">{trans('social.loading')}</StateMessage>
       )}
       {!loading && sessions.length === 0 && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.liveEmpty')}</div>
+        <StateMessage kind="empty" size="page">{trans('social.liveEmpty')}</StateMessage>
       )}
 
       {!loading && sessions.length > 0 && (
@@ -243,13 +247,13 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
     return <button onClick={requireAuth} className="w-full py-16 text-center text-indigo-300 font-mono text-xs cursor-pointer">{trans('social.signInToJoinLive')}</button>;
   }
   if (resolving) {
-    return <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.loading')}</div>;
+    return <StateMessage kind="empty" size="page">{trans('social.loading')}</StateMessage>;
   }
   if (!live) {
-    return <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.live.notFound')}</div>;
+    return <StateMessage kind="empty" size="page">{trans('social.live.notFound')}</StateMessage>;
   }
 
-  const embed = wfNewEmbedUrl(live.external_url);
+  const embed = embedUrl(live.external_url);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -307,7 +311,7 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-bold text-indigo-300 truncate">{m.user.name}</span>
-                  <span className="text-[8px] text-zinc-600 font-mono shrink-0">{wfNewRelativeTime(m.created_at)}</span>
+                  <span className="text-[8px] text-zinc-600 font-mono shrink-0">{formatRelativeTime(m.created_at)}</span>
                 </div>
                 <p className="text-[11px] text-zinc-300 leading-relaxed break-words">{m.body}</p>
               </div>
@@ -334,6 +338,8 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
     </div>
   );
 };
+
+const LIVE_INPUT_CLASS = 'border border-white/10 bg-slate-900/60 text-slate-100 placeholder-zinc-500 focus:border-rose-500';
 
 // ---- Go-Live composer modal ------------------------------------------------
 interface WfNewGoLiveModalProps {
@@ -370,27 +376,9 @@ export const WfNewGoLiveModal: React.FC<WfNewGoLiveModalProps> = ({ onClose, onS
         </div>
 
         <div className="space-y-3">
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder={trans('social.liveTitlePh')}
-            className="w-full bg-slate-900/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 outline-none focus:border-rose-500 placeholder-zinc-500"
-          />
-          <textarea
-            rows={2}
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder={trans('social.liveDescPh')}
-            className="w-full bg-slate-900/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 outline-none focus:border-rose-500 placeholder-zinc-500 resize-none"
-          />
-          <input
-            type="url"
-            value={externalUrl}
-            onChange={e => setExternalUrl(e.target.value)}
-            placeholder={trans('social.liveUrlPh')}
-            className="w-full bg-slate-900/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 outline-none focus:border-rose-500 placeholder-zinc-500"
-          />
+          <TextField value={title} onChange={setTitle} placeholder={trans('social.liveTitlePh')} inputClassName={LIVE_INPUT_CLASS} />
+          <TextField rows={2} value={description} onChange={setDescription} placeholder={trans('social.liveDescPh')} inputClassName={LIVE_INPUT_CLASS} />
+          <TextField type="url" value={externalUrl} onChange={setExternalUrl} placeholder={trans('social.liveUrlPh')} inputClassName={LIVE_INPUT_CLASS} />
         </div>
 
         <button

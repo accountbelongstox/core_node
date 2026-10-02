@@ -19,8 +19,20 @@ export interface AdminPanelProps {
 
 export const ADMIN_INPUT_CLS = 'py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none';
 export const ADMIN_FALLBACK_LANGUAGES = ['english', 'chinese', 'japanese', 'korean', 'french', 'german', 'spanish'];
+const BREAKDOWN_CACHE_MS = 60_000;
 const ADMIN_REVEAL_Y_PX = 10;
 const ADMIN_REVEAL_SECONDS = 0.2;
+
+let breakdownCache: { at: number; promise: ReturnType<typeof wfNewAdminApi.getLanguageBreakdown> } | null = null;
+
+/** Per-language dictionary breakdown shared by the admin panels; reused for a minute unless `force`. */
+export function loadLanguageBreakdown(force = false): ReturnType<typeof wfNewAdminApi.getLanguageBreakdown> {
+  if (!force && breakdownCache && Date.now() - breakdownCache.at < BREAKDOWN_CACHE_MS) return breakdownCache.promise;
+  const promise = wfNewAdminApi.getLanguageBreakdown();
+  breakdownCache = { at: Date.now(), promise };
+  promise.catch(() => { if (breakdownCache?.promise === promise) breakdownCache = null; });
+  return promise;
+}
 
 /** Input / select class for the active theme. */
 export const adminInputClass = (theme: ElementTheme, extra = ''): string => `${ADMIN_INPUT_CLS} ${theme.inputClass} ${extra}`.trim();
@@ -147,7 +159,7 @@ export function useAdminLanguage(defaultLanguage: string): { language: string; s
 
   useEffect(() => {
     let alive = true;
-    wfNewAdminApi.getLanguageBreakdown()
+    loadLanguageBreakdown()
       .then((res) => {
         if (!alive) return;
         const list = (res?.languages ?? []).map((row) => row.language).filter(Boolean);

@@ -39,54 +39,58 @@ export const WordNewDailyReadingResourceStatus: React.FC<Props> = ({
     ? 'inline-flex min-w-0 items-center gap-1 text-[9px] font-mono text-zinc-400'
     : 'inline-flex min-w-0 items-center gap-1 rounded-full border border-white/5 bg-white/[0.025] px-2 py-1 text-[10px] font-mono text-zinc-400';
 
+  const chips = [
+    {
+      key: 'article',
+      icon: null,
+      stateReady: articleReady,
+      resource: undefined,
+      queueKey: sentenceAudioQueueKey(sentence, 'en'),
+      show: true,
+      labelKey: 'home.dailyReading.articleAudioResource',
+      ready: status.articleAudioReady,
+      total: status.articleAudioTotal,
+    },
+    {
+      key: 'wordAudio',
+      icon: <Volume2 className="h-3 w-3 shrink-0 text-indigo-300" />,
+      stateReady: wordAudioReady,
+      resource: undefined,
+      queueKey: pendingAudioWord ? wordAudioQueueKey(pendingAudioWord.word, 'en') : '',
+      show: !!pendingAudioWord,
+      labelKey: 'home.dailyReading.wordAudioResource',
+      ready: status.wordAudioReady,
+      total: status.wordAudioTotal,
+    },
+    {
+      key: 'translation',
+      icon: <Languages className="h-3 w-3 shrink-0 text-cyan-300" />,
+      stateReady: translationsReady,
+      resource: 'translation' as const,
+      queueKey: pendingTranslationWord ? wordTranslationQueueKey(pendingTranslationWord.word, 'en', 'zh') : '',
+      show: !!pendingTranslationWord,
+      labelKey: 'home.dailyReading.translationResource',
+      ready: status.translationsReady,
+      total: status.translationsTotal,
+    },
+  ];
+
   return (
     <div className={`flex min-w-0 items-center gap-x-2 gap-y-1 ${compact ? 'flex-nowrap overflow-hidden' : 'flex-wrap'}`}>
-      <span className={chipClass}>
-        <WordNewResourceStatusIcon
-          state={articleReady ? 'ready' : 'waiting'}
-          queueKey={sentenceAudioQueueKey(sentence, 'en')}
-          trans={trans}
-        />
-        <span className="truncate">
-          {trans('home.dailyReading.articleAudioResource', {
-            ready: status.articleAudioReady,
-            total: status.articleAudioTotal,
-          })}
+      {chips.map((chip) => (
+        <span key={chip.key} className={chipClass}>
+          {chip.icon}
+          {chip.show && (
+            <WordNewResourceStatusIcon
+              state={chip.stateReady ? 'ready' : 'waiting'}
+              resource={chip.resource}
+              queueKey={chip.queueKey}
+              trans={trans}
+            />
+          )}
+          <span className="truncate">{trans(chip.labelKey, { ready: chip.ready, total: chip.total })}</span>
         </span>
-      </span>
-      <span className={chipClass}>
-        <Volume2 className="h-3 w-3 shrink-0 text-indigo-300" />
-        {pendingAudioWord ? (
-          <WordNewResourceStatusIcon
-            state={wordAudioReady ? 'ready' : 'waiting'}
-            queueKey={wordAudioQueueKey(pendingAudioWord.word, 'en')}
-            trans={trans}
-          />
-        ) : null}
-        <span className="truncate">
-          {trans('home.dailyReading.wordAudioResource', {
-            ready: status.wordAudioReady,
-            total: status.wordAudioTotal,
-          })}
-        </span>
-      </span>
-      <span className={chipClass}>
-        <Languages className="h-3 w-3 shrink-0 text-cyan-300" />
-        {pendingTranslationWord ? (
-          <WordNewResourceStatusIcon
-            state={translationsReady ? 'ready' : 'waiting'}
-            resource="translation"
-            queueKey={wordTranslationQueueKey(pendingTranslationWord.word, 'en', 'zh')}
-            trans={trans}
-          />
-        ) : null}
-        <span className="truncate">
-          {trans('home.dailyReading.translationResource', {
-            ready: status.translationsReady,
-            total: status.translationsTotal,
-          })}
-        </span>
-      </span>
+      ))}
     </div>
   );
 };

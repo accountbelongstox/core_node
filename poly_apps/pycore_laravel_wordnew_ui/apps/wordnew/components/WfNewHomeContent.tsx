@@ -15,12 +15,15 @@
  * Pure presentation: data + navigation come from props; WfNewApp owns the fetch.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Clapperboard, Library, ArrowRight, ChevronDown } from 'lucide-react';
+import { BookOpen, Clapperboard, Library, ChevronDown } from 'lucide-react';
+import { ChipButton } from '@/shared/ui/ChipButton';
+import { StateMessage } from '@/shared/ui/StateMessage';
 import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewContentGroup, WfNewContentKind, WfNewHomeContent as WfNewHomeContentData } from '../api';
 import { WfNewContentGroupCard, WFNEW_KIND_STYLES } from './WfNewContentGroupCard';
 import { WfNewContentGrid, WFNEW_GRID_COLS_CLASS } from './WfNewContentGrid';
 import { WfNewLoadingDots } from './WfNewLoadingDots';
+import { WfNewSectionHeader } from './WfNewSectionHeader';
 import { useWfNewLoadMoreSentinel } from '../hooks/useWfNewLoadMoreSentinel';
 import { useWfNewGridCols, WFNEW_HOME_ROWS } from '../api';
 import { laravelApi } from '@/core/integrations/laravel';
@@ -156,14 +159,9 @@ const HomeGridSection: React.FC<{
       {/* Auto-load sentinel + manual Load more + page indicator. */}
       {hasMore && (
         <div ref={sentinelRef} className="flex flex-col items-center gap-2 pt-1">
-          <button
-            type="button"
-            disabled={fetching}
-            onClick={() => void revealMore(WFNEW_HOME_ROWS)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-50"
-          >
+          <ChipButton disabled={fetching} onClick={() => void revealMore(WFNEW_HOME_ROWS)} className="gap-1.5 rounded-full px-3">
             <ChevronDown className="w-3.5 h-3.5" /> {trans('content.loadMore')}
-          </button>
+          </ChipButton>
           <span className="text-[10px] font-mono text-zinc-500">
             {trans('content.rowsOf', { shown: shownRows, total: totalRows })}
           </span>
@@ -217,12 +215,7 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
   return (
     <div className="space-y-5 pt-4">
       {/* Hub header */}
-      <div className="px-1">
-        <h3 className="text-sm font-black font-mono uppercase tracking-widest text-zinc-400">
-          {trans('home.hubTitle')}
-        </h3>
-        <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{trans('home.hubDesc')}</p>
-      </div>
+      <WfNewSectionHeader title={trans('home.hubTitle')} subtitle={trans('home.hubDesc')} />
 
       {/* KPI strip — responsive: 2-col (phone) → 3 (desktop) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
@@ -260,27 +253,17 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
         const isGrid = GRID_KINDS.has(kind);
         return (
           <section key={kind} id={sectionId(kind)} className="space-y-3 scroll-mt-4">
-            {/* Section header: icon + label + count + (grid kinds) a More → link */}
-            <div className="flex items-center gap-2 px-1">
-              <span className={`p-1.5 rounded-lg border ${style.chip}`}>
-                <Icon className="w-3.5 h-3.5" />
-              </span>
-              <h4 className="text-xs font-black font-mono uppercase tracking-wider text-slate-200 dark:text-slate-300">
-                {trans(`content.section.${kind}`)}
-              </h4>
-              {!loading && (
-                <span className="text-[10px] font-mono text-zinc-500">({groups.length})</span>
+            <WfNewSectionHeader
+              variant="section"
+              icon={(
+                <span className={`p-1.5 rounded-lg border ${style.chip}`}>
+                  <Icon className="w-3.5 h-3.5" />
+                </span>
               )}
-              {isGrid && !loading && groups.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onMore(kind)}
-                  className="ml-auto inline-flex items-center gap-1 text-[11px] font-mono font-bold text-indigo-400 hover:text-indigo-300 transition"
-                >
-                  {trans('content.more')} <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+              title={trans(`content.section.${kind}`)}
+              count={loading ? undefined : groups.length}
+              action={isGrid && !loading && groups.length > 0 ? { label: trans('content.more'), onClick: () => onMore(kind) } : undefined}
+            />
 
             {/* Body */}
             {loading ? (
@@ -304,9 +287,7 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
                 </div>
               </div>
             ) : groups.length === 0 ? (
-              <div className="mx-1 p-4 rounded-2xl border border-dashed border-white/10 bg-white/2 text-center">
-                <p className="text-[11px] font-mono text-zinc-500">{trans('content.empty')}</p>
-              </div>
+              <StateMessage kind="empty" className="mx-1 rounded-2xl border border-dashed border-white/10 bg-white/[0.02]">{trans('content.empty')}</StateMessage>
             ) : isGrid ? (
               <HomeGridSection kind={kind} groups={groups} theme={theme} trans={trans} onOpen={onOpen} onNeedMore={onNeedMore} onAddToStudy={kind === 'library' ? onAddToStudy : undefined} />
             ) : (

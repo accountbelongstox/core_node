@@ -27,6 +27,7 @@ import { WfNewNoTranslation } from './WfNewNoTranslation';
 import { useVisibleWordPriority } from '../../hooks/useVisibleWordPriority';
 import { WordNewResourceStatusIcon } from '../WordNewResourceStatusIcon';
 import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
+import { StateMessage } from '@/shared/ui/StateMessage';
 
 interface WfNewStudyWordListProps {
   words: Word[];
@@ -122,7 +123,7 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
 
   if (words.length === 0) {
     return (
-      <div className="py-16 text-center text-xs font-mono text-zinc-500">{emptyText}</div>
+      <StateMessage kind="empty" size="page">{emptyText}</StateMessage>
     );
   }
 

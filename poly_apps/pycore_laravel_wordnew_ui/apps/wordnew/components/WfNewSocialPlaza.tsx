@@ -5,77 +5,16 @@ import {
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
-import { WfNewAvatarView } from './WfNewAvatarView';
+import { formatRelativeTime } from '../../../core/utils/formatters';
+import { WfNewActorAvatar } from './social/WfNewSocialAvatar';
+import { embedUrl } from './social/socialEmbed';
 import {
   wfNewApi,
   type WfNewPost,
   type WfNewPostComment,
   type WfNewPostFilter,
-  type WfNewSocialActor,
 } from '../api';
-
-// ---- Relative-time helper (native Intl) ------------------------------------
-const RTF = typeof Intl !== 'undefined' && Intl.RelativeTimeFormat
-  ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-  : null;
-
-export function wfNewRelativeTime(value?: string | null): string {
-  if (!value) return '';
-  const then = new Date(value).getTime();
-  if (Number.isNaN(then)) return String(value);
-  const diffMs = then - Date.now();
-  const abs = Math.abs(diffMs);
-  if (!RTF) return new Date(then).toLocaleString();
-  const min = 60_000, hr = 3_600_000, day = 86_400_000;
-  if (abs < min) return RTF.format(Math.round(diffMs / 1000), 'second');
-  if (abs < hr) return RTF.format(Math.round(diffMs / min), 'minute');
-  if (abs < day) return RTF.format(Math.round(diffMs / hr), 'hour');
-  if (abs < day * 30) return RTF.format(Math.round(diffMs / day), 'day');
-  return new Date(then).toLocaleDateString();
-}
-
-/** Convert a watch/share url into an embeddable iframe src for whitelisted hosts. */
-export function wfNewEmbedUrl(raw?: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const u = new URL(raw);
-    const host = u.hostname.replace(/^www\./, '');
-    // YouTube
-    if (host === 'youtube.com' || host === 'm.youtube.com') {
-      const id = u.searchParams.get('v');
-      if (id) return `https://www.youtube.com/embed/${id}`;
-      if (u.pathname.startsWith('/embed/')) return raw;
-    }
-    if (host === 'youtu.be') {
-      const id = u.pathname.slice(1);
-      if (id) return `https://www.youtube.com/embed/${id}`;
-    }
-    // Bilibili
-    if (host === 'bilibili.com' || host === 'player.bilibili.com') {
-      if (u.pathname.startsWith('/video/')) {
-        const bvid = u.pathname.split('/')[2];
-        if (bvid) return `https://player.bilibili.com/player.html?bvid=${bvid}`;
-      }
-      return raw; // already a player url
-    }
-    // Vimeo
-    if (host === 'vimeo.com') {
-      const id = u.pathname.split('/').filter(Boolean)[0];
-      if (id && /^\d+$/.test(id)) return `https://player.vimeo.com/video/${id}`;
-    }
-    if (host === 'player.vimeo.com') return raw;
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-/** Small avatar tile rendering an emoji OR a (root-relative) image url. */
-export const WfNewActorAvatar: React.FC<{ actor: WfNewSocialActor; size?: string }> = ({ actor, size = 'w-10 h-10' }) => (
-  <div className={`${size} rounded-full bg-zinc-800 flex items-center justify-center text-lg overflow-hidden shrink-0`}>
-    <WfNewAvatarView value={mediaUrl(actor.avatar_url)} fallback={(actor.name || '?').slice(0, 1)} />
-  </div>
-);
+import { StateMessage } from '@/shared/ui/StateMessage';
 
 interface WfNewSocialPlazaProps {
   activeTheme: ElementTheme;
@@ -141,11 +80,11 @@ export const WfNewSocialPlaza: React.FC<WfNewSocialPlazaProps> = ({
       </div>
 
       {loading && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.loading')}</div>
+        <StateMessage kind="empty" size="page">{trans('social.loading')}</StateMessage>
       )}
 
       {!loading && posts.length === 0 && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.plazaEmpty')}</div>
+        <StateMessage kind="empty" size="page">{trans('social.plazaEmpty')}</StateMessage>
       )}
 
       {!loading && posts.map(post => (
@@ -164,7 +103,7 @@ export const WfNewSocialPlaza: React.FC<WfNewSocialPlazaProps> = ({
               <div className="flex-1 min-w-0">
                 <p className={`text-xs font-bold text-slate-200 truncate ${onOpenUser ? 'group-hover/author:text-indigo-300' : ''}`}>{post.author.name}</p>
                 <p className="text-[10px] text-zinc-500 font-mono flex items-center gap-1">
-                  <Globe className="w-3 h-3" /> {wfNewRelativeTime(post.created_at)}
+                  <Globe className="w-3 h-3" /> {formatRelativeTime(post.created_at)}
                 </p>
               </div>
             </button>
@@ -204,10 +143,10 @@ export const WfNewSocialPlaza: React.FC<WfNewSocialPlazaProps> = ({
 
           {/* External embed */}
           {post.post_type === 'video' && !post.video_url && post.external_url && (
-            wfNewEmbedUrl(post.external_url) ? (
+            embedUrl(post.external_url) ? (
               <div className="relative w-full rounded-xl overflow-hidden border border-white/5 bg-black" style={{ aspectRatio: '16 / 9' }}>
                 <iframe
-                  src={wfNewEmbedUrl(post.external_url)!}
+                  src={embedUrl(post.external_url)!}
                   title={`embed-${post.id}`}
                   className="absolute inset-0 w-full h-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -347,7 +286,7 @@ const WfNewPostComments: React.FC<WfNewPostCommentsProps> = ({
           <div className="flex-1 min-w-0 bg-white/4 rounded-xl px-3 py-2 border border-white/5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold text-slate-200 truncate">{c.author.name}</span>
-              <span className="text-[8px] text-zinc-500 font-mono shrink-0">{wfNewRelativeTime(c.created_at)}</span>
+              <span className="text-[8px] text-zinc-500 font-mono shrink-0">{formatRelativeTime(c.created_at)}</span>
             </div>
             <p className="text-[11px] text-zinc-300 leading-relaxed break-words mt-0.5">{c.body}</p>
           </div>

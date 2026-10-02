@@ -24,6 +24,7 @@ import { useWfNewStudyActions } from './study/useWfNewStudyActions';
 import { WfNewStudySettingsSheet } from './study/WfNewStudySettingsSheet';
 import { WfNewPracticeControlPanel } from './study/WfNewPracticeControlPanel';
 import { studyT } from './study/WfNewStudyLocales';
+import { WfNewSectionHeader } from './WfNewSectionHeader';
 
 const PRACTICE_MODES = [
   { id: 'study', labelKey: 'practice.mode.study' },
@@ -172,10 +173,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
     <>
               {!practiceMode ? (
                 <div className="max-w-2xl mx-auto text-center py-16 space-y-8">
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-black">{trans('practice.select')}</h2>
-                    <p className="text-zinc-500 text-xs font-mono">{trans('practice.selectSub')}</p>
-                  </div>
+                  <WfNewSectionHeader variant="page" title={trans('practice.select')} subtitle={trans('practice.selectSub')} className="space-y-2" />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {gGroups.map(g => (

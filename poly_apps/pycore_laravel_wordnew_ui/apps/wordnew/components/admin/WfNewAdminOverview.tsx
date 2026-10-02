@@ -5,7 +5,7 @@ import { wfNewAdminApi, adminErrorText } from '../../api';
 import type { WfNewAdminLangRow, WfNewAdminStatistics } from '../../api';
 import { formatNumber } from '../../../../core/utils/formatters';
 import {
-  AdminAsync, AdminLabel, AdminReveal, AdminTable, AdminTableRow, AdminTableShell, StatCard, useRequestGuard,
+  AdminAsync, AdminLabel, AdminReveal, loadLanguageBreakdown, AdminTable, AdminTableRow, AdminTableShell, StatCard, useRequestGuard,
   type AdminPanelProps,
 } from './adminKit';
 
@@ -37,7 +37,7 @@ export const WfNewAdminOverview: React.FC<AdminPanelProps> = ({ trans, addToast 
     try {
       const [s, breakdown] = await Promise.all([
         wfNewAdminApi.getStatistics(),
-        wfNewAdminApi.getLanguageBreakdown(),
+        loadLanguageBreakdown(true),
       ]);
       if (!guard.isCurrent(id)) return;
       setStats(s);

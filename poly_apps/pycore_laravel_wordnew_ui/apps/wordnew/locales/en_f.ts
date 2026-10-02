@@ -25,4 +25,7 @@ export const enLocaleF: Record<string, string> = {
   'home.dailyReading.wordCount': '{count} words',
   'library.loadFailed': 'Failed to load library words.',
   'social.signInToJoinLive': 'Sign in to join this live room.',
+  'home.langTag': 'lang: {lang}',
+  'social.nearbyRadiusKm': '{n} km',
+  'social.nearbyDistance': '{n} km away',
 };

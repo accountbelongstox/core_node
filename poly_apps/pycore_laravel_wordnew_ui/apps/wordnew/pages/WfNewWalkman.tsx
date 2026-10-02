@@ -13,6 +13,7 @@ import type { Word } from '../api/WfNewApiTypes';
 import { wfNewApi } from '../api';
 import { WALKMAN_NATIVE_BEAT_MS, WALKMAN_NEXT_WORD_MS, WALKMAN_STEP_PAUSE_MS } from '../constants/uiTiming';
 import { logWarn } from '../../../core/logstore/logStore';
+import { cancelSpeech, isSpeechAvailable, speakText } from '../utils/WordNewSpeech';
 
 const WALKMAN_RATE_MIN = 0.5;
 const WALKMAN_RATE_MAX = 1.6;
@@ -70,56 +71,37 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
 
   // Speech helper supporting dual language queue
   const speakCurrentStep = () => {
-    if (!('speechSynthesis' in window)) {
+    if (!isSpeechAvailable()) {
       logWarn('wordnew-walkman', 'speechSynthesis not functional on this platform');
       return;
     }
 
-    window.speechSynthesis.cancel();
+    cancelSpeech();
     if (!activeWord) return;
 
-    // Define English utterance
-    const enUtterance = new SpeechSynthesisUtterance(activeWord.text);
-    enUtterance.lang = 'en-US';
-    enUtterance.rate = playRate;
-
-    enUtterance.onstart = () => {
-      setIsSpeakingDefinition(false);
+    const speakTranslation = () => {
+      timerRef.current = setTimeout(() => {
+        const zhText = activeWord.translation.replace(/[^\u4e00-\u9fa5]/g, ' ');
+        speakText(zhText, {
+          lang: 'zh',
+          rate: 1.0,
+          onStart: () => setIsSpeakingDefinition(true),
+          onEnd: handleUtteranceCompletedChain,
+          onError: handleUtteranceCompletedChain,
+        });
+      }, WALKMAN_NATIVE_BEAT_MS);
     };
 
-    enUtterance.onend = () => {
-      if (speakChinese && activeWord.translation) {
-        // Wait custom milliseconds then speak Chinese translation
-        timerRef.current = setTimeout(() => {
-          const zhText = activeWord.translation.replace(/[^\u4e00-\u9fa5]/g, ' '); // Strip non-chinese characters briefly for cleaner read
-          const zhUtterance = new SpeechSynthesisUtterance(zhText);
-          zhUtterance.lang = 'zh-CN';
-          zhUtterance.rate = 1.0;
-
-          zhUtterance.onstart = () => {
-            setIsSpeakingDefinition(true);
-          };
-
-          zhUtterance.onend = () => {
-            handleUtteranceCompletedChain();
-          };
-
-          zhUtterance.onerror = () => {
-            handleUtteranceCompletedChain();
-          };
-
-          window.speechSynthesis.speak(zhUtterance);
-        }, WALKMAN_NATIVE_BEAT_MS);
-      } else {
-        handleUtteranceCompletedChain();
-      }
-    };
-
-    enUtterance.onerror = () => {
-      handleUtteranceCompletedChain();
-    };
-
-    window.speechSynthesis.speak(enUtterance);
+    speakText(activeWord.text, {
+      lang: 'en',
+      rate: playRate,
+      onStart: () => setIsSpeakingDefinition(false),
+      onEnd: () => {
+        if (speakChinese && activeWord.translation) speakTranslation();
+        else handleUtteranceCompletedChain();
+      },
+      onError: handleUtteranceCompletedChain,
+    });
   };
 
   const handleUtteranceCompletedChain = () => {
@@ -177,7 +159,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
     if (isPlaying) {
       speakCurrentStep();
     } else {
-      window.speechSynthesis.cancel();
+      cancelSpeech();
       setIsSpeakingDefinition(false);
     }
 
@@ -189,7 +171,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   // Handle unmount speech cancel
   useEffect(() => {
     return () => {
-      window.speechSynthesis.cancel();
+      cancelSpeech();
     };
   }, []);
 
@@ -198,13 +180,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
     setCurrentRepeatIteration(0);
     if (!isPlaying) {
       // Speak once manually
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const enUtterance = new SpeechSynthesisUtterance(activeWordsPool[idx].text);
-        enUtterance.lang = 'en-US';
-        enUtterance.rate = playRate;
-        window.speechSynthesis.speak(enUtterance);
-      }
+      speakText(activeWordsPool[idx].text, { lang: 'en', rate: playRate });
     }
   };
 
@@ -391,7 +367,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 setIsPlaying(false);
                 setCurrentIndex(0);
                 setCurrentRepeatIteration(0);
-                window.speechSynthesis.cancel();
+                cancelSpeech();
                 addToast(trans('walkman.stopped'), "warning");
               }}
               className="py-3 bg-zinc-900 hover:bg-zinc-800 active:translate-y-0.5 text-zinc-300 rounded-xl border-b-4 border-zinc-950 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"

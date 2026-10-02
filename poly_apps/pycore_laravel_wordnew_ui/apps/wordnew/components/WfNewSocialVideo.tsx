@@ -4,7 +4,12 @@ import { Film, Upload, Link2, Send, Loader2, ExternalLink, Maximize2 } from 'luc
 import type { ElementTheme } from '../WfNewThemes';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { wfNewApi, type WfNewPost } from '../api';
-import { WfNewActorAvatar, wfNewRelativeTime, wfNewEmbedUrl } from './WfNewSocialPlaza';
+import { formatRelativeTime } from '../../../core/utils/formatters';
+import { WfNewActorAvatar } from './social/WfNewSocialAvatar';
+import { useSocialList } from './social/useSocialList';
+import { embedUrl } from './social/socialEmbed';
+import { StateMessage } from '@/shared/ui/StateMessage';
+import { TextField } from '@/shared/ui/TextField';
 
 interface WfNewSocialVideoProps {
   activeTheme: ElementTheme;
@@ -16,26 +21,20 @@ interface WfNewSocialVideoProps {
   onOpenVideo?: (postId: number) => void;
 }
 
+const VIDEO_PAGE_SIZE = 40;
+
 export const WfNewSocialVideo: React.FC<WfNewSocialVideoProps> = ({
   trans, addToast, isLoggedIn, requireAuth, onOpenVideo,
 }) => {
-  const [posts, setPosts] = useState<WfNewPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: posts, setItems: setPosts, loading } = useSocialList<WfNewPost>(
+    isLoggedIn,
+    () => wfNewApi.getPosts({ filter: 'videos', limit: VIDEO_PAGE_SIZE }).then((page) => page.items),
+    [],
+  );
   const [externalUrl, setExternalUrl] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const load = useCallback(() => {
-    if (!isLoggedIn) { setPosts([]); setLoading(false); return; }
-    setLoading(true);
-    wfNewApi.getPosts({ filter: 'videos', limit: 40 })
-      .then(page => setPosts(page.items))
-      .catch(() => setPosts([]))
-      .finally(() => setLoading(false));
-  }, [isLoggedIn]);
-
-  useEffect(() => { load(); }, [load]);
 
   const prepend = useCallback((post: WfNewPost) => {
     setPosts(prev => (prev.some(p => p.id === post.id) ? prev.map(p => p.id === post.id ? post : p) : [post, ...prev]));
@@ -66,7 +65,7 @@ export const WfNewSocialVideo: React.FC<WfNewSocialVideoProps> = ({
     if (!isLoggedIn) { requireAuth(); return; }
     const url = externalUrl.trim();
     if (!url) return;
-    if (!wfNewEmbedUrl(url)) { addToast(trans('social.embedUnsupported'), 'warning'); return; }
+    if (!embedUrl(url)) { addToast(trans('social.embedUnsupported'), 'warning'); return; }
     setSubmitting(true);
     try {
       const post = await wfNewApi.createPost({ content: content.trim() || undefined, post_type: 'video', external_url: url });
@@ -88,24 +87,9 @@ export const WfNewSocialVideo: React.FC<WfNewSocialVideoProps> = ({
         <h4 className="text-xs font-black font-mono tracking-widest text-indigo-400 uppercase flex items-center gap-1.5">
           <Film className="w-4 h-4" /> {trans('social.videoComposeTitle')}
         </h4>
-        <input
-          type="text"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder={trans('social.videoCaptionPh')}
-          className="w-full bg-slate-900/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
-        />
+        <TextField value={content} onChange={setContent} placeholder={trans('social.videoCaptionPh')} />
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-            <input
-              type="url"
-              value={externalUrl}
-              onChange={e => setExternalUrl(e.target.value)}
-              placeholder={trans('social.embedPh')}
-              className="w-full bg-slate-900/60 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-xs text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
-            />
-          </div>
+          <TextField className="flex-1" type="url" icon={<Link2 />} value={externalUrl} onChange={setExternalUrl} placeholder={trans('social.embedPh')} />
           <button
             onClick={handleShareEmbed}
             disabled={submitting || !externalUrl.trim()}
@@ -127,20 +111,20 @@ export const WfNewSocialVideo: React.FC<WfNewSocialVideoProps> = ({
 
       {/* Video feed */}
       {loading && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.loading')}</div>
+        <StateMessage kind="empty" size="page">{trans('social.loading')}</StateMessage>
       )}
       {!loading && posts.length === 0 && (
-        <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.videoEmpty')}</div>
+        <StateMessage kind="empty" size="page">{trans('social.videoEmpty')}</StateMessage>
       )}
       {!loading && posts.map(post => {
-        const embed = !post.video_url && post.external_url ? wfNewEmbedUrl(post.external_url) : null;
+        const embed = !post.video_url && post.external_url ? embedUrl(post.external_url) : null;
         return (
           <motion.div layout key={post.id} className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
             <div className="flex items-center gap-3">
               <WfNewActorAvatar actor={post.author} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-slate-200 truncate">{post.author.name}</p>
-                <p className="text-[10px] text-zinc-500 font-mono">{wfNewRelativeTime(post.created_at)}</p>
+                <p className="text-[10px] text-zinc-500 font-mono">{formatRelativeTime(post.created_at)}</p>
               </div>
             </div>
             {post.content && <p className="text-[13px] text-zinc-200 leading-relaxed break-words">{post.content}</p>}

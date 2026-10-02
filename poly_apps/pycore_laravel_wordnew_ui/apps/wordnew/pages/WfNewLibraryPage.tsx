@@ -21,6 +21,7 @@ import {
 import { ChipButton } from '@/shared/ui/ChipButton';
 import { DataTableHead, DataTableShell } from '@/shared/ui/DataTable';
 import { ModalShell } from '@/shared/ui/ModalShell';
+import { SegmentedControl } from '@/shared/ui/SegmentedControl';
 import { StatCard } from '@/shared/ui/StatCard';
 import { StateGate } from '@/shared/ui/StateMessage';
 import { formatNumber } from '../../../core/utils/formatters';
@@ -368,26 +369,14 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
       {/* Toolbar: view toggle + fullscreen (page title lives in the global nav). */}
       <div className="flex items-center gap-3 px-1">
         <div className="min-w-0 flex-1" />
-        <div className="flex items-center rounded-lg border border-white/10 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => onChangeView('dash')}
-            className={`px-2.5 py-1.5 text-[11px] font-mono font-bold transition ${
-              dashOpen ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
-            }`}
-          >
-            {trans('library.view.dash')}
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeView('table')}
-            className={`px-2.5 py-1.5 text-[11px] font-mono font-bold transition ${
-              !dashOpen ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
-            }`}
-          >
-            {trans('library.view.table')}
-          </button>
-        </div>
+        <SegmentedControl
+          value={view}
+          onChange={onChangeView}
+          options={[
+            { value: 'dash', label: trans('library.view.dash') },
+            { value: 'table', label: trans('library.view.table') },
+          ]}
+        />
         <button
           type="button"
           onClick={() => setFullscreen((f) => !f)}
