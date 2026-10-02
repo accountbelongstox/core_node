@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/D3D4TesterCore/RosbotFlowHost.cs
 """
 Log monitor API: set_log_file, set_rosbot_running.
 Thin delegate so callers can set monitored file / rosbot state without importing log_monitor

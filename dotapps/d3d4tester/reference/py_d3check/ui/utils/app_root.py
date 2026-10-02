@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/Ui/UiRegistry.cs
 """
 Application Root Helper
 Delegates to share.ui_registry; main UI registers on startup; this module provides compatibility exports.

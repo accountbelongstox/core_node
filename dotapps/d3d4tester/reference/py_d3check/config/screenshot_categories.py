@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/D3D4TesterCore/D3InterfaceConstants.cs
 """
 Screenshot category constants and cleanup manager.
 Classifies screenshot directories; cleans files older than a given age per category.

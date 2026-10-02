@@ -1,4 +1,4 @@
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/Services/TrayIconService.cs
 # Optional dependencies for system tray. All loaded via pycore third_party style; no catch in this module.
 
 from pycore.pyfoundations.third_party.api import (

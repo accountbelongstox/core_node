@@ -3,6 +3,7 @@
 // PY-REF: pyapps/d3-check/d3utils/system_initializer.py
 // PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
 // PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
+// PY-REF: pyapps/d3-check/lifecycle/log_monitor.py
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;

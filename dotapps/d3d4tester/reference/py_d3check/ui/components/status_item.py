@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# DOT-REF: none (not ported directly; see dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md)
+# DOT-REF: dotapps/d3d4tester/MainWindow.xaml.cs
 """
 Status Item - one label+value pair for status row.
 Returns (frame, value_label) so caller can pack frame and optionally register value_label for fg updates.
