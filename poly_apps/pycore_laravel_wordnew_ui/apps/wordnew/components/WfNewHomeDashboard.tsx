@@ -1,15 +1,19 @@
 /**
- * WfNewHomeDashboard — the home learning dashboard. Logged in: a compact bento
- * (greeting, today ring, KPIs, 7-day strip) fed by the shared learning-stats
- * center. Always: the editable learning-settings row (Save persists when
- * logged in, routes to login when not — the host's onSave decides).
+ * WfNewHomeDashboard — the home learning panel: hangs from the header (straight
+ * top, arched bottom), collapsed by default to one row of core figures (today
+ * ring, today / goal, streak, reviews) with a glow and a flowing border; the
+ * handle expands it to the full bento (KPIs, 7-day strip) fed by the shared
+ * learning-stats center, plus the editable learning-settings row (Save persists
+ * when logged in, routes to login when not — the host's onSave decides).
+ * Logged out, the collapsed row offers the shared login.
  */
 import React, { useEffect, useState } from 'react';
+import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 import { motion } from 'framer-motion';
 import {
   BarChart3, LogIn, type LucideIcon,
   Languages, BookOpen, RefreshCw, GraduationCap, Flame, CalendarCheck,
-  Sparkles, Save, TrendingUp, Layers,
+  Sparkles, Save, TrendingUp, Layers, ChevronDown,
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { getLanguageConfig } from '../WfNewLocales';
@@ -52,6 +56,11 @@ const Chip: React.FC<{ icon: LucideIcon; label: string; value: React.ReactNode; 
   </div>
 );
 
+/** Straight top, arched bottom (the panel hangs from the header). */
+const ARC_STYLE: React.CSSProperties = { borderBottomLeftRadius: '50% 2.25rem', borderBottomRightRadius: '50% 2.25rem' };
+const R_MINI = 15;
+const C_MINI = 2 * Math.PI * R_MINI;
+
 const PILL = 'h-9 min-w-0 flex items-center gap-2 px-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-slate-900/5 dark:border-white/10 transition-colors';
 
 export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
@@ -73,6 +82,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
   // used in Settings. The panel syncs to the backend itself; here we mirror the
   // result into the local draft + the settings store.
   const [langPanelOpen, setLangPanelOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [nativeLang, setNativeLang] = useState<string>(() => wfNewSettings.get('settingNativeLang'));
   const [targetLangs, setTargetLangs] = useState<string[]>(() => {
     const stored = wfNewSettings.get('settingTargetLangs');
@@ -95,11 +105,27 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
   const saveLabel = isLoggedIn ? trans('dashboard.save') : trans('dashboard.saveLogin');
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`p-2.5 sm:p-3 rounded-3xl border border-indigo-500/10 shadow-lg bg-gradient-to-br from-indigo-50/80 via-white/60 to-fuchsia-50/70 dark:from-slate-900/70 dark:via-slate-900/50 dark:to-indigo-950/40 backdrop-blur-xl ${activeTheme.glowClass || ''} space-y-2.5`}
-    >
+    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="relative -mx-4 -mt-8 pb-4 sm:mx-0">
+      <div
+        className={`relative overflow-hidden px-[1.5px] pb-[1.5px] transition-shadow duration-500 ${
+          expanded ? `shadow-lg ${activeTheme.glowClass || ''}` : 'shadow-[0_18px_40px_-14px_rgba(99,102,241,0.6)] dark:shadow-[0_18px_44px_-12px_rgba(129,140,248,0.45)]'
+        }`}
+        style={ARC_STYLE}
+      >
+        {expanded ? (
+          <div aria-hidden className="absolute inset-0 bg-indigo-500/15" />
+        ) : (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[220%] -translate-x-1/2 -translate-y-1/2 animate-[spin_5s_linear_infinite] motion-reduce:animate-none bg-[conic-gradient(from_0deg,transparent_0deg,transparent_200deg,#818cf8_260deg,#e879f9_310deg,#22d3ee_340deg,transparent_360deg)]"
+          />
+        )}
+        <div
+          className="relative bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 px-3 pb-6 pt-3 sm:px-4"
+          style={ARC_STYLE}
+        >
+          {expanded ? (
+            <div className="space-y-2.5">
       {isLoggedIn && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 min-w-0 px-1">
@@ -211,6 +237,80 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           {isLoggedIn ? <Save className="w-3.5 h-3.5" /> : <LogIn className="w-3.5 h-3.5" />}
         </button>
       </div>
+
+            </div>
+          ) : (
+            <div className="flex w-full min-w-0 items-center gap-2.5">
+              {isLoggedIn ? (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(true)}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                  aria-label={trans('dashboard.expand')}
+                  title={trans('dashboard.expand')}
+                >
+                  <span className="relative shrink-0 h-9 w-9">
+                    <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden>
+                      <circle cx="18" cy="18" r={R_MINI} fill="none" stroke="currentColor" strokeWidth="4" className="text-slate-900/10 dark:text-white/10" />
+                      <circle
+                        cx="18" cy="18" r={R_MINI} fill="none" stroke="url(#wfn-ring-mini)" strokeWidth="4" strokeLinecap="round"
+                        strokeDasharray={C_MINI} strokeDashoffset={C_MINI * (1 - pct / 100)}
+                        className="transition-[stroke-dashoffset] duration-700"
+                      />
+                      <defs>
+                        <linearGradient id="wfn-ring-mini" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#e879f9" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black font-mono text-slate-900 dark:text-white">{pct}%</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                      <span className="truncate text-sm font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-fuchsia-600 dark:from-indigo-300 dark:to-fuchsia-300">{nickname}</span>
+                    </span>
+                    <span className="block font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200" title={trans('home.todayRecite')}>
+                      {today}<span className="text-indigo-600 dark:text-indigo-300"> / {goal}</span>
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-orange-500/10 px-2 py-1 text-xs font-black font-mono text-orange-500 dark:text-orange-400" title={trans('home.checkIn')}>
+                    <Flame className="h-3.5 w-3.5" />{streak}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2 py-1 text-xs font-black font-mono text-amber-600 dark:text-amber-400" title={trans('home.needReview')}>
+                    <RefreshCw className="h-3.5 w-3.5" />{stats?.needsReview ?? 0}
+                  </span>
+                </button>
+              ) : (
+                <>
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-500 dark:text-indigo-300">
+                    <LogIn className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-xs font-bold text-slate-700 dark:text-slate-200">{trans('dashboard.loginHint')}</span>
+                  <button
+                    type="button"
+                    onClick={() => requestAuthLogin({ source: 'wordnew-home', reason: 'login-action' })}
+                    className="shrink-0 rounded-full bg-gradient-to-r from-indigo-600 to-fuchsia-600 px-3 py-1.5 text-[11px] font-bold text-white hover:brightness-110"
+                  >
+                    {trans('common.login')}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        aria-label={trans(expanded ? 'dashboard.collapse' : 'dashboard.expand')}
+        title={trans(expanded ? 'dashboard.collapse' : 'dashboard.expand')}
+        className="absolute bottom-0 left-1/2 z-10 inline-flex h-8 w-14 -translate-x-1/2 items-center justify-center rounded-full border border-indigo-500/20 bg-white text-indigo-500 shadow-md hover:text-fuchsia-500 dark:bg-slate-900 dark:text-indigo-300"
+      >
+        <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+      </button>
 
       {/* Shared floating language panel (native + multi targets), same as Settings. */}
       <WfNewLanguagePanel
