@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Cpu, MemoryStick } from 'lucide-react';
-import { queueProgressPercent, readQueueProgress, type QueueLaneReport, type QueueProgressCounts } from '../../../core/contracts/QueueProgress';
+import { queueProgressPercent, readQueueProgress, type QueueAssistState, type QueueLaneReport, type QueueProgressCounts } from '../../../core/contracts/QueueProgress';
 import { pcErrorCodeText } from '../utils/pcErrorCodes';
 import { useAudioLaneState } from '../api/AudioLaneStateStore';
 
@@ -14,6 +14,16 @@ function Bar({ counts }: { counts: QueueProgressCounts }): ReactElement {
       <div className="bg-emerald-500" style={{ width: `${(counts.done / total) * 100}%` }} />
       <div className="bg-rose-500" style={{ width: `${(counts.failed / total) * 100}%` }} />
     </div>
+  );
+}
+
+/** Why this node's lane is blocked (assist `reason_code`), shown wherever the lane is summarized, also collapsed. */
+export function PcLaneBlockedBadge({ assist }: { assist: QueueAssistState | null | undefined }): ReactElement | null {
+  if (assist?.state !== 'blocked' || !assist.reason_code) return null;
+  return (
+    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300" title={pcErrorCodeText(assist.reason_code)}>
+      {assist.reason_code}
+    </span>
   );
 }
 
@@ -50,6 +60,9 @@ export function PcQueueProgress({ titleKey, report }: { titleKey: string; report
           </span>
         )}
       </div>
+      {assist?.state === 'blocked' && assist.reason_code && (
+        <p className="text-[10px] text-amber-400">{pcErrorCodeText(assist.reason_code)}</p>
+      )}
       {progress && <Bar counts={progress} />}
       {progress?.languages && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400">

@@ -18,6 +18,7 @@ Related: `DESIGN_LARAVEL_PLATFORM.md` (Laravel runtime and the pycore boundary),
 | End-user routes (wordnew, codemart) | users | Sanctum or public reads; never the machine key |
 | Payment callbacks | payment gateway | gateway signature plus amount check, or admin confirm; never the client key |
 | Relay owner routes (grant, frames, telemetry, stats, roster, claim, pairings, owner blobs) | UIs (signed builds, logged-in users) | `client.key_or_dashboard:user`; owner identity = client key → shared fleet owner `RelayFleetScope::clientKeyOwner()`, OR the Sanctum user (`RelayOwnerResolver`, `DESIGN_RELAY.md` §2) |
+| Agent bus (`/api/agent-bus/*` REST and `/api/agent-bus/mcp`; `info` is public) | AI agents through the K3-signing bridge, operators | `client.key_or_dashboard` (admin); agent id = K3 machine id (or `user-<id>`) + name (`DESIGN_AGENT_BUS.md` §3) |
 | Relay device enrollment | pycore | Ed25519 relay flow (`DESIGN_RELAY.md`); an enrollment that also carries a valid K3 signature is approved at once (`RelayDeviceCtl` → `approveWithClientKey`) |
 | pycore RPC 59000, ncore 58000 and its HTTP stack, translation service, WebLocalAreaNetwork, mcp-chrome native server | local UI, relay, LAN peers | K7 (§7) |
 | CodeSync workspace | LAN pycore peers | K3 only; no bearer secret |

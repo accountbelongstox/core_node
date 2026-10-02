@@ -16,6 +16,7 @@ import {
 import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '@/apps/pycore-manager/api';
 import type { PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '@/apps/pycore-manager/api';
 import { TTS_WORD_BATCH_ENGINE } from '@/core/contracts/ServiceContract';
+import { PcLocalizedError, pcCaughtErrorMessage, pcFailureMessage } from '../utils/pcErrorCodes';
 
 type DisplayedCapabilityKey = Exclude<PcCapabilityKey, 'image' | 'translation'>;
 
@@ -113,9 +114,8 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
       if (cap === 'tts') patch.options = draft[cap].options;
       const r = await pycoreApi.saveCapabilitySettings(cap, patch);
       if (!mounted.current) return;
-      if (!r || (r as any).success === false) {
-        const detail = (r as any)?.error ?? (r as any)?.detail;
-        throw new Error(typeof detail === 'string' ? detail : 'save rejected');
+      if (!r || (r as { success?: boolean }).success === false) {
+        throw new PcLocalizedError(pcFailureMessage(r as Parameters<typeof pcFailureMessage>[0], t('common.requestFailed')));
       }
       // Reflect the returned block (server may have appended omitted engines).
       setDraft((prev) => ({
@@ -129,8 +129,8 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
         },
       }));
       setNotice({ cap, ok: true, text: t('queueCenter.drawer.saved', { cap: t(CAP_LABEL_KEY[cap]) }) });
-    } catch (e: any) {
-      if (mounted.current) setNotice({ cap, ok: false, text: e?.message || 'pycore unreachable' });
+    } catch (e: unknown) {
+      if (mounted.current) setNotice({ cap, ok: false, text: t('queueCenter.drawer.saveFailed', { error: pcCaughtErrorMessage(e, t('common.pycoreUnreachable')) }) });
     } finally {
       if (mounted.current) setSavingCap(null);
     }

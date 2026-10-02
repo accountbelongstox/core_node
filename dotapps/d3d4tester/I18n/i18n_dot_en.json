@@ -37,6 +37,20 @@
       "state_detail": "Detail",
       "probe": "Probe now",
       "restart": "Restart Battle.net"
+    },
+    "resource_monitor": {
+      "title": "System resources (1 s)",
+      "column_name": "Target",
+      "column_cpu": "CPU",
+      "column_memory": "Memory",
+      "column_gpu_memory": "GPU memory",
+      "column_gpu": "GPU",
+      "row_system": "System",
+      "row_self": "This app",
+      "row_battlenet": "Battle.net",
+      "row_d3": "D3",
+      "row_d4": "D4",
+      "row_rosbot": "ROSBOT"
     }
   },
   "skills": {

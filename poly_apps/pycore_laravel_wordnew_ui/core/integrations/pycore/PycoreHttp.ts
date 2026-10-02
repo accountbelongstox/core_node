@@ -4,6 +4,7 @@ import { PycorePaths } from './pycoreEndpoints';
 import { rewritePycoreEndpoint, isPycoreRelayMode } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
+import { relayErrorText } from './PycoreRelayError';
 import { readBytesWithStallGuard } from '../../network/StallGuardedRead';
 import { PYCORE_DIRECT_ONLY_CODE, PYCORE_STATUS_ROUTE, isPycoreRouteDirectOnly, pycoreRouteMethod, type PycoreRouteMethod } from './PycoreHttpRoutes';
 
@@ -19,7 +20,7 @@ async function requestHttp(
   onProgress?: (fraction: number) => void,
 ): Promise<any> {
   if (isPycoreRelayMode() && isPycoreRouteDirectOnly(route)) {
-    return Promise.reject(new PycoreHttpError(403, `${route} is direct-only`, PYCORE_DIRECT_ONLY_CODE));
+    return Promise.reject(new PycoreHttpError(403, relayErrorText('RELAY_ROUTE_DENIED'), PYCORE_DIRECT_ONLY_CODE));
   }
   return method === 'GET'
     ? pycoreMasterClient.getJson(path, timeoutMs, route)

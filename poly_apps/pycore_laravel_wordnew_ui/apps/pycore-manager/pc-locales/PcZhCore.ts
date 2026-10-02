@@ -605,6 +605,7 @@ queueCenter: {
       retry: '重试死信',
       retryFailed: '投递重试失败',
       laravelOnlineAt: 'Laravel 自 {{time}} 起在线',
+      heldBySchema: '结果暂存在此发件箱：服务器结构待更新，因此不发送也不计失败。',
       laravelOffline: '尚未连通 Laravel；投递将在恢复在线后自动进行',
       stages: {
         payload: '{{count}} 条待上传内容',

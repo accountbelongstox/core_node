@@ -607,6 +607,7 @@ queueCenter: {
       retry: 'Retry dead letters',
       retryFailed: 'Delivery retry failed',
       laravelOnlineAt: 'Laravel online since {{time}}',
+      heldBySchema: 'Results wait in this outbox: the server schema is pending, so nothing is sent and no failure is counted.',
       laravelOffline: 'Laravel not reached yet; deliveries wait for the online edge',
       stages: {
         payload: '{{count}} payload upload',

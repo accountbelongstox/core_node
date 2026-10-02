@@ -116,6 +116,7 @@ final class WorkLeaseService
     {
         $expiresAt = now()->addSeconds($this->limit('lease_ttl_seconds'));
         $result = ['renewed' => [], 'lost' => []];
+        $renewedLanes = [];
 
         foreach (array_unique(array_map('strval', $leaseIds)) as $leaseId) {
             $lease = QueueCenterCacheStore::get()->get(self::LEASE_KEY . $leaseId);
@@ -135,11 +136,14 @@ final class WorkLeaseService
                 continue;
             }
             $lease['expires_at'] = $expiresAt->toIso8601String();
+            foreach ($lease['tables'] as $pair) {
+                $renewedLanes[explode(':', $pair, 2)[0]] = true;
+            }
             QueueCenterCacheStore::get()->put(self::LEASE_KEY . $leaseId, $lease, $this->registryTtl());
             $result['renewed'][] = ['lease_id' => $leaseId, 'expires_at' => $lease['expires_at']];
         }
         if ($leaseIds !== []) {
-            Worker::query()->where('worker_id', $workerId)->update(['last_heartbeat_at' => now(), 'status' => Worker::STATUS_ONLINE]);
+            Worker::touchWorkLanes($workerId, array_keys($renewedLanes));
             $this->signal('renew');
         }
 
@@ -201,6 +205,7 @@ final class WorkLeaseService
 
         foreach (Worker::workNodes() as $worker) {
             $metadata = $worker->metadata;
+            $lanes = $worker->liveWorkLanes($ttl);
             $leases = $this->liveNodeLeases((string) $worker->worker_id);
             $itemsLeased = array_sum(array_column($leases, 'items'));
             $donePerHour = $this->itemsPerHour((string) $worker->worker_id, (array) ($metadata['work_throughput_seed'] ?? []));
@@ -208,8 +213,8 @@ final class WorkLeaseService
                 'worker_id' => (string) $worker->worker_id,
                 'compute_class' => (string) PycoreComputeRoster::classOf($worker),
                 'online' => $this->isOnline($worker, $ttl),
-                'lanes' => array_map(static fn (array $lane): array => $lane['languages'], (array) $metadata['work_lanes']),
-                'engines' => array_map(static fn (array $lane): array => (array) ($lane['engines'] ?? []), (array) $metadata['work_lanes']),
+                'lanes' => array_map(static fn (array $lane): array => (array) ($lane['languages'] ?? []), $lanes),
+                'engines' => array_map(static fn (array $lane): array => (array) ($lane['engines'] ?? []), $lanes),
                 'leases' => count($leases),
                 'items_leased' => $itemsLeased,
                 'done_per_hour' => $donePerHour,
@@ -758,7 +763,7 @@ final class WorkLeaseService
             ->filter(fn (Worker $worker): bool => $this->isOnline($worker, $ttl))
             ->map(static fn (Worker $worker): array => [
                 'compute_class' => (string) PycoreComputeRoster::classOf($worker),
-                'lanes' => (array) $worker->metadata['work_lanes'],
+                'lanes' => $worker->liveWorkLanes($ttl),
             ])
             ->all();
     }

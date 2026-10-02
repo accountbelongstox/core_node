@@ -37,6 +37,20 @@
       "state_detail": "详情",
       "probe": "立即探测",
       "restart": "重启战网"
+    },
+    "resource_monitor": {
+      "title": "系统资源（每秒刷新）",
+      "column_name": "对象",
+      "column_cpu": "CPU",
+      "column_memory": "内存",
+      "column_gpu_memory": "显存",
+      "column_gpu": "GPU",
+      "row_system": "系统",
+      "row_self": "本程序",
+      "row_battlenet": "战网",
+      "row_d3": "D3",
+      "row_d4": "D4",
+      "row_rosbot": "ROSBOT"
     }
   },
   "skills": {

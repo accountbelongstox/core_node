@@ -2,12 +2,8 @@
 
 namespace App\Services\QueueCenter;
 
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel;
 use App\Support\QueueProgress;
 use App\Models\GlobalTask;
-use App\Services\QueueCenter\DictLane\DictLaneCatalog;
-use App\Services\QueueCenter\DictLane\DictLaneQueueCenter;
 use App\Support\QueueCenterContract;
 
 final class QueueCenterMetricsService
@@ -84,23 +80,13 @@ final class QueueCenterMetricsService
      */
     private function gapLanguages(string $taskType): ?array
     {
-        $languages = [];
-
-        if ($taskType === QueueCenterService::QUEUE_WORD_AUDIO) {
-            foreach (DictLaneCatalog::languages() as $language) {
-                $languages[$language] = app(DictLaneQueueCenter::class)->progress(DictLaneCatalog::LANE_WORD_AUDIO, $language);
-            }
-        } elseif ($taskType === QueueCenterService::QUEUE_SENTENCE_AUDIO) {
-            foreach (AppQyV1TableMaps::getSupportedLanguages() as $language) {
-                $languages[$language] = AppQyV1LangSentenceModel::audioGapCounts($language);
-            }
-        } else {
+        if (!in_array($taskType, [QueueCenterService::QUEUE_WORD_AUDIO, QueueCenterService::QUEUE_SENTENCE_AUDIO], true)) {
             return null;
         }
 
-        return array_filter(
-            array_map(static fn (array $row): array => ['done' => (int) $row['done'], 'failed' => (int) $row['failed'], 'pending' => (int) $row['pending']], $languages),
-            static fn (array $row): bool => $row['done'] + $row['failed'] + $row['pending'] > 0
+        return array_map(
+            static fn (array $row): array => ['done' => $row['done'], 'failed' => $row['failed'], 'pending' => $row['pending']],
+            GapLaneSnapshot::lane($taskType)
         );
     }
 
@@ -146,9 +132,7 @@ final class QueueCenterMetricsService
     {
         $snapshot = $this->snapshot($taskType);
         if ($taskType === QueueCenterService::QUEUE_WORD_AUDIO) {
-            $backlog = array_sum(
-                app(DictLaneQueueCenter::class)->counts(DictLaneCatalog::LANE_WORD_AUDIO)
-            );
+            $backlog = array_sum(array_column(GapLaneSnapshot::lane($taskType), 'gap'));
             $assigned = min($backlog, (int) ($snapshot['assigned'] ?? 0));
             $processing = min(
                 max(0, $backlog - $assigned),

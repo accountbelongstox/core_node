@@ -122,7 +122,7 @@ public partial class AuxiliaryOptionsBlock : UserControl
         for (int idx = 0; idx < Features.Length; idx++)
         {
             var spec = Features[idx];
-            var cell = new DockPanel { Margin = new Thickness(0, 0, 0, 8), LastChildFill = true };
+            var cell = new DockPanel { Margin = new Thickness(0, 0, 0, 3), LastChildFill = true };
             Grid.SetRow(cell, idx / 2);
             Grid.SetColumn(cell, idx % 2 == 0 ? 0 : 2);
             var check = new CheckBox { VerticalAlignment = VerticalAlignment.Center };

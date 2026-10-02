@@ -26,8 +26,11 @@ final class AppQyV1MediaGaps
     /** A row without audio (NULL counts as missing); the audio part of every audio gap. */
     public const NO_AUDIO = 'has_audio IS NOT TRUE';
 
-    /** Word without audio. */
-    public const WORD_AUDIO = self::NO_AUDIO . ' AND ' . self::WORD_HAS_CONTENT;
+    /** A word the validity check did not reject (unchecked words count as real). */
+    public const WORD_NOT_INVALID = 'is_valid IS NOT FALSE';
+
+    /** Word without audio that is worth voicing (validity-rejected words never enter the audio gap). */
+    public const WORD_AUDIO = self::NO_AUDIO . ' AND ' . self::WORD_HAS_CONTENT . ' AND ' . self::WORD_NOT_INVALID;
 
     /** Word without any translation (neither the flag nor a stored map). */
     public const WORD_TRANSLATION = "has_translation IS NOT TRUE AND (translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]') AND " . self::WORD_HAS_CONTENT;
@@ -55,7 +58,7 @@ final class AppQyV1MediaGaps
 
     /** Columns each WORD_GAPS predicate reads (the per-index column check before a build). */
     private const WORD_GAP_READS = [
-        'audio' => ['has_audio', 'content'],
+        'audio' => ['has_audio', 'content', 'is_valid'],
         'translation' => ['has_translation', 'translations', 'content'],
         'translation_work' => ['has_translation', 'translations', 'content', 'is_valid'],
         'validity_work' => ['validity_checked_at', 'content'],

@@ -9,7 +9,7 @@ Please strictly adhere to the following guidelines when operating within the `do
 Each topic has ONE current-state canonical document, named `DESIGN_<TOPIC>.md` (no date) and updated in place. The current set:
 `DESIGN_PYCORE_CORE.md`, `DESIGN_RELAY.md`, `DESIGN_TRANSPORT_PLANE.md`, `DESIGN_QUEUE_PIPELINE.md`, `DESIGN_TTS_AI_RUNTIME.md`,
 `DESIGN_AUDIO_ORCHESTRATION.md`, `DESIGN_WORDNEW_CLIENT.md`, `DESIGN_LARAVEL_PLATFORM.md`, `DESIGN_AUTH_IDENTITY.md`,
-`DESIGN_SHELL_HOSTS.md`, `DESIGN_UI.md`, `DESIGN_AGENT_HISTORY.md`, `DESIGN_CODEMART.md`, `DESIGN_CLAUDE_TEAM.md`,
+`DESIGN_SHELL_HOSTS.md`, `DESIGN_UI.md`, `DESIGN_AGENT_HISTORY.md`, `DESIGN_CODEMART.md`, `DESIGN_CLAUDE_TEAM.md`, `DESIGN_AGENT_BUS.md`,
 plus `PENDING_ACTIONS.md` (cross-cutting user actions: deployment checklist, deletions awaiting approval, open user decisions),
 `CODESYNC_AI_COMMUNICATION_API.md` (frozen) and `TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md` (referenced by the wordnew guide).
 

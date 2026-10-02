@@ -13,12 +13,13 @@ Run together: the relay contract digest and the lease/gap schema changed, so Lar
 3. `php artisan sys:init`. It applies the pending migrations and self-heals:
    - `database/migrations/AppQyV1_2026_10_02_000001_add_media_gap_partial_indexes.php` (media gap and lease indexes);
    - `database/migrations/AppQyV1_2026_10_02_000002_ensure_hot_path_gap_lease_indexes.php` (word and sentence gap, failed-free lease claim, lease expiry and failed indexes for every language, each index once its columns exist (the sys:init alignment builds the rest); built `CONCURRENTLY` outside a transaction, so writes continue; a rerun repairs an interrupted build);
-   - `database/migrations/global_Relay_2026_10_01_000001_create_relay_ledger_table.php` (`global_relay_ledger`).
+   - `database/migrations/global_Relay_2026_10_01_000001_create_relay_ledger_table.php` (`global_relay_ledger`);
+   - `database/migrations/global_AgentBus_2026_10_02_000001_create_agent_bus_tables.php` (`global_agent_bus_*`, `DESIGN_AGENT_BUS.md`).
 4. Restart the FrankenPHP/Octane workers: systemd unit `ncore-laravel-frankenphp` (contracts are cached per worker); `php artisan optimize:clear` when config/route caches are used.
 5. Run step 175 once on the server (book seed).
 6. Restart the Windows pycore after its tree is synced (it must run the current `task_puller`).
 7. Keep `CORE_NODE_CLIENT_KEY_1` identical on Laravel, every pycore, ncore, the mcp-chrome native host and wordnew.
-8. Post-deploy checks: `php artisan route:list --path=relay`; Redis connection `relay` (db 3) reachable; the `mercure_hub` public URL shares the origin that `laravel_endpoint_manager.resolve()` returns; `taskTypeExecution("tts_synthesize")` returns `remote_compute`; redeploy every device and UI build.
+8. Post-deploy checks: `php artisan route:list --path=relay`; `php artisan route:list --path=agent-bus` (20 routes) and an agent-bus MCP `initialize` + `tools/list` through the bridge (`DESIGN_AGENT_BUS.md` §5); Redis connection `relay` (db 3) reachable; the `mercure_hub` public URL shares the origin that `laravel_endpoint_manager.resolve()` returns; `taskTypeExecution("tts_synthesize")` returns `remote_compute`; redeploy every device and UI build.
 
 Host actions (see `DESIGN_SHELL_HOSTS.md` Open items):
 - Every Linux host: rerun `175 --domains-only`.

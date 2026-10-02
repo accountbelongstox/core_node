@@ -27,7 +27,8 @@ import {
   type PycoreEndpoint, type PycoreProbeResult, type PycoreTarget,
 } from '@/apps/pycore-manager/api';
 import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
-import { relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
+import { isHeadlessRelayDevice, relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
+import { pcCaughtErrorMessage } from '../utils/pcErrorCodes';
 import { PYCORE_BACKEND_PORT } from '@/apps/pycore-manager/api';
 
 interface Props {
@@ -174,9 +175,10 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   };
 
   const designate = (machineId: string) => {
+    setNotice('');
     void designateLaravelRelayDevice(machineId)
       .then((pair) => setDesignated(pair.device_id))
-      .catch(() => undefined); // roster stays; the pair badge explains the failure
+      .catch((error: unknown) => setNotice(pcCaughtErrorMessage(error, t('relayTarget.designateFailed'))));
   };
   const undesignate = () => {
     void clearLaravelRelayDevice()
@@ -196,7 +198,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
         const pairing = await designateLaravelRelayDevice(device.device_id);
         setDesignated(pairing.device_id);
       })
-      .catch(() => setClaimNotice(t('relayTarget.enrollmentFailed')))
+      .catch((error: unknown) => setClaimNotice(pcCaughtErrorMessage(error, t('relayTarget.enrollmentFailed'))))
       .finally(() => setClaiming(false));
   };
 
@@ -415,6 +417,14 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                         title={entry.online ? t('relayTarget.heartbeatFresh') : t('relayTarget.heartbeatStale')}
                       />
                       {entry.label}
+                      {isHeadlessRelayDevice(entry) && (
+                        <span
+                          className="px-1 rounded text-[9px] font-bold uppercase bg-slate-500/15 text-slate-500"
+                          title={t('relayTarget.headlessTitle')}
+                        >
+                          {t('relayTarget.headless')}
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] font-mono text-slate-400 pl-4 truncate">
                       {entry.device_id} · {entry.online ? t('relayTarget.online') : t('relayTarget.offline')}

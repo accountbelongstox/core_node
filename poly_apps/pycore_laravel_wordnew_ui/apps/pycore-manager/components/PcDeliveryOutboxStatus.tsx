@@ -4,7 +4,8 @@ import { GitCompare, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { pycoreApi } from '@/apps/pycore-manager/api';
-import { pcFailureMessage } from '../utils/pcErrorCodes';
+import { pcCaughtErrorMessage, pcFailureMessage } from '../utils/pcErrorCodes';
+import { useServerSchemaGate } from '../../../core/integrations/laravel';
 import type {
   LaravelDeliveryKindStatus,
   LaravelDeliveryNamespaceStatus,
@@ -43,6 +44,7 @@ export function PcDeliveryOutboxStatus({
   onChanged,
 }: PcDeliveryOutboxStatusProps): ReactElement | null {
   const { t } = useTranslation('pc');
+  const schemaGate = useServerSchemaGate();
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
@@ -65,8 +67,8 @@ export function PcDeliveryOutboxStatus({
         return;
       }
       await onChanged();
-    } catch {
-      setError(t('queueCenter.deliveryOutbox.retryFailed'));
+    } catch (caught: unknown) {
+      setError(pcCaughtErrorMessage(caught, t('queueCenter.deliveryOutbox.retryFailed')));
     } finally {
       setBusy('');
     }
@@ -198,7 +200,10 @@ export function PcDeliveryOutboxStatus({
           })}
         </ul>
       )}
-      {pending > 0 && lastFailure && (
+      {pending > 0 && schemaGate.schema === 'pending' && (
+        <p className="mt-1 text-amber-300">{t('queueCenter.deliveryOutbox.heldBySchema')}</p>
+      )}
+      {pending > 0 && lastFailure && schemaGate.schema !== 'pending' && (
         <p className="mt-1 truncate text-amber-300" title={lastFailure}>
           {t('queueCenter.deliveryOutbox.lastError', { error: lastFailure })}
         </p>
