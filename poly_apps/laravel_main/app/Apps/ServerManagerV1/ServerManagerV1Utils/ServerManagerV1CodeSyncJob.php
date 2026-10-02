@@ -78,7 +78,7 @@ class ServerManagerV1CodeSyncJob
         $migrate = [];
         $safety = [];
         $reload = [];
-        $php = ServerManagerV1FrankenPhpReloadJob::PHP_CLI_BINARY;
+        $php = ServerManagerV1FrankenPhpReloadJob::phpCliBinary();
         $tailLines = ServiceContract::positiveInt('code_sync.output_tail_lines');
 
         if ($state === null) {
@@ -178,7 +178,7 @@ class ServerManagerV1CodeSyncJob
             '--unit='.self::unitName($jobId),
             '--working-directory='.PathMapper::getLaravelMainDir(),
             '--property=TimeoutStartSec='.ServiceContract::positiveInt('code_sync.job_timeout_seconds').'s',
-            ServerManagerV1FrankenPhpReloadJob::PHP_CLI_BINARY,
+            ServerManagerV1FrankenPhpReloadJob::phpCliBinary(),
             'artisan',
             'server-manager:code-sync-job',
             $jobId,
