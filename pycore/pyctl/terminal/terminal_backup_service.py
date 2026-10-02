@@ -27,6 +27,7 @@ from pycore.pyutils.common.user_idle import user_idle_seconds
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step11_desktop.system_notification import show_system_notification
+from pycore.pyutils.window.focus_guard import FocusGuard, focus_guard
 
 LABEL = "TerminalBackup"
 BACKUP_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_interval_seconds")
@@ -55,11 +56,13 @@ class TerminalBackupService:
         store: TerminalBackupStore = terminal_backup_store,
         idle_seconds: Callable[[], Optional[float]] = user_idle_seconds,
         notify: Callable[[str, str], Any] = show_system_notification,
+        focus: FocusGuard = focus_guard,
     ) -> None:
         self._terminals = terminals
         self._store = store
         self._idle_seconds = idle_seconds
         self._notify = notify
+        self._focus = focus
         self._pass_lock = threading.Lock()
         self._lease_lock = FileLockManager(SCHEDULER_LOCK_TARGET, verbose=False)
         self._lease: Optional[int] = None
@@ -151,10 +154,11 @@ class TerminalBackupService:
             return {"success": True, "written": False, "terminal_count": 0}
         previous = self._store.previous_signatures()
         exported: List[Dict[str, Any]] = []
-        for window in windows:
-            if self._activity_defers(forced):
-                return self._deferred()
-            exported.append(self._export(window))
+        with self._focus.preserved(LABEL):
+            for window in windows:
+                if self._activity_defers(forced):
+                    return self._deferred()
+                exported.append(self._export(window))
         for entry in exported:
             signature = entry.pop("signature")
             entry["changed"] = bool(signature) and signature != previous.get(entry["number"])

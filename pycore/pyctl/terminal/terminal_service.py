@@ -27,6 +27,7 @@ from pycore.pyctl.terminal.terminal_state_repository import (
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
+from pycore.pyutils.window.focus_guard import focus_guard
 from pycore.pyutils.window.terminal_backend import (
     TERMINAL_HISTORY_DIRECTIONS,
     TERMINAL_SCROLL_MODES,
@@ -52,6 +53,7 @@ EMPTY_INPUT_TEXT = " "
 CAPTURE_POLL_INTERVAL_SECONDS = 0.1
 CAPTURE_POLL_ATTEMPTS = 30
 CAPTURE_SENTINEL_PREFIX = "pycore-terminal-capture-"
+CAPTURE_FOCUS_LABEL = "TerminalCapture"
 
 
 class TerminalService:
@@ -411,7 +413,8 @@ class TerminalService:
         terminal_number: int,
         open_editor: bool,
     ) -> Dict[str, Any]:
-        exported = self.export_text(window_id, terminal_number)
+        with focus_guard.preserved(CAPTURE_FOCUS_LABEL):
+            exported = self.export_text(window_id, terminal_number)
         if not exported.get("success"):
             return exported
         text = exported.pop("text")

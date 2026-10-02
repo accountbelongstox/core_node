@@ -245,7 +245,7 @@ Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task ca
 - `app/Services/TimerTasks/DiffQueueFeederTaskAbstract.php` and `QueueFeederTaskAbstract.php` have no subclass or caller.
 - Lock-less `Cache::flexible` on request paths: `AppQyV1LangDictionaryModel.php:1150` (`cachedPendingTranslationSummary`, called by `AppQyV1TranslationQueueController.php:418`), `:1217` (`cachedLanguageBreakdownMetrics`, `AppQyV1VocabularyStatsController.php:494`), `:1276` (`cachedCoverageMetrics`, `AppQyV1VocabularyLibraryPublicController.php:757`).
 - `AppQyV1AssistQueueMetrics::sentenceCounts` (`AppQyV1AssistQueueMetrics.php:348`) reports pending/leased/total from `global_tasks` `sentence_audio`, while the gap is worked by leases; `wordAudioCounts` already uses gap + leases.
-- `AppQyV1TtsQueueQueries.php:96` (`resetFailedTts`) uses `has_audio = false` instead of `AppQyV1MediaGaps`; `AppQyV1TTSQueueDecommission`, `AppQyV1ArticleLibraryModel` keep their own conditions (one-off migration / article logic).
+- `AppQyV1TTSQueueDecommission`, `AppQyV1ArticleLibraryModel` keep their own `has_audio` conditions (one-off migration / article logic); `resetFailedTts` uses `AppQyV1MediaGaps::NO_AUDIO`.
 - `AppQyV1StudyGenWriteback` keeps its own single-row sentence upsert instead of `MediaIngestService::upsertLangSentences`.
 - Stale sentence gap indexes from earlier deploys (`idx_sent_<lang>_gap_audio_id`, `_gap_audio_live_id`) are pending drops.
 - Lease coverage not exercised: two concurrent SKIP LOCKED sessions and the lease endpoints end to end.

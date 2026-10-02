@@ -14,6 +14,7 @@ DOTNET_MAJOR="8"
 CONFIGURATION="Debug"
 BUILD_ONLY=false
 NO_WATCH=false
+WATCH_BUILD=false
 WITH_OPTIONAL=false
 DOTNET_READY=false
 ARTIFACTS_SUBDIR="dotnet-artifacts"
@@ -48,6 +49,7 @@ usage() {
     echo "Usage: start.sh [--build-only] [--no-watch] [--with-optional] [-c|--configuration Debug|Release]"
     echo "  --build-only   ensure prerequisites, restore and build; do not run"
     echo "  --no-watch     build and run once without hot reload"
+    echo "  --watch        Linux only: keep watching sources and rebuild on change (WPF cannot run on Linux)"
     echo "  --with-optional  also install optional prerequisites (browser, YOLO training packages)"
     echo "  -c, --configuration  build configuration (default: Debug)"
 }
@@ -56,6 +58,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --build-only) BUILD_ONLY=true ;;
         --no-watch) NO_WATCH=true ;;
+        --watch) WATCH_BUILD=true ;;
         --with-optional) WITH_OPTIONAL=true ;;
         -c|--configuration)
             shift
@@ -233,24 +236,21 @@ else
     log "Step 2/4: restore skipped (up-to-date)"
 fi
 
-if [ "$BUILD_ONLY" = "true" ] || [ "$NO_WATCH" = "true" ]; then
+if [ "$WATCH_BUILD" != "true" ]; then
     log "Step 3/4: build ($CONFIGURATION, incremental)"
     dotnet build "${DOTNET_ARGS[@]}" --no-restore || fail "dotnet build failed"
-else
-    log "Step 3/4: build delegated to dotnet watch (single incremental build)"
-fi
-
-if [ "$BUILD_ONLY" = "true" ] || [ "$NO_WATCH" = "true" ]; then
     if [ "$BUILD_ONLY" = "true" ]; then
         log "Step 4/4: run skipped (build-only)"
     else
-        log "Step 4/4: run skipped (WPF runs only on Windows)"
+        log "Step 4/4: run skipped: WPF needs Windows (PresentationFramework is not available on Linux)"
+        log "To run with hot reload: on Windows run dotapps\\d3d4tester\\scripts\\start.ps1, or run this script inside WSL (it delegates to start.ps1)"
+        log "To keep rebuilding on change here: start.sh --watch"
     fi
     exit 0
 fi
 
-log "Step 4/4: run with hot reload (dotnet watch)"
-log "WPF runs only on Windows: on Linux this watches sources and rebuilds on change (compile check only)"
+log "Step 3/4: build delegated to dotnet watch (single incremental build)"
+log "Step 4/4: watch-build (Linux compile check; WPF cannot run on Linux). Press Ctrl+C to stop"
 export EnableWindowsTargeting=true
 export ArtifactsPath="$ARTIFACTS_DIR"
 exec dotnet watch --non-interactive --project "$CSPROJ" build -c "$CONFIGURATION" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR" --no-restore

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 from contextlib import nullcontext
-from typing import Any, ContextManager, Dict, Iterable, List, Optional, Sequence
+from typing import Any, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 TERMINAL_SCROLL_PAGE_UP = "page_up"
@@ -38,6 +38,21 @@ HISTORY_DIRECTION_KEYS = {
 POINTER_BUTTON_LEFT = 1
 POINTER_BUTTON_RIGHT = 3
 CONTROL_NONE = "none"
+FOCUS_UNSUPPORTED = "focus_unsupported"
+
+
+def focus_entry(source: str, key: str, window_id: str, title: str, restorable: bool = True, **extra: Any) -> Dict[str, Any]:
+    """The window holding the input focus; key identifies it across backends (same X11 window via bridge or Xlib)."""
+    return {
+        "success": True,
+        "error_code": None,
+        "source": source,
+        "key": key,
+        "id": window_id,
+        "title": title,
+        "restorable": restorable,
+        **extra,
+    }
 
 
 def terminal_scroll_steps(
@@ -211,6 +226,19 @@ class TerminalWindowBackend:
 
     def desktop_integration(self, action: str) -> Dict[str, Any]:
         return failure("unsupported_platform", action=action)
+
+    def focused_window(self) -> Dict[str, Any]:
+        """focus_entry(...) for the window holding the input focus, else failure(error_code)."""
+        return failure(FOCUS_UNSUPPORTED)
+
+    def focus_window(self, focused: Dict[str, Any]) -> bool:
+        return False
+
+    def pointer_position(self) -> Optional[Tuple[int, int]]:
+        return None
+
+    def move_pointer(self, x: int, y: int) -> bool:
+        return False
 
     def _press_enter(self, window: Dict[str, Any]) -> Dict[str, Any]:
         time.sleep(FOCUS_DELAY_SECONDS)

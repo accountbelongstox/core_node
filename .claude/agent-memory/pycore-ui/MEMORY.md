@@ -3,3 +3,4 @@
 - [okx/* routes not served](okx-routes-not-served.md) — pycore has no okx/* server; okx_price_monitor is monitor/*; panels gated by served list in contract
 - [Orch video/queue UI](orch-video-queue-ui.md) — audio-orchestration tabs/queue/video-look layout + pycore contract quirks
 - [AI hub UI](ai-hub-ui.md) — /ai page rebuild: tab model, shared kit, real hub contract facts (entry key, error envelope, watch params)
+- [RPC contract JSON is shared](rpc-contract-json-shared.md) — UI must not add route entries alone; key naming rule; drift check fails pycore startup

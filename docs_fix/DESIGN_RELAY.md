@@ -90,7 +90,7 @@ UI --POST owner_frames--> Laravel (authz, route policy, rate limit, session chec
 ### 1.9 Endpoints (contract `endpoints`)
 
 - Device (signed, `throttle:relay-device`): `device-enrollments` create/status, `device/heartbeat`, `device/events`, device blob download, response-blob allocate/chunk/finalize.
-- Owner: `grant`, `frames`, `telemetry`, `stats` (no throttle group; frames return `Server-Timing: relay;dur=…`); `throttle:relay-owner`: enrollment claim (`throttle:relay-enrollment-claim`), `devices` roster, pairings create/renew/revoke, request-blob allocate/chunk/finalize, response-blob download.
+- Owner (all `dashboard.auth:user`, Sanctum Bearer): `grant`, `frames`, `telemetry`, `stats` (no throttle group; frames return `Server-Timing: relay;dur=…`); `throttle:relay-owner`: enrollment claim (`throttle:relay-enrollment-claim`), `devices` roster, pairings create/renew/revoke, request-blob allocate/chunk/finalize, response-blob download.
 - Telemetry: the UI sends `route_policy: unknown`, which the server discards so the admit row keeps the real profile; device timings reported as `0` are absent. `stats` returns per-route p50/p90/p99 and error rate.
 
 ## 2. Security model
@@ -108,7 +108,7 @@ UI --POST owner_frames--> Laravel (authz, route policy, rate limit, session chec
 | Flooding | Per-user+lane limiter, frame cap, device concurrency cap |
 | Secrets in logs | `relay_activity_log` redacts keys, credentials, claim codes, signatures and tokens; bodies are logged as length + SHA-256 |
 
-- Owner identity: every owner route resolves the authenticated Sanctum user (`AuthHelper::requireAuth`, `401 authentication_required` otherwise); anonymous traffic never receives ownership. Device, pairing, frame and blob access is scoped to that user (and its fleet, §3); the limiter and owner topic use its id.
+- Owner identity: owner routes sit behind `dashboard.auth:user` (no Bearer → `401 AUTH_REQUIRED`; only the loopback debug bypass binds its debug user) and `RelayOwnerResolver` resolves the authenticated user (`AuthHelper::requireAuth`, `401 authentication_required` otherwise); anonymous traffic never receives ownership. Device, pairing, frame and blob access is scoped to that user (and its fleet, §3); the limiter and owner topic use its id.
 - Grants: device `subscribe=[request(device)]`, `publish=[response(owner_i, device)…]`, TTL `grant_ttl_seconds` 300, refreshed in the heartbeat response when < `grant_refresh_margin_seconds` (90 s) remain or `grant_version` (opaque string; the device sends `""` to force one) changed. UI tokens are held in memory only, sent via `Authorization`, never in storage, URLs, logs or diagnostics.
 - Hub profile (contract `hub_profile`): SSE, repeated `topic`, bearer private subscriber JWT, `lastEventID` initial cursor, `Last-Event-ID` resume, `redirects: forbidden`, notification-only updates, `history_is_authoritative: false`, `reconciliation_required: true`; every reconnect reconciles from authoritative HTTP state.
 
@@ -124,7 +124,7 @@ Revisit a WebSocket broker (Go service behind Caddy `reverse_proxy`, same JWT gr
 - The relay device id is the node's one persisted identity: worker ids derive from it (`build_worker_id` = `<prefix>-<first 12 hex of device id>[-PYCORE_WORKER_INSTANCE]`), so they survive VM restarts where the hostname changes. The former hostname id is unregistered once per server and process only after its pending outbox results delivered (`_retire_legacy_id`).
 - Enrollment (outbound only): device creates an enrollment (device ID, public key, label = hostname, platform, contract and capability digests, capabilities), signed by the proposed key (credential-version header = key version, no credential-ID header) → Laravel returns enrollment ID + one-time claim code → an owner claims → device polls status every `enrollment_poll_seconds` (5 s) and receives a scoped credential only after the claim commits. Same key → same pending/claimed enrollment; a code is claimable once; rotation stores the new key version before revoking the old one.
 - Auto-claim: an authenticated admin (`User::isAdmin()`, rolelevel ≥ 10) roster read runs `RelayEnrollmentService::autoClaimPending` best-effort before the snapshot (server-side encrypted claim-code copy), so a new pycore joins without console access. It reuses `claim()` (ownership guards, credential rotation, post-commit presence). Non-admins never adopt devices; manual claim stays available.
-- Fleet scope (`RelayFleetScope`): super admins (rolelevel ≥ 100) share one fleet for device visibility, pairing anchor gates and presence fan-out (one outbox row per fleet member's owner topic with that member's roster snapshot); others are owner-scoped. Pairings stay per user.
+- Fleet scope (`RelayFleetScope`): super admins (rolelevel ≥ 100) share one fleet for device visibility, pairing anchor gates and presence fan-out (one outbox row per fleet member's owner topic with that member's roster snapshot); others are owner-scoped. Pairings stay per user. A device enrollment carrying a valid client-key signature is claimed at once for `RelayFleetScope::clientKeyOwner()` (first super admin), so it joins the shared fleet.
 - Signed device requests (`signature_profile`, Ed25519): canonical input = protocol version, credential version, method, normalized path, sorted query, device ID, timestamp, nonce, SHA-256 of exact body bytes; canonicalization rules and `X-Pycore-Relay-*` header names are in the contract. Laravel checks owner binding, credential state, clock window (`signature_clock_skew_seconds` 60), body digest, signature and one-time nonce (atomic, per credential version, retained 300 s) as independent steps. Signed HTTP calls use separate connect and read timeouts; bodied calls are stall-driven.
 - Pairing: one user × one device × one UI client instance (hashed); renew/revoke by pairing ID, never overwriting another session; lease `pairing_lease_seconds` 86400. Admission resolves pairing → device from a Redis pairing cache (`roster_cache_seconds` 30), invalidated on pairing create/renew/revoke and on a miss (`409 pairing_not_active`).
 - Credential revocation (`relay.credential.revoked`) is applied by the device only when `credential_id`/`credential_version` match its current credential.
@@ -160,8 +160,8 @@ Roster and selection
 - The relay roster and owner stream run only while a relay target is selected (`pycoreTarget` kind `relay`; transport is never inferred from HTTPS, ports or the page host).
 
 Auth and fencing
-- A 401/403 on hub authorization, grant or roster pauses reconnecting until the shared auth session changes; network failures keep bounded backoff.
-- Roster, pairing and frame work are fenced by auth generation; responses from a superseded generation are rejected, never shown to the next account. Stream cursors reset on auth transitions.
+- Owner calls send the Sanctum Bearer (`LaravelRelayAPI`); a 401 opens the shared login window. A 401/403 on grant, roster or stats pauses reconnecting/polling until the shared auth session changes; a hub 401/403 discards the grant so the next connect re-grants; network failures keep bounded backoff.
+- Roster, pairing and frame work are fenced by auth generation; responses from a superseded generation are rejected, never shown to the next account. An auth change drops stored pairings and the grant; the selected device is revalidated against the next owner's roster. Stream cursors reset on auth transitions.
 - General endpoint-selection events must not reset the relay roster or stream. A real coordinator change resets coordinator-owned state and fences pending work.
 - Errors cross the UI boundary with domain code, status, path and server-localized message (`LaravelRequest.ts`); UI strings are i18n keys.
 
@@ -199,10 +199,9 @@ Delivery outbox, breakers, uploader dedup and worker intake: `DESIGN_QUEUE_PIPEL
 
 ## 7. Open items
 
-1. Being restored: owner routes must authenticate per user (§2 "Owner identity"); `RelayOwnerResolver.php:13` currently returns `RelayFleetScope::publicOwner()`, so grant, frames, roster, pairings and blobs are unauthenticated.
-2. The relay has not run end to end on Windows (acceptance in §6). Device-side latency stays unmeasured until relay stats show real traffic.
-3. Leftover to remove (user decision): the `pycore/pyctl/relay/fabric/` directory (pycache only).
-4. Audio orchestration books sync still polls every 3 s (`ORCH_POLL_MS`); Laravel-fed Queue Center slices reconcile every 30 s instead of being fed from Laravel Mercure.
-5. Slow server responses seen from Windows (`/api/queue-center/overview` 8 s read timeouts, slow `/api/health`, worker register 20–25 s): check FrankenPHP thread saturation and the overview query.
-6. Only the corebook handlers report done/total progress; other long handlers send heartbeat progress only. Frames lost during a UI stream outage surface as a stall timeout.
-7. Re-encrypt the 12 secret files encrypted with a U+FEFF-prefixed password once `secret_password_runner.js` strips a leading BOM (the fix is not in the tree; needs the Windows user's approval).
+1. The relay has not run end to end on Windows (acceptance in §6). Device-side latency stays unmeasured until relay stats show real traffic.
+2. Leftover to remove (user decision): the `pycore/pyctl/relay/fabric/` directory (pycache only).
+3. Audio orchestration books sync still polls every 3 s (`ORCH_POLL_MS`); Laravel-fed Queue Center slices reconcile every 30 s instead of being fed from Laravel Mercure.
+4. Slow server responses seen from Windows (`/api/queue-center/overview` 8 s read timeouts, slow `/api/health`, worker register 20–25 s): check FrankenPHP thread saturation and the overview query.
+5. Only the corebook handlers report done/total progress; other long handlers send heartbeat progress only. Frames lost during a UI stream outage surface as a stall timeout.
+6. Re-encrypt the 12 secret files encrypted with a U+FEFF-prefixed password once `secret_password_runner.js` strips a leading BOM (the fix is not in the tree; needs the Windows user's approval).
