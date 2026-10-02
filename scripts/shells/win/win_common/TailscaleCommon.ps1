@@ -848,7 +848,7 @@ function Show-TailscaleQuickMenu {
         @{ Text = 'Restart service';                          Action = { [void](Restart-TailscaleServiceElevated) } },
         @{ Text = 'Login';                                    Action = { [void](Invoke-TailscaleLogin) } },
         @{ Text = 'Logout';                                   Action = { [void](Invoke-TailscaleLogout) } },
-        @{ Text = 'Remote Control (Windows <-> Linux: RDP/SSH, all IPs)'; Action = { Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $script:RemoteControlCommonScript), '-Action', 'Menu') -NoNewWindow -Wait } },
+        @{ Text = 'Remote Control (Windows <-> Linux: VNC default/RDP/SSH, all IPs)'; Action = { Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $script:RemoteControlCommonScript), '-Action', 'Menu') -NoNewWindow -Wait } },
         @{ Text = 'Help';                                     Action = { Show-TailscaleHelp } },
         @{ Text = 'Back';                                     Action = { return } }
     )
