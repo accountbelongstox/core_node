@@ -236,14 +236,14 @@ class ServerManagerV1CodeSyncJob
 
     private static function head(string $repoDir): ?string
     {
-        $result = ServerManagerV1Utils::executeCommand('git', ['-C', $repoDir, 'rev-parse', 'HEAD'], self::GIT_COMMAND_TIMEOUT_SECONDS);
+        $result = ServerManagerV1Utils::executeCommand('git', ['-C', $repoDir, 'rev-parse', 'HEAD'], self::GIT_COMMAND_TIMEOUT_SECONDS, self::gitEnvironment());
 
         return $result['success'] ? trim($result['output']) : null;
     }
 
     private static function originContainedInHead(string $repoDir): bool
     {
-        $result = ServerManagerV1Utils::executeCommand('git', ['-C', $repoDir, 'merge-base', '--is-ancestor', 'origin/main', 'HEAD'], self::GIT_COMMAND_TIMEOUT_SECONDS);
+        $result = ServerManagerV1Utils::executeCommand('git', ['-C', $repoDir, 'merge-base', '--is-ancestor', 'origin/main', 'HEAD'], self::GIT_COMMAND_TIMEOUT_SECONDS, self::gitEnvironment());
 
         return $result['success'];
     }
