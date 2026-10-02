@@ -43,7 +43,7 @@ dd_handle_help() {
     exit 0
 }
 
-# gitsync [--dry-run] [-m|--message <description>] [description...]: ensure
+# gitsync [--dry-run] [--notice-laravel] [--skip-notice-laravel] [-m|--message <description>] [description...]: ensure
 # origin is GitHub SSH, then add/commit/pull/push. -m/--message skips the 3s
 # description prompt (AI/non-interactive commit). Shared with the `gitsync`
 # quick command via scripts/shells/linux/common/git_sync_common.sh::git_sync_cli.
@@ -54,7 +54,7 @@ dd_handle_gitsync() {
 dd_register_param "help" "dd_handle_help" "Show this help and exit (no other action runs)" "dd.sh help"
 dd_register_param "-h" "dd_handle_help" "Same as 'help'" "dd.sh -h"
 dd_register_param "--help" "dd_handle_help" "Same as 'help'" "dd.sh --help"
-dd_register_param "gitsync" "dd_handle_gitsync" "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main; -m skips the 3s prompt (AI commit)" "dd.sh gitsync [--dry-run] [-m <description>] [description]"
+dd_register_param "gitsync" "dd_handle_gitsync" "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main; -m skips the 3s prompt (AI commit)" "dd.sh gitsync [--dry-run] [--notice-laravel] [-m <description>] [description]"
 
 # Dispatch a recognized first argument to its handler and return/exit;
 # anything not registered above falls through to the existing generic

@@ -9,9 +9,23 @@ use App\Utils\FileSystemManager;
 class ServerManagerV1FrankenPhpReloadJob
 {
     private const JOB_ID_PATTERN = '/^\d{14}-[a-f0-9]{12}$/';
-    public const PHP_CLI_BINARY = '/usr/local/bin/php-cli';
+    /** PHP CLI candidates for detached jobs, first existing wins (FrankenPHP's PHP_BINARY is the server binary). */
+    private const PHP_CLI_CANDIDATES = ['/usr/local/bin/php-cli', '/usr/local/bin/php', '/usr/bin/php-zts', '/usr/bin/php'];
+    private const PHP_CLI_FALLBACK = 'php';
     private const QUEUE_DELAY = '2s';
     private const UNIT_PREFIX = 'ncore-frankenphp-reload-';
+
+    /** The PHP CLI binary detached artisan jobs run with. */
+    public static function phpCliBinary(): string
+    {
+        foreach (self::PHP_CLI_CANDIDATES as $candidate) {
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return self::PHP_CLI_FALLBACK;
+    }
 
     public static function queue(bool $force = false, ?array $rollback = null): array
     {
@@ -67,7 +81,7 @@ class ServerManagerV1FrankenPhpReloadJob
             '--unit='.self::unitName($jobId),
             '--working-directory='.PathMapper::getLaravelMainDir(),
             '--property=TimeoutStartSec=180s',
-            self::PHP_CLI_BINARY,
+            self::phpCliBinary(),
             'artisan',
             'server-manager:frankenphp-reload-job',
             $jobId,

@@ -8,7 +8,8 @@
 # lives in scripts/shells/linux/common/git_sync_common.sh; this is a thin
 # wrapper so `gitsync` is available on PATH, in the same style as the other
 # scripts/linuxenvs/ commands.
-#   gitsync [--dry-run] [-m|--message <description>] [description...]
+#   gitsync [--dry-run] [--notice-laravel] [--skip-notice-laravel] [-m|--message <description>] [description...]
+# --notice-laravel: after the push the Laravel server pulls, migrates and restarts its workers.
 # -m/--message commits without the 3s description prompt (AI/non-interactive):
 #   gitsync -m "fix login"
 
