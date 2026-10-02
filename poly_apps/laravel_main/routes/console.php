@@ -2,7 +2,9 @@
 
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1SuperCodeService;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CodeSyncJob;
 use App\Services\OctaneTimerService;
+use App\Support\ServiceContract;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -12,6 +14,10 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('mcpv1:placeholder-cleanup')->daily()->at('03:00');
+Schedule::call(static fn () => ServerManagerV1CodeSyncJob::start('scheduled'))
+    ->name('code-sync-scheduled')
+    ->cron('*/'.ServiceContract::positiveInt('code_sync.schedule_minutes').' * * * *')
+    ->withoutOverlapping(ServiceContract::positiveInt('code_sync.schedule_minutes'));
 Schedule::command('cache:prune-database-expired')->hourly()->withoutOverlapping(30);
 
 Artisan::command('octane-timer:background', function () {

@@ -1,5 +1,11 @@
 {
   "includeGitInstructions": false,
+  "permissions": {
+    "allow": [
+      "PowerShell(dd.cmd gitsync*)",
+      "Bash(dd.sh gitsync:*)"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {

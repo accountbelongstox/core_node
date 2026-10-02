@@ -11,7 +11,7 @@
  * Channel usability comes from the shared `wordNewChannels` (services/compute/WordNewCompute:
  * the one debounced availability every wordnew router reads; the UI shows the same).
  */
-import { AUDIO_ORCH_BOOK_PLAN, AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
+import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { parseOrchResourceBundle } from '../../../../core/integrations/pycore';
 import { protocolFetch } from '../../../../core/network/ProtocolFetch';
@@ -257,8 +257,9 @@ export interface OrchPlanScopeHolder {
  * The schedule's sources limited by the run's server book plan (the stages and their order are unchanged):
  *   transfer  covered clips are asked only once the server reported them ready (plus every uncovered clip);
  *   generate  covered clips belong to the server plan, which every node generates through work leases - they
- *             are flagged `generating`; only a small head window (`book_plan.local_head_items`) of the
- *             missing covered clips is still requested from the direct pycore for immediate playback.
+ *             are flagged `generating`; only the direct pycore's share of the missing covered clips (the app-led
+ *             assignment, WordNewBookPlanAssigner; `book_plan.local_head_items` until one is computed) is
+ *             still requested from the direct pycore.
  */
 export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly OrchClipSource[] {
   return WORDNEW_ORCH_SCHEDULE.sources.map((source, index): OrchClipSource => {
@@ -273,11 +274,13 @@ export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly Orch
         if (!generate) {
           return source.resolve(resources.filter((resource) => !scope.covered.has(resource.key) || scope.ready.has(resource.key)), context, found);
         }
-        let head = 0;
+        const share = scope.direct();
+        const headLeft = { sentence: share.sentence_audio, word: share.word_audio };
         const own = resources.filter((resource) => {
           if (!scope.covered.has(resource.key)) return true;
-          if (stage === 'generate:pycore' && head < AUDIO_ORCH_BOOK_PLAN.localHeadItems) {
-            head += 1;
+          const lane = resource.kind === 'word' ? 'word' : 'sentence';
+          if (stage === 'generate:pycore' && headLeft[lane] > 0) {
+            headLeft[lane] -= 1;
             return true;
           }
           if (!scope.ready.has(resource.key)) context.generating(resource, 'laravel');

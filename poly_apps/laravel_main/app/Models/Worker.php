@@ -209,8 +209,27 @@ class Worker extends Model
         return $worker;
     }
 
-    /** A renew is the heartbeat of the node and of the lanes its renewed leases cover. */
-    public static function touchWorkLanes(string $workerId, array $laneNames): void
+    /**
+     * Work-lease facts a claim wrote into metadata (lanes, identity, throughput
+     * seed): a register carries its own metadata and must not wipe them, or a
+     * node that only renews (a lane holding a large batch) vanishes from the roster.
+     *
+     * @return array<string,mixed>
+     */
+    public static function workLeaseMetadata(?self $worker): array
+    {
+        $metadata = $worker !== null && is_array($worker->metadata) ? $worker->metadata : [];
+
+        return array_intersect_key($metadata, array_flip(['work_lanes', 'work_identity', 'work_throughput_seed']));
+    }
+
+    /**
+     * A renew is the heartbeat of the node and of the lanes its renewed leases
+     * cover; a lane the node record lost is restored from the leases' languages.
+     *
+     * @param array<string,array<int,string>> $laneLanguages lane => languages of its renewed leases
+     */
+    public static function touchWorkLanes(string $workerId, array $laneLanguages): void
     {
         $worker = self::findByWorkerId($workerId);
         $metadata = [];
@@ -219,10 +238,9 @@ class Worker extends Model
             return;
         }
         $metadata = is_array($worker->metadata) ? $worker->metadata : [];
-        foreach ($laneNames as $lane) {
-            if (is_array($metadata['work_lanes'][$lane] ?? null)) {
-                $metadata['work_lanes'][$lane][self::LANE_DECLARED_AT] = time();
-            }
+        foreach ($laneLanguages as $lane => $languages) {
+            $metadata['work_lanes'][$lane] ??= ['languages' => array_values(array_unique($languages)), 'engines' => [], 'max_items' => 0];
+            $metadata['work_lanes'][$lane][self::LANE_DECLARED_AT] = time();
         }
         $worker->metadata = $metadata;
         $worker->status = self::STATUS_ONLINE;

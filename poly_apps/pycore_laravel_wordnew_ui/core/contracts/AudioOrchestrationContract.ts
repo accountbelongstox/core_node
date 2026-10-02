@@ -89,6 +89,20 @@ export const AUDIO_ORCH_BOOK_PLAN = {
   /** Missing book clips the direct pycore may generate locally for immediate playback. */
   localHeadItems: contract.book_plan.local_head_items,
   statusPollMs: contract.book_plan.status_poll_seconds * 1000,
+  /** Window sid of the app's direct pycore in an assignment (Laravel skips those rows in every node's claim). */
+  directSid: contract.book_plan.direct_sid,
+  /** The app re-posts its assignment this often while the plan is active (the plan heartbeat). */
+  assignmentRefreshMs: contract.book_plan.assignment_refresh_seconds * 1000,
+  /** Clips one assignment spreads over the nodes, per lane. */
+  assignmentWindowMax: contract.book_plan.assignment_window_max,
+  /** Most windows (node x lane) of one assignment. */
+  assignmentWindowsMax: contract.book_plan.assignment_windows_max,
+  /** Share of a machine's window the app keeps for its direct pycore when the machine is also a Laravel node. */
+  /** A node's window is its items per hour over this horizon (at least `assignmentMinClips`). */
+  assignmentHorizonMinutes: contract.book_plan.assignment_horizon_minutes,
+  assignmentMinClips: contract.book_plan.assignment_min_clips,
+  assignmentDirectFraction: contract.book_plan.assignment_direct_fraction,
+  assignmentDirectMax: contract.book_plan.assignment_direct_max,
   fastPassEngine: contract.book_plan.fast_pass.engine,
   qualityEngine: contract.book_plan.fast_pass.quality_engine,
 } as const;

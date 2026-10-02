@@ -6,7 +6,9 @@
 import React, { useCallback, useSyncExternalStore } from 'react';
 import { Server } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
+import { AUDIO_ORCH_BOOK_PLAN } from '../../../../core/contracts/AudioOrchestrationContract';
 import { wordNewBookAudioPlan } from '../../services/orchestration/WordNewBookAudioPlan';
+import { useWordNewPycoreNodes, workNodeLabel } from '../../services/WordNewPycoreNodes';
 
 interface Props {
   taskId: string;
@@ -25,6 +27,7 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
   const subscribe = useCallback((listener: () => void) => wordNewBookAudioPlan.subscribe(taskId, listener), [taskId]);
   const read = useCallback(() => wordNewBookAudioPlan.snapshot(taskId), [taskId]);
   const plan = useSyncExternalStore(subscribe, read, read);
+  const roster = useWordNewPycoreNodes();
   const status = plan?.status;
   if (!status) return null;
   const { total } = status;
@@ -65,6 +68,31 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
             </li>
           ))}
         </ul>
+      )}
+      {status.assignments.windows.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
+            {trans(status.assignments.fresh ? 'orchCompose.plan.assign.app' : 'orchCompose.plan.assign.server')}
+          </p>
+          <ul className="space-y-0.5 font-mono text-[10px] text-zinc-600 dark:text-zinc-300" aria-label={trans('orchCompose.plan.assign.title')}>
+            {status.assignments.windows.map((window) => {
+              const node = window.sid === AUDIO_ORCH_BOOK_PLAN.directSid
+                ? trans('orchCompose.plan.assign.direct')
+                : roster.nodes.filter((entry) => entry.sid === window.sid).map(workNodeLabel)[0] ?? window.sid;
+              return (
+                <li key={`${window.sid}|${window.lane}`}>
+                  {trans('orchCompose.plan.assign.row', {
+                    node,
+                    lane: trans(`orchAssist.lane.${window.lane}`),
+                    assigned: window.assigned,
+                    generating: window.generating,
+                    done: window.done,
+                  })}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
       {status.fastPass && (
         <p className="text-[10px] text-zinc-500">{trans('orchCompose.plan.fastPass', { done: status.upgrade.done, total: status.upgrade.total })}</p>

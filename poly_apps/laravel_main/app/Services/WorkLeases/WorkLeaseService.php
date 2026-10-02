@@ -77,11 +77,17 @@ final class WorkLeaseService
         $this->applyWant($workerId, $lanes, (array) ($request['want'] ?? []));
         $online = $this->onlineNodes();
         $fastNode = WorkLeaseFastPass::declaresFast($lanes);
+        $assignments = app(WorkLeaseAssignments::class);
 
         if (($request['plan_id'] ?? '') !== '') {
             app(AppQyV1BookAudioPlanService::class)->hint((string) $request['plan_id']);
         }
-        foreach (app(WorkLeaseFastPass::class)->lease($workerId, $computeClass, $lanes, $leaseId, $expiresAt, $budget) as $item) {
+        // The app's windows (while its plan heartbeat is fresh) lead; the fast pass and the fair share follow.
+        foreach ($assignments->lease($workerId, $lanes, $leaseId, $expiresAt, $budget, []) as $item) {
+            $items[] = $item;
+            $held[$item['lane']][] = $item['row_id'];
+        }
+        foreach (app(WorkLeaseFastPass::class)->lease($workerId, $computeClass, $lanes, $leaseId, $expiresAt, $budget - count($items), $assignments) as $item) {
             $items[] = $item;
             $held[$item['lane']][] = $item['row_id'];
         }
@@ -96,7 +102,7 @@ final class WorkLeaseService
                 continue;
             }
             $leaseFastRows = !($fastNode && $lane === WorkLeaseLanes::SENTENCE_AUDIO);
-            foreach ($this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt, $this->excludedKeys($workerId, $lane, $language), $leaseFastRows) as $item) {
+            foreach ($this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt, $this->excludedKeys($workerId, $lane, $language), $leaseFastRows, $assignments->excludeOthers($workerId, $lane, $language, '"' . WorkLeaseLanes::table($lane, $language) . '"')) as $item) {
                 $items[] = $item;
                 $held[$lane][] = $item['row_id'];
             }
@@ -159,13 +165,14 @@ final class WorkLeaseService
             }
             $lease['expires_at'] = $expiresAt->toIso8601String();
             foreach ($lease['tables'] as $pair) {
-                $renewedLanes[explode(':', $pair, 2)[0]] = true;
+                [$lane, $language] = explode(':', $pair, 2);
+                $renewedLanes[$lane][] = $language;
             }
             QueueCenterCacheStore::get()->put(self::LEASE_KEY . $leaseId, $lease, $this->registryTtl());
             $result['renewed'][] = ['lease_id' => $leaseId, 'expires_at' => $lease['expires_at']];
         }
         if ($leaseIds !== []) {
-            Worker::touchWorkLanes($workerId, array_keys($renewedLanes));
+            Worker::touchWorkLanes($workerId, $renewedLanes);
             $this->signal('renew');
         }
 
@@ -239,7 +246,7 @@ final class WorkLeaseService
                 'sid' => $this->shortId((string) $worker->worker_id),
                 'platform' => (string) ($metadata['work_identity']['platform'] ?? ''),
                 'label' => (string) ($metadata['work_identity']['label'] ?? ''),
-                'compute_class' => (string) PycoreComputeRoster::classOf($worker),
+                'compute_class' => PycoreComputeRoster::publicClass(PycoreComputeRoster::classOf($worker)),
                 'online' => $this->isOnline($worker, $ttl),
                 'lanes' => array_map(static fn (array $lane): array => (array) ($lane['languages'] ?? []), $lanes),
                 'engines' => array_map(static fn (array $lane): array => (array) ($lane['engines'] ?? []), $lanes),
@@ -690,7 +697,7 @@ final class WorkLeaseService
     }
 
     /** One lease statement on one lane and language. */
-    private function leaseRows(string $lane, string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt, array $excluded = [], bool $withFastRows = true): array
+    private function leaseRows(string $lane, string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt, array $excluded = [], bool $withFastRows = true, string $assigned = ''): array
     {
         $notExcluded = $excluded === [] ? '' : ' AND ' . WorkLeaseLanes::keyColumn($lane) . ' NOT IN (' . implode(',', array_fill(0, count($excluded), '?')) . ')';
         $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
@@ -700,7 +707,7 @@ final class WorkLeaseService
         $rows = WorkLeaseLanes::connection($lane, $language)->select(
             "UPDATE {$table} SET tts_locked_by = ?, tts_locked_at = ?, tts_lease_id = ?, tts_lease_expires_at = ?"
             . " WHERE id IN (SELECT id FROM {$table} WHERE (" . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::FREE
-            . $notExcluded . $notFast . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE SKIP LOCKED)'
+            . $notExcluded . $notFast . $assigned . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE SKIP LOCKED)'
             . ' RETURNING id, ' . WorkLeaseLanes::textColumn($lane) . ' AS text, ' . WorkLeaseLanes::keyColumn($lane) . ' AS content_key, tts_priority',
             array_merge([$workerId, $now, $leaseId, $expiresAt, $now], $excluded, $withFastRows ? [] : [$language], [$take])
         );

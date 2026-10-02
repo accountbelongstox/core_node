@@ -46,7 +46,7 @@ class WorkerManagerService
             'processor_types' => $processorTypes,
             'hostname' => $hostname,
             'platform' => $platform,
-            'metadata' => $metadata,
+            'metadata' => $metadata + Worker::workLeaseMetadata($existingWorker),
         ];
 
         // Only overwrite capabilities when the caller actually sent them, so a

@@ -23,6 +23,11 @@ NOTEBOOK_ARTIFACT_MANIFEST_SUFFIX=".manifest"
 # persist root, else nothing.
 notebook_artifact_dir() {
     [ -n "${NOTEBOOK_PLATFORM:-}" ] && [ -n "${NOTEBOOK_PERSIST_DIR:-}" ] && [ -d "$NOTEBOOK_PERSIST_DIR" ] || return 0
+    # Colab without a mounted Drive falls back to /content (lost with the VM): archiving there only costs time.
+    case "$NOTEBOOK_PLATFORM:$NOTEBOOK_PERSIST_DIR/" in
+        colab:/content/drive/*) ;;
+        colab:*) return 0 ;;
+    esac
     printf '%s\n' "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_ARTIFACT_ROOT_NAME/$1"
 }
 

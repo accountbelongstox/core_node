@@ -49,6 +49,7 @@ import { translateActive } from '../../WfNewLocales';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { scopeOrchClipSources, WORDNEW_ORCH_SCHEDULE, type OrchPlanScopeHolder } from './WordNewOrchClipSources';
 import { wordNewBookAudioPlan } from './WordNewBookAudioPlan';
+import { resetOrchCountsFloor } from './WordNewOrchCountsFloor';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import { wordNewOrchProgressStore } from './WordNewOrchProgressStore';
 import { wordNewOrchSources } from './WordNewOrchSources';
@@ -357,6 +358,7 @@ class WordNewOrchComposerService {
   /** Local caches were cleared (or the clip root moved): nothing kept is valid. */
   private reset(): void {
     void wordNewBookAudioPlan.reset();
+    resetOrchCountsFloor();
     this.runs.forEach((run) => run.controller.abort());
     this.runs.clear();
     this.resumeAfterRun.clear();

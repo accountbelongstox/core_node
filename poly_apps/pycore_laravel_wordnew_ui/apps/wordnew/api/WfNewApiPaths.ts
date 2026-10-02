@@ -131,6 +131,7 @@ export const WfNewApiPaths = {
   /** Server-owned book audio plan: POST (idempotent), GET status, GET ready ids after a cursor. */
   orchBookPlans: p('/orch_audio/book_plans'),
   orchBookPlan: (planId: string): string => p(`/orch_audio/book_plans/${encodeURIComponent(planId)}`),
+  orchBookPlanAssignments: (planId: string): string => p(`/orch_audio/book_plans/${encodeURIComponent(planId)}/assignments`),
   orchBookPlanReady: (planId: string, cursor: number, limit: number): string =>
     p(`/orch_audio/book_plans/${encodeURIComponent(planId)}/ready?cursor=${cursor}&limit=${limit}`),
   orchClientPlayback: (id: string): string => p(`/orch_audio/client_playback/${encodeURIComponent(id)}`),

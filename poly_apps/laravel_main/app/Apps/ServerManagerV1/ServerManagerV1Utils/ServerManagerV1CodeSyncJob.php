@@ -22,9 +22,14 @@ class ServerManagerV1CodeSyncJob
     private const GIT_COMMAND_TIMEOUT_SECONDS = 20;
     private const MIGRATE_COMMAND_TIMEOUT_SECONDS = 600;
     private const ACTIVE_STATUSES = ['pending', 'running'];
-    private const PHASES = ['git', 'migrate', 'reload'];
+    private const PHASES = ['check', 'git', 'migrate', 'reload'];
+    private const KIND_MANUAL = 'manual';
+    private const KIND_SCHEDULED = 'scheduled';
+    private const COMMIT_FORMAT = '%H%x1f%cI%x1f%s';
+    private const FIELD_SEPARATOR = "\x1f";
+    private const ORIGIN_REF = 'origin/main';
 
-    public static function start(): array
+    public static function start(string $kind = self::KIND_MANUAL, array $extra = []): array
     {
         $active = null;
         $jobId = '';
@@ -48,8 +53,9 @@ class ServerManagerV1CodeSyncJob
             }
 
             $jobId = date('YmdHis').'-'.bin2hex(random_bytes(6));
-            $state = [
+            $state = $extra + [
                 'job_id' => $jobId,
+                'kind' => $kind,
                 'status' => 'pending',
                 'phase' => 'pending',
                 'created_at' => date(DATE_ATOM),
@@ -70,6 +76,45 @@ class ServerManagerV1CodeSyncJob
         return $state === null ? null : self::publicState($state);
     }
 
+    public static function history(int $limit): array
+    {
+        $ahead = 0;
+        $behind = 0;
+        $counts = self::git(['rev-list', '--left-right', '--count', 'HEAD...'.self::ORIGIN_REF]);
+        $jobs = [];
+        $logLines = self::commitLog(ServiceContract::positiveInt('code_sync.history_log_commits'));
+
+        if ($counts['success'] && preg_match('/^(\d+)\s+(\d+)/', trim($counts['output']), $matches) === 1) {
+            $ahead = (int) $matches[1];
+            $behind = (int) $matches[2];
+        }
+        foreach (array_slice(self::jobIds(), 0, $limit) as $jobId) {
+            $state = self::readState($jobId);
+            if ($state !== null) {
+                $jobs[] = self::publicState($state);
+            }
+        }
+
+        return [
+            'head' => self::commitInfo('HEAD'),
+            'origin_main' => self::commitInfo(self::ORIGIN_REF),
+            'ahead' => $ahead,
+            'behind' => $behind,
+            'commits' => $logLines,
+            'jobs' => $jobs,
+        ];
+    }
+
+    public static function git(array $arguments, ?int $timeout = null): array
+    {
+        return ServerManagerV1Utils::executeCommand(
+            'git',
+            array_merge(['-C', (string) PathMapper::getCoreNodeDir()], $arguments),
+            $timeout ?? self::GIT_COMMAND_TIMEOUT_SECONDS,
+            self::gitEnvironment()
+        );
+    }
+
     public static function execute(string $jobId): array
     {
         $state = self::readState($jobId);
@@ -79,6 +124,8 @@ class ServerManagerV1CodeSyncJob
         $safety = [];
         $reload = [];
         $php = ServerManagerV1FrankenPhpReloadJob::phpCliBinary();
+        $kind = (string) ($state['kind'] ?? self::KIND_MANUAL);
+        $fetch = [];
         $tailLines = ServiceContract::positiveInt('code_sync.output_tail_lines');
 
         if ($state === null) {
@@ -88,9 +135,24 @@ class ServerManagerV1CodeSyncJob
         $state['status'] = 'running';
         $state['started_at'] = date(DATE_ATOM);
         $state['commit_before'] = self::head($repoDir);
-        $state = self::advance($state, 'git');
 
         try {
+            if ($kind === self::KIND_SCHEDULED) {
+                $state = self::advance($state, 'check');
+                $fetch = self::git(['fetch', 'origin', 'main'], ServiceContract::positiveInt('code_sync.git_fetch_timeout_seconds'));
+                if (!$fetch['success']) {
+                    $state['git_output_tail'] = self::tail($fetch['output'].$fetch['error'], $tailLines);
+
+                    return self::fail($state, 'fetch_failed');
+                }
+                if (self::isUpToDate()) {
+                    $state['commit_after'] = $state['commit_before'];
+                    $state['commits'] = self::commitLog(ServiceContract::positiveInt('code_sync.history_log_commits'));
+
+                    return self::complete($state, ['result' => 'up_to_date']);
+                }
+            }
+            $state = self::advance($state, 'git');
             $gitsync = ServerManagerV1Utils::executeCommand('bash', [
                 $repoDir.'/'.self::GITSYNC_SCRIPT_RELATIVE,
                 ServiceContract::string('code_sync.skip_flag'),
@@ -99,6 +161,7 @@ class ServerManagerV1CodeSyncJob
             ], ServiceContract::positiveInt('code_sync.job_timeout_seconds'), self::gitEnvironment());
             $state['git_output_tail'] = self::tail($gitsync['output'].$gitsync['error'], $tailLines);
             $state['commit_after'] = self::head($repoDir);
+            $state['commits'] = self::commitLog(ServiceContract::positiveInt('code_sync.history_log_commits'));
             if (!$gitsync['success']) {
                 if (!self::originContainedInHead($repoDir)) {
                     return self::fail($state, 'gitsync_failed');
@@ -133,13 +196,61 @@ class ServerManagerV1CodeSyncJob
             return self::fail($state, 'job_exception');
         }
 
+        return self::complete($state, ['result' => 'synced']);
+    }
+
+    private static function complete(array $state, array $extra): array
+    {
+        $state = $extra + $state;
         $state['status'] = 'completed';
         $state['phase'] = 'done';
         $state['finished_at'] = date(DATE_ATOM);
         $state['updated_at'] = date(DATE_ATOM);
-        self::writeState($jobId, $state);
+        self::writeState((string) $state['job_id'], $state);
 
         return self::publicState($state);
+    }
+
+    private static function isUpToDate(): bool
+    {
+        $behind = self::git(['rev-list', '--count', 'HEAD..'.self::ORIGIN_REF]);
+        $ahead = self::git(['rev-list', '--count', self::ORIGIN_REF.'..HEAD']);
+        $dirty = self::git(['status', '--porcelain']);
+
+        return $behind['success'] && $ahead['success'] && $dirty['success']
+            && trim($behind['output']) === '0' && trim($ahead['output']) === '0' && trim($dirty['output']) === '';
+    }
+
+    private static function commitInfo(string $revision): ?array
+    {
+        $result = self::git(['log', '-1', '--pretty=format:'.self::COMMIT_FORMAT, $revision]);
+
+        return $result['success'] ? self::parseCommit(trim($result['output'])) : null;
+    }
+
+    private static function commitLog(int $count): array
+    {
+        $result = self::git(['log', '-n', (string) $count, '--pretty=format:'.self::COMMIT_FORMAT]);
+        $commits = [];
+
+        if (!$result['success']) {
+            return [];
+        }
+        foreach (explode("\n", trim($result['output'])) as $line) {
+            $commit = self::parseCommit($line);
+            if ($commit !== null) {
+                $commits[] = $commit;
+            }
+        }
+
+        return $commits;
+    }
+
+    private static function parseCommit(string $line): ?array
+    {
+        $parts = explode(self::FIELD_SEPARATOR, $line, 3);
+
+        return count($parts) === 3 ? ['commit' => $parts[0], 'date' => $parts[1], 'subject' => $parts[2]] : null;
     }
 
     private static function restartWorkers(): array
@@ -268,23 +379,27 @@ class ServerManagerV1CodeSyncJob
 
     private static function latestState(): ?array
     {
+        $jobIds = self::jobIds();
+
+        return $jobIds === [] ? null : self::readState($jobIds[0]);
+    }
+
+    private static function jobIds(): array
+    {
         $names = FileSystemManager::scandir(self::jobsDirectory());
         $jobIds = [];
 
         if (!is_array($names)) {
-            return null;
+            return [];
         }
         foreach ($names as $name) {
             if (str_ends_with($name, '.json') && preg_match(self::JOB_ID_PATTERN, substr($name, 0, -5)) === 1) {
                 $jobIds[] = substr($name, 0, -5);
             }
         }
-        if ($jobIds === []) {
-            return null;
-        }
         rsort($jobIds);
 
-        return self::readState($jobIds[0]);
+        return $jobIds;
     }
 
     private static function readState(string $jobId): ?array

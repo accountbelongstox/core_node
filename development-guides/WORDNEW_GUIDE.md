@@ -26,11 +26,13 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 - **R3** 中转阶段只在没有直连可用的 pycore、且中转可用时执行。
 - **R4** Laravel 生成只在没有任何可达的 pycore、且 Laravel 可用时执行。例外：服务器书籍计划（R11）的片段不论 pycore 状态如何，都由 Laravel 的工作租约分派给所有节点生成；各阶段只把它们标记为 `generating`。
 - **R5** 每个批量请求拿到传输名额（`core/network/TransferLimiter`）后，必须重新确认所属阶段的通道仍可用。通道中途消失后，不得再向它发送请求。
-- **R6** 生成阶段在本次运行中不交付片段。每次运行最多请求 `generate_max_items` 个**新的**缺失片段（按播放顺序，从该阶段的游标开始）；有效期内已请求过的片段保持 `generating` 标记、不再重复请求。继续靠 `recheckGenerating` 检查加任务续跑（`WordNewOrchComposer` 的生成监视），阶段本身不得等待。服务器书籍计划（R11）的片段：每次运行最多向直连 pycore 请求 `book_plan.local_head_items` 个，其他生成阶段一个都不请求；之后由计划的游标（而不是 `recheckGenerating`）继续。
+- **R6** 生成阶段在本次运行中不交付片段。每次运行最多请求 `generate_max_items` 个**新的**缺失片段（按播放顺序，从该阶段的游标开始）；有效期内已请求过的片段保持 `generating` 标记、不再重复请求。继续靠 `recheckGenerating` 检查加任务续跑（`WordNewOrchComposer` 的生成监视），阶段本身不得等待。服务器书籍计划（R11）的片段：每次运行只向直连 pycore 请求 App 主导分配（R12）给它的份额（尚未算出分配时为 `book_plan.local_head_items` 个），其他生成阶段一个都不请求；之后由计划的游标（而不是 `recheckGenerating`）继续。
 - **R7** 通道是否可用，每一端只有一个来源。wordnew 用 `apps/wordnew/services/compute/WordNewCompute.ts` 的 `wordNewChannels`（与计算调度器共用，带防抖）。阶段自己不得判断可用性，也不得新增第二套可用性判断。pycore 可用 = 共享 `pycoreLink` 判定选中目标在线（探测或请求已应答）或 HTTP/事件连接在线，不得只依赖“请求成功后才得知”的可达性（否则在第一次请求前永远不可用）；可用性在模块加载时启动，首次读数会通知订阅者。
 - **R8** 每个片段每次运行只交付一次；通道没有交付的片段要立即释放（不能停在"加载中"），交给下一阶段。只有本次运行中至少有一个后端应答过，才能把剩余片段记为缺失；没有任何后端应答（通道全部不可用、请求被中止）时，片段保持排队，留给下一次运行。
 
-- **R11** 有书籍的任务向 Laravel 提交一次书籍计划（`orch_audio/book_plans`，按书 + 章节 + 语言 + 是否含单词识别），由 Laravel 负责片段清单、优先级（从阅读位置往后的头部窗口优先），并通过工作租约分派给所有节点生成。传输阶段只请求服务器已报告就绪的计划片段（就绪 id 按游标分页取得，`clip.ready` 实时事件触发下一次拉取），以及所有计划外的片段；这类任务不保留传输游标。计划不可用时，按 R1–R10 原样调度。
+- **R11** 有书籍的任务向 Laravel 提交一次书籍计划（`orch_audio/book_plans`，按书 + 章节 + 语言 + 是否含单词识别），由 Laravel 负责片段清单、优先级（从阅读位置往后的头部窗口优先），并通过工作租约分派给所有节点生成（App 打开时由 App 按 R12 主导分配，App 关闭时 Laravel 自行调度）。传输阶段只请求服务器已报告就绪的计划片段（就绪 id 按游标分页取得，`clip.ready` 实时事件触发下一次拉取），以及所有计划外的片段；这类任务不保留传输游标。计划不可用时，按 R1–R10 原样调度。
+
+- **R12** 书籍计划的 App 主导调度：App 打开且计划进行中时，wordnew（`services/orchestration/WordNewBookPlanAssigner.ts`）按它知道的节点（Laravel 在线节点名册：通道、算力类别、吞吐，加上直连 pycore）把计划接下来待生成的片段分成窗口（节点短 id、通道、语言、数量，自阅读位置起依次排列，窗口大小为节点每小时处理量乘合同 `book_plan.assignment_horizon_minutes`），每 `book_plan.assignment_refresh_seconds` 向 `orch_audio/book_plans/{planId}/assignments` 提交一次（即计划心跳）。Laravel 在最后一次提交后的 `book_plan.assignment_ttl_seconds` 内只把窗口内的行租给被指定的节点；直连 pycore 的窗口（`book_plan.direct_sid`）没有任何节点会租，由 App 通过 `generate:pycore` 直接生成（份额见 R6）。心跳过期（App 已关闭）后，Laravel 回到自己的公平份额调度，作为后备调度器。计数来自服务器计划计数器和本机存储，不得按次重算；每个节点显示 已分配 / 生成中 / 已完成，跨运行只增不减。
 
 - **R10** 状态与进度：状态是 `OrchClipTable`（每个计划片段 1 字节：状态 / 来源 / 通道 / 生成标记；计划的片段数组就是映射，下标 ↔ 片段），进度是每个阶段的游标（端点、计划位置、时间），由 `OrchCursorBook` 管理；有效期为合同 `transfer.absence_recheck_minutes`。不得再引入按条目保存的对象或文本。恢复运行时各阶段从有效的游标继续；本机阶段一次批量查找（`wordNewOrchClipStore.lookup`），本机缓存优先。进度上报不得复制表，发布时按 `table.version` 刷新。本机片段索引是快照 + 追加日志（每个片段一行，`JOURNAL_COMPACT_RECORDS` 条后才重写快照），不得每次变更重写整个索引；时长测量先一次取出已存时长，只探测新片段，并上报 `measureProgress`。界面 memo 依赖计划 / 时间线 / 片段表等引用，不依赖 session 对象。
 

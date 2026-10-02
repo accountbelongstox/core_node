@@ -19,7 +19,9 @@ import type {
   WfNewOrchAudioSentencePage,
   WfNewOrchClientPlaybackPage,
   WfNewOrchClientPlaybackRow,
+  WfNewBookPlanAssignments,
   WfNewBookPlanReadyPage,
+  WfNewBookPlanWindow,
   WfNewBookPlanRequest,
   WfNewBookPlanStatus,
   WfNewOrchClientTaskPage,
@@ -260,6 +262,7 @@ export interface WfNewApi {
   /** Post (idempotent by plan hash) a book audio plan; the server answers its counters. */
   postBookAudioPlan(request: WfNewBookPlanRequest): Promise<WfNewBookPlanStatus>;
   getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus>;
+  postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[]): Promise<WfNewBookPlanAssignments>;
   /** Ready resource ids after `cursor` (ready sequence order). */
   getBookAudioPlanReady(planId: string, cursor: number, limit: number): Promise<WfNewBookPlanReadyPage>;
   /** The user's virtual read batches (max 20; Laravel prunes unreferenced, then stale ones). */

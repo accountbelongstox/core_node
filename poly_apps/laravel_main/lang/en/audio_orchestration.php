@@ -18,6 +18,7 @@ return [
     'orch_client_task_validation_failed' => 'The client orchestration task request is invalid.',
     'orch_client_task_config_too_large' => 'The task configuration exceeds the 256 KB limit.',
     'book_plan_saved' => 'Book audio plan saved.',
+    'book_plan_assignments_saved' => 'Book audio plan assignments saved.',
     'book_plan_loaded' => 'Book audio plan loaded.',
     'book_plan_not_found' => 'The book audio plan does not exist; post it first.',
     'book_plan_book_not_found' => 'The book does not exist.',

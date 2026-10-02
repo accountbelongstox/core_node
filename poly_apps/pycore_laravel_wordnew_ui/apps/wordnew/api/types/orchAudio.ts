@@ -169,6 +169,30 @@ export interface WfNewBookPlanNode {
   count: number;
 }
 
+/** One window of an app-led assignment: `count` clips of `lane` in `language` for the node `sid` (or the direct pycore). */
+export interface WfNewBookPlanWindow {
+  sid: string;
+  lane: string;
+  language: string;
+  count: number;
+}
+
+/** Per node and lane figures of the live assignment (contract book_plan.assignments_response). */
+export interface WfNewBookPlanAssignmentWindow {
+  sid: string;
+  lane: string;
+  assigned: number;
+  generating: number;
+  done: number;
+}
+
+export interface WfNewBookPlanAssignments {
+  /** True while the app's heartbeat is live on the server (it honors the windows). */
+  fresh: boolean;
+  expiresIn: number;
+  windows: WfNewBookPlanAssignmentWindow[];
+}
+
 /** Server counters of one book audio plan (contract book_plan.status_response). */
 export interface WfNewBookPlanStatus {
   planId: string;
@@ -182,6 +206,7 @@ export interface WfNewBookPlanStatus {
   nodes: WfNewBookPlanNode[];
   fastPass: boolean;
   upgrade: { total: number; done: number };
+  assignments: WfNewBookPlanAssignments;
   updatedAt: string;
 }
 

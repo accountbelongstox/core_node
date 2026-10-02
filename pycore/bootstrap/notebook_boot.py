@@ -35,6 +35,8 @@ _PLATFORMS = ("colab", "kaggle")
 _PASSWORD_ENV = "CORE_NODE_SECRET_PASSWORD"
 _COLAB_DRIVE_MOUNT = "/content/drive"
 _NO_DRIVE_FLAG = "--no-drive"
+_DRIVE_RETRY_HINT = ("caches, the secrets backup and the Relay identity will not persist; "
+                     "run the cell again and confirm 'Connect to Google Drive'")
 _PROBE_URL = "https://pypi.org/simple/"
 _PROBE_TIMEOUT_SECONDS = 10
 _COMMAND_TIMEOUT_SECONDS = 15
@@ -87,6 +89,10 @@ new Promise((resolve) => {
 # TPU VM signals (Cloud TPU runtime env vars; accel/vfio device nodes).
 _TPU_ENV_VARS = ("TPU_ACCELERATOR_TYPE", "TPU_NAME", "COLAB_TPU_ADDR", "TPU_WORKER_ID")
 _TPU_DEVICE_GLOBS = ("/dev/accel[0-9]*", "/dev/vfio/[0-9]*")
+# NVIDIA evidence beyond PATH: Colab keeps its driver tools outside the standard directories.
+_NVIDIA_SMI_CANDIDATES = ("/opt/bin/nvidia-smi", "/usr/local/nvidia/bin/nvidia-smi", "/usr/bin/nvidia-smi",
+                          "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi")
+_NVIDIA_DEVICE_GLOB = "/dev/nvidia[0-9]*"
 _INTERNET_HINTS = {
     "kaggle": "turn on notebook Settings > Internet (phone-verified account); the session restarts",
     "colab": "Runtime > Disconnect and delete runtime, then run again",
@@ -147,18 +153,31 @@ def _tpu_type():
     return ""
 
 
+def _nvidia_smi():
+    """The nvidia-smi executable: PATH first, then the known driver directories ('' when none)."""
+    found = shutil.which("nvidia-smi")
+    if found:
+        return found
+    return next((path for path in _NVIDIA_SMI_CANDIDATES if os.access(path, os.X_OK)), "")
+
+
 def _accelerator_state():
-    """Return (kind, description); kind is gpu, tpu or cpu."""
-    gpus = _command_output(["nvidia-smi", "-L"]) if shutil.which("nvidia-smi") else ""
+    """Return (kind, description); kind is gpu, tpu or cpu. The description names the evidence."""
+    smi = _nvidia_smi()
+    devices = sorted(glob.glob(_NVIDIA_DEVICE_GLOB))
+    gpus = _command_output([smi, "-L"]) if smi else ""
     if gpus:
-        return "gpu", f"GPU (CUDA): {gpus.replace(chr(10), '; ')}"
+        return "gpu", f"GPU (CUDA): {gpus.replace(chr(10), '; ')} [{smi}]"
+    if devices:
+        return "gpu", f"GPU device nodes {', '.join(devices)} present but nvidia-smi gave no list ({smi or 'not found'})"
     tpu = _tpu_type()
     if tpu:
         return "tpu", (
             f"TPU ({tpu}) detected; pycore has no TPU/XLA backend, so inference runs on the "
             "host CPU. Select a GPU runtime for accelerated inference"
         )
-    return "cpu", "none (CPU only; select a GPU runtime for accelerated inference)"
+    return "cpu", (f"none (nvidia-smi: {smi or 'not found'}, /dev/nvidia*: none) - CPU only; if the notebook is set "
+                   "to a GPU runtime, Colab attached none (GPU usage limit): Runtime > Change runtime type")
 
 
 def _mount_colab_drive():
@@ -168,8 +187,12 @@ def _mount_colab_drive():
         from google.colab import drive
         drive.mount(_COLAB_DRIVE_MOUNT)
         return "mounted"
+    except KeyboardInterrupt:
+        # The Drive permission dialog was not answered (cancelled or interrupted): the rest of
+        # the kernel setup must still run, or pyservice starts without secrets and Drive.
+        return f"NOT MOUNTED (the Drive permission dialog was not confirmed); {_DRIVE_RETRY_HINT}"
     except Exception as error:
-        return f"FAILED ({error}); caches, secrets and the Relay identity will not persist"
+        return f"FAILED ({error}); {_DRIVE_RETRY_HINT}"
 
 
 def _drive_state(platform, mount_drive):
@@ -227,7 +250,7 @@ def _ask_yes_no(platform, question):
             .replace("__QUESTION__", json.dumps(question))
         )
         return bool(output.eval_js(script, timeout_sec=_PROMPT_SECONDS * 10))
-    except Exception:
+    except (Exception, KeyboardInterrupt):
         return False
 
 
@@ -295,7 +318,7 @@ def _typed_password():
     """Return (password, source description); the password is never printed."""
     try:
         password = getpass.getpass(f"{_TAG} Secret password for .secret_keys (empty skips): ")
-    except Exception:
+    except (Exception, KeyboardInterrupt):
         # Headless runs (Kaggle "Save & Run All") have no input frontend.
         return "", f"none (no input frontend; add the {_PASSWORD_ENV} notebook secret)"
     if password:
