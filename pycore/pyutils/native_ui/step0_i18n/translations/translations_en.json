@@ -84,6 +84,6 @@
   },
   "terminal_backup": {
     "title": "Terminal backup",
-    "message": "Backed up {count} terminals, {kb} K"
+    "message": "Backed up {count} terminals, {kb} K ({stored_kb} K new)"
   }
 }

@@ -19,7 +19,7 @@
   "launcher.main.layout_ubuntu_count": "  - {count} 个 Ubuntu 终端（自动预留）",
   "launcher.main.layout_calculation": "计算方法：窗口尺寸 = 屏幕 / 网格，再按列/行比例换算为列数.行数",
   "launcher.main.press_continue": "按 'y' 或回车键继续：",
-  "launcher.main.restore_found": "[恢复] 最近一次终端备份：{date}，{count} 个终端，{kb} K（{path}）",
+  "launcher.main.restore_found": "[恢复] 最近一次终端备份：{date}，{count} 个终端，{kb} K，备份库 {archive_kb} K（{path}）",
   "launcher.main.restore_prompt": "是否打开最近一次终端备份？[Y/n]（默认 Y，{seconds} 秒后自动选择）：",
   "launcher.main.restore_opening": "[恢复] 正在用文本编辑器打开 {count} 个终端文件...",
   "launcher.main.restore_open_failed": "[恢复] 无法打开 {path}",

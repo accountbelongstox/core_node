@@ -30,6 +30,8 @@ use Laravel\Octane\Facades\Octane;
 class OctaneTimerService
 {
     private const TASK_LEASE_SECONDS = 900;
+    private const TASK_HOLDER_PREFIX = 'octane_timer:task_holder:';
+    private const EPERM = 1;
     private const ENABLED_RECHECK_SECONDS = 15;
     private const BACKGROUND_LOOP_SECONDS = 59;
     private const LOOP_PERIOD_MICROSECONDS = 1000000;
@@ -427,11 +429,8 @@ class OctaneTimerService
             return;
         }
 
-        $lock = Cache::store('file')->lock(
-            'octane_timer:task:' . sha1($name),
-            self::TASK_LEASE_SECONDS
-        );
-        if (!$lock->get()) {
+        $lock = self::acquireTaskLease($name);
+        if ($lock === null) {
             return;
         }
 
@@ -497,8 +496,54 @@ class OctaneTimerService
                 'trace' => $e->getTraceAsString()
             ]);
         } finally {
+            Cache::store('file')->forget(self::TASK_HOLDER_PREFIX . sha1($name));
             $lock->release();
         }
+    }
+
+    /**
+     * The per-task run lease. Its holder (host + pid) is recorded beside it, so
+     * a lease left by a killed process (service restart, deploy, OOM) is taken
+     * over at once instead of stalling the task for TASK_LEASE_SECONDS.
+     */
+    protected static function acquireTaskLease(string $name): ?\Illuminate\Contracts\Cache\Lock
+    {
+        $store = Cache::store('file');
+        $lockName = 'octane_timer:task:' . sha1($name);
+        $holderKey = self::TASK_HOLDER_PREFIX . sha1($name);
+        $lock = $store->lock($lockName, self::TASK_LEASE_SECONDS);
+        $holder = null;
+
+        if (!$lock->get()) {
+            $holder = $store->get($holderKey);
+            if (!is_array($holder) || ($holder['host'] ?? '') !== gethostname() || self::processAlive((int) ($holder['pid'] ?? 0))) {
+                return null;
+            }
+            Log::warning('OctaneTimerService: stale task lease taken over (holder process gone)', ['task' => $name, 'holder' => $holder]);
+            $store->lock($lockName)->forceRelease();
+            if (!$lock->get()) {
+                return null;
+            }
+        }
+        $store->put($holderKey, ['host' => gethostname(), 'pid' => getmypid(), 'since' => time()], self::TASK_LEASE_SECONDS);
+
+        return $lock;
+    }
+
+    /** Whether a local process id is running (unknown platforms count as running). */
+    protected static function processAlive(int $pid): bool
+    {
+        if ($pid <= 0) {
+            return false;
+        }
+        if (is_dir('/proc/self')) {
+            return is_dir('/proc/' . $pid);
+        }
+        if (function_exists('posix_kill')) {
+            return posix_kill($pid, 0) || posix_get_last_error() === self::EPERM;
+        }
+
+        return true;
     }
 
     protected static function isTaskEnabled(string $name, array $task): bool

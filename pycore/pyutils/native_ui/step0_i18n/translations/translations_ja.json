@@ -84,6 +84,6 @@
   },
   "terminal_backup": {
     "title": "ターミナルのバックアップ",
-    "message": "{count} 個のターミナルをバックアップしました、{kb} K"
+    "message": "{count} 個のターミナルをバックアップしました、{kb} K(新規 {stored_kb} K)"
   }
 }

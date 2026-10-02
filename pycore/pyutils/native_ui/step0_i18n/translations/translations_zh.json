@@ -84,6 +84,6 @@
   },
   "terminal_backup": {
     "title": "终端备份",
-    "message": "已备份 {count} 个终端,{kb} K"
+    "message": "已备份 {count} 个终端,{kb} K(新增 {stored_kb} K)"
   }
 }
