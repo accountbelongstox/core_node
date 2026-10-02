@@ -36,7 +36,6 @@ P_PLATFORM=""
 P_INSTALLER=""
 P_ENV=""
 P_ARGS=""
-P_DETECT=""
 P_RUN_KEY=""
 P_SAVED=()
 RID="win-x64"
@@ -142,7 +141,7 @@ prereq_run_installer() {
 ensure_prereqs() {
     local manual_ids=""
     load_prereq_rows
-    while IFS="$PREREQ_FIELD_SEP" read -r P_KIND P_ID P_REQUIRED P_PLATFORM P_INSTALLER P_ENV P_ARGS P_DETECT; do
+    while IFS="$PREREQ_FIELD_SEP" read -r P_KIND P_ID P_REQUIRED P_PLATFORM P_INSTALLER P_ENV P_ARGS; do
         if [ "$P_KIND" = "manual" ]; then
             case "$P_REQUIRED" in windows*) manual_ids="${manual_ids:+$manual_ids, }$P_ID" ;; esac
             continue

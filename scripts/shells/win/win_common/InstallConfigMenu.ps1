@@ -7,23 +7,24 @@ $INSTALL_CONFIG_NOT_APPLICABLE = @(
     @{ Key = '#'; Title = 'Setup Network Router' },
     @{ Key = 'C'; Title = 'Set Cloud Provider' }
 )
-$INSTALL_CONFIG_PROMPT = 'Enter=Start full installation, 1-N or item key (e.g. R)=run only that item, B=Go back to edit, Q=Quit without saving'
+$INSTALL_CONFIG_PROMPT = 'Enter=Start full installation, 1-{0} or item key (e.g. R)=run only that item, B=Go back to edit, Q=Quit without saving'
 $INSTALL_CONFIG_NOT_APPLICABLE_TEXT = 'not applicable on Windows'
 
 . (Join-Path $INSTALL_CONFIG_MENU_DIR 'InstallItemRunner.ps1')
 
 function Read-InstallConfigChoice {
-    param([int]$TimeoutSeconds)
+    param([int]$TimeoutSeconds, [int]$ItemCount)
 
+    $prompt = $INSTALL_CONFIG_PROMPT -f $ItemCount
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $buffer = ''
     $canPoll = $true
     try { $null = [Console]::KeyAvailable } catch { $canPoll = $false }
     if (-not $canPoll) {
-        return (Read-Host $INSTALL_CONFIG_PROMPT)
+        return (Read-Host $prompt)
     }
     Write-Host ''
-    Write-Host $INSTALL_CONFIG_PROMPT -ForegroundColor Cyan
+    Write-Host $prompt -ForegroundColor Cyan
     Write-Host ("Full installation will start automatically in {0} seconds..." -f $TimeoutSeconds)
     while ($true) {
         if ($buffer.Length -eq 0 -and (Get-Date) -ge $deadline) {
@@ -80,7 +81,7 @@ function Show-InstallConfirmMenu {
             Write-Host ("      [{0}] {1,-36} {2}" -f $na.Key, $na.Title, $INSTALL_CONFIG_NOT_APPLICABLE_TEXT) -ForegroundColor DarkGray
         }
 
-        $choice = (Read-InstallConfigChoice -TimeoutSeconds $INSTALL_CONFIG_AUTO_START_SECONDS).Trim()
+        $choice = (Read-InstallConfigChoice -TimeoutSeconds $INSTALL_CONFIG_AUTO_START_SECONDS -ItemCount $items.Count).Trim()
         if ($choice -eq '') {
             Set-GlobalVar -key $INSTALL_ITEM_SELECTED_ITEM_VAR -value '' | Out-Null
             return $true
