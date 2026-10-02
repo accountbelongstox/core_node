@@ -225,6 +225,8 @@ pycoreTarget: {
     recent: '最近使用',
     relayOrigin: 'Relay（本服务器）',
     selfBadge: '本机',
+    copyUrl: '复制地址',
+    copied: '已复制',
     kind: {
       direct: '本机 :59000 直连',
       proxy: 'Tailnet 代理（175 FrankenPHP /pycore-api 挂载）',
