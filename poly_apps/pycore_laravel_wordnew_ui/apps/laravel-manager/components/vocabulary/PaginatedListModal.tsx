@@ -12,6 +12,7 @@ import {
   PaginatedTableModel,
   type PaginatedTableSort,
 } from './PaginatedTableModel';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import PaginatedSortHead from './PaginatedSortHead';
 
 /**
@@ -92,6 +93,7 @@ function PaginatedListModal<T = any>({
   limit = 100,
   reloadKey,
 }: PaginatedListModalProps<T>): React.ReactElement | null {
+  const { t } = useTranslation();
   const [start, setStart] = useState(0);
   const [items, setItems] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
@@ -119,12 +121,12 @@ function PaginatedListModal<T = any>({
       } catch (e: any) {
         if (requestId !== requestIdRef.current) return;
         setItems([]);
-        setError(e?.message || 'Failed to load');
+        setError(e?.message || t('uiVocab.paginatedListModal.load_failed'));
       } finally {
         if (requestId === requestIdRef.current) setLoading(false);
       }
     },
-    [fetchPage, limit, sort]
+    [fetchPage, limit, sort, t]
   );
 
   // (Re)load from the first page whenever the modal opens or the reloadKey moves.
@@ -181,7 +183,7 @@ function PaginatedListModal<T = any>({
             {loading ? (
               <div className="flex items-center justify-center py-12 text-slate-500 dark:text-slate-400">
                 <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                Loading...
+                {t('uiVocab.paginatedListModal.loading')}
               </div>
             ) : error ? (
               <div className="flex items-center justify-center py-12 text-red-500 text-sm px-4 text-center">
@@ -189,7 +191,7 @@ function PaginatedListModal<T = any>({
               </div>
             ) : items.length === 0 ? (
               <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
-                No items.
+                {t('uiVocab.paginatedListModal.no_items')}
               </div>
             ) : columns && columns.length > 0 ? (
               <table className="w-full text-xs text-left">
@@ -238,7 +240,7 @@ function PaginatedListModal<T = any>({
                                   toggle();
                                 }}
                                 className="rounded p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                                aria-label={isExpanded ? 'Collapse detail' : 'Expand detail'}
+                                aria-label={isExpanded ? t('uiVocab.paginatedListModal.collapse_detail') : t('uiVocab.paginatedListModal.expand_detail')}
                               >
                                 {isExpanded ? (
                                   <ChevronDown className="w-3.5 h-3.5" />
@@ -284,7 +286,7 @@ function PaginatedListModal<T = any>({
           {/* Pagination footer */}
           <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs">
             <span className="text-slate-500 dark:text-slate-400">
-              Showing {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}
+              {t('uiVocab.paginatedListModal.showing', { from: from.toLocaleString(), to: to.toLocaleString(), total: total.toLocaleString() })}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -293,7 +295,7 @@ function PaginatedListModal<T = any>({
                 onClick={() => load(Math.max(0, start - limit))}
                 className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
               >
-                Prev
+                {t('vocabulary.words_manager.previous')}
               </button>
               <button
                 type="button"
@@ -301,7 +303,7 @@ function PaginatedListModal<T = any>({
                 onClick={() => load(start + limit)}
                 className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
               >
-                Next
+                {t('vocabulary.words_manager.next')}
               </button>
             </div>
           </div>

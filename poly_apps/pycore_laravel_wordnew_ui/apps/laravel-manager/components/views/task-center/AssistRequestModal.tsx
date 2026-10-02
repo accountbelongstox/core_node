@@ -13,6 +13,7 @@
  * Task Center modals (QueuePanel detail modal). All labels English.
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type { AssistRequestCreateItem } from '@/apps/laravel-manager/api';
@@ -32,38 +33,23 @@ interface AssistRequestModalProps {
 }
 
 /** Common target-language codes offered for add-language / fill-audio. */
-const LANGUAGE_OPTIONS: Array<{ code: string; label: string }> = [
-  { code: 'en', label: 'English' },
-  { code: 'zh', label: 'Chinese' },
-  { code: 'ja', label: 'Japanese' },
-  { code: 'ko', label: 'Korean' },
-  { code: 'fr', label: 'French' },
-  { code: 'de', label: 'German' },
-  { code: 'es', label: 'Spanish' },
-  { code: 'it', label: 'Italian' },
-  { code: 'pt', label: 'Portuguese' },
-  { code: 'ru', label: 'Russian' },
-  { code: 'vi', label: 'Vietnamese' },
-  { code: 'th', label: 'Thai' },
-  { code: 'ar', label: 'Arabic' },
-  { code: 'he', label: 'Hebrew' },
-  { code: 'el', label: 'Greek' },
-];
+const LANGUAGE_CODES = ['en', 'zh', 'ja', 'ko', 'fr', 'de', 'es', 'it', 'pt', 'ru', 'vi', 'th', 'ar', 'he', 'el'];
 
 const RECORD_TYPES = ['book', 'subtitle'] as const;
 
 /** Priority presets; shared tiers come from config/queue_center_contract.json. */
-const PRIORITY_OPTIONS: Array<{ value: number; label: string }> = [
-  { value: GLOBAL_TASK_PRIORITIES.default, label: `Normal (${GLOBAL_TASK_PRIORITIES.default})` },
-  { value: 10, label: 'High (10)' },
-  { value: GLOBAL_TASK_PRIORITIES.manual, label: `Urgent (${GLOBAL_TASK_PRIORITIES.manual})` },
-  { value: GLOBAL_TASK_PRIORITIES.fast, label: `Fast lane (${GLOBAL_TASK_PRIORITIES.fast})` },
+const PRIORITY_OPTIONS: Array<{ value: number; labelKey: string }> = [
+  { value: GLOBAL_TASK_PRIORITIES.default, labelKey: 'uiTask.assist_modal.priority_normal' },
+  { value: 10, labelKey: 'uiTask.assist_modal.priority_high' },
+  { value: GLOBAL_TASK_PRIORITIES.manual, labelKey: 'uiTask.assist_modal.priority_urgent' },
+  { value: GLOBAL_TASK_PRIORITIES.fast, labelKey: 'uiTask.assist_modal.priority_fast' },
 ];
 
 /** Priority that lands a request on the interactive fast lane. */
 const FAST_PRIORITY = GLOBAL_TASK_PRIORITIES.fast;
 
 const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose, onSubmitted }) => {
+  const { t } = useTranslation();
   const [recordType, setRecordType] = useState<string>(record?.record_type || 'book');
   const [sourceKey, setSourceKey] = useState<string>(record?.source_key || '');
 
@@ -118,10 +104,10 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
       if (res.success && res.data) {
         onSubmitted(res.data.created ?? 0, res.data.existing ?? 0);
       } else {
-        setError(res.error || 'Failed to file assist requests');
+        setError(res.error || t('uiTask.assist_modal.submit_failed'));
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to file assist requests');
+      setError(err?.message || t('uiTask.assist_modal.submit_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -129,19 +115,19 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
 
   const LangPicker: React.FC<{ selected: string[]; onToggle: (code: string) => void }> = ({ selected, onToggle }) => (
     <div className="flex flex-wrap gap-1.5 mt-2">
-      {LANGUAGE_OPTIONS.map((opt) => (
+      {LANGUAGE_CODES.map((code) => (
         <button
-          key={opt.code}
+          key={code}
           type="button"
-          onClick={() => onToggle(opt.code)}
+          onClick={() => onToggle(code)}
           className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-            selected.includes(opt.code)
+            selected.includes(code)
               ? 'bg-indigo-600 text-white'
               : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
           }`}
-          title={opt.label}
+          title={t(`uiTask.languages.${code}`)}
         >
-          {opt.code}
+          {code}
         </button>
       ))}
     </div>
@@ -159,16 +145,16 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
               <div>
                 <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
                   <HandHelping className="w-5 h-5 text-indigo-500" />
-                  Request assist
+                  {t('uiTask.assist_modal.title')}
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  File the missing pieces for one record; the task queue completes them one by one.
+                  {t('uiTask.assist_modal.subtitle')}
                 </p>
               </div>
               <button
                 onClick={onClose}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                aria-label="Close"
+                aria-label={t('uiTask.assist_modal.close')}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -177,7 +163,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
             <div className="space-y-5">
               {/* Record selection */}
               <div className="grid grid-cols-3 gap-3">
-                <Field label="Record type">
+                <Field label={t('uiTask.assist_modal.record_type')}>
                   <select
                     value={recordType}
                     onChange={(e) => setRecordType(e.target.value)}
@@ -191,13 +177,13 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                     ))}
                   </select>
                 </Field>
-                <Field label="Source key" className="col-span-2">
+                <Field label={t('uiTask.assist_modal.source_key')} className="col-span-2">
                   <input
                     type="text"
                     value={sourceKey}
                     onChange={(e) => setSourceKey(e.target.value)}
                     disabled={prefilled}
-                    placeholder="sha1 source key"
+                    placeholder={t('uiTask.assist_modal.source_key_placeholder')}
                     className={`${commonClasses.input} text-sm w-full font-mono disabled:opacity-60`}
                   />
                 </Field>
@@ -214,7 +200,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                       onChange={(e) => setAddLanguageOn(e.target.checked)}
                       className="rounded"
                     />
-                    Add language
+                    {t('uiTask.assist_modal.add_language')}
                   </label>
                   {addLanguageOn && <LangPicker selected={addLanguages} onToggle={(c) => setAddLanguages((l) => toggle(l, c))} />}
                 </div>
@@ -228,7 +214,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                       onChange={(e) => setFillAudioOn(e.target.checked)}
                       className="rounded"
                     />
-                    Fill audio
+                    {t('uiTask.assist_modal.fill_audio')}
                   </label>
                   {fillAudioOn && (
                     <LangPicker selected={fillAudioLanguages} onToggle={(c) => setFillAudioLanguages((l) => toggle(l, c))} />
@@ -244,7 +230,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                       onChange={(e) => setCoverOn(e.target.checked)}
                       className="rounded"
                     />
-                    Generate cover
+                    {t('uiTask.assist_modal.generate_cover')}
                   </label>
                 </div>
 
@@ -257,7 +243,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                       onChange={(e) => setPosterOn(e.target.checked)}
                       className="rounded"
                     />
-                    Fetch poster
+                    {t('uiTask.assist_modal.fetch_poster')}
                   </label>
                 </div>
               </div>
@@ -276,13 +262,13 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                     className="rounded"
                   />
                   <Zap className="w-4 h-4 text-amber-500" />
-                  Interactive / fast-track
+                  {t('uiTask.assist_modal.interactive')}
                   <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                    (priority {FAST_PRIORITY} — workers pick it up immediately)
+                    {t('uiTask.assist_modal.interactive_hint', { priority: FAST_PRIORITY })}
                   </span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Priority</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">{t('uiTask.assist_modal.priority')}</label>
                   <select
                     value={priority}
                     onChange={(e) => {
@@ -295,7 +281,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                   >
                     {PRIORITY_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {t(opt.labelKey, { value: opt.value })}
                       </option>
                     ))}
                   </select>
@@ -307,14 +293,14 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
               {/* Footer */}
               <div className="flex items-center justify-between gap-3 pt-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {items.length} item(s) selected
+                  {t('uiTask.assist_modal.items_selected', { count: items.length })}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={onClose}
                     className={`${commonClasses.button} text-sm px-4 py-1.5`}
                   >
-                    Cancel
+                    {t('mcp.common.cancel')}
                   </button>
                   <button
                     onClick={handleSubmit}
@@ -322,7 +308,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                     className={`${commonClasses.buttonPrimary} text-sm px-4 py-1.5 inline-flex items-center gap-1.5 disabled:opacity-50`}
                   >
                     {submitting ? <InlineSpinner /> : <HandHelping className="w-4 h-4" />}
-                    Submit
+                    {t('uiTask.assist_modal.submit')}
                   </button>
                 </div>
               </div>

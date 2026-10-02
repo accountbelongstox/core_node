@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FileText,
   Plus,
@@ -38,7 +39,30 @@ interface PromptTemplate {
   timestamp: number;
 }
 
+const CATEGORIES = [
+  'Translation',
+  'Content Generation',
+  'Code Generation',
+  'Summarization',
+  'Question Answering',
+  'Data Extraction',
+  'Classification',
+  'Other'
+];
+
+const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  'Translation': 'translation',
+  'Content Generation': 'content_generation',
+  'Code Generation': 'code_generation',
+  'Summarization': 'summarization',
+  'Question Answering': 'question_answering',
+  'Data Extraction': 'data_extraction',
+  'Classification': 'classification',
+  'Other': 'other'
+};
+
 const PromptForm: React.FC = () => {
+  const { t } = useTranslation();
   const config = AI_TOOLS.promptManager;
   const { isFavorite, toggleFavorite } = useToolModel(config);
 
@@ -55,43 +79,35 @@ const PromptForm: React.FC = () => {
   const [formContent, setFormContent] = useState('');
   const [formDescription, setFormDescription] = useState('');
 
-  const CATEGORIES = [
-    'Translation',
-    'Content Generation',
-    'Code Generation',
-    'Summarization',
-    'Question Answering',
-    'Data Extraction',
-    'Classification',
-    'Other'
-  ];
+  const getCategoryLabel = (category: string): string =>
+    CATEGORY_LABEL_KEYS[category] ? t(`uiTools.prompt_form.categories.${CATEGORY_LABEL_KEYS[category]}`) : category;
 
   const DEFAULT_PROMPTS: PromptTemplate[] = [
     {
       id: '1',
-      name: 'Translation Template',
+      name: t('uiTools.prompt_form.defaults.translation_name'),
       category: 'Translation',
       content: 'Translate the following {source_lang} text to {target_lang}:\n\n{text}',
       variables: ['source_lang', 'target_lang', 'text'],
-      description: 'Basic translation template',
+      description: t('uiTools.prompt_form.defaults.translation_description'),
       timestamp: Date.now()
     },
     {
       id: '2',
-      name: 'Code Explainer',
+      name: t('uiTools.prompt_form.defaults.code_explainer_name'),
       category: 'Code Generation',
       content: 'Explain the following {language} code in simple terms:\n\n```{language}\n{code}\n```',
       variables: ['language', 'code'],
-      description: 'Explains code in simple terms',
+      description: t('uiTools.prompt_form.defaults.code_explainer_description'),
       timestamp: Date.now()
     },
     {
       id: '3',
-      name: 'Text Summarizer',
+      name: t('uiTools.prompt_form.defaults.text_summarizer_name'),
       category: 'Summarization',
       content: 'Summarize the following text in {length} sentences:\n\n{text}',
       variables: ['length', 'text'],
-      description: 'Summarizes text to specified length',
+      description: t('uiTools.prompt_form.defaults.text_summarizer_description'),
       timestamp: Date.now()
     }
   ];
@@ -184,7 +200,7 @@ const PromptForm: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this prompt?')) {
+    if (confirm(t('uiTools.prompt_form.delete_confirm'))) {
       const updated = prompts.filter(p => p.id !== id);
       savePrompts(updated);
       if (selectedPrompt?.id === id) {
@@ -236,12 +252,12 @@ const PromptForm: React.FC = () => {
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 text-xs`}
         >
           <Plus className="w-4 h-4" />
-          New Prompt
+          {t('uiTools.prompt_form.new_prompt')}
         </button>
       }
     >
       <div className={AI_BODY}>
-        <AiBentoCard title="Search & Filter">
+        <AiBentoCard title={t('uiTools.prompt_form.search_filter')}>
           <div className={AI_GRID_2}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -249,7 +265,7 @@ const PromptForm: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search prompts..."
+                placeholder={t('uiTools.prompt_form.search_placeholder')}
                 className={`${commonClasses.input} w-full pl-10`}
               />
             </div>
@@ -258,47 +274,47 @@ const PromptForm: React.FC = () => {
               onChange={(e) => setFilterCategory(e.target.value)}
               className={`${commonClasses.input} w-full`}
             >
-              <option value="all">All Categories</option>
-              <option value="favorites">Favorites</option>
+              <option value="all">{t('uiTools.prompt_form.all_categories')}</option>
+              <option value="favorites">{t('uiTools.prompt_form.favorites')}</option>
               {CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>
               ))}
             </select>
           </div>
         </AiBentoCard>
 
         {(editMode || newPrompt) && (
-          <AiBentoCard title={editMode ? 'Edit Prompt' : 'New Prompt'}>
+          <AiBentoCard title={editMode ? t('uiTools.prompt_form.edit_prompt') : t('uiTools.prompt_form.new_prompt')}>
             <div className="space-y-4">
               <div className={AI_GRID_2}>
-                <AiToolField label="Prompt Name *">
+                <AiToolField label={t('uiTools.prompt_form.name_label')}>
                   <input
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="e.g., Translation Template"
+                    placeholder={t('uiTools.prompt_form.name_placeholder')}
                     className={`${commonClasses.input} w-full`}
                   />
                 </AiToolField>
-                <AiToolField label="Category *">
+                <AiToolField label={t('uiTools.prompt_form.category_label')}>
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
                     className={`${commonClasses.input} w-full`}
                   >
                     {CATEGORIES.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
+                      <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>
                     ))}
                   </select>
                 </AiToolField>
               </div>
 
-              <AiToolField label="Description">
+              <AiToolField label={t('uiTools.prompt_form.description_label')}>
                 <input
                   type="text"
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Brief description of what this prompt does"
+                  placeholder={t('uiTools.prompt_form.description_placeholder')}
                   className={`${commonClasses.input} w-full`}
                 />
               </AiToolField>
@@ -306,9 +322,9 @@ const PromptForm: React.FC = () => {
               <AiToolField
                 label={
                   <>
-                    Prompt Content *
+                    {t('uiTools.prompt_form.content_label')}
                     <span className="text-xs font-normal text-slate-500 ml-2">
-                      Use {'{variable_name}'} for variables
+                      {t('uiTools.prompt_form.content_hint')}
                     </span>
                   </>
                 }
@@ -316,13 +332,13 @@ const PromptForm: React.FC = () => {
                 <textarea
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
-                  placeholder="Enter your prompt template here..."
+                  placeholder={t('uiTools.prompt_form.content_placeholder')}
                   className={`${commonClasses.input} w-full h-48 font-mono text-sm resize-none`}
                 />
                 {formContent && extractVariables(formContent).length > 0 && (
                   <div className="mt-2 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200/60 dark:border-violet-800/40">
                     <p className="text-xs text-violet-700 dark:text-violet-300">
-                      Variables detected: {extractVariables(formContent).join(', ')}
+                      {t('uiTools.prompt_form.variables_detected', { variables: extractVariables(formContent).join(', ') })}
                     </p>
                   </div>
                 )}
@@ -335,13 +351,13 @@ const PromptForm: React.FC = () => {
                   className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
                 >
                   <Save className="w-4 h-4" />
-                  Save
+                  {t('uiTools.common.save')}
                 </button>
                 <button
                   onClick={handleCancel}
                   className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
                 >
-                  Cancel
+                  {t('uiTools.common.cancel')}
                 </button>
               </AiToolActions>
             </div>
@@ -350,7 +366,7 @@ const PromptForm: React.FC = () => {
 
         <div className={AI_GRID_3}>
           {filteredPrompts.length === 0 ? (
-            <AiToolEmpty icon={FolderOpen} message="No prompts found" />
+            <AiToolEmpty icon={FolderOpen} message={t('uiTools.prompt_form.no_prompts')} />
           ) : (
             filteredPrompts.map(prompt => (
               <AiBentoCard
@@ -361,7 +377,7 @@ const PromptForm: React.FC = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold truncate text-slate-800 dark:text-slate-100">{prompt.name}</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{prompt.category}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{getCategoryLabel(prompt.category)}</p>
                     </div>
                     <button
                       onClick={(e) => {
@@ -415,12 +431,12 @@ const PromptForm: React.FC = () => {
                       {copied ? (
                         <>
                           <Check className="w-3 h-3" />
-                          Copied!
+                          {t('uiTools.common.copied')}
                         </>
                       ) : (
                         <>
                           <Copy className="w-3 h-3" />
-                          Copy
+                          {t('uiTools.common.copy')}
                         </>
                       )}
                     </button>
@@ -432,7 +448,7 @@ const PromptForm: React.FC = () => {
                       className="flex-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center gap-1 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     >
                       <Edit className="w-3 h-3" />
-                      Edit
+                      {t('uiTools.common.edit')}
                     </button>
                     <button
                       onClick={(e) => {
@@ -442,7 +458,7 @@ const PromptForm: React.FC = () => {
                       className="flex-1 text-xs text-red-600 hover:text-red-700 dark:text-red-400 flex items-center justify-center gap-1 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />
-                      Delete
+                      {t('uiTools.common.delete')}
                     </button>
                   </div>
                 </div>
@@ -454,9 +470,9 @@ const PromptForm: React.FC = () => {
         <AiToolTips
           accent="violet"
           items={[
-            { icon: Code, text: "Use curly braces like {variable_name} to create template variables" },
-            { icon: Star, text: 'Mark frequently used prompts as favorites for quick access' },
-            { icon: FolderOpen, text: 'Organize prompts by category to keep them manageable' },
+            { icon: Code, text: t('uiTools.prompt_form.tip_variables') },
+            { icon: Star, text: t('uiTools.prompt_form.tip_favorites') },
+            { icon: FolderOpen, text: t('uiTools.prompt_form.tip_categories') },
           ]}
         />
       </div>

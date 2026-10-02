@@ -2,6 +2,7 @@ import type {
   DictionaryWordFilter,
   DictionaryWordSort,
 } from '@/apps/laravel-manager/api';
+import i18n from '@/apps/laravel-manager/i18n';
 import {
   isWordRowValid,
   wordValidityDisplay,
@@ -78,6 +79,12 @@ export class VocabularyWordsModel {
    */
   static rawValidityValue(row: ValidityFields): string {
     return wordValidityDisplay(row);
+  }
+
+  static validityLabel(row: ValidityFields): string {
+    if (!this.isWordValid(row)) return i18n.t('uiVocab.wordsModel.no');
+    const raw = this.rawValidityValue(row);
+    return raw === 'true' ? i18n.t('uiVocab.wordsModel.yes') : raw;
   }
 
   static format(template: string, values: Record<string, string | number>): string {

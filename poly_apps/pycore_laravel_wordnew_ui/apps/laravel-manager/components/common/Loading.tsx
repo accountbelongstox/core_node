@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import LoadingSpinner from '@/apps/laravel-manager/components/common/LoadingSpinner';
 
 /** Bare spinning icon for inline / in-button use (no layout wrapper). */
@@ -16,8 +17,11 @@ export const LoadingBlock: React.FC<{
   size?: 'sm' | 'md' | 'lg';
   full?: boolean;
   className?: string;
-}> = ({ label = 'Loading…', size = 'md', full = false, className = '' }) => (
-  <div className={`flex items-center justify-center ${full ? 'h-full' : 'py-10'} ${className}`}>
-    <LoadingSpinner size={size} label={label} />
-  </div>
-);
+}> = ({ label, size = 'md', full = false, className = '' }) => {
+  const { t } = useTranslation();
+  return (
+    <div className={`flex items-center justify-center ${full ? 'h-full' : 'py-10'} ${className}`}>
+      <LoadingSpinner size={size} label={label ? label : t('common.loading')} />
+    </div>
+  );
+};

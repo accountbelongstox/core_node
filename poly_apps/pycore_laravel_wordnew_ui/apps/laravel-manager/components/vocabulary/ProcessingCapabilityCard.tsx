@@ -4,6 +4,7 @@ import {
   CheckCircle2, AlertTriangle, HardDrive,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import i18n, { useTranslation } from '@/apps/laravel-manager/i18n';
 import type { ProcessingCapability, ProcessingRecommendation } from '@/apps/laravel-manager/api';
 
 /**
@@ -21,6 +22,7 @@ const nf = (n: number | null | undefined, suffix = '') =>
 
 const RecBadge: React.FC<{ icon: React.ReactNode; label: string; rec?: ProcessingRecommendation }> =
   ({ icon, label, rec }) => {
+    const { t } = useTranslation();
     if (!rec) return null;
     const local = rec.suggested === 'local';
     return (
@@ -34,7 +36,7 @@ const RecBadge: React.FC<{ icon: React.ReactNode; label: string; rec?: Processin
             local ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
                   : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'}`}>
             {local ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-            {local ? 'Laravel direct' : 'Use pycore'}
+            {local ? t('uiVocab.processingCapability.laravel_direct') : t('uiVocab.processingCapability.use_pycore')}
           </span>
         </div>
         <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{rec.reason}</p>
@@ -43,6 +45,7 @@ const RecBadge: React.FC<{ icon: React.ReactNode; label: string; rec?: Processin
   };
 
 const ProcessingCapabilityCard: React.FC = () => {
+  const { t } = useTranslation();
   const [cap, setCap] = useState<ProcessingCapability | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +56,9 @@ const ProcessingCapabilityCard: React.FC = () => {
     try {
       const r = await api.books.getProcessingCapability();
       if (r.success && r.data) setCap(r.data);
-      else setError(r.error || 'Probe failed');
+      else setError(r.error || i18n.t('uiVocab.processingCapability.probe_failed'));
     } catch (e: any) {
-      setError(e?.message || 'Probe failed');
+      setError(e?.message || i18n.t('uiVocab.processingCapability.probe_failed'));
     } finally {
       setLoading(false);
     }
@@ -75,11 +78,11 @@ const ProcessingCapabilityCard: React.FC = () => {
       <div className="flex items-center gap-2 mb-3">
         <Server className="w-4 h-4 text-indigo-500" />
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Server capability {cap && <span className="text-slate-400 normal-case font-normal">· {cap.host} ({cap.os})</span>}
+          {t('uiVocab.processingCapability.title')} {cap && <span className="text-slate-400 normal-case font-normal">· {cap.host} ({cap.os})</span>}
         </h4>
         <button onClick={load} disabled={loading}
           className="ml-auto p-1 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition disabled:opacity-50"
-          title="Re-probe">
+          title={t('uiVocab.processingCapability.re_probe')}>
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -87,28 +90,28 @@ const ProcessingCapabilityCard: React.FC = () => {
       {error ? (
         <p className="text-[11px] text-amber-500">{error}</p>
       ) : !cap ? (
-        <p className="text-[11px] text-slate-400 flex items-center gap-1.5"><RefreshCw className="w-3 h-3 animate-spin" /> Probing…</p>
+        <p className="text-[11px] text-slate-400 flex items-center gap-1.5"><RefreshCw className="w-3 h-3 animate-spin" /> {t('uiVocab.processingCapability.probing')}</p>
       ) : (
         <>
           {/* live metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {metric(<Cpu className="w-3 h-3" />, 'CPU load',
+            {metric(<Cpu className="w-3 h-3" />, t('uiVocab.processingCapability.cpu_load'),
               `${nf(cap.cpu.load1)}${cap.cpu.count ? ` / ${cap.cpu.count}` : ''}`,
               cap.busy ? 'text-amber-500' : undefined)}
-            {metric(<Activity className="w-3 h-3" />, 'Memory',
-              cap.memory.used_percent !== null ? `${cap.memory.used_percent}% used` : '—')}
-            {metric(<HardDrive className="w-3 h-3" />, 'Disk free',
+            {metric(<Activity className="w-3 h-3" />, t('uiVocab.processingCapability.memory'),
+              cap.memory.used_percent !== null ? t('uiVocab.processingCapability.memory_used', { percent: cap.memory.used_percent }) : '—')}
+            {metric(<HardDrive className="w-3 h-3" />, t('uiVocab.processingCapability.disk_free'),
               cap.disk.free_gb !== null ? `${cap.disk.free_gb} GB` : '—')}
           </div>
 
           {/* recommendations */}
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <RecBadge icon={<FileText className="w-3.5 h-3.5" />} label="Documents" rec={cap.recommendations.document} />
-            <RecBadge icon={<Film className="w-3.5 h-3.5" />} label="Video extract" rec={cap.recommendations.video} />
+            <RecBadge icon={<FileText className="w-3.5 h-3.5" />} label={t('uiVocab.processingCapability.documents')} rec={cap.recommendations.document} />
+            <RecBadge icon={<Film className="w-3.5 h-3.5" />} label={t('uiVocab.processingCapability.video_extract')} rec={cap.recommendations.video} />
           </div>
           {cap.recommendations.video.suggested === 'pycore' && (
             <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-              Tip: route video to pycore (it has whisper/CUDA); results sync back to Laravel automatically. You can still force local processing.
+              {t('uiVocab.processingCapability.video_tip')}
             </p>
           )}
         </>

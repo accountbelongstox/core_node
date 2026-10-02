@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ToolModel } from '@/apps/laravel-manager/models';
 import { ToolDefinition, ToolHistoryItem } from '@/apps/laravel-manager/types';
+import i18n from '@/apps/laravel-manager/i18n';
 
 /**
  * React Hook for ToolModel
@@ -34,7 +35,7 @@ export function useToolModel(config: ToolDefinition) {
       setHistory(tool.getHistory());
       return output;
     } catch (err: any) {
-      const errorMessage = err.message || 'Execution failed';
+      const errorMessage = err.message || i18n.t('uiCommon.requests.execution_failed');
       setError(errorMessage);
       throw err;
     } finally {

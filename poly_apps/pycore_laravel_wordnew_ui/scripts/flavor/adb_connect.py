@@ -16,6 +16,9 @@ from pathlib import Path
 
 
 ADB_DEFAULT_PORT = 5555
+# Console tools started from a console-less (detached) process get a new console window each run on
+# Windows; adb is polled every few seconds by the live-debug collector, so it must never open one.
+NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
 PROMPT_POLL_SECONDS = 0.1
 ADB_KNOWN_STATES = ("device", "unauthorized", "offline")
 ADB_CONNECT_TIMEOUT_SECONDS = 10
@@ -107,7 +110,7 @@ def write_json(path: Path, data: dict) -> None:
 def run_adb(adb_bin: str, *arguments: str, timeout: float | None = None) -> str:
     try:
         result = subprocess.run([adb_bin, *arguments], capture_output=True, text=True, errors="replace", check=False,
-                                timeout=timeout)
+                                timeout=timeout, **NO_WINDOW)
     except subprocess.TimeoutExpired:
         return "timeout"
     return (result.stdout + result.stderr).replace("\r", "")

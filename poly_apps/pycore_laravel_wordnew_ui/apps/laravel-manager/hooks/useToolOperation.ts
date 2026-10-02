@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useToast } from '@/apps/laravel-manager/components/admin';
+import i18n from '@/apps/laravel-manager/i18n';
 
 export interface ToolOperationOptions {
   successMessage?: string;
@@ -20,7 +21,7 @@ export function useToolOperation<T = any>() {
     if (options.validateInput) {
       const validation = options.validateInput();
       if (validation !== true) {
-        toast.warning(typeof validation === 'string' ? validation : 'Invalid input');
+        toast.warning(typeof validation === 'string' ? validation : i18n.t('uiCommon.requests.invalid_input'));
         return null;
       }
     }
@@ -38,13 +39,13 @@ export function useToolOperation<T = any>() {
         }
         return res.data;
       } else {
-        const errorMsg = res.error || options.errorMessage || 'Operation failed';
+        const errorMsg = res.error || options.errorMessage || i18n.t('uiCommon.requests.operation_failed');
         setError(errorMsg);
         toast.error(errorMsg);
         return null;
       }
     } catch (err: any) {
-      const errorMsg = err.message || options.errorMessage || 'Operation failed';
+      const errorMsg = err.message || options.errorMessage || i18n.t('uiCommon.requests.operation_failed');
       setError(errorMsg);
       toast.error(errorMsg);
       return null;

@@ -15,6 +15,7 @@ import {
   Zap, RefreshCcw, AlertTriangle, Trash2, DatabaseZap, Timer,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { useToast } from '../admin';
 import type { AiPromptCacheStats } from '@/apps/laravel-manager/api';
 import ToolWrapper from '@/shared/ui/ToolWrapper';
@@ -26,16 +27,9 @@ interface AiPromptCachePanelProps {
   refreshKey?: number;
 }
 
-const fmtAge = (ts: number): string => {
-  const s = Math.max(0, Date.now() / 1000 - ts);
-  if (s < 90) return `${Math.ceil(s)}s ago`;
-  if (s < 5400) return `${Math.ceil(s / 60)}m ago`;
-  if (s < 172800) return `${Math.ceil(s / 3600)}h ago`;
-  return `${Math.ceil(s / 86400)}d ago`;
-};
-
 const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 }) => {
   const toast = useToast();
+  const { t } = useTranslation();
   const [data, setData] = useState<AiPromptCacheStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
@@ -48,14 +42,14 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
         setData(res.data);
         setError(null);
       } else {
-        setError(res.error || 'prompt cache unavailable');
+        setError(res.error || t('uiAi.prompt_cache.unavailable'));
       }
     } catch (e: any) {
-      setError(e?.message || 'prompt cache unavailable');
+      setError(e?.message || t('uiAi.prompt_cache.unavailable'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -66,26 +60,34 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
     try {
       const res = await api.aiManagement.clearPromptCache();
       if (res.success && res.data?.success) {
-        toast.success('Prompt cache cleared', 'AI prompt cache');
+        toast.success(t('uiAi.prompt_cache.toast.cleared'), t('uiAi.prompt_cache.toast.title'));
         await load();
       } else {
-        toast.error(res.error || 'Clear failed', 'AI prompt cache');
+        toast.error(res.error || t('uiAi.prompt_cache.toast.clear_failed'), t('uiAi.prompt_cache.toast.title'));
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Clear failed', 'AI prompt cache');
+      toast.error(e?.message || t('uiAi.prompt_cache.toast.clear_failed'), t('uiAi.prompt_cache.toast.title'));
     } finally {
       setClearing(false);
     }
-  }, [load, toast]);
+  }, [load, toast, t]);
+
+  const fmtAge = (ts: number): string => {
+    const s = Math.max(0, Date.now() / 1000 - ts);
+    if (s < 90) return t('uiAi.prompt_cache.age_seconds', { count: Math.ceil(s) });
+    if (s < 5400) return t('uiAi.prompt_cache.age_minutes', { count: Math.ceil(s / 60) });
+    if (s < 172800) return t('uiAi.prompt_cache.age_hours', { count: Math.ceil(s / 3600) });
+    return t('uiAi.prompt_cache.age_days', { count: Math.ceil(s / 86400) });
+  };
 
   const perProvider = Object.entries(data?.per_provider ?? {});
 
   return (
     <ToolWrapper
-      title="Prompt Cache"
+      title={t('uiAi.prompt_cache.title')}
       icon={Zap}
       gradient="emerald"
-      description="Gateway-local prompt cache — repeated prompts answered without provider quota"
+      description={t('uiAi.prompt_cache.description')}
       actions={
         <>
           <button
@@ -94,7 +96,7 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
           >
             <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('uiAi.prompt_cache.refresh')}
           </button>
           <button
             onClick={() => void clear()}
@@ -102,7 +104,7 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
           >
             <Trash2 className={`w-3.5 h-3.5 ${clearing ? 'animate-pulse' : ''}`} />
-            Clear
+            {t('uiAi.prompt_cache.clear')}
           </button>
         </>
       }
@@ -119,17 +121,17 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
 
         {loading && !data ? (
           <div className="text-xs text-slate-500 py-6 text-center flex items-center justify-center gap-2">
-            <RefreshCcw className="w-4 h-4 animate-spin text-slate-400" /> Loading prompt cache…
+            <RefreshCcw className="w-4 h-4 animate-spin text-slate-400" /> {t('uiAi.prompt_cache.loading')}
           </div>
         ) : data && (
           <>
             {/* totals */}
             <div className="flex flex-wrap gap-2">
               {[
-                { label: 'entries', value: data.entries },
-                { label: 'hits', value: data.hits },
-                { label: 'misses', value: data.misses },
-                { label: 'hit rate', value: data.hit_rate != null ? `${Math.round(data.hit_rate * 100)}%` : '—' },
+                { label: t('uiAi.prompt_cache.stat_entries'), value: data.entries },
+                { label: t('uiAi.prompt_cache.stat_hits'), value: data.hits },
+                { label: t('uiAi.prompt_cache.stat_misses'), value: data.misses },
+                { label: t('uiAi.prompt_cache.stat_hit_rate'), value: data.hit_rate != null ? `${Math.round(data.hit_rate * 100)}%` : '—' },
               ].map((s) => (
                 <span
                   key={s.label}
@@ -142,7 +144,7 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
                 </span>
               ))}
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono text-slate-400">
-                <Timer className="w-3 h-3" /> TTL {Math.round(data.ttl_s / 3600)}h
+                <Timer className="w-3 h-3" /> {t('uiAi.prompt_cache.ttl', { hours: Math.round(data.ttl_s / 3600) })}
               </span>
             </div>
 
@@ -154,12 +156,12 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
                     key={name}
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono
                                bg-slate-500/8 border border-slate-400/20 text-slate-500 dark:text-slate-400"
-                    title={`${name}: ${st.entries ?? 0} cached entries, ${st.hits ?? 0} hits, ${st.misses ?? 0} misses`}
+                    title={t('uiAi.prompt_cache.provider_title', { name, entries: st.entries ?? 0, hits: st.hits ?? 0, misses: st.misses ?? 0 })}
                   >
                     <span className="font-bold text-slate-600 dark:text-slate-300">{name}</span>
-                    <span>{st.entries ?? 0} entries</span>·
-                    <span className="text-emerald-500">{st.hits ?? 0} hits</span>·
-                    <span>{st.misses ?? 0} miss</span>
+                    <span>{t('uiAi.prompt_cache.chip_entries', { count: st.entries ?? 0 })}</span>·
+                    <span className="text-emerald-500">{t('uiAi.prompt_cache.chip_hits', { count: st.hits ?? 0 })}</span>·
+                    <span>{t('uiAi.prompt_cache.chip_miss', { count: st.misses ?? 0 })}</span>
                   </span>
                 ))}
               </div>
@@ -168,7 +170,7 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
             {/* recent entries (excerpts only) */}
             {data.recent.length === 0 ? (
               <p className="text-[11px] italic text-slate-400">
-                No cached prompts yet — send a chat turn with the cache toggle on.
+                {t('uiAi.prompt_cache.empty')}
               </p>
             ) : (
               <ul className="space-y-1.5">
@@ -183,7 +185,7 @@ const AiPromptCachePanel: React.FC<AiPromptCachePanelProps> = ({ refreshKey = 0 
                         <span className="text-slate-400 font-normal">/{e.model || '-'}</span>
                       </span>
                       <span className="flex items-center gap-2 shrink-0 text-[9px] font-mono text-slate-400">
-                        {e.hits > 0 && <span className="text-emerald-500 font-semibold">{e.hits}× hit</span>}
+                        {e.hits > 0 && <span className="text-emerald-500 font-semibold">{t('uiAi.prompt_cache.entry_hits', { count: e.hits })}</span>}
                         <span>{fmtAge(e.ts)}</span>
                       </span>
                     </div>

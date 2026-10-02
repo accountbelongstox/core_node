@@ -2,6 +2,7 @@ import React from 'react';
 import { XCircle } from 'lucide-react';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 import { Field } from '../../common';
@@ -15,6 +16,7 @@ interface GenerateCertModalProps {
 
 const GenerateCertModal: React.FC<GenerateCertModalProps> = ({ isOpen, lang, onClose, onGenerate }) => {
   const t = TRANSLATIONS[lang].server;
+  const { t: tu } = useTranslation();
 
   if (!isOpen) return null;
 
@@ -40,12 +42,12 @@ const GenerateCertModal: React.FC<GenerateCertModalProps> = ({ isOpen, lang, onC
               placeholder="example.com"
             />
           </Field>
-          <Field label="Provider (Optional)" htmlFor="cert-provider">
+          <Field label={tu('uiServer.generate_cert_modal.provider_optional')} htmlFor="cert-provider">
             <select
               id="cert-provider"
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
             >
-              <option value="">Auto</option>
+              <option value="">{tu('uiServer.generate_cert_modal.provider_auto')}</option>
               <option value="dnspod">DNSPod</option>
               <option value="cloudflare">Cloudflare</option>
             </select>
@@ -56,14 +58,14 @@ const GenerateCertModal: React.FC<GenerateCertModalProps> = ({ isOpen, lang, onC
               id="cert-staging"
               className="w-4 h-4"
             />
-            <label htmlFor="cert-staging" className="text-sm">Use Staging Environment</label>
+            <label htmlFor="cert-staging" className="text-sm">{tu('uiServer.generate_cert_modal.use_staging')}</label>
           </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={onClose}
               className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg"
             >
-              Cancel
+              {t.nginx.cancel}
             </button>
             <button
               onClick={() => {
@@ -76,7 +78,7 @@ const GenerateCertModal: React.FC<GenerateCertModalProps> = ({ isOpen, lang, onC
               }}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
             >
-              Generate
+              {tu('uiServer.generate_cert_modal.generate')}
             </button>
           </div>
         </div>

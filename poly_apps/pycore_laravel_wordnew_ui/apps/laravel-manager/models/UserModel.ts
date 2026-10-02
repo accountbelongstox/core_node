@@ -1,5 +1,6 @@
 import { UnifiedUser, UserPreferences } from '../types';
 import { api } from '../api';
+import i18n from '@/apps/laravel-manager/i18n';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
 import { getAuthToken } from '../../../core/auth/AuthSession';
@@ -46,7 +47,7 @@ export class UserModel {
 
     if (!response.success) {
       const errorCode = response.debugInfo?.error_code;
-      const err = new Error(response.error || 'Login failed');
+      const err = new Error(response.error || i18n.t('login.errors.default'));
       (err as Error & { errorCode?: string }).errorCode = errorCode;
       throw err;
     }
@@ -55,7 +56,7 @@ export class UserModel {
     UnifiedUser = extractUnifiedUser(response.data);
 
     if (!token || !UnifiedUser) {
-      throw new Error('Invalid response format');
+      throw new Error(i18n.t('uiCommon.auth.invalid_response'));
     }
 
     this.UnifiedUser = UnifiedUser;
@@ -90,14 +91,14 @@ export class UserModel {
     let UnifiedUser: UnifiedUser | null = null;
 
     if (!response.success) {
-      throw new Error(response.error || 'Registration failed');
+      throw new Error(response.error || i18n.t('uiCommon.auth.registration_failed'));
     }
 
     token = extractAuthToken(response.data);
     UnifiedUser = extractUnifiedUser(response.data);
 
     if (!token || !UnifiedUser) {
-      throw new Error('Invalid response format');
+      throw new Error(i18n.t('uiCommon.auth.invalid_response'));
     }
 
     this.UnifiedUser = UnifiedUser;

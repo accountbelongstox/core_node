@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
 import type { ReaderSentence, ReaderChapter, ReaderDetailParams } from '@/apps/laravel-manager/api';
+import i18n, { useTranslation } from '@/apps/laravel-manager/i18n';
 import { SUPPORTED_LEARNING_LANGUAGES } from '@/core/i18n/supportedLearningLanguages';
 import { commonClasses } from '@/shared/styles/theme';
 import { Modal } from '../../common';
@@ -55,6 +56,7 @@ const langName = (code: string): string =>
 
 const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind, sourceKey, documentId, title }) => {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState<ReaderMode>('sentences');
   const [chapters, setChapters] = useState<ReaderChapter[]>([]);
@@ -165,7 +167,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
           : await api.mediaQuery.getDocumentDetail(documentId as string | number, params);
         if (loadSeqRef.current !== myTurn) return null;                          // superseded by a newer nav/stop
         if (opts.requirePlaying && (!playingRef.current || pausedRef.current)) return null;  // user stopped/paused mid-load
-        if (!res.success || !res.data) throw new Error(res.error || 'Failed to load content');
+        if (!res.success || !res.data) throw new Error(res.error || i18n.t('uiVocab.mediaReader.load_failed'));
         const s = res.data.sentences;
         const items = Array.isArray(s?.items) ? s.items : [];
         const resolvedPage = s?.current_page ?? opts.page;
@@ -194,16 +196,16 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
           // paused, preserve the pause (resuming re-attempts the crossing) and say
           // so; otherwise end playback cleanly. Never converts a pause into a stop.
           if (pausedRef.current) {
-            toast.error('Could not load the next page — resume to retry');
+            toast.error(i18n.t('uiVocab.mediaReader.next_page_resume'));
           } else {
-            toast.error('Could not load the next page — playback stopped');
+            toast.error(i18n.t('uiVocab.mediaReader.next_page_stopped'));
             stopPlayback();
           }
         } else {
           setSentences([]);
           setLastPage(1);              // hide the now-meaningless pager under the error
           setTotal(0);
-          setError(e?.message || 'Failed to load content');
+          setError(e?.message || i18n.t('uiVocab.mediaReader.load_failed'));
         }
         return null;
       } finally {
@@ -263,7 +265,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     // No audio on this page — bound the hunt so a no-TTS source doesn't crawl the
     // whole book flipping pages/chapters looking for audio that isn't there.
     emptyCrossRef.current += 1;
-    if (emptyCrossRef.current > MAX_EMPTY_CROSS) { toast.error('No more audio to read'); stopPlayback(); return; }
+    if (emptyCrossRef.current > MAX_EMPTY_CROSS) { toast.error(i18n.t('uiVocab.mediaReader.no_more_audio')); stopPlayback(); return; }
     // Exhausted this page — advance into the next page, then the next chapter.
     // `pos` is authoritative (refs may not be committed yet after a prior turn).
     if (pos.page < pos.lastPage) {
@@ -295,7 +297,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     const s = sentences[index];
     if (!s) return;
     const cell = resolveCell(s, readLang);
-    if (!cell.hasAudio) { toast.error('No audio available for this sentence'); return; }
+    if (!cell.hasAudio) { toast.error(i18n.t('uiVocab.mediaReader.no_audio_sentence')); return; }
     if (playingKey === sentenceKey(s)) {
       const audio = audioRef.current;
       if (pausedRef.current) {                       // resume
@@ -325,7 +327,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     // crawl forward hunting (bad for a no-TTS source). Continuous playback still
     // crosses into later pages/chapters once started.
     const anyHere = sentences.some((s) => resolveCell(s, readLang).hasAudio);
-    if (!anyHere) { toast.error('No audio available to read yet'); return; }
+    if (!anyHere) { toast.error(i18n.t('uiVocab.mediaReader.no_audio_yet')); return; }
     loadSeqRef.current += 1;                          // supersede any in-flight navigation load
     emptyCrossRef.current = 0;
     playingRef.current = true;
@@ -450,8 +452,8 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   const showLangSelect = pageLangs.length > 1;
   const Icon = kind === 'book' ? BookOpen : FileText;
   const emptyMsg = kind === 'document'
-    ? 'No readable content yet — extract sentences for this document first.'
-    : 'No readable content in this source.';
+    ? t('uiVocab.mediaReader.empty_document')
+    : t('uiVocab.mediaReader.empty_source');
 
   return (
     <Modal isOpen={open} onClose={onClose} size="full" showCloseButton={false} className="h-[90vh]">
@@ -471,14 +473,14 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                 onClick={() => switchMode('chapters')}
                 className={`px-3 py-1.5 text-sm flex items-center gap-1.5 ${mode === 'chapters' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-300'}`}
               >
-                <ListIcon className="w-4 h-4" /> Chapters
+                <ListIcon className="w-4 h-4" /> {t('uiVocab.mediaReader.chapters')}
               </button>
               <button
                 type="button"
                 onClick={() => switchMode('sentences')}
                 className={`px-3 py-1.5 text-sm flex items-center gap-1.5 ${mode === 'sentences' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-300'}`}
               >
-                <Rows className="w-4 h-4" /> Sentences
+                <Rows className="w-4 h-4" /> {t('uiVocab.mediaReader.sentences')}
               </button>
             </div>
           )}
@@ -488,7 +490,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
               value={readLang}
               onChange={(e) => changeReadLang(e.target.value)}
               className={`${commonClasses.input} text-sm py-1.5`}
-              title="Reading / audio language"
+              title={t('uiVocab.mediaReader.reading_language')}
             >
               {pageLangs.map((l) => (
                 <option key={l} value={l}>{langName(l)}</option>
@@ -506,14 +508,14 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
             disabled={!playing && sentences.length === 0}
             className={`${commonClasses.button} ${playing ? 'bg-rose-600 hover:bg-rose-700 text-white' : commonClasses.buttonPrimary} flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50`}
           >
-            {playing ? <><Square className="w-4 h-4" /> Stop</> : <><Play className="w-4 h-4" /> Read</>}
+            {playing ? <><Square className="w-4 h-4" /> {t('uiVocab.mediaReader.stop')}</> : <><Play className="w-4 h-4" /> {t('uiVocab.mediaReader.read')}</>}
           </button>
 
           <button
             type="button"
             onClick={onClose}
             className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
-            title="Close"
+            title={t('uiVocab.mediaReader.close')}
           >
             <CloseIcon className="w-5 h-5" />
           </button>
@@ -576,7 +578,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                           {label}
                         </span>
                         <p className={`flex-1 text-sm leading-relaxed break-words ${isCurrent ? 'text-amber-800 dark:text-amber-200' : 'text-slate-700 dark:text-slate-200'}`}>
-                          {cell.text || <span className="italic text-slate-400">— (no text)</span>}
+                          {cell.text || <span className="italic text-slate-400">— {t('uiVocab.mediaReader.no_text')}</span>}
                         </p>
                         <button
                           type="button"
@@ -588,7 +590,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                               ? 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40'
                               : 'text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
                           }`}
-                          title={!cell.hasAudio ? 'No audio available' : isCurrent ? (paused ? 'Resume' : 'Pause') : 'Play from here'}
+                          title={!cell.hasAudio ? t('uiVocab.mediaReader.no_audio') : isCurrent ? (paused ? t('uiVocab.mediaReader.resume') : t('uiVocab.mediaReader.pause')) : t('uiVocab.mediaReader.play_from_here')}
                         >
                           {!cell.hasAudio
                             ? <VolumeX className="w-4 h-4" />
@@ -606,7 +608,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
             {/* Pager */}
             <div className="flex items-center justify-between gap-2 py-2.5 px-1 border-t border-slate-200 dark:border-slate-700 text-sm">
               <span className="text-slate-500 dark:text-slate-400">
-                {total > 0 ? `${total.toLocaleString()} sentences` : ''}{lastPage > 1 ? ` · Page ${page} of ${lastPage}` : ''}
+                {total > 0 ? t('uiVocab.mediaReader.sentence_total', { total: total.toLocaleString() }) : ''}{lastPage > 1 ? ` · ${t('uiVocab.mediaReader.page_of', { page, last: lastPage })}` : ''}
               </span>
               {lastPage > 1 && (
                 <div className="flex items-center gap-2">
@@ -616,7 +618,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                     disabled={page <= 1 || loading}
                     className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    <ChevronLeft className="w-4 h-4" /> Prev
+                    <ChevronLeft className="w-4 h-4" /> {t('uiVocab.mediaReader.prev')}
                   </button>
                   <button
                     type="button"
@@ -624,7 +626,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                     disabled={page >= lastPage || loading}
                     className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    Next <ChevronRight className="w-4 h-4" />
+                    {t('uiVocab.mediaReader.next')} <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               )}

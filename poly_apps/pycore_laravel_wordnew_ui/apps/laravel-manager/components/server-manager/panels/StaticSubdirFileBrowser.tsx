@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, ArrowUpDown } from 'lucide-react';
 import { Modal } from '../../admin';
+import i18n, { useTranslation } from '@/apps/laravel-manager/i18n';
 import { api } from '@/apps/laravel-manager/api';
 import type { Language, StaticResourceFileList } from '@/apps/laravel-manager/uiTypes';
 import { LoadingBlock, AlertBox } from '../../common';
@@ -20,10 +21,9 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
   open,
   onClose,
   relativePath,
-  label,
-  lang
+  label
 }) => {
-  const isZh = lang === 'zh';
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<StaticResourceFileList | null>(null);
@@ -54,7 +54,7 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
       if (res.success && res.data) {
         setData(res.data as StaticResourceFileList);
       } else {
-        throw new Error(res.error || 'Failed to load files');
+        throw new Error(res.error || i18n.t('uiServer.static_file_browser.load_failed'));
       }
     } catch (e: any) {
       setError(e.message);
@@ -122,13 +122,13 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={isZh ? '搜索文件名或路径…' : 'Search filename or path…'}
+              placeholder={t('uiServer.static_file_browser.search_placeholder')}
               className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
             />
           </div>
           {data && (
             <span className="text-xs text-slate-500">
-              {isZh ? '共' : ''} {data.total.toLocaleString()} {isZh ? '个文件' : 'files'}
+              {t('uiServer.static_file_browser.total_files', { total: data.total.toLocaleString() })}
             </span>
           )}
         </div>
@@ -142,16 +142,16 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900">
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
-                    <th className="p-2">{sortLabel('name', isZh ? '文件名' : 'Name')}</th>
-                    <th className="p-2 text-right">{sortLabel('size', isZh ? '大小' : 'Size')}</th>
-                    <th className="p-2">{sortLabel('modified', isZh ? '修改时间' : 'Modified')}</th>
+                    <th className="p-2">{sortLabel('name', t('uiServer.static_file_browser.col_name'))}</th>
+                    <th className="p-2 text-right">{sortLabel('size', t('uiServer.static_file_browser.col_size'))}</th>
+                    <th className="p-2">{sortLabel('modified', t('uiServer.static_file_browser.col_modified'))}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.files.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="p-6 text-center text-slate-500">
-                        {isZh ? '无匹配文件' : 'No matching files'}
+                        {t('uiServer.static_file_browser.no_matching_files')}
                       </td>
                     </tr>
                   ) : (
@@ -179,10 +179,10 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
                   className="flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 disabled:opacity-40"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  {isZh ? '上一页' : 'Prev'}
+                  {t('uiServer.static_file_browser.prev')}
                 </button>
                 <span className="text-slate-500">
-                  {isZh ? '第' : 'Page'} {data.page} / {data.total_pages}
+                  {t('uiServer.static_file_browser.page_of', { page: data.page, total: data.total_pages })}
                 </span>
                 <button
                   type="button"
@@ -190,7 +190,7 @@ const StaticSubdirFileBrowser: React.FC<StaticSubdirFileBrowserProps> = ({
                   onClick={() => setPage((p) => p + 1)}
                   className="flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 disabled:opacity-40"
                 >
-                  {isZh ? '下一页' : 'Next'}
+                  {t('uiServer.static_file_browser.next')}
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>

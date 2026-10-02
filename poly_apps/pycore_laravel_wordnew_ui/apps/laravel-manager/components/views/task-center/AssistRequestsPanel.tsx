@@ -11,6 +11,7 @@
  * from TaskCenter as props (same contract as QueuePanel / WorkersPanel).
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type { AssistRequestItem } from '@/apps/laravel-manager/api';
@@ -49,6 +50,7 @@ interface AssistRequestsSnapshot {
 const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
   lang,
 }) => {
+  const { t } = useTranslation();
   // The shared TaskCenter header owns auto-refresh and the manual-refresh token.
   const { autoRefresh, refreshIntervalSec, refreshToken } = useTaskCenterState();
   const mountRefreshTokenRef = useRef(refreshToken);
@@ -73,7 +75,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
       .listAssistRequests(params)
       .then((res) => {
         if (!res.success || !res.data) {
-          setError(res.error || 'Failed to load assist requests');
+          setError(res.error || t('uiTask.assist_requests.load_failed'));
           setLoading(false);
           return null;
         }
@@ -86,7 +88,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
         };
       })
       .catch((err: any) => {
-        setError(err?.message || 'Failed to load assist requests');
+        setError(err?.message || t('uiTask.assist_requests.load_failed'));
         setLoading(false);
         return null;
       });
@@ -155,14 +157,14 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
     try {
       const res = await api.serverManager.deleteAssistRequest(id);
       if (res.success) {
-        setNotice(`Deleted request #${id}`);
+        setNotice(t('uiTask.assist_requests.deleted', { id }));
         const s = await fetchSnapshot();
         if (s) task.set(s);
       } else {
-        setNotice(`Delete failed: ${res.error || ''}`.trim());
+        setNotice(t('uiTask.assist_requests.delete_failed', { error: res.error || '' }).trim());
       }
     } catch (err: any) {
-      setNotice(`Delete failed: ${err?.message || ''}`.trim());
+      setNotice(t('uiTask.assist_requests.delete_failed', { error: err?.message || '' }).trim());
     } finally {
       setDeletingId(null);
     }
@@ -170,7 +172,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
 
   const onModalSubmitted = (created: number, existing: number) => {
     setModalOpen(false);
-    setNotice(`Filed ${created} new request(s), ${existing} already present`);
+    setNotice(t('uiTask.assist_requests.filed', { created, existing }));
     loadSnapshot();
   };
 
@@ -180,14 +182,14 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
   if (error && !snapshot) {
     return (
       <AlertBox variant="error" className="flex-col items-stretch text-center">
-        <p className="font-semibold">Failed to load assist requests</p>
+        <p className="font-semibold">{t('uiTask.assist_requests.load_failed')}</p>
         <p className="text-xs opacity-80 mt-1">{error}</p>
         <button
           onClick={loadSnapshot}
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} inline-flex items-center gap-2 mx-auto mt-3`}
         >
           <RefreshCw className="w-4 h-4" />
-          Retry
+          {t('taskCenter.retry')}
         </button>
       </AlertBox>
     );
@@ -207,7 +209,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
             <button
               onClick={() => setNotice(null)}
               className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
-              aria-label="Dismiss notice"
+              aria-label={t('uiTask.shared.dismiss_notice')}
             >
               <XCircle className="w-4 h-4" />
             </button>
@@ -224,42 +226,42 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
             <StatCard
               icon={Layers}
               iconClass="text-purple-500"
-              label="Total"
+              label={t('uiTask.assist_requests.total')}
               value={snapshot ? snapshot.total : '—'}
               valueClass="text-purple-600 dark:text-purple-400"
             />
             <StatCard
               icon={Clock}
               iconClass="text-blue-500"
-              label="Pending"
+              label={t('uiTask.assist_requests.status_pending')}
               value={snapshot ? countOf('pending') : '—'}
               valueClass="text-blue-600 dark:text-blue-400"
             />
             <StatCard
               icon={HandHelping}
               iconClass="text-indigo-500"
-              label="Claimed"
+              label={t('uiTask.assist_requests.status_claimed')}
               value={snapshot ? countOf('claimed') : '—'}
               valueClass="text-indigo-600 dark:text-indigo-400"
             />
             <StatCard
               icon={PlayCircle}
               iconClass="text-amber-500"
-              label="Processing"
+              label={t('uiTask.assist_requests.status_processing')}
               value={snapshot ? countOf('processing') : '—'}
               valueClass="text-amber-600 dark:text-amber-400"
             />
             <StatCard
               icon={CheckCircle}
               iconClass="text-green-500"
-              label="Completed"
+              label={t('uiTask.assist_requests.status_completed')}
               value={snapshot ? countOf('completed') : '—'}
               valueClass="text-green-600 dark:text-green-400"
             />
             <StatCard
               icon={XCircle}
               iconClass="text-red-500"
-              label="Failed"
+              label={t('uiTask.assist_requests.status_failed')}
               value={snapshot ? countOf('failed') : '—'}
               valueClass="text-red-600 dark:text-red-400"
             />
@@ -267,7 +269,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
 
           {/* Filter + actions */}
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-slate-600 dark:text-slate-400">Filter</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.filter')}</span>
             <div className="flex flex-wrap gap-2">
               {(['all', ...REQUEST_STATUSES] as StatusFilter[]).map((f) => (
                 <button
@@ -279,7 +281,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
                       : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                   }`}
                 >
-                  {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === 'all' ? t('uiTask.assist_requests.all') : t(`uiTask.assist_requests.status_${f}`)}
                 </button>
               ))}
             </div>
@@ -288,7 +290,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
               className={`${commonClasses.buttonPrimary} ml-auto text-xs px-3 py-1.5 inline-flex items-center gap-1.5`}
             >
               <Plus className="w-3.5 h-3.5" />
-              Request assist
+              {t('uiTask.assist_requests.request_assist')}
             </button>
           </div>
 
@@ -298,13 +300,13 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Record</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Source Key</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Request Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Language</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Claimed By</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.col_record')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.col_source_key')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.col_request_type')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.col_language')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.col_status')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.col_claimed_by')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">{t('uiTask.assist_requests.col_actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -340,16 +342,16 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
                         <button
                           onClick={() => openCreateForRecord(row)}
                           className="inline-flex items-center gap-1 px-2 py-1 mr-1 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
-                          title="Request more assist for this record"
+                          title={t('uiTask.assist_requests.more_title')}
                         >
                           <Plus className="w-3 h-3" />
-                          More
+                          {t('uiTask.assist_requests.more')}
                         </button>
                         <button
                           onClick={() => handleDelete(row.id)}
                           disabled={deletingId === row.id}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50"
-                          title="Delete request"
+                          title={t('uiTask.assist_requests.delete_title')}
                         >
                           {deletingId === row.id ? (
                             <InlineSpinner size={12} />
@@ -365,13 +367,13 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
             </div>
 
             {items.length === 0 && (
-              <EmptyState icon={HandHelping} message="No assist requests" className="py-12" />
+              <EmptyState icon={HandHelping} message={t('uiTask.assist_requests.empty')} className="py-12" />
             )}
           </div>
 
           {snapshot && (
             <div className="text-center text-xs text-slate-500 dark:text-slate-400">
-              Last updated: {snapshot.timestamp}
+              {t('taskCenter.last_updated')} {snapshot.timestamp}
             </div>
           )}
         </>

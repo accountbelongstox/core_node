@@ -9,6 +9,7 @@
  * canvas. Row click on a relation jumps to the scheduler tab.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { commonClasses } from '@/shared/styles/theme';
@@ -62,6 +63,7 @@ const LayerArrow: React.FC<{ labels: React.ReactNode }> = ({ labels }) => (
 );
 
 const OverviewPanel: React.FC<OverviewPanelProps> = ({ lang, overview, loading, onNavigate }) => {
+  const { t: tr } = useTranslation();
   const t = TRANSLATIONS[lang].taskCenter;
   const to = t.overview;
 
@@ -147,7 +149,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ lang, overview, loading, 
         <LayerArrow
           labels={
             <span className="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              pull → result
+              {tr('uiTask.overview.pull_result')}
             </span>
           }
         />
@@ -169,7 +171,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ lang, overview, loading, 
             <span className="text-amber-600 dark:text-amber-400 font-bold">{workers.stats.busy}</span>
             {' / '}
             <span className="text-slate-500 font-bold">{workers.stats.offline}</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">online / busy / offline</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">{tr('uiTask.overview.online_busy_offline')}</span>
           </div>
           <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
             <div className="flex items-center gap-1.5">

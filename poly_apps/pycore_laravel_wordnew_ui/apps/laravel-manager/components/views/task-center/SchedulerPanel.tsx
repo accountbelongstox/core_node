@@ -12,6 +12,7 @@
  * the visible join between the scheduler layer and the queue layer.
  */
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type {
@@ -107,6 +108,13 @@ interface OctaneStatus {
   timestamp: string;
 }
 
+const SCHEDULER_FILTER_LABEL_KEYS: Record<string, string> = {
+  enabled: 'uiTask.scheduler.enabled',
+  running: 'uiTask.scheduler.running',
+  error: 'uiTask.scheduler.filter_error',
+  disabled: 'uiTask.scheduler.filter_disabled',
+};
+
 const getStatusIcon = (status: string) => {
   switch (status) {
     case 'running':
@@ -129,6 +137,7 @@ const getStatusIcon = (status: string) => {
 const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
   lang,
 }) => {
+  const { t: tr } = useTranslation();
   const { octaneTasks: octaneStatus, overview, loading, error, refreshNow } = useTaskCenterState();
   const [filter, setFilter] = useState<'all' | 'enabled' | 'running' | 'error' | 'disabled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,7 +165,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
       } else {
         setVerifyResult({
           success: false,
-          issues: [response.error || 'Verification request failed'],
+          issues: [response.error || tr('uiTask.scheduler.verify_failed')],
           summary: {
             total_discovered: 0,
             total_registered: 0,
@@ -171,7 +180,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
     } catch (err: any) {
       setVerifyResult({
         success: false,
-        issues: [err.message || 'Verification request failed'],
+        issues: [err.message || tr('uiTask.scheduler.verify_failed')],
         summary: {
           total_discovered: 0,
           total_registered: 0,
@@ -242,14 +251,14 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
   if (error && !octaneStatus) {
     return (
       <AlertBox variant="error" className="flex-col items-stretch text-center">
-        <p className="font-semibold">Failed to load Octane status</p>
+        <p className="font-semibold">{tr('uiTask.scheduler.load_failed')}</p>
         <p className="text-xs opacity-80 mt-1">{error}</p>
         <button
           onClick={refreshNow}
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} inline-flex items-center gap-2 mx-auto mt-3`}
         >
           <RefreshCw className="w-4 h-4" />
-          Retry
+          {tr('taskCenter.retry')}
         </button>
       </AlertBox>
     );
@@ -278,8 +287,13 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                     }`}
                 >
                   {verifyResult.success
-                    ? 'All Octane timer tasks are properly initialized'
-                    : `Verification found ${verifyResult.issues.length} issue${verifyResult.issues.length === 1 ? '' : 's'}`}
+                    ? tr('uiTask.scheduler.verify_ok')
+                    : tr(
+                        verifyResult.issues.length === 1
+                          ? 'uiTask.scheduler.verify_issue_one'
+                          : 'uiTask.scheduler.verify_issue_many',
+                        { count: verifyResult.issues.length },
+                      )}
                 </div>
                 {!verifyResult.success && (
                   <ul className="mt-2 space-y-1 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
@@ -289,14 +303,14 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                   </ul>
                 )}
                 <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Verified at {verifyResult.timestamp}
+                  {tr('uiTask.scheduler.verified_at', { time: verifyResult.timestamp })}
                 </div>
               </div>
             </div>
             <button
               onClick={() => setVerifyResult(null)}
               className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
-              aria-label="Dismiss verification result"
+              aria-label={tr('uiTask.scheduler.dismiss_verify')}
             >
               <XCircle className="w-4 h-4 text-slate-500" />
             </button>
@@ -313,54 +327,54 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
             <StatCard
               icon={octaneStatus.summary.timer_running ? Zap : AlertTriangle}
               iconClass={octaneStatus.summary.timer_running ? 'text-green-500' : 'text-red-500'}
-              label="Timer"
-              value={octaneStatus.summary.timer_running ? 'Running' : 'Stopped'}
+              label={tr('uiTask.scheduler.timer')}
+              value={octaneStatus.summary.timer_running ? tr('uiTask.scheduler.running') : tr('uiTask.scheduler.stopped')}
               valueClass={`!text-lg ${octaneStatus.summary.timer_running ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
             />
             <StatCard
               icon={Layers}
               iconClass="text-blue-500"
-              label="Discovered"
+              label={tr('uiTask.scheduler.discovered')}
               value={octaneStatus.summary.total_discovered}
               valueClass="text-blue-600 dark:text-blue-400"
             />
             <StatCard
               icon={Settings}
               iconClass="text-indigo-500"
-              label="Registered"
+              label={tr('uiTask.scheduler.registered')}
               value={octaneStatus.summary.total_registered}
               valueClass="text-indigo-600 dark:text-indigo-400"
             />
             <StatCard
               icon={PlayCircle}
               iconClass="text-green-500"
-              label="Running"
+              label={tr('uiTask.scheduler.running')}
               value={octaneStatus.summary.total_running}
               valueClass="text-green-600 dark:text-green-400"
             />
             <StatCard
               icon={TrendingUp}
               iconClass="text-purple-500"
-              label="Total Ticks"
+              label={tr('uiTask.scheduler.total_ticks')}
               value={octaneStatus.summary.total_ticks.toLocaleString()}
               valueClass="text-purple-600 dark:text-purple-400"
             />
             <StatCard
               icon={Clock}
               iconClass="text-cyan-500"
-              label="Uptime"
+              label={tr('uiTask.scheduler.uptime')}
               value={formatUptime(octaneStatus.summary.timer_uptime)}
               valueClass="!text-sm text-cyan-600 dark:text-cyan-400"
             />
             <StatCard
               icon={Activity}
               iconClass="text-emerald-500"
-              label="Heartbeat"
-              value={octaneStatus.heartbeat.status || 'Unknown'}
+              label={tr('uiTask.scheduler.heartbeat')}
+              value={octaneStatus.heartbeat.status || tr('uiTask.shared.unknown')}
               valueClass={`!text-lg ${octaneStatus.heartbeat.is_fresh ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
               sub={
                 octaneStatus.heartbeat.seconds_ago !== undefined ? (
-                  <span className="text-slate-500">{octaneStatus.heartbeat.seconds_ago}s ago</span>
+                  <span className="text-slate-500">{tr('uiTask.shared.ago_s', { s: octaneStatus.heartbeat.seconds_ago })}</span>
                 ) : undefined
               }
             />
@@ -368,7 +382,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
 
           {/* Filter + Search + Verify */}
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-slate-600 dark:text-slate-400">Filter:</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">{tr('globalTasks.filter')}</span>
             <div className="flex gap-2">
               {['all', 'enabled', 'running', 'error', 'disabled'].map((f) => (
                 <button
@@ -379,7 +393,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                       : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                     }`}
                 >
-                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === 'all' ? tr('mcp.common.all') : tr(SCHEDULER_FILTER_LABEL_KEYS[f])}
                 </button>
               ))}
             </div>
@@ -389,7 +403,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name or class..."
+                placeholder={tr('uiTask.scheduler.search_placeholder')}
                 className="pl-9 pr-3 py-1.5 text-sm w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -397,13 +411,13 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
               onClick={runVerify}
               disabled={verifying}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} !px-3 !py-1.5 text-sm flex items-center gap-2`}
-              title="Run backend initialization verification (/octane-tasks/verify)"
+              title={tr('uiTask.scheduler.verify_title')}
             >
               {verifying ? <InlineSpinner /> : <ShieldCheck className="w-4 h-4" />}
-              Verify
+              {tr('uiTask.scheduler.verify')}
             </button>
             <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              {getFilteredTasks().length} / {octaneStatus.tasks.length} tasks
+              {tr('uiTask.scheduler.tasks_count', { shown: getFilteredTasks().length, total: octaneStatus.tasks.length })}
             </span>
           </div>
 
@@ -413,14 +427,14 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Task Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Class</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">Interval</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">Runs</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">Errors</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">Last Run</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">Duration</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('globalTasks.columns.status')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.col_task_name')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.col_class')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.col_interval')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.col_runs')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.col_errors')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.col_last_run')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.col_duration')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -446,12 +460,12 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                         <div className="flex items-center gap-2 mt-1">
                           {row.enabled && (
                             <span className="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                              Enabled
+                              {tr('uiTask.scheduler.enabled')}
                             </span>
                           )}
                           {row.registered && (
                             <span className="px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                              Registered
+                              {tr('uiTask.scheduler.registered')}
                             </span>
                           )}
                         </div>
@@ -492,13 +506,13 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
             </div>
 
             {octaneStatus.tasks.length === 0 && (
-              <EmptyState icon={Layers} message="No Octane tasks discovered" className="py-8" />
+              <EmptyState icon={Layers} message={tr('uiTask.scheduler.empty')} className="py-8" />
             )}
           </div>
 
           {/* Last Updated */}
           <div className="text-center text-xs text-slate-500 dark:text-slate-400">
-            Last updated: {octaneStatus.timestamp}
+            {tr('taskCenter.last_updated')} {octaneStatus.timestamp}
           </div>
         </>
       ) : null}
@@ -528,11 +542,11 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                   {/* Basic Info */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Class</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{tr('uiTask.scheduler.col_class')}</div>
                       <div className="text-sm font-mono break-all">{selectedTask.class}</div>
                     </div>
                     <div className="space-y-1">
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Interval</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{tr('uiTask.scheduler.col_interval')}</div>
                       <div className="text-sm font-mono">{selectedTask.interval}ms</div>
                     </div>
                   </div>
@@ -541,7 +555,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                   <div>
                     <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                       <Activity className="w-4 h-4 text-indigo-500" />
-                      Runtime Statistics
+                      {tr('uiTask.scheduler.runtime_stats')}
                     </h4>
                     {detailLoading ? (
                       <div className="py-8 flex justify-center">
@@ -550,21 +564,21 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                     ) : (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Runs</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{tr('uiTask.scheduler.col_runs')}</div>
                           <div className="text-lg font-mono">{taskDetail?.runtime?.run_count ?? selectedTask.runtime?.run_count ?? 0}</div>
                         </div>
                         <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Errors</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{tr('uiTask.scheduler.col_errors')}</div>
                           <div className={`text-lg font-mono ${(taskDetail?.runtime?.error_count ?? selectedTask.runtime?.error_count ?? 0) > 0 ? 'text-red-500' : ''}`}>
                             {taskDetail?.runtime?.error_count ?? selectedTask.runtime?.error_count ?? 0}
                           </div>
                         </div>
                         <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Last Run</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{tr('uiTask.scheduler.col_last_run')}</div>
                           <div className="text-sm mt-1">{formatLastRunAgo(taskDetail?.runtime?.last_run_ago ?? selectedTask.runtime?.last_run_ago)}</div>
                         </div>
                         <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Duration</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{tr('uiTask.scheduler.col_duration')}</div>
                           <div className="text-sm font-mono mt-1">{formatDuration(taskDetail?.runtime?.last_duration ?? selectedTask.runtime?.last_duration)}</div>
                         </div>
                       </div>
@@ -576,7 +590,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                     <div>
                       <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-red-500">
                         <AlertTriangle className="w-4 h-4" />
-                        Last Error
+                        {tr('uiTask.scheduler.last_error')}
                       </h4>
                       <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-sm font-mono text-red-600 dark:text-red-400 whitespace-pre-wrap break-all">
                         {taskDetail?.runtime?.last_error || selectedTask.runtime?.last_error}
@@ -588,7 +602,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                   <div>
                     <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                       <Settings className="w-4 h-4 text-slate-500" />
-                      Configuration State
+                      {tr('uiTask.scheduler.config_state')}
                     </h4>
                     <div className="flex gap-4">
                       <div className="flex items-center gap-2">
@@ -597,7 +611,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                         ) : (
                           <XCircle className="w-4 h-4 text-slate-400" />
                         )}
-                        <span className="text-sm text-slate-600 dark:text-slate-400">Enabled</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.enabled')}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         {selectedTask.registered ? (
@@ -605,7 +619,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                         ) : (
                           <XCircle className="w-4 h-4 text-slate-400" />
                         )}
-                        <span className="text-sm text-slate-600 dark:text-slate-400">Registered</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">{tr('uiTask.scheduler.registered')}</span>
                       </div>
                     </div>
                   </div>

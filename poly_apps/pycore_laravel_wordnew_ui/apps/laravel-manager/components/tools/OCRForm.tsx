@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FileImage,
   Upload,
@@ -28,6 +29,7 @@ import {
 } from '@/shared/ui/AiToolUi';
 
 const OCRForm: React.FC = () => {
+  const { t } = useTranslation();
   const config = AI_TOOLS.ocr;
   const {
     execute,
@@ -99,7 +101,7 @@ const OCRForm: React.FC = () => {
       if (uploadMode === 'url') {
         const response = await api.http.rawRequest(imageUrl.trim(), { method: 'GET' }, false);
         if (!response.ok) {
-          setExtractedText('Could not load the image from that URL.');
+          setExtractedText(t('uiTools.ocr.error_url_load'));
           return;
         }
         const blob = await response.blob();
@@ -118,11 +120,11 @@ const OCRForm: React.FC = () => {
       if (recognized) {
         setExtractedText(recognized);
       } else {
-        setExtractedText('No text was recognized in this image.');
+        setExtractedText(t('uiTools.ocr.error_no_text'));
       }
     } catch (err) {
       console.error('OCR extraction failed:', err);
-      setExtractedText('Extraction failed. Please try again.');
+      setExtractedText(t('uiTools.ocr.error_extraction_failed'));
     }
   };
 
@@ -174,28 +176,28 @@ const OCRForm: React.FC = () => {
           value={uploadMode}
           onChange={(id) => setUploadMode(id as 'file' | 'url')}
           options={[
-            { id: 'file', label: 'Upload File', icon: Upload },
-            { id: 'url', label: 'Image URL', icon: ImageIcon },
+            { id: 'file', label: t('uiTools.ocr.upload_file'), icon: Upload },
+            { id: 'url', label: t('uiTools.ocr.image_url'), icon: ImageIcon },
           ]}
         />
 
-        <AiBentoCard title="Recognition Model">
+        <AiBentoCard title={t('uiTools.ocr.recognition_model')}>
           <select
             value={modelType}
             onChange={(e) => setModelType(e.target.value)}
             className={`${commonClasses.input} w-full`}
           >
-            <option value="general">General (auto-detect)</option>
-            <option value="scene">Scene Text</option>
-            <option value="doc">Document</option>
-            <option value="number">Numbers</option>
-            <option value="english">English</option>
-            <option value="chinese_traditional">Chinese (Traditional)</option>
+            <option value="general">{t('uiTools.ocr.model_general')}</option>
+            <option value="scene">{t('uiTools.ocr.model_scene')}</option>
+            <option value="doc">{t('uiTools.ocr.model_doc')}</option>
+            <option value="number">{t('uiTools.ocr.model_number')}</option>
+            <option value="english">{t('uiTools.ocr.model_english')}</option>
+            <option value="chinese_traditional">{t('uiTools.ocr.model_chinese_traditional')}</option>
           </select>
         </AiBentoCard>
 
         <div className={`${AI_GRID_2} lg:grid-cols-2`}>
-          <AiBentoCard title="Image Source">
+          <AiBentoCard title={t('uiTools.ocr.image_source')}>
             {uploadMode === 'file' ? (
               <div
                 onDrop={handleDrop}
@@ -209,7 +211,7 @@ const OCRForm: React.FC = () => {
                   <div className="space-y-3">
                     <img
                       src={imagePreview}
-                      alt="Preview"
+                      alt={t('uiTools.ocr.preview')}
                       className="max-h-64 mx-auto rounded-lg shadow-sm"
                     />
                     <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
@@ -220,10 +222,10 @@ const OCRForm: React.FC = () => {
                   <>
                     <Upload className="w-12 h-12 mx-auto mb-3 text-slate-400" />
                     <p className="text-slate-600 dark:text-slate-400 mb-2">
-                      Drop an image here or click to browse
+                      {t('uiTools.ocr.drop_hint')}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Supports JPG, PNG, GIF, WebP
+                      {t('uiTools.ocr.supported_formats')}
                     </p>
                   </>
                 )}
@@ -248,11 +250,11 @@ const OCRForm: React.FC = () => {
                   <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-800/30">
                     <img
                       src={imageUrl}
-                      alt="Preview"
+                      alt={t('uiTools.ocr.preview')}
                       className="max-h-64 mx-auto rounded-lg"
                       onError={(e) => {
                         e.currentTarget.src = '';
-                        e.currentTarget.alt = 'Failed to load image';
+                        e.currentTarget.alt = t('uiTools.ocr.image_load_failed');
                       }}
                     />
                   </div>
@@ -262,7 +264,7 @@ const OCRForm: React.FC = () => {
           </AiBentoCard>
 
           <AiBentoCard
-            title="Extracted Text"
+            title={t('uiTools.ocr.extracted_text')}
             headerControls={
               extractedText ? (
                 <div className="flex gap-2">
@@ -273,12 +275,12 @@ const OCRForm: React.FC = () => {
                     {copied ? (
                       <>
                         <Check className="w-3 h-3" />
-                        Copied!
+                        {t('uiTools.common.copied')}
                       </>
                     ) : (
                       <>
                         <Copy className="w-3 h-3" />
-                        Copy
+                        {t('uiTools.common.copy')}
                       </>
                     )}
                   </button>
@@ -287,7 +289,7 @@ const OCRForm: React.FC = () => {
                     className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1"
                   >
                     <Download className="w-3 h-3" />
-                    Download
+                    {t('uiTools.common.download')}
                   </button>
                 </div>
               ) : undefined
@@ -299,7 +301,7 @@ const OCRForm: React.FC = () => {
                   <div className="text-center">
                     <RefreshCw className="w-8 h-8 animate-spin text-amber-500 mx-auto mb-2" />
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                      Extracting text from image...
+                      {t('uiTools.ocr.extracting_progress')}
                     </p>
                   </div>
                 </div>
@@ -308,7 +310,7 @@ const OCRForm: React.FC = () => {
               ) : (
                 <div className="flex items-center justify-center h-full min-h-[240px]">
                   <p className="text-slate-400 text-center">
-                    Extracted text will appear here
+                    {t('uiTools.ocr.output_placeholder')}
                   </p>
                 </div>
               )}
@@ -322,7 +324,7 @@ const OCRForm: React.FC = () => {
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
           >
             <Eraser className="w-4 h-4" />
-            Clear
+            {t('uiTools.common.clear')}
           </button>
           <button
             onClick={handleExtract}
@@ -336,12 +338,12 @@ const OCRForm: React.FC = () => {
             {loading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Extracting...
+                {t('uiTools.ocr.extracting')}
               </>
             ) : (
               <>
                 <FileImage className="w-4 h-4" />
-                Extract Text
+                {t('uiTools.ocr.extract_text')}
               </>
             )}
           </button>
@@ -352,9 +354,9 @@ const OCRForm: React.FC = () => {
         <AiToolTips
           accent="amber"
           items={[
-            { icon: Eye, text: 'Best results with clear, high-contrast images' },
-            { icon: Languages, text: 'Detects multiple languages automatically - no language selection needed' },
-            { icon: ImageIcon, text: 'Works with screenshots, scanned documents, photos of text, and more' },
+            { icon: Eye, text: t('uiTools.ocr.tip_clear_images') },
+            { icon: Languages, text: t('uiTools.ocr.tip_languages') },
+            { icon: ImageIcon, text: t('uiTools.ocr.tip_sources') },
           ]}
         />
       </div>

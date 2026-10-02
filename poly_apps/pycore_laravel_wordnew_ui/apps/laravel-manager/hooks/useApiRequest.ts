@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { APIResponse } from '@/apps/laravel-manager/types';
+import i18n from '@/apps/laravel-manager/i18n';
 
 export interface UseApiRequestOptions {
   onSuccess?: (data: any) => void;
@@ -54,13 +55,13 @@ export function useApiRequest<T = any>(
         options?.onSuccess?.(response.data);
         return response;
       } else {
-        const errorMsg = response.error || 'Request failed';
+        const errorMsg = response.error || i18n.t('uiCommon.requests.request_failed');
         setError(errorMsg);
         options?.onError?.(errorMsg);
         return response;
       }
     } catch (err: any) {
-      const errorMsg = err.message || 'Unknown error occurred';
+      const errorMsg = err.message || i18n.t('uiCommon.requests.unknown_error');
       setError(errorMsg);
       options?.onError?.(errorMsg);
       console.error('[useApiRequest] Error:', err);

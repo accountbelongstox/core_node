@@ -12,6 +12,7 @@ import {
   MessageSquare, RefreshCcw, Send, AlertTriangle, Timer,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { useToast } from '../admin';
 import { appendLog } from '@/core/logstore/logStore';
 import type { AiProvider, AiChatResult } from '@/apps/laravel-manager/api';
@@ -23,6 +24,7 @@ const selectCls = `${commonClasses.select} !py-2 text-xs font-mono disabled:opac
 
 const AiChatTestPanel: React.FC = () => {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [providers, setProviders] = useState<AiProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,27 +72,27 @@ const AiChatTestPanel: React.FC = () => {
         appendLog('success', 'ai',
           `Chat reply via ${res.data.provider}/${res.data.model} (${Math.round(res.data.latency_ms ?? 0)}ms)`);
       } else {
-        const msg = res.data?.error || res.error || 'Chat request failed';
+        const msg = res.data?.error || res.error || t('uiAi.chat_test.request_failed');
         const retry = res.data?.retry_after_s;
-        setError(retry != null ? `${msg} (retry in ${retry}s)` : msg);
-        toast.error(msg, 'Chat test');
+        setError(retry != null ? t('uiAi.chat_test.retry_in', { message: msg, seconds: retry }) : msg);
+        toast.error(msg, t('uiAi.chat_test.title'));
         appendLog('error', 'ai', `Chat test failed: ${msg}`);
       }
     } catch (e: any) {
-      const msg = e?.message || 'Chat request failed';
+      const msg = e?.message || t('uiAi.chat_test.request_failed');
       setError(msg);
-      toast.error(msg, 'Chat test');
+      toast.error(msg, t('uiAi.chat_test.title'));
     } finally {
       setSending(false);
     }
-  }, [chatInput, chatProvider, sending, toast]);
+  }, [chatInput, chatProvider, sending, toast, t]);
 
   return (
     <ToolWrapper
-      title="Chat Test"
+      title={t('uiAi.chat_test.title')}
       icon={MessageSquare}
       gradient="cyan"
-      description="Send one message through the unified gateway"
+      description={t('uiAi.chat_test.description')}
       actions={
         <button
           onClick={() => void loadCatalog()}
@@ -98,14 +100,14 @@ const AiChatTestPanel: React.FC = () => {
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
         >
           <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Reload providers
+          {t('uiAi.chat_test.reload_providers')}
         </button>
       }
     >
       <div className="space-y-4 sm:space-y-5">
-        <AiBentoCard title="Chat Test">
+        <AiBentoCard title={t('uiAi.chat_test.title')}>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-            Send one message through the gateway. Auto uses smart free→balance→paid dispatch; pick a provider to force it.
+            {t('uiAi.chat_test.intro')}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-2">
@@ -115,7 +117,7 @@ const AiChatTestPanel: React.FC = () => {
               disabled={sending}
               className={`${selectCls} shrink-0`}
             >
-              <option value="auto">Auto (smart dispatch)</option>
+              <option value="auto">{t('uiAi.chat_test.auto_option')}</option>
               {configuredProviders.map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
@@ -125,7 +127,7 @@ const AiChatTestPanel: React.FC = () => {
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChat(); } }}
-              placeholder="Type a test prompt…"
+              placeholder={t('uiAi.chat_test.placeholder')}
               disabled={sending}
               className={`${commonClasses.input} flex-1 min-w-0 text-xs disabled:opacity-50`}
             />
@@ -135,7 +137,7 @@ const AiChatTestPanel: React.FC = () => {
               className={`${commonClasses.button} ${commonClasses.buttonPrimary} shrink-0 text-xs flex items-center gap-1.5 disabled:opacity-50`}
             >
               {sending ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              {sending ? 'Sending…' : 'Send'}
+              {sending ? t('uiAi.chat_test.sending') : t('uiAi.chat_test.send')}
             </button>
           </div>
 

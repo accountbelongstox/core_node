@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { RefreshCw, AlertTriangle, Clapperboard, Image as ImageIcon } from 'lucide-react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { api } from '@/apps/laravel-manager/api';
 import type { PosterStatusData, PosterStatusCounts } from '@/apps/laravel-manager/api';
 import { commonClasses } from '@/shared/styles/theme';
@@ -7,15 +8,16 @@ import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '@/core/logstore/logStore';
 import { useApiResource } from '@/apps/laravel-manager/hooks';
 
-const POSTER_COUNT_FIELDS: Array<{ key: keyof PosterStatusCounts; label: string; cls: string }> = [
-  { key: 'pending', label: 'Pending', cls: 'text-yellow-600 dark:text-yellow-400' },
-  { key: 'ready', label: 'Ready', cls: 'text-green-600 dark:text-green-400' },
-  { key: 'failed', label: 'Failed', cls: 'text-red-600 dark:text-red-400' },
-  { key: 'none', label: 'None', cls: 'text-slate-500 dark:text-slate-400' },
+const POSTER_COUNT_FIELDS: Array<{ key: keyof PosterStatusCounts; cls: string }> = [
+  { key: 'pending', cls: 'text-yellow-600 dark:text-yellow-400' },
+  { key: 'ready', cls: 'text-green-600 dark:text-green-400' },
+  { key: 'failed', cls: 'text-red-600 dark:text-red-400' },
+  { key: 'none', cls: 'text-slate-500 dark:text-slate-400' },
 ];
 
 const VocabPosterStrip: React.FC = () => {
   const toast = useToast();
+  const { t } = useTranslation();
   const [fetching, setFetching] = useState(false);
 
   // Shape-check folded into the fetcher: a real snapshot carries a `counts` object
@@ -29,7 +31,7 @@ const VocabPosterStrip: React.FC = () => {
       if (res.success && res.data && (res.data as any).counts && Array.isArray((res.data as any).providers)) {
         return res.data;
       }
-      throw new Error('Poster status endpoint missing — restart the laravel backend.');
+      throw new Error(t('uiVocab.posterStrip.endpoint_missing'));
     },
     { pollMs: 10000 }
   );
@@ -48,7 +50,7 @@ const VocabPosterStrip: React.FC = () => {
         logSuccess('posters', 'Poster pipeline status refreshed');
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to refresh poster status');
+      toast.error(e?.message || t('uiVocab.posterStrip.refresh_failed'));
       logError('posters', `Poster status refresh failed: ${e?.message || e}`);
     } finally {
       setFetching(false);
@@ -60,15 +62,15 @@ const VocabPosterStrip: React.FC = () => {
     return (
       <div className={`${commonClasses.card} p-3 mb-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400`}>
         <Clapperboard className="w-4 h-4 text-indigo-400 shrink-0" />
-        <span className="font-semibold text-slate-600 dark:text-slate-300">Movie Posters</span>
+        <span className="font-semibold text-slate-600 dark:text-slate-300">{t('uiVocab.posterStrip.title_short')}</span>
         <span className="truncate text-slate-400" title={err || undefined}>
-          {err ? err : 'loading…'}
+          {err ? err : t('uiVocab.posterStrip.loading')}
         </span>
         <button
           onClick={handleRefresh}
           disabled={loading || fetching}
           className="ml-auto text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 shrink-0"
-          title="Refresh poster status"
+          title={t('uiVocab.posterStrip.refresh_status')}
         >
           <RefreshCw className={`w-3 h-3 ${(loading || fetching) ? 'animate-spin' : ''}`} />
         </button>
@@ -81,12 +83,12 @@ const VocabPosterStrip: React.FC = () => {
     <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
       <div className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-1.5">
         <ImageIcon className="w-3.5 h-3.5 text-indigo-400" /> {label}
-        <span className="ml-auto text-[11px] font-normal text-slate-400">{(c?.total ?? 0).toLocaleString()} total</span>
+        <span className="ml-auto text-[11px] font-normal text-slate-400">{t('uiVocab.posterStrip.total', { value: (c?.total ?? 0).toLocaleString() })}</span>
       </div>
       <div className="grid grid-cols-4 gap-2 text-xs">
         {POSTER_COUNT_FIELDS.map((f) => (
           <div key={f.key as string}>
-            <div className="text-[11px] text-slate-400">{f.label}</div>
+            <div className="text-[11px] text-slate-400">{t(`uiVocab.posterStrip.counts.${f.key}`)}</div>
             <div className={`font-bold ${f.cls}`}>{(c?.[f.key] ?? 0).toLocaleString()}</div>
           </div>
         ))}
@@ -99,18 +101,18 @@ const VocabPosterStrip: React.FC = () => {
       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
         <h3 className="font-semibold flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <Clapperboard className="w-4 h-4 text-indigo-400" />
-          Movie / TV Posters
+          {t('uiVocab.posterStrip.title')}
         </h3>
         <div className="flex items-center gap-3">
           {/* execution-owner badges */}
-          <div className="flex items-center gap-1.5" title="Poster execution owner">
+          <div className="flex items-center gap-1.5" title={t('uiVocab.posterStrip.execution_owner')}>
             {providers.length === 0 && (
-              <span className="text-[11px] text-amber-600 dark:text-amber-400">no providers</span>
+              <span className="text-[11px] text-amber-600 dark:text-amber-400">{t('uiVocab.posterStrip.no_providers')}</span>
             )}
             {providers.map((p) => (
               <span
                 key={p.name}
-                title={p.configured ? `${p.name} owns poster execution` : `${p.name} is unavailable`}
+                title={p.configured ? t('uiVocab.posterStrip.provider_owns', { name: p.name }) : t('uiVocab.posterStrip.provider_unavailable', { name: p.name })}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold uppercase ${
                   p.configured
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -125,10 +127,10 @@ const VocabPosterStrip: React.FC = () => {
             onClick={handleRefresh}
             disabled={loading || fetching}
             className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 disabled:opacity-50"
-            title="Refresh / retry pending posters"
+            title={t('uiVocab.posterStrip.refresh_retry')}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${(loading || fetching) ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('common.refresh')}
           </button>
         </div>
       </div>
@@ -136,13 +138,13 @@ const VocabPosterStrip: React.FC = () => {
       {providers.every((p) => !p.configured) && (
         <p className="mb-3 text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
           <AlertTriangle className="w-3 h-3 shrink-0" />
-          Poster execution owner unavailable — enable the Image capability in the mcp-chrome Task tab.
+          {t('uiVocab.posterStrip.owner_unavailable')}
         </p>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {renderCounts('Books', data.counts?.book)}
-        {renderCounts('Subtitles', data.counts?.subtitle)}
+        {renderCounts(t('uiVocab.posterStrip.books'), data.counts?.book)}
+        {renderCounts(t('uiVocab.posterStrip.subtitles'), data.counts?.subtitle)}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ALL_TOOLS, getAllCategories } from '@/apps/laravel-manager/config/tools.config';
 import { ToolDefinition } from '@/apps/laravel-manager/types';
 import { api } from '@/apps/laravel-manager/api';
@@ -33,6 +34,7 @@ import {
  */
 
 export function UnifiedToolsPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<ViewTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -143,7 +145,7 @@ export function UnifiedToolsPage() {
       const apiModule = (api as any)[moduleName];
 
       if (!apiModule || typeof apiModule[methodName] !== 'function') {
-        throw new Error(`API method ${selectedTool.apiMethod} not found`);
+        throw new Error(t('uiTools.page.api_method_not_found', { method: selectedTool.apiMethod }));
       }
 
       const response = await apiModule[methodName](formData);
@@ -151,13 +153,13 @@ export function UnifiedToolsPage() {
       if (response.success) {
         setResult(response.data);
         addToHistory(selectedTool, formData, response.data);
-        toast.success(`${selectedTool.name} executed successfully`);
+        toast.success(t('uiTools.page.executed_successfully', { name: selectedTool.name }));
       } else {
-        setError(response.message || 'Operation failed');
-        toast.error(response.message || 'Operation failed');
+        setError(response.message || t('uiTools.page.operation_failed'));
+        toast.error(response.message || t('uiTools.page.operation_failed'));
       }
     } catch (err: any) {
-      const errorMsg = err.message || 'An error occurred';
+      const errorMsg = err.message || t('uiTools.page.error_occurred');
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -173,10 +175,10 @@ export function UnifiedToolsPage() {
     const ok = await copyToClipboard(getResultAsText());
     if (ok) {
       setCopied(true);
-      toast.success('Copied to clipboard');
+      toast.success(t('uiTools.page.copied_to_clipboard'));
       setTimeout(() => setCopied(false), 2000);
     } else {
-      toast.error('Failed to copy to clipboard');
+      toast.error(t('uiTools.page.copy_failed'));
     }
   };
 
@@ -184,14 +186,14 @@ export function UnifiedToolsPage() {
     if (!result) return;
     const toolId = selectedTool?.id || 'result';
     downloadAsFile(toJsonString(result), buildExportFilename(toolId, 'json'), 'application/json');
-    toast.success('Exported as JSON');
+    toast.success(t('uiTools.page.exported_json'));
   };
 
   const exportResultAsTxt = () => {
     if (!result) return;
     const toolId = selectedTool?.id || 'result';
     downloadAsFile(getResultAsText(), buildExportFilename(toolId, 'txt'), 'text/plain');
-    toast.success('Exported as TXT');
+    toast.success(t('uiTools.page.exported_txt'));
   };
 
   // Render a dynamic form field (enum→select, number→number, boolean→checkbox,
@@ -215,7 +217,7 @@ export function UnifiedToolsPage() {
             onChange={(e) => handleInputChange(fieldName, e.target.value)}
             className={inputCls}
           >
-            <option value="">Select...</option>
+            <option value="">{t('uiTools.page.select_option')}</option>
             {fieldSchema.enum.map((option: any) => (
               <option key={String(option)} value={option}>{String(option)}</option>
             ))}
@@ -226,7 +228,7 @@ export function UnifiedToolsPage() {
             value={value}
             onChange={(e) => handleInputChange(fieldName, e.target.value === '' ? '' : parseFloat(e.target.value))}
             className={inputCls}
-            placeholder={`Enter ${label.toLowerCase()}`}
+            placeholder={t('uiTools.page.enter_field', { label: label.toLowerCase() })}
           />
         ) : fieldSchema.type === 'boolean' ? (
           <label className="flex items-center gap-2 cursor-pointer">
@@ -236,7 +238,7 @@ export function UnifiedToolsPage() {
               onChange={(e) => handleInputChange(fieldName, e.target.checked)}
               className="w-4 h-4 rounded text-indigo-600 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-indigo-500 cursor-pointer"
             />
-            <span className="text-sm text-slate-600 dark:text-slate-300">Enable</span>
+            <span className="text-sm text-slate-600 dark:text-slate-300">{t('uiTools.page.enable')}</span>
           </label>
         ) : fieldSchema.type === 'file' ? (
           <input
@@ -251,7 +253,7 @@ export function UnifiedToolsPage() {
             onChange={(e) => handleInputChange(fieldName, e.target.value)}
             rows={3}
             className={inputCls + ' resize-none'}
-            placeholder={`Enter ${label.toLowerCase()}...`}
+            placeholder={t('uiTools.page.enter_field_ellipsis', { label: label.toLowerCase() })}
           />
         )}
       </div>
@@ -272,7 +274,7 @@ export function UnifiedToolsPage() {
         }`}
       >
         <Sparkles className="w-4 h-4 flex-shrink-0" />
-        <span className="flex-1 text-left">AI Tools</span>
+        <span className="flex-1 text-left">{t('uiTools.page.nav_ai_tools')}</span>
       </button>
 
       <button
@@ -284,7 +286,7 @@ export function UnifiedToolsPage() {
         }`}
       >
         <Layers className="w-4 h-4 flex-shrink-0" />
-        <span className="flex-1 text-left">All Tools</span>
+        <span className="flex-1 text-left">{t('uiTools.page.nav_all_tools')}</span>
         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300">
           {tabScopedTools.length}
         </span>
@@ -328,7 +330,7 @@ export function UnifiedToolsPage() {
         }`}
       >
         <Boxes className="w-4 h-4 flex-shrink-0" />
-        <span className="flex-1 text-left">MCP Server</span>
+        <span className="flex-1 text-left">{t('uiTools.page.nav_mcp_server')}</span>
       </button>
     </nav>
   );
@@ -363,7 +365,7 @@ export function UnifiedToolsPage() {
             type="button"
             onClick={(e) => toggleFavorite(tool.id, e)}
             className="p-1.5 -m-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-            title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+            title={isFav ? t('uiTools.page.favorite_remove') : t('uiTools.page.favorite_add')}
           >
             <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : 'text-slate-300 dark:text-slate-600 group-hover:text-slate-400'}`} />
           </button>
@@ -373,7 +375,7 @@ export function UnifiedToolsPage() {
             <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">{tool.name}</h3>
             {tool.unavailable && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400">
-                <Ban className="w-2.5 h-2.5" /> Soon
+                <Ban className="w-2.5 h-2.5" /> {t('uiTools.page.badge_soon')}
               </span>
             )}
           </div>
@@ -410,7 +412,7 @@ export function UnifiedToolsPage() {
           <button
             onClick={() => setMobileNavOpen(true)}
             className="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-            title="Categories"
+            title={t('uiTools.page.categories')}
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -422,8 +424,8 @@ export function UnifiedToolsPage() {
               <Sparkles className="w-3 h-3 text-amber-400 absolute -top-1 -right-1" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">Tools</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{Object.keys(ALL_TOOLS).length} tools</p>
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">{t('uiTools.page.title')}</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('uiTools.page.tools_count', { count: Object.keys(ALL_TOOLS).length })}</p>
             </div>
           </div>
 
@@ -434,7 +436,7 @@ export function UnifiedToolsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tools..."
+              placeholder={t('uiTools.page.search_placeholder')}
               className={inputCls + ' pl-9 sm:w-60'}
             />
             {searchQuery && (
@@ -450,9 +452,9 @@ export function UnifiedToolsPage() {
 
         <nav className="flex justify-center border-t border-slate-200/80 dark:border-slate-800/80 px-4 py-2">
           <div className="flex items-center justify-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800/60 p-1">
-            {tabBtn('all', 'Tools', Layers, Object.keys(ALL_TOOLS).length, 'bg-indigo-600 text-white shadow-sm')}
-            {tabBtn('favorites', 'Favorites', Star, favorites.length, 'bg-amber-500 text-white shadow-sm')}
-            {tabBtn('recent', 'Recent', Clock, history.length, 'bg-purple-600 text-white shadow-sm')}
+            {tabBtn('all', t('uiTools.page.tab_tools'), Layers, Object.keys(ALL_TOOLS).length, 'bg-indigo-600 text-white shadow-sm')}
+            {tabBtn('favorites', t('uiTools.page.tab_favorites'), Star, favorites.length, 'bg-amber-500 text-white shadow-sm')}
+            {tabBtn('recent', t('uiTools.page.tab_recent'), Clock, history.length, 'bg-purple-600 text-white shadow-sm')}
           </div>
         </nav>
       </header>
@@ -463,7 +465,7 @@ export function UnifiedToolsPage() {
         <aside className="hidden lg:flex w-64 xl:w-72 flex-col border-r border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
             <Layers className="w-4 h-4 text-indigo-500" />
-            <h2 className="font-semibold text-sm">Categories</h2>
+            <h2 className="font-semibold text-sm">{t('uiTools.page.categories')}</h2>
           </div>
           {renderCategoryNav()}
         </aside>
@@ -476,7 +478,7 @@ export function UnifiedToolsPage() {
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <Layers className="w-4 h-4 text-indigo-500" />
-                  <h2 className="font-semibold text-sm">Categories</h2>
+                  <h2 className="font-semibold text-sm">{t('uiTools.page.categories')}</h2>
                 </div>
                 <button onClick={() => setMobileNavOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
                   <X className="w-4 h-4" />
@@ -509,7 +511,7 @@ export function UnifiedToolsPage() {
                         onClick={() => setSelectedTool(null)}
                         className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-2"
                       >
-                        <ArrowLeft className="w-3.5 h-3.5" /> Back to tools
+                        <ArrowLeft className="w-3.5 h-3.5" /> {t('uiTools.page.back_to_tools')}
                       </button>
                       <div className="flex items-center gap-2.5 mb-1.5">
                         <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">{selectedTool.name}</h2>
@@ -521,7 +523,7 @@ export function UnifiedToolsPage() {
                         </button>
                         {selectedTool.unavailable && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400">
-                            <Ban className="w-3 h-3" /> Unavailable / coming soon
+                            <Ban className="w-3 h-3" /> {t('uiTools.page.badge_unavailable')}
                           </span>
                         )}
                       </div>
@@ -544,7 +546,7 @@ export function UnifiedToolsPage() {
                         className={`hidden xl:inline-flex p-2 rounded-lg transition-all ${
                           showInfoPanel ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
-                        title="Toggle info panel"
+                        title={t('uiTools.page.toggle_info_panel')}
                       >
                         <Info className="w-5 h-5" />
                       </button>
@@ -566,7 +568,7 @@ export function UnifiedToolsPage() {
                         <div className="flex items-start gap-3">
                           <Ban className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
                           <p className="text-sm text-amber-700 dark:text-amber-300">
-                            This tool's backend isn't available yet. The form is shown for preview, but execution is disabled.
+                            {t('uiTools.page.unavailable_notice')}
                           </p>
                         </div>
                       </div>
@@ -576,11 +578,11 @@ export function UnifiedToolsPage() {
                     <div className="rounded-xl p-5 border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40">
                       <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-slate-900 dark:text-white">
                         <Code className="w-4 h-4 text-indigo-500" />
-                        Input
+                        {t('uiTools.common.input')}
                       </h3>
                       <div className="space-y-4">
                         {Object.keys(selectedTool.inputSchema.properties || {}).length === 0 ? (
-                          <p className="text-sm text-slate-500 dark:text-slate-400">This tool takes no parameters. Just run it.</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">{t('uiTools.page.no_parameters')}</p>
                         ) : (
                           Object.entries(selectedTool.inputSchema.properties || {}).map(([fieldName, fieldSchema]) =>
                             renderFormField(fieldName, fieldSchema)
@@ -599,17 +601,17 @@ export function UnifiedToolsPage() {
                       {selectedTool.unavailable ? (
                         <>
                           <Ban className="w-5 h-5" />
-                          Unavailable
+                          {t('uiTools.page.button_unavailable')}
                         </>
                       ) : isLoading ? (
                         <>
                           <Loader className="w-5 h-5 animate-spin" />
-                          Processing...
+                          {t('uiTools.page.button_processing')}
                         </>
                       ) : (
                         <>
                           <Play className="w-5 h-5" />
-                          Execute
+                          {t('uiTools.page.button_execute')}
                           <ChevronRight className="w-4 h-4" />
                         </>
                       )}
@@ -623,7 +625,7 @@ export function UnifiedToolsPage() {
                             <X className="w-5 h-5 text-rose-500" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold text-rose-600 dark:text-rose-400 mb-1">Error</h4>
+                            <h4 className="font-semibold text-rose-600 dark:text-rose-400 mb-1">{t('uiTools.common.error')}</h4>
                             <p className="text-rose-600/90 dark:text-rose-300 text-sm">{error}</p>
                           </div>
                         </div>
@@ -636,7 +638,7 @@ export function UnifiedToolsPage() {
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                           <h3 className="text-base font-semibold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                             <Check className="w-5 h-5" />
-                            Result
+                            {t('uiTools.page.result')}
                           </h3>
                           <div className="flex items-center gap-2">
                             <button
@@ -644,22 +646,22 @@ export function UnifiedToolsPage() {
                               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                             >
                               {copied ? (
-                                <><Check className="w-4 h-4 text-emerald-500" /><span className="text-emerald-500">Copied!</span></>
+                                <><Check className="w-4 h-4 text-emerald-500" /><span className="text-emerald-500">{t('uiTools.common.copied')}</span></>
                               ) : (
-                                <><Copy className="w-4 h-4" />Copy</>
+                                <><Copy className="w-4 h-4" />{t('uiTools.common.copy')}</>
                               )}
                             </button>
                             <button
                               onClick={exportResultAsJson}
                               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-                              title="Download result as a JSON file"
+                              title={t('uiTools.page.export_json_title')}
                             >
                               <FileJson className="w-4 h-4" />JSON
                             </button>
                             <button
                               onClick={exportResultAsTxt}
                               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-                              title="Download result as a plain text file"
+                              title={t('uiTools.page.export_txt_title')}
                             >
                               <FileText className="w-4 h-4" />TXT
                             </button>
@@ -682,14 +684,14 @@ export function UnifiedToolsPage() {
                   <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
                     <h3 className="font-semibold flex items-center gap-2 text-sm">
                       <BookOpen className="w-4 h-4 text-purple-500" />
-                      Information
+                      {t('uiTools.page.information')}
                     </h3>
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     <div className="flex items-start gap-3 p-3 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10">
                       <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-blue-600 dark:text-blue-400 text-sm mb-1">About</h4>
+                        <h4 className="font-semibold text-blue-600 dark:text-blue-400 text-sm mb-1">{t('uiTools.page.about')}</h4>
                         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{selectedTool.description}</p>
                       </div>
                     </div>
@@ -697,17 +699,17 @@ export function UnifiedToolsPage() {
                     <div className="flex items-start gap-3 p-3 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10">
                       <Lightbulb className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-purple-600 dark:text-purple-400 text-sm mb-1">Tips</h4>
+                        <h4 className="font-semibold text-purple-600 dark:text-purple-400 text-sm mb-1">{t('uiTools.page.tips')}</h4>
                         <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1 leading-relaxed">
-                          <li>• Fill in all required fields marked with *</li>
-                          <li>• Results can be copied or exported</li>
-                          <li>• Star a tool for quick access</li>
+                          <li>• {t('uiTools.page.tip_required')}</li>
+                          <li>• {t('uiTools.page.tip_export')}</li>
+                          <li>• {t('uiTools.page.tip_star')}</li>
                         </ul>
                       </div>
                     </div>
 
                     <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/50">
-                      <div className="text-xs text-slate-500 mb-1">API Method</div>
+                      <div className="text-xs text-slate-500 mb-1">{t('uiTools.page.api_method')}</div>
                       <code className="text-xs text-cyan-600 dark:text-cyan-400 font-mono break-all">{selectedTool.apiMethod}</code>
                     </div>
 
@@ -715,7 +717,7 @@ export function UnifiedToolsPage() {
                       <div className="space-y-2">
                         <h4 className="font-semibold text-sm flex items-center gap-2">
                           <History className="w-4 h-4 text-slate-400" />
-                          Recent Usage
+                          {t('uiTools.page.recent_usage')}
                         </h4>
                         <div className="space-y-1">
                           {history.filter(h => h.toolId === selectedTool.id).slice(0, 3).map((h, i) => (
@@ -736,11 +738,11 @@ export function UnifiedToolsPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">
-                    {selectedCategory === 'all' ? 'All Tools' : selectedCategory}
+                    {selectedCategory === 'all' ? t('uiTools.page.nav_all_tools') : selectedCategory}
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {gridTools.length} {gridTools.length === 1 ? 'tool' : 'tools'}
-                    {searchQuery && <> matching “{searchQuery}”</>}
+                    {t('uiTools.page.tools_count', { count: gridTools.length })}
+                    {searchQuery && <> {t('uiTools.page.matching_query', { query: searchQuery })}</>}
                   </p>
                 </div>
               </div>
@@ -762,26 +764,26 @@ export function UnifiedToolsPage() {
                   </div>
                   <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     {activeTab === 'favorites'
-                      ? 'No favorites yet'
+                      ? t('uiTools.page.empty_favorites_title')
                       : activeTab === 'recent'
-                      ? 'No recent tools'
-                      : 'No tools found'}
+                      ? t('uiTools.page.empty_recent_title')
+                      : t('uiTools.page.empty_search_title')}
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                     {activeTab === 'favorites'
-                      ? 'Star a tool to pin it here for quick access.'
+                      ? t('uiTools.page.empty_favorites_hint')
                       : activeTab === 'recent'
-                      ? 'Tools you run will appear here.'
+                      ? t('uiTools.page.empty_recent_hint')
                       : searchQuery
-                      ? 'Try a different search term or category.'
-                      : 'No tools in this category.'}
+                      ? t('uiTools.page.empty_search_hint')
+                      : t('uiTools.page.empty_category_hint')}
                   </p>
                   {(searchQuery || selectedCategory !== 'all') && (
                     <button
                       onClick={() => { setSearchQuery(''); setSelectedCategory('all'); }}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-all"
                     >
-                      <ChevronLeft className="w-4 h-4" /> Clear filters
+                      <ChevronLeft className="w-4 h-4" /> {t('uiTools.page.clear_filters')}
                     </button>
                   )}
                 </div>

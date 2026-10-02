@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { AlertCircle, Download } from 'lucide-react';
+import i18n from '@/apps/laravel-manager/i18n';
 
 interface ViewerErrorBoundaryProps {
   key?: React.Key;
@@ -48,7 +49,7 @@ class ViewerErrorBoundary extends Component<ViewerErrorBoundaryProps, ViewerErro
       return this.props.children;
     }
 
-    const label = this.props.label ? this.props.label : 'This viewer failed to load.';
+    const label = this.props.label ? this.props.label : i18n.t('uiCommon.media.viewer_boundary.viewer_failed');
     return (
       <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
         <AlertCircle size={28} className="text-amber-400" />
@@ -63,7 +64,7 @@ class ViewerErrorBoundary extends Component<ViewerErrorBoundaryProps, ViewerErro
             rel="noreferrer"
             className="mt-1 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
           >
-            <Download size={16} /> Download
+            <Download size={16} /> {i18n.t('uiCommon.media.viewer_boundary.download')}
           </a>
         ) : null}
       </div>

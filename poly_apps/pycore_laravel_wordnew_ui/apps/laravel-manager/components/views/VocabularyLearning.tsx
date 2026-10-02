@@ -542,7 +542,7 @@ const VocabularyLearning: React.FC = () => {
         setHistory(prev => [response.data!, ...prev.slice(0, 9)]);
         logSuccess('vocab', `Detect+translate →${targetLanguage} succeeded (detected: ${response.data.detected_language || 'unknown'})`);
       } else {
-        throw new Error(response.error || 'Translation failed');
+        throw new Error(response.error || t.translate_failed);
       }
     } catch (error: any) {
       setTranslation({
@@ -703,17 +703,17 @@ const VocabularyLearning: React.FC = () => {
       } else if (response?.success && data && data.exists === false) {
         setSentenceAudioState((prev) => ({ ...prev, [key]: { resolving: false, queued: !!data.queued, url: null } }));
         if (data.queued) {
-          toast.success('Audio generation queued — try again shortly');
+          toast.success(tr('uiVocab.main.sentence_audio_queued'));
           logInfo('vocab', `Sentence audio queued for generation (${language})`);
         } else {
-          toast.error('No audio available for this sentence');
+          toast.error(tr('uiVocab.main.sentence_audio_none'));
         }
       } else {
-        throw new Error(response?.error || 'Failed to resolve sentence audio');
+        throw new Error(response?.error || tr('uiVocab.main.sentence_audio_resolve_failed'));
       }
     } catch (e: any) {
       setSentenceAudioState((prev) => ({ ...prev, [key]: { resolving: false, queued: false, url: null } }));
-      toast.error(e?.message || 'Could not resolve sentence audio');
+      toast.error(e?.message || tr('uiVocab.main.sentence_audio_resolve_error'));
       logError('vocab', `Sentence audio resolve failed: ${e?.message || e}`);
     }
   };
@@ -736,14 +736,14 @@ const VocabularyLearning: React.FC = () => {
           const sentences = Array.isArray(r.data.sentences) ? r.data.sentences : [];
           setSentenceCache((prev) => ({ ...prev, [content]: { loading: false, error: null, sentences } }));
         } else {
-          throw new Error(r.error || 'Failed to load sentences');
+          throw new Error(r.error || tr('uiVocab.main.sentences_load_failed'));
         }
       })
       .catch((e: any) => {
         logError('vocab', `Load example sentences for "${content}" failed: ${e?.message || e}`);
         setSentenceCache((prev) => ({
           ...prev,
-          [content]: { loading: false, error: e?.message || 'Failed to load sentences', sentences: [] },
+          [content]: { loading: false, error: e?.message || tr('uiVocab.main.sentences_load_failed'), sentences: [] },
         }));
       });
   };
@@ -777,14 +777,14 @@ const VocabularyLearning: React.FC = () => {
         target_language: targetLanguage || 'zh',
       });
       if (response.success) {
-        toast.success('Queued for translation');
+        toast.success(tr('uiVocab.main.translation_queued'));
         logSuccess('vocab', `Re-translate queued for "${content}"`);
         setWordsReloadTick((v) => v + 1);
       } else {
-        throw new Error(response.error || 'Failed to queue translation');
+        throw new Error(response.error || tr('uiVocab.main.translation_queue_failed'));
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to queue translation');
+      toast.error(e?.message || tr('uiVocab.main.translation_queue_failed'));
       logError('vocab', `Re-translate "${content}" failed: ${e?.message || e}`);
     } finally {
       setWordActionFlag(key, false);
@@ -808,7 +808,7 @@ const VocabularyLearning: React.FC = () => {
         { content, language: lng, type: 'word' },
       ]);
       if (response.success) {
-        toast.success('Audio requested');
+        toast.success(tr('uiVocab.main.audio_requested'));
         logSuccess('vocab', `Audio requested for "${content}"`);
         // Some backends return a ready audio_url synchronously — patch the row.
         const data: any = response.data;
@@ -821,10 +821,10 @@ const VocabularyLearning: React.FC = () => {
         }
         setWordsReloadTick((v) => v + 1);
       } else {
-        throw new Error(response.error || 'Failed to request audio');
+        throw new Error(response.error || tr('uiVocab.main.audio_request_failed'));
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to request audio');
+      toast.error(e?.message || tr('uiVocab.main.audio_request_failed'));
       logError('vocab', `Add audio "${content}" failed: ${e?.message || e}`);
     } finally {
       setWordActionFlag(key, false);
@@ -852,15 +852,15 @@ const VocabularyLearning: React.FC = () => {
         results: [{ md5: r?.md5, word: content, is_valid: true, note: 'Re-enabled from dashboard' }],
       });
       if (response.success) {
-        toast.success(`"${content}" re-enabled — it will be re-queued for translation`);
+        toast.success(tr('uiVocab.main.word_revalidated', { word: content }));
         logSuccess('vocab', `Revalidated "${content}"`);
         r.is_valid = true;
         setWordsReloadTick((v) => v + 1);
       } else {
-        throw new Error(response.error || 'Failed to revalidate');
+        throw new Error(response.error || tr('uiVocab.main.revalidate_failed'));
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to revalidate');
+      toast.error(e?.message || tr('uiVocab.main.revalidate_failed'));
       logError('vocab', `Revalidate "${content}" failed: ${e?.message || e}`);
     } finally {
       setWordActionFlag(key, false);

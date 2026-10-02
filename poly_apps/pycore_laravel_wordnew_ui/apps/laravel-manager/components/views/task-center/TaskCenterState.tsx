@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import i18n from '@/apps/laravel-manager/i18n';
 import { api } from '@/apps/laravel-manager/api';
 import type {
     TaskCenterOverview,
@@ -84,11 +85,11 @@ export const TaskCenterProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     timestamp: snapshot.timestamp,
                 });
             } else {
-                setError(overviewRes.error || 'Failed to load overview');
+                setError(overviewRes.error || i18n.t('uiTask.state.load_overview_failed'));
             }
           } catch (err: any) {
             if (mounted.current) {
-                setError(err?.message || 'Failed to load task center data');
+                setError(err?.message || i18n.t('uiTask.state.load_data_failed'));
             }
           } finally {
             if (mounted.current) {

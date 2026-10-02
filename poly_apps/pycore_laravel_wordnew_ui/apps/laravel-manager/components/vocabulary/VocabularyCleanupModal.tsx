@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Eraser, Loader2, RefreshCw, Trash2, X } from 'lucide-react';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { api, type DictionaryCleanupRow } from '@/apps/laravel-manager/api';
 import { logError, logSuccess } from '@/core/logstore/logStore';
 import { VocabularyWordsModel } from './words/VocabularyWordsModel';
@@ -84,6 +85,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
   cancelText,
   onPurged,
 }) => {
+  const { t } = useTranslation();
   const [start, setStart] = useState(0);
   const [rows, setRows] = useState<DictionaryCleanupRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -117,7 +119,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
       setTotal(Number(d?.total ?? 0));
       setStart(nextStart);
       if (!r.success) {
-        setError(VocabularyWordsModel.format(labels.preview_failed, { error: r.error || 'unknown' }));
+        setError(VocabularyWordsModel.format(labels.preview_failed, { error: r.error || t('vocabulary.words_manager.unknown_error') }));
       }
     } catch (e: any) {
       if (requestId !== requestIdRef.current) return;
@@ -126,7 +128,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [kind, languageCode, labels.preview_failed]);
+  }, [kind, languageCode, labels.preview_failed, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -153,7 +155,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
         onPurged();
         onClose();
       } else {
-        setError(VocabularyWordsModel.format(labels.purge_failed, { error: r.error || 'unknown' }));
+        setError(VocabularyWordsModel.format(labels.purge_failed, { error: r.error || t('vocabulary.words_manager.unknown_error') }));
       }
     } catch (e: any) {
       const message = VocabularyWordsModel.format(labels.purge_failed, { error: e?.message || e });
@@ -162,7 +164,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
     } finally {
       setPurging(false);
     }
-  }, [confirmInput, purging, kind, languageCode, labels, onPurged, onClose]);
+  }, [confirmInput, purging, kind, languageCode, labels, onPurged, onClose, t]);
 
   if (!open) return null;
 
@@ -204,7 +206,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
             {loading ? (
               <div className="flex items-center justify-center py-12 text-slate-500 dark:text-slate-400">
                 <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                Loading...
+                {t('common.loading')}
               </div>
             ) : error ? (
               <div className="flex items-center justify-center py-12 text-red-500 text-sm px-4 text-center">{error}</div>
@@ -215,9 +217,9 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
                 <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
                   <tr>
                     <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-14">#</th>
-                    <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-44">Word</th>
-                    <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">Translation</th>
-                    <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-36">Reason</th>
+                    <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-44">{t('vocabulary.words_manager.columns.word')}</th>
+                    <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">{t('vocabulary.words_manager.columns.translation')}</th>
+                    <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-36">{t('uiVocab.cleanupModal.reason')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -256,7 +258,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
                   onClick={() => load(Math.max(0, start - CLEANUP_PAGE_SIZE))}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-medium flex items-center gap-1"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                  <ChevronLeft className="w-3.5 h-3.5" /> {t('vocabulary.words_manager.previous')}
                 </button>
                 <button
                   type="button"
@@ -264,7 +266,7 @@ const VocabularyCleanupModal: React.FC<VocabularyCleanupModalProps> = ({
                   onClick={() => load(start + CLEANUP_PAGE_SIZE)}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-medium flex items-center gap-1"
                 >
-                  Next <ChevronRight className="w-3.5 h-3.5" />
+                  {t('vocabulary.words_manager.next')} <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>

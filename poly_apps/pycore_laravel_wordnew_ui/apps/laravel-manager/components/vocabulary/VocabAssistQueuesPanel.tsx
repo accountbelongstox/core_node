@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import {
   LayoutGrid, RefreshCw, Cpu, Chrome, Sparkles, Users, ChevronDown, ChevronRight, Eye, Wifi, WifiOff,
 } from 'lucide-react';
@@ -86,6 +87,7 @@ const CategoryCard: React.FC<{
   onToggle: () => void;
   onDrill: (label: string, status?: DrillStatus) => void;
 }> = ({ category: c, expanded, onToggle, onDrill }) => {
+  const { t } = useTranslation();
   const hs = handlerStyle(String(c.primary_handler));
   const HIcon = hs.Icon;
   const langs = c.by_language ? Object.entries(c.by_language).filter((entry) => Number(entry[1]) > 0) : [];
@@ -97,7 +99,7 @@ const CategoryCard: React.FC<{
         <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate" title={c.label}>
           {c.label}
         </span>
-        <span title={`Eligible: ${c.claimants.join(', ')}`} className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase shrink-0 ${hs.chip}`}>
+        <span title={t('uiVocab.assistQueues.eligible', { claimants: c.claimants.join(', ') })} className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase shrink-0 ${hs.chip}`}>
           <HIcon className="w-3 h-3" />
           {c.primary_handler}
           {c.claimants.length > 1 && <Users className="w-3 h-3" />}
@@ -106,27 +108,27 @@ const CategoryCard: React.FC<{
       <div className="flex flex-wrap gap-1.5">
         <CountBtn
           value={c.pending ?? 0}
-          label="Pending"
+          label={t('uiVocab.assistQueues.pending')}
           accent="text-yellow-600 dark:text-yellow-400"
-          onClick={() => onDrill('Pending', 'pending')}
+          onClick={() => onDrill(t('uiVocab.assistQueues.pending'), 'pending')}
         />
         <CountBtn
           value={c.processing ?? 0}
-          label="Processing"
+          label={t('uiVocab.assistQueues.processing')}
           accent="text-blue-600 dark:text-blue-400"
-          onClick={() => onDrill('Processing', 'processing')}
+          onClick={() => onDrill(t('uiVocab.assistQueues.processing'), 'processing')}
         />
         <CountBtn
           value={c.leased ?? 0}
-          label="Leased"
+          label={t('uiVocab.assistQueues.leased')}
           accent="text-cyan-600 dark:text-cyan-400"
-          onClick={() => onDrill('Leased', 'leased')}
+          onClick={() => onDrill(t('uiVocab.assistQueues.leased'), 'leased')}
         />
         <CountBtn
           value={c.total ?? 0}
-          label="Total"
+          label={t('uiVocab.assistQueues.total')}
           accent="text-slate-600 dark:text-slate-300"
-          onClick={() => onDrill('All', undefined)}
+          onClick={() => onDrill(t('uiVocab.assistQueues.all'), undefined)}
         />
       </div>
       {(langs.length > 0 || samples.length > 0) && (
@@ -136,7 +138,7 @@ const CategoryCard: React.FC<{
           className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5"
         >
           {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          Details
+          {t('uiVocab.assistQueues.details')}
         </button>
       )}
       {expanded && (
@@ -176,6 +178,7 @@ const VocabAssistQueuesPanel: React.FC<VocabAssistQueuesPanelProps> = ({
   onRefresh,
   onDrill,
 }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const categories = overview?.categories ?? [];
@@ -187,7 +190,7 @@ const VocabAssistQueuesPanel: React.FC<VocabAssistQueuesPanelProps> = ({
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <LayoutGrid className="w-4 h-4 text-indigo-500" />
-          <h3 className="font-semibold text-lg">Worker Queues</h3>
+          <h3 className="font-semibold text-lg">{t('uiVocab.assistQueues.title')}</h3>
           <span className="text-xs text-slate-500 dark:text-slate-400">
             pycore · mpc-chrome · Laravel assist
           </span>
@@ -199,13 +202,13 @@ const VocabAssistQueuesPanel: React.FC<VocabAssistQueuesPanelProps> = ({
           className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
         >
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('uiVocab.assistQueues.refresh')}
         </button>
       </div>
 
       {overview?.generated_at && (
         <p className="text-[10px] text-slate-400 mb-2 font-mono">
-          Snapshot {new Date(overview.generated_at).toLocaleString()}
+          {t('uiVocab.assistQueues.snapshot', { time: new Date(overview.generated_at).toLocaleString() })}
         </p>
       )}
 
@@ -213,12 +216,12 @@ const VocabAssistQueuesPanel: React.FC<VocabAssistQueuesPanelProps> = ({
         <div className="mb-3 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-black/20">
           <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
             <Users className="w-3.5 h-3.5" />
-            Registered workers
+            {t('uiVocab.assistQueues.registered_workers')}
             <span className={`ml-1 inline-flex items-center gap-0.5 text-[10px] font-normal ${
               onlineWorkers.length > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'
             }`}>
               {onlineWorkers.length > 0 ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-              {onlineWorkers.length}/{workers.length} online
+              {t('uiVocab.assistQueues.workers_online', { online: onlineWorkers.length, total: workers.length })}
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -232,7 +235,7 @@ const VocabAssistQueuesPanel: React.FC<VocabAssistQueuesPanelProps> = ({
       {loading && !overview ? (
         <LoadingBlock />
       ) : categories.length === 0 ? (
-        <EmptyState message="No worker queue categories available" />
+        <EmptyState message={t('uiVocab.assistQueues.no_categories')} />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {categories.map((c) => (

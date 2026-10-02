@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 
@@ -43,6 +44,7 @@ export function Modal({
   footer,
   className = ''
 }: ModalProps) {
+  const { t } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -107,6 +109,8 @@ export function Modal({
               <button
                 onClick={onClose}
                 className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                title={t('common.close')}
+                aria-label={t('common.close')}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -155,13 +159,14 @@ export function ConfirmModal({
   isOpen,
   onClose,
   onConfirm,
-  title = 'Confirm',
+  title,
   message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   variant = 'info',
   loading = false
 }: ConfirmModalProps) {
+  const { t } = useTranslation();
   const variantStyles = {
     danger: 'bg-red-600 hover:bg-red-700',
     warning: 'bg-yellow-600 hover:bg-yellow-700',
@@ -172,7 +177,7 @@ export function ConfirmModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={title}
+      title={title === undefined ? t('uiCommon.confirm_modal.title') : title}
       size="sm"
       footer={
         <div className="flex items-center justify-end gap-3">
@@ -181,7 +186,7 @@ export function ConfirmModal({
             disabled={loading}
             className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
-            {cancelText}
+            {cancelText === undefined ? t('common.cancel') : cancelText}
           </button>
           <button
             onClick={onConfirm}
@@ -192,7 +197,7 @@ export function ConfirmModal({
               ${variantStyles}
             `}
           >
-            {loading ? 'Processing...' : confirmText}
+            {loading ? t('uiCommon.confirm_modal.processing') : (confirmText === undefined ? t('uiCommon.confirm_modal.confirm') : confirmText)}
           </button>
         </div>
       }

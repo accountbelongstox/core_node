@@ -1,5 +1,6 @@
 import React from 'react';
 import { Copy } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useClipboard } from '@/apps/laravel-manager/hooks/useClipboard';
 
 interface CodeDisplayProps {
@@ -10,6 +11,7 @@ interface CodeDisplayProps {
 }
 
 export function CodeDisplay({ value, label, showCopy = true, className = '' }: CodeDisplayProps) {
+  const { t } = useTranslation();
   const { copy } = useClipboard();
 
   return (
@@ -27,7 +29,7 @@ export function CodeDisplay({ value, label, showCopy = true, className = '' }: C
           <button
             onClick={() => copy(value)}
             className="absolute top-3 right-3 p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-            title="Copy to clipboard"
+            title={t('uiCommon.clipboard.copy_to_clipboard')}
           >
             <Copy className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </button>

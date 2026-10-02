@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Languages, Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { useApiResource } from '@/apps/laravel-manager/hooks';
@@ -28,6 +29,7 @@ interface AssistDistData {
 }
 
 const AssistDistributionPanel: React.FC<Props> = () => {
+  const { t } = useTranslation();
   const { autoRefresh, refreshIntervalSec, refreshToken } = useTaskCenterState();
   const [scanning, setScanning] = useState(false);
 
@@ -50,24 +52,24 @@ const AssistDistributionPanel: React.FC<Props> = () => {
   };
 
   const cards: Array<[string, string]> = [
-    ['pending', 'Pending'],
-    ['processing', 'Processing'],
-    ['completed', 'Completed'],
-    ['failed', 'Failed']
+    ['pending', t('mcp.common.pending')],
+    ['processing', t('mcp.common.processing')],
+    ['completed', t('mcp.common.completed')],
+    ['failed', t('mcp.common.failed')]
   ];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-700 dark:text-slate-200">
-          <Languages className="w-4 h-4 text-indigo-500" /> Translation Assist Distribution
+          <Languages className="w-4 h-4 text-indigo-500" /> {t('uiTask.assist_dist.title')}
         </h3>
         <button
           onClick={scan}
           disabled={scanning}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/20 disabled:opacity-50"
         >
-          <Play className="w-3.5 h-3.5" /> {scanning ? 'Scanning…' : 'Scan & enqueue'}
+          <Play className="w-3.5 h-3.5" /> {scanning ? t('uiTask.assist_dist.scanning') : t('uiTask.assist_dist.scan_enqueue')}
         </button>
       </div>
 
@@ -84,17 +86,17 @@ const AssistDistributionPanel: React.FC<Props> = () => {
         <table className="w-full text-xs">
           <thead className="bg-black/5 dark:bg-white/5 text-slate-500">
             <tr>
-              <th className="text-left px-3 py-2">Status</th>
-              <th className="text-left px-3 py-2">Lang</th>
-              <th className="text-left px-3 py-2">Prompt</th>
-              <th className="text-left px-3 py-2">Time</th>
+              <th className="text-left px-3 py-2">{t('globalTasks.columns.status')}</th>
+              <th className="text-left px-3 py-2">{t('uiTask.assist_dist.col_lang')}</th>
+              <th className="text-left px-3 py-2">{t('uiTask.assist_dist.col_prompt')}</th>
+              <th className="text-left px-3 py-2">{t('uiTask.assist_dist.col_time')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5 dark:divide-white/10">
             {recent.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-slate-400">
-                  {loading ? '…' : 'No assist tasks yet.'}
+                  {loading ? '…' : t('uiTask.assist_dist.empty')}
                 </td>
               </tr>
             ) : (

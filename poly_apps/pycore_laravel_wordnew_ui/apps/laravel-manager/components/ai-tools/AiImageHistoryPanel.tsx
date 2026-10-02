@@ -13,6 +13,7 @@ import {
   Images, RefreshCcw, Trash2, AlertTriangle, X, Wand2, Clock, Timer,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { useToast } from '../admin';
 import { appendLog } from '@/core/logstore/logStore';
 import type { AiImageHistoryEntry } from '@/apps/laravel-manager/api';
@@ -25,6 +26,7 @@ import { reusePrompt } from './imageGenBridge';
 
 /** Origin pill: which runtime produced the entry. */
 const OriginBadge: React.FC<{ origin: string }> = ({ origin }) => {
+  const { t } = useTranslation();
   const cls = origin === 'pycore'
     ? 'bg-sky-500/15 text-sky-500'
     : origin === 'laravel'
@@ -32,7 +34,7 @@ const OriginBadge: React.FC<{ origin: string }> = ({ origin }) => {
       : 'bg-slate-500/15 text-slate-400';
   return (
     <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide ${cls}`}>
-      {origin || 'unknown'}
+      {origin || t('uiAi.image_history.unknown_origin')}
     </span>
   );
 };
@@ -48,6 +50,7 @@ function fmtTime(entry: AiImageHistoryEntry): string {
 
 const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) => {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [entries, setEntries] = useState<AiImageHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,14 +67,14 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
       if (res.success && res.data && Array.isArray(res.data.entries)) {
         setEntries(res.data.entries);
       } else {
-        setError(res.error || 'Image history unavailable.');
+        setError(res.error || t('uiAi.image_history.unavailable'));
       }
     } catch (e: any) {
-      setError(e?.message || 'Image history backend unreachable.');
+      setError(e?.message || t('uiAi.image_history.unreachable'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -83,17 +86,17 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
         setEntries((prev) => prev.filter((e) => e.id !== id));
         setActive((a) => (a && a.id === id ? null : a));
         appendLog('success', 'ai', `Image history: deleted ${id}`);
-        toast.success('Image deleted', 'Image history');
+        toast.success(t('uiAi.image_history.toast.deleted'), t('uiAi.image_history.toast.title'));
       } else {
-        toast.error(res.error || 'Delete failed', 'Image history');
+        toast.error(res.error || t('uiAi.image_history.toast.delete_failed'), t('uiAi.image_history.toast.title'));
         appendLog('error', 'ai', `Image history delete failed: ${res.error || id}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Delete failed', 'Image history');
+      toast.error(e?.message || t('uiAi.image_history.toast.delete_failed'), t('uiAi.image_history.toast.title'));
     } finally {
       setDeleting((s) => { const n = new Set(s); n.delete(id); return n; });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const clearAll = useCallback(async () => {
     if (clearing || entries.length === 0) return;
@@ -106,32 +109,32 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
         setEntries([]);
         setActive(null);
         appendLog('success', 'ai', `Image history cleared (${removed} removed)`);
-        toast.success(`Cleared ${removed} images`, 'Image history');
+        toast.success(t('uiAi.image_history.toast.cleared', { count: removed }), t('uiAi.image_history.toast.title'));
       } else {
-        toast.error(res.error || 'Clear failed', 'Image history');
+        toast.error(res.error || t('uiAi.image_history.toast.clear_failed'), t('uiAi.image_history.toast.title'));
         appendLog('error', 'ai', `Image history clear failed: ${res.error || ''}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Clear failed', 'Image history');
+      toast.error(e?.message || t('uiAi.image_history.toast.clear_failed'), t('uiAi.image_history.toast.title'));
     } finally {
       setClearing(false);
     }
-  }, [clearing, entries.length, toast]);
+  }, [clearing, entries.length, toast, t]);
 
   const handleReuse = useCallback((entry: AiImageHistoryEntry) => {
     reusePrompt(entry.prompt);
     setActive(null);
     appendLog('info', 'ai', `Image history: reuse prompt → ${entry.prompt.slice(0, 60)}`);
-    toast.info('Prompt sent to Image Gen', 'Image history');
+    toast.info(t('uiAi.image_history.toast.prompt_sent'), t('uiAi.image_history.toast.title'));
     if (onReuse) onReuse();
-  }, [onReuse, toast]);
+  }, [onReuse, toast, t]);
 
   return (
     <ToolWrapper
-      title="Image History"
+      title={t('uiAi.image_history.title')}
       icon={Images}
       gradient="amber"
-      description="Shared cross-runtime image generation history"
+      description={t('uiAi.image_history.description')}
       actions={
         <div className="flex items-center gap-2">
           <button
@@ -140,16 +143,16 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
           >
             <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('uiAi.image_history.refresh')}
           </button>
           <button
             onClick={() => void clearAll()}
             disabled={clearing || entries.length === 0}
-            title="Delete every image in the shared history"
+            title={t('uiAi.image_history.clear_all_title')}
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
           >
             <Trash2 className={`w-3.5 h-3.5 ${clearing ? 'animate-pulse' : ''}`} />
-            Clear all
+            {t('uiAi.image_history.clear_all')}
           </button>
         </div>
       }
@@ -166,13 +169,13 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
 
         {loading && entries.length === 0 ? (
           <div className="text-xs text-slate-500 py-10 text-center flex flex-col items-center gap-2">
-            <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> Loading history…
+            <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> {t('uiAi.image_history.loading')}
           </div>
         ) : entries.length === 0 ? (
           <AiBentoCard>
             <div className="text-center py-12">
               <Images className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
-              <p className="text-slate-500 dark:text-slate-400">No images generated yet.</p>
+              <p className="text-slate-500 dark:text-slate-400">{t('uiAi.image_history.empty')}</p>
             </div>
           </AiBentoCard>
         ) : (
@@ -188,7 +191,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
                     type="button"
                     onClick={() => setActive(e)}
                     className="relative block aspect-square w-full overflow-hidden bg-slate-100 dark:bg-white/5"
-                    title="Click to enlarge"
+                    title={t('uiAi.image_history.click_to_enlarge')}
                   >
                     <img
                       src={api.aiManagement.imageHistoryFileUrl(e.id)}
@@ -200,7 +203,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
                       <OriginBadge origin={e.origin} />
                       {e.source === 'assist-cover' && (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide bg-fuchsia-500/85 text-white">
-                          cover
+                          {t('uiAi.image_history.cover')}
                         </span>
                       )}
                     </span>
@@ -208,7 +211,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
 
                   <div className="p-2.5 flex flex-col gap-1.5 min-w-0">
                     <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 leading-snug" title={e.prompt}>
-                      {e.prompt || '(no prompt)'}
+                      {e.prompt || t('uiAi.image_history.no_prompt')}
                     </p>
                     <div className="flex items-center justify-between gap-1 text-[9px] font-mono text-slate-400">
                       <span className="truncate" title={`${e.provider}/${e.model}`}>{e.provider}/{e.model}</span>
@@ -223,7 +226,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
                       <button
                         onClick={() => void removeOne(e.id)}
                         disabled={busy}
-                        title="Delete this image"
+                        title={t('uiAi.image_history.delete_this_title')}
                         className="shrink-0 p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition disabled:opacity-40"
                       >
                         {busy ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
@@ -254,7 +257,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
                 <button
                   onClick={() => setActive(null)}
                   className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-900/[0.05] dark:hover:bg-white/[0.06] transition"
-                  title="Close"
+                  title={t('uiAi.image_history.close')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -267,9 +270,9 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
                   className="w-full h-auto rounded-xl ring-1 ring-slate-200/60 dark:ring-white/10"
                 />
                 <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Prompt</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{t('uiAi.image_history.prompt')}</div>
                   <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed">
-                    {active.prompt || '(no prompt)'}
+                    {active.prompt || t('uiAi.image_history.no_prompt')}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -277,14 +280,14 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
                     onClick={() => handleReuse(active)}
                     className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5`}
                   >
-                    <Wand2 className="w-3.5 h-3.5" /> Reuse prompt
+                    <Wand2 className="w-3.5 h-3.5" /> {t('uiAi.image_history.reuse_prompt')}
                   </button>
                   <button
                     onClick={() => void removeOne(active.id)}
                     disabled={deleting.has(active.id)}
                     className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                    <Trash2 className="w-3.5 h-3.5" /> {t('uiAi.image_history.delete')}
                   </button>
                 </div>
               </div>

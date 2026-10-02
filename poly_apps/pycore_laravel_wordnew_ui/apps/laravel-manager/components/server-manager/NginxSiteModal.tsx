@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 import { NginxSite, NginxSiteCreateRequest, NginxPortCheck, Language } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { commonClasses } from '@/shared/styles/theme';
 import { api } from '@/apps/laravel-manager/api';
 import Portal from '@/shared/ui/Portal';
@@ -34,6 +35,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
   lang = 'en'
 }) => {
   const t = TRANSLATIONS[lang].server.nginx;
+  const { t: tu } = useTranslation();
   const isEdit = !!site;
 
   const [formData, setFormData] = useState<NginxSiteCreateRequest>({
@@ -241,7 +243,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
             </AlertBox>
           )}
 
-          <Field label={t.site_name} hint="Config file name (no spaces or special characters)">
+          <Field label={t.site_name} hint={tu('uiServer.nginx_site_modal.site_name_hint')}>
             <input
               type="text"
               required
@@ -270,14 +272,14 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               onChange={(e) => handleSiteTypeChange(e.target.value as NginxSiteCreateRequest['site_type'])}
               className={commonClasses.input}
             >
-              <option value="static">Static HTML/Files</option>
-              <option value="laravel">Laravel (Swoole/Octane)</option>
-              <option value="proxy">Reverse Proxy (PolyApp)</option>
+              <option value="static">{tu('uiServer.nginx_site_modal.type_static')}</option>
+              <option value="laravel">{tu('uiServer.nginx_site_modal.type_laravel')}</option>
+              <option value="proxy">{tu('uiServer.nginx_site_modal.type_proxy')}</option>
             </select>
           </Field>
 
           {formData.site_type === 'proxy' && (
-            <Field label="Select PolyApp" hint="Port is automatically assigned. Web directory is from app path.">
+            <Field label={tu('uiServer.nginx_site_modal.select_polyapp')} hint={tu('uiServer.nginx_site_modal.select_polyapp_hint')}>
               <select
                 value={selectedPolyApp}
                 onChange={(e) => handlePolyAppChange(e.target.value)}
@@ -285,16 +287,16 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                 disabled={loadingApps}
                 required
               >
-                <option value="">-- Select a PolyApp --</option>
+                <option value="">{tu('uiServer.nginx_site_modal.select_polyapp_placeholder')}</option>
                 {polyApps.map((app) => (
                   <option key={app.name} value={app.name}>
-                    {app.name} (Port: {app.port}) - {app.framework}
+                    {tu('uiServer.nginx_site_modal.polyapp_option', { name: app.name, port: app.port, framework: app.framework })}
                   </option>
                 ))}
               </select>
-              {loadingApps && <p className="text-xs text-slate-500 mt-1">Loading applications...</p>}
+              {loadingApps && <p className="text-xs text-slate-500 mt-1">{tu('uiServer.nginx_site_modal.loading_apps')}</p>}
               {!loadingApps && polyApps.length === 0 && (
-                <p className="text-xs text-orange-500 mt-1">No PolyApps found. Deploy apps first.</p>
+                <p className="text-xs text-orange-500 mt-1">{tu('uiServer.nginx_site_modal.no_polyapps')}</p>
               )}
             </Field>
           )}
@@ -302,9 +304,9 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
           <Field
             label={t.www_dir}
             hint={
-              formData.site_type === 'static' ? 'Path where static files are located' :
-              formData.site_type === 'laravel' ? 'Laravel application root directory (mapped via PathMapper)' :
-              'Automatically set from selected PolyApp path'
+              formData.site_type === 'static' ? tu('uiServer.nginx_site_modal.www_dir_hint_static') :
+              formData.site_type === 'laravel' ? tu('uiServer.nginx_site_modal.www_dir_hint_laravel') :
+              tu('uiServer.nginx_site_modal.www_dir_hint_proxy')
             }
           >
             <input
@@ -316,7 +318,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               placeholder={
                 formData.site_type === 'static' ? '/www/wwwroot/example.com' :
                 formData.site_type === 'laravel' ? '/www/programing/core_node/poly_apps/laravel_main' :
-                'Auto-set from PolyApp'
+                tu('uiServer.nginx_site_modal.www_dir_placeholder_proxy')
               }
               readOnly={formData.site_type === 'proxy'}
             />
@@ -326,7 +328,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
             <>
               <Field
                 label={t.php_mode}
-                hint={formData.site_type === 'laravel' ? 'Laravel uses Swoole via Octane (fixed)' : undefined}
+                hint={formData.site_type === 'laravel' ? tu('uiServer.nginx_site_modal.php_mode_hint_laravel') : undefined}
               >
                 <select
                   value={formData.config?.php_mode || 'none'}
@@ -334,14 +336,14 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                   className={commonClasses.input}
                   disabled={formData.site_type === 'laravel'}
                 >
-                  {formData.site_type === 'static' && <option value="none">None (Static Files)</option>}
+                  {formData.site_type === 'static' && <option value="none">{tu('uiServer.nginx_site_modal.php_mode_none')}</option>}
                   {formData.site_type === 'static' && <option value="php-fpm">PHP-FPM</option>}
-                  {formData.site_type === 'laravel' && <option value="swoole">Swoole (Laravel Octane)</option>}
+                  {formData.site_type === 'laravel' && <option value="swoole">{tu('uiServer.nginx_site_modal.php_mode_swoole')}</option>}
                 </select>
               </Field>
 
               {formData.config?.php_mode !== 'none' && formData.config?.php_mode !== 'swoole' && (
-                <Field label="PHP Version">
+                <Field label={tu('uiServer.nginx_site_modal.php_version')}>
                   <select
                     value={formData.config?.php_version || '8.2'}
                     onChange={(e) => handleConfigChange('php_version', e.target.value)}
@@ -360,8 +362,8 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
 
           {formData.site_type === 'proxy' && formData.config?.proxy_target && (
             <Field
-              label="Proxy Target"
-              hint={`Automatically set to http://localhost:${(selectedPolyApp && polyApps.find(a => a.name === selectedPolyApp)?.port) || ''}`}
+              label={tu('uiServer.nginx_site_modal.proxy_target')}
+              hint={tu('uiServer.nginx_site_modal.proxy_target_hint', { port: (selectedPolyApp && polyApps.find(a => a.name === selectedPolyApp)?.port) || '' })}
             >
               <input
                 type="text"
@@ -374,7 +376,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
           )}
 
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
-            <h3 className="text-sm font-semibold mb-3">SSL Configuration (Optional)</h3>
+            <h3 className="text-sm font-semibold mb-3">{tu('uiServer.nginx_site_modal.ssl_configuration')}</h3>
 
             <div className="flex items-center gap-2 mb-3">
               <input
@@ -384,7 +386,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                 onChange={(e) => handleChange('ssl_enabled', e.target.checked)}
                 className="w-4 h-4"
               />
-              <label htmlFor="ssl_enabled" className="text-sm font-medium">Enable SSL</label>
+              <label htmlFor="ssl_enabled" className="text-sm font-medium">{tu('uiServer.nginx_site_modal.enable_ssl')}</label>
             </div>
 
             {formData.ssl_enabled && (
@@ -397,18 +399,18 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                     onChange={(e) => handleChange('auto_ssl', e.target.checked)}
                     className="w-4 h-4"
                   />
-                  <label htmlFor="auto_ssl" className="text-sm font-medium">Auto-generate SSL Certificate</label>
+                  <label htmlFor="auto_ssl" className="text-sm font-medium">{tu('uiServer.nginx_site_modal.auto_ssl')}</label>
                 </div>
 
                 {formData.auto_ssl && (
-                  <Field label="DNS Provider (for wildcard certs)" hint="DNS providers allow wildcard certificates. Requires API credentials configured on server.">
+                  <Field label={tu('uiServer.nginx_site_modal.dns_provider')} hint={tu('uiServer.nginx_site_modal.dns_provider_hint')}>
                     <select
                       value={formData.dns_provider || 'none'}
                       onChange={(e) => handleChange('dns_provider', e.target.value)}
                       className={commonClasses.input}
                     >
-                      <option value="none">HTTP-01 Challenge (No DNS)</option>
-                      <option value="dnspod">DNSPod (Tencent Cloud)</option>
+                      <option value="none">{tu('uiServer.nginx_site_modal.dns_http01')}</option>
+                      <option value="dnspod">{tu('uiServer.nginx_site_modal.dns_dnspod')}</option>
                       <option value="cloudflare">Cloudflare</option>
                     </select>
                   </Field>
@@ -423,7 +425,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-sm font-medium"
             >
-              Cancel
+              {t.cancel}
             </button>
             <button
               type="submit"
@@ -431,7 +433,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg text-sm font-medium flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : (isEdit ? t.update : t.create)}
+              {saving ? t.saving : (isEdit ? t.update : t.create)}
             </button>
           </div>
         </form>

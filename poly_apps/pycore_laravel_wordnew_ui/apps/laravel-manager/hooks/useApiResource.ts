@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import i18n from '@/apps/laravel-manager/i18n';
 
 /**
  * useApiResource — one place for the loading/error/data triad that ~30 panels
@@ -52,12 +53,12 @@ export function useApiResource<T = any>(
       const payload = res && typeof res === 'object' && 'data' in res ? res.data : res;
       if (!mounted.current) return null;
       if (ok === false) {
-        const msg = (res && res.error) || 'Request failed';
+        const msg = (res && res.error) || i18n.t('uiCommon.requests.request_failed');
         setError(msg); cbRef.current.onError?.(msg); return null;
       }
       setData(payload); cbRef.current.onSuccess?.(payload); return payload;
     } catch (e: any) {
-      const msg = e?.message || 'Network error';
+      const msg = e?.message || i18n.t('common.network_error');
       if (mounted.current) { setError(msg); cbRef.current.onError?.(msg); }
       return null;
     } finally {

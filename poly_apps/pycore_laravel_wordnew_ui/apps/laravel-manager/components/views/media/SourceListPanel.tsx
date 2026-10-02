@@ -22,6 +22,7 @@ const SourceListItem: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ item, isMovie, isActive, onClick }) => {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -48,8 +49,8 @@ const SourceListItem: React.FC<{
             <Languages size={9} /> {item.language}
           </span>
         )}
-        {item.sentence_count !== undefined && <span>{item.sentence_count} sent.</span>}
-        {isMovie && item.segment_count !== undefined && <span>{item.segment_count} seg.</span>}
+        {item.sentence_count !== undefined && <span>{t('uiCommon.media.source_list.sentences_short', { count: item.sentence_count })}</span>}
+        {isMovie && item.segment_count !== undefined && <span>{t('uiCommon.media.source_list.segments_short', { count: item.segment_count })}</span>}
         {isMovie && item.duration_sec !== undefined && (
           <span>{formatTime(item.duration_sec)}</span>
         )}
@@ -129,13 +130,13 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
       {browseBlocked ? (
         <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
           <Lock size={32} className="text-amber-400" />
-          <p className="text-sm">Login required to browse {isMovie ? 'Movies' : 'Books'}.</p>
+          <p className="text-sm">{t('uiCommon.media.source_list.login_required', { kind: isMovie ? t('mediaHub.segMovies') : t('mediaHub.segBooks') })}</p>
           <button
             type="button"
             onClick={() => { if (onRequireLogin) onRequireLogin(); }}
             className="mt-1 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
           >
-            <Lock size={14} /> Login
+            <Lock size={14} /> {t('common.login')}
           </button>
         </div>
       ) : offline ? (

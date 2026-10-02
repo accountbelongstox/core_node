@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BookOpen, Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { api } from '@/apps/laravel-manager/api';
 import type { MediaSourceListItem } from '@/apps/laravel-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '@/core/i18n/supportedLearningLanguages';
@@ -20,6 +21,7 @@ import MediaReaderModal from './reader/MediaReaderModal';
 const PER_PAGE = 12;
 
 const ExistingBooksPanel: React.FC = () => {
+  const { t } = useTranslation();
   const {
     items, total, page, lastPage, loading, error,
     search, setSearch, language, setLanguage, setPage, refresh,
@@ -37,9 +39,9 @@ const ExistingBooksPanel: React.FC = () => {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="font-semibold flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-rose-500" />
-          Books Library
+          {t('uiVocab.existingBooksPanel.title')}
           <span className="text-xs font-normal text-slate-400">
-            · {total} book{total === 1 ? '' : 's'}
+            · {t('uiVocab.existingBooksPanel.books', { count: total })}
           </span>
         </h3>
         <div className="flex items-center gap-2 flex-wrap">
@@ -49,7 +51,7 @@ const ExistingBooksPanel: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search title..."
+              placeholder={t('uiVocab.existingBooksPanel.search_placeholder')}
               className={`${commonClasses.input} pl-8 text-sm w-40`}
             />
           </div>
@@ -58,7 +60,7 @@ const ExistingBooksPanel: React.FC = () => {
             onChange={(e) => setLanguage(e.target.value)}
             className={`${commonClasses.input} text-sm`}
           >
-            <option value="">All languages</option>
+            <option value="">{t('uiVocab.existingBooksPanel.all_languages')}</option>
             {SUPPORTED_LEARNING_LANGUAGES.map((l) => (
               <option key={l.code} value={l.code}>{l.name}</option>
             ))}
@@ -68,7 +70,7 @@ const ExistingBooksPanel: React.FC = () => {
             onClick={() => void refresh()}
             disabled={loading}
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} p-2`}
-            title="Refresh"
+            title={t('common.refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -80,7 +82,7 @@ const ExistingBooksPanel: React.FC = () => {
       ) : error ? (
         <EmptyState icon={BookOpen} message={error} />
       ) : items.length === 0 ? (
-        <EmptyState icon={BookOpen} message="No books ingested yet." />
+        <EmptyState icon={BookOpen} message={t('uiVocab.existingBooksPanel.empty')} />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -112,7 +114,7 @@ const ExistingBooksPanel: React.FC = () => {
                   <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     {item.language && <span className="uppercase">{item.language}</span>}
                     {item.sentence_count != null && (
-                      <span>{item.sentence_count.toLocaleString()} sentences</span>
+                      <span>{t('uiVocab.existingBooksPanel.sentences', { value: item.sentence_count.toLocaleString() })}</span>
                     )}
                   </div>
                 </div>
@@ -121,7 +123,7 @@ const ExistingBooksPanel: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between mt-4 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Page {page} of {lastPage}</span>
+            <span className="text-slate-500 dark:text-slate-400">{t('uiVocab.existingBooksPanel.page_of', { page, lastPage })}</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -129,7 +131,7 @@ const ExistingBooksPanel: React.FC = () => {
                 disabled={page <= 1 || loading}
                 className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                <ChevronLeft className="w-4 h-4" /> Prev
+                <ChevronLeft className="w-4 h-4" /> {t('vocabulary.words_manager.previous')}
               </button>
               <button
                 type="button"
@@ -137,7 +139,7 @@ const ExistingBooksPanel: React.FC = () => {
                 disabled={page >= lastPage || loading}
                 className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Next <ChevronRight className="w-4 h-4" />
+                {t('vocabulary.words_manager.next')} <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>

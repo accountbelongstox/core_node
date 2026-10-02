@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from adb_connect import (
-    ADB_DEFAULT_PORT, adb, connect_authorized, load_json, log, log_lines, pair_device, resolve_device, scan_and_connect,
+    ADB_DEFAULT_PORT, NO_WINDOW, adb, connect_authorized, load_json, log, log_lines, pair_device, resolve_device, scan_and_connect,
     show_mdns, switch_usb_devices_to_wifi, timed_yes_no, unique_serials, write_json,
 )
 
@@ -169,7 +169,7 @@ def wait_port(host: str, port: int, expected: bool) -> bool:
 def stop_process_tree(pid: int) -> None:
     try:
         if os.name == "nt":
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], check=False, capture_output=True)
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], check=False, capture_output=True, **NO_WINDOW)
         else:
             os.killpg(pid, signal.SIGTERM)
     except (OSError, ProcessLookupError):
@@ -367,7 +367,8 @@ def collect(root: Path, adb_bin: str, identifier: str, serials: list[str]) -> No
                                    "cdp_url": f"http://{host}:{devtools_port}/json"}
                 publish()
             stream = subprocess.Popen([adb_bin, "-s", serial, "logcat", "-v", "threadtime", f"--pid={pid}"],
-                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
+                                      **NO_WINDOW)
             # `logcat --pid` keeps running after the process dies: stop it when the app restarts or
             # exits, so the loop re-attaches to the new process instead of following a dead pid.
             threading.Thread(target=watch_app_pid, args=(adb_bin, serial, identifier, pid, stream), daemon=True).start()

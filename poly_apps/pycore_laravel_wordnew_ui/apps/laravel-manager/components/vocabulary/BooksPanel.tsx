@@ -4,6 +4,7 @@ import {
   Type, Hash, AlignLeft, Languages, Eye, EyeOff, Sparkles,
   Lock, BookMarked,
 } from 'lucide-react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { api } from '@/apps/laravel-manager/api';
 import type {
   BookTextStats, BookUploadFile, BookTotals, BookListKind,
@@ -46,6 +47,7 @@ interface IngestProgress {
 
 const BooksPanel: React.FC = () => {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [collapsed, setCollapsed] = useState(true);
 
@@ -129,14 +131,14 @@ const BooksPanel: React.FC = () => {
   // Chapter title (v3.1): prefer the primary language's title, then any non-empty
   // title in the per-language map, then the flat title, then a default.
   const chapterTitle = (ch: BookChapter): string => {
-    const t = ch.titles;
-    if (t) {
-      const byPrimary = t[lockedLang];
+    const titles = ch.titles;
+    if (titles) {
+      const byPrimary = titles[lockedLang];
       if (byPrimary) return byPrimary;
-      const firstNonEmpty = Object.values(t).find((v) => !!v);
+      const firstNonEmpty = Object.values(titles).find((v) => !!v);
       if (firstNonEmpty) return firstNonEmpty;
     }
-    return ch.title || `Chapter ${ch.chapter_index + 1}`;
+    return ch.title || t('uiVocab.booksPanel.chapter_fallback', { number: ch.chapter_index + 1 });
   };
 
   // --- upload + analyze --------------------------------------------------- #
@@ -144,7 +146,7 @@ const BooksPanel: React.FC = () => {
     async (files: File[]) => {
       if (!files.length) return;
       const langs = selectedLangList();
-      if (!langs.length) { toast.error('Select at least one language'); return; }
+      if (!langs.length) { toast.error(t('uiVocab.booksPanel.select_language')); return; }
       setUploading(true);
 
       // Optional instant local preview for plain text (labelled "local preview").
@@ -174,21 +176,23 @@ const BooksPanel: React.FC = () => {
           ]);
           setLocalPreviews([]);
           const errCount = (d.files || []).filter((f) => f.error).length;
-          toast.success(`Analyzed ${d.files?.length || 0} file(s)${errCount ? ` · ${errCount} with errors` : ''}`);
+          toast.success(errCount
+            ? t('uiVocab.booksPanel.analyzed_with_errors', { count: d.files?.length || 0, errors: errCount })
+            : t('uiVocab.booksPanel.analyzed', { count: d.files?.length || 0 }));
           logSuccess('books', `Analyzed upload ${d.upload_id} (${d.files?.length || 0} files, ${nf(d.totals?.words)} words)`);
         } else {
-          const msg = r.data?.error || r.error || 'Upload analysis failed';
+          const msg = r.data?.error || r.error || t('uiVocab.booksPanel.upload_analysis_failed');
           toast.error(msg);
           logError('books', `Upload analysis failed: ${msg}`);
         }
       } catch (e: any) {
-        toast.error(e?.message || 'Upload failed');
+        toast.error(e?.message || t('uiVocab.booksPanel.upload_failed'));
         logError('books', `Upload failed: ${e?.message || 'unknown error'}`);
       } finally {
         setUploading(false);
       }
     },
-    [selectedLangList, toast]
+    [selectedLangList, toast, t]
   );
 
   const onPickUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,7 +227,7 @@ const BooksPanel: React.FC = () => {
         if (!task) {
           setIngestProgress(null);
           setIngestingId(null);
-          toast.error('Lost track of the ingest task');
+          toast.error(t('uiVocab.booksPanel.ingest_lost'));
           logError('books', `Task ${taskId} status unavailable`);
           return;
         }
@@ -235,14 +239,16 @@ const BooksPanel: React.FC = () => {
           const sentences = result.total_sentences ?? result.sentences;
           setIngestProgress(null);
           setIngestingId(null);
-          toast.success(`Ingested to library${sentences != null ? ` — ${nf(sentences)} sentences` : ''}`);
+          toast.success(sentences != null
+            ? t('uiVocab.booksPanel.ingested_library_sentences', { sentences: nf(sentences) })
+            : t('uiVocab.booksPanel.ingested_library'));
           logSuccess('books', `Ingest task ${taskId} completed`);
           return;
         }
         if (task.status === 'failed' || task.status === 'error') {
           setIngestProgress(null);
           setIngestingId(null);
-          toast.error(task.error || 'Ingest failed');
+          toast.error(task.error || t('uiVocab.booksPanel.ingest_failed'));
           logError('books', `Ingest task ${taskId} failed: ${task.error || 'unknown error'}`);
           return;
         }
@@ -251,25 +257,25 @@ const BooksPanel: React.FC = () => {
       } catch (e: any) {
         setIngestProgress(null);
         setIngestingId(null);
-        toast.error(e?.message || 'Ingest polling failed');
+        toast.error(e?.message || t('uiVocab.booksPanel.ingest_polling_failed'));
         logError('books', `Ingest task ${taskId} poll error: ${e?.message || 'unknown error'}`);
       }
     },
-    [toast]
+    [toast, t]
   );
 
   const ingest = useCallback(
     async (uploadId: string) => {
       if (ingestingId) return;
       const langs = selectedLangList();
-      if (!langs.length) { toast.error('Select at least one language'); return; }
+      if (!langs.length) { toast.error(t('uiVocab.booksPanel.select_language')); return; }
       setIngestingId(uploadId);
       setIngestProgress({ stage: 'submitting', percent: 0 });
       logInfo('books', `Ingesting upload ${uploadId} to library...`);
       try {
         const r = await api.books.booksIngest({ upload_id: uploadId, language: langs[0], languages: langs });
         if (!r.success || !r.data) {
-          throw new Error(r.data?.error || r.error || 'Ingest failed');
+          throw new Error(r.data?.error || r.error || t('uiVocab.booksPanel.ingest_failed'));
         }
         const d = r.data;
         if (d.task_id != null) {
@@ -284,35 +290,35 @@ const BooksPanel: React.FC = () => {
         const totalWords = books.reduce((acc, b) => acc + (b.words || 0), 0);
         setIngestProgress(null);
         setIngestingId(null);
-        toast.success(`Ingested ${books.length} book(s) — ${nf(totalSentences)} sentences · ${nf(totalWords)} words`);
+        toast.success(t('uiVocab.booksPanel.ingested_books', { books: books.length, sentences: nf(totalSentences), words: nf(totalWords) }));
         logSuccess('books', `Ingested upload ${uploadId} (${books.length} books, ${nf(totalSentences)} sentences)`);
       } catch (e: any) {
         setIngestProgress(null);
         setIngestingId(null);
-        toast.error(e?.message || 'Ingest failed');
+        toast.error(e?.message || t('uiVocab.booksPanel.ingest_failed'));
         logError('books', `Ingest failed for upload ${uploadId}: ${e?.message || 'unknown error'}`);
       }
     },
-    [ingestingId, selectedLangList, pollTask, toast]
+    [ingestingId, selectedLangList, pollTask, toast, t]
   );
 
   // --- drill-down list fetcher (shared with PaginatedListModal) ----------- #
   const listFetcher = useCallback(
     (uploadId: string, kind: BookListKind) => async (start: number, limit: number) => {
       const r = await api.books.booksList({ upload_id: uploadId, kind, start, limit });
-      if (!r.success || !r.data) throw new Error(r.data?.error || r.error || 'Failed to load');
-      const t = r.data.totals || {};
+      if (!r.success || !r.data) throw new Error(r.data?.error || r.error || t('uiVocab.booksPanel.load_failed'));
+      const totals = r.data.totals || {};
       let summary = '';
       if (kind === 'words' || kind === 'unique_words') {
-        summary = `${nf(t.unique_words)} distinct · ${nf(t.words)} total occurrences`;
+        summary = t('uiVocab.booksPanel.summary_words', { distinct: nf(totals.unique_words), total: nf(totals.words) });
       } else if (kind === 'sentences') {
-        summary = `${nf(t.sentences)} sentences`;
+        summary = t('uiVocab.booksPanel.summary_sentences', { count: nf(totals.sentences) });
       } else if (kind === 'unique_sentences') {
-        summary = `${nf(t.unique_sentences)} distinct sentences`;
+        summary = t('uiVocab.booksPanel.summary_unique_sentences', { count: nf(totals.unique_sentences) });
       }
       return { items: r.data.items || [], total: r.data.total || 0, summary };
     },
-    []
+    [t]
   );
 
   // --- chapter -> sentence tree (lazy load over /books/list) -------------- #
@@ -326,11 +332,11 @@ const BooksPanel: React.FC = () => {
       });
       const slots: BookSlot[] = (r.success && r.data && Array.isArray(r.data.items)) ? (r.data.items as BookSlot[]) : [];
       setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], openChapter: chapterIndex, slots, slotsLoading: false,
-        error: r.success ? undefined : (r.data?.error || r.error || 'failed') } }));
+        error: r.success ? undefined : (r.data?.error || r.error || t('uiVocab.booksPanel.failed')) } }));
     } catch (e: any) {
-      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], openChapter: chapterIndex, slots: [], slotsLoading: false, error: e?.message || 'request failed' } }));
+      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], openChapter: chapterIndex, slots: [], slotsLoading: false, error: e?.message || t('uiVocab.booksPanel.request_failed') } }));
     }
-  }, [selectedLangList]);
+  }, [selectedLangList, t]);
 
   const toggleTree = useCallback(async (uploadId: string) => {
     const cur = trees[uploadId];
@@ -343,56 +349,56 @@ const BooksPanel: React.FC = () => {
         ? (Array.isArray(r.data.chapters) ? r.data.chapters : (Array.isArray(r.data.items) ? (r.data.items as BookChapter[]) : []))
         : [];
       // A book with no detected chapters shows a single "Chapter 1".
-      if (!chapters.length && r.success) chapters = [{ chapter_index: 0, title: 'Chapter 1', sentence_count: 0 }];
+      if (!chapters.length && r.success) chapters = [{ chapter_index: 0, title: t('uiVocab.booksPanel.chapter_fallback', { number: 1 }), sentence_count: 0 }];
       setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], open: true, loading: false, chapters,
-        error: r.success ? undefined : (r.data?.error || r.error || 'failed') } }));
+        error: r.success ? undefined : (r.data?.error || r.error || t('uiVocab.booksPanel.failed')) } }));
       if (chapters.length) void loadChapterSlots(uploadId, chapters[0].chapter_index, 'sentence');
     } catch (e: any) {
-      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], open: true, loading: false, error: e?.message || 'request failed' } }));
+      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], open: true, loading: false, error: e?.message || t('uiVocab.booksPanel.request_failed') } }));
     }
-  }, [trees, selectedLangList, loadChapterSlots]);
+  }, [trees, selectedLangList, loadChapterSlots, t]);
 
   const listColumns = useMemo<PaginatedListColumn[] | undefined>(() => {
     if (!listView) return undefined;
     const k = listView.kind;
     if (k === 'words' || k === 'unique_words') {
       return [
-        { key: 'word', header: 'Word', className: 'font-medium text-slate-900 dark:text-slate-100' },
-        { key: 'count', header: 'Count', className: 'text-right text-slate-500', render: (row) => nf(row.count) },
+        { key: 'word', header: t('uiVocab.booksPanel.columns.word'), className: 'font-medium text-slate-900 dark:text-slate-100' },
+        { key: 'count', header: t('uiVocab.booksPanel.columns.count'), className: 'text-right text-slate-500', render: (row) => nf(row.count) },
       ];
     }
     if (k === 'languages') {
       return [
-        { key: 'code', header: 'Code', className: 'font-bold uppercase text-emerald-600 dark:text-emerald-400', render: (row) => (row.code || '').toUpperCase() },
-        { key: 'chars', header: 'Chars', className: 'text-right', render: (row) => nf(row.chars) },
-        { key: 'ratio', header: 'Ratio', className: 'text-right text-slate-500', render: (row) => `${Math.round((row.ratio || 0) * 100)}%` },
+        { key: 'code', header: t('uiVocab.booksPanel.columns.code'), className: 'font-bold uppercase text-emerald-600 dark:text-emerald-400', render: (row) => (row.code || '').toUpperCase() },
+        { key: 'chars', header: t('uiVocab.booksPanel.columns.chars'), className: 'text-right', render: (row) => nf(row.chars) },
+        { key: 'ratio', header: t('uiVocab.booksPanel.columns.ratio'), className: 'text-right text-slate-500', render: (row) => `${Math.round((row.ratio || 0) * 100)}%` },
       ];
     }
     // sentences / unique_sentences
     return [
-      { key: 'text', header: 'Sentence', className: 'break-words', render: (row) => row.text },
+      { key: 'text', header: t('uiVocab.booksPanel.columns.sentence'), className: 'break-words', render: (row) => row.text },
     ];
-  }, [listView]);
+  }, [listView, t]);
 
   // The drill-down modal only shows the 5 stat kinds; chapters/cues are rendered
   // by the inline chapter tree, so this label map stays partial.
   const kindLabel: Partial<Record<BookListKind, string>> = {
-    words: 'Words',
-    unique_words: 'Unique words',
-    sentences: 'Sentences',
-    unique_sentences: 'Unique sentences',
-    languages: 'Languages',
+    words: t('uiVocab.booksPanel.kinds.words'),
+    unique_words: t('uiVocab.booksPanel.kinds.unique_words'),
+    sentences: t('uiVocab.booksPanel.kinds.sentences'),
+    unique_sentences: t('uiVocab.booksPanel.kinds.unique_sentences'),
+    languages: t('uiVocab.booksPanel.kinds.languages'),
   };
 
   // --- render: language multi-select (primary locked on) ------------------ #
   const renderLangSelect = () => (
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
       <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">
-        <Languages className="w-3.5 h-3.5" /> Languages
-        <span className="ml-1 normal-case font-normal">({selectedLangs.size} selected)</span>
+        <Languages className="w-3.5 h-3.5" /> {t('uiVocab.booksPanel.kinds.languages')}
+        <span className="ml-1 normal-case font-normal">{t('uiVocab.booksPanel.selected_count', { count: selectedLangs.size })}</span>
       </div>
       <p className="text-[11px] text-slate-400 mb-2">
-        Pick the languages to build a correspondence for. The detected primary language is checked and locked.
+        {t('uiVocab.booksPanel.languages_hint')}
       </p>
       <div className="flex flex-wrap gap-1.5">
         {SUPPORTED_LEARNING_LANGUAGES.map((l) => {
@@ -400,7 +406,7 @@ const BooksPanel: React.FC = () => {
           const locked = l.code === lockedLang;
           return (
             <button key={l.code} type="button" onClick={() => toggleLang(l.code)} disabled={locked}
-              title={locked ? 'Primary (locked)' : l.name}
+              title={locked ? t('uiVocab.booksPanel.primary_locked') : l.name}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
                 on
                   ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'
@@ -414,7 +420,7 @@ const BooksPanel: React.FC = () => {
         })}
       </div>
       {selectedLangs.size === 0 && (
-        <p className="mt-2 text-[11px] font-bold text-amber-500">Select at least one language</p>
+        <p className="mt-2 text-[11px] font-bold text-amber-500">{t('uiVocab.booksPanel.select_language')}</p>
       )}
     </div>
   );
@@ -428,17 +434,17 @@ const BooksPanel: React.FC = () => {
       <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
         <div className="flex items-center gap-1.5 mb-2 text-[11px] text-slate-500">
           <BookMarked className="w-3.5 h-3.5 text-rose-400" />
-          <span className="font-bold">Chapters</span>
-          <span className="text-slate-400">· Each row shows every checked language side by side; blank = no correspondence.</span>
+          <span className="font-bold">{t('uiVocab.booksPanel.chapters')}</span>
+          <span className="text-slate-400">· {t('uiVocab.booksPanel.chapters_hint')}</span>
         </div>
         {tree.loading ? (
           <div className="py-4 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading...
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {t('common.loading')}
           </div>
         ) : tree.error ? (
           <div className="py-4 text-center text-[11px] text-amber-500">{tree.error}</div>
         ) : tree.chapters.length === 0 ? (
-          <div className="py-4 text-center text-[11px] text-slate-400">No chapters analyzed yet.</div>
+          <div className="py-4 text-center text-[11px] text-slate-400">{t('uiVocab.booksPanel.no_chapters')}</div>
         ) : (
           <div className="space-y-1.5">
             {tree.chapters.map((ch) => {
@@ -455,13 +461,13 @@ const BooksPanel: React.FC = () => {
                       {chapterTitle(ch)}
                     </span>
                     {(ch.sentence_count ?? 0) > 0 && (
-                      <span className="flex-shrink-0 text-[10px] text-slate-400">{nf(ch.sentence_count)} sentences</span>
+                      <span className="flex-shrink-0 text-[10px] text-slate-400">{t('uiVocab.booksPanel.sentences_count', { count: nf(ch.sentence_count) })}</span>
                     )}
                   </button>
                   {isOpen && (
                     <div className="px-2.5 pb-2.5">
                       <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-[10px] uppercase tracking-wide text-slate-400">Grain:</span>
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400">{t('uiVocab.booksPanel.grain_label')}</span>
                         {(['sentence', 'cue'] as const).map((g) => (
                           <button key={g} type="button"
                             onClick={() => void loadChapterSlots(uploadId, ch.chapter_index, g)}
@@ -469,23 +475,23 @@ const BooksPanel: React.FC = () => {
                               tree.grain === g
                                 ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'
                                 : 'border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300'}`}>
-                            {g === 'cue' ? 'Cue' : 'Sentence'}
+                            {g === 'cue' ? t('uiVocab.booksPanel.grain_cue') : t('uiVocab.booksPanel.grain_sentence')}
                           </button>
                         ))}
                       </div>
                       {tree.slotsLoading ? (
                         <div className="py-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading...
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {t('common.loading')}
                         </div>
                       ) : tree.slots.length === 0 ? (
-                        <div className="py-3 text-center text-[11px] text-slate-400">No sentences in this chapter.</div>
+                        <div className="py-3 text-center text-[11px] text-slate-400">{t('uiVocab.booksPanel.no_sentences_in_chapter')}</div>
                       ) : (
                         <div className="overflow-auto max-h-72 rounded-lg border border-slate-200/70 dark:border-slate-700/70">
                           <table className="w-full text-[11px] border-collapse">
                             <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900">
                               <tr>
                                 <th className="px-2 py-1 text-right text-slate-400 font-bold w-10">#</th>
-                                <th className="px-2 py-1 text-left text-slate-400 font-bold w-14">Grain</th>
+                                <th className="px-2 py-1 text-left text-slate-400 font-bold w-14">{t('uiVocab.booksPanel.grain_column')}</th>
                                 {cols.map((c) => (
                                   <th key={c} className="px-2 py-1 text-left text-slate-400 font-bold">
                                     <span className="font-mono uppercase">{c}</span> <span className="font-normal opacity-70">{langName(c)}</span>
@@ -500,7 +506,7 @@ const BooksPanel: React.FC = () => {
                                   <td className="px-2 py-1">
                                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                                       slot.grain === 'cue' ? 'bg-sky-500/15 text-sky-500' : 'bg-amber-500/15 text-amber-500'}`}>
-                                      {slot.grain === 'cue' ? 'Cue' : 'Sentence'}
+                                      {slot.grain === 'cue' ? t('uiVocab.booksPanel.grain_cue') : t('uiVocab.booksPanel.grain_sentence')}
                                     </span>
                                   </td>
                                   {cols.map((c) => {
@@ -531,16 +537,16 @@ const BooksPanel: React.FC = () => {
   // --- render: aggregate / per-file stat tiles ---------------------------- #
   const renderStatTiles = (s: BookTextStats, uploadId: string, name: string) => (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-      <StatTile icon={<Type className="w-3 h-3" />} label="Words" value={nf(s.word_count)}
+      <StatTile icon={<Type className="w-3 h-3" />} label={t('uiVocab.booksPanel.kinds.words')} value={nf(s.word_count)}
         onClick={() => setListView({ uploadId, kind: 'words', name })} />
-      <StatTile icon={<Hash className="w-3 h-3" />} label="Unique words" value={nf(s.unique_word_count)} accent="text-indigo-500"
+      <StatTile icon={<Hash className="w-3 h-3" />} label={t('uiVocab.booksPanel.kinds.unique_words')} value={nf(s.unique_word_count)} accent="text-indigo-500"
         onClick={() => setListView({ uploadId, kind: 'unique_words', name })} />
-      <StatTile icon={<AlignLeft className="w-3 h-3" />} label="Sentences" value={nf(s.sentence_count)}
+      <StatTile icon={<AlignLeft className="w-3 h-3" />} label={t('uiVocab.booksPanel.kinds.sentences')} value={nf(s.sentence_count)}
         onClick={() => setListView({ uploadId, kind: 'sentences', name })} />
-      <StatTile icon={<Hash className="w-3 h-3" />} label="Unique sentences" value={nf(s.unique_sentence_count)} accent="text-indigo-500"
+      <StatTile icon={<Hash className="w-3 h-3" />} label={t('uiVocab.booksPanel.kinds.unique_sentences')} value={nf(s.unique_sentence_count)} accent="text-indigo-500"
         onClick={() => setListView({ uploadId, kind: 'unique_sentences', name })} />
-      <StatTile icon={<FileText className="w-3 h-3" />} label="Characters" value={nf(s.char_count)} />
-      <StatTile icon={<Languages className="w-3 h-3" />} label="Languages" value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500"
+      <StatTile icon={<FileText className="w-3 h-3" />} label={t('uiVocab.booksPanel.characters')} value={nf(s.char_count)} />
+      <StatTile icon={<Languages className="w-3 h-3" />} label={t('uiVocab.booksPanel.kinds.languages')} value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500"
         onClick={() => setListView({ uploadId, kind: 'languages', name })} />
     </div>
   );
@@ -560,7 +566,7 @@ const BooksPanel: React.FC = () => {
   const renderTopWords = (s: BookTextStats) =>
     s.top_words && s.top_words.length > 0 ? (
       <div className="flex flex-wrap items-center gap-1.5 mt-2">
-        <span className="text-[10px] uppercase tracking-wide text-slate-400">Top words</span>
+        <span className="text-[10px] uppercase tracking-wide text-slate-400">{t('uiVocab.booksPanel.top_words')}</span>
         {s.top_words.slice(0, 10).map((w) => (
           <span key={w.word} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] bg-slate-200/70 dark:bg-white/5 text-slate-600 dark:text-slate-300">
             {w.word} <span className="text-slate-400">×{nf(w.count)}</span>
@@ -579,7 +585,7 @@ const BooksPanel: React.FC = () => {
       >
         <h3 className="font-semibold text-lg flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-rose-500" />
-          Books / Add source
+          {t('uiVocab.booksPanel.title')}
           {docs.length > 0 && (
             <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400">
               {docs.length}
@@ -592,8 +598,7 @@ const BooksPanel: React.FC = () => {
       {!collapsed && (
         <div className="px-4 pb-4 space-y-4">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Upload book files (or drag them in) to analyze words / sentences / languages, then ingest them into the
-            sentence and word library.
+            {t('uiVocab.booksPanel.intro')}
           </p>
 
           {/* language multi-select (>=1 required; primary auto-checked + locked) */}
@@ -616,10 +621,10 @@ const BooksPanel: React.FC = () => {
               className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
-              {uploading ? 'Analyzing...' : 'Upload book files'}
+              {uploading ? t('uiVocab.booksPanel.analyzing') : t('uiVocab.booksPanel.upload_button')}
             </button>
             {supportedFormats.length > 0 && (
-              <span className="text-[11px] text-slate-400">Formats: {supportedFormats.join(', ')}</span>
+              <span className="text-[11px] text-slate-400">{t('uiVocab.booksPanel.formats', { formats: supportedFormats.join(', ') })}</span>
             )}
           </div>
 
@@ -638,19 +643,18 @@ const BooksPanel: React.FC = () => {
             }`}
           >
             <UploadCloud className="w-6 h-6 mx-auto mb-1.5 opacity-60" />
-            Drop book files here, or use the Upload button above.
+            {t('uiVocab.booksPanel.drop_hint')}
           </div>
 
           {/* local preview (instant, rough) */}
           {localPreviews.length > 0 && (
             <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 p-3">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-2">
-                <Sparkles className="w-3.5 h-3.5" /> Local preview (rough — authoritative stats come from the backend)
+                <Sparkles className="w-3.5 h-3.5" /> {t('uiVocab.booksPanel.local_preview')}
               </div>
               {localPreviews.map((p) => (
                 <div key={p.name} className="text-xs text-slate-600 dark:text-slate-300">
-                  <span className="font-mono">{p.name}</span>: {nf(p.words)} words · {nf(p.uniqueWords)} unique ·{' '}
-                  {nf(p.sentences)} sentences · {nf(p.chars)} chars
+                  <span className="font-mono">{p.name}</span>: {t('uiVocab.booksPanel.local_preview_row', { words: nf(p.words), unique: nf(p.uniqueWords), sentences: nf(p.sentences), chars: nf(p.chars) })}
                 </div>
               ))}
             </div>
@@ -658,7 +662,7 @@ const BooksPanel: React.FC = () => {
 
           {/* analyzed uploads */}
           {docs.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-4">No analyzed uploads yet.</p>
+            <p className="text-sm text-slate-400 text-center py-4">{t('uiVocab.booksPanel.no_uploads')}</p>
           ) : (
             <div className="space-y-3">
               {docs.map((doc) => {
@@ -670,8 +674,8 @@ const BooksPanel: React.FC = () => {
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                         <FileText className="w-4 h-4 text-rose-400" />
-                        {doc.files.length} file{doc.files.length === 1 ? '' : 's'}
-                        <span className="text-xs font-normal text-slate-400">· {nf(doc.totals?.words)} words</span>
+                        {t('uiVocab.booksPanel.files', { count: doc.files.length })}
+                        <span className="text-xs font-normal text-slate-400">· {t('uiVocab.booksPanel.words_total', { value: nf(doc.totals?.words) })}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -681,10 +685,10 @@ const BooksPanel: React.FC = () => {
                             trees[doc.upload_id]?.open
                               ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'
                               : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'}`}
-                          title={trees[doc.upload_id]?.open ? 'Hide chapters' : 'View chapters'}
+                          title={trees[doc.upload_id]?.open ? t('uiVocab.booksPanel.hide_chapters') : t('uiVocab.booksPanel.view_chapters')}
                         >
                           <BookMarked className="w-3.5 h-3.5" />
-                          {trees[doc.upload_id]?.open ? 'Hide chapters' : 'View chapters'}
+                          {trees[doc.upload_id]?.open ? t('uiVocab.booksPanel.hide_chapters') : t('uiVocab.booksPanel.view_chapters')}
                         </button>
                         <button
                           type="button"
@@ -693,7 +697,7 @@ const BooksPanel: React.FC = () => {
                           className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
-                          {busy ? 'Ingesting...' : 'Ingest to library'}
+                          {busy ? t('uiVocab.booksPanel.ingesting') : t('uiVocab.booksPanel.ingest_button')}
                         </button>
                       </div>
                     </div>
@@ -703,7 +707,7 @@ const BooksPanel: React.FC = () => {
                       <div className="mt-2">
                         <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
                           <RefreshCw className="w-3 h-3 animate-spin" />
-                          Stage: <span className="font-bold text-rose-500">{ingestProgress.stage}</span>
+                          {t('uiVocab.booksPanel.stage_label')} <span className="font-bold text-rose-500">{t(`uiVocab.booksPanel.stages.${ingestProgress.stage}`, { defaultValue: ingestProgress.stage })}</span>
                           <span className="text-slate-400">· {ingestProgress.percent}%</span>
                         </div>
                         <div className="mt-1 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
@@ -720,7 +724,7 @@ const BooksPanel: React.FC = () => {
                     {/* per-file breakdown */}
                     {doc.files.length > 0 && (
                       <div className="mt-3 space-y-1.5">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Per-file breakdown</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{t('uiVocab.booksPanel.per_file')}</div>
                         {doc.files.map((f, i) => {
                           const key = `${doc.upload_id}#${i}`;
                           const open = openPreview.has(key);
@@ -733,7 +737,7 @@ const BooksPanel: React.FC = () => {
                                   <span className="text-amber-500 flex-shrink-0">{f.error}</span>
                                 ) : f.stats ? (
                                   <span className="text-slate-400 flex-shrink-0">
-                                    {nf(f.stats.word_count)}w · {nf(f.stats.unique_word_count)}u · {nf(f.stats.sentence_count)}s · {(f.stats.primary_language || 'und').toUpperCase()}
+                                    {t('uiVocab.booksPanel.file_stats_short', { words: nf(f.stats.word_count), unique: nf(f.stats.unique_word_count), sentences: nf(f.stats.sentence_count) })} · {(f.stats.primary_language || 'und').toUpperCase()}
                                   </span>
                                 ) : null}
                                 {f.preview && (
@@ -741,7 +745,7 @@ const BooksPanel: React.FC = () => {
                                     type="button"
                                     onClick={() => togglePreview(key)}
                                     className="flex-shrink-0 text-rose-500 hover:text-rose-400"
-                                    title={open ? 'Hide preview' : 'Show preview'}
+                                    title={open ? t('uiVocab.booksPanel.hide_preview') : t('uiVocab.booksPanel.show_preview')}
                                   >
                                     {open ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                   </button>

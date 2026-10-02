@@ -6,6 +6,7 @@
  * `_prompts/队列中心.txt`.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { pycoreApi } from '@/apps/laravel-manager/integrations/pycore';
@@ -23,45 +24,12 @@ interface MissingSentenceAudioPanelProps {
 
 type MissingPage = KeysetPage<MissingSentenceAudioRow> & Omit<MissingSentenceAudioPage, 'items' | 'next_cursor'>;
 
-const LABELS: Record<Language, Record<string, string>> = {
-  en: {
-    title: 'Sentences awaiting audio',
-    hint: 'Shared sentence library — missing spoken audio, grouped by language. Book reader moves visible work to the queue head; pycore synthesizes when auto-start is on.',
-    position: 'queue position',
-    status: 'status',
-    occurrences: 'uses',
-    empty: 'No sentences missing audio.',
-    loadFailed: 'Failed to load missing sentence audio list.',
-    total: 'total',
-    pycoreWorker: 'pycore sentence worker',
-    pycoreOn: 'auto-start ON',
-    pycoreOff: 'auto-start OFF',
-    pycorePending: 'Laravel pending',
-    openQueue: 'Open Queue Center',
-    pycoreUnreachable: 'pycore offline — start pyservice.ps1 to enable auto synthesis',
-  },
-  zh: {
-    title: '等待语音协助的句子',
-    hint: '共享句子库中尚无语音的句子，按语言列出。阅读器会将可见任务移到队首；pycore 开启自动开始后合成。',
-    position: '队列位置',
-    status: '状态',
-    occurrences: '引用',
-    empty: '没有待生成语音的句子。',
-    loadFailed: '加载待协助句子列表失败。',
-    total: '共',
-    pycoreWorker: 'pycore 句子 worker',
-    pycoreOn: '自动开始 开',
-    pycoreOff: '自动开始 关',
-    pycorePending: 'Laravel 待处理',
-    openQueue: '打开队列中心',
-    pycoreUnreachable: 'pycore 离线 — 请启动 pyservice.ps1 以启用自动合成',
-  },
-};
 
 const PAGE_SIZE = 20;
 
-const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ lang, refreshToken }) => {
-  const t = LABELS[lang] || LABELS.en;
+const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ refreshToken }) => {
+  const { t: tr } = useTranslation();
+  const loadFailedText = tr('uiTask.missing_audio.load_failed');
   const [language, setLanguage] = useState('');
   const [pcAudio, setPcAudio] = useState<SentenceAudioAutoStatus | null>(null);
   const [pcBusy, setPcBusy] = useState(false);
@@ -74,12 +42,12 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
       cursor_id: cursor === null ? 0 : Number(cursor),
       per_page: PAGE_SIZE,
     });
-    if (!res?.success || !res.data) throw new Error(res?.error || t.loadFailed);
+    if (!res?.success || !res.data) throw new Error(res?.error || loadFailedText);
     return { ...res.data, next_cursor: res.data.next_cursor == null ? null : String(res.data.next_cursor) };
-  }, [language, t.loadFailed]);
+  }, [language, loadFailedText]);
   const pages = useKeysetPages<MissingSentenceAudioRow, MissingPage>(fetchPage, true, refreshToken);
   const { page: data, items, loading, reload: fetchList } = pages;
-  const error = pages.error ? (pages.error instanceof Error ? pages.error.message : t.loadFailed) : null;
+  const error = pages.error ? (pages.error instanceof Error ? pages.error.message : loadFailedText) : null;
   const total = data?.total ?? 0;
   const languages = useMemo(() => Object.entries(data?.summary?.languages ?? {}).sort((a, b) => b[1] - a[1]), [data]);
 
@@ -112,27 +80,27 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
       <div className="flex items-start gap-3 flex-wrap">
         <AudioLines className="w-5 h-5 text-teal-500 shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">{t.title}</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t.hint}</p>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">{tr('uiTask.missing_audio.title')}</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{tr('uiTask.missing_audio.hint')}</p>
         </div>
         <button
           type="button"
           onClick={fetchList}
           disabled={loading}
           className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
-          title="Refresh"
+          title={tr('taskCenter.refresh')}
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs rounded-lg border border-teal-200/60 dark:border-teal-800/60 bg-teal-500/5 p-2">
-        <span className="font-semibold text-teal-700 dark:text-teal-300">{t.pycoreWorker}</span>
+        <span className="font-semibold text-teal-700 dark:text-teal-300">{tr('uiTask.missing_audio.pycore_worker')}</span>
         {pcAudio ? (
           <>
             <span className="font-mono text-slate-500">
-              {t.pycorePending}: <b>{pcAudio.laravel?.pending ?? 0}</b>
-              {' · '}leased: <b>{pcAudio.laravel?.leased ?? 0}</b>
+              {tr('uiTask.missing_audio.pycore_pending')}: <b>{pcAudio.laravel?.pending ?? 0}</b>
+              {' · '}{tr('uiTask.missing_audio.leased')}: <b>{pcAudio.laravel?.leased ?? 0}</b>
             </span>
             <button
               type="button"
@@ -144,18 +112,18 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
                   : 'bg-slate-500/10 text-slate-500'
               }`}>
               {pcAudio.auto_start ? <Check className="w-3 h-3" /> : <Power className="w-3 h-3" />}
-              {pcAudio.auto_start ? t.pycoreOn : t.pycoreOff}
+              {pcAudio.auto_start ? tr('uiTask.missing_audio.pycore_on') : tr('uiTask.missing_audio.pycore_off')}
             </button>
             <a
               href="/pycore-manager/queue-center"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-teal-600 hover:underline ml-auto">
-              <ExternalLink className="w-3 h-3" /> {t.openQueue}
+              <ExternalLink className="w-3 h-3" /> {tr('uiTask.missing_audio.open_queue')}
             </a>
           </>
         ) : (
-          <span className="text-slate-500">{t.pycoreUnreachable}</span>
+          <span className="text-slate-500">{tr('uiTask.missing_audio.pycore_unreachable')}</span>
         )}
       </div>
 
@@ -170,7 +138,7 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
             <option key={code} value={code}>{code} ({gap})</option>
           ))}
         </select>
-        <span className="text-slate-500 ml-auto">{t.total} <b>{total}</b></span>
+        <span className="text-slate-500 ml-auto">{tr('uiTask.missing_audio.total')} <b>{total}</b></span>
       </div>
 
       {error && (
@@ -180,7 +148,7 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
       {loading && items.length === 0 ? (
         <div className="py-6 flex justify-center"><InlineSpinner /></div>
       ) : items.length === 0 ? (
-        <EmptyState message={t.empty} />
+        <EmptyState message={tr('uiTask.missing_audio.empty')} />
       ) : (
         <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs max-h-64 overflow-y-auto">
           {items.map((row) => (
@@ -191,16 +159,16 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
               <p className="flex-1 text-slate-700 dark:text-slate-200 leading-relaxed line-clamp-2" title={row.text}>
                 {row.text}
               </p>
-              <span className="shrink-0 text-[10px] font-mono text-slate-400" title={t.position}>
+              <span className="shrink-0 text-[10px] font-mono text-slate-400" title={tr('uiTask.missing_audio.position')}>
                 #{row.queue_position ?? 0}
               </span>
               <span
                 className={`shrink-0 text-[10px] ${row.tts_status === 'leased' ? 'text-sky-500' : row.tts_status === 'failed' ? 'text-rose-500' : 'text-slate-400'}`}
-                title={row.tts_locked_by ? `${t.status}: ${row.tts_locked_by}` : t.status}
+                title={row.tts_locked_by ? `${tr('uiTask.missing_audio.status')}: ${row.tts_locked_by}` : tr('uiTask.missing_audio.status')}
               >
                 {row.tts_status}
               </span>
-              <span className="shrink-0 text-[10px] text-slate-400" title={t.occurrences}>
+              <span className="shrink-0 text-[10px] text-slate-400" title={tr('uiTask.missing_audio.occurrences')}>
                 ×{row.occurrence_count ?? 1}
               </span>
             </li>

@@ -285,7 +285,11 @@ class WordNewBookAudioPlanService {
    * Laravel is away or the plan is complete (Laravel then schedules by itself).
    */
   private assign(taskId: string, live: LivePlan): Promise<void> {
-    if (!live.stored.planId || complete(live.stored.status) || !wordNewChannels.laravel()) return Promise.resolve();
+    if (!live.stored.planId || complete(live.stored.status)) return Promise.resolve();
+    if (!wordNewChannels.laravel()) {
+      console.warn('[BookPlan] assignment skipped: Laravel channel unavailable');
+      return Promise.resolve();
+    }
     live.assigning ??= this.postAssignment(taskId, live).finally(() => { live.assigning = null; });
     return live.assigning;
   }
@@ -293,12 +297,16 @@ class WordNewBookAudioPlanService {
   private async postAssignment(taskId: string, live: LivePlan): Promise<void> {
     const directHost = wordNewChannels.direct() ? hostKey(wordNewPycoreLink.getSnapshot().selectedUrl) : '';
     live.assignment = buildAssignment({ roster: wordNewPycoreNodes.getSnapshot().nodes, directHost, languages: live.languages });
-    if (live.assignment.windows.length === 0 || serverSchemaGate.getSnapshot().schema === 'pending') return;
+    if (live.assignment.windows.length === 0 || serverSchemaGate.getSnapshot().schema === 'pending') {
+      console.warn('[BookPlan] assignment empty', { roster: wordNewPycoreNodes.getSnapshot().nodes.length, languages: live.languages });
+      return;
+    }
     try {
       const assignments = await wfNewApi.postBookAudioPlanAssignments(live.stored.planId, live.stored.position, live.assignment.windows);
       if (live.stored.status) live.stored = { ...live.stored, status: { ...live.stored.status, assignments } };
       this.publish(taskId, live);
     } catch (error) {
+      console.warn('[BookPlan] assignment post failed', error);
       serverSchemaGate.observeError(error);
     }
   }

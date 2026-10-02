@@ -215,7 +215,7 @@ const LmDashboardContent: React.FC = () => {
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
              <div className="text-6xl font-black opacity-10 mb-4">404</div>
-             <p>Module Not Initialized</p>
+             <p>{t('uiCommon.dashboard.module_not_initialized')}</p>
           </div>
         );
     }

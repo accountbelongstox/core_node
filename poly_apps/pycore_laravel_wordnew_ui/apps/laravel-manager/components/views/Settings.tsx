@@ -3,6 +3,7 @@ import { useLaravelApiConfig } from '@/apps/laravel-manager/stores/LaravelApiCon
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key, Shield, User, Server, Database, Code, Info, Mail, HardDrive, Clock, Lock, Bell, Palette, Languages, Upload, Eye, EyeOff, Trash2, Download, Plus, RefreshCw, Moon, Sun } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
 import { InlineSpinner, LoadingBlock, AlertBox, Field } from '../common';
@@ -48,6 +49,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const { lang, theme, setLang, setTheme, UnifiedUser: user, refreshUser } = useUnifiedApp();
   const { config, updateConfig, resetConfig } = useLaravelApiConfig();
   const { isAdmin, isSuperAdmin, roleLevel, roleName } = useUserRole();
+  const { t: tr } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('user');
   
@@ -109,7 +111,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         window.location.reload();
       } else {
         const desc = res.endpoint?.description ?? id;
-        setSwitchError(`${desc} is unreachable (${res.result?.error ?? 'health check failed'}). Kept the current endpoint.`);
+        setSwitchError(tr('uiSettings.api.switch_unreachable', { desc, error: res.result?.error ?? tr('uiSettings.api.health_check_failed') }));
         reloadEndpoints();
       }
     } finally {
@@ -231,7 +233,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         setEnvironmentInfo(envRes.data);
       }
     } catch (error: any) {
-      setServerConfigError(error.message || 'Failed to load server configuration');
+      setServerConfigError(error.message || tr('uiSettings.server.load_failed'));
     } finally {
       setServerConfigLoading(false);
     }
@@ -250,17 +252,17 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       if (!profileRes.success) {
         const code = (profileRes as any).code ?? profileRes.debugInfo?.code;
         if (code === 'AUTH_REQUIRED' || profileRes.error?.toLowerCase().includes('unauthenticated')) {
-          throw new Error('Session expired or not authenticated. Please log in again.');
+          throw new Error(tr('uiSettings.user.session_expired'));
         }
-        throw new Error(profileRes.error || profileRes.message || 'Failed to load profile');
+        throw new Error(profileRes.error || profileRes.message || tr('uiSettings.user.load_profile_failed'));
       }
 
       if (!prefsRes.success) {
         const code = (prefsRes as any).code ?? prefsRes.debugInfo?.code;
         if (code === 'AUTH_REQUIRED' || prefsRes.error?.toLowerCase().includes('unauthenticated')) {
-          throw new Error('Session expired or not authenticated. Please log in again.');
+          throw new Error(tr('uiSettings.user.session_expired'));
         }
-        throw new Error(prefsRes.error || prefsRes.message || 'Failed to load preferences');
+        throw new Error(prefsRes.error || prefsRes.message || tr('uiSettings.user.load_prefs_failed'));
       }
 
       const profile = normalizeLaravelUser(profileRes.data);
@@ -279,7 +281,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         setUserPrefsForm(prefsRes.data);
       }
     } catch (error: any) {
-      const message = error?.message || 'Failed to load user profile';
+      const message = error?.message || tr('uiSettings.user.load_user_failed');
       setUserProfileError(message);
       console.error('Failed to load user profile:', error);
     } finally {
@@ -451,7 +453,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
     try {
       const response = await api.inviteCode.redeemSuperCode(code);
       if (!response.success) {
-        throw new Error(response.error || response.message || 'Unable to redeem super-admin code');
+        throw new Error(response.error || response.message || tr('uiSettings.user.redeem_failed'));
       }
 
       const granted = normalizeLaravelUser(response.data)
@@ -471,11 +473,11 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       await loadUserProfile();
 
       setSuperCodeStatus('success');
-      setSuperCodeMessage(response.message || 'Super-admin access granted');
+      setSuperCodeMessage(response.message || tr('uiSettings.user.super_admin_granted'));
       setSuperCode('');
     } catch (error: any) {
       setSuperCodeStatus('error');
-      setSuperCodeMessage(error?.message || 'Unable to redeem super-admin code');
+      setSuperCodeMessage(error?.message || tr('uiSettings.user.redeem_failed'));
     }
   };
 
@@ -555,10 +557,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   };
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: React.ReactNode; requiresAuth?: boolean; requiresAdmin?: boolean }> = [
-    { id: 'api', label: 'API Configuration', icon: <Globe className="w-4 h-4" /> },
-    { id: 'user', label: 'User Settings', icon: <User className="w-4 h-4" /> },
-    { id: 'server', label: 'Server Settings', icon: <Server className="w-4 h-4" />, requiresAuth: true, requiresAdmin: true },
-    { id: 'other', label: 'Other Settings', icon: <SettingsIcon className="w-4 h-4" /> },
+    { id: 'api', label: tr('uiSettings.tabs.api'), icon: <Globe className="w-4 h-4" /> },
+    { id: 'user', label: tr('uiSettings.tabs.user'), icon: <User className="w-4 h-4" /> },
+    { id: 'server', label: tr('uiSettings.tabs.server'), icon: <Server className="w-4 h-4" />, requiresAuth: true, requiresAdmin: true },
+    { id: 'other', label: tr('uiSettings.tabs.other'), icon: <SettingsIcon className="w-4 h-4" /> },
   ];
 
   const visibleTabs = tabs.filter(tab => {
@@ -603,9 +605,9 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 {roleName}
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                Level: {roleLevel}
-                {isAdmin && <span className="ml-2 text-indigo-500">• Admin</span>}
-                {isSuperAdmin && <span className="ml-2 text-violet-500">• Super Admin</span>}
+                {tr('uiSettings.role.level', { level: roleLevel })}
+                {isAdmin && <span className="ml-2 text-indigo-500">• {tr('uiSettings.role.admin')}</span>}
+                {isSuperAdmin && <span className="ml-2 text-violet-500">• {tr('uiSettings.role.super_admin')}</span>}
               </div>
             </div>
           </div>
@@ -628,22 +630,22 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Server className="w-5 h-5 text-indigo-500" />
-                  <h2 className="text-lg font-semibold">API Endpoint</h2>
+                  <h2 className="text-lg font-semibold">{tr('uiSettings.api.endpoint_title')}</h2>
                 </div>
                 <button
                   onClick={handleRecheckEndpoints}
                   disabled={probing}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 transition-colors"
-                  title="Re-detect: checks the current endpoint first; sweeps all only if it is down"
+                  title={tr('uiSettings.api.redetect_title')}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${probing ? 'animate-spin' : ''}`} />
-                  Re-detect
+                  {tr('uiSettings.api.redetect')}
                 </button>
               </div>
 
               {/* Dropdown of all endpoints (built-in + custom) */}
               <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                Active endpoint
+                {tr('uiSettings.api.active_endpoint')}
               </label>
               <select
                 value={currentEndpoint?.id || ''}
@@ -654,7 +656,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 {endpoints.map((ep) => {
                   const h = health.get(ep.id);
                   const dot = h ? (h.isHealthy ? '🟢' : '🔴') : '⚪';
-                  const tag = isCustomEndpoint(ep.id) ? ' [custom]' : '';
+                  const tag = isCustomEndpoint(ep.id) ? ` ${tr('uiSettings.api.custom_tag')}` : '';
                   return (
                     <option key={ep.id} value={ep.id}>
                       {dot} {ep.description} — {endpointBaseUrl(ep)}{tag}
@@ -665,7 +667,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               {switchingEndpoint && (
                 <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1.5">
                   <RefreshCw className="w-3 h-3 animate-spin" />
-                  Testing endpoint before switching…
+                  {tr('uiSettings.api.testing_endpoint')}
                 </p>
               )}
               {switchError && (
@@ -675,13 +677,13 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 </p>
               )}
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Endpoints are health-checked before switching; an unreachable endpoint is never applied. Current origin: {getOriginUrl()}
+                {tr('uiSettings.api.endpoint_note', { origin: getOriginUrl() })}
               </p>
 
               {/* Custom endpoints list (removable) */}
               {endpoints.some(ep => isCustomEndpoint(ep.id)) && (
                 <div className="mt-4">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Your endpoints</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{tr('uiSettings.api.your_endpoints')}</h3>
                   <div className="space-y-1.5">
                     {endpoints.filter(ep => isCustomEndpoint(ep.id)).map((ep) => (
                       <div key={ep.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
@@ -694,7 +696,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                         <button
                           onClick={() => handleRemoveEndpoint(ep.id)}
                           className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          title="Remove this endpoint"
+                          title={tr('uiSettings.api.remove_endpoint')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -706,10 +708,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
 
               {/* Add a new endpoint (saved to localStorage; no duplicates) */}
               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Add endpoint</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">{tr('uiSettings.api.add_endpoint')}</h3>
                 <div className="flex flex-wrap items-end gap-2">
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Protocol</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">{tr('uiSettings.api.protocol')}</label>
                     <select
                       value={addProtocol}
                       onChange={(e) => setAddProtocol(e.target.value as 'http' | 'https')}
@@ -720,17 +722,17 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     </select>
                   </div>
                   <div className="flex-1 min-w-[160px]">
-                    <label className="block text-[11px] text-slate-500 mb-1">Host / IP</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">{tr('uiSettings.api.host_ip')}</label>
                     <input
                       type="text"
                       value={addUrl}
                       onChange={(e) => setAddUrl(e.target.value)}
-                      placeholder="192.168.50.10 or api.example.com"
+                      placeholder={tr('uiSettings.api.host_placeholder')}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                     />
                   </div>
                   <div className="w-24">
-                    <label className="block text-[11px] text-slate-500 mb-1">Port</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">{tr('uiSettings.api.port')}</label>
                     <input
                       type="number"
                       value={addPort}
@@ -740,12 +742,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     />
                   </div>
                   <div className="flex-1 min-w-[140px]">
-                    <label className="block text-[11px] text-slate-500 mb-1">Label (optional)</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">{tr('uiSettings.api.label_optional')}</label>
                     <input
                       type="text"
                       value={addDesc}
                       onChange={(e) => setAddDesc(e.target.value)}
-                      placeholder="My server"
+                      placeholder={tr('uiSettings.api.label_placeholder')}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                     />
                   </div>
@@ -753,7 +755,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     onClick={handleAddEndpoint}
                     className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Plus className="w-4 h-4" /> Add
+                    <Plus className="w-4 h-4" /> {tr('uiSettings.api.add')}
                   </button>
                 </div>
                 {addError && (
@@ -769,12 +771,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               <div className="flex items-center gap-2 mb-4">
                 <Globe className="w-5 h-5 text-indigo-500" />
                 <h2 className="text-lg font-semibold">{t.api_config}</h2>
-                <span className="text-xs text-slate-400">(shared endpoint)</span>
+                <span className="text-xs text-slate-400">{tr('uiSettings.api.shared_endpoint')}</span>
               </div>
 
               <div className="space-y-4">
                 {/* Base URL */}
-                <Field label={t.base_url} hint={`Current origin: ${getOriginUrl()}`}>
+                <Field label={t.base_url} hint={tr('uiSettings.api.current_origin_hint', { origin: getOriginUrl() })}>
                   <input
                     type="text"
                     value={baseUrl}
@@ -785,7 +787,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 </Field>
 
                 {/* Port */}
-                <Field label="API Port">
+                <Field label={tr('uiSettings.api.api_port')}>
                   <input
                     type="number"
                     value={port}
@@ -798,13 +800,13 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 </Field>
 
                 {/* API Key */}
-                <Field label={<>{t.api_key} <span className="text-slate-400">(Optional)</span></>}>
+                <Field label={<>{t.api_key} <span className="text-slate-400">{tr('uiSettings.api.optional')}</span></>}>
                   <div className="relative">
                     <input
                       type="password"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Enter API key (optional)"
+                      placeholder={tr('uiSettings.api.api_key_placeholder')}
                       className="w-full px-4 py-2 pr-10 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                     />
                     <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -828,7 +830,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     {testStatus === 'testing' ? (
                       <>
                         <InlineSpinner size={16} />
-                        Testing...
+                        {tr('uiSettings.api.testing')}
                       </>
                     ) : (
                       <>
@@ -842,7 +844,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
                   >
                     <Globe className="w-4 h-4" />
-                    Reset to Origin
+                    {t.reset_to_origin}
                   </button>
                   <button
                     onClick={handleReset}
@@ -882,35 +884,35 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 switcher had moved every request to another endpoint. */}
             <div className={`${commonClasses.card} p-4 md:p-6`}>
               <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">
-                Current Configuration
+                {tr('uiSettings.api.current_config')}
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Base URL (live):</span>
+                  <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.api.base_url_live')}</span>
                   <span className="font-mono text-slate-900 dark:text-white">
                     {currentEndpoint ? buildApiUrl(currentEndpoint) : config.baseUrl}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">API Port:</span>
+                  <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.api.api_port_label')}</span>
                   <span className="font-mono text-slate-900 dark:text-white">
                     {currentEndpoint?.port ?? config.port ?? 9000}
                   </span>
                 </div>
                 {currentEndpoint && config.baseUrl !== buildApiUrl(currentEndpoint) && (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Configured default:</span>
+                    <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.api.configured_default')}</span>
                     <span className="font-mono text-slate-400 dark:text-slate-500">{config.baseUrl}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Browser Origin:</span>
+                  <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.api.browser_origin_label')}</span>
                   <span className="font-mono text-slate-900 dark:text-white">{getOriginUrl()}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">API Key:</span>
+                  <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.api.api_key_label')}</span>
                   <span className="font-mono text-slate-900 dark:text-white">
-                    {config.apiKey ? '••••••••' : 'Not set'}
+                    {config.apiKey ? '••••••••' : tr('uiSettings.api.not_set')}
                   </span>
                 </div>
               </div>
@@ -924,12 +926,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               <div className={`${commonClasses.card} p-6 text-center`}>
                 <Shield className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
-                  Server settings require administrator access. Please login with an admin account.
+                  {tr('uiSettings.server.admin_required')}
                 </p>
               </div>
             ) : serverConfigLoading ? (
               <div className={`${commonClasses.card} p-4 md:p-6`}>
-                <LoadingBlock label="Loading server configuration..." />
+                <LoadingBlock label={tr('uiSettings.server.loading')} />
               </div>
             ) : serverConfigError ? (
               <div className={`${commonClasses.card} p-4 md:p-6`}>
@@ -938,7 +940,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   onClick={loadServerConfig}
                   className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
                 >
-                  Retry
+                  {tr('uiSettings.shared.retry')}
                 </button>
               </div>
             ) : serverConfig ? (
@@ -948,7 +950,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Server className="w-5 h-5 text-indigo-500" />
-                      <h2 className="text-lg font-semibold">Server Configuration</h2>
+                      <h2 className="text-lg font-semibold">{tr('uiSettings.server.config_title')}</h2>
                     </div>
                     {isSuperAdmin && (
                       <button
@@ -959,12 +961,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                         {serverSaveStatus === 'saving' ? (
                           <>
                             <InlineSpinner size={16} />
-                            Saving...
+                            {tr('uiSettings.server.saving')}
                           </>
                         ) : (
                           <>
                             <Save className="w-4 h-4" />
-                            Save Changes
+                            {tr('uiSettings.server.save_changes')}
                           </>
                         )}
                       </button>
@@ -974,14 +976,14 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   {serverSaveStatus === 'success' && (
                     <div className="mb-4 flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
                       <CheckCircle className="w-4 h-4" />
-                      Configuration saved successfully
+                      {tr('uiSettings.server.saved_ok')}
                     </div>
                   )}
 
                   {serverSaveStatus === 'error' && (
                     <div className="mb-4 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
                       <AlertCircle className="w-4 h-4" />
-                      Failed to save configuration
+                      {tr('uiSettings.server.save_failed')}
                     </div>
                   )}
 
@@ -990,10 +992,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     <div>
                       <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                         <Code className="w-4 h-4" />
-                        Application Settings
+                        {tr('uiSettings.server.app_settings')}
                       </h3>
                       <div className="grid grid-cols-2 gap-4">
-                        <Field label="App Name">
+                        <Field label={tr('uiSettings.server.app_name')}>
                           <input
                             type="text"
                             value={serverConfigForm.app?.name || serverConfig.app.name}
@@ -1005,7 +1007,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </Field>
-                        <Field label="Timezone">
+                        <Field label={tr('uiSettings.server.timezone')}>
                           <input
                             type="text"
                             value={serverConfigForm.app?.timezone || serverConfig.app.timezone}
@@ -1017,7 +1019,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </Field>
-                        <Field label="Locale">
+                        <Field label={tr('uiSettings.server.locale')}>
                           <input
                             type="text"
                             value={serverConfigForm.app?.locale || serverConfig.app.locale}
@@ -1029,7 +1031,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </Field>
-                        <Field label="App URL">
+                        <Field label={tr('uiSettings.server.app_url')}>
                           <input
                             type="url"
                             value={serverConfigForm.app?.url || serverConfig.app.url}
@@ -1048,27 +1050,27 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     <div>
                       <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                         <Info className="w-4 h-4" />
-                        System Information
+                        {tr('uiSettings.server.system_info')}
                       </h3>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Environment:</span>
+                          <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.environment')}</span>
                           <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.app.env}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Debug Mode:</span>
-                          <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.app.debug ? 'Enabled' : 'Disabled'}</span>
+                          <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.debug_mode')}</span>
+                          <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.app.debug ? tr('uiSettings.server.enabled') : tr('uiSettings.server.disabled')}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">PHP Version:</span>
+                          <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.php_version')}</span>
                           <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.server.php_version}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Laravel Version:</span>
+                          <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.laravel_version')}</span>
                           <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.server.laravel_version}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Database:</span>
+                          <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.database')}</span>
                           <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.database.default}</span>
                         </div>
                       </div>
@@ -1079,24 +1081,24 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       <div>
                         <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <Database className="w-4 h-4" />
-                          Environment Details
+                          {tr('uiSettings.server.env_details')}
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-2 text-sm">
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <span className="text-slate-500 dark:text-slate-400">Memory Limit:</span>
+                              <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.memory_limit')}</span>
                               <span className="ml-2 font-mono text-slate-900 dark:text-white">{environmentInfo.php.memory_limit}</span>
                             </div>
                             <div>
-                              <span className="text-slate-500 dark:text-slate-400">Max Execution Time:</span>
+                              <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.max_execution_time')}</span>
                               <span className="ml-2 font-mono text-slate-900 dark:text-white">{environmentInfo.php.max_execution_time}s</span>
                             </div>
                             <div>
-                              <span className="text-slate-500 dark:text-slate-400">Upload Max Filesize:</span>
+                              <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.upload_max_filesize')}</span>
                               <span className="ml-2 font-mono text-slate-900 dark:text-white">{environmentInfo.php.upload_max_filesize}</span>
                             </div>
                             <div>
-                              <span className="text-slate-500 dark:text-slate-400">Post Max Size:</span>
+                              <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.post_max_size')}</span>
                               <span className="ml-2 font-mono text-slate-900 dark:text-white">{environmentInfo.php.post_max_size}</span>
                             </div>
                           </div>
@@ -1108,7 +1110,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     <div>
                       <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                         <Database className="w-4 h-4" />
-                        System Paths
+                        {tr('uiSettings.server.system_paths')}
                       </h3>
                       <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-2 text-sm">
                         {Object.entries(serverConfig.paths).map(([key, path]) => (
@@ -1125,20 +1127,20 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       <div>
                         <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <Database className="w-4 h-4" />
-                          Database Configuration
+                          {tr('uiSettings.server.database_config')}
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-3 text-sm">
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Default Connection:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.default_connection')}</span>
                             <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.database.default}</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Available Connections:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.available_connections')}</span>
                             <div className="mt-2 space-y-1">
                               {Object.entries(serverConfig.database.connections || {}).map(([name, conn]: [string, any]) => (
                                 <div key={name} className="flex items-center gap-2 text-xs">
                                   <span className="font-mono text-slate-600 dark:text-slate-400">{name}:</span>
-                                  <span className="text-slate-500 dark:text-slate-400">{conn.driver || 'unknown'}</span>
+                                  <span className="text-slate-500 dark:text-slate-400">{conn.driver || tr('uiSettings.server.unknown')}</span>
                                   {conn.database && <span className="text-slate-400 dark:text-slate-500">({conn.database})</span>}
                                 </div>
                               ))}
@@ -1153,15 +1155,15 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       <div>
                         <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <HardDrive className="w-4 h-4" />
-                          Cache Configuration
+                          {tr('uiSettings.server.cache_config')}
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 text-sm">
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Default Store:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.default_store')}</span>
                             <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.cache.default}</span>
                           </div>
                           <div className="mt-2">
-                            <span className="text-slate-500 dark:text-slate-400">Available Stores:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.available_stores')}</span>
                             <div className="mt-1 flex flex-wrap gap-2">
                               {Object.keys(serverConfig.cache.stores || {}).map((name) => (
                                 <span key={name} className="px-2 py-1 bg-slate-200 dark:bg-slate-700 rounded text-xs font-mono">
@@ -1179,24 +1181,24 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       <div>
                         <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <Clock className="w-4 h-4" />
-                          Session Configuration
+                          {tr('uiSettings.server.session_config')}
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Driver:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.driver')}</span>
                             <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.session.driver}</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Lifetime:</span>
-                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.session.lifetime} minutes</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.lifetime')}</span>
+                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{tr('uiSettings.server.minutes', { minutes: serverConfig.session.lifetime })}</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Encrypt:</span>
-                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.session.encrypt ? 'Yes' : 'No'}</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.encrypt')}</span>
+                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.session.encrypt ? tr('uiSettings.shared.yes') : tr('uiSettings.shared.no')}</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Expire on Close:</span>
-                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.session.expire_on_close ? 'Yes' : 'No'}</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.expire_on_close')}</span>
+                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.session.expire_on_close ? tr('uiSettings.shared.yes') : tr('uiSettings.shared.no')}</span>
                           </div>
                         </div>
                       </div>
@@ -1207,15 +1209,15 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       <div>
                         <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <HardDrive className="w-4 h-4" />
-                          Queue Configuration
+                          {tr('uiSettings.server.queue_config')}
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 text-sm">
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Default Connection:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.default_connection')}</span>
                             <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.queue.default}</span>
                           </div>
                           <div className="mt-2">
-                            <span className="text-slate-500 dark:text-slate-400">Available Connections:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.available_connections')}</span>
                             <div className="mt-1 flex flex-wrap gap-2">
                               {Object.keys(serverConfig.queue.connections || {}).map((name) => (
                                 <span key={name} className="px-2 py-1 bg-slate-200 dark:bg-slate-700 rounded text-xs font-mono">
@@ -1233,15 +1235,15 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       <div>
                         <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <Mail className="w-4 h-4" />
-                          Mail Configuration
+                          {tr('uiSettings.server.mail_config')}
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 text-sm">
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Default Mailer:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.default_mailer')}</span>
                             <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.mail.default}</span>
                           </div>
                           <div className="mt-2">
-                            <span className="text-slate-500 dark:text-slate-400">Available Mailers:</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.available_mailers')}</span>
                             <div className="mt-1 flex flex-wrap gap-2">
                               {Object.entries(serverConfig.mail.mailers || {}).map(([name, mailer]: [string, any]) => (
                                 <span key={name} className="px-2 py-1 bg-slate-200 dark:bg-slate-700 rounded text-xs">
@@ -1259,16 +1261,16 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       <div>
                         <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <Lock className="w-4 h-4" />
-                          Sanctum Configuration
+                          {tr('uiSettings.server.sanctum_config')}
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Token Expiration:</span>
-                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.sanctum.expiration} minutes</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.token_expiration')}</span>
+                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{tr('uiSettings.server.minutes', { minutes: serverConfig.sanctum.expiration })}</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 dark:text-slate-400">Token Prefix:</span>
-                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.sanctum.token_prefix || 'None'}</span>
+                            <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.server.token_prefix')}</span>
+                            <span className="ml-2 font-mono text-slate-900 dark:text-white">{serverConfig.sanctum.token_prefix || tr('uiSettings.server.none')}</span>
                           </div>
                         </div>
                       </div>
@@ -1288,12 +1290,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   <User className="w-7 h-7 text-slate-400" />
                 </div>
                 <p className="text-slate-600 dark:text-slate-400">
-                  Please login to view and edit your profile settings.
+                  {tr('uiSettings.user.login_required')}
                 </p>
               </div>
             ) : userProfileLoading ? (
               <div className={`${commonClasses.card} p-4 md:p-6`}>
-                <LoadingBlock label="Loading user profile..." />
+                <LoadingBlock label={tr('uiSettings.user.loading')} />
               </div>
             ) : userProfileError ? (
               <div className={`${commonClasses.card} p-4 md:p-6`}>
@@ -1302,7 +1304,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   onClick={loadUserProfile}
                   className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
                 >
-                  Retry
+                  {tr('uiSettings.shared.retry')}
                 </button>
               </div>
             ) : userProfile ? (
@@ -1319,7 +1321,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           {(avatarPreview || userProfile.avatar_url || userProfile.avatar) ? (
                             <img
                               src={avatarPreview || userProfile.avatar_url || userProfile.avatar}
-                              alt={userProfile.username || 'avatar'}
+                              alt={userProfile.username || tr('uiSettings.user.avatar_alt')}
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -1377,7 +1379,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
                         >
                           {userSaveStatus === 'saving' ? <InlineSpinner size={16} /> : <Save className="w-4 h-4" />}
-                          Save profile
+                          {tr('uiSettings.user.save_profile')}
                         </button>
                       </div>
                     </div>
@@ -1400,18 +1402,18 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     {userSaveStatus === 'success' && (
                       <div className="mb-3 flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
                         <CheckCircle className="w-4 h-4" />
-                        Profile updated successfully
+                        {tr('uiSettings.user.profile_updated')}
                       </div>
                     )}
                     {userSaveStatus === 'error' && (
                       <div className="mb-3 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
                         <AlertCircle className="w-4 h-4" />
-                        Failed to update profile
+                        {tr('uiSettings.user.profile_update_failed')}
                       </div>
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Field label="Username" hint="Cannot be changed">
+                      <Field label={tr('uiSettings.user.username')} hint={tr('uiSettings.user.username_hint')}>
                         <input
                           type="text"
                           value={userProfile.username || ''}
@@ -1419,7 +1421,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 cursor-not-allowed text-sm"
                         />
                       </Field>
-                      <Field label="Email">
+                      <Field label={tr('uiSettings.user.email')}>
                         <input
                           type="email"
                           value={userProfile.email || ''}
@@ -1427,7 +1429,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 cursor-not-allowed text-sm"
                         />
                       </Field>
-                      <Field label="Nickname">
+                      <Field label={tr('uiSettings.user.nickname')}>
                         <input
                           type="text"
                           value={userProfileForm.nickname || ''}
@@ -1435,7 +1437,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
                         />
                       </Field>
-                      <Field label="Full Name">
+                      <Field label={tr('uiSettings.user.full_name')}>
                         <input
                           type="text"
                           value={userProfileForm.name || ''}
@@ -1443,7 +1445,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
                         />
                       </Field>
-                      <Field label="Location">
+                      <Field label={tr('uiSettings.user.location')}>
                         <input
                           type="text"
                           value={userProfileForm.location || ''}
@@ -1453,17 +1455,17 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       </Field>
                       {userPreferences && (
                         <>
-                          <Field label="Theme">
+                          <Field label={tr('uiSettings.shared.theme')}>
                             <select
                               value={userPrefsForm.theme || 'dark'}
                               onChange={(e) => setUserPrefsForm({ ...userPrefsForm, theme: e.target.value })}
                               className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
                             >
-                              <option value="light">Light</option>
-                              <option value="dark">Dark</option>
+                              <option value="light">{tr('uiSettings.shared.light')}</option>
+                              <option value="dark">{tr('uiSettings.shared.dark')}</option>
                             </select>
                           </Field>
-                          <Field label="Language" className="sm:col-span-2">
+                          <Field label={tr('uiSettings.shared.language')} className="sm:col-span-2">
                             <input
                               type="text"
                               value={userPrefsForm.language || 'en'}
@@ -1473,7 +1475,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           </Field>
                         </>
                       )}
-                      <Field label="Bio" className="sm:col-span-2">
+                      <Field label={tr('uiSettings.user.bio')} className="sm:col-span-2">
                         <textarea
                           value={userProfileForm.bio || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, bio: e.target.value })}
@@ -1494,7 +1496,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       </div>
                       <div>
                         <h2 className="text-base font-semibold text-slate-900 dark:text-white">{tp.change_password}</h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Update your account password</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{tr('uiSettings.user.password_subtitle')}</p>
                       </div>
                     </div>
                     <div className="space-y-3">
@@ -1554,12 +1556,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                         <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div>
-                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">Super-Admin Access</h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Installation access value from start</p>
+                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">{tr('uiSettings.user.super_admin_title')}</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{tr('uiSettings.user.super_admin_subtitle')}</p>
                       </div>
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-                      Paste the current installation access value. It is checked in memory against InstallationAccessCode and can be used until start rotates it.
+                      {tr('uiSettings.user.super_admin_desc')}
                     </p>
                     <div className="flex flex-col sm:flex-row gap-2.5">
                       <input
@@ -1574,7 +1576,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                         disabled={!superCode.trim() || superCodeStatus === 'submitting'}
                         className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-xl text-sm font-medium whitespace-nowrap"
                       >
-                        {superCodeStatus === 'submitting' ? 'Checking...' : 'Upgrade Access'}
+                        {superCodeStatus === 'submitting' ? tr('uiSettings.user.checking') : tr('uiSettings.user.upgrade_access')}
                       </button>
                     </div>
                     {superCodeMessage && (
@@ -1589,16 +1591,16 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 <div className={`${commonClasses.card} px-5 py-4`}>
                   <div className="flex items-center gap-2 mb-3">
                     <Info className="w-4 h-4 text-slate-400" />
-                    <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Account details</h2>
+                    <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{tr('uiSettings.user.account_details')}</h2>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
                     {[
-                      ['ID', userProfile.id],
-                      ['Role', resolveRoleName(userProfile)],
-                      ['Level', resolveRoleLevel(userProfile)],
-                      ['Active', userProfile.is_active ? 'Yes' : 'No'],
-                      ['Created', userProfile.created_at ? String(userProfile.created_at).slice(0, 10) : '—'],
-                      ['Updated', userProfile.updated_at ? String(userProfile.updated_at).slice(0, 10) : '—'],
+                      [tr('uiSettings.user.account_id'), userProfile.id],
+                      [tr('uiSettings.user.account_role'), resolveRoleName(userProfile)],
+                      [tr('uiSettings.user.account_level'), resolveRoleLevel(userProfile)],
+                      [tr('uiSettings.user.account_active'), userProfile.is_active ? tr('uiSettings.shared.yes') : tr('uiSettings.shared.no')],
+                      [tr('uiSettings.user.account_created'), userProfile.created_at ? String(userProfile.created_at).slice(0, 10) : '—'],
+                      [tr('uiSettings.user.account_updated'), userProfile.updated_at ? String(userProfile.updated_at).slice(0, 10) : '—'],
                     ].map(([label, value]) => (
                       <div key={String(label)}>
                         <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
@@ -1618,13 +1620,13 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
             <div className={`${commonClasses.card} p-4 md:p-6`}>
               <div className="flex items-center gap-2 mb-4">
                 <Palette className="w-5 h-5 text-indigo-500" />
-                <h2 className="text-lg font-semibold">Appearance &amp; Language</h2>
+                <h2 className="text-lg font-semibold">{tr('uiSettings.other.appearance_language')}</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Language */}
                 <Field
-                  label={<span className="flex items-center gap-1.5"><Languages className="w-4 h-4" /> Language</span>}
-                  hint="Applies across the dashboard UI."
+                  label={<span className="flex items-center gap-1.5"><Languages className="w-4 h-4" /> {tr('uiSettings.shared.language')}</span>}
+                  hint={tr('uiSettings.other.language_hint')}
                 >
                   <select
                     value={lang}
@@ -1638,16 +1640,16 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
 
                 {/* Theme */}
                 <Field
-                  label={<span className="flex items-center gap-1.5">{theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />} Theme</span>}
-                  hint="Light or dark color scheme."
+                  label={<span className="flex items-center gap-1.5">{theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />} {tr('uiSettings.shared.theme')}</span>}
+                  hint={tr('uiSettings.other.theme_hint')}
                 >
                   <select
                     value={theme}
                     onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                   >
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
+                    <option value="light">{tr('uiSettings.shared.light')}</option>
+                    <option value="dark">{tr('uiSettings.shared.dark')}</option>
                   </select>
                 </Field>
               </div>
@@ -1657,10 +1659,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
             <div className={`${commonClasses.card} p-4 md:p-6`}>
               <div className="flex items-center gap-2 mb-4">
                 <Bell className="w-5 h-5 text-indigo-500" />
-                <h2 className="text-lg font-semibold">Notifications</h2>
+                <h2 className="text-lg font-semibold">{tr('uiSettings.other.notifications')}</h2>
               </div>
               <div className="space-y-2">
-                {([['email', 'Email notifications'], ['push', 'Push notifications'], ['sms', 'SMS notifications']] as const).map(([key, label]) => (
+                {([['email', tr('uiSettings.other.email_notifications')], ['push', tr('uiSettings.other.push_notifications')], ['sms', tr('uiSettings.other.sms_notifications')]] as const).map(([key, label]) => (
                   <label key={key} className="flex items-center justify-between gap-3 py-1.5 cursor-pointer">
                     <span className="text-sm text-slate-700 dark:text-slate-300">{label}</span>
                     <input

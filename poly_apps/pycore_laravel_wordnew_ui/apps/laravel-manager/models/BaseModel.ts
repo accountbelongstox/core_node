@@ -1,4 +1,5 @@
 import { APIResponse } from '../types';
+import i18n from '@/apps/laravel-manager/i18n';
 
 export interface ModelResult<T = any> {
   success: boolean;
@@ -20,7 +21,7 @@ export class BaseModel {
       if (response.success && response.data !== null && response.data !== undefined) {
         return { success: true, data: response.data as T };
       }
-      return { success: false, error: response.error || response.message || 'Operation failed' };
+      return { success: false, error: response.error || response.message || i18n.t('uiCommon.requests.operation_failed') };
     } catch (error) {
       return { success: false, error: String(error) };
     }
@@ -37,7 +38,7 @@ export class BaseModel {
         if (response.success && response.data !== null) {
           return { success: true, data: response.data as T };
         }
-        return { success: false, error: response.error || 'Operation failed' };
+        return { success: false, error: response.error || i18n.t('uiCommon.requests.operation_failed') };
       }
       return { success: false, error: result.reason };
     });
@@ -58,6 +59,6 @@ export class BaseModel {
         }
       };
     }
-    return { success: false, error: response.error || 'Failed to fetch data' };
+    return { success: false, error: response.error || i18n.t('uiCommon.requests.fetch_failed') };
   }
 }

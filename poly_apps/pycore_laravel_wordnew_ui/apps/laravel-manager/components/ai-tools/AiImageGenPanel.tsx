@@ -16,6 +16,7 @@ import {
   ImagePlus, RefreshCcw, Sparkles, AlertTriangle, Timer, Download,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { useToast } from '../admin';
 import { appendLog } from '@/core/logstore/logStore';
 import type { AiProvider, AiImageResult } from '@/apps/laravel-manager/api';
@@ -28,14 +29,15 @@ const selectCls = `${commonClasses.select} !py-2 text-xs font-mono disabled:opac
 
 /** Aspect-ratio sizes accepted by the unified image contract. */
 const SIZES = [
-  { id: '1:1', label: 'Square (1:1)' },
-  { id: '16:9', label: 'Landscape (16:9)' },
-  { id: '9:16', label: 'Portrait (9:16)' },
-  { id: '4:3', label: 'Standard (4:3)' },
+  { id: '1:1', key: 'square' },
+  { id: '16:9', key: 'landscape' },
+  { id: '9:16', key: 'portrait' },
+  { id: '4:3', key: 'standard' },
 ];
 
 const AiImageGenPanel: React.FC = () => {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [providers, setProviders] = useState<AiProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,30 +101,30 @@ const AiImageGenPanel: React.FC = () => {
         setResult(res.data);
         appendLog('success', 'ai',
           `Image generated via ${res.data.provider}/${res.data.model} (${Math.round(res.data.latency_ms ?? 0)}ms) · saved to history`);
-        toast.success(`Image generated via ${res.data.provider}`, 'Image gen');
+        toast.success(t('uiAi.image_gen.generated_via', { provider: res.data.provider }), t('uiAi.image_gen.title'));
       } else {
-        const msg = res.data?.error || res.error || 'Image generation failed';
+        const msg = res.data?.error || res.error || t('uiAi.image_gen.generation_failed');
         setError(msg);
-        toast.error(msg, 'Image gen');
+        toast.error(msg, t('uiAi.image_gen.title'));
         appendLog('error', 'ai', `Image gen failed: ${msg}`);
       }
     } catch (e: any) {
-      const msg = e?.message || 'Image generation failed';
+      const msg = e?.message || t('uiAi.image_gen.generation_failed');
       setError(msg);
-      toast.error(msg, 'Image gen');
+      toast.error(msg, t('uiAi.image_gen.title'));
     } finally {
       setGenerating(false);
     }
-  }, [prompt, size, provider, model, generating, toast]);
+  }, [prompt, size, provider, model, generating, toast, t]);
 
   const dataUri = result ? `data:${result.mime || 'image/png'};base64,${result.image_base64}` : null;
 
   return (
     <ToolWrapper
-      title="Image Gen"
+      title={t('uiAi.image_gen.title')}
       icon={ImagePlus}
       gradient="violet"
-      description="Generate an image through the unified gateway"
+      description={t('uiAi.image_gen.description')}
       actions={
         <button
           onClick={() => void loadCatalog()}
@@ -130,24 +132,24 @@ const AiImageGenPanel: React.FC = () => {
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
         >
           <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Reload providers
+          {t('uiAi.image_gen.reload_providers')}
         </button>
       }
     >
       <div className="space-y-4 sm:space-y-5">
-        <AiBentoCard title="Image Gen">
+        <AiBentoCard title={t('uiAi.image_gen.title')}>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-            Describe an image; the gateway routes to an image-capable provider. Every result is auto-saved to the shared Image History.
+            {t('uiAi.image_gen.intro')}
           </p>
 
           <div className="space-y-4">
             <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Prompt</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.image_gen.prompt')}</span>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={3}
-                placeholder="A misty mountain lake at sunrise, cinematic, ultra detailed…"
+                placeholder={t('uiAi.image_gen.prompt_placeholder')}
                 disabled={generating}
                 className={`${commonClasses.textarea} text-xs disabled:opacity-50`}
               />
@@ -155,21 +157,21 @@ const AiImageGenPanel: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Size</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.image_gen.size')}</span>
                 <select value={size} onChange={(e) => setSize(e.target.value)} disabled={generating} className={selectCls}>
-                  {SIZES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  {SIZES.map((s) => <option key={s.id} value={s.id}>{t(`uiAi.image_gen.sizes.${s.key}`)}</option>)}
                 </select>
               </label>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Provider</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.image_gen.provider')}</span>
                 <select
                   value={provider}
                   onChange={(e) => { setProvider(e.target.value); setModel(''); }}
                   disabled={generating}
                   className={selectCls}
                 >
-                  <option value="auto">Auto (smart dispatch)</option>
+                  <option value="auto">{t('uiAi.image_gen.auto_option')}</option>
                   {imageProviders.map((p) => (
                     <option key={p.name} value={p.name}>{p.name}</option>
                   ))}
@@ -177,14 +179,14 @@ const AiImageGenPanel: React.FC = () => {
               </label>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Model</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.image_gen.model')}</span>
                 <select
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   disabled={generating || !selectedProvider || (selectedProvider.models?.length ?? 0) === 0}
                   className={selectCls}
                 >
-                  <option value="">{selectedProvider?.image_model ? `default (${selectedProvider.image_model})` : 'default'}</option>
+                  <option value="">{selectedProvider?.image_model ? t('uiAi.image_gen.default_model_named', { model: selectedProvider.image_model }) : t('uiAi.image_gen.default_model')}</option>
                   {(selectedProvider?.models ?? []).map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
@@ -199,7 +201,7 @@ const AiImageGenPanel: React.FC = () => {
                 className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
               >
                 {generating ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                {generating ? 'Generating…' : 'Generate'}
+                {generating ? t('uiAi.image_gen.generating') : t('uiAi.image_gen.generate')}
               </button>
               {result && (
                 <span className="inline-flex items-center gap-2 text-[11px] font-mono text-slate-500 dark:text-slate-400">
@@ -225,7 +227,7 @@ const AiImageGenPanel: React.FC = () => {
         </AiBentoCard>
 
         {dataUri && (
-          <AiBentoCard title="Result">
+          <AiBentoCard title={t('uiAi.image_gen.result')}>
             <div className="flex flex-col items-center gap-3">
               <img
                 src={dataUri}
@@ -237,10 +239,10 @@ const AiImageGenPanel: React.FC = () => {
                 download={`ai-image-${Date.now()}.${(result?.mime || 'image/png').split('/')[1] || 'png'}`}
                 className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs flex items-center gap-1.5`}
               >
-                <Download className="w-3.5 h-3.5" /> Download
+                <Download className="w-3.5 h-3.5" /> {t('uiAi.image_gen.download')}
               </a>
               <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
-                Auto-saved to the shared Image History.
+                {t('uiAi.image_gen.auto_saved')}
               </p>
             </div>
           </AiBentoCard>

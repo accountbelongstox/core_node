@@ -42,7 +42,7 @@ export interface TreeResult {
 export interface ResourceSource {
   id: ResourceSourceId;
   /** Human label for the tree panel header. */
-  label: string;
+  labelKey: string;
 
   // Capability flags consumed by FileTreePanel/FileViewer for show/hide + gating.
   requiresLogin: boolean; // does browsing/reading itself require login? (code=true)
@@ -128,7 +128,7 @@ const okTree = (data: any, sourceId: ResourceSourceId): TreeResult => {
 /** Static media resources adapter (all access requires login). */
 const StaticResourceSource: ResourceSource = {
   id: 'files',
-  label: 'Static Resources',
+  labelKey: 'uiCommon.media.source_files',
   requiresLogin: true,
   canUpload: true,
   canEdit: true,
@@ -177,7 +177,7 @@ const StaticResourceSource: ResourceSource = {
 /** Project source-code adapter (login-gated, lazy, browse + read + edit only). */
 const CodeSource: ResourceSource = {
   id: 'code',
-  label: 'Code',
+  labelKey: 'uiCommon.media.source_code',
   requiresLogin: true,
   canUpload: false,
   canEdit: true,

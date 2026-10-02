@@ -29,6 +29,8 @@ export interface BackendApiEndpoint {
   priority: number;
   isLocal: boolean;
   description: string;
+  /** Health probe budget of this endpoint (overrides the end's default). */
+  probeTimeoutMs?: number;
 }
 
 export interface ApiEndpointsConfig {
@@ -59,6 +61,7 @@ function getDomainApiEndpoints(): BackendApiEndpoint[] {
     priority: index,
     isLocal: false,
     description: domain,
+    probeTimeoutMs: NETWORK_TIMEOUTS.remoteHealthProbeTimeoutMs,
   }));
 }
 

@@ -416,7 +416,10 @@ class WordNewOrchComposerService {
         sources: scopeOrchClipSources(planScope),
         onPlan: async (plan) => {
           if (!task.config.book) return;
-          planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, planCoveredKeys(plan)).catch(() => null);
+          planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, planCoveredKeys(plan)).catch((error: unknown) => {
+            console.warn('[BookPlan] ensurePlan failed', error);
+            return null;
+          });
           if (planScope.current) wordNewBookAudioPlan.onNewReady(task.id, () => { void this.planReady(task.id); });
         },
         durations: wordNewOrchClipStore,

@@ -5,6 +5,7 @@ import type {
   DataSyncStartRequest,
 } from '../api/modules/DatabaseManagerAPI';
 import { AuthAPI } from '../api/modules/AuthAPI';
+import i18n from '@/apps/laravel-manager/i18n';
 import { LaravelManagerStorageKeys } from '../persistence/LaravelManagerStorageKeys';
 import { apiManager } from '../../../core/integrations/laravel/ApiManager';
 import {
@@ -210,7 +211,7 @@ export class DataSyncModel {
     const token = typeof payload?.token === 'string' && payload.token !== '' ? payload.token : null;
 
     if (!response.success || !token) {
-      const error = new Error(response.error || 'Login failed') as Error & { errorCode?: string };
+      const error = new Error(response.error || i18n.t('login.errors.default')) as Error & { errorCode?: string };
       error.errorCode = response.debugInfo?.error_code;
       throw error;
     }

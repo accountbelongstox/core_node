@@ -15,23 +15,25 @@ import {
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
 import type { AiCapabilitiesResponse } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import ToolWrapper from '@/shared/ui/ToolWrapper';
 import { commonClasses } from '@/shared/styles/theme';
 import { AiToolAlert } from '@/shared/ui/AiToolUi';
 
 /** Feature columns rendered by the matrix, in display order. */
-const COLUMNS: { key: string; label: string }[] = [
-  { key: 'text', label: 'Text' },
-  { key: 'vision', label: 'Vision' },
-  { key: 'images', label: 'Images' },
-  { key: 'audio', label: 'TTS' },
-  { key: 'transcription', label: 'STT' },
-  { key: 'embeddings', label: 'Embed' },
-  { key: 'reranking', label: 'Rerank' },
-  { key: 'files', label: 'Files' },
+const COLUMNS: { key: string }[] = [
+  { key: 'text' },
+  { key: 'vision' },
+  { key: 'images' },
+  { key: 'audio' },
+  { key: 'transcription' },
+  { key: 'embeddings' },
+  { key: 'reranking' },
+  { key: 'files' },
 ];
 
 const AiCapabilitiesPanel: React.FC = () => {
+  const { t } = useTranslation();
   const [data, setData] = useState<AiCapabilitiesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,14 +46,14 @@ const AiCapabilitiesPanel: React.FC = () => {
         setData(res.data);
         setError(null);
       } else {
-        setError(res.error || 'capabilities unavailable');
+        setError(res.error || t('uiAi.capabilities.unavailable'));
       }
     } catch (e: any) {
-      setError(e?.message || 'capabilities unavailable');
+      setError(e?.message || t('uiAi.capabilities.unavailable'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -61,10 +63,10 @@ const AiCapabilitiesPanel: React.FC = () => {
 
   return (
     <ToolWrapper
-      title="Laravel AI Capabilities"
+      title={t('uiAi.capabilities.title')}
       icon={Sparkles}
       gradient="violet"
-      description="Official Laravel AI SDK feature matrix — available whether or not a key is configured"
+      description={t('uiAi.capabilities.description')}
       actions={
         <button
           onClick={() => void load()}
@@ -72,17 +74,14 @@ const AiCapabilitiesPanel: React.FC = () => {
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
         >
           <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('uiAi.capabilities.refresh')}
         </button>
       }
     >
       <div className="space-y-4 sm:space-y-5">
         <AiToolAlert variant="info">
           <span className="break-words leading-relaxed">
-            This is the official Laravel AI SDK ({data?.sdk || 'laravel/ai'}) surface: agents with
-            conversations, vision input, image generation, TTS/STT, embeddings, reranking and files.
-            Every provider is listed even without a key — set one in Provider API Keys to enable it.
-            The chat interface below dispatches through this SDK with automatic failover.
+            {t('uiAi.capabilities.info', { sdk: data?.sdk || 'laravel/ai' })}
           </span>
         </AiToolAlert>
 
@@ -97,7 +96,7 @@ const AiCapabilitiesPanel: React.FC = () => {
 
         {loading && !data ? (
           <div className="text-xs text-slate-500 py-6 text-center flex items-center justify-center gap-2">
-            <RefreshCcw className="w-4 h-4 animate-spin text-slate-400" /> Loading capabilities…
+            <RefreshCcw className="w-4 h-4 animate-spin text-slate-400" /> {t('uiAi.capabilities.loading')}
           </div>
         ) : data && (
           <>
@@ -107,7 +106,7 @@ const AiCapabilitiesPanel: React.FC = () => {
                 provider ? (
                   <span
                     key={kind}
-                    title={`Default ${kind} provider`}
+                    title={t('uiAi.capabilities.default_provider_title', { kind })}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium
                                bg-violet-500/8 border border-violet-400/20 text-slate-500 dark:text-slate-400"
                   >
@@ -121,12 +120,12 @@ const AiCapabilitiesPanel: React.FC = () => {
               <table className="w-full text-xs border-collapse min-w-[640px]">
                 <thead>
                   <tr className="text-left text-[10px] uppercase tracking-wider text-slate-400">
-                    <th className="py-2 pr-3 font-semibold">Provider</th>
-                    <th className="py-2 pr-3 font-semibold">Key</th>
+                    <th className="py-2 pr-3 font-semibold">{t('uiAi.capabilities.col_provider')}</th>
+                    <th className="py-2 pr-3 font-semibold">{t('uiAi.capabilities.col_key')}</th>
                     {COLUMNS.map((c) => (
-                      <th key={c.key} className="py-2 px-1.5 font-semibold text-center" title={c.label}>{c.label}</th>
+                      <th key={c.key} className="py-2 px-1.5 font-semibold text-center" title={t(`uiAi.capabilities.columns.${c.key}`)}>{t(`uiAi.capabilities.columns.${c.key}`)}</th>
                     ))}
-                    <th className="py-2 pl-3 font-semibold">Default model</th>
+                    <th className="py-2 pl-3 font-semibold">{t('uiAi.capabilities.col_default_model')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -147,13 +146,13 @@ const AiCapabilitiesPanel: React.FC = () => {
                           {p.configured ? (
                             <span
                               className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-600 dark:text-emerald-400"
-                              title={p.key_masked ?? 'configured'}
+                              title={p.key_masked ?? t('uiAi.capabilities.configured')}
                             >
-                              <KeyRound className="w-3 h-3" />{p.key_masked ?? 'set'}
+                              <KeyRound className="w-3 h-3" />{p.key_masked ?? t('uiAi.capabilities.key_set')}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
-                              <Minus className="w-3 h-3" /> no key
+                              <Minus className="w-3 h-3" /> {t('uiAi.capabilities.no_key')}
                             </span>
                           )}
                         </td>

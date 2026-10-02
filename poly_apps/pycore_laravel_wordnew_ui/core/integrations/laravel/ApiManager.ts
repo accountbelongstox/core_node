@@ -203,7 +203,8 @@ class ApiManager {
     endpoint: BackendApiEndpoint,
     options: { timeout?: number } = {}
   ): Promise<HealthCheckResult> {
-    const timeout = options.timeout ?? GLOBAL_API_ENDPOINTS.timeout;
+    // A slow public backend keeps its own longer budget; a fast tailnet/local one keeps the short default.
+    const timeout = endpoint.probeTimeoutMs ?? options.timeout ?? GLOBAL_API_ENDPOINTS.timeout;
     const startTime = performance.now();
     const baseURL = buildApiUrl(endpoint);
 
