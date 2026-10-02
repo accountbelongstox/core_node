@@ -8,7 +8,11 @@ use Illuminate\Support\Facades\Schema;
 class McpV1VoiceSubtitleUserSettingsModel extends McpV1Model
 {
     protected $guarded = [];
-    protected $table = McpV1TablesMaps::VOICE_SUBTITLE_USER_SETTINGS_TABLE;
+
+    public function getTable(): string
+    {
+        return McpV1TablesMaps::voiceSubtitleUserSettingsTable();
+    }
 
     public static function findForUser(string $userIdentifier): ?self
     {

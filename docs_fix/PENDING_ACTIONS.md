@@ -12,7 +12,7 @@ Run together: the relay contract digest and the lease/gap schema changed, so Lar
 2. On the Laravel server: `git pull`.
 3. `php artisan sys:init`. It applies the pending migrations and self-heals:
    - `database/migrations/AppQyV1_2026_10_02_000001_add_media_gap_partial_indexes.php` (media gap and lease indexes);
-   - `database/migrations/AppQyV1_2026_10_02_000002_ensure_hot_path_gap_lease_indexes.php` (word and sentence gap, failed-free lease claim, lease expiry and failed indexes for every aligned language; built `CONCURRENTLY` outside a transaction, so writes continue; a rerun repairs an interrupted build);
+   - `database/migrations/AppQyV1_2026_10_02_000002_ensure_hot_path_gap_lease_indexes.php` (word and sentence gap, failed-free lease claim, lease expiry and failed indexes for every language, each index once its columns exist (the sys:init alignment builds the rest); built `CONCURRENTLY` outside a transaction, so writes continue; a rerun repairs an interrupted build);
    - `database/migrations/global_Relay_2026_10_01_000001_create_relay_ledger_table.php` (`global_relay_ledger`).
 4. Restart the FrankenPHP/Octane workers: systemd unit `ncore-laravel-frankenphp` (contracts are cached per worker); `php artisan optimize:clear` when config/route caches are used.
 5. Run step 175 once on the server (book seed).
