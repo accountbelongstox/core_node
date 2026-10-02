@@ -16,17 +16,16 @@
  */
 import {
   SERVICE_CONTRACT_URL_ENTRIES,
-  TAILNET_DNS_SUFFIX,
   TAILNET_PEERS_FILE_NAME,
   TAILNET_PEERS_ROUTE,
   TAILNET_PYCORE_PATH,
 } from '../contracts/ServiceContract';
 import { EMPTY_TAILNET_PEERS, type TailnetPeer, type TailnetPeersDocument } from '../contracts/TailnetPeers';
+import { resolveMeshUrl, tailnetDomainOf } from '../contracts/MeshDomain';
 import { isNativeAppShell } from './NativeShell';
 import { protocolFetch } from './ProtocolFetch';
 
 const DISCOVERY_TIMEOUT_MS = 5_000;
-const TAILNET_HOST_SUFFIX = `.${TAILNET_DNS_SUFFIX.toLowerCase()}`;
 
 type TailnetListener = (document: TailnetPeersDocument) => void;
 
@@ -62,11 +61,11 @@ function buildSeed(): TailnetPeersDocument {
   return { tailnet: seed.tailnet, peers: seed.peers.map((peer) => ({ ...peer, self: keepSelf && peer.self })) };
 }
 
-/** `https://<machine>.<tailnet>.ts.net` of a URL on the tailnet; '' otherwise. */
+/** `https://<machine>.<tailnet domain>` of a URL on the tailnet; '' otherwise. */
 function tailnetOrigin(url: string): string {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'https:' && parsed.hostname.toLowerCase().endsWith(TAILNET_HOST_SUFFIX)
+    return parsed.protocol === 'https:' && tailnetDomainOf(parsed.hostname)
       ? parsed.origin
       : '';
   } catch {
@@ -88,7 +87,7 @@ function discoveryUrls(): string[] {
     return onTailnet ? publisherUrls('') : [`/${TAILNET_PEERS_FILE_NAME}`];
   }
   const origins = new Set<string>(registeredOrigins);
-  SERVICE_CONTRACT_URL_ENTRIES.forEach((entry) => {
+  getServiceUrlEntries().forEach((entry) => {
     const origin = tailnetOrigin(entry.url);
     if (origin) origins.add(origin);
   });
@@ -127,6 +126,11 @@ function mergeDocuments(documents: TailnetPeersDocument[]): TailnetPeersDocument
 
 export function getTailnetPeers(): TailnetPeersDocument {
   return current;
+}
+
+/** Contract URL entries on the live tailnet domain (the active mesh provider's), else the default provider's. */
+export function getServiceUrlEntries(): { key: string; label: string; url: string }[] {
+  return SERVICE_CONTRACT_URL_ENTRIES.map((entry) => ({ ...entry, url: resolveMeshUrl(entry.url, current.tailnet) }));
 }
 
 /** Machines that can serve an API (phones excluded). */

@@ -4,6 +4,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
 source "$SCRIPT_DIR/mesh_common.sh"
 source "$SCRIPT_DIR/arrow_menu.sh"
+source "$SCRIPT_DIR/install_item_runner.sh"
 
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
 
@@ -246,6 +247,8 @@ cycle_value() {
 
 # Save configuration
 save_configuration() {
+    local run_item="${1:-}"
+
     # Save all menu item current values
     for key in "${menu_keys[@]}"; do
         case "$key" in
@@ -271,42 +274,86 @@ save_configuration() {
     done
     
     echo "Configuration saved to $GLOBAL_VAR_DIR"
-    echo "Starting installation..."
+    if [ -n "$run_item" ]; then
+        set_global_var "$RUN_ITEM_VAR" "$run_item"
+        echo "Running only item: $run_item"
+    else
+        echo "Starting installation..."
+    fi
     exit 0
+}
+
+# Resolve a typed choice (1-N or the bracket key, e.g. R) to a MENU_CONFIG key
+resolve_menu_choice() {
+    local choice="$1"
+    local i=0
+    local menu_char=""
+
+    if [[ "$choice" =~ ^[0-9]+$ ]]; then
+        i=$((choice - 1))
+        if [ "$i" -ge 0 ] && [ "$i" -lt "${#menu_keys[@]}" ]; then
+            echo "${menu_keys[$i]}"
+            return 0
+        fi
+        return 1
+    fi
+    for i in "${!menu_names[@]}"; do
+        menu_char="${menu_names[$i]#\[}"
+        menu_char="${menu_char%%\]*}"
+        if [ "${menu_char,,}" = "${choice,,}" ]; then
+            echo "${menu_keys[$i]}"
+            return 0
+        fi
+    done
+    return 1
 }
 
 # Show final confirmation
 confirm_configuration() {
+    local choice=""
+    local item_key=""
+    local number=0
+
     clear
     echo "  Confirm Configuration"
     echo ""
     
     for i in "${!menu_names[@]}"; do
         local key="${menu_keys[$i]}"
-        echo "${menu_names[$i]}: ${current_values[$key]}"
+        number=$((i + 1))
+        echo "${number}. ${menu_names[$i]}: ${current_values[$key]}"
     done
     
     echo ""
-    echo "Enter=Start installation, B=Go back to edit, Q=Quit without saving"
-    echo "Installation will start automatically in 10 seconds..."
-    local confirm_key=""
-    read -rsn1 -t 10 confirm_key || confirm_key=""
-    case "$confirm_key" in
-        [bB])
-            echo ""
-            echo "Returning to configuration menu."
-            sleep 1
-            return 0
-            ;;
-        [qQ])
-            echo ""
-            echo "Exiting without saving."
-            exit "$CANCEL_RETURN_EXIT_CODE"
-            ;;
-        *)
-            save_configuration
-            ;;
-    esac
+    echo "Enter=Start full installation, 1-${#menu_names[@]} or item key (e.g. R)=run only that item, B=Go back to edit, Q=Quit without saving"
+    echo "Full installation will start automatically in 10 seconds..."
+    while true; do
+        choice=""
+        read -r -t 10 -p "> " choice || choice=""
+        choice="${choice//[[:space:]]/}"
+        case "$choice" in
+            "")
+                save_configuration
+                ;;
+            [bB])
+                echo ""
+                echo "Returning to configuration menu."
+                sleep 1
+                return 0
+                ;;
+            [qQ])
+                echo ""
+                echo "Exiting without saving."
+                exit "$CANCEL_RETURN_EXIT_CODE"
+                ;;
+            *)
+                if item_key="$(resolve_menu_choice "$choice")"; then
+                    save_configuration "$item_key"
+                fi
+                echo "Invalid choice: $choice"
+                ;;
+        esac
+    done
 }
 
 # Main Program Entry Point

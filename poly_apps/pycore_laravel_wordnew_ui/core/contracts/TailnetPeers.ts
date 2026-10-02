@@ -3,7 +3,7 @@
  * `tailscale status` (shape shared by the node middleware and the browser).
  */
 export interface TailnetPeer {
-  /** MagicDNS name without the trailing dot: <machine>.<tailnet>.ts.net */
+  /** MagicDNS name without the trailing dot: <machine>.<tailnet domain> */
   dnsName: string;
   hostName: string;
   os: string;
@@ -13,7 +13,7 @@ export interface TailnetPeer {
 }
 
 export interface TailnetPeersDocument {
-  /** MagicDNS suffix of the tailnet (e.g. example.ts.net); empty without Tailscale. */
+  /** MagicDNS domain of the active mesh provider (e.g. example.ts.net, mesh.si.12gm.com); empty without one. */
   tailnet: string;
   peers: TailnetPeer[];
 }

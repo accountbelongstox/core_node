@@ -9,8 +9,8 @@ import {
   LARAVEL_API_BACKEND_PORT,
   TAILNET_API_LABEL,
   TAILNET_API_PATH,
-  TAILNET_DNS_SUFFIX,
 } from '../../contracts/ServiceContract';
+import { tailnetDomainOf } from '../../contracts/MeshDomain';
 import { getTailnetServerPeers } from '../../network/TailnetDiscovery';
 import { StorageManager } from '../../persistence';
 import { isLoopbackHost, isPrivateHost } from '../../network/hostDetection';
@@ -65,7 +65,7 @@ function getDomainApiEndpoints(): BackendApiEndpoint[] {
   }));
 }
 
-/** `https://<machine>.<tailnet>.ts.net/laravel-api` of every tailnet machine (static in a build, live in dev). */
+/** `https://<machine>.<tailnet domain>/laravel-api` of every tailnet machine (static in a build, live in dev). */
 function getTailnetApiEndpoints(): BackendApiEndpoint[] {
   return getTailnetServerPeers().map((peer, index): BackendApiEndpoint => ({
     id: tailnetEndpointId(peer.dnsName),
@@ -88,10 +88,10 @@ function createCurrentOriginEndpoint(
 ): BackendApiEndpoint {
   const isLocal = isLocalHostname(hostname);
 
-  // Tailnet origin (<machine>.<tailnet>.ts.net): Laravel main is reverse
+  // Tailnet origin (<machine>.<tailnet domain>): Laravel main is reverse
   // proxied on the same trusted name under the tailnet API path.
   const tailnetHost = hostname.trim().toLowerCase().replace(/\.$/, '');
-  if (protocol === 'https' && tailnetHost.endsWith(`.${TAILNET_DNS_SUFFIX}`)) {
+  if (protocol === 'https' && tailnetDomainOf(tailnetHost)) {
     const machineHost = tailnetHost.startsWith(`${TAILNET_API_LABEL}.`)
       ? tailnetHost.slice(TAILNET_API_LABEL.length + 1)
       : tailnetHost;

@@ -4,7 +4,7 @@
  * Every endpoint has an explicit kind, fixed by the contract (never guessed):
  *   - direct: `http://<loopback>:59000` - only from a loopback page on the
  *     pycore machine (K7a).
- *   - proxy:  `https://<machine>.<tailnet>.ts.net<pycore_path>` - the 175
+ *   - proxy:  `https://<machine>.<tailnet domain><pycore_path>` - the 175
  *     FrankenPHP tailnet mount of that machine's loopback pycore; offered for
  *     every live tailnet machine (discovered, never static) to loopback pages
  *     and pages of the same tailnet.
@@ -19,16 +19,15 @@ import {
 import { RELAY_CONTRACT } from '../../contracts/RelayContract';
 import {
   NEXUS_DASH_FRONTEND_PORT,
-  SERVICE_CONTRACT_URL_ENTRIES,
-  TAILNET_DNS_SUFFIX,
   TAILNET_PYCORE_LEGACY_PATHS,
   TAILNET_PYCORE_PATH,
 } from '../../contracts/ServiceContract';
+import { tailnetDomainOf } from '../../contracts/MeshDomain';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
-import { getTailnetServerPeers } from '../../network/TailnetDiscovery';
+import { getServiceUrlEntries, getTailnetServerPeers } from '../../network/TailnetDiscovery';
 import { isNativeAppShell } from '../../network/NativeShell';
 import { isLoopbackHost } from '../../network/hostDetection';
 
@@ -61,7 +60,6 @@ const PYCORE_DASHBOARD_ORIGIN_PORTS = [String(NEXUS_DASH_FRONTEND_PORT), String(
 const mountPath = (path: string): string => `/${path.replace(/^\/+|\/+$/g, '')}`;
 const PROXY_PATH = mountPath(TAILNET_PYCORE_PATH);
 const LEGACY_PROXY_PATHS = new Set(TAILNET_PYCORE_LEGACY_PATHS.map(mountPath));
-const TAILNET_SUFFIX = `.${TAILNET_DNS_SUFFIX.toLowerCase()}`;
 const RECENT_LIMIT = 6;
 
 function parseBackendUrl(url: string): URL | null {
@@ -81,19 +79,11 @@ export function isPycoreLoopbackHost(host: string): boolean {
   return isLoopbackHost(host);
 }
 
-export { isNativeAppShell };
+export { isNativeAppShell, tailnetDomainOf };
 
 /** A native shell's `localhost` names the phone, never a pycore machine. */
 export function isLoopbackPage(): boolean {
   return !isNativeAppShell() && typeof location !== 'undefined' && isPycoreLoopbackHost(location.hostname);
-}
-
-/** `<tailnet>.ts.net` of a `<machine>.<tailnet>.ts.net` host; '' otherwise. */
-export function tailnetDomainOf(hostname: string): string {
-  const host = String(hostname || '').toLowerCase();
-  if (!host.endsWith(TAILNET_SUFFIX)) return '';
-  const labels = host.split('.');
-  return labels.length >= 3 ? labels.slice(1).join('.') : '';
 }
 
 function pageTailnetDomain(): string {
@@ -398,7 +388,7 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
   if (isLoopbackPage()) {
     candidates.push({ kind: 'direct', url: directEndpointUrl(localPycoreHost()), label: localPycoreHost(), source: 'this_machine' });
   }
-  SERVICE_CONTRACT_URL_ENTRIES.forEach((entry) => {
+  getServiceUrlEntries().forEach((entry) => {
     const endpoint = contractMachineEndpoint(entry);
     if (endpoint) candidates.push(endpoint);
   });

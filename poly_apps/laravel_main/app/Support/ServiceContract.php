@@ -315,25 +315,52 @@ final class ServiceContract
     /**
      * CORS origin patterns for every machine of this machine's own tailnet: a UI page
      * opened on one machine calls the other machines' Laravel. The tailnet is taken
-     * from this machine's MagicDNS name in the web access hosts, so other tailnets
-     * sharing the public suffix are never allowed.
+     * from this machine's MagicDNS name in the web access hosts (any mesh provider:
+     * Tailscale or Headscale), so other tailnets sharing a public suffix are never allowed.
      */
     public static function tailnetCorsOriginPatterns(): array
     {
-        $dnsSuffix = strtolower(self::string('access.tailnet.dns_suffix'));
-        $tailnets = [];
-        foreach (self::webAccessStringList('allowedHosts') as $host) {
-            $host = strtolower($host);
-            $labels = explode('.', $host);
-            if (count($labels) >= 3 && str_ends_with($host, '.'.$dnsSuffix)) {
-                $tailnets[] = implode('.', array_slice($labels, 1));
-            }
-        }
+        $tailnets = array_filter(array_map(
+            static fn (string $host): string => self::tailnetDomainOf($host),
+            self::webAccessStringList('allowedHosts'),
+        ));
 
         return array_values(array_map(
             static fn (string $tailnet): string => '#^https?://[a-z0-9-]+\.'.preg_quote($tailnet, '#').'(:\d+)?$#',
             array_unique($tailnets),
         ));
+    }
+
+    /**
+     * The tailnet domain of a `[api.]<machine>.<tailnet domain>` host for any mesh
+     * provider's contract template (access.mesh.<provider>.domain_labels); '' otherwise.
+     * Aligned with core/contracts/MeshDomain.ts tailnetDomainOf.
+     */
+    public static function tailnetDomainOf(string $host): string
+    {
+        $host = rtrim(strtolower(trim($host)), '.');
+        $dnsLabel = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+        $roots = '(?:'.implode('|', array_map(
+            static fn (string $root): string => preg_quote($root, '#'),
+            self::stringList('access.root_domains'),
+        )).')';
+        $apiLabel = preg_quote(self::string('access.tailnet.api_label'), '#');
+
+        foreach (['headscale', 'tailscale'] as $provider) {
+            $domainPattern = implode('\.', array_map(
+                static fn (string $label): string => match (true) {
+                    $label === '{root}' => $roots,
+                    (bool) preg_match('/^\{\w+\}$/', $label) => $dnsLabel,
+                    default => preg_quote($label, '#'),
+                },
+                self::stringList("access.mesh.{$provider}.domain_labels"),
+            ));
+            if (preg_match("#^(?:{$apiLabel}\.)?{$dnsLabel}\.({$domainPattern})$#", $host, $match) === 1) {
+                return $match[1];
+            }
+        }
+
+        return '';
     }
 
     public static function laravelApiBackendUrl(): string

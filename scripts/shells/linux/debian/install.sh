@@ -8,88 +8,8 @@ SHELLS_DIR="$PARENT_DIR"
 source "${PARENT_DIR}/common/gvar_common.sh"
 
 selector_common_file="${SHELLS_DIR}/common/selector_common.sh"
-INSTALL_SHELLS_DIR="${SCRIPT_CURRENT_DIR}/install_shells"
+source "${PARENT_DIR}/common/install_item_runner.sh"
 echo "INSTALL_SHELLS_DIR: $INSTALL_SHELLS_DIR"
-
-# Function to read with timeout and default
-read_with_timeout() {
-    local prompt="$1"
-    local default="$2"
-    local timeout="$3"
-    local reply
-
-    # Read with timeout in background
-    read -t "$timeout" -p "$prompt" reply &
-
-    # Show countdown
-    for ((i = timeout; i > 0; i--)); do
-        printf "\r%s (auto-%s in %ds) " "$prompt" "$default" "$i"
-        sleep 1
-    done
-    printf "\r%s (auto-%s)     \n" "$prompt" "$default"
-
-    # Get the reply or use default
-    if [ -z "$reply" ]; then
-        reply="$default"
-    fi
-
-    echo "$reply"
-}
-
-# Function to find and sort installation scripts
-get_installation_scripts() {
-    local scripts=()
-    if [ -d "$INSTALL_SHELLS_DIR" ]; then
-        while IFS= read -r -d $'\0' file; do
-            local filename=$(basename "$file")
-            # Extract the leading number (1_ or 100_ format)
-            if [[ $filename =~ ^([0-9]+)_ ]]; then
-                local prefix=${BASH_REMATCH[1]}
-                scripts+=("$prefix:$file")
-            fi
-        done < <(find "$INSTALL_SHELLS_DIR" -maxdepth 1 -name "*.sh" -print0)
-
-        # Sort scripts by numeric prefix
-        IFS=$'\n' sorted=($(sort -n -t: -k1 <<<"${scripts[*]}"))
-        unset IFS
-
-        # Extract just the file paths
-        local result=()
-        for item in "${sorted[@]}"; do
-            result+=("${item#*:}")
-        done
-        echo "${result[@]}"
-    else
-        echo ""
-    fi
-}
-
-# Function to execute installation scripts
-execute_installation_scripts() {
-    local scripts=($(get_installation_scripts))
-
-    echo  "INSTALL_SHELLS_DIR : $INSTALL_SHELLS_DIR"
-    if [ ${#scripts[@]} -eq 0 ]; then
-        echo "No installation scripts found in $INSTALL_SHELLS_DIR"
-        return
-    fi
-
-    echo "The following installation scripts will be executed in order:"
-    for script in "${scripts[@]}"; do
-        echo "  - $(basename "$script")"
-    done
-    echo
-
-    for script in "${scripts[@]}"; do
-        echo
-        echo "Executing: $(basename "$script")"
-        if [ ! -x "$script" ]; then
-            chmod +x "$script"
-        fi
-        "$script" 
-    done
-}
-
 
 # Main execution
 echo "Core Node Installation Script"
@@ -114,6 +34,17 @@ echo "Services will be installed, START_* variables control service startup..."
 # unattended: every prompt_read_default call returns its documented default
 # immediately instead of waiting on the TTY.
 export DD_AUTO_CONTINUE=true
+
+run_item_key="$(get_var "$RUN_ITEM_VAR" "")"
+if [ -n "$run_item_key" ]; then
+    set_var "$RUN_ITEM_VAR" ""
+    run_item_file="$(find_item_file "$run_item_key")" || {
+        echo "No menu item file for: $run_item_key" >&2
+        exit 1
+    }
+    "$run_item_file"
+    exit $?
+fi
 
 execute_installation_scripts
 

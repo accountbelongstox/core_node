@@ -22,6 +22,11 @@ LARAVEL_WORKER_API_URL = (
 # Same catalog as the UI (service_contract laravel_api_catalog_urls), the
 # runtime default first.
 LARAVEL_WORKER_API_URLS = tuple(dict.fromkeys([LARAVEL_WORKER_API_URL, *laravel_api_catalog_urls()]))
+
+
+def laravel_worker_api_urls(mesh_domain_value: str = "") -> tuple:
+    """The catalog with mesh machine entries on the given (live) tailnet domain."""
+    return tuple(dict.fromkeys([LARAVEL_WORKER_API_URL, *laravel_api_catalog_urls(mesh_domain_value)]))
 PYCORE_WORKER_INSTANCE = ""
 TRAY_BACKEND = "native"
 UI_ENABLE_TRAY = TRAY_BACKEND == "pyside"
