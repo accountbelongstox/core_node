@@ -370,6 +370,48 @@ class TerminalStateRepository:
         return "" if content_kind == "draft" else None
 
     @serialized_method
+    @_transactional_store_method
+    def remove_offline_terminal(
+        self,
+        platform_name: str,
+        live_windows: List[Dict[str, Any]],
+        terminal_number: int,
+    ) -> Dict[str, Any]:
+        """Delete every stored key of an offline terminal and of the records merged into it
+        (they would otherwise resurface as offline windows once their merge target is gone)."""
+        values, records, _next_number = self._scan_records()
+        if terminal_number not in records:
+            return {"success": False, "error_code": "terminal_state_not_found"}
+        live_keys = {window_key(platform_name, window) for window in live_windows}
+        if str(records[terminal_number].get("window_key") or "") in live_keys:
+            return {"success": False, "error_code": "terminal_window_online"}
+        removed_numbers = {terminal_number}
+        pending = True
+        while pending:
+            pending = False
+            for number, record in records.items():
+                merged_into = str(record.get("merged_into") or "")
+                if (
+                    number not in removed_numbers
+                    and merged_into.isdigit()
+                    and int(merged_into) in removed_numbers
+                    and str(record.get("window_key") or "") not in live_keys
+                ):
+                    removed_numbers.add(number)
+                    pending = True
+        prefixes = tuple(terminal_key(number, "") for number in removed_numbers)
+        for key in [key for key in values if key.startswith(prefixes)]:
+            self._store.delete(key)
+            values.pop(key, None)
+        for number in removed_numbers:
+            self._volatile_persisted_at.pop(number, None)
+        return {
+            "success": True,
+            "terminal_number": terminal_number,
+            "removed_terminal_numbers": sorted(removed_numbers),
+        }
+
+    @serialized_method
     def resolve_window_id(self, terminal_number: int) -> str:
         _values, records, _next_number = self._scan_records()
         record = records.get(terminal_number)

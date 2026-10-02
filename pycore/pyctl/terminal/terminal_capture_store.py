@@ -51,6 +51,22 @@ class TerminalCaptureStore:
         prune_files(self.directory, TERMINAL_CAPTURE_RETAIN_COUNT, TERMINAL_CAPTURE_RETAIN_SECONDS, "TerminalCaptureStore")
         return {"success": True, "path": str(path), "name": name, "bytes": len(data)}
 
+    def delete_terminal(self, terminal_number: int) -> int:
+        """Remove every capture of a terminal number, so a later terminal reusing it starts clean."""
+        removed = 0
+        if not self.directory.is_dir():
+            return removed
+        for path in self.directory.iterdir():
+            match = CAPTURE_NAME_PATTERN.fullmatch(path.name)
+            if match is None or int(match.group(1)) != terminal_number or not path.is_file():
+                continue
+            try:
+                path.unlink()
+                removed += 1
+            except OSError as exc:
+                ColorPrint.yellow(f"[TerminalCaptureStore] delete failed path={path}: {exc}")
+        return removed
+
     def read(self, terminal_number: int, name: str) -> Optional[str]:
         match = CAPTURE_NAME_PATTERN.fullmatch(name)
         if match is None or int(match.group(1)) != terminal_number:

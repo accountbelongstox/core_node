@@ -312,6 +312,16 @@ class TerminalScheduler:
             "expired_entry_ids": expired_entry_ids,
         }
 
+    @serialized_method
+    def drop_terminals(self, terminal_numbers: List[int]) -> int:
+        """Drop the runtime timers of removed terminals (the UI drops their JSON definitions)."""
+        removed = sum(
+            len(self._entries_by_terminal.pop(number, None) or {})
+            for number in terminal_numbers
+        )
+        THREAD_BUS.signal(WAKEUP_SIGNAL, True)
+        return removed
+
     def clear_entries(self) -> Dict[str, Any]:
         runtime_clear = self._clear_runtime_entries()
         source = self._json_repository.read()
