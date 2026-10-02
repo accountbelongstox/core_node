@@ -39,18 +39,14 @@ KIND_PRESET = "preset"
 DD_ENTRY = {PLATFORM_WINDOWS: "dd.cmd", PLATFORM_LINUX: "dd.sh"}
 PYSERVICE_ENTRY = {PLATFORM_WINDOWS: "pyservice.ps1", PLATFORM_LINUX: "pyservice.sh"}
 GITSYNC_ARGUMENT = "gitsync"
-GITSYNC_PATH_COMMAND = "gitsync"
 NO_INSTALL_ARGUMENT = "--no-install"
-# Preset combinations: (id used for the UI description, entry map, arguments, PATH command).
-# The host OS runs the repo entry by absolute path; a shell of the other OS (whose repo path
-# pycore cannot know) uses the PATH command when that script exists, else the preset has no line there.
-PRESET_COMMANDS: Tuple[Tuple[str, Dict[str, str], Tuple[str, ...], Optional[str]], ...] = (
-    ("dd_gitsync", DD_ENTRY, (GITSYNC_ARGUMENT,), GITSYNC_PATH_COMMAND),
-    ("pyservice", PYSERVICE_ENTRY, (), None),
-    ("pyservice_no_install", PYSERVICE_ENTRY, (NO_INSTALL_ARGUMENT,), None),
+# Preset combinations: (id, entry map, arguments). Prerequisite scripts install every entry
+# on PATH, so each OS runs it by name (dd.cmd / dd.sh avoid Git's and coreutils' dd).
+PRESET_COMMANDS: Tuple[Tuple[str, Dict[str, str], Tuple[str, ...]], ...] = (
+    ("dd_gitsync", DD_ENTRY, (GITSYNC_ARGUMENT,)),
+    ("pyservice", PYSERVICE_ENTRY, ()),
+    ("pyservice_no_install", PYSERVICE_ENTRY, (NO_INSTALL_ARGUMENT,)),
 )
-WINDOWS_POWERSHELL_FILE = "powershell -NoProfile -ExecutionPolicy Bypass -File"
-LINUX_SHELL = "bash"
 # The list is rebuilt only when the script directories or the repo root change
 # (adding, removing or renaming an entry updates the directory mtime).
 _cache: Dict[str, Any] = {"signature": None, "result": None}
@@ -58,25 +54,6 @@ _cache: Dict[str, Any] = {"signature": None, "result": None}
 
 def _platform() -> str:
     return PLATFORM_WINDOWS if IS_WINDOWS else PLATFORM_LINUX
-
-
-def _other_platform(platform: str) -> str:
-    return PLATFORM_LINUX if platform == PLATFORM_WINDOWS else PLATFORM_WINDOWS
-
-
-def _quoted(path: Path) -> str:
-    return f'"{path}"' if " " in str(path) else str(path)
-
-
-# Windows lines run in cmd and PowerShell alike; Linux lines run through bash.
-def _invocation(platform: str, entry: Path, arguments: Tuple[str, ...]) -> str:
-    if platform == PLATFORM_LINUX:
-        prefix = f"{LINUX_SHELL} '{entry}'"
-    elif entry.suffix.lower() == ".ps1":
-        prefix = f'{WINDOWS_POWERSHELL_FILE} "{entry}"'
-    else:
-        prefix = _quoted(entry)
-    return " ".join((prefix, *arguments))
 
 
 def _script_names(root: Path) -> Dict[str, Set[str]]:
@@ -91,16 +68,10 @@ def _script_names(root: Path) -> Dict[str, Set[str]]:
     return names
 
 
-def _preset_commands(platform: str, root: Path, names: Dict[str, Set[str]]) -> List[Dict[str, Any]]:
-    other = _other_platform(platform)
+def _preset_commands(platform: str) -> List[Dict[str, Any]]:
     presets: List[Dict[str, Any]] = []
-    for preset_id, entries, arguments, path_command in PRESET_COMMANDS:
-        if not (root / entries[platform]).is_file():
-            continue
-        commands = {
-            platform: _invocation(platform, root / entries[platform], arguments),
-            other: path_command if path_command and path_command in names[other] else None,
-        }
+    for preset_id, entries, arguments in PRESET_COMMANDS:
+        commands = {os_name: " ".join((entries[os_name], *arguments)) for os_name in PLATFORMS}
         presets.append({"kind": KIND_PRESET, "id": preset_id, "command": commands[platform], "commands": commands})
     return presets
 
@@ -143,7 +114,7 @@ def _scan_quick_commands(platform: str, root: Path) -> Dict[str, Any]:
         "success": True,
         "platform": platform,
         "script_dir": str(root.joinpath(*CLAUDETEAM_SCRIPT_DIRS[platform])),
-        "preset": _preset_commands(platform, root, names),
+        "preset": _preset_commands(platform),
         "system": [
             {
                 "kind": KIND_SYSTEM,

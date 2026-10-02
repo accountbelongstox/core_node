@@ -77,7 +77,7 @@ export function VoiceSubtitleManager() {
 
   async function handleAddText() {
     if (!formData.text.trim()) {
-      toast.warning('Please enter text');
+      toast.warning(t('uiAi.voice_subtitle.toast.enter_text'));
       return;
     }
 
@@ -86,7 +86,7 @@ export function VoiceSubtitleManager() {
       const res = await api.mcpV1.vsAddText(formData);
       const taskId = api.mcpV1.vsAcceptedTaskId(res);
       if (res.success) {
-        toast.success('Text added to queue');
+        toast.success(t('uiAi.voice_subtitle.toast.text_added'));
         setShowAddModal(false);
         resetForm();
         loadData();
@@ -94,7 +94,7 @@ export function VoiceSubtitleManager() {
       // 202: the item joins the queue when its background task settles.
       if (taskId) void api.mcpV1.vsFollowTask(taskId).then(() => loadData());
     } catch (error: any) {
-      toast.error(error.message || 'Failed to add text');
+      toast.error(error.message || t('uiAi.voice_subtitle.toast.add_failed'));
     } finally {
       setProcessing(false);
     }
@@ -108,7 +108,7 @@ export function VoiceSubtitleManager() {
         loadData();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to play');
+      toast.error(error.message || t('uiAi.voice_subtitle.toast.play_failed'));
     } finally {
       setProcessing(false);
     }
@@ -122,7 +122,7 @@ export function VoiceSubtitleManager() {
         loadData();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to go to previous');
+      toast.error(error.message || t('uiAi.voice_subtitle.toast.previous_failed'));
     } finally {
       setProcessing(false);
     }
@@ -136,7 +136,7 @@ export function VoiceSubtitleManager() {
         loadData();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to go to next');
+      toast.error(error.message || t('uiAi.voice_subtitle.toast.next_failed'));
     } finally {
       setProcessing(false);
     }
@@ -147,28 +147,28 @@ export function VoiceSubtitleManager() {
     try {
       const res = await api.mcpV1.vsRemoveItem(id);
       if (res.success) {
-        toast.success('Item removed from queue');
+        toast.success(t('uiAi.voice_subtitle.toast.item_removed'));
         loadData();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to remove item');
+      toast.error(error.message || t('uiAi.voice_subtitle.toast.remove_failed'));
     } finally {
       setProcessing(false);
     }
   }
 
   async function handleClearQueue() {
-    if (!confirm('Are you sure you want to clear the entire queue?')) return;
+    if (!confirm(t('uiAi.voice_subtitle.confirm_clear'))) return;
 
     setProcessing(true);
     try {
       const res = await api.mcpV1.vsClearQueue();
       if (res.success) {
-        toast.success('Queue cleared');
+        toast.success(t('uiAi.voice_subtitle.toast.queue_cleared'));
         loadData();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to clear queue');
+      toast.error(error.message || t('uiAi.voice_subtitle.toast.clear_failed'));
     } finally {
       setProcessing(false);
     }
@@ -198,12 +198,12 @@ export function VoiceSubtitleManager() {
   const columns: DataTableColumn[] = [
     {
       key: 'id',
-      title: 'ID',
+      title: t('uiAi.voice_subtitle.col.id'),
       width: '80px'
     },
     {
       key: 'type',
-      title: 'Type',
+      title: t('uiAi.voice_subtitle.col.type'),
       width: '100px',
       render: (value) => (
         <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
@@ -213,25 +213,25 @@ export function VoiceSubtitleManager() {
     },
     {
       key: 'content',
-      title: 'Content',
+      title: t('uiAi.voice_subtitle.col.content'),
       render: (value) => (
         <span className="line-clamp-2">{value || '-'}</span>
       )
     },
     {
       key: 'group',
-      title: 'Group',
+      title: t('uiAi.voice_subtitle.col.group'),
       width: '120px',
       render: (value) => value || '-'
     },
     {
       key: 'play_count',
-      title: 'Plays',
+      title: t('uiAi.voice_subtitle.col.plays'),
       width: '80px'
     },
     {
       key: 'actions',
-      title: 'Actions',
+      title: t('uiAi.voice_subtitle.col.actions'),
       width: '80px',
       align: 'right',
       render: (_, row) => (
@@ -241,7 +241,7 @@ export function VoiceSubtitleManager() {
             handleDelete(row.id);
           }}
           className="p-2 hover:bg-red-50 rounded transition-colors"
-          title="Delete"
+          title={t('uiAi.voice_subtitle.delete')}
         >
           <Trash2 className="w-4 h-4 text-red-600" />
         </button>
@@ -256,10 +256,10 @@ export function VoiceSubtitleManager() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Music className="w-7 h-7" />
-            Voice Subtitle Manager
+            {t('uiAi.voice_subtitle.title')}
           </h1>
           <p className="text-gray-600 mt-1">
-            Manage voice subtitle queue and playback
+            {t('uiAi.voice_subtitle.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -268,14 +268,14 @@ export function VoiceSubtitleManager() {
             disabled={processing || queue.length === 0}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
           >
-            Clear Queue
+            {t('uiAi.voice_subtitle.clear_queue')}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
-            Add Text
+            {t('uiAi.voice_subtitle.add_text')}
           </button>
         </div>
       </div>
@@ -284,7 +284,7 @@ export function VoiceSubtitleManager() {
       {stats && (
         <StatsGrid columns={4} gap="md">
           <StatsCard
-            title="Total Items"
+            title={t('uiAi.voice_subtitle.stat_total_items')}
             value={stats.total || 0}
             icon={List}
             iconColor="text-blue-600"
@@ -293,7 +293,7 @@ export function VoiceSubtitleManager() {
           />
 
           <StatsCard
-            title="Groups"
+            title={t('uiAi.voice_subtitle.stat_groups')}
             value={groups.length}
             icon={FolderOpen}
             iconColor="text-green-600"
@@ -302,7 +302,7 @@ export function VoiceSubtitleManager() {
           />
 
           <StatsCard
-            title="Categories"
+            title={t('uiAi.voice_subtitle.stat_categories')}
             value={categories.length}
             icon={Tag}
             iconColor="text-purple-600"
@@ -311,7 +311,7 @@ export function VoiceSubtitleManager() {
           />
 
           <StatsCard
-            title="Total Plays"
+            title={t('uiAi.voice_subtitle.stat_total_plays')}
             value={stats.total_plays || 0}
             icon={Play}
             iconColor="text-orange-600"
@@ -327,11 +327,11 @@ export function VoiceSubtitleManager() {
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Now Playing
+                {t('uiAi.voice_subtitle.now_playing')}
               </h3>
               <p className="text-gray-700">{current.content || current.title}</p>
               <p className="text-sm text-gray-600 mt-1">
-                Type: {current.type} | Group: {current.group || 'None'}
+                {t('uiAi.voice_subtitle.current_meta', { type: current.type, group: current.group || t('uiAi.voice_subtitle.none') })}
               </p>
             </div>
 
@@ -340,7 +340,7 @@ export function VoiceSubtitleManager() {
                 onClick={handlePrevious}
                 disabled={processing}
                 className="p-3 bg-white hover:bg-gray-50 rounded-full shadow disabled:opacity-50"
-                title="Previous"
+                title={t('uiAi.voice_subtitle.previous')}
               >
                 <SkipBack className="w-5 h-5" />
               </button>
@@ -349,7 +349,7 @@ export function VoiceSubtitleManager() {
                 onClick={handlePlay}
                 disabled={processing}
                 className="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow disabled:opacity-50"
-                title="Play"
+                title={t('uiAi.voice_subtitle.play')}
               >
                 <Play className="w-6 h-6" />
               </button>
@@ -358,7 +358,7 @@ export function VoiceSubtitleManager() {
                 onClick={handleNext}
                 disabled={processing}
                 className="p-3 bg-white hover:bg-gray-50 rounded-full shadow disabled:opacity-50"
-                title="Next"
+                title={t('uiAi.voice_subtitle.next')}
               >
                 <SkipForward className="w-5 h-5" />
               </button>
@@ -370,7 +370,7 @@ export function VoiceSubtitleManager() {
       {/* Group Filter */}
       {groups.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          <span className="text-sm text-gray-600 whitespace-nowrap">Filter by group:</span>
+          <span className="text-sm text-gray-600 whitespace-nowrap">{t('uiAi.voice_subtitle.filter_by_group')}</span>
           <button
             onClick={() => handleFilterByGroup('')}
             className={`px-3 py-1 rounded-full text-sm whitespace-nowrap ${
@@ -379,7 +379,7 @@ export function VoiceSubtitleManager() {
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            All
+            {t('uiAi.voice_subtitle.all')}
           </button>
           {groups.map((group) => (
             <button
@@ -404,13 +404,13 @@ export function VoiceSubtitleManager() {
         loading={loading}
         search={{
           value: '',
-          placeholder: 'Search queue...',
+          placeholder: t('uiAi.voice_subtitle.search_placeholder'),
           onSearch: () => {}
         }}
         actions={{
           onRefresh: loadData
         }}
-        emptyMessage="Queue is empty"
+        emptyMessage={t('uiAi.voice_subtitle.queue_empty')}
       />
 
       {/* Add Text Modal */}
@@ -420,7 +420,7 @@ export function VoiceSubtitleManager() {
           setShowAddModal(false);
           resetForm();
         }}
-        title="Add Text to Queue"
+        title={t('uiAi.voice_subtitle.modal.title')}
         size="md"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -438,7 +438,7 @@ export function VoiceSubtitleManager() {
               disabled={processing}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              {processing ? 'Adding...' : 'Add'}
+              {processing ? t('uiAi.voice_subtitle.modal.adding') : t('uiAi.voice_subtitle.modal.add')}
             </button>
           </div>
         }
@@ -446,12 +446,12 @@ export function VoiceSubtitleManager() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Text *
+              {t('uiAi.voice_subtitle.modal.text_label')}
             </label>
             <textarea
               value={formData.text}
               onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-              placeholder="Enter text to add to queue..."
+              placeholder={t('uiAi.voice_subtitle.modal.text_placeholder')}
               rows={6}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -459,31 +459,31 @@ export function VoiceSubtitleManager() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Language
+              {t('uiAi.voice_subtitle.modal.language_label')}
             </label>
             <select
               value={formData.language}
               onChange={(e) => setFormData({ ...formData, language: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="en">English</option>
-              <option value="zh">Chinese</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="ja">Japanese</option>
+              <option value="en">{t('uiAi.voice_subtitle.languages.en')}</option>
+              <option value="zh">{t('uiAi.voice_subtitle.languages.zh')}</option>
+              <option value="es">{t('uiAi.voice_subtitle.languages.es')}</option>
+              <option value="fr">{t('uiAi.voice_subtitle.languages.fr')}</option>
+              <option value="de">{t('uiAi.voice_subtitle.languages.de')}</option>
+              <option value="ja">{t('uiAi.voice_subtitle.languages.ja')}</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Group (optional)
+              {t('uiAi.voice_subtitle.modal.group_label')}
             </label>
             <input
               type="text"
               value={formData.group}
               onChange={(e) => setFormData({ ...formData, group: e.target.value })}
-              placeholder="Enter group name..."
+              placeholder={t('uiAi.voice_subtitle.modal.group_placeholder')}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>

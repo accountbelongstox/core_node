@@ -39,6 +39,8 @@ from pycore.pyutils.window.terminal_backend import (
     FOCUS_DELAY_SECONDS,
     FOCUS_READY_TIMEOUT_SECONDS,
     SCROLL_PAGE_KEYS,
+    SHELL_OS_LINUX,
+    SHELL_OS_WINDOWS,
     TERMINAL_KEY_CONTROL,
     TERMINAL_KEY_DOWN,
     TERMINAL_KEY_END,
@@ -75,8 +77,6 @@ NATIVE_KEY_NAMES = {
 NATIVE_BUTTON_NAMES = {1: "left", 3: "right"}
 # A Linux shell prompt or path in the tab title (user@host:..., ~/..., /path) marks a WSL shell.
 LINUX_SHELL_TITLE_PATTERN = re.compile(r"(^|\s)[\w.-]+@[\w.-]+:|(^|\s)~(/|\s|$)|^/[\w.-]+/|\bwsl\b", re.IGNORECASE)
-SHELL_OS_WINDOWS = "windows"
-SHELL_OS_LINUX = "linux"
 # Windows Terminal pastes on Ctrl+Shift+V. A classic console gets its own
 # Edit > Paste command (WM_COMMAND 0xFFF1): a right-click would COPY a QuickEdit
 # selection the activation click may have started instead of pasting.

@@ -568,6 +568,8 @@ export const enLocaleB: Record<string, string> = {
     'dashboard.settingsTitle': 'Learning settings',
     'dashboard.dailyGoal': 'Daily goal',
     'dashboard.save': 'Save',
+    'dashboard.expand': 'Show all',
+    'dashboard.collapse': 'Show less',
     'dashboard.saveLogin': 'Save (login)',
     'dashboard.saved': 'Settings saved.',
     'dashboard.saveFailed': 'Could not save settings.',

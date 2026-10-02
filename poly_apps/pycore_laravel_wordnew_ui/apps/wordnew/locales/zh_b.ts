@@ -567,6 +567,8 @@ export const zhLocaleB: Record<string, string> = {
     'dashboard.settingsTitle': '学习设置',
     'dashboard.dailyGoal': '每日目标',
     'dashboard.save': '保存',
+    'dashboard.expand': '展开全部',
+    'dashboard.collapse': '收起',
     'dashboard.saveLogin': '保存（需登录）',
     'dashboard.saved': '设置已保存。',
     'dashboard.saveFailed': '设置保存失败。',

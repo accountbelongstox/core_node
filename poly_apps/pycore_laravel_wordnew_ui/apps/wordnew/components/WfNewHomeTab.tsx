@@ -40,10 +40,10 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
 
   return (
     <>
-              {/* Unified learning dashboard. When LOGGED IN: identity + real backend
-                  stats render and Save writes through. When LOGGED OUT: the stats
-                  area is hidden entirely (no login CTA) — only the editable learning
-                  settings row shows, and Save routes to login. */}
+              {/* Collapsible learning panel hanging from the header. Collapsed: core
+                  figures (logged in) or the shared login (logged out). Expanded:
+                  the full stats bento and the settings row (Save routes to login
+                  when logged out). */}
               <WfNewHomeDashboard
                 activeTheme={activeTheme}
                 trans={trans}
