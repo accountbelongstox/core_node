@@ -470,6 +470,15 @@ terminal: {
       savedOnly: '名称已保存在 pycore 中；主机窗口标题未能修改（界面仍显示新名称）。',
       cleared: '已移除自定义名称，重新显示窗口标题。',
     },
+    remove: {
+      one: '移除这个离线终端',
+      all: '清理全部离线',
+      allHint: '移除所有离线终端，连同其草稿、发送记录、定时器和捕获文件。',
+      offlineCount: '{{count}} 个离线终端',
+      confirmOne: '移除离线终端 #{{number}}，连同其草稿、发送记录、定时器和捕获文件？',
+      confirmAll: '移除全部 {{count}} 个离线终端，连同其草稿、发送记录、定时器和捕获文件？',
+      done: '已移除 {{count}} 条离线终端记录。',
+    },
     commands: {
       title: '命令',
       noRecent: '暂无最近命令',
@@ -674,6 +683,7 @@ terminal: {
       windowNotFound: '操作前终端窗口已关闭或发生变化。',
       windowRequired: '请选择终端窗口。',
       numberRequired: '缺少固定的终端编号。',
+      windowOnline: '该终端已重新打开，不能移除。',
       stateNotFound: '对应的终端保存状态已不存在。',
       textRequired: '请输入要发送的内容。',
       textTooLong: '输入内容超过支持的长度。',

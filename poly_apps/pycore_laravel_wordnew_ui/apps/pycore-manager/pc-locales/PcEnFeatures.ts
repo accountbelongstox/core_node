@@ -470,6 +470,15 @@ terminal: {
       savedOnly: 'Name saved in pycore; the host window title could not be changed (the UI keeps showing the new name).',
       cleared: 'Custom name removed; the window title is shown again.',
     },
+    remove: {
+      one: 'Remove this offline terminal',
+      all: 'Remove all offline',
+      allHint: 'Forget every offline terminal: its saved draft, send history, timers and captures.',
+      offlineCount: '{{count}} offline terminal(s)',
+      confirmOne: 'Remove offline terminal #{{number}} with its draft, send history, timers and captures?',
+      confirmAll: 'Remove all {{count}} offline terminals with their drafts, send history, timers and captures?',
+      done: 'Removed {{count}} offline terminal record(s).',
+    },
     commands: {
       title: 'Commands',
       noRecent: 'No recent command',
@@ -674,6 +683,7 @@ terminal: {
       windowNotFound: 'The terminal window closed or changed before the operation completed.',
       windowRequired: 'Select a terminal window.',
       numberRequired: 'The stable terminal number is missing.',
+      windowOnline: 'This terminal is open again, so it cannot be removed.',
       stateNotFound: 'The saved terminal state no longer exists.',
       textRequired: 'Enter text to send.',
       textTooLong: 'The input exceeds the supported length.',

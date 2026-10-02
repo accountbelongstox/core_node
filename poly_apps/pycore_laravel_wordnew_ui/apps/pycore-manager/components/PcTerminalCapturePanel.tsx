@@ -121,98 +121,70 @@ export const PcTerminalCapturePanel: React.FC<PcTerminalCapturePanelProps> = ({
 
   const working = capturing || busy;
   const previewText = record && content?.name === record.name ? content.text : '';
-  const secondaryButton = 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-500/20 bg-white/60 px-2 py-2 text-[11px] font-semibold text-slate-600 hover:border-emerald-500/40 hover:text-emerald-600 disabled:opacity-50 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:text-emerald-400';
+  const iconButton = 'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-emerald-500/10 hover:text-emerald-600 disabled:opacity-40 dark:hover:text-emerald-400';
 
+  // Compact row inside the send panel: capture button + "open in editor" toggle; the last capture below.
   return (
-    <section className="space-y-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-            <ScanText className="h-3.5 w-3.5 text-emerald-500" />
-            {t('terminal.capture.title')}
-          </h3>
-          <p className="mt-0.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-            {t('terminal.capture.hint')}
-          </p>
-        </div>
+    <div className="space-y-1">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => void capture()}
+          disabled={!actionable || working}
+          title={t('terminal.capture.hint')}
+          className="inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md bg-emerald-600/90 px-2 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+        >
+          {capturing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanText className="h-3.5 w-3.5" />}
+          <span className="truncate">{t(capturing ? 'terminal.capture.running' : 'terminal.capture.action')}</span>
+        </button>
+        <label title={t('terminal.capture.openEditor')} className="shrink-0 cursor-pointer">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={openEditor}
+            onChange={(event) => toggleOpenEditor(event.target.checked)}
+          />
+          <span className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-500/20 px-1.5 text-[10px] font-semibold text-slate-500 peer-checked:border-emerald-500/40 peer-checked:bg-emerald-500/15 peer-checked:text-emerald-600 dark:peer-checked:text-emerald-400">
+            <ExternalLink className="h-3.5 w-3.5" />
+            <FileText className="h-3.5 w-3.5" />
+          </span>
+        </label>
       </div>
-      <button
-        type="button"
-        onClick={() => void capture()}
-        disabled={!actionable || working}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm shadow-emerald-900/20 hover:bg-emerald-500 disabled:opacity-50"
-      >
-        {capturing
-          ? <Loader2 className="h-4 w-4 animate-spin" />
-          : <FileText className="h-4 w-4" />}
-        {t(capturing ? 'terminal.capture.running' : 'terminal.capture.action')}
-      </button>
-      <label className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-        <input
-          type="checkbox"
-          checked={openEditor}
-          onChange={(event) => toggleOpenEditor(event.target.checked)}
-          className="accent-emerald-500"
-        />
-        <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
-        {t('terminal.capture.openEditor')}
-      </label>
       {record && (
-        <div className="space-y-2 rounded-lg border border-slate-500/15 bg-white/50 p-2.5 dark:bg-slate-950/30">
-          <div className="flex items-center justify-between gap-2">
-            <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-              <span className="truncate" title={record.name}>{record.name}</span>
-            </p>
-            <span className="shrink-0 text-[10px] text-slate-500">
-              {new Date(record.capturedAt).toLocaleTimeString()}
-            </span>
-          </div>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+          <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+          <span className="min-w-0 flex-1 truncate" title={record.path || record.name}>
             {t('terminal.capture.stats', { lines: record.lineCount, size: formatBytes(record.bytes) })}
             {record.editorRequested && (
               <span className={record.opened ? 'text-emerald-500' : 'text-amber-500'}>
                 {' · '}{t(record.opened ? 'terminal.capture.opened' : 'terminal.capture.notOpened')}
               </span>
             )}
-          </p>
-          {record.path && (
-            <p
-              className="select-all truncate rounded bg-slate-500/10 px-2 py-1 font-mono text-[10px] text-slate-600 dark:text-slate-300"
-              title={record.path}
-            >
-              {record.path}
-            </p>
-          )}
-          <div className="grid grid-cols-3 gap-1.5">
-            <button type="button" onClick={() => void copyText()} disabled={loadingContent} className={secondaryButton}>
-              <ClipboardCopy className="h-3.5 w-3.5" />
-              {t('terminal.capture.copy')}
-            </button>
-            <button type="button" onClick={() => void download()} disabled={loadingContent} className={secondaryButton}>
-              <Download className="h-3.5 w-3.5" />
-              {t('terminal.capture.download')}
-            </button>
-            <button type="button" onClick={togglePreview} className={secondaryButton}>
-              {previewOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              {t('terminal.capture.preview')}
-            </button>
-          </div>
-          {previewOpen && (
-            loadingContent && !previewText
-              ? (
-                <div className="flex items-center justify-center py-4 text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </div>
-              )
-              : (
-                <pre className="max-h-72 overflow-auto whitespace-pre rounded-lg bg-slate-950 p-2.5 font-mono text-[10px] leading-relaxed text-slate-200">
-                  {previewText || t('terminal.capture.previewEmpty')}
-                </pre>
-              )
-          )}
+          </span>
+          <button type="button" onClick={() => void copyText()} disabled={loadingContent} title={t('terminal.capture.copy')} aria-label={t('terminal.capture.copy')} className={iconButton}>
+            <ClipboardCopy className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={() => void download()} disabled={loadingContent} title={t('terminal.capture.download')} aria-label={t('terminal.capture.download')} className={iconButton}>
+            <Download className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={togglePreview} title={t('terminal.capture.preview')} aria-label={t('terminal.capture.preview')} aria-expanded={previewOpen} className={iconButton}>
+            {previewOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
         </div>
       )}
-    </section>
+      {record && previewOpen && (
+        loadingContent && !previewText
+          ? (
+            <div className="flex items-center justify-center py-2 text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          )
+          : (
+            <pre className="max-h-60 overflow-auto whitespace-pre rounded-md bg-slate-950 p-2 font-mono text-[10px] leading-relaxed text-slate-200">
+              {previewText || t('terminal.capture.previewEmpty')}
+            </pre>
+          )
+      )}
+    </div>
   );
 };

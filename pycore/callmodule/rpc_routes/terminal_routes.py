@@ -17,6 +17,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
     UI_TERMINAL_KEY,
+    UI_TERMINAL_REMOVE,
     UI_TERMINAL_RENAME,
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
     UI_TERMINAL_SCHEDULE_QUEUE_SYNC,
@@ -323,6 +324,19 @@ def register_terminal_routes(server) -> None:
             ),
         )
 
+    def remove_handler(params, request_id, _context):
+        terminal_number = integer_param(params, "terminal_number")
+
+        def remove():
+            result = terminal_service.remove_offline(terminal_number)
+            if result.get("success"):
+                result["removed_schedule_count"] = terminal_scheduler.drop_terminals(
+                    result["removed_terminal_numbers"],
+                )
+            return result
+
+        return run_terminal_action("remove", request_id, remove)
+
     def viewer_demand_handler(params, request_id, _context):
         viewer_id = str(params.get("viewer_id") or "")
         visible_window_ids = string_list_param(params, "visible_window_ids")
@@ -392,6 +406,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_KEY, handler=key_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
+    server.post(path=UI_TERMINAL_REMOVE, handler=remove_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
     server.post(path=UI_TERMINAL_VIEW, handler=view_handler)
     server.post(path=UI_TERMINAL_VIEWER_DEMAND, handler=viewer_demand_handler)

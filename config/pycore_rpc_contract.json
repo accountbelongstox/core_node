@@ -1074,6 +1074,10 @@
       "path": "ui/terminal/key",
       "method": "POST"
     },
+    "terminalRemove": {
+      "path": "ui/terminal/remove",
+      "method": "POST"
+    },
     "terminalRename": {
       "path": "ui/terminal/rename",
       "method": "POST"

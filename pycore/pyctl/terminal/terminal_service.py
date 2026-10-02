@@ -348,7 +348,7 @@ class TerminalService:
             terminal_number=terminal_number,
             removed_terminal_numbers=removed["removed_terminal_numbers"],
         )
-        self._collector.wake()
+        self._collector.collect()
         return removed
 
     def save_preview_expanded(
