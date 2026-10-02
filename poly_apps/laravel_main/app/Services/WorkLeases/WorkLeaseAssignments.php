@@ -95,11 +95,16 @@ final class WorkLeaseAssignments
             $windows[$key]['done'] += (int) $carried;
         }
         $fresh = (int) $layout['expires_at'] > $now;
+        $current = $this->currentSids();
 
+        // Only the direct pycore and nodes of the current roster are shown: a node that left (or was merged into another id) drops out.
         return [
             'fresh' => $fresh,
             'expires_in' => $fresh ? (int) $layout['expires_at'] - $now : 0,
-            'windows' => array_values($windows),
+            'windows' => array_values(array_filter(
+                $windows,
+                static fn (array $window): bool => $window['sid'] === (string) self::setting('direct_sid') || isset($current[$window['sid']])
+            )),
         ];
     }
 
@@ -171,6 +176,18 @@ final class WorkLeaseAssignments
         }
 
         return $sql;
+    }
+
+    /** @return array<string,true> short ids of the online roster nodes */
+    private function currentSids(): array
+    {
+        $sids = [];
+
+        foreach ((array) app(WorkLeaseService::class)->nodes(true)['nodes'] as $node) {
+            $sids[(string) $node['sid']] = true;
+        }
+
+        return $sids;
     }
 
     /** @return array<string,array> plan id => layout, only the fresh ones */

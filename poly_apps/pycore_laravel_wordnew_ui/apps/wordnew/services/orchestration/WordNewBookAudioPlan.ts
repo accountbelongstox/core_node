@@ -182,11 +182,11 @@ class WordNewBookAudioPlanService {
       const stored = document.tasks[task.id];
       const kept = stored && stored.planHash === task.planHash ? stored : null;
       live = {
-        stored: kept ?? { planId: '', planHash: task.planHash, position: 0, cursor: 0, status: null },
+        stored: { ...(kept ?? { planId: '', planHash: task.planHash, position: 0, cursor: 0 }), status: null },
         covered,
         ready: new Set(),
         fetched: kept?.cursor ?? 0,
-        snapshot: { planId: kept?.planId ?? '', status: kept?.status ?? null, undelivered: 0 },
+        snapshot: { planId: kept?.planId ?? '', status: null, undelivered: 0 },
         timer: null,
         wake: null,
         syncing: null,
