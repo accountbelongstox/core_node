@@ -11,17 +11,19 @@ interface Props {
   className?: string;
   /** Icon-only button (label in title/aria-label); status still announced. */
   iconOnly?: boolean;
+  /** Locale key overriding the default copy label. */
+  labelKey?: string;
 }
 
 const defaultClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm hover:bg-slate-500/10 disabled:opacity-40';
 
-export default function CloudClipboardCopyButton({ text, loadImage, className = defaultClass, iconOnly = false }: Props) {
+export default function CloudClipboardCopyButton({ text, loadImage, className = defaultClass, iconOnly = false, labelKey }: Props) {
   const { t } = useTranslation('cloudClipboard');
   const [status, setStatus] = useState('');
   const [copying, setCopying] = useState(false);
   const active = useRef(true);
   const inFlight = useRef(false);
-  const label = loadImage ? 'copyImage' : 'copyContent';
+  const label = labelKey ?? (loadImage ? 'copyImage' : 'copyContent');
 
   useEffect(() => {
     active.current = true;

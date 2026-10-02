@@ -60,6 +60,13 @@ export class LaravelCloudClipboardAPI {
     });
   }
 
+  /** Direct download URL of an uploaded file on the selected Laravel server. */
+  fileUrl(entryId: string, fileId: string): string {
+    return `${resolveLaravelBaseURL()}${withQuery(`${CLOUD_CLIPBOARD.api_prefix}/file`, {
+      [CLOUD_CLIPBOARD.namespace_query]: this.namespace, entry_id: entryId, file_id: fileId,
+    })}`;
+  }
+
   async file(entryId: string, fileId: string): Promise<Blob> {
     const response = await this.raw(withQuery('file', { entry_id: entryId, file_id: fileId }));
     if (!response.ok) await readLaravelResponse(response, 'file');
