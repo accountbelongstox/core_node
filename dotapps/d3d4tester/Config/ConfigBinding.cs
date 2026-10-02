@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/ui/utils/config_binding.py
+// PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
 using System.Globalization;
 using System.Windows.Controls;
 using DotCore.Foundations;

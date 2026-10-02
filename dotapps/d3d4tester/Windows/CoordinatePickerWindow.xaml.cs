@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/ui/components/coordinate_picker_window.py
+// PY-REF: pyapps/d3-check/ui/panels/coordinate_calibration_panel.py
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Globalization;

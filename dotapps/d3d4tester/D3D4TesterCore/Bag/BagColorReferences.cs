@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
 using System.Collections.Concurrent;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;

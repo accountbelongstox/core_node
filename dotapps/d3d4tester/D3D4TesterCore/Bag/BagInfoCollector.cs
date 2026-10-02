@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/collectors/bag_info_collector.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.TemplateMatcher;

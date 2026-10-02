@@ -1,3 +1,9 @@
+// PY-REF: pyapps/d3-check/share/asia_credentials.py
+// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
+// PY-REF: pyapps/d3-check/ui/diablo3_macro_ui.py
+// PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
+// PY-REF: pyapps/d3-check/d3utils/path_scanner.py
+// PY-REF: pyapps/d3-check/d3utils/event_center.py
 using System.IO;
 using System.Diagnostics;
 using System.Drawing;

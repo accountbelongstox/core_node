@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/utils/_obsolete_program_manager.py
 using System.ComponentModel;
 using System.Diagnostics;
 using DotCore.Foundations;

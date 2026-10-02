@@ -1,3 +1,6 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_manager.py
+// PY-REF: pyapps/d3-check/share/battlenet_window_finder.py
+// PY-REF: pyapps/d3-check/d3utils/process_helper.py
 using System.Diagnostics;
 using System.IO;
 using DotCore.Foundations;

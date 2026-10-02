@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/ui/panels/d4_panel.py
+// PY-REF: pyapps/d3-check/ui/diablo3_macro_ui.py
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;

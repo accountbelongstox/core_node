@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/d3_manager.py
+// PY-REF: pyapps/d3-check/d3utils/rosbot_manager.py
 using DotApps.d3d4tester.Core;
 
 namespace DotApps.d3d4tester.Services;

@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d4utils/d4_red_portal_detector.py
 using DotCore.Utils.ImageColor;
 using OpenCvSharp;
 

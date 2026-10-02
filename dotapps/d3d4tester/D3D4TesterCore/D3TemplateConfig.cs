@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/providor/constants/d3.py
+// PY-REF: pyapps/d3-check/providor/providor_index.py
 using DotCore.TemplateMatcher;
 
 namespace DotApps.d3d4tester.Core;

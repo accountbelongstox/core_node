@@ -1,3 +1,6 @@
+// PY-REF: pyapps/d3-check/d4utils/d4_black_screen_detector.py
+// PY-REF: pyapps/d3-check/d4utils/d4_team_health_detector.py
+// PY-REF: pyapps/d3-check/d4utils/d4_red_portal_detector.py
 using DotCore.Foundations;
 using OpenCvSharp;
 

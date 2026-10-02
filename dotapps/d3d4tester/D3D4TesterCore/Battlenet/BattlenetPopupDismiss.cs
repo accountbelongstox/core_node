@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_ui_inspector.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_base.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Battlenet;

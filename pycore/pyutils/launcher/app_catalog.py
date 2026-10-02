@@ -95,6 +95,7 @@ LINUX_DEFAULT_ENABLED_APPS = ('wechat', 'remmina')
 LINUX_INSTALLER_SCRIPTS_RELATIVE_DIR = Path('scripts') / 'shells' / 'linux' / 'debian' / 'install_shells'
 LINUX_PREREQUISITE_INSTALLERS = {
     'chrome': ('41_install_browsers.sh', ('--only', 'chrome')),
+    'vscode': ('155_install_ides.sh', ('--only', 'vscode')),
     'cursor': ('155_install_ides.sh', ('--only', 'cursor')),
     'codex': ('99_install_ai_tools.sh', ('--only', 'codex')),
     'wechat': ('167_install_wechat.sh', ()),

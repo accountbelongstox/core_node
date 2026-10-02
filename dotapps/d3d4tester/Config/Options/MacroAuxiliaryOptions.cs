@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
 using DotApps.d3d4tester.Constants;
 using Microsoft.Extensions.Configuration;
 

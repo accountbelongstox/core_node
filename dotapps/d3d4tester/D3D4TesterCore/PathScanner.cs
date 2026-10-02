@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/path_scanner.py
 using System.IO;
 using System.Text.RegularExpressions;
 using DotCore.Foundations;

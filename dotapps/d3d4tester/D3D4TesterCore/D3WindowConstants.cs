@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/providor/constants/d3.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>

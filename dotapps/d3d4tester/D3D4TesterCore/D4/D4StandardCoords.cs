@@ -1,3 +1,7 @@
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: pyapps/d3-check/d4utils/d4_window_region_detector.py
+// PY-REF: pyapps/d3-check/controller/d4func/region_detector.py
+// PY-REF: pyapps/d3-check/controller/d4func/image_annotator.py
 using DotCore.Common.Geometry;
 
 namespace DotApps.d3d4tester.Core.D4;

@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/log_analyzer.py
+// PY-REF: pyapps/d3-check/providor/constants/common.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>ROSBOT logs.txt analysis constants. 1:1 Python d3utils.log_analyzer + providor.constants.common.</summary>

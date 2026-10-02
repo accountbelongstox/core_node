@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d4utils/d4_small_map_detector.py
+// PY-REF: pyapps/d3-check/d4utils/d4_scaled_template_matcher.py
 using DotCore.Foundations;
 using DotCore.TemplateMatcher;
 using DotCore.Utils.ImagePreprocess;

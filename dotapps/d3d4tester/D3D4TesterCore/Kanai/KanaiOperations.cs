@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/kanai/operations.py
+// PY-REF: pyapps/d3-check/providor/constants/d3.py
 using DotApps.d3d4tester.Core.Bag;
 using DotCore.Foundations;
 

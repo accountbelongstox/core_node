@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_cn.py
+// PY-REF: pyapps/d3-check/d4utils/d4_battlenet_operation.py
 using DotCore.Foundations;
 using DotCore.UIInspect;
 using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;

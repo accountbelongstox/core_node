@@ -1,6 +1,6 @@
 #!/bin/bash
 # d3d4tester launcher (Linux): ensure prerequisites (prereqs.conf), restore, build, run with hot reload.
-# WPF runs only on Windows: inside WSL with Windows interop this delegates to start.ps1.
+# WPF runs only on Windows: inside WSL with Windows interop this delegates to start.ps1; elsewhere on Linux it runs under Wine (.NET 8 Desktop Runtime prefix) and restarts on source change.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
@@ -41,6 +41,17 @@ P_ARGS=""
 P_DETECT=""
 P_PRESENT=false
 P_SAVED=()
+RID="win-x64"
+WINE_RUN=false
+WINE_EXE=""
+WINE_PID=""
+WINE_PREFIX=""
+WINE_WATCH_REGEX='\.(cs|xaml|csproj|props|resx)$'
+WINE_WATCH_EXCLUDE='/(obj|bin|\.git)/'
+WINE_POLL_SECONDS=2
+WINE_DEBOUNCE_SECONDS=1
+WATCH_STAMP=""
+RUN_RC=0
 
 log() { echo "$LOG_PREFIX $*"; }
 fail() { echo "$LOG_PREFIX ERROR: $*" >&2; exit 1; }
@@ -48,8 +59,8 @@ fail() { echo "$LOG_PREFIX ERROR: $*" >&2; exit 1; }
 usage() {
     echo "Usage: start.sh [--build-only] [--no-watch] [--with-optional] [-c|--configuration Debug|Release]"
     echo "  --build-only   ensure prerequisites, restore and build; do not run"
-    echo "  --no-watch     build and run once without hot reload"
-    echo "  --watch        Linux only: keep watching sources and rebuild on change (WPF cannot run on Linux)"
+    echo "  --no-watch     build and run once without hot reload (Linux: run once under Wine)"
+    echo "  --watch        Linux only: keep watching sources and rebuild on change (compile check only, no run)"
     echo "  --with-optional  also install optional prerequisites (browser, YOLO training packages)"
     echo "  -c, --configuration  build configuration (default: Debug)"
 }
@@ -76,6 +87,7 @@ case "$CONFIGURATION" in
 esac
 
 source "$LINUX_COMMON_DIR/gvar_common.sh" >/dev/null 2>&1
+source "$LINUX_COMMON_DIR/wine_wpf_common.sh"
 find_windows_powershell() {
     PS_EXE=""
     [ "${IS_WSL:-false}" = "true" ] || return 0
@@ -134,6 +146,10 @@ prereq_present() {
             for cmd in "${cmds[@]}"; do
                 command -v "$cmd" >/dev/null 2>&1 && P_PRESENT=true
             done
+            ;;
+        wine-wpf)
+            WINE_PREFIX="$(wine_wpf_prefix_dir)"
+            wine_wpf_runtime_present "$WINE_PREFIX" && P_PRESENT=true
             ;;
         *) P_PRESENT=true ;;
     esac
@@ -210,6 +226,79 @@ resolve_artifacts_dir() {
     [ -w "$ARTIFACTS_DIR" ] || fail "Artifacts directory is not writable: $ARTIFACTS_DIR"
 }
 
+wine_wpf_missing_reason() {
+    wine_wpf_runtime_present "$WINE_PREFIX" || { echo "Wine WPF runtime missing in $WINE_PREFIX"; return 0; }
+    echo "no DISPLAY or WAYLAND_DISPLAY"
+}
+
+display_available() {
+    [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]
+}
+
+wine_env_run() {
+    WINEPREFIX="$WINE_PREFIX" WINEARCH=win64 WINEDEBUG="${WINEDEBUG:--all}" WINEDLLOVERRIDES="mscoree,mshtml=" "$@"
+}
+
+wine_build() {
+    dotnet build "$CSPROJ" -c "$CONFIGURATION" -r "$RID" --self-contained false -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR"
+}
+
+wine_launch() {
+    wine_env_run wine "$WINE_EXE" &
+    WINE_PID=$!
+    log "Launched under Wine (pid $WINE_PID)"
+}
+
+wine_stop() {
+    [ -n "$WINE_PID" ] || return 0
+    wine_env_run wineserver -k >/dev/null 2>&1
+    wait "$WINE_PID" 2>/dev/null
+    WINE_PID=""
+}
+
+wine_on_signal() {
+    wine_stop
+    exit 0
+}
+
+source_changed_since_stamp() {
+    [ -n "$(find "$APP_DIR" "$DOTCORE_DIR" -type f \( -name '*.cs' -o -name '*.xaml' -o -name '*.csproj' -o -name '*.props' -o -name '*.resx' \) -not -path '*/obj/*' -not -path '*/bin/*' -newer "$WATCH_STAMP" -print -quit 2>/dev/null)" ]
+}
+
+wait_for_source_change() {
+    local rc=1
+    if command -v inotifywait >/dev/null 2>&1; then
+        inotifywait -r -q -e close_write,create,delete,moved_to --include "$WINE_WATCH_REGEX" --exclude "$WINE_WATCH_EXCLUDE" "$APP_DIR" "$DOTCORE_DIR" >/dev/null 2>&1
+        rc=$?
+        if [ "$rc" -eq 0 ]; then
+            while inotifywait -r -q -t "$WINE_DEBOUNCE_SECONDS" -e close_write,create,delete,moved_to --include "$WINE_WATCH_REGEX" --exclude "$WINE_WATCH_EXCLUDE" "$APP_DIR" "$DOTCORE_DIR" >/dev/null 2>&1; do :; done
+            return 0
+        fi
+    fi
+    until source_changed_since_stamp; do sleep "$WINE_POLL_SECONDS"; done
+}
+
+wine_run_loop() {
+    log "Linux: WPF runs under Wine (restart on change; in-process hot reload is Windows-only)"
+    wine_launch
+    trap wine_on_signal INT TERM
+    DOTCORE_DIR="$ROOT_DIR/dotcore"
+    WATCH_STAMP="$ARTIFACTS_DIR/.d3d4tester_watch_stamp"
+    touch "$WATCH_STAMP"
+    log "Watching sources for changes. Press Ctrl+C to stop"
+    while true; do
+        wait_for_source_change
+        touch "$WATCH_STAMP"
+        log "Change detected: rebuilding"
+        if wine_build; then
+            wine_stop
+            wine_launch
+        else
+            log "Build failed; keeping the running instance"
+        fi
+    done
+}
+
 find_windows_powershell
 [ -n "$PS_EXE" ] && delegate_to_windows
 
@@ -236,21 +325,45 @@ else
     log "Step 2/4: restore skipped (up-to-date)"
 fi
 
+if [ "$BUILD_ONLY" != "true" ] && [ "$WATCH_BUILD" != "true" ]; then
+    WINE_PREFIX="$(wine_wpf_prefix_dir)"
+    if wine_wpf_runtime_present "$WINE_PREFIX" && display_available; then
+        WINE_RUN=true
+    fi
+fi
+
+if [ "$WINE_RUN" = "true" ]; then
+    WINE_EXE="$ARTIFACTS_DIR/bin/$ARTIFACTS_NAME/${CONFIGURATION,,}_$RID/$ARTIFACTS_NAME.exe"
+    log "Step 3/4: build ($CONFIGURATION, $RID, framework-dependent, incremental)"
+    wine_build || fail "dotnet build failed"
+    [ -f "$WINE_EXE" ] || fail "Built executable not found: $WINE_EXE"
+    log "Step 4/4: run under Wine (prefix $WINE_PREFIX)"
+    if [ "$NO_WATCH" = "true" ]; then
+        log "Linux: WPF runs under Wine (single run, no restart on change)"
+        wine_env_run wine "$WINE_EXE"
+        RUN_RC=$?
+        wine_env_run wineserver -k >/dev/null 2>&1
+        exit "$RUN_RC"
+    fi
+    wine_run_loop
+fi
+
 if [ "$WATCH_BUILD" != "true" ]; then
     log "Step 3/4: build ($CONFIGURATION, incremental)"
     dotnet build "${DOTNET_ARGS[@]}" --no-restore || fail "dotnet build failed"
     if [ "$BUILD_ONLY" = "true" ]; then
         log "Step 4/4: run skipped (build-only)"
     else
-        log "Step 4/4: run skipped: WPF needs Windows (PresentationFramework is not available on Linux)"
-        log "To run with hot reload: on Windows run dotapps\\d3d4tester\\scripts\\start.ps1, or run this script inside WSL (it delegates to start.ps1)"
+        log "Step 4/4: run skipped: WPF needs Windows or the Wine WPF runtime ($(wine_wpf_missing_reason))"
+        log "To enable the Wine run: start.sh --with-optional (installs Wine + .NET Desktop Runtime via scripts/shells/linux/debian/install_shells/57_install_dotnet.sh), then start.sh from a desktop session"
+        log "Or on Windows run dotapps\\d3d4tester\\scripts\\start.ps1, or run this script inside WSL (it delegates to start.ps1)"
         log "To keep rebuilding on change here: start.sh --watch"
     fi
     exit 0
 fi
 
 log "Step 3/4: build delegated to dotnet watch (single incremental build)"
-log "Step 4/4: watch-build (Linux compile check; WPF cannot run on Linux). Press Ctrl+C to stop"
+log "Step 4/4: watch-build (Linux compile check only, no run). Press Ctrl+C to stop"
 export EnableWindowsTargeting=true
 export ArtifactsPath="$ARTIFACTS_DIR"
 exec dotnet watch --non-interactive --project "$CSPROJ" build -c "$CONFIGURATION" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR" --no-restore

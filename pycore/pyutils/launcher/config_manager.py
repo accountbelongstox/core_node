@@ -31,7 +31,10 @@ SERVICES_PROMPT_ENABLED_KEY = 'prompt_enabled'
 SERVICES_PROMPT_TIMEOUT_KEY = 'prompt_timeout_sec'
 DEFAULT_SERVICES_PROMPT_ENABLED = True
 DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC = 5
-DEFAULT_ENABLED_APPS = ('cursor', 'codex', 'texteditor')
+DEFAULT_ENABLED_APPS = ('vscode', 'codex', 'texteditor')
+CODE_EDITOR_MIGRATION_KEY = 'code_editor_default_vscode'
+CODE_EDITOR_MIGRATED_FROM = 'cursor'
+CODE_EDITOR_MIGRATED_TO = 'vscode'
 
 class ConfigManager:
     """Manage launcher configuration"""
@@ -58,7 +61,7 @@ class ConfigManager:
                     'enabled': False  # Disabled by default
                 }
             else:
-                # Default enabled state: the code-editor slot (cursor, then codex) and
+                # Default enabled state: the code-editor slot (vscode, then codex) and
                 # the system default text editor are enabled; antigravity is no longer launched by default
                 defaults[app_name] = {
                     'enabled': app_name in DEFAULT_ENABLED_APPS
@@ -116,6 +119,7 @@ class ConfigManager:
         self._migrate_legacy_toggle(default_config)
         self._ensure_all_apps_in_config(default_config)
         self._remove_paths_from_config(default_config)
+        self._migrate_code_editor_default(default_config)
         return default_config
 
     @staticmethod
@@ -149,6 +153,20 @@ class ConfigManager:
                 else:
                     default[key] = value
     
+    @staticmethod
+    def _migrate_code_editor_default(config):
+        """One-shot: the default code editor moved from cursor to vscode."""
+        if config.get(CODE_EDITOR_MIGRATION_KEY):
+            return
+        apps = config.get('applications', {})
+        apps.setdefault(CODE_EDITOR_MIGRATED_TO, {})['enabled'] = True
+        apps.setdefault(CODE_EDITOR_MIGRATED_FROM, {})['enabled'] = False
+        config[CODE_EDITOR_MIGRATION_KEY] = True
+        try:
+            user_data_store.set_section(_SECTION, config)
+        except OSError as exc:
+            ColorPrint.yellow(f"[ConfigManager] persist code editor migration failed: {exc}")
+
     def save_config(self):
         """Save configuration to file (paths are automatically removed)"""
         config_to_save = copy.deepcopy(self.config)

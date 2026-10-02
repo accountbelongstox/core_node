@@ -68,6 +68,7 @@ Rules:
   - `control` (default for bodiless requests): caller `timeout` seconds or `(connect, read)`, else the client default; a hung server cannot block the caller.
   - `upload`: stall-driven. Connect bound `connect_timeout_seconds` (15), write stall bound `idle_timeout_seconds` (30), unbounded response wait guarded by TCP keepalive. `timeout=(connect, reply)` caps the reply for a peer that must answer within a bound.
   - long response `llm` / `tts` / `image`: small body, long backend computation; read bound is the caller's or `response_wait_seconds` (600 / 900 / 600).
+  - The profile is a property of the call, never derived from the body size. Users: Laravel API calls `control` (relay publish/transport keep their explicit bounds); `progress_upload` chunks, the multipart media upload and the word-audio upload `upload`; LLM clients (`llm_engines`, `openai_compat_client`, `anthropic_client`) `llm`; `tts_http.tts_post` and the qwen client `tts`; `ai_image_providers` `image`; `codesync/peer_http.signed_peer_request` takes a required per-call `response` (frames `upload` with `timeout=(None, 900)`, probes/heartbeat/config/file tree `control`); `pyservice_cli` local RPC `control`.
 - Upload progress: bodies stream in contract `chunk_bytes` (clamped by `maximum_chunk_bytes`); phases `uploading`, `awaiting_receipt`, `received`, `rejected` reach `progress_callback` and every `transfer_observer()` scope. One `[http upload]` gray line per real upload. `HttpTransferProgress` is the shared stall clock.
 - Laravel requests go through `pyutils/laravel/endpoint_manager.py` and `client.py` on top of this client (`DESIGN_LARAVEL_PLATFORM.md`).
 
@@ -127,7 +128,7 @@ Rules:
   6. `git pull --no-rebase origin main`; on failure or conflict print the conflicted paths and the next manual step, never push, never auto-resolve, never force;
   7. `git push origin main`.
 - `--dry-run` prints every command it would run and executes no git write.
-- Code Sync (`pycore/pyutils/codesync`) is retired and frozen; not started by default; not updated.
+- Code Sync (`pycore/pyutils/codesync`) is retired and frozen; not started by default; not updated. `launcher_composition.start_rpc_runtime` starts `code_sync_manager` only when `CODESYNC_ENABLED` is truthy; `codesync_service.sh` prompts default to NO (`CODESYNC_SERVICE_ASSUME_YES=1` answers yes). Explicit commands stay: `pyservice.sh codesync run|install`, `pyservice.ps1 codesync run`, `pyservice_cli config codesync ...`. Every peer that still runs it must run the same version; the frozen protocol is in `CODESYNC_AI_COMMUNICATION_API.md`.
 
 ## 12. Terminal window control
 
@@ -135,8 +136,33 @@ Rules:
 - Every focus-sensitive action first resolves the current window and rectangle, raises it (Windows: temporary topmost, restored when pycore set it) and physically clicks it.
 - State: `APP_DATA_DIR/terminal_windows/state.sqlite3` (`database/repositories/terminal_state_store.py`), keys `terminal.<n>.*` with a monotonic `next_number`; a terminal keeps its number while its identity (`window_id`, `native_id`, `app`, `class_name`, `process_id`) is live. Drafts and logs (sources `input`, `enter`, `schedule`) are per terminal. Full buffer captures are plain text under `APP_DATA_DIR/tcap`; screenshots are demand-leased (`terminal_screenshot_cache.py`).
 - Routes: the contract `terminal*` keys (`ui/terminal/...`; `content` and `screenshot` are GET, `image/upload` is multipart). Native failures return stable error codes the UI maps through i18n.
+- Sending text: one clipboard paste then one Enter (`TerminalWindowBackend.paste_and_submit`): Windows Terminal Ctrl+Shift+V, classic console Edit > Paste; Linux GNOME Shell bridge key combo, or X11 PRIMARY when `paste_uses_primary_selection`.
+- Image upload (`terminalImageUpload`, multipart POST, streamed with no total deadline): `terminal_service.upload_image(upload, window_id)` stores through `pyctl/terminal/terminal_image_store.py` at `APP_DATA_DIR/timg/<yyMMddHHmmss><4hex>.<ext>` (magic-byte check png/jpg/gif/webp/bmp, `atomic_write_bytes`, prune on save). Cap, retain count and retain age are relay contract limits `terminal_image_upload_bytes` / `terminal_image_retain_count` / `terminal_image_retain_seconds`. Returns `{success, path, display_path, name, bytes, mime}` or `error_code` `terminal_image_{missing,too_large,unsupported_type,read_failed,write_failed}`.
+- The pasted attachment is plain text from `pyutils/window/terminal_attachment.format_attachment_reference`: one space then the absolute path, double-quoted only with whitespace, no newline; a Windows window running WSL (distro title or `user@host:` prompt) gets `/mnt/<drive>/...`.
 
-## 13. Verification
+## 13. Foundations and process primitives
+
+The canonical-primitives table is in `PYTHON_PYCORE.md` section 3; these are the behaviours callers rely on.
+- Tasks: one `TaskStatus` (`pyfoundations/tasks.py`: pending, running, completed, failed, cancelled, skipped) and the `global_task_queue` instance.
+- Paths: `pygvar` exposes one name per path (`PROJECT_ROOT`, `TMP_DIR`, `CACHE_DIR`, `GLOBAL_VAR_DIR`); `system_paths` (config/cache dirs), `agent_paths` (agent constants) and `disk_mounts` (disk/mount probing) own the rest; `core_node_dirs.OS_VAR_TAG` is an import-time constant mirrored by Laravel `PathMapper.php`.
+- Starters: `pythreadpool` holds the pool and registry only; `pylauncher/service_starters.py` binds starters via `registry.register_starter`. The PySide6 UI starter is gated on `third_party.PYSIDE6_AVAILABLE` (find_spec); a headless host starts without it.
+- Providers: `pyfoundations/launch_providers.launch_providers` is one keyed registry (`SERVICE_LAUNCHER_PROVIDER`); an unregistered key raises `RuntimeError`. `singleton_detectors.for_domain()` is the keyed detector owner.
+- Atomic files: `atomic_json_store` (`atomic_write_text|bytes|json|chunks`) writes through one exclusive no-follow temp file with explicit `newline` and `owner`; `preserve_mode`, in-place fallback on PermissionError and temp cleanup apply to every writer.
+- Lifecycle: `serialized_worker.RunningFlag` (atomic `start` returns False if already running, `stop`, `is_running`, shutdown-aware `active()`, interruptible `wait()`).
+- Processes (`pyfoundations/process_manager.py`): `kill_process_tree` signals the whole child tree (SIGTERM, 3 s wait, SIGKILL); without psutil Windows uses `taskkill /PID [/T] [/F]` and Linux walks the `/proc` ppid table deepest first, treating zombies as exited; `kill_process_by_name` uses `taskkill /IM /T` or `pkill -x`.
+- Ports (`pyutils/common/port_utils.py`): `find_port_pids` matches LISTEN sockets only (psutil, then netstat on Windows, then `ss -ltnp`, then `lsof`); `kill_process_using_port` kills every owner's tree and returns True when the port is free (including already free); `is_port_in_use` is bind-based; `port_process_info`, `find_available_port`, `wait_for_port_bound`, `wait_for_port_release`.
+- Dependencies (`PYTHON_PYCORE.md` section 5): Python resolves shell-installed prerequisites and names the step through `pyutils/common/prerequisite_steps.py` (`report_missing`, steps from `service_contract.json#prerequisites`: ffmpeg, device tools adb/scrcpy, frontend packages). ffmpeg is present when `ffmpeg` and `ffprobe` both resolve (`ensure_library/ffmpeg_presence.py`); scrcpy/adb/scrcpy-server resolve from `SCRCPY_HOME`, else the contract cache root plus `scrcpy_bundle_dir`, version `service_contract.json#versions.scrcpy`; OCR weights are checked by `missing_ocr_models` / `report_ocr_models` naming the OCR step. `pyutils/common/python_env/isolated_venv.ensure_venv` builds engine venvs only when a shell installer runs it; the runtime calls `resolve_python` / `venv_ready` only.
+- `pylauncher/platform/windows_startup_runner.py` is a stdlib standalone script (reads `sys.argv` at import) kept at its path because Windows Startup shortcuts point at it.
+
+## 14. Machine send
+
+- `pyctl/desktop/machine_send_service.machine_send_service` behind six routes `ui/machine_send/{file,text,clipboard,clipboard_history,clipboard_history_delete,clipboard_history_clear}` (`machine_send_routes.py`; relay profiles in `DESIGN_RELAY.md`).
+- `send_file(upload, open_dir_after)`: one or more files (at most `machine_send_files_per_request`, else `machine_send_too_many_files`) saved under `APP_DATA_DIR/rcv/<yyMMdd>/` with sanitized names (extension kept, unique suffix on collision), streamed in 1 MiB chunks via `atomic_write_chunks`; returns the first file's fields plus `saved` (every file) and `opened`; opens the folder (`system_launcher.open_dir`, detached) unless disabled.
+- `send_text(text, name)`: a `.txt` in the receive dir, opened with `open_file_with_notepad` (notepad.exe; Linux `text_editor_finder` default, then xdg-open, then known editors).
+- `send_clipboard(kind, text, upload)`: the previous clipboard is first backed up as a ClipboardEntry (`kind`, `formats` from `clipboard_text.get_clipboard_kind`, text up to 65536 chars) into a `JsonIndexStore` (`rcv/clipboard_history.json`, newest 100). `text` sets the clipboard; `file` saves the file and puts its path on the clipboard as text; `image` saves the file and returns `clipboard_image_unsupported`.
+- Caps: relay contract limits `machine_send_file_bytes` (direct calls; relay calls are bounded by `request_body_bytes`), `machine_send_text_bytes`. Errors are `machine_send_*`, `clipboard_write_failed`, `clipboard_image_unsupported`. Every receive raises one OS notification (`native_ui/step11_desktop.system_notification`, i18n `receive.*`).
+
+## 15. Verification
 
 ```bash
 cd /www/programing/core_node
@@ -147,9 +173,16 @@ python -m pycore.pyservice_cli config system get --key rpcLanBind
 
 The second command prints the registered route count and raises on contract drift.
 
+HTTP response profiles (stub server on localhost): an `llm` POST answered after 30 s succeeds; the same call as `control` raises `HttpReadTimeout` at the 10 s default; a fast `control` call succeeds; an `upload` the server never reads raises `WriteTimeout` after `idle_timeout_seconds`; an `upload` with `timeout=(None, 3)` and an 8 s reply raises `HttpReadTimeout` at 3 s, with `(None, 30)` it succeeds; a bodied request without `response=` raises `ValueError`.
+
 ## Open items
 
-- `pyutils/common/rpc_route_contract.py` is an unreferenced duplicate of `pyfoundations/rpc_route_contract.py`; delete it.
-- `callmodule/rpc_routes/machine_receive_routes.py` and `pyctl/desktop/machine_receive_service.py` are unreferenced; delete them.
 - `pyfoundations/event_journal.py` docstring still names SSE views, and the journal retention constants are named `SSE_EVENT_*` in `network_constants.py`; rename to journal terms.
-- Response profiles (`control` / `upload` / `llm` / `tts` / `image`) are landing in `http_client.py` and `queue_center_contract.json` (uncommitted at writing); the `http_client` row of `PYTHON_PYCORE.md` still reads "bodies are stall-driven, never a fixed deadline" and may only be updated on user request.
+- The `http_client` row of `PYTHON_PYCORE.md` section 3 still reads "bodies are stall-driven, never a fixed deadline", while `http_client.py` and `queue_center_contract.json#http_transfer.response_profiles` define the `control` / `upload` / `llm` / `tts` / `image` profiles (section 5); the spec may only be updated on user request.
+- `database/adapters/sqlite_local.open_writable_db` has no caller left (dead code); remove it and its `__all__` entry.
+- SQLite outside the shared adapter: `pyapps/okx_price_monitor` (`lib/coin_table_manager.py`, `lib/realtime_price_manager.py`, `foundation/unified_price_manager.py`) and `scripts/pytools/media_compressor/sqlite_store.py` call `sqlite3.connect` themselves.
+- `third_party` gaps: `pyutils/security/password_cipher.py` loads `cryptography.fernet` via importlib instead of `get_third_package_cryptography_fernet`; `pyutils/pybrowser/utils/selenium_runtime.py` loads `selenium.webdriver` / `selenium.common.exceptions` via importlib (no getter exists).
+- `pyutils/common/model_tiers.py:62` keeps a lazy `import ctranslate2`; no `third_party` getter exists for it.
+- `SerializedSingletonProvider` remains in `pyfoundations/serialized_worker.py` with one user, `pyutils/flutter_dev_tools/config/routes_config.py` (flutter is frozen; the file is a deletion candidate). Remove the provider once that user is gone.
+- `pyutils/window/ops.py` still exposes module-level wrapper functions; `native_ui/step4_startup/startup_ui_builder.py:257` calls the private `i18n._detect_system_language()`.
+- `pyutils/common/python_env/isolated_venv.py` is about 950 lines; split it by concern.

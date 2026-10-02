@@ -1,3 +1,7 @@
+// PY-REF: pyapps/d3-check/d3utils/d3_status_provider.py
+// PY-REF: pyapps/d3-check/d3utils/rosbot_status_provider.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_status_provider.py
+// PY-REF: pyapps/d3-check/d3utils/d3_manager.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>

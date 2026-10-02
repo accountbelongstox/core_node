@@ -1,3 +1,7 @@
+// PY-REF: pyapps/d3-check/d3utils/d3_start_game_and_teleport_waiter.py
+// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/action_groups/map_teleport.py
+// PY-REF: pyapps/d3-check/share/scaled_template_matcher_base.py
+// PY-REF: pyapps/d3-check/d3utils/d3u_common/image_annotator_helper.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;

@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/controller/d4func/map_switch_detector.py
+// PY-REF: pyapps/d3-check/d4utils/d4_black_screen_detector.py
 using DotCore.Foundations;
 using DotCore.Utils.ImageColor;
 

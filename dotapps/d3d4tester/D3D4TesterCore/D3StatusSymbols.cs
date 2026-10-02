@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/components/bottom_bar_status_block.py
 using DotCore.Common;
 
 namespace DotApps.d3d4tester.Core;

@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/system_initializer.py
+// PY-REF: pyapps/d3-check/d3utils/cnocr_engine_registry.py
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Core.D4;
 using DotApps.d3d4tester.Core.Flow;

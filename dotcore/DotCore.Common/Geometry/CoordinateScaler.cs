@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
 namespace DotCore.Common.Geometry;
 
 /// <summary>Window frame sizes in pixels (left/right border, title bar, bottom border) used by windowed-mode scaling.</summary>

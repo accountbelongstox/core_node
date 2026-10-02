@@ -42,3 +42,8 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | GameAISDK record debug overlay window | No native equivalent; recording is native via `DotCore.YoloRecord` |
 | TickDriver SIGINT guard (tick % 1) | Python-only console concern |
 | `d4utils/d4_red_portal_detector` | Ported but unused (no caller in Python) |
+
+## Python reference copy and cross-references
+- `reference/py_d3check/` is the Python reference (D4 code plus its d3-check dependencies, restored model `d4_modules/progress_bar_detector.pt`), mirroring `pyapps/d3-check` paths; source commit in `reference/py_d3check/MANIFEST.txt`. Not built or run by the app.
+- C# side: each file starts with `// PY-REF: pyapps/d3-check/<path>` (or `// PY-REF: none (DOT-only)`).
+- Python side: each reference `.py` carries `# DOT-REF: dotapps/d3d4tester/<path>` (or `# DOT-REF: none ...`).

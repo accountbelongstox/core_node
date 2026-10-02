@@ -1,3 +1,6 @@
+// PY-REF: pyapps/d3-check/controller/d4func/exp_farming.py
+// PY-REF: pyapps/d3-check/controller/d4_controller.py
+// PY-REF: pyapps/d3-check/ui/panels/d4_panel.py
 using DotCore.Foundations;
 using OpenCvSharp;
 

@@ -1,3 +1,4 @@
+// PY-REF: none (DOT-only)
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 

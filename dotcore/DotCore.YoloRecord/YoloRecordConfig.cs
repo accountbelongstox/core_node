@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/yolo_record.py
+// PY-REF: pyapps/d3-check/ui/panels/coordinate_calibration_panel.py
 using System.Text.Json;
 using System.Text.Json.Nodes;
 

@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/providor/i18n/i18n_d4_panel_en.json
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>D4 page, status grid and D4 debug image window keys (ui.d4_panel.*).</summary>
