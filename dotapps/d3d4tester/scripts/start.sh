@@ -10,13 +10,11 @@ PREREQS_CONF="$SCRIPT_DIR/prereqs.conf"
 START_PS1="$SCRIPT_DIR/start.ps1"
 CSPROJ="$APP_DIR/d3d4tester.csproj"
 LOG_PREFIX="[d3d4tester]"
-DOTNET_MAJOR="8"
 CONFIGURATION="Debug"
 BUILD_ONLY=false
 NO_WATCH=false
 WATCH_BUILD=false
 WITH_OPTIONAL=false
-DOTNET_READY=false
 ARTIFACTS_SUBDIR="dotnet-artifacts"
 ARTIFACTS_NAME="d3d4tester"
 ARTIFACTS_DIR=""
@@ -27,10 +25,10 @@ PS_EXE=""
 PS_SCRIPT_WIN=""
 PS_ARGS=()
 DOTNET_ARGS=()
-SDK_VERSION=""
 PREREQ_ROWS=""
 PREREQ_FIELD_SEP="|"
 PREREQ_LIST_SEP=";"
+PREREQ_RAN=""
 P_KIND=""
 P_ID=""
 P_REQUIRED=""
@@ -38,8 +36,7 @@ P_PLATFORM=""
 P_INSTALLER=""
 P_ENV=""
 P_ARGS=""
-P_DETECT=""
-P_PRESENT=false
+P_RUN_KEY=""
 P_SAVED=()
 RID="win-x64"
 WINE_RUN=false
@@ -115,51 +112,13 @@ refresh_dotnet_path() {
     export PATH
 }
 
-dotnet_sdk_ready() {
-    DOTNET_READY=false
-    SDK_VERSION=""
-    command -v dotnet >/dev/null 2>&1 || return 0
-    SDK_VERSION="$(dotnet --list-sdks 2>/dev/null | awk -v m="$DOTNET_MAJOR." 'index($1, m) == 1 {v=$1} END {print v}')"
-    [ -n "$SDK_VERSION" ] && DOTNET_READY=true
-    return 0
-}
-
 load_prereq_rows() {
-    PREREQ_ROWS=""
-    [ -f "$PREREQS_CONF" ] || fail "Prerequisite manifest not found: $PREREQS_CONF"
     PREREQ_ROWS="$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$PREREQS_CONF" | tr -d '\r')"
 }
 
-prereq_present() {
-    local cmd="" kind="${P_DETECT%%:*}" value="${P_DETECT#*:}"
-    local -a cmds=()
-    P_PRESENT=false
-    case "$kind" in
-        dotnet-sdk)
-            DOTNET_MAJOR="$value"
-            refresh_dotnet_path
-            dotnet_sdk_ready
-            P_PRESENT="$DOTNET_READY"
-            ;;
-        commands)
-            IFS="$PREREQ_LIST_SEP" read -r -a cmds <<< "$value"
-            for cmd in "${cmds[@]}"; do
-                command -v "$cmd" >/dev/null 2>&1 && P_PRESENT=true
-            done
-            ;;
-        wine-wpf)
-            WINE_PREFIX="$(wine_wpf_prefix_dir)"
-            wine_wpf_runtime_present "$WINE_PREFIX" && P_PRESENT=true
-            ;;
-        *) P_PRESENT=true ;;
-    esac
-    return 0
-}
-
 prereq_run_installer() {
-    local installer="$ROOT_DIR/$P_INSTALLER" pair="" key="" i=0
+    local installer="$ROOT_DIR/$P_INSTALLER" pair="" key="" i=0 rc=0
     local -a keys=() args=() pairs=()
-    [ -f "$installer" ] || fail "Installer not found: $installer"
     P_SAVED=()
     IFS="$PREREQ_LIST_SEP" read -r -a pairs <<< "$P_ENV"
     for pair in "${pairs[@]}"; do
@@ -169,42 +128,34 @@ prereq_run_installer() {
         set_var "$key" "${pair#*=}" >/dev/null
     done
     [ -n "$P_ARGS" ] && IFS="$PREREQ_LIST_SEP" read -r -a args <<< "$P_ARGS"
-    bash "$installer" "${args[@]}"
+    bash "$installer" "${args[@]}" </dev/null
+    rc=$?
     for key in "${keys[@]}"; do
         set_var "$key" "${P_SAVED[$i]}" >/dev/null
         i=$((i + 1))
     done
     refresh_dotnet_path
+    return "$rc"
 }
 
 ensure_prereqs() {
     local manual_ids=""
     load_prereq_rows
-    while IFS="$PREREQ_FIELD_SEP" read -r P_KIND P_ID P_REQUIRED P_PLATFORM P_INSTALLER P_ENV P_ARGS P_DETECT; do
+    while IFS="$PREREQ_FIELD_SEP" read -r P_KIND P_ID P_REQUIRED P_PLATFORM P_INSTALLER P_ENV P_ARGS; do
         if [ "$P_KIND" = "manual" ]; then
             case "$P_REQUIRED" in windows*) manual_ids="${manual_ids:+$manual_ids, }$P_ID" ;; esac
             continue
         fi
         [ "$P_KIND" = "prereq" ] && [ "$P_PLATFORM" = "linux" ] || continue
-        prereq_present
-        if [ "$P_PRESENT" = "true" ]; then
-            log "Prerequisite present: $P_ID"
-            continue
-        fi
         if [ "$P_REQUIRED" != "true" ] && [ "$WITH_OPTIONAL" != "true" ]; then
-            log "Optional prerequisite missing: $P_ID; rerun with --with-optional to install it"
+            log "Optional prerequisite skipped: $P_ID; rerun with --with-optional to ensure it"
             continue
         fi
-        log "Installing prerequisite: $P_ID"
-        prereq_run_installer
-        prereq_present
-        if [ "$P_PRESENT" = "true" ]; then
-            log "Prerequisite ready: $P_ID"
-        elif [ "$P_REQUIRED" = "true" ]; then
-            fail "Required prerequisite is not available after install: $P_ID"
-        else
-            log "WARNING: optional prerequisite is still missing after install: $P_ID"
-        fi
+        P_RUN_KEY="$P_INSTALLER$PREREQ_FIELD_SEP$P_ENV$PREREQ_FIELD_SEP$P_ARGS"
+        case "$PREREQ_RAN" in *"<$P_RUN_KEY>"*) continue ;; esac
+        PREREQ_RAN="$PREREQ_RAN<$P_RUN_KEY>"
+        log "Ensuring prerequisite: $P_ID"
+        prereq_run_installer || log "WARNING: prerequisite installer failed for $P_ID"
     done <<< "$PREREQ_ROWS"
     [ -n "$manual_ids" ] && log "Windows-side prerequisites (not applicable on Linux; start.ps1 checks them on Windows): $manual_ids"
 }
@@ -305,9 +256,6 @@ find_windows_powershell
 log "Step 1/4: ensure prerequisites"
 refresh_dotnet_path
 ensure_prereqs
-dotnet_sdk_ready
-[ "$DOTNET_READY" = "true" ] || fail ".NET $DOTNET_MAJOR SDK is not available"
-log ".NET $DOTNET_MAJOR SDK present: $SDK_VERSION"
 
 resolve_artifacts_dir
 log "Artifacts: $ARTIFACTS_DIR"

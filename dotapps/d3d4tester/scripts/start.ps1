@@ -15,16 +15,10 @@ $PREREQS_FILE_NAME = 'prereqs.conf'
 $CONFIG_RELATIVE_SEGMENTS = @('.core_node', '.d3check', 'd3check_config.json')
 $FIELD_SEPARATOR = '|'
 $LIST_SEPARATOR = ';'
-$DETECT_DOTNET_PREFIX = 'dotnet-sdk:'
-$DETECT_VCREDIST = 'vcredist'
-$DETECT_BROWSER = 'browser'
 $PLATFORM_WINDOWS = 'windows'
 $PLATFORM_WINDOWS10 = 'windows10'
 $ROSBOT_ID = 'rosbot'
-$DOTNET_MAJOR = '8'
-$VCREDIST_DLLS = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')
-$BROWSER_RELATIVE_PATHS = @('Google\Chrome\Application\chrome.exe', 'Microsoft\Edge\Application\msedge.exe', 'Mozilla Firefox\firefox.exe')
-$DOTNET_EXE_NAME = 'dotnet.exe'
+$DOTNET_COMMAND = 'dotnet'
 $ARTIFACTS_SUBDIR = 'dotnet-artifacts'
 $ARTIFACTS_NAME = 'd3d4tester'
 
@@ -40,13 +34,10 @@ $prereqRows = @()
 $manualRows = @()
 $prereqRow = $null
 $prereqId = $null
-$prereqMissing = $false
 $installedInRun = @{}
 $csprojPath = Join-Path $appDir 'd3d4tester.csproj'
 $artifactsRoot = $null
-$sdkVersion = $null
 $artifactsPath = $null
-$dotnetPath = $null
 $exitCode = 0
 $restoreStamp = $null
 $restoreStale = $true
@@ -87,38 +78,9 @@ function Split-RowList {
     return @($Value -split [regex]::Escape($LIST_SEPARATOR))
 }
 
-function Get-DotnetPath {
-    $command = Get-Command -Name 'dotnet' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -ne $command) {
-        return [string]$command.Source
-    }
-    $fallback = Join-Path (Join-Path $env:ProgramFiles 'dotnet') $DOTNET_EXE_NAME
-    if (Test-Path -LiteralPath $fallback -PathType Leaf) {
-        return $fallback
-    }
-    return $null
-}
-
-function Get-DotnetSdkVersion {
-    param([string]$ExePath, [Parameter(Mandatory = $true)][string]$Major)
-    if ([string]::IsNullOrEmpty($ExePath)) {
-        return $null
-    }
-    $root = Split-Path -Parent $ExePath
-    $sdks = Join-Path $root 'sdk'
-    if (-not (Test-Path -LiteralPath $sdks -PathType Container)) {
-        return $null
-    }
-    $found = Get-ChildItem -LiteralPath $sdks -Directory -Filter "$Major.*" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -eq $found) {
-        return $null
-    }
-    return $found.Name
-}
-
 function Invoke-Dotnet {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
-    & $dotnetPath @Arguments
+    & $DOTNET_COMMAND @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet $($Arguments[0]) failed with exit code $LASTEXITCODE"
     }
@@ -130,52 +92,21 @@ function Update-ProcessPath {
     $env:Path = @($machinePath, $userPath) -join ';'
 }
 
-function Test-VcRedistPresent {
-    $system32 = Join-Path $env:SystemRoot 'System32'
-    foreach ($dll in $VCREDIST_DLLS) {
-        if (-not (Test-Path -LiteralPath (Join-Path $system32 $dll) -PathType Leaf)) {
-            return $false
-        }
-    }
-    return $true
-}
-
 function Get-ProgramRoots {
     $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA)
     return @($roots | Where-Object { -not [string]::IsNullOrEmpty($_) })
 }
 
-function Test-BrowserPresent {
-    foreach ($root in (Get-ProgramRoots)) {
-        foreach ($rel in $BROWSER_RELATIVE_PATHS) {
-            if (Test-Path -LiteralPath (Join-Path $root $rel) -PathType Leaf) {
-                return $true
-            }
-        }
-    }
-    return $false
-}
-
-function Test-PrereqPresent {
-    param([Parameter(Mandatory = $true)][string]$Detect)
-    if ($Detect.StartsWith($DETECT_DOTNET_PREFIX)) {
-        return ($null -ne (Get-DotnetSdkVersion -ExePath (Get-DotnetPath) -Major $Detect.Substring($DETECT_DOTNET_PREFIX.Length)))
-    }
-    switch ($Detect) {
-        $DETECT_VCREDIST { return (Test-VcRedistPresent) }
-        $DETECT_BROWSER { return (Test-BrowserPresent) }
-        default { return $true }
-    }
-}
-
-function Install-Prereq {
+function Invoke-PrereqInstaller {
     param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Row)
     $installer = Join-Path $repoRoot (Get-RowField -Row $Row -Index 4)
     $installerArgs = @(Split-RowList -Value (Get-RowField -Row $Row -Index 6))
-    if (-not $installedInRun.ContainsKey($installer)) {
-        $installedInRun[$installer] = $true
-        & $installer @installerArgs
+    $runKey = (@($installer) + $installerArgs) -join $FIELD_SEPARATOR
+    if ($installedInRun.ContainsKey($runKey)) {
+        return
     }
+    $installedInRun[$runKey] = $true
+    & $installer @installerArgs
     Update-ProcessPath
 }
 
@@ -296,39 +227,21 @@ $prereqRows = @(Read-PrereqManifest -Path $prereqsPath)
 $manualRows = @($prereqRows | Where-Object { $_[0] -eq 'manual' })
 foreach ($prereqRow in @($prereqRows | Where-Object { $_[0] -eq 'prereq' -and (Get-RowField -Row $_ -Index 3) -eq $PLATFORM_WINDOWS })) {
     $prereqId = Get-RowField -Row $prereqRow -Index 1
-    $prereqMissing = -not (Test-PrereqPresent -Detect (Get-RowField -Row $prereqRow -Index 7))
-    if (-not $prereqMissing) {
-        Write-StartLog "Prerequisite present: $prereqId"
-        continue
-    }
     if ((Get-RowField -Row $prereqRow -Index 2) -ne 'true' -and -not $WithOptional) {
-        Write-StartLog "Optional prerequisite missing: $prereqId; rerun with -WithOptional to install it"
+        Write-StartLog "Optional prerequisite skipped: $prereqId; rerun with -WithOptional to ensure it"
         continue
     }
-    Write-StartLog "Installing prerequisite: $prereqId"
+    Write-StartLog "Ensuring prerequisite: $prereqId"
     try {
-        Install-Prereq -Row $prereqRow
+        Invoke-PrereqInstaller -Row $prereqRow
     }
     catch {
-        Write-Host "$LOG_PREFIX Prerequisite install failed for ${prereqId}: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-    if (Test-PrereqPresent -Detect (Get-RowField -Row $prereqRow -Index 7)) {
-        Write-StartLog "Prerequisite ready: $prereqId"
-    }
-    else {
-        Write-Host "$LOG_PREFIX Prerequisite still missing after install attempt: $prereqId" -ForegroundColor Yellow
+        Write-Host "$LOG_PREFIX Prerequisite installer failed for ${prereqId}: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
 Show-ManualPrereqs -Rows $manualRows
-
 Update-ProcessPath
-$dotnetPath = Get-DotnetPath
-$sdkVersion = Get-DotnetSdkVersion -ExePath $dotnetPath -Major $DOTNET_MAJOR
-if ($null -eq $sdkVersion) {
-    throw "$LOG_PREFIX .NET $DOTNET_MAJOR SDK is not available after the prerequisite step"
-}
-Write-StartLog ".NET $DOTNET_MAJOR SDK present: $sdkVersion"
 
 $artifactsRoot = Join-Path $Global:CN_CACHE_ROOT $ARTIFACTS_SUBDIR
 $artifactsPath = Join-Path $artifactsRoot $ARTIFACTS_NAME
