@@ -40,6 +40,7 @@ import WorkersPanel from './task-center/WorkersPanel';
 import AssistRequestsPanel from './task-center/AssistRequestsPanel';
 import AssistDistributionPanel from './task-center/AssistDistributionPanel';
 import MCPManager from './MCPManager';
+import { SCROLL_X_HIDDEN_CLASS } from '../common/CenteredPageLayout';
 
 interface TaskCenterProps {
   lang?: Language;
@@ -105,15 +106,15 @@ const TaskCenterContent: React.FC<TaskCenterProps> = ({ lang = 'en' }) => {
   }
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
+    <div className="p-3 md:p-6 max-w-[1400px] mx-auto">
       {/* ===== Header: title + live chips + unified refresh controls ===== */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="mr-auto">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-indigo-500" />
-            {t.title}
+        <div className="mr-auto min-w-0">
+          <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-indigo-500 shrink-0" />
+            <span className="truncate">{t.title}</span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t.subtitle}</p>
+          <p className="hidden md:block text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">{chips}</div>
         <div className="flex items-center gap-2">
@@ -158,7 +159,7 @@ const TaskCenterContent: React.FC<TaskCenterProps> = ({ lang = 'en' }) => {
       )}
 
       {/* ===== Tab bar ===== */}
-      <div className="flex gap-1 mb-5 border-b border-slate-200 dark:border-slate-700">
+      <div className={`flex flex-nowrap gap-1 mb-4 md:mb-5 border-b border-slate-200 dark:border-slate-700 overflow-y-hidden ${SCROLL_X_HIDDEN_CLASS}`}>
         {TAB_ORDER.map((tab) => {
           const Icon = TAB_ICONS[tab];
           const active = activeTab === tab;
@@ -166,7 +167,7 @@ const TaskCenterContent: React.FC<TaskCenterProps> = ({ lang = 'en' }) => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${active
+              className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 md:px-4 py-2 md:py-2.5 text-sm font-medium border-b-2 -mb-px transition ${active
                   ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}

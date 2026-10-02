@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * OfflineBanner – slim, non-blocking top banner that reflects browser
@@ -7,7 +8,8 @@ import React, { useEffect, useRef, useState } from 'react';
  *
  * Design matches the app shell: glass/blur surface, rounded pill, indigo/
  * slate palette, dark-mode aware, high z-index, fixed at top-center so it
- * never covers the sidebar/nav.
+ * never covers the sidebar/nav. It sits just below the sticky top header so
+ * the header controls stay clickable.
  */
 
 /** How long the "Back online" confirmation stays before fading out (ms). */
@@ -16,6 +18,7 @@ const BACK_ONLINE_VISIBLE_MS = 3000;
 type BannerState = 'hidden' | 'offline' | 'back-online';
 
 const OfflineBanner: React.FC = () => {
+  const { t } = useTranslation();
   // Start from the current connectivity status. navigator.onLine may be
   // undefined in non-browser/SSR contexts, so default to "online" (hidden).
   const initialOnline =
@@ -77,12 +80,12 @@ const OfflineBanner: React.FC = () => {
       aria-live="polite"
       // pointer-events-none on the wrapper keeps the banner non-blocking;
       // the pill itself re-enables pointer events.
-      className="fixed top-0 inset-x-0 z-[100] flex justify-center px-4 pt-3 pointer-events-none"
+      className="fixed top-12 md:top-14 inset-x-0 z-[100] flex justify-center pl-16 pr-2 md:pl-20 md:pr-4 pt-2 pointer-events-none"
     >
       <div
         className={`
           pointer-events-auto flex items-center gap-2.5
-          rounded-full px-4 py-2 text-xs sm:text-sm font-medium
+          rounded-full px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium max-w-full
           backdrop-blur-md ring-1 shadow-lg shadow-slate-900/5
           transition-all duration-500 ease-out
           ${toneClasses}
@@ -98,14 +101,7 @@ const OfflineBanner: React.FC = () => {
           `}
           aria-hidden="true"
         />
-        {isOffline ? (
-          <span>
-            You&apos;re offline — the backend is unreachable. Changes may not be
-            saved.
-          </span>
-        ) : (
-          <span>Back online</span>
-        )}
+        <span>{isOffline ? t('common.offline_banner') : t('common.back_online')}</span>
       </div>
     </div>
   );

@@ -958,7 +958,7 @@ const VocabularyLearning: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col p-3 md:p-6 overflow-hidden">
-      <PageHeader title={t.title} subtitle={tr('vocabulary.subtitle')} />
+      <PageHeader title={t.title} subtitle={tr('vocabulary.subtitle')} tight />
 
       {/* Sub-tab bar — only the active tab's content mounts. Persisted in localStorage. */}
       <VocabSubTabBar activeTab={activeTab} switchTab={switchTab} />

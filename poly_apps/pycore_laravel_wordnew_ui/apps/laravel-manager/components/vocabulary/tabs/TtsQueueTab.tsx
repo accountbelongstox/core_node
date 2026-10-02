@@ -169,7 +169,7 @@ const TtsQueueTab: React.FC<TtsQueueTabProps> = ({
                 <p className="text-[10px] text-slate-400 mb-3">
                   {t.dictionary_tts_description}
                 </p>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-2 md:gap-4">
                   <button
                     type="button"
                     onClick={() => openTtsQueueDrill(t.audio_type_word, { type: 'word' })}

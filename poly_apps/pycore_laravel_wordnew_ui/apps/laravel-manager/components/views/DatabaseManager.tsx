@@ -12,7 +12,7 @@ import {
   LoadingBlock, InlineSpinner, AlertBox, EmptyState, StatusBadge, Field, CopyButton,
 } from '../common';
 import type { StatusTone } from '../common';
-import { CenteredPage, CenteredTabBar } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
+import { CenteredPage, CenteredTabBar, PageHeader } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
 import { useApiResource } from '@/apps/laravel-manager/hooks';
 import {
   DatabaseZap, Layers, RefreshCw, ChevronLeft, ChevronRight, Search,
@@ -1948,9 +1948,9 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center p-6">
-        <div className="text-center">
-          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+      <div className="w-full h-full flex items-center justify-center p-4 md:p-6">
+        <div className="text-center max-w-md">
+          <p className="text-red-600 dark:text-red-400 mb-4 break-words">{error}</p>
           <button
             type="button"
             onClick={loadConnections}
@@ -1964,35 +1964,38 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
   }
 
   return (
-    <CenteredPage className="h-full flex flex-col p-6">
-      <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <DatabaseZap className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('db_manager.title')}</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {t('db_manager.subtitle')}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-slate-400" />
-          <select
-            value={selectedKey}
-            onChange={(e) => setSelectedKey(e.target.value)}
-            className={`${commonClasses.select}`}
-          >
-            {connections.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.name} {t(c.is_main ? 'db_manager.kind_main' : 'db_manager.kind_app')} · {c.driver}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+    <CenteredPage className="h-full flex flex-col p-3 md:p-6">
+      <PageHeader
+        title={t('db_manager.title')}
+        subtitle={t('db_manager.subtitle')}
+        icon={<DatabaseZap className="w-6 h-6 md:w-8 md:h-8 shrink-0 text-indigo-600 dark:text-indigo-400" />}
+        wrapActions
+        actionsClassName="w-full md:w-auto"
+        tight
+        actions={
+          <>
+            <Layers className="w-4 h-4 shrink-0 text-slate-400" />
+            <select
+              value={selectedKey}
+              onChange={(e) => setSelectedKey(e.target.value)}
+              disabled={connections.length === 0}
+              aria-label={t('db_manager.connection')}
+              title={selected ? `${selected.name} · ${selected.driver}` : t('db_manager.no_connection')}
+              className={`${commonClasses.select} flex-1 md:flex-none min-w-0 w-full md:w-auto md:max-w-sm py-1.5 md:py-2 text-sm truncate`}
+            >
+              {connections.length === 0 && <option value="">{t('db_manager.no_connection')}</option>}
+              {connections.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.name} {t(c.is_main ? 'db_manager.kind_main' : 'db_manager.kind_app')} · {c.driver}
+                </option>
+              ))}
+            </select>
+          </>
+        }
+      />
 
       {/* Tabs */}
-      <div className="mb-4">
+      <div className="mb-3 md:mb-4">
         <CenteredTabBar items={tabs.map((item) => ({ id: item.key, label: item.label }))} activeId={tab} onChange={(id) => setTab(id as TabKey)} />
       </div>
 
@@ -2000,7 +2003,17 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
         {tab === 'sync' ? (
           <DataSyncTab />
         ) : !selected ? (
-          <div className="text-slate-500 dark:text-slate-400 py-6">{t('db_manager.no_connection')}</div>
+          <div className="py-6 space-y-3 text-sm text-slate-500 dark:text-slate-400">
+            <p className="font-medium text-slate-700 dark:text-slate-300">{t('db_manager.no_connection')}</p>
+            <p>{t('db_manager.no_connection_hint')}</p>
+            <button
+              type="button"
+              onClick={loadConnections}
+              className={`${commonClasses.button} ${commonClasses.buttonPrimary}`}
+            >
+              {t('common.retry')}
+            </button>
+          </div>
         ) : (
           <>
             {tab === 'tables' && (

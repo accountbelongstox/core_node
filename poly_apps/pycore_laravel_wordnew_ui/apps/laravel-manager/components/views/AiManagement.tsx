@@ -329,14 +329,14 @@ const AiManagement: React.FC = () => {
   const list = providers ?? [];
 
   return (
-    <div className="p-6 md:p-8 space-y-5 min-w-0 max-w-full">
+    <div className="p-3 md:p-8 space-y-4 md:space-y-5 min-w-0 max-w-full">
       {/* Sticky page chrome — title + actions pinned while scrolling. */}
-      <div className="sticky top-0 z-20 -mx-6 md:-mx-8 px-6 md:px-8 py-3 -mt-6 md:-mt-8 mb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl">
+      <div className="sticky top-0 z-20 -mx-3 md:-mx-8 px-3 md:px-8 py-2 md:py-3 -mt-3 md:-mt-8 mb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl">
         <div className="min-w-0">
           <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
             <BrainCircuit className="w-5 h-5 text-indigo-500" /> AI Management
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="hidden md:block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             laravel_main unified AI gateway — providers, SDK capabilities, live rate budgets, gateway activity, prompt cache and chat.
           </p>
         </div>

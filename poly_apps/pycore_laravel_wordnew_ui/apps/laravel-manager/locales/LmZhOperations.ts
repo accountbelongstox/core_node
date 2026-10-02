@@ -271,6 +271,7 @@ code_browser: {
     },
 settings: {
       title: "系统设置",
+      subtitle: "配置应用设置与偏好",
       api_config: "API 配置",
       base_url: "基础 URL",
       api_key: "API 密钥",
@@ -318,6 +319,8 @@ db_manager: {
       subtitle: "跨连接的状态、数据表、导入/导出与备份",
       loading_connections: "正在加载连接…",
       no_connection: "未选择连接",
+      no_connection_hint: "服务器未返回任何数据库连接。请登录并检查 API 端点后重试。",
+      connection: "数据库连接",
       kind_main: "（主）",
       kind_app: "（应用）",
       loading: "加载中…",
@@ -552,6 +555,16 @@ common: {
       network_error: "网络错误，请检查连接后重试。",
       still_running: "该操作仍在服务器上运行，请稍后重试以查看结果。",
       loading: "加载中...",
+      offline_banner: "你已离线 — 无法连接后端，更改可能无法保存。",
+      back_online: "已恢复在线",
+      logs_title: "操作日志",
+      logs_pill: "日志",
+      logs_hint: "保留最近 {{count}} 条 · 最新在底部",
+      logs_clear: "清空日志",
+      logs_clear_short: "清空",
+      logs_collapse: "收起",
+      logs_expand: "展开日志",
+      logs_empty: "暂无日志 — 操作记录会显示在这里。",
       unknown_app_flavor: "未知应用类型：{{id}}"
     },
 server: {
