@@ -19,6 +19,7 @@ export const WordNewStorageKeys = {
   WORDNEW_ORCH_CLIP_ROOT: 'wfnew.orch.clipRoot',
   /** This device's orchestration id: random, generated once, never derived from a fingerprint. */
   WORDNEW_ORCH_DEVICE_ID: 'wfnew.orch.deviceId',
+  WORDNEW_CUSTOM_WORDS: 'wfnew_custom_words',
   WORDNEW_SUPER_TOAST: 'wfnew_super_toast',
   WORDNEW_MOCK_AUTH_USERS: 'wfnew_auth_mock_users',
   WORDNEW_MOCK_PREFERENCES: 'wfnew_prefs_mock',

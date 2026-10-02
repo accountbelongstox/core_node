@@ -1,13 +1,13 @@
 import React from 'react';
 
-export interface ChipOption<T extends string | number> {
+export interface ChipOption<T extends string | number | boolean> {
   value: T;
   label: React.ReactNode;
   title?: string;
   disabled?: boolean;
 }
 
-interface ChipGroupProps<T extends string | number> {
+interface ChipGroupProps<T extends string | number | boolean> {
   value: T;
   options: readonly ChipOption<T>[];
   onChange: (value: T) => void;
@@ -29,7 +29,7 @@ const DEFAULT_SELECTED = 'border-indigo-500 bg-indigo-500/15 text-indigo-300';
 const DEFAULT_IDLE = 'border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10';
 
 /** Single-choice pill group (speeds, languages, modes) or tab strip. */
-export function ChipGroup<T extends string | number>({
+export function ChipGroup<T extends string | number | boolean>({
   value, options, onChange, className = '', role = 'radio', label, gapClassName = 'gap-2', nowrap = false,
   chipClassName = DEFAULT_CHIP, selectedClassName = DEFAULT_SELECTED, idleClassName = DEFAULT_IDLE,
 }: ChipGroupProps<T>): React.ReactElement {

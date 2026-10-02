@@ -43,6 +43,7 @@ import { useLibraryPriorityBoost } from '../hooks/usePriorityBoost';
 import { LIBRARY_MEDIA_RETRY_COUNT, LIBRARY_MEDIA_RETRY_MS } from '../constants/uiTiming';
 import { WfNewPager } from '../components/WfNewPager';
 import { useActiveScrollFollow } from '../components/reader/useActiveScrollFollow';
+import { clamp } from '../../../core/utils/mathUtils';
 
 type LibraryView = 'dash' | 'table';
 
@@ -280,7 +281,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
       .then((res) => { if (alive) setData(res); })
       .catch((e) => {
         if (!alive) return;
-        setError(e?.message ? String(e.message) : 'Failed to load library words.');
+        setError(e?.message ? String(e.message) : trans('library.loadFailed'));
         setData(null);
       })
       .finally(() => { if (alive) setLoading(false); });
@@ -345,7 +346,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   }, [playing, activeWord, wordRows]);
 
   const goTo = useCallback((p: number) => {
-    const clamped = Math.max(1, Math.min(p, lastPage));
+    const clamped = clamp(p, 1, lastPage);
     if (clamped !== currentPage) onChangePage(clamped);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [lastPage, currentPage, onChangePage]);

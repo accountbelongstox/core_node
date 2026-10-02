@@ -5,9 +5,6 @@
  * button opens the read-along reader. */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  BookOpen,
-  ChevronDown,
-  Headphones,
   Home,
   ListMusic,
   Loader2,
@@ -28,6 +25,8 @@ import { wfNewApi, type WfNewDailyReadingSelectionMode } from '../../api';
 import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
 import { dailyReadingArticleId, dailyReadingHash } from '../../routing/WordNewHashRoutes';
 import { WordNewDailyReadingResourcePreview } from './WordNewDailyReadingResourcePreview';
+import { WordNewDailyReadingRowItem } from './WordNewDailyReadingRowItem';
+import { SelectField } from '@/shared/ui/SelectField';
 
 interface Props {
   theme: ElementTheme;
@@ -291,6 +290,16 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   }, [load]);
 
   const playableCount = rows.filter((row) => row.audio_ready === true && !!row.audio_url).length;
+  const statisticPills = [
+    { key: 'articles', labelKey: 'home.dailyReading.articleCount', count: totalRows, className: 'border-white/5 bg-white/[0.03]' },
+    { key: 'playable', labelKey: 'home.dailyReading.playableCount', count: playableCount, className: 'border-emerald-500/15 bg-emerald-500/5 text-emerald-400/80' },
+    { key: 'multi', labelKey: 'home.dailyReading.multiSentenceCount', count: statistics.multiSentence, className: 'border-emerald-500/15 bg-emerald-500/5 text-emerald-400/80' },
+    { key: 'legacy', labelKey: 'home.dailyReading.legacyAudioCount', count: statistics.legacyAudio, className: 'border-amber-500/15 bg-amber-500/5 text-amber-400/80' },
+    { key: 'rebuilt', labelKey: 'home.dailyReading.rebuiltCount', count: statistics.rebuilt, className: 'border-sky-500/15 bg-sky-500/5 text-sky-400/80' },
+    ...(statistics.historicalDuplicates > 0
+      ? [{ key: 'archived', labelKey: 'home.dailyReading.archivedDuplicateCount', count: statistics.historicalDuplicates, className: 'border-zinc-500/15 bg-zinc-500/5 text-zinc-400/80' }]
+      : []),
+  ];
 
   if (player.open) {
     return <WordNewDailyReadingPlayerOverlay player={player} trans={trans} onGoHome={onGoHome} />;
@@ -359,44 +368,22 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
         </div>
 
         {routeMode && (
-          <label className="flex items-center justify-between gap-3 text-[11px] text-zinc-500">
-            <span>{trans('home.dailyReading.startMode')}</span>
-            <select
-              value={selectionMode}
-              onChange={(event) => changeSelectionMode(event.target.value as WfNewDailyReadingSelectionMode)}
-              className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-            >
-              {SELECTION_MODE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {trans(option.labelKey)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SelectField
+            variant="compact"
+            label={trans('home.dailyReading.startMode')}
+            value={selectionMode}
+            onChange={changeSelectionMode}
+            options={SELECTION_MODE_OPTIONS.map((option) => ({ value: option.value, label: trans(option.labelKey) }))}
+          />
         )}
 
         {routeMode && (
           <div className="flex flex-wrap gap-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-            <span className="rounded-full border border-white/5 bg-white/[0.03] px-3 py-1.5">
-              {trans('home.dailyReading.articleCount', { count: totalRows })}
-            </span>
-            <span className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1.5 text-emerald-400/80">
-              {trans('home.dailyReading.playableCount', { count: playableCount })}
-            </span>
-            <span className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1.5 text-emerald-400/80">
-              {trans('home.dailyReading.multiSentenceCount', { count: statistics.multiSentence })}
-            </span>
-            <span className="rounded-full border border-amber-500/15 bg-amber-500/5 px-3 py-1.5 text-amber-400/80">
-              {trans('home.dailyReading.legacyAudioCount', { count: statistics.legacyAudio })}
-            </span>
-            <span className="rounded-full border border-sky-500/15 bg-sky-500/5 px-3 py-1.5 text-sky-400/80">
-              {trans('home.dailyReading.rebuiltCount', { count: statistics.rebuilt })}
-            </span>
-            {statistics.historicalDuplicates > 0 && (
-              <span className="rounded-full border border-zinc-500/15 bg-zinc-500/5 px-3 py-1.5 text-zinc-400/80">
-                {trans('home.dailyReading.archivedDuplicateCount', { count: statistics.historicalDuplicates })}
+            {statisticPills.map((pill) => (
+              <span key={pill.key} className={`rounded-full border px-3 py-1.5 ${pill.className}`}>
+                {trans(pill.labelKey, { count: pill.count })}
               </span>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -408,126 +395,21 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
       ) : (
         <>
           <ul className={routeMode ? 'grid min-w-0 w-full flex-1 auto-rows-min gap-4 xl:grid-cols-2' : 'space-y-3 max-h-[420px] overflow-y-auto pr-1'}>
-          {rows.map((row) => {
-            const expanded = expandedId === row.id;
-            const dateLabel = row.reading_date ?? row.created_at;
-            return (
-              <li
-                key={row.id}
-                className={`rounded-2xl border border-white/5 bg-slate-900/40 p-4 hover:border-indigo-500/30 transition-colors ${routeMode ? 'h-full min-w-0 max-w-full' : ''}`}
-              >
-                <div className={routeMode
-                  ? 'flex min-w-0 flex-col gap-3'
-                  : 'flex items-start justify-between gap-3'}>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(expanded ? null : row.id)}
-                    className={`${routeMode ? 'w-full' : 'flex-1'} min-w-0 text-left`}
-                    title={trans('home.dailyReading.toggleText')}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="min-w-0 flex-1 text-sm font-bold text-zinc-100 truncate">{row.title_en}</span>
-                      <span
-                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${row.audio_generation_type === 'multi_sentence'
-                          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-                          : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
-                        }`}
-                      >
-                        {trans(row.audio_generation_type === 'multi_sentence'
-                          ? 'home.dailyReading.multiSentenceAudio'
-                          : 'home.dailyReading.legacyAudio')}
-                      </span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-180' : ''}`}
-                      />
-                    </div>
-                    {row.title_cn && (
-                      <div className="text-xs text-zinc-400 mt-0.5 truncate">{row.title_cn}</div>
-                    )}
-                    <div className="text-[10px] font-mono text-zinc-600 mt-2">
-                      {row.word_count ? `${row.word_count} words · ` : ''}
-                      {dateLabel ? new Date(dateLabel).toLocaleDateString() : ''}
-                    </div>
-                  </button>
-                  <div className={`flex gap-2 ${routeMode
-                    ? 'min-w-0 max-w-full flex-row flex-wrap'
-                    : 'shrink-0 flex-col'}`}>
-                    {routeMode && (
-                      <WordNewDailyReadingResourcePreview
-                        articleId={row.id}
-                        settings={player}
-                        trans={trans}
-                      />
-                    )}
-                    {row.audio_url && row.audio_ready && (
-                      <button
-                        type="button"
-                        onClick={() => startPlayer(row.id, true)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 text-indigo-200 hover:border-indigo-300/60 hover:bg-indigo-500/20 transition-colors"
-                        title={trans('home.dailyReading.playFrom')}
-                        aria-label={trans('home.dailyReading.playFrom')}
-                      >
-                        <Headphones className="w-4 h-4" />
-                        <span className="text-[10px] font-bold">{trans('home.dailyReading.playFrom')}</span>
-                      </button>
-                    )}
-                    {row.audio_url && !row.audio_ready && (
-                      <button
-                        type="button"
-                        onClick={() => void queueAudio(row)}
-                        disabled={queueingId === row.id}
-                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-amber-500/20 text-amber-300 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
-                        title={trans('home.dailyReading.audioQueued')}
-                      >
-                        {queueingId === row.id
-                          ? <Loader2 className="w-4 h-4 animate-spin" />
-                          : <Headphones className="w-4 h-4" />}
-                        {routeMode && <span className="text-[10px] font-bold">{trans('home.dailyReading.audioPending')}</span>}
-                      </button>
-                    )}
-                    {row.source_key && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenBook(row.source_key!, row.title_en)}
-                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/10 transition-colors"
-                        title={trans('home.agentArticles.read')}
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        {routeMode && <span className="text-[10px] font-bold">{trans('home.agentArticles.read')}</span>}
-                      </button>
-                    )}
-                    {routeMode && (row.article_en || row.reference_cn) && (
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(expanded ? null : row.id)}
-                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
-                        title={trans('home.dailyReading.toggleText')}
-                      >
-                        <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                        <span className="text-[10px] font-bold">
-                          {trans(expanded ? 'home.dailyReading.hideArticle' : 'home.dailyReading.showArticle')}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {expanded && (row.article_en || row.reference_cn) && (
-                  <div className="mt-3 space-y-3 border-t border-white/5 pt-3">
-                    {row.article_en && (
-                      <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
-                        {row.article_en}
-                      </p>
-                    )}
-                    {row.reference_cn && (
-                      <p className="text-xs text-zinc-500 leading-relaxed whitespace-pre-wrap">
-                        {row.reference_cn}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
+          {rows.map((row) => (
+            <WordNewDailyReadingRowItem
+              key={row.id}
+              row={row}
+              routeMode={routeMode}
+              expanded={expandedId === row.id}
+              queueing={queueingId === row.id}
+              player={player}
+              trans={trans}
+              onToggleExpand={() => setExpandedId(expandedId === row.id ? null : row.id)}
+              onPlay={() => startPlayer(row.id, true)}
+              onQueueAudio={() => void queueAudio(row)}
+              onOpenBook={onOpenBook}
+            />
+          ))}
           </ul>
           {routeMode && rows.length < totalRows && (
             <button

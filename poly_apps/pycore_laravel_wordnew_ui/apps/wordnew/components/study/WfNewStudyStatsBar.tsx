@@ -9,6 +9,9 @@ import React from 'react';
 import { CheckCircle2, GraduationCap, RotateCcw } from 'lucide-react';
 import type { StudyStats } from './WfNewStudyProgress';
 import { studyT } from './WfNewStudyLocales';
+import { percentOf } from '../../../../core/utils/mathUtils';
+import { ProgressBar } from '@/shared/ui/ProgressBar';
+import type { StatusTone } from '@/shared/ui/statusTone';
 
 interface WfNewStudyStatsBarProps {
   stats: StudyStats;
@@ -16,22 +19,19 @@ interface WfNewStudyStatsBarProps {
   lang: string;
 }
 
-const pct = (num: number, den: number): number =>
-  den <= 0 ? 0 : Math.min(100, Math.round((num / den) * 100));
-
 export const WfNewStudyStatsBar: React.FC<WfNewStudyStatsBarProps> = ({
   stats,
   dailyGoal,
   lang,
 }) => {
-  const masteredPct = pct(stats.mastered, stats.total);
-  const dailyPct = pct(stats.dailyHandled, dailyGoal);
-  const sessionPct = pct(stats.sessionHandled, stats.total);
+  const masteredPct = percentOf(stats.mastered, stats.total);
+  const dailyPct = percentOf(stats.dailyHandled, dailyGoal);
+  const sessionPct = percentOf(stats.sessionHandled, stats.total);
 
-  const bars: Array<{ key: string; label: string; value: number; color: string }> = [
-    { key: 'mastered', label: studyT(lang, 'study.stats.mastered'), value: masteredPct, color: 'bg-emerald-500' },
-    { key: 'daily', label: studyT(lang, 'study.stats.dailyGoal'), value: dailyPct, color: 'bg-indigo-500' },
-    { key: 'session', label: studyT(lang, 'study.stats.session'), value: sessionPct, color: 'bg-amber-500' },
+  const bars: Array<{ key: string; label: string; value: number; tone: StatusTone }> = [
+    { key: 'mastered', label: studyT(lang, 'study.stats.mastered'), value: masteredPct, tone: 'emerald' },
+    { key: 'daily', label: studyT(lang, 'study.stats.dailyGoal'), value: dailyPct, tone: 'indigo' },
+    { key: 'session', label: studyT(lang, 'study.stats.session'), value: sessionPct, tone: 'amber' },
   ];
 
   const chips: Array<{ key: string; label: string; value: number; icon: React.ReactNode; cls: string }> = [
@@ -68,11 +68,8 @@ export const WfNewStudyStatsBar: React.FC<WfNewStudyStatsBarProps> = ({
               <span className="text-zinc-500">{b.label}</span>
               <span className="text-zinc-400 font-bold">{b.value}%</span>
             </div>
-            <div className="w-full bg-white/5 dark:bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`${b.color} h-full rounded-full transition-all duration-700`}
-                style={{ width: `${b.value}%` }}
-              />
+            <div className="flex">
+              <ProgressBar done={b.value} total={100} tone={b.tone} label={b.label} />
             </div>
           </div>
         ))}

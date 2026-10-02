@@ -4,11 +4,11 @@
  * API side; the list itself knows nothing about books or prompts.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Search } from 'lucide-react';
+import { Check } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { WfNewPager } from '../WfNewPager';
-import { OrchEmptyBox } from './orchPanels';
+import { OrchEmptyBox, OrchSearchField } from './orchPanels';
 
 export interface OrchSourceListItem<T> {
   id: string;
@@ -77,17 +77,12 @@ export function WfNewOrchSourceList<T>({ adapter, selectedId, onSelect, theme, t
 
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-3 py-2">
-        <Search className="h-3.5 w-3.5 text-zinc-500" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={trans('orchCompose.source.search')}
-          aria-label={trans('orchCompose.source.search')}
-          className="min-w-0 flex-1 bg-transparent text-xs text-zinc-700 dark:text-zinc-200 outline-none"
-        />
-        {loading && <WfNewLoadingDots className="text-indigo-600 dark:text-indigo-300" label={trans('content.loading')} />}
-      </label>
+      <OrchSearchField
+        value={query}
+        onChange={setQuery}
+        placeholder={trans('orchCompose.source.search')}
+        trailing={loading && <WfNewLoadingDots className="text-indigo-600 dark:text-indigo-300" label={trans('content.loading')} />}
+      />
       {!loading && (result?.items.length ?? 0) === 0 ? (
         <OrchEmptyBox className="p-4">{trans(failed ? 'orchCompose.source.loadFailed' : adapter.emptyKey)}</OrchEmptyBox>
       ) : (

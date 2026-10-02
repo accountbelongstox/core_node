@@ -3,7 +3,7 @@
  * icon / text buttons, the dashed empty box and the "composition not available" state.
  */
 import React from 'react';
-import { ArrowLeft, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, Search, type LucideIcon } from 'lucide-react';
 import { TONE_TEXT, type StatusTone } from '@/shared/ui/statusTone';
 import type { ElementTheme } from '../../WfNewThemes';
 import { WfNewLoadingDots } from '../WfNewLoadingDots';
@@ -104,3 +104,18 @@ export const OrchTaskUnavailable: React.FC<{ missing: boolean; trans: Trans; onB
     </div>
   );
 };
+
+/** Search box with a magnifier and an optional trailing indicator (loading dots). */
+export const OrchSearchField: React.FC<{ value: string; onChange: (value: string) => void; placeholder: string; trailing?: React.ReactNode; className?: string }> = ({ value, onChange, placeholder, trailing, className = '' }) => (
+  <label className={`flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-3 py-1.5 ${className}`}>
+    <Search className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden />
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      aria-label={placeholder}
+      className="min-w-0 flex-1 bg-transparent text-xs text-zinc-700 dark:text-zinc-200 outline-none"
+    />
+    {trailing}
+  </label>
+);

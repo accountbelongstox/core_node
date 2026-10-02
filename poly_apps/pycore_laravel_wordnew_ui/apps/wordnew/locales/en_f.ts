@@ -22,4 +22,7 @@ export const enLocaleF: Record<string, string> = {
   'practice.masteryDial': 'Mastery Dial: {n}%',
   'practice.contextFlow': 'Context Flow Synthesis',
   'toast.dismiss': 'Dismiss',
+  'home.dailyReading.wordCount': '{count} words',
+  'library.loadFailed': 'Failed to load library words.',
+  'social.signInToJoinLive': 'Sign in to join this live room.',
 };

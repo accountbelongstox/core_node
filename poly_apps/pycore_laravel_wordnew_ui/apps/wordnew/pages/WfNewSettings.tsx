@@ -40,14 +40,9 @@ interface WfNewSettingsProps {
   userStats: UserStats;
   setUserStats: (stats: UserStats) => void;
   nickname: string;
-  setNickname: (name: string) => void;
   avatarUrl: string;
-  setAvatarUrl: (url: string) => void;
-  speechRate: number;
   setSpeechRate: (r: number) => void;
   onClearCache: () => void;
-  /** Open the dedicated learning-languages page (native + multi-target, backend-synced). */
-  onOpenLanguages: () => void;
   /** Open the Learning Model sub-page (memorization mode + walkman params). */
   onOpenLearningModel: () => void;
   /** Open the subtitle Playback Settings sub-page. */

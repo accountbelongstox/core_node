@@ -10,6 +10,8 @@
 import React, { useEffect, useState } from 'react';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 import { motion } from 'framer-motion';
+import { ProgressRing } from '@/shared/ui/ProgressRing';
+import { percentOf } from '../../../core/utils/mathUtils';
 import {
   BarChart3, LogIn, type LucideIcon,
   Languages, BookOpen, RefreshCw, GraduationCap, Flame, CalendarCheck,
@@ -58,8 +60,13 @@ const Chip: React.FC<{ icon: LucideIcon; label: string; value: React.ReactNode; 
 
 /** Straight top, arched bottom (the panel hangs from the header). */
 const ARC_STYLE: React.CSSProperties = { borderBottomLeftRadius: '50% 2.25rem', borderBottomRightRadius: '50% 2.25rem' };
-const R_MINI = 15;
-const C_MINI = 2 * Math.PI * R_MINI;
+const RING_GRADIENT = ['#818cf8', '#e879f9'] as const;
+const RING_TRACK = 'text-slate-900/10 dark:text-white/10';
+const RING_RADIUS = 42.5;
+const RING_STROKE = 10;
+const MINI_RING_RADIUS = 41.5;
+const MINI_RING_STROKE = 11;
+const RING_ANIMATION_SECONDS = 1.1;
 
 const PILL = 'h-9 min-w-0 flex items-center gap-2 px-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-slate-900/5 dark:border-white/10 transition-colors';
 
@@ -92,14 +99,10 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
   // Live figures (real when logged in, otherwise 0 / draft goal).
   const goal = stats ? stats.dailyGoal || draftGoal : draftGoal;
   const today = stats ? stats.todayProgress : 0;
-  const pct = goal > 0 ? Math.min(100, Math.round((today / goal) * 100)) : 0;
+  const pct = percentOf(today, goal);
   const streak = stats?.currentStreak ?? 0;
   const weekly = stats?.weeklyProgress?.length === 7 ? stats.weeklyProgress : [0, 0, 0, 0, 0, 0, 0];
   const weekMax = Math.max(1, ...weekly);
-
-  // Circular ring geometry.
-  const R = 34;
-  const C = 2 * Math.PI * R;
 
   const targetLabel = targetLangs.map((c) => getLanguageConfig(c).nativeName).join(' · ') || langCfg.nativeName;
   const saveLabel = isLoggedIn ? trans('dashboard.save') : trans('dashboard.saveLogin');
@@ -141,22 +144,17 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
               className="col-span-2 row-span-2 min-w-0 px-2.5 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-fuchsia-500/10 border border-indigo-500/15 flex items-center gap-2.5"
               title={trans('home.todayRecite')}
             >
-              <div className="relative shrink-0 w-16 h-16">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-                  <circle cx="40" cy="40" r={R} fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-900/10 dark:text-white/10" />
-                  <motion.circle
-                    cx="40" cy="40" r={R} fill="none" stroke="url(#wfn-ring)" strokeWidth="8" strokeLinecap="round"
-                    strokeDasharray={C} initial={{ strokeDashoffset: C }} animate={{ strokeDashoffset: C * (1 - pct / 100) }}
-                    transition={{ duration: 1.1, ease: 'easeOut' }}
-                  />
-                  <defs>
-                    <linearGradient id="wfn-ring" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#e879f9" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-black font-mono text-slate-900 dark:text-white">{pct}%</span>
-              </div>
+              <ProgressRing
+                progress={pct / 100}
+                sizeClass="h-16 w-16"
+                radius={RING_RADIUS}
+                strokeWidth={RING_STROKE}
+                gradient={RING_GRADIENT}
+                trackClassName={RING_TRACK}
+                durationSec={RING_ANIMATION_SECONDS}
+              >
+                <span className="text-xs font-black font-mono text-slate-900 dark:text-white">{pct}%</span>
+              </ProgressRing>
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="font-black font-mono leading-none truncate text-slate-900 dark:text-white">
                   <span className="text-2xl">{today}</span>
@@ -249,22 +247,16 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
                   aria-label={trans('dashboard.expand')}
                   title={trans('dashboard.expand')}
                 >
-                  <span className="relative shrink-0 h-9 w-9">
-                    <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden>
-                      <circle cx="18" cy="18" r={R_MINI} fill="none" stroke="currentColor" strokeWidth="4" className="text-slate-900/10 dark:text-white/10" />
-                      <circle
-                        cx="18" cy="18" r={R_MINI} fill="none" stroke="url(#wfn-ring-mini)" strokeWidth="4" strokeLinecap="round"
-                        strokeDasharray={C_MINI} strokeDashoffset={C_MINI * (1 - pct / 100)}
-                        className="transition-[stroke-dashoffset] duration-700"
-                      />
-                      <defs>
-                        <linearGradient id="wfn-ring-mini" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#e879f9" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black font-mono text-slate-900 dark:text-white">{pct}%</span>
-                  </span>
+                  <ProgressRing
+                    progress={pct / 100}
+                    sizeClass="h-9 w-9"
+                    radius={MINI_RING_RADIUS}
+                    strokeWidth={MINI_RING_STROKE}
+                    gradient={RING_GRADIENT}
+                    trackClassName={RING_TRACK}
+                  >
+                    <span className="text-[9px] font-black font-mono text-slate-900 dark:text-white">{pct}%</span>
+                  </ProgressRing>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 min-w-0">
                       <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />

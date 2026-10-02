@@ -36,6 +36,7 @@ import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDa
 import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
+import { wordNewCustomWords, useWordNewCustomWords } from './services/WordNewCustomWords';
 import { useWfNewAppState } from './hooks/useWfNewAppState';
 import type { WordNewTab } from './routing/WordNewHashRoutes';
 import { installNativeSpeechSynthesis } from './platform/capabilities/CapSpeechSynthesisPolyfill';
@@ -58,6 +59,7 @@ export const WfNewApp: React.FC = () => {
     [],
   );
   useWordNewQueueRuntimeLifecycle();
+  const customWords = useWordNewCustomWords();
 
   const appState = useWfNewAppState({ shellLang, dark });
   const {
@@ -346,7 +348,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewLabsTab
                 activeTheme={activeTheme}
                 trans={trans}
-                courseWords={courseWords}
+                courseWords={customWords}
                 newWordText={newWordText}
                 setNewWordText={setNewWordText}
                 newWordTransl={newWordTransl}
@@ -357,6 +359,7 @@ export const WfNewApp: React.FC = () => {
                 setNewWordDef={setNewWordDef}
                 onForge={handleForgeCustomWord}
                 onRemoveCustom={(id) => {
+                  wordNewCustomWords.remove(id);
                   setCourseWords((prev) => prev.filter((w) => w.id !== id));
                   addToast(trans('toast.wipedForge'), 'warning');
                 }}
@@ -377,13 +380,9 @@ export const WfNewApp: React.FC = () => {
               userStats={userStats}
               setUserStats={setUserStats}
               nickname={nickname}
-              setNickname={setNickname}
               avatarUrl={avatarUrl}
-              setAvatarUrl={setAvatarUrl}
-              speechRate={speechRate}
               setSpeechRate={setSpeechRate}
               onClearCache={handleClearEverything}
-              onOpenLanguages={() => setActiveTab('languages')}
               onOpenLearningModel={() => setActiveTab('learning-model')}
               onOpenPlaybackSettings={() => setActiveTab('playback')}
               onOpenCache={() => setActiveTab('cache')}

@@ -15,4 +15,7 @@ export const enLocaleE: Record<string, string> = {
   'analytics.noData': 'No data yet',
   'set.algoSm2Title': 'SM-2 Adaptive Spacing',
   'set.algoSm2Desc': 'Adjusts each interval by how easily the card was recalled.',
+  'lab.defaultPhonetic': '/forged/',
+  'lab.defaultDefinition': 'Custom forged lexeme in cognitive sanctum.',
+  'lab.defaultExample': 'The master pilot forged custom terms to interface with the control machine.',
 };

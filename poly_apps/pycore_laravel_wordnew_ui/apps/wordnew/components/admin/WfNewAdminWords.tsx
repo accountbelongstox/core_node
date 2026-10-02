@@ -16,6 +16,7 @@ import {
   useAdminConfirm, useAdminLanguage, useDebouncedValue, useRequestGuard,
   type AdminPanelProps,
 } from './adminKit';
+import { clamp } from '../../../../core/utils/mathUtils';
 
 const PAGE_SIZE = 50;
 
@@ -124,7 +125,7 @@ export const WfNewAdminWords: React.FC<AdminPanelProps> = ({ activeTheme, trans,
   };
 
   const goTo = useCallback((p: number): void => {
-    const clamped = Math.max(1, Math.min(p, totalPages));
+    const clamped = clamp(p, 1, totalPages);
     if (clamped !== page) {
       setStart((clamped - 1) * PAGE_SIZE);
       if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });

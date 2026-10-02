@@ -37,6 +37,7 @@ import { readWordCardsForSentence } from '../services/WordNewBookReaderWordCards
 import { logWarn } from '../../../core/logstore/logStore';
 import { scrollRowToUpperMiddle, useActiveScrollFollow } from '../components/reader/useActiveScrollFollow';
 import { useDismissOnOutside } from '../components/reader/useDismissOnOutside';
+import { clamp } from '../../../core/utils/mathUtils';
 
 interface WfNewBookReaderProps {
   sourceKey: string;
@@ -563,7 +564,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
           onBrowserTtsChange={(v) => { setBrowserTts(v); wfNewSettings.setField('readerBrowserTts', v); persistReaderChange(); }}
           onWordCardsChange={(v) => { setWordCards(v); wfNewSettings.setField('readerWordCards', v); persistReaderChange(); }}
           onWordCardPositionChange={(v) => { setWordCardPosition(v); wfNewSettings.setField('readerWordCardPosition', v); persistReaderChange(); }}
-          onWordRepeatsChange={(v) => { const next = Math.max(1, Math.min(10, v || 1)); setWordRepeats(next); wfNewSettings.setField('readerWordRepeats', next); persistReaderChange(); }}
+          onWordRepeatsChange={(v) => { const next = clamp(v || 1, 1, 10); setWordRepeats(next); wfNewSettings.setField('readerWordRepeats', next); persistReaderChange(); }}
           onWordModeChange={(v) => { setWordMode(v); wfNewSettings.setField('readerWordMode', v); persistReaderChange(); }}
         />
       )}
