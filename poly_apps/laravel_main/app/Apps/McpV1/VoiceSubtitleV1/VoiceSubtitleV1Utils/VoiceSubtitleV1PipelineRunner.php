@@ -45,12 +45,13 @@ final class VoiceSubtitleV1PipelineRunner
     public function advance(string $taskId): void
     {
         $task = $this->taskManager->getTask($taskId);
-        $pipeline = $task['payload'][VoiceSubtitleTaskManager::PIPELINE_KEY] ?? null;
+        $pipeline = null;
         $processor = new VoiceSubtitleProcessor();
 
         if ($task === null) {
             return;
         }
+        $pipeline = $task['payload'][VoiceSubtitleTaskManager::PIPELINE_KEY] ?? null;
         if (!is_array($pipeline['input'] ?? null)) {
             $this->taskManager->failTask($taskId, __('mcp_v1.voice_subtitle.pipeline_input_missing', ['task_id' => $taskId]));
             return;

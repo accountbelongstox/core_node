@@ -12,6 +12,7 @@ Run together: the relay contract digest and the lease/gap schema changed, so Lar
 2. On the Laravel server: `git pull`.
 3. `php artisan sys:init`. It applies the pending migrations and self-heals:
    - `database/migrations/AppQyV1_2026_10_02_000001_add_media_gap_partial_indexes.php` (media gap and lease indexes);
+   - `database/migrations/AppQyV1_2026_10_02_000002_ensure_hot_path_gap_lease_indexes.php` (word and sentence gap, failed-free lease claim, lease expiry and failed indexes for every aligned language; builds take a write lock per table while they run);
    - `database/migrations/global_Relay_2026_10_01_000001_create_relay_ledger_table.php` (`global_relay_ledger`).
 4. Restart the FrankenPHP/Octane workers: systemd unit `ncore-laravel-frankenphp` (contracts are cached per worker); `php artisan optimize:clear` when config/route caches are used.
 5. Run step 175 once on the server (book seed).
@@ -76,5 +77,5 @@ Data files (no code reads them):
 - Relay owner routes accept a client-key signature (shared fleet owner) or any logged-in user (`client.key_or_dashboard:user`), and the loopback debug bypass binds a debug user (`DESIGN_RELAY.md` §2): keep, or tighten to admin level / refuse the bypass.
 - qwen3tts 0.6B variant for bulk sentence audio (8 GB / 24-SM GPU: batch 4 vs 2 for 1.7B).
 - Azure TTS without the SDK: align status ("not installed") with the on-request "package missing" code.
-- `AppQyV1BackfillGlobalTasks` writes unclaimable `word_audio` GlobalTask rows: retire it or make it write history rows only; drop the stale `idx_sent_<lang>_gap_audio_id` / `_gap_audio_live_id` indexes.
+- `AppQyV1BackfillGlobalTasks` writes unclaimable `word_audio` GlobalTask rows: retire it or make it write history rows only; drop the stale `idx_sent_<lang>_gap_audio_id` / `_gap_audio_live_id` indexes and, once `<prefix>_gap_audio_free_lease` exists, the superseded word and sentence `<prefix>_gap_audio_lease` indexes.
 - The SQLAlchemy layer under `pycore/database` and okx `lib/models.py` + `foundation/database_handler.py`, deleted without explicit approval in `e3cf19e10`: keep deleted (DB audit: safe) or restore from `e3cf19e10^`.

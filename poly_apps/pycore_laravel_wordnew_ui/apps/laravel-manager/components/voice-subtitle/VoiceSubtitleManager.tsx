@@ -84,12 +84,15 @@ export function VoiceSubtitleManager() {
     setProcessing(true);
     try {
       const res = await api.mcpV1.vsAddText(formData);
+      const taskId = api.mcpV1.vsAcceptedTaskId(res);
       if (res.success) {
         toast.success('Text added to queue');
         setShowAddModal(false);
         resetForm();
         loadData();
       }
+      // 202: the item joins the queue when its background task settles.
+      if (taskId) void api.mcpV1.vsFollowTask(taskId).then(() => loadData());
     } catch (error: any) {
       toast.error(error.message || 'Failed to add text');
     } finally {

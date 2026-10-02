@@ -1,6 +1,6 @@
 - [Cross-machine messaging](reference_cross_machine_messaging.md) — ca-orchestrator unreachable at startup: report-file fallback, no env/credential probing
 - [Never run 175 live](feedback_never_run_175_live.md) — 175 = web outage + PG15 restart; sys:init seeds demo admin unless guarded
-- [Relay API hang 2026-09-30](project_relay_api_hang_2026_09_30.md) — DictLane select-* rebuild storm + CPUQuota; FrankenPHP diagnosis toolkit
+- [Relay API hang 2026-09-30](project_relay_api_hang_2026_09_30.md) — worker-pool exhaustion; current guards (no request waits, non-blocking LockedCache, estimates, indexes); FrankenPHP toolkit
 - [Server layout](reference_server_layout.md) — service/log paths, .env keys ignored (LaravelConfig), no jq, php-zts repo, PG clusters
 - [Host CPU/freeze causes](project_host_cpu_freeze_root_causes.md) — PG seq scans 69% CPU, CPUQuota throttle, codesync swap; re-measure recipes
 - [175 declarative refactor](project_175_declarative_refactor.md) — 2026-09-30 converge/probe-first rewrite, root causes, open items

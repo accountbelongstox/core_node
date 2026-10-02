@@ -42,6 +42,7 @@ REMOTE_CONTROL_ROOT_DIR="$(cd "$REMOTE_CONTROL_COMMON_DIR/../../../.." && pwd)"
 . "$REMOTE_CONTROL_COMMON_DIR/tailscale_common.sh"
 
 RC_RDP_PORT="3389"
+RC_VNC_PORT="5900"
 RC_SSH_PORT="22"
 RC_TAILSCALE_CIDR="100.64.0.0/10"
 RC_TAILSCALE_IFACE="tailscale0"
@@ -66,6 +67,8 @@ RC_LOGIN_PASSWORD=""
 RC_REMMINA_DATA_SUBDIR=".local/share/remmina"
 RC_REMMINA_PROFILE_PREFIX="core_node_"
 RC_REMMINA_GROUP="Tailscale"
+RC_REMMINA_VNC_SUFFIX="_vnc"
+RC_RDP_MODE="${RC_RDP_MODE:-shared}"
 RC_REMMINA_PROFILE=""
 RC_CONNECT_CACHE_FILE="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/rc_connect_users"
 
@@ -252,10 +255,21 @@ rc_grdctl_supports_system() {
     command -v grdctl >/dev/null 2>&1 && grdctl --help 2>&1 | grep -q -- '--system'
 }
 
-# GNOME 46+ system mode (remote login, survives reboot) -> GNOME user mode
-# (shares the running session) -> xrdp (any X11 desktop, PAM login).
+# Default (RC_RDP_MODE=shared): GNOME user mode when the user has a running
+# GNOME session - it shares that live desktop, so local and remote operation
+# are simultaneous (Debian's gnome-remote-desktop has no VNC). Otherwise GNOME
+# 46+ system mode (remote login on the GDM screen, a separate session, survives
+# reboot), then xrdp. RC_RDP_MODE=system forces the remote-login mode.
+rc_gnome_session_active() {
+    [ -n "$(pgrep -u "$1" -x gnome-shell 2>/dev/null | head -n1)" ]
+}
+
 rc_rdp_backend() {
-    if rc_grdctl_supports_system; then
+    local user="${1:-}"
+    if command -v grdctl >/dev/null 2>&1 && [ "$RC_RDP_MODE" != "system" ] \
+        && [ -n "$user" ] && rc_gnome_session_active "$user"; then
+        printf 'gnome-user'
+    elif rc_grdctl_supports_system; then
         printf 'gnome-system'
     elif command -v grdctl >/dev/null 2>&1 && [ -n "$(pgrep -x gnome-shell 2>/dev/null | head -n1)" ]; then
         printf 'gnome-user'
@@ -393,6 +407,11 @@ rc_enable_gnome_user_rdp() {
     rc_run_as_user_session "$user" grdctl rdp set-tls-key "$user_home/$RC_GRD_TLS_SUBDIR/tls.key"
     rc_run_as_user_session "$user" grdctl rdp set-tls-cert "$user_home/$RC_GRD_TLS_SUBDIR/tls.crt"
     rc_run_as_user_session "$user" grdctl rdp set-credentials "$user" "$RC_LOGIN_PASSWORD"
+    if rc_grdctl_supports_system && rc_sudo grdctl --system status 2>/dev/null | rc_status_rdp_enabled; then
+        rc_sudo grdctl --system rdp disable
+        rc_sudo systemctl disable --now gnome-remote-desktop.service 2>/dev/null || true
+        echo "  system-mode (remote login) RDP disabled: port $RC_RDP_PORT now serves the shared desktop."
+    fi
     rc_run_as_user_session "$user" grdctl rdp disable-view-only
     rc_run_as_user_session "$user" grdctl rdp enable
     rc_run_as_user_session "$user" systemctl --user enable --now gnome-remote-desktop.service
@@ -419,7 +438,7 @@ rc_enable_xrdp() {
 rc_enable_rdp_host() {
     local user="$1"
     echo "-- Remote desktop (RDP $RC_RDP_PORT) --"
-    RC_RDP_BACKEND="$(rc_rdp_backend)"
+    RC_RDP_BACKEND="$(rc_rdp_backend "$user")"
     echo "  backend: $RC_RDP_BACKEND"
     case "$RC_RDP_BACKEND" in
         gnome-system)
@@ -546,21 +565,32 @@ rc_connect_rdp() {
 # server/username are refreshed via the official --update-profile, so the
 # saved password and any settings changed in Remmina are kept.
 rc_remmina_profile_ensure() {
-    local key="$1" ipv4="$2" remote_user="$3"
-    local data_dir="" safe_key=""
+    local key="$1" ipv4="$2" remote_user="$3" protocol="${4:-RDP}"
+    local data_dir="" safe_key="" server="$ipv4" suffix="" user_line=""
+    if [ "$protocol" = "VNC" ]; then
+        server="$ipv4:$RC_VNC_PORT"
+        suffix="$RC_REMMINA_VNC_SUFFIX"
+    else
+        user_line="username=$remote_user"
+    fi
     RC_REMMINA_PROFILE=""
     data_dir="$(rc_run_gui_as_desktop_user sh -c 'printf "%s" "$HOME"')" || return 1
     [ -n "$data_dir" ] || return 1
     data_dir="$data_dir/$RC_REMMINA_DATA_SUBDIR"
     safe_key="$(printf '%s' "${key:-$ipv4}" | tr -c 'A-Za-z0-9._-' '_')"
-    RC_REMMINA_PROFILE="$data_dir/$RC_REMMINA_PROFILE_PREFIX$safe_key.remmina"
+    RC_REMMINA_PROFILE="$data_dir/$RC_REMMINA_PROFILE_PREFIX$safe_key$suffix.remmina"
     if rc_run_gui_as_desktop_user test -f "$RC_REMMINA_PROFILE"; then
-        rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
-            --set-option "server=$ipv4" --set-option "username=$remote_user" >/dev/null 2>&1
+        if [ "$protocol" = "VNC" ]; then
+            rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
+                --set-option "server=$server" >/dev/null 2>&1
+        else
+            rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
+                --set-option "server=$server" --set-option "username=$remote_user" >/dev/null 2>&1
+        fi
         return 0
     fi
-    printf '[remmina]\nname=%s\ngroup=%s\nprotocol=RDP\nserver=%s\nusername=%s\n' \
-        "${key:-$ipv4}" "$RC_REMMINA_GROUP" "$ipv4" "$remote_user" \
+    printf '[remmina]\nname=%s\ngroup=%s\nprotocol=%s\nserver=%s\n%s\n' \
+        "${key:-$ipv4}${suffix:+ (VNC)}" "$RC_REMMINA_GROUP" "$protocol" "$server" "$user_line" \
         | rc_run_gui_as_desktop_user sh -c 'umask 077 && mkdir -p "$(dirname "$1")" && cat > "$1"' _ "$RC_REMMINA_PROFILE"
 }
 
@@ -568,9 +598,9 @@ rc_remmina_profile_ensure() {
 # after the session disconnects, keeps the connection in its list and saves
 # the password when "Save password" is ticked in the sign-in dialog.
 rc_connect_remmina() {
-    local ipv4="$1" remote_user="$2" key="$3"
+    local ipv4="$1" remote_user="$2" key="$3" protocol="${4:-RDP}"
     command -v remmina >/dev/null 2>&1 || { echo "remmina not installed; run 'Enable this machine to control remote' first."; return 1; }
-    rc_remmina_profile_ensure "$key" "$ipv4" "$remote_user" || return 1
+    rc_remmina_profile_ensure "$key" "$ipv4" "$remote_user" "$protocol" || return 1
     echo "\$ remmina -c $RC_REMMINA_PROFILE"
     rc_run_gui_as_desktop_user remmina -c "$RC_REMMINA_PROFILE" >/dev/null 2>&1 &
     disown 2>/dev/null || true

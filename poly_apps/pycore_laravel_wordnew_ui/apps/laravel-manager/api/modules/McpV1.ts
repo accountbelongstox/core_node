@@ -2,6 +2,10 @@ import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import type { VoiceQueueItem } from '../../uiTypes';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
+import { GLOBAL_TASK_TERMINAL_STATUSES } from '../../../../core/contracts/QueueCenterContract';
+
+const VS_TASK_POLL_MS = 3000;
+const VS_TASK_FOLLOW_MAX_MS = 30 * 60 * 1000;
 
 /**
  * McpV1 API Module
@@ -325,6 +329,29 @@ export class McpV1API extends LmBaseAPI {
 
   async vsGetTaskStatus(taskId: string): Promise<APIResponse> {
     return this.get(`/voice-subtitle/tasks/${taskId}`);
+  }
+
+  /** task_id of an accepted (202) voice-subtitle add answer, or null. */
+  vsAcceptedTaskId(response: APIResponse): string | null {
+    const taskId = (response.data as { task_id?: unknown } | null)?.task_id;
+    return response.success && typeof taskId === 'string' && taskId !== '' ? taskId : null;
+  }
+
+  /**
+   * Follow an accepted voice-subtitle task through its status route until it
+   * completes or fails (the server runs it in the background); resolves with
+   * the final task, or null when it cannot be read or does not settle in time.
+   */
+  async vsFollowTask(taskId: string): Promise<any | null> {
+    const deadline = Date.now() + VS_TASK_FOLLOW_MAX_MS;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, VS_TASK_POLL_MS));
+      const response = await this.vsGetTaskStatus(taskId);
+      const task = (response.data as { task?: { status?: string } } | null)?.task;
+      if (!response.success || !task) return null;
+      if ((GLOBAL_TASK_TERMINAL_STATUSES as string[]).includes(String(task.status))) return task;
+    }
+    return null;
   }
 
   async vsGetUserSettings(): Promise<APIResponse> {

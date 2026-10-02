@@ -13,9 +13,12 @@ use Illuminate\Support\Facades\Process;
  * - Spawned tools (pdftk, ghostscript, 7z, tar): command() wraps the shell
  *   command in a transient systemd scope (CPUQuota + MemoryMax). Without
  *   systemd-run it falls back to prlimit (address space) + nice/ionice +
- *   cpulimit. Windows has no equivalent reachable from PHP, so endpoints that
- *   spawn tools are linux-only there (supportsSpawnCap() false ->
- *   platform_unsupported).
+ *   cpulimit. The CPU share keeps background work from hogging the box; a
+ *   synchronous run inside an HTTP request (a user is waiting on a worker)
+ *   drops the CPU quota but keeps the memory cap and a stall guard (timeout,
+ *   REQUEST_STALL_SECONDS). Windows has no equivalent reachable from PHP, so
+ *   endpoints that spawn tools are linux-only there (supportsSpawnCap() false
+ *   -> platform_unsupported).
  * - In-process work (GD thumbnails): imageFits() rejects an image whose
  *   decoded bitmap would exceed the memory share before it is decoded; GD
  *   work on a bounded bitmap is short, so no CPU throttle applies.
@@ -33,6 +36,8 @@ final class ResourceLimiter
     private const MEMINFO = '/proc/meminfo';
     private const CPUINFO = '/proc/cpuinfo';
     private const KIB = 1024;
+    private const REQUEST_STALL_SECONDS = 300;
+    private const STALL_KILL_GRACE_SECONDS = 5;
 
     /** Whether spawned tools can be capped on this OS. */
     public static function supportsSpawnCap(): bool
@@ -43,19 +48,28 @@ final class ResourceLimiter
     /** $command (one shell command line) wrapped so it runs under the cap. */
     public static function command(string $command): string
     {
+        $background = app()->runningInConsole();
         $cpuQuota = self::CPU_PERCENT * self::cpuCount();
         $memory = self::memoryBudgetBytes();
         $shell = 'sh -c '.escapeshellarg($command);
 
+        if (!$background && self::toolAvailable('timeout')) {
+            $shell = sprintf('timeout -k %d %d %s', self::STALL_KILL_GRACE_SECONDS, self::REQUEST_STALL_SECONDS, $shell);
+        }
         if (self::toolAvailable('systemd-run')) {
-            return sprintf('systemd-run --quiet --scope --collect -p CPUQuota=%d%% -p MemoryMax=%d -- %s', $cpuQuota, $memory, $shell);
+            return sprintf(
+                'systemd-run --quiet --scope --collect %s-p MemoryMax=%d -- %s',
+                $background ? sprintf('-p CPUQuota=%d%% ', $cpuQuota) : '',
+                $memory,
+                $shell
+            );
         }
 
         return trim(implode(' ', array_filter([
             self::toolAvailable('prlimit') ? sprintf('prlimit --as=%d --', $memory) : null,
-            'nice -n 19',
-            self::toolAvailable('ionice') ? 'ionice -c3' : null,
-            self::toolAvailable('cpulimit') ? sprintf('cpulimit -f -l %d --', $cpuQuota) : null,
+            $background ? 'nice -n 19' : null,
+            $background && self::toolAvailable('ionice') ? 'ionice -c3' : null,
+            $background && self::toolAvailable('cpulimit') ? sprintf('cpulimit -f -l %d --', $cpuQuota) : null,
             $shell,
         ])));
     }

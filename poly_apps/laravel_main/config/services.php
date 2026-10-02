@@ -26,6 +26,11 @@ return [
 
     'codemart_seed_demo' => LaravelConfig::CODEMART_SEED_DEMO,
 
+    'openrouter' => [
+        // Cache lifetime of a failed or empty free-model catalog fetch.
+        'catalog_failure_cache_seconds' => 600,
+    ],
+
     'workos' => [
         'api_key' => null,
         'client_id' => null,

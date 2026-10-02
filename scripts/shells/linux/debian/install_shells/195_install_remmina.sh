@@ -6,8 +6,9 @@ SCRIPT_INDEX="195"
 #   list: the window launcher (pycore/pyutils/launcher) and the remote-control
 #   menu (common/remote_control_common.sh) both call it.
 #
-# Installs only what is missing: remmina, remmina-plugin-rdp,
-# remmina-plugin-secret (passwords in the desktop keyring). Desktop systems
+# Installs only what is missing: remmina, remmina-plugin-rdp, remmina-plugin-vnc
+# (shared-desktop connections to Windows VNC hosts), remmina-plugin-secret
+# (passwords in the desktop keyring). Desktop systems
 # only (a headless host skips). NON-FATAL: an unavailable package leaves the
 # rest installed. Debian 13 / Ubuntu 26.04 / Kali (apt).
 #
@@ -23,7 +24,7 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 set -uo pipefail
 
 REMMINA_BINARY="remmina"
-REMMINA_PACKAGES=(remmina remmina-plugin-rdp remmina-plugin-secret)
+REMMINA_PACKAGES=(remmina remmina-plugin-rdp remmina-plugin-vnc remmina-plugin-secret)
 FORCE=0
 SUDO=""
 NEED=()

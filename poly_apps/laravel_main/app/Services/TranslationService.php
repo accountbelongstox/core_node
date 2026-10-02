@@ -261,7 +261,7 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
         $models = [];
         $seen = [];
 
-        foreach (OpenRouterFreeOnly::freeCatalog() as $model) {
+        foreach (OpenRouterFreeOnly::cachedFreeCatalog() as $model) {
             if (stripos($model['id'], self::OPENROUTER_TRANSLATION_FAMILY) !== false) {
                 $models[] = ['id' => $model['id'], 'name' => $model['name'], 'provider' => 'openrouter', 'free' => true, 'context_length' => $model['context_length']];
             }

@@ -129,7 +129,8 @@ final class DictLaneQueueCenter
     {
         $pending = $this->count($lane, $langCode);
         $failed = min($pending, $this->cachedCount($lane . ':failed', $langCode, static fn (): int => DictLaneCatalog::failedCount($lane, $langCode)));
-        $rows = $this->cachedCount('rows', $langCode, static fn (): int => AppQyV1LangDictionaryModel::rowCount($langCode));
+        // Estimated total (cached by TTL, not per write version): no whole-table count per dictionary write.
+        $rows = max($pending, AppQyV1LangDictionaryModel::estimatedRowCount($langCode));
 
         return QueueProgress::make(
             max(0, $rows - $pending),
