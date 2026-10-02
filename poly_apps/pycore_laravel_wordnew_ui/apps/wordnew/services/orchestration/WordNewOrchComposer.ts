@@ -258,7 +258,10 @@ class WordNewOrchComposerService {
     const entry = this.reruns.get(taskId) ?? { timer: null, backoff: new Backoff(AUDIO_ORCH_TRANSFER.rerunMinMs, AUDIO_ORCH_TRANSFER.rerunMaxMs) };
     if (entry.timer) clearTimeout(entry.timer);
     entry.timer = null;
-    const failed = session?.phase === 'failed' || Object.values(session?.stages ?? {}).some((stage) => stage.state === 'failed');
+    // A run that ended with clips still queued got no answer from any backend (R8): it runs again on the same backoff,
+    // so a channel that turned usable while no run was going (or a missed rise) never leaves the task stuck.
+    const unanswered = session?.phase === 'ready' && (session.counts.pending ?? 0) > 0;
+    const failed = session?.phase === 'failed' || unanswered || Object.values(session?.stages ?? {}).some((stage) => stage.state === 'failed');
     // A paused server is not retried on a timer: its gate resumes the task when it clears.
     if (!failed || serverSchemaGate.getSnapshot().schema === 'pending') {
       this.reruns.delete(taskId);

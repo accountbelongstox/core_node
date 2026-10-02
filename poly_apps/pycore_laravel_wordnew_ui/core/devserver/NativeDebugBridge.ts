@@ -40,12 +40,19 @@ const format = (value) => {
   if (typeof value === 'string') return value;
   try { return JSON.stringify(value); } catch { return String(value); }
 };
+// Vite reports a send before its socket connects through console.error, which is patched below:
+// without this guard every console line recursed until the stack overflowed (thousands of native log lines).
+let sending = false;
 const send = (level, values) => {
+  if (sending) return;
+  sending = true;
   try {
     import.meta.hot?.send(${JSON.stringify(LOG_EVENT)}, {
       level, source, href: location.href, text: values.map(format).join(' ').slice(0, MAX),
     });
-  } catch {}
+  } catch {} finally {
+    sending = false;
+  }
 };
 for (const [method, level] of [['debug', 'D'], ['log', 'I'], ['info', 'I'], ['warn', 'W'], ['error', 'E']]) {
   const original = console[method].bind(console);
