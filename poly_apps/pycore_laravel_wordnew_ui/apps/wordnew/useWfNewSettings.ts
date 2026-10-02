@@ -7,8 +7,8 @@
  * `useWfNewSetting(key)` binds ONE field as [value, setter]: the store stays the
  * single source of truth, pages keep no local copies.
  */
-import { useCallback, useSyncExternalStore } from 'react';
-import { wfNewSettings } from './WfNewSettingsStore';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { resolveLearningTargets, wfNewSettings } from './WfNewSettingsStore';
 import type { WfNewSettings } from './WfNewSettingsStore';
 
 export function useWfNewSettings(): WfNewSettings {
@@ -27,4 +27,12 @@ export function useWfNewSetting<K extends keyof WfNewSettings>(key: K): [WfNewSe
   );
   const setValue = useCallback((next: WfNewSettings[K]) => wfNewSettings.setField(key, next), [key]);
   return [value, setValue];
+}
+
+export function useWfNewLearningTargets(): string[] {
+  const { settingTargetLangs, settingTargetLang } = useWfNewSettings();
+  return useMemo(
+    () => resolveLearningTargets({ settingTargetLangs, settingTargetLang }),
+    [settingTargetLangs, settingTargetLang],
+  );
 }

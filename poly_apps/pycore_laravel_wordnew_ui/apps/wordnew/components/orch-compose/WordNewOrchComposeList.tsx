@@ -20,6 +20,7 @@ import { ORCH_BACKEND_VIEW } from './orchBackends';
 import { OrchEmptyBox } from './orchPanels';
 import { OrchListRow, OrchSegmentMeta } from './OrchListRow';
 import { orchShare } from './orchRunProgress';
+import { orchSourceTitle } from './orchTaskView';
 
 interface Props {
   theme: ElementTheme;
@@ -144,7 +145,7 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen, 
                   <TaskProgressBadge task={task} trans={trans} />
                 </>
               )}
-              subtitle={task.config.book?.title ?? task.config.prompt?.title}
+              subtitle={orchSourceTitle(task.config)}
               meta={(
                 <>
                   <OrchSegmentMeta segmentCount={task.segmentCount} durationSec={task.durationMs / 1000} trans={trans} />

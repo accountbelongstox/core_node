@@ -1,3 +1,4 @@
+import { OVERLAY_Z } from '@/shared/styles/overlay';
 import React from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Home, LoaderCircle, Pause, Play, Plus, SkipBack, SkipForward, Square, Trash2 } from 'lucide-react';
 import type { DailyReadingPlayer } from './useDailyReadingPlayer';
@@ -74,7 +75,7 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
         </article>
       </div>
 
-      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[160] w-[94%] max-w-lg">
+      <div className={`fixed bottom-3 left-1/2 -translate-x-1/2 ${OVERLAY_Z.modal} w-[94%] max-w-lg`}>
         <div
           className="rounded-2xl border border-white/10 bg-slate-900/90 backdrop-blur-xl shadow-2xl shadow-indigo-950/40 p-2.5 space-y-2 max-h-[62vh] overflow-y-auto"
           onPointerDownCapture={notePanelInteraction}

@@ -6,6 +6,7 @@
 import React, { useId } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
+import { OrchIconChip } from './orchPanels';
 
 interface Props {
   icon: LucideIcon;
@@ -31,9 +32,7 @@ export const WfNewOrchSection: React.FC<Props> = ({ icon: Icon, title, summary, 
         title={title}
         className="flex w-full min-w-0 items-center gap-2 text-left"
       >
-        <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${theme.accentBg}`}>
-          <Icon className="h-3.5 w-3.5" aria-hidden />
-        </span>
+        <OrchIconChip icon={Icon} theme={theme} />
         {open
           ? <span className={`flex-1 text-xs font-bold ${theme.textPrimaryClass}`}>{title}</span>
           : <span className={`min-w-0 flex-1 truncate text-[11px] ${theme.textSecondaryClass}`}>{summary}</span>}

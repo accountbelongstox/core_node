@@ -15,9 +15,15 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp,
   Maximize2, Minimize2, Play, Pause, Square, Zap,
 } from 'lucide-react';
+import { ChipButton } from '@/shared/ui/ChipButton';
+import { DataTableHead, DataTableShell } from '@/shared/ui/DataTable';
+import { ModalShell } from '@/shared/ui/ModalShell';
+import { StatCard } from '@/shared/ui/StatCard';
+import { StateGate } from '@/shared/ui/StateMessage';
+import { formatNumber } from '../../../core/utils/formatters';
 import type { ElementTheme } from '../WfNewThemes';
 import {
   wfNewApi,
@@ -35,6 +41,8 @@ import { WordNewLibraryWordRow, wordRowKey } from '../components/library/WordNew
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
 import { useLibraryPriorityBoost } from '../hooks/usePriorityBoost';
 import { LIBRARY_MEDIA_RETRY_COUNT, LIBRARY_MEDIA_RETRY_MS } from '../constants/uiTiming';
+import { WfNewPager } from '../components/WfNewPager';
+import { useActiveScrollFollow } from '../components/reader/useActiveScrollFollow';
 
 type LibraryView = 'dash' | 'table';
 
@@ -110,8 +118,6 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const requestedWordKeys = useRef<Set<string>>(new Set());
   const playbackRef = useRef<WordNewLibraryPlayback | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollPausedUntil = useRef(0);
-  const userPickedWord = useRef(false);
 
   const libName = data?.library?.name || title || libraryId;
   const libLang = data?.library?.language || language || 'english';
@@ -299,28 +305,13 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     if (Object.keys(next).length) setCellStatuses((prev) => ({ ...prev, ...next }));
   }, [wordRows, libLang, mediaByMd5, queueWordAudio]);
 
-  // Auto-scroll the active word to upper-middle (~1/3 from top). Manual scroll
-  // pauses this for 2.5s; a user-picked playFrom resumes immediately.
-  useEffect(() => {
-    if (!activeWord) return;
-    if (!userPickedWord.current && Date.now() < scrollPausedUntil.current) return;
-    const container = scrollRef.current;
-    if (!container) return;
-    const el = container.querySelector(`#libword-${activeWord.md5 || activeWord.index}`) as HTMLElement | null;
-    if (!el) return;
-    container.scrollTo({ top: el.offsetTop - container.clientHeight / 3, behavior: 'smooth' });
-    userPickedWord.current = false;
-  }, [activeWord, playingKey]);
-
-  const onScrollUser = useCallback(() => {
-    scrollPausedUntil.current = Date.now() + 2500;
-  }, []);
+  const activeDomId = activeWord ? `libword-${activeWord.md5 || activeWord.index}` : null;
+  const { onScrollUser, markUserPick } = useActiveScrollFollow(scrollRef, activeDomId, playingKey);
 
   const onPlay = useCallback((w: WfNewLibraryWord) => {
-    userPickedWord.current = true;
-    scrollPausedUntil.current = 0;
+    markUserPick();
     void playbackRef.current?.playFrom(w);
-  }, []);
+  }, [markUserPick]);
 
   const onToggleExpand = useCallback((w: WfNewLibraryWord) => {
     setExpanded((prev) => {
@@ -343,10 +334,9 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
 
   const playAll = useCallback(() => {
     if (!wordRows.length) return;
-    userPickedWord.current = true;
-    scrollPausedUntil.current = 0;
+    markUserPick();
     void playbackRef.current?.playFrom(wordRows[0]);
-  }, [wordRows]);
+  }, [wordRows, markUserPick]);
 
   const onPlayPause = useCallback(() => {
     if (playing) playbackRef.current?.togglePause();
@@ -369,15 +359,11 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     { key: 'image', label: trans('library.stat.image'), value: stats?.withImage ?? 0, tone: 'text-violet-300' },
   ]), [stats, data, trans]);
 
-  const containerCls = fullscreen
-    ? 'fixed inset-0 z-[200] bg-zinc-950/98 backdrop-blur-sm overflow-auto p-4 space-y-4'
-    : 'space-y-4';
-
   const activeKey = activeWord ? wordRowKey(activeWord, libLang) : null;
   const listMaxHeight = fullscreen ? '70vh' : 'min(60vh, 560px)';
 
-  return (
-    <div className={containerCls}>
+  const body = (
+    <>
       {/* Toolbar: view toggle + fullscreen (page title lives in the global nav). */}
       <div className="flex items-center gap-3 px-1">
         <div className="min-w-0 flex-1" />
@@ -425,73 +411,45 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
         </button>
         {dashOpen && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 pb-4">
-            {statCards.map((c) => (
-              <div key={c.key} className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-                <p className={`text-xl font-black font-mono ${c.tone}`}>{Number(c.value).toLocaleString()}</p>
-                <p className="text-[10px] font-mono text-zinc-500 uppercase mt-0.5">{c.label}</p>
-              </div>
-            ))}
+            {statCards.map((c) => <StatCard key={c.key} label={c.label} value={formatNumber(Number(c.value), 0)} tone={c.tone} />)}
           </div>
         )}
       </div>
 
       {/* Word table */}
-      <div className="mx-1 rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center">
-            <p className="text-[12px] font-mono text-zinc-500 animate-pulse">{trans('library.loading')}</p>
-          </div>
-        ) : error ? (
-          <div className="p-8 text-center space-y-2">
-            <p className="text-[12px] font-mono text-rose-400">{error}</p>
-            <button
-              type="button"
-              onClick={() => goTo(currentPage)}
-              className="px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300"
-            >
-              {trans('library.retry')}
-            </button>
-          </div>
-        ) : wordRows.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-[12px] font-mono text-zinc-500">{trans('content.empty')}</p>
-          </div>
-        ) : (
+      <DataTableShell className="mx-1">
+        <StateGate
+          loading={loading}
+          error={error}
+          empty={wordRows.length === 0}
+          loadingText={trans('library.loading')}
+          emptyText={trans('content.empty')}
+          retryLabel={trans('library.retry')}
+          onRetry={() => goTo(currentPage)}
+        >
           <>
             {/* Play-all bar */}
             <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
-              <button
-                type="button"
-                onClick={onPlayPause}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-indigo-500/30 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/25 transition"
-              >
+              <ChipButton variant="active" onClick={onPlayPause} className="gap-1.5 px-3">
                 {playing && !paused ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                 {playing && !paused ? trans('content.pause') : trans('content.play')}
-              </button>
-              <button
-                type="button"
-                onClick={playAll}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition"
-              >
+              </ChipButton>
+              <ChipButton onClick={playAll} className="gap-1.5 px-3">
                 <Play className="w-3.5 h-3.5" /> {trans('library.playAll')}
-              </button>
+              </ChipButton>
               {playing && (
-                <button
-                  type="button"
-                  onClick={() => playbackRef.current?.stop()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition"
-                >
+                <ChipButton onClick={() => playbackRef.current?.stop()} className="gap-1.5 px-3">
                   <Square className="w-3.5 h-3.5" /> {trans('content.stop')}
-                </button>
+                </ChipButton>
               )}
             </div>
             {/* column header */}
-            <div className="hidden sm:grid grid-cols-[3rem_1fr_2fr_5rem] gap-3 px-4 py-2 bg-white/[0.03] text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500">
+            <DataTableHead grid="grid-cols-[3rem_1fr_2fr_5rem]" className="hidden sm:grid">
               <span>#</span>
               <span>{trans('library.col.word')}</span>
               <span>{trans('library.col.meaning')}</span>
               <span className="text-right">{trans('library.col.actions')}</span>
-            </div>
+            </DataTableHead>
             {/* Scrollable word list (scrollRef here for auto-scroll math). */}
             <div
               ref={scrollRef}
@@ -558,35 +516,21 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
               })}
             </div>
           </>
-        )}
-      </div>
+        </StateGate>
+      </DataTableShell>
 
       {/* Up / down pagination */}
-      {!loading && !error && lastPage > 1 && (
-        <div className="flex flex-col items-center gap-2 pt-1 pb-2">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => goTo(currentPage - 1)}
-              disabled={currentPage <= 1}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" /> {trans('content.prev')}
-            </button>
-            <span className="px-3 text-[11px] font-mono text-zinc-400">
-              {trans('content.pageOf', { page: currentPage, total: lastPage })}
-            </span>
-            <button
-              type="button"
-              onClick={() => goTo(currentPage + 1)}
-              disabled={currentPage >= lastPage}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-            >
-              {trans('content.next')} <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+      {!loading && !error && (
+        <WfNewPager variant="compact" page={currentPage} totalPages={lastPage} onGoTo={goTo} trans={trans} />
       )}
-    </div>
+    </>
+  );
+
+  return fullscreen ? (
+    <ModalShell onClose={() => setFullscreen(false)} backdrop="black" cardClassName={null}>
+      <div className="absolute inset-0 overflow-auto bg-zinc-950/98 p-4 space-y-4">{body}</div>
+    </ModalShell>
+  ) : (
+    <div className="space-y-4">{body}</div>
   );
 };

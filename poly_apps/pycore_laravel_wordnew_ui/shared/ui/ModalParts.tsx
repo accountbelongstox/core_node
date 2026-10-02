@@ -7,13 +7,14 @@ interface ModalHeaderProps {
   icon?: React.ReactNode;
   onClose?: () => void;
   closeDisabled?: boolean;
+  closeLabel?: string;
   /** Draw the divider under the header (sheets with a scrolling body). */
   bordered?: boolean;
   className?: string;
 }
 
 /** The one modal header: icon + title (+ subtitle) on the left, close button on the right. */
-export const ModalHeader: React.FC<ModalHeaderProps> = ({ title, subtitle, icon, onClose, closeDisabled = false, bordered = false, className = '' }) => (
+export const ModalHeader: React.FC<ModalHeaderProps> = ({ title, subtitle, icon, onClose, closeDisabled = false, closeLabel, bordered = false, className = '' }) => (
   <div className={`flex shrink-0 items-center justify-between gap-3 ${bordered ? 'border-b border-white/10 p-5' : ''} ${className}`}>
     <div className="min-w-0">
       <h3 className="flex items-center gap-2 truncate text-sm font-black text-slate-100">
@@ -23,7 +24,7 @@ export const ModalHeader: React.FC<ModalHeaderProps> = ({ title, subtitle, icon,
       {subtitle && <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-500">{subtitle}</p>}
     </div>
     {onClose && (
-      <button type="button" onClick={onClose} disabled={closeDisabled} className="shrink-0 cursor-pointer rounded-lg p-1.5 text-slate-400 hover:bg-white/10 disabled:opacity-40">
+      <button type="button" onClick={onClose} disabled={closeDisabled} title={closeLabel} aria-label={closeLabel} className="shrink-0 cursor-pointer rounded-lg p-1.5 text-slate-400 hover:bg-white/10 disabled:opacity-40">
         <X className="h-4 w-4" />
       </button>
     )}

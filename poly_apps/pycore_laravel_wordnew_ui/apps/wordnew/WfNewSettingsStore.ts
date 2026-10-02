@@ -135,6 +135,13 @@ export interface WfNewSettings {
 /** Setting keys whose value type is V (typed bindings for generic setting rows). */
 export type WfNewSettingKeyOf<V> = { [K in keyof WfNewSettings]: WfNewSettings[K] extends V ? K : never }[keyof WfNewSettings];
 
+/** Learning targets of a settings snapshot (multi-select, falling back to the legacy single target). */
+export const resolveLearningTargets = (settings: Pick<WfNewSettings, 'settingTargetLangs' | 'settingTargetLang'>): string[] => {
+  const stored = settings.settingTargetLangs;
+  if (Array.isArray(stored) && stored.length) return stored;
+  return [settings.settingTargetLang || 'en'];
+};
+
 const PREFERENCE_RESET_KEYS = ['voiceAccent', 'autoSpeech', 'hapticFeedback', 'reviewAlgorithm', 'contentFields'] as const;
 
 const makeDefaults = (): WfNewSettings => ({
@@ -232,10 +239,7 @@ class WfNewSettingsStore extends PersistedStore<WfNewSettings> {
 
   /** Current learning targets (multi-select, falling back to the legacy single target). */
   getLearningTargets(): string[] {
-    const stored = this.get('settingTargetLangs');
-    if (Array.isArray(stored) && stored.length) return stored;
-    const legacy = this.get('settingTargetLang');
-    return legacy ? [legacy] : ['en'];
+    return resolveLearningTargets(this.read());
   }
 
   /** Reset the preference toggles and selections on the Settings page to defaults. */

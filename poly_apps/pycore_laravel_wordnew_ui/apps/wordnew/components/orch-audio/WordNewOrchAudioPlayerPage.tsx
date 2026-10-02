@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, FileText, Layers, Loader2, Volume2 } from 'lucide-react';
+import { ChevronDown, FileText, Layers, Loader2, Volume2 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewApi, type WfNewOrchAudioDetail } from '../../api';
 import { WordNewBookReaderVerseRow } from '../reader/WordNewBookReaderVerseRow';
@@ -10,6 +10,7 @@ import { formatBookLangLabel } from '../../utils/WordNewBookReaderLangUtils';
 import { formatClockTime } from '../../utils/WordNewTimeFormat';
 import { useScrollPause } from '../../hooks/useScrollPause';
 import { useOrchAudioPlayback } from './useOrchAudioPlayback';
+import { OrchBackButton } from '../orch-compose/orchPanels';
 import { WordNewOrchAudioTransport } from './WordNewOrchAudioTransport';
 import { WordNewOrchAudioLoginPrompt, WordNewOrchAudioSourceBadge } from './WordNewOrchAudioListPage';
 import { ORCH_SENTENCE_GRAIN } from './orchAudioModel';
@@ -195,15 +196,7 @@ const OrchAudioPlayerBody: React.FC<Omit<Props, 'itemId'> & { detail: WfNewOrchA
   return (
     <div className="space-y-4 pb-4" onWheel={onScroll} onTouchMove={onScroll}>
       <div className="flex items-start gap-3 border-b border-white/5 pb-4">
-        <button
-          type="button"
-          onClick={onBack}
-          className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2 text-zinc-300 hover:bg-white/10"
-          aria-label={trans('orchAudio.backToList')}
-          title={trans('orchAudio.backToList')}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
+        <OrchBackButton trans={trans} onBack={onBack} variant="outline" />
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="truncate text-sm font-semibold text-zinc-100">{detail.item.title}</h2>
@@ -306,9 +299,7 @@ export const WordNewOrchAudioPlayerPage: React.FC<Props> = ({ itemId, ...props }
     return (
       <div className="space-y-4 py-16 text-center">
         <p className="text-sm text-zinc-500">{props.trans('orchAudio.notFound')}</p>
-        <button type="button" onClick={props.onBack} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-zinc-300 hover:bg-white/10">
-          {props.trans('orchAudio.backToList')}
-        </button>
+        <OrchBackButton trans={props.trans} onBack={props.onBack} variant="outline" showLabel />
       </div>
     );
   }

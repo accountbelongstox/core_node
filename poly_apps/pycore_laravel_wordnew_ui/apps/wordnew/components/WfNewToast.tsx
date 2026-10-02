@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Info, CheckCircle, AlertTriangle } from 'lucide-react';
+import { OVERLAY_Z } from '@/shared/styles/overlay';
+import { translateActive } from '../WfNewLocales';
 
 export interface ToastMessage {
   id: string;
@@ -15,7 +17,7 @@ interface WfNewToastProps {
 
 export const WfNewToast: React.FC<WfNewToastProps> = ({ toasts, onDismiss }) => {
   return (
-    <div className="fixed top-24 right-4 z-[100] pointer-events-none flex flex-col gap-2.5 max-w-sm w-full">
+    <div className={`fixed top-24 right-4 ${OVERLAY_Z.toast} pointer-events-none flex flex-col gap-2.5 max-w-sm w-full`}>
       <AnimatePresence>
         {toasts.map(toast => (
           <ToastCard key={toast.id} toast={toast} onDismiss={onDismiss} />
@@ -59,7 +61,7 @@ const ToastCard: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
         onClick={() => onDismiss(toast.id)}
         className="text-[10px] text-zinc-500 hover:text-white px-2 py-1 font-mono hover:bg-white/5 rounded-md"
       >
-        Dismiss
+        {translateActive('toast.dismiss')}
       </button>
     </motion.div>
   );

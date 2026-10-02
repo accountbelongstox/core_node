@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion';
 import { ChipButton } from '@/shared/ui/ChipButton';
 import { ModalShell } from '@/shared/ui/ModalShell';
-import { StateMessage } from '@/shared/ui/StateMessage';
+import { StateGate } from '@/shared/ui/StateMessage';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 import { wfNewAdminApi } from '../../api';
@@ -19,8 +19,6 @@ export interface AdminPanelProps {
 
 export const ADMIN_INPUT_CLS = 'py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none';
 export const ADMIN_FALLBACK_LANGUAGES = ['english', 'chinese', 'japanese', 'korean', 'french', 'german', 'spanish'];
-const ADMIN_TABLE_HEAD_CLS = 'gap-3 px-4 py-2 bg-white/[0.03] text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500';
-const ADMIN_TABLE_ROW_CLS = 'gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition';
 const ADMIN_REVEAL_Y_PX = 10;
 const ADMIN_REVEAL_SECONDS = 0.2;
 
@@ -63,57 +61,29 @@ export const AdminCheckbox: React.FC<{ checked: boolean; onChange: () => void }>
   <input type="checkbox" checked={checked} onChange={onChange} className="accent-indigo-500 w-3.5 h-3.5 align-middle" />
 );
 
-/** KPI tile: big value over a small caption. */
-export const StatCard: React.FC<{ label: string; value: React.ReactNode; tone?: string }> = ({ label, value, tone = 'text-slate-100' }) => (
-  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-    <p className={`text-xl font-black font-mono ${tone}`}>{value}</p>
-    <p className="text-[10px] font-mono text-zinc-500 uppercase mt-0.5">{label}</p>
-  </div>
-);
+export { StatCard } from '@/shared/ui/StatCard';
+export {
+  DataTableShell as AdminTableShell,
+  DataTable as AdminTable,
+  DataTableRow as AdminTableRow,
+} from '@/shared/ui/DataTable';
 
-/** Outer frame of a table / list block. */
-export const AdminTableShell: React.FC<{ className?: string; children: React.ReactNode }> = ({ className = '', children }) => (
-  <div className={`rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden ${className}`}>{children}</div>
-);
-
-/** Divided table body with a column-header row; `grid` is the Tailwind grid-cols class shared by head and rows. */
-export const AdminTable: React.FC<{ grid: string; head: React.ReactNode; headClassName?: string; className?: string; children: React.ReactNode }> = ({
-  grid, head, headClassName = 'grid', className = '', children,
+/** Loading / error (with retry) / empty gate in front of an admin list. */
+export const AdminAsync: React.FC<{ trans: AdminTrans; loading: boolean; error: string | null; empty: boolean; onRetry: () => void; children: React.ReactNode }> = ({
+  trans, loading, error, empty, onRetry, children,
 }) => (
-  <div className={`divide-y divide-white/5 ${className}`}>
-    <div className={`${headClassName} ${grid} ${ADMIN_TABLE_HEAD_CLS}`}>{head}</div>
+  <StateGate
+    loading={loading}
+    error={error}
+    empty={empty}
+    loadingText={trans('admin.loading')}
+    emptyText={trans('admin.empty')}
+    retryLabel={trans('admin.retry')}
+    onRetry={onRetry}
+  >
     {children}
-  </div>
+  </StateGate>
 );
-
-/** One grid row of an AdminTable; `detail` (even null) switches to an expandable row with content below the grid. */
-export const AdminTableRow: React.FC<{ grid: string; className?: string; detail?: React.ReactNode; children: React.ReactNode }> = ({ grid, className = '', detail, children }) => (
-  detail === undefined
-    ? <div className={`grid ${grid} items-center ${ADMIN_TABLE_ROW_CLS} ${className}`}>{children}</div>
-    : (
-      <div className={`${ADMIN_TABLE_ROW_CLS} ${className}`}>
-        <div className={`grid ${grid} gap-3 items-center`}>{children}</div>
-        {detail}
-      </div>
-    )
-);
-
-interface AdminAsyncProps {
-  trans: AdminTrans;
-  loading: boolean;
-  error: string | null;
-  empty: boolean;
-  onRetry: () => void;
-  children: React.ReactNode;
-}
-
-/** Loading / error (with retry) / empty gate in front of a list. */
-export const AdminAsync: React.FC<AdminAsyncProps> = ({ trans, loading, error, empty, onRetry, children }) => {
-  if (loading) return <StateMessage kind="loading">{trans('admin.loading')}</StateMessage>;
-  if (error) return <StateMessage kind="error" onRetry={onRetry} retryLabel={trans('admin.retry')}>{error}</StateMessage>;
-  if (empty) return <StateMessage kind="empty">{trans('admin.empty')}</StateMessage>;
-  return <>{children}</>;
-};
 
 /** Confirm dialog on the shared modal layer. */
 export const AdminConfirmDialog: React.FC<{ message: string; trans: AdminTrans; onConfirm: () => void; onCancel: () => void }> = ({ message, trans, onConfirm, onCancel }) => (

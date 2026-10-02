@@ -1,4 +1,5 @@
 import { BookOpen, Sparkles, AudioLines, type LucideIcon } from 'lucide-react';
+import type { StatusTone } from '@/shared/ui/statusTone';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 import type {
@@ -45,12 +46,12 @@ const DEFAULT_SETTINGS: OrchAudioPlaybackSettings = {
 interface OrchAudioSourceView {
   labelKey: string;
   icon: LucideIcon;
-  badgeClass: string;
+  tone: StatusTone;
 }
 
 const SOURCE_VIEWS: Record<string, OrchAudioSourceView> = {
-  vocab_book: { labelKey: 'orchAudio.source.vocab_book', icon: BookOpen, badgeClass: 'bg-amber-500/10 text-amber-300 border-amber-500/20' },
-  prompt_rewrite: { labelKey: 'orchAudio.source.prompt_rewrite', icon: Sparkles, badgeClass: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20' },
+  vocab_book: { labelKey: 'orchAudio.source.vocab_book', icon: BookOpen, tone: 'amber' },
+  prompt_rewrite: { labelKey: 'orchAudio.source.prompt_rewrite', icon: Sparkles, tone: 'violet' },
 };
 
 /** Source ids with dedicated presentation, used until the backend lists its own. */
@@ -59,7 +60,7 @@ export const ORCH_AUDIO_KNOWN_SOURCES: readonly WfNewOrchAudioSource[] = Object.
 const FALLBACK_SOURCE_VIEW: OrchAudioSourceView = {
   labelKey: 'orchAudio.source.other',
   icon: AudioLines,
-  badgeClass: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
+  tone: 'indigo',
 };
 
 /** Presentation for a backend source id; unknown ids fall back to a generic badge. */
