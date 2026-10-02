@@ -1,15 +1,76 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Lock, Mail, User, Shield, Sparkles, Languages, Compass, ArrowRight,
-  ChevronRight, CheckCircle2, UserPlus, LogIn, Heart, Star, LogOut, Github
+  Lock, User, Shield, Sparkles, Languages, ArrowRight,
+  ChevronRight, CheckCircle2, UserPlus, LogIn, LogOut, Github
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type WfNewAuthUser } from '../api';
 import { useSocialAuth, type CapSocialProvider } from '@/apps/wordnew/platform/capabilities/CapSocialAuth';
 import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
 import { WfNewAgreementModal } from '../components/WfNewAgreementModal';
+import { WfNewAvatarView, isImageAvatar } from '../components/WfNewAvatarView';
 import { getLanguageConfig } from '../WfNewLocales';
+import { ActionButton } from '@/shared/ui/ActionButton';
+import { TextField } from '@/shared/ui/TextField';
+
+const AVATAR_POOL = ['🦁', '🦊', '🐈', '🐼', '🐰', '🐯', '🦉', '🛸', '🚀', '👾'];
+const HASH_MULTIPLIER = 31;
+const MAX_EMOJI_LENGTH = 6;
+const PASSWORD_PLACEHOLDER = '••••••••';
+const HTTP_ERROR_PATTERN = /^HTTP \d+/;
+
+/** Deterministic avatar emoji for a backend user that has no emoji of its own. */
+const pickEmoji = (seed: string): string => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * HASH_MULTIPLIER + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_POOL[hash % AVATAR_POOL.length];
+};
+
+/** True only for a short emoji string (NOT a backend avatar path / data URL). */
+const looksLikeEmoji = (v?: string): boolean =>
+  !!v && v.length <= MAX_EMOJI_LENGTH && !/[a-z0-9]/i.test(v) && !v.includes('/') && !v.startsWith('http');
+
+interface SessionDefaults {
+  name: string;
+  bio: string;
+}
+
+/**
+ * Map the backend-aligned auth user onto the app's session profile shape. The
+ * avatar resolves to the backend's AUTO-GENERATED / uploaded image when it has
+ * a usable absolute URL (avatar_url); otherwise an existing emoji is kept, or a
+ * deterministic emoji is derived from the username so the chip is never blank.
+ */
+const toSessionProfile = (
+  user: WfNewAuthUser,
+  fallback: { email?: string; nativeLang?: string; targetLang?: string; bio?: string },
+  defaults: SessionDefaults,
+) => {
+  const resolvedEmail = user.email || fallback.email || '';
+  const nick =
+    user.nickname || user.name || user.username ||
+    (resolvedEmail.includes('@') ? resolvedEmail.split('@')[0] : '') || defaults.name;
+  let avatar: string;
+  if (isImageAvatar(user.avatar_url)) avatar = user.avatar_url as string;
+  else if (isImageAvatar(user.avatar)) avatar = user.avatar as string;
+  else if (looksLikeEmoji(user.avatar)) avatar = user.avatar as string;
+  else avatar = pickEmoji(user.username || resolvedEmail || nick);
+  // Stable cache-scope identity: a logged-in user ALWAYS has an id or username
+  // (the login form treats the identifier as username/email/phone — never
+  // email-only), so never key the private content cache on the optional email.
+  const userId = user.id != null ? String(user.id) : (user.username || user.email || '');
+  return {
+    nickname: nick,
+    avatar,
+    email: resolvedEmail,
+    userId,
+    nativeLang: user.native_language || fallback.nativeLang || 'zh',
+    targetLang: (user.learning_languages && user.learning_languages[0]) || fallback.targetLang || 'en',
+    bio: user.bio || fallback.bio || defaults.bio,
+    isLoggedIn: true,
+  };
+};
 
 interface WfNewAuthProps {
   activeTheme: ElementTheme;
@@ -60,62 +121,12 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
   // which exchanges the OAuth code and returns a real session.
   const social = useSocialAuth();
 
-  // Avatar Options
-  const AVATAR_POOL = ['🦁', '🦊', '🐈', '🐼', '🐰', '🐯', '🦉', '🛸', '🚀', '👾'];
-
-  /** Deterministic avatar emoji for a backend user that has no emoji of its own. */
-  const pickEmoji = (seed: string): string => {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-    return AVATAR_POOL[hash % AVATAR_POOL.length];
-  };
-
-  /** True only for a short emoji string (NOT a backend avatar path / data URL). */
-  const looksLikeEmoji = (v?: string): boolean =>
-    !!v && v.length <= 6 && !/[a-z0-9]/i.test(v) && !v.includes('/') && !v.startsWith('http');
-
-  /** True for an absolute image URL (http/https/data). */
-  const looksLikeImageUrl = (v?: string): boolean => !!v && (/^https?:\/\//i.test(v) || v.startsWith('data:'));
-
-  /**
-   * Map the backend-aligned auth user onto the app's session profile shape. The
-   * avatar resolves to the backend's AUTO-GENERATED / uploaded image when it has
-   * a usable absolute URL (avatar_url); otherwise an existing emoji is kept, or a
-   * deterministic emoji is derived from the username so the chip is never blank.
-   */
-  const toSessionProfile = (
-    user: WfNewAuthUser,
-    fallback: { email?: string; nativeLang?: string; targetLang?: string; bio?: string }
-  ) => {
-    const resolvedEmail = user.email || fallback.email || '';
-    const nick =
-      user.nickname || user.name || user.username ||
-      (resolvedEmail.includes('@') ? resolvedEmail.split('@')[0] : '') || 'Cadet';
-    let avatar: string;
-    if (looksLikeImageUrl(user.avatar_url)) avatar = user.avatar_url as string;
-    else if (looksLikeImageUrl(user.avatar)) avatar = user.avatar as string;
-    else if (looksLikeEmoji(user.avatar)) avatar = user.avatar as string;
-    else avatar = pickEmoji(user.username || resolvedEmail || nick);
-    // Stable cache-scope identity: a logged-in user ALWAYS has an id or username
-    // (the login form treats the identifier as username/email/phone — never
-    // email-only), so never key the private content cache on the optional email.
-    const userId = user.id != null ? String(user.id) : (user.username || user.email || '');
-    return {
-      nickname: nick,
-      avatar,
-      email: resolvedEmail,
-      userId,
-      nativeLang: user.native_language || fallback.nativeLang || 'zh',
-      targetLang: (user.learning_languages && user.learning_languages[0]) || fallback.targetLang || 'en',
-      bio: user.bio || fallback.bio || 'Linguistic coordinates locked.',
-      isLoggedIn: true,
-    };
-  };
+  const sessionDefaults: SessionDefaults = { name: trans('profile.defaultName'), bio: trans('auth.defaultBio') };
 
   /** Surface a backend/mock error message, falling back to a localized default. */
   const authErrorMessage = (err: any): string => {
     const msg = typeof err?.message === 'string' ? err.message : '';
-    if (msg && !/^HTTP \d+/.test(msg)) return msg;
+    if (msg && !HTTP_ERROR_PATTERN.test(msg)) return msg;
     return trans('auth.authFailed');
   };
 
@@ -137,7 +148,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
       const cred = provider === 'google' ? await social.signInGoogle() : await social.signInGitHub();
       if (!cred) return; // user cancelled
       const { user } = await wfNewApi.socialLogin(cred);
-      const profile = toSessionProfile(user, {});
+      const profile = toSessionProfile(user, {}, sessionDefaults);
       onLoginSuccess(profile);
       addToast(trans('auth.welcomeBack', { name: profile.nickname }), 'success');
     } catch (err) {
@@ -156,7 +167,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
     setSubmitting(true);
     try {
       const { user } = await wfNewApi.login(username.trim(), password);
-      const profile = toSessionProfile(user, {});
+      const profile = toSessionProfile(user, {}, sessionDefaults);
       onLoginSuccess(profile);
       addToast(trans('auth.welcomeBack', { name: profile.nickname }), 'success');
     } catch (err) {
@@ -198,7 +209,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
         learning_languages: targetLangs,
         // No email / nickname / bio / avatar — the backend auto-generates the profile.
       });
-      const profile = toSessionProfile(user, { nativeLang: lang, targetLang: targetLangs[0] });
+      const profile = toSessionProfile(user, { nativeLang: lang, targetLang: targetLangs[0] }, sessionDefaults);
       onLoginSuccess(profile);
       addToast(trans('auth.registered'), 'success');
     } catch (err) {
@@ -223,8 +234,8 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
             className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} shadow-2xl border border-white/5 space-y-6 text-center`}
           >
             <div className="relative inline-block">
-              <span className="text-6xl p-2 select-none filter drop-shadow-md block">
-                {currentUser.avatar}
+              <span className="block w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-6xl filter drop-shadow-md">
+                <WfNewAvatarView value={currentUser.avatar} className="text-6xl" />
               </span>
               <span className="absolute bottom-1 right-1 flex h-4 w-4">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -270,13 +281,9 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                 <span>{trans('auth.syncedNote')}</span>
               </div>
 
-              <button
-                onClick={onLogout}
-                className="w-full py-3 rounded-2xl bg-zinc-800 hover:bg-red-950/40 text-red-400 hover:text-red-300 transition-all font-mono text-xs font-black uppercase tracking-wider cursor-pointer border border-zinc-700/50 flex items-center justify-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>{trans('auth.logout')}</span>
-              </button>
+              <ActionButton variant="ghostDanger" block size="lg" onClick={onLogout} icon={<LogOut className="w-4 h-4" />}>
+                {trans('auth.logout')}
+              </ActionButton>
             </div>
           </motion.div>
         ) : (
@@ -332,56 +339,36 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
 
               {/* Username / identifier — any characters, NOT email-only (the
                   backend matches it against username / email / phone). */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.usernameLabel')}</label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="text"
-                    required
-                    autoComplete="username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder={trans('auth.usernamePh')}
-                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
-                  />
-                </div>
-              </div>
-
-              {/* Security Password */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.passwordLabel')}</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    autoComplete={isLoginView ? 'current-password' : 'new-password'}
-                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
-                  />
-                </div>
-              </div>
-
-              {/* Confirm Password — register-only (two-password confirmation). */}
+              <TextField
+                label={trans('auth.usernameLabel')}
+                icon={<User />}
+                required
+                autoComplete="username"
+                value={username}
+                onChange={setUsername}
+                placeholder={trans('auth.usernamePh')}
+              />
+              <TextField
+                label={trans('auth.passwordLabel')}
+                icon={<Lock />}
+                type="password"
+                required
+                value={password}
+                onChange={setPassword}
+                placeholder={PASSWORD_PLACEHOLDER}
+                autoComplete={isLoginView ? 'current-password' : 'new-password'}
+              />
               {!isLoginView && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.confirmPasswordLabel')}</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                      className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
-                    />
-                  </div>
-                </div>
+                <TextField
+                  label={trans('auth.confirmPasswordLabel')}
+                  icon={<Lock />}
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  placeholder={PASSWORD_PLACEHOLDER}
+                  autoComplete="new-password"
+                />
               )}
 
               {/* Target language — picked with the SHARED floating language panel
@@ -436,14 +423,15 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
               )}
 
               {/* Submit button */}
-              <button
+              <ActionButton
                 type="submit"
+                block
+                size="lg"
                 disabled={submitting || (!isLoginView && !agreed)}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:to-purple-700 text-white font-mono text-xs font-black uppercase tracking-wider cursor-pointer shadow-lg hover:shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                trailingIcon={<ArrowRight className="w-4 h-4" />}
               >
-                <span>{submitting ? trans('common.loading') : isLoginView ? trans('auth.submitLogin') : trans('auth.submitRegister')}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+                {submitting ? trans('common.loading') : isLoginView ? trans('auth.submitLogin') : trans('auth.submitRegister')}
+              </ActionButton>
 
             </form>
 

@@ -6,12 +6,14 @@
  * request at once); the pycore tab carries the LAN scan.
  */
 import React, { useState } from 'react';
-import { Radar, Server, Waypoints, type LucideIcon } from 'lucide-react';
+import { Radar } from 'lucide-react';
+import { TONE_TEXT } from '@/shared/ui/statusTone';
 import type { ElementTheme } from '../../WfNewThemes';
 import type { OrchApiEndpoints, OrchApiOrigin } from '../../../../shared/orchestration/orchClipResolver';
 import { wordNewApiService, type WordNewApiServiceId } from '../../api/center/WordNewApiCenter';
 import { ApiEndpointChip } from '../api-center/ApiEndpoint';
 import { WfNewApiCenterDialog } from '../api-center/WfNewApiCenterDialog';
+import { ORCH_BACKEND_VIEW } from './orchBackends';
 
 interface Props {
   endpoints: OrchApiEndpoints;
@@ -20,7 +22,6 @@ interface Props {
 }
 
 const ORIGINS: readonly OrchApiOrigin[] = ['laravel', 'pycore'];
-const ORIGIN_ICON: Record<OrchApiOrigin, LucideIcon> = { laravel: Server, pycore: Waypoints };
 
 export const WordNewOrchApiEndpoints: React.FC<Props> = ({ endpoints, theme, trans }) => {
   const [dialog, setDialog] = useState<WordNewApiServiceId | null>(null);
@@ -30,7 +31,7 @@ export const WordNewOrchApiEndpoints: React.FC<Props> = ({ endpoints, theme, tra
         <ApiEndpointChip
           key={origin}
           service={wordNewApiService(origin as WordNewApiServiceId)}
-          icon={ORIGIN_ICON[origin]}
+          icon={ORCH_BACKEND_VIEW[origin].icon}
           name={trans(`orchCompose.api.${origin}`)}
           url={endpoints[origin]}
           onOpen={() => setDialog(origin)}
@@ -42,7 +43,7 @@ export const WordNewOrchApiEndpoints: React.FC<Props> = ({ endpoints, theme, tra
         onClick={() => setDialog('pycore')}
         aria-label={trans('orchCompose.api.scanLan')}
         title={trans('orchCompose.api.scanLan')}
-        className="inline-flex items-center rounded-lg border border-slate-200 dark:border-white/10 p-1 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10"
+        className={`inline-flex items-center rounded-lg border border-slate-200 dark:border-white/10 p-1 ${TONE_TEXT.indigo} hover:bg-indigo-500/10`}
       >
         <Radar className="h-3 w-3" aria-hidden />
       </button>

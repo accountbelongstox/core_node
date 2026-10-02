@@ -12,6 +12,7 @@ import {
   type WordNewApiServiceId,
 } from '../../api/center/WordNewApiCenter';
 import { WfNewApiCenterDialog } from './WfNewApiCenterDialog';
+import { WfNewIconCardSection } from './WfNewIconCardSection';
 import { ApiServiceStatusBadge, ApiUrlLine, useApiServiceStatus } from './ApiEndpoint';
 
 interface Props {
@@ -53,16 +54,7 @@ export const WfNewApiCenterPanel: React.FC<Props> = ({ activeTheme, trans }) => 
   const [openService, setOpenService] = useState<WordNewApiServiceId | null>(null);
 
   return (
-    <section className={`p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-3`}>
-      <div className="flex items-center gap-3">
-        <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-500 shrink-0">
-          <Server className="w-5 h-5" />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-extrabold font-mono uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{trans('apiCenter.title')}</h3>
-          <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono mt-1">{trans('api.tapHint')}</p>
-        </div>
-      </div>
+    <WfNewIconCardSection icon={Server} title={trans('apiCenter.title')} description={trans('api.tapHint')} theme={activeTheme} mono>
       {WORDNEW_API_SERVICES.map((service) => (
         <ServiceRow key={service.id} service={service} onOpen={() => setOpenService(service.id)} trans={trans} />
       ))}
@@ -73,6 +65,6 @@ export const WfNewApiCenterPanel: React.FC<Props> = ({ activeTheme, trans }) => 
         activeTheme={activeTheme}
         trans={trans}
       />
-    </section>
+    </WfNewIconCardSection>
   );
 };

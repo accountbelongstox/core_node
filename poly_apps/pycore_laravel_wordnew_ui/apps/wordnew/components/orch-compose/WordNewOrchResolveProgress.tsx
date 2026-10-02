@@ -21,6 +21,7 @@ import { WordNewOrchAssistPanel } from './WordNewOrchAssistPanel';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { useWordNewPycoreNodes, type WordNewPycoreNodesSnapshot } from '../../services/WordNewPycoreNodes';
 import { OrchToneLegend } from './OrchToneLegend';
+import { ORCH_BACKEND_VIEW } from './orchBackends';
 import { OrchPanel } from './orchPanels';
 import { orchRunProgress } from './orchRunProgress';
 
@@ -40,12 +41,7 @@ const PHASE_ICON: Record<Exclude<OrchComposePhase, 'failed'>, LucideIcon> = {
   ready: CircleCheck,
 };
 const ORIGINS = ['device', 'pycore', 'laravel', 'missing'] as const;
-const ORIGIN_TONE: Record<(typeof ORIGINS)[number], StatusTone> = {
-  device: 'emerald',
-  pycore: 'indigo',
-  laravel: 'sky',
-  missing: 'rose',
-};
+const ORIGIN_TONE = (key: (typeof ORIGINS)[number]): StatusTone => ORCH_BACKEND_VIEW[key].tone;
 const STATE_TONE: Record<OrchClipState, StatusTone> = {
   done: 'emerald',
   loading: 'amber',
@@ -193,7 +189,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
       {total > 0 && (
         <>
           <SegmentedBar
-            segments={ORIGINS.map((key) => ({ key, value: counts?.[key] ?? 0, tone: ORIGIN_TONE[key] }))}
+            segments={ORIGINS.map((key) => ({ key, value: counts?.[key] ?? 0, tone: ORIGIN_TONE(key) }))}
             total={total}
             label={trans('orchCompose.progress.resources', { done: settled, total })}
           />
@@ -210,7 +206,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
             <OrchToneLegend
               dots
               className="min-w-0 flex-1"
-              items={ORIGINS.map((key) => ({ key, tone: ORIGIN_TONE[key], text: trans(`orchCompose.count.${key}`, { count: counts?.[key] ?? 0 }) }))}
+              items={ORIGINS.map((key) => ({ key, tone: ORIGIN_TONE(key), text: trans(`orchCompose.count.${key}`, { count: counts?.[key] ?? 0 }) }))}
             />
             <button
               type="button"

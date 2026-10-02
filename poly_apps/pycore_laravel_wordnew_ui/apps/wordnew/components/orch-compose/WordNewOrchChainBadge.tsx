@@ -6,12 +6,13 @@
  * A click lists the stages with their state.
  */
 import React, { useMemo, useSyncExternalStore } from 'react';
-import { AlertCircle, Route, Server, Smartphone, Sparkles, Waypoints } from 'lucide-react';
-import { TONE_TEXT, type StatusTone } from '@/shared/ui/statusTone';
+import { Sparkles } from 'lucide-react';
+import { TONE_TEXT } from '@/shared/ui/statusTone';
 import type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import type { ElementTheme } from '../../WfNewThemes';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { wordNewChannels } from '../../services/compute/WordNewCompute';
+import { ORCH_BACKEND_VIEW, type OrchBackendId } from './orchBackends';
 import { StatPopover } from './StatPopover';
 
 interface ChannelView {
@@ -34,22 +35,21 @@ type StageId = 'device' | 'pycore' | 'laravel' | 'pycoreGenerate' | 'relay' | 'r
 
 interface StageView {
   id: StageId;
-  icon: typeof Server;
   generate: boolean;
   count: number;
   /** The stage can run now. */
   active: boolean;
 }
 
-const TONE: Record<StageId, StatusTone> = {
-  device: 'emerald',
-  pycore: 'indigo',
-  laravel: 'sky',
-  pycoreGenerate: 'indigo',
-  relay: 'violet',
-  relayGenerate: 'violet',
-  laravelGenerate: 'sky',
-  missing: 'rose',
+const STAGE_BACKEND: Record<StageId, OrchBackendId> = {
+  device: 'device',
+  pycore: 'pycore',
+  laravel: 'laravel',
+  pycoreGenerate: 'pycore',
+  relay: 'relay',
+  relayGenerate: 'relay',
+  laravelGenerate: 'laravel',
+  missing: 'missing',
 };
 
 /** Scheduler stage id of each widget stage (its batch progress in `session.stages`). */
@@ -85,16 +85,16 @@ function stages(session: OrchComposeSession | null, channels: ChannelView): Stag
   // `relay` already means: no direct pycore, Laravel up, a pycore paired.
   const relayOnly = channels.relay;
   const native = isNativeAppShell();
-  const view = (id: StageId, icon: typeof Server, active: boolean, generate = false): StageView => ({ id, icon, generate, count: counts[id], active });
-  const transfers = [view('pycore', Waypoints, channels.pycore), view('laravel', Server, channels.laravel)];
+  const view = (id: StageId, active: boolean, generate = false): StageView => ({ id, generate, count: counts[id], active });
+  const transfers = [view('pycore', channels.pycore), view('laravel', channels.laravel)];
   return [
-    ...(native ? [view('device', Smartphone, true)] : []),
+    ...(native ? [view('device', true)] : []),
     ...(native ? transfers : transfers.reverse()),
-    view('pycoreGenerate', Waypoints, channels.pycore, true),
-    view('relay', Route, relayOnly),
-    view('relayGenerate', Route, relayOnly, true),
-    view('laravelGenerate', Server, !channels.pycore && !channels.relay && channels.laravel, true),
-    view('missing', AlertCircle, true),
+    view('pycoreGenerate', channels.pycore, true),
+    view('relay', relayOnly),
+    view('relayGenerate', relayOnly, true),
+    view('laravelGenerate', !channels.pycore && !channels.relay && channels.laravel, true),
+    view('missing', true),
   ];
 }
 
@@ -113,9 +113,9 @@ export const WordNewOrchChainBadge: React.FC<{ session: OrchComposeSession | nul
       chip={(
         <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
           {views.map((stage) => {
-            const Icon = stage.icon;
+            const { icon: Icon, tone } = ORCH_BACKEND_VIEW[STAGE_BACKEND[stage.id]];
             return (
-              <span key={stage.id} className={`inline-flex items-center gap-0.5 ${TONE_TEXT[TONE[stage.id]]} ${stage.active ? '' : 'opacity-35'}`}>
+              <span key={stage.id} className={`inline-flex items-center gap-0.5 ${TONE_TEXT[tone]} ${stage.active ? '' : 'opacity-35'}`}>
                 {stage.generate && <Sparkles className="h-2.5 w-2.5" aria-hidden />}
                 <Icon className="h-3 w-3" aria-hidden />
                 {stage.count}
@@ -128,13 +128,13 @@ export const WordNewOrchChainBadge: React.FC<{ session: OrchComposeSession | nul
       <p className="text-xs font-extrabold">{trans('orchChain.title')}</p>
       <ol className="space-y-1">
         {views.map((stage, index) => {
-          const Icon = stage.icon;
+          const { icon: Icon, tone } = ORCH_BACKEND_VIEW[STAGE_BACKEND[stage.id]];
           const scheduleStage = SCHEDULE_STAGE[stage.id];
           const work = scheduleStage ? session?.stages[scheduleStage] : undefined;
           return (
             <li key={stage.id} className={`flex items-start gap-2 text-[11px] ${stage.active ? '' : 'opacity-50'}`}>
               <span className="w-4 shrink-0 text-right font-mono text-zinc-400">{index + 1}</span>
-              <span className={`inline-flex shrink-0 items-center ${TONE_TEXT[TONE[stage.id]]}`}>
+              <span className={`inline-flex shrink-0 items-center ${TONE_TEXT[tone]}`}>
                 {stage.generate && <Sparkles className="h-3 w-3" aria-hidden />}
                 <Icon className="h-3.5 w-3.5" aria-hidden />
               </span>

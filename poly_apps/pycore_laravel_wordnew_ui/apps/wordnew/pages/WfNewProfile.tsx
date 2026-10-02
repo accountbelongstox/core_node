@@ -600,14 +600,9 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
           from the primary actions, since it is destructive. Click → confirm dialog. */}
       {currentUser.isLoggedIn && (
         <div className="pt-2 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShowLogoutConfirm(true)}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-zinc-800/60 hover:bg-red-950/40 text-red-400 hover:text-red-300 border border-zinc-700/50 text-[11px] font-mono font-black uppercase tracking-wider transition-all cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>{trans('profile.logout')}</span>
-          </button>
+          <ActionButton variant="ghostDanger" size="sm" onClick={() => setShowLogoutConfirm(true)} icon={<LogOut className="w-3.5 h-3.5" />}>
+            {trans('profile.logout')}
+          </ActionButton>
         </div>
       )}
 
