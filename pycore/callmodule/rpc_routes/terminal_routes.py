@@ -16,6 +16,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
     UI_TERMINAL_KEY,
+    UI_TERMINAL_RENAME,
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
     UI_TERMINAL_SCHEDULE_QUEUE_SYNC,
     UI_TERMINAL_SCREENSHOT,
@@ -114,6 +115,15 @@ def register_terminal_routes(server) -> None:
             list_quick_commands,
             log_result=False,
             quiet=True,
+        )
+
+    def rename_handler(params, request_id, _context):
+        terminal_number = integer_param(params, "terminal_number")
+        title = str(params.get("title") or "")
+        return run_terminal_action(
+            "rename",
+            request_id,
+            lambda: terminal_service.rename(terminal_number, title),
         )
 
     def key_handler(params, request_id, _context):
@@ -366,6 +376,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_KEY, handler=key_handler)
+    server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
     server.post(path=UI_TERMINAL_VIEW, handler=view_handler)
     server.post(path=UI_TERMINAL_VIEWER_DEMAND, handler=viewer_demand_handler)

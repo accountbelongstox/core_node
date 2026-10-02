@@ -266,6 +266,32 @@ class X11Display:
         finally:
             connection.close()
 
+    def set_title(self, xid: int, title: str) -> bool:
+        connection, _error_code = self._open()
+        if connection is None:
+            return False
+        try:
+            window = connection.window(xid)
+            window.change_property(
+                connection.atom("_NET_WM_NAME"),
+                connection.atom("UTF8_STRING"),
+                8,
+                title.encode("utf-8"),
+            )
+            window.change_property(
+                connection.atom("WM_NAME"),
+                connection.atom("STRING"),
+                8,
+                title.encode("latin-1", errors="replace"),
+            )
+            connection.display.sync()
+            return True
+        except Exception as exc:  # noqa: BLE001 - a vanished window or X error is a plain failure
+            x11_activity_log.warning("window.title.failed", xid=f"0x{xid:x}", error=type(exc).__name__)
+            return False
+        finally:
+            connection.close()
+
     def activate(self, xid: int) -> bool:
         xlib_x = get_third_package_Xlib_module('X')
         connection, _error_code = self._open()

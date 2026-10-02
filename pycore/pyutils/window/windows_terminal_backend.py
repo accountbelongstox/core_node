@@ -28,6 +28,7 @@ from pycore.pyutils.window.ops import (
     restore_foreground_window,
     scroll_mouse_wheel,
     set_cursor_position,
+    set_window_text,
     set_window_topmost,
     show_window_without_activation,
 )
@@ -187,6 +188,9 @@ class WindowsTerminalBackend(TerminalWindowBackend):
         if self._is_terminal_host(window):
             return [TERMINAL_KEY_CONTROL, TERMINAL_KEY_SHIFT, TERMINAL_KEY_END]
         return None
+
+    def _set_title(self, window: Dict[str, Any], title: str) -> bool:
+        return set_window_text(int(window["native_id"]), title)
 
     def _paste(self, window: Dict[str, Any]) -> bool:
         if self._is_terminal_host(window):

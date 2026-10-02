@@ -246,6 +246,12 @@ class LinuxTerminalBackend(TerminalWindowBackend):
         )
 
     # GNOME Terminal, Konsole and xterm scroll their scrollback on Shift+PageUp/PageDown.
+    # X11/XWayland windows only: Wayland-native windows have no client-settable title from outside.
+    def _set_title(self, window: Dict[str, Any], title: str) -> bool:
+        if str(window["control"]) not in (CONTROL_X11, CONTROL_XWAYLAND):
+            return False
+        return x11_display.set_title(int(str(window["native_id"]), 16), title)
+
     def _scroll_page_keys(self, window: Dict[str, Any], mode: str) -> Optional[List[str]]:
         return [TERMINAL_KEY_SHIFT, SCROLL_PAGE_KEYS[mode]]
 

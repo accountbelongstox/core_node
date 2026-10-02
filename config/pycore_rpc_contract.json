@@ -1058,6 +1058,10 @@
       "path": "ui/terminal/key",
       "method": "POST"
     },
+    "terminalRename": {
+      "path": "ui/terminal/rename",
+      "method": "POST"
+    },
     "terminalScheduleQueueClear": {
       "path": "ui/terminal/schedule_queue/clear",
       "method": "POST"

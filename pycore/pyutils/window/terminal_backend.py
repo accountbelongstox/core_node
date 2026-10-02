@@ -215,6 +215,14 @@ class TerminalWindowBackend:
         with self._input_guard():
             return self._press_enter(window)
 
+    def set_title(self, window_id: str, title: str) -> Dict[str, Any]:
+        window = self.find_window(window_id)
+        if window is None:
+            return failure("terminal_window_not_found")
+        if not self._set_title(window, title):
+            return failure("terminal_title_unsupported")
+        return success(window)
+
     def press_key(self, window_id: str, key: str) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
@@ -328,6 +336,10 @@ class TerminalWindowBackend:
         """True once synthesized keys will reach this window; backends that cannot verify focus accept."""
         return True
 
+    def _set_title(self, window: Dict[str, Any], title: str) -> bool:
+        """Set the OS window title; backends without a native setter refuse."""
+        return False
+
     def _clear_input(self, window: Dict[str, Any]) -> bool:
         if not self._keys(window, list(CLEAR_INPUT_LINE_END_KEYS)):
             return False
@@ -440,6 +452,9 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         return failure("unsupported_platform")
 
     def press_key(self, window_id: str, key: str) -> Dict[str, Any]:
+        return failure("unsupported_platform")
+
+    def set_title(self, window_id: str, title: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:

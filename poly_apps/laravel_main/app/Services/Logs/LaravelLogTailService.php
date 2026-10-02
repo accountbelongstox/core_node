@@ -228,8 +228,9 @@ class LaravelLogTailService
         $entries = [];
         $currentEntry = null;
 
-        // Regex to match standard Laravel log format: [YYYY-MM-DD HH:MM:SS] channel.LEVEL: message {"context"}
-        $pattern = '/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (\w+)\.([A-Z]+): (.*)/';
+        // Laravel log line: [timestamp] channel.LEVEL: message {"context"}; the timestamp is either
+        // "YYYY-MM-DD HH:MM:SS" or Monolog's ISO 8601 form "YYYY-MM-DDTHH:MM:SS.uuuuuu+00:00".
+        $pattern = '/^\[(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}[^\]]*)\] ([\w-]+)\.([A-Z]+): (.*)/';
 
         foreach ($lines as $line) {
             if (empty(trim($line))) {

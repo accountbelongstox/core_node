@@ -67,6 +67,7 @@ def decorate_live_window(
     window["preview_expanded"] = (
         str(record.get("preview_expanded") or "0") == "1"
     )
+    window["custom_title"] = str(record.get("custom_title") or "")
     window["state_updated_at"] = str(record.get("updated_at") or "")
     return window
 
@@ -105,6 +106,7 @@ def build_offline_window(record: Dict[str, Any]) -> Dict[str, Any]:
         "preview_expanded": (
             str(record.get("preview_expanded") or "0") == "1"
         ),
+        "custom_title": str(record.get("custom_title") or ""),
         "state_updated_at": str(record.get("updated_at") or ""),
         "last_seen_at": str(record.get("last_seen_at") or ""),
     }

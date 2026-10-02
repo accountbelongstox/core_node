@@ -235,6 +235,24 @@ class TerminalStateRepository:
 
     @serialized_method
     @_transactional_store_method
+    def save_custom_title(
+        self,
+        terminal_number: int,
+        title: str,
+    ) -> Dict[str, Any]:
+        values, records, _next_number = self._scan_records()
+        if terminal_number not in records:
+            return {"success": False, "error_code": "terminal_state_not_found"}
+        self._write_value(values, terminal_key(terminal_number, "custom_title"), title)
+        self._write_value(values, terminal_key(terminal_number, "updated_at"), utc_now_iso())
+        return {
+            "success": True,
+            "terminal_number": terminal_number,
+            "custom_title": title,
+        }
+
+    @serialized_method
+    @_transactional_store_method
     def begin_submission(
         self,
         terminal_number: int,

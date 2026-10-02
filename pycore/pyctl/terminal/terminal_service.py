@@ -55,6 +55,7 @@ CAPTURE_POLL_INTERVAL_SECONDS = 0.1
 CAPTURE_POLL_ATTEMPTS = 30
 CAPTURE_SENTINEL_PREFIX = "pycore-terminal-capture-"
 CAPTURE_FOCUS_LABEL = "TerminalCapture"
+CUSTOM_TITLE_MAX_CHARS = 120
 
 
 class TerminalService:
@@ -280,6 +281,25 @@ class TerminalService:
                 "error_code": "terminal_screenshot_failed",
             }
         return {**action, "screenshot_resource": screenshot}
+
+    @serialized_method
+    def rename(self, terminal_number: int, title: str) -> Dict[str, Any]:
+        """Store the custom name (empty clears it) and best-effort set the OS window title."""
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        custom_title = " ".join(title.split())[:CUSTOM_TITLE_MAX_CHARS]
+        saved = self._state_repository.save_custom_title(terminal_number, custom_title)
+        if not saved.get("success"):
+            return saved
+        os_result: Dict[str, Any] = {"success": False, "error_code": None}
+        window_id = self._state_repository.resolve_window_id(terminal_number)
+        if custom_title and window_id:
+            os_result = self._backend.set_title(window_id, custom_title)
+        return {
+            **saved,
+            "os_title_applied": bool(os_result.get("success")),
+            "os_error_code": os_result.get("error_code"),
+        }
 
     def save_preview_expanded(
         self,
