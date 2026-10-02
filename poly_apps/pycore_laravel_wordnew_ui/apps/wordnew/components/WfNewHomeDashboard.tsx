@@ -121,7 +121,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           />
         )}
         <div
-          className="relative bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 px-3 pb-6 pt-3 sm:px-4"
+          className={`relative bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 px-3 pt-3 sm:px-4 ${expanded ? "pb-10" : "pb-6"}`}
           style={ARC_STYLE}
         >
           {expanded ? (
@@ -195,11 +195,11 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1fr)_auto] gap-1.5" title={trans('dashboard.settingsTitle')}>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1fr)_auto] gap-1.5 px-2 sm:px-6" title={trans('dashboard.settingsTitle')}>
         <button
           type="button"
           onClick={() => setLangPanelOpen(true)}
-          className={`${PILL} hover:border-indigo-500/40 cursor-pointer text-left`}
+          className={`${PILL} sm:rounded-bl-[18px] hover:border-indigo-500/40 cursor-pointer text-left`}
           title={trans('home.targetLang')}
           aria-label={`${trans('home.targetLang')}: ${targetLabel}`}
         >
@@ -215,7 +215,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
         <button
           type="button"
           onClick={onOpenGroup}
-          className={`${PILL} hover:border-indigo-500/40 cursor-pointer text-left`}
+          className={`${PILL} max-sm:rounded-bl-[18px] hover:border-indigo-500/40 cursor-pointer text-left`}
           title={trans('home.openCurrentGroup')}
           aria-label={`${trans('home.currentGroup')}: ${groupName || '—'}`}
         >
@@ -228,7 +228,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           type="button"
           onClick={() => onSave({ targetLang: draftLang, dailyGoal: wfNewSettings.get('dailyGoal') })}
           disabled={isLoggedIn && !dirty}
-          className={`h-9 flex items-center justify-center gap-1.5 px-3 rounded-xl text-white text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+          className={`h-9 flex items-center justify-center gap-1.5 px-3 rounded-xl rounded-br-[18px] text-white text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
             isLoggedIn ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:brightness-110'
           }`}
           title={isLoggedIn ? saveLabel : trans('dashboard.loginHint')}
