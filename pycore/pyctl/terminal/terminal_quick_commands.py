@@ -21,10 +21,15 @@ CLAUDETEAM_SCRIPT_SUFFIXES = {
     PLATFORM_WINDOWS: ".ps1",
     PLATFORM_LINUX: ".sh",
 }
-SYSTEM_COMMANDS = {
-    PLATFORM_WINDOWS: ("cls", "claude", "claude --continue", "claude --resume", "git status", "git pull"),
-    PLATFORM_LINUX: ("clear", "claude", "claude --continue", "claude --resume", "git status", "git pull"),
-}
+# (id, Windows line, Linux line): the UI shows and remembers the id; each node runs its own line.
+SYSTEM_COMMANDS: Tuple[Tuple[str, str, str], ...] = (
+    ("clear_screen", "cls", "clear"),
+    ("claude", "claude", "claude"),
+    ("claude_continue", "claude --continue", "claude --continue"),
+    ("claude_resume", "claude --resume", "claude --resume"),
+    ("git_status", "git status", "git status"),
+    ("git_pull", "git pull", "git pull"),
+)
 KIND_SYSTEM = "system"
 KIND_CUSTOM = "custom"
 KIND_PRESET = "preset"
@@ -97,7 +102,7 @@ def _scan_quick_commands(platform: str, root: Path, script_dir: Path) -> Dict[st
     custom: List[Dict[str, str]] = []
     if script_dir.is_dir():
         custom = [
-            {"kind": KIND_CUSTOM, "command": script.stem, "script": script.name}
+            {"kind": KIND_CUSTOM, "id": script.stem, "command": script.stem, "script": script.name}
             for script in sorted(script_dir.iterdir(), key=lambda path: path.name.lower())
             if script.is_file() and script.suffix.lower() == suffix
         ]
@@ -106,6 +111,9 @@ def _scan_quick_commands(platform: str, root: Path, script_dir: Path) -> Dict[st
         "platform": platform,
         "script_dir": str(script_dir),
         "preset": _preset_commands(platform, root),
-        "system": [{"kind": KIND_SYSTEM, "command": command} for command in SYSTEM_COMMANDS[platform]],
+        "system": [
+            {"kind": KIND_SYSTEM, "id": command_id, "command": windows_line if platform == PLATFORM_WINDOWS else linux_line}
+            for command_id, windows_line, linux_line in SYSTEM_COMMANDS
+        ],
         "custom": custom,
     }

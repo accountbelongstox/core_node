@@ -23,6 +23,20 @@ export interface TerminalScheduleClearLocalResult {
 }
 
 const EMPTY_STATE_VERSION = 3;
+/** '' is the selected pycore (the synced key); any other value is a parallel node's namespace. */
+const PRIMARY_SCHEDULE_SCOPE = '';
+const SCOPE_SEPARATOR = '@';
+let activeScope = PRIMARY_SCHEDULE_SCOPE;
+
+/** The terminal page sets the node it shows; every function below then reads and writes that node's queue. */
+export function setTerminalScheduleScope(scope: string): void {
+  activeScope = scope;
+}
+
+export function terminalScheduleStorageKey(scope: string = activeScope): string {
+  const key = PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES;
+  return scope === PRIMARY_SCHEDULE_SCOPE ? key : `${key}${SCOPE_SEPARATOR}${scope}`;
+}
 
 function emptyState(): TerminalScheduleState {
   return {
@@ -79,7 +93,7 @@ function normalizeState(value: unknown): TerminalScheduleState {
 
 function readState(): TerminalScheduleState {
   return normalizeState(StorageManager.get(
-    PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES,
+    terminalScheduleStorageKey(),
     emptyState(),
   ));
 }
@@ -129,7 +143,7 @@ export function writeTerminalScheduleQueue(
     updated_at: Math.max(Date.now(), previousUpdatedAt + 1),
   };
   state.terminals[String(terminalNumber)] = record;
-  StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
+  StorageManager.set(terminalScheduleStorageKey(), state);
   return { ...record, entries: record.entries.map((entry) => ({ ...entry })) };
 }
 
@@ -161,7 +175,7 @@ export function stageTerminalScheduleClearAll(): TerminalScheduleClearLocalResul
     changed = true;
   }
   if (changed) {
-    StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
+    StorageManager.set(terminalScheduleStorageKey(), state);
   }
   return {
     cleared_entry_count: clearedEntryCount,
@@ -177,7 +191,7 @@ export function completeTerminalScheduleClearAll(): void {
   const state = readState();
   if (!state.clear_all_pending) return;
   state.clear_all_pending = false;
-  StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
+  StorageManager.set(terminalScheduleStorageKey(), state);
 }
 
 export function createTerminalScheduleEntryId(): string {

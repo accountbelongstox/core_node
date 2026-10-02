@@ -155,8 +155,9 @@ function Set-ClaudeGitBashEnv {
 
 function Get-MCPPythonExe {
     # Priority 1: GlobalVars PYTHON_EXE_PATH (from DD)
-    if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
-        return $Global:PYTHON_EXE_PATH
+    $ddPythonVar = Get-Variable -Name PYTHON_EXE_PATH -Scope Global -ErrorAction SilentlyContinue
+    if ($ddPythonVar -and $ddPythonVar.Value -and (Test-Path -LiteralPath $ddPythonVar.Value)) {
+        return $ddPythonVar.Value
     }
     # Priority 2: Detect DD Python via D:\.dev_${systemName}\python311\python.exe
     $systemNames = @("win10", "win11", "win", "win_8", "win_7")

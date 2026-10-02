@@ -445,7 +445,6 @@ terminal: {
       thisMachineHint: 'Terminals of the selected pycore ({{url}})',
       otherHint: 'Terminals of another online pycore: {{url}} ({{os}})',
       noOthers: 'No other pycore online',
-      scheduleOnThisMachine: 'Scheduled sends are managed on the first tab (this machine) only.',
     },
     choice: {
       title: 'Answer an AI choice',
@@ -484,6 +483,15 @@ terminal: {
         pyservice_no_install: 'Start pyservice without the prerequisite installers',
       },
       system: 'System',
+      systemNames: {
+        clear_screen: 'Clear screen',
+        claude: 'Start Claude Code',
+        claude_continue: 'Claude: continue last session',
+        claude_resume: 'Claude: pick a session to resume',
+        git_status: 'Git status',
+        git_pull: 'Git pull',
+      },
+      unavailableHere: '"{{command}}" is not available on this node.',
       custom: 'claudeteam scripts ({{count}})',
       empty: 'No matching command.',
       loadFailed: 'The command list could not be loaded.',

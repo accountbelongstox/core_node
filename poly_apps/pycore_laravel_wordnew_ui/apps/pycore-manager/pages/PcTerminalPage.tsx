@@ -46,6 +46,7 @@ import {
   pycoreEventBus,
   PYCORE_EVENT_TOPICS,
   readTerminalScheduleQueue,
+  setTerminalScheduleScope,
   stageTerminalScheduleClearAll,
   mergeTerminalScheduleRuntime,
   writeTerminalScheduleQueue,
@@ -68,6 +69,7 @@ import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
+import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
 import { StorageManager } from '../../../core/persistence';
 import type {
@@ -493,8 +495,15 @@ function calculateCanvasLayout(
 const PcTerminalNodeView: React.FC = () => {
   const { t } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
-  // The browser schedule queue and the pushed terminal events belong to the selected pycore only.
-  const { isPrimary } = usePcTerminalNode();
+  // Pushed terminal events come from the selected pycore only; every other piece of state is namespaced per node.
+  const { isPrimary, nodeKey, http } = usePcTerminalNode();
+  // Set during render so the first reads already use this node's schedule queue.
+  setTerminalScheduleScope(isPrimary ? '' : nodeKey);
+  const scheduleSync = useMemo(
+    () => (isPrimary ? primaryTerminalScheduleSync : createNodeTerminalScheduleSync(http, terminalApi, nodeKey)),
+    [http, isPrimary, nodeKey, terminalApi],
+  );
+  useEffect(() => () => setTerminalScheduleScope(''), []);
   const isMobile = useIsMobile();
   const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
   const [selectedTerminalNumber, setSelectedTerminalNumber] = useState<number | null>(null);
@@ -709,7 +718,7 @@ const PcTerminalNodeView: React.FC = () => {
       || scheduleClearAllInProgressRef.current
       || scheduleSyncInFlightRef.current.has(terminalNumber)
     ) return null;
-    const request = pycoreManagerUiStateSync.synchronizeTerminalSchedules(
+    const request = scheduleSync.synchronizeTerminalSchedules(
       terminalNumber,
     );
     scheduleSyncInFlightRef.current.set(terminalNumber, request);
@@ -743,11 +752,11 @@ const PcTerminalNodeView: React.FC = () => {
       windows.forEach((windowInfo) => {
         ensureTerminalScheduleQueue(windowInfo.terminal_number);
       });
-      const clearResult = await pycoreManagerUiStateSync.clearTerminalSchedules()
+      const clearResult = await scheduleSync.clearTerminalSchedules()
         .catch(() => null);
       if (clearResult?.success) {
         completeTerminalScheduleClearAll();
-        void pycoreManagerUiStateSync.pushTerminalScheduleJson()
+        void scheduleSync.pushTerminalScheduleJson()
           .catch(() => undefined);
       }
     }
@@ -765,9 +774,9 @@ const PcTerminalNodeView: React.FC = () => {
 
   const commitSnapshot = useCallback(async (nextSnapshot: TerminalSnapshot) => {
     void loadSnapshotScreenshotResources(nextSnapshot);
-    if (isPrimary) await reconcileTerminalSchedules(nextSnapshot.windows);
+    await reconcileTerminalSchedules(nextSnapshot.windows);
     if (!mountedRef.current) return;
-    setSnapshot(isPrimary ? applyFrontendTerminalSchedules(nextSnapshot) : nextSnapshot);
+    setSnapshot(applyFrontendTerminalSchedules(nextSnapshot));
     setSelectedTerminalNumber((current) => (
       nextSnapshot.windows.some(
         (windowInfo) => windowInfo.terminal_number === current,
@@ -1152,12 +1161,12 @@ const PcTerminalNodeView: React.FC = () => {
     setActionNotice(null);
     try {
       await Promise.allSettled([...scheduleSyncInFlightRef.current.values()]);
-      const result = await pycoreManagerUiStateSync.clearTerminalSchedules();
+      const result = await scheduleSync.clearTerminalSchedules();
       const pycoreTerminalNumbers = (result.terminal_numbers || []).join(', ')
         || t('terminal.scheduleNoTerminals');
       if (result.success) {
         completeTerminalScheduleClearAll();
-        void pycoreManagerUiStateSync.pushTerminalScheduleJson().catch(() => undefined);
+        void scheduleSync.pushTerminalScheduleJson().catch(() => undefined);
         setActionNotice({
           kind: 'success',
           translationKey: 'terminal.scheduleClearResult',
@@ -1700,13 +1709,7 @@ const PcTerminalNodeView: React.FC = () => {
           onClipboardResult={reportCaptureClipboard}
         />
       )}
-      {selectedWindow && !isPrimary && (
-        <p className="flex items-center gap-1.5 rounded-xl border border-dashed border-slate-500/25 p-3 text-[11px] text-slate-500">
-          <Timer className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-          {t('terminal.nodes.scheduleOnThisMachine')}
-        </p>
-      )}
-      {selectedWindow && isPrimary && (
+      {selectedWindow && (
         <div className="space-y-2.5 rounded-xl border border-slate-500/15 bg-white/40 p-3 dark:bg-slate-950/20">
           <div className="flex items-center justify-between gap-2">
             <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">

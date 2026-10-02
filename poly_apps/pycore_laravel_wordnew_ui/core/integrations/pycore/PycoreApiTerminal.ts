@@ -62,8 +62,9 @@ export interface TerminalRenameResult {
 
 export interface TerminalQuickCommand {
   kind: 'preset' | 'system' | 'custom';
+  /** OS-specific command line this node runs. */
   command: string;
-  /** Preset id: selects the UI description. */
+  /** Stable, OS-neutral id: preset/system names are mapped from it, scripts use their name. */
   id?: string;
   script?: string;
 }

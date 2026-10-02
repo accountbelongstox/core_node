@@ -14,7 +14,8 @@
 #   2. Prompt for an upgrade only when the published version is newer, defaulting
 #      to N and auto-skipping after $AiCliUpgradeTimeoutSeconds.
 # Both steps are no-ops when the CLI is present and current; the launcher stops
-# with an error when the CLI is still missing.
+# with an error when the CLI is still missing. For claude, a third idempotent step
+# (Invoke-AiCliChromeMcpEnsure) makes sure ~/.claude.json carries the chrome MCP entry.
 #
 # Get-AiCliUltracodeArgs asks whether to enable Claude Code ultracode, defaulting
 # to Y and auto-accepting after $AiCliUltracodeTimeoutSeconds; it returns the
@@ -492,6 +493,104 @@ function Invoke-AiCliProvision {
         exit 1
     }
     Invoke-AiCliUpgradePrompt -Tool $Tool
+    if ($Tool -eq "claude") {
+        Invoke-AiCliChromeMcpEnsure
+    }
+}
+
+# Idempotent "Claude can reach Chrome" step (Linux counterpart: ai_cli_chrome_mcp_ensure).
+# Fast path: the ~/.claude.json "chrome" http entry is already correct and the
+# mcp-chrome endpoint answers -> one line. Otherwise the chrome entry alone is merged
+# through _json_sync_helper.py (the same writer as claude_sync_mcp_servers.ps1), and a
+# missing mcp-chrome logon task prints the single install command; the build is never
+# run from a launcher.
+function Invoke-AiCliChromeMcpEnsure {
+    $coreNodePath = Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent
+    $serviceContractPath = Join-Path $PSScriptRoot "ServiceContract.ps1"
+    $mcpProviderPath = Join-Path $coreNodePath "scripts\ai_ps1tools\mcp_config_provider.ps1"
+    $jsonHelperPath = Join-Path $coreNodePath "scripts\ai_ps1tools\_json_sync_helper.py"
+    $startScriptPath = Join-Path $coreNodePath "apps\mcp-chrome\scripts\start.ps1"
+    $claudeConfigPath = Join-Path $env:USERPROFILE ".claude.json"
+    $entriesPath = Join-Path ([System.IO.Path]::GetTempPath()) ("claude_chrome_mcp_entries_{0}.json" -f $PID)
+    $mcpHost = $null
+    $mcpPort = 0
+    $mcpUrl = $null
+    $taskName = $null
+    $config = $null
+    $chromeEntry = $null
+    $entryReady = $false
+    $endpointReady = $false
+    $tcpClient = $null
+    $connectTask = $null
+    $pythonExe = $null
+    $entriesJson = $null
+
+    if (-not (Test-Path -LiteralPath $startScriptPath)) {
+        return
+    }
+    . $serviceContractPath
+    $mcpHost = Get-ServiceContractHost -Name "loopback"
+    $mcpPort = Get-ServiceContractPort -Name "mcp_chrome"
+    $mcpUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpHost -Port $mcpPort -Path "mcp"
+    $taskName = Get-ServiceContractValue -ContractPath "mcp_chrome.windows_task_name"
+
+    if (Test-Path -LiteralPath $claudeConfigPath -PathType Leaf) {
+        try {
+            $config = Get-Content -Raw -LiteralPath $claudeConfigPath | ConvertFrom-Json
+            if ($null -ne $config.PSObject.Properties["mcpServers"] -and $null -ne $config.mcpServers) {
+                $chromeEntry = $config.mcpServers.PSObject.Properties["chrome"]
+            }
+            if ($null -ne $chromeEntry -and $null -ne $chromeEntry.Value) {
+                $entryReady = ($chromeEntry.Value.PSObject.Properties["type"] -and $chromeEntry.Value.type -eq "http" -and
+                    $chromeEntry.Value.PSObject.Properties["url"] -and $chromeEntry.Value.url -eq $mcpUrl)
+            }
+        } catch {
+            $entryReady = $false
+        }
+    }
+
+    if (-not $entryReady) {
+        . $mcpProviderPath
+        $pythonExe = Get-MCPPythonExe
+        if ([string]::IsNullOrWhiteSpace($pythonExe)) {
+            Write-Host "[WARN] Chrome MCP: python not found; cannot write the chrome entry to $claudeConfigPath." -ForegroundColor Yellow
+        } else {
+            $entriesJson = ConvertTo-Json -InputObject @(@{ name = "chrome"; transport = "http"; url = $mcpUrl }) -Depth 5
+            [System.IO.File]::WriteAllText($entriesPath, $entriesJson, (New-Object System.Text.UTF8Encoding($false)))
+            try {
+                & $pythonExe -u $jsonHelperPath $claudeConfigPath $entriesPath "claude" | Out-Null
+                $entryReady = ($LASTEXITCODE -eq 0)
+            } finally {
+                Remove-Item -LiteralPath $entriesPath -ErrorAction SilentlyContinue
+            }
+            if ($entryReady) {
+                Write-Host "[INFO] Chrome MCP entry written to $claudeConfigPath" -ForegroundColor Green
+            } else {
+                Write-Host "[WARN] Chrome MCP: writing $claudeConfigPath failed." -ForegroundColor Yellow
+            }
+        }
+    }
+
+    $tcpClient = New-Object System.Net.Sockets.TcpClient
+    try {
+        $connectTask = $tcpClient.ConnectAsync($mcpHost, $mcpPort)
+        $endpointReady = $connectTask.Wait(500) -and $tcpClient.Connected
+    } catch {
+        $endpointReady = $false
+    } finally {
+        $tcpClient.Dispose()
+    }
+
+    if ($entryReady -and $endpointReady) {
+        Write-Host "[INFO] Chrome MCP ready: $mcpUrl" -ForegroundColor Green
+        return
+    }
+    if ($null -ne (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) {
+        Write-Host "[WARN] Chrome MCP endpoint $mcpUrl is not answering; start the '$taskName' task or reload the extension." -ForegroundColor Yellow
+    } else {
+        Write-Host "[INFO] Chrome MCP service is not installed; install it once with:" -ForegroundColor Yellow
+        Write-Host "       powershell -NoProfile -ExecutionPolicy Bypass -File `"$startScriptPath`" -Service" -ForegroundColor White
+    }
 }
 
 function Get-AiCliUltracodeArgs {

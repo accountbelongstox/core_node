@@ -445,7 +445,6 @@ terminal: {
       thisMachineHint: '当前选中的 pycore 的终端（{{url}}）',
       otherHint: '另一台在线 pycore 的终端：{{url}}（{{os}}）',
       noOthers: '没有其他在线的 pycore',
-      scheduleOnThisMachine: '定时发送只能在第一个标签（本机）中管理。',
     },
     choice: {
       title: '回答 AI 选择题',
@@ -484,6 +483,15 @@ terminal: {
         pyservice_no_install: '启动 pyservice，跳过前置依赖安装',
       },
       system: '系统命令',
+      systemNames: {
+        clear_screen: '清屏',
+        claude: '启动 Claude Code',
+        claude_continue: 'Claude：继续上次会话',
+        claude_resume: 'Claude：选择会话恢复',
+        git_status: 'Git 状态',
+        git_pull: 'Git 拉取',
+      },
+      unavailableHere: '这个节点上没有「{{command}}」。',
       custom: 'claudeteam 脚本（{{count}}）',
       empty: '没有匹配的命令。',
       loadFailed: '无法加载命令列表。',

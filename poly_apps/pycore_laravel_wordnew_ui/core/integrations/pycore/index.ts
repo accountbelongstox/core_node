@@ -44,7 +44,9 @@ export type {
 } from './PycoreApiMachineSend';
 export { TERMINAL_BACKUP_DELETE_CONFIRM, TERMINAL_BACKUP_PAGE_SIZE } from './PycoreApiTerminal';
 export { createPycoreApiTerminal, type PycoreTerminalApi } from './PycoreApiTerminal';
-export { pycoreNodeTerminalApi } from './PycoreNodeClients';
+export { pycoreNodeClient, pycoreNodeTerminalApi, type PycoreNodeClient } from './PycoreNodeClients';
+export { createPycoreApiMachineSend, type PycoreMachineSendApi } from './PycoreApiMachineSend';
+export { type PycoreHttpApi } from './PycoreHttp';
 export type {
   TerminalActionResult,
   TerminalBackupDeleteResult,

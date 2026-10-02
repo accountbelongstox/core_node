@@ -171,6 +171,37 @@ mcp_sync_tool() {
     rm -f "$entries"
 }
 
+# Fast idempotent claude check/merge of the chrome entry only (no context7, quiet):
+# prints "ready" when ~/.claude.json already holds the correct http entry, "written"
+# after merging it through the shared helper, "failed" otherwise.
+mcp_ensure_claude_chrome() {
+    local py cfg entries
+    py="$(mcp_python)" || { echo "failed"; return 0; }
+    cfg="$(mcp_config_path_for claude)"
+    if MCP_CHROME_URL="$MCP_CHROME_URL" "$py" - "$cfg" <<'PYEOF'
+import json, os, sys
+try:
+    with open(sys.argv[1], "r", encoding="utf-8-sig") as f:
+        entry = json.load(f)["mcpServers"]["chrome"]
+except (OSError, ValueError, KeyError, TypeError):
+    sys.exit(1)
+sys.exit(0 if entry.get("type") == "http" and entry.get("url") == os.environ["MCP_CHROME_URL"] else 1)
+PYEOF
+    then
+        echo "ready"
+        return 0
+    fi
+    entries="$(mktemp "${TMPDIR:-/tmp}/mcp_chrome_entry.XXXXXX.json")"
+    MCP_CHROME_URL="$MCP_CHROME_URL" "$py" -c 'import json, os, sys; json.dump([{"name": "chrome", "transport": "http", "url": os.environ["MCP_CHROME_URL"]}], open(sys.argv[1], "w"))' "$entries"
+    if "$py" -u "$MCP_JSON_HELPER" "$cfg" "$entries" claude >/dev/null 2>&1; then
+        echo "written"
+    else
+        echo "failed"
+    fi
+    rm -f "$entries"
+    return 0
+}
+
 mcp_sync_all() {
     local py entries tool
     py="$(mcp_python)" || { echo "[ERROR] python not found; required for MCP sync."; return 0; }

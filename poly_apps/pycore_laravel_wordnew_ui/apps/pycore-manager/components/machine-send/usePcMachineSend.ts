@@ -3,13 +3,13 @@ import { StorageManager } from '../../../../core/persistence';
 import { RELAY_CONTRACT } from '../../../../core/contracts/RelayContract';
 import { isPycoreRelayMode } from '../../../../core/integrations/pycore/pycoreTarget';
 import {
-  pycoreApi,
   type MachineClipboardEntry,
   type MachineSendClipboardResult,
   type MachineSendResult,
 } from '../../../../core/integrations/pycore';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 import { DEFAULT_SYNC_SHORTCUT, isUsableShortcut, matchesShortcut } from './machineSendShortcut';
+import { usePcTerminalNode } from '../terminal/PcTerminalApiContext';
 
 export type MachineSendKind = 'file' | 'text' | 'clipboardText' | 'clipboardFile' | 'clipboardSync';
 export type MachineSendStatus = 'sending' | 'done' | 'error';
@@ -85,6 +85,7 @@ function preview(text: string): string {
 
 /** State and actions of the machine send panel: sends, activities, clipboard backups and the sync shortcut. */
 export function usePcMachineSend() {
+  const { machineSendApi } = usePcTerminalNode();
   const [activities, setActivities] = useState<MachineSendActivity[]>([]);
   const [history, setHistory] = useState<MachineClipboardEntry[]>([]);
   const [hint, setHint] = useState<ClipboardHint>('');
@@ -97,7 +98,7 @@ export function usePcMachineSend() {
 
   const refreshHistory = useCallback(async () => {
     try {
-      const answer = await pycoreApi.getMachineClipboardHistory(HISTORY_LIMIT);
+      const answer = await machineSendApi.getMachineClipboardHistory(HISTORY_LIMIT);
       if (answer?.success && mounted.current) setHistory(answer.entries ?? []);
     } catch { /* the list keeps its last content */ }
   }, []);
@@ -161,7 +162,7 @@ export function usePcMachineSend() {
     const label = files.length > 1 ? `${files[0].name} +${files.length - 1}` : files[0].name;
     const { id, signal } = begin('file', label);
     try {
-      const answer = await pycoreApi.sendMachineFiles(files, { onProgress: (fraction) => patch(id, { progress: fraction }), signal });
+      const answer = await machineSendApi.sendMachineFiles(files, { onProgress: (fraction) => patch(id, { progress: fraction }), signal });
       if (!answer?.success) {
         const saved = (answer?.saved ?? []).map((file) => ({ key: 'machineSend.result.fileSaved', params: { path: file.path } }));
         return finish(id, false, saved, errorOf(answer));
@@ -179,7 +180,7 @@ export function usePcMachineSend() {
     const { id, signal } = begin('clipboardFile', file.name);
     try {
       const kind = IMAGE_MIME.test(file.type) ? IMAGE_KIND : FILE_KIND;
-      clipboardResult(id, await pycoreApi.setMachineClipboardFile(file, kind, { onProgress: (fraction) => patch(id, { progress: fraction }), signal }));
+      clipboardResult(id, await machineSendApi.setMachineClipboardFile(file, kind, { onProgress: (fraction) => patch(id, { progress: fraction }), signal }));
     } catch (error) {
       fail(id, error);
     }
@@ -199,8 +200,8 @@ export function usePcMachineSend() {
     if (!text) return;
     const { id } = begin(mode === 'editor' ? 'text' : 'clipboardText', preview(text));
     try {
-      if (mode === 'clipboard') return clipboardResult(id, await pycoreApi.setMachineClipboardText(text));
-      const answer = await pycoreApi.sendMachineText(text);
+      if (mode === 'clipboard') return clipboardResult(id, await machineSendApi.setMachineClipboardText(text));
+      const answer = await machineSendApi.sendMachineText(text);
       if (!answer?.success) return fail(id, null, answer);
       return finish(id, true, [
         { key: 'machineSend.result.textSaved', params: { path: answer.path ?? '' } },
@@ -245,8 +246,8 @@ export function usePcMachineSend() {
     const { id, signal } = begin('clipboardSync', image ? image.name : preview(text));
     try {
       clipboardResult(id, image
-        ? await pycoreApi.setMachineClipboardFile(image, IMAGE_KIND, { onProgress: (fraction) => patch(id, { progress: fraction }), signal })
-        : await pycoreApi.setMachineClipboardText(text));
+        ? await machineSendApi.setMachineClipboardFile(image, IMAGE_KIND, { onProgress: (fraction) => patch(id, { progress: fraction }), signal })
+        : await machineSendApi.setMachineClipboardText(text));
     } catch (error) {
       fail(id, error);
     }
@@ -280,12 +281,12 @@ export function usePcMachineSend() {
 
   const deleteEntry = useCallback(async (id: string) => {
     setHistory((current) => current.filter((entry) => entry.id !== id));
-    try { await pycoreApi.deleteMachineClipboardEntry(id); } catch { void refreshHistory(); }
+    try { await machineSendApi.deleteMachineClipboardEntry(id); } catch { void refreshHistory(); }
   }, [refreshHistory]);
 
   const clearHistory = useCallback(async () => {
     setHistory([]);
-    try { await pycoreApi.clearMachineClipboardHistory(); } catch { void refreshHistory(); }
+    try { await machineSendApi.clearMachineClipboardHistory(); } catch { void refreshHistory(); }
   }, [refreshHistory]);
 
   return {

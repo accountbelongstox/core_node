@@ -17,6 +17,8 @@
 #      the official native release channel.
 # Both steps are no-ops when the CLI is present and current. The launcher stops
 # with an error when the CLI is still missing, instead of exec'ing a missing command.
+# For claude, a third idempotent step (ai_cli_chrome_mcp_ensure) makes sure
+# ~/.claude.json carries the chrome MCP entry.
 #
 # ai_cli_ultracode_prompt asks whether to enable Claude Code ultracode, defaulting
 # to Y and auto-accepting after AI_CLI_ULTRACODE_TIMEOUT_SECONDS; the resulting
@@ -227,6 +229,49 @@ ai_cli_provision() {
         exit 1
     fi
     ai_cli_upgrade_prompt "$tool"
+    if [ "$tool" = "claude" ]; then
+        ai_cli_chrome_mcp_ensure
+    fi
+    return 0
+}
+
+# Idempotent "Claude can reach Chrome" step (Windows counterpart:
+# Invoke-AiCliChromeMcpEnsure). Desktop hosts only; headless hosts skip silently.
+# Fast path: ~/.claude.json already holds the chrome http entry and the mcp-chrome
+# endpoint answers -> one line. Otherwise the entry is merged (mcp_sync_engine.sh)
+# and a missing service prints the single install command; no build runs here.
+ai_cli_chrome_mcp_ensure() {
+    local engine="$AI_CLI_CORE_NODE_DIR/scripts/ai_shtools/mcp_sync_engine.sh"
+    local start_script="$AI_CLI_CORE_NODE_DIR/apps/mcp-chrome/scripts/start.sh"
+    local service_name=""
+    local entry_state=""
+    local endpoint_ready=0
+
+    if [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && [ "$(systemctl get-default 2>/dev/null || true)" != "graphical.target" ]; then
+        return 0
+    fi
+    if [ ! -f "$start_script" ] || [ ! -f "$engine" ]; then
+        return 0
+    fi
+    . "$engine"
+    service_name="$(sc_require mcp_chrome.service_name)"
+    entry_state="$(mcp_ensure_claude_chrome)"
+    case "$entry_state" in
+        written) echo "[INFO] Chrome MCP entry written to $(mcp_config_path_for claude)" ;;
+        failed) echo "[WARN] Chrome MCP: writing $(mcp_config_path_for claude) failed." ;;
+        *) ;;
+    esac
+    if timeout 1 bash -c ': < "/dev/tcp/$1/$2"' _ "$(sc_require hosts.loopback)" "$(sc_require ports.mcp_chrome)" 2>/dev/null; then
+        endpoint_ready=1
+    fi
+    if [ "$entry_state" != "failed" ] && [ "$endpoint_ready" = "1" ]; then
+        echo "[INFO] Chrome MCP ready: $MCP_CHROME_URL"
+    elif systemctl cat "$service_name" >/dev/null 2>&1; then
+        echo "[WARN] Chrome MCP endpoint $MCP_CHROME_URL is not answering; run: sudo systemctl restart $service_name"
+    else
+        echo "[INFO] Chrome MCP service is not installed; install it once with:"
+        echo "       MCP_CHROME_AS_SERVICE=yes bash \"$start_script\""
+    fi
     return 0
 }
 
