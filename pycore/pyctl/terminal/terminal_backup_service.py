@@ -170,9 +170,9 @@ class TerminalBackupService:
         failed = sum(1 for entry in exported if entry.get("error_code"))
         ColorPrint.green(
             f"[{LABEL}] backup written reason={reason} terminals={saved['terminal_count']} "
-            f"failed={failed} bytes={saved['total_bytes']} path={saved['path']}"
+            f"failed={failed} bytes={saved['total_bytes']} stored={saved['stored_bytes']} path={saved['path']}"
         )
-        self._announce(saved["terminal_count"], saved["total_bytes"])
+        self._announce(saved["terminal_count"], saved["total_bytes"], saved["stored_bytes"])
         return {**saved, "written": True, "failed": failed}
 
     def _deferred(self) -> Dict[str, Any]:
@@ -181,10 +181,11 @@ class TerminalBackupService:
             self._deferred_logged = True
         return {"success": True, "written": False, "deferred": True}
 
-    def _announce(self, terminal_count: int, total_bytes: int) -> None:
+    def _announce(self, terminal_count: int, total_bytes: int, stored_bytes: int) -> None:
         message = i18n.get(I18nKeys.TERMINAL_BACKUP_MESSAGE).format(
             count=terminal_count,
             kb=kilobytes(total_bytes),
+            stored_kb=kilobytes(stored_bytes),
         )
         self._notify(i18n.get(I18nKeys.TERMINAL_BACKUP_TITLE), message)
 

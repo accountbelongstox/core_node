@@ -36,22 +36,28 @@ def offer_terminal_backup_restore(config_manager, interactive: bool) -> None:
     if not interactive:
         return
     latest = terminal_backup_store.latest()
-    if latest is None or not latest['files']:
+    if latest is None or not latest['terminals']:
         return
     manifest = latest['manifest']
-    files = latest['files']
+    terminals = latest['terminals']
     timeout_sec = config_manager.get_services_config().get(
         SERVICES_PROMPT_TIMEOUT_KEY, DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC)
     ColorPrint.cyan(launcher_text.get(
         RestoreI18nKeys.FOUND,
         date=_display_date(manifest, latest['path'].name),
-        count=len(files),
+        count=len(terminals),
         kb=kilobytes(int(manifest.get('total_bytes') or 0)),
+        archive_kb=kilobytes(terminal_backup_store.archive_stats()['blob_bytes']),
         path=latest['path']))
     prompt = launcher_text.get(RestoreI18nKeys.PROMPT, seconds=timeout_sec)
     if not ask_yes_no_timed(prompt, timeout_sec, default_yes=True, interactive=True):
         ColorPrint.gray(launcher_text.get(RestoreI18nKeys.SKIPPED))
         return
+    exported = terminal_backup_store.export_files(latest['id'])
+    if not exported['success']:
+        ColorPrint.yellow(launcher_text.get(RestoreI18nKeys.OPEN_FAILED, path=latest['path']))
+        return
+    files = exported['files']
     ColorPrint.plain(launcher_text.get(RestoreI18nKeys.OPENING, count=len(files)))
     terminal_backup_history_service.open_files(
         files,

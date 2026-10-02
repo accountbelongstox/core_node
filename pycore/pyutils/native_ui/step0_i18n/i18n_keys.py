@@ -84,7 +84,7 @@ class I18nKeys:
 
     # Terminal backup notifications
     TERMINAL_BACKUP_TITLE = "terminal_backup.title"
-    TERMINAL_BACKUP_MESSAGE = "terminal_backup.message"  # "...{count} {kb}"
+    TERMINAL_BACKUP_MESSAGE = "terminal_backup.message"  # "...{count} {kb} {stored_kb}"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

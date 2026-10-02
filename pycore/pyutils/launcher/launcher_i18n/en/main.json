@@ -19,7 +19,7 @@
   "launcher.main.layout_ubuntu_count": "  - {count} Ubuntu terminals (auto-reserved)",
   "launcher.main.layout_calculation": "Calculation: Window size = Screen / Grid, then convert to columns.rows using column/row ratios",
   "launcher.main.press_continue": "Press 'y' or Enter to continue: ",
-  "launcher.main.restore_found": "[Restore] Last terminal backup: {date}, {count} terminals, {kb} K ({path})",
+  "launcher.main.restore_found": "[Restore] Last terminal backup: {date}, {count} terminals, {kb} K, archive {archive_kb} K ({path})",
   "launcher.main.restore_prompt": "Open the last terminal backup? [Y/n] (auto Y in {seconds}s): ",
   "launcher.main.restore_opening": "[Restore] Opening {count} terminal file(s) in the text editor...",
   "launcher.main.restore_open_failed": "[Restore] Could not open {path}",
