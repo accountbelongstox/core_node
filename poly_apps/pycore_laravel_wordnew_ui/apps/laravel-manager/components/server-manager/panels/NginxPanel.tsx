@@ -147,23 +147,24 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
 }) => {
   const t = TRANSLATIONS[lang].server;
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       {/* Nginx Status Card */}
-      <div className={`${commonClasses.card} p-4`}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Server className="w-4 h-4 text-indigo-500" />
-            {t.nginx.status}
+      <div className={`${commonClasses.card} p-3 md:p-4`}>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h3 className="font-semibold flex items-center gap-2 min-w-0">
+            <Server className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span className="truncate">{t.nginx.status}</span>
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {nginxStatus.data?.installed && (
               <button
                 onClick={onOpenMainConfig}
-                className="px-2 py-1.5 text-xs font-mono flex items-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400"
+                className="px-2 py-1.5 text-xs font-mono flex items-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 whitespace-nowrap"
                 title={t.nginx.main_config}
+                aria-label={t.nginx.main_config}
               >
                 <FileCode className="w-4 h-4" />
-                {t.nginx.main_config}
+                <span className="hidden sm:inline">{t.nginx.main_config}</span>
               </button>
             )}
             <button
@@ -334,7 +335,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                     key={action}
                     onClick={() => onNginxService(action)}
                     disabled={disabled}
-                    className={`px-3 py-1.5 ${disabled ? `${disabledColor} cursor-not-allowed opacity-60` : color} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
+                    className={`px-2.5 sm:px-3 py-1.5 ${disabled ? `${disabledColor} cursor-not-allowed opacity-60` : color} text-white rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap`}
                   >
                     <Icon className={`w-4 h-4 ${serviceBusy === action ? 'animate-spin' : ''}`} />
                     {label}
@@ -344,11 +345,11 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
               <button
                 onClick={onRepairConfig}
                 disabled={nginxNotInstalled || serviceBusy !== null}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium flex items-center gap-2"
-                title="Repair + reset all nginx config (ensure log dirs, quarantine broken sites, reload)"
+                className="px-2.5 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap"
+                title={t.nginx.repair_hint}
               >
                 <Wrench className="w-4 h-4" />
-                Repair
+                {t.nginx.repair}
               </button>
               <button
                 onClick={() => {
@@ -358,7 +359,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                     return next;
                   });
                 }}
-                className="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+                className="px-2.5 sm:px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap"
               >
                 <ScrollText className="w-4 h-4" />
                 {t.nginx.logs}

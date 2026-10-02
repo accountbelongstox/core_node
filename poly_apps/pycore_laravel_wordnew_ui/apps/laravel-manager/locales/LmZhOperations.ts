@@ -655,6 +655,8 @@ server: {
         error_log: "错误日志",
         lines: "行数",
         refresh_status: "刷新状态",
+        repair: "修复",
+        repair_hint: "修复并重置全部 nginx 配置（确保日志目录、隔离损坏站点、重新加载）",
         install_hint_title: "Nginx 未安装",
         config_test: "配置检测",
         sites_count: "站点",

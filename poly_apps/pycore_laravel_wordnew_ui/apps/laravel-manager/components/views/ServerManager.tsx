@@ -34,7 +34,7 @@ import {
 } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { apiManager } from '@/core/integrations/laravel/ApiManager';
-import { CenteredPage, CenteredTabBar } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
+import { CenteredPage, CenteredTabBar, PageActionButton, PageHeader } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 import { useToast, Modal, ConfirmModal } from '../admin';
@@ -1407,89 +1407,83 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   ];
 
   return (
-    <CenteredPage className="h-full flex flex-col p-6 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t.title}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t.subtitle}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeTab === 'nginx' && (
-            <>
-              {/* Service Test/Reload live in the status card — header keeps Create + Refresh only */}
-              <button
-                onClick={() => setShowCreateSite(true)}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                {t.nginx.create}
-              </button>
-              <button
+    <CenteredPage className="h-full flex flex-col p-3 md:p-6 overflow-hidden">
+      <PageHeader
+        title={t.title}
+        subtitle={t.subtitle}
+        actions={
+          <>
+            {activeTab === 'nginx' && (
+              <>
+                {/* Service Test/Reload live in the status card — header keeps Create + Refresh only */}
+                <PageActionButton
+                  tone="green"
+                  icon={<Plus className="w-4 h-4" />}
+                  label={t.nginx.create}
+                  onClick={() => setShowCreateSite(true)}
+                />
+                <PageActionButton
+                  iconOnly
+                  icon={<RefreshCw className={`w-5 h-5 ${nginxSites.loading ? 'animate-spin' : ''}`} />}
+                  label={t.nginx.refresh}
+                  onClick={() => {
+                    loadNginxSites();
+                    loadNginxStatus();
+                  }}
+                />
+              </>
+            )}
+            {activeTab === 'ssl' && (
+              <>
+                <PageActionButton
+                  tone="green"
+                  icon={<Plus className="w-4 h-4" />}
+                  label={t.ssl.generate}
+                  onClick={() => setShowGenerateCert(true)}
+                />
+                <PageActionButton
+                  tone="blue"
+                  icon={<RefreshCw className="w-4 h-4" />}
+                  label={t.ssl.renew_all}
+                  onClick={handleRenewAllCertificates}
+                />
+                <PageActionButton
+                  iconOnly
+                  icon={<RefreshCw className={`w-5 h-5 ${sslCertificates.loading ? 'animate-spin' : ''}`} />}
+                  label={t.nginx.refresh}
+                  onClick={loadSSLCertificates}
+                />
+              </>
+            )}
+            {activeTab === 'system' && (
+              <PageActionButton
+                iconOnly
+                icon={<RefreshCw className={`w-5 h-5 ${systemInfo.loading ? 'animate-spin' : ''}`} />}
+                label={t.nginx.refresh}
                 onClick={() => {
-                  loadNginxSites();
-                  loadNginxStatus();
+                  loadSystemInfo();
+                  loadSystemProcesses();
+                  loadSystemStorage();
+                  loadStaticResources();
+                  loadSystemServices();
                 }}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                title={t.nginx.refresh}
-              >
-                <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${nginxSites.loading ? 'animate-spin' : ''}`} />
-              </button>
-            </>
-          )}
-          {activeTab === 'ssl' && (
-            <>
-              <button
-                onClick={() => setShowGenerateCert(true)}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                {t.ssl.generate}
-              </button>
-              <button
-                onClick={handleRenewAllCertificates}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                {t.ssl.renew_all}
-              </button>
-              <button
-                onClick={loadSSLCertificates}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-              >
-                <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${sslCertificates.loading ? 'animate-spin' : ''}`} />
-              </button>
-            </>
-          )}
-          {activeTab === 'system' && (
-            <button
-              onClick={() => {
-                loadSystemInfo();
-                loadSystemProcesses();
-                loadSystemStorage();
-                loadStaticResources();
-                loadSystemServices();
-              }}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-            >
-              <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${systemInfo.loading ? 'animate-spin' : ''}`} />
-            </button>
-          )}
-          {activeTab === 'unified' && (
-            <button
-              onClick={handleRestartOctane}
-              disabled={octaneRestarting}
-              className={`px-4 py-2 ${octaneRestarting ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
-            >
-              <Rocket className={`w-4 h-4 ${octaneRestarting ? 'animate-spin' : ''}`} />
-              {octaneRestarting ? t.octane.restarting_button : t.octane.restart_button}
-            </button>
-          )}
-        </div>
-      </div>
+              />
+            )}
+            {activeTab === 'unified' && (
+              <PageActionButton
+                tone="purple"
+                disabled={octaneRestarting}
+                icon={<Rocket className={`w-4 h-4 ${octaneRestarting ? 'animate-spin' : ''}`} />}
+                label={octaneRestarting ? t.octane.restarting_button : t.octane.restart_button}
+                onClick={handleRestartOctane}
+              />
+            )}
+          </>
+        }
+      />
 
       {/* Tab Navigation */}
-      <div className="mb-6">
+      <div className="mb-3 md:mb-6">
         <CenteredTabBar
           items={tabs.map((tab) => ({ id: tab.id, label: tab.label, icon: <tab.icon className="w-4 h-4" /> }))}
           activeId={activeTab}
