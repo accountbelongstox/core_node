@@ -1,4 +1,5 @@
 // PY-REF: pyapps/d3-check/d3utils/path_scanner.py
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.RegularExpressions;
 using DotCore.Foundations;
@@ -27,18 +28,18 @@ public static class PathScanner
     /// Single path-validity check for both clients: set, exists and named exeName (case-insensitive, Windows file names).
     /// 1:1 Python _get_configured_battlenet_path / _get_configured_d3_path.
     /// </summary>
-    public static bool IsValidExePath(string? path, string exeName) =>
+    public static bool IsValidExePath([NotNullWhen(true)] string? path, string exeName) =>
         !string.IsNullOrWhiteSpace(path) && File.Exists(path.Trim())
         && string.Equals(Path.GetFileName(path.Trim()), exeName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Configured Battle.net.exe path is valid. 1:1 Python _get_configured_battlenet_path.</summary>
-    public static bool IsConfiguredBattlenetValid(string? path) => IsValidExePath(path, D3PathConstants.BattleNetExeName);
+    public static bool IsConfiguredBattlenetValid([NotNullWhen(true)] string? path) => IsValidExePath(path, D3PathConstants.BattleNetExeName);
 
     /// <summary>Configured Diablo III.exe path is valid. 1:1 Python _get_configured_d3_path.</summary>
-    public static bool IsConfiguredD3Valid(string? path) => IsValidExePath(path, D3PathConstants.DiabloIIIExeName);
+    public static bool IsConfiguredD3Valid([NotNullWhen(true)] string? path) => IsValidExePath(path, D3PathConstants.DiabloIIIExeName);
 
     /// <summary>ROSBOT path usable by the app: an existing directory or an existing .exe (status icons, scan apply).</summary>
-    public static bool IsRosPathUsable(string? path) =>
+    public static bool IsRosPathUsable([NotNullWhen(true)] string? path) =>
         !string.IsNullOrWhiteSpace(path)
         && (Directory.Exists(path) || (File.Exists(path) && path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)));
 

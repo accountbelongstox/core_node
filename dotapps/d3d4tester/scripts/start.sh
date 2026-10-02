@@ -170,6 +170,22 @@ restore_is_stale() {
     fi
 }
 
+stop_previous_run() {
+    local pids=""
+    pids="$(pgrep -f -- "dotnet.*$CSPROJ" | grep -vx "$$" | tr '\n' ' ')"
+    [ -n "${pids// /}" ] || return 0
+    log "Stopping previous d3d4tester run (pid $pids) so builds do not share obj/pdb files"
+    kill $pids 2>/dev/null
+    wait_for_pids_exit $pids
+}
+
+wait_for_pids_exit() {
+    local pid=""
+    for pid in "$@"; do
+        while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
+    done
+}
+
 resolve_artifacts_dir() {
     [ -n "${CN_CACHE_ROOT:-}" ] || fail "Cache root is not defined by the service contract"
     ARTIFACTS_DIR="$CN_CACHE_ROOT/$ARTIFACTS_SUBDIR/$ARTIFACTS_NAME"
@@ -261,6 +277,8 @@ resolve_artifacts_dir
 log "Artifacts: $ARTIFACTS_DIR"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
+export MSBUILDDISABLENODEREUSE=1
+stop_previous_run
 export DOTNET_WATCH_SUPPRESS_EMOJIS=1
 DOTNET_ARGS=("$CSPROJ" -c "$CONFIGURATION" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR")
 
