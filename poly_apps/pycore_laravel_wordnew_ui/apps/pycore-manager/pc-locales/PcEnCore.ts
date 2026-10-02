@@ -225,6 +225,8 @@ pycoreTarget: {
     recent: 'Recent',
     relayOrigin: 'Relay (this server)',
     selfBadge: 'this',
+    copyUrl: 'Copy URL',
+    copied: 'Copied',
     kind: {
       direct: 'Direct :59000 on this machine',
       proxy: 'Tailnet proxy (175 FrankenPHP /pycore-api mount)',

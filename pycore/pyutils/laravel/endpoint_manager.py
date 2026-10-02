@@ -55,6 +55,7 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
     serialized_method,
 )
+from pycore.pyfoundations.service_contract import laravel_api_retired_host_urls
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.service_config import (
@@ -153,6 +154,9 @@ def _normalize(url: Optional[str]) -> str:
     u = u.rstrip("/")
     u = re.sub(r"^(https?://)localhost(?=[:/]|$)", r"\g<1>127.0.0.1", u)
     return u
+
+
+RETIRED_ENDPOINTS = frozenset(_normalize(url) for url in laravel_api_retired_host_urls())
 
 
 def _normalize_candidates(values: Any) -> List[str]:
@@ -413,14 +417,21 @@ class LaravelEndpointManager:
             section = user_data_store.get_section(ENDPOINT_CACHE_SECTION) or {}
             migrated = bool(section)
 
-        stored_endpoints = _normalize_candidates(section.get("endpoints"))
+        current = _normalize(section.get("current")) or None
+        stored_endpoints = [
+            url for url in _normalize_candidates(section.get("endpoints"))
+            if url == current or url not in RETIRED_ENDPOINTS
+        ]
         cached_frontend = _normalize_candidates(section.get("frontend_endpoints"))
         incoming_frontend = _normalize_candidates(frontend_endpoints)
         frontend_supplied = isinstance(frontend_endpoints, list)
         active_frontend = incoming_frontend if frontend_supplied else cached_frontend
         raw_backend = section.get("backend_endpoints")
         if isinstance(raw_backend, list):
-            backend_endpoints = _normalize_candidates(raw_backend)
+            backend_endpoints = [
+                url for url in _normalize_candidates(raw_backend)
+                if url == current or url not in RETIRED_ENDPOINTS
+            ]
             if frontend_supplied and not cached_frontend:
                 backend_endpoints = [
                     url for url in backend_endpoints if url not in active_frontend
@@ -432,7 +443,6 @@ class LaravelEndpointManager:
 
         configured = self._configured_candidates()
         backend_endpoints = self._merge_candidates(configured, backend_endpoints)
-        current = _normalize(section.get("current")) or None
         selection_explicit = section.get("selection_explicit") is True
         configured_default = configured[0] if configured else None
         if not selection_explicit and configured_default:

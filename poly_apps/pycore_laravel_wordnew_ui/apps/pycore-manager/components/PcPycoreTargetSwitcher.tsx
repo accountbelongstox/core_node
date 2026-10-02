@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Radio, Users, AlertTriangle, RefreshCw, Network } from 'lucide-react';
+import { Server, ChevronDown, Check, Copy, Plus, MonitorSmartphone, Radio, Users, AlertTriangle, RefreshCw, Network } from 'lucide-react';
 import {
   getPycoreTarget, listPycoreEndpoints, setPycoreTarget, isPycoreRelayMode, isPycoreDirectAccessAllowed,
   normalizePycoreBackendUrl, classifyPycoreBackendUrl,
@@ -29,6 +29,7 @@ import {
 import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
 import { isHeadlessRelayDevice, relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
 import { pcCaughtErrorMessage } from '../utils/pcErrorCodes';
+import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 import { PYCORE_BACKEND_PORT } from '@/apps/pycore-manager/api';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { PcIndexBadge } from './PcIndexBadge';
@@ -38,6 +39,7 @@ interface Props {
 }
 
 const SWITCH_PROBE_TIMEOUT_MS = 8_000;
+const COPIED_FEEDBACK_MS = 1_500;
 
 const PROBE_DOT: Record<string, string> = {
   up: 'bg-emerald-500',
@@ -64,6 +66,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const directAllowed = isPycoreDirectAccessAllowed();
 
   const [open, setOpen] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [url, setUrl] = useState('');
   const [endpoints, setEndpoints] = useState<PycoreEndpoint[]>(() => listPycoreEndpoints());
   const [probes, setProbes] = useState<Record<string, PycoreProbeResult | null>>({});
@@ -230,6 +233,24 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     return t(`pycoreTarget.state.${probe.state}`);
   };
 
+  const copyUrl = async (url: string) => {
+    if (!(await copyTextToSystemClipboard(url))) return;
+    setCopiedUrl(url);
+    window.setTimeout(() => setCopiedUrl((current) => (current === url ? null : current)), COPIED_FEEDBACK_MS);
+  };
+
+  const renderCopyButton = (url: string) => (
+    <button
+      type="button"
+      onClick={() => void copyUrl(url)}
+      title={t(copiedUrl === url ? 'pycoreTarget.copied' : 'pycoreTarget.copyUrl')}
+      aria-label={t(copiedUrl === url ? 'pycoreTarget.copied' : 'pycoreTarget.copyUrl')}
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-indigo-500 dark:hover:bg-white/5"
+    >
+      {copiedUrl === url ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+
   const renderEndpoint = (endpoint: PycoreEndpoint) => {
     const probe = probes[endpoint.url] ?? null;
     const active = endpoint.url === target.url;
@@ -241,16 +262,19 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
         : <MonitorSmartphone className="w-4 h-4 text-indigo-500" />;
     const kindTitle = t(`pycoreTarget.kind.${endpoint.kind}`);
     return (
-      <button
+      <div
         key={endpoint.url}
-        onClick={() => switchTo(endpoint)}
-        disabled={Boolean(switching)}
-        title={`${kindTitle} · ${endpoint.url}`}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all disabled:cursor-wait ${
+        className={`flex w-full items-start gap-1 rounded-xl border pr-1 transition-all ${
           active
             ? 'border-indigo-500 bg-indigo-500/5'
             : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
         }`}
+      >
+      <button
+        onClick={() => switchTo(endpoint)}
+        disabled={Boolean(switching)}
+        title={`${kindTitle} · ${endpoint.url}`}
+        className="flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-2 text-left disabled:cursor-wait"
       >
         <span className="flex flex-col items-start text-slate-700 dark:text-slate-200 min-w-0">
           <span className="flex items-center gap-2 text-xs truncate">
@@ -266,12 +290,17 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             )}
             {endpoint.os && <span className="text-[9px] font-mono text-slate-400">{endpoint.os}</span>}
           </span>
-          <span className="text-[10px] font-mono text-slate-400 pl-4 truncate max-w-full">
-            {hostOf(endpoint.url)} · {probeText(endpoint, probe)}
+          <span className="max-w-full break-all pl-4 font-mono text-[10px] text-slate-500 select-text dark:text-slate-400">
+            {endpoint.url}
+          </span>
+          <span className="max-w-full pl-4 text-[10px] font-mono text-slate-400">
+            {probeText(endpoint, probe)}
           </span>
         </span>
         {active && <Check className="w-4 h-4 text-indigo-500 shrink-0" />}
       </button>
+      <span className="pt-1.5">{renderCopyButton(endpoint.url)}</span>
+      </div>
     );
   };
 
@@ -325,9 +354,10 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           </div>
 
           <div className="rounded-xl border border-slate-200 dark:border-white/5 px-3 py-2 text-[10px] font-mono text-slate-500 dark:text-slate-400 space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${healthDot}`} />
-              <span className="truncate">{target.url}</span>
+            <div className="flex items-start gap-2">
+              <span className={`mt-1 w-2 h-2 shrink-0 rounded-full ${healthDot}`} />
+              <span className="min-w-0 flex-1 break-all select-text text-slate-600 dark:text-slate-300">{target.url}</span>
+              {renderCopyButton(target.url)}
             </div>
             <div className="pl-4">
               {health.up === true
