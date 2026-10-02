@@ -492,6 +492,13 @@ terminal: {
         git_pull: 'Git 拉取',
       },
       unavailableHere: '这个节点上没有「{{command}}」。',
+      shell: '终端系统',
+      shellDetected: '（自动识别）',
+      shellOs: {
+        windows: 'Windows',
+        linux: 'Linux',
+      },
+      noLineForShell: '{{os}} 终端没有这条命令。',
       custom: 'claudeteam 脚本（{{count}}）',
       empty: '没有匹配的命令。',
       loadFailed: '无法加载命令列表。',

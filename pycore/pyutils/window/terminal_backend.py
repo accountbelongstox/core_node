@@ -161,6 +161,8 @@ class TerminalWindowBackend:
 
     def snapshot(self) -> Dict[str, Any]:
         windows = self._list_windows()
+        for window in windows:
+            window.setdefault("shell_os", self._shell_os(window))
         return {
             "success": True,
             "platform": self.platform_name,
@@ -350,6 +352,10 @@ class TerminalWindowBackend:
     def _input_target_ready(self, window: Dict[str, Any]) -> bool:
         """True once synthesized keys will reach this window; backends that cannot verify focus accept."""
         return True
+
+    def _shell_os(self, window: Dict[str, Any]) -> str:
+        """OS of the shell inside the terminal (quick commands pick that OS's command line)."""
+        return self.platform_name
 
     def _set_title(self, window: Dict[str, Any], title: str) -> bool:
         """Set the OS window title; backends without a native setter refuse."""

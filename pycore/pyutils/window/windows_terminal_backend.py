@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -8,6 +9,7 @@ from pycore.pyutils.common.terminal_identifiers import (
     WINDOWS_TERMINAL_HOST_CLASS,
     WINDOWS_TERMINAL_PROCESS_NAMES,
     WINDOWS_TERMINAL_WINDOW_CLASSES,
+    WSL_TERMINAL_PROCESS_NAMES,
 )
 from pycore.pyutils.window.ops import (
     bring_window_to_top,
@@ -71,6 +73,10 @@ NATIVE_KEY_NAMES = {
     TERMINAL_KEY_TAB: "TAB",
 }
 NATIVE_BUTTON_NAMES = {1: "left", 3: "right"}
+# A Linux shell prompt or path in the tab title (user@host:..., ~/..., /path) marks a WSL shell.
+LINUX_SHELL_TITLE_PATTERN = re.compile(r"(^|\s)[\w.-]+@[\w.-]+:|(^|\s)~(/|\s|$)|^/[\w.-]+/|\bwsl\b", re.IGNORECASE)
+SHELL_OS_WINDOWS = "windows"
+SHELL_OS_LINUX = "linux"
 # Windows Terminal pastes on Ctrl+Shift+V. A classic console gets its own
 # Edit > Paste command (WM_COMMAND 0xFFF1): a right-click would COPY a QuickEdit
 # selection the activation click may have started instead of pasting.
@@ -188,6 +194,11 @@ class WindowsTerminalBackend(TerminalWindowBackend):
         if self._is_terminal_host(window):
             return [TERMINAL_KEY_CONTROL, TERMINAL_KEY_SHIFT, TERMINAL_KEY_END]
         return None
+
+    def _shell_os(self, window: Dict[str, Any]) -> str:
+        if str(window.get("app") or "").lower() in WSL_TERMINAL_PROCESS_NAMES:
+            return SHELL_OS_LINUX
+        return SHELL_OS_LINUX if LINUX_SHELL_TITLE_PATTERN.search(str(window.get("title") or "")) else SHELL_OS_WINDOWS
 
     def _set_title(self, window: Dict[str, Any], title: str) -> bool:
         return set_window_text(int(window["native_id"]), title)

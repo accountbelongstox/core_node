@@ -107,38 +107,42 @@ const TopHeader: React.FC<TopHeaderProps> = ({ isLoggedIn, onAuthClick }) => {
     return () => window.clearInterval(tickId);
   }, []);
 
-  const codeUpdateBadge = codeUpdatedAt
-    ? `${t('header.code_last_updated')}: ${formatCodeUpdateTime(codeUpdatedAt, lang)} · ${formatRelativeAgo(
-        codeUpdatedAt,
-        serverNowMs(serverScannedAt, fetchedAtClient),
-        t
-      )}`
+  const codeUpdateRelative = codeUpdatedAt
+    ? formatRelativeAgo(codeUpdatedAt, serverNowMs(serverScannedAt, fetchedAtClient), t)
     : t('header.code_last_updated_unavailable');
+  const codeUpdateBadge = codeUpdatedAt
+    ? `${t('header.code_last_updated')}: ${formatCodeUpdateTime(codeUpdatedAt, lang)} · ${codeUpdateRelative}`
+    : codeUpdateRelative;
+  const codeUpdateTitle = codeUpdatedFile ? `${codeUpdateBadge}
+${codeUpdatedFile}` : codeUpdateBadge;
+
+  const chipClass = 'flex items-center gap-1.5 h-8 rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 shrink-0 whitespace-nowrap';
 
   return (
-    <header className="sticky top-0 z-40 h-14 border-b border-black/5 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md transition-colors duration-300 shrink-0">
-      <div className="flex items-center justify-between w-full h-full px-4 sm:px-6 gap-3 overflow-x-auto scrollbar-none flex-nowrap whitespace-nowrap">
-        {/* Left: Code Update Timestamp Badge */}
-        <div className="flex items-center min-w-0 shrink">
+    <header className="sticky top-0 z-40 h-12 md:h-14 border-b border-black/5 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md transition-colors duration-300 shrink-0">
+      <div className="flex items-center justify-between w-full h-full px-2 sm:px-4 md:px-6 gap-2 md:gap-3 flex-nowrap whitespace-nowrap">
+        {/* Left: code update badge — relative time only below md, full timestamp from md */}
+        <div className="flex items-center min-w-0 flex-1">
           <span
-            className="inline-flex items-center h-7 max-w-full truncate px-2.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap"
-            title={codeUpdatedFile ? codeUpdatedFile : undefined}
+            className="inline-flex items-center h-7 max-w-full min-w-0 px-2 md:px-2.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap"
+            title={codeUpdateTitle}
           >
-            {codeUpdateBadge}
+            <span className="truncate md:hidden">{codeUpdateRelative}</span>
+            <span className="truncate hidden md:inline">{codeUpdateBadge}</span>
           </span>
         </div>
 
         {/* Right: Actions and Status - Single Line, Never Wraps */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-nowrap whitespace-nowrap text-xs font-medium">
-          {/* Online / Offline Status Badge */}
-          <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 shrink-0 whitespace-nowrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-nowrap whitespace-nowrap text-xs font-medium">
+          {/* Login state badge (the login button below carries the state on phones) */}
+          <div className={`hidden sm:flex px-2.5 ${chipClass}`}>
             <span className={`w-2 h-2 rounded-full shrink-0 ${isLoggedIn ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-slate-400'}`} />
             <span className={`text-xs ${isLoggedIn ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
               {isLoggedIn ? t('header.system_online') : t('header.system_offline')}
             </span>
           </div>
 
-          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
+          <div className="hidden sm:block h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
 
           {/* API Endpoint Switcher */}
           <ApiEndpointSwitcher />
@@ -148,53 +152,57 @@ const TopHeader: React.FC<TopHeaderProps> = ({ isLoggedIn, onAuthClick }) => {
             <button
               onClick={() => toggleLang(true)}
               className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all"
-              title="Switch Language"
+              title={t('header.switch_language')}
+              aria-label={t('header.switch_language')}
             >
               <Languages size={15} />
             </button>
             <button
               onClick={() => toggleTheme(true)}
               className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-yellow-400 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
-              title="Toggle Theme"
+              title={t('header.toggle_theme')}
+              aria-label={t('header.toggle_theme')}
             >
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
           </div>
 
-          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
+          <div className="hidden sm:block h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
 
-          {/* User Status and Login / Logout */}
+          {/* User Status and Login / Logout — icon-only buttons below sm */}
           {isLoggedIn ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 shrink-0 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <div className={`hidden sm:flex px-2.5 ${chipClass}`}>
                 <User size={13} className="text-indigo-500 dark:text-indigo-400 shrink-0" />
-                <span className="text-slate-400 dark:text-slate-500 text-xs hidden md:inline">{t('header.logged_in_as')}</span>
-                <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs">{username}</span>
+                <span className="text-slate-400 dark:text-slate-500 text-xs hidden lg:inline">{t('header.logged_in_as')}</span>
+                <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs max-w-[10rem] truncate">{username}</span>
               </div>
 
               <button
                 onClick={onAuthClick}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition-all shrink-0 whitespace-nowrap shadow-sm"
-                title={t('header.logout')}
+                className="flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-3 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition-all shrink-0 whitespace-nowrap shadow-sm"
+                title={`${t('header.logout')} (${username})`}
+                aria-label={t('header.logout')}
               >
                 <Power size={13} className="shrink-0" />
-                <span>{t('header.logout')}</span>
+                <span className="hidden sm:inline">{t('header.logout')}</span>
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-slate-500 dark:text-slate-400 text-xs shrink-0 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <div className={`hidden sm:flex px-2.5 text-slate-500 dark:text-slate-400 text-xs ${chipClass}`}>
                 <User size={13} className="text-slate-400 shrink-0" />
                 <span className="font-medium">{t('header.guest')}</span>
               </div>
 
               <button
                 onClick={onAuthClick}
-                className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 border border-transparent shadow-sm shadow-indigo-500/25 transition-all shrink-0 whitespace-nowrap"
+                className="flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-3.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 border border-transparent shadow-sm shadow-indigo-500/25 transition-all shrink-0 whitespace-nowrap"
                 title={t('header.login')}
+                aria-label={t('header.login')}
               >
                 <LogIn size={13} className="shrink-0" />
-                <span>{t('header.login')}</span>
+                <span className="hidden sm:inline">{t('header.login')}</span>
               </button>
             </div>
           )}

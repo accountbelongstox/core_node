@@ -74,6 +74,7 @@ final class WorkLeaseService
         $items = [];
         $held = [];
 
+        $this->sweepSentenceQuality(true);
         $wasOnline = $this->nodeOnline($workerId);
         Worker::touchWorkNode($workerId, $computeClass, $lanes, $seed, $this->identityOf($request));
         $renewal = $this->renew($workerId, (array) ($request['lease_ids'] ?? []));
@@ -269,6 +270,19 @@ final class WorkLeaseService
         ];
     }
 
+    /**
+     * Sentence quality floor: audio from a provider below it returns to the pool, at most every
+     * QUALITY_SWEEP_SECONDS (from a claim after the response, or from the reaper tick).
+     */
+    private function sweepSentenceQuality(bool $afterResponse): void
+    {
+        if (!QueueCenterCacheStore::get()->add(self::QUALITY_SWEEP_KEY, 1, self::QUALITY_SWEEP_SECONDS)) {
+            return;
+        }
+        $sweep = static fn () => (new AppQyV1SentenceQualityRepair())->run();
+        $afterResponse ? defer($sweep) : $sweep();
+    }
+
     /** Stable short node id (work_leases.sid_length hex chars of the worker id hash): the id clip.leased carries. */
     public function shortId(string $workerId): string
     {
@@ -365,10 +379,7 @@ final class WorkLeaseService
         if ($cleared > 0) {
             $this->signal('expiry');
         }
-        // Sentence quality floor: audio from a provider below it returns to the pool (every QUALITY_SWEEP_SECONDS).
-        if (QueueCenterCacheStore::get()->add(self::QUALITY_SWEEP_KEY, 1, self::QUALITY_SWEEP_SECONDS)) {
-            (new AppQyV1SentenceQualityRepair())->run();
-        }
+        $this->sweepSentenceQuality(false);
         if ($this->onlineSetChanged()) {
             $this->signal('node');
         }

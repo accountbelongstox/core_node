@@ -60,10 +60,14 @@ export interface TerminalRenameResult {
   os_error_code?: string | null;
 }
 
+export type TerminalShellOs = 'windows' | 'linux';
+
 export interface TerminalQuickCommand {
   kind: 'preset' | 'system' | 'custom';
-  /** OS-specific command line this node runs. */
-  command: string;
+  /** Command line for the host OS's own shells (null: the script exists for the other OS only). */
+  command: string | null;
+  /** Command line per shell OS: a host can show terminals of the other OS (e.g. WSL on Windows). */
+  commands?: Partial<Record<TerminalShellOs, string | null>>;
   /** Stable, OS-neutral id: preset/system names are mapped from it, scripts use their name. */
   id?: string;
   script?: string;
@@ -118,6 +122,8 @@ export interface TerminalWindowInfo {
   preview_expanded: boolean;
   /** Name given in the UI; shown instead of the window title when set. */
   custom_title?: string;
+  /** OS of the shell inside the terminal (WSL tabs on a Windows host are linux). */
+  shell_os?: TerminalShellOs;
   has_draft: boolean;
   log_count: number;
   logs: TerminalLogEntry[];
