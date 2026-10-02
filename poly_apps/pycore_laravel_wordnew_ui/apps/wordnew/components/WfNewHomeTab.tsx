@@ -3,7 +3,7 @@
  * come from the shell via props (prop names match the destructured hook bindings). */
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight, Volume2, Play, Languages, BarChart2, AudioLines, Users } from 'lucide-react';
+import { Sparkles, ArrowRight, Volume2, Play, Languages, BarChart2, AudioLines, Users, GalleryVerticalEnd, SpellCheck, Headphones, BookOpenText } from 'lucide-react';
 
 import { DEFAULT_VOCAB_GROUP_NAME } from '../api';
 import type { WordGroup, BentoGroup, WfNewContentGroup, WfNewHomeContent, WfNewLanguage } from '../api';
@@ -66,10 +66,11 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
 
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
               <div className="space-y-3.5 pt-4 animate-fade-in">
-                <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 px-1">
+                <h3 className="flex items-center gap-2 px-1 text-xs font-black font-mono uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                  <span aria-hidden className="h-3.5 w-1 rounded-full bg-gradient-to-b from-indigo-400 to-fuchsia-500" />
                   {trans('home.labsHeader')}
                 </h3>
-                <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-5">
+                <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4">
                   {([
                     { tab: 'walkman', accent: 'indigo', icon: Volume2, iconClassName: 'animate-pulse', title: 'home.walkmanTitle', desc: 'home.walkmanDesc' },
                     { tab: 'subtitles', accent: 'fuchsia', icon: Play, title: 'home.subsTitle', desc: 'home.subsDesc' },
@@ -97,19 +98,26 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
 
               {/* Quantum Recitation Portal modes */}
               <div className="space-y-3.5 pt-4">
-                <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 px-1">
+                <h3 className="flex items-center gap-2 px-1 text-xs font-black font-mono uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                  <span aria-hidden className="h-3.5 w-1 rounded-full bg-gradient-to-b from-indigo-400 to-fuchsia-500" />
                   {trans('home.modesHeader')}
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                   {([
-                    { id: 'study', title: trans('modes.flashcards'), desc: trans('home.modeStudyDesc'), color: 'border-fuchsia-500/25 text-fuchsia-400', bg: 'bg-fuchsia-500/5' },
-                    { id: 'quiz', title: trans('modes.quiz'), desc: trans('home.modeQuizDesc'), color: 'border-emerald-500/25 text-emerald-400', bg: 'bg-emerald-500/5' },
-                    { id: 'listening', title: trans('modes.listening'), desc: trans('home.modeListenDesc'), color: 'border-amber-500/25 text-amber-400', bg: 'bg-amber-500/5' },
-                    { id: 'reading', title: trans('modes.reading'), desc: trans('home.modeReadDesc'), color: 'border-blue-500/25 text-blue-400', bg: 'bg-blue-500/5' }
-                  ] as const).map(mode => (
-                    <div
+                    { id: 'study', accent: 'fuchsia', icon: GalleryVerticalEnd, title: 'modes.flashcards', desc: 'home.modeStudyDesc' },
+                    { id: 'quiz', accent: 'emerald', icon: SpellCheck, title: 'modes.quiz', desc: 'home.modeQuizDesc' },
+                    { id: 'listening', accent: 'amber', icon: Headphones, title: 'modes.listening', desc: 'home.modeListenDesc' },
+                    { id: 'reading', accent: 'blue', icon: BookOpenText, title: 'modes.reading', desc: 'home.modeReadDesc' },
+                  ] as const).map((mode) => (
+                    <WfNewHomeLabCard
                       key={mode.id}
-                      onClick={() => {
+                      theme={activeTheme}
+                      accent={mode.accent}
+                      icon={mode.icon}
+                      layout="row"
+                      title={trans(mode.title)}
+                      description={trans(mode.desc)}
+                      onOpen={() => {
                         const g = gGroups[0] || bentoGroups[0];
                         if (g) {
                           void startGroupPractice(g, mode.id);
@@ -118,16 +126,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                           startModePractice(mode.id);
                         }
                       }}
-                      className="p-4 sm:p-5 rounded-2xl bg-white/50 dark:bg-slate-900/15 border border-slate-900/5 dark:border-white/5 hover:border-indigo-500/25 hover:bg-slate-900/50 cursor-pointer group transition-all duration-300 flex flex-col items-center text-center sm:items-start sm:text-left"
-                    >
-                      <div className={`p-2.5 sm:p-3 rounded-xl w-fit mb-2.5 sm:mb-4 group-hover:scale-105 transition-transform ${mode.color} ${mode.bg}`}>
-                        <Sparkles className="w-5 h-5" />
-                      </div>
-                      <h4 className="font-extrabold text-[11px] leading-tight sm:text-sm text-slate-800 dark:text-slate-100 group-hover:text-indigo-400 transition-colors">
-                        {mode.title}
-                      </h4>
-                      <p className="hidden sm:block text-xs text-zinc-500 mt-1.5 font-mono">{mode.desc}</p>
-                    </div>
+                    />
                   ))}
                 </div>
               </div>
