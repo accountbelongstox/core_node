@@ -4,6 +4,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { BookOpen, Sparkles } from 'lucide-react';
+import { OrchTabs } from './OrchTabs';
 import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewApi, type WfNewContentGroup, type WfNewOrchAudioItem } from '../../api';
 import type { OrchComposeSource } from '../../../../shared/orchestration/orchTypes';
@@ -95,22 +96,12 @@ export const WordNewOrchSourcePicker: React.FC<Props> = ({ selected, onPick, the
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-1.5" role="tablist">
-        {TABS.map(({ source, labelKey, icon: Icon }) => (
-          <button
-            key={source}
-            type="button"
-            role="tab"
-            aria-selected={tab === source}
-            onClick={() => setTab(source)}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold ${
-              tab === source ? theme.accentBg : 'border-slate-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:bg-slate-200/70 dark:hover:bg-white/10'
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" />{trans(labelKey)}
-          </button>
-        ))}
-      </div>
+      <OrchTabs<OrchComposeSource>
+        value={tab}
+        options={TABS.map(({ source, labelKey, icon: Icon }) => ({ value: source, label: <><Icon className="h-3.5 w-3.5" />{trans(labelKey)}</> }))}
+        onChange={setTab}
+        theme={theme}
+      />
       <div role="tabpanel">
         {tab === 'vocab_book' ? (
           <WfNewOrchSourceList

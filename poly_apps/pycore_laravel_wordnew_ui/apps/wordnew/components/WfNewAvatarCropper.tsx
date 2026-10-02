@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { X, Check, ZoomIn } from 'lucide-react';
+import { Check, ZoomIn } from 'lucide-react';
+import { ActionButton } from '@/shared/ui/ActionButton';
+import { ModalFooter, ModalHeader } from '@/shared/ui/ModalParts';
+import { ModalShell } from '@/shared/ui/ModalShell';
+import { RangeField } from '@/shared/ui/RangeField';
 
 /**
  * WfNewAvatarCropper — a dependency-free circular avatar cropper.
@@ -16,6 +20,12 @@ import { X, Check, ZoomIn } from 'lucide-react';
 
 const VIEW = 280; // on-screen viewport size (px)
 const OUT = 512;  // exported avatar size (px)
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.01;
+const WHEEL_ZOOM_RATE = 0.0015;
+const CARD_CLASS = 'relative z-10 w-full max-w-sm space-y-5 rounded-3xl border border-white/10 bg-zinc-900/95 p-6 shadow-2xl';
+const clampZoom = (z: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 
 interface WfNewAvatarCropperProps {
   file: File;
@@ -86,7 +96,7 @@ export const WfNewAvatarCropper: React.FC<WfNewAvatarCropperProps> = ({
       const g = gestureRef.current;
       if (g && g.dist > 0) {
         const ratio = dist / g.dist;
-        setZoom((z) => Math.min(4, Math.max(1, z * ratio)));
+        setZoom((z) => clampZoom(z * ratio));
         setOffset((o) => ({ x: o.x + (cx - g.cx), y: o.y + (cy - g.cy) }));
       }
       gestureRef.current = { dist, cx, cy };
@@ -101,7 +111,7 @@ export const WfNewAvatarCropper: React.FC<WfNewAvatarCropperProps> = ({
   };
 
   const onWheel = (e: React.WheelEvent) => {
-    setZoom((z) => Math.min(4, Math.max(1, z - e.deltaY * 0.0015)));
+    setZoom((z) => clampZoom(z - e.deltaY * WHEEL_ZOOM_RATE));
   };
 
   const handleConfirm = useCallback(() => {
@@ -133,19 +143,13 @@ export const WfNewAvatarCropper: React.FC<WfNewAvatarCropperProps> = ({
   }, [natural, effScale, offset, onCropped]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-lg" onClick={onCancel} />
+    <ModalShell onClose={onCancel} backdrop="strong" cardClassName={null}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative z-10 w-full max-w-sm bg-zinc-900/95 border border-white/10 rounded-3xl p-6 shadow-2xl space-y-5"
+        className={CARD_CLASS}
       >
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-slate-100">{trans('crop.title')}</h3>
-          <button onClick={onCancel} className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <ModalHeader title={trans('crop.title')} onClose={onCancel} />
 
         {/* Circular crop viewport */}
         <div className="flex justify-center">
@@ -162,7 +166,7 @@ export const WfNewAvatarCropper: React.FC<WfNewAvatarCropperProps> = ({
               <img
                 ref={imgRef}
                 src={imgUrl}
-                alt="crop"
+                alt=""
                 onLoad={onImgLoad}
                 draggable={false}
                 style={{
@@ -177,41 +181,25 @@ export const WfNewAvatarCropper: React.FC<WfNewAvatarCropperProps> = ({
                 }}
               />
             )}
-            {/* Ring overlay */}
             <div className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/20" />
           </div>
         </div>
 
-        {/* Zoom control */}
-        <div className="flex items-center gap-3 px-1">
-          <ZoomIn className="w-4 h-4 text-zinc-400 shrink-0" />
-          <input
-            type="range"
-            min={1}
-            max={4}
-            step={0.01}
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full accent-indigo-500 cursor-pointer"
-          />
-        </div>
+        <RangeField
+          className="px-1"
+          value={zoom}
+          min={MIN_ZOOM}
+          max={MAX_ZOOM}
+          step={ZOOM_STEP}
+          onChange={setZoom}
+          leading={<ZoomIn className="h-4 w-4 shrink-0 text-zinc-400" />}
+        />
 
-        <div className="flex gap-3 justify-end pt-1">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono font-bold text-zinc-300 border border-white/10 cursor-pointer"
-          >
-            {trans('common.cancel')}
-          </button>
-          <button
-            onClick={handleConfirm}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white text-xs font-mono font-black uppercase flex items-center gap-1.5 cursor-pointer shadow-md"
-          >
-            <Check className="w-4 h-4" />
-            <span>{trans('crop.apply')}</span>
-          </button>
-        </div>
+        <ModalFooter className="gap-3">
+          <ActionButton variant="secondary" size="sm" onClick={onCancel}>{trans('common.cancel')}</ActionButton>
+          <ActionButton onClick={handleConfirm} icon={<Check className="h-4 w-4" />}>{trans('crop.apply')}</ActionButton>
+        </ModalFooter>
       </motion.div>
-    </div>
+    </ModalShell>
   );
 };

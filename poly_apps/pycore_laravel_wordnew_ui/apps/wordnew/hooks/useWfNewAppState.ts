@@ -8,6 +8,7 @@ import type {
   WfNewHomeContent, WfNewLanguage, WfNewSuperAdminStatus,
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { useWfNewSetting } from '../useWfNewSettings';
 import { wordNewReaderSettingsRoamer, applyReaderSettings } from '../services/WordNewReaderSettingsRoamer';
 import { wordNewLearningStatsCenter, useWordNewLearningStats } from '../services/WordNewLearningStatsCenter';
 import { wordNewWordGroups, useWordNewWordGroups } from '../services/WordNewWordGroupCenter';
@@ -38,7 +39,7 @@ export type { WordNewTab } from '../routing/WordNewHashRoutes';
 export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const { shellLang, dark } = deps;
 
-  const [activeThemeId, setActiveThemeId] = useState<string>(() => wfNewSettings.get('themeId'));
+  const [activeThemeId, setActiveThemeId] = useWfNewSetting('themeId');
 
   const activeTheme = useMemo(() => {
     return CUSTOM_THEMES.find(t => t.id === activeThemeId) || CUSTOM_THEMES[0];
@@ -213,15 +214,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     };
   });
 
-  // Background breathing toggle — kept in sync with the settings store (set on
-  // the Settings page), now via the reactive store instead of a 'storage' event.
-  const [disableBgBreathing, setDisableBgBreathing] = useState<boolean>(() => wfNewSettings.get('disableBgBreathing'));
-
-  useEffect(() => {
-    return wfNewSettings.subscribe(() => {
-      setDisableBgBreathing(wfNewSettings.get('disableBgBreathing'));
-    });
-  }, []);
+  const [disableBgBreathing] = useWfNewSetting('disableBgBreathing');
 
   // Notification center: `addToast` is a thin compat wrapper over wfNewNotify.push
   // (shared notify); new code can import wfNewNotify directly.
@@ -231,17 +224,15 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   );
 
   // Profile data (persisted via the shared settings store)
-  const [nickname, setNickname] = useState<string>(() => wfNewSettings.get('nickname'));
-  const [avatarUrl, setAvatarUrl] = useState<string>(() => wfNewSettings.get('avatar'));
-  const [speechRate, setSpeechRate] = useState<number>(() => wfNewSettings.get('speechRate'));
+  const [nickname, setNickname] = useWfNewSetting('nickname');
+  const [avatarUrl, setAvatarUrl] = useWfNewSetting('avatar');
+  const [speechRate, setSpeechRate] = useWfNewSetting('speechRate');
 
 
   // Synchronized callback when profile saves
   const handleUpdateProfile = (updated: { nickname: string; avatar: string; nativeLang: string; targetLang: string; bio: string }) => {
     setNickname(updated.nickname);
     setAvatarUrl(updated.avatar);
-    wfNewSettings.setField('nickname', updated.nickname);
-    wfNewSettings.setField('avatar', updated.avatar);
 
     setCurrentUser(prev => {
       const copy = {
@@ -370,8 +361,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const handleLoginSuccess = (payload: typeof currentUser) => {
     setNickname(payload.nickname);
     setAvatarUrl(payload.avatar);
-    wfNewSettings.setField('nickname', payload.nickname);
-    wfNewSettings.setField('avatar', payload.avatar);
     wfNewSettings.setField('email', payload.email);
     wfNewSettings.setField('userId', payload.userId);
     wfNewSettings.setField('authNativeLang', payload.nativeLang);
@@ -406,7 +395,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
         const themeId = prefs.app_settings && (prefs.app_settings as any).themeId;
         if (typeof themeId === 'string' && themeId) {
           setActiveThemeId(themeId);
-          wfNewSettings.setField('themeId', themeId);
         }
         applyReaderSettings(prefs.app_settings?.reader as any);
       } catch {
@@ -425,8 +413,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     const nextBio = String(identity.bio ?? '');
     setNickname(nextNickname);
     setAvatarUrl(nextAvatar);
-    wfNewSettings.setField('nickname', nextNickname);
-    wfNewSettings.setField('avatar', nextAvatar);
     wfNewSettings.setField('email', nextEmail);
     wfNewSettings.setField('userId', nextUserId);
     wfNewSettings.setField('bio', nextBio);
@@ -567,12 +553,14 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   // General distractor/search word pool (loaded once via the API).
   const [wordPool, setWordPool] = useState<Word[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [userStats, setUserStats] = useState<UserStats>(() => ({
+  const [dailyGoal] = useWfNewSetting('dailyGoal');
+  const [userStatsBase, setUserStats] = useState<UserStats>(() => ({
     learned: 0,
     streak: 0,
     dailyGoal: wfNewSettings.get('dailyGoal'),
     dailyProgress: 0,
   }));
+  const userStats = useMemo<UserStats>(() => ({ ...userStatsBase, dailyGoal }), [userStatsBase, dailyGoal]);
 
   // Learning statistics come from the single stats center (null when logged out).
   const statistics = useWordNewLearningStats();
@@ -705,7 +693,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     currentUser,
     setCurrentUser,
     disableBgBreathing,
-    setDisableBgBreathing,
     addToast,
     nickname,
     setNickname,

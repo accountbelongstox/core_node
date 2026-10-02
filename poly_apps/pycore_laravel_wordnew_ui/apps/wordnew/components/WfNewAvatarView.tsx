@@ -32,7 +32,7 @@ export const WfNewAvatarView: React.FC<WfNewAvatarViewProps> = ({
     return (
       <img
         src={value}
-        alt="avatar"
+        alt=""
         className={`w-full h-full object-cover rounded-full ${className}`}
         draggable={false}
       />

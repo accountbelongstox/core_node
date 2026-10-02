@@ -17,10 +17,12 @@
  * Presentational only — all numbers come from wfNewStudyProgress
  * (computeStats / computeLibraryStats) via the parent panel.
  */
+import { OVERLAY_Z } from '@/shared/styles/overlay';
 import React from 'react';
 import { X, Settings2 } from 'lucide-react';
 import type { LibraryStats, StudyStats } from './WfNewStudyProgress';
 import { studyT } from './WfNewStudyLocales';
+import { percentOf } from '../../../../core/utils/mathUtils';
 
 interface WfNewArenaStatsPopupProps {
   lang: string;
@@ -32,9 +34,6 @@ interface WfNewArenaStatsPopupProps {
   onOpenSettings: () => void;
   onClose: () => void;
 }
-
-const pct = (part: number, whole: number): number =>
-  whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 0;
 
 export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
   lang,
@@ -48,8 +47,8 @@ export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
 }) => {
   const rows: Array<{ label: string; value: string }> = [
     { label: studyT(lang, 'study.arena.todayRead'), value: studyT(lang, 'study.stats.words', { n: session.dailyHandled }) },
-    { label: studyT(lang, 'study.arena.todayProgress'), value: `${pct(session.dailyHandled, dailyGoal)}%` },
-    { label: studyT(lang, 'study.arena.totalProgress'), value: `${pct(library.readWords, library.total)}%` },
+    { label: studyT(lang, 'study.arena.todayProgress'), value: `${percentOf(session.dailyHandled, dailyGoal)}%` },
+    { label: studyT(lang, 'study.arena.totalProgress'), value: `${percentOf(library.readWords, library.total)}%` },
     { label: studyT(lang, 'study.arena.read'), value: studyT(lang, 'study.stats.words', { n: library.readWords }) },
     { label: studyT(lang, 'study.arena.remaining'), value: studyT(lang, 'study.stats.words', { n: library.unreadRemaining }) },
     {
@@ -59,7 +58,7 @@ export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
     { label: studyT(lang, 'study.arena.dueReview'), value: studyT(lang, 'study.stats.words', { n: library.dueWords }) },
     {
       label: studyT(lang, 'study.arena.reviewed'),
-      value: `${studyT(lang, 'study.stats.words', { n: library.reviewedWords })} · ${pct(library.reviewedWords, library.total)}%`,
+      value: `${studyT(lang, 'study.stats.words', { n: library.reviewedWords })} · ${percentOf(library.reviewedWords, library.total)}%`,
     },
     { label: studyT(lang, 'study.arena.passes'), value: studyT(lang, 'study.arena.times', { n: library.fullPasses }) },
   ];
@@ -67,7 +66,7 @@ export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
   const pages = Array.from({ length: pager.totalPages }, (_, i) => i + 1);
 
   return (
-    <div className="hide-on-soft-keyboard fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] w-[92%] max-w-md pointer-events-none">
+    <div className={`hide-on-soft-keyboard fixed bottom-24 left-1/2 -translate-x-1/2 ${OVERLAY_Z.modal} w-[92%] max-w-md pointer-events-none`}>
       <div className="pointer-events-auto p-5 rounded-3xl border border-white/10 bg-slate-950/95 backdrop-blur-2xl shadow-2xl space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-400">

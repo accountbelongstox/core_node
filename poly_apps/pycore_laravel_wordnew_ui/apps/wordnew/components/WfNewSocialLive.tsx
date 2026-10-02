@@ -240,7 +240,7 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
   }, [draft, isLoggedIn, requireAuth, roomId, addToast, trans]);
 
   if (!isLoggedIn) {
-    return <button onClick={requireAuth} className="w-full py-16 text-center text-indigo-300 font-mono text-xs cursor-pointer">Sign in to join this live room.</button>;
+    return <button onClick={requireAuth} className="w-full py-16 text-center text-indigo-300 font-mono text-xs cursor-pointer">{trans('social.signInToJoinLive')}</button>;
   }
   if (resolving) {
     return <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.loading')}</div>;

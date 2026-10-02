@@ -7,6 +7,7 @@
  * inset, so the panel never slides above the screen top or under the soft
  * keyboard (mobile web, Capacitor app); a centered palette on desktop.
  */
+import { OVERLAY_Z } from '@/shared/styles/overlay';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -211,7 +212,7 @@ export const WfNewGlobalSearch: React.FC<WfNewGlobalSearchProps> = ({
   const panel = (
     <motion.div
       key="wf-global-search"
-      className="fixed inset-x-0 z-[80] flex flex-col"
+      className={`fixed inset-x-0 ${OVERLAY_Z.modal} flex flex-col`}
       style={{ top: viewport.offsetTop, height: viewport.height }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}

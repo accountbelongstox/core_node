@@ -132,6 +132,18 @@ export interface WfNewSettings {
   searchHistory: string[];
 }
 
+/** Setting keys whose value type is V (typed bindings for generic setting rows). */
+export type WfNewSettingKeyOf<V> = { [K in keyof WfNewSettings]: WfNewSettings[K] extends V ? K : never }[keyof WfNewSettings];
+
+/** Learning targets of a settings snapshot (multi-select, falling back to the legacy single target). */
+export const resolveLearningTargets = (settings: Pick<WfNewSettings, 'settingTargetLangs' | 'settingTargetLang'>): string[] => {
+  const stored = settings.settingTargetLangs;
+  if (Array.isArray(stored) && stored.length) return stored;
+  return [settings.settingTargetLang || 'en'];
+};
+
+const PREFERENCE_RESET_KEYS = ['voiceAccent', 'autoSpeech', 'hapticFeedback', 'reviewAlgorithm', 'contentFields'] as const;
+
 const makeDefaults = (): WfNewSettings => ({
   nickname: 'WordNew Commander',
   avatar: '🦊',
@@ -214,6 +226,28 @@ class WfNewSettingsStore extends PersistedStore<WfNewSettings> {
   /** Typed single-field setter (persists + notifies via the base). */
   setField<K extends keyof WfNewSettings>(key: K, value: WfNewSettings[K]): void {
     this.patch({ [key]: value } as Partial<WfNewSettings>);
+  }
+
+  /** Persist the native language and learning targets together (primary target mirrored for legacy reads). */
+  setLearningLanguages(selection: { native_language: string; learning_languages: string[] }): void {
+    this.patch({
+      settingNativeLang: selection.native_language,
+      settingTargetLangs: selection.learning_languages,
+      settingTargetLang: selection.learning_languages[0] || 'en',
+    });
+  }
+
+  /** Current learning targets (multi-select, falling back to the legacy single target). */
+  getLearningTargets(): string[] {
+    return resolveLearningTargets(this.read());
+  }
+
+  /** Reset the preference toggles and selections on the Settings page to defaults. */
+  resetPreferences(): void {
+    const defaults = makeDefaults();
+    const updates: Partial<WfNewSettings> = {};
+    PREFERENCE_RESET_KEYS.forEach((key) => { Object.assign(updates, { [key]: defaults[key] }); });
+    this.patch(updates);
   }
 
   /** Add/remove a word in favorites; returns true if it is now favorited. */

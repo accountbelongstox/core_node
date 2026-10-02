@@ -35,6 +35,9 @@ import { moveSentenceAudioToHeadImmediate } from '../services/WordNewBookReaderS
 import { useWordNewSentenceAudioCells } from '../hooks/useWordNewSentenceAudioCells';
 import { readWordCardsForSentence } from '../services/WordNewBookReaderWordCards';
 import { logWarn } from '../../../core/logstore/logStore';
+import { scrollRowToUpperMiddle, useActiveScrollFollow } from '../components/reader/useActiveScrollFollow';
+import { useDismissOnOutside } from '../components/reader/useDismissOnOutside';
+import { clamp } from '../../../core/utils/mathUtils';
 
 interface WfNewBookReaderProps {
   sourceKey: string;
@@ -47,15 +50,6 @@ interface WfNewBookReaderProps {
 
 const PER_PAGE = 200;
 const verseKey = (v: WfNewBookVerse) => `${v.grain}-${v.seq}`;
-
-/** Scroll `el` so it sits ~1/3 from the top of `container` (upper-middle), smooth.
- *  Uses bounding rects so it is correct regardless of offsetParent. */
-function scrollVerseToUpperMiddle(el: HTMLElement, container: HTMLElement): void {
-  const elRect = el.getBoundingClientRect();
-  const containerRect = container.getBoundingClientRect();
-  const top = elRect.top - containerRect.top + container.scrollTop - container.clientHeight / 3;
-  container.scrollTo({ top, behavior: 'smooth' });
-}
 
 function chapterTitleFor(c: WfNewBookChapter, activeLang: string, trans: WfNewBookReaderProps['trans']): string {
   const t = c.titles?.[activeLang] || Object.values(c.titles || {}).find((v) => !!v);
@@ -146,8 +140,8 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const playingRef = useRef(false);
   const reloadRef = useRef<() => void>(() => { });
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollPausedUntil = useRef(0);
-  const userPickedVerse = useRef(false);
+  const chaptersRef = useRef<HTMLDivElement | null>(null);
+  useDismissOnOutside(chaptersRef, chaptersOpen, () => setChaptersOpen(false));
 
   // Stable refs for every value the WordNewBookReaderPlayback engine reads, so the
   // playback instance is created ONCE per sourceKey and never torn down on a
@@ -423,36 +417,27 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       setActiveVerse(target);
       const el = document.getElementById(`verse-${verseKey(target)}`);
       const container = scrollRef.current;
-      if (el && container) scrollVerseToUpperMiddle(el, container);
+      if (el && container) scrollRowToUpperMiddle(el, container);
       if (autoPlayOnOpen) void playbackRef.current?.playFrom(target);
     }
     setResumeApplied(true);
   }, [resumeTarget, resumeApplied, loadingVerses, verses, autoPlayOnOpen]);
 
-  useEffect(() => {
-    if (!activeVerse) return;
-    if (!userPickedVerse.current && Date.now() < scrollPausedUntil.current) return;
-    const container = scrollRef.current;
-    const el = container?.querySelector(`#verse-${verseKey(activeVerse)}`) as HTMLElement | null;
-    if (el && container) scrollVerseToUpperMiddle(el, container);
-    userPickedVerse.current = false;
-  }, [activeVerse?.seq, activeVerse?.grain, playingKey]);
-
-  const onScrollUser = useCallback(() => {
-    scrollPausedUntil.current = Date.now() + 2500;
-  }, []);
+  const { onScrollUser, markUserPick } = useActiveScrollFollow(
+    scrollRef,
+    activeVerse ? `verse-${verseKey(activeVerse)}` : null,
+    playingKey,
+  );
 
   const playCell = useCallback((verse: WfNewBookVerse, lang: string) => {
-    userPickedVerse.current = true;
-    scrollPausedUntil.current = 0;
+    markUserPick();
     void playbackRef.current?.playFrom(verse, lang);
-  }, []);
+  }, [markUserPick]);
 
   const playSection = useCallback((verse: WfNewBookVerse) => {
-    userPickedVerse.current = true;
-    scrollPausedUntil.current = 0;
+    markUserPick();
     void playbackRef.current?.playFrom(verse);
-  }, []);
+  }, [markUserPick]);
 
   const chapterOrder = useMemo(() => chapters.map((c) => c.chapterIndex), [chapters]);
   const activePos = activeChapter == null ? -1 : chapterOrder.indexOf(activeChapter);
@@ -523,8 +508,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
 
   /** Previous/next sentence from the console (enabled only while playing). */
   const stepSentence = (delta: 1 | -1) => {
-    userPickedVerse.current = true;
-    scrollPausedUntil.current = 0;
+    markUserPick();
     void playbackRef.current?.stepSentence(delta);
   };
 
@@ -580,13 +564,13 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
           onBrowserTtsChange={(v) => { setBrowserTts(v); wfNewSettings.setField('readerBrowserTts', v); persistReaderChange(); }}
           onWordCardsChange={(v) => { setWordCards(v); wfNewSettings.setField('readerWordCards', v); persistReaderChange(); }}
           onWordCardPositionChange={(v) => { setWordCardPosition(v); wfNewSettings.setField('readerWordCardPosition', v); persistReaderChange(); }}
-          onWordRepeatsChange={(v) => { const next = Math.max(1, Math.min(10, v || 1)); setWordRepeats(next); wfNewSettings.setField('readerWordRepeats', next); persistReaderChange(); }}
+          onWordRepeatsChange={(v) => { const next = clamp(v || 1, 1, 10); setWordRepeats(next); wfNewSettings.setField('readerWordRepeats', next); persistReaderChange(); }}
           onWordModeChange={(v) => { setWordMode(v); wfNewSettings.setField('readerWordMode', v); persistReaderChange(); }}
         />
       )}
 
       {!flat && (
-        <div className="relative">
+        <div ref={chaptersRef} className="relative">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => goChapter(-1)} disabled={activePos <= 0} className="shrink-0 p-2 rounded-lg bg-white/5 border border-white/5 text-zinc-300 hover:bg-white/10 disabled:opacity-30 cursor-pointer">
               <ChevronLeft className="w-4 h-4" />
@@ -610,7 +594,6 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
           </div>
           {chaptersOpen && (
             <>
-              <div className="fixed inset-0 z-20" onClick={() => setChaptersOpen(false)} aria-hidden="true" />
               <div className="absolute z-30 top-full mt-2 left-0 right-0 rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur-xl p-3 shadow-2xl max-h-[55vh] overflow-y-auto">
                 <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
                   {chapters.map((c) => (

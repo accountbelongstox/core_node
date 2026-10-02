@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  BarChart2, Award, Zap, Clock, BrainCircuit, RefreshCw, Calendar,
-  ChevronRight, Smile, TrendingUp, ShieldAlert, CheckCircle, Flame
-} from 'lucide-react';
+import { Clock, BrainCircuit, CheckCircle, Flame } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type AnalyticsStats } from '../api';
+import { Pill } from '@/shared/ui/Pill';
+import { ProgressRing } from '@/shared/ui/ProgressRing';
+import { StateMessage } from '@/shared/ui/StateMessage';
+import { TONE_BAR, type StatusTone } from '@/shared/ui/statusTone';
 
 interface WfNewAnalyticsProps {
   activeTheme: ElementTheme;
@@ -18,6 +20,43 @@ const EMPTY_STATS: AnalyticsStats = {
   totalStudyMins: 0, retentionRate: 0, cumulativeLearned: 0, vocabularyTarget: 0,
   streakDays: 0, weeklyActivity: [], categoryScores: [], recentlyStudiedTimeline: [],
 };
+
+const INITIAL_STRENGTH = 86;
+const FULL_STRENGTH = 100;
+const MIN_STRENGTH = 18;
+const DECAY_BASE = 0.88;
+const MEAN_ROUNDING = 10;
+
+const STATUS_TONE: Record<string, StatusTone> = { Mastered: 'emerald', Familiar: 'indigo' };
+const STATUS_KEY: Record<string, string> = {
+  Mastered: 'analytics.statusMastered',
+  Familiar: 'analytics.statusFamiliar',
+  Learning: 'analytics.statusLearning',
+};
+
+interface StatTileProps {
+  icon: LucideIcon;
+  iconWrapClass: string;
+  iconClass?: string;
+  label: string;
+  children: React.ReactNode;
+}
+
+const StatTile: React.FC<StatTileProps> = ({ icon: Icon, iconWrapClass, iconClass = '', label, children }) => (
+  <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4">
+    <div className={`p-3 rounded-xl ${iconWrapClass}`}>
+      <Icon className={`w-5 h-5 ${iconClass}`} />
+    </div>
+    <div>
+      <span className="text-[10px] font-mono text-zinc-500 uppercase block">{label}</span>
+      <p className="text-xl font-black font-mono mt-0.5">{children}</p>
+    </div>
+  </div>
+);
+
+const Unit: React.FC<{ children: React.ReactNode; muted?: boolean }> = ({ children, muted = false }) => (
+  <span className={`text-xs font-sans ${muted ? 'text-zinc-500' : 'font-normal text-zinc-400'}`}>{children}</span>
+);
 
 export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
   activeTheme,
@@ -35,13 +74,13 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
   }, []);
 
   // State to simulate Ebbinghaus forgetting Curve decay
-  const [synapticStrength, setSynapticStrength] = useState<number>(86);
+  const [synapticStrength, setSynapticStrength] = useState<number>(INITIAL_STRENGTH);
   const [decayDay, setDecayDay] = useState<number>(1); // simulation days passed
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
   // Trigger simulated memory recall review event
   const triggerRecollectionRecall = () => {
-    setSynapticStrength(100);
+    setSynapticStrength(FULL_STRENGTH);
     setDecayDay(1);
     addToast(trans('analytics.recallRestored'), "success");
   };
@@ -49,19 +88,24 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
   const advanceDecayTimeline = () => {
     setDecayDay(prev => {
       const nextDay = prev + 1;
-      // Formula for Ebbinghaus: b = 100 * (1.84 / ( (log10(t)*1.25) + 1.84 ))
-      // Let's model a realistic exponential decay curve for UI demonstration
-      const nextPct = Math.max(Math.round(100 * Math.pow(0.88, nextDay)), 18);
+      const nextPct = Math.max(Math.round(FULL_STRENGTH * Math.pow(DECAY_BASE, nextDay)), MIN_STRENGTH);
       setSynapticStrength(nextPct);
       return nextDay;
     });
     addToast(trans('analytics.healthDecayed'), "warning");
   };
 
-  // Find max minutes to compute heights proportionally (guard empty load state)
-  const maxWeeklyMins = stats.weeklyActivity.length
-    ? Math.max(...stats.weeklyActivity.map(d => d.mins))
-    : 1;
+  // Weekly figures are derived locally from the loaded activity series.
+  const weeklyMins = stats.weeklyActivity.map((d) => d.mins);
+  const maxWeeklyMins = weeklyMins.length ? Math.max(...weeklyMins, 1) : 1;
+  const weeklyTotal = weeklyMins.reduce((sum, mins) => sum + mins, 0);
+  const dailyMean = weeklyMins.length ? Math.round((weeklyTotal / weeklyMins.length) * MEAN_ROUNDING) / MEAN_ROUNDING : 0;
+  const minsUnit = trans('analytics.minsUnit');
+  const legend = [
+    { key: 'peak', label: trans('analytics.peakDay'), value: weeklyMins.length ? Math.max(...weeklyMins) : 0 },
+    { key: 'mean', label: trans('analytics.dailyMean'), value: dailyMean },
+    { key: 'total', label: trans('analytics.weekTotal'), value: weeklyTotal },
+  ];
 
   return (
     <div id="analytics-panel-wrapper" className="space-y-8 py-2">
@@ -69,50 +113,18 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
       {/* Symmetrical Header Overview with total study telemetry */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         
-        {/* Total hours */}
-        <div className={`p-5 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4`}>
-          <div className="p-3 bg-indigo-500/15 rounded-xl text-indigo-400">
-            <Clock className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.totalStudy')}</span>
-            <p className="text-xl font-black font-mono mt-0.5">{stats.totalStudyMins} <span className="text-xs font-sans font-normal text-zinc-400">{trans('analytics.minsUnit')}</span></p>
-          </div>
-        </div>
-
-        {/* Retention index */}
-        <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4">
-          <div className="p-3 bg-emerald-500/15 rounded-xl text-emerald-400">
-            <BrainCircuit className="w-5 h-5 animate-pulse" />
-          </div>
-          <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.synRetention')}</span>
-            <p className="text-xl font-black font-mono mt-0.5">{stats.retentionRate}%</p>
-          </div>
-        </div>
-
-        {/* Cumulative learned */}
-        <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4">
-          <div className="p-3 bg-fuchsia-500/15 rounded-xl text-fuchsia-400">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.archivedLexicons')}</span>
-            <p className="text-xl font-black font-mono mt-0.5">{stats.cumulativeLearned} <span className="text-xs font-sans text-zinc-500">/ {stats.vocabularyTarget}</span></p>
-          </div>
-        </div>
-
-        {/* Streak active */}
-        <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4">
-          <div className="p-3 bg-orange-500/15 rounded-xl text-orange-400">
-            <Flame className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.sustainedStreak')}</span>
-            <p className="text-xl font-black font-mono mt-0.5">{stats.streakDays} <span className="text-xs font-sans text-zinc-500">{trans('stats.days')}</span></p>
-          </div>
-        </div>
-
+        <StatTile icon={Clock} iconWrapClass="bg-indigo-500/15 text-indigo-400" label={trans('analytics.totalStudy')}>
+          {stats.totalStudyMins} <Unit>{minsUnit}</Unit>
+        </StatTile>
+        <StatTile icon={BrainCircuit} iconClass="animate-pulse" iconWrapClass="bg-emerald-500/15 text-emerald-400" label={trans('analytics.synRetention')}>
+          {stats.retentionRate}%
+        </StatTile>
+        <StatTile icon={CheckCircle} iconWrapClass="bg-fuchsia-500/15 text-fuchsia-400" label={trans('analytics.archivedLexicons')}>
+          {stats.cumulativeLearned} <Unit muted>/ {stats.vocabularyTarget}</Unit>
+        </StatTile>
+        <StatTile icon={Flame} iconWrapClass="bg-orange-500/15 text-orange-400" label={trans('analytics.sustainedStreak')}>
+          {stats.streakDays} <Unit muted>{trans('stats.days')}</Unit>
+        </StatTile>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -187,18 +199,12 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
 
           {/* Symmetrical analytics legend notes */}
           <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5 text-center text-xs font-mono text-zinc-500">
-            <div>
-              <p className="text-slate-300 font-bold">1.8h Max</p>
-              <span>{trans('analytics.peakDay')}</span>
-            </div>
-            <div>
-              <p className="text-slate-300 font-bold">64.2 mins</p>
-              <span>{trans('analytics.dailyMean')}</span>
-            </div>
-            <div>
-              <p className="text-slate-300 font-bold">+28%</p>
-              <span>{trans('analytics.weeklyChange')}</span>
-            </div>
+            {legend.map((item) => (
+              <div key={item.key}>
+                <p className="text-slate-300 font-bold">{item.value} {minsUnit}</p>
+                <span>{item.label}</span>
+              </div>
+            ))}
           </div>
 
         </div>
@@ -217,35 +223,13 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
           <div className="flex flex-col items-center py-4 space-y-4 text-center">
             
             {/* Visual Circular dialysis ring percentage */}
-            <div className="relative w-36 h-36 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-95" viewBox="0 0 100 100">
-                <circle 
-                  cx="50" 
-                  cy="50" 
-                  r="42" 
-                  className="stroke-zinc-800/40 fill-none" 
-                  strokeWidth="8" 
-                />
-                <motion.circle 
-                  cx="50" 
-                  cy="50" 
-                  r="42" 
-                  className="stroke-indigo-500 fill-none" 
-                  strokeWidth="8" 
-                  strokeDasharray="264"
-                  animate={{
-                    strokeDashoffset: 264 - (264 * synapticStrength) / 100
-                  }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col justify-center items-center font-mono">
+            <ProgressRing progress={synapticStrength / 100} sizeClass="w-36 h-36" strokeWidth={8} colorClass="text-indigo-500" durationSec={0.5}>
+              <div className="flex flex-col items-center font-mono">
                 <span className="text-[10px] text-zinc-500 uppercase">{trans('analytics.synapse')}</span>
                 <span className="text-3xl font-black tracking-tight text-white">{synapticStrength}%</span>
                 <span className="text-[9px] text-zinc-500">{trans('analytics.dayElapsed', { n: decayDay })}</span>
               </div>
-            </div>
+            </ProgressRing>
 
             <div className="space-y-1 max-w-[210px]">
               <h4 className="text-xs font-bold text-slate-200">
@@ -290,6 +274,7 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
           </h3>
 
           <div className="space-y-3.5 pt-1">
+            {stats.categoryScores.length === 0 && <StateMessage kind="empty">{trans('analytics.noData')}</StateMessage>}
             {stats.categoryScores.map((cat, idx) => (
               <div key={idx} className="space-y-1 text-xs">
                 <div className="flex justify-between font-mono text-zinc-400">
@@ -316,15 +301,14 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
           </h3>
 
           <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar pt-1">
+            {stats.recentlyStudiedTimeline.length === 0 && <StateMessage kind="empty">{trans('analytics.noData')}</StateMessage>}
             {stats.recentlyStudiedTimeline.map((item, idx) => (
               <div key={idx} className="p-3 bg-white/5 border border-white/5 hover:border-indigo-500/10 rounded-xl flex justify-between items-center transition-all">
                 <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${
-                    item.status === 'Mastered' ? 'bg-emerald-400' : item.status === 'Familiar' ? 'bg-indigo-400' : 'bg-amber-400'
-                  }`} />
+                  <div className={`w-2 h-2 rounded-full ${TONE_BAR[STATUS_TONE[item.status] ?? 'amber']}`} />
                   <div>
                     <h4 className="text-xs font-extrabold text-slate-100">{item.word}</h4>
-                    <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded block w-fit mt-1">{item.status}</span>
+                    <Pill tone={STATUS_TONE[item.status] ?? 'amber'} className="mt-1 uppercase">{STATUS_KEY[item.status] ? trans(STATUS_KEY[item.status]) : item.status}</Pill>
                   </div>
                 </div>
                 <span className="text-[10px] font-mono text-zinc-500">{item.time}</span>

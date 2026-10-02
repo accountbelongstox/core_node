@@ -22,6 +22,7 @@ import { accentToBcp47, mapUiAccent, resolvePracticeVoice } from '../../hooks/wo
 import { wfNewStudyProgress } from './WfNewStudyProgress';
 import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
 import { wordNewQueueCenter } from '../../services/WordNewQueueCenter';
+import { clamp } from '../../../../core/utils/mathUtils';
 
 interface ReciteOptions {
   gid: string;
@@ -299,14 +300,11 @@ function speak(text: string, speed: number, onDone: () => void): void {
   }
 }
 
-function clampInt(v: unknown, min: number, max: number): number {
-  const n = Math.round(Number(v));
-  if (!Number.isFinite(n)) return min;
-  return Math.min(max, Math.max(min, n));
-}
-
 function clampNum(v: unknown, min: number, max: number): number {
   const n = Number(v);
-  if (!Number.isFinite(n)) return min;
-  return Math.min(max, Math.max(min, n));
+  return Number.isFinite(n) ? clamp(n, min, max) : min;
+}
+
+function clampInt(v: unknown, min: number, max: number): number {
+  return clampNum(Math.round(Number(v)), min, max);
 }

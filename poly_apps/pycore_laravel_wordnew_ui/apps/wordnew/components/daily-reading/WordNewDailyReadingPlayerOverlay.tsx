@@ -1,15 +1,11 @@
+import { OVERLAY_Z } from '@/shared/styles/overlay';
 import React from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Home, LoaderCircle, Pause, Play, Plus, SkipBack, SkipForward, Square, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Home, LoaderCircle, Pause, Play, SkipBack, SkipForward, Square } from 'lucide-react';
 import type { DailyReadingPlayer } from './useDailyReadingPlayer';
-import {
-  createDailyReadingStepId,
-  DAILY_READING_PLAYBACK_LIMITS,
-  type DailyReadingPlaybackStep,
-} from './DailyReadingPlaybackModel';
 import { WordNewDailyReadingWordGroupsPanel } from './WordNewDailyReadingWordGroupsPanel';
 import { WordNewDailyReadingPlaybackWordsPanel } from './WordNewDailyReadingPlaybackWordsPanel';
 import { WordNewDailyReadingArticleView } from './WordNewDailyReadingArticleView';
-import { WordNewDailyReadingRateInput } from './WordNewDailyReadingRateInput';
+import { WordNewDailyReadingPlaybackSettings } from './WordNewDailyReadingPlaybackSettings';
 import { WordNewDailyReadingEnglishResourceBar } from './WordNewDailyReadingEnglishResourceBar';
 import { countSentenceWordsAddedToTargetGroup } from '../../services/WordNewSentenceWordTable';
 import { useAutoCollapseWhilePlaying } from '../../hooks/useAutoCollapseWhilePlaying';
@@ -74,7 +70,7 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
         </article>
       </div>
 
-      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[160] w-[94%] max-w-lg">
+      <div className={`fixed bottom-3 left-1/2 -translate-x-1/2 ${OVERLAY_Z.modal} w-[94%] max-w-lg`}>
         <div
           className="rounded-2xl border border-white/10 bg-slate-900/90 backdrop-blur-xl shadow-2xl shadow-indigo-950/40 p-2.5 space-y-2 max-h-[62vh] overflow-y-auto"
           onPointerDownCapture={notePanelInteraction}
@@ -183,212 +179,7 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
               </button>
             </div>
           </div>
-          {!panelCollapsed && (<>
-          <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-500">
-            <label className="flex items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.playbackOrder')}</span>
-              <select
-                value={player.playbackMode}
-                onChange={(event) => player.updateSettings({ playbackMode: event.target.value as typeof player.playbackMode })}
-                className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-              >
-                <option value="sequential">{trans('home.dailyReading.sequential')}</option>
-                <option value="repeat-all">{trans('home.dailyReading.repeatAll')}</option>
-                <option value="repeat-one">{trans('home.dailyReading.repeatOne')}</option>
-                <option value="shuffle">{trans('home.dailyReading.shuffle')}</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.underlineCurrentSentence')}</span>
-              <input
-                type="checkbox"
-                checked={player.underlineCurrentSentence}
-                onChange={(event) => player.updateSettings({ underlineCurrentSentence: event.target.checked })}
-                aria-label={trans('home.dailyReading.underlineCurrentSentence')}
-                className="accent-indigo-500"
-              />
-            </label>
-            <label className="flex items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.bilingual')}</span>
-              <input
-                type="checkbox"
-                checked={player.bilingual}
-                onChange={(event) => player.updateSettings({ bilingual: event.target.checked })}
-                aria-label={trans('home.dailyReading.bilingual')}
-                className="accent-indigo-500"
-              />
-            </label>
-            <label className="flex items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.sentenceSpeed')}</span>
-              <WordNewDailyReadingRateInput
-                value={player.sentenceRate}
-                onChange={(rate) => player.updateSettings({ sentenceRate: rate })}
-                ariaLabel={trans('home.dailyReading.sentenceSpeed')}
-              />
-            </label>
-            <label className="flex items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.wordSpeed')}</span>
-              <WordNewDailyReadingRateInput
-                value={player.wordRate}
-                onChange={(rate) => player.updateSettings({ wordRate: rate })}
-                ariaLabel={trans('home.dailyReading.wordSpeed')}
-              />
-            </label>
-            <label className="flex items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.words')}</span>
-              <select
-                value={player.wordMode}
-                onChange={(event) => player.updateSettings({ wordMode: event.target.value as typeof player.wordMode })}
-                className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-              >
-                <option value="new">{trans('home.dailyReading.newOnly')}</option>
-                <option value="all">{trans('home.dailyReading.allWords')}</option>
-                <option value="off">{trans('home.dailyReading.off')}</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.wordOrder')}</span>
-              <select
-                value={player.wordOrder}
-                onChange={(event) => player.updateSettings({ wordOrder: event.target.value as typeof player.wordOrder })}
-                disabled={player.wordMode === 'off'}
-                className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300 disabled:opacity-40"
-              >
-                <option value="sentence">{trans('home.dailyReading.sentenceOrder')}</option>
-                <option value="shuffle">{trans('home.dailyReading.shuffle')}</option>
-                <option value="alpha">{trans('home.dailyReading.alphaOrder')}</option>
-              </select>
-            </label>
-            {player.wordMode === 'new' && (
-              <label className="flex items-center justify-between gap-2">
-                <span>{trans('home.dailyReading.newOnlyMaxReadCount')}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={DAILY_READING_PLAYBACK_LIMITS.maxNewReadCount}
-                  value={player.newOnlyMaxReadCount}
-                  onChange={(event) => player.updateSettings({ newOnlyMaxReadCount: Number(event.target.value) })}
-                  aria-label={trans('home.dailyReading.newOnlyMaxReadCount')}
-                  className="w-14 rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-                />
-              </label>
-            )}
-          </div>
-          <div className="space-y-1.5 text-[11px] text-zinc-500">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span>{trans('home.dailyReading.playbackModel')}</span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => player.updateSettings({
-                    playbackPattern: [
-                      ...player.playbackPattern,
-                      { id: createDailyReadingStepId(), type: 'sentence', lang: 'en', times: 1 },
-                    ],
-                  })}
-                  disabled={player.playbackPattern.length >= DAILY_READING_PLAYBACK_LIMITS.maxSteps}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 disabled:opacity-30 transition-colors"
-                  title={trans('home.dailyReading.addSentenceStep')}
-                >
-                  <Plus className="w-3 h-3" /> {trans('home.dailyReading.sentenceStep')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => player.updateSettings({
-                    playbackPattern: [
-                      ...player.playbackPattern,
-                      { id: createDailyReadingStepId(), type: 'words', times: 1 },
-                    ],
-                  })}
-                  disabled={player.playbackPattern.length >= DAILY_READING_PLAYBACK_LIMITS.maxSteps}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 disabled:opacity-30 transition-colors"
-                  title={trans('home.dailyReading.addWordsStep')}
-                >
-                  <Plus className="w-3 h-3" /> {trans('home.dailyReading.wordsStep')}
-                </button>
-              </div>
-            </div>
-            {player.playbackPattern.map((step, stepIndex) => {
-              const move = (delta: number) => {
-                const target = stepIndex + delta;
-                if (target < 0 || target >= player.playbackPattern.length) return;
-                const nextPattern = [...player.playbackPattern];
-                [nextPattern[stepIndex], nextPattern[target]] = [nextPattern[target], nextPattern[stepIndex]];
-                player.updateSettings({ playbackPattern: nextPattern });
-              };
-              const replaceStep = (replacement: DailyReadingPlaybackStep) => {
-                const nextPattern = player.playbackPattern.map((currentStep, currentIndex) => (
-                  currentIndex === stepIndex ? replacement : currentStep
-                ));
-                player.updateSettings({ playbackPattern: nextPattern });
-              };
-              return (
-                <div
-                  key={step.id}
-                  aria-current={player.activeStepId === step.id ? 'step' : undefined}
-                  className={`flex items-center gap-1.5 rounded-md px-1 py-0.5 ${
-                    player.activeStepId === step.id ? 'bg-indigo-500/10 ring-1 ring-indigo-500/20' : ''
-                  }`}
-                >
-                  <select
-                    value={step.type}
-                    onChange={(event) => replaceStep(event.target.value === 'words'
-                      ? { id: step.id, type: 'words', times: step.times }
-                      : { id: step.id, type: 'sentence', lang: 'en', times: step.times })}
-                    className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-                  >
-                    <option value="sentence">{trans('home.dailyReading.sentenceStep')}</option>
-                    <option value="words">{trans('home.dailyReading.wordsStep')}</option>
-                  </select>
-                  {step.type === 'sentence' && (
-                    <select
-                      value={step.lang}
-                      onChange={(event) => replaceStep({
-                        ...step,
-                        lang: event.target.value === 'cn' ? 'cn' : 'en',
-                      })}
-                      className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-                    >
-                      <option value="en">{trans('home.dailyReading.english')}</option>
-                      <option value="cn">{trans('home.dailyReading.chinese')}</option>
-                    </select>
-                  )}
-                  <span>×</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={DAILY_READING_PLAYBACK_LIMITS.maxStepRepeats}
-                    value={step.times}
-                    onChange={(event) => replaceStep({
-                      ...step,
-                      times: Number(event.target.value),
-                    })}
-                    aria-label={trans('home.dailyReading.repeats')}
-                    className="w-14 rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-                  />
-                  <div className="flex-1" />
-                  <button type="button" onClick={() => move(-1)} disabled={stepIndex === 0}
-                    className="p-1 rounded-md text-zinc-500 hover:text-indigo-300 disabled:opacity-30" title={trans('home.dailyReading.moveUp')}>
-                    <ArrowUp className="w-3 h-3" />
-                  </button>
-                  <button type="button" onClick={() => move(1)} disabled={stepIndex >= player.playbackPattern.length - 1}
-                    className="p-1 rounded-md text-zinc-500 hover:text-indigo-300 disabled:opacity-30" title={trans('home.dailyReading.moveDown')}>
-                    <ArrowDown className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => player.updateSettings({
-                      playbackPattern: player.playbackPattern.filter((_, currentIndex) => currentIndex !== stepIndex),
-                    })}
-                    disabled={player.playbackPattern.length <= 1}
-                    className="p-1 rounded-md text-zinc-500 hover:text-rose-300 disabled:opacity-30" title={trans('home.dailyReading.removeStep')}>
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-          </>)}
+          {!panelCollapsed && <WordNewDailyReadingPlaybackSettings player={player} trans={trans} />}
         </div>
       </div>
     </div>

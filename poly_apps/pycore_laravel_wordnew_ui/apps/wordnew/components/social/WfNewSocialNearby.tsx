@@ -104,8 +104,8 @@ export const WfNewSocialNearby: React.FC<WfNewSocialNearbyProps> = ({
               <div className="text-[10px] text-zinc-500 truncate">{user.native_language} → {user.learning_languages.join(', ')}</div>
             </div>
             <div className="flex gap-1">
-              <button onClick={() => void addFriend(user)} disabled={requested[user.id]} className="p-2 rounded-lg bg-indigo-500/15 text-indigo-300 cursor-pointer disabled:opacity-40" aria-label="Add friend"><UserPlus className="w-4 h-4" /></button>
-              <button onClick={() => onMessage(user.id)} className="p-2 rounded-lg bg-sky-500/15 text-sky-300 cursor-pointer" aria-label="Message"><MessageSquare className="w-4 h-4" /></button>
+              <button onClick={() => void addFriend(user)} disabled={requested[user.id]} className="p-2 rounded-lg bg-indigo-500/15 text-indigo-300 cursor-pointer disabled:opacity-40" aria-label={trans('social.addFriend')}><UserPlus className="w-4 h-4" /></button>
+              <button onClick={() => onMessage(user.id)} className="p-2 rounded-lg bg-sky-500/15 text-sky-300 cursor-pointer" aria-label={trans('social.message')}><MessageSquare className="w-4 h-4" /></button>
             </div>
           </div>
         ))}

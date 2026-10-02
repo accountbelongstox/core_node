@@ -3,11 +3,11 @@
  * come from the shell via props (prop names match the destructured hook bindings). */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Volume2, Settings, Check, SkipForward, ArrowLeft } from 'lucide-react';
+import { Volume2, Check, SkipForward, ArrowLeft } from 'lucide-react';
+import { StateMessage } from '@/shared/ui/StateMessage';
 
 import type { Word, WordGroup } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
-import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 
 import type { ElementTheme } from '../WfNewThemes';
 
@@ -17,11 +17,20 @@ import { useWfNewPracticePager } from '../hooks/useWfNewPracticePager';
 import { useWfNewReciteController } from './study/useWfNewReciteController';
 import { WfNewStudyWordList } from './study/WfNewStudyWordList';
 import { WfNewAudioWave } from './study/WfNewAudioWave';
-import { WfNewNoTranslation } from './study/WfNewNoTranslation';
+import { WfNewStudyNowPlaying } from './study/WfNewStudyNowPlaying';
+import { WfNewStudySettingsToggle } from './study/WfNewStudySettingsToggle';
+import { WfNewStudyArena } from './study/WfNewStudyArena';
+import { useWfNewStudyActions } from './study/useWfNewStudyActions';
 import { WfNewStudySettingsSheet } from './study/WfNewStudySettingsSheet';
 import { WfNewPracticeControlPanel } from './study/WfNewPracticeControlPanel';
-import { wfNewStudyProgress } from './study/WfNewStudyProgress';
 import { studyT } from './study/WfNewStudyLocales';
+
+const PRACTICE_MODES = [
+  { id: 'study', labelKey: 'practice.mode.study' },
+  { id: 'quiz', labelKey: 'practice.mode.quiz' },
+  { id: 'listening', labelKey: 'practice.mode.listening' },
+  { id: 'reading', labelKey: 'practice.mode.reading' },
+] as const;
 
 interface WfNewPracticeTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
@@ -57,9 +66,6 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
   const [brief, setBrief] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showStudySettings, setShowStudySettings] = useState(false);
-  // Large-font (big word + translation) mirror of the persisted wmLargeFont flag;
-  // flipped from the floating control panel so the now-playing card re-renders.
-  const [largeFont, setLargeFont] = useState<boolean>(() => !!wfNewSettings.get('wmLargeFont'));
   const autoStartedRef = useRef(false);
   // Immersive fullscreen playback — the /practice tab AUTO-ENTERS it once per
   // tab entry (WfNewApp mounts this component only while the tab is active, so
@@ -82,27 +88,13 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
   const reciteRef = useRef(recite);
   reciteRef.current = recite;
 
-  const isAbsoluteAudio = (u?: string): u is string =>
-    !!u && (u.startsWith('http://') || u.startsWith('https://'));
-  const speakWord = useCallback((w: Word) => {
-    if (isAbsoluteAudio(w.audioUrl)) {
-      try { void new Audio(resolveAudioSync(w.audioUrl) ?? w.audioUrl).play().catch(() => playPhoneticSpeech(w)); return; } catch { /* fall through */ }
-    }
-    playPhoneticSpeech(w);
-  }, [playPhoneticSpeech]);
-
-  const markWord = useCallback((w: Word, known: boolean) => {
-    wfNewStudyProgress.mark(gid, w, known, selectedPracticeGroup?.language);
-    addToast(studyT(lang, known ? 'study.toast.known' : 'study.toast.forgot'), known ? 'success' : 'warning');
-  }, [gid, selectedPracticeGroup?.language, lang, addToast]);
-
-  // Flip the persisted large-font flag and mirror it into local state so the
-  // now-playing card + control panel reflect it immediately.
-  const toggleLargeFont = useCallback(() => {
-    const next = !wfNewSettings.get('wmLargeFont');
-    wfNewSettings.setField('wmLargeFont', next);
-    setLargeFont(next);
-  }, []);
+  const { speakWord, markWord, largeFont, toggleLargeFont } = useWfNewStudyActions({
+    gid,
+    groupLanguage: selectedPracticeGroup?.language,
+    lang,
+    playPhoneticSpeech,
+    notify: addToast,
+  });
 
   // Mirror the current page into courseWords so quiz/cards/reading see real words.
   useEffect(() => {
@@ -197,7 +189,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                         }`}
                       >
                         <h4 className="font-bold text-sm">{g.name}</h4>
-                        <span className="text-[10px] font-mono text-zinc-500 mt-2 block">{g.count} Words total</span>
+                        <span className="text-[10px] font-mono text-zinc-500 mt-2 block">{trans('practice.wordsTotal', { n: g.count })}</span>
                       </button>
                     ))}
                   </div>
@@ -212,16 +204,11 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                       onClick={() => setPracticeMode(null)}
                       className="flex items-center gap-1.5 text-xs font-mono text-zinc-400 hover:text-white"
                     >
-                      <ArrowLeft className="w-4 h-4" /> Exit Session
+                      <ArrowLeft className="w-4 h-4" /> {trans('practice.exitSession')}
                     </button>
 
                     <div className="flex gap-2">
-                      {([
-                        { id: 'study', label: 'Cards' },
-                        { id: 'quiz', label: 'Arena' },
-                        { id: 'listening', label: 'Sound' },
-                        { id: 'reading', label: 'Synthesized' }
-                      ] as const).map(m => (
+                      {PRACTICE_MODES.map(m => (
                         <button
                           key={m.id}
                           onClick={() => startModePractice(m.id)}
@@ -231,7 +218,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                               : 'bg-transparent border-transparent text-zinc-500 hover:text-white'
                           }`}
                         >
-                          {m.label}
+                          {trans(m.labelKey)}
                         </button>
                       ))}
                     </div>
@@ -280,12 +267,12 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                           <div className={`absolute inset-0 backface-hidden rotate-y-180 flex flex-col justify-between p-8 rounded-3xl border border-indigo-500/20 bg-indigo-950/90 text-center ${
                             activeTheme.id === 'nordic' ? 'bg-slate-50 text-slate-900' : ''
                           }`}>
-                            <span className="text-[10px] font-mono font-bold text-zinc-500">Definition Map</span>
+                            <span className="text-[10px] font-mono font-bold text-zinc-500">{trans('practice.definitionMap')}</span>
 
                             <div className="space-y-4">
                               <p className="text-xl font-bold text-indigo-400">{courseWords[practiceIndex].translation}</p>
                               <p className="text-xs text-zinc-400 leading-relaxed max-w-xs mx-auto">
-                                {courseWords[practiceIndex].definition || 'Definition description placeholder'}
+                                {courseWords[practiceIndex].definition || trans('practice.definitionPlaceholder')}
                               </p>
                               {courseWords[practiceIndex].example && (
                                 <p className="text-[11px] italic font-mono text-zinc-500">
@@ -294,7 +281,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                               )}
                             </div>
 
-                            <div className="text-[10px] font-mono text-zinc-500">Mastery Dial: {courseWords[practiceIndex].masteryLevel || 70}%</div>
+                            <div className="text-[10px] font-mono text-zinc-500">{trans('practice.masteryDial', { n: courseWords[practiceIndex].masteryLevel || 70 })}</div>
                           </div>
                         </motion.div>
                       </div>
@@ -399,17 +386,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                               ? studyT(lang, 'study.recite.of', { i: recite.index + 1, n: pager.words.length })
                               : `${trans('practice.pageOf', { page: pager.page, total: pager.totalPages })} · ${studyT(lang, 'study.recite.of', { i: recite.index + 1, n: pager.words.length })}`}
                         </span>
-                        <button
-                          onClick={() => setShowStudySettings((s) => !s)}
-                          className={`p-2.5 rounded-xl border transition-all ${
-                            showStudySettings
-                              ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
-                              : 'bg-white/5 border-white/5 hover:bg-white/10 text-zinc-400'
-                          }`}
-                          title={studyT(lang, 'study.settings.title')}
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                        </button>
+                        <WfNewStudySettingsToggle active={showStudySettings} title={studyT(lang, 'study.settings.title')} onClick={() => setShowStudySettings((v) => !v)} />
                       </div>
 
                       {showStudySettings && (
@@ -426,32 +403,25 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
 
                       {reciteWord ? (
                         <>
-                          {/* Now playing (word + translation grow when large-font is on) */}
-                          <div className="p-6 rounded-3xl bg-slate-900/40 border border-indigo-500/20 flex flex-col items-center text-center gap-2">
-                            <h3 className={`font-black tracking-tight ${largeFont ? 'text-5xl md:text-6xl' : 'text-3xl'}`}>{reciteWord.text}</h3>
-                            <p className="text-xs font-mono text-indigo-400">{reciteWord.phonetic}</p>
-                            {/* Playable wave + audio-count; animates with the recite loop. */}
-                            <WfNewAudioWave
-                              lang={lang}
-                              size="md"
-                              audioUrl={reciteWord.audioUrl}
-                              audioFiles={reciteWord.audioFiles}
-                              audioCount={reciteWord.audioCount}
-                              playing={recite.isPlaying}
-                              onPlay={() => speakWord(reciteWord)}
-                              className="pt-1"
-                            />
-                            {reciteWord.translation ? (
-                              <p className={`text-zinc-400 pt-1 ${largeFont ? 'text-xl' : 'text-sm'}`}>{reciteWord.translation}</p>
-                            ) : (
-                              <span className="pt-1">
-                                <WfNewNoTranslation lang={lang} />
-                              </span>
+                          <WfNewStudyNowPlaying
+                            word={reciteWord}
+                            lang={lang}
+                            largeFont={largeFont}
+                            playing={recite.isPlaying}
+                            playingLabel={trans('practice.listeningActive')}
+                            wave={(
+                              <WfNewAudioWave
+                                lang={lang}
+                                size="md"
+                                audioUrl={reciteWord.audioUrl}
+                                audioFiles={reciteWord.audioFiles}
+                                audioCount={reciteWord.audioCount}
+                                playing={recite.isPlaying}
+                                onPlay={() => speakWord(reciteWord)}
+                                className="pt-1"
+                              />
                             )}
-                            {recite.isPlaying && (
-                              <p className="text-[10px] text-emerald-400 font-mono animate-pulse pt-1">{trans('practice.listeningActive')}</p>
-                            )}
-                          </div>
+                          />
 
                           {/* Sequential-reading queue: translations always shown; a row
                               tap moves the play cursor and starts (no detail modal). */}
@@ -484,9 +454,9 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                           />
                         </>
                       ) : (
-                        <div className="py-16 text-center text-xs font-mono text-zinc-500">
+                        <StateMessage kind="empty" size="page">
                           {pager.loading ? trans('practice.loadingWords') : studyT(lang, 'study.recite.empty')}
-                        </div>
+                        </StateMessage>
                       )}
                     </div>
                   )}
@@ -494,7 +464,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                   {practiceMode === 'reading' && (
                     <div className="p-6 rounded-3xl bg-slate-900/35 border border-white/5 space-y-6">
                       <div className="space-y-1">
-                        <h4 className="text-sm font-extrabold uppercase font-mono tracking-wider text-indigo-400">Context Flow Synthesis</h4>
+                        <h4 className="text-sm font-extrabold uppercase font-mono tracking-wider text-indigo-400">{trans('practice.contextFlow')}</h4>
                         <p className="text-[10px] text-zinc-500 font-mono">{trans('practice.readDesc')}</p>
                       </div>
 
@@ -528,46 +498,30 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                 </div>
               )}
 
-      {/* Immersive fullscreen playback overlay (mirrors the shelf arena in
-          WfNewGroupStudyPanel): covers the app chrome — headers, tabs and the
-          cards above stay rendered underneath but are fully hidden — so ONLY
-          the playlist + the floating console (docked at bottom-6) show. The
-          console's Stop button (onStop) exits back to the normal page. */}
-      {immersive && practiceMode === 'listening' && (
-        <div className="fixed inset-0 z-[60] bg-slate-950 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-4 pt-6 pb-32">
-            <WfNewStudyWordList
-              words={pager.words}
-              lang={lang}
-              sourceLanguage={selectedPracticeGroup?.language || 'en'}
-              theme={activeTheme}
-              brief={brief}
-              favorites={favorites}
-              activeWordId={activeReciteId}
-              autoScroll={autoScroll}
-              alwaysShowTranslation
-              jumbo
-              readCountOf={(w) => wfNewStudyProgress.recordOf(gid, w.id)?.rc ?? 0}
-              emptyText={pager.loading ? trans('practice.loadingWords') : studyT(lang, 'study.recite.empty')}
-              onSpeak={speakWord}
-              onKnown={(w) => markWord(w, true)}
-              onForgot={(w) => markWord(w, false)}
-              onToggleFav={onToggleFavorite}
-              onOpenDetail={setSelectedWordDetail}
-              onSelectWord={(_w, i) => { recite.pause(); recite.setIndex(i); recite.play(); }}
-            />
-          </div>
-          <WfNewPracticeControlPanel
-            trans={trans}
-            recite={recite}
-            pager={pager}
-            largeFont={largeFont}
-            onToggleLargeFont={toggleLargeFont}
-            onStop={stopImmersive}
-            docked
-          />
-        </div>
-      )}
+      <WfNewStudyArena
+        open={immersive && practiceMode === 'listening'}
+        onStop={stopImmersive}
+        trans={trans}
+        lang={lang}
+        gid={gid}
+        sourceLanguage={selectedPracticeGroup?.language || 'en'}
+        theme={activeTheme}
+        words={pager.words}
+        loading={pager.loading}
+        brief={brief}
+        autoScroll={autoScroll}
+        favorites={favorites}
+        activeWordId={activeReciteId}
+        recite={recite}
+        pager={pager}
+        largeFont={largeFont}
+        onToggleLargeFont={toggleLargeFont}
+        onSpeak={speakWord}
+        onMark={markWord}
+        onToggleFavorite={onToggleFavorite}
+        onOpenDetail={setSelectedWordDetail}
+        onSelectWord={(i) => { recite.pause(); recite.setIndex(i); recite.play(); }}
+      />
     </>
   );
 };

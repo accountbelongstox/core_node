@@ -37,24 +37,27 @@
  */
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  Layers, Play, Settings2, RotateCcw, GraduationCap, RefreshCw,
+  Layers, Play, RotateCcw, GraduationCap, RefreshCw,
 } from 'lucide-react';
+import { ModalShell } from '@/shared/ui/ModalShell';
+import { StateMessage } from '@/shared/ui/StateMessage';
 import type { ElementTheme } from '../../WfNewThemes';
 import type { Word, WordGroup } from '../../api/WfNewApiTypes';
 import { wfNewApi, isDefaultVocabularyGroup } from '../../api';
 import { wfNewSettings } from '../../WfNewSettingsStore';
 import { wfNewNotify } from '../../WfNewNotify';
 import { wordNewProgressCenter } from '../../services';
-import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
 import { studyT } from './WfNewStudyLocales';
 import { WfNewStudyStatsBar } from './WfNewStudyStatsBar';
 import { WfNewStudyWordList } from './WfNewStudyWordList';
 import { WfNewFlashcard } from './WfNewFlashcard';
-import { WfNewNoTranslation } from './WfNewNoTranslation';
+import { WfNewStudyNowPlaying } from './WfNewStudyNowPlaying';
+import { WfNewStudySettingsToggle } from './WfNewStudySettingsToggle';
+import { WfNewStudyArena } from './WfNewStudyArena';
+import { useWfNewStudyActions } from './useWfNewStudyActions';
 import { WfNewStudySettingsSheet } from './WfNewStudySettingsSheet';
 import { WfNewArenaStatsPopup } from './WfNewArenaStatsPopup';
-import { WfNewPracticeControlPanel } from './WfNewPracticeControlPanel';
 import { useWfNewReciteController } from './useWfNewReciteController';
 // Paged word loader (POST /group/get_words) shared with the practice page — the
 // source of truth for the Default Vocabulary Group, whose words getVocabulary
@@ -77,9 +80,6 @@ interface WfNewGroupStudyPanelProps {
   onOpenDetail: (w: Word) => void;
   onStartQuiz: () => void;
 }
-
-const isAbsoluteUrl = (u?: string): u is string =>
-  !!u && (u.startsWith('http://') || u.startsWith('https://'));
 
 export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
   group,
@@ -106,9 +106,6 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
   const [autoScroll, setAutoScroll] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [cardsIndex, setCardsIndex] = useState(0);
-  // Large-font (big word + translation) mirror of the persisted wmLargeFont flag;
-  // flipped from the floating control panel so the now-playing card re-renders.
-  const [largeFont, setLargeFont] = useState<boolean>(() => !!wfNewSettings.get('wmLargeFont'));
   // Bumped on every store change so the memoized stats recompute.
   const [version, setVersion] = useState(0);
 
@@ -134,13 +131,13 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
   // prop is empty for the Default group anyway).
   const liveWords = pager.words.length ? pager.words : words;
 
-  // Flip the persisted large-font flag and mirror it into local state so the
-  // now-playing card + control panel reflect it immediately.
-  const toggleLargeFont = useCallback(() => {
-    const next = !wfNewSettings.get('wmLargeFont');
-    wfNewSettings.setField('wmLargeFont', next);
-    setLargeFont(next);
-  }, []);
+  const { speakWord, markWord, largeFont, toggleLargeFont } = useWfNewStudyActions({
+    gid,
+    groupLanguage: group.language,
+    lang,
+    playPhoneticSpeech,
+    notify: wfNewNotify.push,
+  });
 
   // Re-render on any study-progress change (marks, backend ingest).
   useEffect(() => wfNewStudyProgress.subscribe(() => setVersion((v) => v + 1)), []);
@@ -159,34 +156,6 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
       cancelled = true;
     };
   }, [gid, loggedIn]);
-
-  // Play a word: prefer its real audio file (locally cached when preloaded —
-  // see cache/WfNewAudioCache), else the app's Web-Speech helper.
-  const speakWord = useCallback(
-    (w: Word) => {
-      if (isAbsoluteUrl(w.audioUrl)) {
-        try {
-          void new Audio(resolveAudioSync(w.audioUrl) ?? w.audioUrl).play().catch(() => playPhoneticSpeech(w));
-          return;
-        } catch {
-          /* fall through */
-        }
-      }
-      playPhoneticSpeech(w);
-    },
-    [playPhoneticSpeech],
-  );
-
-  const markWord = useCallback(
-    (w: Word, known: boolean) => {
-      wfNewStudyProgress.mark(gid, w, known, group.language);
-      wfNewNotify.push(
-        studyT(lang, known ? 'study.toast.known' : 'study.toast.forgot'),
-        known ? 'success' : 'warning',
-      );
-    },
-    [gid, group.language, lang],
-  );
 
   // liveWords already arrives least-recently-read-ordered from the pager, so it is
   // the study-priority source for Browse/Cards/Recite as-is (no re-shuffle).
@@ -312,17 +281,7 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => setShowSettings((s) => !s)}
-            className={`p-2.5 rounded-xl border transition-all ${
-              showSettings
-                ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
-                : 'bg-white/5 border-white/5 hover:bg-white/10 text-zinc-400'
-            }`}
-            title={studyT(lang, 'study.settings.title')}
-          >
-            <Settings2 className="w-3.5 h-3.5" />
-          </button>
+          <WfNewStudySettingsToggle active={showSettings} title={studyT(lang, 'study.settings.title')} onClick={() => setShowSettings((v) => !v)} />
         </div>
       </div>
 
@@ -404,41 +363,21 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
                 }}
               />
             ) : (
-              <div className="py-16 text-center text-xs font-mono text-zinc-500">
-                {studyT(lang, 'study.list.empty')}
-              </div>
+              <StateMessage kind="empty" size="page">{studyT(lang, 'study.list.empty')}</StateMessage>
             ))}
 
           {mode === 'recite' && (
             <div className="space-y-4">
               {reciteWord ? (
                 <>
-                  {/* Now playing (word + translation grow when large-font is on) */}
-                  <div className="p-6 rounded-3xl bg-slate-900/40 border border-indigo-500/20 flex flex-col items-center text-center gap-2">
-                    <span className="text-[10px] font-mono text-zinc-500">
-                      {studyT(lang, 'study.recite.of', {
-                        i: recite.index + 1,
-                        n: liveWords.length,
-                      })}
-                    </span>
-                    <h3 className={`font-black tracking-tight ${largeFont ? 'text-5xl md:text-6xl' : 'text-3xl'}`}>
-                      {reciteWord.text}
-                    </h3>
-                    <p className="text-xs font-mono text-indigo-400">{reciteWord.phonetic}</p>
-                    {/* No animated wave icon during playback (per design request). */}
-                    {reciteWord.translation ? (
-                      <p className={`text-zinc-400 pt-1 ${largeFont ? 'text-xl' : 'text-sm'}`}>{reciteWord.translation}</p>
-                    ) : (
-                      <span className="pt-1">
-                        <WfNewNoTranslation lang={lang} />
-                      </span>
-                    )}
-                    {recite.isPlaying && (
-                      <p className="text-[10px] text-emerald-400 font-mono animate-pulse pt-1">
-                        {trans('practice.listeningActive')}
-                      </p>
-                    )}
-                  </div>
+                  <WfNewStudyNowPlaying
+                    word={reciteWord}
+                    lang={lang}
+                    largeFont={largeFont}
+                    playing={recite.isPlaying}
+                    playingLabel={trans('practice.listeningActive')}
+                    caption={studyT(lang, 'study.recite.of', { i: recite.index + 1, n: liveWords.length })}
+                  />
 
                   {/* Sequential-reading queue: translations always shown; a row tap
                       moves the play cursor and starts (no detail modal). */}
@@ -463,87 +402,68 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
                   />
                 </>
               ) : (
-                <div className="py-16 text-center text-xs font-mono text-zinc-500">
+                <StateMessage kind="empty" size="page">
                   {pager.loading ? trans('practice.loadingWords') : studyT(lang, 'study.recite.empty')}
-                </div>
+                </StateMessage>
               )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Fullscreen quiz arena (§4.4 playback-scoped): covers the app top bar,
-          this panel's header/stats and the bottom dock — only the recite
-          playlist shows (translations visible, 3× word / 2× gloss, played words
-          badged with the backend read count). The floating console docks at the
-          bottom-menu position; its Stop button ends playback and exits. */}
-      {arena && (
-        <div className="fixed inset-0 z-[60] bg-slate-950 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-4 pt-6 pb-32">
-            <WfNewStudyWordList
-              words={liveWords}
-              lang={lang}
-              sourceLanguage={group.language}
-              theme={theme}
-              brief={brief}
-              favorites={favorites}
-              activeWordId={activeReciteId}
-              autoScroll={autoScroll}
-              alwaysShowTranslation
-              jumbo
-              readCountOf={(w) => wfNewStudyProgress.recordOf(gid, w.id)?.rc ?? 0}
-              emptyText={pager.loading ? trans('practice.loadingWords') : studyT(lang, 'study.recite.empty')}
-              onSpeak={speakWord}
-              onKnown={(w) => markWord(w, true)}
-              onForgot={(w) => markWord(w, false)}
-              onToggleFav={onToggleFavorite}
-              onOpenDetail={onOpenDetail}
-              onSelectWord={(_w, i) => playFromCard(i)}
-            />
-          </div>
-          <WfNewPracticeControlPanel
-            trans={trans}
-            recite={recite}
-            pager={pager}
-            largeFont={largeFont}
-            onToggleLargeFont={toggleLargeFont}
-            onStop={stopArena}
-            docked
-            onToggleStats={() => setShowArenaStats((s) => !s)}
-            statsOpen={showArenaStats}
+      <WfNewStudyArena
+        open={arena}
+        locked={showSettings}
+        onStop={stopArena}
+        trans={trans}
+        lang={lang}
+        gid={gid}
+        sourceLanguage={group.language}
+        theme={theme}
+        words={liveWords}
+        loading={pager.loading}
+        brief={brief}
+        autoScroll={autoScroll}
+        favorites={favorites}
+        activeWordId={activeReciteId}
+        recite={recite}
+        pager={pager}
+        largeFont={largeFont}
+        onToggleLargeFont={toggleLargeFont}
+        onSpeak={speakWord}
+        onMark={markWord}
+        onToggleFavorite={onToggleFavorite}
+        onOpenDetail={onOpenDetail}
+        onSelectWord={playFromCard}
+        onToggleStats={() => setShowArenaStats((v) => !v)}
+        statsOpen={showArenaStats}
+      >
+        {showArenaStats && (
+          <WfNewArenaStatsPopup
+            lang={lang}
+            dailyGoal={dailyGoal}
+            session={stats}
+            library={libraryStats}
+            pager={{ page: pager.page, totalPages: pager.totalPages }}
+            onJumpPage={jumpToPage}
+            onOpenSettings={() => setShowSettings(true)}
+            onClose={() => setShowArenaStats(false)}
           />
-          {/* Floating progress panel: today / library / review stats, quick
-              page jump, one-tap study settings — without leaving the arena. */}
-          {showArenaStats && (
-            <WfNewArenaStatsPopup
-              lang={lang}
-              dailyGoal={dailyGoal}
-              session={stats}
-              library={libraryStats}
-              pager={{ page: pager.page, totalPages: pager.totalPages }}
-              onJumpPage={jumpToPage}
-              onOpenSettings={() => setShowSettings(true)}
-              onClose={() => setShowArenaStats(false)}
-            />
-          )}
-          {/* Study settings, opened from the arena stats popup (the left-column
-              sheet is covered by the overlay, so it renders above it here). */}
-          {showSettings && (
-            <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-sm p-4 flex justify-center">
-              <div className="w-full max-w-md my-auto">
-                <WfNewStudySettingsSheet
-                  lang={lang}
-                  theme={theme}
-                  brief={brief}
-                  setBrief={setBrief}
-                  autoScroll={autoScroll}
-                  setAutoScroll={setAutoScroll}
-                  onClose={() => setShowSettings(false)}
-                />
-              </div>
-            </div>
-          )}
-        </div>
+        )}
+      </WfNewStudyArena>
+
+      {arena && showSettings && (
+        <ModalShell onClose={() => setShowSettings(false)} cardClassName="relative w-full max-w-md max-h-full overflow-y-auto">
+          <WfNewStudySettingsSheet
+            lang={lang}
+            theme={theme}
+            brief={brief}
+            setBrief={setBrief}
+            autoScroll={autoScroll}
+            setAutoScroll={setAutoScroll}
+            onClose={() => setShowSettings(false)}
+          />
+        </ModalShell>
       )}
     </div>
   );

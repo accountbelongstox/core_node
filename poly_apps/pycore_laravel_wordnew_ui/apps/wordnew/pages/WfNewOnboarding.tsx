@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, Shield, Target, Paintbrush, Play, Layout, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Target, Paintbrush, Layout } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewLogo } from '../WfNewBrand';
+import { WfNewThemePicker } from '../components/settings/WfNewThemePicker';
+import { ModalShell } from '@/shared/ui/ModalShell';
+
+const NOOP = (): void => undefined;
+const CARD_CLASS = 'w-full max-w-lg bg-zinc-900/90 border border-white/10 p-6 md:p-8 rounded-[32px] shadow-2xl relative z-10 space-y-6';
 
 interface WfNewOnboardingProps {
   onComplete: () => void;
@@ -87,31 +92,14 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
       icon: <Paintbrush className="w-12 h-12 text-amber-400" />,
       content: (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            {CUSTOM_THEMES.map((theme) => {
-              const isSelected = selectedThemeId === theme.id;
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => {
-                    setSelectedThemeId(theme.id);
-                    onSelectTheme(theme.id);
-                  }}
-                  className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
-                    isSelected
-                      ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
-                      : 'bg-white/5 border-white/5 text-zinc-400 hover:bg-white/8'
-                  }`}
-                >
-                  <div>
-                    <span className="text-xs font-bold block">{theme.nameZh}</span>
-                    <span className="text-[9px] font-mono opacity-60 block">{theme.nameEn}</span>
-                  </div>
-                  {isSelected && <CheckCircle2 className="w-4 h-4 text-amber-400" />}
-                </button>
-              );
-            })}
-          </div>
+          <WfNewThemePicker
+            variant="compact"
+            activeId={selectedThemeId}
+            onSelect={(themeId) => {
+              setSelectedThemeId(themeId);
+              onSelectTheme(themeId);
+            }}
+          />
           <p className="text-xs text-zinc-500 font-mono text-center">{trans('onb.selectedAesthetic')} <span className="text-amber-400 font-bold">{CUSTOM_THEMES.find(t => t.id === selectedThemeId)?.nameZh}</span></p>
         </div>
       )
@@ -135,15 +123,11 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
   const activeStepItem = steps[currentStep];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Heavy frosted glass backing */}
-      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-lg" />
-
-      {/* Onboarding Dialog Card */}
+    <ModalShell onClose={NOOP} locked backdrop="strong" cardClassName={null}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-lg bg-zinc-900/90 border border-white/10 p-6 md:p-8 rounded-[32px] shadow-2xl relative z-10 space-y-6"
+        className={CARD_CLASS}
       >
         {/* Step Indicator Bullets */}
         <div className="flex justify-between items-center border-b border-white/5 pb-4">
@@ -208,6 +192,6 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
           </button>
         </div>
       </motion.div>
-    </div>
+    </ModalShell>
   );
 };

@@ -5,6 +5,8 @@ import type { ElementTheme } from '../WfNewThemes';
 import type { Word, WordGroup } from '../api/WfNewApiTypes';
 import { isDefaultVocabularyGroup } from '../api';
 import { wfNewStudyProgress } from './study/WfNewStudyProgress';
+import { ProgressBar } from '@/shared/ui/ProgressBar';
+import { percentOf } from '../../../core/utils/mathUtils';
 
 interface CourseBlockCardProps {
   group: WordGroup;
@@ -33,7 +35,7 @@ export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
   const percentage = React.useMemo(() => {
     if (!isDefault) return Math.round(group.progress || 0);
     const lib = wfNewStudyProgress.computeLibraryStats(String(group.id), group.count);
-    return lib.total > 0 ? Math.min(100, Math.round((lib.readWords / lib.total) * 100)) : 0;
+    return percentOf(lib.readWords, lib.total);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDefault, group.id, group.count, group.progress, version]);
 
@@ -70,11 +72,8 @@ export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
             <span className="text-zinc-500">{trans('cards.mastered')}</span>
             <span className="font-bold text-indigo-400">{percentage}%</span>
           </div>
-          <div className="w-full bg-white/5 dark:bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
-            <div 
-              className="bg-indigo-500 h-full rounded-full transition-all duration-1000"
-              style={{ width: `${percentage}%` }}
-            />
+          <div className="flex">
+            <ProgressBar done={percentage} total={100} tone="indigo" label={trans('cards.mastered')} />
           </div>
         </div>
 

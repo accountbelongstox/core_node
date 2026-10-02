@@ -4,6 +4,7 @@
 from pycore.callmodule.rpc_routes.ai_hub_routes import register_ai_hub_routes
 from pycore.callmodule.rpc_routes.code_sync_routes import register_code_sync_routes
 from pycore.callmodule.rpc_routes.corebook_routes import register_corebook_routes
+from pycore.callmodule.rpc_routes.dev_mcp_routes import register_dev_mcp_routes
 from pycore.callmodule.rpc_routes.local_agent_history_routes import register_local_agent_history_routes
 from pycore.callmodule.rpc_routes.local_ai_chat_routes import register_local_ai_chat_routes
 from pycore.callmodule.rpc_routes.local_ai_image_routes import register_local_ai_image_routes
@@ -120,6 +121,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_terminal_routes,
     register_gitsync_routes,
     register_machine_send_routes,
+    register_dev_mcp_routes,
 )
 
 

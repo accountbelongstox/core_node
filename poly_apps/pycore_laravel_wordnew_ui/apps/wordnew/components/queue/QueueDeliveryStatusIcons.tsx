@@ -12,7 +12,9 @@ import {
   Volume2,
   VolumeX,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
+import { TONE_TEXT, type StatusTone } from '@/shared/ui/statusTone';
 import type {
   QueueCenterWorkerPresence,
   QueueDeliveryResourceKind,
@@ -54,6 +56,32 @@ const ACKNOWLEDGED_STAGES = new Set<QueueDeliveryVisualStage>([
   'worker_received',
   'processing',
 ]);
+
+interface StageView {
+  icon: (resource: QueueDeliveryResourceKind) => LucideIcon;
+  tone?: StatusTone;
+  /** Colour of stages without a shared tone. */
+  color?: string;
+  hover?: string;
+  pulse?: 'button' | 'icon';
+  spin?: boolean;
+}
+
+const audioOrTranslation = (audio: LucideIcon) => (resource: QueueDeliveryResourceKind): LucideIcon => (resource === 'translation' ? Languages : audio);
+const fixedIcon = (icon: LucideIcon) => (): LucideIcon => icon;
+
+const STAGE_VIEW: Partial<Record<QueueDeliveryVisualStage, StageView>> = {
+  playing: { icon: fixedIcon(Volume2), tone: 'indigo', pulse: 'icon' },
+  ready: { icon: audioOrTranslation(Volume2), tone: 'emerald' },
+  completed: { icon: audioOrTranslation(Volume2), tone: 'emerald' },
+  processing: { icon: fixedIcon(Loader2), tone: 'sky', spin: true },
+  queued: { icon: fixedIcon(ArrowUpCircle), tone: 'amber', pulse: 'button' },
+  laravel_received: { icon: fixedIcon(ArrowUpCircle), tone: 'amber', pulse: 'button' },
+  worker_received: { icon: fixedIcon(Zap), color: 'text-cyan-300', pulse: 'button' },
+  waiting: { icon: fixedIcon(Clock3), tone: 'neutral', pulse: 'button' },
+  failed: { icon: fixedIcon(CircleAlert), tone: 'rose' },
+  missing: { icon: audioOrTranslation(VolumeX), color: 'text-fuchsia-400/80', hover: 'hover:text-fuchsia-300', pulse: 'button' },
+};
 
 const workerLabelKey = (kind: QueueWorkerIconKind): string => {
   if (kind === 'chrome') return 'queue.mcpChrome';
@@ -148,37 +176,13 @@ export const QueueDeliveryStatusIcons: React.FC<QueueDeliveryStatusIconsProps> =
   };
 
   const renderPrimary = (): React.ReactNode => {
-    if (stage === 'playing') {
-      return primary('text-indigo-300 opacity-100', <Volume2 className={`${iconSize} animate-pulse`} />);
-    }
-    if (stage === 'ready' || stage === 'completed') {
-      return primary(
-        'text-emerald-400 opacity-100 hover:text-emerald-300',
-        resource === 'translation' ? <Languages className={iconSize} /> : <Volume2 className={iconSize} />,
-      );
-    }
-    if (stage === 'processing') {
-      return primary('text-sky-400 opacity-100', <Loader2 className={`${iconSize} animate-spin`} />);
-    }
-    if (stage === 'queued' || stage === 'laravel_received') {
-      return primary('animate-pulse text-amber-400 opacity-100', <ArrowUpCircle className={iconSize} />);
-    }
-    if (stage === 'worker_received') {
-      return primary('animate-pulse text-cyan-300 opacity-100', <Zap className={iconSize} />);
-    }
-    if (stage === 'waiting') {
-      return primary('animate-pulse text-slate-400 opacity-100', <Clock3 className={iconSize} />);
-    }
-    if (stage === 'failed') {
-      return primary('text-rose-400 opacity-100', <CircleAlert className={iconSize} />);
-    }
-    if (stage === 'missing') {
-      const icon = resource === 'translation'
-        ? <Languages className={iconSize} />
-        : <VolumeX className={iconSize} />;
-      return primary('animate-pulse text-fuchsia-400/80 opacity-100 hover:text-fuchsia-300', icon);
-    }
-    return <span className={`${primaryBase} pointer-events-none opacity-0`}><Play className={iconSize} /></span>;
+    const view = STAGE_VIEW[stage];
+    if (!view) return <span className={`${primaryBase} pointer-events-none opacity-0`}><Play className={iconSize} /></span>;
+    const Icon = view.icon(resource);
+    return primary(
+      `${view.tone ? TONE_TEXT[view.tone] : view.color} opacity-100 ${view.pulse === 'button' ? 'animate-pulse' : ''} ${view.hover ?? ''}`,
+      <Icon className={`${iconSize} ${view.pulse === 'icon' ? 'animate-pulse' : ''} ${view.spin ? 'animate-spin' : ''}`} />,
+    );
   };
 
   return (

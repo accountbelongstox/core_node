@@ -9,6 +9,7 @@ import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewApi, type WordGroup, type WfNewVirtualReadBatchList } from '../../api';
 import type { OrchComposeReadState } from '../../../../shared/orchestration/orchTypes';
 import { orchFormStyles } from './orchFormStyles';
+import { OrchTabs } from './OrchTabs';
 
 export interface OrchReadStateValue {
   groupId: string | null;
@@ -69,20 +70,15 @@ export const WordNewOrchReadStateField: React.FC<Props> = ({ value, taskBatch, o
 
       <div className="space-y-1">
         <span className={styles.label}>{trans('orchCompose.readState.title')}</span>
-        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={trans('orchCompose.readState.title')}>
-          {READ_STATES.map((state) => (
-            <button
-              key={state}
-              type="button"
-              role="radio"
-              aria-checked={value.readState === state}
-              onClick={() => setReadState(state)}
-              className={value.readState === state ? styles.chipActive : styles.chip}
-            >
-              {trans(`orchCompose.readState.${state}`)}
-            </button>
-          ))}
-        </div>
+        <OrchTabs
+          role="radio"
+          shape="compact"
+          label={trans('orchCompose.readState.title')}
+          value={value.readState}
+          options={READ_STATES.map((state) => ({ value: state, label: trans(`orchCompose.readState.${state}`) }))}
+          onChange={setReadState}
+          theme={theme}
+        />
         <p className={styles.hint}>{trans(`orchCompose.readState.${value.readState}Hint`, { batch: taskBatch || trans('orchCompose.readState.newBatch') })}</p>
       </div>
 

@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { AudioLines, CloudOff, HardDrive, Layers, ListMusic, Plus, Play, Server, Clock } from 'lucide-react';
+import { AudioLines, CloudOff, HardDrive, ListMusic, Plus, Play } from 'lucide-react';
+import { Pill } from '@/shared/ui/Pill';
+import { TONE_TEXT, type StatusTone } from '@/shared/ui/statusTone';
 import type { ElementTheme } from '../../WfNewThemes';
 import { subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
-import { formatClockTime } from '../../utils/WordNewTimeFormat';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchClipStore } from '../../services/orchestration/WordNewOrchClipStore';
@@ -15,6 +16,11 @@ import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
 import { useWordNewApiService } from '../../api/center/WordNewApiCenter';
 import { wordNewPycoreApiService } from '../../api/center/WordNewPycoreApiService';
 import { WfNewApiCenterDialog } from '../api-center/WfNewApiCenterDialog';
+import { ORCH_BACKEND_VIEW } from './orchBackends';
+import { OrchEmptyBox } from './orchPanels';
+import { OrchListRow, OrchSegmentMeta } from './OrchListRow';
+import { orchShare } from './orchRunProgress';
+import { orchSourceTitle } from './orchTaskView';
 
 interface Props {
   theme: ElementTheme;
@@ -25,13 +31,15 @@ interface Props {
   onPlay: (taskId: string) => void;
 }
 
-const STATUS_CLASS: Record<OrchComposeTask['status'] | 'paused', string> = {
-  paused: 'text-sky-700 dark:text-sky-300 border-sky-500/30',
-  draft: 'text-zinc-500 dark:text-zinc-400 border-slate-200 dark:border-white/10',
-  resolving: 'text-amber-600 dark:text-amber-300 border-amber-500/30',
-  ready: 'text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
-  partial: 'text-orange-300 border-orange-500/30',
+const STATUS_TONE: Record<OrchComposeTask['status'] | 'paused', StatusTone> = {
+  paused: 'sky',
+  draft: 'neutral',
+  resolving: 'amber',
+  ready: 'emerald',
+  partial: 'rose',
 };
+
+const PYCORE_VIEW = ORCH_BACKEND_VIEW.pycore;
 
 let composerTicks = 0;
 wordNewOrchComposer.subscribeAll(() => { composerTicks += 1; });
@@ -50,12 +58,11 @@ const TaskProgressBadge: React.FC<{ task: OrchComposeTask; trans: Props['trans']
   const done = live ? live.total - live.pending : kept?.done ?? 0;
   const total = live ? live.total : kept?.total ?? 0;
   const status = task.status === 'resolving' && !running ? 'paused' : task.status;
-  const percent = total > 0 ? Math.round((done / total) * 100) : null;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold ${STATUS_CLASS[status]}`}>
+    <Pill tone={STATUS_TONE[status]} className="gap-1.5 font-bold">
       {trans(`orchCompose.status.${status}`)}
-      {percent !== null && status !== 'ready' && <span className="font-mono">{percent}%</span>}
-    </span>
+      {total > 0 && status !== 'ready' && <span className="font-mono">{orchShare(done, total)}%</span>}
+    </Pill>
   );
 };
 
@@ -94,7 +101,9 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen, 
           onClick={() => setShowLink(true)}
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-3 py-2 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10"
         >
-          {pycore.state === 'offline' ? <CloudOff className="h-3.5 w-3.5 text-rose-600 dark:text-rose-300" /> : <Server className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-300" />}
+          {pycore.state === 'offline'
+            ? <CloudOff className={`h-3.5 w-3.5 ${TONE_TEXT.rose}`} />
+            : <PYCORE_VIEW.icon className={`h-3.5 w-3.5 ${TONE_TEXT[PYCORE_VIEW.tone]}`} />}
           {trans('apiCenter.pycore.title')} · {trans(`apiCenter.service.${pycore.state}`)}
         </button>
         {storage && (
@@ -121,55 +130,42 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen, 
       )}
 
       {tasks.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-8 text-center">
-          <ListMusic className="mx-auto mb-2 h-6 w-6 text-zinc-600" />
-          <p className="text-xs font-mono text-zinc-500">{trans('orchCompose.empty')}</p>
-        </div>
+        <OrchEmptyBox icon={ListMusic}>{trans('orchCompose.empty')}</OrchEmptyBox>
       ) : (
         <ul className="space-y-2.5">
           {tasks.map((task) => (
-            <li key={task.id} className={`group flex items-center gap-2 rounded-2xl border border-slate-200 dark:border-white/5 p-3 transition-all hover:border-indigo-500/30 ${theme.cardClass}`}>
-              <button
-                type="button"
-                onClick={() => onOpen(task.id)}
-                className="flex min-w-0 flex-1 items-start gap-3 rounded-xl text-left"
-              >
-                <span className="mt-0.5 shrink-0 rounded-xl bg-indigo-500/10 p-2.5 text-indigo-600 dark:text-indigo-300 group-hover:bg-indigo-500/20">
-                  <AudioLines className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 flex-1 space-y-1.5">
-                  <span className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">{task.name}</span>
-                    <WordNewOrchAudioSourceBadge source={task.source} trans={trans} />
-                    <TaskProgressBadge task={task} trans={trans} />
-                  </span>
-                  {(task.config.book ?? task.config.prompt) && (
-                    <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{task.config.book?.title ?? task.config.prompt?.title}</span>
-                  )}
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono text-zinc-500">
-                    <span className="inline-flex items-center gap-1">
-                      <Layers className="h-3 w-3" />{trans('orchAudio.segmentCount', { count: task.segmentCount })}
-                    </span>
-                    {task.durationMs > 0 && (
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" />{formatClockTime(task.durationMs / 1000)}
-                      </span>
-                    )}
-                    {!task.synced && <span>{trans('orchCompose.unsynced')}</span>}
-                    <span>{new Date(task.updatedAt).toLocaleString()}</span>
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onPlay(task.id)}
-                aria-label={trans('orchAudio.play')}
-                title={trans('orchAudio.play')}
-                className={`shrink-0 rounded-full border p-3 shadow-md transition-transform hover:scale-105 active:scale-95 ${theme.accentBg}`}
-              >
-                <Play className="h-4 w-4 translate-x-px" />
-              </button>
-            </li>
+            <OrchListRow
+              key={task.id}
+              theme={theme}
+              icon={AudioLines}
+              title={task.name}
+              badges={(
+                <>
+                  <WordNewOrchAudioSourceBadge source={task.source} trans={trans} />
+                  <TaskProgressBadge task={task} trans={trans} />
+                </>
+              )}
+              subtitle={orchSourceTitle(task.config)}
+              meta={(
+                <>
+                  <OrchSegmentMeta segmentCount={task.segmentCount} durationSec={task.durationMs / 1000} trans={trans} />
+                  {!task.synced && <span>{trans('orchCompose.unsynced')}</span>}
+                  <span>{new Date(task.updatedAt).toLocaleString()}</span>
+                </>
+              )}
+              onOpen={() => onOpen(task.id)}
+              trailing={(
+                <button
+                  type="button"
+                  onClick={() => onPlay(task.id)}
+                  aria-label={trans('orchAudio.play')}
+                  title={trans('orchAudio.play')}
+                  className={`shrink-0 rounded-full border p-3 shadow-md transition-transform hover:scale-105 active:scale-95 ${theme.accentBg}`}
+                >
+                  <Play className="h-4 w-4 translate-x-px" />
+                </button>
+              )}
+            />
           ))}
         </ul>
       )}

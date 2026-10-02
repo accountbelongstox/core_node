@@ -8,6 +8,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Radar, ShieldAlert, Square, Wifi } from 'lucide-react';
 import { lanScanHosts, scanLanPycore, type LanScanResult } from '../../../../core/integrations/pycore';
 import { notify } from '@/shared/notify/notify';
+import { ProgressBar } from '@/shared/ui/ProgressBar';
+import { TONE_TEXT, type StatusTone } from '@/shared/ui/statusTone';
 import type { ElementTheme } from '../../WfNewThemes';
 import { currentLanInfo, type CapLanInfo } from '../../platform/capabilities';
 import { useWordNewApiService } from '../../api/center/WordNewApiCenter';
@@ -21,11 +23,11 @@ interface Props {
 }
 
 const STATE_ICON = { up: Wifi, refused: ShieldAlert, no_route: Square } as const;
-const STATE_TONE = {
-  up: 'text-emerald-600 dark:text-emerald-400',
-  refused: 'text-amber-600 dark:text-amber-400',
-  no_route: 'text-zinc-500',
-} as const;
+const STATE_TONE: Record<LanScanResult['state'], StatusTone> = {
+  up: 'emerald',
+  refused: 'amber',
+  no_route: 'neutral',
+};
 
 export const WfNewPycoreLanScan: React.FC<Props> = ({ activeTheme, trans }) => {
   const snapshot = useWordNewApiService(wordNewPycoreApiService);
@@ -125,9 +127,7 @@ export const WfNewPycoreLanScan: React.FC<Props> = ({ activeTheme, trans }) => {
             <span>{trans('apiCenter.lan.progress', { done: progress.done, total: progress.total })}</span>
             <span>{trans('apiCenter.lan.found', { count: results.filter((result) => result.state !== 'no_route').length })}</span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done}>
-            <div className="h-full bg-indigo-500 transition-[width]" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
-          </div>
+          <ProgressBar done={progress.done} total={progress.total} tone="indigo" />
         </div>
       )}
       {results.length > 0 && (
@@ -137,13 +137,13 @@ export const WfNewPycoreLanScan: React.FC<Props> = ({ activeTheme, trans }) => {
             const inUse = snapshot.selectedUrl === result.url;
             return (
               <li key={result.url} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-white/5 px-2.5 py-2 text-[11px]">
-                <Icon className={`h-3.5 w-3.5 shrink-0 ${STATE_TONE[result.state]}`} aria-hidden />
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${TONE_TEXT[STATE_TONE[result.state]]}`} aria-hidden />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start gap-1">
                     <span className="min-w-0 flex-1 break-all font-mono font-bold">{result.url}{result.hostname ? ` · ${result.hostname}` : ''}</span>
                     <WfNewCopyButton value={result.url} trans={trans} />
                   </span>
-                  <span className={`block text-[10px] ${STATE_TONE[result.state]}`}>
+                  <span className={`block text-[10px] ${TONE_TEXT[STATE_TONE[result.state]]}`}>
                     {trans(`apiCenter.lan.state.${result.state}`, { ms: result.ms })}
                   </span>
                 </span>
@@ -160,7 +160,7 @@ export const WfNewPycoreLanScan: React.FC<Props> = ({ activeTheme, trans }) => {
         </ul>
       )}
       {results.some((result) => result.state === 'refused') && (
-        <p className="text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">{trans('apiCenter.lan.refusedHint')}</p>
+        <p className={`text-[10px] leading-relaxed ${TONE_TEXT.amber}`}>{trans('apiCenter.lan.refusedHint')}</p>
       )}
     </section>
   );

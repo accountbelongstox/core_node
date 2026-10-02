@@ -1,30 +1,18 @@
-/**
- * WfNewAdminTranslate — the "translate" panel of the SUPER-ADMIN console: a
- * translate / TTS test tool aimed at the LOCAL backend AI gateway.
- *
- * Data flows exclusively through wfNewAdminApi (page-origin pinned base — see
- * the WfNewAdminApi header). Both POST endpoints used here (translation
- * translate + tts generate) are sanctum-gated: without a wordnew session they
- * 401 and the standard needLogin toast applies; an amber notice chip warns
- * about that up-front (the tool still lets you try).
- *
- * Layout: one card, ~2 columns on md —
- *   left  : source/target selects (+ swap), input textarea, submit
- *   right : result text + provider/model/detected/cached meta, TTS chip with
- *           a shared single <audio> play/pause toggle, tiny in-memory history
- *           (last 5 pairs, click to restore — intentionally NOT persisted).
- */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArrowLeftRight, Languages, Loader2, Volume2, Play, Pause, History, Database, ShieldAlert,
 } from 'lucide-react';
-import type { ElementTheme } from '../../WfNewThemes';
+import { ChipButton } from '@/shared/ui/ChipButton';
+import { StateMessage } from '@/shared/ui/StateMessage';
 import { wfNewAdminApi, adminErrorText } from '../../api';
 import type { WfNewAdminLangOption, WfNewAdminTranslateResult } from '../../api';
 import { puterTranslate } from '../../hooks/puterTranslate';
 import { computeJobStatus, useComputeJobs } from '../../../../core/integrations/compute';
 import { requestWordNewTts, wordNewCompute, wordNewComputeErrorText } from '../../services/compute/WordNewCompute';
+import {
+  AdminLabel, AdminPanel, AdminReveal, adminInputClass, useAdminAudio, useRequestGuard,
+  type AdminPanelProps,
+} from './adminKit';
 
 /** Shown while GET /translation/languages loads (and kept on failure). */
 const FALLBACK_LANGS: WfNewAdminLangOption[] = [
@@ -41,13 +29,9 @@ const HISTORY_MAX = 5;
 
 interface WfNewHistoryEntry { text: string; translation: string }
 
-interface WfNewAdminTranslateProps {
-  activeTheme: ElementTheme;
-  trans: (key: string, replacements?: Record<string, string | number>) => string;
-  addToast: (text: string, type?: 'success' | 'info' | 'warning' | 'star') => void;
-}
+const TTS_AUDIO_KEY = 'tts';
 
-export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
+export const WfNewAdminTranslate: React.FC<AdminPanelProps> = ({
   activeTheme,
   trans,
   addToast,
@@ -63,24 +47,11 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
   const ttsJob = useComputeJobs(wordNewCompute, ttsJobId ? [ttsJobId] : [])[0];
   const ttsStatus = ttsJob ? computeJobStatus(ttsJob) : null;
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(false);
+  const audio = useAdminAudio();
+  const playing = audio.playingKey === TTS_AUDIO_KEY;
   const [history, setHistory] = useState<WfNewHistoryEntry[]>([]);
 
-  // Unmount guard for the async translate/tts callbacks + the single shared
-  // <audio> element (never two overlapping clips).
-  const alive = useRef(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
+  const guard = useRequestGuard();
 
   // Load the real language catalog once; any failure keeps the fallback list.
   useEffect(() => {
@@ -94,29 +65,20 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
     return () => { active = false; };
   }, []);
 
-  const playUrl = useCallback((url: string) => {
-    if (audioRef.current) audioRef.current.pause();
-    const el = new Audio(url);
-    audioRef.current = el;
-    el.onended = () => setPlaying(false);
-    el.onerror = () => setPlaying(false);
-    el.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-  }, []);
+  const playUrl = useCallback((url: string) => audio.play(TTS_AUDIO_KEY, url), [audio.play]);
 
   const togglePlay = useCallback(() => {
-    if (playing) {
-      audioRef.current?.pause();
-      setPlaying(false);
-    } else if (audioUrl) {
-      playUrl(audioUrl);
-    }
-  }, [playing, audioUrl, playUrl]);
+    if (playing) audio.stop();
+    else if (audioUrl) playUrl(audioUrl);
+  }, [playing, audioUrl, playUrl, audio.stop]);
 
-  /** Drop the audio of the previous result (a new result invalidates it). */
   const resetAudio = useCallback(() => {
-    if (audioRef.current) audioRef.current.pause();
-    setPlaying(false);
+    audio.stop();
     setAudioUrl(null);
+  }, [audio.stop]);
+
+  const pushHistory = useCallback((entryText: string, translation: string) => {
+    setHistory((prev) => [{ text: entryText, translation }, ...prev.filter((h) => h.text !== entryText)].slice(0, HISTORY_MAX));
   }, []);
 
   const doTranslate = useCallback(async () => {
@@ -127,18 +89,15 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
       const r = await wfNewAdminApi.translate({
         text: trimmed, source_language: source, target_language: target,
       });
-      if (!alive.current) return;
+      if (!guard.isAlive()) return;
       setResult(r);
       resetAudio();
-      setHistory((prev) => [
-        { text: trimmed, translation: r.translation },
-        ...prev.filter((h) => h.text !== trimmed),
-      ].slice(0, HISTORY_MAX));
+      pushHistory(trimmed, r.translation);
     } catch (e: any) {
       // Backend translate failed (401 needLogin / gateway down) - try the
       // keyless Puter.js AI tier client-side before surfacing the error.
       const fb = await puterTranslate(trimmed, source, target);
-      if (!alive.current) return;
+      if (!guard.isAlive()) return;
       if (fb) {
         setResult({
           translation: fb, provider: 'puter', model: 'gpt-5-nano',
@@ -146,18 +105,15 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
           cached: false,
         });
         resetAudio();
-        setHistory((prev) => [
-          { text: trimmed, translation: fb },
-          ...prev.filter((h) => h.text !== trimmed),
-        ].slice(0, HISTORY_MAX));
+        pushHistory(trimmed, fb);
         addToast(trans('admin.t.fallback'), 'info');
       } else {
         addToast(adminErrorText(e), 'warning');
       }
     } finally {
-      if (alive.current) setBusy(false);
+      if (guard.isAlive()) setBusy(false);
     }
-  }, [text, busy, source, target, resetAudio, addToast, trans]);
+  }, [text, busy, source, target, resetAudio, pushHistory, addToast, trans, guard]);
 
   const doTts = useCallback(async () => {
     if (!result?.translation || ttsBusy) return;
@@ -167,15 +123,15 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
       const job = requestWordNewTts({ text: result.translation, language: target });
       setTtsJobId(job.id);
       const { url } = await job.result;
-      if (!alive.current) return;
+      if (!guard.isAlive()) return;
       setAudioUrl(url);
       playUrl(url);
     } catch (e: any) {
       addToast(wordNewComputeErrorText(trans, e) ?? adminErrorText(e), 'warning');
     } finally {
-      if (alive.current) setTtsBusy(false);
+      if (guard.isAlive()) setTtsBusy(false);
     }
-  }, [result, ttsBusy, target, playUrl, addToast, trans]);
+  }, [result, ttsBusy, target, playUrl, addToast, trans, guard]);
 
   const swap = useCallback(() => {
     if (source === 'auto') return;
@@ -190,18 +146,12 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
   }, [resetAudio]);
 
   const hasSession = wfNewAdminApi.hasSession();
-  const selectCls = `w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`;
-  const labelCls = 'text-[11px] font-mono font-bold uppercase tracking-wider text-zinc-300';
-  const chipCls = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40';
+  const selectCls = adminInputClass(activeTheme, 'w-full');
   const metaChipCls = 'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono border border-white/10 bg-white/5 text-zinc-400';
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className={`p-6 rounded-3xl ${activeTheme.cardClass} space-y-5`}
-    >
+    <AdminReveal>
+    <AdminPanel theme={activeTheme} className="space-y-5">
       {/* Info line + session warning */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <p className="text-[10px] font-mono text-zinc-500 leading-relaxed max-w-xl">
@@ -220,7 +170,7 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
         <div className="space-y-4">
           <div className="flex items-end gap-2">
             <div className="flex-1 min-w-0 space-y-1.5">
-              <label className={labelCls}>{trans('admin.t.source')}</label>
+              <AdminLabel as="label" className="block">{trans('admin.t.source')}</AdminLabel>
               <select value={source} onChange={(e) => setSource(e.target.value)} className={selectCls}>
                 <option value="auto">{trans('admin.t.auto')}</option>
                 {langs.map((l) => (
@@ -237,7 +187,7 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
               <ArrowLeftRight className="w-4 h-4" />
             </button>
             <div className="flex-1 min-w-0 space-y-1.5">
-              <label className={labelCls}>{trans('admin.t.target')}</label>
+              <AdminLabel as="label" className="block">{trans('admin.t.target')}</AdminLabel>
               <select value={target} onChange={(e) => setTarget(e.target.value)} className={selectCls}>
                 {langs.map((l) => (
                   <option key={l.code} value={l.code}>{l.name}</option>
@@ -251,7 +201,7 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={trans('admin.t.ph')}
-            className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none resize-none ${activeTheme.inputClass}`}
+            className={adminInputClass(activeTheme, 'w-full resize-none')}
           />
 
           <button
@@ -271,7 +221,7 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
         <div className="space-y-4">
           {result ? (
             <div className="space-y-3">
-              <p className={labelCls}>{trans('admin.t.result')}</p>
+              <AdminLabel>{trans('admin.t.result')}</AdminLabel>
               <div className="rounded-xl bg-black/20 border border-white/10 p-4">
                 <p className="text-sm text-zinc-100 whitespace-pre-line">{result.translation}</p>
               </div>
@@ -292,16 +242,16 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
               </div>
               {/* TTS: generate speech for the translation, then play/pause */}
               <div className="flex items-center gap-2">
-                <button type="button" onClick={doTts} disabled={ttsBusy} className={chipCls}>
+                <ChipButton onClick={doTts} disabled={ttsBusy} className="gap-1.5">
                   {ttsBusy
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Volume2 className="w-3.5 h-3.5" />}
                   {trans('admin.t.tts')}
-                </button>
+                </ChipButton>
                 {ttsBusy && ttsJobId && (
-                  <button type="button" onClick={() => wordNewCompute.cancel(ttsJobId)} className={chipCls}>
+                  <ChipButton onClick={() => wordNewCompute.cancel(ttsJobId)} className="gap-1.5">
                     {trans('compute.cancel')}
-                  </button>
+                  </ChipButton>
                 )}
                 {ttsBusy && ttsStatus && (
                   <span className={metaChipCls}>
@@ -310,24 +260,14 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
                   </span>
                 )}
                 {audioUrl && (
-                  <button
-                    type="button"
-                    onClick={togglePlay}
-                    className={`p-1.5 rounded-lg border transition ${
-                      playing
-                        ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
-                        : 'border-white/10 bg-white/5 hover:bg-white/10 text-zinc-400'
-                    }`}
-                  >
+                  <ChipButton variant={playing ? 'info' : 'default'} onClick={togglePlay} className="px-1.5">
                     {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  </button>
+                  </ChipButton>
                 )}
               </div>
             </div>
           ) : (
-            <div className="p-8 text-center rounded-2xl border border-white/10 bg-white/[0.02]">
-              <p className="text-[12px] font-mono text-zinc-500">{trans('admin.empty')}</p>
-            </div>
+            <StateMessage kind="empty" className="rounded-2xl border border-white/10 bg-white/[0.02]">{trans('admin.empty')}</StateMessage>
           )}
 
           {/* In-memory history (last 5), click to restore input + result */}
@@ -349,6 +289,7 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
           )}
         </div>
       </div>
-    </motion.div>
+    </AdminPanel>
+    </AdminReveal>
   );
 };

@@ -31,3 +31,23 @@ export const StateMessage: React.FC<StateMessageProps> = ({ kind, children, size
     {onRetry && <ChipButton onClick={onRetry}>{retryLabel}</ChipButton>}
   </div>
 );
+
+interface StateGateProps {
+  loading: boolean;
+  error: string | null;
+  empty: boolean;
+  loadingText: string;
+  emptyText: string;
+  retryLabel: string;
+  onRetry: () => void;
+  size?: StateMessageProps['size'];
+  children: React.ReactNode;
+}
+
+/** Loading / error (with retry) / empty gate in front of a list. */
+export const StateGate: React.FC<StateGateProps> = ({ loading, error, empty, loadingText, emptyText, retryLabel, onRetry, size, children }) => {
+  if (loading) return <StateMessage kind="loading" size={size}>{loadingText}</StateMessage>;
+  if (error) return <StateMessage kind="error" size={size} onRetry={onRetry} retryLabel={retryLabel}>{error}</StateMessage>;
+  if (empty) return <StateMessage kind="empty" size={size}>{emptyText}</StateMessage>;
+  return <>{children}</>;
+};

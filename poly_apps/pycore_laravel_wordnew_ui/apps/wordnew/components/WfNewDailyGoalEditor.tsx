@@ -18,6 +18,7 @@ import { ChevronLeft, ChevronRight, Target } from 'lucide-react';
 import { wfNewApi } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { useWfNewSettings } from '../useWfNewSettings';
+import { NumberInput } from '@/shared/ui/NumberInput';
 import { studyT } from './study/WfNewStudyLocales';
 
 /** Valid goal range — matches the backend preference validation (1..500). */
@@ -25,6 +26,14 @@ const MIN_GOAL = 1;
 const MAX_GOAL = 500;
 
 const clampGoal = (n: number): number => Math.min(MAX_GOAL, Math.max(MIN_GOAL, Math.round(n)));
+
+/** Write the goal to the local store, then push it (best-effort) to the roamed account preferences. */
+export const commitDailyGoal = (n: number): number => {
+  const next = clampGoal(n);
+  wfNewSettings.setField('dailyGoal', next);
+  void wfNewApi.updatePreferences({ daily_goal: next }).catch(() => {});
+  return next;
+};
 
 interface WfNewDailyGoalEditorProps {
   lang: string;
@@ -39,14 +48,6 @@ export const WfNewDailyGoalEditor: React.FC<WfNewDailyGoalEditorProps> = ({ lang
   const { dailyGoal: stored } = useWfNewSettings();
   const goal = clampGoal(Number(stored) || 20);
 
-  // Write the local store first (all instances sync through it), then push the
-  // same value to the roamed backend preferences (best-effort, see header).
-  const commit = (n: number) => {
-    const next = clampGoal(n);
-    wfNewSettings.setField('dailyGoal', next);
-    void wfNewApi.updatePreferences({ daily_goal: next }).catch(() => {});
-  };
-
   const rockerClass =
     'w-7 h-7 rounded-lg bg-slate-900/5 border border-slate-900/10 text-slate-600 hover:bg-slate-900/10 dark:bg-white/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0';
   const label = studyT(lang, 'study.stats.dailyGoal');
@@ -59,35 +60,24 @@ export const WfNewDailyGoalEditor: React.FC<WfNewDailyGoalEditorProps> = ({ lang
       <div className={`flex items-center ${compact ? 'gap-1' : 'gap-1.5'}`}>
         <button
           type="button"
-          onClick={() => commit(goal - 1)}
+          onClick={() => commitDailyGoal(goal - 1)}
           className={rockerClass}
           title={studyT(lang, 'study.recite.prev')}
         >
           <ChevronLeft className="w-3.5 h-3.5" />
         </button>
-        <input
-          type="number"
+        <NumberInput
+          value={goal}
           min={MIN_GOAL}
           max={MAX_GOAL}
           step={1}
-          value={goal}
-          inputMode="numeric"
-          pattern="[0-9]*"
-          onKeyDown={(e) => {
-            if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
-          }}
-          onChange={(e) => {
-            // Typing commits on change, clamped to the valid range; junk input
-            // (empty / non-numeric) is ignored and snaps back to the store value.
-            const v = parseInt(e.target.value, 10);
-            if (Number.isFinite(v)) commit(v);
-          }}
-          aria-label={label}
-          className={`${compact ? 'w-11' : 'w-16'} text-center bg-slate-900/5 border border-slate-900/10 text-slate-800 dark:bg-white/5 dark:border-white/10 dark:text-slate-200 rounded-lg px-1 py-1 text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50`}
+          label={label}
+          onChange={commitDailyGoal}
+          className={`${compact ? 'w-11' : 'w-16'} text-center font-bold`}
         />
         <button
           type="button"
-          onClick={() => commit(goal + 1)}
+          onClick={() => commitDailyGoal(goal + 1)}
           className={rockerClass}
           title={studyT(lang, 'study.recite.next')}
         >

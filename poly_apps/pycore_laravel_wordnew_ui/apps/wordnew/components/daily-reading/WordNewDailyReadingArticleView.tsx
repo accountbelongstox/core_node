@@ -11,6 +11,7 @@ import type {
   DailyReadingPlaybackStep,
   DailyReadingResourceStatus,
 } from './DailyReadingPlaybackModel';
+import { clamp } from '../../../../core/utils/mathUtils';
 
 interface Props {
   articleId: string;
@@ -26,10 +27,6 @@ interface Props {
   underline: boolean;
   hideEnglishResourceBar: boolean;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
-}
-
-function clampRatio(value: number): number {
-  return Math.max(0, Math.min(1, value));
 }
 
 export const WordNewDailyReadingArticleView: React.FC<Props> = ({
@@ -69,10 +66,10 @@ export const WordNewDailyReadingArticleView: React.FC<Props> = ({
 
   useEffect(() => {
     if (activeStepType !== 'sentence' || duration <= 0) return;
-    setSentenceRatio(Math.max(0, Math.min(1, currentTime / duration)));
+    setSentenceRatio(clamp(currentTime / duration, 0, 1));
   }, [activeStepType, currentTime, duration]);
 
-  const scrollRatio = clampRatio(sentenceRatio + userOffset);
+  const scrollRatio = clamp(sentenceRatio + userOffset, 0, 1);
   const handlePaneScroll = useCallback((ratio: number) => {
     markScrolling();
     const offset = ratio - sentenceRatio;

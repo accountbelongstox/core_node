@@ -46,7 +46,7 @@ export const WfNewSettingsProfileCard: React.FC<WfNewSettingsProfileCardProps> =
         <span className="block truncate text-sm font-black text-slate-900 dark:text-slate-100">{nickname || trans('tip.profile')}</span>
         <span className={`mt-0.5 inline-flex items-center gap-1 max-w-full text-[10px] font-mono font-bold ${member.tier.accent}`}>
           <TierIcon className="w-3 h-3 shrink-0" />
-          <span className="truncate">{trans('profile.tier.' + member.tier.id)} · Lv.{member.tier.level}</span>
+          <span className="truncate">{trans('profile.tier.' + member.tier.id)} · {trans('profile.levelShort', { level: member.tier.level })}</span>
         </span>
       </span>
       <span className="hidden min-[380px]:flex items-center gap-3 shrink-0">

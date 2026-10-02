@@ -17,6 +17,7 @@ import {
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
+import { formatClock } from '../../../core/utils/formatters';
 import { SUBTITLE_DETAIL_PAGE_SIZE, SUBTITLE_GROUPS_PAGE_SIZE } from '../constants/uiTiming';
 
 interface WfNewSubtitlesProps {
@@ -33,13 +34,6 @@ interface WfNewSubtitlesProps {
 
 const SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0] as const;
 const STRIP_PUNCT = /[.,/#!$%^&*;:{}=\-_`~()"'?]/g;
-
-const formatTime = (sec: number): string => {
-  if (!isFinite(sec) || sec < 0) sec = 0;
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-};
 
 /** Pick the native/translation text for a sentence (any non-primary language). */
 const pickTranslation = (s: WfNewSubtitleSentence): string => {
@@ -535,11 +529,11 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
           <div className="px-5 py-4 bg-slate-950/90 border-t border-white/5 space-y-3">
             {/* Time */}
             <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
-              <span>{formatTime(currentTime)}</span>
+              <span>{formatClock(currentTime)}</span>
               <span>
                 {playableCount > 0 ? trans('subtitles.posOfTotal', { i: Math.min(playlistPos + 1, playableCount), n: playableCount }) : '—'}
               </span>
-              {detail?.durationSec != null ? <span>{formatTime(detail.durationSec)}</span> : <span>--:--</span>}
+              {detail?.durationSec != null ? <span>{formatClock(detail.durationSec)}</span> : <span>--:--</span>}
             </div>
 
             {/* Transport */}
@@ -620,7 +614,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                 >
                   <div className="flex justify-between items-center font-mono text-[9px] text-zinc-500 mb-1">
                     <span>{trans('walkman.indexLabel')} {idx + 1}</span>
-                    {line.startSec != null && <span>{formatTime(line.startSec)}</span>}
+                    {line.startSec != null && <span>{formatClock(line.startSec)}</span>}
                   </div>
                   <p className={`text-xs truncate ${isCurrent ? 'text-indigo-200 font-extrabold' : 'text-slate-300'}`}>{line.text || '—'}</p>
                   {showTranslation && tr && (

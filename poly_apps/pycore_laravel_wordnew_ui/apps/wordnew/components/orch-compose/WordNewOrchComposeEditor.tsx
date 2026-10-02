@@ -45,6 +45,7 @@ import { WordNewOrchSourcePicker, type OrchSourceChoice } from './WordNewOrchSou
 import { WordNewOrchReadStateField } from './WordNewOrchReadStateField';
 import { WfNewOrchSection } from './WfNewOrchSection';
 import { orchFormStyles } from './orchFormStyles';
+import { orchSourceTitle } from './orchTaskView';
 
 interface Props {
   theme: ElementTheme;
@@ -137,7 +138,7 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
     if (saved) onSaved(saved);
   };
 
-  const sourceTitle = config.book?.title ?? config.prompt?.title ?? '';
+  const sourceTitle = orchSourceTitle(config) ?? '';
   const patternSummary = config.pattern
     .map((step) => `${trans(`orchCompose.step.${step.type}`)}${step.meaning ? `+${trans('orchCompose.step.meaningShort')}` : ''}${step.times > 1 ? ` x${step.times}` : ''}`)
     .join(' → ');

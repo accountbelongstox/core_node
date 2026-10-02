@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, UserPlus, MessageSquare, UserCheck, Trophy, Sparkles, CheckCheck } from 'lucide-react';
 import { wfNewApi, subscribeSocial, type WfNewNotification } from '../api';
+import { StateMessage } from '@/shared/ui/StateMessage';
 import { WfNewHeaderPopover } from './WfNewHeaderPopover';
 
 interface WfNewNotificationBellProps {
@@ -145,12 +146,8 @@ export const WfNewNotificationBell: React.FC<WfNewNotificationBellProps> = ({ tr
       </div>
 
       <div className="max-h-96 overflow-y-auto">
-        {loading && (
-          <p className="py-10 text-center text-zinc-500 font-mono text-[10px]">{trans('notif.loading')}</p>
-        )}
-        {!loading && items.length === 0 && (
-          <p className="py-10 text-center text-zinc-500 font-mono text-[10px]">{trans('notif.empty')}</p>
-        )}
+        {loading && <StateMessage kind="loading" className="py-10">{trans('notif.loading')}</StateMessage>}
+        {!loading && items.length === 0 && <StateMessage kind="empty" className="py-10">{trans('notif.empty')}</StateMessage>}
         {!loading && items.map(n => {
           const Icon = iconFor(n.type);
           return (

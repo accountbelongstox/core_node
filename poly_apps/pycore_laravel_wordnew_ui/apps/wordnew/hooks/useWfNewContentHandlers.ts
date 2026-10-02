@@ -16,6 +16,7 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
 import { wordNewLearningStatsCenter } from '../services/WordNewLearningStatsCenter';
 import { wordNewWordGroups } from '../services/WordNewWordGroupCenter';
+import { wordNewCustomWords } from '../services/WordNewCustomWords';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
@@ -627,13 +628,14 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     const newlyForged: Word = {
       id: `custom-${Date.now()}`,
       text: newWordText,
-      phonetic: newWordPhon || '/forged/',
+      phonetic: newWordPhon || trans('lab.defaultPhonetic'),
       translation: newWordTransl,
-      definition: newWordDef || 'Custom forged lexeme in cognitive sanctum.',
-      example: 'The master pilot forged custom terms to interface with the control machine.',
+      definition: newWordDef || trans('lab.defaultDefinition'),
+      example: trans('lab.defaultExample'),
       tags: ['Forged']
     };
 
+    wordNewCustomWords.add(newlyForged);
     // Prepend to current word shelf list
     setCourseWords(prev => [newlyForged, ...prev]);
     addToast(trans('toast.forged', { word: newWordText }), 'success');
