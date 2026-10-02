@@ -9,6 +9,7 @@ $winCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'win_common'
 . (Join-Path $winCommonDir 'InstallItemRunner.ps1')
 
 $item = @{
+    Id    = 'INSTALL_MODE'
     Key   = '*'
     Order = 10
     Title = 'Switch Installation Mode'

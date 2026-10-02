@@ -726,7 +726,10 @@ function Show-InstallerSubMenu {
             Action = {
                 $installType = $subItems[0].Values[$subItems[0].CurrentValueIndex]
                 Write-ColorMessage -Message "Installation type set to: $installType" -Type "Info"
-                & $script:LOCAL_INSTALLER_SCRIPT
+                . (Join-Path (Join-Path $script:SHELLS_DIR "win\win_common") "InstallConfigMenu.ps1")
+                if (Show-InstallConfirmMenu) {
+                    & $script:LOCAL_INSTALLER_SCRIPT
+                }
             } 
         },
         @{

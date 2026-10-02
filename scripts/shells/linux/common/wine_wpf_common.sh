@@ -11,7 +11,9 @@ WINE_WPF_DOTNET_MAJOR="8"
 WINE_WPF_DOTNET_URL="https://aka.ms/dotnet/$WINE_WPF_DOTNET_MAJOR.0/windowsdesktop-runtime-win-x64.exe"
 WINE_WPF_VCREDIST_URL="https://aka.ms/vs/17/release/vc_redist.x64.exe"
 WINE_WPF_DOWNLOAD_SUBDIR="downloads"
-WINE_WPF_VCRUN_MARKER=".cn_vcrun2022"
+WINE_WPF_VCRUN_DLLS=(vcruntime140.dll vcruntime140_1.dll msvcp140.dll)
+WINE_WPF_X11_SOCKET_DIR="/tmp/.X11-unix"
+WINE_WPF_DEFAULT_DISPLAY=":0"
 WINE_WPF_FONT_MARKER="drive_c/windows/Fonts/arial.ttf"
 WINE_WPF_DLL_OVERRIDES_INSTALL="mscoree,mshtml="
 WINE_WPF_DLL_OVERRIDES_RUN="mshtml="
@@ -21,6 +23,8 @@ WINE_WPF_RUNTIME_DIR=""
 WINE_WPF_PREFIX=""
 WINE_WPF_WINETRICKS=""
 WINE_WPF_INSTALL_FAILED=false
+WINE_WPF_DISPLAY=""
+WINE_WPF_XAUTHORITY=""
 
 wine_wpf_log() {
     if type log_message >/dev/null 2>&1; then
@@ -33,11 +37,12 @@ wine_wpf_log() {
 type run_as_user_plain >/dev/null 2>&1 || source "$WINE_WPF_COMMON_DIR/desktop_system_policy.sh" 2>/dev/null
 
 wine_wpf_prefix_dir() {
-    echo "$CN_WINE_WPF_ROOT/${1:-$(id -un)}"
+    echo "$CN_WINE_WPF_ROOT/$1"
 }
 
 wine_wpf_runtime_present() {
-    local prefix="${1:-$(wine_wpf_prefix_dir)}"
+    local prefix="$1"
+    [ -n "$prefix" ] || { wine_wpf_target_user; prefix="$WINE_WPF_PREFIX"; }
     command -v wine >/dev/null 2>&1 || return 1
     [ -f "$prefix/$WINE_WPF_FONT_MARKER" ] || return 1
     compgen -G "$prefix/drive_c/Program Files/dotnet/shared/Microsoft.WindowsDesktop.App/$WINE_WPF_DOTNET_MAJOR.*" >/dev/null 2>&1
@@ -58,6 +63,36 @@ wine_wpf_target_user() {
 wine_wpf_run() {
     run_as_user_plain "$WINE_WPF_USER" env WINEPREFIX="$WINE_WPF_PREFIX" WINEDEBUG=-all \
         ${WINE_WPF_RUNTIME_DIR:+XDG_RUNTIME_DIR=$WINE_WPF_RUNTIME_DIR} WINEDLLOVERRIDES="$WINE_WPF_DLL_OVERRIDES_INSTALL" "$@"
+}
+
+wine_wpf_resolve_display() {
+    local uid="" candidate=""
+    WINE_WPF_DISPLAY="${DISPLAY:-}"
+    WINE_WPF_XAUTHORITY="${XAUTHORITY:-}"
+    if [ -z "$WINE_WPF_DISPLAY" ] && [ -S "$WINE_WPF_X11_SOCKET_DIR/X${WINE_WPF_DEFAULT_DISPLAY#:}" ]; then
+        WINE_WPF_DISPLAY="$WINE_WPF_DEFAULT_DISPLAY"
+    fi
+    if [ -n "$WINE_WPF_DISPLAY" ] && [ -z "$WINE_WPF_XAUTHORITY" ]; then
+        uid="$(id -u "$WINE_WPF_USER" 2>/dev/null)"
+        for candidate in "/run/user/$uid/gdm/Xauthority" "$(getent passwd "$WINE_WPF_USER" | cut -d: -f6)/.Xauthority"; do
+            [ -f "$candidate" ] && { WINE_WPF_XAUTHORITY="$candidate"; break; }
+        done
+    fi
+    [ -n "$WINE_WPF_DISPLAY" ] || [ -n "${WAYLAND_DISPLAY:-}" ]
+}
+
+wine_wpf_run_app() {
+    run_as_user_plain "$WINE_WPF_USER" env WINEPREFIX="$WINE_WPF_PREFIX" WINEDEBUG="${WINEDEBUG:--all}" \
+        ${WINE_WPF_RUNTIME_DIR:+XDG_RUNTIME_DIR=$WINE_WPF_RUNTIME_DIR} ${WINE_WPF_DISPLAY:+DISPLAY=$WINE_WPF_DISPLAY} \
+        ${WINE_WPF_XAUTHORITY:+XAUTHORITY=$WINE_WPF_XAUTHORITY} ${WAYLAND_DISPLAY:+WAYLAND_DISPLAY=$WAYLAND_DISPLAY} \
+        WINEDLLOVERRIDES="$WINE_WPF_DLL_OVERRIDES_RUN" "$@"
+}
+
+wine_wpf_vcrun_present() {
+    local dll=""
+    for dll in "${WINE_WPF_VCRUN_DLLS[@]}"; do
+        [ -f "$WINE_WPF_PREFIX/drive_c/windows/system32/$dll" ] || return 1
+    done
 }
 
 wine_wpf_run_headless() {
@@ -137,7 +172,7 @@ wine_wpf_ensure_dotnet() {
 
 wine_wpf_ensure_vcrun() {
     local installer="$CN_WINE_WPF_ROOT/$WINE_WPF_DOWNLOAD_SUBDIR/vc_redist.x64.exe"
-    if [ -f "$WINE_WPF_PREFIX/$WINE_WPF_VCRUN_MARKER" ]; then
+    if wine_wpf_vcrun_present; then
         wine_wpf_log "VC++ 2015-2022 runtime already installed in the prefix"
         return 0
     fi
@@ -145,7 +180,7 @@ wine_wpf_ensure_vcrun() {
     wine_wpf_download "$WINE_WPF_VCREDIST_URL" "$installer" || return 1
     wine_wpf_run_headless wine "$installer" /install /quiet /norestart >/dev/null 2>&1
     wine_wpf_run_headless wineserver -w >/dev/null 2>&1
-    wine_wpf_run touch "$WINE_WPF_PREFIX/$WINE_WPF_VCRUN_MARKER"
+    wine_wpf_vcrun_present
 }
 
 wine_wpf_ensure_fonts() {

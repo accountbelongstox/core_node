@@ -9,6 +9,7 @@ $winCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'win_common'
 . (Join-Path $winCommonDir 'InstallItemRunner.ps1')
 
 $item = @{
+    Id    = 'DATABASE_ENGINE'
     Key   = 'D'
     Order = 30
     Title = 'Database After Installation'
