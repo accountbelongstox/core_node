@@ -1,10 +1,10 @@
 # pycore-manager — TTS/STT Engine Lifecycle (UI view)
 
 This is the UI/design view of the speech-engine lifecycle surfaced on the AI page
-(`/pycore-manager/ai`). The authoritative rules live in the pycore developer spec —
+(`/pycore-manager/ai`). The authoritative rules live in `docs_fix/DESIGN_TTS_AI_RUNTIME.md` —
 this doc only describes how they are presented and controlled. Do NOT restate the rules.
 
-Source of truth: `development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md`.
+Source of truth: `docs_fix/DESIGN_TTS_AI_RUNTIME.md`.
 
 ---
 
@@ -14,13 +14,13 @@ The Capability tab (`PcAiCapabilityView` → `PcPipelineStatusPanels`) lists eng
 four strips: OCR, Translation, Speech-to-Text, Text-to-Speech, plus a Libraries strip.
 Each engine tile shows: version/model-tier badge, a state pill, and a Test button.
 
-Engine classes (mirror the dev spec §1) render differently:
+Engine classes (mirror `DESIGN_TTS_AI_RUNTIME.md` §6) render differently:
 - Class A (edge/azure/gtts/streamelements): no power control; edge is serialized.
 - Class B in-process models (sherpa/kokoro/bark/voxcpm2; whisper/vosk/faster-whisper):
   show `model loaded` + idle countdown; no start/stop (load on use).
 - Class C API/HTTP servers (chattts/cosyvoice/fishspeech/gptsovits/f5tts/**qwen3tts**/**melotts**):
   show `svc/up` + idle countdown AND power/enable controls (`PcTtsServerControls`). qwen3tts/melotts/
-  gptsovits are isolated-venv servers (dev-spec §5).
+  gptsovits are isolated-venv servers (`DESIGN_TTS_AI_RUNTIME.md` §9).
 
 State pills come from `ttsEngineUiState(installed, available)`: `ready` (available),
 `setup` (installed, not yet available), `missing`. `api` tags come from library `kind`.

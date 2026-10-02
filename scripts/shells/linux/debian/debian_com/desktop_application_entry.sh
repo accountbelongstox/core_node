@@ -168,10 +168,11 @@ create_entry_for_app() {
     local app_wm_class="${7:-}"
     local app_userdata_dir="${8:-}"
     local use_root_mode="${9:-true}"  # Default to root mode for backward compatibility
+    local app_exec_wrapper="${10:-}"  # Optional command the menu entry runs instead of the launcher
 
     if [[ -z "$app_name" ]] || [[ -z "$app_display_name" ]] || [[ -z "$app_binary" ]]; then
         echo -e "${COLOR_RED}[ERROR] Missing required parameters${COLOR_RESET}" >&2
-        echo "Usage: --create-app <name> <display_name> <binary> <icon> [category] [description] [wm_class] [userdata_dir] [use_root_mode]" >&2
+        echo "Usage: --create-app <name> <display_name> <binary> <icon> [category] [description] [wm_class] [userdata_dir] [use_root_mode] [exec_wrapper]" >&2
         return 1
     fi
 
@@ -301,7 +302,7 @@ Version=1.0
 Type=Application
 Name=$app_display_name
 Comment=$app_description
-Exec=$launch_script
+Exec=${app_exec_wrapper:-$launch_script}
 Icon=$app_icon
 Terminal=false
 Categories=$app_category;CoreNode;

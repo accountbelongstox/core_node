@@ -293,7 +293,7 @@ $Global:PYTHON_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR ("python$($Global:PY
 # transformers at THIS one version in the single system Python 3.13, so they never race
 # (Windows has no shared venv; every LLM step shares one interpreter). 4.46.3 satisfies
 # all of them. Set $env:LLM_TRANSFORMERS_SPEC to bump it everywhere at once.
-# Contract: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+# Contract: docs_fix/DESIGN_TTS_AI_RUNTIME.md §9.
 $Global:LLM_TRANSFORMERS_SPEC = if ($env:LLM_TRANSFORMERS_SPEC) { $env:LLM_TRANSFORMERS_SPEC } else { Get-AiRuntimePolicyValue -Name 'AI_SHARED_TRANSFORMERS_SPEC' -Default 'transformers' }
 
 # NVIDIA tools (optional override; default to System32 nvidia-smi.exe)

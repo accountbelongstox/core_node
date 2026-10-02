@@ -1,6 +1,6 @@
 # Claude Team Design
 
-**Status: PAUSED (user decision, 2026-10-02).** The team tooling is incomplete because the earlier implementation relied on an incomplete reading of the official Claude Code documentation (agent teams, hooks, settings). Do not extend or refactor it until the user resumes it. When it resumes, start by re-reading the current official Claude Code documentation in full and rebuild the feature set against it.
+**Status: PAUSED (user decision, 2026-10-02).** The team tooling is incomplete against the official Claude Code documentation (agent teams, hooks, settings). Do not extend or refactor it until the user resumes it. When it resumes, start by re-reading the current official Claude Code documentation in full and rebuild the feature set against it.
 
 Scope: the core_node Claude Code multi-role team: agent roles, role catalog, launchers (`claudeagents`, `claudeteamup`, `claudeteam`), shared team install, project hooks, cross-device launch, settings preset, remote role and repository sync.
 
@@ -31,7 +31,7 @@ The role set is the frontmatter `name` of each `.claude/agents/*.md`. Catalog `r
 | `pycore-lead` | sonnet / high | pycore/pyservice entry points, launcher, foundations; cross-layer pycore, relay APIs, prerequisites, model init |
 | `pycore-ui` | sonnet / high | pycore UI apps (pycore-manager, vortex, pdd-manager); default writer of the shared UI layer |
 | `wordnew-lead` | sonnet / high | wordnew UI, Laravel AppQyV1, prerequisites, Capacitor, pycore and mcp-chrome linkage |
-| `codemart-lead` | sonnet / high | CodeMart UI and Laravel CodeMartV1, `docs_fix/codemart_docs`, AI icons, calibration, Redis integration (see `DESIGN_CODEMART.md`) |
+| `codemart-lead` | sonnet / high | CodeMart UI and Laravel CodeMartV1, `DESIGN_CODEMART.md` and `docs_fix/codemart_docs/flutter_reference/`, AI icons, calibration, Redis integration |
 | `laravel-manager-lead` | sonnet / high | laravel-manager UI app and the Laravel APIs it calls (dashboard/admin, settings, data sync, server manager, media browse, realtime/Mercure) |
 | `shell-linux` | sonnet / high | dd.sh, linuxenvs, Linux shells and installers, Docker, nginx/FrankenPHP/SSH/systemd, WSL2 Debian side, Linux team launchers, `claude_team_install` |
 | `shell-windows` | sonnet / high | dd.cmd/dd.ps1, winenvs, every PowerShell/cmd script, winget/scoop, WSL2 bootstrap, desktop icons, Windows team launchers, `Invoke-ClaudeTeamInstall` |
@@ -56,7 +56,7 @@ The role set is the frontmatter `name` of each `.claude/agents/*.md`. Catalog `r
 
 ## 4. Shared install
 
-One install per OS, called by dd (Linux `claude_code_install`, dd.sh step 171 and `ai_cli_provision`; Windows dd.ps1 Step21 ClaudeCode `PostInstallCallbacks`) and by every launcher run. Each smallest item is checked separately and reports `[SKIP]`, `[INSTALL]`/`[OK]`, `[WARN]` or `[MISSING]`; `CCI_CHECK_ONLY=1` / `-CheckOnly` (used by status) only reports.
+One install per OS, called by dd (Linux `99_install_ai_tools.sh` runs `claude_team_install` after it installs Claude Code; Windows `ApplicationsList.ps1` ClaudeCode post-install command runs `Invoke-ClaudeTeamInstall`) and by every launcher run. Each smallest item is checked separately and reports `[SKIP]`, `[INSTALL]`/`[OK]`, `[WARN]` or `[MISSING]`; `CCI_CHECK_ONLY=1` / `-CheckOnly` (used by status) only reports.
 
 - Linux `claude_team_install`: binaries python3, tmux, node (hooks), curl, bubblewrap (`bwrap`) and socat (Bash sandbox), plus xrandr and a geometry-capable terminal on graphical sessions; links `claudeteam`, `claudeteamup`, `claudeagents` and their `.sh` aliases into bin; directories for role PID state, `.claude/agents_shared` and `.claude/agent-memory`.
 - Windows `Invoke-ClaudeTeamInstall` (winget): `OpenJS.NodeJS.LTS`, `Git.Git` (checked via `git.exe`; enables the Bash tool), `Microsoft.WindowsTerminal`, `Python.Python.3.13` (secret reader for remote roles); the state dir, shared dir, agent-memory dir and the `winenvs` PATH entry.

@@ -161,7 +161,7 @@ The canonical-primitives table is in `PYTHON_PYCORE.md` section 3; these are the
 - `send_file(upload, open_dir_after)`: one or more files (at most `machine_send_files_per_request`, else `machine_send_too_many_files`) saved under `APP_DATA_DIR/rcv/<yyMMdd>/` with sanitized names (extension kept, unique suffix on collision), streamed in 1 MiB chunks via `atomic_write_chunks`; returns the first file's fields plus `saved` (every file) and `opened`; opens the folder (`system_launcher.open_dir`, detached) unless disabled.
 - `send_text(text, name)`: a `.txt` in the receive dir, opened with `open_file_with_notepad` (notepad.exe; Linux `text_editor_finder` default, then xdg-open, then known editors).
 - `send_clipboard(kind, text, upload)`: the previous clipboard is first backed up as a ClipboardEntry (`kind`, `formats` from `clipboard_text.get_clipboard_kind`, text up to 65536 chars) into a `JsonIndexStore` (`rcv/clipboard_history.json`, newest 100). `text` sets the clipboard; `file` saves the file and puts its path on the clipboard as text; `image` saves the file and returns `clipboard_image_unsupported`.
-- Caps: relay contract limits `machine_send_file_bytes` (direct calls; relay calls are bounded by `request_body_bytes`), `machine_send_text_bytes`. Errors are `machine_send_*`, `clipboard_write_failed`, `clipboard_image_unsupported`. Every receive raises one OS notification (`native_ui/step11_desktop.system_notification`, i18n `receive.*`).
+- Caps: relay contract limits `machine_send_file_bytes` (direct calls; relay calls are bounded by `request_body_bytes`), `machine_send_text_bytes`. Errors are `machine_send_*`, `clipboard_write_failed`, `clipboard_image_unsupported`. Every receive raises one OS notification (`pyutils/native_ui/step11_desktop.system_notification`, i18n `receive.*`).
 
 ## 15. Verification
 
@@ -185,6 +185,9 @@ HTTP response profiles (stub server on localhost): an `llm` POST answered after 
 - `third_party` gaps: `pyutils/security/password_cipher.py` loads `cryptography.fernet` via importlib instead of `get_third_package_cryptography_fernet`; `pyutils/pybrowser/utils/selenium_runtime.py` loads `selenium.webdriver` / `selenium.common.exceptions` via importlib (no getter exists).
 - `pyutils/common/model_tiers.py:62` keeps a lazy `import ctranslate2`; no `third_party` getter exists for it.
 - `SerializedSingletonProvider` remains in `pyfoundations/serialized_worker.py` with one user, `pyutils/flutter_dev_tools/config/routes_config.py` (flutter is frozen; the file is a deletion candidate). Remove the provider once that user is gone.
-- `pyutils/window/ops.py` still exposes module-level wrapper functions; `native_ui/step4_startup/startup_ui_builder.py:257` calls the private `i18n._detect_system_language()`.
+- `pyutils/window/ops.py` still exposes module-level wrapper functions; `pyutils/native_ui/step4_startup/startup_ui_builder.py:257` calls the private `i18n._detect_system_language()`.
 - `pyutils/common/python_env/isolated_venv.py` is about 950 lines; split it by concern.
-- `build_book_chapters_v3` (`pyctl/corebook/books_service.py:40,200,762`) carries a version suffix in its name, against the no-version-in-names rule.
+- `build_book_chapters_v3` (`pyctl/corebook/books_service.py`) carries a version suffix in its name, against the no-version-in-names rule.
+- `pyfoundations/file_lock.py` `FileLockManager.read_json()` / `update_json()` print progress lines on every call regardless of `verbose`; gate them behind `verbose`.
+- `ui/video_extract/open` (`pyctl/desktop/video_extract_service.py`) restricts file kinds to media and subtitle extensions but does not check that the path is inside a known output root, and the directory kind reveals any existing path; apply the containment rule of `DESIGN_AUTH_IDENTITY.md` section 10.
+- `pyctl/corebook/books_service._resolve` (scan, analyze, list items) accepts any existing file or directory; restrict it to allow-listed roots.

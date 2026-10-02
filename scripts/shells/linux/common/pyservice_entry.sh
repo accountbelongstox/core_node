@@ -651,7 +651,7 @@ client_key_ensure_ready
 # Bucket-A LLM stack shares ONE pinned transformers (never --upgrade) and Bucket-B engines
 # with incompatible pins (qwen3tts, melotts, gptsovits - each in its own isolated per-engine
 # venv; melotts/gptsovits build opt-in only) never touch the main interpreter. See
-# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7.
+# docs_fix/DESIGN_TTS_AI_RUNTIME.md §9.
 # A notebook VM starts without venvs or system packages: its first run always
 # installs (initializing the persist-root caches); later runs honor --no-install.
 if [[ -n "$NOTEBOOK_PLATFORM" ]]; then

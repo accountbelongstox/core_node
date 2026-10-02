@@ -4,8 +4,7 @@ SCRIPT_INDEX="141"
 # Category 1 / Bucket A: Python 3.x native, in-process local model that SHARES the
 # main interpreter's single pinned transformers with deepseek/qwen25/nllb.
 #
-# Lifecycle rule (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 7, Bucket A): Bark installs transformers
+# Lifecycle rule (see docs_fix/DESIGN_TTS_AI_RUNTIME.md §9, Bucket A): Bark installs transformers
 # at the SHARED pin $LLM_TRANSFORMERS_SPEC, version-idempotently (only when absent) and
 # NEVER with --upgrade. --upgrade is the race that clobbers the pinned stack the parallel
 # LLM installers share, so it is forbidden here.

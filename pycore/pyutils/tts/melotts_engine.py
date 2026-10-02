@@ -10,7 +10,7 @@ managed as a class-C service by tts_service_manager.py / managed_service.py. Thi
 module only POSTs to it over stdlib HTTP (urllib), keeping the same public API the
 orchestrator / capabilities probe / engine probe already call.
 
-See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
+See docs_fix/DESIGN_TTS_AI_RUNTIME.md §8a-§9.
 
 Config:
   MELOTTS_HOST / MELOTTS_PORT - server bind + client target (default 127.0.0.1:57212)

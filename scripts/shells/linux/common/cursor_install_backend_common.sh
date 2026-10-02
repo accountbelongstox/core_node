@@ -223,8 +223,14 @@ cursor_main_install() {
             print_success_from_common_functions "Cursor is up to date or the latest version is unknown; refresh only."
             return 0
         fi
-        prompt_read_default answer "n" 30 "Newer Cursor available (${installed_version:-unknown} -> $remote_version). Reinstall now? [y/N]: "
+        ide_prompt_default answer "n" 30 "Newer Cursor available (${installed_version:-unknown} -> $remote_version). Reinstall now? [y/N]: "
         [[ "$answer" =~ ^[yY]([eE][sS])?$ ]] || { print_info_from_common_functions "Keeping existing Cursor install."; return 0; }
+        # Download first (reused by cursor_install_attempt): a failed download
+        # must not leave the machine without Cursor.
+        if ! cursor_obtain_installer "$remote_version" >/dev/null; then
+            print_error_from_common_functions "Cursor $remote_version download failed; keeping the existing install."
+            return 1
+        fi
         cursor_cleanup
     fi
     cursor_install_dependencies
@@ -253,12 +259,14 @@ cursor_cleanup() {
     print_header_from_common_functions "Removing Cursor"
     desktop_home="$(ide_detect_desktop_user)"
     desktop_home="${desktop_home##*:}"
-    ide_safe_kill_processes "cursor" || true
+    # Anchored to the app binaries: a bare "cursor" would also kill the caller
+    # (the update shim / "155_install_ides.sh --only cursor" command lines).
+    ide_safe_kill_processes "^($CURSOR_EXTRACTED_DIR/squashfs-root/|/usr/share/cursor/)" || true
     if dpkg -l 2>/dev/null | grep -q "^ii.*cursor"; then
         $USE_SUDO apt-get purge -y cursor 2>/dev/null || true
     fi
     $USE_SUDO rm -rf "$CURSOR_INSTALL_DIR"
-    $USE_SUDO rm -f "$CURSOR_INSTALLED_FLAG" "$IDE_LAUNCH_DIR/cursor_launcher.sh" \
+    $USE_SUDO rm -f "$CURSOR_INSTALLED_FLAG" "$IDE_LAUNCH_DIR/cursor_launcher.sh" "$IDE_LAUNCH_DIR/cursor_update_shim.sh" \
         /usr/local/bin/cursor /usr/local/bin/cursor-rlimit /usr/share/pixmaps/cursor.png \
         /usr/share/applications/cursor.desktop /usr/share/applications/cursor.desktop.disabled \
         /usr/share/applications/cursor-url-handler.desktop 2>/dev/null || true
@@ -446,6 +454,11 @@ EOF
         fi
     fi
 
+    # The menu icon runs the update shim (launch-time update check, then the wrapper).
+    local update_shim
+    update_shim="$(ide_install_update_shim cursor "Cursor" /usr/local/bin/cursor \
+        "$(ide_app_root_for_binary "$cursor_real_binary")" cursor-api)"
+
     # Menu entry via the shared library: it writes <id>.desktop to
     # /usr/share/applications (read by every DE, covers all users), runs
     # update-desktop-database, and is idempotent.
@@ -454,7 +467,7 @@ EOF
         --name "Cursor" \
         --generic "Code Editor" \
         --comment "The AI Code Editor" \
-        --exec "/usr/local/bin/cursor %F" \
+        --exec "$update_shim %F" \
         --icon "$desktop_icon" \
         --categories "Development;IDE;TextEditor;" \
         --keywords "cursor;editor;ide;ai;code;" \
@@ -463,42 +476,9 @@ EOF
         --extra "StartupNotify=true"
     print_success_from_common_functions "System-wide desktop entry created: $DSM_APPLICATIONS_DIR/cursor.desktop"
 
-    # --- cursor:// URL scheme handler (login callback) ------------------------------
-    # Sign-in ends with a browser redirect to cursor://...; without a registered
-    # scheme handler the callback is dropped and the IDE stays logged out. The
-    # handler entry is NoDisplay (no menu icon); the browser runs as the desktop
-    # user (browser bridge above), so the callback re-elevates through the normal
-    # pkexec wrapper and forwards to the already-running instance.
-    local url_handler_entry="$DSM_APPLICATIONS_DIR/cursor-url-handler.desktop"
-    $USE_SUDO tee "$url_handler_entry" >/dev/null <<EOF
-[Desktop Entry]
-Type=Application
-Name=Cursor - URL Handler
-Comment=Handle cursor:// authentication callbacks
-Exec=/usr/local/bin/cursor --open-url %U
-Icon=$desktop_icon
-NoDisplay=true
-Terminal=false
-Categories=Development;IDE;TextEditor;
-MimeType=x-scheme-handler/cursor;
-StartupNotify=false
-EOF
-    if command -v update-desktop-database >/dev/null 2>&1; then
-        $USE_SUDO update-desktop-database "$DSM_APPLICATIONS_DIR" 2>/dev/null || true
-    fi
-    # Register as the default handler inside the desktop user's session config.
-    if command -v xdg-settings >/dev/null 2>&1 && [[ -n "$desktop_manager_user" ]] && [[ "$desktop_manager_user" != "root" ]]; then
-        local desktop_manager_uid
-        desktop_manager_uid="$(id -u "$desktop_manager_user" 2>/dev/null)"
-        if [[ -n "$desktop_manager_uid" ]]; then
-            sudo -u "#$desktop_manager_uid" env \
-                HOME="$desktop_manager_home" \
-                XDG_RUNTIME_DIR="/run/user/$desktop_manager_uid" \
-                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$desktop_manager_uid/bus" \
-                xdg-settings set default-url-scheme-handler cursor cursor-url-handler.desktop >/dev/null 2>&1 || true
-        fi
-    fi
-    print_success_from_common_functions "cursor:// URL handler registered: $url_handler_entry"
+    # cursor:// sign-in callback -> the self-elevating wrapper (forwards to the
+    # running instance); same entry name as before so existing defaults stay valid.
+    ide_register_url_handler "cursor-url-handler.desktop" cursor "Cursor" /usr/local/bin/cursor "$desktop_icon"
 
     # GTK + Wayland IME bridge for Wubi/CJK input (idempotent with 10_install_chinese_wubi.sh).
     print_step_from_common_functions "Ensuring Cursor IME compatibility (Wubi/CJK input)..."

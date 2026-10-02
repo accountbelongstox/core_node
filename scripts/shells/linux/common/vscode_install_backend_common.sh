@@ -16,6 +16,8 @@ VSCODE_SYSTEM_ENTRY_DIRS=("/usr/share/applications" "/usr/local/share/applicatio
 VSCODE_DEPENDENCIES=("wget" "gpg" "apt-transport-https")
 VSCODE_MAX_ATTEMPTS=3
 VSCODE_ROOT_MODE=true
+VSCODE_LAUNCHER="$IDE_LAUNCH_DIR/vscode_launcher.sh"
+VSCODE_URL_HANDLER_ENTRY="core_node_vscode-url-handler.desktop"
 
 vscode_is_installed() {
     command -v code >/dev/null 2>&1
@@ -51,9 +53,11 @@ vscode_hide_package_entries() {
 }
 
 # Launcher + core_node_vscode.desktop through a machine-relative cgroup-v2 wrapper
-# (--system scope in root mode, --user otherwise), then hide package entries.
+# (--system scope in root mode, --user otherwise); the menu icon runs the update
+# shim (launch-time update check), vscode:// goes to the launcher (sign-in
+# callback), then package entries are hidden.
 vscode_create_desktop_entry() {
-    local desktop_user_info desktop_user desktop_home userdata_dir icon launch_bin arl_root_flag=""
+    local desktop_user_info desktop_user desktop_home userdata_dir icon launch_bin arl_root_flag="" update_shim
     desktop_user_info="$(ide_detect_desktop_user)"
     desktop_user="${desktop_user_info%%:*}"
     desktop_home="${desktop_user_info##*:}"
@@ -71,9 +75,12 @@ vscode_create_desktop_entry() {
         && [[ -x /usr/local/bin/vscode-rlimit ]]; then
         launch_bin="/usr/local/bin/vscode-rlimit"
     fi
+    update_shim="$(ide_install_update_shim vscode "Visual Studio Code" "$VSCODE_LAUNCHER" \
+        "$(ide_app_root_for_binary /usr/bin/code)" vscode-api)"
     ide_create_managed_app vscode "Visual Studio Code" "$launch_bin" "$icon" Development \
-        "Code editor for developers" "Code" "$userdata_dir" "$VSCODE_ROOT_MODE" \
+        "Code editor for developers" "Code" "$userdata_dir" "$VSCODE_ROOT_MODE" "$update_shim" \
         || print_warning_from_common_functions "desktop_entry_manager.sh --create-app reported an error for VS Code"
+    ide_register_url_handler "$VSCODE_URL_HANDLER_ENTRY" vscode "Visual Studio Code" "$VSCODE_LAUNCHER" "$icon"
     vscode_hide_package_entries
 }
 
@@ -154,7 +161,7 @@ vscode_main_install() {
         if [[ -z "$remote_version" ]] || [[ "$installed_version" == "$remote_version" ]]; then
             return 0
         fi
-        prompt_read_default answer "y" 30 "Upgrade VS Code to $remote_version? [Y/n]: "
+        ide_prompt_default answer "y" 30 "Upgrade VS Code to $remote_version? [Y/n]: "
         [[ "$answer" =~ ^[nN]([oO])?$ ]] && return 0
     else
         prompt_read_default answer "y" 30 "Install VS Code with root privileges (pkexec)? [Y/n]: "
@@ -186,7 +193,8 @@ vscode_cleanup() {
     ide_safe_kill_processes "/usr/share/code/code" || true
     dpkg -s code >/dev/null 2>&1 && $USE_SUDO apt-get purge -y code
     $USE_SUDO rm -rf "$VSCODE_INSTALL_DIR"
-    $USE_SUDO rm -f "$VSCODE_INSTALLED_FLAG" "$IDE_LAUNCH_DIR/vscode_launcher.sh" /usr/local/bin/vscode-rlimit 2>/dev/null || true
+    $USE_SUDO rm -f "$VSCODE_INSTALLED_FLAG" "$VSCODE_LAUNCHER" "$IDE_LAUNCH_DIR/vscode_update_shim.sh" \
+        "$IDE_URL_HANDLER_DIR/$VSCODE_URL_HANDLER_ENTRY" /usr/local/bin/vscode-rlimit 2>/dev/null || true
     rm -f "$desktop_home/.local/share/applications/core_node_vscode.desktop" 2>/dev/null || true
     for dir in "${VSCODE_SYSTEM_ENTRY_DIRS[@]}"; do
         for entry in "${VSCODE_PACKAGE_ENTRIES[@]}"; do

@@ -40,10 +40,9 @@ from tts_text_chunking import (
 # QwenLM/Qwen3-TTS#258). The official recommendation for long text is
 # sentence-sized chunking with concatenated audio.
 #
-# Two budgets bound every generated chunk (both in CHARACTERS of input text,
-# scaled by the playback speed because slower speech turns the same
-# characters into a longer generation):
-#   hard cap  - QWEN3TTS_CHUNK_MAX_CHARS at speed 1.0 (default 280, ~20s of
+# Two budgets bound every generated chunk (both in CHARACTERS of input text;
+# playback speed is applied after inference and never changes them):
+#   hard cap  - QWEN3TTS_CHUNK_MAX_CHARS (default 280, ~20s of
 #               audio). A single pathological sentence longer than the merge
 #               budget (but within the hard cap) is still synthesized whole;
 #               anything beyond the hard cap is cut at the last whitespace

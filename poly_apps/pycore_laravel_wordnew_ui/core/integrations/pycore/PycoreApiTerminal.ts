@@ -194,10 +194,16 @@ export interface TerminalCaptureResult extends TerminalActionResult {
 export const TERMINAL_BACKUP_PAGE_SIZE = 50;
 export const TERMINAL_BACKUP_DELETE_CONFIRM = 'DEL';
 
+export type TerminalBackupKind = 'full' | 'delta' | 'same' | '';
+
 export interface TerminalBackupTerminal {
   number: number;
   name: string;
+  /** Full text size. */
   bytes: number;
+  /** Bytes this backup added to the archive (0 when the text matched the previous backup). */
+  stored_bytes: number;
+  kind: TerminalBackupKind;
   changed: boolean;
   error_code?: string | null;
 }
@@ -214,6 +220,7 @@ export interface TerminalBackupItem {
   created_at: number;
   terminal_count: number;
   total_bytes: number;
+  stored_bytes: number;
   terminals: TerminalBackupTerminal[];
   matches?: TerminalBackupMatch[];
 }
@@ -223,13 +230,17 @@ export interface TerminalBackupListResult {
   error_code?: string | null;
   total: number;
   items: TerminalBackupItem[];
+  archive?: { blob_count: number; blob_bytes: number };
 }
 
 export interface TerminalBackupReadResult {
   success: boolean;
   error_code?: string | null;
   text: string;
+  /** Full reconstructed text size. */
   bytes: number;
+  stored_bytes?: number;
+  kind?: TerminalBackupKind;
   truncated: boolean;
 }
 

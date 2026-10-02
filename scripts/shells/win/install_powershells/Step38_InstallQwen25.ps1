@@ -1,6 +1,6 @@
 # Lifecycle: Bucket-A LLM. The shared transformers distribution is preserved;
 # pip resolves compatibility only when the package is missing.
-# Contract: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+# Contract: docs_fix/DESIGN_TTS_AI_RUNTIME.md §9.
 
 $scriptRoot = $PSScriptRoot
 $shellsWinRoot = Split-Path $scriptRoot -Parent

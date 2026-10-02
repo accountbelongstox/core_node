@@ -395,7 +395,7 @@ def submit_text_task(
 ) -> Dict[str, Any]:
     """Public submit API for non-book sources: text items -> one task (always ONE
     segment, sentence pattern) that the queue generates on its own through the
-    normal sentence audio path (video by default). ``source_text`` keeps the
+    normal sentence audio path (output mode: contract default ``audio``). ``source_text`` keeps the
     original text the items were derived from (e.g. the raw prompt of a rewrite);
     ``generate=False`` leaves the task a draft the queue will not start."""
     source = str(source or "").strip()
