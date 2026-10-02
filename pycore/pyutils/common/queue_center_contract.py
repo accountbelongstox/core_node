@@ -56,6 +56,7 @@ def http_transfer_contract() -> Dict[str, Any]:
         "keepalive_idle_seconds": int(values.get("keepalive_idle_seconds") or 15),
         "keepalive_interval_seconds": int(values.get("keepalive_interval_seconds") or 5),
         "keepalive_probe_count": int(values.get("keepalive_probe_count") or 3),
+        "response_wait_seconds": {str(key): float(value) for key, value in dict(values["response_wait_seconds"]).items()},
     }
 
 

@@ -246,6 +246,19 @@ class FileLockManager:
         os.close(descriptor)
         self._log(f"Lock released: {self.file_path.name}")
 
+    def try_hold(self) -> Optional[int]:
+        """Non-blocking exclusive hold (single-instance lease); None when another holder owns it."""
+        ensure_owned_dir(self._lock_dir)
+        descriptor = os.open(str(self._lock_file), os.O_RDWR | os.O_CREAT, 0o600)
+        adopt_path(self._lock_file)
+        if self._try_lock(descriptor):
+            return descriptor
+        os.close(descriptor)
+        return None
+
+    def release_hold(self, descriptor: int) -> None:
+        self._release_lock(descriptor)
+
     def ensure_file_exists(self):
         """Ensure target file exists with default content"""
         with self.lock():

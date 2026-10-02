@@ -66,7 +66,7 @@ from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_sentence_audio_worker,
 )
 
-from pycore.pyutils.tts.tts_service_manager import apply_server_settings, get_server_settings
+from pycore.pyutils.tts.tts_service_manager import tts_service_facade
 
 
 # Persisted custom engine order per capability lives in this user_data section
@@ -232,7 +232,7 @@ def _block(
 
 def _tts_options() -> Dict[str, Any]:
     """Live TTS tuning + managed local server options for the drawer."""
-    srv = get_server_settings()
+    srv = tts_service_facade.settings(refresh=False)
     return {
         "synth_timeout_s": get_synth_timeout(),
         "edge_cooldown_s": get_edge_cooldown_seconds(),
@@ -356,7 +356,7 @@ def _apply_tts_options(options: Dict[str, Any]) -> None:
     )
     server_patch = {k: options[k] for k in server_keys if k in options}
     if server_patch:
-        apply_server_settings(server_patch)
+        tts_service_facade.apply_settings(server_patch)
     invalidate_tts_status_cache()
 
 

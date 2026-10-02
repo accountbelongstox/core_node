@@ -70,6 +70,7 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
+import { commonMessage } from '../laravel/ClientKeyFailure';
 import type { AudioLaneStatePayload } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
@@ -121,7 +122,7 @@ export const pycoreApiLocal = {
       cache_key: cacheKey,
     }) as { success?: boolean; mime?: string; content_base64?: string; error?: string };
     if (!response?.success || !response.content_base64) {
-      throw new Error(response?.error || 'Cached resource not found');
+      throw new Error(commonMessage('resource_not_found'));
     }
     return `data:${response.mime || 'application/octet-stream'};base64,${response.content_base64}`;
   },

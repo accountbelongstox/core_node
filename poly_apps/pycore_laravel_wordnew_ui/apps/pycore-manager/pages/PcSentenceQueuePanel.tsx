@@ -21,7 +21,7 @@ import PcTagFilteredLog from '../components/PcTagFilteredLog';
 import { PcDeliveryOutboxStatus } from '../components/PcDeliveryOutboxStatus';
 import { PcAudioLaneQueueView } from '../components/PcAudioLaneQueueView';
 import { readQueueProgress } from '../../../core/contracts/QueueProgress';
-import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
+import { PcCursorPager } from '../components/PcCursorPager';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { formatElapsed } from '../utils/pcFormat';
@@ -379,10 +379,10 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
         {logOpen && (
           <div>
             <div className="flex items-center justify-end border-b border-slate-500/10 px-3 py-1">
-              <PcQueueLogPagination
+              <PcCursorPager
+                totalLabel={t('queueCenter.logPagination.total', { total: eventPage.total })}
                 pageIndex={eventPage.pageIndex}
                 hasMore={eventPage.hasMore}
-                total={eventPage.total}
                 loading={eventPage.loading}
                 onNext={eventPage.next}
                 onPrevious={eventPage.previous}

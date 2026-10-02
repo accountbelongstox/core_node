@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-Spec lives in docs_fix/REQUIREMENTS_20261002_PYCORE_BACKGROUND_SERVICE_TERMINAL_BACKUP.md.
+Spec lives in docs_fix/DESIGN_SHELL_HOSTS.md.
 
 - Terminal backup saves the exported terminal TEXT via the existing `TerminalService.capture_text` / `backend.copy_all`; never screenshots, not even as a change check.
 - Service mode (systemd `pycore`, Windows service) runs without a tray on both OSes (`PYCORE_NO_TRAY=1`); notifications must still work.

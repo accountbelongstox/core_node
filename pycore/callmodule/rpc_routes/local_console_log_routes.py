@@ -11,6 +11,7 @@ def register_local_console_log_routes(server):
         return console_log_journal.history(
             int(params.get("since_seq") or 0),
             int(params.get("limit") or 0),
+            int(params.get("before_seq") or 0),
         )
 
     server.post(path=UI_CONSOLE_LOG_HISTORY, handler=history_handler)

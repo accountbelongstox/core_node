@@ -15,14 +15,15 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.ai_request_failures import free_image_model_unavailable, paid_model_refused
 from pycore.pyutils.common.http_client import (
+    http_client,
     HttpConnectError,
     HttpConnectTimeout,
     HttpError,
     HttpReadTimeout,
     HttpResponse,
     HttpTimeoutError,
-    http_client,
     redacted_http_error,
+    RESPONSE_LLM,
 )
 
 LIST_TIMEOUT_S = 20.0
@@ -67,6 +68,9 @@ class CompatProfile:
     models_url: str = ""
     models_list_key: str = "data"
     models_id_key: str = "id"
+    # Alternative catalog shape the provider may answer with (list key, id key).
+    models_list_fallback: str = ""
+    models_id_fallback: str = ""
     model_prefix: str = ""
     free_first: bool = False
     static_models: Tuple[str, ...] = ()
@@ -82,6 +86,9 @@ class CompatProfile:
     chat_error_hints: Tuple[Tuple[int, str], ...] = ()
     empty_models_error: str = ERROR_NO_MODELS
     empty_models_ok: bool = False
+    # Fixed historical texts: any catalog failure / a rejected probe token.
+    list_failure_error: str = ""
+    token_invalid_error: str = ""
     catalog_fallback: bool = False
     reasoning_fallback: bool = False
     no_choices_error: str = ERROR_NO_TEXT
@@ -90,7 +97,7 @@ class CompatProfile:
     free_only: bool = False
 
 
-def _transport_text(exc: BaseException, style: str) -> str:
+def transport_text(exc: BaseException, style: str) -> str:
     """Error text of a transport failure, in the provider's historical client
     wording so failure classification and cooldown rules stay identical."""
     if style == ERROR_STYLE_OPENAI_SDK:
@@ -107,7 +114,7 @@ def _transport_text(exc: BaseException, style: str) -> str:
     return detail
 
 
-def _status_text(
+def status_text(
     response: HttpResponse,
     style: str,
     hints: Tuple[Tuple[int, str], ...] = (),
@@ -191,7 +198,9 @@ class OpenAICompatClient:
         auth: bool,
     ) -> Tuple[Optional[HttpResponse], Optional[BaseException]]:
         headers = self.headers(json_body=payload is not None) if auth else {}
-        options: Dict[str, Any] = {"json": payload} if payload is not None else {"timeout": timeout}
+        options: Dict[str, Any] = (
+            {"json": payload, "response": RESPONSE_LLM} if payload is not None else {"timeout": timeout}
+        )
         try:
             return http_client.request(method, url, headers=headers, **options), None
         except _TRANSPORT_ERRORS as exc:
@@ -235,7 +244,7 @@ class OpenAICompatClient:
             attempt += 1
             time.sleep(self._retry_delay(response, backoff))
         if response is None:
-            return None, _transport_text(exc, self.profile.error_style), not isinstance(exc, HttpConnectError)
+            return None, transport_text(exc, self.profile.error_style), not isinstance(exc, HttpConnectError)
         return response, None, True
 
     def get_json(self, url: str, timeout: Any = None) -> Tuple[Any, Optional[str]]:
@@ -244,7 +253,7 @@ class OpenAICompatClient:
         if response is None:
             return None, error
         if not response.ok:
-            return None, _status_text(response, self.profile.error_style, self.profile.error_hints)
+            return None, status_text(response, self.profile.error_style, self.profile.error_hints)
         try:
             return response.json(), None
         except ValueError as exc:
@@ -276,9 +285,11 @@ class OpenAICompatClient:
         if error:
             return [], error
         raw = data.get(self.profile.models_list_key) if self.profile.models_list_key else data
+        if not raw and self.profile.models_list_fallback:
+            raw = data.get(self.profile.models_list_fallback)
         rows = [
             row for row in (raw if isinstance(raw, list) else [])
-            if isinstance(row, dict) and row.get(self.profile.models_id_key)
+            if isinstance(row, dict) and self._row_id(row)
             and (not self.profile.free_only or is_free_model(row))
         ]
         THREAD_BUS.signal(cache_key, {"ts": time.time(), "rows": rows})
@@ -290,11 +301,17 @@ class OpenAICompatClient:
             return list(self.profile.static_models), None
         rows, error = self.catalog_rows(timeout)
         if error:
-            return [], error
-        ids = [str(row[self.profile.models_id_key]) for row in rows]
+            return [], self.profile.list_failure_error or error
+        ids = [self._row_id(row) for row in rows]
         if not ids:
             return [], None if self.profile.empty_models_ok else self.profile.empty_models_error
         return self._order_models(ids), None
+
+    def _row_id(self, row: Dict[str, Any]) -> str:
+        value = row.get(self.profile.models_id_key)
+        if not value and self.profile.models_id_fallback:
+            value = row.get(self.profile.models_id_fallback)
+        return str(value or "")
 
     def allows_model(self, model: str) -> bool:
         """Free-only providers accept a model only when the free rule holds,
@@ -328,9 +345,11 @@ class OpenAICompatClient:
         """Cheap key check against ``probe_url`` (no inference spend)."""
         response, error, _reached = self._send("GET", self.profile.probe_url)
         if response is None:
-            return False, error
+            return False, self.profile.token_invalid_error or error
         if response.status_code != 200:
-            return False, f"{ERROR_TOKEN_INVALID}: {_status_text(response, self.profile.error_style)}"
+            if self.profile.token_invalid_error:
+                return False, self.profile.token_invalid_error
+            return False, f"{ERROR_TOKEN_INVALID}: {status_text(response, self.profile.error_style)}"
         return True, None
 
     def resolve_model(self, model: str) -> str:
@@ -378,7 +397,7 @@ class OpenAICompatClient:
             return out
         if not response.ok:
             hints = self.profile.chat_error_hints or self.profile.error_hints
-            out["error"] = _status_text(response, self.profile.error_style, hints)
+            out["error"] = status_text(response, self.profile.error_style, hints)
             return out
         try:
             data = self._unwrap(response.json())
@@ -435,7 +454,7 @@ class OpenAICompatClient:
             out["error"] = error
             return out
         if response.status_code != 200:
-            out["error"] = _status_text(response, ERROR_STYLE_HTTP, (), IMAGE_ERROR_BODY_CHARS)
+            out["error"] = status_text(response, ERROR_STYLE_HTTP, (), IMAGE_ERROR_BODY_CHARS)
             return out
         try:
             data = response.json() or {}
@@ -462,4 +481,6 @@ __all__ = [
     "OpenAICompatClient",
     "is_free_model",
     "message_text",
+    "status_text",
+    "transport_text",
 ]

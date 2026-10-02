@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Services\QueueCenter\QueueCenterService;
 use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 use App\Http\Controllers\Controller;
@@ -118,6 +119,13 @@ class AppQyV1TaskEnqueueController extends Controller
         // Audio ordering is exclusively controlled by queue_position through its gateways.
         $interactive = ($validated['interactive'] ?? false)
             && in_array($taskType, QueueCenterContract::interactiveTaskTypes(), true);
+
+        // A word/sentence gap row is served by work leases: the request raises the
+        // row to the front of its lane (head promotion) instead of a ticket nothing claims.
+        $leased = app(QueueCenterService::class)->promoteGapItem($taskType, $payload);
+        if ($leased !== null) {
+            return $this->success($leased + ['task_type' => $taskType], __('api.messages.work_lease_promoted'));
+        }
 
         // pycore boundary: a pycore-claimed type whose offline_policy is reject
         // is not created while no suitable pycore is online.

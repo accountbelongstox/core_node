@@ -706,8 +706,8 @@ implemented until its acceptance audit is recorded in the canonical cross-doc.
 ## 7. Orchestrated audio — home entry, listing, player (2026-09-27, R9)
 
 Requirement and cross-stack record:
-`docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`
-(R9, "W5 contract", "W6 implementation record"). Data: Laravel read API
+`docs_fix/DESIGN_AUDIO_ORCHESTRATION.md` (section 10, Laravel API) and
+`docs_fix/DESIGN_WORDNEW_CLIENT.md` (section 9). Data: Laravel read API
 `GET /api/app_qy_v1/orch_audio/tasks[/{id}]` (sanctum).
 
 - Home: "Orchestrated Audio" card in the labs grid (`WfNewHomeLabCard`, shared by

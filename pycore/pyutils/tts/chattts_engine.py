@@ -30,7 +30,6 @@ import pycore.pyutils.common.hf_local_weights as hf_local_weights
 from pycore.pyutils.tts.engine_policy import engine_setting
 from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
 from pycore.pyutils.tts.tts_reason_codes import (
-    TTS_INSTALL_HINT_GENERIC,
     TTS_REASON_SERVER_MODEL_NOT_READY,
     TTS_REASON_WEIGHTS_MISSING,
     tts_reason,
@@ -74,7 +73,7 @@ class ChatTTSEngine(HttpServerEngine):
     def disabled_reason(self) -> Optional[Any]:
         if self.weights_ready():
             return None
-        return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=self.name, installer=TTS_INSTALL_HINT_GENERIC)
+        return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=self.name, installer=self.installer_hint())
 
     def healthy(self) -> bool:
         """Managed health = reachable with the model loaded (2 s probe)."""

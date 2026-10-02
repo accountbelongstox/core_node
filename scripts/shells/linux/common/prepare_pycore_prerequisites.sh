@@ -124,36 +124,18 @@ seed_detection_cache() {
 source "$COMMON_DIR/service_contract_common.sh"
 LOCAL_AI_INSTALL_ENV="$(sc_get local_ai.install_env)"
 
-# Order = dependency order (also matches numeric 103-116 after 15/22/23 in dd.sh sweep).
-# Central prerequisite manifest: key|script|skip environment variable|install mode|supports full.
-PREREQ_ENTRIES=(
-    "cuda_policy|11_cuda_nvidia_prereq.sh|||0"
-    "python310|14_install_python310.sh|||0"
-    "python_prereqs|15_install_default_python_prereq_packages.sh|||0"
-    "launcher|119_install_launcher.sh|||0"
-    "ffmpeg|115_install_ffmpeg.sh|||0"
-    "document_parsing|121_install_document_parsing.sh|||0"
-    "dictionaries|123_install_dictionaries.sh|||0"
-    "ocr|125_install_ocr.sh|||0"
-    "faster_whisper|151_install_faster_whisper.sh|||0"
-    "whisper|127_install_whisper.sh|||0"
-    "vosk|129_install_vosk.sh|||0"
-    "edge_tts|29_install_edge_tts.sh|||0"
-    "ollama|117_install_ollama.sh|OLLAMA_SKIP|local_ai|0"
-    "chattts|131_install_chattts.sh|CHATTTS_SKIP|neural|1"
-    "cosyvoice|133_install_cosyvoice.sh|COSYVOICE_SKIP|neural|1"
-    "fishspeech|143_install_fishspeech.sh|FISHSPEECH_SKIP|neural|1"
-    "kokoro|145_install_kokoro.sh|KOKORO_SKIP|neural|0"
-    "voxcpm2|147_install_voxcpm2.sh|VOXCPM2_SKIP|neural|1"
-    "bark|141_install_bark.sh|BARK_SKIP|neural|1"
-    "parler|181_install_parler.sh|PARLER_SKIP|neural|1"
-    "qwen3tts|183_install_qwen3tts.sh|QWEN3TTS_SKIP|neural|1"
-    "f5tts|135_install_f5tts.sh|F5TTS_SKIP|neural|1"
-    "gptsovits|137_install_gptsovits.sh|GPTSOVITS_SKIP|explicit|1"
-    "melotts|139_install_melotts.sh|MELOTTS_SKIP|explicit|1"
-    "device_tools|149_install_device_tools.sh|DEVICE_TOOLS_SKIP||0"
-    "frontend_packages|193_install_frontend_packages.sh|FRONTEND_PACKAGES_SKIP||0"
-)
+# Order = dependency order. The ONE manifest is config/service_contract.json `prerequisites`
+# (shared with Windows PycorePrerequisitesList.ps1 and pyutils/common/prerequisite_steps.py);
+# rows are: key|script|skip environment variable|install mode|supports full.
+PREREQ_ENTRIES=()
+mapfile -t PREREQ_ENTRIES < <(python3 -c 'import json, sys
+for step in json.load(open(sys.argv[1], encoding="utf-8"))["prerequisites"]["steps"]:
+    for script in step["linux"]:
+        print("|".join([step["id"], script, step["skip_env"], step["mode"], "1" if step["full"] else "0"]))' "$SERVICE_CONTRACT_FILE")
+if [[ "${#PREREQ_ENTRIES[@]}" -eq 0 ]]; then
+    echo "[!] prerequisite manifest unreadable (prerequisites.steps in $SERVICE_CONTRACT_FILE)." >&2
+    exit 1
+fi
 
 in_include() {
     [[ ${#INCLUDE[@]} -eq 0 ]] && return 0

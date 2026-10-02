@@ -304,8 +304,9 @@ class QueueCenterController extends Controller
     }
 
     /**
-     * Compute-class scheduling for full-sync lanes: a pycore (worker_id) sees
-     * a queue only when PycoreComputeRoster offers that task type to it.
+     * Compute-class scheduling for the diff-mirrored task types (the gap lanes
+     * use work leases instead): a pycore (worker_id) sees a queue only when
+     * PycoreComputeRoster offers that task type to it.
      */
     private function offeredTo(array $validated, string $queue): bool
     {

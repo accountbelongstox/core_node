@@ -357,11 +357,10 @@ class TerminalService:
         )
 
     @serialized_method
-    def capture_text(
+    def export_text(
         self,
         window_id: str,
         terminal_number: int,
-        open_editor: bool,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -391,14 +390,11 @@ class TerminalService:
             )
         if not action.get("success"):
             return {**action, "clipboard_restored": clipboard_restored}
-        if captured is None:
-            return {
-                **action,
-                "success": False,
-                "error_code": "terminal_capture_empty",
-                "clipboard_restored": clipboard_restored,
-            }
-        text = TerminalService._normalize_capture(captured)
+        text = (
+            TerminalService._normalize_capture(captured)
+            if captured is not None
+            else ""
+        )
         if not text:
             return {
                 **action,
@@ -406,9 +402,22 @@ class TerminalService:
                 "error_code": "terminal_capture_empty",
                 "clipboard_restored": clipboard_restored,
             }
+        return {**action, "clipboard_restored": clipboard_restored, "text": text}
+
+    @serialized_method
+    def capture_text(
+        self,
+        window_id: str,
+        terminal_number: int,
+        open_editor: bool,
+    ) -> Dict[str, Any]:
+        exported = self.export_text(window_id, terminal_number)
+        if not exported.get("success"):
+            return exported
+        text = exported.pop("text")
         saved = terminal_capture_store.save(terminal_number, text)
         if not saved.get("success"):
-            return {**action, **saved, "clipboard_restored": clipboard_restored}
+            return {**exported, **saved}
         opened = (
             open_file_with_notepad(saved["path"], text_editor_finder.find())
             if open_editor
@@ -422,8 +431,7 @@ class TerminalService:
             opened=opened,
         )
         return {
-            **action,
-            "clipboard_restored": clipboard_restored,
+            **exported,
             "path": saved["path"],
             "name": saved["name"],
             "bytes": saved["bytes"],

@@ -1,6 +1,6 @@
 # ncore bug audit (report only)
 
-Role: ncore (V2 type), board row N1, split off P5. Binding doc: `docs_fix/REQUIREMENTS_20260927_TEAM_BUG_AUDIT.md`.
+Role: ncore (V2 type), board row N1, split off P5. Binding doc: `docs_fix/DESIGN_AUTH_IDENTITY.md`.
 Scope: `ncore/`, root `main.js`, `ncore_module_caller.js`, `apps/` except `apps/mcp-chrome/`.
 Method: static reading plus grep and `sed -n`. Nothing was executed. No code, config or doc was edited.
 Prefix: NC. Severity order: most severe first. Line numbers are as read before 02:58 on 2026-09-27. No in-scope file was modified after 02:10 (checked at 02:58).

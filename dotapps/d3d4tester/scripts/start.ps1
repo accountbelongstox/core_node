@@ -11,19 +11,20 @@ $ErrorActionPreference = 'Stop'
 
 $LOG_PREFIX = '[d3d4tester]'
 $TARGETING_PROP = '-p:EnableWindowsTargeting=true'
-$PREREQS_FILE_NAME = 'prereqs.json'
+$PREREQS_FILE_NAME = 'prereqs.conf'
 $CONFIG_RELATIVE_SEGMENTS = @('.core_node', '.d3check', 'd3check_config.json')
-$CONFIG_KEYS_ROS = @('ros_settings', 'ros_directory')
-$CONFIG_KEYS_BATTLENET = @('battlenet', 'battlenet_path')
-$CONFIG_KEYS_D3 = @('d3', 'd3_path')
-$DOTNET_INSTALLER_ID = 'dotnet-sdk-8'
-$VCREDIST_INSTALLER_ID = 'vcredist-x64'
-$BROWSER_INSTALLER_ID = 'browser'
-$ULTRALYTICS_INSTALLER_ID = 'python-ultralytics'
+$FIELD_SEPARATOR = '|'
+$LIST_SEPARATOR = ';'
+$DETECT_DOTNET_PREFIX = 'dotnet-sdk:'
+$DETECT_VCREDIST = 'vcredist'
+$DETECT_BROWSER = 'browser'
+$PLATFORM_WINDOWS = 'windows'
+$PLATFORM_WINDOWS10 = 'windows10'
+$ROSBOT_ID = 'rosbot'
+$DOTNET_MAJOR = '8'
 $VCREDIST_DLLS = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')
 $BROWSER_RELATIVE_PATHS = @('Google\Chrome\Application\chrome.exe', 'Microsoft\Edge\Application\msedge.exe', 'Mozilla Firefox\firefox.exe')
 $DOTNET_EXE_NAME = 'dotnet.exe'
-$DOTNET_SDK_FILTER = '8.*'
 $ARTIFACTS_SUBDIR = 'dotnet-artifacts'
 $ARTIFACTS_NAME = 'd3d4tester'
 
@@ -34,30 +35,56 @@ $repoRoot = Split-Path -Parent $dotappsDir
 $winCommonDir = Join-Path (Join-Path (Join-Path (Join-Path $repoRoot 'scripts') 'shells') 'win') 'win_common'
 $globalVarsPath = Join-Path $winCommonDir 'GlobalVars.ps1'
 $commonFuncPath = Join-Path $winCommonDir 'CommonFunc.ps1'
-$pythonRuntimePath = Join-Path $winCommonDir 'PythonRuntimeCommon.ps1'
 $prereqsPath = Join-Path $scriptDir $PREREQS_FILE_NAME
-$prereqs = $null
-$prereqItem = $null
+$prereqRows = @()
+$manualRows = @()
+$prereqRow = $null
+$prereqId = $null
 $prereqMissing = $false
-$installerPath = $null
 $installedInRun = @{}
-$manualMissing = @()
 $csprojPath = Join-Path $appDir 'd3d4tester.csproj'
 $artifactsRoot = $null
 $sdkVersion = $null
 $artifactsPath = $null
-$dotnetCommand = $null
 $dotnetPath = $null
-$dotnetRoot = $null
-$sdkDir = $null
-$sdkFound = $false
-$machinePath = $null
-$userPath = $null
 $exitCode = 0
+$restoreStamp = $null
+$restoreStale = $true
+$dotcoreDir = $null
+$restoreInputs = $null
 
 function Write-StartLog {
     param([Parameter(Mandatory = $true)][string]$Message)
     Write-Host "$LOG_PREFIX $Message" -ForegroundColor Cyan
+}
+
+function Read-PrereqManifest {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $rows = @()
+    $line = $null
+    foreach ($line in (Get-Content -LiteralPath $Path -Encoding UTF8)) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart().StartsWith('#')) {
+            continue
+        }
+        $rows += , @($line.TrimEnd() -split [regex]::Escape($FIELD_SEPARATOR))
+    }
+    return $rows
+}
+
+function Get-RowField {
+    param([Parameter(Mandatory = $true)][string[]]$Row, [Parameter(Mandatory = $true)][int]$Index)
+    if ($Index -ge $Row.Count) {
+        return ''
+    }
+    return $Row[$Index]
+}
+
+function Split-RowList {
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) {
+        return @()
+    }
+    return @($Value -split [regex]::Escape($LIST_SEPARATOR))
 }
 
 function Get-DotnetPath {
@@ -72,8 +99,8 @@ function Get-DotnetPath {
     return $null
 }
 
-function Get-DotnetSdk8Version {
-    param([string]$ExePath)
+function Get-DotnetSdkVersion {
+    param([string]$ExePath, [Parameter(Mandatory = $true)][string]$Major)
     if ([string]::IsNullOrEmpty($ExePath)) {
         return $null
     }
@@ -82,7 +109,7 @@ function Get-DotnetSdk8Version {
     if (-not (Test-Path -LiteralPath $sdks -PathType Container)) {
         return $null
     }
-    $found = Get-ChildItem -LiteralPath $sdks -Directory -Filter $DOTNET_SDK_FILTER -ErrorAction SilentlyContinue | Select-Object -First 1
+    $found = Get-ChildItem -LiteralPath $sdks -Directory -Filter "$Major.*" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -eq $found) {
         return $null
     }
@@ -129,47 +156,25 @@ function Test-BrowserPresent {
     return $false
 }
 
-function Test-PythonPipsPresent {
-    param([Parameter(Mandatory = $true)]$Item)
-    $pythonExe = $Global:PYTHON_EXE_PATH
-    $pipExe = $null
-    $pipName = $null
-    if ([string]::IsNullOrEmpty($pythonExe) -or -not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
-        return $false
-    }
-    $pipExe = Get-PipExeForPythonExe -PythonExe $pythonExe
-    foreach ($pipName in @($Item.windows.pip)) {
-        if (-not (Test-PipPackageInstalled -PipExe $pipExe -PackageName $pipName)) {
-            return $false
-        }
-    }
-    return $true
-}
-
 function Test-PrereqPresent {
-    param([Parameter(Mandatory = $true)][string]$Id)
-    $item = @($prereqs.prereqs | Where-Object { $_.id -eq $Id })[0]
-    switch ($Id) {
-        $DOTNET_INSTALLER_ID { return ($null -ne (Get-DotnetSdk8Version -ExePath (Get-DotnetPath))) }
-        $VCREDIST_INSTALLER_ID { return (Test-VcRedistPresent) }
-        $BROWSER_INSTALLER_ID { return (Test-BrowserPresent) }
-        $ULTRALYTICS_INSTALLER_ID { return (Test-PythonPipsPresent -Item $item) }
+    param([Parameter(Mandatory = $true)][string]$Detect)
+    if ($Detect.StartsWith($DETECT_DOTNET_PREFIX)) {
+        return ($null -ne (Get-DotnetSdkVersion -ExePath (Get-DotnetPath) -Major $Detect.Substring($DETECT_DOTNET_PREFIX.Length)))
+    }
+    switch ($Detect) {
+        $DETECT_VCREDIST { return (Test-VcRedistPresent) }
+        $DETECT_BROWSER { return (Test-BrowserPresent) }
         default { return $true }
     }
 }
 
 function Install-Prereq {
-    param([Parameter(Mandatory = $true)]$Item)
-    $installer = Join-Path $repoRoot ([string]$Item.windows.installer)
-    $pipName = $null
+    param([Parameter(Mandatory = $true)][string[]]$Row)
+    $installer = Join-Path $repoRoot (Get-RowField -Row $Row -Index 4)
+    $installerArgs = @(Split-RowList -Value (Get-RowField -Row $Row -Index 6))
     if (-not $installedInRun.ContainsKey($installer)) {
         $installedInRun[$installer] = $true
-        & $installer
-    }
-    if ($null -ne $Item.windows.PSObject.Properties['pip'] -and -not (Test-PythonPipsPresent -Item $Item)) {
-        foreach ($pipName in @($Item.windows.pip)) {
-            Invoke-PipCommand -PackageName $pipName | Out-Null
-        }
+        & $installer @installerArgs
     }
     Update-ProcessPath
 }
@@ -206,44 +211,44 @@ function Get-UserConfig {
 }
 
 function Test-ConfigDetected {
-    param([Parameter(Mandatory = $true)][string]$Id, $Config)
-    $value = $null
-    switch ($Id) {
-        'battlenet' { $value = Get-ConfigValue -Config $Config -KeyPath $CONFIG_KEYS_BATTLENET }
-        'diablo3' { $value = Get-ConfigValue -Config $Config -KeyPath $CONFIG_KEYS_D3 }
-        'rosbot' {
-            $value = Get-ConfigValue -Config $Config -KeyPath $CONFIG_KEYS_ROS
-            if ($null -ne $value -and (Test-Path -LiteralPath $value -PathType Container)) {
-                return ($null -ne (Get-ChildItem -LiteralPath $value -Filter '*.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1))
-            }
+    param([Parameter(Mandatory = $true)][string]$Id, [string]$ConfigKey, $Config)
+    if ([string]::IsNullOrEmpty($ConfigKey)) {
+        return $false
+    }
+    $value = Get-ConfigValue -Config $Config -KeyPath @($ConfigKey -split '\.')
+    if ($null -eq $value) {
+        return $false
+    }
+    if ($Id -eq $ROSBOT_ID) {
+        if (-not (Test-Path -LiteralPath $value -PathType Container)) {
             return $false
         }
+        return ($null -ne (Get-ChildItem -LiteralPath $value -Filter '*.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1))
     }
-    return ($null -ne $value -and (Test-Path -LiteralPath $value -PathType Leaf))
+    return (Test-Path -LiteralPath $value -PathType Leaf)
 }
 
 function Test-ManualDetected {
-    param([Parameter(Mandatory = $true)]$Entry, $Config)
+    param([Parameter(Mandatory = $true)][string[]]$Row, $Config)
+    $id = Get-RowField -Row $Row -Index 1
+    $platform = Get-RowField -Row $Row -Index 2
+    $detectPaths = @(Split-RowList -Value (Get-RowField -Row $Row -Index 3))
+    $configKey = Get-RowField -Row $Row -Index 4
     $roots = @()
-    $rel = $null
-    $root = $null
-    if ($Entry.platform -eq 'windows10') {
+    if ($platform -eq $PLATFORM_WINDOWS10) {
         if (-not $Global:isWin10) {
             return $true
         }
         $roots = @($env:windir)
     }
     else {
-        if (Test-ConfigDetected -Id $Entry.id -Config $Config) {
+        if (Test-ConfigDetected -Id $id -ConfigKey $configKey -Config $Config) {
             return $true
         }
         $roots = @(Get-ProgramRoots)
     }
-    foreach ($rel in @($Entry.detect)) {
+    foreach ($rel in $detectPaths) {
         foreach ($root in $roots) {
-            if ([string]::IsNullOrEmpty($root)) {
-                continue
-            }
             if ((Test-Path -LiteralPath (Join-Path $root $rel) -PathType Leaf) -or (Test-Path -LiteralPath (Join-Path $root (Split-Path -Leaf $rel)) -PathType Leaf)) {
                 return $true
             }
@@ -253,22 +258,26 @@ function Test-ManualDetected {
 }
 
 function Show-ManualPrereqs {
-    param([object[]]$Manual)
-    $entry = $null
+    param([object[]]$Rows)
+    $row = $null
+    $id = $null
+    $platform = $null
     $step = $null
     $stepIndex = 0
     $config = Get-UserConfig
-    foreach ($entry in $Manual) {
-        if ($entry.platform -ne 'windows' -and $entry.platform -ne 'windows10') {
+    foreach ($row in $Rows) {
+        $id = Get-RowField -Row $row -Index 1
+        $platform = Get-RowField -Row $row -Index 2
+        if ($platform -ne $PLATFORM_WINDOWS -and $platform -ne $PLATFORM_WINDOWS10) {
             continue
         }
-        if ((@($entry.detect).Count -gt 0 -or $entry.id -eq 'rosbot') -and (Test-ManualDetected -Entry $entry -Config $config)) {
-            Write-StartLog "Manual prerequisite present: $($entry.id)"
+        if (Test-ManualDetected -Row $row -Config $config) {
+            Write-StartLog "Manual prerequisite present: $id"
             continue
         }
-        Write-Host "$LOG_PREFIX Manual install required: $($entry.id)" -ForegroundColor Yellow
+        Write-Host "$LOG_PREFIX Manual install required: $id" -ForegroundColor Yellow
         $stepIndex = 0
-        foreach ($step in @($entry.steps)) {
+        foreach ($step in (Split-RowList -Value (Get-RowField -Row $row -Index 5))) {
             $stepIndex++
             Write-Host "$LOG_PREFIX   $stepIndex. $step" -ForegroundColor Yellow
         }
@@ -281,48 +290,45 @@ if (-not (Test-Path -LiteralPath $csprojPath -PathType Leaf)) {
 
 . $globalVarsPath
 . $commonFuncPath
-. $pythonRuntimePath
-. (Join-Path $winCommonDir 'PackageManagerInvokes.ps1')
 
 Write-StartLog 'Step 1/4: ensure prerequisites'
-$prereqs = Get-Content -LiteralPath $prereqsPath -Raw -Encoding UTF8 | ConvertFrom-Json
-foreach ($prereqItem in @($prereqs.prereqs)) {
-    if ($null -eq $prereqItem.PSObject.Properties['windows']) {
-        continue
-    }
-    $prereqMissing = -not (Test-PrereqPresent -Id $prereqItem.id)
+$prereqRows = @(Read-PrereqManifest -Path $prereqsPath)
+$manualRows = @($prereqRows | Where-Object { $_[0] -eq 'manual' })
+foreach ($prereqRow in @($prereqRows | Where-Object { $_[0] -eq 'prereq' -and (Get-RowField -Row $_ -Index 3) -eq $PLATFORM_WINDOWS })) {
+    $prereqId = Get-RowField -Row $prereqRow -Index 1
+    $prereqMissing = -not (Test-PrereqPresent -Detect (Get-RowField -Row $prereqRow -Index 7))
     if (-not $prereqMissing) {
-        Write-StartLog "Prerequisite present: $($prereqItem.id)"
+        Write-StartLog "Prerequisite present: $prereqId"
         continue
     }
-    if (-not $prereqItem.required -and -not $WithOptional) {
-        Write-StartLog "Optional prerequisite missing: $($prereqItem.id) ($($prereqItem.purpose)); rerun with -WithOptional to install it"
+    if ((Get-RowField -Row $prereqRow -Index 2) -ne 'true' -and -not $WithOptional) {
+        Write-StartLog "Optional prerequisite missing: $prereqId; rerun with -WithOptional to install it"
         continue
     }
-    Write-StartLog "Installing prerequisite: $($prereqItem.id) ($($prereqItem.purpose))"
+    Write-StartLog "Installing prerequisite: $prereqId"
     try {
-        Install-Prereq -Item $prereqItem
+        Install-Prereq -Row $prereqRow
     }
     catch {
-        Write-Host "$LOG_PREFIX Prerequisite install failed for $($prereqItem.id): $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "$LOG_PREFIX Prerequisite install failed for ${prereqId}: $($_.Exception.Message)" -ForegroundColor Yellow
     }
-    if (Test-PrereqPresent -Id $prereqItem.id) {
-        Write-StartLog "Prerequisite ready: $($prereqItem.id)"
+    if (Test-PrereqPresent -Detect (Get-RowField -Row $prereqRow -Index 7)) {
+        Write-StartLog "Prerequisite ready: $prereqId"
     }
     else {
-        Write-Host "$LOG_PREFIX Prerequisite still missing after install attempt: $($prereqItem.id)" -ForegroundColor Yellow
+        Write-Host "$LOG_PREFIX Prerequisite still missing after install attempt: $prereqId" -ForegroundColor Yellow
     }
 }
 
-Show-ManualPrereqs -Manual @($prereqs.manual)
+Show-ManualPrereqs -Rows $manualRows
 
 Update-ProcessPath
 $dotnetPath = Get-DotnetPath
-$sdkVersion = Get-DotnetSdk8Version -ExePath $dotnetPath
+$sdkVersion = Get-DotnetSdkVersion -ExePath $dotnetPath -Major $DOTNET_MAJOR
 if ($null -eq $sdkVersion) {
-    throw "$LOG_PREFIX .NET 8 SDK is not available after the prerequisite step"
+    throw "$LOG_PREFIX .NET $DOTNET_MAJOR SDK is not available after the prerequisite step"
 }
-Write-StartLog ".NET 8 SDK present: $sdkVersion"
+Write-StartLog ".NET $DOTNET_MAJOR SDK present: $sdkVersion"
 
 $artifactsRoot = Join-Path $Global:CN_CACHE_ROOT $ARTIFACTS_SUBDIR
 $artifactsPath = Join-Path $artifactsRoot $ARTIFACTS_NAME
@@ -331,14 +337,33 @@ Write-StartLog "Artifacts: $artifactsPath"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_NOLOGO = '1'
 
+$dotcoreDir = Join-Path $repoRoot 'dotcore'
+$restoreStamp = Join-Path (Join-Path (Join-Path $artifactsPath 'obj') $ARTIFACTS_NAME) 'project.assets.json'
+if (Test-Path -LiteralPath $restoreStamp -PathType Leaf) {
+    $restoreInputs = @(Get-ChildItem -LiteralPath $appDir, $dotcoreDir -Recurse -File -Include '*.csproj', 'Directory.*.props', 'nuget.config' -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTimeUtc -gt (Get-Item -LiteralPath $restoreStamp).LastWriteTimeUtc })
+    $restoreStale = $restoreInputs.Count -gt 0
+}
+
 try {
     Set-Location -LiteralPath $appDir
 
-    Write-StartLog 'Step 2/4: restore'
-    Invoke-Dotnet -Arguments @('restore', $csprojPath, $TARGETING_PROP, '--artifacts-path', $artifactsPath)
+    if ($restoreStale) {
+        Write-StartLog 'Step 2/4: restore'
+        Invoke-Dotnet -Arguments @('restore', $csprojPath, $TARGETING_PROP, '--artifacts-path', $artifactsPath)
+        (Get-Item -LiteralPath $restoreStamp).LastWriteTimeUtc = [DateTime]::UtcNow
+    }
+    else {
+        Write-StartLog 'Step 2/4: restore skipped (up-to-date)'
+    }
 
-    Write-StartLog "Step 3/4: build ($Configuration)"
-    Invoke-Dotnet -Arguments @('build', $csprojPath, $TARGETING_PROP, '-c', $Configuration, '--no-restore', '--artifacts-path', $artifactsPath)
+    if ($BuildOnly -or $NoWatch) {
+        Write-StartLog "Step 3/4: build ($Configuration, incremental)"
+        Invoke-Dotnet -Arguments @('build', $csprojPath, $TARGETING_PROP, '-c', $Configuration, '--no-restore', '--artifacts-path', $artifactsPath)
+    }
+    else {
+        Write-StartLog 'Step 3/4: build delegated to dotnet watch (single incremental build)'
+    }
 
     if ($BuildOnly) {
         Write-StartLog 'Step 4/4: run skipped (build-only)'
@@ -350,7 +375,7 @@ try {
     else {
         Write-StartLog 'Step 4/4: run with hot reload (dotnet watch)'
         $env:ArtifactsPath = $artifactsPath
-        Invoke-Dotnet -Arguments @('watch', 'run', '--project', $csprojPath, $TARGETING_PROP, '-c', $Configuration)
+        Invoke-Dotnet -Arguments @('watch', 'run', '--project', $csprojPath, $TARGETING_PROP, '-c', $Configuration, '--no-restore')
     }
 }
 catch {

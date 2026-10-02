@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.launcher.app_catalog import APP_DEFINITIONS
+from pycore.pyutils.launcher.app_catalog import available_app_names
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.grid_profile import GridI18nKeys, describe_auto_profiles
 from pycore.pyutils.launcher.launcher_text import launcher_text
@@ -61,7 +61,7 @@ class InteractiveMenu:
                                                 state=self._state_text(self._toggles.auto_grid_enabled())),
                 toggle=self._toggles.toggle_auto_grid),
         ]
-        for app_name in APP_DEFINITIONS:
+        for app_name in available_app_names():
             entries.append(MenuEntry(
                 label=lambda name=app_name: launcher_text.get(
                     MenuI18nKeys.APP_ITEM, app=name.upper(), state=self._state_text(self._toggles.app_enabled(name))),

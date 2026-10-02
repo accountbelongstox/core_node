@@ -12,7 +12,7 @@ use function Illuminate\Support\defer;
 
 /**
  * Batch delivery of many small audio items (contract: docs_fix/
- * REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, "W7 contract";
+ * docs_fix/DESIGN_QUEUE_PIPELINE.md;
  * kinds, limits, batch states, item statuses, error codes and retention:
  * queue_center_contract.json#delivery).
  * A manifest registers the items; their concatenated bytes arrive through the

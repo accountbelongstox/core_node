@@ -9,7 +9,7 @@ use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
+use App\Support\LockedCache;
 
 /**
  * Per-language authoritative sentence store (Books v3 unified model — see
@@ -119,7 +119,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
      * listing consumed by the pycore sentence full pull (Part2 backlog mirror
      * of the sentence_audio lane); no OFFSET and no COUNT per page.
      */
-    public static function withoutAudioKeysetPage(string $lang, int $afterId, int $limit): Collection
+    public static function withoutAudioKeysetPage(string $lang, int $afterId, int $limit, array $columns = ['id', 'content_id', 'text', 'language']): Collection
     {
         if (!self::tableExists($lang)) {
             return new Collection();
@@ -130,7 +130,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             ->where('id', '>', $afterId)
             ->orderBy('id')
             ->limit($limit)
-            ->get(['id', 'content_id', 'text', 'language']);
+            ->get($columns);
     }
 
     public static function withoutAudioCount(string $lang): int
@@ -157,7 +157,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             return ['done' => 0, 'failed' => 0, 'pending' => 0];
         }
 
-        return Cache::remember('appqyv1:sentence_audio_gap:' . $lang, self::GAP_COUNT_CACHE_SECONDS, static function () use ($lang): array {
+        return LockedCache::flexible('appqyv1:sentence_audio_gap:' . $lang, [self::GAP_COUNT_CACHE_SECONDS, self::GAP_COUNT_CACHE_SECONDS * 2], static function () use ($lang): array {
             $row = self::onLang($lang)
                 ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . ') AS gap')
                 ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . " AND tts_status = 'failed') AS failed")
@@ -318,34 +318,37 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
     public static function pendingAudioCount(string $lang): int
     {
         return self::onLang($lang)
-            ->where(function ($query): void {
-                $query->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
-                    ->orWhereIn('tts_status', ['pending', 'failed']);
-            })
-            ->whereRaw(AppQyV1MediaGaps::SENTENCE_LIVE)
+            ->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
             ->count();
+    }
+
+    /** Writes an explanation only where the row has none (fill-missing); returns rows written. */
+    public static function fillExplanation(string $lang, string $contentId, string $explanation): int
+    {
+        return self::onLang($lang)
+            ->where('content_id', $contentId)
+            ->where(static function ($empty): void {
+                $empty->whereNull('explanation')->orWhereRaw("btrim(explanation) = ''");
+            })
+            ->update(['explanation' => $explanation, 'updated_at' => now()]);
+    }
+
+    /** Failed rows still lacking audio back to pending with a fresh retry budget (the failed-reset path). */
+    public static function resetFailedTts(string $lang, string $failedStatus, array $attributes): int
+    {
+        if (!self::tableExists($lang)) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->where('tts_status', $failedStatus)
+            ->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
+            ->update($attributes);
     }
 
     public static function runForLanguageTransaction(string $lang, Closure $callback, int $attempts = 1): mixed
     {
         return self::for($lang)->getConnection()->transaction($callback, $attempts);
-    }
-
-    public static function storeOccurrence(string $lang, array $attributes): self
-    {
-        $contentId = (string) $attributes['content_id'];
-        $row = self::findByContentId($lang, $contentId);
-
-        if ($row === null) {
-            $row = self::for($lang);
-            $row->fill($attributes);
-        } else {
-            $row->occurrence_count = (int) $row->occurrence_count + 1;
-        }
-
-        $row->save();
-
-        return $row;
     }
 
     private static function enrichmentQuery(string $lang, array $fields)

@@ -11,7 +11,7 @@ from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS, queue_center_endpoint
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, redacted_http_error
 from pycore.pyutils.common.model_tiers import gpu_present
 from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.common.service_config import PYCORE_WORKER_INSTANCE
@@ -167,7 +167,7 @@ class WorkerRegistration:
             response = laravel_client.post(
                 queue_center_endpoint("worker_register"),
                 base_url=base_url,
-                json=self._host.identity_params(),
+                json=self._host.identity_params(), response=RESPONSE_CONTROL,
             )
         except OSError as exc:
             ColorPrint.gray(f"{self._host.log_prefix} Worker register unreachable at {base_url}: {redacted_http_error(exc)}")
@@ -197,7 +197,7 @@ class WorkerRegistration:
             return
         try:
             response = laravel_client.post(
-                queue_center_endpoint("worker_unregister"), base_url=base_url, json={"worker_id": legacy},
+                queue_center_endpoint("worker_unregister"), base_url=base_url, json={"worker_id": legacy}, response=RESPONSE_CONTROL,
             )
         except OSError as exc:
             ColorPrint.gray(f"{self._host.log_prefix} legacy worker id {legacy} not retired: {redacted_http_error(exc)}")

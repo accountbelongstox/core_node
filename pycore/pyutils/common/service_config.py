@@ -5,6 +5,7 @@ import os
 import time
 
 from pycore.pyfoundations.service_contract import laravel_api_catalog_urls, service_domain
+from pycore.pyutils.common.strtools.normalization import to_bool
 
 
 # ONE process-wide pyservice start anchor. Every worker log prefix derives
@@ -23,6 +24,15 @@ LARAVEL_WORKER_API_URLS = tuple(dict.fromkeys([LARAVEL_WORKER_API_URL, *laravel_
 PYCORE_WORKER_INSTANCE = ""
 TRAY_BACKEND = "native"
 UI_ENABLE_TRAY = TRAY_BACKEND == "pyside"
+NO_TRAY_ENV = "PYCORE_NO_TRAY"
+
+
+def tray_disabled() -> bool:
+    return to_bool(os.environ.get(NO_TRAY_ENV, ""))
+
+
+def qt_tray_enabled() -> bool:
+    return UI_ENABLE_TRAY and not tray_disabled()
 TRANSLATION_QUEUE_BUMP_TTL_SECONDS = 30
 TTS_WORKER_CONCURRENCY = 0
 TTS_SENTENCE_WORKER_CONCURRENCY = 0

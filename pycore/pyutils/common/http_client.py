@@ -30,6 +30,13 @@ _POOL_MAX_KEEPALIVE = 32
 _LOOPBACK_MOUNTS = ("all://127.0.0.1", "all://localhost", "all://[::1]")
 _HTTP_VERSIONS = {"HTTP/1.0": "HTTP/1.0", "HTTP/1.1": "HTTP/1.1", "HTTP/2": "HTTP/2", "HTTP/3": "HTTP/3"}
 _transfer_observers: contextvars.ContextVar = contextvars.ContextVar("pycore_http_transfer_observers", default=())
+# Response profiles (contract http_transfer.response_profiles). A request with
+# a body must name one; a bodiless request is a control request.
+RESPONSE_CONTROL = "control"
+RESPONSE_UPLOAD = "upload"
+RESPONSE_LLM = "llm"
+RESPONSE_TTS = "tts"
+RESPONSE_IMAGE = "image"
 
 
 class HttpError(OSError):
@@ -404,9 +411,11 @@ class HttpClient:
         timeout: TimeoutValue = None,
         headers: Optional[Mapping[str, str]] = None,
         body: Optional[Union[bytes, str]] = None,
+        *,
+        response: str = "",
         **options: Any,
     ) -> HttpResponse:
-        return self.request("POST", url, json=json, timeout=timeout, headers=headers, body=body, **options)
+        return self.request("POST", url, json=json, timeout=timeout, headers=headers, body=body, response=response, **options)
 
     def put(self, url: str, **options: Any) -> HttpResponse:
         return self.request("PUT", url, **options)
@@ -432,18 +441,25 @@ class HttpClient:
         stream: bool = False,
         follow_redirects: bool = True,
         progress_callback: Optional[ProgressCallback] = None,
+        response: str = "",
     ) -> HttpResponse:
-        """Send one request.
+        """Send one request with an explicit response profile.
 
-        An upload - a body of at least one contract chunk (``chunk_bytes``) or
-        of unknown length - is progress-driven (``http_transfer_contract()``):
-        connect is bounded, a write stall longer than the idle bound fails, the
-        response wait is unbounded and TCP keepalive detects a dead peer; a
-        caller ``timeout`` only replaces the connect bound. Every other request
-        (bodiless, or a small control body such as a pull or a heartbeat) uses
-        ``timeout``: seconds (connect and per-read idle) or ``(connect, read)``,
-        so a live but hung server cannot block the caller forever. Progress of
-        any body reaches ``progress_callback`` and every ``transfer_observer``.
+        ``response`` (required when the request has a body; contract
+        ``http_transfer.response_profiles``):
+        - ``control`` (default without a body): ``timeout`` seconds (connect
+          and per-read idle) or ``(connect, read)``, else the client default,
+          so a live but hung server cannot block the caller.
+        - ``upload``: progress-driven; connect is bounded, a write stall longer
+          than the idle bound fails, the response wait is unbounded and TCP
+          keepalive detects a dead peer. ``timeout`` seconds replace the
+          connect bound; ``(connect, reply)`` also caps the response wait
+          (a peer that must answer within a bound).
+        - ``llm`` / ``tts`` / ``image``: a long backend computation; the read
+          bound is the caller's ``timeout`` (seconds, or ``(connect, read)``)
+          or the contract ``response_wait_seconds`` of that backend.
+        Progress of any body reaches ``progress_callback`` and every
+        ``transfer_observer``.
         """
         httpx = get_third_package_httpx()
         request_url = self._resolve_url(url)
@@ -451,7 +467,10 @@ class HttpClient:
         request_headers.update({str(key): str(value) for key, value in dict(headers or {}).items()})
         pool = http_connection_pools.pool(self.trust_env)
         has_body = any(value is not None for value in (body, form, files, json))
-        contract = http_transfer_contract() if has_body else None
+        if has_body and not response:
+            raise ValueError(f"{str(method or '').upper()} with a body needs an explicit response profile (http_client response=)")
+        profile = str(response or RESPONSE_CONTROL)
+        contract = http_transfer_contract() if has_body or profile != RESPONSE_CONTROL else None
         request = pool.build_request(
             str(method or "GET").upper(),
             request_url,
@@ -462,11 +481,9 @@ class HttpClient:
             files=files,
             json=json,
         )
-        length = request.headers.get("Content-Length")
-        upload = contract is not None and (length is None or int(length) >= int(contract["chunk_bytes"]))
-        request.extensions["timeout"] = self._timeout(timeout, contract if upload else None).as_dict()
+        request.extensions["timeout"] = self._timeout(timeout, profile, contract).as_dict()
         progress = None
-        if contract is not None:
+        if has_body:
             observers = tuple(_transfer_observers.get())
             if progress_callback is not None:
                 observers = (*observers, progress_callback)
@@ -505,15 +522,31 @@ class HttpClient:
         finally:
             _transfer_observers.reset(token)
 
-    def _timeout(self, timeout: TimeoutValue, contract: Optional[Mapping[str, Any]]) -> Any:
+    def _timeout(self, timeout: TimeoutValue, profile: str, contract: Optional[Mapping[str, Any]]) -> Any:
         httpx = get_third_package_httpx()
-        if contract is not None:
+        if profile == RESPONSE_UPLOAD:
             idle = float(contract["idle_timeout_seconds"])
             connect = float(contract["connect_timeout_seconds"])
+            read = None
             requested = timeout[0] if isinstance(timeout, (tuple, list)) else timeout
             if requested is not None:
                 connect = max(0.1, float(requested))
-            return httpx.Timeout(None, connect=connect, read=None, write=idle, pool=idle)
+            if isinstance(timeout, (tuple, list)) and timeout[1] is not None:
+                read = max(0.1, float(timeout[1]))
+            return httpx.Timeout(None, connect=connect, read=read, write=idle, pool=idle)
+        if profile != RESPONSE_CONTROL:
+            waits = contract["response_wait_seconds"]
+            if profile not in waits:
+                raise ValueError(f"unknown HTTP response profile {profile!r}")
+            idle = float(contract["idle_timeout_seconds"])
+            connect = float(contract["connect_timeout_seconds"])
+            read = float(waits[profile])
+            if isinstance(timeout, (tuple, list)):
+                connect = connect if timeout[0] is None else max(0.1, float(timeout[0]))
+                read = read if timeout[1] is None else max(0.1, float(timeout[1]))
+            elif timeout is not None:
+                read = max(0.1, float(timeout))
+            return httpx.Timeout(None, connect=connect, read=read, write=idle, pool=idle)
         if isinstance(timeout, (tuple, list)):
             connect, read = timeout[0], timeout[1]
             return httpx.Timeout(
@@ -596,6 +629,11 @@ __all__ = [
     "HttpStatusError",
     "HttpTimeoutError",
     "HttpTransferProgress",
+    "RESPONSE_CONTROL",
+    "RESPONSE_IMAGE",
+    "RESPONSE_LLM",
+    "RESPONSE_TTS",
+    "RESPONSE_UPLOAD",
     "TRANSFER_PHASE_AWAITING_RECEIPT",
     "TRANSFER_PHASE_RECEIVED",
     "TRANSFER_PHASE_REJECTED",

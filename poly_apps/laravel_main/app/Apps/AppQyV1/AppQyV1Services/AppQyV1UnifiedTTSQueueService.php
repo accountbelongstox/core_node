@@ -1335,6 +1335,8 @@ class AppQyV1UnifiedTTSQueueService
             'tts_error' => null,
             'tts_locked_at' => null,
             'tts_locked_by' => null,
+            'tts_lease_id' => null,
+            'tts_lease_expires_at' => null,
         ];
 
         foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
@@ -1344,6 +1346,13 @@ class AppQyV1UnifiedTTSQueueService
                 $resetValues
             );
             $requeued += AppQyV1ArticleLibraryModel::resetFailedTts(
+                $lang,
+                self::STATUS_FAILED,
+                array_diff_key($resetValues, ['tts_lease_id' => true, 'tts_lease_expires_at' => true])
+            );
+        }
+        foreach (\App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+            $requeued += \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::resetFailedTts(
                 $lang,
                 self::STATUS_FAILED,
                 $resetValues

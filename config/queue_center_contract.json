@@ -49,7 +49,13 @@
   "dedup_window_seconds": 300,
   "keepalive_idle_seconds": 15,
   "keepalive_interval_seconds": 5,
-  "keepalive_probe_count": 3
+  "keepalive_probe_count": 3,
+  "response_profiles": "Every request with a body declares its response profile (http_client response=): control = short request/reply (caller timeout or the client default, per-read idle); upload = body >= one chunk, stall-driven write (idle_timeout_seconds), unbounded response wait guarded by TCP keepalive; llm / tts / image = small body, long backend computation: read bound from response_wait_seconds (or the caller's bound). A bodied request without a profile is a call-site error.",
+  "response_wait_seconds": {
+   "llm": 600,
+   "tts": 900,
+   "image": 600
+  }
  },
  "realtime": {
   "transport": "mercure",
@@ -63,7 +69,8 @@
    "word_image_priority": "word_image.priority",
    "cover_priority": "cover.priority",
    "poster_priority": "poster.priority",
-   "worker_presence": "worker.presence"
+   "worker_presence": "worker.presence",
+   "work_nodes_changed": "work_nodes.changed"
   },
   "head_keys": {
    "task_priority": "task_id",
@@ -76,7 +83,7 @@
   }
  },
  "head_parts": {
-  "description": "Each audio lane (word_audio, sentence_audio) owns its OWN Queue = Part1 + Part2 (one whole-Queue heap per lane; the lanes never mix). Every mutation and dedup is whole-Queue. The split may be VISUALIZED read-only; actors never address a part. Binding docs: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md (current), docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md (origin).",
+  "description": "Each audio lane (word_audio, sentence_audio) owns its OWN Queue = Part1 + Part2 (one whole-Queue heap per lane; the lanes never mix). Every mutation and dedup is whole-Queue. The split may be VISUALIZED read-only; actors never address a part. Binding doc: docs_fix/DESIGN_QUEUE_PIPELINE.md.",
   "parts": {
    "part1": "pycore-local priority. Filled ONLY by audio orchestration manifest misses (missing words -> word_audio Part1, missing sentences -> sentence_audio Part1; local tasks owned by the orchestration task) and the pycore-manager manual promote. NEVER notifies Laravel. Empty by default.",
    "part2": "This node's Laravel work: the rows of its work leases (work_leases; disjoint per node) and claimed Laravel global tasks. wordnew promotion raises the row's lease priority on Laravel and wakes the lanes to claim."
@@ -99,44 +106,7 @@
    "failed"
   ],
   "activation": "one ON chain per lane: restore local Part1 items -> release the worker's stale leases -> claim a work lease batch -> drain",
-  "leases": "lanes.<lane>.leases = {leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled, engines, languages}"
- },
- "dict_lane_queue": {
-  "description": "Dict-lane live queues: the backend no longer maintains these queues with timer tasks. Each lane is a live view over its dictionary source query, cached in the FrankenPHP worker's memory and mirrored to the database cache store; every serve runs one ms-level table probe (table length + write counters: PostgreSQL pg_stat_user_tables, fallback COUNT(*)+MAX(updated_at)); unchanged signature serves the cached queue with zero database reads, a changed signature re-fetches only the lane's lite id list and minimally diffs it. global_tasks rows are materialized just-in-time when a worker pulls (POST /api/worker/tasks/{taskType}/pull). Retired timer tasks: appqyv1_word_validity_scan, app_qy_v1_word_translation_scan_task, app_qy_v1_dictionary_translation_task, app_qy_v1_word_translation_filler_task, queue_center_audio_scan, appqyv1_word_media_scan, appqyv1_tts_generation, app_qy_v1_tts_lock_reclaim_task. Binding doc: docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md.",
-  "lanes": {
-   "word_audio": {
-    "source": "dictionary table per language; filter: has_audio=false OR has_audio IS NULL (identical to the without_audio management filter)",
-    "order": "query_count DESC, id ASC",
-    "materialize": "one word_audio global_tasks row per word via QueueCenterService::enqueue (group_key live-dedup)",
-    "listing_endpoint": "GET /api/app_qy_v1/dictionary/words?filter=without_audio served from the lane cache when no search/sort narrowing (same for the view lanes)"
-   },
-   "word_translation": {
-    "source": "has_translation=false AND is_valid=true",
-    "order": "query_count DESC, id ASC",
-    "materialize": "one task per 40 words; execution_type remote_translation; payload {words[],language,target_language=zh,word_count}; pile-up guard max 1 live task per language"
-   },
-   "word_validity": {
-    "source": "validity_checked_at IS NULL",
-    "order": "query_count DESC, id ASC",
-    "materialize": "one task per contract word_validity.batch_size words; execution_type remote_validity; pile-up guard max 1 live task per language"
-   },
-   "dictionary_explanation": {
-    "source": "has_translation=false AND is_valid=true (dictionary_explanation_demo shares the lane)",
-    "order": "query_count DESC, id ASC",
-    "materialize": "one task per 10 words; execution_type from contract task_types; pile-up guard max 2 live tasks per language"
-   }
-  },
-  "probe": {
-   "pgsql": "SELECT n_live_tup,n_tup_ins,n_tup_upd,n_tup_del FROM pg_stat_user_tables (ms-level, no table scan)",
-   "fallback": "COUNT(*) + MAX(updated_at) on the source table",
-   "dirty_bump": "AppQyV1LangDictionaryModel::forgetMetricsCache increments a per-language dirty counter folded into the signature, so same-request writes are visible immediately"
-  },
-  "direct_emit": "Head notifications and realtime outbox events publish in the same request that creates them; the queue_head_notification_task and realtime_outbox_publish_task pollers are decommissioned (registered but disabled as operator safety nets via user-data settings queue_center_head_notification_poller / realtime_outbox_publish_poller). Global task maintenance runs on-demand in the pull path (DictLaneMaintenance::onPull, throttled 15s; hourly slow slice); global_task_maintenance_task is disabled (safety net setting global_task_maintenance_poller).",
-  "view_lanes": {
-   "without_translation": "view-only listing lane; filter byte-identical to managementFilter without_translation (has_translation false/NULL AND translations empty); serves dictionaryWords?filter=without_translation",
-   "valid": "view-only listing lane; is_valid=true OR NULL; serves dictionaryWords?filter=valid",
-   "invalid": "view-only listing lane; is_valid=false; serves dictionaryWords?filter=invalid"
-  }
+  "leases": "lanes.<lane>.leases = {leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled, lost, engines, languages}; lost = {reason_code: LEASE_LOST, leases, rows} once a renew reported a lease lost, else null"
  },
  "diff_delivery": {
   "version": 1,
@@ -227,7 +197,14 @@
   "work_nodes": "/api/work/nodes"
  },
  "work_leases": {
-  "description": "Multi-node work distribution for the gap lanes. Laravel is the single scheduler: a node claims a WORK LEASE (a disjoint batch of gap rows, atomic UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) on the row itself: tts_locked_by, tts_lease_id, tts_lease_expires_at), renews it while it works and delivers each item by content. No node mirrors the backlog: it holds its leased batch plus a prefetch. An expired lease returns its rows to the pool (claim treats expired rows as free). Binding: docs_fix/PROGRESS_20261001_PYCORE_REFACTOR.md J-MULTI.",
+  "nodes_event": {
+   "event": "work_nodes.changed",
+   "topic": "realtime.topic (the queue-center hub)",
+   "payload": {"revision": "int, monotonic", "reason": "claim|renew|release|expiry|node|pool", "changed_at": "ISO-8601"},
+   "min_interval_seconds": 2,
+   "rule": "Emitted on lease claim, renew, release, reaper expiry, node online/offline and pool count changes; leading edge at most every min_interval_seconds, a change inside the window is coalesced into one trailing event. Carries only a revision: the UI refetches work_nodes when the revision moves and reconciles by one refetch after a reconnect; no polling timer."
+  },
+  "description": "Multi-node work distribution for the gap lanes. Laravel is the single scheduler: a node claims a WORK LEASE (a disjoint batch of gap rows, atomic UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) on the row itself: tts_locked_by, tts_lease_id, tts_lease_expires_at), renews it while it works and delivers each item by content. No node mirrors the backlog: it holds its leased batch plus a prefetch. An expired lease returns its rows to the pool (claim treats expired rows as free). Binding: docs_fix/DESIGN_QUEUE_PIPELINE.md.",
   "lanes": [
    "word_audio",
    "sentence_audio"
@@ -349,6 +326,11 @@
        "languages"
       ]
      },
+     "engines": {
+      "<lane>": [
+       "engine id declared on claim (lanes.<lane>.engines)"
+      ]
+     },
      "leases": "int",
      "items_leased": "int",
      "done_per_hour": "int",
@@ -380,14 +362,15 @@
   "empty_retry_after_seconds": 30,
   "progress_stall_seconds": 120,
   "want_max": 50,
+  "resurface_batch": 50,
+  "resurface_interval_seconds": 60,
+  "resurface_rule": "Failed resurfacing: per lane and language at most resurface_batch failed rows still in the gap (words also not is_valid false) return to pending with tts_attempts 0, at most once per resurface_interval_seconds, walking a persisted id cursor that wraps at the end of the table, so each row is retried at most once per sweep. One summary log line per finished sweep.",
   "reason_codes": [
    "NO_CAPABLE_NODE",
    "LEASE_LOST"
   ],
-  "repool_error_codes": [
-   "word_batch_language_unsupported"
-  ],
-  "repool_rule": "A failure report whose error carries one of repool_error_codes is a node capability miss, not a content failure: the row returns to the pool (status pending, attempt not counted) and the node stays excluded by its declared languages."
+  "repool_error_codes": ["word_batch_language_unsupported", "NO_CAPABLE_NODE", "LEASE_LOST", "ENGINE_MEMORY_PAUSED"],
+  "repool_rule": "A failure report whose error carries one of repool_error_codes is a node capability or scheduling miss (unsupported engine language, no capable node, lost lease, engine memory pause), not a content failure: the row returns to the pool (status pending, attempt not counted) and the node stays excluded by its declared languages."
  },
  "delivery_receipt": {
   "stages": {
@@ -406,7 +389,7 @@
   "task_id_limit_source": "diff_delivery.data_segment_limit"
  },
  "delivery": {
-  "description": "W7 pycore -> Laravel resource delivery (server identity, Laravel-side diff, batch upload over offset-v1). Binding doc: docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md (W7 contract).",
+  "description": "W7 pycore -> Laravel resource delivery (server identity, Laravel-side diff, batch upload over offset-v1). Binding doc: docs_fix/DESIGN_QUEUE_PIPELINE.md.",
   "routes": {
    "info": "/api/app_qy_v1/delivery/info",
    "diff": "/api/app_qy_v1/delivery/diff",
@@ -488,7 +471,7 @@
   "assist_reason_codes": ["RESULT_CIRCUIT_OPEN", "LANE_HALTED", "ENGINE_MEMORY_PAUSED"],
   "skipped_fields": ["reason_code", "count"],
   "assist_summary_interval_seconds": 600,
-  "skip_reason_codes": ["TASK_ROW_INVALID", "CLAIM_GONE", "RESULT_PENDING", "LOCAL_QUEUE_FULL", "LANE_HALTED", "LOCAL_DISPATCH_REJECTED"]
+  "skip_reason_codes": ["TASK_ROW_INVALID", "CLAIM_GONE", "RESULT_PENDING", "LANE_HALTED", "LOCAL_DISPATCH_REJECTED"]
  },
  "metric_semantics": {
   "pending": "Ready work that has not been claimed.",

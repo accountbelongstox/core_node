@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
 """State-driven audio lanes for the Queue Center and audio orchestration.
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.3.
+Binding: docs_fix/DESIGN_AUDIO_ORCHESTRATION.md section 8.
 pycore owns the ONE truth of both audio lanes (word_audio / sentence_audio -
 each lane its own Queue = Part1 + Part2). This module composes it:
 
   * switch      persisted lane capability + heartbeat callback running
   * queue       whole / Part1 / Part2 view + Part1 tracker (audio_queue_center)
   * worker      lane worker status (cycle, counters, outbox)
-  * full_sync   the lane's backlog full-pull status (both lanes)
+  * leases      the lane's work-lease state (held leases and rows, last
+                batch, done/h, pooled reasons, lost leases)
   * contract    the Queue Center section contract (same builder as the
                 exchange snapshot)
 
 and pushes it to the UI on every change: ``AudioLaneStatePublisherThread``
 waits on the queue library's change signal (every lane mutation, switch,
-full pull, activation), coalesces bursts, and publishes the SSE topic
+lease batch, activation), coalesces bursts, and publishes the SSE topic
 ``queue_center.audio_lane.changed`` with the full two-lane payload. The RPC
 ``ui/queue_center/audio_lane_state`` answers the same payload (optionally
 scoped to one orchestration owner) for mount, reconnect, and relay polling.

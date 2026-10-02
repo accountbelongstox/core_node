@@ -12,6 +12,7 @@ import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORK_LEASES, queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
@@ -26,7 +27,17 @@ THROUGHPUT_MIN_SPAN_SECONDS = float(QUEUE_CENTER_WORK_LEASES["throughput_min_spa
 PROGRESS_STALL_SECONDS = float(QUEUE_CENTER_WORK_LEASES["progress_stall_seconds"])
 BATCH_MAX = int(QUEUE_CENTER_WORK_LEASES["batch_max"])
 WANT_MAX = int(QUEUE_CENTER_WORK_LEASES["want_max"])
-LEASE_REASON_CODES: Tuple[str, ...] = tuple(QUEUE_CENTER_WORK_LEASES["reason_codes"])
+
+
+def lease_reason_code(code: str) -> str:
+    """One ``work_leases.reason_codes`` entry; a code missing from the
+    contract fails loudly at import."""
+    if code not in QUEUE_CENTER_WORK_LEASES["reason_codes"]:
+        raise KeyError(f"work_leases.reason_codes has no {code}")
+    return code
+
+
+LEASE_LOST = lease_reason_code("LEASE_LOST")
 
 
 def _data(response: Any) -> Dict[str, Any]:
@@ -44,13 +55,13 @@ class WorkLeaseClient:
 
     @staticmethod
     def claim(base_url: str, request: Dict[str, Any]) -> Dict[str, Any]:
-        return _data(laravel_client.post(queue_center_endpoint("work_lease_claim"), base_url=base_url, json=request))
+        return _data(laravel_client.post(queue_center_endpoint("work_lease_claim"), base_url=base_url, json=request, response=RESPONSE_CONTROL))
 
     @staticmethod
     def renew(base_url: str, worker_id: str, lease_ids: List[str]) -> Dict[str, Any]:
         return _data(laravel_client.post(
             queue_center_endpoint("work_lease_renew"), base_url=base_url,
-            json={"worker_id": worker_id, "lease_ids": lease_ids},
+            json={"worker_id": worker_id, "lease_ids": lease_ids}, response=RESPONSE_CONTROL,
         ))
 
     @staticmethod
@@ -61,7 +72,7 @@ class WorkLeaseClient:
             body["lease_id"] = lease_id
         if rows:
             body["rows"] = rows
-        data = _data(laravel_client.post(queue_center_endpoint("work_lease_release"), base_url=base_url, json=body))
+        data = _data(laravel_client.post(queue_center_endpoint("work_lease_release"), base_url=base_url, json=body, response=RESPONSE_CONTROL))
         return int(data.get("released") or 0)
 
 
@@ -78,6 +89,7 @@ class LeaseBook:
         self._last_batch = 0
         self._claim_after = 0.0
         self._pooled: List[Dict[str, Any]] = []
+        self._lost = {"leases": 0, "rows": 0}
         init_serialized_owner(self, f"laravel.worker.lease_book.{name}", f"{name}LeaseBookThread")
 
     @serialized_method
@@ -137,6 +149,8 @@ class LeaseBook:
             keys |= lease["keys"]
             for key in lease["keys"]:
                 self._items.pop(key, None)
+            self._lost["leases"] += 1
+            self._lost["rows"] += len(lease["keys"])
         return keys
 
     @serialized_method
@@ -210,6 +224,7 @@ class LeaseBook:
             "done_per_hour": self.throughput_per_hour(),
             "claim_in_seconds": max(0.0, round(self._claim_after - time.monotonic(), 1)),
             "pooled": list(self._pooled),
+            "lost": {"reason_code": LEASE_LOST, **self._lost} if self._lost["leases"] else None,
         }
 
 
@@ -219,12 +234,13 @@ work_lease_client = WorkLeaseClient()
 __all__ = [
     "BATCH_MAX",
     "EMPTY_RETRY_AFTER_SECONDS",
-    "LEASE_REASON_CODES",
+    "LEASE_LOST",
     "LEASE_TTL_SECONDS",
     "LeaseBook",
     "PROGRESS_STALL_SECONDS",
     "WANT_MAX",
     "WORK_LEASE_LANES",
     "WorkLeaseClient",
+    "lease_reason_code",
     "work_lease_client",
 ]

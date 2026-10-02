@@ -81,5 +81,9 @@
     "clipboard_title": "クリップボードを更新しました",
     "clipboard_message": "{chars} 文字をクリップボードにコピーしました",
     "clipboard_image_message": "画像を {path} に保存しました（画像はクリップボードに入れられません）"
+  },
+  "terminal_backup": {
+    "title": "ターミナルのバックアップ",
+    "message": "{count} 個のターミナルをバックアップしました、{kb} K"
   }
 }

@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """Whole-Queue snapshot persistence for the shared audio queue library.
 
-Queue = Part1 + Part2 (binding model:
-docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md; offline-queue
-requirements: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md).
+Queue = Part1 + Part2 (binding model: docs_fix/DESIGN_QUEUE_PIPELINE.md).
 The snapshot covers the ENTIRE Queue as ONE ordered task list plus the
 INTERNAL Part1 membership set, so a restart restores the exact pop order and
 part assignment. The Part1/Part2 split stays internal to the queue library —

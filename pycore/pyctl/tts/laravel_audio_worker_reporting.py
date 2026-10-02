@@ -21,7 +21,7 @@ from pycore.pyutils.common.queue_center_contract import (
     queue_center_endpoint,
 )
 from pycore.pyutils.common.status_snapshot_cache import VersionedSnapshotCache
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, redacted_http_error
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 
@@ -119,7 +119,7 @@ class LaravelAudioWorkerReportingMixin:
                 resp = laravel_client.post(
                     self.REPORT_PATH,
                     base_url=report_base_url,
-                    data=fields,
+                    data=fields, response=RESPONSE_CONTROL,
                 )
         except Exception as e:  # noqa: BLE001
             ColorPrint.yellow(f"{self._log_prefix} report POST failed ({self.REPORT_PATH}, base={report_base_url}): {e}")

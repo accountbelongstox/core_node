@@ -70,11 +70,9 @@ def _publish_progress(item_id: str, value: Dict[str, Any]) -> None:
 
 
 def submit(scope: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    idempotency_key = str(params.get("idempotency_key") or "").strip() or None
     operation = operations.create_or_get(
         kind="qwen_synthesis",
         scope=scope,
-        idempotency_key=idempotency_key,
         initial_message="Qwen synthesis accepted",
     )
     item_key = str(params.get("item_key") or f"syn_{uuid.uuid4().hex[:12]}")
@@ -92,8 +90,8 @@ def submit(scope: str, params: Dict[str, Any]) -> Dict[str, Any]:
     else:
         item_key = existing_items[0].item_key
 
-    # An idempotent re-submit returns the existing operation: a terminal one
-    # keeps its result and a running item is not synthesized twice.
+    # A re-submit for a scope with a live operation returns it, and a running
+    # item is not synthesized twice (request dedupe is client_task_id at RPC).
     in_flight = any(item.status in ITEM_ACTIVE_STATUSES for item in existing_items)
     if operation.status not in OPERATION_TERMINAL_STATUSES and not in_flight:
         start_bus_task(

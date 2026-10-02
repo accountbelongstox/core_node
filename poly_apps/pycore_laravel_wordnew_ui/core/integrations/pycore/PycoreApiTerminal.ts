@@ -191,6 +191,66 @@ export interface TerminalCaptureResult extends TerminalActionResult {
   editor_requested?: boolean;
 }
 
+export const TERMINAL_BACKUP_PAGE_SIZE = 50;
+export const TERMINAL_BACKUP_DELETE_CONFIRM = 'DEL';
+
+export interface TerminalBackupTerminal {
+  number: number;
+  name: string;
+  bytes: number;
+  changed: boolean;
+  error_code?: string | null;
+}
+
+export interface TerminalBackupMatch {
+  number: number;
+  line: number;
+  snippet: string;
+}
+
+export interface TerminalBackupItem {
+  id: string;
+  /** Epoch milliseconds. */
+  created_at: number;
+  terminal_count: number;
+  total_bytes: number;
+  terminals: TerminalBackupTerminal[];
+  matches?: TerminalBackupMatch[];
+}
+
+export interface TerminalBackupListResult {
+  success: boolean;
+  error_code?: string | null;
+  total: number;
+  items: TerminalBackupItem[];
+}
+
+export interface TerminalBackupReadResult {
+  success: boolean;
+  error_code?: string | null;
+  text: string;
+  bytes: number;
+  truncated: boolean;
+}
+
+export interface TerminalBackupOpenResult {
+  success: boolean;
+  error_code?: string | null;
+  opened: number;
+}
+
+export interface TerminalBackupDeleteResult {
+  success: boolean;
+  error_code?: string | null;
+  deleted: number;
+}
+
+export interface TerminalBackupListParams {
+  query?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface TerminalDraftResult {
   success: boolean;
   error_code?: string | null;
@@ -348,6 +408,26 @@ export const pycoreApiTerminal = {
     { action },
     timeoutMs,
   ) as Promise<TerminalDesktopIntegrationResult>,
+  listTerminalBackups: ({
+    query = '',
+    limit = TERMINAL_BACKUP_PAGE_SIZE,
+    offset = 0,
+  }: TerminalBackupListParams = {}) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalBackupsList,
+    { query: query.trim() || undefined, limit, offset },
+  ) as Promise<TerminalBackupListResult>,
+  readTerminalBackup: (id: string, terminalNumber: number) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalBackupsRead,
+    { id, terminal_number: terminalNumber },
+  ) as Promise<TerminalBackupReadResult>,
+  openTerminalBackup: (id: string, terminalNumber?: number) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalBackupsOpen,
+    { id, terminal_number: terminalNumber },
+  ) as Promise<TerminalBackupOpenResult>,
+  deleteTerminalBackup: (id: string, confirm: string, terminalNumber?: number) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalBackupsDelete,
+    { id, terminal_number: terminalNumber, confirm },
+  ) as Promise<TerminalBackupDeleteResult>,
   getTerminalContent: (
     terminalNumber: number,
     kind: 'draft' | 'log' | 'schedule' | 'capture',

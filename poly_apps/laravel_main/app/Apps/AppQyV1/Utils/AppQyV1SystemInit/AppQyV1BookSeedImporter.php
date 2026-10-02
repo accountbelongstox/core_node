@@ -13,6 +13,7 @@ use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MediaIngestService;
 use App\Support\SentenceSegmenter;
+use App\Support\ServiceContract;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -48,8 +49,6 @@ use Illuminate\Support\Facades\Log;
  */
 class AppQyV1BookSeedImporter
 {
-    /** Corpus extracted by shell step 175, relative to the Laravel data dir (laravel_db). */
-    private const CORPUS_REL_DIR = 'seed_data/books';
     private const PREREQUISITE_STEP = '175_laravel_main_start.sh / Step175_LaravelMainStart.ps1';
 
     /** Rejected-sentence examples kept in the gate report. */
@@ -57,9 +56,6 @@ class AppQyV1BookSeedImporter
 
     /** Import gate counters of the last payload build. */
     private array $gateStats = ['sentences' => 0, 'rejected' => 0, 'unpaired_verses' => 0, 'by_code' => [], 'examples' => []];
-
-    /** Top-level directory name packed inside the archive. */
-    private const CORPUS_DIRNAME = 'zeoinjesus-bible';
 
     /** Stable namespace for this seed collection (part of the source_key). */
     private const COLLECTION = 'zeoinjesus-bible';
@@ -103,6 +99,17 @@ class AppQyV1BookSeedImporter
      * Cheap DB truth check: is the Bible already seeded as the single book? Used
      * both by the importer fast-path and by AppQyV1Initializer::stepStillSatisfiedInDb.
      */
+    /**
+     * Where shell step 175 extracts the corpus: <laravel_db>/<book_seed.target_subpath>/<book_seed.top_dir>
+     * (config/service_contract.json book_seed, shared with the shell step).
+     */
+    private static function corpusRoot(): string
+    {
+        $seed = ServiceContract::section('book_seed');
+
+        return PathMapper::getLaravelDataDir($seed['target_subpath'] . '/' . $seed['top_dir']);
+    }
+
     public static function isSeeded(): bool
     {
         try {
@@ -118,7 +125,7 @@ class AppQyV1BookSeedImporter
      */
     public function import(): array
     {
-        $corpusRoot = PathMapper::getLaravelDataDir(self::CORPUS_REL_DIR . '/' . self::CORPUS_DIRNAME);
+        $corpusRoot = self::corpusRoot();
 
         // Already the single Bible book: clean up any leftover legacy per-book rows
         // (idempotent) and return WITHOUT decompressing.
@@ -387,7 +394,7 @@ class AppQyV1BookSeedImporter
      */
     public function dryRun(?string $corpusRoot = null): array
     {
-        $corpusRoot = $corpusRoot ?? PathMapper::getLaravelDataDir(self::CORPUS_REL_DIR . '/' . self::CORPUS_DIRNAME);
+        $corpusRoot = $corpusRoot ?? self::corpusRoot();
         $docs = [];
         $before = ['verse_texts' => 0, 'rejected' => 0, 'by_code' => [], 'examples' => []];
 

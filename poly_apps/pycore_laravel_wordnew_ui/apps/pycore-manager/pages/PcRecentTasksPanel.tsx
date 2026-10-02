@@ -2,6 +2,7 @@
  * Persistent completed-task history grouped by canonical cross-end task_type.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { pcGenericFailureMessage } from '../utils/pcErrorCodes';
 import { useTranslation } from 'react-i18next';
 import {
   History, Loader2, AlertTriangle, RefreshCw, ChevronDown, ChevronRight,
@@ -265,7 +266,7 @@ const PcCompletedArchiveAudio: React.FC<{ cacheKey: string }> = ({ cacheKey }) =
     void pycoreApi.getCompletedTaskResourceDataUrl(cacheKey)
       .then((value) => { if (active) setSource(value); })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : 'Audio load failed');
+        if (active) setError(reason instanceof Error ? reason.message : pcGenericFailureMessage());
       });
     return () => { active = false; };
   }, [cacheKey]);
@@ -293,7 +294,7 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
       link.download = `queue-center-resource.${extension}`;
       link.click();
     } catch (reason: unknown) {
-      setResourceError(reason instanceof Error ? reason.message : 'Resource download failed');
+      setResourceError(reason instanceof Error ? reason.message : pcGenericFailureMessage());
     }
   }, []);
   const field = (label: string, value: React.ReactNode) => (

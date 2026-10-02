@@ -11,6 +11,9 @@ from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 # Lanes owned by the library (contract queue keys), built eagerly so the
 # shared instance is fully initialized at pycore boot.
 AUDIO_QUEUE_LANES = ("word_audio", "sentence_audio")
+# Stable error codes for lane requests; the UI localizes them by code.
+AUDIO_LANE_ERROR_UNKNOWN = "AUDIO_LANE_UNKNOWN"
+AUDIO_LANE_ERROR_DISABLED = "AUDIO_LANE_DISABLED"
 AUDIO_QUEUE_KIND_BY_LANE = {"word_audio": "word", "sentence_audio": "sentence"}
 AUDIO_QUEUE_LANE_BY_KIND = {kind: lane for lane, kind in AUDIO_QUEUE_KIND_BY_LANE.items()}
 

@@ -3,7 +3,7 @@
 - **Date:** 2026-08-16 23:09
 - **Scope:** `pycore` (engine policy, rebuild lane), `poly_apps/pycore_laravel_wordnew_ui` (pycore UI), Laravel Main unchanged this round (already carries `tts_chunked`)
 - **Status:** implemented (static checks only - `py_compile`; no builds/tests/services, per repo rules)
-- **Builds on:** `FIX_20260816_2210_MANAGED_SERVER_CODE_IDENTITY.md` (code-identity contract), `FIX_20260816_2242_SINGLE_VERSION_MULTI_SENTENCE_PIPELINE.md` (single-version marker)
+- **Builds on:** `DESIGN_TTS_AI_RUNTIME.md` (code-identity contract, single-version `tts_chunked` marker)
 - **Official references:**
   - QwenLM/Qwen3-TTS#258 - long single-shot synthesis degrades into noise in the second half
   - 2noise/ChatTTS#113 - one ChatTTS generation is <=30s (best <=25s); longer text swallows words

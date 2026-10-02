@@ -8,12 +8,15 @@ use App\Models\Worker;
 use App\Services\PycoreTasks\PycoreComputeRoster;
 use App\Services\QueueCenter\QueueCenterCacheStore;
 use App\Services\QueueCenter\QueueCenterMetricsService;
+use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Support\QueueCenterContract;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Laravel side of the multi-node work leases (config/queue_center_contract.json
- * work_leases; docs_fix/PROGRESS_20261001_PYCORE_REFACTOR.md J-MULTI).
+ * work_leases; docs_fix/DESIGN_QUEUE_PIPELINE.md).
  *
  * Laravel is the single scheduler. A claim leases a disjoint batch of gap
  * rows in one statement per lane and language
@@ -29,6 +32,10 @@ final class WorkLeaseService
     private const NODE_LEASES_KEY = 'work_lease:node:';
     private const DONE_KEY = 'work_lease:done:';
     private const POOLED_KEY = 'work_lease:pooled';
+    private const ONLINE_SET_KEY = 'work_lease:online_nodes';
+    private const RESURFACE_TICK_KEY = 'work_lease:resurface:tick';
+    private const RESURFACE_CURSOR_KEY = 'work_lease:resurface:cursor:';
+    private const RESURFACE_COUNT_KEY = 'work_lease:resurface:count:';
     private const POOLED_CACHE_SECONDS = 30;
     private const WANT_PRIORITY = 100;
     private const PROMOTE_PRIORITY = 1000;
@@ -53,6 +60,7 @@ final class WorkLeaseService
         $items = [];
         $held = [];
 
+        $wasOnline = $this->nodeOnline($workerId);
         Worker::touchWorkNode($workerId, $computeClass, $lanes, $seed);
         $renewal = $this->renew($workerId, (array) ($request['lease_ids'] ?? []));
         $this->applyWant($lanes, (array) ($request['want'] ?? []));
@@ -72,6 +80,9 @@ final class WorkLeaseService
         }
         if ($items !== []) {
             $this->remember($leaseId, $workerId, $items, $expiresAt);
+        }
+        if ($items !== [] || !$wasOnline) {
+            $this->signal($items !== [] ? 'claim' : 'node');
         }
 
         return [
@@ -124,6 +135,7 @@ final class WorkLeaseService
         }
         if ($leaseIds !== []) {
             Worker::query()->where('worker_id', $workerId)->update(['last_heartbeat_at' => now(), 'status' => Worker::STATUS_ONLINE]);
+            $this->signal('renew');
         }
 
         return $result;
@@ -169,6 +181,9 @@ final class WorkLeaseService
             $released += $this->releaseDeclared($workerId);
             QueueCenterCacheStore::get()->forget(self::NODE_LEASES_KEY . $workerId);
         }
+        if ($released > 0) {
+            $this->signal('release');
+        }
 
         return ['released' => $released];
     }
@@ -189,6 +204,7 @@ final class WorkLeaseService
                 'compute_class' => (string) PycoreComputeRoster::classOf($worker),
                 'online' => $this->isOnline($worker, $ttl),
                 'lanes' => array_map(static fn (array $lane): array => $lane['languages'], (array) $metadata['work_lanes']),
+                'engines' => array_map(static fn (array $lane): array => (array) ($lane['engines'] ?? []), (array) $metadata['work_lanes']),
                 'leases' => count($leases),
                 'items_leased' => $itemsLeased,
                 'done_per_hour' => $donePerHour,
@@ -199,6 +215,27 @@ final class WorkLeaseService
         }
 
         return ['nodes' => $nodes, 'pool' => $this->pool()];
+    }
+
+    /**
+     * Gap rows under a live lease per language of one lane (languages with a gap only).
+     *
+     * @return array<string,int>
+     */
+    public function leasedByLanguage(string $lane): array
+    {
+        $leased = [];
+
+        foreach (WorkLeaseLanes::languages($lane) as $language) {
+            if (WorkLeaseLanes::gapCount($lane, $language) <= 0) {
+                continue;
+            }
+            $leased[$language] = WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
+                ->whereRaw('(' . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::LEASED, [now()])
+                ->count();
+        }
+
+        return $leased;
     }
 
     /** Lease reaper (accounting only: a claim already treats expired rows as free). */
@@ -214,8 +251,74 @@ final class WorkLeaseService
                     ->update($this->clearedLease());
             }
         }
+        if ($cleared > 0) {
+            $this->signal('expiry');
+        }
+        if ($this->onlineSetChanged()) {
+            $this->signal('node');
+        }
 
         return $cleared;
+    }
+
+    /**
+     * Failed resurfacing: per lane and language, at most work_leases.resurface_batch
+     * failed rows still in the gap (WorkLeaseLanes::resurfaceable) go back to the
+     * pool with a fresh retry budget, at most once per resurface_interval_seconds.
+     * A persisted id cursor wraps at the end of the table, so each row is retried
+     * at most once per sweep and an outage never hot-loops at the claim head.
+     *
+     * @return array<int,array{lane:string,language:string,resurfaced:int}> sweeps finished this tick
+     */
+    public function resurface(): array
+    {
+        $batch = $this->limit('resurface_batch');
+        $cache = QueueCenterCacheStore::get();
+        $finished = [];
+        $resurfaced = 0;
+
+        if ($batch <= 0 || !$cache->add(self::RESURFACE_TICK_KEY, 1, $this->limit('resurface_interval_seconds'))) {
+            return [];
+        }
+        foreach (WorkLeaseLanes::lanes() as $lane) {
+            foreach (WorkLeaseLanes::languages($lane) as $language) {
+                $scope = $lane . ':' . $language;
+                $afterId = max(0, (int) $cache->get(self::RESURFACE_CURSOR_KEY . $scope, 0));
+                $table = WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language));
+                try {
+                    $ids = (clone $table)->whereRaw(WorkLeaseLanes::resurfaceable($lane))
+                        ->where('id', '>', $afterId)
+                        ->orderBy('id')
+                        ->limit($batch)
+                        ->pluck('id')
+                        ->map(static fn ($id): int => (int) $id)
+                        ->all();
+                } catch (QueryException $e) {
+                    // A table sys:init has not aligned yet (gap columns missing) skips the language.
+                    Log::warning('[WorkLease] failed resurfacing skipped language', ['lane' => $lane, 'language' => $language, 'error' => $e->getMessage()]);
+                    continue;
+                }
+                if ($ids === []) {
+                    $swept = (int) $cache->pull(self::RESURFACE_COUNT_KEY . $scope, 0);
+                    if ($afterId > 0) {
+                        $cache->forever(self::RESURFACE_CURSOR_KEY . $scope, 0);
+                        $finished[] = ['lane' => $lane, 'language' => $language, 'resurfaced' => $swept];
+                    }
+                    continue;
+                }
+                $rows = $table->whereIn('id', $ids)
+                    ->whereRaw(WorkLeaseLanes::resurfaceable($lane))
+                    ->update(['tts_status' => 'pending', 'tts_attempts' => 0, 'tts_error' => null] + self::clearedLease());
+                $cache->forever(self::RESURFACE_CURSOR_KEY . $scope, end($ids));
+                $cache->forever(self::RESURFACE_COUNT_KEY . $scope, (int) $cache->get(self::RESURFACE_COUNT_KEY . $scope, 0) + $rows);
+                $resurfaced += $rows;
+            }
+        }
+        if ($resurfaced > 0) {
+            $this->signal('pool');
+        }
+
+        return $finished;
     }
 
     /**
@@ -241,6 +344,8 @@ final class WorkLeaseService
         $key = self::DONE_KEY . $workerId . ':' . intdiv(time(), self::BUCKET_SECONDS);
         QueueCenterCacheStore::get()->add($key, 0, self::HOUR_SECONDS * 2);
         QueueCenterCacheStore::get()->increment($key);
+        // A delivered item changes the pool counts of the multi-node panel.
+        app(QueueCenterRealtimeService::class)->publishWorkNodes('pool');
     }
 
     /**
@@ -322,6 +427,35 @@ final class WorkLeaseService
         }
 
         return $progress;
+    }
+
+    /** Throttled work_nodes.changed (contract work_leases.nodes_event). */
+    private function signal(string $reason): void
+    {
+        app(QueueCenterRealtimeService::class)->publishWorkNodes($reason);
+    }
+
+    private function nodeOnline(string $workerId): bool
+    {
+        $worker = Worker::findByWorkerId($workerId);
+
+        return $worker !== null && $this->isOnline($worker, $this->limit('lease_ttl_seconds'));
+    }
+
+    /** True when the set of online lease nodes differs from the reaper's last look. */
+    private function onlineSetChanged(): bool
+    {
+        $ttl = $this->limit('lease_ttl_seconds');
+        $online = Worker::workNodes()
+            ->filter(fn (Worker $worker): bool => $this->isOnline($worker, $ttl))
+            ->pluck('worker_id')
+            ->sort()
+            ->values()
+            ->all();
+        $previous = QueueCenterCacheStore::get()->get(self::ONLINE_SET_KEY);
+        QueueCenterCacheStore::get()->put(self::ONLINE_SET_KEY, $online, self::HOUR_SECONDS);
+
+        return $previous !== null && $previous !== $online;
     }
 
     /** @return array<int,array{0:string,1:string,2:int}> [lane, language, lane max] in claim order */
@@ -557,8 +691,7 @@ final class WorkLeaseService
                 }
                 $leased = $withLeased
                     ? WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
-                        ->whereNotNull('tts_lease_id')
-                        ->where('tts_lease_expires_at', '>', now())
+                        ->whereRaw('(' . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::LEASED, [now()])
                         ->count()
                     : 0;
                 $pool[] = [

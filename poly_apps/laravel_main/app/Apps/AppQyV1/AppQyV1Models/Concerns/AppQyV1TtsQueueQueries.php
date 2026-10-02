@@ -93,7 +93,7 @@ trait AppQyV1TtsQueueQueries
         // Idempotent plain reset: queue order lives on the linked GlobalTask.
         return $model->newQuery()
             ->where('tts_status', $failedStatus)
-            ->where('has_audio', false)
+            ->whereRaw(AppQyV1MediaGaps::NO_AUDIO)
             ->update($attributes);
     }
 }

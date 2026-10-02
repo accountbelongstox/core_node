@@ -119,6 +119,7 @@ debian/
 │   ├── 191_install_octane_watcher_daemon.sh
 │   ├── 193_install_window_launcher_shortcut.sh
 │   ├── 195_install_remmina.sh
+│   ├── 197_install_frontend_packages.sh
 │   ├── 999_check_circular_symlinks.sh
 │   ├── apply_tts_docker_for_engine.sh
 │   ├── docker_model_runner.sh

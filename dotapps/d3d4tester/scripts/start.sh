@@ -1,12 +1,12 @@
 #!/bin/bash
-# d3d4tester launcher (Linux): ensure prerequisites (prereqs.json), restore, build, run with hot reload.
+# d3d4tester launcher (Linux): ensure prerequisites (prereqs.conf), restore, build, run with hot reload.
 # WPF runs only on Windows: inside WSL with Windows interop this delegates to start.ps1.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(cd "$APP_DIR/../.." && pwd)"
 LINUX_COMMON_DIR="$ROOT_DIR/scripts/shells/linux/common"
-PREREQS_JSON="$SCRIPT_DIR/prereqs.json"
+PREREQS_CONF="$SCRIPT_DIR/prereqs.conf"
 START_PS1="$SCRIPT_DIR/start.ps1"
 CSPROJ="$APP_DIR/d3d4tester.csproj"
 LOG_PREFIX="[d3d4tester]"
@@ -19,6 +19,9 @@ DOTNET_READY=false
 ARTIFACTS_SUBDIR="dotnet-artifacts"
 ARTIFACTS_NAME="d3d4tester"
 ARTIFACTS_DIR=""
+RESTORE_STAMP=""
+RESTORE_STALE=true
+DOTCORE_DIR=""
 PS_EXE=""
 PS_SCRIPT_WIN=""
 PS_ARGS=()
@@ -26,36 +29,15 @@ DOTNET_ARGS=()
 SDK_VERSION=""
 PREREQ_ROWS=""
 PREREQ_FIELD_SEP="|"
-PREREQ_LIST_SEP=","
-PREREQ_JQ_QUERY='.prereqs[] | select(.linux) | [.id, (.required | tostring), .purpose, .linux.installer, ((.linux.args // []) | join(","))
-    , ((.linux.env // {}) | to_entries | map("\(.key)=\(.value)") | join(",")), ((.linux.detect.dotnet_sdk_major // "") | tostring)
-    , ((.linux.detect.commands // []) | join(",")), ((.linux.detect.python_imports // []) | join(","))] | join("|")'
-PREREQ_JQ_MANUAL='[.manual[]? | select((.platform // "") | startswith("windows")) | .id] | join(", ")'
-PREREQ_PY_QUERY='
-import json, sys
-d = json.load(open(sys.argv[1]))
-if sys.argv[2] == "manual":
-    print(", ".join(m["id"] for m in d.get("manual", []) if str(m.get("platform", "")).startswith("windows")))
-    sys.exit(0)
-for p in d.get("prereqs", []):
-    l = p.get("linux")
-    if not l:
-        continue
-    det = l.get("detect", {})
-    print("|".join([p["id"], str(p.get("required", True)).lower(), p.get("purpose", ""), l["installer"], ",".join(l.get("args", [])),
-        ",".join("%s=%s" % kv for kv in l.get("env", {}).items()), str(det.get("dotnet_sdk_major", "")),
-        ",".join(det.get("commands", [])), ",".join(det.get("python_imports", []))]))
-'
-PREREQ_PY_PROBE='import importlib.util, sys; print("ok" if all(importlib.util.find_spec(m) for m in sys.argv[1:]) else "missing")'
+PREREQ_LIST_SEP=";"
+P_KIND=""
 P_ID=""
 P_REQUIRED=""
-P_PURPOSE=""
+P_PLATFORM=""
 P_INSTALLER=""
-P_ARGS=""
 P_ENV=""
-P_DOTNET=""
-P_COMMANDS=""
-P_IMPORTS=""
+P_ARGS=""
+P_DETECT=""
 P_PRESENT=false
 P_SAVED=()
 
@@ -91,8 +73,6 @@ case "$CONFIGURATION" in
 esac
 
 source "$LINUX_COMMON_DIR/gvar_common.sh" >/dev/null 2>&1
-source "$LINUX_COMMON_DIR/venv_python_common.sh" >/dev/null 2>&1
-
 find_windows_powershell() {
     PS_EXE=""
     [ "${IS_WSL:-false}" = "true" ] || return 0
@@ -131,68 +111,45 @@ dotnet_sdk_ready() {
 
 load_prereq_rows() {
     PREREQ_ROWS=""
-    [ -f "$PREREQS_JSON" ] || fail "Prerequisite manifest not found: $PREREQS_JSON"
-    if command -v jq >/dev/null 2>&1; then
-        PREREQ_ROWS="$(jq -r "$PREREQ_JQ_QUERY" "$PREREQS_JSON")"
-    elif command -v python3 >/dev/null 2>&1; then
-        PREREQ_ROWS="$(python3 -c "$PREREQ_PY_QUERY" "$PREREQS_JSON" prereqs)"
-    else
-        fail "jq or python3 is required to read $PREREQS_JSON"
-    fi
-}
-
-windows_manual_ids() {
-    if command -v jq >/dev/null 2>&1; then
-        jq -r "$PREREQ_JQ_MANUAL" "$PREREQS_JSON"
-    elif command -v python3 >/dev/null 2>&1; then
-        python3 -c "$PREREQ_PY_QUERY" "$PREREQS_JSON" manual
-    fi
-}
-
-prereq_python() {
-    local py="${VENV_PYTHON3:-}"
-    [ -x "$py" ] || py="$(venv_python_from_common)"
-    echo "$py"
+    [ -f "$PREREQS_CONF" ] || fail "Prerequisite manifest not found: $PREREQS_CONF"
+    PREREQ_ROWS="$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$PREREQS_CONF" | tr -d '\r')"
 }
 
 prereq_present() {
-    local cmd="" py="" result=""
+    local cmd="" kind="${P_DETECT%%:*}" value="${P_DETECT#*:}"
+    local -a cmds=()
     P_PRESENT=false
-    if [ -n "$P_DOTNET" ]; then
-        DOTNET_MAJOR="$P_DOTNET"
-        refresh_dotnet_path
-        dotnet_sdk_ready
-        P_PRESENT="$DOTNET_READY"
-        return 0
-    fi
-    if [ -n "$P_COMMANDS" ]; then
-        for cmd in ${P_COMMANDS//$PREREQ_LIST_SEP/ }; do
-            command -v "$cmd" >/dev/null 2>&1 && P_PRESENT=true
-        done
-        return 0
-    fi
-    if [ -n "$P_IMPORTS" ]; then
-        py="$(prereq_python)"
-        [ -n "$py" ] || return 0
-        result="$(timeout 30 "$py" -c "$PREREQ_PY_PROBE" ${P_IMPORTS//$PREREQ_LIST_SEP/ } 2>/dev/null)"
-        [ "$result" = "ok" ] && P_PRESENT=true
-        return 0
-    fi
-    P_PRESENT=true
+    case "$kind" in
+        dotnet-sdk)
+            DOTNET_MAJOR="$value"
+            refresh_dotnet_path
+            dotnet_sdk_ready
+            P_PRESENT="$DOTNET_READY"
+            ;;
+        commands)
+            IFS="$PREREQ_LIST_SEP" read -r -a cmds <<< "$value"
+            for cmd in "${cmds[@]}"; do
+                command -v "$cmd" >/dev/null 2>&1 && P_PRESENT=true
+            done
+            ;;
+        *) P_PRESENT=true ;;
+    esac
+    return 0
 }
 
 prereq_run_installer() {
     local installer="$ROOT_DIR/$P_INSTALLER" pair="" key="" i=0
-    local -a keys=() args=()
+    local -a keys=() args=() pairs=()
     [ -f "$installer" ] || fail "Installer not found: $installer"
     P_SAVED=()
-    for pair in ${P_ENV//$PREREQ_LIST_SEP/ }; do
+    IFS="$PREREQ_LIST_SEP" read -r -a pairs <<< "$P_ENV"
+    for pair in "${pairs[@]}"; do
         key="${pair%%=*}"
         keys+=("$key")
         P_SAVED+=("$(get_var "$key" "")")
         set_var "$key" "${pair#*=}" >/dev/null
     done
-    [ -n "$P_ARGS" ] && args=(${P_ARGS//$PREREQ_LIST_SEP/ })
+    [ -n "$P_ARGS" ] && IFS="$PREREQ_LIST_SEP" read -r -a args <<< "$P_ARGS"
     bash "$installer" "${args[@]}"
     for key in "${keys[@]}"; do
         set_var "$key" "${P_SAVED[$i]}" >/dev/null
@@ -204,18 +161,22 @@ prereq_run_installer() {
 ensure_prereqs() {
     local manual_ids=""
     load_prereq_rows
-    while IFS="$PREREQ_FIELD_SEP" read -r P_ID P_REQUIRED P_PURPOSE P_INSTALLER P_ARGS P_ENV P_DOTNET P_COMMANDS P_IMPORTS; do
-        [ -n "$P_ID" ] || continue
+    while IFS="$PREREQ_FIELD_SEP" read -r P_KIND P_ID P_REQUIRED P_PLATFORM P_INSTALLER P_ENV P_ARGS P_DETECT; do
+        if [ "$P_KIND" = "manual" ]; then
+            case "$P_REQUIRED" in windows*) manual_ids="${manual_ids:+$manual_ids, }$P_ID" ;; esac
+            continue
+        fi
+        [ "$P_KIND" = "prereq" ] && [ "$P_PLATFORM" = "linux" ] || continue
         prereq_present
         if [ "$P_PRESENT" = "true" ]; then
             log "Prerequisite present: $P_ID"
             continue
         fi
         if [ "$P_REQUIRED" != "true" ] && [ "$WITH_OPTIONAL" != "true" ]; then
-            log "Optional prerequisite missing: $P_ID ($P_PURPOSE); rerun with --with-optional to install it"
+            log "Optional prerequisite missing: $P_ID; rerun with --with-optional to install it"
             continue
         fi
-        log "Installing prerequisite: $P_ID ($P_PURPOSE)"
+        log "Installing prerequisite: $P_ID"
         prereq_run_installer
         prereq_present
         if [ "$P_PRESENT" = "true" ]; then
@@ -226,8 +187,17 @@ ensure_prereqs() {
             log "WARNING: optional prerequisite is still missing after install: $P_ID"
         fi
     done <<< "$PREREQ_ROWS"
-    manual_ids="$(windows_manual_ids)"
     [ -n "$manual_ids" ] && log "Windows-side prerequisites (not applicable on Linux; start.ps1 checks them on Windows): $manual_ids"
+}
+
+restore_is_stale() {
+    RESTORE_STALE=true
+    RESTORE_STAMP="$ARTIFACTS_DIR/obj/$ARTIFACTS_NAME/project.assets.json"
+    DOTCORE_DIR="$ROOT_DIR/dotcore"
+    [ -f "$RESTORE_STAMP" ] || return 0
+    if [ -z "$(find "$APP_DIR" "$DOTCORE_DIR" -path "$ARTIFACTS_DIR" -prune -o -type f \( -name '*.csproj' -o -name 'Directory.*.props' -o -name 'nuget.config' \) -newer "$RESTORE_STAMP" -print -quit)" ]; then
+        RESTORE_STALE=false
+    fi
 }
 
 resolve_artifacts_dir() {
@@ -254,11 +224,21 @@ export DOTNET_NOLOGO=1
 export DOTNET_WATCH_SUPPRESS_EMOJIS=1
 DOTNET_ARGS=("$CSPROJ" -c "$CONFIGURATION" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR")
 
-log "Step 2/4: restore"
-dotnet restore "$CSPROJ" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR" || fail "dotnet restore failed"
+restore_is_stale
+if [ "$RESTORE_STALE" = "true" ]; then
+    log "Step 2/4: restore"
+    dotnet restore "$CSPROJ" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR" || fail "dotnet restore failed"
+    touch "$RESTORE_STAMP"
+else
+    log "Step 2/4: restore skipped (up-to-date)"
+fi
 
-log "Step 3/4: build ($CONFIGURATION)"
-dotnet build "${DOTNET_ARGS[@]}" --no-restore || fail "dotnet build failed"
+if [ "$BUILD_ONLY" = "true" ] || [ "$NO_WATCH" = "true" ]; then
+    log "Step 3/4: build ($CONFIGURATION, incremental)"
+    dotnet build "${DOTNET_ARGS[@]}" --no-restore || fail "dotnet build failed"
+else
+    log "Step 3/4: build delegated to dotnet watch (single incremental build)"
+fi
 
 if [ "$BUILD_ONLY" = "true" ] || [ "$NO_WATCH" = "true" ]; then
     if [ "$BUILD_ONLY" = "true" ]; then
@@ -273,4 +253,4 @@ log "Step 4/4: run with hot reload (dotnet watch)"
 log "WPF runs only on Windows: on Linux this watches sources and rebuilds on change (compile check only)"
 export EnableWindowsTargeting=true
 export ArtifactsPath="$ARTIFACTS_DIR"
-exec dotnet watch --non-interactive --project "$CSPROJ" build -c "$CONFIGURATION" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR"
+exec dotnet watch --non-interactive --project "$CSPROJ" build -c "$CONFIGURATION" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR" --no-restore

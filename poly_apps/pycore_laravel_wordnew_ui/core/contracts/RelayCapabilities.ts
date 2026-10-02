@@ -1,6 +1,6 @@
 /**
  * RelayCapabilities - declared relay capability providers
- * (DESIGN_20260817_2115 PART_3 §3.1, norm 1.8).
+ * (DESIGN_RELAY.md).
  *
  * Providers are DECLARED IN CODE (contract-declared, single source) and
  * rendered by the UI; they are NOT wired this pass - a provider entry tells

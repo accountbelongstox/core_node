@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from pycore.pyctl.runtime.callmodule_config import Config as CallmoduleConfig
+from pycore.pyctl.terminal.terminal_backup_service import terminal_backup_service
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -21,6 +22,7 @@ from pycore.pylauncher.launcher import LauncherConfig
 from pycore.pylauncher.tray_menu import build_tray_menu, tray_menu_to_dicts
 from pycore.pyutils.codesync.manager import code_sync_manager
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
+from pycore.pyutils.common.service_config import qt_tray_enabled, tray_disabled
 from pycore.pyutils.common.strtools.normalization import to_bool
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
@@ -32,6 +34,9 @@ UI_MIN_WINDOW_SIZE = (640, 480)
 UI_SCREEN_MARGIN = 80
 HTTP_EVENTS_ENV = "PYCORE_HTTP_EVENTS_ENABLED"
 PYCORE_UI_URL_ENV = "PYCORE_UI_URL"
+# Code Sync is retired (repositories sync with gitsync): it starts with pycore
+# only when this flag is truthy.
+CODESYNC_ENABLED_ENV = "CODESYNC_ENABLED"
 
 
 def _resolve_window_size() -> tuple:
@@ -73,20 +78,23 @@ def build_tray_service_config(port: int, singleton_port: Optional[int] = None) -
 
 
 def start_rpc_runtime() -> None:
-    """Warm-up that rides on the RPC server: boot Code Sync and bridge the
-    structured Laravel-request and queue-bump records into the event journal."""
-    code_sync_manager.start()
+    """Warm-up that rides on the RPC server: the terminal backup scheduler and
+    the Laravel-request / queue-bump bridges into the event journal. The
+    retired Code Sync starts only when CODESYNC_ENABLED is truthy."""
+    if to_bool(os.environ.get(CODESYNC_ENABLED_ENV, "")):
+        code_sync_manager.start()
+    terminal_backup_service.start()
     laravel_http_recorder.register_callback(
         lambda record: event_journal.publish_topic(BusSignals.LARAVEL_HTTP, record)
     )
     queue_bump_hub.register_callback(
         lambda record: event_journal.publish_topic(BusSignals.QUEUE_BUMP, record)
     )
-    ColorPrint.green("[ConfigBuilder] Code Sync started; event bridges wired")
+    ColorPrint.green("[ConfigBuilder] Event bridges wired")
 
 
 def _ui_service_config(port: int, debug: bool) -> dict:
-    tray_enabled = CallmoduleConfig.UI_ENABLE_TRAY
+    tray_enabled = qt_tray_enabled()
     return {
         "app_name": CallmoduleConfig.UI_APP_NAME,
         "app_id": CallmoduleConfig.UI_APP_ID,
@@ -141,9 +149,8 @@ def build_launcher_config(
     if IS_WINDOWS and local_ui_enabled:
         services["ui"] = _ui_service_config(port, debug)
 
-    # The tray is local desktop integration and runs in every service mode.
-    can_show_tray = IS_WINDOWS or (IS_LINUX and CallmoduleConfig.HAS_DISPLAY)
-    qt_tray_active = CallmoduleConfig.UI_ENABLE_TRAY and "ui" in services
+    can_show_tray = not tray_disabled() and (IS_WINDOWS or (IS_LINUX and CallmoduleConfig.HAS_DISPLAY))
+    qt_tray_active = qt_tray_enabled() and "ui" in services
     if can_show_tray and not qt_tray_active:
         services["tray"] = build_tray_service_config(port=port)
         ColorPrint.blue(f"[ConfigBuilder] Added independent tray service (backend={CallmoduleConfig.TRAY_BACKEND})")

@@ -1,5 +1,6 @@
 import React from 'react';
-import { PcQueueLogPagination } from './PcQueueLogPagination';
+import { PcCursorPager } from './PcCursorPager';
+import { useTranslation } from 'react-i18next';
 
 export interface PcWordAudioLogRow {
   at: number;
@@ -35,15 +36,16 @@ export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({
   rows, title, progressLabel, stageLabel, onPlay,
   pageIndex, hasMore, total, loading, onNext, onPrevious,
 }) => {
+  const { t } = useTranslation('pc');
   return (
     <div className="mt-1 max-h-56 overflow-y-auto rounded border border-slate-800 bg-slate-950/60">
       <div className="sticky top-0 bg-slate-900/90 px-2 py-1 text-[10px] font-semibold text-slate-500 flex items-center gap-2">
         <span>{title}</span>
         <span className="ml-auto">
-          <PcQueueLogPagination
+          <PcCursorPager
+            totalLabel={t('queueCenter.logPagination.total', { total })}
             pageIndex={pageIndex}
             hasMore={hasMore}
-            total={total}
             loading={loading}
             onNext={onNext}
             onPrevious={onPrevious}

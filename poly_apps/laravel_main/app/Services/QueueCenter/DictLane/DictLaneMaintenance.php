@@ -10,7 +10,7 @@ use App\Services\TaskManagerService;
 use Illuminate\Support\Facades\Log;
 
 /**
- * On-demand global task maintenance (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md §2.5).
+ * On-demand global task maintenance (docs_fix/DESIGN_QUEUE_PIPELINE.md).
  *
  * Replaces the 15s GlobalTaskMaintenanceTask poller: lease recovery, offline
  * worker cleanup, and priority aging run INSIDE the worker pull path —

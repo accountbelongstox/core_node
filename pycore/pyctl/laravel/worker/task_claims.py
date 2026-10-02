@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, redacted_http_error
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
     queue_center_endpoint,
@@ -37,7 +37,7 @@ class TaskClaims:
         return laravel_client.post(
             queue_center_endpoint("worker_task_accept", task_type=task_type),
             base_url=base_url,
-            json={"task_id": task_id, "worker_id": self._host.worker_id},
+            json={"task_id": task_id, "worker_id": self._host.worker_id}, response=RESPONSE_CONTROL,
         )
 
     def validate(self, task_type: str, task_id: str, base_url: str) -> bool:
@@ -77,7 +77,7 @@ class TaskClaims:
                 response = laravel_client.post(
                     queue_center_endpoint("worker_task_release", task_type=task_type),
                     base_url=self._ledger.base_url(task_ids[0], self._host.active_base_url()),
-                    json={"worker_id": self._host.worker_id, "task_ids": task_ids[: GLOBAL_TASK_LIMITS["worker_pull"]]},
+                    json={"worker_id": self._host.worker_id, "task_ids": task_ids[: GLOBAL_TASK_LIMITS["worker_pull"]]}, response=RESPONSE_CONTROL,
                 )
             except OSError as exc:
                 ColorPrint.yellow(

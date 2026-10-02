@@ -15,7 +15,7 @@ from pycore.pyctl.relay.relay_state import (
     relay_state,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.http_client import HttpError
+from pycore.pyutils.common.http_client import HttpError, RESPONSE_CONTROL
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.laravel.client import laravel_client
@@ -92,7 +92,7 @@ class RelayPublisherThread(threading.Thread):
                     timeout=timeout,
                     allow_redirects=False,
                     log_line=False,
-                    sensitive_request=True,
+                    sensitive_request=True, response=RESPONSE_CONTROL,
                 )
             except HttpError as error:
                 relay_activity_log.warning(

@@ -2,7 +2,8 @@
 """Code Sync frame transport: request/response frames over signed HTTP.
 
 The DEV POSTs each frame to the CLIENT; the CLIENT handles it synchronously
-and returns its reply in the same HTTP response.
+and returns its reply in the same HTTP response. A frame call uses the upload
+response profile: a stall-driven write and a reply bounded by frame_timeout.
 """
 
 import json
@@ -11,6 +12,7 @@ from typing import Optional
 
 import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.peer_http import peer_url, signed_peer_request
+from pycore.pyutils.common.http_client import RESPONSE_UPLOAD
 
 
 class HttpFrameClient:
@@ -49,7 +51,8 @@ class HttpFrameClient:
                 "sender_id": self.sender_id,
                 "frame": str(text or ""),
             },
-            timeout=self.frame_timeout,
+            timeout=(None, self.frame_timeout),
+            response=RESPONSE_UPLOAD,
         )
         if response.status_code != 200:
             raise ConnectionError(f"Code Sync frame rejected: HTTP {response.status_code}")

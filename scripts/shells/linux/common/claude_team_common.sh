@@ -34,6 +34,7 @@ CLAUDE_TEAM_CLAUDE_INSTALL_LIB="$CLAUDE_TEAM_ROOT_DIR/scripts/ai_shtools/claude_
 CLAUDE_TEAM_SECRET_TOOL_COMMON="$CLAUDE_TEAM_ROOT_DIR/scripts/shells/linux/common/secret_tool_common.sh"
 . "$CLAUDE_TEAM_CLAUDE_INSTALL_LIB"
 . "$CLAUDE_TEAM_SECRET_TOOL_COMMON"
+. "$CLAUDE_TEAM_COMMON_DIR/service_contract_common.sh"
 CLAUDE_TEAM_BIN_DIR="/usr/local/bin"
 CLAUDE_TEAM_STATE_DIR="$CCI_TEAM_STATE_DIR"
 CLAUDE_TEAM_CATALOG_PATH="$CCI_TEAM_CATALOG_PATH"
@@ -66,7 +67,7 @@ CLAUDE_TEAM_BLOCK_PATTERNS=(
 )
 CLAUDE_TEAM_USAGE_LIMIT_PATTERN="You've hit your|Usage limit reached"
 CLAUDE_TEAM_READY_PATTERN='auto mode on|\? for shortcuts|esc to interrupt'
-CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=30" "-o" "ServerAliveCountMax=4" "-o" "StrictHostKeyChecking=accept-new" "-o" "ConnectTimeout=15" "-o" "BatchMode=yes")
+CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=$(sc_get ssh_client.server_alive_interval_seconds)" "-o" "ServerAliveCountMax=$(sc_get ssh_client.server_alive_count_max)" "-o" "TCPKeepAlive=$(sc_get ssh_client.tcp_keepalive)" "-o" "StrictHostKeyChecking=accept-new" "-o" "ConnectTimeout=15" "-o" "BatchMode=yes")
 CLAUDE_TEAM_AUTH_ENV_NAMES=(
     HOME USER LOGNAME PATH CLAUDE_CONFIG_DIR XDG_CONFIG_HOME
     ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY

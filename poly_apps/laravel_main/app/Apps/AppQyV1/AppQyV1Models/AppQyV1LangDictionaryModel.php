@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
+use App\Support\LockedCache;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
@@ -1147,7 +1148,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
     {
         $cacheKey = 'appqyv1:wordtrans_pending_summary:' . strtolower($langCode);
 
-        return Cache::flexible($cacheKey, [15, 60], static function () use ($langCode): array {
+        return LockedCache::flexible($cacheKey, [15, 60], static function () use ($langCode): array {
             $counts = self::forLanguage($langCode)
                 ->newQuery()
                 ->selectRaw('count(*) as total')
@@ -1214,7 +1215,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
     {
         $languageCode = AppQyV1TableMaps::normalizeLangCode($langCode);
 
-        return Cache::flexible(
+        return LockedCache::flexible(
             self::metricsCacheKey($languageCode),
             [60, self::METRICS_CACHE_TTL],
             static fn () => self::languageBreakdownMetrics($languageCode)
@@ -1273,7 +1274,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
     public static function cachedCoverageMetrics(string $langCode): ?array
     {
-        return Cache::flexible(
+        return LockedCache::flexible(
             self::coverageCacheKey($langCode),
             [60, self::METRICS_CACHE_TTL],
             static fn () => self::coverageMetrics($langCode)

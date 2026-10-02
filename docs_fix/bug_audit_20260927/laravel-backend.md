@@ -1,7 +1,7 @@
 # laravel-backend bug audit (B6): report only
 
 Role: laravel-backend · Scope: `poly_apps/laravel_main/` (no vendor/node_modules/storage/public/build) · Date: 2026-09-27
-Binding doc: docs_fix/REQUIREMENTS_20260927_TEAM_BUG_AUDIT.md. No code was changed. Checks were static reads, grep and sed only.
+Binding doc: docs_fix/DESIGN_AUTH_IDENTITY.md. No code was changed. Checks were static reads, grep and sed only.
 Paths in `location` are relative to `poly_apps/laravel_main/` unless they start with `poly_apps/`.
 
 Counts: critical 4 · high 6 · medium 10 · low 14 · total 34
@@ -132,7 +132,7 @@ Mapping to working IDs (for cross-reference only): LB-001=DS-1, LB-002=DB-1, LB-
 ### LB-018 — Heavy work still runs inside peer HTTP requests (fresh manifest, exact row counts, 7z archive creation)
 - severity: medium · category: request-heavy-work · confidence: confirmed
 - location: app/Services/DataSync/DataSyncPassiveService.php:80-94,114-130; DataSyncDriverService.php:538,982
-- failure scenario: In push mode, `verify_resource_manifests` calls the receiver with `fresh=1`. The receiver runs `manifest($key)` in-request, and every file received in this session is a hash-cache miss (new path, size and mtime), so it SHA-256-hashes GBs inside the request. `verify_database_counts` runs an exact `count(*)` over every table of every connection in-request. `exportArchive` runs `create7z` over a whole root in-request. Each can pass the 120 s client timeout, which leaves the driver in `__waiting` retry loops, and each breaks REQUIREMENTS_20260927_MACHINE_DATA_SYNC_REFACTOR rule 4 ("Peer requests only read artifacts…").
+- failure scenario: In push mode, `verify_resource_manifests` calls the receiver with `fresh=1`. The receiver runs `manifest($key)` in-request, and every file received in this session is a hash-cache miss (new path, size and mtime), so it SHA-256-hashes GBs inside the request. `verify_database_counts` runs an exact `count(*)` over every table of every connection in-request. `exportArchive` runs `create7z` over a whole root in-request. Each can pass the 120 s client timeout, which leaves the driver in `__waiting` retry loops, and each breaks DESIGN_LARAVEL_PLATFORM rule 4 ("Peer requests only read artifacts…").
 - evidence: resourceManifest `if ($fresh) return $this->resources->manifest($key);`. databaseCounts `$this->databases->rowCounts()`. exportArchive calls `createArchive` inside withLock.
 - suggested fix: Have the passive timer compute the post-transfer manifests, the counts and the archives as artifacts, and have the requests serve them (503 until ready).
 

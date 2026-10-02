@@ -614,11 +614,6 @@ def get_third_package_sklearn():
 
 
 # Database operations
-def get_third_package_sqlalchemy():
-    """Get sqlalchemy package (lazy load)"""
-    return _lazy_import('sqlalchemy', 'import sqlalchemy')
-
-
 # MCP (Model Context Protocol) - FastMCP v2
 def get_third_package_fastmcp():
     """Get fastmcp package (lazy load)"""

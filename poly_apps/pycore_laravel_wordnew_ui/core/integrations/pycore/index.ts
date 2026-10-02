@@ -42,8 +42,17 @@ export type {
 export type {
   MachineClipboardEntry, MachineSendClipboardResult, MachineSendFileResult, MachineSendResult, MachineSendTextResult,
 } from './PycoreApiMachineSend';
+export { TERMINAL_BACKUP_DELETE_CONFIRM, TERMINAL_BACKUP_PAGE_SIZE } from './PycoreApiTerminal';
 export type {
   TerminalActionResult,
+  TerminalBackupDeleteResult,
+  TerminalBackupItem,
+  TerminalBackupListParams,
+  TerminalBackupListResult,
+  TerminalBackupMatch,
+  TerminalBackupOpenResult,
+  TerminalBackupReadResult,
+  TerminalBackupTerminal,
   TerminalCaptureResult,
   TerminalImageUploadOptions,
   TerminalImageUploadResult,

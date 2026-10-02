@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-On 2026-09-30 the 175 chain (systemd_service_manager converge, frankenphp_domain_common, frankenphp_manager LKG guard, laravel_runtime_frankenphp, 175, 75) was refactored to probe-first / restart-only-when-needed. Record: docs_fix/FIX_20260930_175_RESTART_CPU_ROOT_CAUSE.md. Not committed by me; the box's syncgit auto-commits the working tree.
+On 2026-09-30 the 175 chain (systemd_service_manager converge, frankenphp_domain_common, frankenphp_manager LKG guard, laravel_runtime_frankenphp, 175, 75) was refactored to probe-first / restart-only-when-needed. Record: docs_fix/DESIGN_SHELL_HOSTS.md. Not committed by me; the box's syncgit auto-commits the working tree.
 
 **Why:** hard CPUQuota=25% throttled the serving plane ~85% of periods after every boot; 175 restarted the unit/workers/PG on every run; 75 could re-point PG15 to a stale v15 copy.
 

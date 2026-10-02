@@ -175,7 +175,7 @@ public static class BattlenetConstants
     public const int KillWaitTimeoutSec = 15;
 
     // ---------- UI snapshots. 1:1 Python BN_FLOW_SNAPSHOTS_DIR / DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS ----------
-    public const bool DebugSaveBnFlowUiSnapshots = false;
+    public static readonly bool DebugSaveBnFlowUiSnapshots = false;
     public const string BnFlowSnapshotsDirName = "bn_flow_snapshots";
     public const string CacheDirName = ".cache";
     public const string BnFlowSnapshotFilePrefix = "bn_flow_";

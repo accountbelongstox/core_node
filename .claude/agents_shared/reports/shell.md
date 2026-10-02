@@ -138,7 +138,7 @@ Checks:
 - IS-017 fixed. `${USE_SUDO:-}` added to stop/disable/rm/daemon-reload (175_laravel_main_start.sh).
 - IS-018 fixed. `Add-AiCliUserPath` reads HKCU\Environment Path with `DoNotExpandEnvironmentNames` and writes it back as `ExpandString`. It then broadcasts WM_SETTINGCHANGE (`Send-AiCliEnvironmentChange`).
 - IS-019 fixed. `Get-AiCliUltracodeArgs` writes only when the content differs. On an IOException from a parallel writer it falls back to a per-PID file.
-- IS-020 partly fixed, partly refuted. `--daemon` refuses when PID_FILE holds a live resource_watchdog.sh (checked via /proc cmdline), `--stop` uses the same check, and an unwritable LOG_DIR fails once with a message. Refuted: moving the log under CORE_NODE_DATA_DIR. The user requirement docs_fix/RESOURCE_WATCHDOG_FRANKENPHP_FREEZE.md (2026-09-25) fixes `/logs/debug.log` and `/logs/resource_watchdog.pid`.
+- IS-020 partly fixed, partly refuted. `--daemon` refuses when PID_FILE holds a live resource_watchdog.sh (checked via /proc cmdline), `--stop` uses the same check, and an unwritable LOG_DIR fails once with a message. Refuted: moving the log under CORE_NODE_DATA_DIR. The user requirement docs_fix/DESIGN_SHELL_HOSTS.md (2026-09-25) fixes `/logs/debug.log` and `/logs/resource_watchdog.pid`.
 - IS-021 fixed. The unused `mount_additional_disk` (mkfs without prompt, fstab without nofail) is removed from gvar_system_common.sh; nothing calls it.
 - IS-023 fixed. unified_core.py logs `', '.join(domains)`.
 - IS-024 fixed. `import sys` added to launch_multiple_terminals.py; the file is kept.

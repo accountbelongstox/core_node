@@ -16,7 +16,7 @@
   - `ca-orchestrator` has put all codemart work on hold until the user's next task; `ct-codemart-ui` is holding too.
   - The zh glossary terms (审核员/您) are in the server file `poly_apps/laravel_main/lang/zh_CN/codemart.php` (Laravel-owned, not UI) — its writer will be assigned separately by the claude lead.
   - If the claude lead dispatches something to `ct-ui-codemart` directly, I take it from there.
-- Confirmation from ca-orchestrator (2026-09-28): ruling R2 (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`) — `codemart-ui` is the default (D22 roster) writer for `apps/codemart`/`flavors/codemart`; `ui-codemart` is a pre-D22 alias session that writes only when named temporary writer in a task. The CodeMart backlog is on hold until the user's next task. Saved as durable memory (`ruling-r2-alias-reserve.md`) so future sessions don't re-derive this.
+- Confirmation from ca-orchestrator (2026-09-28): ruling R2 (`docs_fix/DESIGN_CLAUDE_TEAM.md`) — `codemart-ui` is the default (D22 roster) writer for `apps/codemart`/`flavors/codemart`; `ui-codemart` is a pre-D22 alias session that writes only when named temporary writer in a task. The CodeMart backlog is on hold until the user's next task. Saved as durable memory (`ruling-r2-alias-reserve.md`) so future sessions don't re-derive this.
 - Status: idle, standing by per both ct-codemart-lead's and ca-orchestrator's instructions. No edits made this session.
 - Blockers: none; waiting on a direct dispatch naming `ui-codemart`/`ct-ui-codemart` as temporary writer before touching any file in scope.
 - Next owner: ct-codemart-lead / ca-orchestrator to dispatch if/when there is codemart UI work assigned to ui-codemart specifically.

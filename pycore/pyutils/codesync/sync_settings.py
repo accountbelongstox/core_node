@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyutils.codesync.legacy_json import migrate_legacy_json_section
+from pycore.pyutils.codesync.json_section_migration import migrate_json_file_into_section
 from pycore.pyutils.codesync.paths import codesync_cache_dir
 from pycore.pyutils.common.user_data_store import user_data_store
 
@@ -138,7 +138,7 @@ _KEYS = ("excluded_dirs", "excluded_files", "excluded_extensions",
 _SECTION = "codesync_sync"
 
 
-LEGACY_SYNC_SETTINGS_FILE_NAME = "sync_settings.json"
+MIGRATED_SYNC_SETTINGS_FILE_NAME = "sync_settings.json"
 
 
 def presets() -> Dict[str, Any]:
@@ -278,7 +278,7 @@ class SyncSettings:
 
     def _load_override(self) -> Dict[str, Any]:
         if not self._migrated:
-            migrate_legacy_json_section(codesync_cache_dir() / LEGACY_SYNC_SETTINGS_FILE_NAME, _SECTION)
+            migrate_json_file_into_section(codesync_cache_dir() / MIGRATED_SYNC_SETTINGS_FILE_NAME, _SECTION)
             self._migrated = True
         return dict(user_data_store.get_personalized_section(_SECTION) or {})
 

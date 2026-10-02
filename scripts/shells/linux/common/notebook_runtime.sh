@@ -58,9 +58,12 @@ NOTEBOOK_PREREQ_STEP_TIMEOUT_SECONDS=1800
 NOTEBOOK_LOCAL_AI_INSTALL_ENV=""
 NOTEBOOK_ASSIST_DEFAULT_ENV=""
 # Prerequisite steps a notebook VM never uses (Android tools, the dashboard frontend:
-# mode 2 is --no-ui); each is the skip variable of its PREREQ_ENTRIES row.
-NOTEBOOK_SKIPPED_PREREQ_ENVS=(DEVICE_TOOLS_SKIP FRONTEND_PACKAGES_SKIP)
+# mode 2 is --no-ui; sherpa: kokoro already covers the pinned offline TTS); each is the skip
+# variable of its manifest row (service contract prerequisites.steps).
+NOTEBOOK_SKIPPED_PREREQ_ENVS=(DEVICE_TOOLS_SKIP FRONTEND_PACKAGES_SKIP SHERPA_SKIP)
 NOTEBOOK_INTERNET_OK=true
+# Set by notebook_copy_missing when the last copy was skipped (no space) or failed.
+NOTEBOOK_COPY_INCOMPLETE=false
 # A notebook node assists with GPU work: only the engines of the active mode of the pinned
 # startup TTS plan (contract tts_runtime_plan, also read by pyutils/tts/runtime_profile.py)
 # plus the local translation runtime install by default; engines the plan uses only in the
@@ -159,14 +162,18 @@ notebook_accelerator_kind() {
     fi
 }
 
-# notebook_inactive_plan_engines MODE -> engines the TTS plan (word, word_batch and sentence
-# chains) uses in some mode but not in MODE.
+# notebook_inactive_plan_engines MODE -> skip variables (manifest prerequisites.steps) of the
+# installable engines the TTS plan (word, word_batch, sentence chains) uses in some mode but not
+# in MODE; engines without a manifest skip variable (edge: cloud) are not installed anyway.
 notebook_inactive_plan_engines() {
     python3 -c 'import json, sys
-plan = json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]]
+contract = json.load(open(sys.argv[1], encoding="utf-8"))
+plan = contract[sys.argv[2]]
 mode = sys.argv[3]
 engines = {m: set(plan[m]["word"]) | set(plan[m]["word_batch"]) | set(plan[m]["sentence"]) for m in ("gpu", "cpu")}
-print("\n".join(sorted(set().union(*engines.values()) - engines[mode])))' "$SERVICE_CONTRACT_FILE" "$NOTEBOOK_TTS_PLAN_KEY" "$1"
+skip_env = {step["id"]: step["skip_env"] for step in contract["prerequisites"]["steps"]}
+inactive = set().union(*engines.values()) - engines[mode]
+print("\n".join(sorted(skip_env[e] for e in inactive if skip_env.get(e))))' "$SERVICE_CONTRACT_FILE" "$NOTEBOOK_TTS_PLAN_KEY" "$1"
 }
 
 # notebook_prepare_environment PLATFORM
@@ -207,9 +214,8 @@ notebook_prepare_environment() {
     export NEURAL_TTS_INSTALL
     plan_mode=cpu
     [ "$(notebook_accelerator_kind)" = gpu ] && plan_mode=gpu
-    while IFS= read -r name; do
-        [ -n "$name" ] || continue
-        entry="${name^^}_SKIP"
+    while IFS= read -r entry; do
+        [ -n "$entry" ] || continue
         [ -n "${!entry:-}" ] || printf -v "$entry" '%s' 1
         export "${entry?}"
     done < <(notebook_inactive_plan_engines "$plan_mode")
@@ -302,6 +308,10 @@ notebook_mark_initialized() {
     if [ "$(notebook_cache_mode)" = sync ]; then
         echo "$NOTEBOOK_TAG Saving freshly installed model-cache files to $NOTEBOOK_PERSIST_DIR/cache ..."
         notebook_save_model_cache
+        if [ "$NOTEBOOK_COPY_INCOMPLETE" = true ]; then
+            echo -e "\033[33m$NOTEBOOK_TAG Model cache not saved completely; $NOTEBOOK_PERSIST_MARKER is not written, the next run retries\033[0m" >&2
+            return 0
+        fi
     fi
     touch "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER"
 }
@@ -369,6 +379,7 @@ notebook_copy_delta_bytes() {
 # left in the cache tree.
 notebook_copy_missing() {
     local output="" rc=0 need_bytes=0 need_mb=0 free_mb=""
+    NOTEBOOK_COPY_INCOMPLETE=false
     [ -d "$1" ] || return 0
     mkdir -p "$2" || return 1
     need_bytes="$(notebook_copy_delta_bytes "$1" "$2")"
@@ -376,6 +387,7 @@ notebook_copy_missing() {
     need_mb=$(( (need_bytes + 1048575) / 1048576 ))
     free_mb="$(notebook_free_mb "$2")"
     if [ -n "$free_mb" ] && [ $((need_mb + NOTEBOOK_CACHE_MIN_FREE_MB)) -gt "$free_mb" ]; then
+        NOTEBOOK_COPY_INCOMPLETE=true
         echo -e "\033[33m$NOTEBOOK_TAG Skipping copy $1 -> $2: needs ${need_mb} MB (+ ${NOTEBOOK_CACHE_MIN_FREE_MB} MB reserve), only ${free_mb} MB free; the next run retries\033[0m" >&2
         return 0
     fi
@@ -390,6 +402,7 @@ notebook_copy_missing() {
             | tar -C "$2" --skip-old-files -xf - 2>&1)" || rc=$?
     fi
     if [ "$rc" -ne 0 ]; then
+        NOTEBOOK_COPY_INCOMPLETE=true
         echo -e "\033[33m$NOTEBOOK_TAG Copy $1 -> $2 incomplete (exit $rc; Drive quota or I/O): $(printf '%s' "$output" | tail -n 3 | tr '\n' ' ')\033[0m" >&2
     fi
     return "$rc"

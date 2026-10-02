@@ -135,67 +135,6 @@ def _create_rpc_event_outbox_table(cursor: sqlite3.Cursor) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rpc_outbox_topic ON rpc_event_outbox(topic)")
 
 
-def _create_rpc_client_delivery_table(cursor: sqlite3.Cursor) -> None:
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS rpc_client_delivery (
-            client_id TEXT NOT NULL,
-            event_id TEXT NOT NULL,
-            seq INTEGER NOT NULL,
-            topic TEXT NOT NULL,
-            payload_json TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            attempt INTEGER NOT NULL DEFAULT 0,
-            error_json TEXT,
-            sent_at TEXT,
-            acked_at TEXT,
-            PRIMARY KEY (client_id, event_id)
-        )
-    """)
-    cursor.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_rpc_delivery_client_seq "
-        "ON rpc_client_delivery(client_id, seq)"
-    )
-
-
-def _create_rpc_client_offset_table(cursor: sqlite3.Cursor) -> None:
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS rpc_client_offset (
-            client_id TEXT PRIMARY KEY,
-            highest_contiguous_acked_seq INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL
-        )
-    """)
-
-
-def _create_rpc_command_idempotency_table(cursor: sqlite3.Cursor) -> None:
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS rpc_command_idempotency (
-            client_id TEXT NOT NULL,
-            idempotency_key TEXT NOT NULL,
-            route TEXT NOT NULL,
-            operation_id TEXT,
-            request_hash TEXT,
-            status TEXT NOT NULL,
-            response_json TEXT,
-            error_json TEXT,
-            expires_at TEXT,
-            created_at TEXT NOT NULL,
-            PRIMARY KEY (client_id, idempotency_key, route)
-        )
-    """)
-
-
-def _create_rpc_client_sessions_table(cursor: sqlite3.Cursor) -> None:
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS rpc_client_sessions (
-            client_id TEXT PRIMARY KEY,
-            resume_token TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-    """)
-
-
 def _create_relay_execution_results_table(cursor: sqlite3.Cursor) -> None:
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS relay_execution_results (
@@ -241,7 +180,6 @@ def _migrate_schema(cursor: sqlite3.Cursor) -> None:
             "ALTER TABLE relay_execution_results "
             "ADD COLUMN response_outcome TEXT"
         )
-    _create_rpc_client_sessions_table(cursor)
     _create_relay_execution_results_table(cursor)
     if version < SCHEMA_VERSION:
         cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -258,10 +196,6 @@ def init_schema(conn: sqlite3.Connection) -> None:
     _create_remote_cursors_table(cursor)
     _create_system_events_table(cursor)
     _create_rpc_event_outbox_table(cursor)
-    _create_rpc_client_delivery_table(cursor)
-    _create_rpc_client_offset_table(cursor)
-    _create_rpc_command_idempotency_table(cursor)
-    _create_rpc_client_sessions_table(cursor)
     _create_relay_execution_results_table(cursor)
     _migrate_schema(cursor)
     conn.commit()

@@ -354,7 +354,7 @@ persist_base_data_directory() {
 # NTFS-backed web/data base (get_base_data_directory): a symlinked/hard-linked
 # toolchain tree (node_modules, the Bun cache, the pnpm store) on NTFS is the
 # documented root cause of the D: dirty-volume corruption loop (see
-# docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2).
+# docs_fix/DESIGN_SHELL_HOSTS.md).
 #
 # Selection:
 #   1. LEGACY (DIRECTORY_NAMESPACE_RULES.md #2): a pre-namespace /opt/$SYS_DIR

@@ -5,7 +5,7 @@ Evidence comes from read-only git on `f4f223414^` (the state before the user's c
 
 ## Who and when
 
-- Role: `pycore`, task `pycore-4` (D1 closeout "audio/TTS and queue fixes"), finding AT-037 of `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`. The finding's full text is in `.claude/agents_shared/bug_audit_20260927/audio-tts.md` ("AT-037": severity low, category rule duplicate/dead code, confidence confirmed).
+- Role: `pycore`, task `pycore-4` (D1 closeout "audio/TTS and queue fixes"), finding AT-037 of `docs_fix/DESIGN_AUTH_IDENTITY.md`. The finding's full text is in `.claude/agents_shared/bug_audit_20260927/audio-tts.md` ("AT-037": severity low, category rule duplicate/dead code, confidence confirmed).
 - The D1 pycore teammate made most of the pycore-4 edits. The D10 session finished the AT-037 remainder, which included the dead route-name constants (`.claude/agents_shared/reports/pycore.md`, AT-037 row).
 - The reviewer approved it in round 2 (`.claude/agents_shared/reviews/pycore-4.json`, AT-037): "no pycore/pyapps/scripts reference remains. The only other reference is the UI constant PycoreHttpRoutes.ts:248 (no caller)".
 - The deletions were made in the working tree. The user's commit `f4f223414` "CodeHeaderCleanerBak" (2026-09-27 15:57 +1000, 1191 files) recorded them.
@@ -34,7 +34,7 @@ Runtime effect: none for the modules. At the parent, nothing started `TTSThreadM
 ## Rules the deleted code broke
 
 - AGENTS.md: "remove duplicate implementations". Two edge worker/queue stacks and a second per-word synthesis route sat beside the one Kokoro word-batch entry and `audio_queue_center`.
-- The pycore rule "queues are state-driven, no timer polling" (`.claude/agents/pycore*.md`; binding requirement `docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md`). `worker_base` polled every 1 s, and `TTSNetworkThread` looped every 60 s over an empty stub.
+- The pycore rule "queues are state-driven, no timer polling" (`.claude/agents/pycore*.md`; binding requirement `docs_fix/DESIGN_AUDIO_ORCHESTRATION.md`). `worker_base` polled every 1 s, and `TTSNetworkThread` looped every 60 s over an empty stub.
 - PYTHON_PYCORE §1: refactor the shared design instead of copying a defect; §4 Threading (line 53) requires THREAD_BUS-backed owners.
 - Upload to Laravel goes through the one delivery layer only. `upload_word_audio` survives only inside the delivery kind; `missing_batch` and `fix_word_text` were direct Laravel proxies outside it.
 

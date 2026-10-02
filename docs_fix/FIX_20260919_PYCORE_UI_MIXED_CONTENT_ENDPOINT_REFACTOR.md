@@ -14,4 +14,4 @@ The persisted Laravel endpoint was `http://43.163.112.77:9000`. On an HTTPS page
 
 ## Update 2026-09-29
 
-- `BackendApiEndpoint.basePath` + `endpointBaseUrl` (used by `buildApiUrl`, `endpointKey`, every endpoint display). An HTTPS `.ts.net` origin resolves the current-origin endpoint to the same host + `/laravel-api`, so tailnet pages stay HTTPS with the trusted tailscale cert. See `FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §5.3.
+- `BackendApiEndpoint.basePath` + `endpointBaseUrl` (used by `buildApiUrl`, `endpointKey`, every endpoint display). An HTTPS `.ts.net` origin resolves the current-origin endpoint to the same host + `/laravel-api`, so tailnet pages stay HTTPS with the trusted tailscale cert. See `DESIGN_SHELL_HOSTS.md`

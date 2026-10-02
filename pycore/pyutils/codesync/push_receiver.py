@@ -83,15 +83,17 @@ class PushReceiver:
         for stale in [sid for sid, seen in self._sessions.items() if now - seen > FRAME_SESSION_STALE_SECONDS]:
             self._sessions.pop(stale, None)
 
-    @serialized_method
     def get_status(self) -> Dict[str, Any]:
-        now = time.monotonic()
+        """The receiver runs only on a non-light CLIENT node."""
         return {
-            "running": True,
-            "connected_sessions": sum(
-                1 for seen in self._sessions.values() if now - seen <= FRAME_SESSION_STALE_SECONDS
-            ),
+            "running": bool(self.m.is_client_mode() and not self.m.light),
+            "connected_sessions": self._connected_sessions(),
         }
+
+    @serialized_method
+    def _connected_sessions(self) -> int:
+        now = time.monotonic()
+        return sum(1 for seen in self._sessions.values() if now - seen <= FRAME_SESSION_STALE_SECONDS)
 
     def handle_text(self, text: str, send) -> bool:
         """Process one frame; `send(str)` supplies the reply payload."""
@@ -102,14 +104,13 @@ class PushReceiver:
         t = msg.get("type")
         # Skip-update: a client may temporarily reject pushed code. Honor it at the
         # receiver (there is no outbound puller to stop). Control frames still flow.
-        if t in ("manifest", "batch", "file") and self.m.is_skip_update():
+        if t in ("manifest", "batch") and self.m.is_skip_update():
             if t == "manifest":
                 send(json.dumps({"type": "need", "need": [], "skipped": True}))
             return True
         if t == "hello":
             me = self.m.config.get_self()
-            # Advertise the wire capabilities we understand so the dev can compress
-            # payloads. Older devs ignore `caps` and keep sending plain base64.
+            # Advertise the wire capabilities the dev may use for payloads.
             send(json.dumps({"type": "welcome", "client_id": self.m.config.machine_id,
                              "name": me.get("name"), "caps": {
                                  "gzip": True,
@@ -131,21 +132,6 @@ class PushReceiver:
             self._handle_full_sync_complete(msg, send)
         elif t == "batch":
             self._apply_batch(msg, send)
-        elif t == "file":  # legacy single-file frame
-            # dev_id/dev_name carried on the frame attribute the channel per source
-            # (handle_text is stateless and shared, so we read identity from the msg).
-            dev_id = msg.get("dev_id") or "_local"
-            dev_name = msg.get("dev_name") or ""
-            peer = dev_name or (str(dev_id)[:8] if dev_id else "")
-            res = self._apply_one(msg, peer=peer)
-            send(json.dumps({"type": "ack", "rel": res["rel"], "status": res["status"],
-                             **({"error": res["error"]} if res.get("error") else {})}))
-            self.m.set_sync_phase("idle", 0, channel=dev_id, name=dev_name,
-                                  direction="receive")
-        elif t == "batch_done":  # legacy end-of-batch marker
-            dev_id = msg.get("dev_id") or "_local"
-            self.m.set_sync_phase("idle", 0, channel=dev_id,
-                                  name=msg.get("dev_name") or "", direction="receive")
         return True
 
     def _handle_full_sync_complete(self, msg: dict, send) -> None:
@@ -200,7 +186,7 @@ class PushReceiver:
                 # Keep the small received-table accurate for the next full-sync diff.
                 # Update-only: a written/skipped real file records its hash; a delete
                 # entry is IGNORED (file kept), so we never drop it from the table.
-                if r.get("status") in ("written", "skipped") and not f.get("deleted"):
+                if r.get("status") in ("written", "skipped"):
                     rel_norm = normalize_relative_path(rel)
                     target = (root / rel_norm).resolve()
                     if target == root or root not in target.parents:
@@ -640,22 +626,20 @@ class PushReceiver:
         send(json.dumps({"type": "need", "need": need}))
 
     def _apply_one(self, msg: dict, peer: str = "") -> dict:
-        """Apply one pushed file; return a result row for the ack. A delete entry
-        (legacy dev) is IGNORED - update-only client - and acked as 'skipped'.
+        """Apply one pushed file; return a result row for the ack.
 
         Result fields: rel, status (written|skipped|cached|error), diff (signed byte
         delta new_size - old_size), size (new content size), error on failure.
         """
         rel = msg.get("rel")
-        deleted = bool(msg.get("deleted"))
         b64 = msg.get("b64")
         result = {"rel": rel, "status": "error", "diff": 0, "size": 0}
-        if not rel or (b64 is None and not deleted):
+        if not rel or b64 is None:
             result["error"] = "missing rel/b64"
             return result
         rel = normalize_relative_path(rel)
         result["rel"] = rel
-        # Contain every write/delete strictly under the sync root: reject path
+        # Contain every write strictly under the sync root: reject path
         # traversal ("../") and absolute rels that would escape it (resolve() also
         # collapses parent symlinks, closing that traversal vector too).
         root = self.m.sync_target_root().resolve()
@@ -668,20 +652,8 @@ class PushReceiver:
 
         msg_hash = str(msg.get("hash") or "")
         try:
-            if deleted:
-                # UPDATE-ONLY client: NEVER remove a local file, even when the dev
-                # reports it deleted on its side. The client keeps every file it has
-                # so its own code stays runnable; the two ends are deliberately NOT
-                # forced byte-identical. Ack as "skipped" so the dev can still advance
-                # its bookkeeping. (Newer devs don't send deletes at all; this guard
-                # keeps older devs safe too.)
-                result["status"] = "skipped"
-                self.m.log_sync("skipped", rel, "delete ignored (client is update-only)",
-                                peer=peer, direction="receive")
-                return result
             content = base64.b64decode(b64)
-            # `enc` marks a compressed payload (capability-negotiated in welcome);
-            # absent/unknown -> raw bytes, so legacy frames keep working unchanged.
+            # `enc` marks a gzip payload (negotiated in welcome); absent means raw bytes.
             if msg.get("enc") == "gzip":
                 content = gzip.decompress(content)
 

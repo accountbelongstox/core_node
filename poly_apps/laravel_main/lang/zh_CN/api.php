@@ -85,6 +85,7 @@ return [
         'work_lease_renewed' => '已续期工作租约',
         'work_lease_released' => '已释放工作租约',
         'work_nodes_listed' => '已列出工作节点',
+        'work_lease_promoted' => '缺口条目已提升到工作租约通道最前',
         'task_or_worker_not_found' => '任务或工作器不存在',
         'task_is_owned_by_another_worker_or' => '任务属于其他工作器或已结束',
         'image_exceeds_memory_cap' => '图片 :path 太大，超出内存上限，无法处理',

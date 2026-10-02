@@ -3,6 +3,7 @@
 namespace App\Apps\Relay\RelayServices;
 
 use App\Apps\Relay\RelayExceptions\RelayDomainException;
+use App\Helpers\AuthHelper;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -10,12 +11,12 @@ final class RelayOwnerResolver
 {
     public function resolve(Request $request): User
     {
-        $user = RelayFleetScope::publicOwner();
+        $user = AuthHelper::requireAuth($request);
 
         if ($user instanceof User) {
             return $user;
         }
 
-        throw new RelayDomainException('group_empty', 503);
+        throw new RelayDomainException('authentication_required', 401);
     }
 }

@@ -1,11 +1,11 @@
 # infra-shell bug audit (S4) — report only
 
-Date: 2026-09-27 · Role: infra-shell · Prefix: IS · Binding doc: `docs_fix/REQUIREMENTS_20260927_TEAM_BUG_AUDIT.md`
+Date: 2026-09-27 · Role: infra-shell · Prefix: IS · Binding doc: `docs_fix/DESIGN_AUTH_IDENTITY.md`
 No code, config, doc or test was changed. Static checks used: `bash -n` (547 .sh), PowerShell parser via pwsh (295 .ps1/.psm1),
 `ast.parse` (296 .py, 0 errors), `node --check` (241 .js), CRLF/non-ASCII/BOM scans, and a cp1252 decode + re-parse simulation of every
 BOM-less non-ASCII .ps1 (the Windows PowerShell 5.1 read path that `dd.cmd` uses: `powershell -File`).
 Language-semantics probes were run only on throw-away snippets in the scratchpad (never on an audited script).
-Files in flux: every in-scope file modified after 02:10 (41 files, the latest at 02:49) was re-read and syntax-checked again at 02:51-02:52. A finding in such a file is kept only if it still held at that re-read, and it carries `[in-flight, last read HH:MM]`. The role was renamed `shell` in REQUIREMENTS_20260927_CLAUDE_AGENT_ROLES_V2; the IS prefix is unchanged.
+Files in flux: every in-scope file modified after 02:10 (41 files, the latest at 02:49) was re-read and syntax-checked again at 02:51-02:52. A finding in such a file is kept only if it still held at that re-read, and it carries `[in-flight, last read HH:MM]`. The role was renamed `shell` in docs_fix/DESIGN_CLAUDE_TEAM.md; the IS prefix is unchanged.
 
 ## Summary
 
@@ -71,7 +71,7 @@ Files in flux: every in-scope file modified after 02:10 (41 files, the latest at
 
 ### IS-008 — dd.sh startup chmods the whole project tree to 777, including decrypted secrets `[resolved, verified 2026-09-29]`
 - location: scripts/shells/linux/common/fs_perm_helpers.sh (`repair_owned_tree_777`)
-- resolution: the walk prunes `.secret_keys`, `.secrets`, `.acme.sh` (owner-only 0700/0600 via `repair_private_tree`), `.git` (no group/other write) and every service-owned tree (uid 1..UID_MIN-1 or nobody, e.g. the PostgreSQL data dir that `pyservice_www_permissions.sh` had opened to 777). Condensed by claude-opus-5-5; see `docs_fix/FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §3.
+- resolution: the walk prunes `.secret_keys`, `.secrets`, `.acme.sh` (owner-only 0700/0600 via `repair_private_tree`), `.git` (no group/other write) and every service-owned tree (uid 1..UID_MIN-1 or nobody, e.g. the PostgreSQL data dir that `pyservice_www_permissions.sh` had opened to 777). Condensed by claude-opus-5-5; see `docs_fix/DESIGN_SHELL_HOSTS.md`
 
 
 ### IS-009 — SSH tmux persistence hook opens a new `main-N` session instead of resuming after a dropped connection
@@ -213,7 +213,7 @@ Files in flux: every in-scope file modified after 02:10 (41 files, the latest at
 ### IS-026 — dd.sh deletes /usr/local/qcloud on every start without stopping or disabling the Tencent Cloud agent units `[in-flight, last read 02:51]`
 - severity: low · category: service · confidence: likely
 - location: scripts/shells/linux/dd_helper/dev_cache_cleanup.sh:46-48, :179-196 (system_unwanted_paths_cleanup, called from dd.sh main)
-- failure scenario: on a Tencent Cloud VM (e.g. the VM-0-2-debian server) the TAT/monitor agent units still reference binaries under /usr/local/qcloud. dd.sh removes the tree while the units stay enabled, so they fail or restart-loop and fill the journal. The cloud also reinstalls the agent, so the delete repeats on every start. This also contradicts REQUIREMENTS_20260927_DD_SH_STARTUP_REFACTOR R4 (cleanup belongs in Slim & Disk Cleanup, not startup).
+- failure scenario: on a Tencent Cloud VM (e.g. the VM-0-2-debian server) the TAT/monitor agent units still reference binaries under /usr/local/qcloud. dd.sh removes the tree while the units stay enabled, so they fail or restart-loop and fill the journal. The cloud also reinstalls the agent, so the delete repeats on every start. This also contradicts DESIGN_SHELL_HOSTS.md (cleanup belongs in Slim & Disk Cleanup, not startup).
 - evidence: `$USE_SUDO rm -rf "$p"` with no service handling.
 - suggested fix: move it into the Slim & Disk Cleanup menu and disable the agent units (tat_agent, YDService, etc.) before deleting.
 
@@ -256,7 +256,7 @@ Owners use the V2 role ids.
   - Fixed: a heredoc body that mentions "git push" no longer blocks. The old regex version blocked two read-only commands in this audit.
   - Still a false positive: `SEGMENT_SPLIT` (:11) splits on `|` even inside quotes, so `grep -n "a\|git add\|b" file` yields a segment `git add\` and is blocked (probe: needsGrant=true).
   - [resolved 2026-09-29: the guard now blocks only version rollback and grants only on `allow-rollback`/`允许回退`] New, confirmed: GRANT_PATTERN (:9) grants all git/gh for 120 min on any prompt that contains the standalone word `git`/`gh`, including negative ones. The probe granted on "do not use git in this task", "git is hook-blocked; do not work around it" and "report the bug in the git guard". The grant lands in the shared `.claude/agents_shared/git_grant.json`, so it opens git for every role session. That contradicts AGENTS.md ("No git operations unless explicitly asked") and the MULTI_ROLE_TEAM rule that only an `allow-git` user prompt grants. If a teammate's incoming message is surfaced to the hook as UserPromptSubmit, another agent's text would grant git too (suspect, not verified).
-  - Naming lag: GUARD_ENV is `CLAUDE_AGENTS_SESSION`, matching claudeteam.sh:54 / claudeteam.ps1:62 / claude_team_common.sh:41. REQUIREMENTS_20260927_CLAUDE_MULTI_ROLE_TEAM.md:167/195 and the comment at claudeteam.sh:29 still say `CLAUDE_AGENTS_GIT_GUARD=1`.
+  - Naming lag: GUARD_ENV is `CLAUDE_AGENTS_SESSION`, matching claudeteam.sh:54 / claudeteam.ps1:62 / claude_team_common.sh:41. docs_fix/DESIGN_CLAUDE_TEAM.md:167/195 and the comment at claudeteam.sh:29 still say `CLAUDE_AGENTS_GIT_GUARD=1`.
 - CS-2 (owner: pycore) IS-004 moves and relinks every `%USERPROFILE%\.<dot-folder>` (including `.claude`, `.cursor`, `.codex`) on each dd.ps1 start. Any pycore code that caches those absolute paths should expect the junction to be re-pointed at startup.
 - CS-3 (owner: laravel) IS-001/IS-012: every `175_laravel_main_start.sh` run executes step 75. A path drift therefore restarts PostgreSQL under a running Laravel/Octane worker, and in the IS-001 case replaces the database with an empty cluster that `sys:init` re-seeds from init_data only.
 - CS-4 (owner: mcp-chrome) `apps/mcp-chrome/scripts/start.ps1:469` depends on `Register-UserLogonTask` (StartupManager.ps1). No defect was found there, but any change to that helper has this caller.

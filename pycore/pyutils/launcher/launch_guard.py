@@ -67,11 +67,14 @@ def resolve_process_names(app_name: str) -> List[str]:
     return names
 
 
-def resolve_launch_path(app_name: str, app_config: dict) -> Optional[str]:
+def resolve_launch_path(app_name: str, app_config: dict, force_refresh: bool = False) -> Optional[str]:
     """Resolve the executable path for launching *app_name* (cache then finder)."""
     if app_name == 'chrome':
-        return chrome_finder.find_by_version(app_config.get('version', 'stable'))
-    return app_finder.find_app(app_name)
+        version = app_config.get('version', 'stable')
+        if force_refresh:
+            return chrome_finder.find_versions(force_refresh=True).get(version)
+        return chrome_finder.find_by_version(version)
+    return app_finder.find_app(app_name, force_refresh=force_refresh)
 
 
 _CHROME_EXE_BASENAMES = frozenset({'chrome.exe', 'googlechrome.exe'})

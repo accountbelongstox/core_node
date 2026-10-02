@@ -2,60 +2,82 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Support\QueueProgress;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
-use App\Services\QueueCenter\QueueCenterService;
 use Illuminate\Support\Facades\Log;
 
 trait AppQyV1SentenceAudioLookupTrait
 {
     /**
-     * Paginated database-only list for Queue Center.
+     * The sentence audio gap for the Queue Center "awaiting audio" list:
+     * keyset pages (id > cursor) of AppQyV1MediaGaps::SENTENCE_AUDIO rows with
+     * their work-lease state. Without a language the language with the largest
+     * gap is listed; summary.languages holds every language's gap.
      *
-     * @return array{total:int,page:int,per_page:int,items:array<int,array<string,mixed>>,summary:array{languages:array<string,int>,reconciled:int}}
+     * @return array{total:int,page:int,per_page:int,language:?string,cursor_id:int,next_cursor:int,has_more:bool,progress:array,items:array<int,array<string,mixed>>,summary:array{languages:array<string,int>,reconciled:int}}
      */
-    public function listMissing(?string $language, int $page, int $perPage): array
+    public function listMissing(?string $language, int $cursorId, int $perPage): array
     {
-        $page = max(1, $page);
         $perPage = max(1, min(100, $perPage));
-        $queue = app(QueueCenterService::class)->listLiveQueue(
-            QueueCenterService::QUEUE_SENTENCE_AUDIO,
-            $page,
-            $perPage,
-            $language
-        );
+        $gaps = [];
         $items = [];
-        foreach ($queue['items'] as $task) {
-            $payload = is_array($task['payload'] ?? null) ? $task['payload'] : [];
-            $variantKey = trim((string) ($payload['variant_key'] ?? ''));
+        $now = now();
+
+        foreach (AppQyV1TableMaps::getSupportedLanguages() as $code) {
+            $counts = LangSentence::audioGapCounts($code);
+            if ($counts['pending'] + $counts['failed'] > 0) {
+                $gaps[$code] = $counts['pending'] + $counts['failed'];
+            }
+        }
+        arsort($gaps);
+        $code = $language !== null && trim($language) !== ''
+            ? AppQyV1TableMaps::normalizeLangCode($language)
+            : (string) (array_key_first($gaps) ?? 'en');
+        $rows = LangSentence::withoutAudioKeysetPage($code, $cursorId, $perPage + 1, [
+            'id', 'content_id', 'text', 'language', 'tts_status', 'tts_locked_by', 'tts_locked_at',
+            'tts_lease_expires_at', 'occurrence_count', 'updated_at',
+        ]);
+        $hasMore = $rows->count() > $perPage;
+        $rows = $rows->take($perPage)->values();
+        foreach ($rows as $row) {
+            $leased = $row->tts_lease_expires_at !== null && \Illuminate\Support\Carbon::parse($row->tts_lease_expires_at)->gte($now);
             $items[] = [
-                'task_id' => (string) ($task['task_id'] ?? ''),
-                'content_id' => (string) ($payload['content_id'] ?? ''),
-                'text' => (string) ($payload['text'] ?? ($payload['content'] ?? '')),
-                'language' => (string) ($payload['language'] ?? ''),
-                'queue_position' => (int) ($task['queue_position'] ?? 0),
-                'tts_status' => (string) ($task['status'] ?? 'pending'),
-                'progress' => (float) ($task['progress'] ?? 0),
-                'stage' => (string) ($task['stage'] ?? ($task['status'] ?? 'pending')),
-                'backend_uploaded' => (bool) ($task['backend_uploaded'] ?? false),
-                'tts_locked_by' => $task['assigned_to'] ?? null,
-                'assigned_at' => $task['assigned_at'] ?? null,
-                'updated_at' => $task['updated_at'] ?? null,
-                'occurrence_count' => 0,
-                'missing_variants' => $variantKey !== '' ? [$variantKey] : [],
+                'task_id' => null,
+                'content_id' => (string) $row->content_id,
+                'text' => (string) $row->text,
+                'language' => (string) ($row->language ?: $code),
+                'queue_position' => 0,
+                'tts_status' => $leased ? 'leased' : (string) ($row->tts_status ?: 'pending'),
+                'progress' => 0.0,
+                'stage' => $leased ? 'leased' : (string) ($row->tts_status ?: 'pending'),
+                'backend_uploaded' => false,
+                'tts_locked_by' => $leased ? $row->tts_locked_by : null,
+                'assigned_at' => $leased ? $row->tts_locked_at : null,
+                'updated_at' => $row->updated_at,
+                'occurrence_count' => (int) $row->occurrence_count,
+                'missing_variants' => [],
             ];
         }
+        $last = $rows->last();
+        $counts = LangSentence::audioGapCounts($code);
+        $nextCursor = $last !== null ? (int) $last->id : $cursorId;
 
         return [
-            'total' => $queue['total'],
-            'page' => $page,
+            'total' => $counts['pending'] + $counts['failed'],
+            'page' => 1,
             'per_page' => $perPage,
+            'language' => $code,
+            'cursor_id' => $cursorId,
+            'next_cursor' => $nextCursor,
+            'has_more' => $hasMore,
+            'progress' => QueueProgress::make($counts['done'], $counts['failed'], $counts['pending'], $nextCursor),
             'items' => $items,
             'summary' => [
-                'languages' => $queue['languages'],
+                'languages' => $gaps,
                 'reconciled' => 0,
             ],
         ];

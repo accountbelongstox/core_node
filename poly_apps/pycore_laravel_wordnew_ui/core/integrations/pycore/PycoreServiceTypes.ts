@@ -174,22 +174,14 @@ export interface PycoreGlobalTaskDetailResponse {
 
 // --- Pycore → Laravel queue capability control plane ---------------------- #
 export interface AssistCapabilities {
-  cover: boolean;
-  tts: boolean;
   translation: boolean;
-  /** AI-translation generation (distinct from draining the translation queue). */
-  ai_translate?: boolean;
-  /** Word-image generation. */
-  image?: boolean;
+  tts: boolean;
   /** Sentence-level voice synthesis. */
-  sentence_audio?: boolean;
+  sentence_audio: boolean;
   /** Subtitle search. */
-  subtitle?: boolean;
+  subtitle: boolean;
   /** Speech-to-text. */
-  stt?: boolean;
-  /** Movie/TV poster — delegated to apps/mcp-chrome (Google Images). Optional —
-   *  older backends omit it; treated as off until the field is present. */
-  poster?: boolean;
+  stt: boolean;
 }
 
 export interface AssistConfig {

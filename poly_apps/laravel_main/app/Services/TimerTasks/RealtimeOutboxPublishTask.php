@@ -6,7 +6,7 @@ use App\Services\Realtime\RealtimeOutboxPublisher;
 
 /**
  * 1s realtime outbox poller — DECOMMISSIONED (direct-emit refactor,
- * docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md): queue-center and social
+ * docs_fix/DESIGN_QUEUE_PIPELINE.md): queue-center and social
  * events publish in the same request that appends them
  * (AppQyV1TranslationEventModel / AppQyV1SocialEventModel), and relay
  * presence expiry + outbox drain moved to RelayMaintenanceTask. This class

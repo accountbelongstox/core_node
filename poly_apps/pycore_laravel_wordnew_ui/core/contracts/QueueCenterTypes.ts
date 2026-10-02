@@ -472,6 +472,8 @@ export interface WorkNode {
   compute_class: string;
   online: boolean;
   lanes: Record<string, string[]>;
+  /** Engine ids the node declared per lane on its claims. */
+  engines?: Record<string, string[]>;
   leases: number;
   items_leased: number;
   done_per_hour: number;

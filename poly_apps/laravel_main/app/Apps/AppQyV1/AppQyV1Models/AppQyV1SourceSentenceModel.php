@@ -423,11 +423,6 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
             ->count();
     }
 
-    public static function createLink(array $attributes): self
-    {
-        return self::create($attributes);
-    }
-
     public static function collectSourceTexts(string $sourceType, string $sourceKey): array
     {
         $grain = self::query()

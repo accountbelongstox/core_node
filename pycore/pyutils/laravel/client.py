@@ -209,16 +209,18 @@ class LaravelClient:
                 progress_callback: Any = None,
                 stream: bool = False, allow_redirects: bool = True,
                 log_line: bool = True,
-                sensitive_request: bool = False):
+                sensitive_request: bool = False,
+                response: str = ""):
         """Issue one Laravel request, log and record it, return the ``HttpResponse``.
 
         ``path`` is a full URL or a path joined onto ``base_url`` / the resolved
         endpoint. ``params`` and form ``data`` are encoded before signing so the
         signature covers the transmitted bytes; multipart uploads sign
         ``UNSIGNED-PAYLOAD``. ``log_line=False`` silences the console line (the
-        recorder still sees the request). Uploads (bodies of at least one
-        contract chunk) are progress-driven (``http_client``); ``timeout``
-        bounds every other request and only the connect phase of an upload.
+        recorder still sees the request). ``response`` is the http_client
+        response profile and is required with a body: ``control`` for API
+        calls (``timeout`` or the transfer contract's connect/idle bounds),
+        ``upload`` for progress-driven bodies (``timeout`` bounds only connect).
         """
         method = (method or "GET").upper()
         url = self.build_url(path, base_url)
@@ -230,9 +232,9 @@ class LaravelClient:
             files,
         )
         if timeout is None:
-            # Default for bodiless and small control requests: the shared
-            # transfer contract (connect bound, per-read idle bound), so a hung
-            # server never stalls a thread; uploads use only the connect bound.
+            # Control default: the shared transfer contract (connect bound,
+            # per-read idle bound), so a hung server never stalls a thread; an
+            # upload uses only the connect bound.
             contract = http_transfer_contract()
             timeout = (contract["connect_timeout_seconds"], contract["idle_timeout_seconds"])
         request_headers = dict(headers or {})
@@ -268,6 +270,7 @@ class LaravelClient:
                 timeout=timeout,
                 progress_callback=progress_callback,
                 stream=stream, follow_redirects=allow_redirects,
+                response=response,
             )
         except OSError as exc:
             ms = (time.perf_counter() - started) * 1000.0

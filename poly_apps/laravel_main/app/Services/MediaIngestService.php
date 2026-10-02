@@ -419,6 +419,19 @@ class MediaIngestService
     }
 
     /**
+     * The shared sentence upsert for writers outside a full ingest (study-gen
+     * write-back): content_id dedup, fill-missing anchors, origin content
+     * (adopting an ad-hoc playback row), occurrence counting.
+     *
+     * @param array<int,array{0:string,1:string,2:string}> $occurrences [content_id, text, corr_id]
+     * @return array{created:int,filled:int,deduped:int}
+     */
+    public function upsertContentSentences(string $langCode, array $occurrences): array
+    {
+        return $occurrences === [] ? ['created' => 0, 'filled' => 0, 'deduped' => 0] : $this->upsertLangSentences($langCode, $occurrences);
+    }
+
+    /**
      * v3: Process the ordered correspondence slots set-based, one bounded
      * chunk at a time (a chunk never spans chapters and never repeats a slot
      * position). For each slot:

@@ -130,8 +130,8 @@ class QueueCenterService
      * the existing queued task, assign a monotonic queue_position head ticket,
      * and stage one compact diff notification for the interval publisher.
      *
-     * Part1/Part2 contract (docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md
-     * §5.2): each pycore audio lane (word_audio, sentence_audio) is its own
+     * Part1/Part2 contract (docs_fix/DESIGN_QUEUE_PIPELINE.md
+     * section 7.1): each pycore audio lane (word_audio, sentence_audio) is its own
      * Queue = Part1 (pycore-local priority) + Part2 (Laravel backlog). This
      * Laravel head move is the Part2 fill path — its ONLY
      * producer is wordnew (AppQyV1AudioGateway). pycore consumes Part2 via
@@ -146,7 +146,7 @@ class QueueCenterService
         bool $emitEvent = true,
         array $linkAttributes = []
     ): array {
-        $leased = $this->leasedRowResult($taskType, $payload, true);
+        $leased = $this->promoteGapItem($taskType, $payload, true);
         if ($leased !== null) {
             if ($emitEvent && $leased['head_action'] === self::HEAD_ACTION_PROMOTED) {
                 $this->headNotifications->record($taskType);
@@ -296,7 +296,7 @@ class QueueCenterService
         array $linkAttributes = [],
         ?int $timeoutSeconds = null
     ): array {
-        $leased = $this->leasedRowResult($taskType, $payload, $moveToHead);
+        $leased = $this->promoteGapItem($taskType, $payload, $moveToHead);
         if ($leased !== null) {
             return $leased;
         }
@@ -336,8 +336,11 @@ class QueueCenterService
      * where the gap already makes it claimable. null for any other item
      * (article sentences, other task types), which keeps the task path.
      */
-    private function leasedRowResult(string $taskType, array $payload, bool $moveToHead): ?array
+    public function promoteGapItem(string $taskType, array $payload, bool $moveToHead = true): ?array
     {
+        if (!WorkLeaseLanes::isLane($taskType)) {
+            return null;
+        }
         $target = $this->leaseTarget($taskType, $this->normalizeAudioPayload($taskType, $payload));
         if ($target === null) {
             return null;

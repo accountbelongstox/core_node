@@ -28,6 +28,23 @@ final class WorkLeaseLanes
      */
     public const FREE = "(tts_lease_expires_at IS NULL OR tts_lease_expires_at < ?) AND tts_status IS DISTINCT FROM 'failed'";
 
+    /** A row out of the pool after its retry budget ran out (FREE excludes it until a reset). */
+    public const FAILED = AppQyV1MediaGaps::TTS_FAILED;
+
+    /** A word the validity check rejected is never resurfaced; an unchecked one is leasable like any gap row. */
+    private const WORD_NOT_INVALID = 'is_valid IS NOT FALSE';
+
+    /** A row under a live work lease; the one placeholder is the application "now". */
+    public const LEASED = 'tts_lease_id IS NOT NULL AND tts_lease_expires_at >= ?';
+
+    /** The LEASED predicate for one loaded row (same clock, same columns). */
+    public static function isLeased(object $row): bool
+    {
+        $expiresAt = $row->tts_lease_expires_at ?? null;
+
+        return ($row->tts_lease_id ?? null) !== null && $expiresAt !== null && \Illuminate\Support\Carbon::parse($expiresAt)->gte(now());
+    }
+
     /** @return array<int,string> */
     public static function lanes(): array
     {
@@ -60,6 +77,12 @@ final class WorkLeaseLanes
     public static function gap(string $lane): string
     {
         return $lane === self::WORD_AUDIO ? AppQyV1MediaGaps::WORD_AUDIO : AppQyV1MediaGaps::SENTENCE_AUDIO;
+    }
+
+    /** Failed rows the resurfacing sweep returns to the pool: still in the lane's gap (words also not invalid). */
+    public static function resurfaceable(string $lane): string
+    {
+        return self::FAILED . ' AND (' . self::gap($lane) . ')' . ($lane === self::WORD_AUDIO ? ' AND ' . self::WORD_NOT_INVALID : '');
     }
 
     public static function rank(string $lane): string

@@ -6,6 +6,8 @@ import { useWorkNodes } from '../hooks/useWorkNodes';
 import { formatElapsed } from '../utils/pcFormat';
 import { pcErrorCodeText } from '../utils/pcErrorCodes';
 
+const COMPUTE_CLASSES = ['gpu', 'cpu'] as const;
+
 const nf = (value: number | null | undefined): string => (typeof value === 'number' ? value.toLocaleString() : '—');
 
 function heartbeatAge(iso: string | null): string {
@@ -40,6 +42,7 @@ function NodeRow({ node }: { node: WorkNode }): ReactElement {
           <span key={lane}>
             <span className="text-slate-400">{t(`queueCenter.nodes.lane.${lane}`, { defaultValue: lane })}</span>{' '}
             <span className="font-mono">{(languages ?? []).join(' ') || '—'}</span>
+            {node.engines?.[lane]?.length ? <span className="ml-1 text-slate-600">({node.engines[lane].join(', ')})</span> : null}
           </span>
         ))}
       </div>
@@ -88,7 +91,18 @@ export function PcWorkNodesPanel(): ReactElement {
       </div>
       {failed && !data && <p className="text-[11px] text-rose-400">{t('queueCenter.nodes.unavailable')}</p>}
       {data && nodes.length === 0 && <p className="text-[11px] text-slate-500">{t('queueCenter.nodes.none')}</p>}
-      {nodes.length > 0 && <ul className="space-y-1.5">{nodes.map((node) => <NodeRow key={node.worker_id} node={node} />)}</ul>}
+      {COMPUTE_CLASSES.map((computeClass) => {
+        const group = nodes.filter((node) => (node.compute_class === 'gpu' ? 'gpu' : 'cpu') === computeClass);
+        if (group.length === 0) return null;
+        return (
+          <div key={computeClass} className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-slate-500">
+              {t(`queueCenter.progress.device.${computeClass}`)} · {group.filter((node) => node.online).length}/{group.length}
+            </p>
+            <ul className="space-y-1.5">{group.map((node) => <NodeRow key={node.worker_id} node={node} />)}</ul>
+          </div>
+        );
+      })}
       {pool.length > 0 && (
         <div className="space-y-1 border-t border-slate-800 pt-1.5">
           <p className="text-[10px] uppercase tracking-wider text-slate-500">{t('queueCenter.nodes.pool')}</p>

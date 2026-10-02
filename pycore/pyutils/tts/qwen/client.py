@@ -9,7 +9,7 @@ import uuid
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.backoff_wait import BackoffWait
-from pycore.pyutils.common.http_client import http_client
+from pycore.pyutils.common.http_client import RESPONSE_TTS, http_client
 from pycore.pyutils.tts.tts_http import TTS_HTTP_TRANSPORT_ERRORS, http_error_message
 from pycore.pyutils.tts.qwen.config import (
     queue_capacity_wait_seconds,
@@ -60,9 +60,11 @@ def request(
             url,
             json=json_body,
             query=query,
-            # A JSON body is an upload: progress/stall driven, no total timeout.
+            # A JSON body asks the server to compute (synthesis, model load):
+            # ``tts`` profile, bounded by the contract response wait.
             timeout=timeout if json_body is None else None,
             headers={"Accept": "*/*"},
+            response=RESPONSE_TTS if json_body is not None else "",
         )
     except TTS_HTTP_TRANSPORT_ERRORS as exc:
         return 0, {}, b"", str(exc)

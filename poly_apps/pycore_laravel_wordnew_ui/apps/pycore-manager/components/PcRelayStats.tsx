@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { laravelRelayApi } from '../../../core/integrations/laravel/LaravelRelayAPI';
+import { isRelayAuthorizationFailure, laravelRelayApi } from '../../../core/integrations/laravel/LaravelRelayAPI';
+import { subscribeAuthSession } from '../../../core/auth/AuthSession';
 import type { RelayRouteStats } from '../../../core/contracts/RelayContract';
 
 const STATS_WINDOW_MINUTES = 15;
@@ -13,19 +14,38 @@ export const PcRelayStats: React.FC = () => {
   const [rows, setRows] = useState<RelayRouteStats[] | null>(null);
   const [failed, setFailed] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     try {
       setRows(await laravelRelayApi.getRelayStats(STATS_WINDOW_MINUTES));
       setFailed(false);
-    } catch {
+      return true;
+    } catch (error) {
       setFailed(true);
+      return !isRelayAuthorizationFailure(error);
     }
   }, []);
 
+  // A 401/403 pauses polling until the shared auth session changes.
   useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), STATS_REFRESH_MS);
-    return () => clearInterval(timer);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const pause = (): void => {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+    };
+    const poll = (): void => {
+      void load().then((authorized) => { if (!authorized) pause(); });
+    };
+    const resume = (): void => {
+      pause();
+      poll();
+      timer = setInterval(poll, STATS_REFRESH_MS);
+    };
+    resume();
+    const unsubscribe = subscribeAuthSession(resume);
+    return () => {
+      unsubscribe();
+      pause();
+    };
   }, [load]);
 
   if (failed && rows === null) {

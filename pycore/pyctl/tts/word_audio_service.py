@@ -30,6 +30,7 @@ via get_secret_key_indexed, logging only via ColorPrint, English-only strings.
 import base64
 from typing import Any, Dict, Optional
 
+from pycore.pyutils.common.http_client import RESPONSE_UPLOAD
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
@@ -204,7 +205,7 @@ def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
         base = base_url or laravel_endpoint_manager.get_active_base_url()
         if not base:
             return {"success": False, "error": "laravel endpoint not configured"}
-        resp = laravel_client.post(queue_center_endpoint("audio_word_upload"), base_url=base, json=payload)
+        resp = laravel_client.post(queue_center_endpoint("audio_word_upload"), base_url=base, json=payload, response=RESPONSE_UPLOAD)
         if resp.status_code != 200:
             try:
                 body = resp.json()

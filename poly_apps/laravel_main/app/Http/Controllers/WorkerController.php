@@ -260,7 +260,7 @@ class WorkerController extends Controller
             );
         }
 
-        // Dict-lane live queues (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+        // Dict-lane live queues (docs_fix/DESIGN_QUEUE_PIPELINE.md):
         // the typed pull itself is the producer. Just-in-time claim rows
         // materialize from the cached lane view (ms-level table probe; zero
         // database reads when the dictionary table is unchanged), replacing

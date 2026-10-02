@@ -11,12 +11,12 @@ head moves (the Part2 fill path).
 from typing import Any, Dict, List
 
 from pycore.callmodule.rpc_routes.route_names import (
-    ROUTE_ERROR_AUDIO_LANE_UNKNOWN,
     ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED,
     UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD,
 )
 from pycore.pyutils.common.queue_center_contract import word_identity_md5
 from pycore.pyutils.tts.audio_queue_model import (
+    AUDIO_LANE_ERROR_UNKNOWN,
     AUDIO_QUEUE_LANE_BY_KIND,
     AUDIO_QUEUE_LANES,
     LOCAL_SOURCE_MANUAL,
@@ -80,7 +80,7 @@ def register_local_queue_head_routes(server) -> None:
             return {"success": False, "error_code": ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED}
         lane = _resolve_lane(params, items)
         if lane not in AUDIO_QUEUE_LANES:
-            return {"success": False, "error_code": ROUTE_ERROR_AUDIO_LANE_UNKNOWN}
+            return {"success": False, "error_code": AUDIO_LANE_ERROR_UNKNOWN}
         return audio_queue_center.promote_local_head(
             lane,
             items,

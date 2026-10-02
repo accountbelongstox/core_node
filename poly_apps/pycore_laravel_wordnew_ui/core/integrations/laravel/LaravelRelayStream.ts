@@ -4,8 +4,9 @@ import {
 } from '../../contracts/RelayContract';
 import { Backoff } from '../../tasks/Backoff';
 import { appendLog } from '../../logstore/logStore';
-import { laravelRelayApi } from './LaravelRelayAPI';
+import { isRelayAuthorizationFailure, laravelRelayApi } from './LaravelRelayAPI';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
+import { subscribeAuthSession } from '../../auth/AuthSession';
 
 type RelayEventHandler = (event: string, data: unknown) => void;
 type ConnectionStateHandler = (connected: boolean) => void;
@@ -30,6 +31,7 @@ const REGRANT_MIN_INTERVAL_MS = 5_000;
 const DEVICE_RECHECK_MS = 10_000;
 const GRANT_BLOCK_MIN_MS = 30_000;
 const GRANT_BLOCK_MAX_MS = 300_000;
+const AUTHENTICATION_REQUIRED = 'authentication_required';
 
 export class RelayGrantUnavailableError extends Error {
   readonly reason: string;
@@ -58,6 +60,8 @@ class LaravelRelayStream {
   private grantFetchedAt = 0;
   private grantFlight: Promise<RelayGrant> | null = null;
   private blockedUntil = 0;
+  private authorizationBlocked = false;
+  private authGeneration = 0;
   private readonly grantBackoff = new Backoff(GRANT_BLOCK_MIN_MS, GRANT_BLOCK_MAX_MS);
   private readonly reconnectBackoff = new Backoff(RECONNECT_MIN_MS, RECONNECT_MAX_MS);
   private active: StreamEntry | null = null;
@@ -69,6 +73,23 @@ class LaravelRelayStream {
   private waiters = new Set<() => void>();
   private eventHandlers = new Set<RelayEventHandler>();
   private stateHandlers = new Set<ConnectionStateHandler>();
+
+  /** A grant 401/403 pauses the stream until the shared auth session changes. */
+  constructor() {
+    subscribeAuthSession(() => {
+      this.authGeneration += 1;
+      this.close();
+      this.grantState = null;
+      this.grantExpiresAt = 0;
+      this.grantFetchedAt = 0;
+      this.grantFlight = null;
+      this.blockedUntil = 0;
+      this.authorizationBlocked = false;
+      this.grantBackoff.reset();
+      this.reconnectBackoff.reset();
+      if (this.wanted()) this.ensureOpen();
+    });
+  }
 
   /** Hold the stream open while a consumer (roster, event tunnel) needs it. */
   start(): void {
@@ -158,6 +179,7 @@ class LaravelRelayStream {
   }
 
   async ensureGrant(force: boolean): Promise<RelayGrant> {
+    if (this.authorizationBlocked) throw new RelayGrantUnavailableError(AUTHENTICATION_REQUIRED);
     const now = performance.now();
     const current = this.grantState;
     if (current && !force && now < this.grantExpiresAt - GRANT_REFRESH_MARGIN_MS) return current;
@@ -180,6 +202,7 @@ class LaravelRelayStream {
   }
 
   private ensureOpen(): void {
+    if (this.authorizationBlocked) return;
     if (this.active || this.candidate || this.reconnectTimer) return;
     const grant = this.grantState;
     if (grant && performance.now() < this.grantExpiresAt - GRANT_REFRESH_MARGIN_MS) {
@@ -195,11 +218,22 @@ class LaravelRelayStream {
 
   private fetchGrant(): Promise<RelayGrant> {
     if (this.grantFlight) return this.grantFlight;
+    const generation = this.authGeneration;
     const flight = laravelRelayApi.getRelayGrant()
-      .then((raw) => this.applyGrant(raw))
+      .then((raw) => {
+        if (generation !== this.authGeneration) throw new DOMException('Aborted', 'AbortError');
+        return this.applyGrant(raw);
+      })
       .catch((error) => {
-        this.noteGrantFailure();
+        if (generation !== this.authGeneration) throw new RelayGrantUnavailableError('grant_unavailable');
         appendLog('warn', 'api', `RELAY_GRANT_FAILED: ${String(error)}`);
+        if (isRelayAuthorizationFailure(error)) {
+          this.authorizationBlocked = true;
+          this.grantState = null;
+          this.grantExpiresAt = 0;
+          throw new RelayGrantUnavailableError(AUTHENTICATION_REQUIRED);
+        }
+        this.noteGrantFailure();
         throw new RelayGrantUnavailableError('grant_unavailable');
       })
       .finally(() => {
@@ -275,6 +309,7 @@ class LaravelRelayStream {
 
   private closed(entry: StreamEntry, error?: unknown): void {
     if (error) appendLog('error', 'api', `RELAY_STREAM_INTERRUPTED: ${String(error)}`);
+    if (isRelayAuthorizationFailure(error)) this.grantExpiresAt = 0;
     if (this.active === entry) {
       this.active = null;
       if (this.rotateTimer) clearTimeout(this.rotateTimer);
@@ -290,7 +325,7 @@ class LaravelRelayStream {
   }
 
   private scheduleReconnect(): void {
-    if (!this.wanted() || this.reconnectTimer) return;
+    if (this.authorizationBlocked || !this.wanted() || this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       if (!this.wanted() || this.candidate || this.active) return;

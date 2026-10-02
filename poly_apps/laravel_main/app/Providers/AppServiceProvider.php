@@ -65,8 +65,10 @@ class AppServiceProvider extends ServiceProvider
                 ->by(($owner !== null ? 'user:'.$owner : (string) $request->ip()).':'.$lane);
         });
         RateLimiter::for('relay-enrollment-claim', static function (Request $request): Limit {
+            $owner = $request->user()?->getAuthIdentifier();
+
             return Limit::perMinute(RelayContract::rateLimit('enrollment_claims_per_minute'))
-                ->by((string) $request->ip());
+                ->by(($owner !== null ? 'user:'.$owner : 'guest').':'.(string) $request->ip());
         });
 
         // Dashboard auth mutations (login/register/elevate): brute-force guard

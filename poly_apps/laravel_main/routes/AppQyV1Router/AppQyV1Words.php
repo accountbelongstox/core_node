@@ -63,11 +63,6 @@ Route::post('/word/audio/head', [AppQyV1WordMediaController::class, 'moveAudioTo
 //   POST /api/app_qy_v1/word/audio/upload  { md5, lang, audio_base64, provider? }
 Route::post('/word/audio/upload', [AppQyV1WordMediaController::class, 'uploadAudio'])->middleware('client.key');
 
-// Missing-audio word batch for the browser-side Puter.js generator (pycore-manager
-// Queue Center persistent bar). Returns up to limit words with has_audio=false;
-// backend-marked invalid words (is_valid=false) are excluded.
-//   GET /api/app_qy_v1/word/audio/missing-batch?limit=1000&language=en
-
 // Fix garbled word text detected during browser-side audio generation.
 // Writes the cleaned form back to the content column (HTML/garbage -> '-').
 //   POST /api/app_qy_v1/word/fix-text  { md5, lang, cleaned_word }

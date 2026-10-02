@@ -119,8 +119,8 @@ function Get-CnProgramDrivePartitionGuid {
     return $cnPartitionGuid
 }
 
-# Language-independent E: qualification (docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
-# section 3.1, amended by user D27: no separate tree root/subdir on any OS,
+# Language-independent E: qualification (docs_fix/DESIGN_SHELL_HOSTS.md
+# section 4.1, amended by user D27: no separate tree root/subdir on any OS,
 # so the marker lives directly at the drive root instead of under a tree
 # subdir): ready + Fixed + NTFS/ReFS, and, when the marker already exists,
 # its content must match the drive's current partition GUID. A qualifying

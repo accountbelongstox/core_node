@@ -17,6 +17,12 @@ export const NETWORK_TIMEOUTS: Record<string, number> = {
   pycoreEndpointSweepMs: 7_000,
 };
 
+/** The one reconnect / retry backoff window (every socket, event client and compute retry). */
+export const RECONNECT_BACKOFF_MS = {
+  min: 1_000,
+  max: 30_000,
+} as const;
+
 export const WEBSOCKET_TIMINGS = {
   /** Application heartbeat cadence (detects half-open sockets). */
   heartbeatIntervalMs: 20_000,
@@ -25,8 +31,8 @@ export const WEBSOCKET_TIMINGS = {
   /** Handshake ceiling before an attempt counts as failed. */
   openTimeoutMs: 10_000,
   /** Reconnect backoff bounds (full jitter between half and full step). */
-  reconnectMinMs: 1_000,
-  reconnectMaxMs: 30_000,
+  reconnectMinMs: RECONNECT_BACKOFF_MS.min,
+  reconnectMaxMs: RECONNECT_BACKOFF_MS.max,
 } as const;
 
 export const UI_DURATIONS = {

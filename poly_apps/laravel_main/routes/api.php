@@ -148,7 +148,7 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('repair', [ServerManagerV1NginxManagerCtl::class, 'repairConfig']);
     });
 
-    // FrankenPHP plane management Routes (DESIGN_20260817_2115 PART_0):
+    // FrankenPHP plane management Routes (DESIGN_TRANSPORT_PLANE.md §1):
     // binary + canonical Caddyfile + plane record for the frankenphp
     // web-server plane. Octane worker lifecycle stays in unified/octane/*.
     Route::prefix('frankenphp')->group(function () {

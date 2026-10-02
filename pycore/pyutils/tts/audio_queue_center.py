@@ -6,16 +6,15 @@ GLOBALLY SHARED (``audio_queue_center`` below). Lane workers, audio
 orchestration, the lane-state publisher, and RPC controllers import this
 instance — none of them constructs a queue or embeds the implementation.
 
-Queue model (binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md
-§5.2, refining docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md):
+Queue model (binding: docs_fix/DESIGN_QUEUE_PIPELINE.md):
   * Queue ALWAYS = Part1 + Part2, one whole-Queue heap per lane; every
     mutation and every dedup runs against the whole Queue.
   * Part1 = pycore-local priority. Filled ONLY by audio orchestration
     (manifest misses, words and sentences as local tasks) and the
     pycore-manager manual promote (``promote_local_head``).
   * Part2 = this node's Laravel work: the rows of its work leases
-    (``accept_leased``) and claimed Laravel global tasks. A Part2 item never
-    demotes a Part1 member.
+    (``accept_leased``) and, on the word lane, claimed ``article_audio``
+    global tasks (``accept_task``). A Part2 item never demotes a Part1 member.
   * Part1 items are TRACKED for observability (queued -> processing ->
     done | failed, owners, provider, settled_by). The split may be
     VISUALIZED through ``lane_view``; actors never address a part.

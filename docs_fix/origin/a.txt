@@ -2675,7 +2675,7 @@ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands ·
 
  $ cd "D:/programing/core_node" && python - <<'EOF'
  import io
- p = 'docs_fix/DEBIAN13_PYTHON310_TTS_DEVELOPMENT_PLAN.md'
+ p = 'docs_fix/DESIGN_TTS_AI_RUNTIME.md'
  s = io.open(p, encoding='utf-8').read()
  marker = "## 5. 兼容性参考表"
  record = """## 4C. 步骤 02/03/07 完成记录（2026-09-17 续第

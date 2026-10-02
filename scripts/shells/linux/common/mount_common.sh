@@ -339,8 +339,8 @@ ensure_program_drive_udev_exclusion() {
 # that was mounted read-write via the runtime-only ntfs-3g fallback (see the
 # mount_disk / handle_ntfs_disk fallback blocks), and -- ONLY when it can be
 # done safely -- schedule ONE Windows boot so the pending Windows repair
-# actually runs (docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
-# section 2, root cause #6: the firmware boots Debian first, so a pending
+# actually runs (docs_fix/DESIGN_SHELL_HOSTS.md
+# section 4.5: the firmware boots Debian first, so a pending
 # chkdsk schedule never gets a chance to run on its own). Both conditions
 # below are required before grub-reboot is used:
 #   - /etc/default/grub has GRUB_DEFAULT=saved (grub-reboot's one-shot only
@@ -567,7 +567,7 @@ mount_disk() {
         # (explicit device + type), so fstab keeps ntfs3 and is NEVER rewritten
         # to the fallback: the old code persisted the fallback type here, which
         # kept Linux writing to an unrepaired volume forever (see docs_fix/
-        # REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2). Never
+        # DESIGN_SHELL_HOSTS.md). Never
         # pass ntfs3's "force" option and never run ntfsfix: either would let
         # Linux silently clear the dirty flag instead of a real Windows chkdsk.
         warning "ntfs3 mount failed for $device (dirty NTFS volume); mounting read-write with ntfs-3g for this boot only."
@@ -755,7 +755,7 @@ handle_ntfs_disk() {
             # NEVER rewritten to the fallback (the old code re-persisted the
             # fallback type here, which kept Linux writing to an unrepaired
             # volume forever; see docs_fix/
-            # REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2). Never
+            # DESIGN_SHELL_HOSTS.md). Never
             # pass ntfs3's "force" option and never run ntfsfix.
             warning "ntfs3 mount failed for $device (dirty NTFS volume); mounting read-write with ntfs-3g for this boot only."
             echo "[2] $USE_SUDO mount -t ntfs-3g -o $mount_options $device $mount_point"
@@ -1205,8 +1205,8 @@ ensure_tree_root_bind_mount() {
 
 # =============================================================================
 # Boot-time NTFS convergence (user D3b: "make the disk setup a per-run
-# convergence" -- docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
-# section 3.6). The firmware boots this machine's Linux first, so a volume
+# convergence" -- docs_fix/DESIGN_SHELL_HOSTS.md
+# section 4.5). The firmware boots this machine's Linux first, so a volume
 # that ntfs3 refused as dirty and that only got the ntfs-3g runtime-only
 # fallback (mount_disk / handle_ntfs_disk above) must not stay silently
 # unmounted for the rest of THIS boot if that fallback itself never ran (e.g.

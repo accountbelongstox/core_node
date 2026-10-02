@@ -280,7 +280,7 @@ const laravelMethods = {
 
   getSentenceAudioQueue: async () => {
     const payload = await requestLaravel<any>('GET', ROUTES.sentenceMissing, {
-      page: 1,
+      cursor_id: 0,
       per_page: QUEUE_CENTER_CONTRACT.task_contract.limits.monitor,
     });
     const queue = unwrapData<any>(payload);
@@ -294,7 +294,7 @@ const laravelMethods = {
     return unwrapData<QueueCenterOverviewResponse>(payload);
   },
 
-  /** Every pycore work node (desktop, Colab, Kaggle) with its leases, and the per lane and language pool. */
+  /** Every pycore work node (a GPU or CPU node) with its leases, and the per lane and language pool. */
   getWorkNodes: async (): Promise<WorkNodesResponse> => {
     const payload = await requestLaravel<any>('GET', ROUTES.workNodes, undefined, NETWORK_TIMEOUTS.queueCenterOverviewMs);
     return unwrapData<WorkNodesResponse>(payload);

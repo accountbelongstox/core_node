@@ -3,7 +3,8 @@
 Operation Service — full V5 contract.
 
 Manages the lifecycle of operations and their items with:
-- create_or_get (idempotency)
+- create_or_get (one live operation per kind and scope; repeat calls are
+  deduplicated at the RPC layer by client_task_id)
 - declare_items (fix total after discovery)
 - per-item transitions: start_item, update_item_progress, complete_item, fail_item, skip_item
 - operation-level transitions: start, complete, fail, cancel, request_cancel
@@ -50,23 +51,13 @@ class OperationService:
         self,
         kind: str,
         scope: str,
-        idempotency_key: Optional[str] = None,
         initial_message: str = "Operation created",
         client_id: Optional[str] = None,
     ) -> Operation:
         """
         Create a new pending operation or return an existing non-terminal one
-        with the same kind and scope (and optionally idempotency_key).
+        with the same kind and scope.
         """
-        route = f"operation.create.{kind}"
-        owner = client_id or scope
-        if idempotency_key:
-            existing_id = self.repo.get_idempotent_operation_id(owner, idempotency_key, route)
-            if existing_id:
-                existing = self.repo.get_operation(existing_id)
-                if existing:
-                    return existing
-
         existing = self.repo.get_latest_operation_by_scope(scope)
         if (
             existing
@@ -91,14 +82,6 @@ class OperationService:
         event = _make_event(op_id, 1, "operation.created", initial_message)
         outbox = _outbox_spec(event, scope, client_id)
         self.repo.create_operation(op, [], initial_event=event, outbox=outbox)
-        if idempotency_key:
-            self.repo.save_idempotency_record(
-                owner,
-                idempotency_key,
-                route,
-                op_id,
-                status="accepted",
-            )
         publish_operation_event(event, scope, client_id)
         return op
 

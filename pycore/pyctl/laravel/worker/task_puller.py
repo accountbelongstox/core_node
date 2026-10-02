@@ -15,7 +15,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue, init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, redacted_http_error
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
     GLOBAL_TASK_TYPES_BY_KEY,
@@ -475,7 +475,7 @@ class TaskPuller:
             response = laravel_client.post(
                 queue_center_endpoint("worker_task_pull", task_type=task_type),
                 base_url=base_url,
-                json=params,
+                json=params, response=RESPONSE_CONTROL,
             )
             if _unknown_task_type(response):
                 self._note_unsupported(base_url, task_type)

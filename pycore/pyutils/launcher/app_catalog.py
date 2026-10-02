@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Static launcher application catalog: Windows/Linux definitions, process names, Chrome paths."""
 
+import sys
 from pathlib import Path
 
 # Linux app resolution (Debian/Ubuntu/Kali). The APP_DEFINITIONS below are all
@@ -58,6 +59,8 @@ LINUX_APP_DEFINITIONS = {
         'app_subdir': 'wechat',
     },
     'qq': {'binaries': ['qq', 'linuxqq']},
+    # 195_install_remmina.sh (remmina + RDP/secret plugins).
+    'remmina': {'binaries': ['remmina']},
     'devin': {'binaries': ['windsurf', 'devin']},
     'notepad++': {'binaries': []},  # no Linux equivalent
     # The desktop's DEFAULT text editor. TextEditorFinder tries the
@@ -71,11 +74,31 @@ LINUX_APP_DEFINITIONS = {
     'codex': {'binaries': ['codex']},
 }
 
-# Platform availability per app (absent = both platforms). wechat/notepad++
-# are launched on Windows only.
+# Platform availability per app (absent = both platforms). notepad++ is
+# launched on Windows only, remmina on Linux only (Windows uses mstsc).
 APP_PLATFORMS = {
-    'wechat': ('windows',),
+    'remmina': ('linux',),
     'notepad++': ('windows',),
+}
+
+# Linux-only launcher apps: absent from the Windows APP_DEFINITIONS, so the
+# config defaults and the toggle menu add them on Linux through
+# available_app_names().
+LINUX_ONLY_APPS = ('remmina',)
+
+# Apps enabled by default on Linux only (Windows keeps its own defaults).
+LINUX_DEFAULT_ENABLED_APPS = ('wechat', 'remmina')
+
+# Prerequisite idempotent installer per Linux app: (script, extra args). The
+# launcher runs it once, non-interactively (DD_AUTO_CONTINUE=1), when an
+# enabled app does not resolve, then resolves it again.
+LINUX_INSTALLER_SCRIPTS_RELATIVE_DIR = Path('scripts') / 'shells' / 'linux' / 'debian' / 'install_shells'
+LINUX_PREREQUISITE_INSTALLERS = {
+    'chrome': ('41_install_browsers.sh', ('--only', 'chrome')),
+    'cursor': ('155_install_ides.sh', ('--only', 'cursor')),
+    'codex': ('99_install_ai_tools.sh', ('--only', 'codex')),
+    'wechat': ('167_install_wechat.sh', ()),
+    'remmina': ('195_install_remmina.sh', ()),
 }
 
 # Apps detected by command line instead of process name/exe path (any
@@ -132,6 +155,7 @@ LINUX_PROCESS_NAMES = {
     'cursor': ['cursor'],
     'wechat': ['wechat', 'weixin'],
     'qq': ['qq'],
+    'remmina': ['remmina'],
     'devin': ['windsurf'],
     'notepad++': [],
     # Linux process comm is truncated to 15 chars: gnome-text-editor shows
@@ -273,3 +297,10 @@ APP_DEFINITIONS = {
         'downloads_glob': 'AIAssistant*.exe'
     }
 }
+
+
+def available_app_names():
+    """Catalog apps of this platform: APP_DEFINITIONS plus the Linux-only apps on Linux."""
+    if sys.platform == 'win32':
+        return list(APP_DEFINITIONS)
+    return [*APP_DEFINITIONS, *(name for name in LINUX_ONLY_APPS if name not in APP_DEFINITIONS)]

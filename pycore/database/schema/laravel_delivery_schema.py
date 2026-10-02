@@ -126,11 +126,12 @@ def _create_meta(connection: sqlite3.Connection) -> None:
     )
 
 
-def _migrate_v1(connection: sqlite3.Connection) -> None:
-    """v1 -> v2: rows gain ``namespace`` / ``item_key`` (filled by the outbox
-    from each row's recorded endpoint); v1 receipts carry no server, so they
-    are dropped (the diff or the kind's own policy decides again); v1 metrics
-    move to the unassigned namespace ``''``."""
+def _migrate_to_namespaced_schema(connection: sqlite3.Connection) -> None:
+    """One-shot upgrade of an un-namespaced database (user_version 1): rows gain
+    ``namespace`` / ``item_key`` (filled by the outbox from each row's recorded
+    endpoint); old receipts carry no server, so they are dropped (the diff or the
+    kind's own policy decides again); old metrics move to the unassigned
+    namespace ``''``."""
     if _table_exists(connection, LARAVEL_DELIVERIES_TABLE):
         columns = _columns(connection, LARAVEL_DELIVERIES_TABLE)
         if "namespace" not in columns:
@@ -142,23 +143,23 @@ def _migrate_v1(connection: sqlite3.Connection) -> None:
     if _table_exists(connection, LARAVEL_DELIVERY_RECEIPTS_TABLE):
         connection.execute(f"DROP TABLE {LARAVEL_DELIVERY_RECEIPTS_TABLE}")
     if _table_exists(connection, LARAVEL_DELIVERY_METRICS_TABLE) and "namespace" not in _columns(connection, LARAVEL_DELIVERY_METRICS_TABLE):
-        legacy = f"{LARAVEL_DELIVERY_METRICS_TABLE}_v1"
-        connection.execute(f"ALTER TABLE {LARAVEL_DELIVERY_METRICS_TABLE} RENAME TO {legacy}")
+        staged_table = f"{LARAVEL_DELIVERY_METRICS_TABLE}_unnamespaced"
+        connection.execute(f"ALTER TABLE {LARAVEL_DELIVERY_METRICS_TABLE} RENAME TO {staged_table}")
         _create_metrics(connection)
         connection.execute(
             f"INSERT INTO {LARAVEL_DELIVERY_METRICS_TABLE} "
             "(namespace, kind, delivered, failures, dead_lettered, last_delivered_at, last_error, last_error_at) "
             "SELECT '', kind, delivered, failures, dead_lettered, last_delivered_at, last_error, last_error_at "
-            f"FROM {legacy}"
+            f"FROM {staged_table}"
         )
-        connection.execute(f"DROP TABLE {legacy}")
+        connection.execute(f"DROP TABLE {staged_table}")
 
 
 def init_laravel_delivery_schema(connection: sqlite3.Connection) -> int:
     """Create or upgrade the schema; returns the version found before."""
     previous = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if previous < LARAVEL_DELIVERY_SCHEMA_VERSION:
-        _migrate_v1(connection)
+        _migrate_to_namespaced_schema(connection)
     _create_deliveries(connection)
     _create_indexes(connection)
     _create_state(connection)

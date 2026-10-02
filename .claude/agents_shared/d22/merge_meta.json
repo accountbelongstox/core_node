@@ -138,12 +138,12 @@
   {
    "item_id": "LDRI-58",
    "to": "orchestrator (docs_fix record)",
-   "reason": "Merged: LDRI-58, LDRI-04, LDRI-05, LDRI-10. In REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, correct lines 67-70 (client.key and client_key_auth.py machine id), :98 (X4 stored dictionary md5) and :377-378 (the risk is now client.key). In PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md:462, drop 'probe'. No code change."
+   "reason": "Merged: LDRI-58, LDRI-04, LDRI-05, LDRI-10. In DESIGN_QUEUE_PIPELINE.md, correct lines 67-70 (client.key and client_key_auth.py machine id), :98 (X4 stored dictionary md5) and :377-378 (the risk is now client.key). In PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md:462, drop 'probe'. No code change."
   },
   {
    "item_id": "PRAO-27",
    "to": "orchestrator (docs_fix record)",
-   "reason": "Merged: PRAO-27, PRAO-15, PRAO-31. In REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md: the W4 kind table and retry route follow W8; retention deletes the output directory per AT-014; the W5 auth text follows K1-K5 client.key. The code already follows the newer rulings."
+   "reason": "Merged: PRAO-27, PRAO-15, PRAO-31. In DESIGN_AUDIO_ORCHESTRATION.md: the W4 kind table and retry route follow W8; retention deletes the output directory per AT-014; the W5 auth text follows K1-K5 client.key. The code already follows the newer rulings."
   },
   {
    "item_id": "LTCW-32",
@@ -153,7 +153,7 @@
   {
    "item_id": "DDSH-30",
    "to": "orchestrator (docs_fix record)",
-   "reason": "Merged: DDSH-30, DDSH-26. In REQUIREMENTS_20260927_DD_SH_STARTUP_REFACTOR.md, §5's startup order drops 'unwanted paths' (IS-026 moved it to Slim & Disk Cleanup), and §3 line 51 is aligned to §5's $CORE_NODE_INSTALLER_STATE_DIR/dd_startup/permissions.log. No code change."
+   "reason": "Merged: DDSH-30, DDSH-26. In DESIGN_SHELL_HOSTS.md, §5's startup order drops 'unwanted paths' (IS-026 moved it to Slim & Disk Cleanup), and §3 line 51 is aligned to §5's $CORE_NODE_INSTALLER_STATE_DIR/dd_startup/permissions.log. No code change."
   },
   {
    "item_id": "CKA-33",

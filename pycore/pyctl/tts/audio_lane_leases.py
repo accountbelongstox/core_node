@@ -23,10 +23,12 @@ from pycore.pyutils.tts.audio_queue_model import (
     build_local_task,
 )
 from pycore.pyutils.tts.engine_policy import lane_capability
+from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.runtime_profile import WORD_BATCH_PROFILE
 from pycore.pyctl.laravel.worker.work_leases import (
     BATCH_MAX,
     EMPTY_RETRY_AFTER_SECONDS,
+    LEASE_LOST,
     LEASE_TTL_SECONDS,
     LeaseBook,
     WANT_MAX,
@@ -54,7 +56,10 @@ class AudioLaneLeases:
 
     def capability(self) -> Dict[str, List[str]]:
         """Engines and languages this node declares for the lane."""
-        return lane_capability(WORD_BATCH_PROFILE if self._lane == "word_audio" else "sentence")
+        return lane_capability(
+            WORD_BATCH_PROFILE if self._lane == "word_audio" else "sentence",
+            available=tts_engine_registry.available,
+        )
 
     # -------------------- wiring --------------------
 
@@ -196,7 +201,7 @@ class AudioLaneLeases:
         lost = [str(lease_id) for lease_id in data.get("lost") or [] if lease_id]
         if lost:
             dropped = audio_queue_center.drop_leased(self._lane, self._book.lost(lost))
-            ColorPrint.yellow(f"{self._worker.log_prefix} lease lost: {lost} (dropped {dropped} unstarted row(s))")
+            ColorPrint.yellow(f"{self._worker.log_prefix} {LEASE_LOST}: {lost} (dropped {dropped} unstarted row(s))")
 
     def _flush_releases(self, base_url: str) -> None:
         rows = self._book.take_releases()

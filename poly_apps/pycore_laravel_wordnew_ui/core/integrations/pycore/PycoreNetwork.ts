@@ -1,6 +1,7 @@
 /** Canonical Pycore HTTP and WebSocket constants. */
 import rpcContract from '../../../../../config/pycore_rpc_contract.json';
 import { PYCORE_BACKEND_PORT } from '../../contracts/ServiceContract';
+import { RECONNECT_BACKOFF_MS } from '../../config/NetworkTiming';
 import relayContract from '../../../../../config/pycore_relay_contract.json';
 
 const PYCORE_HTTP_API_PREFIX = rpcContract.api_prefix;
@@ -28,8 +29,8 @@ export const PYCORE_HTTP_HEADER_NAMES = {
 } as const;
 
 export const PYCORE_HTTP_DEFAULTS = {
-  reconnectMinMs: 1_000,
-  reconnectMaxMs: 30_000,
+  reconnectMinMs: RECONNECT_BACKOFF_MS.min,
+  reconnectMaxMs: RECONNECT_BACKOFF_MS.max,
   fallbackPollMs: 30_000,
   slowFallbackPollMs: 60_000,
   capabilityPollMs: 20_000,

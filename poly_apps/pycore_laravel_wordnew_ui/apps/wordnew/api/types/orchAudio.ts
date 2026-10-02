@@ -1,7 +1,7 @@
 /** types/orchAudio.ts - orchestrated audio (pycore audio orchestration output
  * delivered to Laravel, `/api/app_qy_v1/orch_audio`) as read by the wordnew
  * listing and player pages. Contract: docs_fix/
- * REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md "W5 contract". */
+ * DESIGN_AUDIO_ORCHESTRATION.md section 10. */
 
 /** Source ids come from the backend (`sources`); known ids get presentation. */
 export type WfNewOrchAudioSource = 'vocab_book' | 'prompt_rewrite' | (string & {});

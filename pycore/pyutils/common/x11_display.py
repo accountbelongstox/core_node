@@ -28,6 +28,8 @@ X11_ERROR_CONNECT_FAILED = "x11_connect_failed"
 X11_NO_COOKIE_SOURCE = "no-cookie"
 X11_ERROR_XTEST_MISSING = "x11_xtest_unavailable"
 X11_ERROR_EWMH_MISSING = "x11_ewmh_unavailable"
+X11_SCREENSAVER_EXTENSION = "MIT-SCREEN-SAVER"
+MILLISECONDS_PER_SECOND = 1000.0
 EWMH_SOURCE_PAGER = 2
 ACTIVATION_POLL_SECONDS = 0.02
 ACTIVATION_TIMEOUT_SECONDS = 0.6
@@ -214,6 +216,20 @@ class X11Display:
         active_id = connection.property_int(connection.root, "_NET_ACTIVE_WINDOW")
         connection.close()
         return active_id
+
+    def idle_seconds(self) -> Optional[float]:
+        get_third_package_Xlib_module('ext.screensaver')
+        connection, _error_code = self._open()
+        if connection is None:
+            return None
+        try:
+            if connection.display.query_extension(X11_SCREENSAVER_EXTENSION) is None:
+                return None
+            return connection.root.screensaver_query_info().idle / MILLISECONDS_PER_SECOND
+        except Exception:  # noqa: BLE001 - Xlib protocol errors are not a stable hierarchy
+            return None
+        finally:
+            connection.close()
 
     def activate(self, xid: int) -> bool:
         xlib_x = get_third_package_Xlib_module('X')

@@ -13,7 +13,7 @@ final class TaskCenterSummaryService
     /**
      * Timer => queue-role map for the Task Center relations table.
      *
-     * Dict-lane live queues (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+     * Dict-lane live queues (docs_fix/DESIGN_QUEUE_PIPELINE.md):
      * the retired scan/filler timers (appqyv1_word_validity_scan,
      * app_qy_v1_word_translation_scan_task,
      * app_qy_v1_dictionary_translation_task,

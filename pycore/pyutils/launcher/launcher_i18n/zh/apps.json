@@ -19,5 +19,13 @@
   "launcher.apps.launched": "  已启动：{path}",
   "launcher.apps.path_missing": "  错误：应用路径不存在：{path}",
   "launcher.apps.no_terminal": "  错误：未找到可运行 {app} 的终端模拟器。",
-  "launcher.apps.failed": "  启动 {app} 失败：{error}"
+  "launcher.apps.failed": "  启动 {app} 失败：{error}",
+  "launcher.apps.install_running": "正在通过 {script} 安装 {app}（日志：{path}）...",
+  "launcher.apps.install_done": "  {app} 安装完成。",
+  "launcher.apps.install_failed": "  安装 {app} 失败（退出码 {code}）；详见 {path}",
+  "launcher.apps.install_error": "  安装 {app} 失败：{error}",
+  "launcher.apps.install_script_missing": "  未找到安装脚本：{path}",
+  "launcher.apps.install_no_display": "  不安装 {app}：没有图形显示环境。",
+  "launcher.apps.install_privilege": "  安装 {app} 需要 root 权限（无免密 sudo）。请手动运行：",
+  "launcher.apps.install_manual_command": "    {command}"
 }

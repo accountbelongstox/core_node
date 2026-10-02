@@ -4,7 +4,7 @@ Session: ct-pycore-architect (independent-sessions mode). Updated 2026-09-28.
 
 ## Status
 
-- In reserve, per orchestrator ruling R2 (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`). `pycore-lead` is the default writer for `pycore/pyfoundations/`, `pycore/pythreadpool/` and `pycore/pyheartbeat/`. I edit only when a task names me as temporary writer.
+- In reserve, per orchestrator ruling R2 (`docs_fix/DESIGN_CLAUDE_TEAM.md`). `pycore-lead` is the default writer for `pycore/pyfoundations/`, `pycore/pythreadpool/` and `pycore/pyheartbeat/`. I edit only when a task names me as temporary writer.
 - Under ruling R4, the arch-audit and the rest of the carried backlog stay on hold until the user's next task.
 - The shared task list is empty. I have no uncommitted edits and no task in progress.
 

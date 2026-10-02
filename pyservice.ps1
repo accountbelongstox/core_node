@@ -8,12 +8,21 @@
         1. PREREQUISITES (idempotent): default `run` always runs
            PreparePycorePrerequisites (Step*.ps1 installers skip when already satisfied).
            Orchestration lives in scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1.
-           Use `install` / `-Only` to provision without launching
-           the worker. The main worker uses system Python 3.13; incompatible TTS
-           subprocesses use pre-built, engine-specific isolated environments.
+           Use `-Only` to provision without launching the worker. The main worker
+           uses system Python 3.13; incompatible TTS subprocesses use pre-built,
+           engine-specific isolated environments.
 
         2. LAUNCH: starts pycore\pycore_module_caller.py (the real worker, which
            now lives inside the pycore package, not at the repo root).
+
+        3. BACKGROUND SERVICE (same meaning as `./pyservice.sh install`):
+           `install` runs the idempotent prerequisites, then installs + enables +
+           starts the Windows service `pycore` (NSSM, automatic start, headless:
+           `pyservice.ps1 run -NoUi -NoInstall -NoServicePrompt`, no tray).
+           `uninstall|start|stop|restart|status` manage it; admin rights are
+           requested through a UAC self-elevation. An interactive `run` offers
+           the install when the service is absent and otherwise ensures the
+           installed service is running instead of starting a second worker.
 
     Prerequisites and the worker are invoked through absolute paths resolved from
     this script's own folder, so the repo can live anywhere.
@@ -34,7 +43,8 @@
     on any change. Pairs with the Vite UI HMR so both layers reload on save.
 
 .PARAMETER Only
-    Run ONLY the idempotent prerequisite step and exit (do not launch the worker).
+    Run ONLY the idempotent prerequisite step and exit (do not launch the worker
+    and do not install the service).
 
 .EXAMPLE
     .\pyservice.ps1
@@ -55,7 +65,12 @@
     Port the UI server listens on (PySide6 loads it). Default: 13054.
 
 .PARAMETER NoInstall
-    Skip all PowerShell prerequisite installers and launch the service directly.
+    Skip all PowerShell prerequisite installers and launch the service directly
+    (with `install`: register the background service without provisioning first).
+
+.PARAMETER NoServicePrompt
+    Do not offer the background-service install [Y/n] on an interactive `run`
+    (also --no-service-prompt). The service's own command always passes it.
 
 .PARAMETER TtsSelfcheck
     Run the TTS batch self-check as a STANDALONE step before the worker starts:
@@ -66,6 +81,15 @@
 
 .EXAMPLE
     .\pyservice.ps1 install
+    Idempotent prerequisites, then install + enable + start the `pycore` Windows
+    service (re-running repairs a drifted service and starts it when stopped).
+
+.EXAMPLE
+    .\pyservice.ps1 status
+    Show the `pycore` Windows service state, start type, command and log path.
+
+.EXAMPLE
+    .\pyservice.ps1 -Only
     Provision prerequisites only (Step installers via PreparePycorePrerequisites).
 
 .EXAMPLE
@@ -87,10 +111,10 @@
 #>
 
 # --------------------------------------------------------------------------- #
-# Subcommands: run (default) | config | help. The systemd service subcommands   #
-# (install/start/stop/restart/status/uninstall) are Linux-only; on Windows they #
-# print a notice -> use the desktop UI's Settings -> Auto-start on boot toggle   #
-# (a native .lnk in the common Startup folder) instead. `config` is cross-platform.
+# Subcommands: run (default) | config | install | start | stop | restart |      #
+# status | uninstall | help. install/start/stop/restart/status/uninstall manage  #
+# the Windows service `pycore` (NSSM; same meaning as pyservice.sh's systemd     #
+# unit `pycore`: headless, no tray). `config` is cross-platform.                 #
 #
 # Headless config CLI:  .\pyservice.ps1 config ...  -> python -m pycore.pyservice_cli
 #   HTTP-first, file-fallback: while the service runs, edits go through its HTTP
@@ -141,6 +165,8 @@ param(
     [switch]$UiBuild,
     [int]$UiPort = 13054,
     [switch]$NoInstall,
+    [switch]$NoServicePrompt,
+    [switch]$ElevatedRelaunch,
     [switch]$TtsSelfcheck,
     [string[]]$InstallInclude = @(),
     [string]$InstallWhisperModel = '',
@@ -176,8 +202,23 @@ $uiResponse = $null
 $powerShellPath = $null
 $uiStartPath = $null
 $uiStartArguments = @()
-$prepareArgs = @{}
 $helpRequested = $false
+$pycoreServiceName = 'pycore'
+$pycoreServiceDisplayName = 'Pycore Module Caller'
+$pycoreServiceDescription = 'Pycore Module Caller (headless)'
+$pycoreServiceCommands = @('install', 'uninstall', 'start', 'stop', 'restart', 'status')
+$pycoreServiceNssmScript = Join-Path $winCommonDir 'NssmServiceManager.ps1'
+$pycoreServiceLogDir = Join-Path (Join-Path $Global:CORE_NODE_CACHE_DIR 'pycore') 'logs'
+$pycoreServiceStdoutLog = Join-Path $pycoreServiceLogDir 'pycore.service.out.log'
+$pycoreServiceStderrLog = Join-Path $pycoreServiceLogDir 'pycore.service.err.log'
+$pycoreServiceRegistryKey = Join-Path 'HKLM:\SYSTEM\CurrentControlSet\Services' $pycoreServiceName
+$pycoreServiceEnvironment = @('PYCORE_NO_TRAY=1', 'PYCORE_SERVICE_RUN=1')
+$pycoreServiceScriptPath = Join-Path $PSScriptRoot 'pyservice.ps1'
+$pycoreServiceArguments = ('-NoProfile -ExecutionPolicy Bypass -File "{0}" run -NoUi -NoInstall -NoServicePrompt' -f $pycoreServiceScriptPath)
+$pycoreServiceExitCode = 0
+$preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
+$secretManagerPath = Join-Path $winCommonDir 'SecretManager.ps1'
+. $pycoreServiceNssmScript
 
 if ($Command -in @('1', '2')) {
     $ServiceMode = $Command
@@ -199,7 +240,7 @@ if ($Command -match '^-') {
 # forms like -TtsSelfcheck), instead of requiring a fixed position. Tokens are
 # normalized (lowercased, leading dashes and inner -/_ stripped) before
 # matching, so --tts-selfcheck / -tts-selfcheck / -TtsSelfcheck are equivalent.
-if ($Command -ieq 'run' -and $Rest.Count -gt 0) {
+if (($Command -ieq 'run' -or $Command -ieq 'install') -and $Rest.Count -gt 0) {
     $stackedRest = @()
     $i = 0
     while ($i -lt $Rest.Count) {
@@ -216,6 +257,7 @@ if ($Command -ieq 'run' -and $Rest.Count -gt 0) {
             'noui'                     { $NoUi = $true }
             'uibuild'                  { $UiBuild = $true }
             'noinstall'                { $NoInstall = $true }
+            'noserviceprompt'          { $NoServicePrompt = $true }
             'installfull'              { $InstallFull = $true }
             'installforce'             { $InstallForce = $true }
             { $_ -in @('host', 'bindhost') } {
@@ -289,25 +331,29 @@ function Show-Usage {
     Write-Host '  1            Launch the local dashboard mode (default)'
     Write-Host '  2            Launch the Relay intermediary mode'
     Write-Host '  run          Idempotent prerequisites, then launch (default)'
-    Write-Host '  install      Run idempotent PreparePycorePrerequisites then exit'
     Write-Host '  config       Edit/show headless config via the cross-platform Python CLI'
     Write-Host '               (forwards args to: python -m pycore.pyservice_cli config)'
-    Write-Host '  install-svc  systemd service install is Linux-only (prints a notice on Windows)'
-    Write-Host '  start        Linux-only (notice on Windows)'
-    Write-Host '  stop         Linux-only (notice on Windows)'
-    Write-Host '  restart      Linux-only (notice on Windows)'
-    Write-Host '  status       Linux-only (notice on Windows)'
-    Write-Host '  uninstall    Linux-only (notice on Windows)'
+    Write-Host '  install      Install + enable + start the pycore Windows service (NSSM, automatic'
+    Write-Host '               start, headless, no tray). Runs the idempotent prerequisites first'
+    Write-Host '               (-NoInstall skips them); re-running repairs and starts the service'
+    Write-Host '  start        Start the pycore Windows service'
+    Write-Host '  stop         Stop the pycore Windows service'
+    Write-Host '  restart      Restart the pycore Windows service'
+    Write-Host '  status       Show the pycore Windows service status'
+    Write-Host '  uninstall    Stop + remove the pycore Windows service'
     Write-Host '  colab        Google Colab VM Relay agent; Linux-only via pyservice.sh (notice on Windows)'
     Write-Host '  kaggle       Kaggle notebook VM Relay agent; Linux-only via pyservice.sh (notice on Windows)'
     Write-Host '  help         Show this help (also -h / --help)'
     Write-Host ''
-    Write-Host 'Parameters (apply to run):'
+    Write-Host 'Parameters (apply to run; -NoInstall and -Only also apply to install):'
     Write-Host '  -BindHost HOST    Host the RPC server binds to (default: 0.0.0.0)'
     Write-Host '  -Port PORT        Port the RPC server binds to (default: 59000)'
     Write-Host '  -DebugMode        Enable the worker''s debug mode'
     Write-Host '  -NoReload         Disable backend hot-reload (watch .py -> restart; ON by default)'
-    Write-Host '  -Only             Provision only (idempotent install), then exit'
+    Write-Host '  -NoServicePrompt  Do not offer the background-service install [Y/n] (interactive run'
+    Write-Host '                    offers it when the service is absent; an installed service is'
+    Write-Host '                    ensured running and reported instead of a second foreground worker)'
+    Write-Host '  -Only             Run ONLY the prerequisite step, then exit (no service install)'
     Write-Host '  -NoUi             Do not launch the dashboard UI; use legacy /web/subtitle'
     Write-Host '  -UiBuild          Build the dashboard UI and serve it (vite preview)'
     Write-Host '  -UiPort PORT      Port the UI server listens on (default: 13054)'
@@ -327,11 +373,288 @@ function Show-Usage {
     Write-Host '  .\pyservice.ps1'
     Write-Host '  .\pyservice.ps1 2'
     Write-Host '  .\pyservice.ps1 install'
+    Write-Host '  .\pyservice.ps1 status'
     Write-Host '  .\pyservice.ps1 run -NoUi -Port 8000'
+    Write-Host '  .\pyservice.ps1 run -NoServicePrompt'
     Write-Host '  .\pyservice.ps1 -NoInstall'
     Write-Host '  .\pyservice.ps1 -TtsSelfcheck'
     Write-Host '  .\pyservice.ps1 config -show'
     Write-Host '  .\pyservice.ps1 -Only -InstallInclude ollama'
+}
+
+# --------------------------------------------------------------------------- #
+# Idempotent prerequisite installers (shared by run and the service install). #
+# --------------------------------------------------------------------------- #
+function Invoke-PycorePrerequisites {
+    param([Parameter(Mandatory = $true)][string]$PythonPath)
+    $prerequisiteArgs = @{ Python = $PythonPath }
+    Write-Host '[i] Installation is idempotent and SELF-REPAIRING: re-running repairs missing artifacts' -ForegroundColor Cyan
+    Write-Host '    (installed pip distributions are preserved; incomplete model' -ForegroundColor Cyan
+    Write-Host '    weights resume). Safe to re-run any time. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
+    Write-Host '[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...' -ForegroundColor Yellow
+    if (-not $env:NEURAL_TTS_INSTALL) { $env:NEURAL_TTS_INSTALL = '1' }
+    if ($InstallInclude.Count -gt 0) { $prerequisiteArgs['Include'] = $InstallInclude }
+    if ($InstallWhisperModel) { $prerequisiteArgs['WhisperModel'] = $InstallWhisperModel }
+    if ($InstallFasterWhisperModel) { $prerequisiteArgs['FasterWhisperModel'] = $InstallFasterWhisperModel }
+    if ($InstallVoskModel) { $prerequisiteArgs['VoskModel'] = $InstallVoskModel }
+    if ($InstallFull) { $prerequisiteArgs['Full'] = $true }
+    if ($InstallForce) { $prerequisiteArgs['Force'] = $true }
+    & $preparePath @prerequisiteArgs
+}
+
+# --------------------------------------------------------------------------- #
+# Background service `pycore` (NSSM-backed Windows service; Windows twin of   #
+# the systemd unit `pycore`). Headless, no tray: the service command passes   #
+# -NoUi -NoInstall -NoServicePrompt and PYCORE_NO_TRAY=1.                     #
+# --------------------------------------------------------------------------- #
+function Test-PycoreInteractiveSession {
+    if ($env:PYCORE_SERVICE_RUN -eq '1') { return $false }
+    if (-not [Environment]::UserInteractive) { return $false }
+    return (-not [Console]::IsInputRedirected)
+}
+
+function Invoke-PycoreServiceElevated {
+    param([Parameter(Mandatory = $true)][string]$ServiceCommand)
+    $powerShellExe = (Get-Process -Id $PID).Path
+    $elevatedArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $pycoreServiceScriptPath), $ServiceCommand, '-ElevatedRelaunch')
+    $elevatedProcess = $null
+    if ($NoInstall) { $elevatedArgs += '-NoInstall' }
+    if ($InstallFull) { $elevatedArgs += '-InstallFull' }
+    if ($InstallForce) { $elevatedArgs += '-InstallForce' }
+    if ($InstallInclude.Count -gt 0) { $elevatedArgs += @('-InstallInclude', ('"{0}"' -f ($InstallInclude -join ','))) }
+    if ($InstallWhisperModel) { $elevatedArgs += @('-InstallWhisperModel', ('"{0}"' -f $InstallWhisperModel)) }
+    if ($InstallFasterWhisperModel) { $elevatedArgs += @('-InstallFasterWhisperModel', ('"{0}"' -f $InstallFasterWhisperModel)) }
+    if ($InstallVoskModel) { $elevatedArgs += @('-InstallVoskModel', ('"{0}"' -f $InstallVoskModel)) }
+    Write-Host ("[i] Administrator rights are required for '{0}'; relaunching elevated (UAC) ..." -f $ServiceCommand) -ForegroundColor Yellow
+    try {
+        $elevatedProcess = Start-Process -FilePath $powerShellExe -Verb RunAs -Wait -PassThru -ArgumentList $elevatedArgs
+    } catch {
+        Write-Host ("[!] Elevation declined or failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
+        return 1
+    }
+    return [int]$elevatedProcess.ExitCode
+}
+
+function Get-PycoreServiceExePath {
+    $powerShellCommand = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
+    if (-not $powerShellCommand) { $powerShellCommand = Get-Command -Name 'pwsh.exe' -ErrorAction SilentlyContinue }
+    if (-not $powerShellCommand) { return $null }
+    return [string]$powerShellCommand.Source
+}
+
+function Get-PycoreServiceDrift {
+    param([Parameter(Mandatory = $true)][string]$ExePath)
+    $drift = @()
+    $parametersKey = Join-Path $pycoreServiceRegistryKey 'Parameters'
+    $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter ("Name='{0}'" -f $pycoreServiceName) -ErrorAction SilentlyContinue
+    $parameterItem = $null
+    $expectedPairs = @(@('Application', $ExePath), @('AppParameters', $pycoreServiceArguments))
+    $pair = $null
+    $currentProperty = $null
+    $environmentValues = @()
+    $environmentLine = $null
+    if ($serviceInfo -and ([string]$serviceInfo.StartMode -ne 'Auto')) { $drift += 'start type' }
+    if (-not (Test-Path -LiteralPath $parametersKey)) { return @($drift + 'parameters') }
+    $parameterItem = Get-ItemProperty -LiteralPath $parametersKey
+    foreach ($pair in $expectedPairs) {
+        $currentProperty = $parameterItem.PSObject.Properties[$pair[0]]
+        if ((-not $currentProperty) -or ([string]$currentProperty.Value -ne $pair[1])) { $drift += $pair[0] }
+    }
+    $currentProperty = $parameterItem.PSObject.Properties['AppEnvironmentExtra']
+    if ($currentProperty) { $environmentValues = @($currentProperty.Value) }
+    foreach ($environmentLine in $pycoreServiceEnvironment) {
+        if ($environmentValues -notcontains $environmentLine) { $drift += 'environment'; break }
+    }
+    return @($drift)
+}
+
+function Show-PycoreServiceStatus {
+    $service = Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue
+    $serviceInfo = $null
+    $rpcListener = $null
+    if (-not $service) {
+        Write-Host ("[i] Service '{0}' is not installed. Install it with: .\pyservice.ps1 install" -f $pycoreServiceName) -ForegroundColor Yellow
+        return 1
+    }
+    $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter ("Name='{0}'" -f $pycoreServiceName) -ErrorAction SilentlyContinue
+    $rpcListener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    Write-Host ("[i] Service : {0} ({1})" -f $pycoreServiceName, $pycoreServiceDisplayName) -ForegroundColor Cyan
+    Write-Host ("    State   : {0}" -f $service.Status)
+    if ($serviceInfo) {
+        Write-Host ("    Start   : {0}" -f $serviceInfo.StartMode)
+        Write-Host ("    PID     : {0}" -f $serviceInfo.ProcessId)
+    }
+    Write-Host ("    RPC     : port {0} {1}" -f $Port, $(if ($rpcListener) { 'listening' } else { 'not listening' }))
+    Write-Host ("    Logs    : Get-Content -LiteralPath '{0}' -Wait -Tail 50" -f $pycoreServiceStdoutLog)
+    if ([string]$service.Status -eq 'Running') { return 0 }
+    return 1
+}
+
+function Wait-PycoreServiceStatus {
+    param([Parameter(Mandatory = $true)][string]$DesiredStatus)
+    $service = Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue
+    if (-not $service) { return ($DesiredStatus -eq 'Stopped') }
+    try {
+        $service.WaitForStatus($DesiredStatus, [TimeSpan]::FromSeconds(30))
+    } catch {
+        return $false
+    }
+    return $true
+}
+
+function Install-PycoreService {
+    $python = $null
+    $nssmPath = $null
+    $powerShellExe = $null
+    $existingService = $null
+    $drift = @()
+    $registerResult = @()
+    $registered = $false
+    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand 'install') }
+
+    if (-not $NoInstall) {
+        $python = Resolve-Python
+        if (-not $python) {
+            Write-Host ("[!] System Python 3.13 was not found at {0}; run Step8_InstallDefaultPython.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
+            return 1
+        }
+        Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
+        Push-Location -LiteralPath $PSScriptRoot
+        try {
+            Invoke-PycorePrerequisites -PythonPath $python.Path
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Host '[i] Skipping all PowerShell prerequisite installers (-NoInstall).' -ForegroundColor DarkYellow
+    }
+
+    $nssmPath = Ensure-Nssm -RepoRootDir $PSScriptRoot
+    if (-not $nssmPath) {
+        Write-Host '[!] NSSM unavailable and auto-install (winget) failed -> cannot register the pycore service.' -ForegroundColor Red
+        Write-Host "    Install it manually ('winget install NSSM.NSSM' or https://nssm.cc/), then re-run: .\pyservice.ps1 install" -ForegroundColor DarkYellow
+        return 1
+    }
+    $powerShellExe = Get-PycoreServiceExePath
+    if (-not $powerShellExe) {
+        Write-Host '[!] powershell.exe was not found; cannot build the service command.' -ForegroundColor Red
+        return 1
+    }
+    if (-not (Test-Path -LiteralPath $pycoreServiceLogDir)) { New-Item -ItemType Directory -Force -Path $pycoreServiceLogDir | Out-Null }
+
+    $existingService = Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue
+    if ($existingService) {
+        $drift = @(Get-PycoreServiceDrift -ExePath $powerShellExe)
+        if ($drift.Count -gt 0) {
+            Write-Host ("[i] Service {0} drifted ({1}); repairing ..." -f $pycoreServiceName, ($drift -join ', ')) -ForegroundColor Yellow
+        } else {
+            Write-Host ("[i] Service {0} already installed; ensuring it is automatic and running." -f $pycoreServiceName) -ForegroundColor Cyan
+        }
+    }
+    # A healthy installed service keeps running (configuration refresh only); a new or drifted one is (re)started.
+    $registerResult = @(Register-NssmService -NssmPath $nssmPath -ServiceName $pycoreServiceName `
+        -DisplayName $pycoreServiceDisplayName -Description $pycoreServiceDescription `
+        -ExePath $powerShellExe -Arguments $pycoreServiceArguments -WorkingDirectory $PSScriptRoot `
+        -EnvironmentExtra $pycoreServiceEnvironment `
+        -StdoutLog $pycoreServiceStdoutLog -StderrLog $pycoreServiceStderrLog `
+        -NoRestart:([bool]($existingService -and ($drift.Count -eq 0))))
+    $registered = ($registerResult.Count -gt 0) -and ($registerResult[$registerResult.Count - 1] -eq $true)
+    if (-not $registered) {
+        Write-Host ("[!] Service {0} registration failed." -f $pycoreServiceName) -ForegroundColor Red
+        return 1
+    }
+    if ((Get-ServiceRunState -ServiceName $pycoreServiceName) -ne 'running') {
+        try { Start-Service -Name $pycoreServiceName } catch { Write-Host ("[!] Start failed: {0}" -f $_.Exception.Message) -ForegroundColor Red }
+    }
+    if (-not (Wait-PycoreServiceStatus -DesiredStatus 'Running')) {
+        Show-PycoreServiceStatus | Out-Null
+        Write-Host ("[!] Service {0} did not reach Running." -f $pycoreServiceName) -ForegroundColor Red
+        return 1
+    }
+    Write-Host ("[OK] Service {0} installed (automatic start) and running." -f $pycoreServiceName) -ForegroundColor Green
+    Show-PycoreServiceStatus | Out-Null
+    return 0
+}
+
+function Uninstall-PycoreService {
+    if (-not (Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue)) {
+        Write-Host ("[i] Service {0} is not installed; nothing to remove." -f $pycoreServiceName) -ForegroundColor Yellow
+        return 0
+    }
+    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand 'uninstall') }
+    if (Remove-NssmService -ServiceName $pycoreServiceName) { return 0 }
+    return 1
+}
+
+function Invoke-PycoreServiceControl {
+    param([Parameter(Mandatory = $true)][ValidateSet('start', 'stop', 'restart')][string]$Action)
+    $runState = Get-ServiceRunState -ServiceName $pycoreServiceName
+    $desiredStatus = if ($Action -eq 'stop') { 'Stopped' } else { 'Running' }
+    if ($runState -eq 'absent') {
+        Write-Host ("[!] Service {0} is not installed. Install it with: .\pyservice.ps1 install" -f $pycoreServiceName) -ForegroundColor Red
+        return 1
+    }
+    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand $Action) }
+    try {
+        switch ($Action) {
+            'start'   { if ($runState -eq 'running') { Write-Host ("[OK] Service {0} is already running." -f $pycoreServiceName) -ForegroundColor Green } else { Start-Service -Name $pycoreServiceName } }
+            'stop'    { if ($runState -eq 'stopped') { Write-Host ("[OK] Service {0} is already stopped." -f $pycoreServiceName) -ForegroundColor Green } else { Stop-Service -Name $pycoreServiceName -Force } }
+            'restart' { Restart-Service -Name $pycoreServiceName -Force }
+        }
+    } catch {
+        Write-Host ("[!] {0} failed: {1}" -f $Action, $_.Exception.Message) -ForegroundColor Red
+        return 1
+    }
+    if (-not (Wait-PycoreServiceStatus -DesiredStatus $desiredStatus)) {
+        Write-Host ("[!] Service {0} did not reach {1}." -f $pycoreServiceName, $desiredStatus) -ForegroundColor Red
+        Show-PycoreServiceStatus | Out-Null
+        return 1
+    }
+    Write-Host ("[OK] Service {0}: {1} done." -f $pycoreServiceName, $Action) -ForegroundColor Green
+    if ($Action -ne 'stop') { Show-PycoreServiceStatus | Out-Null }
+    return 0
+}
+
+function Invoke-PycoreServiceCommand {
+    param([Parameter(Mandatory = $true)][string]$ServiceCommand)
+    $commandExitCode = 1
+    switch ($ServiceCommand) {
+        'install'   { $commandExitCode = Install-PycoreService }
+        'uninstall' { $commandExitCode = Uninstall-PycoreService }
+        'status'    { $commandExitCode = Show-PycoreServiceStatus }
+        default     { $commandExitCode = Invoke-PycoreServiceControl -Action $ServiceCommand }
+    }
+    if ($ElevatedRelaunch) { Read-Host 'Press Enter to close this window' | Out-Null }
+    return [int]$commandExitCode
+}
+
+# Interactive `run`: service absent -> offer the install (default Yes); installed ->
+# ensure it is running and report instead of starting a second worker on the same
+# port. Returns the process exit code when `run` was fully handled, -1 to continue
+# with the foreground worker. Skipped for the service's own run, non-interactive
+# sessions, -NoServicePrompt, -Only and relay mode.
+function Invoke-PycoreServiceOffer {
+    $runState = ''
+    $offerExitCode = 0
+    if ($NoServicePrompt -or $Only -or ($ServiceMode -ne '1')) { return -1 }
+    if (-not (Test-PycoreInteractiveSession)) { return -1 }
+    $runState = Get-ServiceRunState -ServiceName $pycoreServiceName
+    if ($runState -ne 'absent') {
+        if ($runState -eq 'running') {
+            Write-Host '[OK] pycore service is already running (.\pyservice.ps1 status).' -ForegroundColor Green
+            Show-PycoreServiceStatus | Out-Null
+        } else {
+            Write-Host '[..] pycore service is installed but not running; starting it ...' -ForegroundColor Yellow
+            $offerExitCode = Invoke-PycoreServiceControl -Action 'start'
+        }
+        Write-Host '[i] Not starting a second foreground worker. Stop it first: .\pyservice.ps1 stop (or use -NoServicePrompt).' -ForegroundColor DarkYellow
+        return [int]$offerExitCode
+    }
+    if (-not (Read-YesNoDefaultYes -Message '[?] Install pycore as a background service?')) {
+        Write-Host '[i] Running in the foreground (service not installed).' -ForegroundColor DarkYellow
+        return -1
+    }
+    return [int](Install-PycoreService)
 }
 
 # Honor a help token collected by the parameter-library walk above (Show-Usage
@@ -343,7 +666,7 @@ if ($helpRequested) {
 
 # --------------------------------------------------------------------------- #
 # Subcommand dispatch (the optional leading positional $Command).             #
-# Service subcommands are Linux-only; on Windows we print a notice.           #
+# install|uninstall|start|stop|restart|status manage the Windows service pycore. #
 # --------------------------------------------------------------------------- #
 switch ($Command.ToLowerInvariant()) {
     { $_ -in @('help', '-h', '--help') } {
@@ -366,6 +689,7 @@ switch ($Command.ToLowerInvariant()) {
         return
     }
     'codesync' {
+        # Frozen: Code Sync is retired; repositories sync with `gitsync`. Not updated by refactors unless explicitly requested.
         # Standalone Code Sync. Dispatched here, before any prereq logic: the
         # bootstrap file runs the unified CLI (pycore/pyservice_cli.py); `run`
         # starts the codesync-only RPC host serving the shared route table.
@@ -402,17 +726,20 @@ switch ($Command.ToLowerInvariant()) {
         Write-Host ("    Or in a notebook shell: ./pyservice.sh {0} [--export-identity]" -f $Command) -ForegroundColor DarkYellow
         return
     }
-    { $_ -in @('start', 'stop', 'restart', 'status', 'uninstall', 'service-install') } {
-        Write-Host ("[i] '{0}': systemd service install/management is Linux-only." -f $Command) -ForegroundColor Yellow
-        Write-Host '    On Windows, use the Settings -> Auto-start toggle to run pycore at login,' -ForegroundColor DarkYellow
-        Write-Host '    and `.\pyservice.ps1 config` to manage headless configuration.' -ForegroundColor DarkYellow
-        Write-Host '    To provision Python prerequisites on Windows: `.\pyservice.ps1 install`' -ForegroundColor DarkYellow
-        return
+    { $_ -in $pycoreServiceCommands } {
+        # `install -Only` keeps the provisioning-only path below; every other form manages the service.
+        if (-not (($_ -eq 'install') -and $Only)) {
+            $pycoreServiceExitCode = Invoke-PycoreServiceCommand -ServiceCommand $_
+            exit $pycoreServiceExitCode
+        }
     }
     default {
         # 'run' (or any unrecognized leading token) falls through to the launch path.
     }
 }
+
+$pycoreServiceExitCode = Invoke-PycoreServiceOffer
+if ($pycoreServiceExitCode -ge 0) { exit $pycoreServiceExitCode }
 
 Write-Host '======================================================' -ForegroundColor Cyan
 Write-Host ' Pycore Service - entry point' -ForegroundColor Cyan
@@ -431,8 +758,6 @@ Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green
 Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
 
 # Absolute paths resolved from this script's folder (repo root).
-$preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
-$secretManagerPath = Join-Path $winCommonDir 'SecretManager.ps1'
 $workerPath = Join-Path $PSScriptRoot 'pycore\pycore_module_caller.py'
 
 $uiProc = $null   # React UI server process (stopped in finally)
@@ -448,24 +773,12 @@ try {
     }
 
     # --- 1) idempotent prerequisites --------------------------------------- #
-    $provisionOnly = ($Command.ToLowerInvariant() -eq 'install') -or $Only
+    $provisionOnly = [bool]$Only
 
     if ($NoInstall) {
         Write-Host '[i] Skipping all PowerShell prerequisite installers (-NoInstall).' -ForegroundColor DarkYellow
     } else {
-        Write-Host '[i] Installation is idempotent and SELF-REPAIRING: re-running repairs missing artifacts' -ForegroundColor Cyan
-        Write-Host '    (installed pip distributions are preserved; incomplete model' -ForegroundColor Cyan
-        Write-Host '    weights resume). Safe to re-run any time. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
-        Write-Host '[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...' -ForegroundColor Yellow
-        if (-not $env:NEURAL_TTS_INSTALL) { $env:NEURAL_TTS_INSTALL = '1' }
-        $prepareArgs = @{ Python = $py.Path }
-        if ($InstallInclude.Count -gt 0) { $prepareArgs['Include'] = $InstallInclude }
-        if ($InstallWhisperModel) { $prepareArgs['WhisperModel'] = $InstallWhisperModel }
-        if ($InstallFasterWhisperModel) { $prepareArgs['FasterWhisperModel'] = $InstallFasterWhisperModel }
-        if ($InstallVoskModel) { $prepareArgs['VoskModel'] = $InstallVoskModel }
-        if ($InstallFull) { $prepareArgs['Full'] = $true }
-        if ($InstallForce) { $prepareArgs['Force'] = $true }
-        & $preparePath @prepareArgs
+        Invoke-PycorePrerequisites -PythonPath $py.Path
     }
 
     if ($provisionOnly) {

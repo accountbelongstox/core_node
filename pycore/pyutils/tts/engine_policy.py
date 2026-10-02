@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.text_parsing import normalize_language_code
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     SerializedValue,
     SerializedWorkerThread,
@@ -29,7 +30,11 @@ from pycore.pyutils.common.engine_registry import (
 from pycore.pyutils.tts.edge.command import build_edge_tts_command
 import pycore.pyutils.tts.tts_manifest as tts_manifest
 from pycore.pyutils.tts.qwen.config import default_speed as qwen_default_speed
-from pycore.pyutils.tts.runtime_profile import pinned_chain as _pinned_chain
+from pycore.pyutils.tts.runtime_profile import (
+    WORD_BATCH_ENGINE,
+    WORD_BATCH_PROFILE,
+    pinned_chain as _pinned_chain,
+)
 
 _USER_FRONT_ORDER = (
     "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
@@ -293,11 +298,25 @@ def tts_engine_supports_language(engine: str, language: Optional[str]) -> bool:
     return supported is not None and normalize_tts_language(language) in supported
 
 
-def lane_capability(profile: str) -> Dict[str, list]:
-    """Engines of one pinned lane chain and the languages they can speak:
-    what a node declares when it claims work for that lane."""
+_LANE_EMPTY_LOGGED_SIGNAL = "pyutils.tts.engine_policy.lane_capability_empty"
+
+
+def lane_capability(profile: str, available: Optional[Callable[[str], bool]] = None) -> Dict[str, list]:
+    """Engines of one lane chain and the languages they can speak: what a node
+    declares when it claims work for that lane. The pinned chain when the
+    runtime profile is enabled; with the profile off, the lane's configured
+    chain (the word lane always batches with WORD_BATCH_ENGINE), filtered by
+    ``available``."""
     engines = list(_pinned_chain(profile))
+    if not engines:
+        chain = (WORD_BATCH_ENGINE,) if profile == WORD_BATCH_PROFILE else configured_tts_priority(profile)
+        engines = [engine for engine in chain if available is None or available(engine)]
     languages = sorted({language for engine in engines for language in _LANGUAGES_BY_ENGINE.get(engine, ())})
+    if not engines:
+        logged_signal = f"{_LANE_EMPTY_LOGGED_SIGNAL}.{profile}"
+        if not THREAD_BUS.has_signal(logged_signal):
+            THREAD_BUS.signal(logged_signal, True)
+            ColorPrint.yellow(f"[tts] lane profile {profile}: no usable engine to declare; no leases will be claimed")
     return {"engines": engines, "languages": languages}
 
 

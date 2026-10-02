@@ -28,6 +28,7 @@ from pycore.pyutils.codesync.file_operations import (
 from pycore.pyutils.codesync.paths import sync_root
 from pycore.pyutils.codesync.peer_config import VALID_ROLES, peer_configs
 from pycore.pyutils.codesync.peer_http import peer_url, signed_peer_request
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyutils.codesync.peer_mesh import PeerMeshManager
 from pycore.pyutils.codesync.push_receiver import PushReceiver
 from pycore.pyutils.codesync.push_sender import PushSender
@@ -594,7 +595,7 @@ class CodeSyncManager:
         peer_meta = {"id": peer_id, "name": name, "host": host, "port": port}
         url = peer_url(host, port, routes.FILE_TREE_PATH)
         try:
-            r = signed_peer_request("GET", url, timeout=20)
+            r = signed_peer_request("GET", url, timeout=20, response=RESPONSE_CONTROL)
             peer_tree = r.json() if r.status_code == 200 else None
         except (OSError, ValueError) as exc:
             ColorPrint.yellow(f"[CodeSync Manager] peer file tree failed peer={name} url={url}: {exc}")

@@ -34,6 +34,13 @@ export interface LaravelWorkerPresenceEvent {
   changed_at?: string | null;
 }
 
+/** `work_nodes.changed`: only a revision; refetch `work_nodes` when it moves. */
+export interface LaravelWorkNodesChangedEvent {
+  revision: number;
+  reason: string;
+  changed_at?: string | null;
+}
+
 export interface LaravelQueueChangedEvent {
   revision: number;
   resource: string;
@@ -68,6 +75,7 @@ const LARAVEL_REALTIME_WIRE_EVENTS = {
   wordAudioHead: QUEUE_CENTER_REALTIME_EVENTS.word_audio_head,
   sentenceAudioHead: QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head,
   workerPresence: QUEUE_CENTER_REALTIME_EVENTS.worker_presence,
+  workNodesChanged: QUEUE_CENTER_REALTIME_EVENTS.work_nodes_changed,
   articlePublished: 'article.published',
   articleAudioReady: 'article.audio.ready',
 } as const;
@@ -80,6 +88,7 @@ export const LARAVEL_REALTIME_EVENTS: { readonly [EventName in LaravelRealtimeEv
   wordAudioHead: 'wordAudioHead',
   sentenceAudioHead: 'sentenceAudioHead',
   workerPresence: 'workerPresence',
+  workNodesChanged: 'workNodesChanged',
   articlePublished: 'articlePublished',
   articleAudioReady: 'articleAudioReady',
 };
@@ -89,6 +98,7 @@ export type LaravelRealtimeEventPayloadMap = {
   wordAudioHead: LaravelQueueHeadEvent;
   sentenceAudioHead: LaravelQueueHeadEvent;
   workerPresence: LaravelWorkerPresenceEvent;
+  workNodesChanged: LaravelWorkNodesChangedEvent;
   articlePublished: LaravelArticlePublishedEvent;
   articleAudioReady: LaravelArticleAudioReadyEvent;
 };
@@ -122,6 +132,7 @@ class LaravelRealtime {
   private fallbackReplayActive = false;
   private pendingFrames: RealtimeFrame[] = [];
   private handlers = new Map<LaravelRealtimeEventName, Set<Handler>>();
+  private readonly connectHandlers = new Set<() => void>();
 
   constructor() {
     subscribeAuthSession(() => {
@@ -155,6 +166,12 @@ class LaravelRealtime {
     const commonHandler = handler as unknown as Handler;
     set.add(commonHandler);
     return () => set.delete(commonHandler);
+  }
+
+  /** Calls `handler` each time the stream (re)connects and its replay is done. */
+  onConnected(handler: () => void): () => void {
+    this.connectHandlers.add(handler);
+    return () => { this.connectHandlers.delete(handler); };
   }
 
   start(): void {
@@ -249,6 +266,7 @@ class LaravelRealtime {
     const pending = this.pendingFrames;
     this.pendingFrames = [];
     pending.forEach((frame) => this.dispatchFrame(frame));
+    this.connectHandlers.forEach((handler) => handler());
   }
 
   private handleMessage(event: string, value: unknown): void {

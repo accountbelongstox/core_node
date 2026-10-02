@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Any, Dict
 
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyutils.laravel.article_contract import compose_worker_text_fields
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -77,7 +78,7 @@ def upload_to_laravel(
     resp = laravel_client.post(
         f"{_ARTICLE_WORKER_API}/submit",
         base_url=base,
-        json=payload,
+        json=payload, response=RESPONSE_CONTROL,
     )
     ColorPrint.cyan(
         f"[AgentHistoryPipeline] upload reason=article_submit "

@@ -40,7 +40,7 @@ source "$PARENT_DIR_LEVEL_2/common/port_guard_common.sh"
 # Web-server choice is read BEFORE any plane mutation: certbot belongs to
 # the nginx plane (the frankenphp plane runs ACME inside Caddy); when nginx
 # is not the selected web server this step logs the skip and installs
-# nothing (DESIGN_20260817_2115 PART_0 P0-A3).
+# nothing (DESIGN_TRANSPORT_PLANE.md §1).
 CERTBOT_START_WEB_SERVER="frankenphp"
 if declare -F web_server_plane >/dev/null 2>&1; then
     CERTBOT_START_WEB_SERVER="$(web_server_plane 2>/dev/null || echo frankenphp)"
@@ -52,7 +52,7 @@ if [ "$CERTBOT_START_WEB_SERVER" != "nginx" ]; then
     exit 0
 fi
 
-# Plane mutual exclusion (DESIGN_20260817_2115 PART_0): installing certbot
+# Plane mutual exclusion (DESIGN_TRANSPORT_PLANE.md §1): installing certbot
 # adopts the nginx plane - the frankenphp runtime is disabled (service stop
 # + record ONLY, binary/Caddyfile/Mercure keys preserved). `--no-mutex`
 # skips the counterpart disable for advanced use.

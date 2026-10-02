@@ -33,15 +33,16 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware
 
 // Grant, frame and telemetry routes carry their own Redis window limiter
 // (contract rate_limits.owner_frames_per_minute): the per-action limiter
-// would cap a live UI far below its frame rate.
-Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () use ($relayUri): void {
+// would cap a live UI far below its frame rate. Owner routes authenticate the
+// Sanctum Bearer user; the owner is that user, never an anonymous fallback.
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware('dashboard.auth:user')->group(function () use ($relayUri): void {
     Route::post($relayUri('owner_grant'), [RelayOwnerCtl::class, 'grant']);
     Route::post($relayUri('owner_frames'), [RelayOwnerCtl::class, 'frames']);
     Route::post($relayUri('owner_telemetry'), [RelayOwnerCtl::class, 'telemetry']);
     Route::get($relayUri('owner_stats'), [RelayOwnerCtl::class, 'stats']);
 });
 
-Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware('throttle:relay-owner')->group(function () use ($relayUri): void {
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware(['dashboard.auth:user', 'throttle:relay-owner'])->group(function () use ($relayUri): void {
     Route::post($relayUri('owner_enrollment_claim'), [RelayOwnerCtl::class, 'claimEnrollment'])
         ->middleware('throttle:relay-enrollment-claim');
     Route::get($relayUri('owner_device_roster'), [RelayOwnerCtl::class, 'roster']);
