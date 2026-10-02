@@ -83,6 +83,9 @@ $script:RcVncPasswordLength = 8
 $script:RcVncPasswordChars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
 $script:RcVncDesKey = [byte[]](0xE8, 0x4A, 0xD6, 0x60, 0xC4, 0x72, 0x1A, 0xE0)
 $script:RcVncWaitSeconds = 15
+$script:RcAppCompatLayersKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers'
+$script:RcDpiAwareFlag = 'HIGHDPIAWARE'
+$script:RcVncViewerScale = 'auto'
 $script:RcPortProbeTimeoutMs = 3000
 $script:RcModeVnc = 'vnc'
 $script:RcModeRdp = 'rdp'
@@ -334,6 +337,32 @@ function Get-RemoteControlVncPassword {
     return ([System.Text.Encoding]::ASCII.GetString($plainBytes)).TrimEnd([char]0)
 }
 
+# Display scaling > 100% makes a DPI-unaware tvnserver capture a virtualized (partial) screen;
+# the compatibility layer makes it capture the full physical framebuffer. True when changed.
+function Set-RemoteControlVncDpiAware {
+    $changed = $false
+    $current = ''
+    $exePath = ''
+
+    if (-not (Test-Path -LiteralPath $script:RcAppCompatLayersKey)) { New-Item -Path $script:RcAppCompatLayersKey -Force | Out-Null }
+    foreach ($exeName in @($script:RcVncServerExeName, $script:RcVncViewerExeName)) {
+        $exePath = Find-RemoteControlVncExe -ExeName $exeName
+        if ($null -eq $exePath) { continue }
+        $current = [string](Get-ItemProperty -Path $script:RcAppCompatLayersKey -Name $exePath -ErrorAction SilentlyContinue).$exePath
+        if ($current -match $script:RcDpiAwareFlag) { continue }
+        Set-ItemProperty -Path $script:RcAppCompatLayersKey -Name $exePath -Value ($(if ([string]::IsNullOrWhiteSpace($current)) { "~ $script:RcDpiAwareFlag" } else { "$current $script:RcDpiAwareFlag" })) -Type String
+        $changed = $true
+    }
+    return $changed
+}
+
+function Test-RemoteControlVncDpiAware {
+    $exePath = Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName
+
+    if ($null -eq $exePath) { return $false }
+    return ([string](Get-ItemProperty -Path $script:RcAppCompatLayersKey -Name $exePath -ErrorAction SilentlyContinue).$exePath -match $script:RcDpiAwareFlag)
+}
+
 function Test-RemoteControlVncConfigured {
     $settings = Get-ItemProperty -Path (Get-RemoteControlVncRegistryKey) -ErrorAction SilentlyContinue
 
@@ -395,7 +424,22 @@ function Show-RemoteControlVncConnectHint {
     Write-Host "  3. Connect:                 dd.sh > ... > Remote Control > Connect to a peer   (manual: remmina -c vnc://${selfIp}:$script:RcVncPort)"
     Write-Host '  4. Enter the VNC password above when Remmina asks.'
     Write-Host ''
-    Write-Host "  From Windows: tvnviewer.exe -host=${selfIp}::$script:RcVncPort"
+    Write-Host "  From Windows: tvnviewer.exe -host=${selfIp}::$script:RcVncPort -scale=$script:RcVncViewerScale"
+    Write-Host ''
+    Write-ColorMessage -Message '== Full screen / scaling ==' -Type 'Info'
+    Write-Host "  This PC sends its own desktop ($(Get-RemoteControlScreenSize)); TightVNC cannot resize it to the viewer."
+    Write-Host '  Remmina: profiles from dd.sh open full screen + scaled to fit (scale=1, viewmode=4);'
+    Write-Host '           toggle in a session: Right Ctrl+S = scaled mode, Right Ctrl+F = full screen.'
+    Write-Host '           repair saved profiles: dd.sh > ... > Remote control > Fix VNC full screen + scaling.'
+    Write-Host '  Text too small: lower this PC''s Settings > System > Display > Scale or resolution; the VNC image follows.'
+}
+
+# Physical size of the primary screen (what VNC sends).
+function Get-RemoteControlScreenSize {
+    $mode = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.CurrentHorizontalResolution } | Select-Object -First 1
+
+    if ($null -eq $mode) { return 'unknown size' }
+    return ('{0}x{1}' -f $mode.CurrentHorizontalResolution, $mode.CurrentVerticalResolution)
 }
 
 # ---------------------------------------------------------------------------
@@ -497,6 +541,10 @@ function Enable-RemoteControlVncHost {
         Write-ColorMessage -Message "  VNC password applied: $password" -Type 'Success'
     }
 
+    if (Set-RemoteControlVncDpiAware) {
+        Write-ColorMessage -Message '  TightVNC marked DPI-aware (full-screen capture with display scaling > 100%).' -Type 'Success'
+        if ((Get-Service -Name $script:RcVncServiceName).Status -eq 'Running') { Restart-Service -Name $script:RcVncServiceName -Force -ErrorAction SilentlyContinue }
+    }
     if ($service.StartType -ne 'Automatic') { Set-Service -Name $script:RcVncServiceName -StartupType 'Automatic' }
     if ((Get-Service -Name $script:RcVncServiceName).Status -ne 'Running') { Start-Service -Name $script:RcVncServiceName -ErrorAction SilentlyContinue }
 
@@ -708,8 +756,8 @@ function Connect-RemoteControlVnc {
     param([string]$Address)
     $viewer = Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName
 
-    Write-ColorMessage -Message "$script:RcVncViewerExeName -host=${Address}::$script:RcVncPort" -Type 'Info'
-    Start-Process -FilePath $viewer -ArgumentList @("-host=${Address}::$script:RcVncPort") | Out-Null
+    Write-ColorMessage -Message "$script:RcVncViewerExeName -host=${Address}::$script:RcVncPort -scale=$script:RcVncViewerScale" -Type 'Info'
+    Start-Process -FilePath $viewer -ArgumentList @("-host=${Address}::$script:RcVncPort", "-scale=$script:RcVncViewerScale") | Out-Null
 }
 
 function Connect-RemoteControlPeer {
@@ -803,6 +851,7 @@ function Show-RemoteControlStatus {
     Write-Host "  VNC firewall:   $(if ($null -ne $vncRule -and "$($vncRule.Enabled)" -eq 'True') { "$script:RcVncTailscaleRule ($script:RcTailscaleCidr)" } else { 'rule missing' })"
     Write-Host "  VNC viewer:     $(if ($null -ne (Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName)) { 'installed' } else { 'not installed' })"
     Write-Host "  VNC password:   $(if (Test-RemoteControlVncConfigured) { Get-RemoteControlVncPassword } else { 'not set' })"
+    Write-Host "  VNC DPI-aware:  $(if (Test-RemoteControlVncDpiAware) { 'yes' } else { 'no (run one-click / Allow VNC)' }) (screen $(Get-RemoteControlScreenSize))"
     Write-Host "  RDP host:       $(if (-not (Test-RemoteControlRdpHostSupported)) { 'unsupported (Windows Home)' } elseif ($rdpDenied -eq 0) { 'enabled' } else { 'disabled' })"
     Write-Host "  RDP listening:  $(if (Test-RemoteControlPortListening -Port $script:RcRdpPort) { "yes ($script:RcRdpPort)" } else { 'no' })"
     Write-Host "  SSH server:     $(if ($null -ne $sshd) { $sshd.Status } else { 'not installed' })"
