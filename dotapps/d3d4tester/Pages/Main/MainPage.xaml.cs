@@ -87,11 +87,13 @@ public partial class MainPage : UserControl
         ChkSmartPauseBar.Content = p.GetUiText(I18nKeys.OptionsSmartPause);
         ChkCustomStand.Content = p.GetUiText(I18nKeys.OptionsUseCustomStandKey);
 
-        SkillRowViewModel.StrategyDisplayNames.Clear();
-        SkillRowViewModel.StrategyDisplayNames.Add(p.GetUiText(I18nKeys.SkillConfigStrategiesContinuous));
-        SkillRowViewModel.StrategyDisplayNames.Add(p.GetUiText(I18nKeys.SkillConfigStrategiesSingle));
-        SkillRowViewModel.StrategyDisplayNames.Add(p.GetUiText(I18nKeys.SkillConfigStrategiesHold));
-        SkillRowViewModel.StrategyDisplayNames.Add(p.GetUiText(I18nKeys.SkillConfigStrategiesIgnore));
+        string[] strategyKeys =
+        {
+            I18nKeys.SkillConfigStrategiesContinuous, I18nKeys.SkillConfigStrategiesSingle,
+            I18nKeys.SkillConfigStrategiesHold, I18nKeys.SkillConfigStrategiesIgnore,
+        };
+        for (int i = 0; i < strategyKeys.Length && i < SkillRowViewModel.StrategyOptions.Count; i++)
+            SkillRowViewModel.StrategyOptions[i].Display = p.GetUiText(strategyKeys[i]);
         ViewModel.NotifyI18nChanged();
 
         bool wasLoading = _loading;

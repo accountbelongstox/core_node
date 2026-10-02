@@ -41,11 +41,14 @@ public sealed class SkillRowViewModel : INotifyPropertyChanged
     private int _delay;
     private int _randomDelay;
 
-    /// <summary>English keys for config (1:1 Python). Order must match StrategyDisplayNames.</summary>
+    /// <summary>English keys for config (1:1 Python).</summary>
     public static string[] StrategyOptionValues { get; } = { StrategyContinuous, "single", "hold", StrategyIgnore };
 
-    /// <summary>Display names for the Strategy dropdown (i18n), same order as StrategyOptionValues. Populated by MainPage.RefreshI18n.</summary>
-    public static ObservableCollection<string> StrategyDisplayNames { get; } = new();
+    /// <summary>
+    /// Strategy dropdown items (value + i18n display), shared by every row. Created once and never cleared: a language change only
+    /// updates Display (MainPage.RefreshI18n), so each ComboBox keeps its SelectedValue (= Strategy).
+    /// </summary>
+    public static ObservableCollection<StrategyOption> StrategyOptions { get; } = new(StrategyOptionValues.Select(v => new StrategyOption(v)));
 
     public SkillRowViewModel(string skillKey, Func<string> getCurrentConfig, II18nProvider? i18n)
     {
@@ -73,17 +76,14 @@ public sealed class SkillRowViewModel : INotifyPropertyChanged
         }
     }
 
-    public int StrategyIndex
+    /// <summary>Strategy value (continuous / single / hold / ignore), bound to the dropdown SelectedValue.</summary>
+    public string Strategy
     {
-        get
-        {
-            var i = Array.IndexOf(StrategyOptionValues, _strategy);
-            return i >= 0 ? i : 0;
-        }
+        get => _strategy;
         set
         {
-            if (value < 0 || value >= StrategyOptionValues.Length || StrategyOptionValues[value] == _strategy) return;
-            _strategy = StrategyOptionValues[value];
+            if (string.IsNullOrEmpty(value) || value == _strategy || Array.IndexOf(StrategyOptionValues, value) < 0) return;
+            _strategy = value;
             OnPropertyChanged();
             Save(FieldStrategy, _strategy);
         }
@@ -130,7 +130,7 @@ public sealed class SkillRowViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(KeyLabel));
-        OnPropertyChanged(nameof(StrategyIndex));
+        OnPropertyChanged(nameof(Strategy));
     }
 
     private static bool IsMouseRow(string skillKey) => skillKey is SkillLeftClick or SkillRightClick;
@@ -179,4 +179,31 @@ public sealed class SkillRowViewModel : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
+/// <summary>One strategy dropdown item: config value and its i18n display text.</summary>
+public sealed class StrategyOption : INotifyPropertyChanged
+{
+    private string _display;
+
+    public StrategyOption(string value)
+    {
+        Value = value;
+        _display = value;
+    }
+
+    public string Value { get; }
+
+    public string Display
+    {
+        get => _display;
+        set
+        {
+            if (_display == value) return;
+            _display = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Display)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }

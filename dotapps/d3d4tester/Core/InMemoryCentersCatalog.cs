@@ -218,7 +218,7 @@ public static class InMemoryCentersCatalog
             Key: "ui.skill_row_strategy_display_names",
             TypeName: "DotApps.d3d4tester.ViewModels.SkillRowViewModel",
             Kind: InMemoryCenterKind.UiShared,
-            Access: "SkillRowViewModel.StrategyDisplayNames (ItemsSource); populated by MainPage.RefreshI18n",
+            Access: "SkillRowViewModel.StrategyOptions (ItemsSource, value + display); display updated in place by MainPage.RefreshI18n",
             ThreadingContract: "UI thread only (ObservableCollection).",
             Responsibility: "Shared strategy display list for ComboBox binding."),
     };

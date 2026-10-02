@@ -11,6 +11,17 @@
     <Style x:Key="CompactHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionHeaderTextStyle}">
       <Setter Property="Margin" Value="0,0,0,4"/>
     </Style>
+    <!-- Compact inputs so the page fits 800x600 without scrolling -->
+    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+      <Setter Property="Padding" Value="4,2"/>
+    </Style>
+    <Style TargetType="comp:HotkeyInputBox" BasedOn="{StaticResource {x:Type TextBox}}">
+      <Setter Property="Padding" Value="4,2"/>
+      <Setter Property="MinWidth" Value="56"/>
+    </Style>
+    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+      <Setter Property="Padding" Value="6,2,24,2"/>
+    </Style>
   </UserControl.Resources>
   <Grid Margin="8,6,8,4">
     <Grid.ColumnDefinitions>
@@ -48,12 +59,12 @@
 
           <Grid Margin="0,0,0,2">
             <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="72"/>
-              <ColumnDefinition Width="*" MinWidth="64"/>
+              <ColumnDefinition Width="64"/>
+              <ColumnDefinition Width="*" MinWidth="56"/>
               <ColumnDefinition Width="*" MinWidth="88"/>
-              <ColumnDefinition Width="54"/>
-              <ColumnDefinition Width="54"/>
-              <ColumnDefinition Width="54"/>
+              <ColumnDefinition Width="60"/>
+              <ColumnDefinition Width="60"/>
+              <ColumnDefinition Width="60"/>
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="LblSkill" Grid.Column="0" Style="{StaticResource CaptionTextStyle}" Margin="0,0,6,0"/>
             <TextBlock x:Name="LblKey" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" Margin="0,0,6,0"/>
@@ -69,12 +80,12 @@
               <DataTemplate DataType="{x:Type vm:SkillRowViewModel}">
                 <Grid Margin="0,1">
                   <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="72"/>
-                    <ColumnDefinition Width="*" MinWidth="64"/>
+                    <ColumnDefinition Width="64"/>
+                    <ColumnDefinition Width="*" MinWidth="56"/>
                     <ColumnDefinition Width="*" MinWidth="88"/>
-                    <ColumnDefinition Width="54"/>
-                    <ColumnDefinition Width="54"/>
-                    <ColumnDefinition Width="54"/>
+                    <ColumnDefinition Width="60"/>
+                    <ColumnDefinition Width="60"/>
+                    <ColumnDefinition Width="60"/>
                   </Grid.ColumnDefinitions>
                   <TextBlock Grid.Column="0" Text="{Binding DisplayName}" Style="{StaticResource BodyStrongTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0" TextTrimming="CharacterEllipsis"/>
                   <comp:HotkeyInputBox Grid.Column="1" Hotkey="{Binding Key, Mode=TwoWay}" Margin="0,0,6,0"
@@ -83,9 +94,9 @@
                           Visibility="{Binding IsKeyEditable, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                     <TextBlock Text="{Binding KeyLabel}"/>
                   </Border>
-                  <!-- ItemsSource must precede SelectedIndex: WPF applies attributes in order and an index set on an empty list is lost -->
-                  <ComboBox Grid.Column="2" ItemsSource="{Binding Source={x:Static vm:SkillRowViewModel.StrategyDisplayNames}}"
-                            SelectedIndex="{Binding StrategyIndex, Mode=TwoWay}" Margin="0,0,6,0"/>
+                  <ComboBox Grid.Column="2" ItemsSource="{Binding Source={x:Static vm:SkillRowViewModel.StrategyOptions}}"
+                            DisplayMemberPath="Display" SelectedValuePath="Value"
+                            SelectedValue="{Binding Strategy, Mode=TwoWay}" Margin="0,0,6,0"/>
                   <TextBox Grid.Column="3" Text="{Binding Interval, UpdateSourceTrigger=LostFocus}" TextAlignment="Right" Margin="0,0,6,0"/>
                   <TextBox Grid.Column="4" Text="{Binding Delay, UpdateSourceTrigger=LostFocus}" TextAlignment="Right" Margin="0,0,6,0"/>
                   <TextBox Grid.Column="5" Text="{Binding RandomDelay, UpdateSourceTrigger=LostFocus}" TextAlignment="Right"/>
@@ -111,11 +122,11 @@
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="LblMacroStartHotkey" Grid.Column="0" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-            <comp:HotkeyInputBox x:Name="TxtMacroStartHotkey" Grid.Column="1" Margin="0,0,10,0"/>
+            <comp:HotkeyInputBox x:Name="TxtMacroStartHotkey" Width="64" HorizontalAlignment="Left" Grid.Column="1" Margin="0,0,10,0"/>
             <TextBlock x:Name="LblAssistantHotkey" Grid.Column="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-            <comp:HotkeyInputBox x:Name="TxtAssistantHotkey" Grid.Column="3" Margin="0,0,10,0"/>
+            <comp:HotkeyInputBox x:Name="TxtAssistantHotkey" Width="64" HorizontalAlignment="Left" Grid.Column="3" Margin="0,0,10,0"/>
             <TextBlock x:Name="LblQuickSwitch" Grid.Column="4" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-            <comp:HotkeyInputBox x:Name="TxtQuickSwitch" Grid.Column="5" Margin="0,0,10,0"/>
+            <comp:HotkeyInputBox x:Name="TxtQuickSwitch" Width="64" HorizontalAlignment="Left" Grid.Column="5" Margin="0,0,10,0"/>
             <Button x:Name="BtnCombatMacroToggle" Grid.Column="6" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CombatMacroToggleCommand}"/>
           </Grid>
           <WrapPanel Margin="0,6,0,0">
