@@ -22,10 +22,11 @@ class ServerManagerV1CodeSyncJob
     private const GIT_COMMAND_TIMEOUT_SECONDS = 20;
     private const MIGRATE_COMMAND_TIMEOUT_SECONDS = 600;
     private const ACTIVE_STATUSES = ['pending', 'running'];
-    private const PHASES = ['check', 'ai_fix', 'git', 'migrate', 'reload'];
+    private const PHASES = ['check', 'ai_fix', 'git', 'migrate', 'reload', 'sys_init'];
     private const KIND_MANUAL = 'manual';
     private const KIND_SCHEDULED = 'scheduled';
     private const KIND_AI_FIX = 'ai_fix';
+    private const KIND_SYS_INIT = 'sys_init';
     private const COMMIT_FORMAT = '%H%x1f%cI%x1f%s';
     private const FIELD_SEPARATOR = "\x1f";
     private const ORIGIN_REF = 'origin/main';
@@ -74,6 +75,12 @@ class ServerManagerV1CodeSyncJob
     public static function startAiFix(string $prompt): array
     {
         return self::start(self::KIND_AI_FIX, ['prompt' => $prompt]);
+    }
+
+    /** Starts the single-flight job that only runs `php artisan sys:init` (no git, no reload). */
+    public static function startSysInit(): array
+    {
+        return self::start(self::KIND_SYS_INIT);
     }
 
     public static function status(?string $jobId): ?array
@@ -144,6 +151,9 @@ class ServerManagerV1CodeSyncJob
         $state['commit_before'] = self::head($repoDir);
 
         try {
+            if ($kind === self::KIND_SYS_INIT) {
+                return self::runSysInit(self::advance($state, 'sys_init'), $php, $tailLines);
+            }
             if ($kind === self::KIND_AI_FIX) {
                 $state = self::advance($state, 'ai_fix');
                 $state['ai_fix'] = ServerManagerV1CodeSyncAiFix::resolve((string) $state['job_id'], (string) ($state['prompt'] ?? ''));
@@ -216,6 +226,20 @@ class ServerManagerV1CodeSyncJob
         }
 
         return self::complete($state, ['result' => 'synced']);
+    }
+
+    private static function runSysInit(array $state, string $php, int $tailLines): array
+    {
+        $init = ServerManagerV1Utils::executeCommand(
+            $php,
+            ['artisan', 'sys:init', '--no-interaction'],
+            ServiceContract::positiveInt('code_sync.sys_init_timeout_seconds')
+        );
+
+        $state['sys_init_output_tail'] = self::tail($init['output'].$init['error'], $tailLines);
+        $state['commit_after'] = $state['commit_before'];
+
+        return $init['success'] ? self::complete($state, ['result' => 'initialized']) : self::fail($state, 'sys_init_failed');
     }
 
     private static function complete(array $state, array $extra): array

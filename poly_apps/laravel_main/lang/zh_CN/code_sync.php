@@ -6,6 +6,7 @@ return [
         'already_running' => '已有代码同步任务正在运行',
         'history_retrieved' => '已获取代码同步历史',
         'ai_fix_started' => 'AI 冲突修复任务已启动',
+        'sys_init_started' => 'sys:init 任务已启动',
         'status_retrieved' => '已获取代码同步状态',
     ],
     'errors' => [
@@ -20,6 +21,7 @@ return [
         'reload_failed' => 'FrankenPHP 工作进程重启失败。',
         'fetch_failed' => '服务器 git fetch 失败，请查看 git_output_tail。',
         'job_exception' => '代码同步任务抛出异常。',
+        'sys_init_failed' => '服务器上 sys:init 执行失败，见 sys_init_output_tail。',
         'ai_fix_failed' => 'AI 冲突修复未通过校验，已中止合并，仓库保持不变（见 ai_fix）。',
     ],
 ];

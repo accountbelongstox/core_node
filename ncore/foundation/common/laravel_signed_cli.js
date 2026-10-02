@@ -19,6 +19,7 @@ const LOG_PREFIX = '[laravel-signed] ';
 const USAGE = 'usage: laravel_signed_cli.js request <GET|POST|PUT|DELETE> <path-with-query> [--json <body>] [--origin <url>]\n'
   + '       laravel_signed_cli.js code-sync [--origin <url>]\n'
   + '       laravel_signed_cli.js ai-fix <prompt...> [--origin <url>]\n'
+  + '       laravel_signed_cli.js sys-init [--origin <url>]\n'
   + '       laravel_signed_cli.js history [--limit <n>] [--origin <url>]';
 
 let options;
@@ -105,6 +106,10 @@ async function runCodeSync() {
   return runJob(CODE_SYNC.start_path, '{}');
 }
 
+async function runSysInit() {
+  return runJob(CODE_SYNC.sys_init_path, '{}');
+}
+
 async function runAiFix() {
   const prompt = options.positional.slice(1).join(' ').trim();
 
@@ -178,6 +183,9 @@ async function main() {
   }
   if (command === 'ai-fix') {
     return runAiFix();
+  }
+  if (command === 'sys-init') {
+    return runSysInit();
   }
   process.stderr.write(USAGE + '\n');
 

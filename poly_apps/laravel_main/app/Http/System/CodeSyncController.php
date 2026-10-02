@@ -38,6 +38,24 @@ class CodeSyncController extends Controller
         );
     }
 
+    public function sysInit(): JsonResponse
+    {
+        $result = ServerManagerV1CodeSyncJob::startSysInit();
+
+        if (!$result['success']) {
+            return $this->error(
+                __('code_sync.errors.'.$result['error_code']),
+                $result['error_code'] === 'busy' ? self::HTTP_CONFLICT : self::HTTP_SERVER_ERROR
+            );
+        }
+
+        return $this->success(
+            $this->localized($result['job']) + ['already_running' => $result['already_running']],
+            __($result['already_running'] ? 'code_sync.messages.already_running' : 'code_sync.messages.sys_init_started'),
+            self::HTTP_ACCEPTED
+        );
+    }
+
     public function aiFix(Request $request): JsonResponse
     {
         $validated = $request->validate([
