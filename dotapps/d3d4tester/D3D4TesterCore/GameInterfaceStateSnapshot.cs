@@ -27,6 +27,12 @@ public sealed class GameInterfaceStateSnapshot
     public bool D3InGame { get; init; }
     public bool BattlenetOnLoginScreen { get; init; }
     public bool BattlenetDisconnected { get; init; }
+    /// <summary>Probed client screen (connecting, CN/Asia login steps, browser wait, sleeping, ...). Refreshed every 10 s and by the flows.</summary>
+    public Battlenet.BattlenetClientState BattlenetClientState { get; init; }
+    /// <summary>Region the client UI shows ("cn" / "asia"), null when the screen does not tell.</summary>
+    public string? BattlenetUiRegion { get; init; }
+    /// <summary>Extra text for the state (e.g. the Play button label).</summary>
+    public string? BattlenetStateDetail { get; init; }
     /// <summary>True when BN is in sleep mode and we are waiting for wake (show 唤醒中 in status bar). ROSBOT must not start until false.</summary>
     public bool BattlenetWakingUp { get; init; }
     public bool BattlenetNormalAvailable { get; init; }

@@ -4,7 +4,7 @@
 
 DESKTOP_ICON_REFRESH_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/refresh_desktop_icons.sh"
 
-# Organize Desktop Icons [organize/preview/undo] (Windows: Windows Management > Organize Desktop Icons).
+# Organize Desktop Icons [organize/preview/undo] (Windows: Management & Backup > Organize Desktop Icons).
 show_desktop_icon_organizer_menu() {
     local selected_index=0
     local menu_items=(

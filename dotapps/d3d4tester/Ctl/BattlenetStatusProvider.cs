@@ -13,8 +13,9 @@ namespace DotApps.d3d4tester.Ctl;
 public sealed record BattlenetWindowInfo(IntPtr Hwnd, string Title);
 
 /// <summary>
-/// Battle.net status provider: window detection and dynamic state (on_login_screen, disconnected, normal_available) via the
-/// shared refresh flow; region resolved from Battle.net.config, then ros_settings.battlenet_region_cache.
+/// Battle.net status provider: window detection and the probed client screen state (BattlenetClientStateDetector; the
+/// on_login_screen / disconnected / normal_available triple derives from it) via the shared refresh flow; region resolved from
+/// Battle.net.config, then ros_settings.battlenet_region_cache.
 /// 1:1 Python d3utils/battlenet_status_provider.py.
 /// </summary>
 public static class BattlenetStatusProvider
@@ -77,34 +78,20 @@ public static class BattlenetStatusProvider
         var game = GameInterfaceData.Instance;
         var window = GetCurrentWindow();
         string winLabel = window != null ? "ok" : "no";
+        var status = BattlenetClientStatus.None;
         bool changed = StatusProviderCommon.RefreshWindowState(
             window,
             setRunning: game.SetBattlenetWindowFound,
-            setDynamic: game.SetBattlenetDynamicStatus,
-            detectDynamic: DetectBattlenetDynamic,
+            setDynamic: (_, _, _) => game.SetBattlenetClientStatus(status),
+            detectDynamic: (_, _) =>
+            {
+                status = BattlenetClientStateDetector.Detect();
+                return status.DynamicTriple;
+            },
             applyGeometry: null,
             logPrefix: LogPrefix,
             progressRefresh: step => ColorPrinter.GrayRefresh($"{ProgressPrefix} {winLabel} {step}"));
         return (window, changed);
-    }
-
-    /// <summary>(on_login_screen, disconnected, normal_available) from the region operation; exclusive. 1:1 Python _detect_battlenet_dynamic.</summary>
-    private static (bool OnLogin, bool Disconnected, bool Third) DetectBattlenetDynamic(bool found, BattlenetWindowInfo? window)
-    {
-        if (!found) return (false, false, false);
-        try
-        {
-            var s = GetOperation().GetDynamicState();
-            if (s.Disconnected) return (false, true, false);
-            if (s.OnLogin) return (true, false, false);
-            if (s.NormalAvailable) return (false, false, true);
-            return (false, false, false);
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Red($"{LogPrefix} detect_dynamic error: {ex.Message}");
-            return (false, false, false);
-        }
     }
 
     /// <summary>Region from Battle.net.config; dumps the raw file as debug when LastLoginRegion is missing or invalid. 1:1 Python _read_region_from_battlenet_config.</summary>

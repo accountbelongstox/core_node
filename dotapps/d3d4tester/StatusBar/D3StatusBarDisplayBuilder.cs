@@ -1,7 +1,9 @@
 // PY-REF: pyapps/d3-check/ui/components/bottom_bar.py
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using System.Text.RegularExpressions;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Battlenet;
 using DotApps.d3d4tester.I18n;
 using DotCore.Common;
 using DotCore.UITheme.StatusBar;
@@ -24,6 +26,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     private const string ChipDangerStyleKey = "StatusChipDangerStyle";
     private const string ConfigTabsKeyPrefix = "ui.config_tabs.";
     private const string DefaultSkillConfig = "config1";
+    private static readonly Regex PascalBoundary = new("(?<=[a-z0-9])(?=[A-Z])", RegexOptions.Compiled);
 
     public static D3StatusBarDisplayBuilder Instance { get; } = new();
 
@@ -42,14 +45,31 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string warningKey = WarningBrushKey;
         string errorKey = ErrorBrushKey;
 
-        string regionSuffix = s.BattlenetRegion == AppConstants.RegionCn ? p.GetUiText(I18nKeys.StatusServerCn) : (s.BattlenetRegion == AppConstants.RegionAsia ? p.GetUiText(I18nKeys.StatusServerAsia) : p.GetUiText(I18nKeys.StatusServerUnknown));
+        string? shownRegion = s.BattlenetUiRegion ?? s.BattlenetRegion;
+        string regionSuffix = shownRegion == AppConstants.RegionCn ? p.GetUiText(I18nKeys.StatusServerCn) : (shownRegion == AppConstants.RegionAsia ? p.GetUiText(I18nKeys.StatusServerAsia) : p.GetUiText(I18nKeys.StatusServerUnknown));
         string bnLabel = p.GetUiText(I18nKeys.StatusBattlenet);
         string bnText;
         string bnBrushKey;
-        if (!s.BattlenetWindowFound)
+        string? bnStateText = BattlenetStateText(s.BattlenetClientState, p);
+        if (s.BattlenetClientState == BattlenetClientState.TrayHidden && bnStateText != null)
+        {
+            bnText = $"{bnLabel}: {bnStateText}";
+            bnBrushKey = warningKey;
+        }
+        else if (!s.BattlenetWindowFound)
         {
             bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusNotFound)}";
             bnBrushKey = errorKey;
+        }
+        else if (s.BattlenetWakingUp)
+        {
+            bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusBattlenetWakingUp)} ({regionSuffix})";
+            bnBrushKey = warningKey;
+        }
+        else if (bnStateText != null)
+        {
+            bnText = $"{bnLabel}: {bnStateText} ({regionSuffix})";
+            bnBrushKey = BattlenetStateBrushKey(s.BattlenetClientState);
         }
         else if (s.BattlenetDisconnected)
         {
@@ -59,11 +79,6 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         else if (s.BattlenetOnLoginScreen)
         {
             bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusBattlenetOnLoginScreen)} ({regionSuffix})";
-            bnBrushKey = warningKey;
-        }
-        else if (s.BattlenetWakingUp)
-        {
-            bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusBattlenetWakingUp)} ({regionSuffix})";
             bnBrushKey = warningKey;
         }
         else if (s.BattlenetNormalAvailable)
@@ -189,5 +204,21 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         WarningBrushKey => ChipWarningStyleKey,
         ErrorBrushKey => ChipDangerStyleKey,
         _ => ChipNeutralStyleKey,
+    };
+
+    /// <summary>i18n text for a probed client state (key ui.rosbot.battlenet_state.&lt;snake_case&gt;); null for Unknown or a missing key.</summary>
+    private static string? BattlenetStateText(BattlenetClientState state, II18nProvider p)
+    {
+        if (state == BattlenetClientState.Unknown) return null;
+        string key = I18nKeys.StatusBattlenetStatePrefix + PascalBoundary.Replace(state.ToString(), "_").ToLowerInvariant();
+        string text = p.GetUiText(key);
+        return string.IsNullOrEmpty(text) || text == key ? null : text;
+    }
+
+    private static string BattlenetStateBrushKey(BattlenetClientState state) => state switch
+    {
+        BattlenetClientState.Normal or BattlenetClientState.GameStarting => SuccessBrushKey,
+        BattlenetClientState.NotRunning or BattlenetClientState.Disconnected or BattlenetClientState.LoginFailed => ErrorBrushKey,
+        _ => WarningBrushKey,
     };
 }

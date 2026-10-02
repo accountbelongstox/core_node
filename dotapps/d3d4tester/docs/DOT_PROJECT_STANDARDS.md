@@ -17,7 +17,8 @@ Canonical rules: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECT
 | `I18n/` | i18n JSON + `D3D4TesterI18n` |
 | `Assets/Styles/` | `AppOverrides.xaml`, `Motion.xaml`, `Themes/{Dark,Light}.xaml` |
 | `Core/InMemoryCentersCatalog.cs` | Inventory of shared runtime state |
-| `scripts/start.{ps1,sh}` | Build/run entry |
+| `scripts/start.{ps1,sh}` | Build/run entry (stops a previous run of this project, no MSBuild node reuse, auto-restart on rude edit) |
+| `tools/BnProbe`, `scripts/bnprobe.ps1` | Dev probe: idempotent build + passive live scan of the Battle.net client with the app's own detectors (`-WatchSeconds N` to repeat); excluded from the app build |
 
 ## Rules
 

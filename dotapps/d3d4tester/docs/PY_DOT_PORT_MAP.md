@@ -53,6 +53,7 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | D3 window geometry | on `game_data` | `GameInterfaceData.ApplyD3WindowGeometry` (no provider-private copy) |
 | Flow switches | module state + mirror | `RosbotFlowState` is a view over `GameInterfaceData` (one copy) |
 | BN-only toggle off | resets the flow-master B block only | also resets the BN-only B block and last result |
+| Battle.net client screen state | only the on_login / disconnected / normal triple | `IBattlenetOperation.ClassifyClientState` (shared in base, login screens per CN / Asia class) via `BattlenetClientStateDetector`, probed every 10 s, shown in the status bar; live-scan fixes: sleep = sleep message text (the `announcer` group is always present), D4 tab id `game-nav-btn-Fen`, Play button has no AutomationId (name prefix), "战网" removed from loading keywords, UI region by exact ids (old substring judge read D3CN as Asia, removed) |
 | Battle.net waking up | — | `RosbotRunFlow.RunE4Start` skips the ROSBOT start while `BattlenetWakingUp` |
 | Full status refresh | Battle.net + D3 + ROSBOT | `RosbotTaskProcessor.RefreshAllGameStatus` also sets D4 running; RunLog "refresh game status" debug button runs it with the D3 dynamic capture and logs the center |
 | Removed duplicates | — | `RosbotFlowController.RunAsync` (second B/D/E path), `Ctl/BattlenetLoginCtl` (third start/login path), `RosbotFlowController.IsD3Running` (`Process` lookup) |

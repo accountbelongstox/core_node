@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="D3D4TesterCore\**\*.cs" />
+    <Compile Remove="tools\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="I18n\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

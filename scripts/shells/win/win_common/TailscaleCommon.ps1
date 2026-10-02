@@ -28,7 +28,7 @@
                                                              --id Tailscale.Tailscale -e`
 
 .NOTES
-    Direct run (also wired into the Windows Management menu via Show-TailscaleQuickMenu):
+    Direct run (also wired into the Management & Backup menu via Show-TailscaleQuickMenu):
     powershell -File TailscaleCommon.ps1 -Action Status|Devices|Restart|Panel|OpenUI|AllIps|
                                                    Install|Settings|Login|Logout|Menu|Help
                                           [-PanelTarget Admin|Local|Both]
@@ -814,7 +814,7 @@ function Show-TailscalePanel {
 }
 
 # ---------------------------------------------------------------------------
-# Quick menu ("[T] Tailscale" entry, wired into WindowsManagementManager.ps1)
+# Quick menu ("[T] Tailscale" entry, wired into ManagementAndBackupManager.ps1)
 # ---------------------------------------------------------------------------
 
 # Short state word for the "[T] Tailscale" quick-entry label: "not installed",
@@ -915,7 +915,7 @@ function Show-TailscaleHelp {
     Write-ColorMessage -Message '  Restart  - restart the Tailscale service (elevates if needed)' -Type 'Info'
     Write-ColorMessage -Message '  Panel/OpenUI - open the admin console, and the local web UI when connected' -Type 'Info'
     Write-ColorMessage -Message '  Login/Logout - tailscale login / tailscale logout' -Type 'Info'
-    Write-ColorMessage -Message '  Menu     - the same arrow-key quick menu as "[T] Tailscale" in Windows Management' -Type 'Info'
+    Write-ColorMessage -Message '  Menu     - the same arrow-key quick menu as "[T] Tailscale" in Management & Backup' -Type 'Info'
 }
 
 switch ($Action) {

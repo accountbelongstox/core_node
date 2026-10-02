@@ -61,7 +61,22 @@ public static class BattlenetConstants
 
     // ---------- Disconnect / connecting: no AutomationId in uidocs — keyword only ----------
     public static readonly string[] DisconnectKeywords = { "Retry", "重试" };
-    public static readonly string[] ConnectingKeywords = { "Connecting", "连接中" };
+    public static readonly string[] ConnectingKeywords = { "Connecting", "连接中", "正在连接" };
+
+    // ---------- Client state probe (BattlenetClientStateDetector; verified by tools/BnProbe live scans and docs/uidocs) ----------
+    public const string ButtonControlType = "ButtonControl";
+    /// <summary>Main-window Play button has no AutomationId in live scans; its Name starts with these (e.g. "Play: Diablo III, Version: ...").</summary>
+    public static readonly string[] PlayButtonNamePrefixes = { "Play", "开始游戏", "開始遊戲", "正在", "进行中" };
+    /// <summary>CN web login popup (account.battlenet.com.cn, NetEase / password entry in progress). uidocs 战网_CB2F804E.</summary>
+    public const string LoginPopupWindowAutomationId = "LoginPopupWindow";
+    /// <summary>Exact ids only on the CN login page (uidocs 战网登录_8914CEDB).</summary>
+    public static readonly string[] CnLoginAutomationIds = { "ntes" };
+    /// <summary>Exact ids that only the CN client shows (D3 tab D3CN, NetEase login). Substring matching must not be used: D3CN contains D3.</summary>
+    public static readonly string[] CnRegionAutomationIds = { "game-nav-btn-D3CN", "game-nav-btn-D4CN", "ntes" };
+    /// <summary>Exact ids that only the Asia client shows (global D3 tab, Asia account/password fields).</summary>
+    public static readonly string[] AsiaRegionAutomationIds = { "game-nav-btn-D3", "accountName", "password" };
+    /// <summary>Update agent sleep message text (uidocs 战网_85BFA152: "战网更新服务进入了睡眠模式。正在尝试唤醒它…"). The announcer group itself is always present.</summary>
+    public static readonly string[] SleepModeTextKeywords = { "睡眠模式", "正在尝试唤醒", "went to sleep", "Attempting to wake", "wake it up" };
 
     // ---------- Login failed (Continue Offline / Cancel): primary + secondary both required; exclude browser-wait. 1:1 Python BATTLE_NET_LOGIN_FAILED_*. ----------
     /// <summary>Primary keywords (e.g. Continue Offline, 继续离线). Must have at least one.</summary>
@@ -79,11 +94,6 @@ public static class BattlenetConstants
     public const string PopupCloseControlType = "ButtonControl";
     /// <summary>AutomationId substrings that identify the main window title-bar (X button). When automation_id contains any of these AND "winCloseButton", do NOT click (would close whole client). 1:1 Python BATTLE_NET_MAIN_WINDOW_FRAME_AUTOMATION_ID_SUBSTRINGS.</summary>
     public static readonly string[] MainWindowCloseAutomationIdSubstrings = { "topLayerContainer.TopLayer.buttonContainer" };
-
-    // ---------- Sleep mode (uidocs: 战网_85BFA152) — Group announcer contains sleep message ----------
-    /// <summary>AutomationId of Group that contains "战网更新服务进入了睡眠模式。正在尝试唤醒它…". Detection by AutomationId only.</summary>
-    public const string SleepModeAnnouncerAutomationId = "announcer";
-    public static readonly string[] SleepModeAutomationIdMarkers = { "announcer" };
 
     // ---------- Fetching / Loading account info (stuck state, EN/CN). Reddit/Blizzard: "Fetching account info", "Loading", 读取中, 获取信息. ----------
     /// <summary>UI text indicating Battle.net is fetching/loading account info (stuck state). Match when any present. Case-insensitive for EN.</summary>
@@ -154,7 +164,7 @@ public static class BattlenetConstants
     // ---------- Loading UI: TextControl whose name contains a substring. 1:1 Python BATTLE_NET_LOADING_INDICATOR_* ----------
     public const string LoadingIndicatorControlType = "TextControl";
     public const string LoadingIndicatorControlTypeShort = "Text";
-    public static readonly string[] LoadingIndicatorNameSubstrings = { "Update Agent", "wake it up", "Attempting to wake", "战网", "载入", "正在启动", "正在载入" };
+    public static readonly string[] LoadingIndicatorNameSubstrings = { "Update Agent", "wake it up", "Attempting to wake", "载入", "正在启动", "正在载入" };
 
     /// <summary>Play button text meaning the game is starting/running. 1:1 Python play_button_indicates_starting.</summary>
     public static readonly string[] PlayStartingNameSubstrings = { "Playing Now", "正在" };
@@ -164,9 +174,9 @@ public static class BattlenetConstants
     public static readonly string[] GameTabExcludedNameSubstrings = { "Playing Now", "Game Version" };
 
     // ---------- D4 tab (CN and Asia). 1:1 Python providor/constants/d4.py ----------
-    public static readonly string[] D4TabAutomationIdsCn = { "game-nav-btn-D4CN", "game-nav-btn-D4" };
+    public static readonly string[] D4TabAutomationIdsCn = { "game-nav-btn-Fen", "game-nav-btn-D4CN", "game-nav-btn-D4" };
     public static readonly string[] D4TabNameKeywordsCn = { "Diablo IV", "暗黑破坏神IV", "暗黑破壞神IV", "IV》" };
-    public static readonly string[] D4TabAutomationIdsAsia = { "game-nav-btn-D4" };
+    public static readonly string[] D4TabAutomationIdsAsia = { "game-nav-btn-Fen", "game-nav-btn-D4" };
     public static readonly string[] D4TabNameKeywordsAsia = { "Diablo IV", "暗黑破壞神IV", "IV》" };
 
     // ---------- Control tree / click. 1:1 Python battlenet_operation_base ----------

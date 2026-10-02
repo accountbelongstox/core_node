@@ -33,7 +33,7 @@ public static class InMemoryCentersCatalog
             Kind: InMemoryCenterKind.State,
             Access: "GameInterfaceData.Instance; GetStateSnapshot/RegisterCallback/NotifyCallbacks; SetMarshalToUi; Set* return changed; D4 section via .D4",
             ThreadingContract: "Writers may run on background threads; NotifyCallbacks must marshal to UI via SetMarshalToUi.",
-            Responsibility: "Global state center (single source of truth): Battle.net window/dynamic triple/region, D3 running/dynamic (menu, disconnected, in game) and window geometry (hwnd, title, offset, fullscreen), ROSBOT, flow switches, path-valid flags, scale/window cache."),
+            Responsibility: "Global state center (single source of truth): Battle.net window/probed client screen state (10 s)/UI region/dynamic triple/config region, D3 running/dynamic (menu, disconnected, in game) and window geometry (hwnd, title, offset, fullscreen), ROSBOT, flow switches, path-valid flags, scale/window cache."),
         new Center(
             Key: "core.assistant_execution_state",
             TypeName: "DotApps.d3d4tester.Core.AssistantExecutionState",

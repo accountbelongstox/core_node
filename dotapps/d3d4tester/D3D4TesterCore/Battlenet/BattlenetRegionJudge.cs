@@ -5,19 +5,16 @@ using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Single source of truth for Battle.net region and UI type from one control list (Asia email/password/combined login,
-/// CN login, Asia/CN main UI, disconnect/connecting, detected region, dynamic state tuple).
+/// Battle.net UI type checks on one control list (Asia email/password/combined login, CN login, Asia/CN main UI,
+/// disconnect/connecting). The client screen state and the UI region come from BattlenetClientStateDetector.
 /// 1:1 Python d3utils/battlenet_region_judge.py.
 /// </summary>
 public sealed class BattlenetRegionJudge
 {
     private readonly IReadOnlyList<BattlenetControl> _controls;
-    private readonly string? _preferredRegion;
-
-    public BattlenetRegionJudge(IReadOnlyList<BattlenetControl> controls, string? preferredRegion = null)
+    public BattlenetRegionJudge(IReadOnlyList<BattlenetControl> controls)
     {
         _controls = controls;
-        _preferredRegion = preferredRegion;
     }
 
     public bool HasAsiaLoginMarkers() => T.HasAutomationIdContainingAny(_controls, C.LoginWindowAutomationIdMarkersAsia);
@@ -92,64 +89,7 @@ public sealed class BattlenetRegionJudge
         return T.FindByName(_controls, C.ConnectingKeywords) != null;
     }
 
-    /// <summary>"asia" | "cn" | null. Preferred region: only that one; otherwise Asia then CN.</summary>
-    public string? DetectedRegion()
-    {
-        if (_preferredRegion == C.RegionAsia) return TryAsiaResult() != null ? C.RegionAsia : null;
-        if (_preferredRegion == C.RegionCn) return TryCnResult() != null ? C.RegionCn : null;
-        if (TryAsiaResult() != null) return C.RegionAsia;
-        if (TryCnResult() != null) return C.RegionCn;
-        return null;
-    }
-
-    /// <summary>(on_login, disconnected, normal_available, play_name, connecting, region).</summary>
-    public BattlenetDynamicState GetDynamicStateResult()
-    {
-        var empty = new BattlenetDynamicState(false, false, false, null, false, null);
-        if (_controls.Count == 0) return empty;
-        if (_preferredRegion == C.RegionAsia) return TryAsiaResult() is { } a ? a with { RegionDetected = C.RegionAsia } : empty;
-        if (_preferredRegion == C.RegionCn) return TryCnResult() is { } c ? c with { RegionDetected = C.RegionCn } : empty;
-        if (TryAsiaResult() is { } asia) return asia with { RegionDetected = C.RegionAsia };
-        if (TryCnResult() is { } cn) return cn with { RegionDetected = C.RegionCn };
-        return empty;
-    }
-
-    public bool IsAsia() => DetectedRegion() == C.RegionAsia;
-
-    public bool IsCn() => DetectedRegion() == C.RegionCn;
-
     public bool IsLoggedIn() => HasAsiaMainUi() || HasCnMainUi();
-
-    private BattlenetDynamicState? TryAsiaResult()
-    {
-        var d3 = FindAsiaD3Tab();
-        var play = FindAsiaPlay();
-        bool onLoginAsia = HasAsiaLoginMarkers() || T.FindByName(_controls, C.LoginScreenKeywordsFallbackAsia) != null;
-        bool hasMain = d3 != null && play != null && !HasAsiaLoginMarkers();
-        if (hasMain)
-        {
-            if (!HasConnecting())
-                return new BattlenetDynamicState(false, false, true, string.IsNullOrEmpty(play!.Name) ? "Play" : play.Name, false, null);
-            return new BattlenetDynamicState(false, false, false, null, true, null);
-        }
-        if (HasDisconnect()) return new BattlenetDynamicState(false, true, false, null, false, null);
-        if (onLoginAsia) return new BattlenetDynamicState(true, false, false, null, false, null);
-        return null;
-    }
-
-    private BattlenetDynamicState? TryCnResult()
-    {
-        var d3 = FindCnD3Tab();
-        var play = FindCnPlay();
-        bool onLoginCn = HasCnLoginMarkers() || T.FindByName(_controls, C.LoginScreenKeywordsFallbackCn) != null;
-        bool hasMain = d3 != null && play != null && !HasCnLoginMarkers();
-        bool connecting = HasConnecting();
-        if (hasMain && !connecting)
-            return new BattlenetDynamicState(false, false, true, string.IsNullOrEmpty(play!.Name) ? "Play" : play.Name, false, null);
-        if (hasMain) return new BattlenetDynamicState(false, false, false, null, true, null);
-        if (onLoginCn) return new BattlenetDynamicState(true, false, false, null, false, null);
-        return null;
-    }
 
     private BattlenetControl? FindAsiaD3Tab() => T.FindByAnyAutomationId(_controls, C.D3TabAutomationIdsAsia) ?? T.FindByName(_controls, C.D3TabNameKeywordsFallbackAsia);
 

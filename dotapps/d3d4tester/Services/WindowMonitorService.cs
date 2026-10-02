@@ -3,6 +3,7 @@
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Flow;
+using DotApps.d3d4tester.Ctl;
 using DotCore.Foundations;
 using DotCore.Utils;
 
@@ -115,8 +116,9 @@ public sealed class WindowMonitorService
     }
 
     /// <summary>
-    /// Tick % 10: run the full refresh once (Python _inactive_refresh_done), afterwards keep only the cheap D3 geometry
-    /// lookup so the status bar size follows window moves and closes.
+    /// Tick % 10: run the full refresh once (Python _inactive_refresh_done); afterwards probe the Battle.net client screen state
+    /// (passive, no activation; skipped while BN-only already refreshes it every flow step) and, when no flow runs, the cheap
+    /// D3 geometry lookup so the status bar size follows window moves and closes.
     /// </summary>
     private void OnInactiveRefreshTick()
     {
@@ -129,8 +131,23 @@ public sealed class WindowMonitorService
             MarkInactiveRefreshDone();
             return;
         }
+        ProbeBattlenetClient();
         if (RosbotFlowState.Instance.IsFlowActive) return;
         ApplyWindowSize(GetCurrentWindowInfo());
+    }
+
+    private static void ProbeBattlenetClient()
+    {
+        if (ShutdownManager.IsShutdownRequested || RosbotFlowState.Instance.BnOnlyEnabled) return;
+        try
+        {
+            if (BattlenetStatusProvider.Refresh().Changed)
+                GameInterfaceData.Instance.NotifyCallbacks();
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[WindowMonitor] Battle.net probe failed: {ex.Message}");
+        }
     }
 
     private void OnEveryTick(IFlowTick _)

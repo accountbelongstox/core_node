@@ -121,6 +121,14 @@ public sealed class BattlenetManager
         }
     }
 
+    /// <summary>True when a Battle.net.exe process runs (also when every window is hidden in the tray).</summary>
+    public bool IsProcessRunning()
+    {
+        var processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(BattlenetConstants.BattlenetExeName));
+        foreach (var p in processes) p.Dispose();
+        return processes.Length > 0;
+    }
+
     /// <summary>True if a visible Battle.net window exists.</summary>
     public bool HasWindow() => FindBattlenetWindow() != null;
 

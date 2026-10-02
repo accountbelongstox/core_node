@@ -2,7 +2,7 @@
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>
-/// Battle.net client UI timeouts. Sleep mode detection uses AutomationId only (see BattlenetConstants.SleepModeAutomationIdMarkers, uidocs 战网_85BFA152).
+/// Battle.net client UI timeouts. Sleep mode detection matches the sleep message text (BattlenetConstants.SleepModeTextKeywords, uidocs 战网_85BFA152).
 /// </summary>
 public static class BattlenetUiKeywords
 {

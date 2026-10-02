@@ -355,8 +355,8 @@ rc_enable_controller() {
         echo "Tailscale is not connected (state: $(ts_backend_state)); use Login in the Tailscale menu."
     fi
     echo ""
-    echo "Remote Windows must allow RDP: run dd.cmd > Windows Management > [T] Tailscale >"
-    echo "Remote Control > Allow remote control of this machine (Windows Home cannot host RDP)."
+    echo "Remote Windows must host VNC (default) or RDP: run dd.cmd > Management & Backup > [T] Tailscale >"
+    echo "Remote Control > Allow remote control of this machine (VNC also works on Windows Home)."
 }
 
 # ---------------------------------------------------------------------------
@@ -745,7 +745,7 @@ Remote control over Tailscale (Windows 10/11 <-> Debian 12/13, Ubuntu 24.04/26.0
 Automated here:
   Linux host:   openssh-server + shared key, GNOME Remote Desktop (grdctl) or xrdp, ufw on $RC_TAILSCALE_IFACE
   Linux client: freerdp3 (freerdp2 on Debian 12), remmina, openssh-client, shared key
-  Windows side: dd.cmd > Windows Management > [T] Tailscale > Remote Control
+  Windows side: dd.cmd > Management & Backup > [T] Tailscale > Remote Control
   Connect: peer number = Remmina on the SHARED desktop (default; Windows peer = VNC on
     $RC_VNC_PORT, Linux peer = RDP to the GNOME desktop-sharing session), number+x = xfreerdp
     RDP, number+s = SSH shell (e.g. '1x', '0s'); the port is probed first, and the
@@ -760,10 +760,10 @@ Manual UI steps when automation is not possible:
     Remote Desktop (GNOME 43): enable "Remote Desktop" + "Remote Control", set user/password
     to the login user and login password.
   Windows 10/11 Pro/Enterprise: Settings > System > Remote Desktop > On.
-  Windows Home: cannot host RDP -- use SSH (OpenSSH Server) or RustDesk instead.
+  Windows Home: cannot host RDP -- use VNC (default, TightVNC service) or SSH instead.
   Windows Microsoft account: RDP user = the account e-mail, password = account password (not PIN);
     Settings > Accounts > Sign-in options > turn off "Only allow Windows Hello sign-in".
-  Tailscale ACL: the default policy allows all devices; custom ACLs must allow tcp:$RC_RDP_PORT and tcp:$RC_SSH_PORT.
+  Tailscale ACL: the default policy allows all devices; custom ACLs must allow tcp:$RC_VNC_PORT, tcp:$RC_RDP_PORT and tcp:$RC_SSH_PORT.
 
 Shared key: ~/.ssh/$RC_SHARED_KEY_NAME (decrypted by 27_install_git_ssh.sh / Step5_InstallGitSSH.ps1).
 
