@@ -66,6 +66,11 @@ CLEAR_INPUT_LINE_END_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_K)
 CLEAR_INPUT_LINE_START_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_U)
 CLEAR_INPUT_LINE_START_REPEAT = 32
 CLEAR_INPUT_SETTLE_SECONDS = 0.15
+# A shell prompt (quick commands) of a Windows shell is cleared with Esc: PSReadLine
+# and cmd treat Ctrl+K / Ctrl+U as literal ^K / ^U characters.
+CLEAR_WINDOWS_SHELL_KEYS = (TERMINAL_KEY_ESCAPE,)
+SHELL_OS_WINDOWS = "windows"
+SHELL_OS_LINUX = "linux"
 # Force run: Ctrl+C stops the running command, then the input line is cleared.
 INTERRUPT_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C)
 INTERRUPT_SETTLE_SECONDS = 0.5
@@ -288,6 +293,7 @@ class TerminalWindowBackend:
         content_length: int = 0,
         clear_first: bool = False,
         interrupt_first: bool = False,
+        shell_prompt: bool = False,
     ) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
@@ -299,7 +305,7 @@ class TerminalWindowBackend:
                 if not self._keys(window, list(INTERRUPT_KEYS)):
                     return failure("terminal_key_failed")
                 time.sleep(INTERRUPT_SETTLE_SECONDS)
-            if (clear_first or interrupt_first) and not self._clear_input(window):
+            if (clear_first or interrupt_first) and not self._clear_input(window, shell_prompt):
                 return failure("terminal_clear_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
@@ -361,7 +367,12 @@ class TerminalWindowBackend:
         """Set the OS window title; backends without a native setter refuse."""
         return False
 
-    def _clear_input(self, window: Dict[str, Any]) -> bool:
+    def _clear_input(self, window: Dict[str, Any], shell_prompt: bool = False) -> bool:
+        if shell_prompt and self._shell_os(window) == SHELL_OS_WINDOWS:
+            if not self._keys(window, list(CLEAR_WINDOWS_SHELL_KEYS)):
+                return False
+            time.sleep(CLEAR_INPUT_SETTLE_SECONDS)
+            return True
         if not self._keys(window, list(CLEAR_INPUT_LINE_END_KEYS)):
             return False
         for _ in range(CLEAR_INPUT_LINE_START_REPEAT):
@@ -490,6 +501,7 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         content_length: int = 0,
         clear_first: bool = False,
         interrupt_first: bool = False,
+        shell_prompt: bool = False,
     ) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
