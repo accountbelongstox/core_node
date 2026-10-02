@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import { usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
-import type { TerminalQuickCommand, TerminalQuickCommands } from '@/apps/pycore-manager/api';
+import type { TerminalQuickCommand, TerminalQuickCommands, TerminalShellOs } from '@/apps/pycore-manager/api';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 interface PcTerminalQuickCommandsProps {
   terminalNumber: number | null;
+  /** Shell OS of the selected terminal as pycore detected it; the confirm box can override it. */
+  shellOs?: TerminalShellOs;
   disabled: boolean;
   busy: boolean;
   /** force: Ctrl+C stops the running command before the input line is cleared and the command runs. */
@@ -25,6 +27,15 @@ interface RecentCommandRef {
 /** Command lists per pycore node, kept for the page session (pycore caches its scan as well). */
 const catalogCache = new Map<string, TerminalQuickCommands>();
 
+const SHELL_OSES: readonly TerminalShellOs[] = ['windows', 'linux'];
+
+/** The entry's command line for a shell OS; null when that OS has no such command. */
+function lineFor(entry: TerminalQuickCommand, os: TerminalShellOs, hostOs: string | undefined): string | null {
+  const perOs = entry.commands?.[os];
+  if (perOs !== undefined) return perOs;
+  return os === hostOs ? entry.command : null;
+}
+
 const chipClass = 'inline-flex max-w-full items-center rounded-lg border px-2 py-1 text-[11px] disabled:opacity-40';
 
 function readRecent(): RecentCommandRef | null {
@@ -37,7 +48,7 @@ function readRecent(): RecentCommandRef | null {
 }
 
 function entryId(entry: TerminalQuickCommand): string {
-  return entry.id || entry.command;
+  return entry.id || entry.command || '';
 }
 
 /** Mapped (OS-neutral) name: presets and system commands are translated, scripts keep their name. */
@@ -49,7 +60,7 @@ function commandName(ref: { kind: TerminalQuickCommand['kind']; id: string }, t:
 
 /** Quick commands: one tap re-runs the last command (on any node); the list holds presets, system commands and claudeteam scripts. */
 export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = ({
-  terminalNumber, disabled, busy, onRun,
+  terminalNumber, shellOs, disabled, busy, onRun,
 }) => {
   const { t } = useTranslation('pc');
   const { api: terminalApi, nodeKey } = usePcTerminalNode();
@@ -61,6 +72,10 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
   const [pending, setPending] = useState<TerminalQuickCommand | null>(null);
   const [recent, setRecent] = useState<RecentCommandRef | null>(readRecent);
   const [unavailable, setUnavailable] = useState(false);
+  const [osOverride, setOsOverride] = useState<TerminalShellOs | null>(null);
+  const hostOs = catalog?.platform;
+  const detectedOs: TerminalShellOs = shellOs ?? (hostOs === 'linux' ? 'linux' : 'windows');
+  const activeOs = osOverride ?? detectedOs;
 
   const load = useCallback(async (): Promise<TerminalQuickCommands | null> => {
     setLoading(true);
@@ -86,15 +101,16 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
   const matches = useCallback((entry: TerminalQuickCommand) => {
     const needle = filter.trim().toLowerCase();
     return !needle
-      || entry.command.toLowerCase().includes(needle)
+      || (lineFor(entry, detectedOs, hostOs) ?? '').toLowerCase().includes(needle)
       || commandName({ kind: entry.kind, id: entryId(entry) }, t).toLowerCase().includes(needle);
-  }, [filter, t]);
+  }, [detectedOs, filter, hostOs, t]);
   const presetCommands = useMemo(() => (catalog?.preset ?? []).filter(matches), [catalog, matches]);
   const systemCommands = useMemo(() => (catalog?.system ?? []).filter(matches), [catalog, matches]);
   const customCommands = useMemo(() => (catalog?.custom ?? []).filter(matches), [catalog, matches]);
 
   const choose = (entry: TerminalQuickCommand) => {
     setUnavailable(false);
+    setOsOverride(null);
     setPending(entry);
   };
 
@@ -105,12 +121,15 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
     const all = list ? [...(list.preset ?? []), ...list.system, ...list.custom] : [];
     const entry = all.find((candidate) => candidate.kind === recent.kind && entryId(candidate) === recent.id) ?? null;
     setUnavailable(entry === null);
+    setOsOverride(null);
     setPending(entry);
   };
 
+  const pendingLine = pending ? lineFor(pending, activeOs, hostOs) : null;
+
   const confirmRun = async (force: boolean) => {
-    if (!pending) return;
-    if (await onRun(pending.command, force)) {
+    if (!pending || !pendingLine) return;
+    if (await onRun(pendingLine, force)) {
       const ref: RecentCommandRef = { kind: pending.kind, id: entryId(pending) };
       setRecent(ref);
       StorageManager.setRaw(StorageKeys.PYCORE_TERMINAL_RECENT_COMMAND, JSON.stringify(ref));
@@ -118,17 +137,17 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
     setPending(null);
   };
 
-  const isPending = (entry: TerminalQuickCommand) => pending?.kind === entry.kind && pending.command === entry.command;
+  const isPending = (entry: TerminalQuickCommand) => pending?.kind === entry.kind && entryId(pending) === entryId(entry);
 
   const renderChips = (entries: TerminalQuickCommand[], tone: string, mono: boolean) => (
     <div className="flex flex-wrap gap-1">
       {entries.map((entry) => (
         <button
-          key={`${entry.kind}:${entry.command}`}
+          key={`${entry.kind}:${entryId(entry)}`}
           type="button"
           onClick={() => choose(entry)}
-          disabled={disabled}
-          title={entry.command}
+          disabled={disabled || lineFor(entry, detectedOs, hostOs) === null}
+          title={lineFor(entry, detectedOs, hostOs) ?? t('terminal.commands.noLineForShell', { os: t(`terminal.commands.shellOs.${detectedOs}`) })}
           className={`${chipClass} ${mono ? 'font-mono' : 'font-semibold'} ${tone} ${isPending(entry) ? 'ring-1 ring-indigo-500' : ''}`}
         >
           <span className="truncate">{commandName({ kind: entry.kind, id: entryId(entry) }, t)}</span>
@@ -176,14 +195,32 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
           <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-100">
             {commandName({ kind: pending.kind, id: entryId(pending) }, t)}
           </p>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <span>{t('terminal.commands.shell')}</span>
+            <div role="radiogroup" className="flex overflow-hidden rounded-md border border-slate-500/25">
+              {SHELL_OSES.map((os) => (
+                <button
+                  key={os}
+                  type="button"
+                  role="radio"
+                  aria-checked={activeOs === os}
+                  onClick={() => setOsOverride(os)}
+                  className={`px-2 py-0.5 font-semibold ${activeOs === os ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-500/10'}`}
+                >
+                  {t(`terminal.commands.shellOs.${os}`)}
+                </button>
+              ))}
+            </div>
+            {activeOs === detectedOs && <span>{t('terminal.commands.shellDetected')}</span>}
+          </div>
           <code className="block break-all rounded bg-slate-950/[0.06] px-2 py-1 font-mono text-[11px] text-slate-600 dark:bg-slate-950/50 dark:text-slate-300">
-            {pending.command}
+            {pendingLine ?? t('terminal.commands.noLineForShell', { os: t(`terminal.commands.shellOs.${activeOs}`) })}
           </code>
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
               onClick={() => void confirmRun(false)}
-              disabled={disabled || busy}
+              disabled={disabled || busy || !pendingLine}
               title={t('terminal.commands.runHint')}
               className="inline-flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-500 disabled:opacity-40"
             >
@@ -193,7 +230,7 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
             <button
               type="button"
               onClick={() => void confirmRun(true)}
-              disabled={disabled || busy}
+              disabled={disabled || busy || !pendingLine}
               title={t('terminal.commands.forceRunHint')}
               className="inline-flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg bg-rose-500/15 px-3 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-500/25 disabled:opacity-40 dark:text-rose-400"
             >

@@ -36,6 +36,8 @@ WINDOWS_TERMINAL_PROCESS_NAMES = frozenset({
     "wsl.exe",
     "wt.exe",
 })
+# Windows-hosted terminals whose shell is Linux (WSL, WSLg windows).
+WSL_TERMINAL_PROCESS_NAMES = frozenset({"wsl.exe", "wslhost.exe", "msrdc.exe", "ubuntu.exe", "kali.exe", "debian.exe"})
 LINUX_TERMINAL_CLASS_TOKENS = frozenset({
     "alacritty",
     "blackbox",

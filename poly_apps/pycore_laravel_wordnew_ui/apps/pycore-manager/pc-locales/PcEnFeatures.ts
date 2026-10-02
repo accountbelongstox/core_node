@@ -492,6 +492,13 @@ terminal: {
         git_pull: 'Git pull',
       },
       unavailableHere: '"{{command}}" is not available on this node.',
+      shell: 'Shell',
+      shellDetected: '(detected)',
+      shellOs: {
+        windows: 'Windows',
+        linux: 'Linux',
+      },
+      noLineForShell: 'Not available for a {{os}} shell.',
       custom: 'claudeteam scripts ({{count}})',
       empty: 'No matching command.',
       loadFailed: 'The command list could not be loaded.',

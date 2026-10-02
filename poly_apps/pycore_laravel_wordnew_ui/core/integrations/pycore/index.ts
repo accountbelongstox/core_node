@@ -70,6 +70,7 @@ export type {
   TerminalKeyAction,
   TerminalRenameResult,
   TerminalQuickCommand,
+  TerminalShellOs,
   TerminalQuickCommands,
   TerminalDesktopIntegrationResult,
   TerminalPlatformProfile,

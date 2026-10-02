@@ -1690,6 +1690,7 @@ const PcTerminalNodeView: React.FC = () => {
       </div>
       <PcTerminalQuickCommands
         terminalNumber={selectedWindow?.terminal_number ?? null}
+        shellOs={selectedWindow?.shell_os}
         disabled={!selectedActionable}
         busy={actionWindowId === selectedWindow?.id}
         onRun={runQuickCommand}
