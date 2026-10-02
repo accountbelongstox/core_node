@@ -22,7 +22,7 @@ AUTHORIZE_TRIES = 30
 AUTHORIZE_POLL_SECONDS = 2
 TCPIP_CONNECT_TRIES = 10
 PAIR_SERVICE_WAIT_SECONDS = 12
-PAIRING_DIALOG_WAIT_SECONDS = 120
+PAIRING_DIALOG_WAIT_SECONDS = 20
 PAIRING_DIALOG_POLL_SECONDS = 3
 SCAN_TIMEOUT_SECONDS = 1.2
 SCAN_WORKERS = 128
@@ -33,6 +33,8 @@ MDNS_CONNECT_PATTERN = re.compile(r"_adb(-tls-connect)?\._tcp")
 MDNS_PAIRING_PATTERN = re.compile(r"_adb-tls-pairing\._tcp")
 MDNS_SERIAL_PATTERN = re.compile(r"^adb-([^-]+)-")
 DISCOVERY_STEPS = 4
+# Typed pairing details: "[IP:]PORT CODE" as shown in the phone's pairing dialog.
+PAIRING_INPUT_PATTERN = re.compile(r"^\s*(?:(\d+\.\d+\.\d+\.\d+):)?(\d{2,5})\s+(\d{6})\s*$")
 WIFI_ADDRESS_PATTERN = re.compile(r"inet (\d+\.\d+\.\d+\.\d+)/")
 WIFI_ROUTE_PATTERN = re.compile(r"src (\d+\.\d+\.\d+\.\d+)")
 IP_LINE_PATTERN = re.compile(r"inet (\d+\.\d+\.\d+\.\d+)/")
@@ -329,10 +331,10 @@ def scan_and_connect(adb_bin: str, state_dir: Path) -> None:
 
 
 def wait_for_pairing(adb_bin: str, unpaired: list[str]) -> list[str]:
-    """Polls mDNS until the phone opens its pairing dialog; returns the pairing endpoints."""
+    """Polls mDNS briefly for the phone's pairing dialog; returns the pairing endpoints."""
     hosts = {split_endpoint(endpoint)[0] for endpoint in unpaired}
-    log(f"On the phone: Developer options -> Wireless debugging -> 'Pair device with pairing code' and keep "
-        f"the dialog open. Waiting up to {PAIRING_DIALOG_WAIT_SECONDS}s for it (Ctrl+C to stop)...")
+    log("On the phone: Developer options -> Wireless debugging -> 'Pair device with pairing code' and keep "
+        f"the dialog open. Looking for it over mDNS for {PAIRING_DIALOG_WAIT_SECONDS}s (Ctrl+C skips to typing it)...")
     deadline = time.monotonic() + PAIRING_DIALOG_WAIT_SECONDS
     try:
         while time.monotonic() < deadline:
@@ -348,10 +350,51 @@ def wait_for_pairing(adb_bin: str, unpaired: list[str]) -> list[str]:
     return []
 
 
+def read_pairing_input(unpaired: list[str]) -> tuple[str, str]:
+    """Asks for the pairing port and code shown in the phone dialog (many phones never announce it
+    over mDNS); returns (IP:PORT, CODE) or empty strings when skipped."""
+    host = split_endpoint(unpaired[0])[0] if unpaired else ""
+    log("The phone's pairing dialog shows 'IP address & Port' and a 6-digit 'WLAN pairing code'.")
+    example = "37421 123456" if host else "192.168.1.20:37421 123456"
+    while True:
+        try:
+            reply = input(f"Type the pairing [IP:]PORT and CODE, e.g. {example} (empty skips): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return "", ""
+        if not reply:
+            return "", ""
+        match = PAIRING_INPUT_PATTERN.match(reply)
+        if match and (match.group(1) or host):
+            return f"{match.group(1) or host}:{match.group(2)}", match.group(3)
+        log(f"Not understood: '{reply}'. Use PORT CODE (host {host or 'unknown'}) or IP:PORT CODE.")
+
+
+def pair_and_connect(adb_bin: str, endpoint: str, code: str, unpaired: list[str]) -> bool:
+    """Pairs with endpoint, then connects to the phone's wireless-debugging port on the same host."""
+    if not pair_device(adb_bin, endpoint, code, True):
+        log("Pairing failed: the code expires when the dialog closes; reopen it and use the new port and code.")
+        return False
+    host = split_endpoint(endpoint)[0]
+    deadline = time.monotonic() + PAIR_SERVICE_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        candidates = [candidate for candidate in mdns_endpoints(adb_bin)[0] + unpaired
+                      if split_endpoint(candidate)[0] == host]
+        for candidate in dict.fromkeys(candidates):
+            if connect_authorized(adb_bin, candidate):
+                return True
+        time.sleep(AUTHORIZE_POLL_SECONDS)
+    log(f"Paired with {host}, but its wireless-debugging port did not answer; re-run the script to connect.")
+    return False
+
+
 def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool, unpaired: list[str] | None = None) -> bool:
     unpaired = unpaired or []
     if not pairing and unpaired and interactive:
         pairing = wait_for_pairing(adb_bin, unpaired)
+        if not pairing:
+            endpoint, code = read_pairing_input(unpaired)
+            if endpoint:
+                return pair_and_connect(adb_bin, endpoint, code, unpaired)
     if not pairing:
         if unpaired:
             log(f"Found {', '.join(unpaired)} but this computer is not paired. Pair once: on the phone open "
@@ -366,15 +409,8 @@ def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool, unpaired: l
         if not interactive:
             log(f"A device is offering wireless pairing. Run: {adb_bin} pair {endpoint} <PAIRING_CODE>")
             continue
-        if not pair_device(adb_bin, endpoint, "", True):
-            continue
-        host = split_endpoint(endpoint)[0]
-        deadline = time.monotonic() + PAIR_SERVICE_WAIT_SECONDS
-        while time.monotonic() < deadline:
-            for candidate in mdns_endpoints(adb_bin)[0]:
-                if split_endpoint(candidate)[0] == host and connect_authorized(adb_bin, candidate):
-                    return True
-            time.sleep(AUTHORIZE_POLL_SECONDS)
+        if pair_and_connect(adb_bin, endpoint, "", unpaired):
+            return True
     return False
 
 
@@ -415,7 +451,10 @@ def discover(adb_bin: str, state_dir: Path, interactive: bool) -> bool:
         if attempt(endpoint):
             return True
     log(f"Step 4/{DISCOVERY_STEPS}: pairing")
-    return pair_nearby(adb_bin, pairing_points, interactive, unpaired)
+    if not pair_nearby(adb_bin, pairing_points, interactive, unpaired):
+        return False
+    remember_online(adb_bin, state_dir)
+    return True
 
 
 def device_wifi_ip(adb_bin: str, serial: str) -> str:
