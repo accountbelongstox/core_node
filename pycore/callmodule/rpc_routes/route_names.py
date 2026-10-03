@@ -303,6 +303,7 @@ UI_AUDIO_ORCH_VIDEO_BACKGROUND_IMPORT = rpc_route_contract.path("audioOrchVideoB
 UI_CONFIG_UPDATE_CONFIG = rpc_route_contract.path("configUpdateConfig")
 UI_CONTROL_GET_AUTOSTART = rpc_route_contract.path("controlGetAutostart")
 UI_CONTROL_SET_AUTOSTART = rpc_route_contract.path("controlSetAutostart")
+UI_CONTROL_RESTART = rpc_route_contract.path("controlRestart")
 UI_LOCAL_CONFIG_UPDATE_CONFIG = rpc_route_contract.path("localConfigUpdateConfig")
 
 # Qwen3TTS HTTP controllers

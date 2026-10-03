@@ -574,6 +574,10 @@
       "path": "ui/control/set_autostart",
       "method": "POST"
     },
+    "controlRestart": {
+      "path": "ui/control/restart",
+      "method": "POST"
+    },
     "corebookAddLanguage": {
       "path": "ui/corebook/add_language",
       "method": "POST"
