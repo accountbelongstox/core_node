@@ -87,6 +87,8 @@ export type {
   TerminalSnapshot,
   TerminalScreenshotResourceMeta,
   TerminalViewResult,
+  TerminalViewerDemandOptions,
+  TerminalViewerDemandResult,
   TerminalAiAgent,
   TerminalWindowInfo,
   TerminalWindowPoint,
@@ -95,6 +97,7 @@ export type {
 
 export {
   requestPycoreHttp, pycoreDirectRequest, requestPycoreHttpText, requestPycoreStatus, getClientId, getBrowserId,
+  type PycoreHttpBinaryResult,
 } from './PycoreHttp';
 export { createPycoreLiveSource, type PycoreLiveSource, type PycoreLiveSourceOptions } from './PycoreLiveSource';
 export {

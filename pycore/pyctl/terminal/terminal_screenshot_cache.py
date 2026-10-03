@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyfoundations.serialized_worker import (
@@ -13,12 +13,19 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 from pycore.pyutils.common.relay_contract import relay_contract
-from pycore.pyutils.window.screen_capture import encode_capture_png
+from pycore.pyutils.window.screen_capture import (
+    encode_capture_image,
+    frame_signature,
+    frame_signature_distance,
+)
 from pycore.pyutils.window.terminal_platform import terminal_backend
 
 
 TERMINAL_SCREENSHOT_FRESHNESS_SECONDS = relay_contract.duration(
     "terminal_screenshot_freshness_seconds"
+)
+TERMINAL_SCREENSHOT_FOCUS_INTERVAL_SECONDS = relay_contract.duration(
+    "terminal_screenshot_focus_interval_seconds"
 )
 TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS = relay_contract.duration(
     "terminal_screenshot_capture_lease_seconds"
@@ -37,21 +44,13 @@ TERMINAL_SCREENSHOT_MAX_RESOURCES = relay_contract.limit(
 TERMINAL_SCREENSHOT_CAPTURE_BATCH = relay_contract.limit(
     "terminal_screenshot_capture_batch"
 )
-
-
-def capture_terminal_regions(
-    regions: List[Dict[str, Any]],
-) -> Dict[str, Dict[str, Any]]:
-    captured_at = int(time.time() * 1000)
-    images = terminal_backend.capture_windows(regions)
-    return {
-        str(window_id): encode_capture_png(image, captured_at)
-        for window_id, image in images.items()
-    }
+TERMINAL_SCREENSHOT_CHANGE_THRESHOLD = relay_contract.limit(
+    "terminal_screenshot_change_threshold"
+)
 
 
 class TerminalScreenshotCache:
-    """Capture only demanded windows and expose digest-addressed byte resources."""
+    """Capture only demanded windows, encode only changed frames, and expose digest-addressed byte resources."""
 
     def __init__(self) -> None:
         self._entries: Dict[str, Dict[str, Any]] = {}
@@ -71,33 +70,53 @@ class TerminalScreenshotCache:
         self,
         viewer_id: str,
         window_ids: Iterable[str],
+        focus_window_id: Optional[str] = None,
+        force_window_ids: Iterable[str] = (),
     ) -> Dict[str, Any]:
         normalized_viewer = str(viewer_id or "").strip()
         normalized_ids = sorted({str(value) for value in window_ids if str(value)})
+        normalized_forced = sorted(
+            {str(value) for value in force_window_ids if str(value)}
+        )
         if not normalized_viewer:
             raise ValueError("terminal_viewer_id_required")
+        now = time.monotonic()
+        self._prune_leases(now)
+        previous = self._viewer_leases.get(normalized_viewer)
+        if focus_window_id is None:
+            focus = str(previous["focus_window_id"]) if previous else ""
+        else:
+            focus = str(focus_window_id).strip()
+        if focus:
+            normalized_ids = [focus]
         if len(normalized_ids) > TERMINAL_VIEWER_MAX_WINDOWS:
             raise ValueError("terminal_viewer_window_limit_exceeded")
-        self._prune_leases(time.monotonic())
+        if len(normalized_forced) > TERMINAL_VIEWER_MAX_WINDOWS:
+            raise ValueError("terminal_viewer_force_window_limit_exceeded")
         if (
-            normalized_viewer not in self._viewer_leases
+            previous is None
             and len(self._viewer_leases) >= TERMINAL_VIEWER_MAX_COUNT
         ):
             raise ValueError("terminal_viewer_limit_exceeded")
         self._viewer_leases[normalized_viewer] = {
             "window_ids": normalized_ids,
-            "expires_at": time.monotonic() + TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
+            "focus_window_id": focus,
+            "expires_at": now + TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
         }
         terminal_activity_log.debug(
             "screenshot.demand.renewed",
             viewer_id=normalized_viewer,
             window_ids=normalized_ids,
+            focus_window_id=focus,
+            force_window_ids=normalized_forced,
             lease_seconds=TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
         )
         return {
             "viewer_id": normalized_viewer,
             "window_ids": normalized_ids,
             "lease_seconds": TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
+            "focus_window_id": focus,
+            "force_window_ids": normalized_forced,
         }
 
     @serialized_method
@@ -115,6 +134,20 @@ class TerminalScreenshotCache:
             [str(region["id"]) for region in normalized],
             now,
         )
+        self._schedule_capture(normalized, now)
+        return self.metadata_many([region["id"] for region in normalized])
+
+    def refresh_focus(self, region: Dict[str, Any]) -> None:
+        self._schedule_capture(
+            self._normalize_regions([region]),
+            time.monotonic(),
+        )
+
+    def _schedule_capture(
+        self,
+        normalized: List[Dict[str, Any]],
+        now: float,
+    ) -> None:
         plan = self._claim_capture(normalized, (), now)
         if plan:
             terminal_activity_log.info(
@@ -127,7 +160,6 @@ class TerminalScreenshotCache:
                 plan,
                 thread_name="TerminalScreenshotCaptureThread",
             )
-        return self.metadata_many([region["id"] for region in normalized])
 
     def _capture_plan(self, plan: Dict[str, Dict[str, Any]]) -> None:
         terminal_activity_log.info(
@@ -136,8 +168,8 @@ class TerminalScreenshotCache:
             region_count=len(plan),
         )
         try:
-            captures = capture_terminal_regions(list(plan.values()))
-            self._commit_capture(plan, captures, time.monotonic())
+            frames = self._capture_frames(plan)
+            self._commit_capture(plan, frames, time.monotonic())
         except Exception as error:
             self._release_capture(plan)
             terminal_activity_log.error(
@@ -146,6 +178,57 @@ class TerminalScreenshotCache:
                 error_type=type(error).__name__,
                 error=error,
             )
+
+    def _capture_frames(
+        self,
+        plan: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        captured_at = int(time.time() * 1000)
+        images = {
+            str(window_id): image
+            for window_id, image in terminal_backend.capture_windows(
+                list(plan.values())
+            ).items()
+        }
+        observations = {
+            window_id: {
+                "signature": frame_signature(image),
+                "raw_size": tuple(image.size),
+            }
+            for window_id, image in images.items()
+        }
+        changed = self._filter_changed(observations)
+        return {
+            window_id: {
+                **observation,
+                "capture": (
+                    encode_capture_image(images[window_id], captured_at)
+                    if window_id in changed
+                    else None
+                ),
+            }
+            for window_id, observation in observations.items()
+        }
+
+    @serialized_method
+    def _filter_changed(
+        self,
+        observations: Dict[str, Dict[str, Any]],
+    ) -> Set[str]:
+        changed = set()
+        for window_id, observation in observations.items():
+            entry = self._entries.get(window_id)
+            if (
+                entry is None
+                or tuple(entry["raw_size"]) != observation["raw_size"]
+                or frame_signature_distance(
+                    entry["signature"],
+                    observation["signature"],
+                )
+                > TERMINAL_SCREENSHOT_CHANGE_THRESHOLD
+            ):
+                changed.add(window_id)
+        return changed
 
     @serialized_method
     def _release_capture(self, plan: Dict[str, Dict[str, Any]]) -> None:
@@ -165,14 +248,9 @@ class TerminalScreenshotCache:
             time.monotonic(),
         )
         if plan:
-            captures = capture_terminal_regions(list(plan.values()))
-            self._commit_capture(plan, captures, time.monotonic())
-            capture = captures.get(window_id)
-            if (
-                not isinstance(capture, dict)
-                or not isinstance(capture.get("body"), bytes)
-                or not str(capture.get("digest") or "")
-            ):
+            frames = self._capture_frames(plan)
+            self._commit_capture(plan, frames, time.monotonic())
+            if window_id not in frames:
                 return None
         return self.metadata(window_id)
 
@@ -190,6 +268,11 @@ class TerminalScreenshotCache:
             for lease in self._viewer_leases.values()
             for window_id in lease["window_ids"]
         }
+        focused = {
+            str(lease["focus_window_id"])
+            for lease in self._viewer_leases.values()
+            if lease["focus_window_id"]
+        }
         forced = {str(value) for value in force_window_ids if str(value)}
         plan: Dict[str, Dict[str, Any]] = {}
         for region in regions:
@@ -201,11 +284,15 @@ class TerminalScreenshotCache:
                 continue
             geometry = self._geometry_version(region)
             entry = self._entries.get(window_id)
+            freshness = (
+                TERMINAL_SCREENSHOT_FOCUS_INTERVAL_SECONDS
+                if window_id in focused
+                else TERMINAL_SCREENSHOT_FRESHNESS_SECONDS
+            )
             fresh = (
                 entry is not None
                 and str(entry.get("geometry") or "") == geometry
-                and now - float(entry.get("stored_at") or 0)
-                < TERMINAL_SCREENSHOT_FRESHNESS_SECONDS
+                and now - float(entry.get("stored_at") or 0) < freshness
             )
             if fresh and window_id not in forced:
                 continue
@@ -227,7 +314,7 @@ class TerminalScreenshotCache:
     def _commit_capture(
         self,
         plan: Dict[str, Dict[str, Any]],
-        captures: Dict[str, Dict[str, Any]],
+        frames: Dict[str, Dict[str, Any]],
         now: float,
     ) -> None:
         for window_id, region in plan.items():
@@ -240,10 +327,21 @@ class TerminalScreenshotCache:
                 )
                 continue
             self._capture_leases.pop(window_id, None)
-            capture = captures.get(window_id)
-            if not isinstance(capture, dict):
+            frame = frames.get(window_id)
+            if not isinstance(frame, dict):
                 terminal_activity_log.warning(
                     "screenshot.capture.missing",
+                    window_id=window_id,
+                )
+                continue
+            previous = self._entries.get(window_id)
+            capture = frame["capture"]
+            if capture is None:
+                if previous is not None:
+                    previous["geometry"] = str(region["geometry"])
+                    previous["stored_at"] = now
+                terminal_activity_log.debug(
+                    "screenshot.capture.unchanged",
                     window_id=window_id,
                 )
                 continue
@@ -255,13 +353,14 @@ class TerminalScreenshotCache:
                     window_id=window_id,
                 )
                 continue
-            previous = self._entries.get(window_id)
             if (
                 previous is not None
                 and str(previous.get("digest") or "") == digest
             ):
                 previous["geometry"] = str(region["geometry"])
                 previous["stored_at"] = now
+                previous["signature"] = frame["signature"]
+                previous["raw_size"] = frame["raw_size"]
                 terminal_activity_log.debug(
                     "screenshot.capture.unchanged",
                     window_id=window_id,
@@ -271,7 +370,7 @@ class TerminalScreenshotCache:
             self._revision += 1
             entry = {
                 "window_id": window_id,
-                "mime": str(capture.get("mime") or "image/png"),
+                "mime": str(capture["mime"]),
                 "body": body,
                 "digest": digest,
                 "width": int(capture.get("width") or 0),
@@ -280,6 +379,8 @@ class TerminalScreenshotCache:
                 "geometry": str(region["geometry"]),
                 "stored_at": now,
                 "revision": self._revision,
+                "signature": frame["signature"],
+                "raw_size": frame["raw_size"],
             }
             self._entries[window_id] = entry
             self._resources[self._resource_key(window_id, digest)] = entry
