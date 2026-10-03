@@ -300,6 +300,18 @@ export interface TerminalBackupDeleteResult {
   deleted: number;
 }
 
+export type TerminalSpecialState = 'prompt_waiting' | 'prompt_follow_up' | 'resume_pending';
+
+export interface TerminalSpecialEntry {
+  number: number;
+  state: TerminalSpecialState | string;
+  /** Wall-clock seconds on the pycore machine the countdown runs to; null when there is none. */
+  due_at: number | null;
+  misses?: number;
+  miss_limit?: number;
+  notice?: string;
+}
+
 export interface TerminalBackupState {
   success: boolean;
   error_code?: string | null;
@@ -307,6 +319,12 @@ export interface TerminalBackupState {
   running: boolean;
   interval_seconds: number;
   last_pass_at: number | null;
+  /** Wall-clock seconds on the pycore machine when the state was read (client clock-skew correction). */
+  server_time?: number;
+  idle_seconds?: number | null;
+  min_idle_seconds?: number;
+  prompt_idle_seconds?: number;
+  special_terminals?: TerminalSpecialEntry[];
 }
 
 export interface TerminalBackupListParams {

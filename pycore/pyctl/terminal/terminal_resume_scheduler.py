@@ -99,6 +99,11 @@ class TerminalResumeScheduler:
         with self._lock:
             return min((timer["due_at"] for timer in self._timers.values()), default=None)
 
+    def timers(self) -> Dict[int, Dict[str, Any]]:
+        """Armed timers by terminal: {window_id, key, due_at (wall seconds)}."""
+        with self._lock:
+            return {int(number): dict(timer) for number, timer in self._timers.items()}
+
     # ---- fire -------------------------------------------------------------------
 
     def run_due(self, windows: List[Dict[str, Any]], capture: Callable[[Dict[str, Any]], Optional[str]]) -> None:

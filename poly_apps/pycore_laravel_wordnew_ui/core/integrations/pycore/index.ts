@@ -52,6 +52,8 @@ export type {
   TerminalActionResult,
   TerminalBackupDeleteResult,
   TerminalBackupState,
+  TerminalSpecialEntry,
+  TerminalSpecialState,
   TerminalBackupItem,
   TerminalBackupKind,
   TerminalBackupListParams,
