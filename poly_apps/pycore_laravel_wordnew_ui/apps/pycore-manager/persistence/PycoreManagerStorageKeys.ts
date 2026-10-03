@@ -44,6 +44,8 @@ export const PycoreManagerUiStorageKeys = {
 /** Per-device UI session (last page, node, terminal, focus); never synced to the backend. */
 export const PycoreManagerSessionStorageKeys = {
   PYCORE_UI_SESSION: 'pc.uiSession.v1',
+  /** Per-node visit history of the terminal operation view (back / forward). */
+  PYCORE_TERMINAL_NAV_PREFIX: 'pc.terminal.nav:',
 } as const;
 
 export const PycoreManagerStorageKeys = {

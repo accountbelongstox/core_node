@@ -464,6 +464,12 @@ terminal: {
       otherHint: '另一台在线 pycore 的终端：{{url}}（{{os}}）',
       noOthers: '没有其他在线的 pycore',
     },
+    nav: {
+      back: '回退到上一个终端',
+      forward: '前进到下一个终端',
+      nextFinished: '打开下一个已完成的终端（{{count}} 个待查看）',
+      openFinished: '打开这个已完成的终端',
+    },
     choice: {
       title: '回答 AI 选择题',
       pick: '选择第 {{option}} 项',

@@ -464,6 +464,12 @@ terminal: {
       otherHint: 'Terminals of another online pycore: {{url}} ({{os}})',
       noOthers: 'No other pycore online',
     },
+    nav: {
+      back: 'Back to the previous terminal',
+      forward: 'Forward to the next terminal',
+      nextFinished: 'Open the next finished terminal ({{count}} waiting)',
+      openFinished: 'Open this finished terminal',
+    },
     choice: {
       title: 'Answer an AI choice',
       pick: 'Choose option {{option}}',

@@ -215,7 +215,7 @@
     "terminal_screenshot_max_width": 640,
     "terminal_screenshot_max_height": 360,
     "terminal_screenshot_quality": 60,
-    "terminal_screenshot_change_threshold": 1,
+    "terminal_screenshot_change_threshold": 4,
     "terminal_screenshot_signature_width": 64,
     "terminal_screenshot_signature_height": 36,
     "terminal_screenshot_signature_levels": 16,

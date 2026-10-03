@@ -183,11 +183,35 @@ class TerminalService:
         self,
         viewer_id: str,
         visible_window_ids: Iterable[str],
+        focus_window_id: str = "",
+        force_window_ids: Iterable[str] = (),
     ) -> Dict[str, Any]:
-        return self._screenshot_cache.renew_demand(
+        lease = self._screenshot_cache.renew_demand(
             viewer_id,
             visible_window_ids,
+            focus_window_id,
+            force_window_ids,
         )
+        for window_id in lease["force_window_ids"]:
+            window = self._collector.online_window(window_id)
+            if window is not None:
+                self._screenshot_cache.capture_now(
+                    TerminalService.window_capture_region(window)
+                )
+        if lease["focus_window_id"]:
+            window = self._collector.online_window(lease["focus_window_id"])
+            if window is not None:
+                self._screenshot_cache.refresh_focus(
+                    TerminalService.window_capture_region(window)
+                )
+        return {
+            "viewer_id": lease["viewer_id"],
+            "window_ids": lease["window_ids"],
+            "lease_seconds": lease["lease_seconds"],
+            "screenshots": self._screenshot_cache.metadata_many(
+                [*lease["window_ids"], *lease["force_window_ids"]]
+            ),
+        }
 
     def refresh_snapshot(self) -> Dict[str, Any]:
         """Collect now (decorators run) regardless of viewer demand."""

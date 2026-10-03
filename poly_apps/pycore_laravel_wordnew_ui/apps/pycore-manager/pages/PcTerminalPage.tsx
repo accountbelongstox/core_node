@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
 import { isHttpConnected } from '../../../core/integrations/pycore/PycoreEventClient';
 import {
   AlertTriangle,
@@ -71,6 +70,10 @@ import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminal
 import { PcTerminalGlobalCountdown, PcTerminalStatusMarks, PcTerminalTileCountdown } from '@/apps/pycore-manager/components/terminal/PcTerminalStatusMarks';
 import { PcTerminalWatchProvider, usePcTerminalWatch } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal/PcTerminalAgentDoneToasts';
+import { usePcTerminalFrames } from '@/apps/pycore-manager/components/terminal/usePcTerminalFrames';
+import { PcTerminalNavActionsProvider } from '@/apps/pycore-manager/components/terminal/PcTerminalNavContext';
+import { PcTerminalNavControls } from '@/apps/pycore-manager/components/terminal/PcTerminalNavControls';
+import { terminalNavHistoryFor, useTerminalNavSnapshot } from '@/apps/pycore-manager/components/terminal/terminalNavigation';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
@@ -104,7 +107,6 @@ import type {
   TerminalKeyAction,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
-  TerminalScreenshotResourceMeta,
   TerminalSnapshot,
   TerminalWindowInfo,
 } from '@/apps/pycore-manager/api';
@@ -406,24 +408,8 @@ function formatScheduleCountdown(ms: number): string {
     : `${pad(minutes)}:${pad(seconds)}`;
 }
 
-const TERMINAL_VIEWER_MAX_WINDOWS = 64;
-const DEMAND_RENEW_MS = RELAY_CONTRACT.durations.terminal_viewer_demand_lease_seconds * 500;
-const TERMINAL_SCREENSHOT_FETCH_TIMEOUT_MS = 20_000;
-const TERMINAL_SCREENSHOT_FAILURE_COOLDOWN_MS = 10_000;
-const TERMINAL_SCREENSHOT_FETCH_CONCURRENCY = 3;
-const TERMINAL_SCREENSHOT_GRACE_MS = 30_000;
-
-interface TerminalScreenshotImage {
-  url: string;
-  mime: string;
-  width: number;
-  height: number;
-  captured_at: number;
-}
-
-function screenshotImageKey(windowId: string, digest: string): string {
-  return `${windowId}:${digest}`;
-}
+const NO_WINDOWS: TerminalWindowInfo[] = [];
+const OPERATION_HOLD_MS = 90_000;
 
 function replaceTerminalScheduleQueue(
   snapshot: TerminalSnapshot | null,
@@ -624,11 +610,6 @@ const PcTerminalNodeView: React.FC = () => {
   >>(new Map());
   const scheduleClearAllInProgressRef = useRef(false);
   const viewerIdRef = useRef('');
-  const screenshotImagesRef = useRef<Map<string, TerminalScreenshotImage>>(new Map());
-  const screenshotFetchesRef = useRef<Set<string>>(new Set());
-  const screenshotFailuresRef = useRef<Map<string, number>>(new Map());
-  const screenshotSeenAtRef = useRef<Map<string, number>>(new Map());
-  const [screenshotVersion, setScreenshotVersion] = useState(0);
   const { nodeKey: sessionNodeKey } = usePcTerminalNode();
   const [savedSession] = useState<PcUiSessionNode | null>(() => readPcUiSessionNode(sessionNodeKey));
   const pendingSessionRef = useRef<PcUiSessionNode | null>(savedSession);
@@ -637,96 +618,29 @@ const PcTerminalNodeView: React.FC = () => {
   const overlayScrollCleanupRef = useRef<(() => void) | null>(null);
   const [inputRestore, setInputRestore] = useState<PcUiSessionInput | null>(null);
 
-  const loadScreenshotResource = useCallback(async (
-    resource: TerminalScreenshotResourceMeta,
-  ): Promise<boolean> => {
-    const key = screenshotImageKey(resource.window_id, resource.digest);
-    if (screenshotImagesRef.current.has(key)) return false;
-    if (screenshotFetchesRef.current.has(key)) return false;
-    const failedAt = screenshotFailuresRef.current.get(key);
-    if (
-      failedAt
-      && Date.now() - failedAt < TERMINAL_SCREENSHOT_FAILURE_COOLDOWN_MS
-    ) return false;
-    screenshotFetchesRef.current.add(key);
-    try {
-      const result = await terminalApi.getTerminalScreenshot(
-        resource.window_id,
-        resource.digest,
-        TERMINAL_SCREENSHOT_FETCH_TIMEOUT_MS,
-      );
-      if (result.status !== 200 || !result.bytes) {
-        screenshotFailuresRef.current.set(key, Date.now());
-        return false;
-      }
-      const previous = screenshotImagesRef.current.get(key);
-      if (previous) URL.revokeObjectURL(previous.url);
-      const image: TerminalScreenshotImage = {
-        url: URL.createObjectURL(new Blob([new Uint8Array(result.bytes)], { type: resource.mime || 'image/png' })),
-        mime: resource.mime || 'image/png',
-        width: resource.width,
-        height: resource.height,
-        captured_at: resource.captured_at,
-      };
-      screenshotImagesRef.current.set(key, image);
-      screenshotFailuresRef.current.delete(key);
-      return true;
-    } catch {
-      screenshotFailuresRef.current.set(key, Date.now());
-      return false;
-    } finally {
-      screenshotFetchesRef.current.delete(key);
-    }
+  // Desktop layouts operate the explicitly selected terminal from the side panel; the hold ends after
+  // a quiet period so the other tiles resume. A preview dialog is operating by itself.
+  const [operatedTerminalNumber, setOperatedTerminalNumber] = useState<number | null>(null);
+  const operationTimerRef = useRef<number | null>(null);
+  const touchOperation = useCallback((terminalNumber: number) => {
+    setOperatedTerminalNumber(terminalNumber);
+    if (operationTimerRef.current !== null) window.clearTimeout(operationTimerRef.current);
+    operationTimerRef.current = window.setTimeout(() => {
+      operationTimerRef.current = null;
+      setOperatedTerminalNumber(null);
+    }, OPERATION_HOLD_MS);
   }, []);
-
-  const loadSnapshotScreenshotResources = useCallback(async (
-    nextSnapshot: TerminalSnapshot,
-  ) => {
-    const resources = nextSnapshot.windows
-      .filter((windowInfo) => windowInfo.online && windowInfo.screenshot_resource)
-      .map((windowInfo) => windowInfo.screenshot_resource as TerminalScreenshotResourceMeta);
-    const now = Date.now();
-    const liveKeys = new Set(
-      resources.map((resource) => screenshotImageKey(resource.window_id, resource.digest)),
-    );
-    for (const key of liveKeys) screenshotSeenAtRef.current.set(key, now);
-    // Resources can be absent from a single snapshot while a capture lease is
-    // in flight; keep their images for a grace period instead of churning.
-    for (const [key, seenAt] of [...screenshotSeenAtRef.current.entries()]) {
-      if (now - seenAt < TERMINAL_SCREENSHOT_GRACE_MS) continue;
-      screenshotSeenAtRef.current.delete(key);
-      const image = screenshotImagesRef.current.get(key);
-      if (!image) continue;
-      URL.revokeObjectURL(image.url);
-      screenshotImagesRef.current.delete(key);
-    }
-    if (resources.length === 0) return;
-    let changed = false;
-    const queue = [...resources];
-    const workerCount = Math.min(
-      TERMINAL_SCREENSHOT_FETCH_CONCURRENCY,
-      queue.length,
-    );
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (queue.length > 0 && mountedRef.current) {
-        const resource = queue.shift();
-        if (!resource) break;
-        if (await loadScreenshotResource(resource)) changed = true;
-      }
-    });
-    await Promise.all(workers);
-    if (changed && mountedRef.current) setScreenshotVersion((value) => value + 1);
-  }, [loadScreenshotResource]);
-
-  const screenshotImageFor = useCallback((windowInfo: TerminalWindowInfo | null) => {
-    if (!windowInfo?.online) return null;
-    const exact = windowInfo.screenshot_resource && screenshotImagesRef.current.get(
-      screenshotImageKey(windowInfo.id, windowInfo.screenshot_resource.digest));
-    if (exact) return exact;
-    const prefix = screenshotImageKey(windowInfo.id, '');
-    return [...screenshotImagesRef.current.entries()].reverse()
-      .find(([key]) => key.startsWith(prefix))?.[1] || null;
+  useEffect(() => () => {
+    if (operationTimerRef.current !== null) window.clearTimeout(operationTimerRef.current);
   }, []);
+  const focusWindowId = useMemo(() => {
+    const number = previewTerminalNumber ?? (isMobile ? null : operatedTerminalNumber);
+    if (number === null) return null;
+    return snapshot?.windows.find((windowInfo) => windowInfo.terminal_number === number)?.id ?? null;
+  }, [isMobile, operatedTerminalNumber, previewTerminalNumber, snapshot]);
+  const frames = usePcTerminalFrames({ windows: snapshot?.windows ?? NO_WINDOWS, focusWindowId });
+  const screenshotImageFor = frames.imageFor;
+  const screenshotVersion = frames.version;
 
   // Latest snapshot without widening the refresh callback identity: the
   // polling interval must not be torn down on every snapshot update.
@@ -762,12 +676,13 @@ const PcTerminalNodeView: React.FC = () => {
     const activeTimer = draftTimersRef.current[key];
     if (activeTimer) window.clearTimeout(activeTimer);
     dirtyDraftsRef.current.add(terminalNumber);
+    touchOperation(terminalNumber);
     setDraftStatuses((current) => ({ ...current, [key]: 'saving' }));
     draftTimersRef.current[key] = window.setTimeout(() => {
       delete draftTimersRef.current[key];
       void persistDraft(terminalNumber, text);
     }, DRAFT_SAVE_DELAY_MS);
-  }, [persistDraft]);
+  }, [persistDraft, touchOperation]);
 
   const flushDraft = useCallback((terminalNumber: number) => {
     const key = terminalDraftKey(terminalNumber);
@@ -844,7 +759,7 @@ const PcTerminalNodeView: React.FC = () => {
   }, []);
 
   const commitSnapshot = useCallback(async (nextSnapshot: TerminalSnapshot) => {
-    void loadSnapshotScreenshotResources(nextSnapshot);
+    frames.offerSnapshot(nextSnapshot.windows);
     await reconcileTerminalSchedules(nextSnapshot.windows);
     if (!mountedRef.current) return;
     setSnapshot(applyFrontendTerminalSchedules(nextSnapshot));
@@ -879,7 +794,7 @@ const PcTerminalNodeView: React.FC = () => {
           ? current
           : nextSnapshot.windows[0]?.terminal_number || null
     ));
-  }, [reconcileTerminalSchedules, loadSnapshotScreenshotResources]);
+  }, [reconcileTerminalSchedules, frames.offerSnapshot]);
 
   // A pushed snapshot omits the per-window log lists; they are carried over
   // from the last full snapshot. Returns false, without
@@ -913,10 +828,7 @@ const PcTerminalNodeView: React.FC = () => {
     if (showLoading) setLoading(true);
     try {
       if (!viewerIdRef.current) viewerIdRef.current = getBrowserId();
-      const demandedWindowIds = (snapshotRef.current?.windows || [])
-        .filter((windowInfo) => windowInfo.online)
-        .map((windowInfo) => windowInfo.id)
-        .slice(0, TERMINAL_VIEWER_MAX_WINDOWS);
+      const demandedWindowIds = frames.demandIdsRef.current;
       const nextSnapshot = await terminalApi.getTerminalWindows(
         viewerIdRef.current,
         demandedWindowIds,
@@ -974,29 +886,12 @@ const PcTerminalNodeView: React.FC = () => {
       mountedRef.current = false;
       unsubscribe();
       window.clearInterval(pollTimer);
-      screenshotImagesRef.current.forEach((image) => URL.revokeObjectURL(image.url));
-      screenshotImagesRef.current.clear();
     };
   }, [refresh]);
 
   useEffect(() => onHttpStatus((connected) => {
     if (connected) void refresh(false);
   }), [refresh]);
-
-  const demandedWindowKey = (snapshot?.windows || [])
-    .filter((windowInfo) => windowInfo.online)
-    .map((windowInfo) => windowInfo.id)
-    .slice(0, TERMINAL_VIEWER_MAX_WINDOWS)
-    .join('|');
-  useEffect(() => {
-    if (!demandedWindowKey) return undefined;
-    if (!viewerIdRef.current) viewerIdRef.current = getBrowserId();
-    const ids = demandedWindowKey.split('|');
-    const renew = () => { void terminalApi.renewTerminalViewerDemand(viewerIdRef.current, ids).catch(() => undefined); };
-    renew();
-    const timer = window.setInterval(renew, DEMAND_RENEW_MS);
-    return () => window.clearInterval(timer);
-  }, [demandedWindowKey]);
 
   useEffect(() => {
     if (previewTerminalNumber === null || logDialogOpen) return undefined;
@@ -1215,12 +1110,11 @@ const PcTerminalNodeView: React.FC = () => {
   ) => {
     setActionWindowId(windowId);
     setActionNotice(null);
+    const operatedNumber = snapshotRef.current?.windows.find((windowInfo) => windowInfo.id === windowId)?.terminal_number;
+    if (operatedNumber !== undefined) touchOperation(operatedNumber);
     try {
       const result = await action();
-      if (result.screenshot_resource) {
-        await loadScreenshotResource(result.screenshot_resource);
-        if (mountedRef.current) setScreenshotVersion((value) => value + 1);
-      }
+      if (result.screenshot_resource) frames.receive(result.screenshot_resource);
       if (result.success) {
         setActionNotice({ kind: 'success', translationKey: successTranslationKey });
       } else {
@@ -1237,7 +1131,7 @@ const PcTerminalNodeView: React.FC = () => {
       setActionWindowId('');
       void refresh(false);
     }
-  }, [errorTranslationKey, refresh, loadScreenshotResource]);
+  }, [errorTranslationKey, refresh, frames.receive, touchOperation]);
 
   const runDesktopIntegration = useCallback(async (
     action: TerminalDesktopIntegrationAction,
@@ -1545,7 +1439,8 @@ const PcTerminalNodeView: React.FC = () => {
     }
     pendingSessionRef.current = null;
     setSelectedTerminalNumber(terminalNumber);
-  }, [flushDraft, selectedTerminalNumber]);
+    touchOperation(terminalNumber);
+  }, [flushDraft, selectedTerminalNumber, touchOperation]);
 
   const hasLocalDraft = (terminalNumber: number) => Boolean(drafts[terminalDraftKey(terminalNumber)]?.trim());
   const agentToastName = useCallback(
@@ -1557,6 +1452,71 @@ const PcTerminalNodeView: React.FC = () => {
   useEffect(() => {
     if (selectedTerminalNumber !== null && selectedFinishedAt !== null) acknowledge(selectedTerminalNumber, selectedFinishedAt);
   }, [acknowledge, selectedTerminalNumber, selectedFinishedAt]);
+
+  // Operation history: every terminal that enters the operation view is recorded once (like browser
+  // history); back / forward only move the pointer, so the terminal left behind keeps its draft and
+  // returns exactly as it was.
+  const navHistory = useMemo(() => terminalNavHistoryFor(nodeKey), [nodeKey]);
+  const navState = useTerminalNavSnapshot(navHistory);
+  const operatingNumber = previewTerminalNumber ?? (isMobile ? null : operatedTerminalNumber);
+  useEffect(() => {
+    if (operatingNumber !== null) navHistory.visit(operatingNumber);
+  }, [navHistory, operatingNumber]);
+
+  const openTerminal = useCallback((terminalNumber: number) => {
+    const target = snapshotRef.current?.windows.find((windowInfo) => windowInfo.terminal_number === terminalNumber);
+    if (!target) return;
+    selectTerminal(terminalNumber);
+    setPreviewTerminalNumber(terminalNumber);
+    const activity = target.agent_activity;
+    if (activity && !activity.busy && typeof activity.finished_at === 'number') acknowledge(terminalNumber, activity.finished_at);
+    // A finished terminal is static: its last frame is transferred once, when it is opened.
+    if (target.online && (frames.isFrozen(target) || !frames.imageFor(target))) frames.forceLatest(target.id);
+  }, [acknowledge, frames, selectTerminal]);
+
+  const terminalExists = useCallback(
+    (terminalNumber: number) => Boolean(snapshotRef.current?.windows.some((windowInfo) => windowInfo.terminal_number === terminalNumber)),
+    [],
+  );
+  const navigateBack = useCallback(() => {
+    const target = navHistory.back(terminalExists);
+    if (target !== null) openTerminal(target);
+  }, [navHistory, openTerminal, terminalExists]);
+  const navigateForward = useCallback(() => {
+    const target = navHistory.forward(terminalExists);
+    if (target !== null) openTerminal(target);
+  }, [navHistory, openTerminal, terminalExists]);
+
+  // Finished terminals not opened yet, oldest first. Opening acknowledges the finish, so each one
+  // leaves the queue once and the queue never cycles.
+  const { acknowledged } = terminalWatch;
+  const finishedQueue = useMemo(() => (snapshot?.windows ?? NO_WINDOWS)
+    .filter((windowInfo) => {
+      const activity = windowInfo.agent_activity;
+      return windowInfo.online
+        && Boolean(activity)
+        && !activity?.busy
+        && typeof activity?.finished_at === 'number'
+        && activity.finished_at > (acknowledged[windowInfo.terminal_number] ?? 0)
+        && windowInfo.terminal_number !== operatingNumber;
+    })
+    .sort((left, right) => Number(left.agent_activity?.finished_at) - Number(right.agent_activity?.finished_at))
+    .map((windowInfo) => windowInfo.terminal_number), [acknowledged, operatingNumber, snapshot]);
+  const openNextFinished = useCallback(() => {
+    if (finishedQueue.length > 0) openTerminal(finishedQueue[0]);
+  }, [finishedQueue, openTerminal]);
+  const navActions = useMemo(() => ({ openFinished: openTerminal }), [openTerminal]);
+  const renderNavControls = (className = '') => (
+    <PcTerminalNavControls
+      canBack={navState.canBack}
+      canForward={navState.canForward}
+      finishedCount={finishedQueue.length}
+      onBack={navigateBack}
+      onForward={navigateForward}
+      onNextFinished={openNextFinished}
+      className={className}
+    />
+  );
 
   const updateSelectedDraft = useCallback((text: string) => {
     if (!selectedWindow) return;
@@ -1617,6 +1577,7 @@ const PcTerminalNodeView: React.FC = () => {
       void persistDraft(terminalNumber, draftText);
     }
     if (result?.success) {
+      frames.thaw(terminalNumber);
       if (textOverride === undefined) images.clear();
       writeCachedDraft(terminalNumber, null);
       draftsRef.current = { ...draftsRef.current, [key]: '' };
@@ -1658,6 +1619,7 @@ const PcTerminalNodeView: React.FC = () => {
       () => terminalApi.chooseTerminalOption(selectedWindow.id, selectedWindow.terminal_number, option, text),
       'terminal.choice.sent',
     );
+    if (result?.success) frames.thaw(selectedWindow.terminal_number);
     return Boolean(result?.success);
   }, [runAction, selectedWindow]);
 
@@ -1690,12 +1652,13 @@ const PcTerminalNodeView: React.FC = () => {
       ),
       options.force ? 'terminal.commands.forceSent' : 'terminal.commands.sent',
     );
+    if (result?.success) frames.thaw(selectedWindow.terminal_number);
     return Boolean(result?.success);
   }, [runAction, selectedWindow, takeSendOnce]);
 
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
-    await runAction(
+    const result = await runAction(
       selectedWindow.id,
       () => terminalApi.pressTerminalEnter(
         selectedWindow.id,
@@ -1703,7 +1666,8 @@ const PcTerminalNodeView: React.FC = () => {
       ),
       'terminal.sent',
     );
-  }, [runAction, selectedWindow]);
+    if (result?.success) frames.thaw(selectedWindow.terminal_number);
+  }, [runAction, selectedWindow, frames.thaw]);
 
   const captureOutput = useCallback(async (openEditor: boolean) => {
     if (!selectedWindow || !selectedWindow.online) return null;
@@ -2293,6 +2257,7 @@ const PcTerminalNodeView: React.FC = () => {
     return (
       <article
         key={windowInfo.terminal_number}
+        ref={frames.refFor(windowInfo.id)}
         data-terminal-number={windowInfo.terminal_number}
         className={`flex flex-col overflow-hidden rounded-2xl border shadow-sm transition-all ${
           compactLayout ? 'h-36' : 'min-h-[16rem] sm:min-h-[13rem]'
@@ -2403,6 +2368,7 @@ const PcTerminalNodeView: React.FC = () => {
   const live = Boolean(snapshot?.success && snapshot?.supported);
 
   return (
+    <PcTerminalNavActionsProvider value={navActions}>
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">
@@ -2491,6 +2457,7 @@ const PcTerminalNodeView: React.FC = () => {
               return (
                 <article
                   key={windowInfo.terminal_number}
+                  ref={frames.refFor(windowInfo.id)}
                   className={`absolute overflow-hidden rounded-lg border shadow-sm transition-all ${
                     selected
                       ? 'z-30 border-indigo-500 bg-indigo-500/20 ring-2 ring-indigo-500/20'
@@ -2605,6 +2572,7 @@ const PcTerminalNodeView: React.FC = () => {
         {/* Phones operate a terminal from its preview dialog; the side panel would mislead there. */}
         {!isMobile && (
           <section className="pc-glass h-fit">
+            <div className="flex items-center gap-2 rounded-t-2xl bg-slate-900 px-3 py-2">{renderNavControls()}</div>
             {renderOperationPanel(false)}
           </section>
         )}
@@ -2704,7 +2672,7 @@ const PcTerminalNodeView: React.FC = () => {
 
 
       <PcTerminalSpecialStates terminalNames={terminalNames} />
-      <PcTerminalAgentDoneToasts windows={snapshot?.windows ?? []} nameFor={agentToastName} onOpen={selectTerminal} />
+      <PcTerminalAgentDoneToasts windows={snapshot?.windows ?? []} nameFor={agentToastName} onOpen={openTerminal} />
 
       <PcMachineSendDock
         tabs={[{
@@ -2730,6 +2698,7 @@ const PcTerminalNodeView: React.FC = () => {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white">
+              {renderNavControls()}
               <p className="min-w-0 truncate text-sm font-semibold">
                 #{previewWindow.terminal_number} · {terminalName(previewWindow, t('terminal.untitled'))}
               </p>
@@ -2843,6 +2812,7 @@ const PcTerminalNodeView: React.FC = () => {
         />
       )}
     </div>
+    </PcTerminalNavActionsProvider>
   );
 };
 
