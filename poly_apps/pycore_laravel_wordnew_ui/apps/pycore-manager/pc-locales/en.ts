@@ -3,12 +3,14 @@ import { pcEnCore } from './PcEnCore';
 import { pcEnFeatures } from './PcEnFeatures';
 import { pcEnPages } from './PcEnPages';
 import { aiHubEn } from './PcAiHubLocales';
+import { meshLoginEn } from './PcMeshLoginLocales';
 
 export const pcEn = {
   ...pcEnCore,
   ...pcEnFeatures,
   ...pcEnPages,
   aiHub: aiHubEn,
+  meshLogin: meshLoginEn,
 } as const;
 
 type PcDeepStringify<T> = {
