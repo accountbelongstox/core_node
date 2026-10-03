@@ -71,7 +71,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
                 {/* Outer Breathing Ring for the Circle */}
                 <style>{DOCK_KEYFRAMES}</style>
                 <div
-                  style={{ animation: 'wfnewDockRing 2.5s ease-in-out infinite', willChange: 'transform, opacity', WebkitMaskImage: SOFT_EDGE_MASK, maskImage: SOFT_EDGE_MASK }}
+                  style={{ animation: 'wfnewDockRing 2.5s ease-in-out 4', willChange: 'transform, opacity', WebkitMaskImage: SOFT_EDGE_MASK, maskImage: SOFT_EDGE_MASK }}
                   className={`absolute w-15 h-15 rounded-full bg-gradient-to-tr ${tab.color} scale-110 -z-10`}
                 />
                 
@@ -83,7 +83,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
                   }`}
                   title={tab.label}
                 >
-                  <div style={isActive ? { animation: 'wfnewDockIcon 3s ease-in-out infinite', willChange: 'transform' } : undefined}>
+                  <div style={isActive ? { animation: 'wfnewDockIcon 3s ease-in-out 4', willChange: 'transform' } : undefined}>
                     {tab.icon}
                   </div>
                 </button>
@@ -112,7 +112,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
               {/* Dynamic Breathing Underglow Glow filter on Focus */}
               {isActive && (
                 <div
-                  style={{ animation: 'wfnewDockGlow 3s ease-in-out infinite', willChange: 'transform, opacity', WebkitMaskImage: SOFT_EDGE_MASK, maskImage: SOFT_EDGE_MASK }}
+                  style={{ animation: 'wfnewDockGlow 3s ease-in-out 4', willChange: 'transform, opacity', WebkitMaskImage: SOFT_EDGE_MASK, maskImage: SOFT_EDGE_MASK }}
                   className={`absolute -bottom-1 w-6 h-1 rounded-full bg-gradient-to-r ${tab.color}`}
                 />
               )}

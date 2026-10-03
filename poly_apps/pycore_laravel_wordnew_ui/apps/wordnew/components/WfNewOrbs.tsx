@@ -23,7 +23,7 @@ const orbStyle = (
 ): React.CSSProperties => ({
   backgroundImage: `radial-gradient(closest-side, ${ORB_COLORS[orb][dark ? 'dark' : 'light']}, transparent)`,
   willChange: animate ? 'transform' : undefined,
-  animation: animate ? `${anim} ${seconds}s ease-in-out ${delay}s infinite` : undefined,
+  animation: animate ? `${anim} ${seconds}s ease-in-out ${delay}s 3` : undefined,
 });
 
 interface WfNewOrbsProps {
