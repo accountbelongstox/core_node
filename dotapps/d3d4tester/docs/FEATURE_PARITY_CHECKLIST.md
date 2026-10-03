@@ -30,9 +30,9 @@
 - [~] 卡奈转换 + 材料 — 仅打印“未实现”（Py 为 TODO）
 - [~] 丢弃装备 — 只绑定配置（Py 同）
 - [x] 自动确保战网正常（DOT） — `Services/BattlenetGuardService`
-- [x] 战网状态以右上角头像为准（Offline = 头像离线异常；Online/Away/Busy/Appear Offline = 正常） — `BattlenetOperationBase.ReadAccountPresence`
+- [x] 战网状态以右上角头像为准（Offline = 头像离线异常；Online/Away/Busy/Appear Offline = 正常）；只有头像菜单里的 BattleTag 文本与菜单名一致时才采信，BattleTag 显示在状态栏 — `BattlenetOperationBase.ReadAccountPresence`
 - [x] 广告/欢迎弹窗（`*-modal` + Close）自动识别并关闭 — `BattlenetPopupDismiss.TryCloseModal`
-- [x] D3/D4 页签、开始按钮识别（状态栏 4 个图标） — `BattlenetOperationBase.DetectGameUi`
+- [x] D3/D4 页签与游戏页按钮状态识别（开始游戏 / 更新 / 未安装 / 免费试玩·购买 / 启动中），按选中页签或按钮里的游戏名归属，状态栏 D3、D4 两个徽章各带状态图标；每个游戏记住最后看到的状态 — `BattlenetOperationBase.DetectGameUi`、`GameInterfaceData.MergeGameUi`
 - [ ] 切换 D3/D4 页签并点开始游戏（基于上面的识别）
 - [x] 战网、ROSBOT 不是本程序的子进程（父进程 = 桌面 explorer，程序重启/退出不影响） — `DotCore.Utils.ShellOpen.StartProgram`
 - [x] 启动 D3（不带 ROSBOT） — `LoginTryController.EnsureD3RunningFromBattlenetNoRosbot`
@@ -126,6 +126,7 @@
 - [x] 程序日志按天落盘，战网的每次启动/关闭都记录状态与调用来源 — `ColorPrinter.EnableFileLog`、`~/.core_node/.d3check/logs/`
 - [x] 安全验证页自动点 Continue（id `submit`，60 秒内只点一次，发送验证码邮件） — `BrowserLoginAutomation.SubmitSecurityCheck`，由 `BattlenetStateWatchdog` 在守护运行时调用
 - [~] 验证码输入页（"Please enter the security code sent to: …"，Resend code / Submit / Go Back）— 已识别并等待人工输入；验证码只在邮箱里，程序不能自动填写
+- [x] 流程的“退出重启”（B5）只关闭不正常的战网：正常 / 弹窗 / 游戏启动中一律保留；B13 确认已登录后重置超时 — `BattlenetManager.CloseIfUnhealthy`、`BattlenetReadyFlow.Confirm`
 - [x] 登录中 / 安全验证 / 邮件与验证码页期间绝不关闭或重启战网 — `BattlenetManager.Close`（现场探测后拒绝）、`BattlenetReadyFlow` B5 改为继续等待、看门狗豁免
 - [x] 密码输入改为键盘逐字输入（网页表单不接受 ValuePattern 直接赋值） — `BrowserLoginAutomation.Fill`、`BattlenetAsiaOps.FillField`
 - [x] 多账号（DOT，国服/亚服分开、加密、头像菜单退出切换） — `Config/BattlenetAccountService`、`Pages/Battlenet`

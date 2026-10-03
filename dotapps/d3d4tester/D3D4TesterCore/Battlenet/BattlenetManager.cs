@@ -110,9 +110,10 @@ public sealed class BattlenetManager
     /// </summary>
     public bool Close(bool force = false)
     {
-        if (!force && BattlenetClientStateDetector.Detect() is { IsWaitingForUser: true } status)
+        if (!force && BattlenetClientStateDetector.Detect() is { } status
+            && (status.IsWaitingForUser || status.State == BattlenetClientState.GameStarting))
         {
-            ColorPrinter.Yellow($"{LogPrefix} Not closing Battle.net: {status.State} (user is logging in / entering the code)");
+            ColorPrinter.Yellow($"{LogPrefix} Not closing Battle.net: {status.State} (user is logging in / entering the code, or a game is starting) caller: {DescribeCaller()}");
             return false;
         }
         ColorPrinter.Yellow($"{LogPrefix} Killing Battle.net (state {BattlenetClientStateDetector.Detect().State}, force={force}) caller: {DescribeCaller()}");
@@ -127,6 +128,21 @@ public sealed class BattlenetManager
         .Where(m => m?.DeclaringType != null && m.DeclaringType != typeof(BattlenetManager) && m.DeclaringType.Namespace?.StartsWith("DotApps", StringComparison.Ordinal) == true)
         .Take(4)
         .Select(m => m!.DeclaringType!.Name + "." + m.Name));
+
+    /// <summary>
+    /// Flow "exit and restart" (B5): only an unhealthy client is closed. A healthy main UI, an in-page popup, a starting game or a
+    /// user-wait screen (fresh probe) is kept and false is returned so the flow keeps polling.
+    /// </summary>
+    public bool CloseIfUnhealthy()
+    {
+        var status = BattlenetClientStateDetector.Detect();
+        if (status.State is BattlenetClientState.Normal or BattlenetClientState.Popup)
+        {
+            ColorPrinter.Yellow($"{LogPrefix} Not closing Battle.net: client is healthy ({status.State}) caller: {DescribeCaller()}");
+            return false;
+        }
+        return Close();
+    }
 
     /// <summary>Alias of Close. 1:1 Python kill.</summary>
     public bool Kill(bool force = false) => Close(force);
