@@ -319,6 +319,13 @@
         // This helper backs both chrome_read_page and chrome_computer.
         case 'chrome_read_page_ping':
         case 'chrome_computer_ping':
+          // Answer only for this file: the same tools also inject other helpers.
+          if (
+            Array.isArray(request.files) &&
+            !request.files.some((file) => String(file).includes('accessibility-tree-helper'))
+          ) {
+            return false;
+          }
           sendResponse({ status: 'pong' });
           return false;
         default:

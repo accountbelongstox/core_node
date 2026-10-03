@@ -21,6 +21,7 @@ import { clampRecheckInterval } from '../../health/OfflineRecheckScheduler';
 import { loadWebAccessConfig } from '../../contracts/DomainConfig';
 import { persistSharedBaseURL, setSharedBaseURL, setSharedServiceLink } from './transport/BaseAPI';
 import { StorageManager } from '../../persistence';
+import { registerAuthServerId } from '../../auth/AuthSession';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 import { EndpointProbeAPI } from './transport/EndpointProbeAPI';
 import { serverSchemaGate } from './ServerSchemaGate';
@@ -234,6 +235,8 @@ class ApiManager {
       const healthy = (response.success || schema === 'pending') && !!payload
         && (payload.status !== undefined || payload.service !== undefined || schema !== 'unknown');
       if (endpoint.id === this.currentEndpoint?.id) serverSchemaGate.observeHealth(payload);
+      // Endpoints answering with one server id are one server and share one login session.
+      if (healthy && typeof payload?.server_id === 'string') registerAuthServerId(baseURL, payload.server_id);
       result = {
         endpoint,
         isHealthy: healthy,

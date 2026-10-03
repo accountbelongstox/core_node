@@ -1,14 +1,18 @@
+import { authNamespaceOf } from './AuthSession';
+
 export const AUTH_LOGIN_REQUEST_EVENT = 'app-auth:login-request';
 export const AUTH_LOGIN_DISMISS_EVENT = 'app-auth:login-dismiss';
 export const AUTH_LOGIN_SUCCESS_EVENT = 'app-auth:login-success';
 export const AUTH_SESSION_CHANGED_EVENT = 'UnifiedUser-session-changed';
 const AUTH_LOGIN_REQUEST_COOLDOWN_MS = 1000;
 
-let lastAuthLoginRequestAt = 0;
+const lastAuthLoginRequestAt = new Map<string, number>();
 
 export interface AuthLoginRequestContext {
   source?: string;
   reason?: string;
+  /** Laravel API the login is for (default: the active one); its namespace is the session key. */
+  baseUrl?: string;
 }
 
 export interface AuthLoginRequestDetail extends AuthLoginRequestContext {
@@ -18,14 +22,17 @@ export interface AuthLoginRequestDetail extends AuthLoginRequestContext {
 export interface AuthLoginSuccessDetail {
   user: unknown;
   request: AuthLoginRequestDetail | null;
+  /** Namespace of the Laravel API that was logged in to. */
+  namespace?: string;
 }
 
 /** Ask the application shell to open its shared login window. */
 export function requestAuthLogin(context: AuthLoginRequestContext = {}): void {
   const requestedAt = Date.now();
   if (typeof window === 'undefined') return;
-  if (requestedAt - lastAuthLoginRequestAt < AUTH_LOGIN_REQUEST_COOLDOWN_MS) return;
-  lastAuthLoginRequestAt = requestedAt;
+  const cooldownKey = context.baseUrl ? authNamespaceOf(context.baseUrl) : '';
+  if (requestedAt - (lastAuthLoginRequestAt.get(cooldownKey) ?? 0) < AUTH_LOGIN_REQUEST_COOLDOWN_MS) return;
+  lastAuthLoginRequestAt.set(cooldownKey, requestedAt);
   window.dispatchEvent(new CustomEvent<AuthLoginRequestDetail>(AUTH_LOGIN_REQUEST_EVENT, {
     detail: { ...context, requestedAt },
   }));
@@ -59,10 +66,11 @@ export function subscribeAuthLoginDismiss(listener: () => void): () => void {
 export function notifyAuthLoginSuccess(
   user: unknown,
   request: AuthLoginRequestDetail | null,
+  namespace?: string,
 ): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<AuthLoginSuccessDetail>(AUTH_LOGIN_SUCCESS_EVENT, {
-    detail: { user, request },
+    detail: { user, request, namespace },
   }));
   window.dispatchEvent(new CustomEvent(AUTH_SESSION_CHANGED_EVENT));
 }

@@ -522,11 +522,17 @@ class ComputerTool extends BaseBrowserToolExecutor {
           if (!keys) {
             return createErrorResponse('text parameter is required for type/key action');
           }
+          // action=key takes space-separated chords ("Backspace Enter"); the
+          // keyboard helper separates chords with commas.
+          const keySelector = args.ref
+            ? (await this.resolveRef(targetTabId, args.ref))?.selector ?? args.selector
+            : args.selector;
           return await keyboardTool.execute({
-            keys,
-            selector: args.selector,
+            keys: action === 'key' ? keys.trim().split(/\s+/).join(',') : keys,
+            selector: keySelector,
             repeat: args.repeat,
             tabId: targetTabId,
+            literalText: action === 'type',
           });
         }
 
@@ -552,18 +558,11 @@ class ComputerTool extends BaseBrowserToolExecutor {
         }
 
         case 'screenshot': {
-          // screenshotTool re-queries the active tab of the current window and
-          // cannot accept a tabId (lives outside this area), so activate the
-          // resolved tab + its window first so its active-tab query resolves to
-          // targetTab. Best-effort: focus may be unavailable in headless contexts.
-          try {
-            await this.ensureFocus(finalTab, { activate: true, focusWindow: true });
-          } catch (e) {
-            console.warn('Failed to focus target tab for screenshot:', e);
-          }
           return await screenshotTool.execute({
             name: 'computer_screenshot',
             selector: args.selector,
+            tabId: targetTabId,
+            background: args.background,
           });
         }
 

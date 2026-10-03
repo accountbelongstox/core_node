@@ -6,11 +6,31 @@ import * as dns from 'dns';
 import * as net from 'net';
 import fetch from 'node-fetch';
 
+const serviceContract = require('../../../../../config/service_contract');
+
 // Limits for the extension-driven chunked file read (Firefox upload path).
 // Native messaging caps host -> extension messages at 1 MB, so raw chunks are
 // clamped well below that to leave room for base64 expansion and JSON framing.
 const MAX_READ_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_READ_CHUNK_BYTES = 512 * 1024;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SCREENSHOT_RETENTION_MS = Number(serviceContract.value('mcp_chrome.screenshot_retention_days')) * DAY_MS;
+
+// Screenshots land in one fixed runtime folder instead of the browser's Downloads:
+// <legacy_linux_data_dir>/<runtime>/<screenshots> on POSIX (next to the host logs),
+// %LOCALAPPDATA%/<core_node>/<runtime>/<screenshots> on Windows.
+function screenshotDir(): string {
+  const runtimeDirName = serviceContract.value('mcp_chrome.runtime_dir_name');
+  const screenshotDirName = serviceContract.value('mcp_chrome.screenshot_dir_name');
+  const baseDir =
+    process.platform === 'win32'
+      ? path.join(
+          process.env.LOCALAPPDATA || os.homedir(),
+          serviceContract.value('paths.core_node_data_dir_name'),
+        )
+      : serviceContract.value('paths.legacy_linux_data_dir');
+  return path.join(baseDir, runtimeDirName, screenshotDirName);
+}
 
 // Block private/loopback/link-local ranges so a caller-supplied fileUrl cannot
 // be aimed at internal services or cloud-metadata endpoints (SSRF). Every
@@ -68,6 +88,9 @@ export class FileHandler {
 
         case 'readFileChunk':
           return await this.readFileChunk(filePath, offset, length);
+
+        case 'saveScreenshot':
+          return await this.saveScreenshot(base64Data, fileName);
 
         default:
           return {
@@ -142,6 +165,39 @@ export class FileHandler {
       };
     } catch (error) {
       throw new Error(`Failed to save base64 file: ${error}`);
+    }
+  }
+
+  private async saveScreenshot(base64Data: string, fileName?: string): Promise<any> {
+    if (!base64Data) {
+      return { success: false, error: 'base64Data is required' };
+    }
+    let dir = screenshotDir();
+    try {
+      await fs.promises.mkdir(dir, { recursive: true });
+      await fs.promises.access(dir, fs.constants.W_OK);
+    } catch {
+      dir = path.join(os.tmpdir(), 'chrome-mcp-screenshots');
+      await fs.promises.mkdir(dir, { recursive: true });
+    }
+    await this.pruneOldFiles(dir, SCREENSHOT_RETENTION_MS);
+    const buffer = Buffer.from(base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
+    const safeName = path.basename(fileName || `screenshot-${Date.now()}.png`).replace(/[^\w.-]/g, '_');
+    const filePath = path.join(dir, safeName);
+    await fs.promises.writeFile(filePath, buffer);
+    return { success: true, filePath, fileName: safeName, size: buffer.length };
+  }
+
+  private async pruneOldFiles(dir: string, maxAgeMs: number): Promise<void> {
+    const cutoff = Date.now() - maxAgeMs;
+    for (const entry of await fs.promises.readdir(dir)) {
+      const entryPath = path.join(dir, entry);
+      try {
+        const stat = await fs.promises.stat(entryPath);
+        if (stat.isFile() && stat.mtimeMs < cutoff) await fs.promises.unlink(entryPath);
+      } catch {
+        // A file removed concurrently needs no pruning.
+      }
     }
   }
 

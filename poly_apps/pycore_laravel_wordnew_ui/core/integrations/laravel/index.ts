@@ -89,3 +89,17 @@ export type {
   APIModuleConfig,
   CacheEntry,
 } from './transport/TransportTypes';
+export {
+  AUTH_INVALID_RESPONSE_CODE,
+  LaravelAuthError,
+  listLaravelInviteCodes,
+  loginLaravel,
+  logoutLaravel,
+  refreshLaravelSession,
+  registerLaravel,
+} from './LaravelAuthClient';
+export type {
+  LaravelCredentials,
+  LaravelPublicInviteCode,
+  LaravelRegistration,
+} from './LaravelAuthClient';

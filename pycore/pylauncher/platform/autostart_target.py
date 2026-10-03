@@ -70,18 +70,30 @@ def read_preference() -> dict:
             }
             user_data_store.set_section(_SECTION, personalized)
     data = user_data_store.get_section(_SECTION)
+    enabled = data.get("enabled")
     return {
         "target": normalize_target(data.get("target")),
         "mechanism": normalize_mechanism(data.get("mechanism")),
+        "mechanism_chosen": data.get("mechanism") in VALID_MECHANISMS,
+        "enabled": enabled if isinstance(enabled, bool) else None,
     }
 
 
-def write_preference(target=None, mechanism=None) -> dict:
-    """Persist provided values to the unified in-memory and JSON store."""
+def write_preference(target=None, mechanism=None, enabled=None) -> dict:
+    """Persist provided values to the unified in-memory and JSON store.
+
+    ``enabled`` records an explicit user choice; None (never chosen) lets the
+    service register auto-start by default on its first start.
+    """
     pref = read_preference()
+    pref.pop("mechanism_chosen", None)
     if target is not None:
         pref["target"] = normalize_target(target)
     if mechanism is not None:
         pref["mechanism"] = normalize_mechanism(mechanism)
+    if enabled is not None:
+        pref["enabled"] = bool(enabled)
+    if pref.get("enabled") is None:
+        pref.pop("enabled", None)
     user_data_store.set_section(_SECTION, pref)
     return pref

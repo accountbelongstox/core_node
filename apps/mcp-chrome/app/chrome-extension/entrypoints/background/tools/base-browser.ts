@@ -140,14 +140,19 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
   /**
    * Resolve the tab a tool should operate on. An explicit tabId wins and lets a
    * caller target a background/non-active tab; otherwise the active tab of the
-   * current window is used. Returns null when neither resolves so callers can
-   * surface a uniform TAB_NOT_FOUND error.
+   * given window (or the current window) is used. Returns null when neither
+   * resolves so callers can surface a uniform TAB_NOT_FOUND error.
    */
-  protected async resolveTargetTab(tabId?: number): Promise<chrome.tabs.Tab | null> {
+  protected async resolveTargetTab(
+    tabId?: number,
+    windowId?: number,
+  ): Promise<chrome.tabs.Tab | null> {
     if (typeof tabId === 'number') {
       return this.tryGetTab(tabId);
     }
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const query: chrome.tabs.QueryInfo =
+      typeof windowId === 'number' ? { active: true, windowId } : { active: true, currentWindow: true };
+    const [tab] = await chrome.tabs.query(query);
     return tab || null;
   }
 

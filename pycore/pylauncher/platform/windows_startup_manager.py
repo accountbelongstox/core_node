@@ -33,7 +33,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from pycore.pyfoundations.system_paths import get_app_data_dir
 from pycore.pyfoundations.system_service_state import is_elevated
@@ -146,7 +146,7 @@ class WindowsStartupManager:
         workdir = _ps_single_quote(str(self.pyservice_script.parent))
         return (
             f"Set-Location -LiteralPath {workdir}\n"
-            f"& {script} -NoInstall\n"
+            f"& {script} -NoInstall -NoReload -NoServicePrompt\n"
         )
 
     def _launcher_ps1(self, inline: bool = True) -> str:
@@ -316,8 +316,9 @@ class WindowsStartupManager:
     def _delete_task(self) -> bool:
         return self._run_task_command([str(SCHTASKS_EXE_PATH), "/Delete", "/TN", self.app_name, "/F"])
 
-    def _remove_shortcuts(self) -> List[str]:
-        removed = []
+    def _remove_shortcuts(self) -> Tuple[List[str], List[str]]:
+        """(removed paths, errors) for every existing startup shortcut."""
+        removed, errors = [], []
         for lnk in self._shortcut_paths():
             if not lnk.exists():
                 continue
@@ -325,9 +326,10 @@ class WindowsStartupManager:
                 lnk.unlink()
             except OSError as exc:
                 ColorPrint.yellow(f"[WindowsStartup] remove shortcut {lnk} failed: {exc}")
+                errors.append(f"{lnk}: {exc}")
                 continue
             removed.append(str(lnk))
-        return removed
+        return removed, errors
 
     def _install_task(self) -> bool:
         """Register the elevated task and drop the shortcuts so pycore starts once."""
@@ -342,8 +344,11 @@ class WindowsStartupManager:
         """Auto-start is on iff the elevated task or a shortcut (common or per-user) exists."""
         return any(p.exists() for p in self._shortcut_paths()) or self._task_exists()
 
-    def enable(self) -> dict:
-        """Regenerate the PS1, then create the startup shortcut (common, then user)."""
+    def enable(self, start_now: bool = True) -> dict:
+        """Regenerate the PS1, then register the logon task (shortcut as fallback).
+
+        Nothing is started here, so ``start_now`` is moot on Windows.
+        """
         # Always refresh the fixed PS1 so config changes are reflected.
         try:
             self._write_ps1()
@@ -390,16 +395,9 @@ class WindowsStartupManager:
                 removed.append(f"task:{self.app_name}")
             else:
                 errors.append(f"task {self.app_name}: delete failed (needs administrator rights)")
-        for lnk in self._shortcut_paths():
-            if not lnk.exists():
-                continue
-            try:
-                lnk.unlink()
-            except OSError as e:
-                ColorPrint.yellow(f"[WindowsStartup] remove shortcut {lnk} failed: {e}")
-                errors.append(f"{lnk}: {e}")
-                continue
-            removed.append(str(lnk))
+        removed_shortcuts, shortcut_errors = self._remove_shortcuts()
+        removed += removed_shortcuts
+        errors += shortcut_errors
         if errors and self.is_enabled():
             return {"success": False, "enabled": True,
                     "message": "Failed to remove startup shortcut: " + "; ".join(errors),
@@ -413,7 +411,7 @@ class WindowsStartupManager:
         return self.disable() if self.is_enabled() else self.enable()
 
     def refresh(self) -> bool:
-        """If enabled, rewrite the launcher and recreate existing shortcuts.
+        """If enabled, rewrite the launcher; migrate shortcuts to the elevated logon task.
 
         Called on every service start so launchers written by an OLDER version
         are upgraded to the current full-path pythonw entry without the user

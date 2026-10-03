@@ -12,7 +12,7 @@
  * structured clone (ArrayBuffer is supported by Firefox runtime messaging)
  * which builds File objects and assigns them to the <input type="file">.
  */
-import { getNativePort } from '../../native-host';
+import { sendFileOperationRequest } from '../../native-file-operation';
 import { base64ToBytes } from '@/utils/binary';
 
 // Hard cap for a single upload materialized in extension memory.
@@ -20,7 +20,6 @@ export const MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024;
 // Raw bytes per native read chunk; base64 expansion (~4/3) plus JSON framing
 // must stay safely under the 1 MB native messaging message limit.
 const NATIVE_READ_CHUNK_BYTES = 512 * 1024;
-const NATIVE_REQUEST_TIMEOUT_MS = 15000;
 const URL_FETCH_TIMEOUT_MS = 30000;
 const DEFAULT_FILE_NAME = 'uploaded-file';
 const DEFAULT_MIME_TYPE = 'application/octet-stream';
@@ -76,56 +75,6 @@ function assertWithinSizeLimit(size: number): void {
       `File is too large for Firefox upload: ${size} bytes (limit ${MAX_UPLOAD_FILE_BYTES} bytes / 50 MB)`,
     );
   }
-}
-
-/**
- * Send a file_operation request over the existing native messaging port and
- * wait for the matching file_operation_response. A dedicated port listener is
- * used because on Firefox the background context never receives its own
- * runtime.sendMessage broadcasts (the Chrome-path relay relies on that).
- */
-function sendFileOperationRequest(
-  payload: Record<string, unknown>,
-  timeoutMs: number = NATIVE_REQUEST_TIMEOUT_MS,
-): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const port = getNativePort();
-    if (!port) {
-      reject(
-        new Error(
-          'Native messaging host is not connected; local file paths require the native host on Firefox',
-        ),
-      );
-      return;
-    }
-
-    const requestId = `firefox-file-upload-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-
-    const onMessage = (message: any) => {
-      if (message?.type !== 'file_operation_response' || message.responseToRequestId !== requestId) {
-        return;
-      }
-      clearTimeout(timer);
-      port.onMessage.removeListener(onMessage);
-      if (message.error) {
-        reject(new Error(String(message.error)));
-      } else {
-        resolve(message.payload);
-      }
-    };
-
-    const timer = setTimeout(() => {
-      port.onMessage.removeListener(onMessage);
-      reject(new Error(`Native file operation timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-
-    port.onMessage.addListener(onMessage);
-    port.postMessage({
-      type: 'file_operation',
-      requestId,
-      payload,
-    });
-  });
 }
 
 /**
