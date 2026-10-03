@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:codemart:flows": "node apps/codemart/tests/flows.mjs",
+    "test:codemart:crawl": "bun apps/codemart/tests/crawl.mjs"
   },
   "dependencies": {
     "@capacitor-community/keep-awake": "^8.0.1",
