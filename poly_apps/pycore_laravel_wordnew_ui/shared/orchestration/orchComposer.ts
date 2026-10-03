@@ -15,7 +15,7 @@ import {
 } from './orchClipResolver';
 import { OrchClipTable } from './orchClipTable';
 import { ORCH_CLIP_GAP_MS, planComposition } from './orchPlanner';
-import { buildTimeline, type OrchTimelineEntry } from './orchStageLayout';
+import { buildTimeline, orchPlaceholderMs, type OrchTimelineEntry } from './orchStageLayout';
 import type {
   OrchComposePlan,
   OrchComposeSentence,
@@ -311,6 +311,6 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     const key = byKey.get(`${item.kind}\u0000${item.language}\u0000${item.text}`) ?? '';
     const clip = resolved.clips.get(key);
     return clip ? { url: clip.url, durationMs: durations.get(key) ?? 0 } : null;
-  }, ORCH_CLIP_GAP_MS));
+  }, ORCH_CLIP_GAP_MS, orchPlaceholderMs));
   return publish({ phase: 'ready', timelines });
 }

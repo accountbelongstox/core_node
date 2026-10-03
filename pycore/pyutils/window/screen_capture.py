@@ -29,8 +29,16 @@ TERMINAL_CAPTURE_MAX_WIDTH = relay_contract.limit(
 TERMINAL_CAPTURE_MAX_HEIGHT = relay_contract.limit(
     "terminal_screenshot_max_height"
 )
-TERMINAL_CAPTURE_PNG_COMPRESSION = relay_contract.limit(
-    "terminal_screenshot_png_compression"
+TERMINAL_CAPTURE_QUALITY = relay_contract.limit("terminal_screenshot_quality")
+TERMINAL_CAPTURE_WEBP_METHOD = 4
+TERMINAL_SIGNATURE_WIDTH = relay_contract.limit(
+    "terminal_screenshot_signature_width"
+)
+TERMINAL_SIGNATURE_HEIGHT = relay_contract.limit(
+    "terminal_screenshot_signature_height"
+)
+TERMINAL_SIGNATURE_LEVEL_STEP = 256 // relay_contract.limit(
+    "terminal_screenshot_signature_levels"
 )
 DESKTOP_VIEW_MAX_WIDTH = relay_contract.limit("desktop_view_max_width")
 DESKTOP_VIEW_MAX_HEIGHT = relay_contract.limit("desktop_view_max_height")
@@ -154,8 +162,8 @@ def grab_screen_regions(
     return images
 
 
-def encode_capture_png(image: "Image.Image", captured_at: int) -> Dict[str, Any]:
-    """Downscale to the terminal preview limits and encode as a digest-addressed PNG."""
+def encode_capture_image(image: "Image.Image", captured_at: int) -> Dict[str, Any]:
+    """Downscale to the terminal preview limits and encode as a digest-addressed lossy image."""
     Image = get_third_package_PIL_Image()
     width, height = image.size
     scale = min(
@@ -168,21 +176,40 @@ def encode_capture_png(image: "Image.Image", captured_at: int) -> Dict[str, Any]
             (max(1, int(width * scale)), max(1, int(height * scale))),
             Image.Resampling.BILINEAR,
         )
+    Image.init()
+    if "WEBP" in Image.SAVE:
+        image_format, mime = "WEBP", "image/webp"
+        options = {"quality": TERMINAL_CAPTURE_QUALITY, "method": TERMINAL_CAPTURE_WEBP_METHOD}
+    else:
+        image_format, mime = "JPEG", "image/jpeg"
+        options = {"quality": TERMINAL_CAPTURE_QUALITY}
     output = BytesIO()
-    image.convert("RGB").save(
-        output,
-        format="PNG",
-        compress_level=TERMINAL_CAPTURE_PNG_COMPRESSION,
-    )
-    png_bytes = output.getvalue()
+    image.convert("RGB").save(output, format=image_format, **options)
+    encoded = output.getvalue()
     return {
-        "mime": "image/png",
-        "body": png_bytes,
-        "digest": hashlib.sha256(png_bytes).hexdigest(),
+        "mime": mime,
+        "body": encoded,
+        "digest": hashlib.sha256(encoded).hexdigest(),
         "width": image.width,
         "height": image.height,
         "captured_at": captured_at,
     }
+
+
+def frame_signature(image: "Image.Image") -> bytes:
+    """Quantized grayscale thumbnail used to detect a visible change before encoding."""
+    Image = get_third_package_PIL_Image()
+    thumbnail = image.resize(
+        (TERMINAL_SIGNATURE_WIDTH, TERMINAL_SIGNATURE_HEIGHT),
+        Image.Resampling.BOX,
+    ).convert("L")
+    return bytes(value // TERMINAL_SIGNATURE_LEVEL_STEP for value in thumbnail.tobytes())
+
+
+def frame_signature_distance(first: bytes, second: bytes) -> float:
+    """Mean absolute level difference between two signatures, in thousandths of a level."""
+    total = sum(abs(left - right) for left, right in zip(first, second))
+    return 1000.0 * total / max(1, len(first))
 
 
 def get_primary_monitor_rect() -> Optional[Dict[str, int]]:

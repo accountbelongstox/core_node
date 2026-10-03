@@ -200,6 +200,23 @@ export interface TerminalDesktopIntegrationResult {
   capabilities?: Partial<Record<TerminalCapabilityName, TerminalCapability>>;
 }
 
+export interface TerminalViewerDemandOptions {
+  /** The one terminal being operated: only it is captured, once per second. */
+  focusWindowId?: string;
+  /** Windows captured right now (the last frame of a terminal that is opened). */
+  forceWindowIds?: string[];
+}
+
+export interface TerminalViewerDemandResult {
+  success?: boolean;
+  error_code?: string | null;
+  viewer_id?: string;
+  window_ids?: string[];
+  lease_seconds?: number;
+  /** Current frame metadata of every leased and forced window. */
+  screenshots?: Record<string, TerminalScreenshotResourceMeta>;
+}
+
 export interface TerminalSnapshot {
   success: boolean;
   platform: string;
@@ -421,11 +438,16 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       visible_window_ids: visibleWindowIds,
     }) as Promise<TerminalSnapshot>,
     /** Cheap lease renewal that keeps screenshot capture running for the windows this viewer shows. */
-    renewTerminalViewerDemand: (viewerId: string, visibleWindowIds: string[]) =>
-      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalViewerDemand, {
-        viewer_id: viewerId,
-        visible_window_ids: visibleWindowIds,
-      }),
+    renewTerminalViewerDemand: (
+      viewerId: string,
+      visibleWindowIds: string[],
+      options: TerminalViewerDemandOptions = {},
+    ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalViewerDemand, {
+      viewer_id: viewerId,
+      visible_window_ids: visibleWindowIds,
+      ...(options.focusWindowId ? { focus_window_id: options.focusWindowId } : {}),
+      ...(options.forceWindowIds?.length ? { force_window_ids: options.forceWindowIds } : {}),
+    }) as Promise<TerminalViewerDemandResult>,
     getTerminalScreenshot: (
       windowId: string,
       digest: string,

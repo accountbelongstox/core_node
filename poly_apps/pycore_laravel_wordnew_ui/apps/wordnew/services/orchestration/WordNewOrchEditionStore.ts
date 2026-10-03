@@ -1,20 +1,21 @@
 /**
- * Playback editions: the frozen composition the player page plays, kept apart
- * from the live run (the resources page previews the live run).
+ * Playback editions: the pre-compiled composition the preview and the player
+ * page play, kept apart from the live run.
  *
- * A run reaching `ready` with other clips than the edition (count or length)
- * is an offer. With no player page holding the task, the offer is copied into
- * a new edition at once; while a player holds it, the offer waits and the page
- * asks whether to replace - only an accepted offer is copied, so a playing
- * edition never changes under the player. Editions are kept per user on the
- * device (`wfnew-orch/users/<user>/editions/<task>.json`), so opening the
+ * An edition is the whole timeline: clips still missing are placeholders the
+ * player skips. The first run reaching `ready` publishes it; after that it is
+ * static - opening a page or a re-run never recompiles it. A later run with
+ * other clips (new or updated resources, a re-orchestrated plan) is an offer
+ * that replaces the edition only when accepted. Editions are kept per user on
+ * the device (`wfnew-orch/users/<user>/editions/<task>.json`), so opening a
  * player needs no run and no network. The file is compact (one bridge write
- * on the app): items and clip URLs once each, timelines as flat number rows.
+ * on the app): items and clip URLs once each, timelines as flat number rows
+ * (a placeholder's URL index is -1).
  */
 import { capFs, Directory } from '../../platform/capabilities';
 import type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
-import type { OrchTimelineEntry } from '../../../../shared/orchestration/orchStageLayout';
+import { orchEntryPlayable, type OrchTimelineEntry } from '../../../../shared/orchestration/orchStageLayout';
 import type { OrchComposeItem, OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
 import { orchNewWords } from '../../components/orch-compose/WordNewOrchNewWords';
 import { wordNewOrchComposer } from './WordNewOrchComposer';
@@ -34,6 +35,7 @@ export interface OrchPlaybackEdition {
   /** Read state of every spoken word (virtual reads of played words). */
   words: Record<string, OrchWordState>;
   newWords: string[];
+  /** Playable clips (placeholders not counted). */
   clips: number;
   durationMs: number;
 }
@@ -60,6 +62,8 @@ interface EditionDocument {
 }
 
 const ENTRY_FIELDS = 4;
+const NO_URL = -1;
+const PAGE_LOCAL_URL_PREFIX = 'blob:';
 
 function commonPrefix(values: string[]): string {
   if (values.length === 0) return '';
@@ -83,7 +87,7 @@ function encodeEdition(edition: OrchPlaybackEdition): StoredEdition {
       item = items.push(entry.item) - 1;
       itemIndex.set(entry.item, item);
     }
-    let url = urlIndex.get(entry.clipUrl);
+    let url = orchEntryPlayable(entry) ? urlIndex.get(entry.clipUrl) : NO_URL;
     if (url === undefined) {
       url = urls.push(entry.clipUrl) - 1;
       urlIndex.set(entry.clipUrl, url);
@@ -100,7 +104,8 @@ function decodeEdition(stored: StoredEdition | null | undefined): OrchPlaybackEd
   const timelines = segments.map((row) => {
     const timeline: OrchTimelineEntry[] = [];
     for (let at = 0; at + ENTRY_FIELDS <= row.length; at += ENTRY_FIELDS) {
-      timeline.push({ item: items[row[at]], clipUrl: urlPrefix + urls[row[at + 1]], startMs: row[at + 2], endMs: row[at + 3] });
+      const url = row[at + 1];
+      timeline.push({ item: items[row[at]], clipUrl: url === NO_URL ? '' : urlPrefix + urls[url], startMs: row[at + 2], endMs: row[at + 3] });
     }
     return timeline;
   });
@@ -117,7 +122,7 @@ type Listener = () => void;
 
 function measure(timelines: OrchTimelineEntry[][]): { clips: number; durationMs: number } {
   return {
-    clips: timelines.reduce((total, timeline) => total + timeline.length, 0),
+    clips: timelines.reduce((total, timeline) => total + timeline.filter(orchEntryPlayable).length, 0),
     durationMs: timelines.reduce((total, timeline) => total + (timeline[timeline.length - 1]?.endMs ?? 0), 0),
   };
 }
@@ -128,6 +133,10 @@ function signatureOf(planHash: string, clips: number, durationMs: number): strin
 
 function editionSignature(edition: OrchPlaybackEdition | null): string {
   return edition ? signatureOf(edition.planHash, edition.clips, edition.durationMs) : '';
+}
+
+function hasPageLocalUrls(edition: OrchPlaybackEdition): boolean {
+  return edition.timelines.some((timeline) => timeline.some((entry) => entry.clipUrl.startsWith(PAGE_LOCAL_URL_PREFIX)));
 }
 
 function newEditionId(): string {
@@ -173,7 +182,6 @@ function copyEdition(task: OrchComposeTask, session: OrchComposeSession): OrchPl
 class WordNewOrchEditionStoreService {
   private readonly editions = new Map<string, OrchPlaybackEdition | null>();
   private readonly loads = new Map<string, Promise<OrchPlaybackEdition | null>>();
-  private readonly holds = new Map<string, number>();
   private readonly offers = new Map<string, Offer>();
   private readonly dismissed = new Map<string, string>();
   private readonly listeners = new Map<string, Set<Listener>>();
@@ -227,7 +235,7 @@ class WordNewOrchEditionStoreService {
     return edition;
   }
 
-  /** A run reached `ready`: publish it, or hold it as an offer while a player plays the task. */
+  /** A run reached `ready`: the first one becomes the edition, a later one with other clips waits as an offer. */
   private async offer(taskId: string, session: OrchComposeSession): Promise<void> {
     if (this.seen.has(session.timelines) || session.timelines.length === 0) return;
     this.seen.add(session.timelines);
@@ -241,7 +249,7 @@ class WordNewOrchEditionStoreService {
       this.offers.delete(key);
       return;
     }
-    if (!current || !this.holds.get(key)) {
+    if (!current) {
       await this.publish(task, session);
       return;
     }
@@ -258,40 +266,27 @@ class WordNewOrchEditionStoreService {
   }
 
   /**
-   * The player page opens the task: its edition, brought up to the live run
-   * first (nothing plays yet, so a newer run replaces it directly). Hold it
-   * until `release`.
+   * A page opens the task: its stored edition as is (no recompilation). Only
+   * without one is a ready run published; a differing run stays an offer.
    */
   async open(task: OrchComposeTask): Promise<OrchPlaybackEdition | null> {
     const key = this.key(task.id);
-    this.holds.set(key, (this.holds.get(key) ?? 0) + 1);
     const current = await this.load(task.id);
     const session = wordNewOrchComposer.session(task.id);
-    if (session?.phase === 'ready' && session.planHash === task.planHash && session.timelines.length > 0) {
-      this.seen.add(session.timelines);
-      const { clips, durationMs } = measure(session.timelines);
-      if (current && signatureOf(session.planHash, clips, durationMs) === editionSignature(current)) {
-        // Same clips: keep the edition, take this session's clip URLs (a page-local URL dies with its page).
-        const fresh = copyEdition(task, session);
-        if (fresh) this.editions.set(key, { ...fresh, id: current.id, publishedAt: current.publishedAt });
-        this.offers.delete(key);
-        this.emit(task.id);
-        return this.edition(task.id);
-      }
-      return this.publish(task, session);
+    if (session?.phase !== 'ready' || session.planHash !== task.planHash || session.timelines.length === 0) return current;
+    if (!current) return this.publish(task, session);
+    const { clips, durationMs } = measure(session.timelines);
+    if (signatureOf(session.planHash, clips, durationMs) !== editionSignature(current)) {
+      await this.offer(task.id, session);
+      return current;
     }
-    const offer = this.offers.get(key);
-    if (offer && current) return this.publish(offer.task, offer.session);
-    return current;
-  }
-
-  /** The player left: a waiting offer is published now. */
-  release(taskId: string): void {
-    const key = this.key(taskId);
-    const holds = Math.max(0, (this.holds.get(key) ?? 0) - 1);
-    this.holds.set(key, holds);
-    const offer = this.offers.get(key);
-    if (holds === 0 && offer) void this.publish(offer.task, offer.session);
+    if (hasPageLocalUrls(current)) {
+      // Same clips, page-local URLs (web): take this session's URLs, they die with their page.
+      const fresh = copyEdition(task, session);
+      if (fresh) this.editions.set(key, { ...fresh, id: current.id, publishedAt: current.publishedAt });
+      this.emit(task.id);
+    }
+    return this.edition(task.id);
   }
 
   edition(taskId: string): OrchPlaybackEdition | null {

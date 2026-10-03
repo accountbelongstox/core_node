@@ -270,6 +270,7 @@ export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly Orch
       origin: source.origin,
       resolve: (resources, context, found) => {
         const scope = holder.current;
+        console.warn('[DBG] scope', stage, { resources: resources.length, covered: scope?.covered.size, ready: scope?.ready.size, uncovered: scope ? resources.filter((r) => !scope.covered.has(r.key)).length : -1, readyIn: scope ? resources.filter((r) => scope.ready.has(r.key)).length : -1 });
         if (!scope) return source.resolve(resources, context, found);
         if (!generate) {
           return source.resolve(resources.filter((resource) => !scope.covered.has(resource.key) || scope.ready.has(resource.key)), context, found);

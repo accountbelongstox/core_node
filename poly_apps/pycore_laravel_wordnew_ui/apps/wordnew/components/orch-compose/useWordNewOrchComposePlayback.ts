@@ -3,7 +3,7 @@ import type { OrchVideoSettings } from '../../../../core/integrations/pycore';
 import type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import type { OrchComposeItem, OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
 import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
-import { buildStageCards, type OrchStageCard, type OrchTimelineEntry } from '../../../../shared/orchestration/orchStageLayout';
+import { buildStageCards, orchEntryPlayable, type OrchStageCard, type OrchTimelineEntry } from '../../../../shared/orchestration/orchStageLayout';
 import { useOrchSequencer, type OrchSequencer } from '../../../../shared/orchestration/useOrchSequencer';
 import { wordNewOrchVirtualReads } from '../../services/orchestration/WordNewOrchVirtualReads';
 import type { OrchPlaybackEdition } from '../../services/orchestration/WordNewOrchEditionStore';
@@ -145,7 +145,7 @@ export function useWordNewOrchComposePlayback(
     const now = sequencer.time * 1000;
     const words: string[] = [];
     timeline.forEach((entry, index) => {
-      if (entry.item.kind !== 'word' || entry.endMs > now) return;
+      if (entry.item.kind !== 'word' || entry.endMs > now || !orchEntryPlayable(entry)) return;
       const key = `${segment}:${index}`;
       if (recordedRef.current.has(key)) return;
       recordedRef.current.add(key);
