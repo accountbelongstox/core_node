@@ -77,7 +77,7 @@ const SystemInfoWorkbench: React.FC<ToolWorkbenchProps> = ({ tool }) => {
             {basic ? `${basic.hostname ?? ''}${uptime ? ` · ${t('toolsOps.system.uptime', { value: uptime })}` : ''}` : t('toolsOps.common.loading')}
           </OpsStatusBar>
           {info.error && <Notice tone="error">{info.error}</Notice>}
-          {storage.error && <Notice tone="warn">{storage.error}</Notice>}
+          {storage.error && storage.error !== info.error && <Notice tone="warn">{storage.error}</Notice>}
           {auto && <Notice tone="info">{t('toolsOps.system.auto_cost')}</Notice>}
 
           <div className="grid gap-3 md:grid-cols-3">
