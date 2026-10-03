@@ -84,6 +84,8 @@ public static class BattlenetConstants
 
     /// <summary>Login window while credentials are being verified (live scan: labelLoggingIn "Logging in...").</summary>
     public const string LoggingInAutomationIdSuffix = "labelLoggingIn";
+    /// <summary>Login web view spinner (live scan after submitting the code: LoginWindow ...webFrame.spinnerContainer.labelSpinner, no text yet).</summary>
+    public const string LoginSpinnerAutomationIdSuffix = "labelSpinner";
     public static readonly string[] LoggingInKeywords = { "Logging in", "正在登录", "登录中" };
 
     // ---------- Guard watchdog config (keys shared with the app ConfigKeys; defaults also in Config/default_config.json) ----------

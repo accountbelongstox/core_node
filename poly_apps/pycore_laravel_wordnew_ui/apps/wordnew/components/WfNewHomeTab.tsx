@@ -19,7 +19,7 @@ import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingS
 import { dailyReadingHash } from '../routing/WordNewHashRoutes';
 import { cancelSpeech } from '../utils/WordNewSpeech';
 
-/** 3D illustrations of the home bento (`assets/home/<art>.webp`); a missing one falls back to the icon. */
+/** Flat illustrations of the home bento (`assets/home/<art>.webp`); a missing one falls back to the icon. */
 const HOME_ART = import.meta.glob('../assets/home/*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const homeArt = (name: string): string | undefined => HOME_ART[`../assets/home/${name}.webp`];
 

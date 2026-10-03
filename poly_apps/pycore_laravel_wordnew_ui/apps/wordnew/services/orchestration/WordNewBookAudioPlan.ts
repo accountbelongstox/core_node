@@ -217,7 +217,7 @@ class WordNewBookAudioPlanService {
           planHash: task.planHash,
         });
         if (!posted.planId) throw new Error('BOOK_PLAN_EMPTY');
-        if (posted.planId !== live.stored.planId) {
+        if (posted.planId !== live.stored.planId || live.stored.planHash !== task.planHash) {
           live.fetched = 0;
           live.stored.cursor = 0;
           live.ready.clear();
@@ -269,7 +269,7 @@ class WordNewBookAudioPlanService {
       for (;;) {
         const page = await within(wfNewApi.getBookAudioPlanReady(planId, live.fetched, AUDIO_ORCH_BOOK_PLAN.readyPageDefault), AUDIO_ORCH_BOOK_PLAN.requestTimeoutMs);
         page.ids.forEach((key) => {
-          if (!live.ready.has(key)) { live.ready.add(key); fresh += 1; }
+          if (live.covered.has(key) && !live.ready.has(key)) { live.ready.add(key); fresh += 1; }
         });
         live.fetched = Math.max(live.fetched, page.cursor);
         if (!page.more || page.ids.length === 0) break;

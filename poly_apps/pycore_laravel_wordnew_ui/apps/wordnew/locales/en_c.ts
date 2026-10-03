@@ -322,6 +322,7 @@ export const enLocaleC: Record<string, string> = {
     "apiCenter.lan.useTemporary": "Use for this session",
     "apiCenter.lan.using": "Using {host} until the next start.",
     "apiCenter.lan.stopTemporary": "Stop using the session entry",
+    "apiCenter.lan.routeActive": "Requests use the selected machine over the LAN: {url}",
     "apiCenter.lan.state.up": "pycore online · {ms} ms",
     "apiCenter.lan.state.refused": "pycore refuses unsigned devices (K7) · {ms} ms",
     "apiCenter.lan.state.no_route": "answers on 59000, not pycore",
