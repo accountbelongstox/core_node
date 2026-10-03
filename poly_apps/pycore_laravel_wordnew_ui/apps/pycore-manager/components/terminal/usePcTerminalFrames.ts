@@ -77,15 +77,15 @@ export function usePcTerminalFrames({ windows, focusWindowId }: Options): PcTerm
     // thawVersion re-evaluates after thaw() changed the map.
   }, [windows, thawVersion]);
 
-  const missing = useMemo(
-    () => store.missingFrames(windows, Date.now()),
-    // version: a stored frame removes its window from the missing set.
+  const { frameless, bootstrap } = useMemo(
+    () => store.framelessWindows(windows, Date.now()),
+    // version: a stored frame removes its window from the frameless set.
     [store, windows, version],
   );
 
   const policy = useMemo(
-    () => terminalFramePolicy({ windows, visible, focusId: focusWindowId, frozen, missing, hidden }),
-    [windows, visible, focusWindowId, frozen, missing, hidden],
+    () => terminalFramePolicy({ windows, visible, focusId: focusWindowId, frozen, frameless, bootstrap, hidden }),
+    [windows, visible, focusWindowId, frozen, frameless, bootstrap, hidden],
   );
   demandIdsRef.current = policy.demand.slice(0, MAX_DEMANDED_WINDOWS);
 
