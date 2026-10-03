@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -18,6 +19,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
 from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, waiting_prompt
 from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
 from pycore.pyctl.terminal.terminal_service import terminal_service
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.file_lock import FileLockManager
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -41,6 +43,7 @@ DEFER_RETRY_SECONDS = relay_contract.limit("terminal_backup_defer_retry_seconds"
 SETTLE_SECONDS = relay_contract.limit("terminal_backup_settle_seconds")
 INPUT_TIMESTAMP_TOLERANCE_SECONDS = 1.0
 SCHEDULER_LOCK_TARGET = APP_DATA_DIR / TERMINAL_BACKUP_DIR_NAME / "scheduler"
+PROMPT_STATE_PATH = APP_DATA_DIR / TERMINAL_BACKUP_DIR_NAME / "prompt_followups.json"
 STOP_SIGNAL = "terminal.backup.stop"
 SHUTDOWN_HANDLER_NAME = "terminal_backup"
 SHUTDOWN_HANDLER_PRIORITY = 5
@@ -78,7 +81,8 @@ class TerminalBackupService:
         self._lease: Optional[int] = None
         self._thread: Optional[threading.Thread] = None
         self._deferred_logged = False
-        self._fast_prompts: Dict[int, Dict[str, Any]] = {}
+        self._prompt_state_store = AtomicJsonStore(PROMPT_STATE_PATH, dict)
+        self._fast_prompts: Dict[int, Dict[str, Any]] = self._load_fast_prompts()
         # In-memory only: a UI change lasts until this process exits; a pycore
         # restart returns to AUTO_BACKUP_PAUSED_BY_DEFAULT.
         self._paused = AUTO_BACKUP_PAUSED_BY_DEFAULT
@@ -160,6 +164,7 @@ class TerminalBackupService:
             elif state["misses"]:
                 ColorPrint.blue(f"[{LABEL}] prompt follow-up reset terminal={number} previous_misses={state['misses']}")
             self._fast_prompts[number] = {"window_id": window_id, "due": time.monotonic() + PROMPT_INTERVAL_SECONDS, "misses": 0}
+            self._save_fast_prompts()
             return
         if not count_miss:
             return
@@ -167,24 +172,77 @@ class TerminalBackupService:
             return
         if not entry.get("text"):
             state["due"] = time.monotonic() + PROMPT_INTERVAL_SECONDS
+            self._save_fast_prompts()
             return
         misses = int(state["misses"]) + 1
         if misses >= PROMPT_MISS_LIMIT:
             self._fast_prompts.pop(number, None)
+            self._save_fast_prompts()
             ColorPrint.blue(f"[{LABEL}] prompt follow-up ended terminal={number} misses={misses}")
             return
         state["misses"] = misses
         state["due"] = time.monotonic() + PROMPT_INTERVAL_SECONDS
+        self._save_fast_prompts()
         ColorPrint.blue(f"[{LABEL}] prompt follow-up scanned terminal={number} misses={misses}/{PROMPT_MISS_LIMIT}")
 
     def _prune_prompt_states(self, windows: List[Dict[str, Any]]) -> None:
         live = {int(window["terminal_number"]): str(window["id"]) for window in windows}
+        removed = False
         for number, state in list(self._fast_prompts.items()):
             if live.get(number) != state["window_id"]:
                 self._fast_prompts.pop(number, None)
+                removed = True
+        if removed:
+            self._save_fast_prompts()
 
     def _fast_due(self) -> float:
         return min((float(state["due"]) for state in self._fast_prompts.values()), default=float("inf"))
+
+    def _load_fast_prompts(self) -> Dict[int, Dict[str, Any]]:
+        try:
+            saved = self._prompt_state_store.read()
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[{LABEL}] prompt follow-up state read failed: {type(exc).__name__}: {exc}")
+            return {}
+        now = time.monotonic()
+        wall_time = time.time()
+        states: Dict[int, Dict[str, Any]] = {}
+        for key, entry in saved.items():
+            if not str(key).isdigit() or not isinstance(entry, dict):
+                continue
+            window_id = entry.get("window_id")
+            misses = entry.get("misses")
+            due_at = entry.get("due_at")
+            if (
+                not isinstance(window_id, str) or not window_id
+                or not isinstance(misses, int) or isinstance(misses, bool)
+                or not 0 <= misses < PROMPT_MISS_LIMIT
+                or not isinstance(due_at, (int, float)) or isinstance(due_at, bool)
+                or not math.isfinite(due_at)
+            ):
+                continue
+            states[int(key)] = {
+                "window_id": window_id,
+                "misses": misses,
+                "due": now + max(0.0, due_at - wall_time),
+            }
+        return states
+
+    def _save_fast_prompts(self) -> None:
+        now = time.monotonic()
+        wall_time = time.time()
+        saved = {
+            str(number): {
+                "window_id": state["window_id"],
+                "misses": state["misses"],
+                "due_at": wall_time + max(0.0, state["due"] - now),
+            }
+            for number, state in self._fast_prompts.items()
+        }
+        try:
+            self._prompt_state_store.write(saved)
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[{LABEL}] prompt follow-up state write failed: {type(exc).__name__}: {exc}")
 
     def _activity_deadlines(
         self,
