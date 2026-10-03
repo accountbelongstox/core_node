@@ -147,6 +147,7 @@ class LaravelAudioWorkerExecutionMixin:
             ok, why = validate_mp3(out_path)
             if not ok:
                 return False, out_path, provider, f"invalid audio from {provider}: {why}", False
+            info["_cache_hit"] = bool(result.get("cached"))
             return True, out_path, provider, "", False
 
         # Word cache hits remain reusable regardless of their historical
