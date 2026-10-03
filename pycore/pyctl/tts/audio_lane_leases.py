@@ -54,6 +54,7 @@ class AudioLaneLeases:
         self._base_url = ""
         self._error_logged = ""
         self._pooled_logged: List[Dict[str, Any]] = []
+        self._claim_rounds = 0
 
     # -------------------- capability --------------------
 
@@ -152,9 +153,22 @@ class AudioLaneLeases:
                 ColorPrint.yellow(f"{worker.log_prefix} work lease unavailable ({error}); working the held batch")
             return {"leased": 0, "error": error}
 
+    def _claim_languages(self, languages: List[str]) -> List[str]:
+        """Laravel fills a claim's budget language by language in the declared
+        order, so a fixed order starves the later languages while the first
+        has a gap. The word lane (many small rows, every node) rotates the
+        order per claim; the sentence lane keeps its sorted order so its
+        scarce GPU time stays on the earlier languages."""
+        if self._lane != "word_audio" or len(languages) < 2:
+            return languages
+        shift = self._claim_rounds % len(languages)
+        self._claim_rounds += 1
+        return [*languages[shift:], *languages[:shift]]
+
     def _claim(self, base_url: str) -> Dict[str, Any]:
         worker = self._worker
         capability = self.capability()
+        capability = {**capability, "languages": self._claim_languages(list(capability["languages"]))}
         open_keys = self._book.open_keys()
         plan_id = current_plan_hint()
         request = {
