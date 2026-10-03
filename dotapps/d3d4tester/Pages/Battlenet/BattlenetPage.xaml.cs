@@ -104,7 +104,7 @@ public partial class BattlenetPage : UserControl
         var answer = MessageBox.Show(Window.GetWindow(this), string.Format(p.GetUiText(I18nKeys.BnPanelRegionRestartAsk), regionName),
             p.GetUiText(I18nKeys.BnPanelRegionTitle), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (answer == MessageBoxResult.Yes)
-            _ = Task.Run(() => BattlenetManager.Instance.RestartWithRegion(region));
+            _ = Task.Run(() => BattlenetManager.Instance.RestartWithRegion(region, force: true));
     }
 
     private void RefreshAccounts()
@@ -188,7 +188,7 @@ public partial class BattlenetPage : UserControl
     private void BtnRestart_Click(object sender, RoutedEventArgs e) => _ = Task.Run(() =>
     {
         ColorPrinter.Blue("[BattlenetPage] restart Battle.net requested");
-        if (BattlenetManager.Instance.GetConfiguredRegion() is { } region) BattlenetManager.Instance.RestartWithRegion(region);
-        else BattlenetManager.Instance.Restart();
+        if (BattlenetManager.Instance.GetConfiguredRegion() is { } region) BattlenetManager.Instance.RestartWithRegion(region, force: true);
+        else BattlenetManager.Instance.Restart(force: true);
     });
 }

@@ -16,7 +16,14 @@
       "Bash(bash -n scripts/linuxenvs/claudeteam.sh)",
       "Bash(git stash *)",
       "Bash(git merge origin/main --no-edit -m 'Merge origin/main into main *)",
-      "Bash(grep -v \"^.*:\\\\s*$\")"
+      "Bash(grep -v \"^.*:\\\\s*$\")",
+      "Bash(systemctl list-unit-files *)",
+      "Bash(systemctl --user list-unit-files)",
+      "Bash(systemctl status *)",
+      "Bash(systemctl cat *)",
+      "Bash(ps -o pid,ppid,user,etime,cmd -p 11966)",
+      "Bash(journalctl -u pycore.service --no-pager --since \"-10min\")",
+      "Bash(systemctl show *)"
     ],
     "deny": [],
     "ask": []

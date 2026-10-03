@@ -24,8 +24,6 @@ public sealed class D3D4TesterHttpBridge : IDisposable
     private const string KeyMessage = "message";
     private const string KeyData = "data";
     private const string MacroConfigsSkillConfigsPrefix = "macro_configs.skill_configs.";
-    private const string MacroConfigsSkillConfigs = "macro_configs.skill_configs";
-    private const string MacroConfigsAuxiliaryConfig = "macro_configs.auxiliary_config";
     private const string ErrorYoloProjectPath = "project_path required and must be an existing directory";
     private const string ErrorYoloSerialInt = "serial (window handle) required as integer";
     private const string ErrorYoloSerialRequired = "serial (window handle) required for Windows recording";
@@ -126,7 +124,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
     private object HandleGetConfig(JsonObject _)
     {
         var merged = ReadObject(MacroConfigsSkillConfigsPrefix + CurrentSkillConfig());
-        foreach (var kv in ReadObject(MacroConfigsAuxiliaryConfig).ToList())
+        foreach (var kv in ReadObject(ConfigKeys.MacroConfigsAuxiliaryConfig).ToList())
             merged[kv.Key] = kv.Value?.DeepClone();
         return Ok(merged);
     }
@@ -138,7 +136,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
         return Ok(ReadObject(MacroConfigsSkillConfigsPrefix + name));
     }
 
-    private object HandleGetAuxiliaryConfig(JsonObject _) => Ok(ReadObject(MacroConfigsAuxiliaryConfig));
+    private object HandleGetAuxiliaryConfig(JsonObject _) => Ok(ReadObject(ConfigKeys.MacroConfigsAuxiliaryConfig));
 
     private object HandleMacroStart(JsonObject _)
     {
@@ -173,7 +171,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
             var cfg = D3D4TesterConfigService.Instance;
             cfg.SetValueSafe(MacroConfigsSkillConfigsPrefix + name, data.DeepClone());
             cfg.QueueSave();
-            D3D4TesterConfigChangeHub.Notify(MacroConfigsSkillConfigs);
+            D3D4TesterConfigChangeHub.Notify(ConfigKeys.MacroConfigsSkillConfigs);
             ColorPrinter.Blue($"[HTTPBridgeController] Updated skill configuration: {name}");
             return Message($"Configuration {name} updated successfully");
         }

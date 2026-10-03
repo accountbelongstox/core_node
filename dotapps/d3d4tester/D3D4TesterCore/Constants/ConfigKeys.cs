@@ -84,10 +84,10 @@ public static partial class ConfigKeys
     public const bool BattlenetEnsureNormalDefault = true;
     /// <summary>Global region chosen by the user ("cn" / "asia"); empty = from Battle.net.config, then the region cache.</summary>
     public const string BattlenetRegion = "battlenet.region";
-    public const string BattlenetAbnormalRestartEnabled = Core.Battlenet.BattlenetConstants.ConfigKeyAbnormalRestartEnabled;
-    public const string BattlenetAbnormalTimeoutSec = Core.Battlenet.BattlenetConstants.ConfigKeyAbnormalTimeoutSec;
-    public const string BattlenetLoginRestartEnabled = Core.Battlenet.BattlenetConstants.ConfigKeyLoginRestartEnabled;
-    public const string BattlenetLoginTimeoutSec = Core.Battlenet.BattlenetConstants.ConfigKeyLoginTimeoutSec;
+    public const string BattlenetAbnormalRestartEnabled = "battlenet.abnormal_restart_enabled";
+    public const string BattlenetAbnormalTimeoutSec = "battlenet.abnormal_timeout_sec";
+    public const string BattlenetLoginRestartEnabled = "battlenet.login_restart_enabled";
+    public const string BattlenetLoginTimeoutSec = "battlenet.login_timeout_sec";
     /// <summary>Ask before restarting Battle.net when the global region changes.</summary>
     public const string BattlenetRegionSwitchPrompt = "battlenet.region_switch_prompt";
     /// <summary>Saved accounts per region: battlenet_accounts.cn / .asia = [{label, email, password (encrypted)}].</summary>
@@ -112,7 +112,7 @@ public static partial class ConfigKeys
     public const string RosbotTestRecordedDurationSec = "rosbot.test_recorded_duration_sec";
     public const string RosbotTestRecordCount = "rosbot.test_record_count";
     public const string RosbotTotalRestartCount = "rosbot.total_restart_count";
-    public const string BattlenetTimeoutRestart = Core.RosbotConstants.ConfigKeyTimeoutRestart;
+    public const string BattlenetTimeoutRestart = "battlenet.timeout_restart";
     public const string RosbotTimeoutMinutes = "rosbot.timeout_minutes";
     public const string AntiStuckEnabled = "anti_stuck.enabled";
 

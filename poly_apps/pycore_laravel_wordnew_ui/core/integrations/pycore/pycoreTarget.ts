@@ -10,6 +10,11 @@
  *     and pages of the same tailnet.
  *   - relay:  any other https entry - the server-side relay; requests ride the
  *     paired machine (RelayTransport).
+ *
+ * LAN route: a native shell reaches the selected machine's pycore at a LAN
+ * address that machine reported (`http://<RFC 1918 host>:59000`, K3-signed by
+ * pycoreLanAuth). The route only changes the address requests use; the
+ * selection, and its availability (`pycoreLink`), stay the same machine.
  */
 import {
   PYCORE_BACKEND_PORT,
@@ -32,7 +37,7 @@ import { isNativeAppShell } from '../../network/NativeShell';
 import { isLoopbackHost } from '../../network/hostDetection';
 
 export type PycoreEndpointKind = 'direct' | 'proxy' | 'relay';
-export type PycoreEndpointSource = 'this_machine' | 'tailnet' | 'relay_origin' | 'contract_url' | 'host_key' | 'recent' | 'lan_scan';
+export type PycoreEndpointSource = 'this_machine' | 'tailnet' | 'relay_origin' | 'contract_url' | 'host_key' | 'recent' | 'lan_scan' | 'lan';
 
 export interface PycoreTarget {
   kind: PycoreEndpointKind;
@@ -251,6 +256,10 @@ function storedTarget(): PycoreTarget | null {
  * next start uses the stored / default target again.
  */
 let sessionTarget: PycoreTarget | null = null;
+/** LAN address of the selected machine requests use while it answers (null: the selection's own URL). */
+let lanRoute: PycoreTarget | null = null;
+/** LAN entries the machines reported (Laravel work-node roster), offered as candidates. */
+let lanEndpoints: PycoreEndpoint[] = [];
 
 const targetListeners = new Set<() => void>();
 
@@ -281,8 +290,37 @@ export function getPycoreSessionTarget(): PycoreTarget | null {
   return sessionTarget;
 }
 
-function readTarget(): PycoreTarget {
+/** Route requests of the selection over a LAN address of the same machine (null: leave the route). */
+export function setPycoreLanRoute(input: string | null): boolean {
+  const target = input === null ? null : targetFromUrl(input);
+  if (input !== null && target?.kind !== 'direct') return false;
+  if ((lanRoute?.url ?? null) === (target?.url ?? null)) return true;
+  lanRoute = target;
+  notifyPycoreTarget();
+  return true;
+}
+
+export function getPycoreLanRoute(): PycoreTarget | null {
+  return lanRoute;
+}
+
+/** Replace the LAN candidates (every entry must be a usable direct LAN URL). */
+export function setPycoreLanEndpoints(entries: Array<{ url: string; label: string }>): void {
+  lanEndpoints = entries
+    .map((entry) => {
+      const target = targetFromUrl(entry.url);
+      return target?.kind === 'direct' ? { ...target, label: entry.label, source: 'lan' as const } : null;
+    })
+    .filter((entry): entry is PycoreEndpoint => entry !== null);
+}
+
+/** The selection without the LAN route: the address the event socket keeps (no signed WebSocket upgrade). */
+function readSelectedTarget(): PycoreTarget {
   return sessionTarget ?? storedTarget() ?? defaultTarget();
+}
+
+function readTarget(): PycoreTarget {
+  return sessionTarget ?? lanRoute ?? storedTarget() ?? defaultTarget();
 }
 
 export function getPycoreTarget(): PycoreTarget {
@@ -339,6 +377,12 @@ export function rewritePycoreEndpoint(endpoint: string): string {
   return `${target.url}${normalizePycorePath(endpoint)}`;
 }
 
+/** Full URL of a pycore path on the selection itself, never the LAN route (the event socket). */
+export function rewritePycoreSelectedEndpoint(endpoint: string): string {
+  if (/^https?:\/\//i.test(endpoint)) return endpoint;
+  return lanRoute && !sessionTarget ? `${readSelectedTarget().url}${normalizePycorePath(endpoint)}` : rewritePycoreEndpoint(endpoint);
+}
+
 export function getPycoreTargetRecent(): string[] {
   const recent = StorageManager.get<unknown[]>(StorageKeys.TARGET_RECENT, []);
   return Array.isArray(recent)
@@ -393,6 +437,7 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
     if (endpoint) candidates.push(endpoint);
   });
   candidates.push(...tailnetEndpoints());
+  candidates.push(...lanEndpoints);
   config.serviceHostKeys.pycore.forEach((key) => {
     const target = targetFromUrl(config.hosts[key] || '');
     // Only a loopback direct entry is usable (K7); a loopback page lists it already.

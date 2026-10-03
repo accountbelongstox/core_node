@@ -1,6 +1,7 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow_rosbot_exit_state.py
 using System.Globalization;
 using DotCore.Foundations;
+using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Core.Flow;
 
@@ -31,9 +32,9 @@ public static class RosbotExitState
         _testRecordLoaded = true;
         try
         {
-            double v = RosbotFlowHost.GetConfig(RosbotConstants.ConfigKeyTestRecordedDurationSec, 0.0);
+            double v = RosbotFlowHost.GetConfig(ConfigKeys.RosbotTestRecordedDurationSec, 0.0);
             if (v > 0) _recordedDebugDurationSec = v;
-            _debugExitRecordCount = Math.Max(0, ReadIntConfig(RosbotConstants.ConfigKeyTestRecordCount));
+            _debugExitRecordCount = Math.Max(0, ReadIntConfig(ConfigKeys.RosbotTestRecordCount));
         }
         catch { /* keep defaults */ }
     }
@@ -44,7 +45,7 @@ public static class RosbotExitState
         _totalRestartCountLoaded = true;
         try
         {
-            _totalRestartCount = Math.Max(0, ReadIntConfig(RosbotConstants.ConfigKeyTotalRestartCount));
+            _totalRestartCount = Math.Max(0, ReadIntConfig(ConfigKeys.RosbotTotalRestartCount));
         }
         catch { /* keep default */ }
     }
@@ -92,13 +93,13 @@ public static class RosbotExitState
                     LoadTestRecordFromConfig();
                     _recordedDebugDurationSec = debugDurationSec.Value;
                     _debugExitRecordCount++;
-                    Persist(RosbotConstants.ConfigKeyTestRecordedDurationSec, _recordedDebugDurationSec.Value);
-                    Persist(RosbotConstants.ConfigKeyTestRecordCount, _debugExitRecordCount);
+                    Persist(ConfigKeys.RosbotTestRecordedDurationSec, _recordedDebugDurationSec.Value);
+                    Persist(ConfigKeys.RosbotTestRecordCount, _debugExitRecordCount);
                     ColorPrinter.Gray($"[ROSBOT_EXIT] Record DEBUG duration: {debugDurationSec.Value:F1}s, record_count={_debugExitRecordCount}");
                 }
             }
             _totalRestartCount++;
-            Persist(RosbotConstants.ConfigKeyTotalRestartCount, _totalRestartCount);
+            Persist(ConfigKeys.RosbotTotalRestartCount, _totalRestartCount);
             ColorPrinter.Gray($"[ROSBOT_EXIT] Total restart count: {_totalRestartCount}");
             _f7SentForRosbot = false;
             return _exitReason;
@@ -157,7 +158,7 @@ public static class RosbotExitState
         {
             LoadTotalRestartCountFromConfig();
             _totalRestartCount++;
-            Persist(RosbotConstants.ConfigKeyTotalRestartCount, _totalRestartCount);
+            Persist(ConfigKeys.RosbotTotalRestartCount, _totalRestartCount);
             ColorPrinter.Gray($"[ROSBOT_RESTART] Total restart count: {_totalRestartCount}");
         }
     }

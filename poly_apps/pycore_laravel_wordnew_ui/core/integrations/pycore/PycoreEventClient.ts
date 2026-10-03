@@ -8,7 +8,7 @@
  */
 
 import { PycorePaths } from './pycoreEndpoints';
-import { rewritePycoreEndpoint, isPycoreRelayMode } from './pycoreTarget';
+import { rewritePycoreSelectedEndpoint, isPycoreRelayMode } from './pycoreTarget';
 import { getClientId, requestPycoreHttp } from './PycoreHttp';
 import { pycoreMasterClient } from './PycoreClient';
 import { StorageManager } from '../../persistence';
@@ -173,7 +173,7 @@ const peers = {
   open(): boolean {
     if (peerChannel) return true;
     if (typeof BroadcastChannel === 'undefined') return false;
-    peerScope = `${rewritePycoreEndpoint('/')}${isPycoreRelayMode() ? '#relay' : ''}`;
+    peerScope = `${rewritePycoreSelectedEndpoint('/')}${isPycoreRelayMode() ? '#relay' : ''}`;
     peerChannel = new BroadcastChannel(`${PYCORE_EVENT_LOCK_PREFIX}${peerScope}`);
     peerChannel.onmessage = (event: MessageEvent<PeerFrame>) => handlePeerFrame(event.data);
     pycoreEventBus.onTopicsChanged(() => (leader ? notifyWantedTopics() : postWants()));
@@ -307,7 +307,7 @@ function toWebSocketUrl(endpoint: string): string {
 async function eventSocketUrl(): Promise<string> {
   await pycoreMasterClient.ensureClientId();
   restoreEventCursor();
-  return toWebSocketUrl(rewritePycoreEndpoint(PycorePaths.ws));
+  return toWebSocketUrl(rewritePycoreSelectedEndpoint(PycorePaths.ws));
 }
 
 function sendSocketHello(socket: ReconnectingWebSocket): void {
