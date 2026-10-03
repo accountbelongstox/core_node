@@ -1,4 +1,4 @@
-/** Top-bar CPU / memory / GPU usage bars of the active pycore host, polled every 2 s. */
+/** Top-bar CPU / memory / GPU / battery bars of the active pycore host, polled every 2 s. */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { pycoreApi } from '@/apps/pycore-manager/api';
@@ -14,10 +14,11 @@ const SPARK_WIDTH = 200;
 const SPARK_HEIGHT = 32;
 
 // One colour per resource (not per load level), so the three bars are told apart at a glance.
-const RESOURCE_COLORS: Record<'cpu' | 'mem' | 'gpu', { bar: string; text: string }> = {
+const RESOURCE_COLORS: Record<'cpu' | 'mem' | 'gpu' | 'battery', { bar: string; text: string }> = {
   cpu: { bar: 'bg-sky-500', text: 'text-sky-500' },
   mem: { bar: 'bg-violet-500', text: 'text-violet-500' },
   gpu: { bar: 'bg-amber-500', text: 'text-amber-500' },
+  battery: { bar: 'bg-emerald-500', text: 'text-emerald-500' },
 };
 
 interface ResourceBar {
@@ -103,7 +104,7 @@ const PcHeaderResourceBars: React.FC = () => {
         .then((result) => {
           if (!alive) return;
           if (result && typeof result.cpu_percent === 'number' && result.mem) {
-            setResources({ cpu_percent: result.cpu_percent, cpu: result.cpu, mem: result.mem, gpus: result.gpus || [] });
+            setResources({ cpu_percent: result.cpu_percent, cpu: result.cpu, mem: result.mem, battery: result.battery ?? null, gpus: result.gpus || [] });
             setSampledAt(Date.now());
             setFailed(false);
           } else {
@@ -134,6 +135,7 @@ const PcHeaderResourceBars: React.FC = () => {
 
   const gpus = resources?.gpus ?? [];
   const cpu = resources?.cpu;
+  const battery = resources?.battery;
   const bars: ResourceBar[] = [
     {
       key: 'cpu',
@@ -151,6 +153,15 @@ const PcHeaderResourceBars: React.FC = () => {
       detail: resources ? `${gigabytes(resources.mem.used_mb)} / ${gigabytes(resources.mem.total_mb)}` : '',
       percent: clampPercent(resources?.mem?.percent),
     },
+    ...(battery
+      ? [{
+        key: 'battery',
+        kind: 'battery',
+        label: t('systemBars.battery'),
+        detail: t(battery.charging ? 'systemBars.charging' : 'systemBars.discharging'),
+        percent: clampPercent(battery.percent),
+      } as ResourceBar]
+      : []),
     ...gpus.map((gpu, position): ResourceBar => ({
       key: `gpu${gpu.index ?? position}`,
       kind: 'gpu',
