@@ -13,7 +13,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 
 const POLL_INTERVAL_MS = 15_000;
 const MS_PER_SECOND = 1000;
-const HISTORY_PAGE_SIZE = 10;
+const HISTORY_PAGE_SIZE = 12;
 const BADGE_MAX_COUNT = 99;
 
 /** Paged run history, loaded only while expanded; reloads when a new run is counted. */
