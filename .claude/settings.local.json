@@ -40,7 +40,11 @@
       "Bash(timeout 60 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/history?limit=12\")",
       "Bash(timeout 90 ssh1 'journalctl -k --no-pager --since \"08:35\" --until \"08:45\" | tail -10; echo \"== kernel segfault history\"; journalctl -k --no-pager --since \"-14d\" | grep -iE \"segfault|traps:\" | tail -15; echo \"== core\"; cat /proc/sys/kernel/core_pattern; systemctl show ncore-laravel-frankenphp -p LimitCORE; command -v coredumpctl || echo \"no systemd-coredump\"; echo \"== php cli segv in scheduler\"; journalctl -u ncore-laravel-frankenphp --no-pager --since \"-3d\" | grep -ciE \"scheduler exited \\\\\\(status 139\\\\\\)\"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
       "Bash(timeout 120 ssh1 'systemctl show ncore-laravel-frankenphp -p WorkingDirectory -p User; find /www/programing/core_node/poly_apps/laravel_main /www/programing/core_node /root /var/lib/frankenphp /tmp -maxdepth 2 -name \"core\" -o -maxdepth 2 -name \"core.[0-9]*\" 2>/dev/null | head; ls -la --time-style=full-iso /www/programing/core_node/poly_apps/laravel_main/core* /www/programing/core_node/core* 2>/dev/null' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(timeout 60 ssh1 'frankenphp php-cli -m 2>/dev/null | tr \"\\\\n\" \" \"; echo; frankenphp php-cli -i 2>/dev/null | grep -iE \"^opcache.enable |^opcache.jit |opcache.file_cache |^Thread Safety\" | head' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
+      "WebFetch(domain:github.com)",
+      "Bash(systemctl restart *)",
+      "Bash(timeout 60 ssh1 'php -m 2>/dev/null | tr \"\\\\n\" \" \"; echo; php -i 2>/dev/null | grep -E \"^opcache.enable =>|^opcache.jit =>|^Thread Safety\" ; ls /etc/frankenphp/php-conf.d/ 2>/dev/null | tr \"\\\\n\" \" \"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)"
     ],
     "deny": [],
     "ask": []
