@@ -37,6 +37,7 @@ from pycore.pyctl.colab.colab_constants import (
     STATE_IDLE,
     STATE_NOT_READY,
     STATE_RUNNING,
+    STATE_UNRESPONSIVE,
     STATE_SCRIPT,
     STOP_TIMEOUT_SECONDS,
     TOGGLE_RUN_SCRIPT,
@@ -154,7 +155,11 @@ class ColabPycoreRunner:
 
     async def _logs(self, tail: int, grep: Optional[str]) -> Dict[str, Any]:
         tab_id = await self._notebook_tab()
-        state = await self._state(tab_id)
+        try:
+            state = await self._state(tab_id)
+        except RuntimeError as error:
+            ColorPrint.yellow(f"[Colab] notebook page unresponsive ({error}); reading the output frames only")
+            state = {"state": STATE_UNRESPONSIVE}
         output = await colab_reader.read(COLAB_NOTEBOOK_ID, "", grep, tail)
         return {
             **output,

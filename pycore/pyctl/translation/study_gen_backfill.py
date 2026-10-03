@@ -36,6 +36,7 @@ REQUEST_TIMEOUT_SECONDS = 120.0
 SUBMIT_PROVIDER = "google"
 SUBMIT_PROVIDER_AI = "google+ai"
 GOOGLE_RETRY_WAIT_SECONDS = 30.0
+NETWORK_RETRY_WAIT_SECONDS = 10.0
 MAX_CONSECUTIVE_FAILURES = 12
 PROGRESS_EVERY_SEGMENTS = 10
 
@@ -118,20 +119,32 @@ class StudyGenBackfill:
                 translated[row["word"]] = row["translation"]
         return translated
 
-    def _process(self, item: Dict[str, Any]) -> bool:
+    def _translate_items(self, items: List[Dict[str, Any]]) -> Dict[tuple, Dict[str, str]]:
+        """One Google call per (source, target) language pair across all claimed segments."""
+        texts_by_pair: Dict[tuple, List[str]] = {}
+        for item in items:
+            source_language = str(item.get("primary_language") or "auto")
+            for target in item.get("target_languages") or []:
+                bucket = texts_by_pair.setdefault((source_language, str(target)), [])
+                bucket.extend(str(slot["text"]) for slot in item.get("slots") or [] if str(slot.get("text") or "").strip())
+        return {
+            pair: self._translate(list(dict.fromkeys(texts)), pair[0], pair[1])
+            for pair, texts in texts_by_pair.items()
+        }
+
+    def _process(self, item: Dict[str, Any], translated_by_pair: Dict[tuple, Dict[str, str]]) -> bool:
         segment_index = int(item["segment_index"])
         source_language = str(item.get("primary_language") or "auto")
         slots = [slot for slot in item.get("slots") or [] if str(slot.get("text") or "").strip()]
         targets = [str(code) for code in item.get("target_languages") or []]
-        texts = list(dict.fromkeys(str(slot["text"]) for slot in slots))
         langs_by_seq: Dict[int, Dict[str, Dict[str, str]]] = {int(slot["seq"]): {} for slot in slots}
         for target in targets:
-            translated = self._translate(texts, source_language, target)
-            missing = [text for text in texts if text not in translated]
+            translated = translated_by_pair.get((source_language, target), {})
+            missing = [slot for slot in slots if str(slot["text"]) not in translated]
             if missing:
-                self._release(segment_index, f"google translate returned nothing for {len(missing)}/{len(texts)} text(s) -> {target}")
+                self._release(segment_index, f"google translate returned nothing for {len(missing)}/{len(slots)} slot(s) -> {target}")
                 ColorPrint.yellow(
-                    f"[StudyGenBackfill] segment {segment_index} released: {len(missing)}/{len(texts)} untranslated ({target})"
+                    f"[StudyGenBackfill] segment {segment_index} released: {len(missing)}/{len(slots)} untranslated ({target})"
                 )
                 return False
             for slot in slots:
@@ -181,13 +194,28 @@ class StudyGenBackfill:
             with self._lock:
                 if self.max_segments and self._claimed_segments >= self.max_segments:
                     return
-            items = self._claim()
+            try:
+                items = self._claim()
+            except OSError as exc:
+                ColorPrint.yellow(f"[StudyGenBackfill] claim transport error: {exc}")
+                self._record(False)
+                time.sleep(NETWORK_RETRY_WAIT_SECONDS)
+                continue
             if not items:
                 return
             with self._lock:
                 self._claimed_segments += len(items)
+            try:
+                translated_by_pair = self._translate_items(items)
+            except Exception as exc:  # noqa: BLE001 - lease must be released whatever the provider raised
+                ColorPrint.red(f"[StudyGenBackfill] translate failed, releasing {len(items)} segment(s): {exc}")
+                for item in items:
+                    self._release(int(item["segment_index"]), f"translate error: {exc}")
+                self._record(False)
+                self._wait_for_google()
+                continue
             for item in items:
-                success = self._process(item)
+                success = self._process(item, translated_by_pair)
                 self._record(success)
                 if not success:
                     self._wait_for_google()

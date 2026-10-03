@@ -17,6 +17,7 @@ DEFAULT_LOG_TAIL_LINES = 200
 STATE_IDLE = "idle"
 STATE_RUNNING = "running"
 STATE_NOT_READY = "not_ready"
+STATE_UNRESPONSIVE = "unresponsive"
 
 ERROR_NOTEBOOK_NOT_READY = "colab_notebook_not_ready"
 ERROR_START_TIMEOUT = "colab_start_timeout"
