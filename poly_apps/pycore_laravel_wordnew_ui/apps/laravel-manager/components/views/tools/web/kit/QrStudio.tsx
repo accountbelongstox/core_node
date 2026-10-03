@@ -105,7 +105,7 @@ export const QrStudio: React.FC<QrStudioProps> = ({ payload, settings, onChange,
       >
         <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700" style={settings.transparent ? CHECKER_STYLE : { backgroundColor: settings.bg }}>
           {symbol ? <img src={svgDataUri(svg)} alt={t('toolsWeb.qr.preview')} className="h-full w-full object-contain" /> : (
-            <p className="px-6 text-center text-xs text-slate-500 dark:text-slate-400">{t(encoded.overflow ? 'toolsWeb.qr.too_long' : 'toolsWeb.qr.empty')}</p>
+            <p className="px-6 text-center text-xs text-slate-500 dark:text-slate-400">{encoded.overflow ? '' : t('toolsWeb.qr.empty')}</p>
           )}
         </div>
         {caption}

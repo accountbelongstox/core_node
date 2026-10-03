@@ -270,7 +270,7 @@ export function formatSql(sql: string, options: SqlFormatOptions): string {
         if (!statementKind) statementKind = clause.phrase;
         if (frame().pendingBreak && !frame().block) frame().pendingBreak = false;
         startClause(clause.phrase);
-        clause.phrase.split(' ').forEach((word, k) => emit('word', applyCase(tokens[i + k].text, options.keywordCase), false, true));
+        clause.phrase.split(' ').forEach((_word, k) => emit('word', applyCase(tokens[i + k].text, options.keywordCase), false, true));
         i += clause.length - 1;
         forceBreak = false;
         continue;

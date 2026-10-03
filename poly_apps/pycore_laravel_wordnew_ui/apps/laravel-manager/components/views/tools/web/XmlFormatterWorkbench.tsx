@@ -66,6 +66,15 @@ const XmlFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
         )}
       </div>
 
+      {error && (
+        <Notice tone="error" icon={AlertTriangle}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {error.line !== null && <span className="font-mono font-bold">{t('toolsWeb.json.error_at', { line: error.line, column: error.column ?? 1 })}</span>}
+            <span>{error.message}</span>
+            {error.line !== null && (
+              <button type="button" className="cursor-pointer font-semibold underline" onClick={() => setJump({ offset: lineOffset(input, error.line as number, error.column ?? 1), seq: (jump?.seq ?? 0) + 1 })}>{t('toolsWeb.json.go_to_error')}</button>
+            )}
+
       <div className="grid gap-3 lg:grid-cols-2">
         <Pane
           title={t('toolsWeb.xml.input')}
@@ -100,14 +109,6 @@ const XmlFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
         </Pane>
       </div>
 
-      {error && (
-        <Notice tone="error" icon={AlertTriangle}>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {error.line !== null && <span className="font-mono font-bold">{t('toolsWeb.json.error_at', { line: error.line, column: error.column ?? 1 })}</span>}
-            <span>{error.message}</span>
-            {error.line !== null && (
-              <button type="button" className="cursor-pointer font-semibold underline" onClick={() => setJump({ offset: lineOffset(input, error.line as number, error.column ?? 1), seq: (jump?.seq ?? 0) + 1 })}>{t('toolsWeb.json.go_to_error')}</button>
-            )}
           </div>
         </Notice>
       )}

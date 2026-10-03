@@ -200,10 +200,19 @@ class LinuxTerminalBackend(TerminalWindowBackend):
     def _activate_once(window: Dict[str, Any]) -> bool:
         control = str(window["control"])
         if control in (CONTROL_X11, CONTROL_XWAYLAND):
-            return x11_display.activate(int(str(window["native_id"]), 16))
+            xid = int(str(window["native_id"]), 16)
+            if x11_display.activate(xid):
+                return True
+            # Mutter can refuse an Xwayland client's _NET_ACTIVE_WINDOW; the shell bridge activates inside Mutter.
+            return control == CONTROL_XWAYLAND and LinuxTerminalBackend._bridge_activate_xid(xid)
         if control == CONTROL_GNOME_BRIDGE:
             return gnome_shell_bridge.activate(str(window["native_id"]))
         return False
+
+    @staticmethod
+    def _bridge_activate_xid(xid: int) -> bool:
+        bridged = next((entry for entry in gnome_shell_bridge.list_windows() or [] if entry.xid == xid), None)
+        return bridged is not None and gnome_shell_bridge.activate(bridged.window_id)
 
     def _click(self, window: Dict[str, Any], x: int, y: int, button: int) -> bool:
         return self._dispatch(

@@ -1,7 +1,7 @@
 /** SVG optimizer: option toggles, live before / after comparison and byte savings. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Download, Eraser, FileImage, Link2, Upload, Wand2 } from 'lucide-react';
+import { AlertTriangle, Download, Eraser, FileImage, Upload, Wand2 } from 'lucide-react';
 import type { ToolWorkbenchProps } from '../toolWorkbenchTypes';
 import { Btn, CHECKER_STYLE, CodeEditor, CopyBtn, Metric, Notice, Pane, Seg, Slider, Toggle, WebPage, downloadText, formatBytes, gzipSize, lastInput, pickString, useDebounced, useToolRecord, utf8Length } from './kit/webKit';
 import { DEFAULT_SVG_OPTIONS, optimizeSvg, svgDataUri, type SvgOptimizeOptions } from './logic/svg';

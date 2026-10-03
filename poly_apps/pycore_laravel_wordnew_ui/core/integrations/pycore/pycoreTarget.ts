@@ -199,7 +199,8 @@ function isAllowedTarget(target: PycoreTarget): boolean {
   // A native shell or a LAN page reaches LAN machines directly (the K7 gate on
   // pycore still decides whether it is admitted).
   if ((isNativeAppShell() || isLanPage()) && isPrivateLanHost(parsed.hostname)) return true;
-  return isPycoreDirectAccessAllowed() && isPycoreLoopbackHost(parsed.hostname);
+  // Loopback names the viewer's own machine: only a page on the pycore machine itself reaches pycore there.
+  return isLoopbackPage() && isPycoreLoopbackHost(parsed.hostname);
 }
 
 function targetFromUrl(input: string): PycoreTarget | null {

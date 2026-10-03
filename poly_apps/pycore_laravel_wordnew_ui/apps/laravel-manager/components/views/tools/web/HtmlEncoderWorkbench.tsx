@@ -10,7 +10,7 @@ type Mode = 'encode' | 'decode';
 
 const SAMPLE_PLAIN = '<a href="/search?q=café&lang=fr">Café © 2026 — “quoted”</a>';
 const REFERENCE: Array<[string, string]> = [
-  ['&', '&amp;'], ['<', '&lt;'], ['>', '&gt;'], ['"', '&quot;'], [' ', '&nbsp;'], ['©', '&copy;'], ['®', '&reg;'], ['€', '&euro;'],
+  ['&', '&amp;'], ['<', '&lt;'], ['>', '&gt;'], ['"', '&quot;'], ['\u00a0', '&nbsp;'], ['©', '&copy;'], ['®', '&reg;'], ['€', '&euro;'],
   ['…', '&hellip;'], ['—', '&mdash;'], ['→', '&rarr;'], ['≤', '&le;'],
 ];
 const STYLES: EntityStyle[] = ['named', 'decimal', 'hex'];
@@ -18,7 +18,7 @@ const SCOPES: EntityScope[] = ['minimal', 'nonascii', 'all'];
 const DEBOUNCE_MS = 120;
 const VISIBLE_STATS = 24;
 
-const visibleChar = (char: string): string => (char === ' ' ? 'NBSP' : char);
+const visibleChar = (char: string): string => (char === '\u00a0' ? 'NBSP' : char);
 
 const HtmlEncoderWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }) => {
   const { t } = useTranslation();

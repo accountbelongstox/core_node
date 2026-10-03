@@ -66,6 +66,16 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
         <Toggle on={sortKeys} onChange={setSortKeys} label={t('toolsWeb.json.sort_keys')} />
       </div>
 
+      {error && (
+        <Notice tone="error" icon={AlertTriangle}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-mono font-bold">{t('toolsWeb.json.error_at', { line: error.line, column: error.column })}</span>
+            <span>{t(`toolsWeb.json.errors.${error.code}`, { char: error.char })}</span>
+            <button type="button" className="cursor-pointer font-semibold underline" onClick={() => setJump({ offset: error.offset, seq: (jump?.seq ?? 0) + 1 })}>{t('toolsWeb.json.go_to_error')}</button>
+          </div>
+        </Notice>
+      )}
+
       <div className="grid gap-3 lg:grid-cols-2">
         <Pane
           title={t('toolsWeb.json.input')}
@@ -113,15 +123,6 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
         </Pane>
       </div>
 
-      {error && (
-        <Notice tone="error" icon={AlertTriangle}>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-mono font-bold">{t('toolsWeb.json.error_at', { line: error.line, column: error.column })}</span>
-            <span>{t(`toolsWeb.json.errors.${error.code}`, { char: error.char })}</span>
-            <button type="button" className="cursor-pointer font-semibold underline" onClick={() => setJump({ offset: error.offset, seq: (jump?.seq ?? 0) + 1 })}>{t('toolsWeb.json.go_to_error')}</button>
-          </div>
-        </Notice>
-      )}
       {stats && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <Metric label={t('toolsWeb.json.stat_before')} value={formatBytes(stats.before)} />
