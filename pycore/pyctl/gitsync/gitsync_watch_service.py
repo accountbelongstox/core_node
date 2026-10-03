@@ -20,6 +20,7 @@ from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyfoundations.service_contract import value as service_contract_value
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.windowless_subprocess import CREATE_NO_WINDOW
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step11_desktop.system_notification import show_system_notification
@@ -307,7 +308,7 @@ class GitSyncWatchService:
                 stderr=subprocess.STDOUT,
                 env={**os.environ, **NONINTERACTIVE_ENV},
                 timeout=RUN_TIMEOUT_SECONDS,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=CREATE_NO_WINDOW if IS_WINDOWS else 0,
                 check=False,
             )
             output = completed.stdout.decode("utf-8", errors="replace") if completed.stdout else ""
@@ -346,7 +347,7 @@ class GitSyncWatchService:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 timeout=30,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=CREATE_NO_WINDOW if IS_WINDOWS else 0,
                 check=False,
             )
         except (OSError, subprocess.TimeoutExpired):

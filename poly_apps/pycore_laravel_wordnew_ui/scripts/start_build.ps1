@@ -23,7 +23,7 @@
 #   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1 -List
 #   Menu (bare run): select the app, then the action menu; item 1 (default) is one-click debug.
 #   One-click:    -OneClick [-App wordnew] (find device USB/WiFi -> build debug -> install -> live reload + logs)
-#   Device menu:  -AdbMenu | Pair: -AdbPair <IP:PORT> [-AdbPairCode <CODE>] | Connect: -AdbConnect <IP[:PORT]>
+#   Device menu:  -AdbMenu | Pair: -AdbPairCode <CODE> [-AdbPair <IP[:PORT]>] (port found by mDNS/port scan; idempotent) | Connect: -AdbConnect <IP[:PORT]>
 #   LAN scan:     -AdbScan | Disconnect: -AdbDisconnect <target|all> | TCP/IP: -AdbTcpip <port>
 #   Install:      -AdbInstall [-AdbInstallPath <apk>] (builds first when no APK exists)
 #   Live reload:  -LiveReload [-App wordnew] (same flow as -OneClick)
@@ -288,11 +288,13 @@ function Invoke-LiveDevice {
 
 function Invoke-AdbPair {
     param([string]$Target, [string]$Code)
-    if ([string]::IsNullOrWhiteSpace($Target) -or (-not $Target.Contains(':'))) {
-        Write-Err "Pair target must be IP:PAIR_PORT from 'Wireless debugging -> Pair using pairing code'."
+    $hasPairPort = (-not [string]::IsNullOrWhiteSpace($Target)) -and $Target.Contains(':')
+    if ((-not $hasPairPort) -and [string]::IsNullOrWhiteSpace($Code)) {
+        Write-Err "Pairing needs the 6-digit code from 'Wireless debugging -> Pair device with pairing code' (IP:PAIR_PORT optional)."
         return $false
     }
-    $pairArguments = @('pair', '--target', $Target)
+    $pairArguments = @('pair')
+    if (-not [string]::IsNullOrWhiteSpace($Target)) { $pairArguments += @('--target', $Target) }
     if ($Code) { $pairArguments += @('--code', $Code) }
     Invoke-LiveDevice -DeviceArguments $pairArguments
     return $true
@@ -488,7 +490,7 @@ function Start-ActionMenu {
         Write-Host '  3) Build release APK'
         Write-Host '  4) Install the latest built APK to the connected device (offers a build when none exists)'
         Write-Host '  5) Find and connect a device over WiFi (remembered + mDNS + LAN scan, no USB cable)'
-        Write-Host '  6) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)'
+        Write-Host '  6) Pair device - Android 11+ (pairing code; IP:PAIR_PORT optional)'
         Write-Host "  7) Connect device (adb connect IP[:PORT], default $AdbDefaultPort)"
         Write-Host '  8) Discover devices via mDNS (adb mdns services)'
         Write-Host "  9) Switch the USB device to WiFi (adb tcpip $AdbDefaultPort + adb connect)"
@@ -534,8 +536,8 @@ function Start-ActionMenu {
             }
             '^5$' { $null = Connect-AdbOnline }
             '^6$' {
-                $pairTarget = Read-Host 'Pair target IP:PAIR_PORT'
-                $pairCode = Read-Host 'Pairing code'
+                $pairCode = Read-Host 'Pairing code (6 digits)'
+                $pairTarget = Read-Host 'Pair target IP[:PAIR_PORT] (empty = find by mDNS/port scan)'
                 $null = Invoke-AdbPair -Target $pairTarget -Code $pairCode
             }
             '^7$' { $null = Connect-AdbAuthorized -Target (Read-Host 'Device IP[:PORT]') }
@@ -573,7 +575,7 @@ function Invoke-DeviceActions {
         }
     }
     if ($AdbScan) { Invoke-AdbLanScan }
-    if ($AdbPair) {
+    if ($AdbPair -or $AdbPairCode) {
         if (-not (Invoke-AdbPair -Target $AdbPair -Code $AdbPairCode)) { $script:AdbActionsOk = $false }
     }
     if ($AdbConnect) {
@@ -610,7 +612,7 @@ if ($PSBoundParameters.ContainsKey('AdbTcpip')) {
     if ($AdbTcpipPort -le 0) { $AdbTcpipPort = $AdbDefaultPort }
 }
 if ($LiveReloadActive) { $BuildTypeEffective = 'debug' }
-if ($AdbMenu -or $AdbDevices -or $AdbPair -or $AdbConnect -or $AdbDisconnectRequested -or ($AdbTcpipPort -gt 0) -or $AdbInstallRequested -or $AdbScan -or $LiveReloadActive) {
+if ($AdbMenu -or $AdbDevices -or $AdbPair -or $AdbPairCode -or $AdbConnect -or $AdbDisconnectRequested -or ($AdbTcpipPort -gt 0) -or $AdbInstallRequested -or $AdbScan -or $LiveReloadActive) {
     $DeviceMode = $true
 }
 
