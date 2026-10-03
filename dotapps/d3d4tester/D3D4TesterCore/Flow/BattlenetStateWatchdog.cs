@@ -34,10 +34,19 @@ public static class BattlenetStateWatchdog
     private static DateTime? _loginSinceUtc;
     private static DateTime _lastRegionSwitchUtc = DateTime.MinValue;
 
+    /// <summary>The user must act (choose a verify method, type the e-mailed code): no rule may restart the client.</summary>
+    private static readonly BattlenetClientState[] UserActionStates = { BattlenetClientState.SecurityCheck, BattlenetClientState.VerificationCode };
+
     public static void Tick()
     {
         var s = GameInterfaceData.Instance.GetStateSnapshot();
         var now = DateTime.UtcNow;
+        if (UserActionStates.Contains(s.BattlenetClientState))
+        {
+            _abnormalSinceUtc = null;
+            _loginSinceUtc = null;
+            return;
+        }
         if (EnsureRegion(s.BattlenetUiRegion, now)) return;
 
         _abnormalSinceUtc = AbnormalStates.Contains(s.BattlenetClientState) && s.BattlenetWindowFound ? _abnormalSinceUtc ?? now : null;

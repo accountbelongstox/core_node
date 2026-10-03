@@ -72,7 +72,6 @@ public static class BattlenetClientStateDetector
     /// <summary>Region the UI itself shows: exact CN-only / Asia-only automation ids (substring matching would read D3CN as D3).</summary>
     public static string? UiRegion(IReadOnlyList<BattlenetControl> controls)
     {
-        if (controls.Any(c => c.AutomationId.Contains(C.LoginPopupWindowAutomationId, StringComparison.Ordinal))) return C.RegionCn;
         if (HasExactAutomationId(controls, C.CnRegionAutomationIds)) return C.RegionCn;
         if (HasExactAutomationId(controls, C.AsiaRegionAutomationIds)) return C.RegionAsia;
         return null;

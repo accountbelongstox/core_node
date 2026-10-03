@@ -58,7 +58,7 @@ public static class BattlenetConstants
     public const string ButtonControlType = "ButtonControl";
     /// <summary>Main-window Play button has no AutomationId in live scans; its Name starts with these (e.g. "Play: Diablo III, Version: ...").</summary>
     public static readonly string[] PlayButtonNamePrefixes = { "Play", "开始游戏", "開始遊戲", "正在", "进行中" };
-    /// <summary>CN web login popup (account.battlenet.com.cn, NetEase / password entry in progress). uidocs 战网_CB2F804E.</summary>
+    /// <summary>Login web popup (NetEase / password entry, also the security check page for any region). Not a region signal.</summary>
     public const string LoginPopupWindowAutomationId = "LoginPopupWindow";
     /// <summary>Exact ids only on the CN login page (uidocs 战网登录_8914CEDB).</summary>
     public static readonly string[] CnLoginAutomationIds = { "ntes" };
