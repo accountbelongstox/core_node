@@ -109,7 +109,12 @@
       "Bash(node cdp.mjs \"location.href+' '+[...document.querySelectorAll\\('*'\\)].filter\\(e=>e.children.length===0&&/NIV/.test\\(e.textContent\\)\\).length\")",
       "Bash(adb exec-out *)",
       "Bash(node -e ' *)",
-      "Bash(ps -eo pid,lstart,cmd)"
+      "Bash(ps -eo pid,lstart,cmd)",
+      "Bash(adb forward *)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist)",
+      "Bash(timeout 40 node nav.mjs)",
+      "Bash(awk '$9>5 {print $1,$9,$\\(NF-1\\),substr\\($NF,1,40\\)}')"
     ],
     "deny": [],
     "ask": []
