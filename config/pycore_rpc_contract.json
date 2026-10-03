@@ -1094,6 +1094,10 @@
       "path": "ui/terminal/key",
       "method": "POST"
     },
+    "terminalPermissionMode": {
+      "path": "ui/terminal/permission-mode",
+      "method": "POST"
+    },
     "terminalRemove": {
       "path": "ui/terminal/remove",
       "method": "POST"

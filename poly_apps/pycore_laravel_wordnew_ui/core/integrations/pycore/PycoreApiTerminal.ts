@@ -39,7 +39,7 @@ export interface TerminalScreenshotTextResult {
   window_id?: string;
   digest?: string;
   text?: string;
-  confidence?: number;
+  engine?: string | null;
 }
 
 export type TerminalLogSource = 'input' | 'enter' | 'schedule';
@@ -59,6 +59,15 @@ export interface TerminalLogEntry {
 export type TerminalScheduleMode = 'once' | 'interval';
 
 export type TerminalKeyAction = 'escape' | 'ctrl_c' | 'tab' | 'shift_tab';
+export type TerminalPermissionModeName = 'manual' | 'auto' | 'accept_edits' | 'plan' | 'bypass' | 'yolo';
+export type TerminalPermissionModeTarget = 'manual' | 'auto' | 'accept_edits' | 'plan';
+
+/** Agent permission mode read from the footer of the last text scan; auto_supported is null until auto mode is seen or a full shift+tab cycle passed without it. */
+export interface TerminalPermissionMode {
+  mode: TerminalPermissionModeName;
+  auto_supported: boolean | null;
+  cycle: TerminalPermissionModeName[] | null;
+}
 
 export interface TerminalRemoveResult {
   success: boolean;
@@ -165,6 +174,7 @@ export interface TerminalWindowInfo {
   /** True once a text scan of this window decided the agent state (false: title-only or not scanned yet). */
   agent_scanned?: boolean;
   agent_activity?: TerminalAgentActivity | null;
+  permission_mode?: TerminalPermissionMode | null;
   state_updated_at?: string;
   last_seen_at?: string;
 }
@@ -269,6 +279,14 @@ export interface TerminalActionResult {
   log?: TerminalLogEntry | null;
   point?: TerminalWindowPoint;
   screenshot_resource?: TerminalScreenshotResourceMeta | null;
+}
+
+/** Each shift+tab step with the changed tail lines of the export before and after it. */
+export interface TerminalPermissionModeResult extends TerminalActionResult {
+  mode?: TerminalPermissionModeName;
+  modes?: TerminalPermissionModeName[];
+  steps?: Array<{ from: TerminalPermissionModeName; to: TerminalPermissionModeName | null; changes: string[] }>;
+  auto_supported?: boolean | null;
 }
 
 export interface TerminalCaptureResult extends TerminalActionResult {
@@ -512,6 +530,12 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
         window_id: windowId,
         key,
       }) as Promise<TerminalActionResult>,
+    switchTerminalPermissionMode: (windowId: string, terminalNumber: number, mode: TerminalPermissionModeTarget) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalPermissionMode, {
+        window_id: windowId,
+        terminal_number: terminalNumber,
+        mode,
+      }) as Promise<TerminalPermissionModeResult>,
     clickTerminal: (
       windowId: string,
       horizontalRatio: number,

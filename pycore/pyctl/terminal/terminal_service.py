@@ -7,7 +7,7 @@ import re
 import secrets
 import threading
 import time
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -15,6 +15,14 @@ from pycore.pyfoundations.system_launcher import open_file_with_notepad
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_capture_store import terminal_capture_store
 from pycore.pyctl.terminal.terminal_image_store import ERROR_IMAGE_MISSING, terminal_image_store
+from pycore.pyctl.terminal.terminal_permission_mode import (
+    CYCLE_KEY,
+    SWITCH_TARGET_MODES,
+    permission_mode,
+    tail_diff,
+    terminal_permission_modes,
+)
+from pycore.pyctl.terminal.terminal_prompt_detector import waiting_prompt
 from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
     terminal_screenshot_cache,
@@ -71,7 +79,12 @@ CAPTURE_FOCUS_LABEL = "TerminalCapture"
 CUSTOM_TITLE_MAX_CHARS = 120
 CHOICE_MAX_OPTIONS = 9
 CHOICE_SETTLE_SECONDS = 0.15
-TERMINAL_TEXT_MIN_CONFIDENCE = relay_contract.limit("terminal_text_min_confidence_percent") / 100
+# shift+tab cycles at most manual/accept edits/plan/auto/bypass; one more step closes the cycle.
+MODE_SWITCH_MAX_STEPS = 6
+MODE_SWITCH_SETTLE_SECONDS = 0.5
+MODE_SWITCH_POLL_ATTEMPTS = 6
+MODE_SWITCH_FOCUS_LABEL = "TerminalPermissionMode"
+TERMINAL_TEXT_MIN_WORD_CHARS = relay_contract.limit("terminal_text_min_word_chars")
 
 
 class TerminalService:
@@ -253,14 +266,13 @@ class TerminalService:
             return self._failure("terminal_window_offline")
         recognized = recognize_region_text(TerminalService.window_capture_region(window))
         text = str(recognized.get("text") or "").strip("\n")
-        confidence = float(recognized.get("confidence") or 0)
-        readable = bool(text.strip()) and confidence >= TERMINAL_TEXT_MIN_CONFIDENCE
+        readable = bool(text.strip()) and len(re.findall(r"\w", text)) >= TERMINAL_TEXT_MIN_WORD_CHARS
         result: Dict[str, Any] = {
             "success": readable,
             "window_id": window_id,
             "digest": digest,
             "text": text if readable else "",
-            "confidence": confidence,
+            "engine": recognized.get("engine"),
             "error_code": None if readable else str(recognized.get("error") or "terminal_text_unreadable"),
         }
         with self._frame_texts_lock:
@@ -386,6 +398,85 @@ class TerminalService:
         if not activation.get("success"):
             return activation
         return self._backend.press_key(window_id, key)
+
+    @serialized_method
+    def switch_permission_mode(
+        self,
+        window_id: str,
+        terminal_number: int,
+        target: str,
+    ) -> Dict[str, Any]:
+        """Cycle the agent's permission mode with shift+tab until the footer shows the target; every step compares the exported text before and after."""
+        if not window_id:
+            return self._failure("terminal_window_id_required")
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        if target not in SWITCH_TARGET_MODES:
+            return self._failure("terminal_permission_mode_invalid")
+        with focus_guard.preserved(MODE_SWITCH_FOCUS_LABEL):
+            return self._cycle_permission_mode(window_id, terminal_number, target)
+
+    def _cycle_permission_mode(self, window_id: str, terminal_number: int, target: str) -> Dict[str, Any]:
+        exported = self.export_text(window_id, terminal_number)
+        if not exported.get("success"):
+            return exported
+        text = exported["text"]
+        terminal_permission_modes.observe(window_id, text)
+        mode = permission_mode(text)
+        if mode is None:
+            return self._failure("terminal_permission_mode_unknown")
+        if waiting_prompt(text):
+            return self._failure("terminal_prompt_waiting")
+        modes = [mode]
+        steps: List[Dict[str, Any]] = []
+        while mode != target:
+            if len(steps) >= MODE_SWITCH_MAX_STEPS or (len(modes) > 1 and mode == modes[0]):
+                terminal_permission_modes.record_cycle(window_id, modes)
+                return {**self._failure("terminal_permission_mode_unavailable"), "modes": modes, "steps": steps}
+            pressed = self._backend.press_key(window_id, CYCLE_KEY)
+            if not pressed.get("success"):
+                return {**pressed, "modes": modes, "steps": steps}
+            exported, changes = self._await_text_change(window_id, terminal_number, text)
+            if not exported.get("success"):
+                return {**exported, "modes": modes, "steps": steps}
+            after = exported["text"]
+            mode = permission_mode(after)
+            steps.append({"from": modes[-1], "to": mode, "changes": changes})
+            if not changes or mode is None:
+                return {**self._failure("terminal_permission_mode_unchanged"), "modes": modes, "steps": steps}
+            terminal_permission_modes.observe(window_id, after)
+            modes.append(mode)
+            text = after
+        terminal_permission_modes.record_cycle(window_id, modes)
+        terminal_activity_log.info(
+            "permission_mode.switched",
+            terminal_number=terminal_number,
+            target=target,
+            modes=modes,
+            steps=len(steps),
+        )
+        return {
+            "success": True,
+            "error_code": None,
+            "mode": mode,
+            "modes": modes,
+            "steps": steps,
+            "auto_supported": terminal_permission_modes.auto_supported(window_id),
+        }
+
+    def _await_text_change(self, window_id: str, terminal_number: int, before: str) -> Tuple[Dict[str, Any], List[str]]:
+        """Export until the tail differs from before (the agent repaints its footer asynchronously)."""
+        exported: Dict[str, Any] = self._failure("terminal_capture_empty")
+        changes: List[str] = []
+        for _attempt in range(MODE_SWITCH_POLL_ATTEMPTS):
+            time.sleep(MODE_SWITCH_SETTLE_SECONDS)
+            exported = self.export_text(window_id, terminal_number)
+            if not exported.get("success"):
+                return exported, []
+            changes = tail_diff(before, exported["text"])
+            if changes:
+                break
+        return exported, changes
 
     @serialized_method
     def scroll(
@@ -577,6 +668,11 @@ class TerminalService:
                 "clipboard_restored": clipboard_restored,
             },
         )
+
+    @serialized_method
+    def run_exclusive(self, action: Callable[[], Any]) -> Any:
+        """Run a multi-step window action (focus save, keys, focus restore) on the input owner, so no send interleaves."""
+        return action()
 
     @serialized_method
     def export_text(

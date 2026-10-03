@@ -10,6 +10,7 @@ from pycore.pyctl.terminal.terminal_prompt_detector import (
     mode_switch_selected,
     second_yes_prompt,
     selected_option,
+    waiting_prompt,
 )
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -49,6 +50,13 @@ class TerminalPromptHandler:
                     f"[{LABEL}] skipped terminal={terminal_number}: selection is on option {selected} after one move; "
                     f"never moving twice"
                 )
+                break
+            # A key sent after the prompt closed reaches the agent's own UI: re-read right before acting.
+            fresh_text = capture()
+            if fresh_text is None or waiting_prompt(fresh_text) != waiting_prompt(current_text):
+                ColorPrint.yellow(f"[{LABEL}] skipped terminal={terminal_number}: prompt changed before the key was sent")
+                if fresh_text is not None:
+                    current_text = fresh_text
                 break
             try:
                 if selected == target:
