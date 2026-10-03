@@ -14,17 +14,14 @@ MODEL_CAPACITY_PROFILES: Dict[str, Dict[str, int]] = {
     "0.6B": {
         "incremental_vram_mb": 768,
         "multiprocessors_per_item": 6,
-        "multiprocessors_per_item_large_gpu": 3,
         "max_batch_size": 16,
     },
     "1.7B": {
         "incremental_vram_mb": 1536,
         "multiprocessors_per_item": 12,
-        "multiprocessors_per_item_large_gpu": 6,
         "max_batch_size": 8,
     },
 }
-LARGE_GPU_MEMORY_MB = 12288
 DEFAULT_RESERVE_RATIO = 0.08
 DEFAULT_RESERVE_MIN_MB = 512
 MAX_BATCH_SIZE = 64
@@ -95,9 +92,7 @@ def build_capacity_plan(
     incremental_mb = int(profile["incremental_vram_mb"])
     memory_limit = max(1, 1 + usable_mb // incremental_mb)
     multiprocessors = int(cuda_properties.get("multiprocessor_count") or 0)
-    multiprocessors_per_item = int(
-        profile["multiprocessors_per_item_large_gpu" if total_mb >= LARGE_GPU_MEMORY_MB else "multiprocessors_per_item"]
-    )
+    multiprocessors_per_item = int(profile["multiprocessors_per_item"])
     compute_limit = (
         max(1, multiprocessors // multiprocessors_per_item)
         if multiprocessors > 0
