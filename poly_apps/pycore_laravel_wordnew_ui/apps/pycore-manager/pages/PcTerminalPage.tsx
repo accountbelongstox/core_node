@@ -1616,15 +1616,19 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     if (!selectedWindow || !selectedWindow.online) return;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
-    // Attached images belong to the draft message only, never to an explicit text resend.
-    const imagePaths = textOverride === undefined ? await images.uploadAll() : [];
-    if (imagePaths === null) {
+    // Attachments belong to the draft message only, never to an explicit text resend.
+    const attachments = textOverride === undefined ? await images.uploadAll() : [];
+    if (attachments === null) {
       setActionNotice({ kind: 'error', translationKey: 'terminal.images.sendBlocked' });
       return;
     }
     // Read the draft after the uploads: typing during an upload is part of the message.
     const draftText = stripImagePlaceholders(textOverride === undefined ? (draftsRef.current[key] ?? selectedDraft) : textOverride);
-    const payload = [draftText, ...imagePaths].filter((part) => part !== '').join(' ');
+    // A voice message leads with the instruction to transcribe it and start right away.
+    const voiceNote = attachments.some((attachment) => attachment.kind === 'audio') ? t('terminal.voice.agentNote') : '';
+    const payload = [voiceNote, draftText, ...attachments.map((attachment) => attachment.displayPath)]
+      .filter((part) => part !== '')
+      .join(' ');
     const activeTimer = draftTimersRef.current[key];
     if (activeTimer) {
       window.clearTimeout(activeTimer);
@@ -1658,7 +1662,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
       setDrafts(draftsRef.current);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     }
-  }, [images, persistDraft, runAction, selectedDraft, selectedWindow]);
+  }, [images, persistDraft, runAction, selectedDraft, selectedWindow, t]);
 
   // Saves the UI name (empty restores the window title) and asks pycore to retitle the OS window.
   const renameSelected = useCallback(async () => {
