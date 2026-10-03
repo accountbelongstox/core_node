@@ -13,7 +13,7 @@
  * window must be clicked on its picture, is the image itself transferred.
  */
 import { ChangeSignal } from '../../../../core/events/ChangeSignal';
-import { RELAY_CONTRACT } from '@/core/contracts/RelayContract';
+import { RELAY_CONTRACT, relayRoutePolicyTimeoutMs } from '@/core/contracts/RelayContract';
 import type {
   PycoreHttpBinaryResult,
   TerminalScreenshotResourceMeta,
@@ -26,7 +26,7 @@ const FAILURE_COOLDOWN_MS = 10_000;
 const FETCH_CONCURRENCY = 2;
 const BOOTSTRAP_GIVE_UP_MS = 20_000;
 const GRACE_MS = 30_000;
-const TEXT_FETCH_TIMEOUT_MS = RELAY_CONTRACT.durations.terminal_screenshot_capture_lease_seconds * 1000;
+const TEXT_FETCH_TIMEOUT_MS = relayRoutePolicyTimeoutMs('terminal_read');
 const TEXT_RETRY_MS = RELAY_CONTRACT.durations.terminal_text_retry_seconds * 1000;
 const TEXT_STALE_CODE = 'terminal_screenshot_stale';
 
