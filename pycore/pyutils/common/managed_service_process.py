@@ -16,6 +16,7 @@ from pycore.pyfoundations.serialized_worker import serialized_method, start_bus_
 from pycore.pyfoundations.system_paths import get_app_logs_dir
 from pycore.pyfoundations.third_party.api import get_third_package_torch
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.windowless_subprocess import CREATE_NO_WINDOW
 from pycore.pyutils.common.model_boot import model_boot
 import pycore.pyutils.common.model_load_status as model_load_status
 
@@ -110,9 +111,7 @@ class ManagedServiceProcessMixin:
             "stderr": subprocess.DEVNULL,
         }
         if sys.platform == "win32":
-            flags = subprocess.CREATE_NEW_PROCESS_GROUP
-            create_no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-            kw["creationflags"] = flags | create_no_window
+            kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
         else:
             kw["start_new_session"] = True
         return kw

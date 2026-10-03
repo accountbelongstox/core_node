@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import json
 import os
@@ -54,6 +55,16 @@ WIFI_ROUTE_PATTERN = re.compile(r"src (\d+\.\d+\.\d+\.\d+)")
 IP_LINE_PATTERN = re.compile(r"inet (\d+\.\d+\.\d+\.\d+)/")
 ROUTE_PROBE_ADDRESS = ("192.0.2.1", 9)
 CARRIER_NAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+# Android 11+ wireless debugging listens on random ephemeral ports (one for pairing, one for
+# connecting); when mDNS is silent they are found by scanning the LAN neighbours' port range.
+WIRELESS_PORT_RANGE = range(32768, 61000)
+WIRELESS_SCAN_CONCURRENCY = 1500
+WIRELESS_SCAN_TIMEOUT_SECONDS = 0.6
+NEIGHBOR_WAKE_PORT = 9
+NEIGHBOR_WAKE_SETTLE_SECONDS = 1.5
+WINDOWS_ARP_PATTERN = re.compile(r"^\s*(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F]{2}(?:-[0-9a-fA-F]{2}){5})\s", re.MULTILINE)
+LINUX_NEIGH_PATTERN = re.compile(r"^(\d+\.\d+\.\d+\.\d+)\s.*lladdr\s", re.MULTILINE)
+PAIRING_CODE_PATTERN = re.compile(r"^\d{6}$")
 NETWORK_SERIAL_MARKERS = (":", "._adb")
 EMULATOR_PREFIX = "emulator-"
 
@@ -420,6 +431,102 @@ def pair_device(adb_bin: str, target: str, code: str, interactive: bool, state_d
     if paired and state_dir is not None:
         save_pairing(state_dir, target, code)
     return paired
+
+
+def neighbor_hosts(host: str = "") -> list[str]:
+    """LAN neighbours (ARP / ip neigh) of the local /24 subnets; a UDP datagram to every host fills the table first."""
+    if host:
+        return [host]
+    prefixes = local_subnets()
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as waker:
+        for prefix in prefixes:
+            for number in SCAN_HOST_RANGE:
+                try:
+                    waker.sendto(b"", (f"{prefix}.{number}", NEIGHBOR_WAKE_PORT))
+                except OSError:
+                    continue
+    time.sleep(NEIGHBOR_WAKE_SETTLE_SECONDS)
+    if os.name == "nt":
+        listing = subprocess.run(["arp", "-a"], capture_output=True, text=True, check=False, **NO_WINDOW).stdout
+        found = [address for address, mac in WINDOWS_ARP_PATTERN.findall(listing) if mac.lower() != "ff-ff-ff-ff-ff-ff"]
+    else:
+        listing = subprocess.run(["ip", "-4", "neigh", "show"], capture_output=True, text=True, check=False).stdout
+        found = LINUX_NEIGH_PATTERN.findall(listing)
+    return [address for address in dict.fromkeys(found)
+            if ".".join(address.split(".")[:3]) in prefixes and not address.endswith((".0", ".255"))]
+
+
+async def _open_ports(hosts: list[str]) -> dict[str, list[int]]:
+    limit = asyncio.Semaphore(WIRELESS_SCAN_CONCURRENCY)
+    found: dict[str, list[int]] = {}
+
+    async def probe(host: str, port: int) -> None:
+        async with limit:
+            try:
+                _reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port),
+                                                         WIRELESS_SCAN_TIMEOUT_SECONDS)
+            except (OSError, asyncio.TimeoutError):
+                return
+            writer.close()
+            found.setdefault(host, []).append(port)
+
+    await asyncio.gather(*(probe(host, port) for host in hosts for port in WIRELESS_PORT_RANGE))
+    return {host: sorted(ports) for host, ports in found.items()}
+
+
+def scan_wireless_ports(hosts: list[str]) -> dict[str, list[int]]:
+    """Open ports in the wireless-debugging range per host (pairing and connect ports are both among them)."""
+    if not hosts:
+        return {}
+    log(f"Scanning wireless-debugging ports {WIRELESS_PORT_RANGE.start}-{WIRELESS_PORT_RANGE.stop - 1} "
+        f"on {len(hosts)} host(s): {', '.join(hosts)} ...")
+    return asyncio.run(_open_ports(hosts))
+
+
+def pair_by_code(adb_bin: str, state_dir: Path, code: str, host: str = "") -> bool:
+    """Idempotent pairing from the 6-digit code alone: hosts already online are kept, the pairing port comes
+    from mDNS or a port scan of the LAN neighbours, then the device's other open port is connected."""
+    code = code.strip()
+    if not PAIRING_CODE_PATTERN.match(code):
+        log(f"Pairing code must be the 6 digits shown in 'Pair device with pairing code' (got '{code}').")
+        return False
+    run_adb(adb_bin, "start-server")
+    online_hosts = {split_endpoint(serial)[0] for serial in online_serials(adb_bin) if is_network_serial(serial)
+                    and ":" in serial}
+    if host and host in online_hosts:
+        log(f"{host} is already paired and online; nothing to do.")
+        remember_online(adb_bin, state_dir)
+        return True
+    pairing = [endpoint for endpoint in mdns_endpoints(adb_bin)[1]
+               if (not host or split_endpoint(endpoint)[0] == host) and split_endpoint(endpoint)[0] not in online_hosts]
+    candidates: dict[str, list[int]] = {}
+    for endpoint in pairing:
+        candidate_host, port = split_endpoint(endpoint)
+        candidates.setdefault(candidate_host, []).append(port)
+    if not candidates:
+        hosts = [candidate for candidate in neighbor_hosts(host) if candidate not in online_hosts]
+        candidates = scan_wireless_ports(hosts)
+    for candidate_host, ports in candidates.items():
+        paired_port = next((port for port in ports
+                            if pair_device(adb_bin, f"{candidate_host}:{port}", code, False, state_dir)), 0)
+        if not paired_port:
+            continue
+        connect_ports = [port for port in ports if port != paired_port] or scan_wireless_ports([candidate_host]).get(
+            candidate_host, [])
+        connect_ports += [port for port in [split_endpoint(endpoint)[1] for endpoint in mdns_endpoints(adb_bin)[0]
+                                            if split_endpoint(endpoint)[0] == candidate_host] if port not in connect_ports]
+        for port in connect_ports:
+            if port != paired_port and connect_authorized(adb_bin, f"{candidate_host}:{port}"):
+                remember_online(adb_bin, state_dir)
+                return True
+        log(f"Paired with {candidate_host}:{paired_port}, but no connect port answered; re-run to connect.")
+        return False
+    if online_hosts:
+        log(f"No new pairing dialog found; already online: {', '.join(sorted(online_hosts))}.")
+        remember_online(adb_bin, state_dir)
+        return True
+    log("No phone with an open pairing dialog found (same WiFi? dialog still open? code expired?).")
+    return False
 
 
 def local_subnets() -> list[str]:

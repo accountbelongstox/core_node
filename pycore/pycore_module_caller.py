@@ -56,6 +56,13 @@ sys.path[:] = [p for p in sys.path
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from pycore.pyfoundations.windowless_subprocess import windowless_subprocess
+
+# Installed before anything can spawn: a console-less Windows run (tray /
+# autostart / pythonw) would otherwise flash a focus-stealing console window
+# for every ffmpeg, ffprobe, nvidia-smi, git or python child.
+windowless_subprocess.install()
+
 from pycore.pyfoundations.desktop_session import ensure_session_environment
 
 # Desktop session variables (XAUTHORITY, DBus address, runtime dir) are resolved
