@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.RegularExpressions;
 using DotCore.Foundations;
+using DotApps.d3d4tester.Core.Battlenet;
 
 namespace DotApps.d3d4tester.Core;
 
@@ -33,7 +34,7 @@ public static class PathScanner
         && string.Equals(Path.GetFileName(path.Trim()), exeName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Configured Battle.net.exe path is valid. 1:1 Python _get_configured_battlenet_path.</summary>
-    public static bool IsConfiguredBattlenetValid([NotNullWhen(true)] string? path) => IsValidExePath(path, D3PathConstants.BattleNetExeName);
+    public static bool IsConfiguredBattlenetValid([NotNullWhen(true)] string? path) => IsValidExePath(path, BattlenetConstants.BattlenetExeName);
 
     /// <summary>Configured Diablo III.exe path is valid. 1:1 Python _get_configured_d3_path.</summary>
     public static bool IsConfiguredD3Valid([NotNullWhen(true)] string? path) => IsValidExePath(path, D3PathConstants.DiabloIIIExeName);
@@ -167,7 +168,7 @@ public static class PathScanner
             {
                 string name = Path.GetFileName(full);
                 double mtime = GetMtime(full);
-                if (name == D3PathConstants.BattleNetExeName)
+                if (name == BattlenetConstants.BattlenetExeName)
                     KeepNewer(ref battlenetPath, ref battlenetMtime, full, mtime);
                 else if (name == D3PathConstants.DiabloIIIExeName)
                     KeepNewer(ref d3Path, ref d3Mtime, full, mtime);

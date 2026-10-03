@@ -33,14 +33,14 @@ public static class BattlenetStatusProvider
     {
         var game = GameInterfaceData.Instance;
         var chosen = ConfigBinding.GetValue(ConfigKeys.BattlenetRegion, "");
-        if (chosen is AppConstants.RegionAsia or AppConstants.RegionCn)
+        if (chosen is BattlenetConstants.RegionAsia or BattlenetConstants.RegionCn)
         {
             if (game.GetStateSnapshot().BattlenetRegion != chosen) game.SetBattlenetRegion(chosen);
             return;
         }
         if (game.GetStateSnapshot().BattlenetRegion != null) return;
         var configRegion = ReadRegionFromBattlenetConfig();
-        if (configRegion is AppConstants.RegionAsia or AppConstants.RegionCn)
+        if (configRegion is BattlenetConstants.RegionAsia or BattlenetConstants.RegionCn)
         {
             game.SetBattlenetRegion(configRegion);
             D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, configRegion);
@@ -48,7 +48,7 @@ public static class BattlenetStatusProvider
             return;
         }
         var cached = ConfigBinding.GetValue<string>(ConfigKeys.RosSettingsBattlenetRegionCache, "");
-        if (cached is AppConstants.RegionAsia or AppConstants.RegionCn)
+        if (cached is BattlenetConstants.RegionAsia or BattlenetConstants.RegionCn)
             game.SetBattlenetRegion(cached);
     }
 

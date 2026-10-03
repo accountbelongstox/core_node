@@ -44,7 +44,9 @@
  *      computed) and nothing from the other generate stages; the plan's cursor
  *      (not `recheckGenerating`) continues them.
  *   R7 Channel availability comes from ONE source per end (wordnew:
- *      `wordNewChannels`). Stages never judge availability themselves.
+ *      `wordNewChannels`). Stages never judge availability themselves. The
+ *      app's LAN route (a LAN URL the selected machine reported, K3-signed)
+ *      is only the address of the selected pycore, never a second source.
  *   R8 A clip is delivered once per run; what a channel does not deliver is
  *      released (never left `loading`) and goes on to the next stage.
  *   R9 Recovery while pycore / Laravel come and go (WordNewOrchComposer):

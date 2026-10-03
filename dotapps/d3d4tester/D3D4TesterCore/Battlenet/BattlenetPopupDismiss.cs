@@ -47,7 +47,7 @@ public static class BattlenetPopupDismiss
         var output = new List<BattlenetControl>();
         foreach (var c in controls)
         {
-            if (c.Type != BattlenetConstants.PopupCloseControlType) continue;
+            if (c.Type != BattlenetConstants.ButtonControlType) continue;
             if (IsPopupCloseButtonByAutomationId(c.AutomationId))
             {
                 output.Add(c);
@@ -64,7 +64,7 @@ public static class BattlenetPopupDismiss
     {
         foreach (var c in controls)
         {
-            if (c.Type != BattlenetConstants.PopupCloseControlType || IsMainWindowCloseButton(c.AutomationId)) continue;
+            if (c.Type != BattlenetConstants.ButtonControlType || IsMainWindowCloseButton(c.AutomationId)) continue;
             if (IsPopupCloseButtonByAutomationId(c.AutomationId))
             {
                 ColorPrinter.Blue($"[BattlenetOperation] Closing in-UI popup: automation_id={c.AutomationId}");
@@ -73,7 +73,7 @@ public static class BattlenetPopupDismiss
         }
         foreach (var c in controls)
         {
-            if (c.Type != BattlenetConstants.PopupCloseControlType || IsMainWindowCloseButton(c.AutomationId)) continue;
+            if (c.Type != BattlenetConstants.ButtonControlType || IsMainWindowCloseButton(c.AutomationId)) continue;
             if (IsPopupCloseButtonByName(c.Name))
             {
                 ColorPrinter.Blue($"[BattlenetOperation] Closing in-UI popup: name={c.Name}");

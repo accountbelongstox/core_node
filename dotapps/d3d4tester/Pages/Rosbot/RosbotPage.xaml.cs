@@ -366,7 +366,7 @@ public partial class RosbotPage : UserControl
     {
         ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnSetAccountPassword clicked. Opening CredentialsDialog for Asia.");
         var owner = Window.GetWindow(this);
-        var dialog = new CredentialsDialog(AsiaCredentialsService.RegionAsia) { Owner = owner };
+        var dialog = new CredentialsDialog(BattlenetConstants.RegionAsia) { Owner = owner };
         dialog.ShowDialog();
     }
 }

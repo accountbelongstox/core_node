@@ -13,7 +13,10 @@ import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
+from pycore.pyfoundations.net_probe import private_lan_ipv4_addresses
+from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
 from pycore.pyfoundations.notebook_policy import notebook_platform
+from pycore.pyutils.common.local_rpc_guard import lan_bind_enabled
 from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORK_LEASES, queue_center_endpoint
@@ -32,6 +35,7 @@ BATCH_MAX = int(QUEUE_CENTER_WORK_LEASES["batch_max"])
 WANT_MAX = int(QUEUE_CENTER_WORK_LEASES["want_max"])
 NODE_LABEL_MAX = 32
 NODE_LABEL_ID_CHARS = 6
+NODE_LAN_URLS_MAX = 4
 
 
 def lease_reason_code(code: str) -> str:
@@ -45,12 +49,21 @@ def lease_reason_code(code: str) -> str:
 LEASE_LOST = lease_reason_code("LEASE_LOST")
 
 
-def work_node_identity() -> Dict[str, str]:
+def work_node_lan_urls() -> List[str]:
+    """Direct LAN backend URLs of this pycore (wordnew's LAN route); empty
+    unless the LAN bind setting is on or on a notebook."""
+    if notebook_platform() or not lan_bind_enabled():
+        return []
+    return [f"http://{address}:{PYCORE_HTTP_PORT}" for address in private_lan_ipv4_addresses()[:NODE_LAN_URLS_MAX]]
+
+
+def work_node_identity() -> Dict[str, Any]:
     """Claim identity fields beyond the worker id: the stable device node id,
-    the notebook platform (colab|kaggle; omitted on other hosts) and the label
+    the notebook platform (colab|kaggle; omitted on other hosts), the label
     (``<platform>-<device id head>`` on a notebook, whose container hostname
-    changes every VM; the hostname elsewhere)."""
-    identity: Dict[str, str] = {}
+    changes every VM; the hostname elsewhere) and the LAN URLs (always sent,
+    so a node whose LAN bind went off clears them)."""
+    identity: Dict[str, Any] = {"lan_urls": work_node_lan_urls()}
     platform_name = notebook_platform()
     node_id = node_device_id()
     if platform_name and node_id:

@@ -21,6 +21,7 @@ using DotApps.d3d4tester.Windows.CoordinatePicker;
 using DotCore.Foundations;
 using OpenCvSharp;
 using WpfWindow = System.Windows.Window;
+using DotApps.d3d4tester.Core;
 
 namespace DotApps.d3d4tester.Windows;
 
@@ -37,7 +38,7 @@ public partial class CoordinatePickerWindow : WpfWindow
     private const string PickIdPrefix = "pick_";
     private const string ExportFilePrefix = "coords_";
     private const string ExportFileExtension = ".txt";
-    private const string ExportFileTimeFormat = "yyyyMMdd_HHmmss";
+    private const string ExportFileTimeFormat = D3PathConstants.FileTimestampFormat;
     private const string ExportHeaderTimeFormat = "yyyy-MM-dd HH:mm:ss";
     private const string ExportIndent = "   ";
     private const int ExportRuleLength = 50;

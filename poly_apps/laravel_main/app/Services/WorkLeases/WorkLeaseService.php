@@ -35,6 +35,10 @@ use Illuminate\Support\Facades\Log;
  */
 final class WorkLeaseService
 {
+    /** LAN backend URLs a node may report (wordnew's LAN route): `http://<RFC 1918 IPv4>:<port>`. */
+    public const LAN_URLS_MAX = 4;
+    public const LAN_URL_PATTERN = '/^http:\/\/(10(\.\d{1,3}){3}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|192\.168(\.\d{1,3}){2}):\d{2,5}$/';
+
     private const LEASE_KEY = 'work_lease:lease:';
     private const NODE_LEASES_KEY = 'work_lease:node:';
     private const DONE_KEY = 'work_lease:done:';
@@ -310,6 +314,7 @@ final class WorkLeaseService
             'sid' => $this->sidOf($nodeKey),
             'platform' => (string) ($identity['platform'] ?? ''),
             'label' => (string) ($identity['label'] ?? ''),
+            'lan_urls' => array_values(array_filter((array) ($identity['lan_urls'] ?? []), 'is_string')),
             'compute_class' => PycoreComputeRoster::publicClass(PycoreComputeRoster::classOf($primary)),
             'online' => $online,
             'lanes' => $lanes,
@@ -352,7 +357,10 @@ final class WorkLeaseService
         return substr(hash('sha1', $nodeKey), 0, $this->limit('sid_length'));
     }
 
-    /** Identity fields a claim carries (platform, host label), trimmed; absent fields stay absent. */
+    /**
+     * Identity fields a claim carries (platform, host label), trimmed; absent fields stay absent. LAN URLs
+     * replace the stored ones whenever the claim carries the field (an empty list clears them).
+     */
     private function identityOf(array $request): array
     {
         $identity = [];
@@ -362,6 +370,12 @@ final class WorkLeaseService
             if ($value !== '') {
                 $identity[$field] = $value;
             }
+        }
+        if (array_key_exists('lan_urls', $request)) {
+            $identity['lan_urls'] = array_values(array_unique(array_filter(
+                (array) $request['lan_urls'],
+                static fn ($url): bool => is_string($url) && preg_match(self::LAN_URL_PATTERN, $url) === 1,
+            )));
         }
 
         return $identity;

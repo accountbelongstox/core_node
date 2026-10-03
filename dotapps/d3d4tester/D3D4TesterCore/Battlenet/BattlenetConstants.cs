@@ -21,11 +21,9 @@ public static class BattlenetConstants
 
     // ---------- CN pre-login window (uidocs: 战网登录_8914CEDB) ----------
     public const string CnPreLoginWindowAutomationId = "LoginWindow";
-    public const string CnPreLoginWindowClassName = "Phoenix::LoginWindow";
     public static readonly string[] CnPreLoginTitleKeywords = { "战网登录", "Login" };
 
     // ---------- CN browser confirmation (uidocs: 战网_CB2F804E) ----------
-    public const string CnBrowserConfirmWindowAutomationId = "LoginPopupWindow";
     public const string CnBrowserConfirmWindowClassName = "Phoenix::LoginPopupWindow";
     public static readonly string[] CnBrowserLoginWindowTitleKeywords = { "战网登录", "战网", "Loading", "Login", "网易账号登录" };
 
@@ -121,7 +119,6 @@ public static class BattlenetConstants
     // ---------- In-UI popup close: ButtonControl only. 1:1 Python BATTLE_NET_POPUP_CLOSE_AUTOMATION_IDS / BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS (UI_NAME_KEYWORDS_CLOSE). ----------
     public static readonly string[] PopupCloseAutomationIds = { "winCloseButton" };
     public static readonly string[] PopupCloseNameKeywords = { "Close", "关闭" };
-    public const string PopupCloseControlType = "ButtonControl";
     /// <summary>AutomationId substrings that identify the main window title-bar (X button). When automation_id contains any of these AND "winCloseButton", do NOT click (would close whole client). 1:1 Python BATTLE_NET_MAIN_WINDOW_FRAME_AUTOMATION_ID_SUBSTRINGS.</summary>
     public static readonly string[] MainWindowCloseAutomationIdSubstrings = { "topLayerContainer.TopLayer.buttonContainer" };
 
@@ -135,7 +132,6 @@ public static class BattlenetConstants
     /// <summary>Main nav container (uidocs 战网_85BFA152).</summary>
     public const string MainNavContainerAutomationId = "main-nav-container";
     public const string NotificationPillAutomationId = "notification-pill";
-    public const string AvatarEditButtonAutomationId = "avatar-edit-button";
     public const string DockControlBtnAutomationId = "dock-control-btn";
     public const string AddFriendAutomationId = "add-friend";
     public const string FriendFilterAutomationId = "friend-filter";
@@ -155,7 +151,7 @@ public static class BattlenetConstants
 
     // ---------- D3 tab / Play CN: AutomationId first; keyword fallback when not found ----------
     public const string D3TabAutomationIdCnPrimary = "game-nav-btn-D3CN";
-    public const string D3TabAutomationIdCnSecondary = "game-nav-btn-D3";
+    public const string D3TabAutomationIdCnSecondary = D3TabAutomationIdAsia;
     public static readonly string[] D3TabAutomationIdsCn = { "game-nav-btn-D3CN", "game-nav-btn-D3" };
     public static readonly string[] D3TabNameKeywordsFallbackCn = { "Diablo III", "暗黑破坏神", "暗黑破壞神", "Diablo" };
     public const string StartGameAutomationIdCnPrimary = "play-btn-main";
@@ -223,7 +219,7 @@ public static class BattlenetConstants
     // ---------- UI snapshots. 1:1 Python BN_FLOW_SNAPSHOTS_DIR / DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS ----------
     public static readonly bool DebugSaveBnFlowUiSnapshots = false;
     public const string BnFlowSnapshotsDirName = "bn_flow_snapshots";
-    public const string CacheDirName = ".cache";
+    public const string CacheDirName = D3PathConstants.CacheDirName;
     public const string BnFlowSnapshotFilePrefix = "bn_flow_";
 
     // ---------- BN flow timings. 1:1 Python BN_FLOW_* / flow_bn_block_state ----------

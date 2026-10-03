@@ -15,7 +15,6 @@ public sealed class D3InterfaceManager
     private const int KeyPressHoldMs = 50;
     private const int AfterBagKeyMs = 400;
     private const string Separator = "============================================================";
-    private const string InterfaceKanaiCube = "kanai_cube";
 
     private static readonly Lazy<D3InterfaceManager> LazyInstance = new(() => new D3InterfaceManager());
 
@@ -134,7 +133,7 @@ public sealed class D3InterfaceManager
         if (shared.BagLayout != null) ColorPrinter.Green("\nBag Layout: Available");
         else ColorPrinter.Gray("\nBag Layout: Not available");
 
-        if (shared.InterfaceType == InterfaceKanaiCube)
+        if (shared.InterfaceType == D3InterfaceDetection.InterfaceKanaiCube)
         {
             ColorPrinter.Green($"\nConversion Button (coordinate system): {D3StandardCoordinates.GetScaledConversionButton()}");
             ColorPrinter.Green($"Put Material Button (coordinate system): {D3StandardCoordinates.GetScaledKanaiPutMaterialButton()}");
