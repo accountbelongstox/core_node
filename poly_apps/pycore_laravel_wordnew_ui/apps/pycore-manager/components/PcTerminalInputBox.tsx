@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { isTerminalAttachmentFile, type PcTerminalImages } from './usePcTerminalImages';
-import { usePcVoiceRecorder } from './usePcVoiceRecorder';
+import { usePcVoiceRecorder, type PcVoiceRecorderError } from './usePcVoiceRecorder';
 import { usePcTextInputSession } from '../persistence/PcUiSessionDom';
 import type { PcUiSessionInput } from '../persistence/PcUiSessionStore';
 
@@ -37,13 +37,19 @@ function readComposerMode(): ComposerMode {
   return StorageManager.getRaw(StorageKeys.PYCORE_TERMINAL_COMPOSER_MODE) === 'voice' ? 'voice' : 'text';
 }
 
+const VOICE_ERROR_KEYS: Record<PcVoiceRecorderError, string> = {
+  denied: 'terminal.voice.micDenied',
+  insecure: 'terminal.voice.micInsecure',
+  failed: 'terminal.voice.failed',
+};
+
 function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 /**
  * Terminal message composer: text draft plus pasted, dropped or picked attachments. Voice mode records a
- * message (in page where the browser allows the microphone, else with the system recorder app); the
+ * message straight from the microphone (native plugin in the app, MediaRecorder in browsers); the
  * recording is sent as a file path with optional images and text.
  */
 export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
@@ -65,8 +71,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const audioItems = images.items.filter((item) => item.kind === 'audio');
   const record = () => {
     if (recorder.recording) recorder.stop();
-    else if (recorder.available) void recorder.start();
-    else recorderInputRef.current?.click();
+    else void recorder.start();
   };
   const { elementRef, cancelRestore } = usePcTextInputSession({
     slot: session?.slot ?? '',
@@ -111,7 +116,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
               ? t('terminal.voice.stop', { duration: formatDuration(recorder.elapsedSeconds) })
               : t('terminal.voice.record')}
           </button>
-          {recorder.available && !recorder.recording && (
+          {!recorder.recording && (
             <button
               type="button"
               onClick={() => recorderInputRef.current?.click()}
@@ -123,7 +128,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           )}
           {recorder.error && (
             <p className="w-full text-[11px] text-rose-500">
-              {t(recorder.error === 'denied' ? 'terminal.voice.micDenied' : 'terminal.voice.failed')}
+              {t(VOICE_ERROR_KEYS[recorder.error])}
             </p>
           )}
         </div>
