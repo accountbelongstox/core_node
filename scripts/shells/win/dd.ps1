@@ -52,7 +52,7 @@ $global:SharedGlobalVarKeys = @()
 #>
 
 # =============================================================================
-# EARLY CLI DISPATCH (D20): help / gitsync exit here, before any other
+# EARLY CLI DISPATCH (D20): help / gitsync / pycorerestart exit here, before any other
 # initialization (GlobalVars.ps1, CommonFunc.ps1, ...) and before the
 # interactive menu. Unrecognized first tokens fall through unchanged.
 # =============================================================================
@@ -69,6 +69,7 @@ $script:DdCliParamTable = @(
     [PSCustomObject]@{ Name = "(no arguments)"; Purpose = "Interactive menu mode"; Example = "dd.cmd" },
     [PSCustomObject]@{ Name = "-SkipInitialization"; Purpose = "Skip Process-Directories/Process-PsFiles init (used when returning from a sub-menu)"; Example = "dd.cmd -SkipInitialization" },
     [PSCustomObject]@{ Name = "gitsync"; Purpose = "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main; -m skips the 3s prompt (AI commit)"; Example = "dd.cmd gitsync [--dry-run] [-m <description>] [description]" },
+    [PSCustomObject]@{ Name = "pycorerestart"; Purpose = "Restart the pycore service now (pyservice.ps1 restart)"; Example = "dd.cmd pycorerestart" },
     [PSCustomObject]@{ Name = "help"; Purpose = "Show this help and exit (no other action runs)"; Example = "dd.cmd help" },
     [PSCustomObject]@{ Name = "-h"; Purpose = "Same as 'help'"; Example = "dd.cmd -h" },
     [PSCustomObject]@{ Name = "--help"; Purpose = "Same as 'help'"; Example = "dd.cmd --help" }
@@ -97,6 +98,12 @@ if ($script:DdCliCommand -eq "gitsync") {
     $script:GitSyncCommonPath = Join-Path $PSScriptRoot "win_common\GitSyncCommon.ps1"
     . $script:GitSyncCommonPath
     $null = Invoke-GitSyncCli -Arguments $script:DdCliCommandArgs
+    return
+}
+
+if ($script:DdCliCommand -eq "pycorerestart") {
+    $script:PyserviceScriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path "pyservice.ps1"
+    & $script:PyserviceScriptPath restart
     return
 }
 

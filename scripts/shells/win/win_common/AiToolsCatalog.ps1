@@ -4,8 +4,8 @@
     the catalog in scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh.
 
 .DESCRIPTION
-    One entry per AI CLI / helper binary, using the SAME 17 keys as the Linux
-    catalog (claude, codex, gemini, qwen, cursor_agent, kimi, cline, arkcli,
+    One entry per AI CLI / helper binary, using the SAME 18 keys as the Linux
+    catalog (claude, codex, gemini, dsh, qwen, cursor_agent, kimi, cline, arkcli,
     superclaude, opencode, auggie, droid, zhipuai, bun, pi, omp, agy) plus the
     pseudo-key "mcp_chrome" (metadata only; install mechanics stay in
     apps/mcp-chrome/scripts/start.ps1, per the AI_TOOLS_CATALOG_KEYS design).
@@ -67,7 +67,7 @@ $script:AiToolsMachineEnvNote = "Managed by win_common/AiToolsCatalog.ps1 (Initi
 # Ordered key list (same order/semantics as AI_TOOLS_CATALOG_KEYS on Linux):
 # native/step-owned tools first, dependency helpers (bun before omp) last.
 $Global:AiToolsCatalogKeys = @(
-    "claude", "codex", "gemini", "qwen", "cursor_agent", "kimi", "cline",
+    "claude", "codex", "gemini", "dsh", "qwen", "cursor_agent", "kimi", "cline",
     "arkcli", "superclaude", "opencode", "auggie", "droid", "zhipuai",
     "bun", "pi", "omp", "agy"
 )
@@ -124,6 +124,19 @@ $Global:AiToolsCatalog = @{
         ConfigEnv = ""
         ConfigDirRelative = ".gemini"
         ConfigDocUrl = "https://github.com/google-gemini/gemini-cli/issues/2815"
+        Shareable = "no"
+    }
+    dsh = @{
+        Name = "DeepSeek Harness"
+        Exec = "dsh"
+        WindowsPackageKey = "DeepSeekHarness"
+        PnpmFallbackPackage = "@deepseek-ai/dsh"
+        StepOnly = $null
+        Supported = $true
+        VerifyArg = "--version"
+        ConfigEnv = "DSH_HOME"
+        ConfigDirRelative = ".dsh"
+        ConfigDocUrl = "https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/reference/README.md"
         Shareable = "no"
     }
     qwen = @{

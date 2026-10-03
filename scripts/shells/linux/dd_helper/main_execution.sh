@@ -51,10 +51,16 @@ dd_handle_gitsync() {
     git_sync_cli "$@"
 }
 
+# pycorerestart: restart the pycore systemd unit directly (pyservice restart path).
+dd_handle_pycorerestart() {
+    bash "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/pycore_service.sh" restart
+}
+
 dd_register_param "help" "dd_handle_help" "Show this help and exit (no other action runs)" "dd.sh help"
 dd_register_param "-h" "dd_handle_help" "Same as 'help'" "dd.sh -h"
 dd_register_param "--help" "dd_handle_help" "Same as 'help'" "dd.sh --help"
 dd_register_param "gitsync" "dd_handle_gitsync" "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main; -m skips the 3s prompt (AI commit)" "dd.sh gitsync [--dry-run] [--notice-laravel] [-m <description>] [description]"
+dd_register_param "pycorerestart" "dd_handle_pycorerestart" "Restart the pycore service now (pycore_service.sh restart)" "dd.sh pycorerestart"
 
 # Dispatch a recognized first argument to its handler and return/exit;
 # anything not registered above falls through to the existing generic
