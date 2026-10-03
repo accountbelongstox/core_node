@@ -66,6 +66,9 @@ return JSON.stringify({
 });
 """
 
+# A tab whose page script answers this is usable; a hung notebook tab times out.
+TAB_PROBE_SCRIPT = "return 1;"
+
 # Clicking the run button starts an idle cell and interrupts a running one.
 TOGGLE_RUN_SCRIPT = """
 const cell = document.querySelector('.cell.code');
