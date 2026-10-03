@@ -52,8 +52,8 @@ const JsonDiffWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
     return result;
   }, [entries]);
   const visible = (entries ?? []).filter((entry) => filter === 'all' || entry.kind === filter);
-  const errorA = !parsedA.ok && a.trim() ? parsedA.error : null;
-  const errorB = !parsedB.ok && b.trim() ? parsedB.error : null;
+  const errorA = parsedA.ok === false && a.trim() ? parsedA.error : null;
+  const errorB = parsedB.ok === false && b.trim() ? parsedB.error : null;
   const patch = useMemo(() => (entries ? JSON.stringify(toJsonPatch(entries), null, 2) : ''), [entries]);
   const report = () => visible.map((entry) => `${entry.kind}\t${entry.path}`).join('\n');
   const recordRun = () => record({ json1: left, json2: right }, { differences: counts.all });

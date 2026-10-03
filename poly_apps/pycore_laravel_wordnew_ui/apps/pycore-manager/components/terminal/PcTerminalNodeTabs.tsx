@@ -24,11 +24,21 @@ import {
 
 const PROBE_UP = 'up';
 const REPROBE_INTERVAL_MS = 30_000;
+/** An unreachable node is asked again only this often, not on every 30s round. */
+const DOWN_REPROBE_MS = 300_000;
 
 interface PcTerminalNodeTabsProps {
   /** Backend URL of the shown node; null is this machine. */
   activeUrl: string | null;
   onSelect: (url: string | null) => void;
+}
+
+function dueForProbe(nodes: PycoreEndpoint[]): PycoreEndpoint[] {
+  const now = Date.now();
+  return nodes.filter((node) => {
+    const probe = getPycoreProbe(node.url);
+    return !probe || probe.state === PROBE_UP || now - probe.checkedAt >= DOWN_REPROBE_MS;
+  });
 }
 
 function otherNodes(): PycoreEndpoint[] {
@@ -52,7 +62,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
     const stopLan = subscribeLanMachines(() => {
       const list = otherNodes();
       setNodes(list);
-      void probePycoreEndpoints(list);
+      void probePycoreEndpoints(dueForProbe(list));
     });
     const stopProbes = subscribePycoreProbes(() => setProbeVersion((value) => value + 1));
     let firstDiscovery = true;
@@ -60,7 +70,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
       void Promise.all([refreshLanMachines(), refreshTailnetPeers()]).then(() => {
         const list = otherNodes();
         setNodes(list);
-        void probePycoreEndpoints(list);
+        void probePycoreEndpoints(dueForProbe(list));
         // A node restored from the last session that discovery no longer knows falls back to this machine, once.
         const restoredUrl = activeUrlRef.current;
         if (firstDiscovery && restoredUrl !== null && !list.some((node) => node.url === restoredUrl)) {

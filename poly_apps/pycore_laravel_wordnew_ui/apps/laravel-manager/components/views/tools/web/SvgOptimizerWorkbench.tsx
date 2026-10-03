@@ -1,7 +1,7 @@
 /** SVG optimizer: option toggles, live before / after comparison and byte savings. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Download, Eraser, FileImage, Link2, Upload, Wand2 } from 'lucide-react';
+import { AlertTriangle, Download, Eraser, FileImage, Upload, Wand2 } from 'lucide-react';
 import type { ToolWorkbenchProps } from '../toolWorkbenchTypes';
 import { Btn, CHECKER_STYLE, CodeEditor, CopyBtn, Metric, Notice, Pane, Seg, Slider, Toggle, WebPage, downloadText, formatBytes, gzipSize, lastInput, pickString, useDebounced, useToolRecord, utf8Length } from './kit/webKit';
 import { DEFAULT_SVG_OPTIONS, optimizeSvg, svgDataUri, type SvgOptimizeOptions } from './logic/svg';
@@ -63,13 +63,13 @@ const SvgOptimizerWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
 
   const readFile = async (file: File) => setInput(await file.text());
   const setFlag = (key: BooleanOption, value: boolean) => setOptions((prev) => ({ ...prev, [key]: value }));
-  const error = result && !result.ok ? result : null;
+  const error = result && result.ok === false ? result : null;
   const beforeUri = useMemo(() => (error || !source.trim() ? '' : svgDataUri(source)), [source, error]);
   const afterUri = useMemo(() => (output ? svgDataUri(output) : ''), [output]);
 
   const picture = (uri: string, label: string) => (
     <figure className="min-w-0">
-      <div className="flex aspect-square max-h-[22rem] items-center justify-center overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700" style={BACKGROUND_STYLE[background]}>
+      <div className="mx-auto flex aspect-square w-full max-w-[22rem] items-center justify-center overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700" style={BACKGROUND_STYLE[background]}>
         {uri && <img src={uri} alt={label} className="h-full w-full object-contain p-3" />}
       </div>
       <figcaption className="mt-1 text-center font-mono text-[11px] uppercase tracking-wider text-slate-500">{label}</figcaption>

@@ -128,7 +128,7 @@ const JwtParserWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastR
         )}
       </Pane>
 
-      {decoded && !decoded.ok && <Notice tone="error" icon={AlertTriangle}>{t(`toolsWeb.jwt.errors.${decoded.code}`)}</Notice>}
+      {decoded && decoded.ok === false && <Notice tone="error" icon={AlertTriangle}>{t(`toolsWeb.jwt.errors.${decoded.code}`)}</Notice>}
 
       {jwt && timing && (
         <>

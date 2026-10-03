@@ -173,7 +173,18 @@
       "Bash(nvidia-smi --query-compute-apps=pid,used_memory,name --format=csv)",
       "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100&minutes=60\")",
       "PowerShell(cd D:\\\\programing\\\\core_node; foreach\\($i in 1..3\\){ $t=Measure-Command { node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes | Out-Null }; \"{0:n0} ms\" -f $t.TotalMilliseconds })",
-      "Bash(timeout 300 npx tsc --noEmit -p tsconfig.json)"
+      "Bash(scp -q /tmp/q1.sql root@43.163.112.77:/tmp/q1.sql)",
+      "Bash(S=100.64.0.4:44381 bash prog.sh)",
+      "Bash(S=100.64.0.4:44381 node cdp.js eval 'location.href+\" \"+document.visibilityState')",
+      "Bash(node -e \"console.log\\(require\\('/d/programing/core_node/config/pycore_relay_contract.json'\\).public_urls.laravel_api_origin\\)\")",
+      "Bash(rm -f c2.log)",
+      "Bash(node cdp.js collect c2.log)",
+      "Bash(nohup bash mon2.sh)",
+      "Bash(timeout 300 npx tsc --noEmit -p tsconfig.json)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c 'dd.cmd gitsync -m \"fix merge conflict markers in .claude/settings.local.json\"' 2>&1 | Select-Object -Last 8; git status -sb | Select-Object -First 1; Select-String -Path .claude\\\\settings.local.json -Pattern '^\\(<<<<<<<|=======|>>>>>>>\\)' | Measure-Object | % Count; $global:LASTEXITCODE=0)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; git status --short | Select-Object -First 15; Get-Content docs_fix\\\\GITSYNC_MERGE_CONFLICT.md -TotalCount 40; Select-String -Path .claude\\\\settings.local.json -Pattern '^\\(<<<<<<<|=======|>>>>>>>\\)' | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" }; $global:LASTEXITCODE=0)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c 'dd.cmd gitsync -m \"resolve merge conflict in .claude/settings.local.json\"' 2>&1 | Select-Object -Last 10; git status -sb | Select-Object -First 3; Test-Path docs_fix\\\\GITSYNC_MERGE_CONFLICT.md; Select-String -Path .claude\\\\settings.local.json -Pattern '^\\(<<<<<<<|=======|>>>>>>>\\)' | Measure-Object | % Count; $global:LASTEXITCODE=0)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c 'dd.cmd gitsync -m \"sync\"' 2>&1 | Select-Object -Last 10; git status -sb | Select-Object -First 3; Select-String -Path .claude\\\\settings.local.json -Pattern '^\\(<<<<<<<|=======|>>>>>>>\\)' | Measure-Object | % Count; python -c \"import json;json.load\\(open\\('.claude/settings.local.json',encoding='utf-8-sig'\\)\\);print\\('json ok'\\)\"; $global:LASTEXITCODE=0)"
     ],
     "deny": [],
     "ask": []

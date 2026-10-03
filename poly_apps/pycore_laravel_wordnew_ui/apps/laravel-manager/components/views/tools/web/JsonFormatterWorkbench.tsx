@@ -17,8 +17,8 @@ const TREE_OPEN_LEVEL = 2;
 const TREE_ALL = 99;
 
 const depthOf = (value: JsonValue): number => {
-  if (Array.isArray(value)) return 1 + value.reduce((max: number, item) => Math.max(max, depthOf(item)), 0);
-  if (value && typeof value === 'object') return 1 + Object.values(value).reduce((max: number, item) => Math.max(max, depthOf(item)), 0);
+  if (Array.isArray(value)) return 1 + value.reduce<number>((max, item) => Math.max(max, depthOf(item)), 0);
+  if (value && typeof value === 'object') return 1 + Object.values(value).reduce<number>((max, item) => Math.max(max, depthOf(item)), 0);
   return 0;
 };
 
@@ -45,11 +45,11 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
     if (!parsed.ok) return null;
     const before = utf8Length(source);
     const after = utf8Length(output);
-    return { before, after, saved: before ? Math.round(((before - after) / before) * 100) : 0, nodes: countNodes(parsed.value), depth: depthOf(parsed.value) };
+    return { before, after, change: before ? Math.round(((after - before) / before) * 100) : 0, nodes: countNodes(parsed.value), depth: depthOf(parsed.value) };
   }, [parsed, source, output]);
 
   const empty = !source.trim();
-  const error = !parsed.ok && !empty ? parsed.error : null;
+  const error = parsed.ok === false && !empty ? parsed.error : null;
   const recordRun = () => record({ json: input, mode, indent, sortKeys }, { bytes: output.length });
   const setTree = (open: number) => setTreeLevel((prev) => ({ open, seq: prev.seq + 1 }));
 
@@ -65,6 +65,16 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
         )}
         <Toggle on={sortKeys} onChange={setSortKeys} label={t('toolsWeb.json.sort_keys')} />
       </div>
+
+      {error && (
+        <Notice tone="error" icon={AlertTriangle}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-mono font-bold">{t('toolsWeb.json.error_at', { line: error.line, column: error.column })}</span>
+            <span>{t(`toolsWeb.json.errors.${error.code}`, { char: error.char })}</span>
+            <button type="button" className="cursor-pointer font-semibold underline" onClick={() => setJump({ offset: error.offset, seq: (jump?.seq ?? 0) + 1 })}>{t('toolsWeb.json.go_to_error')}</button>
+          </div>
+        </Notice>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Pane
@@ -113,20 +123,11 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
         </Pane>
       </div>
 
-      {error && (
-        <Notice tone="error" icon={AlertTriangle}>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-mono font-bold">{t('toolsWeb.json.error_at', { line: error.line, column: error.column })}</span>
-            <span>{t(`toolsWeb.json.errors.${error.code}`, { char: error.char })}</span>
-            <button type="button" className="cursor-pointer font-semibold underline" onClick={() => setJump({ offset: error.offset, seq: (jump?.seq ?? 0) + 1 })}>{t('toolsWeb.json.go_to_error')}</button>
-          </div>
-        </Notice>
-      )}
       {stats && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <Metric label={t('toolsWeb.json.stat_before')} value={formatBytes(stats.before)} />
           <Metric label={t('toolsWeb.json.stat_after')} value={formatBytes(stats.after)} tone="text-cyan-600 dark:text-cyan-300" />
-          <Metric label={t('toolsWeb.json.stat_saved')} value={`${stats.saved}%`} tone={stats.saved > 0 ? 'text-emerald-600 dark:text-emerald-400' : undefined} />
+          <Metric label={t('toolsWeb.json.stat_change')} value={`${stats.change > 0 ? '+' : ''}${stats.change}%`} tone={stats.change < 0 ? 'text-emerald-600 dark:text-emerald-400' : undefined} />
           <Metric label={t('toolsWeb.json.stat_nodes')} value={stats.nodes} />
           <Metric label={t('toolsWeb.json.stat_depth')} value={stats.depth} />
         </div>

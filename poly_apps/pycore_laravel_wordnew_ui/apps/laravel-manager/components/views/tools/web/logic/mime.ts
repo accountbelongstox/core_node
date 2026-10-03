@@ -28,6 +28,7 @@ const DOCUMENT_TYPES = /(pdf|msword|officedocument|vnd\.ms-(excel|powerpoint)|op
 
 export const mimeGroupOf = (mime: string): MimeGroup => {
   if (mime.startsWith('image/')) return 'image';
+  if (/subrip/.test(mime)) return 'text';
   if (mime.startsWith('audio/')) return 'audio';
   if (mime.startsWith('video/') || /mpegurl|dash\+xml|shockwave/.test(mime)) return 'video';
   if (mime.startsWith('font/') || mime.includes('fontobject')) return 'font';

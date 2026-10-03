@@ -63,8 +63,8 @@ export function VoiceSubtitleManager() {
         api.mcpV1.vsGetStats()
       ]);
 
-      if (queueRes.success) setQueue(queueRes.data.items || []);
-      if (currentRes.success) setCurrent(currentRes.data.item);
+      if (queueRes.success) setQueue(queueRes.data.queue || queueRes.data.items || []);
+      if (currentRes.success) setCurrent(currentRes.data.current ?? currentRes.data.item ?? null);
       if (groupsRes.success) setGroups(groupsRes.data);
       if (categoriesRes.success) setCategories(categoriesRes.data);
       if (statsRes.success) setStats(statsRes.data);
@@ -182,7 +182,7 @@ export function VoiceSubtitleManager() {
         ? await api.mcpV1.vsGetQueueByGroup(group)
         : await api.mcpV1.vsGetQueue({ page: 1, limit: 100 });
       if (res.success) {
-        setQueue(res.data.items || res.data || []);
+        setQueue(res.data.queue || res.data.items || (Array.isArray(res.data) ? res.data : []));
       }
     } catch (error: any) {
       toast.error(error.message);
