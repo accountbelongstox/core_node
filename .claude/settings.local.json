@@ -123,7 +123,8 @@
       "Bash(cp pycore/pyctl/devmcp/__init__.py pycore/pyctl/colab/__init__.py)",
       "Bash(/opt/_debian_13/python3_venv/bin/python3 -m pycore.pyctl.colab.colab_cli --help)",
       "Bash(journalctl -u ncore-mcp-chrome --since \"13:30\" --no-pager)",
-      "Bash(timeout 200 bun x tsc --noEmit -p .)"
+      "Bash(timeout 200 bun x tsc --noEmit -p .)",
+      "Bash(/opt/_debian_13/python3_venv/bin/python3 -c \"import ast;ast.parse\\(open\\('apps/mcp-chrome/scripts/service_supervisor.py'\\).read\\(\\)\\);print\\('ok'\\)\")"
     ],
     "deny": [],
     "ask": []
