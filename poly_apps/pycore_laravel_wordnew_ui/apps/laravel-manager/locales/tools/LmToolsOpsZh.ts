@@ -66,7 +66,7 @@ export const lmZhToolsOps = {
       no_voice_for_language: '此浏览器没有所选语言的声音。',
       rate: '语速：{{value}}x',
       pitch: '音调：{{value}}',
-      server_note: '服务器语音使用各语言配置好的神经语音；语速和音调仅对浏览器语音生效。',
+      server_note: '服务器语音使用各语言配置好的神经语音；语速调整生成音频的播放速度；音调仅对浏览器语音生效。',
       player: '播放器',
       speak: '朗读',
       stop: '停止',

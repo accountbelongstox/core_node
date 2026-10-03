@@ -66,7 +66,7 @@ export const lmEnToolsOps = {
       no_voice_for_language: 'This browser has no voice for the selected language.',
       rate: 'Speed: {{value}}x',
       pitch: 'Pitch: {{value}}',
-      server_note: 'Server voices use the neural voice configured for each language. Speed and pitch apply to browser voices only.',
+      server_note: 'Server voices use the neural voice configured for each language. Speed changes playback of the generated audio; pitch applies to browser voices only.',
       player: 'Player',
       speak: 'Speak',
       stop: 'Stop',
