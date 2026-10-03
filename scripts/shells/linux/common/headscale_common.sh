@@ -365,7 +365,9 @@ headscale_server_route_render() {
     local upstream="http://127.0.0.1:$(sc_get ports.headscale)"
     local tls_directive=""
 
-    tls_directive="$(fm_domain_tls_directive_for_host "$host")"
+    # hs.<region>.<root> sits under the root domain's *.<region>.<root>
+    # wildcard: resolve the certificate through the same-root API host.
+    tls_directive="$(fm_domain_tls_directive_for_host "api.$(mesh_region_prefix).$(mesh_root_domain)")"
     if [ -n "$tls_directive" ]; then
         tls_directive="${tls_directive}
 "
