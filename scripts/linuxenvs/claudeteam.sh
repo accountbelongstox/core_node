@@ -273,6 +273,14 @@ claude_team_restore_shared_owner
 
 claude_team_load_policy_args
 if [ -n "$deviceSlot" ] && [ -z "$deviceRole" ]; then
+    # Plain claude still gets session_env.all (classic renderer, terminal-native mouse).
+    CLAUDE_TEAM_SPEC_ENV=()
+    if [ "$catalogLoaded" = "1" ]; then
+        claude_team_spec_env_add all
+    fi
+    for envPair in "${CLAUDE_TEAM_SPEC_ENV[@]}"; do
+        export "$envPair"
+    done
     claude "${CLAUDE_TEAM_POLICY_ARGS[@]}" "${passthrough_args[@]}"
     claudeExitCode=$?
     claude_team_restore_shared_owner

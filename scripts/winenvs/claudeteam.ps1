@@ -62,6 +62,7 @@ $deviceSession = ""
 $deviceRemoteHint = ""
 $remoteControlSession = ""
 $permissionModeGiven = $false
+$environmentName = $null
 $claudeArgs = @()
 $claudeDisplayArgs = @()
 $forwardArgs = @()
@@ -215,7 +216,11 @@ try {
         # Apply only the team-specific variables on top of the caller's Claude
         # authentication context.
         if (($deviceSlot -gt 0) -and (-not $deviceRole)) {
-            $sessionEnvironment = @{}
+            # Plain claude still gets session_env.all + windows (classic renderer, terminal-native mouse).
+            $sessionEnvironment = Get-ClaudeTeamSessionEnvironment -Kinds @("all", "windows")
+            foreach ($environmentName in $sessionEnvironment.Keys) {
+                [Environment]::SetEnvironmentVariable($environmentName, $sessionEnvironment[$environmentName], "Process")
+            }
             $claudeArgs = $forwardArgs
             if ($permissionModeGiven) {
                 $claudeArgs = @("--permission-mode", $ClaudeTeamPermissionMode) + $forwardArgs

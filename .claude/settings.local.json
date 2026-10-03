@@ -214,7 +214,8 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?limit=2000\")",
       "Bash(chmod +x /tmp/reconnect.sh)",
       "Bash(/tmp/reconnect.sh)",
-      "Bash(ping -n 2 -w 2000 100.64.0.4)"
+      "Bash(ping -n 2 -w 2000 100.64.0.4)",
+      "Bash(file *)"
     ],
     "deny": [],
     "ask": []
