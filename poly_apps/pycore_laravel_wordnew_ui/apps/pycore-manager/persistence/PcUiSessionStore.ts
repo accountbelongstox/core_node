@@ -239,3 +239,20 @@ export function updatePcUiSessionNode(nodeKey: string, patch: Partial<PcUiSessio
 export function readPcUiSessionNode(nodeKey: string): PcUiSessionNode | null {
   return liveSession.nodes[nodeKey] ?? null;
 }
+
+// A page change by the user starts a new interaction: nothing may re-raise the keyboard for a field
+// that was focused on the page being left.
+export function clearPcUiSessionFocus(): void {
+  let changed = false;
+  for (const node of Object.values(liveSession.nodes)) {
+    if (node.input?.focused) {
+      node.input = { ...node.input, focused: false };
+      changed = true;
+    }
+  }
+  if (changed) scheduleFlush();
+}
+
+export function readPcUiSessionPage(): PcUiSessionPage | null {
+  return liveSession.page;
+}

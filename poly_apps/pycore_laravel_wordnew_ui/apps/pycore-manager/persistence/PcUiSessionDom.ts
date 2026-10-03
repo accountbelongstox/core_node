@@ -2,33 +2,33 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { PcUiSessionInput } from './PcUiSessionStore';
 
 const SCROLL_RESTORE_TIMEOUT_MS = 4000;
+const SCROLL_RESTORE_POLL_MS = 100;
 const SCROLL_SAVE_THROTTLE_MS = 150;
 const SCROLL_TOLERANCE_PX = 1;
 const INPUT_RESTORE_TIMEOUT_MS = 3000;
 const USER_SCROLL_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 
-// Content grows while data loads, so the target offset may not be reachable yet: retry on every
-// size change until it is reached, the user takes over the scroll, or the timeout passes.
+// Content grows while data loads, so the target offset may not be reachable yet: retry on a short
+// interval until it is reached, the user takes over the scroll, or the timeout passes.
 export function restoreScrollTop(element: HTMLElement, target: number): () => void {
   if (!(target > 0)) return () => undefined;
   let finished = false;
-  const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => attempt()) : null;
-  const timer = window.setTimeout(() => finish(), SCROLL_RESTORE_TIMEOUT_MS);
+  const startedAt = Date.now();
+  const timer = window.setInterval(() => attempt(), SCROLL_RESTORE_POLL_MS);
   function finish() {
     if (finished) return;
     finished = true;
-    window.clearTimeout(timer);
-    observer?.disconnect();
+    window.clearInterval(timer);
     USER_SCROLL_EVENTS.forEach((name) => element.removeEventListener(name, finish));
   }
   function attempt() {
     if (finished) return;
     element.scrollTop = target;
-    if (Math.abs(element.scrollTop - target) <= SCROLL_TOLERANCE_PX) finish();
+    if (Math.abs(element.scrollTop - target) <= SCROLL_TOLERANCE_PX || Date.now() - startedAt > SCROLL_RESTORE_TIMEOUT_MS) {
+      finish();
+    }
   }
   USER_SCROLL_EVENTS.forEach((name) => element.addEventListener(name, finish, { passive: true }));
-  observer?.observe(element);
-  Array.from(element.children).forEach((child) => observer?.observe(child));
   attempt();
   return finish;
 }

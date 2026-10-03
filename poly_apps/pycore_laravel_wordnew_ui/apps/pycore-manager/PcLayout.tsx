@@ -6,7 +6,7 @@
  * Mobile (< md): the sidebar auto-collapses into an overlay drawer opened from
  * the PcTopBar menu button so it occupies no permanent screen space.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Cpu, X } from 'lucide-react';
@@ -19,6 +19,7 @@ import { PcRpcAccessBanner } from './components/PcRpcAccessBanner';
 import { PcLaravelEndpointProvider } from './PcLaravelEndpointContext';
 import { useIsMobile } from './hooks/useIsMobile';
 import { SHELL_CLIPBOARD_HOST_ATTRIBUTE } from '../../shell/shellChrome';
+import { usePcPageScrollSession } from './persistence/PcUiSessionRoute';
 
 const linkBase =
   'group relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150';
@@ -27,6 +28,8 @@ export const PcLayout: React.FC = () => {
   const { t } = useTranslation('pc');
   const isMobile = useIsMobile();
   const [navOpen, setNavOpen] = useState(false);
+  const pageScrollerRef = useRef<HTMLDivElement | null>(null);
+  usePcPageScrollSession(pageScrollerRef);
   const top = PC_PAGES.filter((p) => !p.bottom);
   const bottom = PC_PAGES.filter((p) => p.bottom);
 
@@ -111,7 +114,7 @@ export const PcLayout: React.FC = () => {
           <PcRpcAccessBanner />
           {/* Reserve bottom space for the floating debug dock button. */}
           <div {...{ [SHELL_CLIPBOARD_HOST_ATTRIBUTE]: '' }} className="relative z-0 flex-1 min-h-0 overflow-hidden">
-            <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain pb-16">
+            <div ref={pageScrollerRef} className="h-full overflow-y-auto overflow-x-hidden overscroll-contain pb-16">
               <Outlet />
             </div>
           </div>

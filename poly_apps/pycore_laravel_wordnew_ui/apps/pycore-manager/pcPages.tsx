@@ -61,6 +61,9 @@ export const PcSettingsPage = lazy(() => import('./pages/PcSettingsPage'));
 // Mesh VPN (Headscale) login guide: live server facts, single-use keys, device approval.
 export const PcMeshLoginPage = lazy(() => import('./pages/PcMeshLoginPage'));
 
+/** Route prefix the shell mounts this end under. */
+export const PC_BASE_PATH = '/pycore-manager';
+
 export interface PcPageDef {
   id: string;
   /** i18n key under the `pc` namespace (e.g. nav.agentHistory). */
