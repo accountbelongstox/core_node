@@ -573,7 +573,7 @@ const PcTerminalNodeView: React.FC = () => {
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
   const [previewExpandedStates, setPreviewExpandedStates] = useState<Record<string, boolean>>({});
   const [previewDirectClick, setPreviewDirectClick] = useState(false);
-  const [previewShowImage, setPreviewShowImage] = useState(false);
+  const [previewViewMode, setPreviewViewMode] = useState<TerminalViewMode>('auto');
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [draftStatuses, setDraftStatuses] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
@@ -653,12 +653,18 @@ const PcTerminalNodeView: React.FC = () => {
     if (number === null) return null;
     return snapshot?.windows.find((windowInfo) => windowInfo.terminal_number === number)?.id ?? null;
   }, [isMobile, operatedTerminalNumber, previewTerminalNumber, snapshot]);
-  // Frames travel as OCR text; the previewed window switches to its picture when clicked by position or asked for.
-  const imageWindowId = previewTerminalNumber !== null && (previewDirectClick || previewShowImage)
+  // Text and picture are redundant: text by default, the picture where text is missing or outdated.
+  // The previewed window follows its chosen mode, and click-through needs its picture.
+  const previewWindowId = previewTerminalNumber !== null
     ? snapshot?.windows.find((windowInfo) => windowInfo.terminal_number === previewTerminalNumber)?.id ?? null
     : null;
-  const frames = usePcTerminalFrames({ windows: snapshot?.windows ?? NO_WINDOWS, focusWindowId, imageWindowId });
+  const forcedView = useMemo(
+    () => ({ windowId: previewWindowId, mode: previewDirectClick ? 'image' as const : previewViewMode }),
+    [previewDirectClick, previewViewMode, previewWindowId],
+  );
+  const frames = usePcTerminalFrames({ windows: snapshot?.windows ?? NO_WINDOWS, focusWindowId, forcedView });
   const screenshotImageFor = frames.imageFor;
+  const terminalViewFor = frames.viewFor;
   const screenshotVersion = frames.version;
 
   // Latest snapshot without widening the refresh callback identity: the
@@ -966,7 +972,7 @@ const PcTerminalNodeView: React.FC = () => {
   // Reads the image cache during render; screenshotVersion re-renders the
   // page when fetched resources change, so this stays fresh without effects.
   const previewScreenshot = screenshotVersion >= 0
-    ? screenshotImageFor(previewWindow)
+    ? terminalViewFor(previewWindow)
     : null;
   const previewNextRunAt = (previewWindow?.schedule_queue || []).reduce<number | null>(
     (earliest, entry) => (
@@ -1437,10 +1443,11 @@ const PcTerminalNodeView: React.FC = () => {
       setPreviewTerminalNumber(null);
       return;
     }
-    const image = screenshotImageFor(previewWindow);
-    if (!previewWindow?.online || image?.kind !== 'image' || actionWindowId) {
+    const view = terminalViewFor(previewWindow);
+    if (!previewWindow?.online || view?.kind !== 'image' || actionWindowId) {
       return;
     }
+    const image = view.frame;
     const point = normalizedImagePoint(
       event,
       image.width,
@@ -1456,7 +1463,7 @@ const PcTerminalNodeView: React.FC = () => {
       ),
       'terminal.clicked',
     );
-  }, [actionWindowId, previewDirectClick, previewWindow, runAction, screenshotImageFor]);
+  }, [actionWindowId, previewDirectClick, previewWindow, runAction, terminalViewFor]);
 
   const selectTerminal = useCallback((terminalNumber: number) => {
     if (
@@ -1511,7 +1518,7 @@ const PcTerminalNodeView: React.FC = () => {
     const activity = target.agent_activity;
     if (activity && !activity.busy && typeof activity.finished_at === 'number') acknowledge(terminalNumber, activity.finished_at);
     // A finished terminal is static: its last frame is transferred once, when it is opened.
-    if (target.online && (frames.isFrozen(target) || !frames.imageFor(target))) frames.forceLatest(target.id);
+    if (target.online && (frames.isFrozen(target) || !frames.viewFor(target))) frames.forceLatest(target.id);
   }, [acknowledge, frames, selectTerminal]);
 
   const terminalExists = useCallback(
@@ -2304,7 +2311,7 @@ const PcTerminalNodeView: React.FC = () => {
   ) => {
     const selected = windowInfo.terminal_number === selectedTerminalNumber;
     const busy = actionWindowId === windowInfo.id;
-    const screenshotImage = screenshotImageFor(windowInfo);
+    const screenshotImage = terminalViewFor(windowInfo);
     return (
       <article
         key={windowInfo.terminal_number}
@@ -2393,7 +2400,7 @@ const PcTerminalNodeView: React.FC = () => {
           {screenshotImage ? (
             <>
               <PcTerminalFrameView
-                frame={screenshotImage}
+                view={screenshotImage}
                 alt={terminalName(windowInfo, t('terminal.untitled'))}
                 size="card"
               />
@@ -2503,7 +2510,7 @@ const PcTerminalNodeView: React.FC = () => {
               const compact = mappedWidth < 180;
               const tiny = mappedWidth < 110;
               const titleBarHeight = Math.min(30, Math.max(18, mappedHeight * 0.22));
-              const screenshotImage = screenshotImageFor(windowInfo);
+              const screenshotImage = terminalViewFor(windowInfo);
               return (
                 <article
                   key={windowInfo.terminal_number}
@@ -2587,7 +2594,7 @@ const PcTerminalNodeView: React.FC = () => {
                       {screenshotImage ? (
                         <>
                           <PcTerminalFrameView
-                            frame={screenshotImage}
+                            view={screenshotImage}
                             alt={terminalName(windowInfo, t('terminal.untitled'))}
                             size={compact ? 'tiny' : 'card'}
                           />
@@ -2780,22 +2787,27 @@ const PcTerminalNodeView: React.FC = () => {
                   </button>
                 )}
                 {previewWindow.online && !previewDirectClick && (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewShowImage((current) => !current)}
-                    aria-pressed={previewShowImage}
+                  <div
+                    className="flex h-8 items-center rounded-lg border border-white/15 bg-white/5 p-0.5 text-[10px] font-semibold"
+                    role="radiogroup"
                     title={t('terminal.frameModeHint')}
-                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold ${
-                      previewShowImage
-                        ? 'border-indigo-400 bg-indigo-600 text-white'
-                        : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
-                    }`}
                   >
-                    {previewScreenshot?.kind === 'text'
-                      ? <FileText className="h-3.5 w-3.5" />
-                      : <ImageIcon className="h-3.5 w-3.5" />}
-                    {t(previewScreenshot?.kind === 'text' ? 'terminal.frameText' : 'terminal.frameImage')}
-                  </button>
+                    {PREVIEW_VIEW_MODES.map(({ mode, icon: Icon }) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={previewViewMode === mode}
+                        onClick={() => setPreviewViewMode(mode)}
+                        className={`inline-flex h-full items-center gap-1 rounded-md px-2 ${
+                          previewViewMode === mode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {t(`terminal.frameMode.${mode}`)}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <button
                   type="button"
@@ -2833,7 +2845,7 @@ const PcTerminalNodeView: React.FC = () => {
                 </button>
                 {previewScreenshot ? (
                   <PcTerminalFrameView
-                    frame={previewScreenshot}
+                    view={previewScreenshot}
                     alt={terminalName(previewWindow, t('terminal.untitled'))}
                     size="preview"
                     onImageClick={clickPreview}

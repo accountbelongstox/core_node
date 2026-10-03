@@ -88,6 +88,12 @@ export class TerminalImageFrameStore {
     this.pump();
   }
 
+  /** Mounted (again): StrictMode and remounts dispose and reopen the same store. */
+  open(): void {
+    this.disposed = false;
+    this.pump();
+  }
+
   dispose(): void {
     this.disposed = true;
     [...this.frames.keys()].forEach((id) => this.release(id));

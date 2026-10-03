@@ -4,15 +4,18 @@
  * re-mounts the same terminal view against that node's API.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Monitor, Network } from 'lucide-react';
+import { Monitor, Network, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
+  getLanMachines,
   getPycoreProbe,
   getPycoreTarget,
+  isLanMachinesAvailable,
   listPycoreEndpoints,
   probePycoreEndpoints,
   refreshLanMachines,
   refreshTailnetPeers,
+  rescanLanMachines,
   subscribeLanMachines,
   subscribePycoreProbes,
   subscribeTailnetPeers,
@@ -38,6 +41,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
   const target = getPycoreTarget();
   const [nodes, setNodes] = useState<PycoreEndpoint[]>(otherNodes);
   const [, setProbeVersion] = useState(0);
+  const [rescanning, setRescanning] = useState(false);
   const activeUrlRef = useRef(activeUrl);
   activeUrlRef.current = activeUrl;
   const onSelectRef = useRef(onSelect);
@@ -75,6 +79,12 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
     };
   }, []);
 
+  const rescan = () => {
+    setRescanning(true);
+    void rescanLanMachines().finally(() => setRescanning(false));
+  };
+  const scanning = rescanning || getLanMachines().scanning;
+
   const online = nodes.filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP);
   const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || t('terminal.nodes.thisMachine');
 
@@ -108,6 +118,19 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
       ))}
       {online.length === 0 && (
         <span className="whitespace-nowrap text-[10px] text-slate-400">{t('terminal.nodes.noOthers')}</span>
+      )}
+      {isLanMachinesAvailable() && (
+        <button
+          type="button"
+          onClick={rescan}
+          disabled={scanning}
+          title={t('pycoreTarget.lanRescan')}
+          aria-label={t('pycoreTarget.lanRescan')}
+          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl border border-slate-500/20 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-500/10 disabled:opacity-60 dark:text-slate-300"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${scanning ? 'animate-spin' : ''}`} />
+          <span>{t('pycoreTarget.lanRescan')}</span>
+        </button>
       )}
     </div>
   );
