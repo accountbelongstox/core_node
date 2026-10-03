@@ -12,7 +12,7 @@ interface PcTerminalAgentBadgeProps {
 }
 
 export function PcTerminalAgentBadge({ agent, iconOnly = false, className = '' }: PcTerminalAgentBadgeProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('pc');
   if (!agent) return null;
   const hint = t('terminal.agent.hint', {
     rule: t(`terminal.agent.rules.${agent.rule}`, { defaultValue: agent.rule }),

@@ -26,7 +26,8 @@ import {
   viewToSlug
 } from '../routing/viewRoute';
 import { userModel } from '../models';
-import { getAuthErrorMessage } from '../utils/authErrors';
+import { laravelAuthErrorText } from '@/shared/auth/laravelAuthI18n';
+import { useAuthSnapshot } from '../../../core/auth/useAuthSession';
 import i18n from '@/apps/laravel-manager/i18n';
 import { useShell } from '../../../shell/ShellContext';
 import { AUTH_SESSION_CHANGED_EVENT } from '../../../core/auth/AuthRequestCenter';
@@ -56,14 +57,13 @@ const DEFAULT_STATE: UnifiedAppState = {
 const loadStateFromStorage = (): UnifiedAppState => {
   try {
     const saved = StorageManager.get<Partial<UnifiedAppState>>(StorageKeys.APP_STATE, {});
-    const savedUser = StorageManager.get<UnifiedUser | null>(StorageKeys.USER, null);
     const savedPreferences = StorageManager.get<UserPreferences>(StorageKeys.SETTINGS, DEFAULT_STATE.preferences);
 
     const fromUrl = typeof window !== 'undefined' ? readViewFromLocation(window.location) : null;
     return {
       activeView: fromUrl ?? (saved.activeView && viewToSlug(saved.activeView) ? saved.activeView : DEFAULT_STATE.activeView),
-      UnifiedUser: savedUser,
-      isLoggedIn: !!savedUser,
+      UnifiedUser: null,
+      isLoggedIn: false,
       preferences: savedPreferences,
       loading: false,
       error: null
@@ -82,12 +82,6 @@ const saveStateToStorage = (state: UnifiedAppState): void => {
     StorageManager.set(StorageKeys.APP_STATE, {
       activeView: state.activeView,
     });
-
-    if (state.UnifiedUser) {
-      StorageManager.set(StorageKeys.USER, state.UnifiedUser);
-    } else {
-      StorageManager.remove(StorageKeys.USER);
-    }
 
     StorageManager.set(StorageKeys.SETTINGS, state.preferences);
 
@@ -124,26 +118,17 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // The signed-in user belongs to the ACTIVE Laravel API: read it from the shared per-API
+  // session store, so an endpoint switch changes it at once. A stored session is confirmed
+  // (and its preferences loaded) whenever the API or its token changes.
+  const authSnapshot = useAuthSnapshot();
+  const authNamespace = authSnapshot.namespace;
+  const authHasToken = userModel.hasStoredToken();
   useEffect(() => {
-    const storedUser = userModel.getUser();
-    const restore = async (): Promise<void> => {
-      let restoredUser = storedUser;
-      if (storedUser && !stateRef.current.UnifiedUser) {
-        setState(prev => ({ ...prev, UnifiedUser: storedUser, isLoggedIn: true }));
-      }
-      if (!userModel.hasStoredToken()) return;
-      if (storedUser) {
-        restoredUser = await userModel.refreshProfile();
-      } else {
-        const restored = await userModel.bootstrapLoopbackSession();
-        restoredUser = restored ? userModel.getUser() : null;
-      }
-      if (restoredUser) {
-        setState(prev => ({ ...prev, UnifiedUser: restoredUser, isLoggedIn: true }));
-      }
-    };
-    void restore();
-  }, []);
+    if (authHasToken) void userModel.syncSession().then(() => {
+      setState(prev => ({ ...prev, preferences: userModel.getPreferences() }));
+    });
+  }, [authNamespace, authHasToken]);
 
   // Auto-save state to storage
   useEffect(() => {
@@ -232,7 +217,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       return true;
     } catch (err: any) {
       const errorCode = err.errorCode as string | undefined;
-      const displayMessage = getAuthErrorMessage(errorCode, err.message || i18n.t('login.errors.default'), language);
+      const displayMessage = laravelAuthErrorText(errorCode, err.message || '');
       setState(prev => ({ ...prev, loading: false, error: displayMessage }));
       console.error('[UnifiedAppContext] Login failed:', displayMessage);
       return false;
@@ -398,8 +383,8 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     activeView,
     lang: language,
     theme,
-    UnifiedUser: state.UnifiedUser,
-    isLoggedIn: state.isLoggedIn,
+    UnifiedUser: authSnapshot.user as UnifiedUser | null,
+    isLoggedIn: authSnapshot.loggedIn,
     preferences: state.preferences,
     loading: state.loading,
     error: state.error,

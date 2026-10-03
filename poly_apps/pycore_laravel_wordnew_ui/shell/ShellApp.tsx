@@ -14,7 +14,7 @@
  */
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
-import { LmGlobalLoginHost } from '../apps/laravel-manager/auth/LmGlobalLoginHost';
+import { LaravelLoginHost } from '../shared/auth/LaravelLoginHost';
 import { ShellLayout } from './ShellLayout';
 import { ShellHome } from './ShellHome';
 import { ShellRouteFallback, ShellRuntime } from './ShellRuntime';
@@ -38,7 +38,7 @@ const ShellPasswordResetRedirect: React.FC = () => {
 
 export const ShellApp: React.FC = () => {
   return (
-    <ShellRuntime authHost={<LmGlobalLoginHost />}>
+    <ShellRuntime authHost={<LaravelLoginHost />}>
       <Routes>
         <Route element={<ShellLayout />}>
           {/* Default to the pycore end. ShellHome stays reachable at /home. */}

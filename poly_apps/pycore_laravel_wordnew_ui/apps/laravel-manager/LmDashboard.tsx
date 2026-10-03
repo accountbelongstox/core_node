@@ -24,7 +24,7 @@ import { apiManager } from '@/core/integrations/laravel/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
 import GlobalLogPanel from '@/apps/laravel-manager/components/common/GlobalLogPanel';
 import OfflineBanner from '@/apps/laravel-manager/components/common/OfflineBanner';
-import { dismissAuthLogin, requestAuthLogin } from '@/core/auth/AuthRequestCenter';
+import { dismissAuthLogin } from '@/core/auth/AuthRequestCenter';
 import { SHELL_CLIPBOARD_HOST_ATTRIBUTE } from '../../shell/shellChrome';
 
 /**
@@ -43,7 +43,6 @@ const LmDashboardContent: React.FC = () => {
     theme,
     toggleTheme,
     isLoggedIn,
-    logout: userLogout,
     UnifiedUser: user,
   } = useUnifiedApp();
   const { t } = useTranslation();
@@ -163,14 +162,6 @@ const LmDashboardContent: React.FC = () => {
     console.log('[LaravelManager] Mounted with activeView:', activeView);
   }, []);
 
-  const handleAuthAction = async () => {
-    if (isLoggedIn) {
-      await userLogout();
-    } else {
-      requestAuthLogin({ source: 'laravel-manager-header', reason: 'header-auth' });
-    }
-  };
-
   // Auth is required by default for protected views. Set window.DISABLE_AUTH = true only to skip login (e.g. local testing).
   const disableAuth = (window as any).DISABLE_AUTH === true;
 
@@ -260,7 +251,6 @@ const LmDashboardContent: React.FC = () => {
         <main className="flex-1 flex flex-col min-w-0 min-h-0 pl-14 md:pl-16 bg-transparent relative overflow-x-hidden">
           <TopHeader
             isLoggedIn={isLoggedIn}
-            onAuthClick={handleAuthAction}
           />
 
           {/* Global operation log — floating bottom dock (portaled to <body>,

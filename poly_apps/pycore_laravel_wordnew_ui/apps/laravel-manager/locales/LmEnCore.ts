@@ -330,36 +330,6 @@ moviesBooksView: {
       aiCommentary: "AI Commentary",
       specialUsage: "Special Usage"
     },
-login: {
-      title: "Identity Verification",
-      subtitle: "Please authenticate to access core systems.",
-      username: "Username / ID",
-      password: "Password",
-      confirm_password: "Confirm Password",
-      email: "Email (Optional)",
-      nickname: "Nickname (Optional)",
-      registration_code: "Registration Code (Optional)",
-      submit: "Authenticate",
-      cancel: "Cancel",
-      processing: "Verifying...",
-      register_title: "Create Account",
-      register_subtitle: "Register to access core systems.",
-      register_submit: "Register",
-      register_processing: "Creating account...",
-      switch_to_login: "Already have an account? Login",
-      switch_to_register: "Don't have an account? Register",
-      login_success: "Login successful",
-      register_success: "Registration successful",
-      passwords_do_not_match: "Passwords do not match",
-      available_codes: "Available Codes:",
-      errors: {
-        AUTH_USER_NOT_FOUND: "Account does not exist. Please check your username or email.",
-        AUTH_INVALID_PASSWORD: "Incorrect password. Please try again.",
-        AUTH_INVALID_CREDENTIALS: "Invalid credentials. Please check and try again.",
-        AUTH_VALIDATION_FAILED: "Username and password are required.",
-        default: "Login failed. Please try again."
-      }
-    },
 system: {
       title: "System Information",
       subtitle: "Real-time system configuration and status",

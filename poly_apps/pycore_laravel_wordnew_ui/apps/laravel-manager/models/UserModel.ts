@@ -1,77 +1,65 @@
 import { UnifiedUser, UserPreferences } from '../types';
 import { api } from '../api';
-import i18n from '@/apps/laravel-manager/i18n';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
-import { getAuthToken } from '../../../core/auth/AuthSession';
+import {
+  getActiveAuthNamespace,
+  getAuthSnapshot,
+  getAuthToken,
+  setAuthUser,
+} from '../../../core/auth/AuthSession';
 import { AUTH_SESSION_CHANGED_EVENT } from '../../../core/auth/AuthRequestCenter';
+import { getSharedBaseURL } from '../../../core/integrations/laravel/transport/BaseAPI';
+import {
+  loginLaravel,
+  logoutLaravel,
+  refreshLaravelSession,
+  registerLaravel,
+} from '../../../core/integrations/laravel/LaravelAuthClient';
 import { normalizeLaravelUser } from '../auth/UserIdentity';
 
 function extractResponseData(data: any): any {
   return data?.data ?? data;
 }
 
-function extractAuthToken(data: any): string | null {
-  const payload = extractResponseData(data);
-  return typeof payload?.token === 'string' && payload.token !== '' ? payload.token : null;
-}
-
 function extractUnifiedUser(data: any): UnifiedUser | null {
   return normalizeLaravelUser(extractResponseData(data));
 }
 
+/** The Laravel API every Lm call goes to right now: its session is the "current user". */
+function activeBaseUrl(): string {
+  return getSharedBaseURL() ?? getActiveAuthNamespace() ?? '';
+}
+
 /**
- * UserModel - UnifiedUser model
+ * UserModel - the signed-in user of the ACTIVE Laravel API. Token and user live
+ * in the shared per-API session store (core/auth/AuthSession); switching the
+ * endpoint therefore switches the current user with no state to reset here.
  */
 export class UserModel {
-  private UnifiedUser: UnifiedUser | null = null;
   private preferences: UserPreferences = {
     theme: 'dark',
     language: 'en',
     favorites: [],
     recentTools: []
   };
+  /** `namespace|token` of the session whose profile was last confirmed by the server. */
+  private validatedSession = '';
 
   constructor() {
-    this.load();
+    this.loadPreferencesFromStorage();
   }
 
   /**
-   * Login - Use public authentication endpoint.
-   * Throws Error with optional errorCode (from backend error_code) for UI to show localized message.
+   * Login against the active API.
+   * Throws LaravelAuthError (errorCode from backend error_code) for UI to show localized message.
    */
   async login(username: string, password: string): Promise<void> {
-    const response = await api.auth.login({ username, password });
-    let token: string | null = null;
-    let UnifiedUser: UnifiedUser | null = null;
-
-    if (!response.success) {
-      const errorCode = response.debugInfo?.error_code;
-      const err = new Error(response.error || i18n.t('login.errors.default'));
-      (err as Error & { errorCode?: string }).errorCode = errorCode;
-      throw err;
-    }
-
-    token = extractAuthToken(response.data);
-    UnifiedUser = extractUnifiedUser(response.data);
-
-    if (!token || !UnifiedUser) {
-      throw new Error(i18n.t('uiCommon.auth.invalid_response'));
-    }
-
-    this.UnifiedUser = UnifiedUser;
-    api.setAuthToken(token);
-
-    await this.refreshProfile();
-
-    this.save();
-
+    await loginLaravel(activeBaseUrl(), { username, password });
+    this.markValidated();
     await this.loadPreferences();
   }
 
-  /**
-   * Register - Use public authentication endpoint
-   */
   async register(
     username: string,
     password: string,
@@ -79,102 +67,71 @@ export class UserModel {
     nickname?: string,
     registrationCode?: string
   ): Promise<void> {
-    const response = await api.auth.register({
-      username,
-      password,
-      email,
-      nickname,
-      name: nickname,
-      registration_code: registrationCode
-    });
-    let token: string | null = null;
-    let UnifiedUser: UnifiedUser | null = null;
-
-    if (!response.success) {
-      throw new Error(response.error || i18n.t('uiCommon.auth.registration_failed'));
-    }
-
-    token = extractAuthToken(response.data);
-    UnifiedUser = extractUnifiedUser(response.data);
-
-    if (!token || !UnifiedUser) {
-      throw new Error(i18n.t('uiCommon.auth.invalid_response'));
-    }
-
-    this.UnifiedUser = UnifiedUser;
-    api.setAuthToken(token);
-
-    await this.refreshProfile();
-
-    this.save();
-
+    await registerLaravel(activeBaseUrl(), { username, password, email, nickname, registrationCode });
+    this.markValidated();
     await this.loadPreferences();
   }
 
-  /**
-   * Logout - Use public authentication endpoint
-   */
+  /** Sign out of the active API only. */
   async logout(): Promise<void> {
-    try {
-      await api.auth.logout();
-    } catch (error) {
-      console.warn('Logout API failed:', error);
-    }
-
-    this.UnifiedUser = null;
-    api.clearAuth();
-    this.clear();
+    await logoutLaravel(activeBaseUrl());
   }
 
-  /**
-   * Get the current UnifiedUser
-   */
   getUser(): UnifiedUser | null {
-    return this.UnifiedUser;
+    return getAuthSnapshot().user as UnifiedUser | null;
   }
 
-  /**
-   * Whether the UnifiedUser is logged in
-   */
   isLoggedIn(): boolean {
-    return this.UnifiedUser !== null;
+    return getAuthSnapshot().loggedIn;
   }
 
   hasStoredToken(): boolean {
     return getAuthToken() !== null;
   }
 
-  async refreshProfile(): Promise<UnifiedUser | null> {
-    const response = await api.auth.getUserProfile();
-    const user = response.success ? extractUnifiedUser(response.data) : null;
-    if (user) {
-      this.UnifiedUser = user;
-      this.save();
+  /**
+   * Bring the active API's session up to date once per token: confirm the
+   * profile with the server (a refused token ends the session) and load the
+   * user's preferences.
+   */
+  async syncSession(): Promise<void> {
+    if (!this.hasStoredToken()) return;
+    const key = this.sessionKey();
+    if (this.validatedSession !== key) {
+      const user = await this.refreshProfile();
+      if (!user) return;
     }
+    await this.loadPreferences();
+  }
+
+  async refreshProfile(): Promise<UnifiedUser | null> {
+    const user = await refreshLaravelSession(activeBaseUrl()) as UnifiedUser | null;
+    if (user) this.markValidated();
     return user;
   }
 
   /**
-   * Merge a profile/redeem payload into the local session (storage + memory).
+   * Merge a profile/redeem payload into the active API's session.
    */
   applyProfileUser(raw: unknown): UnifiedUser | null {
+    const current = this.getUser();
     const next = extractUnifiedUser(raw) ?? normalizeLaravelUser(raw);
     if (!next) {
-      return this.UnifiedUser;
+      return current;
     }
 
-    this.UnifiedUser = {
-      ...this.UnifiedUser,
+    const merged: UnifiedUser = {
+      ...current,
       ...next,
-      preferences: next.preferences ?? this.UnifiedUser?.preferences,
+      preferences: next.preferences ?? current?.preferences,
     };
-    this.save();
+    setAuthUser({ ...merged });
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(AUTH_SESSION_CHANGED_EVENT));
     }
 
-    return this.UnifiedUser;
+    return merged;
   }
 
   /**
@@ -250,8 +207,7 @@ export class UserModel {
         return false;
       }
 
-      this.UnifiedUser = UnifiedUser;
-      this.save();
+      setAuthUser({ ...UnifiedUser });
 
       if (prefsRes.success && prefsRes.data) {
         this.preferences = { ...this.preferences, ...prefsRes.data };
@@ -270,7 +226,7 @@ export class UserModel {
   }
 
   /**
-   * Load UnifiedUser preferences
+   * Load the user's preferences from the active API
    */
   private async loadPreferences(): Promise<void> {
     try {
@@ -284,13 +240,12 @@ export class UserModel {
     }
   }
 
-  /**
-   * Save to localStorage
-   */
-  private save(): void {
-    if (this.UnifiedUser) {
-      StorageManager.set(StorageKeys.USER, this.UnifiedUser);
-    }
+  private sessionKey(): string {
+    return `${getActiveAuthNamespace() ?? ''}|${getAuthToken() ?? ''}`;
+  }
+
+  private markValidated(): void {
+    this.validatedSession = this.sessionKey();
   }
 
   /**
@@ -300,24 +255,8 @@ export class UserModel {
     StorageManager.set(StorageKeys.USER_PREFERENCES, this.preferences);
   }
 
-  /**
-   * Load from localStorage
-   */
-  private load(): void {
+  private loadPreferencesFromStorage(): void {
     try {
-      // Load UnifiedUser
-      const savedUser = StorageManager.get<UnifiedUser | null>(StorageKeys.USER, null);
-      if (savedUser) {
-        this.UnifiedUser = savedUser;
-      }
-
-      // Load token
-      const token = getAuthToken();
-      if (token) {
-        api.setAuthToken(token);
-      }
-
-      // Load preferences
       const savedPreferences = StorageManager.get<UserPreferences | null>(StorageKeys.USER_PREFERENCES, null);
       if (savedPreferences) {
         this.preferences = savedPreferences;
@@ -326,15 +265,7 @@ export class UserModel {
       console.warn('Failed to load UnifiedUser data:', error);
     }
   }
-
-  /**
-   * Clear data
-   */
-  private clear(): void {
-    StorageManager.remove(StorageKeys.USER);
-  }
 }
 
 // Singleton
 export const userModel = new UserModel();
-

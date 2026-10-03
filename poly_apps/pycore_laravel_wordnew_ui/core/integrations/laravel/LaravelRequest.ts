@@ -43,10 +43,11 @@ export async function readLaravelResponse<T>(response: Response, path: string): 
 }
 
 /**
- * Shared-session response: a 401 opens the shared login window (as BaseAPI.send
- * does); a 403 carries the i18n "administrator required" message.
+ * Shared-session response: a 401 opens the shared login window for the API that
+ * answered (`baseUrl`, default the active one; as BaseAPI.send does); a 403 carries
+ * the i18n "administrator required" message.
  */
-async function readSessionResponse<T>(response: Response, path: string): Promise<T> {
+export async function readSessionResponse<T>(response: Response, path: string, baseUrl?: string): Promise<T> {
   try {
     return await readLaravelResponse<T>(response, path);
   } catch (error) {
@@ -54,7 +55,7 @@ async function readSessionResponse<T>(response: Response, path: string): Promise
       const clientKeyCode = clientKeyFailureCode((error as { payload?: unknown }).payload);
       // A rejected client key is not fixed by a login: its own message is thrown instead.
       if (clientKeyCode) throw Object.assign(new Error(clientKeyFailureMessage(clientKeyCode)), error as object, { code: clientKeyCode });
-      requestGlobalLogin();
+      requestGlobalLogin(baseUrl ? { baseUrl } : {});
     }
     if (response.status !== FORBIDDEN_STATUS) throw error;
     throw Object.assign(new Error(i18n.t(ADMIN_REQUIRED_MESSAGE_KEY)), error as object);

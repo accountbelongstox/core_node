@@ -201,35 +201,40 @@ final class AppQyV1BookAudioPlanService
         $sentenceMissing = 0;
         $nodes = [];
         $now = now();
+        $upgrade = ['total' => 0, 'done' => 0];
 
-        foreach ($this->groups($plan->id) as [$lane, $language]) {
-            $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
-            $key = WorkLeaseLanes::keyColumn($lane);
-            $total = 0;
-            $ready = 0;
-            foreach ($this->db->select(
-                'SELECT (t.has_audio IS NOT TRUE AND t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ?) AS leased,'
-                . ' CASE WHEN t.has_audio IS NOT TRUE AND t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ? THEN t.tts_locked_by END AS worker,'
-                . ' count(*) AS total,'
-                . ' count(*) FILTER (WHERE t.has_audio IS TRUE) AS ready,'
-                . ' count(*) FILTER (WHERE t.has_audio IS NOT TRUE AND t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ?) AS generating,'
-                . " count(*) FILTER (WHERE t.has_audio IS NOT TRUE AND t.tts_status = 'failed') AS failed"
-                . " FROM {$this->clips} pc JOIN {$table} t ON t.{$key} = pc.content_key"
-                . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ?'
-                . ' GROUP BY 1, 2',
-                [$now, $now, $now, $plan->id, $lane, $language]
-            ) as $row) {
-                foreach (array_keys($figures) as $field) {
-                    $figures[$field] += (int) $row->{$field};
-                }
-                $total += (int) $row->total;
-                $ready += (int) $row->ready;
-                if ($row->leased) {
-                    $nodes[(string) $row->worker] = ($nodes[(string) $row->worker] ?? 0) + (int) $row->generating;
-                }
+        foreach ($this->db->select(
+            'SELECT lane, language, count(*) AS total, count(ready_seq) AS ready,'
+            . ' count(*) FILTER (WHERE quality > 0) AS upgrade_total, count(*) FILTER (WHERE quality >= ?) AS upgrade_done'
+            . " FROM {$this->clips} WHERE plan_pk = ? GROUP BY lane, language",
+            [self::QUALITY_UPGRADED, $plan->id]
+        ) as $group) {
+            $figures['total'] += (int) $group->total;
+            $figures['ready'] += (int) $group->ready;
+            if ($group->lane === WorkLeaseLanes::SENTENCE_AUDIO) {
+                $sentenceMissing += (int) $group->total - (int) $group->ready;
+                $upgrade['total'] += (int) $group->upgrade_total;
+                $upgrade['done'] += (int) $group->upgrade_done;
             }
-            if ($lane === WorkLeaseLanes::SENTENCE_AUDIO) {
-                $sentenceMissing += $total - $ready;
+            $table = '"' . WorkLeaseLanes::table((string) $group->lane, (string) $group->language) . '"';
+            $key = WorkLeaseLanes::keyColumn((string) $group->lane);
+            $member = "EXISTS (SELECT 1 FROM {$this->clips} pc WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.content_key = t.{$key})";
+            $scope = [$plan->id, $group->lane, $group->language];
+
+            foreach ($this->db->select(
+                "(SELECT 'g' AS kind, t.tts_locked_by AS worker, count(*) AS n FROM {$table} t"
+                . ' WHERE t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ? AND t.has_audio IS NOT TRUE AND ' . $member
+                . ' GROUP BY t.tts_locked_by)'
+                . " UNION ALL (SELECT 'f' AS kind, NULL AS worker, count(*) AS n FROM {$table} t"
+                . ' WHERE t.' . AppQyV1MediaGaps::TTS_FAILED . ' AND t.has_audio IS NOT TRUE AND ' . $member . ')',
+                array_merge([$now], $scope, $scope)
+            ) as $row) {
+                if ($row->kind === 'g') {
+                    $figures['generating'] += (int) $row->n;
+                    $nodes[(string) $row->worker] = ($nodes[(string) $row->worker] ?? 0) + (int) $row->n;
+                } else {
+                    $figures['failed'] += (int) $row->n;
+                }
             }
         }
         $fastEnabled = (bool) self::setting('fast_pass.enabled');
@@ -238,10 +243,6 @@ final class AppQyV1BookAudioPlanService
             $fastPass = true;
             $this->db->update("UPDATE {$this->plans} SET fast_pass = TRUE WHERE id = ?", [$plan->id]);
         }
-        $upgrade = $this->db->selectOne(
-            "SELECT count(*) FILTER (WHERE quality > 0) AS total, count(*) FILTER (WHERE quality >= ?) AS done FROM {$this->clips} WHERE plan_pk = ? AND lane = ?",
-            [self::QUALITY_UPGRADED, $plan->id, WorkLeaseLanes::SENTENCE_AUDIO]
-        );
         $status = [
             'plan_id' => $planId,
             'state' => (string) $plan->state,
@@ -254,7 +255,7 @@ final class AppQyV1BookAudioPlanService
             'ready_cursor' => (int) $plan->ready_seq_max,
             'nodes' => $this->nodeRows($nodes),
             'fast_pass' => $fastPass,
-            'upgrade' => $fastEnabled ? ['total' => (int) $upgrade->total, 'done' => (int) $upgrade->done] : ['total' => 0, 'done' => 0],
+            'upgrade' => $fastEnabled ? $upgrade : ['total' => 0, 'done' => 0],
             'assignments' => app(WorkLeaseAssignments::class)->summary($plan),
             'updated_at' => $now->toIso8601String(),
         ];
