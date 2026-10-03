@@ -36,6 +36,11 @@ public static class Program
             }
             return 0;
         }
+        if (args.Length > 0 && args[0] == "--weblogin")
+        {
+            Console.WriteLine($"[BnProbe] web login automation poll: {BrowserLoginAutomation.RunOnePoll()}");
+            return 0;
+        }
         if (args.Length > 1 && args[0] == "--open")
         {
             OpenAndProbe(args[1], args.Length > 2 ? args[2] : Directory.GetCurrentDirectory());
