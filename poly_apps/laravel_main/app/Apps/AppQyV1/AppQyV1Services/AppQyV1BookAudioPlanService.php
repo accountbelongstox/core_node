@@ -125,9 +125,6 @@ final class AppQyV1BookAudioPlanService
                 "UPDATE {$this->plans} SET plan_hash = ?, updated_at = ? WHERE id = ?",
                 [isset($request['plan_hash']) ? mb_substr((string) $request['plan_hash'], 0, 64) : $plan->plan_hash, $now, $plan->id]
             );
-            if ($this->syncMembership($plan) > 0 && $words && $plan->state === 'ready') {
-                $this->startWords($planId, AppQyV1TableMaps::normalizeLangCode((string) ($book->language ?? '')) ?: ($languages[0] ?? ''));
-            }
         }
         if ($words && $plan->state === 'building') {
             $this->startWords($planId, AppQyV1TableMaps::normalizeLangCode((string) ($book->language ?? '')) ?: ($languages[0] ?? ''));
@@ -175,12 +172,15 @@ final class AppQyV1BookAudioPlanService
     public function hint(string $planId): void
     {
         $cache = QueueCenterCacheStore::get();
+        $plan = $planId === '' ? null : $this->plan($planId);
 
-        if ($planId === '' || !$cache->add(self::HINT_KEY . $planId, 1, (int) self::setting('status_cache_seconds') * 5)) {
+        if ($plan === null) {
             return;
         }
-        $plan = $this->plan($planId);
-        if ($plan !== null) {
+        $settled = $plan->raised_position !== null && (int) $plan->raised_position === (int) $plan->position;
+        $key = self::HINT_KEY . ($settled ? 'settled:' : '') . $planId;
+
+        if ($cache->add($key, 1, $settled ? (int) self::setting('claim_hint_ttl_seconds') : (int) self::setting('status_cache_seconds') * 5)) {
             $this->raise($plan);
         }
     }

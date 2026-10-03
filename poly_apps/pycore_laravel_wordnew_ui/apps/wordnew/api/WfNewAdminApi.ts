@@ -37,6 +37,7 @@ import { WFNEW_API_PORT } from './WfNewEndpoints';
 import { endpointBaseUrl, getCurrentOriginEndpoint } from '@/core/integrations/laravel/LaravelEndpoints';
 import { loadToken } from './WfNewApiTransport';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
+import { isNativeAppShell } from '../../../core/network/NativeShell';
 import { translateActive } from '../WfNewLocales';
 import { withClientKey } from '../../../core/integrations/laravel/ClientKeySigner';
 import { clientKeyFailureCode, clientKeyFailureMessage } from '../../../core/integrations/laravel/ClientKeyFailure';
@@ -339,6 +340,8 @@ export const wfNewAdminApi = {
    */
   async probeStatus(): Promise<WfNewSuperAdminStatus> {
     const disabled: WfNewSuperAdminStatus = { enabled: false, reason: 'disabled', clientIp: '' };
+    // The phone is never the machine that runs the backend: its page origin names the phone itself.
+    if (isNativeAppShell()) return disabled;
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 4000);

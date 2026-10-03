@@ -77,13 +77,13 @@ return JSON.stringify({accepted: true, text: dialogText});
 """
 
 # Google sign-in popup opened by drive.mount: pick the account, tick the
-# requested scopes and press the primary (last) button of the step.
+# requested scopes and press the Continue/Allow button of the step.
 OAUTH_STEP_SCRIPT = """
 const account = document.querySelector('[data-identifier]');
 if (account) { account.click(); return JSON.stringify({step: 'account'}); }
 document.querySelectorAll('input[type=checkbox]:not(:checked)').forEach((box) => box.click());
-const buttons = [...document.querySelectorAll('button')].filter((item) => item.offsetParent !== null && !item.disabled);
-const primary = buttons[buttons.length - 1];
+const buttons = [...document.querySelectorAll('button, [role=button]')].filter((item) => item.offsetParent !== null && !item.disabled && (item.innerText || '').trim());
+const primary = buttons.find((item) => /^(continue|allow)/i.test((item.innerText || '').trim())) || buttons[buttons.length - 1];
 if (!primary) { return JSON.stringify({step: 'none'}); }
 primary.click();
 return JSON.stringify({step: 'continue', label: (primary.innerText || '').trim().slice(0, 40)});

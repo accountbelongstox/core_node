@@ -6,8 +6,10 @@ from typing import Any, Callable, Optional
 from pycore.pyctl.terminal.terminal_prompt_detector import (
     bash_command_prompt,
     default_yes_prompt,
+    mode_switch_option,
+    mode_switch_selected,
     second_yes_prompt,
-    second_yes_selected,
+    selected_option,
 )
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -30,17 +32,30 @@ class TerminalPromptHandler:
         capture: Callable[[], Optional[str]],
     ) -> str:
         current_text = text
+        moved = False
         for attempt in range(1, MAX_ENTER_ATTEMPTS + 1):
             use_second_yes = second_yes_prompt(current_text)
             use_bash_command = bash_command_prompt(current_text)
-            if not use_second_yes and not use_bash_command and not default_yes_prompt(current_text):
+            recover = mode_switch_selected(current_text)
+            if not use_second_yes and not use_bash_command and not recover and not default_yes_prompt(current_text):
+                break
+            target = 2 if use_second_yes else 1
+            selected = selected_option(current_text) or 1
+            if mode_switch_option(current_text, target):
+                ColorPrint.yellow(f"[{LABEL}] skipped terminal={terminal_number}: option {target} switches the permission mode")
+                break
+            if selected != target and moved:
+                ColorPrint.yellow(
+                    f"[{LABEL}] skipped terminal={terminal_number}: selection is on option {selected} after one move; "
+                    f"never moving twice"
+                )
                 break
             try:
-                result = (
-                    self._terminals.choose_option(window_id, terminal_number, 2)
-                    if use_second_yes and not second_yes_selected(current_text)
-                    else self._terminals.press_enter(window_id, terminal_number)
-                )
+                if selected == target:
+                    result = self._terminals.press_enter(window_id, terminal_number)
+                else:
+                    moved = True
+                    result = self._terminals.choose_option(window_id, terminal_number, target, from_option=selected)
             except Exception as exc:  # noqa: BLE001 - desktop input is an external boundary
                 ColorPrint.yellow(
                     f"[{LABEL}] Enter failed terminal={terminal_number} attempt={attempt}: "
@@ -56,7 +71,7 @@ class TerminalPromptHandler:
             ColorPrint.blue(
                 f"[{LABEL}] confirmed terminal={terminal_number} "
                 f"prompt={'bash_command' if use_bash_command else 'yes'} "
-                f"option={2 if use_second_yes else 1} attempt={attempt}"
+                f"option={target} from={selected} attempt={attempt}"
             )
             time.sleep(PROMPT_SETTLE_SECONDS)
             refreshed = capture()

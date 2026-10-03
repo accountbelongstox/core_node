@@ -33,6 +33,9 @@ SECOND_YES_DONT_ASK_PATTERN = re.compile(
     re.IGNORECASE,
 )
 HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
+OPTION_NUMBER_PATTERN = re.compile(r"^(?P<marker>❯|›|>|▶|►|➜|→|\*)?\s*(?P<number>[1-9])\s*[.)]\s*\S")
+# Options that change the agent's permission mode are never chosen or confirmed automatically.
+MODE_SWITCH_OPTION_PATTERN = re.compile(r"\bauto[\s-]*(?:mode|accept)|\bbypass(?:es)?\s+permissions?\b|\byolo\b", re.IGNORECASE)
 BASH_COMMAND_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*bash\s+command\b", re.IGNORECASE)
 
 USAGE_LIMIT_PATTERN = re.compile(
@@ -105,8 +108,41 @@ def default_yes_prompt(text: str) -> bool:
     )
 
 
+def prompt_options(text: str) -> Dict[int, Tuple[str, bool]]:
+    """Options of the bottom prompt from its "1. Yes": number -> (text incl. wrapped continuation lines, selected)."""
+    lines = prompt_lines(text)
+    yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
+    options: Dict[int, Tuple[str, bool]] = {}
+    current: Optional[int] = None
+    for line in lines[yes_positions[-1]:] if yes_positions else []:
+        match = OPTION_NUMBER_PATTERN.match(line)
+        if match:
+            current = int(match.group("number"))
+            options[current] = (line, bool(match.group("marker")))
+        elif current is not None and line.strip() and not HINT_PATTERN.search(line):
+            options[current] = (f"{options[current][0]} {line.strip()}", options[current][1])
+    return options
+
+
+def mode_switch_option(text: str, number: int) -> bool:
+    option = prompt_options(text).get(number)
+    return option is not None and bool(MODE_SWITCH_OPTION_PATTERN.search(option[0]))
+
+
+def selected_option(text: str) -> Optional[int]:
+    return next((number for number, (_line, selected) in prompt_options(text).items() if selected), None)
+
+
+def mode_switch_selected(text: str) -> bool:
+    """A confirmation prompt whose selection sits on a permission-mode option (moved there by a stray key)."""
+    selected = selected_option(text)
+    return selected is not None and confirmation_prompt(text) is not None and mode_switch_option(text, selected)
+
+
 def second_yes_prompt(text: str) -> bool:
-    """Detect a Yes choice whose second option suppresses future questions."""
+    """Detect a Yes choice whose second option suppresses future questions (never one that switches the permission mode)."""
+    if mode_switch_option(text, 2):
+        return False
     lines = prompt_lines(text)
     yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
     if not yes_positions:
