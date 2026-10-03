@@ -80,7 +80,9 @@
       "Bash(dpkg -l)",
       "Bash(awk '{print $2,$3}')",
       "Read(//var/_core_node/**)",
-      "Bash(find / -name \"web_access_config*.json\" -not -path \"*/node_modules/*\")"
+      "Bash(find / -name \"web_access_config*.json\" -not -path \"*/node_modules/*\")",
+      "Bash(break)",
+      "Bash(systemctl is-active *)"
     ],
     "deny": [],
     "ask": []

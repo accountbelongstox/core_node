@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
+from urllib.parse import urlsplit
 
 SERVICE_CONTRACT_PATH = Path(__file__).resolve().parents[2] / "config" / "service_contract.json"
 SERVICE_CONTRACT: dict[str, Any] = json.loads(SERVICE_CONTRACT_PATH.read_text(encoding="utf-8"))
@@ -100,6 +103,60 @@ def mesh_domain(provider: str = "", replacements: dict[str, str] | None = None) 
     return ".".join(resolved_labels)
 
 
+_DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+
+
+def _mesh_label_pattern(label: str) -> str:
+    if label == "{root}":
+        return "(?:" + "|".join(re.escape(str(domain)) for domain in value("access.root_domains")) + ")"
+    if label.startswith("{") and label.endswith("}"):
+        return _DNS_LABEL
+    return re.escape(label)
+
+
+@lru_cache(maxsize=1)
+def _tailnet_host_patterns() -> tuple:
+    """``[api.]<machine>.<tailnet domain>`` for every mesh provider's domain template
+    (the same matcher as poly_apps/pycore_laravel_wordnew_ui/core/contracts/MeshDomain.ts)."""
+    api_label = re.escape(str(value("access.tailnet.api_label")))
+    patterns = []
+    for settings in value("access.mesh").values():
+        if not isinstance(settings, dict) or not settings.get("domain_labels"):
+            continue
+        domain = r"\.".join(_mesh_label_pattern(str(label)) for label in settings["domain_labels"])
+        patterns.append(re.compile(f"^(?:{api_label}\\.)?{_DNS_LABEL}\\.({domain})$"))
+    return tuple(patterns)
+
+
+def tailnet_domain_of(hostname: str) -> str:
+    """The tailnet domain of a ``[api.]<machine>.<tailnet domain>`` host of any mesh provider; '' otherwise."""
+    host = str(hostname or "").strip().lower().rstrip(".")
+    for pattern in _tailnet_host_patterns():
+        match = pattern.match(host)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def tailnet_machine_of(hostname: str) -> str:
+    """``<machine>.<tailnet domain>`` of a mesh host (the api label removed); '' for a host outside every mesh domain."""
+    host = str(hostname or "").strip().lower().rstrip(".")
+    if not tailnet_domain_of(host):
+        return ""
+    api_prefix = f"{value('access.tailnet.api_label')}."
+    return host[len(api_prefix):] if host.startswith(api_prefix) else host
+
+
+def tailnet_api_url(machine_host: str) -> str:
+    """Laravel main behind the mesh reverse proxy of one tailnet machine."""
+    return build_url("https", machine_host, path=str(value("access.tailnet.api_path")))
+
+
+def tailnet_client_only_os() -> frozenset:
+    """Tailnet machines on these OSes (phones) never serve an API."""
+    return frozenset(str(name).lower() for name in value("access.tailnet.client_only_os"))
+
+
 def service_url_entries(mesh_domain_value: str = "") -> tuple[dict[str, str], ...]:
     """Contract URL entries; {mesh_domain} becomes the live tailnet domain, else the default provider's."""
     entries = value("access.service_url_entries")
@@ -128,16 +185,24 @@ def build_url(protocol: str, hostname: str, port_number: int | None = None, path
     return f"{protocol}://{hostname}{port_part}{path_part}"
 
 
-def laravel_api_catalog_urls(mesh_domain_value: str = "") -> tuple[str, ...]:
+def laravel_api_catalog_urls(mesh_domain_value: str = "", mesh_machine_hosts: Iterable[str] = ()) -> tuple[str, ...]:
     """The Laravel API endpoint catalog, in the UI's order (LaravelEndpoints.ts
     getBuiltInEndpoints): every root domain's api domain, then the service URL
-    entries. Plain-http host:port presets are not part of it."""
+    entries, then every live mesh machine. A mesh service URL entry is listed
+    only while its machine is among the live ``mesh_machine_hosts``; outside a
+    mesh (none given) no mesh route is listed. Plain-http host:port presets are
+    not part of it."""
     domains = value("access.root_domains")
     urls = [
         build_url("https", service_domain("laravel_api", root_domain_index=index))
         for index in range(len(domains) if isinstance(domains, list) else 0)
     ]
-    urls.extend(entry["url"].rstrip("/") for entry in service_url_entries(mesh_domain_value))
+    live_machines = {str(host).strip().lower().rstrip(".") for host in mesh_machine_hosts if str(host).strip()}
+    for entry in service_url_entries(mesh_domain_value):
+        machine = tailnet_machine_of(urlsplit(entry["url"]).hostname or "")
+        if not machine or machine in live_machines:
+            urls.append(entry["url"].rstrip("/"))
+    urls.extend(tailnet_api_url(machine) for machine in sorted(live_machines))
     return tuple(dict.fromkeys(urls))
 
 

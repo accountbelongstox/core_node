@@ -23,6 +23,7 @@ from typing import Any, Callable, Dict, FrozenSet, Iterable, Mapping, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.service_contract import host as contract_host
 from pycore.pyfoundations.service_contract import port as contract_port
+from pycore.pyfoundations.service_contract import tailnet_domain_of
 from pycore.pyfoundations.service_contract import value as contract_value
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, user_data_store
 
@@ -158,7 +159,7 @@ def is_private_lan_peer(address: Any) -> bool:
 
 def _hostname_is_lan(hostname: str) -> bool:
     """Loopback or private LAN host: an IP literal inside the LAN networks, a
-    single-label or LAN-suffixed name; a public name or address is not."""
+    single-label, LAN-suffixed or mesh (tailnet machine) name; a public name or address is not."""
     name = _hostname(hostname)
     if not name:
         return False
@@ -166,7 +167,11 @@ def _hostname_is_lan(hostname: str) -> bool:
         return True
     if _ip_address(name) is not None:
         return False
-    return "." not in name or any(name.endswith(f".{suffix}") for suffix in PRIVATE_LAN_HOST_SUFFIXES)
+    return (
+        "." not in name
+        or any(name.endswith(f".{suffix}") for suffix in PRIVATE_LAN_HOST_SUFFIXES)
+        or bool(tailnet_domain_of(name))
+    )
 
 
 def host_header_is_lan(host_header: str) -> bool:

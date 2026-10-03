@@ -3,6 +3,7 @@
 
 import os
 import time
+from typing import Iterable
 
 from pycore.pyfoundations.notebook_policy import notebook_assist_node
 from pycore.pyfoundations.service_contract import laravel_api_catalog_urls, service_domain
@@ -24,9 +25,9 @@ LARAVEL_WORKER_API_URL = (
 LARAVEL_WORKER_API_URLS = tuple(dict.fromkeys([LARAVEL_WORKER_API_URL, *laravel_api_catalog_urls()]))
 
 
-def laravel_worker_api_urls(mesh_domain_value: str = "") -> tuple:
-    """The catalog with mesh machine entries on the given (live) tailnet domain."""
-    return tuple(dict.fromkeys([LARAVEL_WORKER_API_URL, *laravel_api_catalog_urls(mesh_domain_value)]))
+def laravel_worker_api_urls(mesh_domain_value: str = "", mesh_machine_hosts: Iterable[str] = ()) -> tuple:
+    """The catalog with the mesh machines of the given (live) tailnet domain."""
+    return tuple(dict.fromkeys([LARAVEL_WORKER_API_URL, *laravel_api_catalog_urls(mesh_domain_value, mesh_machine_hosts)]))
 PYCORE_WORKER_INSTANCE = ""
 TRAY_BACKEND = "native"
 UI_ENABLE_TRAY = TRAY_BACKEND == "pyside"
