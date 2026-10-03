@@ -428,6 +428,7 @@ function formatScheduleCountdown(ms: number): string {
 }
 
 const NO_WINDOWS: TerminalWindowInfo[] = [];
+const AGENT_NOTE_LANGUAGE = 'en';
 const PREVIEW_VIEW_MODES: ReadonlyArray<{ mode: TerminalViewMode; icon: typeof Layers }> = [
   { mode: 'auto', icon: Layers },
   { mode: 'text', icon: FileText },
@@ -562,7 +563,7 @@ function calculateCanvasLayout(
 // One node's terminals; re-mounted per node, so every piece of state belongs to that node.
 /** searchSlot: the node-tab row element the sent-message search renders into. */
 const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ searchSlot }) => {
-  const { t } = useTranslation('pc');
+  const { t, i18n } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
   const terminalWatch = usePcTerminalWatch();
   // Pushed terminal events come from the selected pycore only; every other piece of state is namespaced per node.
@@ -1624,8 +1625,10 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     }
     // Read the draft after the uploads: typing during an upload is part of the message.
     const draftText = stripImagePlaceholders(textOverride === undefined ? (draftsRef.current[key] ?? selectedDraft) : textOverride);
-    // A voice message leads with the instruction to transcribe it and start right away.
-    const voiceNote = attachments.some((attachment) => attachment.kind === 'audio') ? t('terminal.voice.agentNote') : '';
+    // A voice message leads with the instruction to the agent, always in English whatever the UI language.
+    const voiceNote = attachments.some((attachment) => attachment.kind === 'audio')
+      ? i18n.getFixedT(AGENT_NOTE_LANGUAGE, 'pc')('terminal.voice.agentNote')
+      : '';
     const payload = [voiceNote, draftText, ...attachments.map((attachment) => attachment.displayPath)]
       .filter((part) => part !== '')
       .join(' ');

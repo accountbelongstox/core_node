@@ -14,6 +14,8 @@ export interface PcTerminalImage {
   status: PcTerminalImageStatus;
   progress: number;
   displayPath: string;
+  /** Size pycore stored, known once the upload finished. */
+  storedBytes: number | null;
   errorKey: string;
   errorParams: Record<string, number>;
 }
@@ -112,6 +114,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         status: ok ? 'queued' : 'error',
         progress: 0,
         displayPath: '',
+        storedBytes: null,
         errorKey: ok ? '' : ERROR_KEYS.notImage,
         errorParams: {},
       };
@@ -151,7 +154,12 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         });
         return null;
       }
-      patch(item.id, { status: 'uploaded', progress: 1, displayPath: result.display_path });
+      patch(item.id, {
+        status: 'uploaded',
+        progress: 1,
+        displayPath: result.display_path,
+        storedBytes: typeof result.bytes === 'number' ? result.bytes : null,
+      });
       return result.display_path;
     } catch (error: any) {
       if (error?.name !== 'AbortError') {
@@ -194,6 +202,13 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
     const item = allRef.current.find((entry) => entry.id === id);
     if (item) void uploadOne(item);
   }, [uploadOne]);
+
+  // Recordings upload as soon as they exist, so pycore reports their stored size before the send.
+  useEffect(() => {
+    all.forEach((item) => {
+      if (item.kind === 'audio' && item.status === 'queued') void uploadOne(item);
+    });
+  }, [all, uploadOne]);
 
   const items = all.filter((item) => item.windowId === windowId);
   return {

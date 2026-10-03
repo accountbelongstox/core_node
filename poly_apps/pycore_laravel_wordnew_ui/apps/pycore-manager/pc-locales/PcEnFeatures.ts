@@ -466,6 +466,8 @@ terminal: {
       record: 'Record a voice message',
       stop: 'Stop recording ({{duration}})',
       systemRecorder: 'System recorder',
+      sizeLocal: 'Recording size (uploading)',
+      sizeStored: 'Size stored by pycore',
       recordings: 'Voice recordings',
       textPlaceholder: 'Optional text sent with the recording…',
       micDenied: 'Microphone access was denied; allow it or use the system recorder.',

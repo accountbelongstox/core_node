@@ -1,7 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Square, X } from 'lucide-react';
+import { FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
+import { formatBytes } from '../../../core/utils/formatBytes';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { isTerminalAttachmentFile, type PcTerminalImages } from './usePcTerminalImages';
 import { usePcVoiceRecorder, type PcVoiceRecorderError } from './usePcVoiceRecorder';
@@ -82,9 +83,13 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
     onSnapshot: session?.onSnapshot ?? (() => undefined),
   });
 
+  const iconButton = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-500 hover:bg-indigo-500/25 disabled:opacity-50';
+
   return (
     <div
-      className={`space-y-2 rounded-xl ${dragging ? 'ring-1 ring-indigo-500' : ''}`}
+      className={`rounded-xl border bg-white/60 focus-within:ring-1 focus-within:ring-indigo-500 dark:bg-slate-950/40 ${
+        dragging ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-500/20'
+      } ${hasWindow ? '' : 'opacity-50'}`}
       onDragOver={(event) => {
         if (!hasWindow || !Array.from(event.dataTransfer.types).includes('Files')) return;
         event.preventDefault();
@@ -101,45 +106,19 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         images.addFiles(files);
       }}
     >
-      {mode === 'voice' && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={record}
-            disabled={!hasWindow}
-            className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 ${
-              recorder.recording ? 'animate-pulse bg-rose-600 hover:bg-rose-500' : 'bg-indigo-600 hover:bg-indigo-500'
-            }`}
-          >
-            {recorder.recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            {recorder.recording
-              ? t('terminal.voice.stop', { duration: formatDuration(recorder.elapsedSeconds) })
-              : t('terminal.voice.record')}
-          </button>
-          {!recorder.recording && (
-            <button
-              type="button"
-              onClick={() => recorderInputRef.current?.click()}
-              disabled={!hasWindow}
-              className="inline-flex min-h-10 items-center rounded-xl border border-slate-500/20 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-500/10 disabled:opacity-50 dark:text-slate-300"
-            >
-              {t('terminal.voice.systemRecorder')}
-            </button>
-          )}
-          {recorder.error && (
-            <p className="w-full text-[11px] text-rose-500">
-              {t(VOICE_ERROR_KEYS[recorder.error])}
-            </p>
-          )}
-        </div>
-      )}
       {audioItems.length > 0 && (
-        <ul className="space-y-1.5" aria-label={t('terminal.voice.recordings')}>
+        <ul className="space-y-1 px-1.5 pt-1.5" aria-label={t('terminal.voice.recordings')}>
           {audioItems.map((item) => (
-            <li key={item.id} className="flex items-center gap-2 rounded-xl border border-slate-500/20 bg-slate-500/5 p-1.5">
-              <Mic className="h-4 w-4 shrink-0 text-indigo-500" />
-              <audio src={item.previewUrl} controls preload="metadata" className="h-8 min-w-0 flex-1" />
-              {item.status === 'uploading' && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-500" />}
+            <li key={item.id} className="flex items-center gap-1.5 rounded-lg bg-slate-500/10 py-0.5 pl-1.5 pr-0.5">
+              <Mic className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+              <audio src={item.previewUrl} controls preload="metadata" className="h-7 min-w-0 flex-1" />
+              <span
+                className="shrink-0 font-mono text-[10px] text-slate-500 dark:text-slate-400"
+                title={t(item.storedBytes === null ? 'terminal.voice.sizeLocal' : 'terminal.voice.sizeStored')}
+              >
+                {formatBytes(item.storedBytes ?? item.file.size)}
+              </span>
+              {item.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-500" />}
               {item.status === 'error' && (
                 <button
                   type="button"
@@ -148,7 +127,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                   aria-label={t('terminal.images.retry')}
                   className="shrink-0 rounded p-1 text-rose-500 hover:bg-rose-500/10"
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className="h-3.5 w-3.5" />
                 </button>
               )}
               <button
@@ -158,36 +137,112 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                 aria-label={t('terminal.images.remove')}
                 className="shrink-0 rounded p-1 text-slate-500 hover:bg-slate-500/10"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </li>
           ))}
         </ul>
       )}
-      <div className="relative">
-        <textarea
-          ref={elementRef}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onPointerDown={cancelRestore}
-          onKeyDown={(event) => {
-            cancelRestore();
-            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-              event.preventDefault();
-              onSend();
-            }
-          }}
-          onPaste={(event) => {
-            const files = attachmentFiles(event.clipboardData.files);
-            if (!files.length) return;
-            images.addFiles(files);
-            if (!event.clipboardData.getData('text')) event.preventDefault();
-          }}
-          disabled={!hasWindow}
-          rows={mode === 'voice' ? Math.min(rows, 2) : rows}
-          placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
-          className="block w-full resize-y rounded-xl border border-slate-500/20 bg-white/60 pb-11 pt-2 pl-3 pr-14 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-950/40 dark:text-slate-100"
-        />
+      {imageItems.length > 0 && (
+        <ul className="flex gap-1.5 overflow-x-auto overscroll-contain px-1.5 pt-1.5">
+          {imageItems.map((item) => (
+            <li key={item.id} className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-slate-500/20 bg-slate-500/10">
+              {item.previewUrl && <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />}
+              {item.status === 'uploading' && (
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900/40">
+                  <div className="h-full bg-indigo-500" style={{ width: `${Math.round(item.progress * 100)}%` }} />
+                </div>
+              )}
+              {item.status === 'error' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-rose-900/60 p-1 text-center text-[9px] text-white" title={t(item.errorKey, item.errorParams)}>
+                  {item.previewUrl ? (
+                    <button type="button" onClick={() => images.retry(item.id)} title={t('terminal.images.retry')}>
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                  ) : t(item.errorKey, item.errorParams)}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => images.remove(item.id)}
+                title={t('terminal.images.remove')}
+                className="absolute right-0.5 top-0.5 rounded-full bg-slate-900/70 p-0.5 text-white hover:bg-slate-900"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <textarea
+        ref={elementRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onPointerDown={cancelRestore}
+        onKeyDown={(event) => {
+          cancelRestore();
+          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            event.preventDefault();
+            onSend();
+          }
+        }}
+        onPaste={(event) => {
+          const files = attachmentFiles(event.clipboardData.files);
+          if (!files.length) return;
+          images.addFiles(files);
+          if (!event.clipboardData.getData('text')) event.preventDefault();
+        }}
+        disabled={!hasWindow}
+        rows={mode === 'voice' ? Math.min(rows, 2) : rows}
+        placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
+        className="block w-full resize-y bg-transparent px-3 pb-1 pt-2 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
+      />
+      <div className="flex items-center gap-1.5 px-1.5 pb-1.5">
+        {mode === 'voice' && (
+          <>
+            <button
+              type="button"
+              onClick={record}
+              disabled={!hasWindow}
+              title={recorder.recording ? undefined : t('terminal.voice.record')}
+              aria-label={recorder.recording
+                ? t('terminal.voice.stop', { duration: formatDuration(recorder.elapsedSeconds) })
+                : t('terminal.voice.record')}
+              className={`inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold text-white disabled:opacity-50 ${
+                recorder.recording ? 'animate-pulse bg-rose-600 hover:bg-rose-500' : 'w-8 bg-indigo-600 hover:bg-indigo-500'
+              }`}
+            >
+              {recorder.recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
+              {recorder.recording && <span className="font-mono">{formatDuration(recorder.elapsedSeconds)}</span>}
+            </button>
+            {!recorder.recording && (
+              <button
+                type="button"
+                onClick={() => recorderInputRef.current?.click()}
+                disabled={!hasWindow}
+                title={t('terminal.voice.systemRecorder')}
+                aria-label={t('terminal.voice.systemRecorder')}
+                className={iconButton}
+              >
+                <FileAudio className="h-4 w-4" />
+              </button>
+            )}
+          </>
+        )}
+        <p
+          className={`min-w-0 flex-1 truncate text-[10px] ${
+            recorder.error || draftStatus === 'error'
+              ? 'text-rose-500'
+              : draftStatus === 'saving' ? 'text-amber-500' : 'text-emerald-500'
+          }`}
+          title={recorder.error ? t(VOICE_ERROR_KEYS[recorder.error]) : undefined}
+        >
+          {recorder.error
+            ? t(VOICE_ERROR_KEYS[recorder.error])
+            : hasWindow
+              ? t(draftStatus === 'error' ? 'terminal.draftSaveFailed' : draftStatus === 'saving' ? 'terminal.draftSaving' : 'terminal.draftSaved')
+              : ''}
+        </p>
         <button
           type="button"
           onClick={toggleMode}
@@ -195,7 +250,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           title={t(mode === 'voice' ? 'terminal.voice.switchToText' : 'terminal.voice.switchToVoice')}
           aria-label={t(mode === 'voice' ? 'terminal.voice.switchToText' : 'terminal.voice.switchToVoice')}
           aria-pressed={mode === 'voice'}
-          className="absolute bottom-2.5 right-14 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-500 shadow-sm backdrop-blur hover:bg-indigo-500/25 disabled:opacity-50"
+          className={iconButton}
         >
           {mode === 'voice' ? <Keyboard className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </button>
@@ -205,50 +260,10 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           disabled={!hasWindow}
           title={t('terminal.images.attach')}
           aria-label={t('terminal.images.attach')}
-          className="absolute bottom-2.5 right-5 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-500 shadow-sm backdrop-blur hover:bg-indigo-500/25 disabled:opacity-50"
+          className={iconButton}
         >
           {images.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
         </button>
-        {imageItems.length > 0 && (
-          <ul className="absolute bottom-12 right-5 top-2 flex w-10 flex-col gap-1.5 overflow-y-auto overscroll-contain">
-            {imageItems.map((item) => (
-              <li key={item.id} className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-slate-500/20 bg-slate-500/10">
-                {item.previewUrl && <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />}
-                {item.status === 'uploading' && (
-                  <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900/40">
-                    <div className="h-full bg-indigo-500" style={{ width: `${Math.round(item.progress * 100)}%` }} />
-                  </div>
-                )}
-                {item.status === 'error' && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-rose-900/60 p-1 text-center text-[9px] text-white" title={t(item.errorKey, item.errorParams)}>
-                    {item.previewUrl ? (
-                      <button type="button" onClick={() => images.retry(item.id)} title={t('terminal.images.retry')}>
-                        <RefreshCw className="h-4 w-4" />
-                      </button>
-                    ) : t(item.errorKey, item.errorParams)}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => images.remove(item.id)}
-                  title={t('terminal.images.remove')}
-                  className="absolute right-0.5 top-0.5 rounded-full bg-slate-900/70 p-0.5 text-white hover:bg-slate-900"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        {hasWindow ? (
-          <p className={`text-[10px] ${
-            draftStatus === 'error' ? 'text-rose-500' : draftStatus === 'saving' ? 'text-amber-500' : 'text-emerald-500'
-          }`}>
-            {t(draftStatus === 'error' ? 'terminal.draftSaveFailed' : draftStatus === 'saving' ? 'terminal.draftSaving' : 'terminal.draftSaved')}
-          </p>
-        ) : <span />}
         <input
           ref={pickerRef}
           type="file"
