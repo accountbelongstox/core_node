@@ -42,7 +42,7 @@ const Art: React.FC<{ art?: string; icon: LucideIcon; tone: WfNewHomeLabTone; si
       loading="lazy"
       decoding="async"
       draggable={false}
-      className={`${size} shrink-0 object-contain transition-transform duration-300 group-hover:scale-105`}
+      className={`${size} shrink-0 object-contain transition-transform duration-300 group-hover:scale-105 dark:rounded-3xl dark:bg-white/90 dark:p-2 dark:shadow-sm`}
     />
   ) : (
     <span className={`${size} inline-flex shrink-0 items-center justify-center rounded-3xl bg-white/70 shadow-inner ring-1 ring-white/80 dark:bg-white/10 dark:ring-white/10 ${ICON_TONE[tone]}`}>
