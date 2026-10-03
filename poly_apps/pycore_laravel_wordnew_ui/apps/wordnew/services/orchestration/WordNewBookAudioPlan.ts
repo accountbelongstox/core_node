@@ -325,9 +325,11 @@ class WordNewBookAudioPlanService {
 
   private async postAssignment(taskId: string, live: LivePlan): Promise<void> {
     const directHost = wordNewChannels.direct() ? hostKey(wordNewPycoreLink.getSnapshot().selectedUrl) : '';
-    live.assignment = buildAssignment({ roster: wordNewPycoreNodes.getSnapshot().nodes, directHost, languages: live.languages });
+    const roster = wordNewPycoreNodes.getSnapshot();
+    live.assignment = buildAssignment({ roster: roster.nodes, directHost, languages: live.languages });
     if (live.assignment.windows.length === 0 || serverSchemaGate.getSnapshot().schema === 'pending') {
-      console.warn('[BookPlan] assignment empty', { roster: wordNewPycoreNodes.getSnapshot().nodes.length, languages: live.languages });
+      // Before the first roster answer the roster subscription posts as soon as it arrives: nothing to report yet.
+      if (roster.version > 0) console.warn('[BookPlan] assignment empty', { roster: roster.nodes.length, languages: live.languages });
       return;
     }
     try {
