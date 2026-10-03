@@ -132,7 +132,11 @@
       "Bash(/opt/_debian_13/python3_venv/bin/python3 -c ' *)",
       "Bash(/opt/_debian_13/python3_venv/bin/python3 -c \"import pycore.pyctl.colab.colab_cli, pycore.pyctl.devmcp.dev_mcp_server; print\\('import ok'\\)\")",
       "Bash(timeout 600 /opt/_debian_13/python3_venv/bin/python3 -m pycore.pyctl.colab.colab_cli restart)",
-      "Bash(timeout 120 /opt/_debian_13/python3_venv/bin/python3 -m pycore.pyctl.colab.colab_cli logs --tail 8)"
+      "Bash(timeout 120 /opt/_debian_13/python3_venv/bin/python3 -m pycore.pyctl.colab.colab_cli logs --tail 8)",
+      "PowerShell(Get-Service *)",
+      "PowerShell(Get-ScheduledTaskInfo *)",
+      "Bash(PYCORE_SKIP_DEP_CHECK=1 timeout 60 python /d/.tmp/claude/D--programing-core-node/38527f7f-baa6-49be-8e40-ccd35fbc6fff/scratchpad/oauth_click.py)",
+      "Bash(sleep *)"
     ],
     "deny": [],
     "ask": []

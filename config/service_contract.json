@@ -481,6 +481,25 @@
         "actions": ["start", "restart", "sys-init", "optimize-clear"],
         "read_actions": ["status"]
     },
+    "service_manager": {
+        "purpose": "Windows dd.cmd > Service Manager catalog: every service/scheduled task the installers register. kind=service (Windows service) or task (scheduled task); the first existing name wins. dynamic_service_patterns adds matching services discovered at runtime. Linux keeps its registry in scripts/shells/linux/menu_itemshells/service_manager_registry.sh.",
+        "windows": [
+            { "label": "Pycore (pyservice)", "kind": "service", "names": ["pycore"] },
+            { "label": "Pycore RPC autostart", "kind": "task", "names": ["PyCore_RPC_Server"] },
+            { "label": "Pycore UI (nexus-dash)", "kind": "service", "names": ["ncore-nexus-dash"] },
+            { "label": "Laravel (FrankenPHP)", "kind": "service", "names": ["ncore-laravel-frankenphp", "ncore-laravel-main"] },
+            { "label": "FrankenPHP certificate renewal", "kind": "task", "names": ["ncore-frankenphp-certificate-renewal"] },
+            { "label": "PostgreSQL", "kind": "service", "names": ["postgresql-core-node"] },
+            { "label": "Redis", "kind": "service", "names": ["Redis"] },
+            { "label": "MCP Chrome", "kind": "task", "names": ["ncore-mcp-chrome"] },
+            { "label": "NAT gateway", "kind": "service", "names": ["ncore-natgateway"] },
+            { "label": "Tailscale", "kind": "service", "names": ["Tailscale"] },
+            { "label": "TightVNC server", "kind": "service", "names": ["tvnserver"] },
+            { "label": "OpenSSH server", "kind": "service", "names": ["sshd"] },
+            { "label": "Chrome compat shim guard", "kind": "task", "names": ["ChromeCompatShimGuard"] }
+        ],
+        "dynamic_service_patterns": ["app-manager-*"]
+    },
     "book_seed": {
         "purpose": "Bible corpus seed: an xz tar disguised as .js, extracted by the shell prerequisite step (175_laravel_main_start.sh / FrankenPhpManager.ps1) and only read by Laravel's sys:init.",
         "archive_name": "bible-corpus.unique.tar.xz.js",
