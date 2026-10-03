@@ -25,6 +25,8 @@ export interface OrchBundleEntry {
   sent: boolean;
   bytes: number;
   meaning: string;
+  /** Content version the server reported for the clip (null when the frame carries none). */
+  version?: number | null;
   /** Clip bytes (in-memory transfer). */
   data: Uint8Array | null;
   /** Written to the clip store folder by the native stack. */
@@ -52,11 +54,11 @@ export interface OrchBundleTransport {
 
 export interface OrchBundleSink {
   /** Keep an in-memory clip delivered by `origin`; its playable URL (null when it could not be kept). */
-  persist: (resource: OrchComposeResource, blob: Blob, meaning: string, origin: OrchApiOrigin) => Promise<string | null>;
+  persist: (resource: OrchComposeResource, blob: Blob, meaning: string, origin: OrchApiOrigin, version?: number | null) => Promise<string | null>;
   /** Native: the clip store folder and the file name of a key. */
   nativeTarget?: () => Promise<{ folder: string; fileName: (key: string) => string } | null>;
   /** Native: a clip `origin` wrote into the folder joins the store; its URL. */
-  adoptWritten?: (resource: OrchComposeResource, bytes: number, meaning: string, origin: OrchApiOrigin) => Promise<string | null>;
+  adoptWritten?: (resource: OrchComposeResource, bytes: number, meaning: string, origin: OrchApiOrigin, version?: number | null) => Promise<string | null>;
   /** The clips among `resources` the sink already holds, with their URLs (a held clip is never fetched again). */
   held?: (resources: OrchComposeResource[]) => Promise<Map<string, { url: string; meaning: string }>>;
 }
@@ -189,9 +191,9 @@ export async function resolveByBundles(
         context.loading(resource, transport.origin, entry.bytes, entry.bytes);
         // A clip that cannot be kept (disk full, volume gone) stays unresolved for the next source.
         const url = entry.written && sink.adoptWritten
-          ? await sink.adoptWritten(resource, entry.bytes, meaning, transport.origin).catch(() => null)
+          ? await sink.adoptWritten(resource, entry.bytes, meaning, transport.origin, entry.version).catch(() => null)
           : entry.data
-            ? await sink.persist(resource, new Blob([entry.data as BlobPart], { type: CLIP_MEDIA_TYPE }), meaning, transport.origin).catch(() => null)
+            ? await sink.persist(resource, new Blob([entry.data as BlobPart], { type: CLIP_MEDIA_TYPE }), meaning, transport.origin, entry.version).catch(() => null)
             : null;
         if (url) {
           delivered.add(resource.key);

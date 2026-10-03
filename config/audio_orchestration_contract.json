@@ -69,9 +69,9 @@
         "laravel_word_batch_max_items": 100
     },
     "content_update": {
-        "purpose": "Server-declared content update of a held clip (WORDNEW_GUIDE R14, the only automatic exception). Laravel reports a clip's `version` (the mtime in seconds of the file it serves, 0 or null when it holds none) in the bundle frame header and, when the audio/lookup request sets with_version, in every lookup result. The app records the version of each clip it stores and replaces only the clips whose reported version differs from the recorded one; a clip stored without a version records the first reported version without any download.",
-        "check_interval_minutes": 360,
-        "batches_per_run": 4,
+        "purpose": "Server-declared content update of a held clip (WORDNEW_GUIDE R14, the only automatic exception). Laravel reports a clip's `version` (the mtime in seconds of the file it serves, 0 or null when it holds none) in the bundle frame header and, when the audio/lookup request sets with_version, in every lookup result (with the url of that very file: a sentence quality variant is named, not the default file). The app records the version of each clip it stores and replaces only the clips whose reported version differs from the recorded one; a clip stored without a version records the first reported version without any download.",
+        "check_interval_minutes": 60,
+        "batches_per_run": 8,
         "download_parallel": 2
     },
     "book_plan": {

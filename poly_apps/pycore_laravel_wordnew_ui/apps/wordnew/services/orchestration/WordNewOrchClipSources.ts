@@ -67,9 +67,9 @@ const NATIVE = isNativeAppShell();
 
 /** Native: the permanent device store (bundles are written into its folder by the native stack). */
 const DEVICE_SINK: OrchBundleSink = {
-  persist: (resource, blob, meaning, origin) => wordNewOrchClipStore.putBlob(resource, blob, origin, meaning),
+  persist: (resource, blob, meaning, origin, version) => wordNewOrchClipStore.putBlob(resource, blob, origin, meaning, version),
   nativeTarget: () => wordNewOrchClipStore.nativeTarget(),
-  adoptWritten: (resource, bytes, meaning, origin) => wordNewOrchClipStore.adoptWritten(resource, origin, bytes, meaning),
+  adoptWritten: (resource, bytes, meaning, origin, version) => wordNewOrchClipStore.adoptWritten(resource, origin, bytes, meaning, version),
   held: async (resources) => new Map([...(await wordNewOrchClipStore.lookup(resources))].map(([key, { url, entry }]) => [key, { url, meaning: entry.meaning }])),
 };
 

@@ -3,9 +3,15 @@ import {
   CapResourceAssetCache,
   Directory,
   getStorageEstimate,
+  pathAssetKey,
   requestPersistentStorage,
+  urlAssetKey,
+  type CapResourceExternalStore,
 } from '@/apps/wordnew/platform/capabilities';
+import { isNativeAppShell } from '../../../core/network/NativeShell';
+import { orchClipIdentityOfUrl } from '../../../shared/orchestration/orchClipIdentity';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
+import { READER_AUDIO_DIR, wordNewOrchClipStore } from '../services/orchestration/WordNewOrchClipStore';
 
 export const MAX_AUDIO_CACHE_BYTES = 20 * 1024 ** 3;
 
@@ -67,15 +73,47 @@ function payloadAudioUrls(payload: unknown): string[] {
   return [...urls];
 }
 
+const SENTENCE_CLIP_EXTENSION = '.mp3';
+
+/**
+ * Stable keys of one audio file, in order: a sentence file URL proves its language and content id, so its key is the
+ * resource id (the name the orchestration clip store uses); any other URL is keyed by its path (a changed host or
+ * query is the same file). The whole-URL key of the first generation stays last so existing files are renamed to the
+ * stable key on first use instead of being downloaded again. Word file URLs carry a voice hash, not the word, and
+ * accent variants are other audio than the orchestration clip, so words stay on the path key.
+ */
+function audioKeys(url: string): string[] {
+  const identity = orchClipIdentityOfUrl(url);
+  const keys = [pathAssetKey(url), urlAssetKey(url)];
+  return identity ? [`${identity.resourceId}${SENTENCE_CLIP_EXTENSION}`, ...keys] : keys;
+}
+
+/** Native: a sentence the orchestration clip store holds (or takes over from this cache's old files) is served from there. */
+function clipStoreFor(url: string): CapResourceExternalStore | null {
+  const identity = isNativeAppShell() ? orchClipIdentityOfUrl(url) : null;
+  if (!identity) return null;
+  return {
+    held: async () => {
+      const hit = (await wordNewOrchClipStore.lookup([identity])).get(identity.resourceId);
+      return hit?.url ?? wordNewOrchClipStore.adoptReaderFile(identity, [pathAssetKey(url), urlAssetKey(url)]);
+    },
+    fetch: () => wordNewOrchClipStore.putFromUrl(identity, url, ''),
+  };
+}
+
 const audioAssets = new CapResourceAssetCache({
-  dir: 'wfnew-audio',
+  dir: READER_AUDIO_DIR,
   directory: Directory.Data,
   legacyDirectory: Directory.Cache,
+  keysFor: audioKeys,
+  externalFor: clipStoreFor,
   budget: resolveCacheBudget,
   extractUrls: payloadAudioUrls,
   mimeFor: audioMime,
   concurrency: AUDIO_PRELOAD_CONCURRENCY,
 });
+
+wordNewOrchClipStore.onRootChanged(() => audioAssets.forgetResolved());
 
 export function ensureAudio(url: string): Promise<string | null> {
   return audioAssets.ensure(url);

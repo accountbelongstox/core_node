@@ -437,7 +437,7 @@ export type {
 } from './CapFilesystem';
 
 // --- Read-through resource packages ---------------------------------------
-export { CapResourcePackage, CapResourceAssetCache } from './CapResourcePackage';
+export { CapResourcePackage, CapResourceAssetCache, pathAssetKey, urlAssetKey } from './CapResourcePackage';
 export type {
   CapResourceRefreshMode,
   CapResourceRecord,
@@ -447,6 +447,7 @@ export type {
   CapResourceStats,
   CapResourceAssetCacheOptions,
   CapResourceAssetStats,
+  CapResourceExternalStore,
 } from './CapResourcePackage';
 
 // --- App lifecycle ---------------------------------------------------------
