@@ -67,7 +67,9 @@
       "Bash(timeout 60 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/history?limit=20\")",
       "Bash(timeout 120 ssh1 'journalctl --no-pager --since \"09:19:50\" --until \"09:21:15\" | grep -iE \"code-sync|codesync|frankenphp|workers|Started|Finished|status=\" | grep -v \"SECRET_MANAGER\\\\|/opt has\" | cut -c1-220 | tail -25' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
       "Bash(timeout 90 ssh1 'journalctl -u headscale --no-pager --since \"-6h\" | grep -B3 -A1 \"missing \\\\\"Bearer\" | grep -E \"path=|Bearer\" | cut -c1-230 | tail -20; echo \"== count\"; journalctl -u headscale --no-pager --since \"-6h\" | grep -c \"missing \\\\\"Bearer\"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
-      "Bash(timeout 900 bash dd.sh gitsync -m \"headscale route: answer /api with 404 at Caddy \\(scanner noise\\)\" --notice-laravel)"
+      "Bash(timeout 900 bash dd.sh gitsync -m \"headscale route: answer /api with 404 at Caddy \\(scanner noise\\)\" --notice-laravel)",
+      "Bash(timeout 60 ssh1 'journalctl -u headscale --no-pager --since \"-3min\" | grep -c \"missing \\\\\"Bearer\"; journalctl -u headscale --no-pager --since \"-3min\" | grep -E \"path=/api\" | wc -l' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
+      "Bash(bash pyservice.sh config system set --key rpcLanBind --value true)"
     ],
     "deny": [],
     "ask": []

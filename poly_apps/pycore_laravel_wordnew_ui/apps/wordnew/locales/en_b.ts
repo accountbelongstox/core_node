@@ -556,7 +556,7 @@ export const enLocaleB: Record<string, string> = {
     'ttsPriority.saveFailed': 'Save failed. Try again.',
     'ttsPriority.unreachable': 'TTS priority unavailable - the backend may be offline.',
     'ttsPriority.relayOnly': 'TTS priority needs pycore, and this page is not on the pycore machine. pycore accepts direct browser access only from localhost; open WordNew through the HTTPS relay entry.',
-    'ttsPriority.lanPage': 'TTS priority needs pycore, and pycore at this page host ({url}) is not reachable or did not admit this browser. Direct access from another device needs the pycore LAN bind and a signed caller; otherwise open WordNew through a tailnet machine or the HTTPS relay entry.',
+    'ttsPriority.lanPage': 'TTS priority needs pycore, and pycore at this page host ({url}) is not reachable or did not admit this browser. Direct access from another device needs the pycore LAN bind (system setting rpcLanBind) and a private LAN address; otherwise open WordNew through a tailnet machine or the HTTPS relay entry.',
     'ttsPriority.originNotAllowed': 'pycore does not answer this page ({origin}). pycore accepts browser pages only from localhost on port {ports}; open WordNew there or through the HTTPS relay entry.',
     'ttsPriority.hostForbidden': 'pycore rejected this page ({code}): the request Host is not a loopback name. Open WordNew through localhost on the pycore machine, or through the HTTPS relay entry.',
     'ttsPriority.originForbidden': 'pycore rejected the page origin {origin} ({code}). Open WordNew on the pycore machine through a dashboard port, or through the HTTPS relay entry.',

@@ -193,7 +193,7 @@ export class PycoreMasterClient extends MasterApiClient {
    * Headers of a direct request a native writer sends itself (clip bundles
    * written to disk): the same client identity as every other call.
    */
-  async directHeaders(url: string, body: unknown): Promise<Record<string, string>> {
+  async directHeaders(): Promise<Record<string, string>> {
     await this.ensureClientId();
     return {
       [PYCORE_HTTP_HEADER_NAMES.requestId]: this.newRequestId(),
