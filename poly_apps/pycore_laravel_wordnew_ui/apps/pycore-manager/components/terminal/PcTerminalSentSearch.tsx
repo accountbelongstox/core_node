@@ -104,7 +104,7 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
 
   const needle = query.trim();
   return (
-    <div ref={rootRef} className="relative w-full min-w-[9rem] sm:w-64">
+    <div ref={rootRef} className="relative w-full min-w-[7rem] sm:max-w-xs">
       <label className="flex h-7 items-center gap-1.5 rounded-lg border border-slate-500/20 bg-white/60 px-2 text-xs text-slate-700 focus-within:border-indigo-500 dark:bg-slate-900/60 dark:text-slate-200">
         <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
         <input
