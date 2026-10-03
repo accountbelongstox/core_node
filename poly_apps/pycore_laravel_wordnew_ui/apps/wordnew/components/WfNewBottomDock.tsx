@@ -53,13 +53,14 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
       )}
 
       {/* Main Breathing Backing bar */}
-      <motion.div
-        className={`w-full pointer-events-auto rounded-[32px] border backdrop-blur-2xl px-3 py-2 flex justify-between items-center transition-all duration-500 ${
-          dark
-            ? 'bg-slate-950/85 border-white/10 shadow-2xl text-zinc-100'
-            : 'bg-white border-zinc-200/80 shadow-xl text-slate-800'
-        }`}
-      >
+      <div className="relative w-full pointer-events-auto">
+        <div
+          aria-hidden
+          className={`absolute inset-0 rounded-[32px] border backdrop-blur-2xl transition-all duration-500 ${
+            dark ? 'bg-slate-950/85 border-white/10 shadow-2xl' : 'bg-white border-zinc-200/80 shadow-xl'
+          }`}
+        />
+        <div className={`relative isolate px-3 py-2 flex justify-between items-center ${dark ? 'text-zinc-100' : 'text-slate-800'}`}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id || (tab.id === 'home' && isDeepTab);
           
@@ -127,7 +128,8 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
             </button>
           );
         })}
-      </motion.div>
+        </div>
+      </div>
     </div>
   );
 };

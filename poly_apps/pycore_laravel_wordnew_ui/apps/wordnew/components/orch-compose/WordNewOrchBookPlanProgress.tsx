@@ -36,16 +36,17 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
   const roster = useWordNewPycoreNodes();
   const status = plan?.status;
   if (!status) return null;
-  const { total } = status;
+  const scope = plan?.scope ?? { total: status.total, ready: status.ready, generating: status.generating, queued: status.queued, failed: status.failed, outside: 0 };
+  const { total } = scope;
   // A status from an older server (or mid-deploy) may lack nodes/assignments: never crash the page.
   const nodes = status.nodes ?? [];
   const windows = status.assignments?.windows ?? [];
   const appAssigned = status.assignments?.fresh === true;
-  const percent = orchShare(status.ready, total);
+  const percent = orchShare(scope.ready, total);
   const legend = SEGMENTS.map(({ key, tone }) => ({
     key,
     tone,
-    text: trans(`orchCompose.plan.${key}`, key === 'ready' ? { count: status.ready, total } : { count: status[key] }),
+    text: trans(`orchCompose.plan.${key}`, key === 'ready' ? { count: scope.ready, total } : { count: scope[key] }),
   }));
 
   return (
@@ -53,22 +54,24 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
       <div className="flex items-center gap-2">
         <Server className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
-          {trans(status.state === 'building' ? 'orchCompose.plan.building' : 'orchCompose.plan.title')}
+          {status.state === 'building' ? trans('orchCompose.plan.building') : trans('orchCompose.plan.titleScoped', { total, whole: status.total })}
         </span>
         {total > 0 && <span className="shrink-0 font-mono text-xs font-bold text-zinc-700 dark:text-zinc-200">{percent}%</span>}
       </div>
       {total > 0 && (
         <SegmentedBar
-          segments={SEGMENTS.map(({ key, tone }) => ({ key, value: status[key], tone }))}
+          segments={SEGMENTS.map(({ key, tone }) => ({ key, value: scope[key], tone }))}
           total={total}
-          label={trans('orchCompose.plan.ready', { count: status.ready, total })}
+          label={trans('orchCompose.plan.ready', { count: scope.ready, total })}
         />
       )}
       <OrchToneLegend
         dots
-        items={plan && plan.undelivered > 0
-          ? [...legend, { key: 'undelivered', tone: 'sky', text: trans('orchCompose.plan.undelivered', { count: plan.undelivered }) }]
-          : legend}
+        items={[
+          ...legend,
+          ...(plan && plan.undelivered > 0 ? [{ key: 'undelivered', tone: 'sky' as const, text: trans('orchCompose.plan.undelivered', { count: plan.undelivered }) }] : []),
+          ...(scope.outside > 0 ? [{ key: 'outside', tone: 'neutral' as const, text: trans('orchCompose.plan.outside', { count: scope.outside }) }] : []),
+        ]}
       />
       {nodes.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label={trans('orchCompose.plan.nodes')}>

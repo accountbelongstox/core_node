@@ -154,6 +154,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
 
   return (
     <OrchPanel theme={theme} live label={trans('orchCompose.progress.title')} className="space-y-2.5">
+      {bookPlanned && total > 0 && <p className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200">{trans('orchCompose.progress.scope', { total })}</p>}
       <div className="flex items-center gap-2">
         <ol className="flex min-w-0 flex-1 items-center gap-1" aria-label={trans('orchCompose.progress.title')}>
           {PHASES.map((step, index) => {

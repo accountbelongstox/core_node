@@ -130,10 +130,6 @@ public sealed class BattlenetOperationCn : BattlenetOperationBase
         return T.FindByAutomationId(controls, C.CnAgreeAutomationId) != null || T.FindByAutomationId(controls, C.CnNetEaseAutomationId) != null;
     }
 
-    public override BattlenetDynamicState GetDynamicState()
-        => ComputeDynamicState(C.LoginWindowAutomationIdMarkersCn, C.LoginScreenKeywordsFallbackCn,
-            C.D3TabAutomationIdsCn, C.D3TabNameKeywordsFallbackCn, C.StartGameAutomationIdsCn, C.StartGameNameKeywordsFallbackCn);
-
     public override bool IsOnLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight()).IsCnLoginUi();
 
     public override bool IsLoggedIn() => new BattlenetRegionJudge(T.EnumerateLight()).HasCnMainUi();

@@ -194,7 +194,7 @@ public static class BattlenetReadyFlow
                     }
                     if (s.NormalAvailable)
                     {
-                        ColorPrinter.Green($"{LogTag} flow B9→B12 continue | reason: main/logged-in (D3 tab+{PlayLabel(s.PlayButtonName)} visible), confirmed");
+                        ColorPrinter.Green($"{LogTag} flow B9→B12 continue | reason: main/logged-in (avatar presence; Play: {PlayLabel(s.PlayButtonName)}), confirmed");
                         return Confirm(ctx);
                     }
                     if (s.OnLogin)
@@ -400,7 +400,7 @@ public static class BattlenetReadyFlow
                     }
                     if (s.NormalAvailable)
                     {
-                        ColorPrinter.Green($"{LogTag} flow B13→B16 continue | reason: [B14] poll logged-in (D3 tab+{PlayLabel(s.PlayButtonName)} visible), confirmed");
+                        ColorPrinter.Green($"{LogTag} flow B13→B16 continue | reason: [B14] poll logged-in (avatar presence; Play: {PlayLabel(s.PlayButtonName)}), confirmed");
                         return Confirm(ctx);
                     }
                     if (s.Disconnected)

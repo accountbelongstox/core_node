@@ -30,7 +30,6 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     public abstract bool PerformAsiaLoginFillAndSubmit(string? email, string? password);
     public abstract bool ClickD3Tab();
     public abstract bool ClickStartGame();
-    public abstract BattlenetDynamicState GetDynamicState();
     public abstract bool IsLoginScreenReady();
     public abstract bool ClickPlayButtonIfVisible(bool forceRefresh = true);
     public abstract bool IsGameStarting();
@@ -246,43 +245,17 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     }
 
     /// <summary>
-    /// One fresh walk; flags: login (marker id or strict keyword), disconnect, connecting, D3 tab, Play (+ first Play name).
-    /// 1:1 Python _get_dynamic_state_cn / _get_dynamic_state_asia.
+    /// Flow view of the single client classifier (ClassifyClientState) on one fresh walk, so the B / D blocks judge the screen exactly
+    /// like the status center: Normal = logged-in main UI by the avatar presence (HOME has no Play), AccountOffline counts as connecting.
     /// </summary>
-    protected BattlenetDynamicState ComputeDynamicState(
-        string[] loginMarkers, string[] loginKeywords, string[] d3Aids, string[] d3Names, string[] playAids, string[] playNames)
+    public BattlenetDynamicState GetDynamicState()
     {
         var controls = T.EnumerateLight(forceRefresh: true);
-        var empty = new BattlenetDynamicState(false, false, false, null, false, null);
-        if (controls.Count == 0) return empty;
-        bool login = false, disconnect = false, connecting = false, d3 = false, play = false;
-        string? playName = null;
-        foreach (var c in controls)
-        {
-            if (BattlenetRegionJudge.ContainsAny(c.AutomationId, loginMarkers) || BattlenetRegionJudge.ContainsAny(c.Name, loginKeywords))
-                login = true;
-            if (BattlenetRegionJudge.ContainsAny(c.Name, C.DisconnectKeywords))
-                disconnect = true;
-            if (BattlenetRegionJudge.ContainsAny(c.Name, C.ConnectingKeywords))
-                connecting = true;
-            if (BattlenetRegionJudge.ContainsAny(c.AutomationId, d3Aids) || BattlenetRegionJudge.ContainsAny(c.Name, d3Names))
-                d3 = true;
-            if (BattlenetRegionJudge.ContainsAny(c.AutomationId, playAids) || BattlenetRegionJudge.ContainsAny(c.Name, playNames))
-            {
-                play = true;
-                if (c.Name.Length > 0 && playName == null)
-                    playName = c.Name;
-            }
-        }
-        if (d3 && play && !login)
-        {
-            if (connecting)
-                return new BattlenetDynamicState(false, false, false, null, true, Region);
-            return new BattlenetDynamicState(false, false, true, playName ?? "Play", false, Region);
-        }
-        if (disconnect) return new BattlenetDynamicState(false, true, false, null, false, Region);
-        if (login) return new BattlenetDynamicState(true, false, false, null, false, Region);
-        return empty;
+        if (controls.Count == 0) return new BattlenetDynamicState(false, false, false, null, false, null);
+        var status = ClassifyClientState(controls);
+        var (onLogin, disconnected, normal) = status.DynamicTriple;
+        bool connecting = status.State is BattlenetClientState.Connecting or BattlenetClientState.AccountOffline;
+        return new BattlenetDynamicState(onLogin, disconnected, normal, FindMainPlayButton(controls)?.Name, connecting, Region);
     }
 
     /// <summary>Exact automation id match (optionally skipping Playing Now/Game Version names). Shared by D3/D4 tab clicks.</summary>
