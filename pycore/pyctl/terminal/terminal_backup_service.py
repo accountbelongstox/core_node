@@ -18,6 +18,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
 )
 from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, waiting_prompt
 from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
+from pycore.pyctl.terminal.terminal_resume_scheduler import TerminalResumeScheduler
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.desktop_session import has_graphical_display
@@ -68,6 +69,7 @@ class TerminalBackupService:
         focus: FocusGuard = focus_guard,
         prompt_watch: Optional[TerminalPromptWatch] = None,
         prompt_handler: Optional[TerminalPromptHandler] = None,
+        resume_scheduler: Optional[TerminalResumeScheduler] = None,
     ) -> None:
         self._terminals = terminals
         self._store = store
@@ -76,6 +78,7 @@ class TerminalBackupService:
         self._focus = focus
         self._prompt_watch = prompt_watch or TerminalPromptWatch()
         self._prompt_handler = prompt_handler or TerminalPromptHandler(terminals)
+        self._resume = resume_scheduler or TerminalResumeScheduler(terminals)
         self._pass_lock = threading.Lock()
         self._lease_lock = FileLockManager(SCHEDULER_LOCK_TARGET, verbose=False)
         self._lease: Optional[int] = None
@@ -146,6 +149,7 @@ class TerminalBackupService:
         if refreshed != text:
             entry["text"] = refreshed
             entry["signature"] = text_digest(refreshed)
+        self._resume.observe(entry["number"], str(window["id"]), refreshed)
         return entry, found_prompt or bool(waiting_prompt(refreshed))
 
     def _observe_prompt(
@@ -316,6 +320,22 @@ class TerminalBackupService:
         finally:
             self._pass_lock.release()
 
+    def _resume_due(self) -> bool:
+        due_at = self._resume.next_due()
+        return due_at is not None and due_at <= time.time()
+
+    def _run_resume(self) -> None:
+        if not self._pass_lock.acquire(blocking=False):
+            return
+        try:
+            windows = self._enumerate()
+            with self._focus.preserved(LABEL):
+                self._resume.run_due(windows, lambda window: self._export(window).get("text"))
+        except Exception as exc:  # noqa: BLE001 - a resume failure must not stop the scheduler
+            ColorPrint.yellow(f"[{LABEL}] resume pass failed: {type(exc).__name__}: {exc}")
+        finally:
+            self._pass_lock.release()
+
     def run_pass(self, forced: bool = False, reason: str = REASON_INTERVAL) -> Dict[str, Any]:
         """One backup pass; never raises. Result: success, written, deferred, error_code."""
         if not self._pass_lock.acquire(blocking=forced):
@@ -478,7 +498,9 @@ class TerminalBackupService:
             now = time.monotonic()
             if self._stopping():
                 continue
-            if now >= next_due and (idle is None or idle >= MIN_IDLE_SECONDS):
+            if self._resume_due() and (idle is None or idle >= PROMPT_INTERVAL_SECONDS):
+                self._run_resume()
+            elif now >= next_due and (idle is None or idle >= MIN_IDLE_SECONDS):
                 result = self.run_pass()
                 next_due = time.monotonic() + (DEFER_RETRY_SECONDS if result.get("deferred") else BACKUP_INTERVAL_SECONDS)
             elif now >= self._fast_due() and (idle is None or idle >= PROMPT_INTERVAL_SECONDS):

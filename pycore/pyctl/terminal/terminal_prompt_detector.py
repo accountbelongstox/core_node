@@ -6,7 +6,8 @@ from __future__ import annotations
 import hashlib
 import re
 import threading
-from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
 TAIL_LINE_COUNT = 14
 TAIL_CHAR_LIMIT = 8192
@@ -28,6 +29,15 @@ SECOND_YES_DONT_ASK_PATTERN = re.compile(
 )
 HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
 BASH_COMMAND_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*bash\s+command\b", re.IGNORECASE)
+
+USAGE_LIMIT_PATTERN = re.compile(
+    r"\b(?:try\s+again\s+at|resets?(?:\s+at)?)\s+"
+    r"(?:(?P<month>[A-Za-z]{3,9})\.?\s+(?P<day>\d{1,2})(?:st|nd|rd|th)?,?\s+(?:\d{4},?\s+)?(?:at\s+)?)?"
+    r"(?:(?P<hour12>\d{1,2})(?::(?P<minute12>\d{2}))?\s*(?P<meridiem>[ap])\.?\s*m\b\.?|(?P<hour24>\d{1,2}):(?P<minute24>\d{2})\b)",
+    re.IGNORECASE,
+)
+USAGE_LIMIT_PAST_GRACE = timedelta(hours=1)
+USAGE_LIMIT_DATE_PAST_LIMIT = timedelta(days=180)
 
 
 def _clean_line(line: str) -> str:
@@ -143,3 +153,39 @@ class TerminalPromptWatch:
                 return False
             self._reported[number] = digest
             return True
+
+
+def _reset_time(match: "re.Match[str]", now: datetime) -> Optional[datetime]:
+    if match.group("meridiem"):
+        hour = int(match.group("hour12"))
+        minute = int(match.group("minute12") or 0)
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if match.group("meridiem").lower() == "p" else 0)
+    else:
+        hour = int(match.group("hour24"))
+        minute = int(match.group("minute24"))
+    if hour > 23 or minute > 59:
+        return None
+    if match.group("month"):
+        try:
+            month = datetime.strptime(match.group("month")[:3].title(), "%b").month
+            reset = now.replace(month=month, day=int(match.group("day")), hour=hour, minute=minute, second=0, microsecond=0)
+        except ValueError:
+            return None
+        return reset.replace(year=reset.year + 1) if reset < now - USAGE_LIMIT_DATE_PAST_LIMIT else reset
+    reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return reset + timedelta(days=1) if reset < now - USAGE_LIMIT_PAST_GRACE else reset
+
+
+def usage_limit_reset(text: str, now: Optional[datetime] = None) -> Optional[Tuple[str, datetime]]:
+    """(minimal matched string, local reset time) of the last usage-limit reset notice in the tail, else None."""
+    joined = " ".join(tail_lines(text or ""))
+    matches = list(USAGE_LIMIT_PATTERN.finditer(joined))
+    if not matches:
+        return None
+    match = matches[-1]
+    reset = _reset_time(match, now or datetime.now())
+    if reset is None:
+        return None
+    return " ".join(match.group(0).lower().split()), reset
