@@ -29,7 +29,7 @@ from pycore.pyfoundations.power_state import read_power_state
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_contract import relay_contract
-from pycore.pyutils.common.user_idle import user_idle_seconds
+from pycore.pyutils.common.user_idle import start_keyboard_idle_watch, user_idle_seconds
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step11_desktop.system_notification import show_system_notification
@@ -471,6 +471,7 @@ class TerminalBackupService:
         if not has_graphical_display():
             ColorPrint.blue(f"[{LABEL}] scheduler idle: {ERROR_NO_DISPLAY}")
             return False
+        start_keyboard_idle_watch()
         THREAD_BUS.clear_signal(STOP_SIGNAL)
         self._thread = threading.Thread(target=self._run, name="TerminalBackupSchedulerThread", daemon=True)
         self._thread.start()

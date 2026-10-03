@@ -281,6 +281,7 @@
         "firefox_extension_dir": "build_extension_firefox",
         "build_stamp_file": "build-stamp.json",
         "downloads_dir_name": "Downloads",
+        "native_reconnect_page": "native-reconnect.html",
         "service_name": "ncore-mcp-chrome",
         "service_description": "Core Node MCP Chrome watcher and recovery supervisor",
         "service_cpu_quota": "200%",

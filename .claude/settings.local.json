@@ -114,7 +114,8 @@
       "Bash(netstat -ano)",
       "Bash(tasklist)",
       "Bash(timeout 40 node nav.mjs)",
-      "Bash(awk '$9>5 {print $1,$9,$\\(NF-1\\),substr\\($NF,1,40\\)}')"
+      "Bash(awk '$9>5 {print $1,$9,$\\(NF-1\\),substr\\($NF,1,40\\)}')",
+      "Bash(journalctl -u ncore-mcp-chrome --since \"-2min\" --no-pager)"
     ],
     "deny": [],
     "ask": []
