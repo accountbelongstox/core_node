@@ -390,12 +390,16 @@ def register_terminal_routes(server) -> None:
     def viewer_demand_handler(params, request_id, _context):
         viewer_id = str(params.get("viewer_id") or "")
         visible_window_ids = string_list_param(params, "visible_window_ids")
+        focus_window_id = str(params.get("focus_window_id") or "")
+        force_window_ids = string_list_param(params, "force_window_ids")
         return run_terminal_action(
             "viewer_demand",
             request_id,
             lambda: terminal_service.renew_viewer_demand(
                 viewer_id,
                 visible_window_ids,
+                focus_window_id,
+                force_window_ids,
             ),
             quiet=True,
         )

@@ -135,6 +135,18 @@ class TerminalSnapshotCollector:
         return self.collect()
 
     @serialized_method
+    def online_window(self, window_id: str) -> Optional[Dict[str, Any]]:
+        """Stored-snapshot entry of an online window, without collecting."""
+        if self._latest is None:
+            return None
+        for window in self._latest.get("windows") or []:
+            if str(window.get("id") or "") == str(window_id) and bool(
+                window.get("online")
+            ):
+                return dict(window)
+        return None
+
+    @serialized_method
     def _add_decorator(
         self,
         decorate: Callable[[Dict[str, Any]], Dict[str, Any]],

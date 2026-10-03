@@ -10,6 +10,7 @@ import {
   usePcTerminalWatch,
 } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import type { TerminalWindowInfo } from '@/apps/pycore-manager/api';
+import { usePcTerminalNavActions } from '@/apps/pycore-manager/components/terminal/PcTerminalNavContext';
 import { formatClock } from '../../../../core/utils/formatters';
 
 type MarkSize = 'tile' | 'bar';
@@ -65,6 +66,7 @@ interface PcTerminalStatusMarksProps {
 export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdown = true, hasDraft = false, className = '' }: PcTerminalStatusMarksProps) {
   const { t } = useTranslation('pc');
   const watch = usePcTerminalWatch();
+  const { openFinished } = usePcTerminalNavActions();
   const { waiting, followUp, resume, countdown } = useTerminalCountdown(windowInfo.terminal_number);
   const icon = ICON_CLASS[size];
   const draftMark = (hasDraft || windowInfo.has_draft) && (
@@ -90,9 +92,26 @@ export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdow
           <title>{t('terminal.marks.working')}</title>
         </LoaderCircle>
       )}
-      {unseenFinish && (
+      {unseenFinish && (openFinished ? (
+        <span
+          role="button"
+          tabIndex={0}
+          title={`${finishedHint} - ${t('terminal.nav.openFinished')}`}
+          aria-label={t('terminal.nav.openFinished')}
+          onClick={(event) => { event.stopPropagation(); openFinished(windowInfo.terminal_number); }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            event.stopPropagation();
+            openFinished(windowInfo.terminal_number);
+          }}
+          className="inline-flex cursor-pointer items-center rounded-sm hover:bg-emerald-400/20"
+        >
+          <CircleCheck className={`${icon} text-emerald-400`} />
+        </span>
+      ) : (
         <CircleCheck className={`${icon} text-emerald-400`} aria-label={finishedHint}><title>{finishedHint}</title></CircleCheck>
-      )}
+      ))}
       {draftMark}
       {(waiting || followUp) && (
         <BellRing className={`${icon} ${waiting ? 'text-amber-400' : 'text-amber-300/70'}`} aria-label={t('terminal.marks.yesPending')}>
