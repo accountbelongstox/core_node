@@ -24,7 +24,8 @@
       "Bash(ps -o pid,ppid,user,etime,cmd -p 11966)",
       "Bash(journalctl -u pycore.service --no-pager --since \"-10min\")",
       "Bash(systemctl show *)",
-      "Bash(V=/opt/_debian_13/python3_venv/bin/python3; C=/var/_core_node/_tmp/claude-0/-www-programing-core-node/0603631d-cd7d-4a46-90ac-e53961877957/scratchpad/constraints.txt; timeout 300 $V -m pip install --dry-run -c $C \"mcp>=1,<2\" \"fastmcp>=2,<4\" 2>&1 | grep -iE \"would install|mcp|error|conflict\" | head; $V -m pip list 2>/dev/null | grep -iE \"^\\(mcp|fastmcp\\)\"; ls /opt/_debian_13/python3_venv/lib/python3.13/site-packages | grep -iE \"^mcp\")"
+      "Bash(V=/opt/_debian_13/python3_venv/bin/python3; C=/var/_core_node/_tmp/claude-0/-www-programing-core-node/0603631d-cd7d-4a46-90ac-e53961877957/scratchpad/constraints.txt; timeout 300 $V -m pip install --dry-run -c $C \"mcp>=1,<2\" \"fastmcp>=2,<4\" 2>&1 | grep -iE \"would install|mcp|error|conflict\" | head; $V -m pip list 2>/dev/null | grep -iE \"^\\(mcp|fastmcp\\)\"; ls /opt/_debian_13/python3_venv/lib/python3.13/site-packages | grep -iE \"^mcp\")",
+      "Bash(getent ahostsv4 *)"
     ],
     "deny": [],
     "ask": []

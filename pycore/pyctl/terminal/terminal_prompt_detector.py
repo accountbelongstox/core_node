@@ -21,6 +21,10 @@ SELECTED_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*1\s*[.)]
 OPTION_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*1\s*[.)]\s*yes\b", re.IGNORECASE)
 OPTION_NEXT_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
 SELECTED_OTHER_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
+SECOND_YES_DONT_ASK_PATTERN = re.compile(
+    r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*2\s*[.)].*\bdon\W*t\s+ask\b",
+    re.IGNORECASE,
+)
 HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
 
 
@@ -65,6 +69,40 @@ def default_yes_prompt(text: str) -> bool:
         OPTION_YES_PATTERN.match(lines[-1])
         or OPTION_NEXT_PATTERN.match(lines[-1])
         or HINT_PATTERN.search(lines[-1])
+    )
+
+
+def second_yes_prompt(text: str) -> bool:
+    """Detect a Yes choice whose second option suppresses future questions."""
+    lines = tail_lines(text)
+    yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
+    if not yes_positions:
+        return False
+    options = lines[yes_positions[-1] + 1:]
+    if not any(SECOND_YES_DONT_ASK_PATTERN.match(line) for line in options):
+        return False
+    if any(
+        SELECTED_OTHER_PATTERN.match(line) and not SECOND_YES_DONT_ASK_PATTERN.match(line)
+        for line in options
+    ):
+        return False
+    if not (
+        OPTION_YES_PATTERN.match(lines[-1])
+        or OPTION_NEXT_PATTERN.match(lines[-1])
+        or HINT_PATTERN.search(lines[-1])
+    ):
+        return False
+    return bool(confirmation_prompt(text) or second_yes_selected(text))
+
+
+def second_yes_selected(text: str) -> bool:
+    lines = tail_lines(text)
+    yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
+    if not yes_positions:
+        return False
+    return any(
+        SELECTED_OTHER_PATTERN.match(line) and SECOND_YES_DONT_ASK_PATTERN.match(line)
+        for line in lines[yes_positions[-1] + 1:]
     )
 
 
