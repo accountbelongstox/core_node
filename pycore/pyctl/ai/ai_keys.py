@@ -42,6 +42,8 @@ _OPENROUTER_FREE = (
     "deepseek/deepseek-r1t2-chimera:free",
 )
 
+SECRET_INDEX_MAX = 5
+
 PROVIDERS: Dict[str, Dict[str, Any]] = {
     "openrouter": {
         "key_base": "OPENROUTER_API_KEY",
@@ -815,6 +817,19 @@ PROVIDER_ORDER: Tuple[str, ...] = (
     "pollinations", "imagen", "azure", "bedrock", "vertex",
 )
 
+def secret_names(provider: str) -> List[str]:
+    """Every secret name that can hold a key of the provider (indexed variants
+    then bare per base, then explicit ``key_names``), de-duplicated."""
+    meta = PROVIDERS.get(provider, {})
+    names: List[str] = []
+    for base in (meta.get("key_base"), *meta.get("key_base_fallbacks", ())):
+        if base:
+            names.extend(f"{base}_{index}" for index in range(1, SECRET_INDEX_MAX + 1))
+            names.append(base)
+    names.extend(meta.get("key_names", ()))
+    return list(dict.fromkeys(names))
+
+
 def all_secrets(provider: str) -> List[str]:
     """ALL keys for the provider in rotation order (indexed variants then bare,
     then any explicit ``key_names``), de-duplicated - the rotation pool. Keyless
@@ -1063,7 +1078,7 @@ def catalog_models(provider: str, max_count: int = 5) -> List[str]:
 
 __all__ = [
     "PROVIDERS", "PROVIDER_ORDER",
-    "first_secret", "image_first_secret", "has_image_key",
+    "first_secret", "image_first_secret", "has_image_key", "secret_names",
     "all_secrets", "all_image_secrets", "active_secret", "active_image_secret",
     "mark_text_key_cooldown", "mark_image_key_cooldown",
     "record_image_key", "record_text_key", "text_key_rate_ok", "image_key_rate_ok",
