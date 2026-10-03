@@ -11,4 +11,4 @@
 - [gitsync auto-commit](project_gitsync_autocommit.md) — gitsync commits mid-session; write final EOLs on first write, check git log -1 not just status
 - [Schema gate + diff store](project_schema_gate_diff_store.md) — 2026-10-02 stall audit: gate, SQLite staging, temp sweep, orchestration presence diff
 - [Battle.net never restart mid-login](feedback_battlenet_no_restart_during_login.md) — no close/restart while logging in or on code pages; UI region only from main-UI ids
-- [LAN browser pycore](project_lan_browser_pycore.md) — page-host :59000 candidate; why LAN browsers still cannot reach pycore (bind, key leak, CORS)
+- [LAN browser pycore](project_lan_browser_pycore.md) — 2026-10-03 private-LAN peers open (no key), guard echoes CORS + preflight; web never holds K3

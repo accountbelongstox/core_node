@@ -192,7 +192,7 @@ export const {
 export async function pycoreDirectRequest(route: string, params: unknown): Promise<{ url: string; headers: Record<string, string>; body: unknown } | null> {
   if (isPycoreRelayMode()) return null;
   const url = rewritePycoreEndpoint(PycorePaths.api(route));
-  return { url, headers: await pycoreMasterClient.directHeaders(url, params), body: params };
+  return { url, headers: await pycoreMasterClient.directHeaders(), body: params };
 }
 
 export function requestPycoreStatus(timeoutMs?: number): Promise<any> {

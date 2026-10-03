@@ -1,12 +1,12 @@
 ---
 name: project-lan-browser-pycore
-description: 2026-10-03 page-host :59000 candidate for LAN browser pages; why a LAN browser still cannot reach pycore (bind, K3 key leak via dev server, no CORS/preflight for non-loopback)
+description: 2026-10-03 LAN browser access to pycore: private-LAN peers are open (no key, no pairing), CORS echo + preflight in the guard; web builds never carry the client key
 metadata:
   type: project
 ---
 
-UI derives `<page scheme>://<page host>:59000` (pageHostBackendUrl in core/integrations/pycore/pycoreTarget.ts, source `this_machine`) for non-loopback, non-tailnet, non-relay-domain browser pages; banner kind `lan_page`. Pycore side was NOT changed.
+Decision (user, 2026-10-03): the pairing/token design was dropped. `local_rpc_guard.evaluate_request` admits a non-loopback peer inside contract `client_key_auth.local_rpc.private_lan_networks` (RFC1918, link-local, CGNAT 100.64/10, ULA) without K3 if Host is loopback/private/single-label/LAN-suffixed and any Origin is a loopback/private host; the origin is echoed (never `*`) and `LocalRpcGuardMiddleware` answers the preflight itself (204). Public peers keep K3; a private peer failing the LAN rule may still present K3. `rpcLanBind=true` set on debian; pycore listens 0.0.0.0:59000.
 
-**Why pycore stays closed:** bind is 127.0.0.1 unless system setting `rpcLanBind=true`; non-loopback callers need K3 and browsers never sign; the Vite dev server compiles the K3 key into the bundle and listens on 0.0.0.0:13054, so any LAN browser can read the key (making browser K3 on LAN equal to no auth); the guard rejects unsigned OPTIONS preflight and CORSMiddleware only allows loopback origins.
+**Why:** the browser must never hold the shared client key (the Vite dev server used to compile it into the bundle); a LAN phone opens the UI at http://LAN-IP:13054 and the UI derives http://LAN-IP:59000 (pageHostBackendUrl).
 
-**How to apply:** do not open LAN browser access via Vite proxy or browser signing; a safe design needs a per-device pairing/token (not the shared build key), preflight handling and dynamic CORS origins. See [[project-pycore-pitfalls]].
+**How to apply:** vite `compiledClientKey()` now only compiles the key for FRONTEND_BUILD_TARGET=native + CORE_NODE_COMPILE_CLIENT_KEY=1; pycoreLanAuth.ts (UI K3 signing of pycore requests) was deleted. ncore's Node guard (paused) does not implement the LAN rule. See [[project-pycore-pitfalls]].

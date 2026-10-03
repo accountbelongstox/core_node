@@ -344,9 +344,9 @@ Targets: Debian 13 GNOME 48 (Wayland and Xorg), Ubuntu 26.04 GNOME 50 (Wayland o
 
 ## 14. LAN phone access
 
-- pycore binds loopback unless `rpcLanBind` is on (`local_rpc_guard.py`); a non-loopback caller needs a K3 client-key signature (K7), so a phone without a key gets 401.
+- pycore binds loopback unless `rpcLanBind` is on (`local_rpc_guard.py`); a non-loopback caller on a public address needs a K3 client-key signature (K7), while a private-LAN caller (RFC 1918, link-local, tailnet CGNAT) is admitted without a key and its browser Origin is echoed for CORS.
 - Working paths: the tailnet `/pycore-api` mount (section 6.4) and the relay.
-- Planned (opt-in): device pairing that gives the phone a scoped client key (`DESIGN_AUTH_IDENTITY.md`), or a default-off LAN read policy that admits unsigned LAN callers only to `api/status`, `ui/audio_orch/resource/lookup` and `ui/audio_orch/resource/chunk`.
+- With `rpcLanBind` on, a phone on the same LAN opens the UI at `http://<LAN IP>:13054` and reaches pycore at `http://<LAN IP>:59000` directly.
 
 ## 15. pycore on a notebook host (Colab/Kaggle)
 

@@ -329,7 +329,7 @@ export const zhLocaleC: Record<string, string> = {
     "apiCenter.lan.state.up": "pycore 在线 · {ms} 毫秒",
     "apiCenter.lan.state.refused": "pycore 拒绝未签名设备（K7）· {ms} 毫秒",
     "apiCenter.lan.state.no_route": "59000 有响应，但不是 pycore",
-    "apiCenter.lan.refusedHint": "这些 pycore 只接受已签名的机器客户端。让局域网手机接入尚待 pycore 开发；在此之前请使用 tailnet 入口（同一 Wi-Fi 下 Tailscale 会直连）。",
+    "apiCenter.lan.refusedHint": "这些 pycore 拒绝了此调用方。请确认该机器已开启 pycore 局域网绑定（系统设置 rpcLanBind），且双方位于同一私有局域网；否则请使用 tailnet 入口（同一 Wi-Fi 下 Tailscale 会直连）。",
     "orchChain.work.paused": "服务器暂停（{reason}）：本次未发出任何请求；服务器就绪后自动继续",
     "orchAssist.title": "生成协助",
     "orchAssist.paused": "服务器已暂停：其数据库正在更新（SERVER_SCHEMA_PENDING）。不会丢失任何内容；服务器就绪后约 {seconds} 秒内自动继续生成。",

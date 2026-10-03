@@ -212,7 +212,7 @@ rpcAccess: {
     originHint: 'pycore 未响应此页面（{{origin}}）。pycore 只接受来自 localhost 端口 {{ports}} 的浏览器页面，请在该地址打开界面或使用 HTTPS Relay 入口。',
     hostForbidden: 'pycore 拒绝了此页面：请求的 Host 不是回环地址。请在 pycore 所在机器上通过 localhost 或 127.0.0.1 打开界面。',
     originForbidden: 'pycore 拒绝了此页面来源（{{origin}}）。请在 pycore 所在机器上通过控制台端口打开界面，或使用 HTTPS Relay 入口。',
-    lanPage: '此页面所在主机上的 pycore（{{url}}）无法访问，或未放行此浏览器。其他设备直连需要开启 pycore 局域网绑定并使用已签名的调用方；否则请通过 tailnet 机器或 HTTPS Relay 入口管理。',
+    lanPage: '此页面所在主机上的 pycore（{{url}}）无法访问，或未放行此浏览器。其他设备直连需要开启 pycore 局域网绑定（系统设置 rpcLanBind）并位于私有局域网地址；否则请通过 tailnet 机器或 HTTPS Relay 入口管理。',
   },
 pycoreTarget: {
     chipTitle: '选择此界面管理的 pycore 节点',
