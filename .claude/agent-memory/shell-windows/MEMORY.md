@@ -15,3 +15,4 @@
 - [Dot-sourced ServiceContract shadows module](dot-sourced-servicecontract-shadows-module.md) — SharedCacheEnv binds module cmd; repro needs 2 runs in one process
 - [FrankenPHP tailnet Windows fixes](frankenphp-tailnet-windows-fixes.md) — Step175 3 fixes; Windows node desktop-1l9k06n vs Linux debian-gpu; shared certs dir
 - [gitsync conflict recurrence](gitsync-conflict-recurrence.md) — auto-gitsync can open a 2nd merge mid-resolve; README marker/blank-line cleanup
+- [AI key startup warning](ai-key-health-startup-warning.md) — key_health CLI + ps1/sh helpers; test changed-key via CORE_NODE_CACHE_DIR scratch

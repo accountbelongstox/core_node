@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Run the pycore Colab notebook through the user's Chrome (mcp-chrome).
 
-Public surface: start(), logs(), restart(). The notebook is the README launch
+Public surface: start(), logs(), restart(), regpu(). The notebook is the README launch
 cell (clone, notebook_boot.py, pyservice.sh colab); Colab prompts raised by the
 run (untrusted notebook, Drive connection, Google sign-in popup) are confirmed
 automatically.
@@ -37,6 +37,7 @@ from pycore.pyctl.colab.colab_constants import (
     STATE_IDLE,
     STATE_NOT_READY,
     STATE_RUNNING,
+    STATE_UNRESPONSIVE,
     STATE_SCRIPT,
     STOP_TIMEOUT_SECONDS,
     TOGGLE_RUN_SCRIPT,
@@ -54,7 +55,7 @@ def _accelerator(output: str) -> str:
     """gpu | tpu | cpu from the kernel-setup Accelerator line of the run, else unknown."""
     found = re.findall(ACCELERATOR_LINE_PATTERN, output)
     detail = found[-1].upper() if found else ""
-    return next((kind for marker, kind in ACCELERATOR_KINDS if marker in detail), ACCELERATOR_UNKNOWN)
+    return next((kind for marker, kind in ACCELERATOR_KINDS if detail.startswith(marker)), ACCELERATOR_UNKNOWN)
 
 
 def _fresh_output(output: str, baseline: str) -> str:
@@ -154,7 +155,11 @@ class ColabPycoreRunner:
 
     async def _logs(self, tail: int, grep: Optional[str]) -> Dict[str, Any]:
         tab_id = await self._notebook_tab()
-        state = await self._state(tab_id)
+        try:
+            state = await self._state(tab_id)
+        except RuntimeError as error:
+            ColorPrint.yellow(f"[Colab] notebook page unresponsive ({error}); reading the output frames only")
+            state = {"state": STATE_UNRESPONSIVE}
         output = await colab_reader.read(COLAB_NOTEBOOK_ID, "", grep, tail)
         return {
             **output,

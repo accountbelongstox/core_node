@@ -65,7 +65,7 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "pynput": "pynput",
     "keyboard": "keyboard",
     "pyperclip": "pyperclip",
-    "googletrans": "googletrans",
+    "googletrans": "googletrans>=4.0.2",
     "httpx": "httpx",
     "okx": "python-okx",
     "redis": "redis",
