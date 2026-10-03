@@ -144,6 +144,8 @@ export interface TerminalWindowInfo {
   logs: TerminalLogEntry[];
   schedule_queue?: TerminalScheduleEntry[];
   ai_agent?: TerminalAiAgent | null;
+  /** True once a text scan of this window decided the agent state (false: title-only or not scanned yet). */
+  agent_scanned?: boolean;
   state_updated_at?: string;
   last_seen_at?: string;
 }

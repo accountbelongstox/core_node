@@ -119,6 +119,7 @@ fi
 # auth first and only fall back to the password flow when no key works.
 SSH_KEY_AUTH_OK=false
 SSH_IDENTITY_ARGS=()
+SSH_KEEPALIVE_ARGS=(-o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no)
 SSH_KEY_CANDIDATES=(
     "$HOME/.ssh/id_ed25519"
     "/etc/ssh/keys/id_ed25519"
@@ -147,10 +148,10 @@ fi
 
 if [ "$SSH_KEY_AUTH_OK" = true ]; then
     echo "[INFO] SSH key authentication succeeded (git SSH key and server login share the same key)"
-    echo "Executing: ssh ${SSH_IDENTITY_ARGS[*]} $SSH_CONNECTION"
+    echo "Executing: ssh ${SSH_KEEPALIVE_ARGS[*]} ${SSH_IDENTITY_ARGS[*]} $SSH_CONNECTION"
     echo ""
 
-    ssh "${SSH_IDENTITY_ARGS[@]}" "$SSH_CONNECTION" "$@"
+    ssh "${SSH_KEEPALIVE_ARGS[@]}" "${SSH_IDENTITY_ARGS[@]}" "$SSH_CONNECTION" "$@"
 elif [ -n "$SSH_PASSWORD" ]; then
     # SSH Key setup guide
     LOCAL_KEY="$HOME/.ssh/id_ed25519"
@@ -194,18 +195,18 @@ elif [ -n "$SSH_PASSWORD" ]; then
     echo ""
     echo "[INFO] SSH will prompt for password. Please paste the password above when prompted."
     echo ""
-    echo "Executing: ssh $SSH_CONNECTION"
+    echo "Executing: ssh ${SSH_KEEPALIVE_ARGS[*]} $SSH_CONNECTION"
     echo ""
 
     # Execute SSH connection - it will prompt for password
-    ssh "$SSH_CONNECTION" "$@"
+    ssh "${SSH_KEEPALIVE_ARGS[@]}" "$SSH_CONNECTION" "$@"
 else
     # No password configured, use SSH key authentication
     echo "[INFO] No password configured, using SSH key authentication"
-    echo "Executing: ssh $SSH_CONNECTION"
+    echo "Executing: ssh ${SSH_KEEPALIVE_ARGS[*]} $SSH_CONNECTION"
     echo ""
 
-    ssh "$SSH_CONNECTION" "$@"
+    ssh "${SSH_KEEPALIVE_ARGS[@]}" "$SSH_CONNECTION" "$@"
 fi
 
 echo ""

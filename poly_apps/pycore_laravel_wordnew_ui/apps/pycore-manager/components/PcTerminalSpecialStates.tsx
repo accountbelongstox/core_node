@@ -1,25 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { BellRing, Hourglass, MessageSquareWarning, Moon, ScanSearch } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
+import {
+  STATE_PROMPT_FOLLOW_UP,
+  STATE_PROMPT_WAITING,
+  STATE_RESUME_PENDING,
+  usePcTerminalWatch,
+} from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import type { TerminalSpecialEntry } from '@/apps/pycore-manager/api';
 import { formatClock } from '../../../core/utils/formatters';
-
-const POLL_INTERVAL_MS = 5000;
-const TICK_INTERVAL_MS = 1000;
-const MS_PER_SECOND = 1000;
-const STATE_PROMPT_WAITING = 'prompt_waiting';
-const STATE_PROMPT_FOLLOW_UP = 'prompt_follow_up';
-const STATE_RESUME_PENDING = 'resume_pending';
-
-interface SpecialSnapshot {
-  entries: TerminalSpecialEntry[];
-  clockOffset: number;
-  idleSeconds: number | null;
-  promptIdleSeconds: number;
-  receivedAt: number;
-}
 
 interface PcTerminalSpecialStatesProps {
   terminalNames: Record<number, string>;
@@ -36,59 +26,13 @@ function stateIcon(state: string): React.ReactNode {
 /** Terminals the backup service holds in a special state (confirmation prompt, follow-up scans, pending resume) with live countdowns. */
 export const PcTerminalSpecialStates: React.FC<PcTerminalSpecialStatesProps> = ({ terminalNames }) => {
   const { t } = useTranslation('pc');
-  const terminalApi = usePcTerminalApi();
-  const [snapshot, setSnapshot] = useState<SpecialSnapshot | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const aliveRef = useRef(true);
+  const watch = usePcTerminalWatch();
 
-  const poll = useCallback(async () => {
-    try {
-      const result = await terminalApi.terminalBackupState();
-      if (!aliveRef.current) return;
-      if (!result.success) {
-        setSnapshot(null);
-        return;
-      }
-      const receivedAt = Date.now();
-      const serverTime = Number(result.server_time);
-      const idle = result.idle_seconds;
-      setSnapshot({
-        entries: Array.isArray(result.special_terminals) ? result.special_terminals : [],
-        clockOffset: Number.isFinite(serverTime) ? serverTime - receivedAt / MS_PER_SECOND : 0,
-        idleSeconds: typeof idle === 'number' && Number.isFinite(idle) ? idle : null,
-        promptIdleSeconds: Number(result.prompt_idle_seconds) || 0,
-        receivedAt,
-      });
-      setNowMs(receivedAt);
-    } catch {
-      if (aliveRef.current) setSnapshot(null);
-    }
-  }, [terminalApi]);
+  if (!watch.entries.length) return null;
 
-  useEffect(() => {
-    aliveRef.current = true;
-    void poll();
-    const timer = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
-    return () => {
-      aliveRef.current = false;
-      window.clearInterval(timer);
-    };
-  }, [poll]);
-
-  const hasEntries = Boolean(snapshot?.entries.length);
-  useEffect(() => {
-    if (!hasEntries) return undefined;
-    const timer = window.setInterval(() => setNowMs(Date.now()), TICK_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [hasEntries]);
-
-  if (!snapshot || !snapshot.entries.length) return null;
-
-  const serverNow = nowMs / MS_PER_SECOND + snapshot.clockOffset;
-  const idleNow = snapshot.idleSeconds === null
-    ? null
-    : snapshot.idleSeconds + Math.max(0, (nowMs - snapshot.receivedAt) / MS_PER_SECOND);
-  const inactiveEnough = idleNow === null || idleNow >= snapshot.promptIdleSeconds;
+  const serverNow = watch.serverNow;
+  const idleNow = watch.idleNow;
+  const inactiveEnough = idleNow === null || idleNow >= watch.promptIdleSeconds;
 
   const detail = (entry: TerminalSpecialEntry): { label: string; tone: string; extra: string } => {
     const neutral = 'text-slate-600 dark:text-slate-300';
@@ -125,7 +69,7 @@ export const PcTerminalSpecialStates: React.FC<PcTerminalSpecialStatesProps> = (
         <Hourglass className="h-4 w-4 text-sky-500" />
         <span className="font-semibold text-slate-700 dark:text-slate-200">{t('terminal.special.title')}</span>
         <span className="rounded-md bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-          {snapshot.entries.length}
+          {watch.entries.length}
         </span>
         {idleNow !== null && (
           <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-slate-500">
@@ -135,7 +79,7 @@ export const PcTerminalSpecialStates: React.FC<PcTerminalSpecialStatesProps> = (
         )}
       </div>
       <ul className="space-y-1">
-        {snapshot.entries.map((entry) => {
+        {watch.entries.map((entry) => {
           const info = detail(entry);
           const title = terminalNames[entry.number];
           return (

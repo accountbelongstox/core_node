@@ -79,6 +79,7 @@ function Get-SSHSecret {
 }
 
 $sshConnection = Get-SSHSecret "SSH_CONNECTION_1"
+$sshKeepaliveArgs = @("-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=3", "-o", "TCPKeepAlive=no")
 if ($sshConnection) {
     Write-Host "[SUCCESS] SSH Connection loaded = $sshConnection" -ForegroundColor Green
 } else {
@@ -163,18 +164,18 @@ if ($sshPassword) {
     Write-Host ""
     Write-Host "[INFO] SSH will prompt for password. Please paste the password above when prompted." -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $($sshKeepaliveArgs -join ' ') $sshConnection" -ForegroundColor White
     Write-Host ""
 
     # Execute SSH connection - it will prompt for password
-    & ssh $sshConnection
+    & ssh @sshKeepaliveArgs $sshConnection
 } else {
     # No password configured, use SSH key authentication
     Write-Host "[INFO] No password configured, using SSH key authentication" -ForegroundColor Cyan
-    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $($sshKeepaliveArgs -join ' ') $sshConnection" -ForegroundColor White
     Write-Host ""
 
-    & ssh $sshConnection
+    & ssh @sshKeepaliveArgs $sshConnection
 }
 
 Write-Host ""
