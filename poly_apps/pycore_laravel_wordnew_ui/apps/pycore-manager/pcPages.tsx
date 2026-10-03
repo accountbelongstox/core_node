@@ -7,7 +7,7 @@ import React, { lazy } from 'react';
 import { usePcDesktopHost } from './hooks/usePcDesktopHost';
 import { PcDirectOnlyNotice } from './components/PcDirectOnlyNotice';
 import {
-  ListOrdered, AppWindow, FolderSync, Terminal,
+  ListOrdered, AppWindow, FolderSync, Terminal, Network,
   Settings, Library, Sparkles, History, BookOpen, AudioLines, type LucideIcon,
 } from 'lucide-react';
 
@@ -58,6 +58,8 @@ export const PcAudioOrchestrationPage = lazy(() => import('./pages/PcAudioOrches
 // backtest belongs to the Vortex app, not the operator panel. Do not re-add a
 // PcOkxMarketPage here; edit the shared OkxBacktestPanel in vortex instead.
 export const PcSettingsPage = lazy(() => import('./pages/PcSettingsPage'));
+// Mesh VPN (Headscale) login guide: live server facts, single-use keys, device approval.
+export const PcMeshLoginPage = lazy(() => import('./pages/PcMeshLoginPage'));
 
 export interface PcPageDef {
   id: string;
@@ -74,6 +76,7 @@ export const PC_PAGES: PcPageDef[] = [
   { id: 'terminal', labelKey: 'nav.terminal', Icon: Terminal, Component: PcTerminalPage },
   { id: 'window-automation', labelKey: 'nav.windowAutomation', Icon: AppWindow, Component: PcWindowAutomationPage },
   { id: 'code-sync', labelKey: 'nav.codeSync', Icon: FolderSync, Component: PcCodeSyncPage },
+  { id: 'mesh-login', labelKey: 'nav.meshLogin', Icon: Network, Component: PcMeshLoginPage },
   // One data-ingest tab: Subtitles / Books / Add Document / Movie Poster are
   // sub-tabs inside PcContentPage (movie-poster folded in; CoreBook is an
   // advanced section inside the Books sub-tab).

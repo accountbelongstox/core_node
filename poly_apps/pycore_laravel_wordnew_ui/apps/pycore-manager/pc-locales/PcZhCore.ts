@@ -111,6 +111,7 @@ nav: {
     terminal: '终端控制',
     windowAutomation: '窗口自动化',
     codeSync: '代码同步',
+    meshLogin: '组网登录',
     videoExtract: '视频提取',
     books: '书籍',
     content: '内容',

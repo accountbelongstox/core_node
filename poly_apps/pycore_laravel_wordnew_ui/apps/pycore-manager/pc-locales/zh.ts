@@ -4,10 +4,12 @@ import { pcZhCore } from './PcZhCore';
 import { pcZhFeatures } from './PcZhFeatures';
 import { pcZhPages } from './PcZhPages';
 import { aiHubZh } from './PcAiHubLocales';
+import { meshLoginZh } from './PcMeshLoginLocales';
 
 export const pcZh: PcTranslationDict = {
   ...pcZhCore,
   ...pcZhFeatures,
   ...pcZhPages,
   aiHub: aiHubZh,
+  meshLogin: meshLoginZh,
 };
