@@ -1,10 +1,11 @@
 const DEBUGGER_PROTOCOL_VERSION = '1.3';
 
+// Accepts a tab id or any debuggee (e.g. { targetId } of a cross-site iframe).
 export async function withDebuggerSession<T>(
-  tabId: number,
+  debuggee: number | chrome.debugger.Debuggee,
   operation: (target: chrome.debugger.Debuggee) => Promise<T>,
 ): Promise<T> {
-  const target: chrome.debugger.Debuggee = { tabId };
+  const target: chrome.debugger.Debuggee = typeof debuggee === 'number' ? { tabId: debuggee } : debuggee;
   let attachedHere = false;
   let attachError: unknown = null;
 

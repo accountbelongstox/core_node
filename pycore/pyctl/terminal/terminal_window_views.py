@@ -124,15 +124,49 @@ def has_retained_state(record: Dict[str, Any]) -> bool:
 
 TITLE_BOUNDARY_PATTERN = re.compile(r"[\s\-_:|/\\·•]")
 TITLE_LEADING_SYMBOLS_PATTERN = re.compile(r"^[^\w]+", re.UNICODE)
+TITLE_EMPTY_PLACEHOLDER = "-"
+
+
+def _first_token(name: str) -> str:
+    """Text up to and including the first word boundary; empty when the name has none."""
+    match = TITLE_BOUNDARY_PATTERN.search(name)
+    return name[:match.end()] if match else ""
+
+
+def _shared_prefix(names: List[str]) -> str:
+    prefix = os.path.commonprefix(names)
+    while prefix and not TITLE_BOUNDARY_PATTERN.match(prefix[-1]):
+        prefix = prefix[:-1]
+    return prefix
+
+
+def strip_shared_prefixes(titles: List[str]) -> List[str]:
+    """Repeatedly drop the word-boundary prefix shared by two or more names (all of them first, then any subgroup), plus leading status glyphs."""
+    names = [TITLE_LEADING_SYMBOLS_PATTERN.sub("", title) for title in titles]
+    changed = True
+    while changed:
+        changed = False
+        groups: Dict[str, List[int]] = {}
+        for index, name in enumerate(names):
+            token = _first_token(name)
+            if token:
+                groups.setdefault(token, []).append(index)
+        for indexes in groups.values():
+            if len(indexes) < 2:
+                continue
+            prefix = _shared_prefix([names[index] for index in indexes])
+            if not prefix:
+                continue
+            for index in indexes:
+                names[index] = TITLE_LEADING_SYMBOLS_PATTERN.sub("", names[index][len(prefix):])
+            changed = True
+    return [name.strip() or TITLE_EMPTY_PLACEHOLDER for name in names]
 
 
 def assign_short_titles(windows: List[Dict[str, Any]]) -> None:
-    """short_title: the title without the prefix every titled window shares (cut at a word boundary) and leading status glyphs."""
-    titles = [str(window.get("title") or "") for window in windows if window.get("title")]
-    prefix = os.path.commonprefix(titles) if len(titles) > 1 else ""
-    while prefix and not TITLE_BOUNDARY_PATTERN.match(prefix[-1]):
-        prefix = prefix[:-1]
+    """short_title: the title with every shared prefix stripped (strip_shared_prefixes); "-" when nothing is left."""
+    titled = [window for window in windows if window.get("title")]
+    for window, short in zip(titled, strip_shared_prefixes([str(window["title"]) for window in titled])):
+        window["short_title"] = short
     for window in windows:
-        title = str(window.get("title") or "")
-        short = TITLE_LEADING_SYMBOLS_PATTERN.sub("", title[len(prefix):] if title.startswith(prefix) else title)
-        window["short_title"] = short or title.strip(" -:|") or title
+        window.setdefault("short_title", "")

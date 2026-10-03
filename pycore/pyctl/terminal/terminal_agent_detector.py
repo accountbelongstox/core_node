@@ -7,7 +7,7 @@ import re
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from pycore.pyctl.terminal.terminal_prompt_detector import ANSI_ESCAPE_PATTERN
+from pycore.pyctl.terminal.terminal_prompt_detector import ANSI_ESCAPE_PATTERN, usage_limit_reset
 
 TAIL_SCAN_LINES = 24
 # The input box sits at the bottom; a team/agent list or status rows may follow it.
@@ -148,7 +148,7 @@ class TerminalAgentWatch:
             return
         rule = self._detector.text_rule(text)
         self._rules[number] = (window_id, rule)
-        if rule is None and not self._detector.title_rule(title):
+        if rule is None and not self._detector.title_rule(title) and usage_limit_reset(text) is None:
             self._plain[number] = (window_id, title, time.monotonic())
         else:
             self._plain.pop(number, None)

@@ -86,7 +86,9 @@
     "title": "Terminal backup",
     "message": "Backed up {count} terminals, {kb} K ({stored_kb} K new)",
     "stuck_title": "AI is waiting for you",
-    "stuck_message": "Terminal {number} ({name}) is stuck on a confirmation prompt and needs your intervention"
+    "stuck_message": "Terminal {number} ({name}) is stuck on a confirmation prompt and needs your intervention",
+    "agent_done_title": "AI agent finished",
+    "agent_done_message": "Terminal {number} ({name}): the AI agent finished its task or is waiting for you"
   },
   "gitsync_watch": {
     "conflict_title": "gitsync merge conflict - fix now",

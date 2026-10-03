@@ -28,12 +28,23 @@ PAGE_TEXT_SCRIPT = (
 COLAB_DEFAULT_URL_PART = "colab.research.google.com"
 COLAB_DEFAULT_TAIL_LINES = 200
 COLAB_MAX_CHARS = 2_000_000
-# Live cell output comes from the rendered outputs; the notebook model only holds
-# the last saved outputs (a previous run while a cell executes).
+# Live cell output in DOM order: static renderers hold short outputs, streaming
+# outputs render in a cross-site outputframe iframe (read by frame host). The
+# notebook model only holds the last saved outputs and is the fallback.
+COLAB_OUTPUT_FRAME_PAGE = "outputframe.html"
+COLAB_OUTPUT_SEGMENTS_SCRIPT = """
+const segments = [];
+document.querySelectorAll('.cell.code colab-static-output-renderer, .cell.code iframe').forEach((item) => {
+  if (item.tagName === 'IFRAME') {
+    if ((item.src || '').includes('FRAME_PAGE')) segments.push({frame: new URL(item.src).host});
+  } else {
+    segments.push({text: item.innerText});
+  }
+});
+return JSON.stringify(segments);
+""".replace("FRAME_PAGE", COLAB_OUTPUT_FRAME_PAGE)
+COLAB_FRAME_TEXT_SCRIPT = "return document.body ? document.body.innerText : '';"
 COLAB_OUTPUT_SCRIPT = """
-const live = [...document.querySelectorAll('.cell.code colab-static-output-renderer')]
-  .map((item) => item.innerText).join('\\n');
-if (live) { return JSON.stringify({total: live.length, text: live.slice(-MAX_CHARS)}); }
 const model = window.colab.global.notebookModel;
 const raw = model.getLastResolvedNotebookJson();
 const notebook = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));

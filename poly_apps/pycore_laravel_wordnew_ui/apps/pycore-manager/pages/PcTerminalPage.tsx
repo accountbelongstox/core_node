@@ -69,7 +69,8 @@ import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTer
 import PcTerminalBackupPanel from '@/apps/pycore-manager/components/PcTerminalBackupPanel';
 import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminalSpecialStates';
 import { PcTerminalGlobalCountdown, PcTerminalStatusMarks, PcTerminalTileCountdown } from '@/apps/pycore-manager/components/terminal/PcTerminalStatusMarks';
-import { PcTerminalWatchProvider } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
+import { PcTerminalWatchProvider, usePcTerminalWatch } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
+import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal/PcTerminalAgentDoneToasts';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
@@ -551,6 +552,7 @@ function calculateCanvasLayout(
 const PcTerminalNodeView: React.FC = () => {
   const { t } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
+  const terminalWatch = usePcTerminalWatch();
   // Pushed terminal events come from the selected pycore only; every other piece of state is namespaced per node.
   const { isPrimary, nodeKey, http } = usePcTerminalNode();
   // Set during render so the first reads already use this node's schedule queue.
@@ -1543,6 +1545,17 @@ const PcTerminalNodeView: React.FC = () => {
     setSelectedTerminalNumber(terminalNumber);
   }, [flushDraft, selectedTerminalNumber]);
 
+  const hasLocalDraft = (terminalNumber: number) => Boolean(drafts[terminalDraftKey(terminalNumber)]?.trim());
+  const agentToastName = useCallback(
+    (windowInfo: TerminalWindowInfo) => terminalName(windowInfo, t('terminal.untitled')),
+    [t],
+  );
+  const { acknowledge } = terminalWatch;
+  const selectedFinishedAt = selectedWindow?.agent_activity?.finished_at ?? null;
+  useEffect(() => {
+    if (selectedTerminalNumber !== null && selectedFinishedAt !== null) acknowledge(selectedTerminalNumber, selectedFinishedAt);
+  }, [acknowledge, selectedTerminalNumber, selectedFinishedAt]);
+
   const updateSelectedDraft = useCallback((text: string) => {
     if (!selectedWindow) return;
     const terminalNumber = selectedWindow.terminal_number;
@@ -1863,7 +1876,7 @@ const PcTerminalNodeView: React.FC = () => {
               ? `#${selectedWindow.terminal_number} · ${terminalName(selectedWindow, t('terminal.untitled'))}`
               : t('terminal.selectPrompt')}
           </span>
-          {selectedWindow && <PcTerminalStatusMarks windowInfo={selectedWindow} />}
+          {selectedWindow && <PcTerminalStatusMarks windowInfo={selectedWindow} hasDraft={hasLocalDraft(selectedWindow.terminal_number)} />}
           {selectedWindow && (
             <button
               type="button"
@@ -2215,7 +2228,7 @@ const PcTerminalNodeView: React.FC = () => {
               title: terminalName(selectedWindow, t('terminal.untitled')),
             })}
           </span>
-          <PcTerminalStatusMarks windowInfo={selectedWindow} />
+          <PcTerminalStatusMarks windowInfo={selectedWindow} hasDraft={hasLocalDraft(selectedWindow.terminal_number)} />
         </p>
       )}
       <div
@@ -2248,7 +2261,7 @@ const PcTerminalNodeView: React.FC = () => {
                 : <span className="min-w-0 truncate whitespace-nowrap">{shortTitle}</span>}
               {windowInfo.online && (
                 <span className={`absolute inline-flex items-center gap-px ${compact || level.chars === 0 ? 'right-0.5 top-0.5' : 'right-1 top-1'}`}>
-                  <PcTerminalStatusMarks windowInfo={windowInfo} size="tile" inlineCountdown={false} />
+                  <PcTerminalStatusMarks windowInfo={windowInfo} size="tile" inlineCountdown={false} hasDraft={hasLocalDraft(windowInfo.terminal_number)} />
                   <span className={`h-1.5 w-1.5 rounded-full ${
                     windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
                   }`} />
@@ -2302,7 +2315,7 @@ const PcTerminalNodeView: React.FC = () => {
             <span className="truncate text-sm font-semibold">
               {terminalName(windowInfo, t('terminal.untitled'))}
             </span>
-            <PcTerminalStatusMarks windowInfo={windowInfo} />
+            <PcTerminalStatusMarks windowInfo={windowInfo} hasDraft={hasLocalDraft(windowInfo.terminal_number)} />
             {windowInfo.online && windowInfo.control && !compactLayout && (
               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${
                 windowInfo.controllable === false
@@ -2494,7 +2507,7 @@ const PcTerminalNodeView: React.FC = () => {
                         <span className="truncate text-[10px] font-semibold">
                           {terminalName(windowInfo, t('terminal.untitled'))}
                         </span>
-                        <PcTerminalStatusMarks windowInfo={windowInfo} />
+                        <PcTerminalStatusMarks windowInfo={windowInfo} hasDraft={hasLocalDraft(windowInfo.terminal_number)} />
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                           windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
                         }`} />
@@ -2665,6 +2678,7 @@ const PcTerminalNodeView: React.FC = () => {
 
 
       <PcTerminalSpecialStates terminalNames={terminalNames} />
+      <PcTerminalAgentDoneToasts windows={snapshot?.windows ?? []} nameFor={agentToastName} onOpen={selectTerminal} />
 
       <PcMachineSendDock
         tabs={[{

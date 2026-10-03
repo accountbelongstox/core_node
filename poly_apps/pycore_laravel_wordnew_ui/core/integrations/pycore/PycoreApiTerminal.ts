@@ -119,6 +119,13 @@ export interface TerminalAiAgent {
   source: 'text' | 'title';
 }
 
+/** AI-agent working state from the title spinner or scan text; finished_at stamps the last working -> idle transition. */
+export interface TerminalAgentActivity {
+  busy: boolean;
+  /** Wall-clock seconds on the pycore machine; null before the first finished task. */
+  finished_at: number | null;
+}
+
 export interface TerminalWindowInfo {
   id: string;
   native_id: number | string;
@@ -148,6 +155,7 @@ export interface TerminalWindowInfo {
   ai_agent?: TerminalAiAgent | null;
   /** True once a text scan of this window decided the agent state (false: title-only or not scanned yet). */
   agent_scanned?: boolean;
+  agent_activity?: TerminalAgentActivity | null;
   state_updated_at?: string;
   last_seen_at?: string;
 }

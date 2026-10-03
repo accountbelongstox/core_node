@@ -40,17 +40,15 @@ const ready = !!(window.colab && window.colab.global && window.colab.global.note
 const cell = document.querySelector('.cell.code');
 const button = cell ? cell.querySelector('colab-run-button') : null;
 const running = !!(cell && (cell.classList.contains('running') || cell.classList.contains('pending')));
-const output = cell ? [...cell.querySelectorAll('colab-static-output-renderer')].map((item) => item.innerText).join('\\n') : '';
 const connect = document.querySelector('colab-connect-button');
 return JSON.stringify({
   ready,
   hasRunButton: !!button,
   running,
-  booted: output.includes(BOOT_MARKER),
   dialog: dialogText,
   connection: connect ? (connect.innerText || '').trim().slice(0, 80) : '',
 });
-""".replace("BOOT_MARKER", repr(BOOT_DONE_MARKER))
+"""
 
 # Clicking the run button starts an idle cell and interrupts a running one.
 TOGGLE_RUN_SCRIPT = """

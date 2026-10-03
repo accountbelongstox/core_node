@@ -43,6 +43,11 @@ export interface PcTerminalWatch {
   /** Terminals left in a pass paused by input (0: none). */
   passPausedRemaining: number;
   available: boolean;
+  /** Pycore wall-clock seconds as a local Date (the machine's clock mapped onto this browser's). */
+  localDate: (serverSeconds: number) => Date;
+  /** Finished-task stamps the user has seen, by terminal number. */
+  acknowledged: Record<number, number>;
+  acknowledge: (terminalNumber: number, finishedAt: number) => void;
 }
 
 const EMPTY_WATCH: PcTerminalWatch = {
@@ -55,6 +60,9 @@ const EMPTY_WATCH: PcTerminalWatch = {
   nextPassAt: null,
   passPausedRemaining: 0,
   available: false,
+  localDate: (serverSeconds) => new Date(serverSeconds * MS_PER_SECOND),
+  acknowledged: {},
+  acknowledge: () => undefined,
 };
 
 const PcTerminalWatchContext = createContext<PcTerminalWatch>(EMPTY_WATCH);
@@ -63,7 +71,13 @@ export const PcTerminalWatchProvider: React.FC<{ children: React.ReactNode }> = 
   const terminalApi = usePcTerminalApi();
   const [snapshot, setSnapshot] = useState<WatchSnapshot | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [acknowledged, setAcknowledged] = useState<Record<number, number>>({});
   const aliveRef = useRef(true);
+  const acknowledge = useCallback((terminalNumber: number, finishedAt: number) => {
+    setAcknowledged((previous) => (
+      (previous[terminalNumber] ?? 0) >= finishedAt ? previous : { ...previous, [terminalNumber]: finishedAt }
+    ));
+  }, []);
 
   const poll = useCallback(async () => {
     try {
@@ -114,7 +128,7 @@ export const PcTerminalWatchProvider: React.FC<{ children: React.ReactNode }> = 
   }, [ticking]);
 
   const value = useMemo<PcTerminalWatch>(() => {
-    if (!snapshot) return { ...EMPTY_WATCH, serverNow: nowMs / MS_PER_SECOND };
+    if (!snapshot) return { ...EMPTY_WATCH, serverNow: nowMs / MS_PER_SECOND, acknowledged, acknowledge };
     const byNumber = new Map<number, TerminalSpecialEntry[]>();
     for (const entry of snapshot.entries) {
       byNumber.set(entry.number, [...(byNumber.get(entry.number) ?? []), entry]);
@@ -130,8 +144,11 @@ export const PcTerminalWatchProvider: React.FC<{ children: React.ReactNode }> = 
       nextPassAt: snapshot.running && !snapshot.paused ? snapshot.nextPassAt : null,
       passPausedRemaining: snapshot.passPausedRemaining,
       available: true,
+      localDate: (serverSeconds) => new Date((serverSeconds - snapshot.clockOffset) * MS_PER_SECOND),
+      acknowledged,
+      acknowledge,
     };
-  }, [snapshot, nowMs]);
+  }, [snapshot, nowMs, acknowledged, acknowledge]);
 
   return <PcTerminalWatchContext.Provider value={value}>{children}</PcTerminalWatchContext.Provider>;
 };

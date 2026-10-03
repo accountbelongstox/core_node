@@ -229,6 +229,7 @@
     "terminal_backup_defer_retry_seconds": 3,
     "terminal_backup_settle_seconds": 10,
     "terminal_backup_plain_recheck_seconds": 600,
+    "terminal_agent_activity_poll_seconds": 3,
     "machine_send_file_bytes": 2147483648,
     "machine_send_files_per_request": 32,
     "machine_send_text_bytes": 10485760

@@ -93,6 +93,21 @@ class ChromeBridge:
                 break
         return result
 
+    async def evaluate_frames(self, tab_id: int, url_part: str, code: str) -> List[Any]:
+        """Run code in every cross-site iframe whose URL contains url_part; one result per frame."""
+        text = await self.call_text(
+            CHROME_TOOL_JAVASCRIPT,
+            {
+                "tabId": tab_id,
+                "frameUrlContains": url_part,
+                "code": code,
+                "timeoutMs": CHROME_JS_TIMEOUT_MS,
+                "maxOutputBytes": CHROME_JS_MAX_OUTPUT_BYTES,
+            },
+        )
+        frames = json.loads(str(json.loads(text).get("result") or "[]"))
+        return [frame.get("result") for frame in frames]
+
     async def screenshot(self, tab_id: int, full_page: bool) -> Dict[str, str]:
         text = await self.call_text(
             CHROME_TOOL_SCREENSHOT,
