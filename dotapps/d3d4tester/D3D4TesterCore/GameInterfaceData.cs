@@ -47,6 +47,8 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private string? _battlenetUiRegion;
     private string? _battlenetStateDetail;
     private BattlenetGameUi _battlenetGameUi = BattlenetGameUi.None;
+    private string? _battlenetAccountTag;
+    private string? _battlenetAccountPresence;
     private string _rosbotFoundExeName = "";
     private string _rosbotFoundWindowTitle = "";
     private bool _rosbotNeedKeyInput = false;
@@ -171,6 +173,8 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 BattlenetUiRegion = _battlenetUiRegion,
                 BattlenetStateDetail = _battlenetStateDetail,
                 BattlenetGameUi = _battlenetGameUi,
+                BattlenetAccountTag = _battlenetAccountTag,
+                BattlenetAccountPresence = _battlenetAccountPresence,
                 RosbotFoundExeName = _rosbotFoundExeName,
                 RosbotFoundWindowTitle = _rosbotFoundWindowTitle,
                 RosbotNeedKeyInput = _rosbotNeedKeyInput,
@@ -369,15 +373,29 @@ public sealed class GameInterfaceData : IGameInterfaceData
     /// Set the probed Battle.net client screen state (state, UI region, detail) and the derived dynamic triple atomically.
     /// 1:1 with Python set_battlenet_dynamic_status for the triple; the screen state is DOT-only.
     /// </summary>
+    /// <summary>
+    /// Only the open game page shows its action button, so each game keeps the last action seen while its nav tab exists
+    /// (D3 Play stays known while the D4 page is open); a missing tab clears it.
+    /// </summary>
+    private static BattlenetGameUi MergeGameUi(BattlenetGameUi previous, BattlenetGameUi current) => current with
+    {
+        D3Action = current.D3Action != BattlenetGameAction.None ? current.D3Action : current.D3Tab ? previous.D3Action : BattlenetGameAction.None,
+        D4Action = current.D4Action != BattlenetGameAction.None ? current.D4Action : current.D4Tab ? previous.D4Action : BattlenetGameAction.None,
+    };
+
     public bool SetBattlenetClientStatus(BattlenetClientStatus status)
     {
         var (onLogin, disconnected, normal) = status.DynamicTriple;
         lock (_lock)
         {
+            var gameUi = MergeGameUi(_battlenetGameUi, status.GameUi);
             if (_battlenetClientState == status.State && _battlenetUiRegion == status.UiRegion && _battlenetStateDetail == status.Detail
-                && _battlenetGameUi == status.GameUi
+                && _battlenetGameUi == gameUi
+                && _battlenetAccountTag == status.AccountTag && _battlenetAccountPresence == status.AccountPresence
                 && _battlenetOnLoginScreen == onLogin && _battlenetDisconnected == disconnected && _battlenetNormalAvailable == normal) return false;
-            _battlenetGameUi = status.GameUi;
+            _battlenetGameUi = gameUi;
+            _battlenetAccountTag = status.AccountTag;
+            _battlenetAccountPresence = status.AccountPresence;
             _battlenetClientState = status.State;
             _battlenetUiRegion = status.UiRegion;
             _battlenetStateDetail = status.Detail;

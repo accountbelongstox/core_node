@@ -65,7 +65,14 @@
       "d4_tab": "D4 游戏页签",
       "d4_play": "D4 开始游戏按钮",
       "found": "已识别",
-      "missing": "未识别"
+      "missing": "未识别",
+      "account_tag": "BattleTag",
+      "action_none": "未打开该游戏页",
+      "action_play": "可开始游戏",
+      "action_update": "需要更新",
+      "action_install": "未安装",
+      "action_try_free": "未拥有（免费试玩/购买）",
+      "action_starting": "游戏启动中"
     }
   },
   "skills": {

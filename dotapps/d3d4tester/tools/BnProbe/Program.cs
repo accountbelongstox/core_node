@@ -92,10 +92,11 @@ public static class Program
             null,
             c.GetProperty("IsEnabled").ValueKind == JsonValueKind.True,
             c.GetProperty("IsOffscreen").ValueKind == JsonValueKind.True,
-            c.GetProperty("Level").GetInt32())).ToList();
+            c.GetProperty("Level").GetInt32(),
+            c.TryGetProperty("IsSelected", out var sel) && sel.ValueKind is JsonValueKind.True or JsonValueKind.False ? sel.GetBoolean() : null)).ToList();
         string? uiRegion = BattlenetClientStateDetector.UiRegion(controls);
         var status = BattlenetOperationFactory.GetOperation(uiRegion).ClassifyClientState(controls) with { UiRegion = uiRegion };
-        Console.WriteLine($"[BnProbe] replay {Path.GetFileName(file)}: state={status.State} ui_region={status.UiRegion ?? "-"} detail={status.Detail ?? "-"} game_ui={status.GameUi}");
+        Console.WriteLine($"[BnProbe] replay {Path.GetFileName(file)}: state={status.State} ui_region={status.UiRegion ?? "-"} detail={status.Detail ?? "-"} tag={status.AccountTag ?? "-"} game_ui={status.GameUi}");
     }
 
     private static int ReadWatchSeconds(string[] args)
@@ -141,7 +142,7 @@ public static class Program
                 sleepMode = BattlenetStuckDetector.IsSleepMode(process),
                 fetchingAccount = BattlenetStuckDetector.IsFetchingAccountInfo(process),
             },
-            controls = controls.Select(c => new { c.Level, c.Type, c.Name, c.AutomationId, c.IsEnabled, c.IsOffscreen }),
+            controls = controls.Select(c => new { c.Level, c.Type, c.Name, c.AutomationId, c.IsEnabled, c.IsOffscreen, c.IsSelected }),
         };
         string path = Path.Combine(outputDir, FilePrefix + DateTime.Now.ToString(TimestampFormat) + ".json");
         File.WriteAllText(path, JsonSerializer.Serialize(report, JsonOptions));

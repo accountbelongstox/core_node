@@ -37,7 +37,8 @@
       "Bash(timeout 90 ssh1 'journalctl -u ncore-laravel-frankenphp --no-pager --since \"08:30:00\" --until \"08:41:12\" | grep -v \"^\\\\s*$\" | tail -60')",
       "Bash(timeout 60 node ncore/foundation/common/laravel_signed_cli.js history)",
       "Bash(timeout 90 ssh1 'cd /www/programing/core_node/poly_apps/laravel_main; ls -la --time-style=+%m-%d_%H:%M storage/logs/ storage/frankenphp/ 2>/dev/null | grep -iE \"log|franken\" | head -20; grep -rn \"log\\\\b\\\\|output file\" storage/frankenphp/Caddyfile | head -5' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
-      "Bash(timeout 60 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/history?limit=12\")"
+      "Bash(timeout 60 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/history?limit=12\")",
+      "Bash(timeout 90 ssh1 'journalctl -k --no-pager --since \"08:35\" --until \"08:45\" | tail -10; echo \"== kernel segfault history\"; journalctl -k --no-pager --since \"-14d\" | grep -iE \"segfault|traps:\" | tail -15; echo \"== core\"; cat /proc/sys/kernel/core_pattern; systemctl show ncore-laravel-frankenphp -p LimitCORE; command -v coredumpctl || echo \"no systemd-coredump\"; echo \"== php cli segv in scheduler\"; journalctl -u ncore-laravel-frankenphp --no-pager --since \"-3d\" | grep -ciE \"scheduler exited \\\\\\(status 139\\\\\\)\"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)"
     ],
     "deny": [],
     "ask": []

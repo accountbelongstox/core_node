@@ -20,7 +20,8 @@ public sealed record BattlenetControl(
     Rectangle? Rect,
     bool? IsEnabled,
     bool? IsOffscreen,
-    int Level)
+    int Level,
+    bool? IsSelected = null)
 {
     /// <summary>enabled is not False, offscreen is not True, rect width/height &gt; 0.</summary>
     public bool IsClickable => IsEnabled != false && IsOffscreen != true && Rect is { Width: > 0, Height: > 0 };
@@ -358,7 +359,11 @@ public static class BattlenetControlTree
             bool? enabled = TryGet(() => el.Properties.IsEnabled.ValueOrDefault);
             bool? offscreen = TryGet(() => el.Properties.IsOffscreen.ValueOrDefault);
             Rectangle? rect = light ? null : TryGet(() => el.Properties.BoundingRectangle.ValueOrDefault);
-            return new BattlenetControl(NameOf(el), AutomationIdOf(el), UIOperations.GetControlTypeName(el), rect, enabled, offscreen, depth);
+            string type = UIOperations.GetControlTypeName(el);
+            bool? selected = type == BattlenetConstants.TabItemControlType
+                ? TryGet(() => el.Patterns.SelectionItem.PatternOrDefault is { } sel && sel.IsSelected.ValueOrDefault)
+                : null;
+            return new BattlenetControl(NameOf(el), AutomationIdOf(el), type, rect, enabled, offscreen, depth, selected);
         }
         catch
         {
