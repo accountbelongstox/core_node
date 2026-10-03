@@ -172,7 +172,14 @@
       "Bash(nvidia-smi)",
       "Bash(nvidia-smi --query-compute-apps=pid,used_memory,name --format=csv)",
       "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100&minutes=60\")",
-      "PowerShell(cd D:\\\\programing\\\\core_node; foreach\\($i in 1..3\\){ $t=Measure-Command { node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes | Out-Null }; \"{0:n0} ms\" -f $t.TotalMilliseconds })"
+      "PowerShell(cd D:\\\\programing\\\\core_node; foreach\\($i in 1..3\\){ $t=Measure-Command { node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes | Out-Null }; \"{0:n0} ms\" -f $t.TotalMilliseconds })",
+      "Bash(scp -q /tmp/q1.sql root@43.163.112.77:/tmp/q1.sql)",
+      "Bash(S=100.64.0.4:44381 bash prog.sh)",
+      "Bash(S=100.64.0.4:44381 node cdp.js eval 'location.href+\" \"+document.visibilityState')",
+      "Bash(node -e \"console.log\\(require\\('/d/programing/core_node/config/pycore_relay_contract.json'\\).public_urls.laravel_api_origin\\)\")",
+      "Bash(rm -f c2.log)",
+      "Bash(node cdp.js collect c2.log)",
+      "Bash(nohup bash mon2.sh)"
     ],
     "deny": [],
     "ask": []
