@@ -2946,11 +2946,11 @@ const PcTerminalPage: React.FC = () => {
 
   return (
     <>
-      <div className="flex items-start gap-2 px-3 pt-2 sm:px-6 md:px-8">
-        <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2 px-3 pt-2 sm:px-6 md:px-8">
+        <div className="min-w-0 max-w-[50%] shrink-0">
           <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
         </div>
-        <div ref={setSearchSlot} className="min-w-0 shrink" />
+        <div ref={setSearchSlot} className="min-w-0 flex-1" />
         <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>

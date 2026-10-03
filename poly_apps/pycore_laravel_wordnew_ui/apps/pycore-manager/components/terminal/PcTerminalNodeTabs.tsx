@@ -121,7 +121,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
   );
 
   return (
-    <div role="tablist" aria-label={t('terminal.nodes.title')} className="flex items-center gap-1 overflow-x-auto pb-1">
+    <div role="tablist" aria-label={t('terminal.nodes.title')} className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {tab(null, 1, undefined, `${thisLabel} · ${t('terminal.nodes.thisMachineHint', { url: target.url })}`)}
       {online.map((node, index) => tab(
         node.url,
@@ -129,15 +129,12 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
         node.os,
         `${node.label} · ${t('terminal.nodes.otherHint', { url: node.url, os: node.os || '-' })}`,
       ))}
-      {online.length === 0 && (
-        <span className="whitespace-nowrap text-[10px] text-slate-400">{t('terminal.nodes.noOthers')}</span>
-      )}
       {isLanMachinesAvailable() && (
         <button
           type="button"
           onClick={rescan}
           disabled={scanning}
-          title={t('pycoreTarget.lanRescan')}
+          title={online.length === 0 ? `${t('pycoreTarget.lanRescan')} · ${t('terminal.nodes.noOthers')}` : t('pycoreTarget.lanRescan')}
           aria-label={t('pycoreTarget.lanRescan')}
           className="inline-flex shrink-0 items-center rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-500/10 disabled:opacity-60 dark:text-slate-400"
         >

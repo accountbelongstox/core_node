@@ -3,9 +3,12 @@ import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTe
 
 export type PcTerminalImageStatus = 'queued' | 'uploading' | 'uploaded' | 'error';
 
+export type PcTerminalAttachmentKind = 'image' | 'audio';
+
 export interface PcTerminalImage {
   id: string;
   windowId: string;
+  kind: PcTerminalAttachmentKind;
   file: File;
   previewUrl: string;
   status: PcTerminalImageStatus;
@@ -22,11 +25,19 @@ export interface PcTerminalImages {
   remove: (id: string) => void;
   retry: (id: string) => void;
   clear: () => void;
-  /** Uploads every attached image of the window and returns the display paths in attach order; null when one failed. */
-  uploadAll: () => Promise<string[] | null>;
+  /** Uploads every attachment of the window and returns them in attach order; null when one failed. */
+  uploadAll: () => Promise<PcTerminalUploaded[] | null>;
+}
+
+export interface PcTerminalUploaded {
+  kind: PcTerminalAttachmentKind;
+  displayPath: string;
 }
 
 const IMAGE_MIME = /^image\//i;
+const AUDIO_MIME = /^audio\//i;
+/** System recorders may hand over a recording without a type; its extension decides. */
+const AUDIO_EXTENSION = /\.(m4a|aac|amr|3gp|3gpp|ogg|oga|opus|webm|wav|mp3|flac)$/i;
 const MIB = 1024 * 1024;
 const ERROR_KEYS = {
   notImage: 'terminal.images.notImage',
@@ -51,6 +62,14 @@ export function stripImagePlaceholders(text: string): string {
 
 export function isTerminalImageFile(file: File): boolean {
   return IMAGE_MIME.test(file.type);
+}
+
+export function isTerminalAudioFile(file: File): boolean {
+  return AUDIO_MIME.test(file.type) || (!file.type && AUDIO_EXTENSION.test(file.name));
+}
+
+export function isTerminalAttachmentFile(file: File): boolean {
+  return isTerminalImageFile(file) || isTerminalAudioFile(file);
 }
 
 export function usePcTerminalImages(windowId: string | undefined): PcTerminalImages {
@@ -83,10 +102,11 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
     if (!windowId) return;
     const added = files.map((file): PcTerminalImage => {
       counter.current += 1;
-      const ok = isTerminalImageFile(file);
+      const ok = isTerminalAttachmentFile(file);
       return {
         id: `img-${counter.current}`,
         windowId,
+        kind: isTerminalAudioFile(file) ? 'audio' : 'image',
         file,
         previewUrl: ok ? URL.createObjectURL(file) : '',
         status: ok ? 'queued' : 'error',
@@ -150,7 +170,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
   /** One upload per image at a time: a retry and a send share the flight in progress. */
   const uploadOne = useCallback((item: PcTerminalImage): Promise<string | null> => {
     if (item.status === 'uploaded') return Promise.resolve(item.displayPath);
-    if (!isTerminalImageFile(item.file)) return Promise.resolve(null);
+    if (!isTerminalAttachmentFile(item.file)) return Promise.resolve(null);
     const running = flights.current.get(item.id);
     if (running) return running;
     const flight = startUpload(item);
@@ -158,16 +178,16 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
     return flight;
   }, [startUpload]);
 
-  const uploadAll = useCallback(async (): Promise<string[] | null> => {
-    const paths: string[] = [];
+  const uploadAll = useCallback(async (): Promise<PcTerminalUploaded[] | null> => {
+    const uploaded: PcTerminalUploaded[] = [];
     for (const item of allRef.current.filter((entry) => entry.windowId === windowId)) {
       const path = await uploadOne(item);
       // An image removed while its upload ran is no longer part of the message.
       if (!allRef.current.some((entry) => entry.id === item.id)) continue;
       if (path === null) return null;
-      paths.push(path);
+      uploaded.push({ kind: item.kind, displayPath: path });
     }
-    return paths;
+    return uploaded;
   }, [uploadOne, windowId]);
 
   const retry = useCallback((id: string) => {
