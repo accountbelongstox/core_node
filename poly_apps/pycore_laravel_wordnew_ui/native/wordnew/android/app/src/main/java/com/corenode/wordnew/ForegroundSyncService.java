@@ -25,6 +25,8 @@ public class ForegroundSyncService extends Service {
     private static final long MAX_ACTIVE_MS = 6L * 60 * 60 * 1000;
 
     private PowerManager.WakeLock wakeLock;
+    private boolean foreground;
+    private boolean channelReady;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -45,6 +47,13 @@ public class ForegroundSyncService extends Service {
     }
 
     private void enterForeground(Notification notification) {
+        // Progress updates only replace the notification: one startForeground per service run keeps the UI thread free of repeated system_server round trips.
+        if (foreground) {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) manager.notify(NOTIFICATION_ID, notification);
+            return;
+        }
+        foreground = true;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } else {
@@ -75,6 +84,7 @@ public class ForegroundSyncService extends Service {
     }
 
     private void shutdown() {
+        foreground = false;
         releaseWakeLock();
         stopForeground(true);
         stopSelf();
@@ -96,7 +106,7 @@ public class ForegroundSyncService extends Service {
 
     private Notification buildNotification(String title, String text, String channelName) {
         NotificationManager manager = getSystemService(NotificationManager.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null) {
+        if (!channelReady && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null) {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 channelName == null || channelName.isEmpty() ? CHANNEL_ID : channelName,
@@ -104,6 +114,7 @@ public class ForegroundSyncService extends Service {
             );
             channel.setShowBadge(false);
             manager.createNotificationChannel(channel);
+            channelReady = true;
         }
         Intent launch = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content = PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

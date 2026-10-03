@@ -20,7 +20,7 @@ pycore never recomputes a stand-in md5 from the text.
 
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Set
 
 from pycore.database.repositories.audio_resource_repository import AudioResourceRepository
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -115,6 +115,22 @@ class AudioResourceLedger:
             for row in page:
                 if Path(row["path"]).is_file():
                     yield row
+            after = (page[-1]["kind"], page[-1]["resource_key"])
+
+    def paths_under(self, directory: Path) -> Set[Path]:
+        """Files below ``directory`` that any ledger row points at (a row
+        whose file is already gone is listed too: nothing may delete a file
+        the ledger still names)."""
+        held: Set[Path] = set()
+        after = ("", "")
+        while True:
+            page = self._page(*after)
+            if not page:
+                return held
+            for row in page:
+                path = Path(row["path"])
+                if directory in path.parents:
+                    held.add(path)
             after = (page[-1]["kind"], page[-1]["resource_key"])
 
     @serialized_method
