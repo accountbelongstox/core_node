@@ -402,6 +402,8 @@ terminal: {
     images: {
       attach: '添加图片',
       remove: '移除图片',
+      preview: '查看大图',
+      closePreview: '关闭预览',
       retry: '重试上传',
       notImage: '只能添加图片或录音文件。',
       uploadFailed: '图片上传失败。',

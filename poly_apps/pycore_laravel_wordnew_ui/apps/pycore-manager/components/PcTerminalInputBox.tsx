@@ -7,6 +7,7 @@ import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreMa
 import { isTerminalAttachmentFile, type PcTerminalImages } from './usePcTerminalImages';
 import { usePcVoiceRecorder, type PcVoiceRecorderError } from './usePcVoiceRecorder';
 import { usePcTextInputSession } from '../persistence/PcUiSessionDom';
+import { PcImageLightbox } from './PcAiShared';
 import type { PcUiSessionInput } from '../persistence/PcUiSessionStore';
 
 type DraftStatus = 'saved' | 'saving' | 'error';
@@ -27,6 +28,7 @@ interface PcTerminalInputBoxProps {
   rows: number;
   draftStatus: DraftStatus;
   images: PcTerminalImages;
+  actions?: React.ReactNode;
   session?: PcTerminalInputSession;
 }
 
@@ -54,12 +56,13 @@ function formatDuration(seconds: number): string {
  * recording is sent as a file path with optional images and text.
  */
 export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
-  value, onChange, onSend, hasWindow, rows, draftStatus, images, session,
+  value, onChange, onSend, hasWindow, rows, draftStatus, images, actions, session,
 }) => {
   const { t } = useTranslation('pc');
   const pickerRef = useRef<HTMLInputElement | null>(null);
   const recorderInputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [mode, setMode] = useState<ComposerMode>(readComposerMode);
   const toggleMode = () => {
     const next: ComposerMode = mode === 'voice' ? 'text' : 'voice';
@@ -70,6 +73,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const recorder = usePcVoiceRecorder(addRecording);
   const imageItems = images.items.filter((item) => item.kind === 'image');
   const audioItems = images.items.filter((item) => item.kind === 'audio');
+  const previewItem = imageItems.find((item) => item.id === previewId && item.previewUrl) ?? null;
   const record = () => {
     if (recorder.recording) recorder.stop();
     else void recorder.start();
@@ -106,6 +110,63 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         images.addFiles(files);
       }}
     >
+      <div className="flex items-start gap-1.5 px-1.5 pt-1.5">
+        {imageItems.length > 0 && (
+          <ul className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto overscroll-contain">
+            {imageItems.map((item) => (
+              <li key={item.id} className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-slate-500/20 bg-slate-500/10">
+                {item.previewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewId(item.id)}
+                    title={t('terminal.images.preview')}
+                    aria-label={t('terminal.images.preview')}
+                    className="block h-full w-full cursor-zoom-in"
+                  >
+                    <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
+                  </button>
+                )}
+                {item.status === 'uploading' && (
+                  <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900/40">
+                    <div className="h-full bg-indigo-500" style={{ width: `${Math.round(item.progress * 100)}%` }} />
+                  </div>
+                )}
+                {item.status === 'error' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-rose-900/60 p-1 text-center text-[9px] text-white" title={t(item.errorKey, item.errorParams)}>
+                    {item.previewUrl ? (
+                      <button type="button" onClick={() => images.retry(item.id)} title={t('terminal.images.retry')}>
+                        <RefreshCw className="h-4 w-4" />
+                      </button>
+                    ) : t(item.errorKey, item.errorParams)}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => images.remove(item.id)}
+                  title={t('terminal.images.remove')}
+                  className="absolute right-0.5 top-0.5 rounded-full bg-slate-900/70 p-0.5 text-white hover:bg-slate-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p
+          className={`ml-auto min-w-0 max-w-[60%] shrink truncate pt-0.5 text-right text-[10px] ${
+            recorder.error || draftStatus === 'error'
+              ? 'text-rose-500'
+              : draftStatus === 'saving' ? 'text-amber-500' : 'text-emerald-500'
+          }`}
+          title={recorder.error ? t(VOICE_ERROR_KEYS[recorder.error]) : undefined}
+        >
+          {recorder.error
+            ? t(VOICE_ERROR_KEYS[recorder.error])
+            : hasWindow
+              ? t(draftStatus === 'error' ? 'terminal.draftSaveFailed' : draftStatus === 'saving' ? 'terminal.draftSaving' : 'terminal.draftSaved')
+              : ''}
+        </p>
+      </div>
       {audioItems.length > 0 && (
         <ul className="space-y-1 px-1.5 pt-1.5" aria-label={t('terminal.voice.recordings')}>
           {audioItems.map((item) => (
@@ -143,37 +204,6 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           ))}
         </ul>
       )}
-      {imageItems.length > 0 && (
-        <ul className="flex gap-1.5 overflow-x-auto overscroll-contain px-1.5 pt-1.5">
-          {imageItems.map((item) => (
-            <li key={item.id} className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-slate-500/20 bg-slate-500/10">
-              {item.previewUrl && <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />}
-              {item.status === 'uploading' && (
-                <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900/40">
-                  <div className="h-full bg-indigo-500" style={{ width: `${Math.round(item.progress * 100)}%` }} />
-                </div>
-              )}
-              {item.status === 'error' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-rose-900/60 p-1 text-center text-[9px] text-white" title={t(item.errorKey, item.errorParams)}>
-                  {item.previewUrl ? (
-                    <button type="button" onClick={() => images.retry(item.id)} title={t('terminal.images.retry')}>
-                      <RefreshCw className="h-4 w-4" />
-                    </button>
-                  ) : t(item.errorKey, item.errorParams)}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => images.remove(item.id)}
-                title={t('terminal.images.remove')}
-                className="absolute right-0.5 top-0.5 rounded-full bg-slate-900/70 p-0.5 text-white hover:bg-slate-900"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
       <textarea
         ref={elementRef}
         data-terminal-composer=""
@@ -196,7 +226,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         disabled={!hasWindow}
         rows={mode === 'voice' ? Math.min(rows, 2) : rows}
         placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
-        className="block w-full resize-y bg-transparent px-3 pb-1 pt-2 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
+        className="block w-full resize-y bg-transparent px-3 pb-1 pt-1 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
       />
       <div className="flex items-center gap-1.5 px-1.5 pb-1.5">
         {mode === 'voice' && (
@@ -230,20 +260,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             )}
           </>
         )}
-        <p
-          className={`min-w-0 flex-1 truncate text-[10px] ${
-            recorder.error || draftStatus === 'error'
-              ? 'text-rose-500'
-              : draftStatus === 'saving' ? 'text-amber-500' : 'text-emerald-500'
-          }`}
-          title={recorder.error ? t(VOICE_ERROR_KEYS[recorder.error]) : undefined}
-        >
-          {recorder.error
-            ? t(VOICE_ERROR_KEYS[recorder.error])
-            : hasWindow
-              ? t(draftStatus === 'error' ? 'terminal.draftSaveFailed' : draftStatus === 'saving' ? 'terminal.draftSaving' : 'terminal.draftSaved')
-              : ''}
-        </p>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">{actions}</div>
         <button
           type="button"
           onClick={toggleMode}
@@ -288,6 +305,14 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           }}
         />
       </div>
+      <PcImageLightbox
+        open={Boolean(previewItem)}
+        src={previewItem?.previewUrl ?? null}
+        alt={previewItem?.file.name}
+        caption={previewItem && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{previewItem.file.name}</p>}
+        closeLabel={t('terminal.images.closePreview')}
+        onClose={() => setPreviewId(null)}
+      />
     </div>
   );
 };
