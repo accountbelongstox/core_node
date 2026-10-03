@@ -22,6 +22,8 @@ source "$COMMON_DIR/runtime_service_policy.sh"
 source "$COMMON_DIR/frankenphp_manager.sh"
 # COMPOSER_* path contract (wrapper / phar / laravel installer)
 source "$COMMON_DIR/composer_install_common.sh"
+# sc_get: contract-owned unit names (mcp_chrome, laravel_rescue, headscale)
+source "$COMMON_DIR/service_contract_common.sh"
 source "$SERVICE_MANAGER_REGISTRY_SCRIPT"
 source "$SERVICE_MANAGER_UI_SCRIPT"
 
@@ -193,8 +195,13 @@ service_status_core_services() {
     service_aggregate_status "${CORE_RUNTIME_SERVICE_PREFIXES[@]}"
 }
 
+# Items without a dedicated probe report their resolved systemd unit state.
 get_service_status() {
-    "service_status_$1"
+    if declare -F "service_status_$1" >/dev/null; then
+        "service_status_$1"
+    else
+        service_status_from_unit "$1"
+    fi
 }
 
 is_service_installed() {
@@ -241,6 +248,13 @@ service_resolve_systemd_unit() {
         nginx) service_unit_first_existing "nginx" ;;
         ssh) service_unit_first_existing "ssh" "sshd" ;;
         pycore) service_unit_first_existing "pycore-module-caller" "pycore" ;;
+        mcp_chrome) service_unit_first_existing "$(sc_get mcp_chrome.service_name)" ;;
+        laravel_rescue) service_unit_first_existing "$(sc_get laravel_rescue.watcher_service)" ;;
+        rescue_httpd) service_unit_first_existing "$(sc_get laravel_rescue.httpd_service)" ;;
+        natgateway) service_unit_first_existing "ncore-natgateway" ;;
+        headscale) service_unit_first_existing "$(sc_get access.mesh.headscale.service)" ;;
+        tailscale) service_unit_first_existing "tailscaled" ;;
+        gitea) service_unit_first_existing "gitea" ;;
         *) echo "" ;;
     esac
 }
