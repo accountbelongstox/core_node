@@ -187,7 +187,10 @@
       "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c 'dd.cmd gitsync -m \"sync\"' 2>&1 | Select-Object -Last 10; git status -sb | Select-Object -First 3; Select-String -Path .claude\\\\settings.local.json -Pattern '^\\(<<<<<<<|=======|>>>>>>>\\)' | Measure-Object | % Count; python -c \"import json;json.load\\(open\\('.claude/settings.local.json',encoding='utf-8-sig'\\)\\);print\\('json ok'\\)\"; $global:LASTEXITCODE=0)",
       "Bash(xargs ls -la)",
       "Bash(nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv)",
-      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=40\")"
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=40\")",
+      "Bash(scp -q -o BatchMode=yes /tmp/q1.sql root@43.163.112.77:/tmp/q1.sql)",
+      "Bash(bash /tmp/prog.sh)",
+      "Bash(time node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=15\")"
     ],
     "deny": [],
     "ask": []
