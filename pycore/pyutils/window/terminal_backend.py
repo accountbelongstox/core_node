@@ -413,13 +413,69 @@ class TerminalWindowBackend:
             if not self._paste(window):
                 return failure("terminal_paste_failed")
             time.sleep(paste_settle_seconds(content_length))
+            return self._submit(window)
+
+    def prepare_input(self, window_id: str, clear_first: bool = False, interrupt_first: bool = False) -> Dict[str, Any]:
+        """Optional Ctrl+C, then optional clear of the input line; nothing is pasted or submitted."""
+        window, blocked = self._input_window(window_id)
+        if window is None:
+            return blocked
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            if interrupt_first:
+                if not self._keys(window, list(INTERRUPT_KEYS)):
+                    return failure("terminal_key_failed")
+                time.sleep(INTERRUPT_SETTLE_SECONDS)
+            if (clear_first or interrupt_first) and not self._clear_input(window):
+                return failure("terminal_clear_failed")
+        return success(window)
+
+    def hold_key(
+        self,
+        window_id: str,
+        keysym_name: str,
+        holding: Callable[[], bool],
+        interval_seconds: float,
+    ) -> Dict[str, Any]:
+        """Repeat the key like keyboard auto-repeat while holding() is true (hold-to-talk dictation)."""
+        window, blocked = self._input_window(window_id)
+        if window is None:
+            return blocked
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            while holding():
+                if not self._keys(window, [keysym_name]):
+                    return failure("terminal_key_failed")
+                time.sleep(interval_seconds)
+        return success(window)
+
+    def append_and_submit(self, window_id: str, content_length: int = 0) -> Dict[str, Any]:
+        """Paste the clipboard after the current input (no clearing) when content_length > 0, then submit."""
+        window, blocked = self._input_window(window_id)
+        if window is None:
+            return blocked
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            if content_length > 0:
+                if not self._paste(window):
+                    return failure("terminal_paste_failed")
+                time.sleep(paste_settle_seconds(content_length))
+            return self._submit(window)
+
+    def clear_input(self, window_id: str) -> Dict[str, Any]:
+        return self.prepare_input(window_id, clear_first=True)
+
+    def _submit(self, window: Dict[str, Any]) -> Dict[str, Any]:
+        pressed = self._press_enter(window)
+        for _ in range(SUBMIT_ENTER_PRESSES - 1):
+            if not pressed.get("success"):
+                break
+            time.sleep(SUBMIT_ENTER_INTERVAL_SECONDS)
             pressed = self._press_enter(window)
-            for _ in range(SUBMIT_ENTER_PRESSES - 1):
-                if not pressed.get("success"):
-                    break
-                time.sleep(SUBMIT_ENTER_INTERVAL_SECONDS)
-                pressed = self._press_enter(window)
-            return pressed
+        return pressed
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:
         window, blocked = self._input_window(window_id)

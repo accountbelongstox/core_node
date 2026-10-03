@@ -278,10 +278,11 @@ if [ -n "$deviceSlot" ] && [ -z "$deviceRole" ]; then
     if [ "$catalogLoaded" = "1" ]; then
         claude_team_spec_env_add all
     fi
-    for envPair in "${CLAUDE_TEAM_SPEC_ENV[@]}"; do
+    claude_team_voice_dictation_spec "${passthrough_args[@]}"
+    for envPair in "${CLAUDE_TEAM_SPEC_ENV[@]}" "${CLAUDE_TEAM_VOICE_ENV[@]}"; do
         export "$envPair"
     done
-    claude "${CLAUDE_TEAM_POLICY_ARGS[@]}" "${passthrough_args[@]}"
+    claude "${CLAUDE_TEAM_POLICY_ARGS[@]}" "${CLAUDE_TEAM_VOICE_ARGS[@]}" "${passthrough_args[@]}"
     claudeExitCode=$?
     claude_team_restore_shared_owner
     exit $claudeExitCode
@@ -310,7 +311,8 @@ fi
 for envName in "${CLAUDE_TEAM_SPEC_UNSET[@]}"; do
     unset "$envName"
 done
-for envPair in "${CLAUDE_TEAM_SPEC_ENV[@]}"; do
+claude_team_voice_dictation_spec "${passthrough_args[@]}"
+for envPair in "${CLAUDE_TEAM_SPEC_ENV[@]}" "${CLAUDE_TEAM_VOICE_ENV[@]}"; do
     export "$envPair"
 done
 # Marks a role session: enables the project git guard and task-owner tag hook.
@@ -329,12 +331,13 @@ fi
 claude_args+=("${permissionModeArgs[@]}")
 claude_args+=("${CLAUDE_TEAM_POLICY_ARGS[@]}")
 claude_args+=("${CLAUDE_TEAM_SPEC_ARGS[@]}")
+claude_args+=("${CLAUDE_TEAM_VOICE_ARGS[@]}")
 claude_args+=("${passthrough_args[@]}")
 if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_args+=("$CLAUDE_TEAM_SPEC_KICKOFF")
 fi
 
-claude_invoke_display="claude ${permissionModeArgs[*]} ${CLAUDE_TEAM_POLICY_ARGS[0]:-} ${CLAUDE_TEAM_POLICY_ARGS[1]:-} --append-system-prompt <policy> ${CLAUDE_TEAM_SPEC_ARGS[*]} ${passthrough_args[*]}"
+claude_invoke_display="claude ${permissionModeArgs[*]} ${CLAUDE_TEAM_POLICY_ARGS[0]:-} ${CLAUDE_TEAM_POLICY_ARGS[1]:-} --append-system-prompt <policy> ${CLAUDE_TEAM_SPEC_ARGS[*]} ${CLAUDE_TEAM_VOICE_ARGS[0]:+--settings <voice dictation>} ${passthrough_args[*]}"
 if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_invoke_display="$claude_invoke_display <kickoff ${#CLAUDE_TEAM_SPEC_KICKOFF} chars>"
 fi
@@ -345,7 +348,7 @@ echo "claudeteam.sh"
 echo "============================================================"
 echo "[INFO] Role: ${agentName:-standalone lead}${teamMode:+ (team mode $teamMode, PID file $pidPath)}"
 echo "[INFO] Claude config: $CLAUDE_CONFIG_DIR (auth, settings and sessions; root shares the real user's dir by default)"
-echo "[INFO] Environment: ${CLAUDE_TEAM_SPEC_ENV[*]:-none} $CLAUDE_TEAM_GIT_GUARD_ENV; removed: ${CLAUDE_TEAM_SPEC_UNSET[*]:-none}"
+echo "[INFO] Environment: ${CLAUDE_TEAM_SPEC_ENV[*]:-none} ${CLAUDE_TEAM_VOICE_ENV[*]} $CLAUDE_TEAM_GIT_GUARD_ENV; removed: ${CLAUDE_TEAM_SPEC_UNSET[*]:-none}"
 echo "[INFO] Invoking: ${claude_invoke_display}"
 if [ -n "$deviceRemoteHint" ]; then
     echo "$deviceRemoteHint"
