@@ -8,10 +8,12 @@ interface PcTerminalAgentBadgeProps {
   agent?: TerminalAiAgent | null;
   /** Icon only, for dense title bars and jump tiles. */
   iconOnly?: boolean;
+  /** Icon size override (status marks). */
+  iconClassName?: string;
   className?: string;
 }
 
-export function PcTerminalAgentBadge({ agent, iconOnly = false, className = '' }: PcTerminalAgentBadgeProps) {
+export function PcTerminalAgentBadge({ agent, iconOnly = false, iconClassName, className = '' }: PcTerminalAgentBadgeProps) {
   const { t } = useTranslation('pc');
   if (!agent) return null;
   const hint = t('terminal.agent.hint', {
@@ -26,7 +28,7 @@ export function PcTerminalAgentBadge({ agent, iconOnly = false, className = '' }
         iconOnly ? 'text-fuchsia-300' : 'bg-fuchsia-500/25 px-1.5 py-0.5 text-[9px] text-fuchsia-200'
       } ${className}`}
     >
-      <Bot className={iconOnly ? 'h-3 w-3' : 'h-2.5 w-2.5'} />
+      <Bot className={iconClassName ?? (iconOnly ? 'h-3 w-3' : 'h-2.5 w-2.5')} />
       {!iconOnly && t('terminal.agent.badge')}
     </span>
   );

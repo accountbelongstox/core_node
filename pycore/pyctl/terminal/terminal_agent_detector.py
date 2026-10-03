@@ -158,14 +158,17 @@ class TerminalAgentWatch:
         rule = self._detector.title_rule(title)
         return {"rule": rule, "source": SOURCE_TITLE} if rule else None
 
+    def scanned(self, number: int, window_id: str) -> bool:
+        scanned = self._rules.get(number)
+        return scanned is not None and scanned[0] == window_id
+
     def decorate_snapshot(self, snapshot: Dict[str, object]) -> Dict[str, object]:
         for window in snapshot.get("windows") or []:
             number = int(window.get("terminal_number") or 0)
-            window["ai_agent"] = (
-                self.detection(number, str(window.get("id") or ""), str(window.get("title") or ""))
-                if window.get("online") and number > 0
-                else None
-            )
+            window_id = str(window.get("id") or "")
+            live = bool(window.get("online")) and number > 0
+            window["ai_agent"] = self.detection(number, window_id, str(window.get("title") or "")) if live else None
+            window["agent_scanned"] = live and self.scanned(number, window_id)
         return snapshot
 
 

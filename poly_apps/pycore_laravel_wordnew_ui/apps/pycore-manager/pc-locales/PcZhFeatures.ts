@@ -609,6 +609,16 @@ terminal: {
       waitingIdle: '等待无操作',
       misses: '未命中 {{misses}}/{{limit}}',
     },
+    marks: {
+      plain: '普通终端（已扫描，非 AI Agent）',
+      notScanned: '尚未扫描',
+      yesPending: '有待点击 Yes 的确认提示',
+      followUp: '下次确认扫描',
+      limitWait: '用量限制：恢复倒计时',
+      globalNext: '下次扫描 {{time}} 后',
+      globalDue: '即将扫描',
+      globalWaitingIdle: '扫描等待键盘空闲',
+    },
     backup: {
       title: '终端备份',
       hint: '自动保存的每个终端窗口的文本快照，最新的在前。',

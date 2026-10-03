@@ -609,6 +609,16 @@ terminal: {
       waitingIdle: 'waiting for inactivity',
       misses: 'misses {{misses}}/{{limit}}',
     },
+    marks: {
+      plain: 'Plain terminal (scanned, no AI agent)',
+      notScanned: 'Not scanned yet',
+      yesPending: 'Confirmation prompt to click Yes',
+      followUp: 'Next confirmation scan',
+      limitWait: 'Usage limit: resume countdown',
+      globalNext: 'Next scan pass in {{time}}',
+      globalDue: 'Scan pass due now',
+      globalWaitingIdle: 'Scan pass waiting for keyboard inactivity',
+    },
     backup: {
       title: 'Terminal backups',
       hint: 'Automatic text snapshots of every terminal window, newest first.',

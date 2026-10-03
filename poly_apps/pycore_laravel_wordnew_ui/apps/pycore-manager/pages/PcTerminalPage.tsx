@@ -68,7 +68,8 @@ import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manag
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import PcTerminalBackupPanel from '@/apps/pycore-manager/components/PcTerminalBackupPanel';
 import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminalSpecialStates';
-import { PcTerminalAgentBadge } from '@/apps/pycore-manager/components/PcTerminalAgentBadge';
+import { PcTerminalGlobalCountdown, PcTerminalStatusMarks, PcTerminalTileCountdown } from '@/apps/pycore-manager/components/terminal/PcTerminalStatusMarks';
+import { PcTerminalWatchProvider } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
@@ -1767,7 +1768,7 @@ const PcTerminalNodeView: React.FC = () => {
               ? `#${selectedWindow.terminal_number} · ${terminalName(selectedWindow, t('terminal.untitled'))}`
               : t('terminal.selectPrompt')}
           </span>
-          {selectedWindow?.online && <PcTerminalAgentBadge agent={selectedWindow.ai_agent} />}
+          {selectedWindow && <PcTerminalStatusMarks windowInfo={selectedWindow} />}
           {selectedWindow && (
             <button
               type="button"
@@ -2106,11 +2107,14 @@ const PcTerminalNodeView: React.FC = () => {
       className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
     >
       {jumpTitleVisible && selectedWindow && (
-        <p className="mb-1.5 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-          {t('terminal.jumpTitle', {
-            number: selectedWindow.terminal_number,
-            title: terminalName(selectedWindow, t('terminal.untitled')),
-          })}
+        <p className="mb-1.5 flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+          <span className="min-w-0 truncate">
+            {t('terminal.jumpTitle', {
+              number: selectedWindow.terminal_number,
+              title: terminalName(selectedWindow, t('terminal.untitled')),
+            })}
+          </span>
+          <PcTerminalStatusMarks windowInfo={selectedWindow} />
         </p>
       )}
       <div
@@ -2141,14 +2145,18 @@ const PcTerminalNodeView: React.FC = () => {
               {level.chars === 0
                 ? <Terminal className="h-3.5 w-3.5 shrink-0" />
                 : <span className="min-w-0 truncate whitespace-nowrap">{shortTitle}</span>}
-              {windowInfo.online && windowInfo.ai_agent && (
-                <span className={`absolute ${compact || level.chars === 0 ? 'left-0.5 top-0.5' : 'left-1 top-1'} h-1.5 w-1.5 rounded-full bg-fuchsia-500`} />
-              )}
               {windowInfo.online && (
-                <span className={`absolute ${compact || level.chars === 0 ? 'right-0.5 top-0.5' : 'right-1 top-1'} h-1.5 w-1.5 rounded-full ${
-                  windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
-                }`} />
+                <span className={`absolute inline-flex items-center gap-px ${compact || level.chars === 0 ? 'right-0.5 top-0.5' : 'right-1 top-1'}`}>
+                  <PcTerminalStatusMarks windowInfo={windowInfo} size="tile" inlineCountdown={false} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${
+                    windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
+                  }`} />
+                </span>
               )}
+              <PcTerminalTileCountdown
+                windowInfo={windowInfo}
+                className={`absolute ${compact || level.chars === 0 ? 'bottom-0 right-0.5' : 'bottom-0.5 right-1'}`}
+              />
             </button>
           );
         })}
@@ -2193,7 +2201,7 @@ const PcTerminalNodeView: React.FC = () => {
             <span className="truncate text-sm font-semibold">
               {terminalName(windowInfo, t('terminal.untitled'))}
             </span>
-            {windowInfo.online && <PcTerminalAgentBadge agent={windowInfo.ai_agent} iconOnly={compactLayout} />}
+            <PcTerminalStatusMarks windowInfo={windowInfo} />
             {windowInfo.online && windowInfo.control && !compactLayout && (
               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${
                 windowInfo.controllable === false
@@ -2280,7 +2288,8 @@ const PcTerminalNodeView: React.FC = () => {
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">
-          <div className="px-4 py-1.5 border-b border-slate-500/10">
+          <div className="relative px-4 py-1.5 border-b border-slate-500/10">
+            <PcTerminalGlobalCountdown className="absolute right-3 top-2" />
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
               {t('terminal.windowsTitle')}
             </h2>
@@ -2384,7 +2393,7 @@ const PcTerminalNodeView: React.FC = () => {
                         <span className="truncate text-[10px] font-semibold">
                           {terminalName(windowInfo, t('terminal.untitled'))}
                         </span>
-                        {windowInfo.online && <PcTerminalAgentBadge agent={windowInfo.ai_agent} iconOnly />}
+                        <PcTerminalStatusMarks windowInfo={windowInfo} />
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                           windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
                         }`} />
@@ -2706,7 +2715,9 @@ const PcTerminalPage: React.FC = () => {
         <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={setNodeUrl} />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
-        <PcTerminalNodeView />
+        <PcTerminalWatchProvider>
+          <PcTerminalNodeView />
+        </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
     </>
   );
