@@ -320,6 +320,12 @@
             "loopback_hosts": ["localhost", "loopback", "ipv6_loopback"],
             "loopback_browser_rule": "loopback-peer-and-loopback-host-header-and-allowed-origin",
             "non_loopback_rule": "client_key_required",
+            "private_lan_rule": "open",
+            "private_lan_networks": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "100.64.0.0/10", "fc00::/7", "fe80::/10"],
+            "private_lan_host_suffixes": ["local", "lan", "internal", "home.arpa", "ts.net"],
+            "cors_allowed_methods": ["GET", "POST", "OPTIONS"],
+            "cors_allowed_headers": ["content-type", "x-request-id"],
+            "cors_max_age_seconds": 600,
             "cors_wildcard_with_credentials": false,
             "error_codes": {"host_forbidden": "local_rpc_host_forbidden", "origin_forbidden": "local_rpc_origin_forbidden"}
         }
