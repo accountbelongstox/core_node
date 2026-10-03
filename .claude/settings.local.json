@@ -96,7 +96,10 @@
       "Bash(node --check inject-scripts/keyboard-helper.js)",
       "Bash(export *)",
       "Bash(cat *)",
-      "PowerShell(schtasks *)"
+      "PowerShell(schtasks *)",
+      "Bash(adb shell *)",
+      "Bash(adb logcat *)",
+      "Bash(awk '$9>3')"
     ],
     "deny": [],
     "ask": []
