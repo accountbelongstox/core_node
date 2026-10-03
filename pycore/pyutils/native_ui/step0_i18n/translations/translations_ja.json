@@ -86,7 +86,9 @@
     "title": "ターミナルのバックアップ",
     "message": "{count} 個のターミナルをバックアップしました、{kb} K(新規 {stored_kb} K)",
     "stuck_title": "AI が停止しています",
-    "stuck_message": "ターミナル {number}({name})が確認プロンプトで停止しています。ご本人の対応が必要です"
+    "stuck_message": "ターミナル {number}({name})が確認プロンプトで停止しています。ご本人の対応が必要です",
+    "agent_done_title": "AI エージェント完了",
+    "agent_done_message": "ターミナル {number}({name}):AI エージェントがタスクを完了したか、入力を待っています"
   },
   "gitsync_watch": {
     "conflict_title": "gitsync のマージ競合 - すぐに修正してください",

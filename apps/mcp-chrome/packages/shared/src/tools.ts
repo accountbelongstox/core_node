@@ -891,6 +891,11 @@ export const TOOL_SCHEMAS: Tool[] = [
           description:
             'Maximum output size in bytes after sanitization (default: 51200). Output exceeding this limit will be truncated.',
         },
+        frameUrlContains: {
+          type: 'string',
+          description:
+            'Run the code in every cross-site iframe whose URL contains this text (e.g. a Colab output frame) instead of the tab; the result is a list of {url, result}.',
+        },
       },
       required: ['code'],
     },

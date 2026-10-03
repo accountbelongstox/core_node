@@ -1,14 +1,36 @@
 # -*- coding: utf-8 -*-
-"""Read Colab notebook cell output through a DOM-only evaluation in the Colab tab."""
+"""Read Colab notebook cell output through the user's Chrome (DOM and output frames)."""
 
+import json
 import re
 from typing import Any, Dict, List, Optional
 
 from pycore.pyutils.chrome_mcp.chrome_mcp_bridge import chrome_bridge
-from pycore.pyutils.chrome_mcp.chrome_mcp_constants import ANSI_ESCAPE_PATTERN, COLAB_OUTPUT_SCRIPT
+from pycore.pyutils.chrome_mcp.chrome_mcp_constants import (
+    ANSI_ESCAPE_PATTERN,
+    COLAB_FRAME_TEXT_SCRIPT,
+    COLAB_MAX_CHARS,
+    COLAB_OUTPUT_SCRIPT,
+    COLAB_OUTPUT_SEGMENTS_SCRIPT,
+)
 
 
 class ColabReader:
+    async def live_text(self, tab_id: int) -> str:
+        """Rendered output of the code cells in DOM order ('' when nothing is rendered)."""
+        segments = await chrome_bridge.evaluate(tab_id, COLAB_OUTPUT_SEGMENTS_SCRIPT)
+        if isinstance(segments, str):
+            segments = json.loads(segments)
+        parts: List[str] = []
+        for segment in segments or []:
+            if "frame" in segment:
+                # A frame host can expose several targets; the live one holds the text.
+                texts = await chrome_bridge.evaluate_frames(tab_id, segment["frame"], COLAB_FRAME_TEXT_SCRIPT)
+                parts.append(max((str(text or "") for text in texts), key=len, default=""))
+            else:
+                parts.append(str(segment.get("text") or ""))
+        return "\n".join(part for part in parts if part.strip())
+
     async def read(
         self,
         url_contains: str,
@@ -21,16 +43,19 @@ class ColabReader:
         failures: List[str] = []
         for tab in tabs:
             try:
-                page = await chrome_bridge.evaluate(int(tab["tabId"]), COLAB_OUTPUT_SCRIPT)
+                text = await self.live_text(int(tab["tabId"]))
+                if not text:
+                    page = await chrome_bridge.evaluate(int(tab["tabId"]), COLAB_OUTPUT_SCRIPT)
+                    text = str(page.get("text") or "")
             except RuntimeError as error:
                 failures.append(f"{tab['tabId']}: {error}")
                 continue
-            lines = ANSI_ESCAPE_PATTERN.sub("", str(page.get("text") or "")).split("\n")
+            lines = ANSI_ESCAPE_PATTERN.sub("", text[-COLAB_MAX_CHARS:]).split("\n")
             matched = [line for line in lines if pattern.search(line)] if pattern else lines
             return {
                 "tab_id": tab["tabId"],
                 "title": tab.get("title"),
-                "output_chars": page.get("total"),
+                "output_chars": len(text),
                 "matched_lines": len(matched),
                 "lines": matched[-tail:] if tail > 0 else matched,
             }

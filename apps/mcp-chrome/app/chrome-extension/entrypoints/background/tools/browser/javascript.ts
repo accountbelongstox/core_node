@@ -17,13 +17,45 @@ interface JavaScriptToolParams {
   windowId?: number;
   timeoutMs?: number;
   maxOutputBytes?: number;
+  frameUrlContains?: string;
+}
+
+interface EvaluationResponse {
+  exceptionDetails?: { exception?: { description?: string }; text?: string };
+  result?: {
+    description?: string;
+    unserializableValue?: string;
+    value?: unknown;
+  };
+}
+
+// Cross-site iframes (e.g. Colab cell output frames) run as their own debugger
+// targets; evaluating there bypasses both the origin boundary and page CSP.
+async function frameTargets(urlPart: string): Promise<chrome.debugger.TargetInfo[]> {
+  const targets = await chrome.debugger.getTargets();
+  return targets.filter((target) => target.type === 'other' && target.url.includes(urlPart));
+}
+
+function evaluationValue(response: EvaluationResponse): unknown {
+  if (response.exceptionDetails) {
+    const details = response.exceptionDetails.exception?.description
+      || response.exceptionDetails.text
+      || 'Unknown error';
+    throw new Error(`JavaScript execution failed: ${details}`);
+  }
+  if (!response.result) {
+    throw new Error('No result returned from script execution');
+  }
+  return Object.prototype.hasOwnProperty.call(response.result, 'value')
+    ? response.result.value
+    : response.result.unserializableValue ?? response.result.description ?? null;
 }
 
 class JavaScriptTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.JAVASCRIPT;
 
   async execute(args: JavaScriptToolParams): Promise<ToolResult> {
-    const { code, tabId, windowId, timeoutMs = 15000, maxOutputBytes = 51200 } = args || {};
+    const { code, tabId, windowId, timeoutMs = 15000, maxOutputBytes = 51200, frameUrlContains } = args || {};
 
     if (!code || typeof code !== 'string' || code.trim().length === 0) {
       return createErrorResponse('Parameter [code] is required');
@@ -47,8 +79,8 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
       const finalTabId = targetTab.id;
 
       const expression = `(async () => {\n${code}\n})()`;
-      const evaluation = await withTimeout(
-        withDebuggerSession(finalTabId, async (target) => chrome.debugger.sendCommand(
+      const evaluate = (debuggee: number | chrome.debugger.Debuggee) => withTimeout(
+        withDebuggerSession(debuggee, async (target) => chrome.debugger.sendCommand(
           target,
           'Runtime.evaluate',
           {
@@ -60,27 +92,24 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
         )),
         timeoutMs,
         `Execution timed out after ${timeoutMs}ms`,
-      );
-      const response = evaluation as {
-        exceptionDetails?: { exception?: { description?: string }; text?: string };
-        result?: {
-          description?: string;
-          unserializableValue?: string;
-          value?: unknown;
-        };
-      };
-      if (response.exceptionDetails) {
-        const details = response.exceptionDetails.exception?.description
-          || response.exceptionDetails.text
-          || 'Unknown error';
-        return createErrorResponse(`JavaScript execution failed: ${details}`);
+      ) as Promise<EvaluationResponse>;
+
+      let value: unknown;
+      if (frameUrlContains) {
+        const frames = await frameTargets(frameUrlContains);
+        if (frames.length === 0) {
+          return createErrorResponse(`No frame target matches "${frameUrlContains}"`);
+        }
+        value = [];
+        for (const frame of frames) {
+          (value as unknown[]).push({
+            url: frame.url,
+            result: evaluationValue(await evaluate({ targetId: frame.id })),
+          });
+        }
+      } else {
+        value = evaluationValue(await evaluate(finalTabId));
       }
-      if (!response.result) {
-        return createErrorResponse('No result returned from script execution');
-      }
-      const value = Object.prototype.hasOwnProperty.call(response.result, 'value')
-        ? response.result.value
-        : response.result.unserializableValue ?? response.result.description ?? null;
       let resultText: string;
       try {
         resultText = JSON.stringify(value, null, 2);
