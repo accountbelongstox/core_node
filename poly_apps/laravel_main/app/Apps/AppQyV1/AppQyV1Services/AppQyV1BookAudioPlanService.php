@@ -40,6 +40,8 @@ final class AppQyV1BookAudioPlanService
     private const BUILD_LOCK_SECONDS = 300;
     private const SYNC_KEY = 'book_plan:sync:';
     private const SYNC_SECONDS = 300;
+    private const DIRTY_KEY = 'book_plan:dirty:';
+    private const DIRTY_SECONDS = 86400;
     private const WORD_PATTERN = "/[\\p{L}]+(?:['\\x{2019}][\\p{L}]+)*/u";
     private const CJK_PATTERN = '/[\x{3040}-\x{30ff}\x{3400}-\x{4dbf}\x{4e00}-\x{9fff}\x{ac00}-\x{d7af}\x{f900}-\x{faff}]/u';
     private const INSERT_CHUNK = 1000;
@@ -257,6 +259,7 @@ final class AppQyV1BookAudioPlanService
             'generating' => $figures['generating'],
             'queued' => max(0, $figures['total'] - $figures['ready'] - $figures['generating'] - $figures['failed']),
             'failed' => $figures['failed'],
+            'empty_languages' => $this->emptyLanguages($plan),
             'skipped' => (int) $plan->skipped,
             'ready_cursor' => (int) $plan->ready_seq_max,
             'nodes' => $this->nodeRows($nodes),
@@ -398,14 +401,14 @@ final class AppQyV1BookAudioPlanService
      * The plan follows the book: sentences a re-segmentation retired leave it (their rows can
      * never get audio), the live sentences it lacks join it, and a clip whose audio was taken
      * back (quality repair, missing file) gets its ready sequence cleared so it is ready again
-     * once regenerated. At most every SYNC_SECONDS. Returns the sentence clips added.
+     * once regenerated. At most every SYNC_SECONDS (null while throttled). Returns the sentence clips added.
      */
-    private function syncMembership(object $plan): int
+    private function syncMembership(object $plan): ?int
     {
         $cache = QueueCenterCacheStore::get();
 
         if (!$cache->add(self::SYNC_KEY . $plan->plan_id, 1, self::SYNC_SECONDS)) {
-            return 0;
+            return null;
         }
         $languages = array_values(array_filter((array) json_decode((string) $plan->languages, true), 'is_string'));
         $chapter = $plan->chapter_index === null ? null : (int) $plan->chapter_index;
@@ -441,17 +444,83 @@ final class AppQyV1BookAudioPlanService
         return $added;
     }
 
-    /** Deferred membership sync of a status read; new sentences bring their words into a word plan. */
-    private function syncAndRebuildWords(object $plan): void
+    /** Requested sentence languages of the plan that hold no clip (their sentences are not in the library yet, or the plan was built before they were). */
+    public function emptyLanguages(object $plan): array
+    {
+        $empty = [];
+
+        foreach (array_filter((array) json_decode((string) $plan->languages, true), 'is_string') as $language) {
+            if ($this->db->selectOne(
+                "SELECT 1 AS present FROM {$this->clips} WHERE plan_pk = ? AND lane = ? AND language = ? LIMIT 1",
+                [$plan->id, WorkLeaseLanes::SENTENCE_AUDIO, $language]
+            ) === null) {
+                $empty[] = $language;
+            }
+        }
+
+        return $empty;
+    }
+
+    /** A writer added sentences to a book: the plans of that book sync on the next timer run, without waiting for an app read. */
+    public function noteSourceChanged(string $sourceKey): void
     {
         try {
-            if ($this->syncMembership($plan) > 0 && (bool) $plan->include_words && $plan->state === 'ready'
+            $cache = QueueCenterCacheStore::get();
+
+            foreach ($this->db->select("SELECT plan_id FROM {$this->plans} WHERE source_key = ?", [$sourceKey]) as $plan) {
+                $cache->put(self::DIRTY_KEY . $plan->plan_id, 1, self::DIRTY_SECONDS);
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('[BookAudioPlan] source change not noted', ['source_key' => $sourceKey, 'error' => $exception->getMessage()]);
+        }
+    }
+
+    /**
+     * Timer pass: plans flagged by noteSourceChanged and plans with a requested language
+     * holding no clip sync their membership (idempotent; a plan at most every SYNC_SECONDS,
+     * at most $limit plans per pass; the rest wait for the next pass). Returns the plans synced.
+     */
+    public function syncPending(int $limit): int
+    {
+        $cache = QueueCenterCacheStore::get();
+        $synced = 0;
+
+        foreach ($this->db->select("SELECT * FROM {$this->plans} ORDER BY id") as $plan) {
+            if ($synced >= $limit) {
+                break;
+            }
+            $dirty = $cache->has(self::DIRTY_KEY . $plan->plan_id);
+            if (!$dirty && $this->emptyLanguages($plan) === []) {
+                continue;
+            }
+            if ($dirty) {
+                $cache->forget(self::DIRTY_KEY . $plan->plan_id);
+                $cache->forget(self::SYNC_KEY . $plan->plan_id);
+            }
+            if ($this->syncAndRebuildWords($plan) !== null) {
+                $synced++;
+            }
+        }
+
+        return $synced;
+    }
+
+    /** Membership sync of a plan (status read or timer); new sentences bring their words into a word plan. Null while throttled or failed. */
+    private function syncAndRebuildWords(object $plan): ?int
+    {
+        try {
+            $added = $this->syncMembership($plan);
+            if (($added ?? 0) > 0 && (bool) $plan->include_words && $plan->state === 'ready'
                 && QueueCenterCacheStore::get()->add(self::BUILD_KEY . $plan->plan_id, 1, self::BUILD_LOCK_SECONDS)) {
                 $language = AppQyV1TableMaps::normalizeLangCode((string) AppQyV1BookModel::query()->where('source_key', $plan->source_key)->value('language'));
                 $this->buildWords((string) $plan->plan_id, $language);
             }
+
+            return $added;
         } catch (\Throwable $exception) {
             Log::warning('[BookAudioPlan] membership sync failed', ['plan' => $plan->plan_id, 'error' => $exception->getMessage()]);
+
+            return null;
         }
     }
 
