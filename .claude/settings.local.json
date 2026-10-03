@@ -225,7 +225,9 @@
       "PowerShell(Get-WinEvent *)",
       "PowerShell(Get-NetTCPConnection *)",
       "Bash(php -l AppQyV1Services/AppQyV1AudioBundleService.php)",
-      "Bash(php -l AppQyV1Controllers/AppQyV1AITools/AppQyV1AudioLookupCtl.php)"
+      "Bash(php -l AppQyV1Controllers/AppQyV1AITools/AppQyV1AudioLookupCtl.php)",
+      "Bash(ip -4 -o addr show)",
+      "Bash(awk '{print $2,$4}')"
     ],
     "deny": [],
     "ask": []

@@ -46,6 +46,8 @@ export const PycoreManagerSessionStorageKeys = {
   PYCORE_UI_SESSION: 'pc.uiSession.v1',
   /** Per-node visit history of the terminal operation view (back / forward). */
   PYCORE_TERMINAL_NAV_PREFIX: 'pc.terminal.nav:',
+  /** Terminal composer input mode on this device: text or voice. */
+  PYCORE_TERMINAL_COMPOSER_MODE: 'pc.terminal.composerMode',
 } as const;
 
 export const PycoreManagerStorageKeys = {
