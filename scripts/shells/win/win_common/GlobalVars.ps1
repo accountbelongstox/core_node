@@ -231,7 +231,7 @@ $Global:GIT_DEFAULT_USER = "DevOps User"
 $Global:GIT_DEFAULT_EMAIL = "devops@example.com"
 
 # Node.js related global variables
-$Global:NODE_VERSION = "24.11.1"
+$Global:NODE_VERSION = "26.9.0"
 $Global:NODE_DIR = Join-Path $Global:LANG_COMPILER_DIR "node-v$Global:NODE_VERSION"
 $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
 # Secret tools get their password on stdin through this runner, never on a command line.

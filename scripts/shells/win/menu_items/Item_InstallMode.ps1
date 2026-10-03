@@ -14,7 +14,7 @@ $item = @{
     Order = 10
     Title = 'Switch Installation Mode'
     Var   = 'INSTALL_TYPE'
-    Values = @('base', 'server', 'full')
+    Values = @('base', 'server', 'full', 'desktop')
     StepsProvider = {
         . (Join-Path $winCommonDir 'InstallerScriptsList.ps1')
         return $InstallerScripts

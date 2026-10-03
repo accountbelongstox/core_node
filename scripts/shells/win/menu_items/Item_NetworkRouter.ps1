@@ -15,6 +15,7 @@ $item = @{
     Title = 'Setup Network Router'
     Var   = 'INSTALL_NETWORK_ROUTER'
     Values = @('false','true')
+    Presets = @{ base = 'false'; server = 'false'; full = 'false'; desktop = 'false' }
     Steps = @(
         'Step73_InstallNetworkRouter.ps1'
     )

@@ -15,6 +15,7 @@ $item = @{
     Title = 'Start Redis After Installation'
     Var   = 'START_REDIS'
     Values = @('false','true')
+    Presets = @{ base = 'false'; server = 'true'; full = 'true'; desktop = 'false' }
     Steps = @(
         'Step45_InstallRedis.ps1'
     )
