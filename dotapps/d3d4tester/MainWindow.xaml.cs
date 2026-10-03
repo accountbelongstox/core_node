@@ -420,7 +420,7 @@ public partial class MainWindow : Window, IMainWindowHost
         var p = D3D4TesterI18n.Provider;
         // Side effects: region-change and BN/ROSBOT mismatch auto-scan (1:1 Python)
         string? regionKey = s.BattlenetRegion;
-        if (regionKey == AppConstants.RegionAsia || regionKey == AppConstants.RegionCn)
+        if (regionKey == BattlenetConstants.RegionAsia || regionKey == BattlenetConstants.RegionCn)
         {
             var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
             string? cached = string.IsNullOrEmpty(rosOpts.BattlenetRegionCache) ? null : rosOpts.BattlenetRegionCache;
@@ -549,7 +549,7 @@ public partial class MainWindow : Window, IMainWindowHost
         string? region = GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion;
         string? chosen = result.RosbotDirs.Count > 0 ? RosbotPathPicker.PickBestRosbotDirByRegion(result.RosbotDirs, region) : null;
         bool overwriteOk = true;
-        if (chosen != null && curRosOk && (region == AppConstants.RegionAsia || region == AppConstants.RegionCn))
+        if (chosen != null && curRosOk && (region == BattlenetConstants.RegionAsia || region == BattlenetConstants.RegionCn))
         {
             if (RosbotPathPicker.PathMatchesRegion(curRos, region) && !RosbotPathPicker.PathMatchesRegion(chosen, region))
                 overwriteOk = false;

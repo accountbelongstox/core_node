@@ -32,6 +32,8 @@ class WorkLeaseController extends Controller
             'node_id' => 'nullable|string|max:32',
             'platform' => 'nullable|string|max:20',
             'label' => 'nullable|string|max:32',
+            'lan_urls' => 'nullable|array|max:' . WorkLeaseService::LAN_URLS_MAX,
+            'lan_urls.*' => ['string', 'max:64', 'regex:' . WorkLeaseService::LAN_URL_PATTERN],
             'throughput_per_hour' => 'nullable',
             'lanes' => 'required|array|min:1',
             'lanes.*' => 'array',

@@ -25,6 +25,7 @@ LOOPBACK_HOSTS: FrozenSet[str] = frozenset(
     contract_host(str(name)).lower() for name in LOCAL_RPC_CONTRACT["loopback_hosts"]
 )
 LOOPBACK_BIND_HOST = contract_host("loopback")
+LAN_BIND_HOST = contract_host("any")
 DASHBOARD_ORIGIN_PORTS = (contract_port("nexus_dash_frontend"), contract_port("pycore_backend"))
 DASHBOARD_UI_PORT_ENV = "PYCORE_UI_PORT"
 ORIGIN_SCHEMES = ("http", "https")
@@ -134,9 +135,12 @@ def lan_bind_enabled() -> bool:
 
 
 def resolve_bind_host(requested: str) -> str:
-    """Loopback unless the LAN bind setting admits the requested host."""
+    """Loopback unless the LAN bind setting is on; with it, a loopback request
+    binds every interface (LAN callers still need K3) and any other host stays."""
     host = str(requested or "").strip() or LOOPBACK_BIND_HOST
-    if host.lower() in LOOPBACK_HOSTS or lan_bind_enabled():
+    if lan_bind_enabled():
+        return LAN_BIND_HOST if host.lower() in LOOPBACK_HOSTS else host
+    if host.lower() in LOOPBACK_HOSTS:
         return host
     ColorPrint.yellow(
         f"[local_rpc] bind {host} needs the LAN bind setting "

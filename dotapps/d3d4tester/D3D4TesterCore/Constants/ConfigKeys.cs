@@ -21,7 +21,7 @@ public static partial class ConfigKeys
     public const string MacroConfigsAuxiliaryConfig = "macro_configs.auxiliary_config";
 
     /// <summary>Path used for hotkey rebind (same as Python HOTKEY_CONFIG_PATH_AUXILIARY).</summary>
-    public const string HotkeyConfigPathAuxiliary = "macro_configs.auxiliary_config";
+    public const string HotkeyConfigPathAuxiliary = MacroConfigsAuxiliaryConfig;
 
     public const string ConfigFileName = "d3check_config.json";
 

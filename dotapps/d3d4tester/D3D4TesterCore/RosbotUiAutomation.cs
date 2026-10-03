@@ -28,7 +28,7 @@ public static class RosbotUiAutomation
     private const string ButtonControlType = "ButtonControl";
     private const string ComboBoxControlType = "ComboBoxControl";
     private const string ListItemControlType = "ListItemControl";
-    private const string DebugTimestampFormat = "yyyyMMdd_HHmmss";
+    private const string DebugTimestampFormat = D3PathConstants.FileTimestampFormat;
 
     /// <summary>Mouse fallback: instant move + click at the rect center, then restore the cursor. 1:1 Python _ROSBOT_CLICK_PARAMS.</summary>
     public static readonly Func<Rectangle, bool> RosbotClick = rect =>

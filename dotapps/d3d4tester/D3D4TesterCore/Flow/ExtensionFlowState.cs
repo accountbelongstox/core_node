@@ -31,10 +31,10 @@ public enum ExtensionPhase
 /// </summary>
 public sealed class ExtensionFlowState
 {
-    public const string BranchStart = "start";
-    public const string BranchGameTool = "game_tool";
-    public const string BranchDisconnect = "disconnect";
-    public const string BranchWait = "wait";
+    public const string BranchStart = D3StartGameAndTeleport.StateStart;
+    public const string BranchGameTool = D3StartGameAndTeleport.StateGameTool;
+    public const string BranchDisconnect = D3StartGameAndTeleport.StateDisconnect;
+    public const string BranchWait = D3StartGameAndTeleport.StateWait;
     public const string BranchOther = "other";
 
     private readonly object _lock = new();

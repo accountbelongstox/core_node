@@ -7,10 +7,17 @@ namespace DotApps.d3d4tester.Core;
 /// </summary>
 public static class D3PathConstants
 {
-    public const string BattleNetExeName = "Battle.net.exe";
     public const string DiabloIIIExeName = "Diablo III.exe";
     public static readonly string[] RosbotExePatterns = { "ros-bot*.exe", "RoS-BoT*.exe" };
     public const int PathScanMaxDepth = 6;
+
+    /// <summary>Debug output folders (1:1 Python pytools/tmp and .cache) shared by every debug dump.</summary>
+    public const string PytoolsDirName = "pytools";
+    public const string TmpDirName = "tmp";
+    public const string CacheDirName = ".cache";
+    /// <summary>Timestamps in debug / export file names (seconds, milliseconds).</summary>
+    public const string FileTimestampFormat = "yyyyMMdd_HHmmss";
+    public const string FileTimestampMsFormat = "yyyyMMdd_HHmmss_fff";
 
     /// <summary>Base directory for ROSBOT update convention: GameTools\{Asia|CN}_{version}\RosBot. 1:1 Python ROSBOT_GAMETOOLS_BASE.</summary>
     public const string RosbotGameToolsBase = @"D:\applications\GameTools";

@@ -5,6 +5,7 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotCore.Foundations;
 using DotCore.UITheme;
+using DotApps.d3d4tester.Core.Battlenet;
 
 namespace DotApps.d3d4tester.Windows;
 
@@ -17,7 +18,7 @@ public partial class CredentialsDialog : Window
     private const int RegionIndexAsia = 0;
     private const int RegionIndexCn = 1;
 
-    public CredentialsDialog(string defaultRegion = AsiaCredentialsService.RegionAsia)
+    public CredentialsDialog(string defaultRegion = BattlenetConstants.RegionAsia)
     {
         InitializeComponent();
         ColorPrinter.Gray($"[DEBUG][CredentialsDialog] Open defaultRegion={defaultRegion} configPath={ConfigPaths.ConfigUserPath}");
@@ -34,12 +35,12 @@ public partial class CredentialsDialog : Window
 
         ComboRegion.Items.Add(p.GetUiText(I18nKeys.CredentialsRegionAsia, "Asia"));
         ComboRegion.Items.Add(p.GetUiText(I18nKeys.CredentialsRegionCn, "CN"));
-        ComboRegion.SelectedIndex = defaultRegion == AsiaCredentialsService.RegionCn ? RegionIndexCn : RegionIndexAsia;
+        ComboRegion.SelectedIndex = defaultRegion == BattlenetConstants.RegionCn ? RegionIndexCn : RegionIndexAsia;
         ComboRegion.SelectionChanged += (_, _) => LoadRegionIntoFields(CurrentRegion);
         LoadRegionIntoFields(CurrentRegion);
     }
 
-    private string CurrentRegion => ComboRegion.SelectedIndex == RegionIndexCn ? AsiaCredentialsService.RegionCn : AsiaCredentialsService.RegionAsia;
+    private string CurrentRegion => ComboRegion.SelectedIndex == RegionIndexCn ? BattlenetConstants.RegionCn : BattlenetConstants.RegionAsia;
 
     private void LoadRegionIntoFields(string region)
     {

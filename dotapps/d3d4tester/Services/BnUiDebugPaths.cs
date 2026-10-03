@@ -18,10 +18,10 @@ namespace DotApps.d3d4tester.Services;
 /// </summary>
 public static class BnUiDebugPaths
 {
-    public const string CacheDirName = ".cache";
+    public const string CacheDirName = D3PathConstants.CacheDirName;
     public const string DocsDirName = "docs";
-    public const string PytoolsDirName = "pytools";
-    public const string TmpDirName = "tmp";
+    public const string PytoolsDirName = D3PathConstants.PytoolsDirName;
+    public const string TmpDirName = D3PathConstants.TmpDirName;
     private const string JsonExtension = ".json";
     private const string LogPrefix = "[RosbotPanel]";
     private const string ControlsProperty = "controls";

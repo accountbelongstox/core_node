@@ -29,7 +29,7 @@ public static class D3StartGameAndTeleport
     private const double ClickDebugFontScale = 0.5;
     private const int ClickDebugLabelOffsetX = 10;
     private const int ClickDebugLabelOffsetY = 4;
-    private const string ClickDebugTimestampFormat = "yyyyMMdd_HHmmss_fff";
+    private const string ClickDebugTimestampFormat = D3PathConstants.FileTimestampMsFormat;
 
     private static readonly D3StatesMatch NoStates = new(false, false, false, false);
     private static readonly object C10Lock = new();

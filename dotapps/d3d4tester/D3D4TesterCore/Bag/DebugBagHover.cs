@@ -13,12 +13,10 @@ namespace DotApps.d3d4tester.Core.Bag;
 /// <summary>Bag debug temp dirs. 1:1 Python providor.constants.common TMP_DIR (system cache / pytools / tmp) and DEBUG_BAG_LINE_DIR.</summary>
 public static class BagPaths
 {
-    private const string PytoolsDirName = "pytools";
-    private const string TmpDirName = "tmp";
     private const string DebugBagLineDirName = "debug_bag_line";
 
     /// <summary>TMP_DIR.</summary>
-    public static string TmpDir => Path.Combine(Path.GetTempPath(), PytoolsDirName, TmpDirName);
+    public static string TmpDir => Path.Combine(Path.GetTempPath(), D3PathConstants.PytoolsDirName, D3PathConstants.TmpDirName);
 
     /// <summary>DEBUG_BAG_LINE_DIR.</summary>
     public static string DebugBagLineDir => Path.Combine(TmpDir, DebugBagLineDirName);

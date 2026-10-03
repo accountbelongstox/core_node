@@ -24,8 +24,6 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     private const string ChipSuccessStyleKey = "StatusChipSuccessStyle";
     private const string ChipWarningStyleKey = "StatusChipWarningStyle";
     private const string ChipDangerStyleKey = "StatusChipDangerStyle";
-    private const string ConfigTabsKeyPrefix = "ui.config_tabs.";
-    private const string DefaultSkillConfig = "config1";
     private static readonly Regex PascalBoundary = new("(?<=[a-z0-9])(?=[A-Z])", RegexOptions.Compiled);
 
     public static D3StatusBarDisplayBuilder Instance { get; } = new();
@@ -46,7 +44,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string errorKey = ErrorBrushKey;
 
         string? shownRegion = s.BattlenetUiRegion ?? s.BattlenetRegion;
-        string regionSuffix = shownRegion == AppConstants.RegionCn ? p.GetUiText(I18nKeys.StatusServerCn) : (shownRegion == AppConstants.RegionAsia ? p.GetUiText(I18nKeys.StatusServerAsia) : p.GetUiText(I18nKeys.StatusServerUnknown));
+        string regionSuffix = shownRegion == BattlenetConstants.RegionCn ? p.GetUiText(I18nKeys.StatusServerCn) : (shownRegion == BattlenetConstants.RegionAsia ? p.GetUiText(I18nKeys.StatusServerAsia) : p.GetUiText(I18nKeys.StatusServerUnknown));
         string bnLabel = p.GetUiText(I18nKeys.StatusBattlenet);
         string bnText;
         string bnBrushKey;
@@ -162,8 +160,8 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string pathRosText = (rosOk ? StatusDisplaySymbols.Found : StatusDisplaySymbols.NotFound) + " ROS" + rosSuffix;
         string pathRosBrushKey = rosOk ? successKey : mutedKey;
 
-        string configName = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.MacroConfigsCurrentSkillConfig, DefaultSkillConfig) ?? DefaultSkillConfig;
-        string configKey = ConfigTabsKeyPrefix + configName;
+        string configName = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.MacroConfigsCurrentSkillConfig, ViewModels.MainViewModel.DefaultConfigName) ?? ViewModels.MainViewModel.DefaultConfigName;
+        string configKey = I18nKeys.ConfigTabsPrefix + configName;
         string configText = p.GetUiText(configKey);
         if (string.IsNullOrEmpty(configText) || configText == configKey) configText = configName;
         string currentConfigLabel = $"{p.GetUiText(I18nKeys.OptionsCurrentActiveConfig)}: {configText}";
