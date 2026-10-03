@@ -21,8 +21,8 @@ export interface EncodeResult {
 
 const MINIMAL: Record<string, string> = { '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot', "'": '#39' };
 const NAMED: Record<string, string> = {
-  ' ': 'nbsp', '¡': 'iexcl', '¢': 'cent', '£': 'pound', '¤': 'curren', '¥': 'yen', '¦': 'brvbar', '§': 'sect', '¨': 'uml', '©': 'copy', 'ª': 'ordf', '«': 'laquo', '¬': 'not',
-  '­': 'shy', '®': 'reg', '¯': 'macr', '°': 'deg', '±': 'plusmn', '²': 'sup2', '³': 'sup3', '´': 'acute', 'µ': 'micro', '¶': 'para', '·': 'middot', '¸': 'cedil', '¹': 'sup1',
+  '\u00a0': 'nbsp', '¡': 'iexcl', '¢': 'cent', '£': 'pound', '¤': 'curren', '¥': 'yen', '¦': 'brvbar', '§': 'sect', '¨': 'uml', '©': 'copy', 'ª': 'ordf', '«': 'laquo', '¬': 'not',
+  '\u00ad': 'shy', '®': 'reg', '¯': 'macr', '°': 'deg', '±': 'plusmn', '²': 'sup2', '³': 'sup3', '´': 'acute', 'µ': 'micro', '¶': 'para', '·': 'middot', '¸': 'cedil', '¹': 'sup1',
   'º': 'ordm', '»': 'raquo', '¼': 'frac14', '½': 'frac12', '¾': 'frac34', '¿': 'iquest', 'À': 'Agrave', 'Á': 'Aacute', 'Â': 'Acirc', 'Ã': 'Atilde', 'Ä': 'Auml', 'Å': 'Aring',
   'Æ': 'AElig', 'Ç': 'Ccedil', 'È': 'Egrave', 'É': 'Eacute', 'Ê': 'Ecirc', 'Ë': 'Euml', 'Ì': 'Igrave', 'Í': 'Iacute', 'Î': 'Icirc', 'Ï': 'Iuml', 'Ñ': 'Ntilde', 'Ò': 'Ograve',
   'Ó': 'Oacute', 'Ô': 'Ocirc', 'Õ': 'Otilde', 'Ö': 'Ouml', '×': 'times', 'Ø': 'Oslash', 'Ù': 'Ugrave', 'Ú': 'Uacute', 'Û': 'Ucirc', 'Ü': 'Uuml', 'Ý': 'Yacute', 'ß': 'szlig',
@@ -30,7 +30,7 @@ const NAMED: Record<string, string> = {
   'ì': 'igrave', 'í': 'iacute', 'î': 'icirc', 'ï': 'iuml', 'ñ': 'ntilde', 'ò': 'ograve', 'ó': 'oacute', 'ô': 'ocirc', 'õ': 'otilde', 'ö': 'ouml', '÷': 'divide', 'ø': 'oslash',
   'ù': 'ugrave', 'ú': 'uacute', 'û': 'ucirc', 'ü': 'uuml', 'ý': 'yacute', 'ÿ': 'yuml', 'Œ': 'OElig', 'œ': 'oelig', 'Š': 'Scaron', 'š': 'scaron', 'ƒ': 'fnof', 'ˆ': 'circ', '˜': 'tilde',
   'Α': 'Alpha', 'Β': 'Beta', 'Γ': 'Gamma', 'Δ': 'Delta', 'Ω': 'Omega', 'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta', 'λ': 'lambda', 'μ': 'mu', 'π': 'pi', 'σ': 'sigma', 'ω': 'omega',
-  ' ': 'ensp', ' ': 'emsp', ' ': 'thinsp', '–': 'ndash', '—': 'mdash', '‘': 'lsquo', '’': 'rsquo', '‚': 'sbquo', '“': 'ldquo', '”': 'rdquo', '„': 'bdquo', '†': 'dagger',
+  '\u2002': 'ensp', '\u2003': 'emsp', '\u2009': 'thinsp', '–': 'ndash', '—': 'mdash', '‘': 'lsquo', '’': 'rsquo', '‚': 'sbquo', '“': 'ldquo', '”': 'rdquo', '„': 'bdquo', '†': 'dagger',
   '‡': 'Dagger', '•': 'bull', '…': 'hellip', '‰': 'permil', '′': 'prime', '″': 'Prime', '‹': 'lsaquo', '›': 'rsaquo', '€': 'euro', '™': 'trade', '←': 'larr', '↑': 'uarr', '→': 'rarr',
   '↓': 'darr', '↔': 'harr', '⇒': 'rArr', '⇔': 'hArr', '∀': 'forall', '∂': 'part', '∃': 'exist', '∅': 'empty', '∇': 'nabla', '∈': 'isin', '∑': 'sum', '−': 'minus', '√': 'radic',
   '∞': 'infin', '∩': 'cap', '∪': 'cup', '∫': 'int', '≈': 'asymp', '≠': 'ne', '≡': 'equiv', '≤': 'le', '≥': 'ge', '♠': 'spades', '♣': 'clubs', '♥': 'hearts', '♦': 'diams',

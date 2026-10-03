@@ -1,1 +1,3 @@
-- [Unicode escapes in written files](feedback_unicode_escapes_in_written_files.md) — re-escape non-ASCII after Write/heredoc; jsdom+esbuild recipe for testing workbenches without a browser
+- [UI tsconfig non-strict narrowing](ui-tsconfig-nonstrict-narrowing.md) — use `=== false` for union narrowing; NoInfer on generic Seg props
+- [Workbench visual check harness](ui-workbench-visual-check.md) — esbuild + headless Chrome + Tailwind CDN recipe, zbarimg for QR
+- [Unicode escapes in written files](feedback_unicode_escapes_in_written_files.md) — \uXXXX may land as literal chars; post-process new .ts/.tsx
