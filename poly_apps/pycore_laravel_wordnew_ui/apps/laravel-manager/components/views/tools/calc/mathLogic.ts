@@ -2,7 +2,7 @@
 
 export type AngleMode = 'deg' | 'rad';
 export type ExprErrorCode =
-  | 'empty' | 'too_long' | 'too_deep' | 'unexpected_char' | 'unexpected_token' | 'missing_paren'
+  | 'empty' | 'too_long' | 'too_deep' | 'unexpected_char' | 'unexpected_token' | 'unexpected_end' | 'missing_paren'
   | 'unknown_name' | 'bad_arguments' | 'div_zero' | 'domain' | 'overflow';
 
 export class ExprError extends Error {
@@ -241,7 +241,7 @@ export function evaluateExpression(source: string, options: { angle?: AngleMode;
       if (token.value in CONSTANTS) return CONSTANTS[token.value];
       throw new ExprError('unknown_name', token.pos, token.value);
     }
-    if (token.type === 'end') throw new ExprError('unexpected_token', token.pos, '');
+    if (token.type === 'end') throw new ExprError('unexpected_end', token.pos);
     throw new ExprError('unexpected_token', token.pos, token.value);
   }
 
@@ -318,6 +318,7 @@ export interface AgeParts { years: number; months: number; days: number; hours: 
 
 const MS_PER_DAY = 86400000;
 const dayNumber = (d: Date): number => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / MS_PER_DAY;
+export const daysBetween = (from: Date, to: Date): number => dayNumber(to) - dayNumber(from);
 const secondsOfDay = (d: Date): number => d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
 
 const addMonthsClamped = (from: Date, months: number): Date => {
@@ -537,14 +538,14 @@ const roundToCents = (int: string, frac: string): { major: bigint; minor: number
   return { major: cents / HUNDRED, minor: Number(cents % HUNDRED) };
 };
 
-export type WordsResult = { ok: true; text: string } | { ok: false; error: NumberWordsError };
+export interface WordsResult { text: string; error: NumberWordsError | null }
 
 /** Spells a decimal string (arbitrary size up to the language limit) in English or Chinese. */
 export function numberToWords(input: string, options: WordsOptions): WordsResult {
   const parts = splitDecimal(input);
-  if (typeof parts === 'string') return { ok: false, error: parts };
+  if (typeof parts === 'string') return { error: parts, text: '' };
   const limit = options.lang === 'en' ? MAX_EN_DIGITS : MAX_ZH_DIGITS;
-  if (parts.int.length > limit) return { ok: false, error: 'too_large' };
+  if (parts.int.length > limit) return { error: 'too_large', text: '' };
   const sign = parts.negative && (BigInt(parts.int) !== BigInt(0) || /[1-9]/.test(parts.frac)) ? (options.lang === 'en' ? 'minus ' : '负') : '';
 
   if (options.lang === 'en') {
@@ -555,14 +556,14 @@ export function numberToWords(input: string, options: WordsOptions): WordsResult
       const majorText = `${englishWords(major, british)} ${major === BigInt(1) ? cur.major[0] : cur.major[1]}`;
       const minorText = minor ? `${englishWords(BigInt(minor), british)} ${minor === 1 ? cur.minor[0] : cur.minor[1]}` : '';
       const body = minor ? (major === BigInt(0) ? minorText : `${majorText} and ${minorText}`) : majorText;
-      return { ok: true, text: sign + body };
+      return { error: null, text: sign + body };
     }
     const intWords = englishWords(BigInt(parts.int), british);
     if (options.style === 'ordinal') {
-      return { ok: true, text: sign + englishOrdinal(intWords) };
+      return { error: null, text: sign + englishOrdinal(intWords) };
     }
     const fracWords = parts.frac ? ` point ${parts.frac.split('').map((d) => EN_ONES[Number(d)]).join(' ')}` : '';
-    return { ok: true, text: sign + intWords + fracWords };
+    return { error: null, text: sign + intWords + fracWords };
   }
 
   const financial = options.financial || options.style === 'currency';
@@ -580,9 +581,9 @@ export function numberToWords(input: string, options: WordsOptions): WordsResult
       else body += '整';
     }
     if (major === BigInt(0)) body = body.replace(/^零元/, '');
-    return { ok: true, text: sign + body };
+    return { error: null, text: sign + body };
   }
   const intText = chineseWords(BigInt(parts.int), financial);
   const fracText = parts.frac ? `点${parts.frac.split('').map((d) => kit.digits[Number(d)]).join('')}` : '';
-  return { ok: true, text: sign + intText + fracText };
+  return { error: null, text: sign + intText + fracText };
 }

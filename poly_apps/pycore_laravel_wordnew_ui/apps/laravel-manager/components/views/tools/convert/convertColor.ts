@@ -157,7 +157,10 @@ export const parseColor = (input: string, previous: Hsla = DEFAULT_HSLA): Hsla |
   let rgba = parseHex(text);
   if (!rgba) {
     const rgb = functionArgs(text, ['rgb', 'rgba'], 3);
-    if (rgb) rgba = { r: clamp(Math.round(/%/.test(text) ? rgb[0] * 2.55 : rgb[0]), 0, 255), g: clamp(Math.round(/%/.test(text) ? rgb[1] * 2.55 : rgb[1]), 0, 255), b: clamp(Math.round(/%/.test(text) ? rgb[2] * 2.55 : rgb[2]), 0, 255), a: alphaOf(rgb, 3, text) };
+    if (rgb) {
+      const scale = /^rgba?\(\s*[\d.]+%/i.test(text) ? 2.55 : 1;
+      rgba = { r: clamp(Math.round(rgb[0] * scale), 0, 255), g: clamp(Math.round(rgb[1] * scale), 0, 255), b: clamp(Math.round(rgb[2] * scale), 0, 255), a: alphaOf(rgb, 3, text) };
+    }
   }
   if (!rgba) {
     const hsl = functionArgs(text, ['hsl', 'hsla'], 3);
@@ -177,8 +180,7 @@ export const parseColor = (input: string, previous: Hsla = DEFAULT_HSLA): Hsla |
   if (!rgba) rgba = namedToRgba(text);
   if (!rgba) return null;
   const next = rgbToHsl(rgba);
-  const achromatic = next.s === 0 || next.l === 0 || next.l === 100;
-  return achromatic ? { ...next, h: previous.h, s: next.s === 0 ? 0 : next.s } : next;
+  return next.s === 0 ? { ...next, h: previous.h } : next;
 };
 
 const luminance = ({ r, g, b }: Rgba): number => {

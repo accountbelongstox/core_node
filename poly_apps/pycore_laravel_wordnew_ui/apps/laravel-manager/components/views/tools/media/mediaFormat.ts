@@ -70,3 +70,6 @@ export const pickString = <T extends string>(source: unknown, key: string, allow
   const value = source[key];
   return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 };
+
+export const outputFileName = (sourceName: string, suffix: string, mime: string): string =>
+  `${baseName(sourceName)}-${suffix}.${extensionFor(mime)}`;

@@ -3,9 +3,13 @@ import { concatBytes, digest, fromBase64, toBase64, toHex, utf8Encode } from './
 
 export type RsaKeyFormat = 'pkcs8' | 'pkcs1' | 'jwk';
 
-export interface RsaKeyMaterial {
+export interface RsaKeyEncoding {
   privateKey: string;
   publicKey: string;
+}
+
+export interface RsaKeyMaterial {
+  encodings: Record<RsaKeyFormat, RsaKeyEncoding>;
   openssh: string;
   fingerprintHex: string;
   fingerprintSsh: string;
@@ -81,7 +85,7 @@ const sshPublicBlob = (jwk: JsonWebKey): Uint8Array => concatBytes(
   sshMpint(base64UrlToBytes(jwk.n ?? '')),
 );
 
-export const generateRsaKeyPair = async (modulusBits: number, format: RsaKeyFormat): Promise<RsaKeyMaterial> => {
+export const generateRsaKeyPair = async (modulusBits: number): Promise<RsaKeyMaterial> => {
   const pair = await crypto.subtle.generateKey(
     { name: 'RSA-OAEP', modulusLength: modulusBits, publicExponent: PUBLIC_EXPONENT, hash: 'SHA-256' },
     true,
@@ -90,22 +94,14 @@ export const generateRsaKeyPair = async (modulusBits: number, format: RsaKeyForm
   const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
   const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
   const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  const privateJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
   const blob = sshPublicBlob(publicJwk);
-  let privateKey: string;
-  let publicKey: string;
-  if (format === 'jwk') {
-    privateKey = JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey), null, 2);
-    publicKey = JSON.stringify(publicJwk, null, 2);
-  } else if (format === 'pkcs1') {
-    privateKey = pemWrap('RSA PRIVATE KEY', unwrapPrivateKeyPkcs1(pkcs8));
-    publicKey = pemWrap('RSA PUBLIC KEY', unwrapPublicKeyPkcs1(spki));
-  } else {
-    privateKey = pemWrap('PRIVATE KEY', pkcs8);
-    publicKey = pemWrap('PUBLIC KEY', spki);
-  }
   return {
-    privateKey,
-    publicKey,
+    encodings: {
+      pkcs8: { privateKey: pemWrap('PRIVATE KEY', pkcs8), publicKey: pemWrap('PUBLIC KEY', spki) },
+      pkcs1: { privateKey: pemWrap('RSA PRIVATE KEY', unwrapPrivateKeyPkcs1(pkcs8)), publicKey: pemWrap('RSA PUBLIC KEY', unwrapPublicKeyPkcs1(spki)) },
+      jwk: { privateKey: JSON.stringify(privateJwk, null, 2), publicKey: JSON.stringify(publicJwk, null, 2) },
+    },
     openssh: `${SSH_RSA} ${toBase64(blob)}`,
     fingerprintHex: toHex(await digest('SHA-256', spki)),
     fingerprintSsh: `SHA256:${toBase64(await digest('SHA-256', blob)).replace(/=+$/, '')}`,

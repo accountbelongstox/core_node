@@ -391,6 +391,67 @@ class ItToolsV1NetworkCtl extends Controller
 
     private function getOuiDatabase(): array
     {
+        return array_replace($this->getLegacyOuiDatabase(), $this->getVerifiedOuiEntries());
+    }
+
+    private function getVerifiedOuiEntries(): array
+    {
+        return [
+            '001B21' => 'Intel Corporate',
+            '3C970E' => 'Intel Corporate',
+            '001E67' => 'Intel Corporate',
+            'B827EB' => 'Raspberry Pi Trading Ltd',
+            'DCA632' => 'Raspberry Pi Trading Ltd',
+            'E45F01' => 'Raspberry Pi Trading Ltd',
+            'D83ADD' => 'Raspberry Pi Trading Ltd',
+            '2CCF67' => 'Raspberry Pi Trading Ltd',
+            '005056' => 'VMware, Inc.',
+            '000C29' => 'VMware, Inc.',
+            '000569' => 'VMware, Inc.',
+            '001C14' => 'VMware, Inc.',
+            '080027' => 'PCS Systems AG (Oracle VirtualBox)',
+            '00155D' => 'Microsoft Corporation',
+            '0050F2' => 'Microsoft Corporation',
+            '0003FF' => 'Microsoft Corporation',
+            '000D3A' => 'Microsoft Corporation',
+            '001C42' => 'Parallels, Inc.',
+            '00163E' => 'Xensource, Inc.',
+            '001A11' => 'Google, Inc.',
+            '3C5AB4' => 'Google, Inc.',
+            'F4F5D8' => 'Google, Inc.',
+            '001788' => 'Philips Lighting BV',
+            '240AC4' => 'Espressif Inc.',
+            '30AEA4' => 'Espressif Inc.',
+            'A4CF12' => 'Espressif Inc.',
+            '840D8E' => 'Espressif Inc.',
+            '7C9EBD' => 'Espressif Inc.',
+            '3C71BF' => 'Espressif Inc.',
+            '246F28' => 'Espressif Inc.',
+            '3C22FB' => 'Apple, Inc.',
+            'A483E7' => 'Apple, Inc.',
+            'F01898' => 'Apple, Inc.',
+            '000A95' => 'Apple, Inc.',
+            'F81A67' => 'TP-Link Technologies Co., Ltd.',
+            '50C7BF' => 'TP-Link Technologies Co., Ltd.',
+            '14CC20' => 'TP-Link Technologies Co., Ltd.',
+            '002722' => 'Ubiquiti Networks Inc.',
+            '24A43C' => 'Ubiquiti Networks Inc.',
+            'FCECDA' => 'Ubiquiti Networks Inc.',
+            '788A20' => 'Ubiquiti Networks Inc.',
+            '001422' => 'Dell Inc.',
+            '180373' => 'Dell Inc.',
+            '00146C' => 'NETGEAR',
+            'A06391' => 'NETGEAR',
+            '00E04C' => 'Realtek Semiconductor Corp.',
+            '44650D' => 'Amazon Technologies Inc.',
+            'F0272D' => 'Amazon Technologies Inc.',
+            '640980' => 'Xiaomi Communications Co Ltd',
+            '286C07' => 'Xiaomi Communications Co Ltd',
+        ];
+    }
+
+    private function getLegacyOuiDatabase(): array
+    {
         return [
             '0001C8' => 'Cisco Systems',
             '0001E6' => 'Cisco Systems',

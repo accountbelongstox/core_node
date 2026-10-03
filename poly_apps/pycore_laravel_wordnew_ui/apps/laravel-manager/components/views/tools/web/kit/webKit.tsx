@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Check, Copy, type LucideIcon } from 'lucide-react';
 import { copyToClipboard } from '@/apps/laravel-manager/utils/exportResult';
 import { useToolRun } from '../../toolRunner';
+import type { ToolUsageEntry } from '../../toolUsageStore';
 import type { CodePaneProps } from './CodePane';
 
 const LazyCodePane = lazy(() => import('./CodePane'));
@@ -284,3 +285,29 @@ export const CHECKER_STYLE: React.CSSProperties = {
   backgroundSize: '16px 16px',
   backgroundPosition: '0 0, 8px 8px',
 };
+
+export type LastInput = Record<string, unknown>;
+
+/** Reads the recorded input of the last run as a plain record for prefilling. */
+export const lastInput = (lastRun?: ToolUsageEntry): LastInput => (lastRun?.input && typeof lastRun.input === 'object' ? lastRun.input as LastInput : {});
+
+export const pickString = (source: LastInput, key: string, fallback: string): string => (typeof source[key] === 'string' ? source[key] as string : fallback);
+
+export const pickNumber = (source: LastInput, key: string, fallback: number): number => (typeof source[key] === 'number' ? source[key] as number : fallback);
+
+export const pickBool = (source: LastInput, key: string, fallback: boolean): boolean => (typeof source[key] === 'boolean' ? source[key] as boolean : fallback);
+
+export const pickOption = <T extends string | number>(source: LastInput, key: string, allowed: readonly T[], fallback: T): T => (
+  allowed.includes(source[key] as T) ? source[key] as T : fallback
+);
+
+/** Gzip size of a text through CompressionStream; null when the browser lacks it. */
+export async function gzipSize(text: string): Promise<number | null> {
+  if (typeof CompressionStream === 'undefined') return null;
+  try {
+    const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+    return (await new Response(stream).arrayBuffer()).byteLength;
+  } catch {
+    return null;
+  }
+}
