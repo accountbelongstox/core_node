@@ -36,6 +36,7 @@ import {
   TimerOff,
   Trash2,
   X,
+  ArrowLeft,
   Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -266,6 +267,8 @@ interface NormalizedImagePoint {
   horizontalRatio: number;
   verticalRatio: number;
 }
+
+const PREVIEW_HISTORY_KEY = 'pcTerminalPreview';
 
 function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string {
   return windowInfo.custom_title || windowInfo.short_title || windowInfo.title || windowInfo.app || fallback;
@@ -1443,6 +1446,19 @@ const PcTerminalNodeView: React.FC = () => {
     setSelectedTerminalNumber(terminalNumber);
     touchOperation(terminalNumber);
   }, [flushDraft, selectedTerminalNumber, touchOperation]);
+
+  // The full-screen preview is one browser history entry: the phone's back gesture closes it.
+  const previewOpen = previewTerminalNumber !== null;
+  useEffect(() => {
+    if (!previewOpen) return undefined;
+    window.history.pushState({ [PREVIEW_HISTORY_KEY]: true }, '');
+    const onPopState = () => setPreviewTerminalNumber(null);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      if ((window.history.state as Record<string, unknown> | null)?.[PREVIEW_HISTORY_KEY]) window.history.back();
+    };
+  }, [previewOpen]);
 
   const hasLocalDraft = (terminalNumber: number) => Boolean(drafts[terminalDraftKey(terminalNumber)]?.trim());
   const agentToastName = useCallback(
@@ -2756,6 +2772,16 @@ const PcTerminalNodeView: React.FC = () => {
             </div>
             <div className="flex min-h-0 flex-1 flex-col md:flex-row">
               <div className="relative min-h-0 flex-1 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setPreviewTerminalNumber(null)}
+                  title={t('terminal.previewBack')}
+                  aria-label={t('terminal.previewBack')}
+                  className="absolute left-2 top-2 z-10 inline-flex h-9 items-center gap-1 rounded-full border border-white/20 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100 shadow-lg backdrop-blur hover:bg-slate-800"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  {t('terminal.previewBack')}
+                </button>
                 {previewScreenshot ? (
                   <img
                     src={previewScreenshot.url}
