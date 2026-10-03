@@ -213,7 +213,8 @@ class AudioLaneLeases:
             work_lease_client.release(base_url, worker.worker_id, rows=unspeakable)
             ColorPrint.yellow(f"{worker.log_prefix} released {len(unspeakable)} leased row(s) with no speakable text")
         if self._focus is not None:
-            self._focus.note_claim(len(tasks), (data.get("progress") or {}).get(self._lane))
+            progress = data.get("progress") if isinstance(data.get("progress"), dict) else {}
+            self._focus.note_claim(len(tasks), progress.get(self._lane))
         admitted = audio_queue_center.accept_leased(self._lane, tasks)
         retry_after = 0.0 if tasks else float(data.get("retry_after_seconds") or EMPTY_RETRY_AFTER_SECONDS)
         pooled = [entry for entry in data.get("pooled") or [] if isinstance(entry, dict)]
