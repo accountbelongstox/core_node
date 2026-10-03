@@ -95,24 +95,25 @@ class ColabPycoreRunner:
     async def _start(self) -> Dict[str, Any]:
         tab_id = await self._notebook_tab()
         state = await self._ready_state(tab_id)
-        if state["state"] == STATE_RUNNING:
-            ColorPrint.green("[Colab] pycore launch cell is already running")
-            return {"tab_id": tab_id, "started": False, **state}
-        await chrome_bridge.evaluate(tab_id, TOGGLE_RUN_SCRIPT)
-        ColorPrint.cyan("[Colab] Launch cell started")
+        started = state["state"] != STATE_RUNNING
+        if started:
+            await chrome_bridge.evaluate(tab_id, TOGGLE_RUN_SCRIPT)
+            ColorPrint.cyan("[Colab] Launch cell started")
+        else:
+            ColorPrint.cyan("[Colab] Launch cell already running; finishing its setup prompts")
         deadline = time.monotonic() + START_TIMEOUT_SECONDS
-        running_since: Optional[float] = None
+        settled_since: Optional[float] = None
         while time.monotonic() < deadline:
-            await asyncio.sleep(POLL_SECONDS)
             await self._confirm_prompts(tab_id)
             state = await self._state(tab_id)
-            if state["state"] != STATE_RUNNING or state.get("dialog"):
-                running_since = None
-                continue
-            running_since = running_since or time.monotonic()
-            if time.monotonic() - running_since >= START_SETTLE_SECONDS:
-                ColorPrint.green("[Colab] pycore launch cell is running")
-                return {"tab_id": tab_id, "started": True, **state}
+            if state["state"] != STATE_RUNNING or state.get("dialog") or not state.get("booted"):
+                settled_since = None
+            else:
+                settled_since = settled_since or time.monotonic()
+                if time.monotonic() - settled_since >= START_SETTLE_SECONDS:
+                    ColorPrint.green("[Colab] pycore is running on Colab")
+                    return {"tab_id": tab_id, "started": started, **state}
+            await asyncio.sleep(POLL_SECONDS)
         raise RuntimeError(f"{ERROR_START_TIMEOUT}: {state}")
 
     async def _logs(self, tail: int, grep: Optional[str]) -> Dict[str, Any]:

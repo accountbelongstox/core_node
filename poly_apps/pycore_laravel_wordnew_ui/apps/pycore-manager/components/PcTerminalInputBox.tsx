@@ -2,8 +2,17 @@ import React, { useRef, useState } from 'react';
 import { ImagePlus, Loader2, RefreshCw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isTerminalImageFile, type PcTerminalImages } from './usePcTerminalImages';
+import { usePcTextInputSession } from '../persistence/PcUiSessionDom';
+import type { PcUiSessionInput } from '../persistence/PcUiSessionStore';
 
 type DraftStatus = 'saved' | 'saving' | 'error';
+
+export interface PcTerminalInputSession {
+  slot: string;
+  restore: PcUiSessionInput | null;
+  onRestored: () => void;
+  onSnapshot: (input: PcUiSessionInput) => void;
+}
 
 interface PcTerminalInputBoxProps {
   value: string;
@@ -13,6 +22,7 @@ interface PcTerminalInputBoxProps {
   rows: number;
   draftStatus: DraftStatus;
   images: PcTerminalImages;
+  session?: PcTerminalInputSession;
 }
 
 function imageFiles(list: FileList | null | undefined): File[] {
@@ -21,11 +31,19 @@ function imageFiles(list: FileList | null | undefined): File[] {
 
 /** Terminal message composer: text draft plus pasted, dropped or picked image attachments. */
 export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
-  value, onChange, onSend, hasWindow, rows, draftStatus, images,
+  value, onChange, onSend, hasWindow, rows, draftStatus, images, session,
 }) => {
   const { t } = useTranslation('pc');
   const pickerRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
+  const { elementRef, cancelRestore } = usePcTextInputSession({
+    slot: session?.slot ?? '',
+    enabled: Boolean(session) && hasWindow,
+    value,
+    restore: session?.restore ?? null,
+    onRestored: session?.onRestored ?? (() => undefined),
+    onSnapshot: session?.onSnapshot ?? (() => undefined),
+  });
 
   return (
     <div
@@ -48,9 +66,12 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
     >
       <div className="relative">
         <textarea
+          ref={elementRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onPointerDown={cancelRestore}
           onKeyDown={(event) => {
+            cancelRestore();
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
               event.preventDefault();
               onSend();

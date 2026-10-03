@@ -17,6 +17,7 @@ from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
     terminal_screenshot_cache,
 )
+from pycore.pyctl.terminal.terminal_window_views import assign_short_titles
 from pycore.pyctl.terminal.terminal_snapshot_collector import (
     TerminalSnapshotCollector,
 )
@@ -116,6 +117,7 @@ class TerminalService:
             platform_name,
             list(snapshot.get("windows") or []),
         )
+        assign_short_titles(windows)
         snapshot["windows"] = windows
         snapshot["count"] = len(windows)
         snapshot["online_count"] = sum(

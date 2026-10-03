@@ -41,9 +41,15 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_TERMINAL_CHOICE_LABELS: 'pc.terminal.choiceLabels',
 } as const;
 
+/** Per-device UI session (last page, node, terminal, focus); never synced to the backend. */
+export const PycoreManagerSessionStorageKeys = {
+  PYCORE_UI_SESSION: 'pc.uiSession.v1',
+} as const;
+
 export const PycoreManagerStorageKeys = {
   ...PycoreManagerCacheStorageKeys,
   ...PycoreManagerUiStorageKeys,
+  ...PycoreManagerSessionStorageKeys,
 } as const;
 
 export const PYCORE_MANAGER_SYNCED_STORAGE_KEYS = Object.freeze(

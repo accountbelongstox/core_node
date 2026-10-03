@@ -28,7 +28,12 @@ PAGE_TEXT_SCRIPT = (
 COLAB_DEFAULT_URL_PART = "colab.research.google.com"
 COLAB_DEFAULT_TAIL_LINES = 200
 COLAB_MAX_CHARS = 2_000_000
+# Live cell output comes from the rendered outputs; the notebook model only holds
+# the last saved outputs (a previous run while a cell executes).
 COLAB_OUTPUT_SCRIPT = """
+const live = [...document.querySelectorAll('.cell.code colab-static-output-renderer')]
+  .map((item) => item.innerText).join('\\n');
+if (live) { return JSON.stringify({total: live.length, text: live.slice(-MAX_CHARS)}); }
 const model = window.colab.global.notebookModel;
 const raw = model.getLastResolvedNotebookJson();
 const notebook = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));

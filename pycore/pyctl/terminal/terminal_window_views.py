@@ -2,7 +2,9 @@
 """Terminal window views: build live/offline window payloads from stored records."""
 from __future__ import annotations
 
-from typing import Any, Dict
+import os
+import re
+from typing import Any, Dict, List
 
 from pycore.pyctl.terminal.terminal_state_keys import (
     MAX_VISIBLE_LOG_ENTRIES,
@@ -118,3 +120,19 @@ def has_retained_state(record: Dict[str, Any]) -> bool:
         or bool(record.get("logs"))
         or str(record.get("preview_expanded") or "0") == "1"
     )
+
+
+TITLE_BOUNDARY_PATTERN = re.compile(r"[\s\-_:|/\\·•]")
+TITLE_LEADING_SYMBOLS_PATTERN = re.compile(r"^[^\w]+", re.UNICODE)
+
+
+def assign_short_titles(windows: List[Dict[str, Any]]) -> None:
+    """short_title: the title without the prefix every titled window shares (cut at a word boundary) and leading status glyphs."""
+    titles = [str(window.get("title") or "") for window in windows if window.get("title")]
+    prefix = os.path.commonprefix(titles) if len(titles) > 1 else ""
+    while prefix and not TITLE_BOUNDARY_PATTERN.match(prefix[-1]):
+        prefix = prefix[:-1]
+    for window in windows:
+        title = str(window.get("title") or "")
+        short = TITLE_LEADING_SYMBOLS_PATTERN.sub("", title[len(prefix):] if title.startswith(prefix) else title)
+        window["short_title"] = short or title.strip(" -:|") or title

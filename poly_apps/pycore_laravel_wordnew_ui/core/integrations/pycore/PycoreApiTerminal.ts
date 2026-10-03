@@ -123,6 +123,8 @@ export interface TerminalWindowInfo {
   id: string;
   native_id: number | string;
   title: string;
+  /** Title without the prefix all titles share and leading status glyphs (pycore-computed). */
+  short_title?: string;
   app: string;
   class_name: string;
   process_id: number;
@@ -333,6 +335,8 @@ export interface TerminalBackupState {
   idle_seconds?: number | null;
   min_idle_seconds?: number;
   prompt_idle_seconds?: number;
+  /** Terminals left in an interval pass that input paused; it resumes after min_idle_seconds of inactivity. */
+  pass_paused_remaining?: number;
   special_terminals?: TerminalSpecialEntry[];
 }
 

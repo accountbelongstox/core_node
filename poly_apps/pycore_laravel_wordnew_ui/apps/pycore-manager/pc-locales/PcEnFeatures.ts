@@ -617,7 +617,8 @@ terminal: {
       limitWait: 'Usage limit: resume countdown',
       globalNext: 'Next scan pass in {{time}}',
       globalDue: 'Scan pass due now',
-      globalWaitingIdle: 'Scan pass waiting for keyboard inactivity',
+      globalWaitingIdle: 'Scan pass waiting for keyboard and mouse inactivity',
+      globalPaused: 'Scan paused by keyboard/mouse input; {{count}} terminals resume after inactivity',
     },
     backup: {
       title: 'Terminal backups',
