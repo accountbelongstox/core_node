@@ -32,17 +32,32 @@ public enum BattlenetClientState
     Normal,
 }
 
-/// <summary>Which game entry points the main UI shows: D3 / D4 nav tab and their Play button (by the Play label).</summary>
-public sealed record BattlenetGameUi(bool D3Tab, bool D3Play, bool D4Tab, bool D4Play)
+/// <summary>Main action button of a game page: Play, Update, Install (not installed), Try For Free / Buy (not owned), Starting.</summary>
+public enum BattlenetGameAction
 {
-    public static readonly BattlenetGameUi None = new(false, false, false, false);
+    None,
+    Play,
+    Update,
+    Install,
+    TryFree,
+    Starting,
+}
+
+/// <summary>Game entry points on the main UI: D3 / D4 nav tab and the action button of that game's page (seen while its page is open).</summary>
+public sealed record BattlenetGameUi(bool D3Tab, BattlenetGameAction D3Action, bool D4Tab, BattlenetGameAction D4Action)
+{
+    public static readonly BattlenetGameUi None = new(false, BattlenetGameAction.None, false, BattlenetGameAction.None);
 }
 
 /// <summary>Probe result: state, region read from the UI itself (null when the screen does not tell), detail (e.g. Play label).</summary>
 public sealed record BattlenetClientStatus(BattlenetClientState State, string? UiRegion, string? Detail)
 {
-    /// <summary>D3 / D4 tab and Play recognition from the same walk.</summary>
+    /// <summary>D3 / D4 tab and action button recognition from the same walk.</summary>
     public BattlenetGameUi GameUi { get; init; } = BattlenetGameUi.None;
+    /// <summary>BattleTag shown next to the avatar (verified: menu name and its tag text agree); null when not read.</summary>
+    public string? AccountTag { get; init; }
+    /// <summary>Presence text of that BattleTag (Online / Away / Busy / Appear Offline / Offline ...).</summary>
+    public string? AccountPresence { get; init; }
 
     public static readonly BattlenetClientStatus None = new(BattlenetClientState.Unknown, null, null);
 

@@ -46,6 +46,8 @@ public partial class MainWindow : Window, IMainWindowHost
 {
     private const string GameUiFoundBrushKey = "TextSuccessBrush";
     private const string GameUiMissingBrushKey = "TextMutedBrush";
+    private const string WarningBrushKeyGameUi = "TextWarningBrush";
+    private const string ErrorBrushKeyGameUi = "TextErrorBrush";
     private const int WM_HOTKEY = 0x0312;
     private const int WM_SIZING = 0x0214;
     private const int WMSZ_LEFT = 1, WMSZ_RIGHT = 2, WMSZ_TOP = 3, WMSZ_BOTTOM = 4;
@@ -420,7 +422,7 @@ public partial class MainWindow : Window, IMainWindowHost
     private void UpdateStatusFromState(GameInterfaceStateSnapshot s)
     {
         var p = D3D4TesterI18n.Provider;
-        UpdateGameUiIcons(s.BattlenetGameUi, p);
+        UpdateGameUiIcons(s, p);
         // Side effects: region-change and BN/ROSBOT mismatch auto-scan (1:1 Python)
         string? regionKey = s.BattlenetRegion;
         if (regionKey == BattlenetConstants.RegionAsia || regionKey == BattlenetConstants.RegionCn)
@@ -676,21 +678,45 @@ public partial class MainWindow : Window, IMainWindowHost
         base.OnClosed(e);
     }
 
-    /// <summary>Status bar icons: D3 tab, D3 Play, D4 tab, D4 Play (success brush when recognised, muted otherwise).</summary>
-    private void UpdateGameUiIcons(BattlenetGameUi ui, II18nProvider p)
+    /// <summary>
+    /// Status bar: verified BattleTag with presence icon, then a D3 and a D4 badge (coloured when the nav tab is recognised) each
+    /// carrying its page's action icon (Play / Update / Install / Try For Free / Starting). Icons only; text is in tooltips.
+    /// </summary>
+    private void UpdateGameUiIcons(GameInterfaceStateSnapshot s, II18nProvider p)
     {
-        (TextBlock Icon, bool Found, string Key)[] items =
-        {
-            (IconD3Tab, ui.D3Tab, I18nKeys.GameUiD3Tab), (IconD3Play, ui.D3Play, I18nKeys.GameUiD3Play),
-            (IconD4Tab, ui.D4Tab, I18nKeys.GameUiD4Tab), (IconD4Play, ui.D4Play, I18nKeys.GameUiD4Play),
-        };
-        string found = p.GetUiText(I18nKeys.GameUiFound), missing = p.GetUiText(I18nKeys.GameUiMissing);
-        foreach (var (icon, isFound, key) in items)
-        {
-            icon.SetResourceReference(TextBlock.ForegroundProperty, isFound ? GameUiFoundBrushKey : GameUiMissingBrushKey);
-            icon.ToolTip = $"{p.GetUiText(key)}: {(isFound ? found : missing)}";
-        }
+        bool tagKnown = !string.IsNullOrEmpty(s.BattlenetAccountTag);
+        bool online = tagKnown && s.BattlenetClientState == BattlenetClientState.Normal;
+        PanelAccountTag.Visibility = tagKnown ? Visibility.Visible : Visibility.Collapsed;
+        TxtAccountTag.Text = s.BattlenetAccountTag ?? "";
+        IconAccountPresence.SetResourceReference(TextBlock.ForegroundProperty, online ? GameUiFoundBrushKey : ErrorBrushKeyGameUi);
+        PanelAccountTag.ToolTip = $"{p.GetUiText(I18nKeys.GameUiAccountTag)}: {s.BattlenetAccountTag} · {s.BattlenetAccountPresence}";
+        var ui = s.BattlenetGameUi;
+        ApplyGameBadge(BadgeD3, TxtBadgeD3, IconD3Action, ui.D3Tab, ui.D3Action, p.GetUiText(I18nKeys.GameUiD3Tab), p);
+        ApplyGameBadge(BadgeD4, TxtBadgeD4, IconD4Action, ui.D4Tab, ui.D4Action, p.GetUiText(I18nKeys.GameUiD4Tab), p);
     }
+
+    private static void ApplyGameBadge(Border badge, TextBlock label, TextBlock icon, bool tabFound, BattlenetGameAction action, string gameName, II18nProvider p)
+    {
+        string tabBrush = tabFound ? GameUiFoundBrushKey : GameUiMissingBrushKey;
+        badge.SetResourceReference(Border.BorderBrushProperty, tabBrush);
+        label.SetResourceReference(TextBlock.ForegroundProperty, tabBrush);
+        var (glyph, brush, key) = GameActionIcons[action];
+        icon.Text = glyph;
+        icon.Visibility = action == BattlenetGameAction.None ? Visibility.Collapsed : Visibility.Visible;
+        icon.SetResourceReference(TextBlock.ForegroundProperty, brush);
+        string tabText = p.GetUiText(tabFound ? I18nKeys.GameUiFound : I18nKeys.GameUiMissing);
+        badge.ToolTip = $"{gameName}: {tabText} · {p.GetUiText(key)}";
+    }
+
+    private static readonly Dictionary<BattlenetGameAction, (string Glyph, string Brush, string Key)> GameActionIcons = new()
+    {
+        [BattlenetGameAction.None] = ("", GameUiMissingBrushKey, I18nKeys.GameUiActionNone),
+        [BattlenetGameAction.Play] = ("\uE768", GameUiFoundBrushKey, I18nKeys.GameUiActionPlay),
+        [BattlenetGameAction.Update] = ("\uE895", WarningBrushKeyGameUi, I18nKeys.GameUiActionUpdate),
+        [BattlenetGameAction.Install] = ("\uE896", WarningBrushKeyGameUi, I18nKeys.GameUiActionInstall),
+        [BattlenetGameAction.TryFree] = ("\uE719", ErrorBrushKeyGameUi, I18nKeys.GameUiActionTryFree),
+        [BattlenetGameAction.Starting] = ("\uE916", GameUiFoundBrushKey, I18nKeys.GameUiActionStarting),
+    };
 
     public object? GetPage(string key)
     {

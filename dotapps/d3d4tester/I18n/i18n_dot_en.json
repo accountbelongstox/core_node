@@ -65,7 +65,14 @@
       "d4_tab": "D4 game tab",
       "d4_play": "D4 Play button",
       "found": "recognised",
-      "missing": "not found"
+      "missing": "not found",
+      "account_tag": "BattleTag",
+      "action_none": "Game page not open",
+      "action_play": "Ready to play",
+      "action_update": "Update required",
+      "action_install": "Not installed",
+      "action_try_free": "Not owned (try free / buy)",
+      "action_starting": "Game starting"
     }
   },
   "skills": {

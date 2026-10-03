@@ -4,10 +4,10 @@
 .DESCRIPTION
     Recovers deleted files with Windows File Recovery (winfr /regular, /extensive) or DMDE (GUI).
     Recovered files always go to another volume so they cannot overwrite the deleted clusters.
-    Non-interactive: -Action Regular|Extensive -SourcePath <dir> [-FilePattern *.zip] [-DestinationRoot <dir>].
+    Non-interactive: -Action InstallDmde, or -Action Regular|Extensive -SourcePath <dir> [-FilePattern *.zip] [-DestinationRoot <dir>].
 #>
 param(
-    [Parameter()][ValidateSet("Menu", "Regular", "Extensive", "Dmde")][string]$Action = "Menu",
+    [Parameter()][ValidateSet("Menu", "Regular", "Extensive", "Dmde", "InstallDmde")][string]$Action = "Menu",
     [Parameter()][string]$SourcePath = "",
     [Parameter()][string]$FilePattern = "",
     [Parameter()][string]$DestinationRoot = ""
@@ -25,7 +25,7 @@ $script:WINFR_EXE = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\winfr.exe
 $script:DMDE_DOWNLOAD_PAGE = "https://dmde.com/download.html"
 $script:DMDE_BASE_URL = "https://dmde.com"
 $script:DMDE_PACKAGE_PATTERN = '/download/dmde-[\d-]+-win64-gui\.zip$'
-$script:DMDE_DIR = Join-Path $env:LOCALAPPDATA "dmde"
+$script:DMDE_DIR = $Global:DMDE_INSTALL_DIR
 $script:DMDE_EXE_NAME = "dmde.exe"
 $script:RECOVERY_DIR_NAME = "FileRecovery"
 $script:DEFAULT_FILE_PATTERN = "*"
@@ -50,7 +50,10 @@ function Install-Dmde {
     $packageUrl = ''
     $packageFile = ''
 
-    if ($null -ne $dmdeExe) { return $dmdeExe.FullName }
+    if ($null -ne $dmdeExe) {
+        Write-ColorMessage -Message "DMDE already installed: $($dmdeExe.FullName)" -Type "Success"
+        return $dmdeExe.FullName
+    }
     Write-ColorMessage -Message "Downloading DMDE from $script:DMDE_DOWNLOAD_PAGE ..." -Type "Info"
     $packageLink = (Invoke-WebRequest -Uri $script:DMDE_DOWNLOAD_PAGE -UseBasicParsing).Links |
         Where-Object { $_.href -match $script:DMDE_PACKAGE_PATTERN } | Select-Object -First 1
@@ -60,10 +63,18 @@ function Install-Dmde {
     }
     $packageUrl = $script:DMDE_BASE_URL + $packageLink.href
     $packageFile = Join-Path $env:TEMP (Split-Path $packageLink.href -Leaf)
-    Invoke-WebRequest -Uri $packageUrl -OutFile $packageFile -UseBasicParsing
+    if (-not (Test-Path $packageFile) -or (Get-Item $packageFile).Length -eq 0) {
+        Invoke-WebRequest -Uri $packageUrl -OutFile $packageFile -UseBasicParsing
+    }
+    New-Item -ItemType Directory -Path $script:DMDE_DIR -Force | Out-Null
     Expand-Archive -Path $packageFile -DestinationPath $script:DMDE_DIR -Force
     Remove-Item -Path $packageFile -Force
     $dmdeExe = Get-ChildItem -Path $script:DMDE_DIR -Filter $script:DMDE_EXE_NAME -Recurse | Select-Object -First 1
+    if ($null -eq $dmdeExe) {
+        Write-ColorMessage -Message "$script:DMDE_EXE_NAME not found after extracting to $script:DMDE_DIR" -Type "Error"
+        return $null
+    }
+    Write-ColorMessage -Message "DMDE installed: $($dmdeExe.FullName)" -Type "Success"
     return $dmdeExe.FullName
 }
 
@@ -154,7 +165,8 @@ function Show-FileRecoveryMenu {
     Show-NumberedMenu -Title "Management & Backup > System Tools > File Recovery" -Items @(
         @{ Text = "winfr /regular (NTFS, recently deleted)"; Action = { Invoke-WinfrRecovery -Mode "regular" } },
         @{ Text = "winfr /extensive (older deletes, formatted or non-NTFS)"; Action = { Invoke-WinfrRecovery -Mode "extensive" } },
-        @{ Text = "DMDE (GUI, deep scan)"; Action = { Start-DmdeRecovery } }
+        @{ Text = "DMDE (GUI, deep scan)"; Action = { Start-DmdeRecovery } },
+        @{ Text = "Install DMDE ($script:DMDE_DIR)"; Action = { [void](Install-Dmde) } }
     )
 }
 #endregion
@@ -164,6 +176,7 @@ switch ($Action) {
     "Regular" { Invoke-WinfrRecovery -Mode "regular" }
     "Extensive" { Invoke-WinfrRecovery -Mode "extensive" }
     "Dmde" { Start-DmdeRecovery }
+    "InstallDmde" { [void](Install-Dmde) }
     default { Show-FileRecoveryMenu }
 }
 #endregion

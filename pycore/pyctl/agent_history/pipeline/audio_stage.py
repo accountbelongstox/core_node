@@ -2,15 +2,42 @@
 """Non-blocking audio stage for agent-history articles."""
 
 import base64
+import time
 from typing import Any, Dict, Optional
 
 from pycore.pyctl.agent_history.pipeline.config import get_config
+from pycore.pyctl.tts.laravel_audio_worker import laravel_sentence_audio_worker
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.text_parsing import SUPPORTED_LANGUAGE_CODES, normalize_language_code
 from pycore.pyutils.tts.queued_synthesis import queued_tts_synthesis
 
 
 _MINIMUM_AUDIO_BYTES = 1024
+# Article TTS yields the shared Qwen queue to the sentence lane (work-lease
+# book plans): it is not submitted while that lane has queued or running rows,
+# for at most the max wait so a permanently busy lane cannot starve it.
+SENTENCE_LANE_YIELD_POLL_SECONDS = 15.0
+SENTENCE_LANE_YIELD_MAX_SECONDS = 900.0
+
+
+def _sentence_lane_busy() -> bool:
+    counts = laravel_sentence_audio_worker.live_counts()
+    return int(counts.get("queued") or 0) + int(counts.get("processing") or 0) > 0
+
+
+def _yield_to_sentence_lane(job_state: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """A waiting result while the sentence lane owns the queue; None to submit."""
+    state = dict(job_state or {})
+    if state.get("job_id"):
+        return None
+    waiting_since = float(state.get("yield_since") or time.time())
+    if time.time() - waiting_since >= SENTENCE_LANE_YIELD_MAX_SECONDS or not _sentence_lane_busy():
+        return None
+    return {
+        "status": "waiting",
+        "poll_after_s": SENTENCE_LANE_YIELD_POLL_SECONDS,
+        "job": {**state, "status": "yield_sentence_lane", "yield_since": waiting_since},
+    }
 
 
 def _tts_lang_code(target_lang: str) -> str:
@@ -27,6 +54,10 @@ def advance_audio_synthesis(
     clean = (text or "").strip()
     if not clean:
         return {"status": "failed", "error": "empty article for TTS", "job": dict(job_state or {})}
+
+    yielded = _yield_to_sentence_lane(job_state)
+    if yielded is not None:
+        return yielded
 
     cfg = get_config()
     language = _tts_lang_code(str(cfg.get("target_lang") or "EN"))

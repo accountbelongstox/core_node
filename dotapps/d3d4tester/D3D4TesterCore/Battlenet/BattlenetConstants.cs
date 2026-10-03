@@ -54,6 +54,16 @@ public static class BattlenetConstants
 
     // ---------- Client state probe (BattlenetClientStateDetector; verified by tools/BnProbe live scans and docs/uidocs) ----------
     public const string ButtonControlType = "ButtonControl";
+    public const string TabItemControlType = "TabItemControl";
+    public const string TextControlType = "TextControl";
+    /// <summary>
+    /// Game page main action button (live scans Asia: D3 "Play: Diablo III, Region: ..., Version: ..." at level 3, D4 not owned
+    /// "Try For Free" at level 5). Deeper buttons are store / news cards.
+    /// </summary>
+    public const int GameActionMaxLevel = 5;
+    public static readonly string[] GameActionUpdateNames = { "Update", "更新" };
+    public static readonly string[] GameActionInstallNames = { "Install", "安装", "安裝" };
+    public static readonly string[] GameActionTryFreeNames = { "Try For Free", "Try Free", "Buy Now", "免费试玩", "免費試玩", "立即购买", "立即購買" };
     /// <summary>In-page modal popups (live scan: welcome-screen-modal "Explore your favorite games..." with Continue / Close).</summary>
     public const string ModalAutomationIdSuffix = "-modal";
     public static readonly string[] ModalCloseNames = { "Close", "关闭", "關閉" };

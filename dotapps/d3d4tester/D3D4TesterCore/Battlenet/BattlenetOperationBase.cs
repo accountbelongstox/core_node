@@ -44,24 +44,54 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     /// Shared screen classification (priority order): sleep, browser-login wait, login failed, region login screens
     /// (<see cref="ClassifyLoginScreen"/>), disconnected, connecting, game starting, main UI normal, loading, unknown.
     /// </summary>
-    public BattlenetClientStatus ClassifyClientState(IReadOnlyList<BattlenetControl> controls) =>
-        ClassifyScreen(controls) with { GameUi = DetectGameUi(controls) };
+    public BattlenetClientStatus ClassifyClientState(IReadOnlyList<BattlenetControl> controls)
+    {
+        var presence = ReadAccountPresence(controls);
+        return ClassifyScreen(controls) with { GameUi = DetectGameUi(controls), AccountTag = presence?.Tag, AccountPresence = presence?.Status };
+    }
 
     /// <summary>
-    /// D3 / D4 nav tabs by exact automation id (CN D3CN / Fen / D4CN, Asia D3 / D4) and Play attributed to a game by its label
-    /// (live scan: "Play: Diablo III, Version: ...").
+    /// D3 / D4 nav tabs by exact automation id (CN D3CN / Fen / D4CN, Asia D3 / Fen) and the open page's action button
+    /// (Play / Update / Install / Try For Free / Starting). The button belongs to the game named in its label
+    /// (live scan: "Play: Diablo III, ...") or else to the selected nav tab ("Try For Free" names no game).
     /// </summary>
     public static BattlenetGameUi DetectGameUi(IReadOnlyList<BattlenetControl> controls)
     {
         if (controls.Count == 0) return BattlenetGameUi.None;
-        bool d3Tab = controls.Any(c => C.D3TabAutomationIdsCn.Contains(c.AutomationId, StringComparer.Ordinal) || C.D3TabAutomationIdsAsia.Contains(c.AutomationId, StringComparer.Ordinal));
-        bool d4Tab = controls.Any(c => C.D4TabAutomationIdsCn.Contains(c.AutomationId, StringComparer.Ordinal) || C.D4TabAutomationIdsAsia.Contains(c.AutomationId, StringComparer.Ordinal));
-        var play = FindMainPlayButton(controls);
-        string label = play?.Name ?? "";
-        bool d4Play = play != null && BattlenetRegionJudge.ContainsAny(label, C.D4PlayLabelKeywords);
-        bool d3Play = play != null && !d4Play && BattlenetRegionJudge.ContainsAny(label, C.D3PlayLabelKeywords);
-        return new BattlenetGameUi(d3Tab, d3Play, d4Tab, d4Play);
+        var d3Tab = controls.FirstOrDefault(c => C.D3TabAutomationIdsCn.Contains(c.AutomationId, StringComparer.Ordinal) || C.D3TabAutomationIdsAsia.Contains(c.AutomationId, StringComparer.Ordinal));
+        var d4Tab = controls.FirstOrDefault(c => C.D4TabAutomationIdsCn.Contains(c.AutomationId, StringComparer.Ordinal) || C.D4TabAutomationIdsAsia.Contains(c.AutomationId, StringComparer.Ordinal));
+        var (button, action) = FindGameAction(controls);
+        var d3Action = BattlenetGameAction.None;
+        var d4Action = BattlenetGameAction.None;
+        if (button != null)
+        {
+            bool isD4 = BattlenetRegionJudge.ContainsAny(button.Name, C.D4PlayLabelKeywords)
+                        || (!BattlenetRegionJudge.ContainsAny(button.Name, C.D3PlayLabelKeywords) && d4Tab?.IsSelected == true);
+            bool isD3 = !isD4 && (BattlenetRegionJudge.ContainsAny(button.Name, C.D3PlayLabelKeywords) || d3Tab?.IsSelected == true);
+            if (isD4) d4Action = action;
+            else if (isD3) d3Action = action;
+        }
+        return new BattlenetGameUi(d3Tab != null, d3Action, d4Tab != null, d4Action);
     }
+
+    /// <summary>Main action button of the open game page and its kind; (null, None) on pages without one (HOME / SHOP).</summary>
+    public static (BattlenetControl? Button, BattlenetGameAction Action) FindGameAction(IReadOnlyList<BattlenetControl> controls)
+    {
+        if (FindMainPlayButton(controls) is { } play)
+            return (play, PlayButtonIndicatesStarting(play) ? BattlenetGameAction.Starting : BattlenetGameAction.Play);
+        foreach (var c in controls)
+        {
+            if (c.Type != C.ButtonControlType || c.IsOffscreen == true || c.Level > C.GameActionMaxLevel) continue;
+            string name = c.Name.Trim();
+            if (StartsWithAny(name, C.GameActionUpdateNames)) return (c, BattlenetGameAction.Update);
+            if (StartsWithAny(name, C.GameActionInstallNames)) return (c, BattlenetGameAction.Install);
+            if (StartsWithAny(name, C.GameActionTryFreeNames)) return (c, BattlenetGameAction.TryFree);
+        }
+        return (null, BattlenetGameAction.None);
+    }
+
+    private static bool StartsWithAny(string text, IEnumerable<string> prefixes) =>
+        prefixes.Any(p => text.StartsWith(p, StringComparison.OrdinalIgnoreCase));
 
     private BattlenetClientStatus ClassifyScreen(IReadOnlyList<BattlenetControl> controls)
     {
@@ -153,13 +183,26 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
             && c.AutomationId.EndsWith(C.DropdownMenuButtonSuffix, StringComparison.Ordinal));
     }
 
-    /// <summary>(BattleTag, presence) from the avatar menu name "&lt;tag&gt;, &lt;status&gt;"; null when the menu is not shown.</summary>
+    /// <summary>
+    /// (BattleTag, presence) from the avatar menu "&lt;tag&gt;, &lt;status&gt;" (live scan: "MegRyanA, Appear Offline" with child text
+    /// "MegRyanA"). Trusted only when the menu holds a text element equal to that BattleTag; null otherwise.
+    /// </summary>
     public static (string Tag, string Status)? ReadAccountPresence(IReadOnlyList<BattlenetControl> controls)
     {
-        string name = FindAccountMenu(controls)?.Name ?? "";
+        var menu = FindAccountMenu(controls);
+        if (menu == null) return null;
+        string name = menu.Name;
         int sep = name.LastIndexOf(C.AccountStatusSeparator, StringComparison.Ordinal);
         if (sep <= 0) return null;
-        return (name[..sep].Trim(), name[(sep + C.AccountStatusSeparator.Length)..].Trim());
+        string tag = name[..sep].Trim();
+        string status = name[(sep + C.AccountStatusSeparator.Length)..].Trim();
+        int start = -1;
+        for (int i = 0; i < controls.Count; i++)
+            if (ReferenceEquals(controls[i], menu)) { start = i; break; }
+        for (int i = start + 1; start >= 0 && i < controls.Count && controls[i].Level > menu.Level; i++)
+            if (controls[i].Type == C.TextControlType && string.Equals(controls[i].Name.Trim(), tag, StringComparison.Ordinal))
+                return (tag, status);
+        return null;
     }
 
     /// <summary>Region login screens (CN: NetEase page / web login popup; Asia: email / password / combined); null when not on one.</summary>
