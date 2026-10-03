@@ -1448,7 +1448,6 @@ const PcTerminalNodeView: React.FC = () => {
   }, [flushDraft, selectedTerminalNumber, touchOperation]);
 
   // The full-screen preview is one browser history entry: the phone's back gesture closes it.
-  const previewOpen = previewTerminalNumber !== null;
   useEffect(() => {
     if (!previewOpen) return undefined;
     window.history.pushState({ [PREVIEW_HISTORY_KEY]: true }, '');
