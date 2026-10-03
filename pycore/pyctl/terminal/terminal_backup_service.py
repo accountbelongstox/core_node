@@ -83,9 +83,9 @@ class TerminalBackupService:
         # restart returns to AUTO_BACKUP_PAUSED_BY_DEFAULT.
         self._paused = AUTO_BACKUP_PAUSED_BY_DEFAULT
 
-    def _user_active(self) -> bool:
+    def _user_active(self, minimum_idle_seconds: float = MIN_IDLE_SECONDS) -> bool:
         idle = self._idle_seconds()
-        return idle is not None and idle < MIN_IDLE_SECONDS
+        return idle is not None and idle < minimum_idle_seconds
 
     def _enumerate(self) -> List[Dict[str, Any]]:
         windows = self._terminals.snapshot().get("windows") or []
@@ -175,6 +175,35 @@ class TerminalBackupService:
     def _fast_due(self) -> float:
         return min((float(state["due"]) for state in self._fast_prompts.values()), default=float("inf"))
 
+    def _activity_deadlines(
+        self,
+        now: float,
+        idle: Optional[float],
+        last_input_at: Optional[float],
+        next_due: float,
+    ) -> Tuple[Optional[float], float]:
+        if idle is None:
+            return last_input_at, next_due
+        input_at = now - idle
+        if last_input_at is None:
+            last_input_at = input_at
+            if idle < MIN_IDLE_SECONDS:
+                next_due = now + MIN_IDLE_SECONDS - idle
+            if idle < PROMPT_INTERVAL_SECONDS:
+                for state in self._fast_prompts.values():
+                    state["due"] = now + PROMPT_INTERVAL_SECONDS - idle
+        elif input_at > last_input_at + INPUT_TIMESTAMP_TOLERANCE_SECONDS:
+            last_input_at = input_at
+            next_due = max(now, input_at + MIN_IDLE_SECONDS)
+            for state in self._fast_prompts.values():
+                state["due"] = max(now, input_at + PROMPT_INTERVAL_SECONDS)
+        if idle < MIN_IDLE_SECONDS:
+            next_due = max(next_due, now + MIN_IDLE_SECONDS - idle)
+        if idle < PROMPT_INTERVAL_SECONDS:
+            for state in self._fast_prompts.values():
+                state["due"] = max(state["due"], now + PROMPT_INTERVAL_SECONDS - idle)
+        return last_input_at, next_due
+
     def _run_fast_pass(self, now: float) -> None:
         if not self._pass_lock.acquire(blocking=False):
             for state in self._fast_prompts.values():
@@ -182,7 +211,7 @@ class TerminalBackupService:
                     state["due"] = now + DEFER_RETRY_SECONDS
             return
         try:
-            if self._user_active():
+            if self._user_active(PROMPT_INTERVAL_SECONDS):
                 return
             windows = self._enumerate()
             self._prune_prompt_states(windows)
@@ -360,21 +389,7 @@ class TerminalBackupService:
                 return
             now = time.monotonic()
             idle = self._idle_seconds()
-            if idle is not None:
-                input_at = now - idle
-                if last_input_at is None:
-                    last_input_at = input_at
-                    if idle < MIN_IDLE_SECONDS:
-                        next_due = now + MIN_IDLE_SECONDS - idle
-                elif input_at > last_input_at + INPUT_TIMESTAMP_TOLERANCE_SECONDS:
-                    last_input_at = input_at
-                    next_due = max(now, input_at + MIN_IDLE_SECONDS)
-                    for state in self._fast_prompts.values():
-                        state["due"] = max(now, input_at + MIN_IDLE_SECONDS)
-                if idle < MIN_IDLE_SECONDS:
-                    next_due = max(next_due, now + MIN_IDLE_SECONDS - idle)
-                    for state in self._fast_prompts.values():
-                        state["due"] = max(state["due"], now + MIN_IDLE_SECONDS - idle)
+            last_input_at, next_due = self._activity_deadlines(now, idle, last_input_at, next_due)
             if self._paused:
                 low_battery_armed = True
                 next_due = now + MIN_IDLE_SECONDS
@@ -392,12 +407,12 @@ class TerminalBackupService:
             else:
                 low_battery_armed = True
             now = time.monotonic()
-            if self._stopping() or (idle is not None and idle < MIN_IDLE_SECONDS):
+            if self._stopping():
                 continue
-            if now >= next_due:
+            if now >= next_due and (idle is None or idle >= MIN_IDLE_SECONDS):
                 result = self.run_pass()
                 next_due = time.monotonic() + (DEFER_RETRY_SECONDS if result.get("deferred") else BACKUP_INTERVAL_SECONDS)
-            elif now >= self._fast_due():
+            elif now >= self._fast_due() and (idle is None or idle >= PROMPT_INTERVAL_SECONDS):
                 self._run_fast_pass(now)
             idle = self._idle_seconds()
             last_input_at = time.monotonic() - idle if idle is not None else None
