@@ -44,7 +44,9 @@
       "Bash(timeout 60 ssh1 'frankenphp php-cli -m 2>/dev/null | tr \"\\\\n\" \" \"; echo; frankenphp php-cli -i 2>/dev/null | grep -iE \"^opcache.enable |^opcache.jit |opcache.file_cache |^Thread Safety\" | head' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
       "WebFetch(domain:github.com)",
       "Bash(systemctl restart *)",
-      "Bash(timeout 60 ssh1 'php -m 2>/dev/null | tr \"\\\\n\" \" \"; echo; php -i 2>/dev/null | grep -E \"^opcache.enable =>|^opcache.jit =>|^Thread Safety\" ; ls /etc/frankenphp/php-conf.d/ 2>/dev/null | tr \"\\\\n\" \" \"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)"
+      "Bash(timeout 60 ssh1 'php -m 2>/dev/null | tr \"\\\\n\" \" \"; echo; php -i 2>/dev/null | grep -E \"^opcache.enable =>|^opcache.jit =>|^Thread Safety\" ; ls /etc/frankenphp/php-conf.d/ 2>/dev/null | tr \"\\\\n\" \" \"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
+      "Bash(PYTHONPATH=/var/_core_node/_tmp/claude-0/-www-programing-core-node/0603631d-cd7d-4a46-90ac-e53961877957/scratchpad python3 -)",
+      "Bash(timeout 900 bash dd.sh gitsync -m \"code-sync: restart FrankenPHP workers only when Laravel/config changed \\(frankenphp#2568 crash\\)\" --notice-laravel)"
     ],
     "deny": [],
     "ask": []
