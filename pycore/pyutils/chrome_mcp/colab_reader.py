@@ -44,9 +44,10 @@ class ColabReader:
         title_contains: str,
         grep: Optional[str],
         tail: int,
+        tab_id: int = 0,
     ) -> Dict[str, Any]:
         pattern = re.compile(grep) if grep else None
-        tabs = await chrome_bridge.matching_tabs(0, url_contains, title_contains)
+        tabs = await chrome_bridge.matching_tabs(tab_id, url_contains, title_contains)
         failures: List[str] = []
         hung_tab: Optional[Dict[str, Any]] = None
         text = ""

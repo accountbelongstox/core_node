@@ -89,13 +89,14 @@ class ColabPycoreRunner:
         return asyncio.run(self._regpu())
 
     async def _notebook_tab(self) -> int:
-        """The notebook tab whose page still answers; a hung tab (a flooded output pane
-        freezes the page script) is skipped when another tab on the notebook is usable."""
+        """The notebook tab whose page still answers, newest first (its output pane is the
+        lightest); a hung tab (a flooded output pane freezes the page script) is skipped, and
+        a fresh tab opens when none answers."""
         candidates = [
             int(tab["tabId"]) for tab in await chrome_bridge.tabs()
             if COLAB_NOTEBOOK_ID in str(tab.get("url") or "")
         ]
-        candidates.sort(key=lambda tab_id: tab_id in self._hung_tabs)
+        candidates.sort(key=lambda tab_id: (tab_id in self._hung_tabs, -tab_id))
         for tab_id in candidates:
             try:
                 await chrome_bridge.evaluate(tab_id, TAB_PROBE_SCRIPT)
@@ -104,8 +105,6 @@ class ColabPycoreRunner:
             except RuntimeError as error:
                 self._hung_tabs.add(tab_id)
                 ColorPrint.yellow(f"[Colab] tab {tab_id} does not answer ({error})")
-        if candidates:
-            return candidates[0]
         ColorPrint.cyan(f"[Colab] Opening {COLAB_NOTEBOOK_URL}")
         return await chrome_bridge.open_tab(COLAB_NOTEBOOK_URL)
 
@@ -178,7 +177,7 @@ class ColabPycoreRunner:
         except RuntimeError as error:
             ColorPrint.yellow(f"[Colab] notebook page unresponsive ({error}); reading the output frames only")
             state = {"state": STATE_UNRESPONSIVE}
-        output = await colab_reader.read(COLAB_NOTEBOOK_ID, "", grep, tail)
+        output = await colab_reader.read(COLAB_NOTEBOOK_ID, "", grep, tail, tab_id)
         return {
             **output,
             "state": state["state"],
