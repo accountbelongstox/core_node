@@ -32,6 +32,10 @@ ENTER_HOLD_SECONDS = 0.04
 # can swallow the first one; Enter on an already empty prompt does nothing.
 SUBMIT_ENTER_PRESSES = 3
 SUBMIT_ENTER_INTERVAL_SECONDS = 0.5
+# Before a message is pasted, a few Enters move an agent past a confirmation screen ("Do you want
+# to proceed? 1. Yes") it may be stuck on; Enter on an empty prompt does nothing.
+PRE_SUBMIT_ENTER_PRESSES = 3
+PRE_SUBMIT_ENTER_INTERVAL_SECONDS = 0.3
 FOCUS_READY_TIMEOUT_SECONDS = 1.0
 SELECT_ALL_DELAY_SECONDS = 0.15
 TERMINAL_HISTORY_DIRECTIONS = frozenset({"up", "down"})
@@ -395,10 +399,17 @@ class TerminalWindowBackend:
                 if not self._keys(window, list(INTERRUPT_KEYS)):
                     return failure("terminal_key_failed")
                 time.sleep(INTERRUPT_SETTLE_SECONDS)
-            if (clear_first or interrupt_first) and not self._clear_input(window, shell_prompt):
+            clearing = clear_first or interrupt_first
+            if clearing and not self._clear_input(window, shell_prompt):
                 return failure("terminal_clear_failed")
             if clear_first and not interrupt_first and content_length <= 0:
                 return success(window)
+            # Cleared first, so leftover input is never submitted by these Enters; cleared again after,
+            # since a confirmation screen the Enters closed may have left input behind it.
+            if not self._press_enters(window, PRE_SUBMIT_ENTER_PRESSES, PRE_SUBMIT_ENTER_INTERVAL_SECONDS):
+                return failure("terminal_enter_failed")
+            if clearing and not self._clear_input(window, shell_prompt):
+                return failure("terminal_clear_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
             time.sleep(paste_settle_seconds(content_length))
@@ -444,6 +455,15 @@ class TerminalWindowBackend:
 
     def move_pointer(self, x: int, y: int) -> bool:
         return False
+
+    def _press_enters(self, window: Dict[str, Any], presses: int, interval_seconds: float) -> bool:
+        for index in range(presses):
+            if index:
+                time.sleep(interval_seconds)
+            if not self._press_enter(window).get("success"):
+                return False
+        time.sleep(interval_seconds)
+        return True
 
     def _press_enter(self, window: Dict[str, Any]) -> Dict[str, Any]:
         if not self._input_target_ready(window):
