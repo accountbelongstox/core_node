@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import {
   CapResourceAssetCache,
+  Directory,
   getStorageEstimate,
   requestPersistentStorage,
 } from '@/apps/wordnew/platform/capabilities';
@@ -68,6 +69,8 @@ function payloadAudioUrls(payload: unknown): string[] {
 
 const audioAssets = new CapResourceAssetCache({
   dir: 'wfnew-audio',
+  directory: Directory.Data,
+  legacyDirectory: Directory.Cache,
   budget: resolveCacheBudget,
   extractUrls: payloadAudioUrls,
   mimeFor: audioMime,
