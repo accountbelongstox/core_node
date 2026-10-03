@@ -87,6 +87,7 @@ export type {
   TerminalSnapshot,
   TerminalScreenshotResourceMeta,
   TerminalViewResult,
+  TerminalAiAgent,
   TerminalWindowInfo,
   TerminalWindowPoint,
   TerminalWindowRect,
