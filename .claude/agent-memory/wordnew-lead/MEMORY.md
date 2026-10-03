@@ -2,3 +2,4 @@
 - [wordnew UI shared primitives](wordnew-ui-shared-primitives.md) — shared/ui primitives, ChangeSignal, word-group/custom-word stores, locale split, tsc lock
 - [mcp-chrome package manager](mcp-chrome-package-manager.md) — bun workspaces; pnpm-workspace.yaml removed on purpose; lockfiles git-ignored; rebuild before pruning deps the stale dist needs
 - [Daily Reading feed redesign](wordnew-daily-reading-feed.md) — date strip + day feed + server read state; endpoints, guest fallback, gaps
+- [Phone debug pitfalls](wordnew-phone-debug-pitfalls.md) — start Vite alone, CDP driving, shared-phone ANRs, stage windowing and Capacitor log findings
