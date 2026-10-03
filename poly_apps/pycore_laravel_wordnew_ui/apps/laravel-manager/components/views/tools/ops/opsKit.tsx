@@ -107,7 +107,7 @@ export const OpsStatusBar: React.FC<OpsStatusBarProps> = ({ accent, mode, childr
         <ModeIcon className="h-3.5 w-3.5" />
         {t(mode === 'server' ? 'uiTools.workbench.server_badge' : 'uiTools.workbench.local_badge')}
       </span>
-      <div className="min-w-0 flex-1 text-xs text-slate-600 dark:text-slate-300">{children}</div>
+      <div className="min-w-[8rem] flex-1 truncate text-xs text-slate-600 dark:text-slate-300">{children}</div>
       {updatedAt !== undefined && (
         <span className="text-[11px] tabular-nums text-slate-400">{t('toolsOps.common.updated', { time: formatTimestamp(updatedAt, i18n.language) })}</span>
       )}

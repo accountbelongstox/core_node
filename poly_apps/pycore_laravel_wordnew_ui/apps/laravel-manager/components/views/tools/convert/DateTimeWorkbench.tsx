@@ -97,9 +97,9 @@ const DateTimeWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
           />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <label className="flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
             <span className={LABEL_CLASS}>{tc('datetime.zone')}</span>
-            <select value={zone} onChange={(event) => setZone(event.target.value)} className={`${INPUT_CLASS} !w-auto !py-1`}>
+            <select value={zone} onChange={(event) => setZone(event.target.value)} className={`${INPUT_CLASS} !w-auto min-w-0 max-w-full !py-1`}>
               {zoneOptions}
             </select>
           </label>

@@ -82,7 +82,7 @@ interface VaultPanelProps {
 }
 
 export const VaultPanel: React.FC<VaultPanelProps> = ({ title, icon: Icon, actions, vault = false, className = '', children }) => (
-  <section className={`rounded-2xl border p-4 ${vault ? 'border-emerald-500/20 bg-slate-950 text-emerald-200 shadow-lg shadow-emerald-950/20' : 'border-slate-200 bg-white dark:border-emerald-400/10 dark:bg-slate-900/60'} ${className}`}>
+  <section className={`min-w-0 rounded-2xl border p-4 ${vault ? 'border-emerald-500/20 bg-slate-950 text-emerald-200 shadow-lg shadow-emerald-950/20' : 'border-slate-200 bg-white dark:border-emerald-400/10 dark:bg-slate-900/60'} ${className}`}>
     {(title || actions) && (
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
         {title && (
