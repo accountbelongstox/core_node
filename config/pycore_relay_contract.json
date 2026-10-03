@@ -224,6 +224,7 @@
     "terminal_screenshot_signature_height": 36,
     "terminal_screenshot_signature_levels": 16,
     "terminal_screenshot_focus_slack_percent": 90,
+    "terminal_log_search_results": 10,
     "terminal_text_min_word_chars": 8,
     "terminal_text_revisions_kept": 4,
     "terminal_image_upload_bytes": 20971520,
@@ -553,6 +554,12 @@
     {
       "match": "exact",
       "value": "ui/terminal/text",
+      "profile": "terminal_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/logs/search",
       "profile": "terminal_read",
       "methods": [ "POST" ]
     },

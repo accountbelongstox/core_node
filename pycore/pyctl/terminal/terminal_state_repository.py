@@ -12,13 +12,16 @@ from pycore.pyctl.terminal.terminal_state_keys import (
     DEFAULT_LOG_SOURCE,
     LIVE_IDENTITY_FIELDS,
     LIVE_VOLATILE_PERSIST_SECONDS,
+    LOG_CONTENT_KEY_SUFFIX,
     LOG_ENTRY_FIELDS,
+    LOG_KEY_PATTERN,
     LOG_SOURCES,
     NEXT_NUMBER_KEY,
     SIZE_ONLY_KEY_SUFFIXES,
     SLOT_VERSION,
     TERMINAL_DATABASE_NAME,
     TERMINAL_DATA_DIR,
+    TERMINAL_KEY_PATTERN,
     active_records,
     log_metadata,
     log_preview,
@@ -368,6 +371,35 @@ class TerminalStateRepository:
         if content is not None:
             return content
         return "" if content_kind == "draft" else None
+
+    @serialized_method
+    def search_logs(self, query: str, limit: int) -> List[Dict[str, Any]]:
+        """Sent messages containing query, newest first; a text sent again is listed once, at its newest send."""
+        needle = query.strip()
+        if not needle or limit <= 0:
+            return []
+        matches: List[Tuple[int, int, str]] = []
+        for key, content in self._store.search_values(LOG_CONTENT_KEY_SUFFIX, needle):
+            terminal_match = TERMINAL_KEY_PATTERN.match(key)
+            log_match = LOG_KEY_PATTERN.match(terminal_match.group(2)) if terminal_match else None
+            if log_match and log_match.group(2) == "content":
+                matches.append((int(log_match.group(1)), int(terminal_match.group(1)), content))
+        matches.sort(reverse=True)
+        results: List[Dict[str, Any]] = []
+        seen_contents = set()
+        for log_id, terminal_number, content in matches:
+            if content in seen_contents:
+                continue
+            seen_contents.add(content)
+            values = {
+                field: self._store.read(terminal_key(terminal_number, f"log.{log_id}.{field}")) or ""
+                for field in LOG_ENTRY_FIELDS
+                if field != "content"
+            }
+            results.append({**log_metadata(terminal_number, str(log_id), values), "content": content})
+            if len(results) >= limit:
+                break
+        return results
 
     @serialized_method
     @_transactional_store_method
