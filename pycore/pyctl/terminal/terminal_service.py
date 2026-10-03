@@ -366,8 +366,9 @@ class TerminalService:
         terminal_number: int,
         option: int,
         text: str = "",
+        from_option: int = 1,
     ) -> Dict[str, Any]:
-        """Answer an agent choice menu: Down to the 1-based option, then Enter, or paste text + Enter."""
+        """Answer an agent choice menu: move from the selected option (from_option) to the 1-based option, then Enter, or paste text + Enter."""
         if not window_id:
             return self._failure("terminal_window_id_required")
         if not 1 <= option <= CHOICE_MAX_OPTIONS:
@@ -375,7 +376,7 @@ class TerminalService:
         activation = self._backend.activate(window_id)
         if not activation.get("success"):
             return activation
-        moved = self._backend.move_selection(window_id, option - 1)
+        moved = self._backend.move_selection(window_id, option - max(1, from_option))
         if not moved.get("success"):
             return moved
         time.sleep(CHOICE_SETTLE_SECONDS)

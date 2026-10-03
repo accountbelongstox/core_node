@@ -313,8 +313,9 @@ class TerminalWindowBackend:
         with self._input_guard():
             if not self._input_target_ready(window):
                 return failure("terminal_focus_failed")
-            for _ in range(max(0, steps)):
-                if not self._keys(window, [TERMINAL_KEY_DOWN]):
+            key = TERMINAL_KEY_DOWN if steps >= 0 else TERMINAL_KEY_UP
+            for _ in range(abs(steps)):
+                if not self._keys(window, [key]):
                     return failure("terminal_key_failed")
                 time.sleep(OPTION_STEP_SECONDS)
         return success(window)
