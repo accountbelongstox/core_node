@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Read-only pycore-dev MCP server: observation tools behind a direct-loopback gate."""
 
+import base64
 import functools
 import json
+from io import BytesIO
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 
@@ -18,15 +20,22 @@ from pycore.pyctl.devmcp.dev_mcp_constants import (
     FORBIDDEN_STATUS,
     FORWARDING_HEADER_PREFIXES,
     FORWARDING_HEADERS,
+    MIME_JPEG,
     PAGE_TEXT_DEFAULT_MAX_CHARS,
+    SCREENSHOT_MODE_WINDOW,
     TERMINAL_DEFAULT_LINES,
     TERMINAL_SOURCE_AUTO,
+    WINDOW_CAPTURE_JPEG_QUALITY,
+    WINDOW_CAPTURE_MAX_WIDTH,
+    WINDOW_CAPTURE_THREAD,
 )
 from pycore.pyctl.devmcp.terminal_reader import terminal_reader
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.third_party.api import get_third_package_mcp
 from pycore.pyutils.common.local_rpc_guard import host_header_is_loopback, is_loopback_peer
 from pycore.pyutils.rpc.http.local_rpc_middleware import scope_headers
+from pycore.pyutils.window.browser_window_capture import browser_window_capture
 
 mcp_package = get_third_package_mcp()
 
@@ -57,6 +66,17 @@ def observed(tool_name: str) -> Callable:
         return run
 
     return decorate
+
+
+def _jpeg_base64(image: Any) -> str:
+    """Base64 JPEG of a PIL image, scaled down to the capture width limit."""
+    if image.width > WINDOW_CAPTURE_MAX_WIDTH:
+        image = image.resize(
+            (WINDOW_CAPTURE_MAX_WIDTH, round(image.height * WINDOW_CAPTURE_MAX_WIDTH / image.width))
+        )
+    buffer = BytesIO()
+    image.convert("RGB").save(buffer, format="JPEG", quality=WINDOW_CAPTURE_JPEG_QUALITY)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
 class DevMcpEndpoint:
@@ -112,14 +132,39 @@ class DevMcpEndpoint:
             tab_id: int = 0,
             url_contains: str = "",
             title_contains: str = "",
+            mode: str = SCREENSHOT_MODE_WINDOW,
             full_page: bool = False,
         ) -> List[Any]:
-            """Screenshot a Chrome tab selected by tab_id or by url/title substring, without focusing it."""
+            """Screenshot a Chrome tab selected by tab_id or by url/title substring.
+
+            mode "window" (default): activate the tab, raise its browser window and capture the whole
+            window at OS level (tab strip, page and docked DevTools; undocked DevTools windows as extra
+            images). mode "page": capture only the page through the extension without focusing it.
+            A failed window capture falls back to "page" and says why.
+            """
             tab = (await chrome_bridge.matching_tabs(tab_id, url_contains, title_contains))[0]
+            summary = f"tab_id={tab['tabId']} title={tab.get('title')} url={tab.get('url')}"
+            if mode == SCREENSHOT_MODE_WINDOW:
+                await chrome_bridge.focus_tab(int(tab["tabId"]), int(tab["windowId"]))
+                captured = await await_bus_task(
+                    browser_window_capture.capture,
+                    str(tab.get("title") or ""),
+                    thread_name=WINDOW_CAPTURE_THREAD,
+                )
+                if captured["success"]:
+                    labels = " | ".join(item["label"] for item in captured["images"])
+                    return [
+                        *(
+                            image_content(type="image", data=_jpeg_base64(item["image"]), mimeType=MIME_JPEG)
+                            for item in captured["images"]
+                        ),
+                        text_content(type="text", text=f"{summary} method={captured['method']} windows={labels}"),
+                    ]
+                summary += f" window_capture_failed={captured.get('method')}:{captured.get('error_code')}"
             shot = await chrome_bridge.screenshot(int(tab["tabId"]), full_page)
             return [
                 image_content(type="image", data=shot["data"], mimeType=shot["mime"]),
-                text_content(type="text", text=f"tab_id={tab['tabId']} title={tab.get('title')} url={tab.get('url')}"),
+                text_content(type="text", text=summary),
             ]
 
         @server.tool(structured_output=False)

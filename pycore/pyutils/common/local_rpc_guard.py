@@ -3,7 +3,8 @@
 
 - The bind host is loopback unless the LAN bind setting is on (K7a).
 - A loopback caller needs a loopback ``Host`` header (DNS rebinding) and, when
-  it is a browser (``Origin`` present), an allowed dashboard origin.
+  it is a browser (``Origin`` present), an allowed dashboard origin or a
+  private-LAN origin (echoed for CORS like the LAN path).
 - A non-loopback caller on a private LAN address (RFC 1918, link-local,
   tailnet CGNAT, ULA; ``private_lan_networks``) needs no key: it must name a
   private/loopback ``Host`` and, when it is a browser, a private/loopback
@@ -22,6 +23,7 @@ from typing import Any, Callable, Dict, FrozenSet, Iterable, Mapping, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.service_contract import host as contract_host
 from pycore.pyfoundations.service_contract import port as contract_port
+from pycore.pyfoundations.service_contract import tailnet_domain_of
 from pycore.pyfoundations.service_contract import value as contract_value
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, user_data_store
 
@@ -157,7 +159,7 @@ def is_private_lan_peer(address: Any) -> bool:
 
 def _hostname_is_lan(hostname: str) -> bool:
     """Loopback or private LAN host: an IP literal inside the LAN networks, a
-    single-label or LAN-suffixed name; a public name or address is not."""
+    single-label, LAN-suffixed or mesh (tailnet machine) name; a public name or address is not."""
     name = _hostname(hostname)
     if not name:
         return False
@@ -165,7 +167,11 @@ def _hostname_is_lan(hostname: str) -> bool:
         return True
     if _ip_address(name) is not None:
         return False
-    return "." not in name or any(name.endswith(f".{suffix}") for suffix in PRIVATE_LAN_HOST_SUFFIXES)
+    return (
+        "." not in name
+        or any(name.endswith(f".{suffix}") for suffix in PRIVATE_LAN_HOST_SUFFIXES)
+        or bool(tailnet_domain_of(name))
+    )
 
 
 def host_header_is_lan(host_header: str) -> bool:
@@ -180,6 +186,13 @@ def origin_is_lan(origin: str) -> bool:
         ColorPrint.gray(f"[LocalRpcGuard] unparsable origin {origin!r}: {exc}")
         return False
     return parts.scheme.lower() in ORIGIN_SCHEMES and _hostname_is_lan(hostname)
+
+
+def origin_is_private_lan_host(origin: str) -> bool:
+    """A private-LAN browser origin that is not itself a loopback host."""
+    if not origin_is_lan(origin):
+        return False
+    return _hostname(urlsplit(str(origin).strip()).hostname or "") not in LOOPBACK_HOSTS
 
 
 def lan_bind_enabled() -> bool:
@@ -232,9 +245,11 @@ def evaluate_request(
     if is_loopback_peer(peer):
         if not host_header_is_loopback(str(headers.get("host") or "")):
             return _decision(False, STATUS_FORBIDDEN, ERROR_HOST_FORBIDDEN)
-        if origin and origin not in origins and normalize_origin(origin) not in origins:
-            return _decision(False, STATUS_FORBIDDEN, ERROR_ORIGIN_FORBIDDEN)
-        return _decision(True, origin=origin)
+        if not origin or origin in origins or normalize_origin(origin) in origins:
+            return _decision(True, origin=origin)
+        if origin_is_private_lan_host(origin):
+            return _decision(True, origin=origin, echo_cors=True)
+        return _decision(False, STATUS_FORBIDDEN, ERROR_ORIGIN_FORBIDDEN)
     lan_decision = _private_lan_decision(headers, origin) if is_private_lan_peer(peer) else None
     if lan_decision is not None and lan_decision["allowed"]:
         return lan_decision

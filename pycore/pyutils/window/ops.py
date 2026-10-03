@@ -23,6 +23,11 @@ from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_PATH_BUFFER_LENGTH = 32768
+TOKEN_QUERY = 0x0008
+TOKEN_ELEVATION_CLASS = 20
+DESKTOP_READOBJECTS = 0x0001
+UOI_NAME = 2
+DESKTOP_NAME_BUFFER_LENGTH = 256
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.window.win32_window_constants import (
     GWL_EXSTYLE,
@@ -126,6 +131,7 @@ class WindowOps:
     def __init__(self):
         self.user32 = ctypes.windll.user32
         self.kernel32 = ctypes.windll.kernel32
+        self.advapi32 = ctypes.windll.advapi32
         self._setup_function_signatures()
         
         self.key_codes = {
@@ -227,6 +233,18 @@ class WindowOps:
         self.kernel32.QueryFullProcessImageNameW.restype = BOOL
         self.kernel32.CloseHandle.argtypes = [c_void_p]
         self.kernel32.CloseHandle.restype = BOOL
+        self.kernel32.GetCurrentProcess.argtypes = []
+        self.kernel32.GetCurrentProcess.restype = c_void_p
+        self.advapi32.OpenProcessToken.argtypes = [c_void_p, c_ulong, POINTER(c_void_p)]
+        self.advapi32.OpenProcessToken.restype = BOOL
+        self.advapi32.GetTokenInformation.argtypes = [c_void_p, c_int, c_void_p, c_ulong, POINTER(c_ulong)]
+        self.advapi32.GetTokenInformation.restype = BOOL
+        self.user32.OpenInputDesktop.argtypes = [c_ulong, BOOL, c_ulong]
+        self.user32.OpenInputDesktop.restype = c_void_p
+        self.user32.GetUserObjectInformationW.argtypes = [c_void_p, c_int, c_void_p, c_ulong, POINTER(c_ulong)]
+        self.user32.GetUserObjectInformationW.restype = BOOL
+        self.user32.CloseDesktop.argtypes = [c_void_p]
+        self.user32.CloseDesktop.restype = BOOL
     
     def find_window(self, class_name: Optional[str] = None, window_title: Optional[str] = None) -> Optional[int]:
         hwnd = self.user32.FindWindowW(class_name, window_title)
@@ -413,6 +431,47 @@ class WindowOps:
         if not resolved:
             return ""
         return Path(buffer.value).name
+
+    def input_desktop_name(self) -> str:
+        """Desktop receiving user input ("Default" while unlocked); empty when it cannot be opened (lock screen, UAC prompt)."""
+        desktop = self.user32.OpenInputDesktop(0, False, DESKTOP_READOBJECTS)
+        if not desktop:
+            return ""
+        buffer = ctypes.create_unicode_buffer(DESKTOP_NAME_BUFFER_LENGTH)
+        needed = c_ulong(0)
+        named = self.user32.GetUserObjectInformationW(desktop, UOI_NAME, buffer, ctypes.sizeof(buffer), byref(needed))
+        self.user32.CloseDesktop(desktop)
+        return buffer.value if named else ""
+
+    def _token_elevated(self, process_handle: int) -> Optional[bool]:
+        token = c_void_p()
+        if not self.advapi32.OpenProcessToken(process_handle, TOKEN_QUERY, byref(token)):
+            return None
+        elevation = c_ulong(0)
+        size = c_ulong(0)
+        resolved = self.advapi32.GetTokenInformation(
+            token,
+            TOKEN_ELEVATION_CLASS,
+            byref(elevation),
+            ctypes.sizeof(elevation),
+            byref(size),
+        )
+        self.kernel32.CloseHandle(token)
+        return bool(elevation.value) if resolved else None
+
+    def current_process_elevated(self) -> bool:
+        return bool(self._token_elevated(self.kernel32.GetCurrentProcess()))
+
+    def process_elevated(self, process_id: int) -> Optional[bool]:
+        """Token elevation of a process; None when its token cannot be read (an elevated process denies a non-elevated caller)."""
+        if process_id <= 0:
+            return None
+        handle = self.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
+        if not handle:
+            return None
+        elevated = self._token_elevated(handle)
+        self.kernel32.CloseHandle(handle)
+        return elevated
 
     def show_window_without_activation(self, hwnd: int) -> bool:
         if self.user32.IsIconic(hwnd):
@@ -722,6 +781,15 @@ def get_window_class_name(hwnd: int) -> str:
 
 def get_window_process_name(process_id: int) -> str:
     return _window_ops.get_window_process_name(process_id)
+
+def input_desktop_name() -> str:
+    return _window_ops.input_desktop_name()
+
+def current_process_elevated() -> bool:
+    return _window_ops.current_process_elevated()
+
+def process_elevated(process_id: int) -> Optional[bool]:
+    return _window_ops.process_elevated(process_id)
 
 def show_window_without_activation(hwnd: int) -> bool:
     return _window_ops.show_window_without_activation(hwnd)

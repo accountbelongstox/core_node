@@ -113,6 +113,12 @@ export type TerminalControlMode =
   | 'portal'
   | 'none';
 
+/** AI agent recognized in the terminal by the scan text rules or the window title. */
+export interface TerminalAiAgent {
+  rule: string;
+  source: 'text' | 'title';
+}
+
 export interface TerminalWindowInfo {
   id: string;
   native_id: number | string;
@@ -137,6 +143,7 @@ export interface TerminalWindowInfo {
   log_count: number;
   logs: TerminalLogEntry[];
   schedule_queue?: TerminalScheduleEntry[];
+  ai_agent?: TerminalAiAgent | null;
   state_updated_at?: string;
   last_seen_at?: string;
 }

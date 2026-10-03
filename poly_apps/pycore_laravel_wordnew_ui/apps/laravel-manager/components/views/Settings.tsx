@@ -13,6 +13,7 @@ import { api } from '@/apps/laravel-manager/api';
 import { ServerConfig, EnvironmentInfo } from '@/apps/laravel-manager/api';
 import { userModel } from '@/apps/laravel-manager/models/UserModel';
 import { getOriginUrl } from '@/core/config/FrontendConfig';
+import { LARAVEL_API_BACKEND_PORT } from '@/core/contracts/ServiceContract';
 import { apiManager, HealthCheckResult } from '@/core/integrations/laravel/ApiManager';
 import { recheckApiEndpointsNow } from '@/apps/laravel-manager/services/ApiHealthRecheck';
 import { CenteredPage, CenteredTabBar, PageHeader } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
@@ -56,7 +57,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   // API Configuration State
   const [baseUrl, setBaseUrl] = useState(config.baseUrl);
   const [apiKey, setApiKey] = useState(config.apiKey || '');
-  const [port, setPort] = useState(config.port || 9000);
+  const [port, setPort] = useState(config.port || LARAVEL_API_BACKEND_PORT);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
@@ -69,7 +70,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   // Add-endpoint form
   const [addProtocol, setAddProtocol] = useState<'http' | 'https'>('http');
   const [addUrl, setAddUrl] = useState('');
-  const [addPort, setAddPort] = useState<string>('9000');
+  const [addPort, setAddPort] = useState<string>(String(LARAVEL_API_BACKEND_PORT));
   const [addDesc, setAddDesc] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -193,7 +194,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   useEffect(() => {
     setBaseUrl(config.baseUrl);
     setApiKey(config.apiKey || '');
-    setPort(config.port || 9000);
+    setPort(config.port || LARAVEL_API_BACKEND_PORT);
   }, [config]);
 
   // Load server configuration when server tab is active
@@ -737,7 +738,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       type="number"
                       value={addPort}
                       onChange={(e) => setAddPort(e.target.value)}
-                      placeholder="9000"
+                      placeholder={String(LARAVEL_API_BACKEND_PORT)}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                     />
                   </div>
@@ -781,7 +782,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     type="text"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="http://api-host:9000"
+                    placeholder={`http://api-host:${LARAVEL_API_BACKEND_PORT}`}
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </Field>
@@ -791,8 +792,8 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   <input
                     type="number"
                     value={port}
-                    onChange={(e) => setPort(parseInt(e.target.value) || 9000)}
-                    placeholder="9000"
+                    onChange={(e) => setPort(parseInt(e.target.value) || LARAVEL_API_BACKEND_PORT)}
+                    placeholder={String(LARAVEL_API_BACKEND_PORT)}
                     min="1"
                     max="65535"
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
@@ -896,7 +897,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 dark:text-slate-400">{tr('uiSettings.api.api_port_label')}</span>
                   <span className="font-mono text-slate-900 dark:text-white">
-                    {currentEndpoint?.port ?? config.port ?? 9000}
+                    {currentEndpoint?.port ?? config.port ?? LARAVEL_API_BACKEND_PORT}
                   </span>
                 </div>
                 {currentEndpoint && config.baseUrl !== buildApiUrl(currentEndpoint) && (

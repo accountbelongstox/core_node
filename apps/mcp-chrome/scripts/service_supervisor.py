@@ -34,6 +34,7 @@ WAKE_STATE_FILE_NAME = "core-node-mcp-chrome-last-wake.state"
 NATIVE_HOST_NAME = f"{contract_value('mcp_chrome.native_host_name')}.json"
 BUILD_OUTPUT_DIR_NAME = contract_value("mcp_chrome.build_output_dir")
 EXTENSION_DIR_NAME = contract_value("mcp_chrome.extension_dir")
+EXTENSION_ID = contract_value("mcp_chrome.extension_id")
 MCP_PORT = port("mcp_chrome")
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
@@ -378,6 +379,71 @@ def wake_extension(force: bool = False) -> None:
         print(f"[Supervisor] Could not wake the Chrome extension: {error}", flush=True)
 
 
+def chrome_user_data_dirs() -> list[Path]:
+    home_path = Path.home()
+
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        return [Path(local_app_data) / "Google" / "Chrome" / "User Data"] if local_app_data else []
+    if sys.platform == "darwin":
+        return [home_path / "Library" / "Application Support" / "Google" / "Chrome"]
+    return [home_path / ".config" / "google-chrome", home_path / ".config" / "chromium"]
+
+
+def registered_extension_paths() -> set[Path]:
+    registered: set[Path] = set()
+
+    for user_data_dir in chrome_user_data_dirs():
+        for preferences_path in [*user_data_dir.glob("*/Preferences"), *user_data_dir.glob("*/Secure Preferences")]:
+            try:
+                preferences = json.loads(preferences_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            settings = preferences.get("extensions", {}).get("settings", {}).get(EXTENSION_ID, {})
+            extension_path = settings.get("path") if isinstance(settings, dict) else None
+            if isinstance(extension_path, str) and Path(extension_path).is_absolute():
+                registered.add(Path(extension_path))
+    return registered
+
+
+def link_directory(link_path: Path, target_path: Path) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return
+    os.symlink(target_path, link_path, target_is_directory=True)
+
+
+# A Chrome profile keeps the unpacked-extension folder it was loaded from; when
+# that folder is an older repository build output, alias it to the live build so
+# WXT dev reloads and build stamps reach the loaded extension.
+def align_registered_extension_paths(project_root: Path) -> None:
+    build_dir = (project_root / BUILD_OUTPUT_DIR_NAME / EXTENSION_DIR_NAME).resolve()
+    stale_path: Optional[Path] = None
+
+    for registered_path in registered_extension_paths():
+        if project_root not in registered_path.parents or registered_path.resolve() == build_dir:
+            continue
+        try:
+            if registered_path.is_symlink() or os.path.isjunction(registered_path):
+                registered_path.unlink()
+            elif registered_path.exists():
+                stale_path = registered_path.with_name(f"{registered_path.name}.stale-{time.strftime('%Y%m%d%H%M%S')}")
+                registered_path.rename(stale_path)
+            registered_path.parent.mkdir(parents=True, exist_ok=True)
+            link_directory(registered_path, build_dir)
+            print(
+                f"[Supervisor] Chrome loads the extension from {registered_path}; linked it to {build_dir}.",
+                flush=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            print(f"[Supervisor] Could not link {registered_path} to {build_dir}: {error}", flush=True)
+
+
 def artifact_signature(project_root: Path) -> tuple[Optional[int], Optional[int]]:
     native_artifact = project_root / "app" / "native-server" / "dist" / "index.js"
     extension_manifest = project_root / BUILD_OUTPUT_DIR_NAME / EXTENSION_DIR_NAME / "manifest.json"
@@ -403,6 +469,7 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
     auto_recovery_suspended_logged = False
 
     print(f"[Supervisor] Watch mode: {watch_mode}.", flush=True)
+    align_registered_extension_paths(project_root)
 
     while not stop_event.is_set():
         if not owner_process_alive():

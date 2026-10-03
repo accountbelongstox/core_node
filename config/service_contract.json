@@ -69,12 +69,28 @@
     },
     "access": {
         "default_api_region_prefix": "si",
+        "cors": {
+            "private_origin_schemes": ["http", "https", "capacitor"],
+            "private_origin_hostnames": ["localhost"],
+            "private_origin_ranges": [
+                "127.0.0.0/8",
+                "::1",
+                "10.0.0.0/8",
+                "172.16.0.0/12",
+                "192.168.0.0/16",
+                "100.64.0.0/10",
+                "fd7a:115c:a1e0::/48"
+            ],
+            "private_network_request_header": "Access-Control-Request-Private-Network",
+            "private_network_allow_header": "Access-Control-Allow-Private-Network"
+        },
         "tailnet": {
             "api_label": "api",
             "api_path": "/laravel-api",
             "pycore_path": "/pycore-api",
             "pycore_legacy_paths": ["/pycore"],
             "peers_route": "/api/tailnet/peers",
+            "client_only_os": ["android", "ios"],
             "source_ranges": [
                 "100.64.0.0/10",
                 "fd7a:115c:a1e0::/48",
@@ -322,7 +338,7 @@
             "non_loopback_rule": "client_key_required",
             "private_lan_rule": "open",
             "private_lan_networks": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "100.64.0.0/10", "fc00::/7", "fe80::/10"],
-            "private_lan_host_suffixes": ["local", "lan", "internal", "home.arpa", "ts.net"],
+            "private_lan_host_suffixes": ["local", "lan", "internal", "home.arpa"],
             "cors_allowed_methods": ["GET", "POST", "OPTIONS"],
             "cors_allowed_headers": ["content-type", "x-request-id"],
             "cors_max_age_seconds": 600,
