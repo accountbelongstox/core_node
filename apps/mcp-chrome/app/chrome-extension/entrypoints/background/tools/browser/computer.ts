@@ -522,11 +522,17 @@ class ComputerTool extends BaseBrowserToolExecutor {
           if (!keys) {
             return createErrorResponse('text parameter is required for type/key action');
           }
+          // action=key takes space-separated chords ("Backspace Enter"); the
+          // keyboard helper separates chords with commas.
+          const keySelector = args.ref
+            ? (await this.resolveRef(targetTabId, args.ref))?.selector ?? args.selector
+            : args.selector;
           return await keyboardTool.execute({
-            keys,
-            selector: args.selector,
+            keys: action === 'key' ? keys.trim().split(/\s+/).join(',') : keys,
+            selector: keySelector,
             repeat: args.repeat,
             tabId: targetTabId,
+            literalText: action === 'type',
           });
         }
 

@@ -84,7 +84,8 @@
       "Bash(break)",
       "Bash(systemctl is-active *)",
       "Bash(systemctl list-units *)",
-      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=5\")"
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=5\")",
+      "Bash(node --check inject-scripts/keyboard-helper.js)"
     ],
     "deny": [],
     "ask": []

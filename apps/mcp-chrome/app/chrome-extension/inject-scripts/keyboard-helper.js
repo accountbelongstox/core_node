@@ -182,13 +182,88 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
    * @param {number} delay - Delay between key sequences in milliseconds (optional)
    * @returns {Promise<Object>} - Result of the keyboard operation
    */
-  async function simulateKeyboard(keysSequenceString, targetElement = null, delay = 0) {
+  /**
+   * Insert literal text at the caret of an editable element, firing the same
+   * beforeinput/input events a real keystroke produces.
+   */
+  function insertTextAtCaret(element, text) {
+    const isTextControl =
+      element instanceof HTMLTextAreaElement ||
+      (element instanceof HTMLInputElement && typeof element.selectionStart === 'number');
+    if (isTextControl) {
+      const start = element.selectionStart ?? element.value.length;
+      const end = element.selectionEnd ?? element.value.length;
+      element.dispatchEvent(
+        new InputEvent('beforeinput', { inputType: 'insertText', data: text, bubbles: true, cancelable: true }),
+      );
+      element.setRangeText(text, start, end, 'end');
+      element.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: text, bubbles: true }));
+      return true;
+    }
+    if (element.isContentEditable) {
+      return document.execCommand('insertText', false, text);
+    }
+    return false;
+  }
+
+  /**
+   * Type literal text character by character: key events for each character
+   * plus the text insertion that synthetic key events alone never perform.
+   */
+  async function typeText(text, element, delay) {
+    const results = [];
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const keyInfo =
+        ch === ' '
+          ? { ...SPECIAL_KEY_MAP.space, modifiers: {} }
+          : ch === '\n'
+            ? { ...SPECIAL_KEY_MAP.enter, modifiers: {} }
+            : {
+                key: ch,
+                code: /[a-z]/i.test(ch) ? `Key${ch.toUpperCase()}` : '',
+                keyCode: ch.toUpperCase().charCodeAt(0),
+                charCode: ch.charCodeAt(0),
+                modifiers: { shiftKey: ch !== ch.toLowerCase() },
+              };
+      const dispatchResult = dispatchKeyEvents(keyInfo, element);
+      if (dispatchResult.success && ch !== '\n') insertTextAtCaret(element, ch);
+      results.push({ keyCombination: ch, ...dispatchResult });
+      if (delay > 0 && i < text.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+    return results;
+  }
+
+  function resolveTarget(selector, selectorType) {
+    if (selectorType === 'xpath') {
+      return document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+        .singleNodeValue;
+    }
+    return document.querySelector(selector);
+  }
+
+  async function simulateKeyboard(keysSequenceString, targetElement = null, delay = 0, literalText = false) {
     try {
       const element = targetElement || document.activeElement || document.body;
 
       if (element !== document.activeElement && typeof element.focus === 'function') {
         element.focus();
         await new Promise((resolve) => setTimeout(resolve, 50)); // Small delay for focus
+      }
+
+      if (literalText) {
+        const typedResults = await typeText(keysSequenceString, element, delay);
+        const typedOk = typedResults.every((r) => r.success);
+        return {
+          success: typedOk,
+          message: typedOk
+            ? `Text typed successfully: ${keysSequenceString}`
+            : `Some keyboard events failed for: ${keysSequenceString}`,
+          results: typedResults,
+          targetElement: { tagName: element.tagName, id: element.id, className: element.className, type: element.type },
+        };
       }
 
       const keyCombinations = keysSequenceString
@@ -200,6 +275,12 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
       for (let i = 0; i < keyCombinations.length; i++) {
         const comboString = keyCombinations[i];
         const parsedKeyInfo = parseSingleKeyCombination(comboString);
+
+        if (!parsedKeyInfo && !comboString.includes('+')) {
+          // Not a key name: type the segment as literal text (e.g. "Hello World").
+          operationResults.push(...(await typeText(comboString, element, delay)));
+          continue;
+        }
 
         if (!parsedKeyInfo) {
           operationResults.push({
@@ -261,7 +342,7 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
       let targetEl = null;
       if (request.selector) {
         try {
-          targetEl = document.querySelector(request.selector);
+          targetEl = resolveTarget(request.selector, request.selectorType);
         } catch (queryError) {
           sendResponse({
             success: false,
@@ -280,7 +361,7 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
         }
       }
 
-      simulateKeyboard(request.keys, targetEl, request.delay)
+      simulateKeyboard(request.keys, targetEl, request.delay, request.literalText === true)
         .then(sendResponse)
         .catch((error) => {
           // This catch is for unexpected errors in simulateKeyboard promise chain itself

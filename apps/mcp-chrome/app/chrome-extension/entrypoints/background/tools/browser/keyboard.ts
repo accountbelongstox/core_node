@@ -11,6 +11,9 @@ interface KeyboardToolParams {
   delay?: number; // Optional: delay between keystrokes in milliseconds
   repeat?: number; // Optional: number of times to repeat the key sequence (1-100, default 1)
   tabId?: number; // Optional: target a specific tab instead of the active tab of the current window
+  windowId?: number;
+  selectorType?: 'css' | 'xpath';
+  literalText?: boolean; // Internal: type keys as literal text (computer action=type)
 }
 
 /**
@@ -23,7 +26,16 @@ class KeyboardTool extends BaseBrowserToolExecutor {
    * Execute keyboard operation
    */
   async execute(args: KeyboardToolParams): Promise<ToolResult> {
-    const { keys, selector, delay = TIMEOUTS.KEYBOARD_DELAY, repeat, tabId } = args;
+    const {
+      keys,
+      selector,
+      selectorType,
+      delay = TIMEOUTS.KEYBOARD_DELAY,
+      repeat,
+      tabId,
+      windowId,
+      literalText = false,
+    } = args;
 
     console.log(`Starting keyboard operation with options:`, args);
 
@@ -38,7 +50,7 @@ class KeyboardTool extends BaseBrowserToolExecutor {
 
     try {
       // Resolve target tab (explicit tabId wins; otherwise the active tab)
-      const tab = await this.resolveTargetTab(tabId);
+      const tab = await this.resolveTargetTab(tabId, windowId);
       if (!tab?.id) {
         return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
       }
@@ -53,7 +65,9 @@ class KeyboardTool extends BaseBrowserToolExecutor {
           action: TOOL_MESSAGE_TYPES.SIMULATE_KEYBOARD,
           keys,
           selector,
+          selectorType,
           delay,
+          literalText,
         });
 
         if (lastResult?.error) {
