@@ -425,6 +425,9 @@ class CodeMartV1Constants
     public const ERROR_CONTACT_MESSAGE_NOT_FOUND = 'contact_message_not_found';
     public const ERROR_KYC_NOT_FOUND = 'kyc_not_found';
     public const ERROR_VALIDATION_FAILED = 'validation_failed';
+    public const ERROR_INVALID_VERIFICATION_TOKEN = 'invalid_verification_token';
+    public const ERROR_INVALID_OTP_CODE = 'invalid_otp_code';
+    public const ERROR_FILE_UPLOAD_FAILED = 'file_upload_failed';
 
     public static function getAllDepositStatuses(): array
     {
