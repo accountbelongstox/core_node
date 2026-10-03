@@ -45,6 +45,12 @@ public sealed record BattlenetClientStatus(BattlenetClientState State, string? U
     };
 
     public bool IsLogin => DynamicTriple.OnLogin;
+
+    /// <summary>Logging in / security check / e-mail wait or code entry: the user is mid-login, so nothing may close or restart the client.</summary>
+    public bool IsWaitingForUser => IsWaitingForUserState(State);
+
+    public static bool IsWaitingForUserState(BattlenetClientState state) =>
+        state is BattlenetClientState.LoggingIn or BattlenetClientState.SecurityCheck or BattlenetClientState.VerificationCode;
 }
 
 /// <summary>
@@ -72,7 +78,6 @@ public static class BattlenetClientStateDetector
     /// <summary>Region the UI itself shows: exact CN-only / Asia-only automation ids (substring matching would read D3CN as D3).</summary>
     public static string? UiRegion(IReadOnlyList<BattlenetControl> controls)
     {
-        if (controls.Any(c => c.AutomationId.Contains(C.LoginPopupWindowAutomationId, StringComparison.Ordinal))) return C.RegionCn;
         if (HasExactAutomationId(controls, C.CnRegionAutomationIds)) return C.RegionCn;
         if (HasExactAutomationId(controls, C.AsiaRegionAutomationIds)) return C.RegionAsia;
         return null;

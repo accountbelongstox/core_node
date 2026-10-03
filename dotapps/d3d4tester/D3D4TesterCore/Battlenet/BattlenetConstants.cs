@@ -58,7 +58,7 @@ public static class BattlenetConstants
     public const string ButtonControlType = "ButtonControl";
     /// <summary>Main-window Play button has no AutomationId in live scans; its Name starts with these (e.g. "Play: Diablo III, Version: ...").</summary>
     public static readonly string[] PlayButtonNamePrefixes = { "Play", "开始游戏", "開始遊戲", "正在", "进行中" };
-    /// <summary>CN web login popup (account.battlenet.com.cn, NetEase / password entry in progress). uidocs 战网_CB2F804E.</summary>
+    /// <summary>Login web popup (NetEase / password entry, also the security check page for any region). Not a region signal.</summary>
     public const string LoginPopupWindowAutomationId = "LoginPopupWindow";
     /// <summary>Exact ids only on the CN login page (uidocs 战网登录_8914CEDB).</summary>
     public static readonly string[] CnLoginAutomationIds = { "ntes" };
@@ -72,7 +72,11 @@ public static class BattlenetConstants
     public static readonly string[] SecurityCheckKeywords = { "quick security check", "verify your account", "安全检查", "安全验证", "验证您的账户", "验证你的账户", "驗證您的帳號" };
     public const string SecurityCheckMethodAutomationId = "data-select-current";
     /// <summary>Page waiting for the e-mailed / SMS / authenticator code. Needs the user.</summary>
-    public static readonly string[] VerificationCodeKeywords = { "Enter the code", "enter the code", "verification code", "security code", "验证码", "驗證碼", "安全码", "输入代码" };
+    public static readonly string[] VerificationCodeKeywords =
+    {
+        "Enter the code", "enter the code", "verification code", "security code", "Check your email", "check your email",
+        "sent a code", "sent you", "We sent", "验证码", "驗證碼", "安全码", "输入代码", "已发送", "请查收", "查看您的电子邮件",
+    };
     /// <summary>"Keep me logged in" checkbox on the account form (live scan: persistLogin).</summary>
     public const string PersistLoginAutomationId = "persistLogin";
     /// <summary>Battle.net login window (Qt) hosting the account form web view.</summary>
@@ -83,11 +87,7 @@ public static class BattlenetConstants
     public static readonly string[] LoggingInKeywords = { "Logging in", "正在登录", "登录中" };
 
     // ---------- Guard watchdog config (keys shared with the app ConfigKeys; defaults also in Config/default_config.json) ----------
-    public const string ConfigKeyAbnormalRestartEnabled = "battlenet.abnormal_restart_enabled";
-    public const string ConfigKeyAbnormalTimeoutSec = "battlenet.abnormal_timeout_sec";
     public const int AbnormalTimeoutSecDefault = 120;
-    public const string ConfigKeyLoginRestartEnabled = "battlenet.login_restart_enabled";
-    public const string ConfigKeyLoginTimeoutSec = "battlenet.login_timeout_sec";
     public const int LoginTimeoutSecDefault = 300;
 
     // ---------- Region switch (official launcher argument; LastLoginRegion becomes CN / KR) ----------

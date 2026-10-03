@@ -130,13 +130,21 @@ public static class BrowserLoginAutomation
         return submit != null ? Invoke(hwnd, submit, "submit") : PollResult.Acted;
     }
 
+    /// <summary>
+    /// Web inputs (React in the login web view) ignore a UIA ValuePattern write — the form keeps the field empty — so focus the
+    /// field and type real keystrokes first; ValuePattern only as a fallback when typing fails.
+    /// </summary>
     private static bool Fill(IntPtr hwnd, AutomationElement edit, string text) =>
         FieldInput.FillFieldWithFallback(
             text,
             t => UIOperations.SetValue(edit, t),
-            () => ScreenCaptureService.ActivateWindow(hwnd) && UIOperations.SetFocus(edit),
+            () =>
+            {
+                ScreenCaptureService.ActivateWindow(hwnd);
+                return UIOperations.SetFocus(edit) || UIOperations.ClickAtControlRect(edit);
+            },
             focusXy: null,
-            preferSetValue: true,
+            preferSetValue: false,
             options: FieldOptions);
 
     private static PollResult Invoke(IntPtr hwnd, AutomationElement element, string what)

@@ -2,6 +2,7 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f3_baseline.py
 using System.Globalization;
 using DotCore.Foundations;
+using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Core.Flow;
 
@@ -55,14 +56,14 @@ public static class F3LogTimeout
     /// <summary>(enabled, timeout seconds): battlenet.timeout_restart; rosbot.test_timeout_minutes in test mode else rosbot.timeout_minutes. 1:1 Python get_rosbot_log_timeout_config.</summary>
     public static (bool Enabled, int TimeoutSec) GetTimeoutConfig()
     {
-        bool enabled = RosbotFlowHost.GetConfig(RosbotConstants.ConfigKeyTimeoutRestart, true);
+        bool enabled = RosbotFlowHost.GetConfig(ConfigKeys.BattlenetTimeoutRestart, true);
         int minutes = IsTestMode()
-            ? RosbotFlowHost.GetConfig(RosbotConstants.ConfigKeyTestTimeoutMinutes, RosbotConstants.RosbotTestTimeoutMinutesDefault)
-            : RosbotFlowHost.GetConfig(RosbotConstants.ConfigKeyTimeoutMinutes, RosbotConstants.RosbotLogTimeoutMinutesDefault);
+            ? RosbotFlowHost.GetConfig(ConfigKeys.RosbotTestTimeoutMinutes, RosbotConstants.RosbotTestTimeoutMinutesDefault)
+            : RosbotFlowHost.GetConfig(ConfigKeys.RosbotTimeoutMinutes, RosbotConstants.RosbotLogTimeoutMinutesDefault);
         return (enabled, Math.Max(1, minutes) * 60);
     }
 
-    public static bool IsTestMode() => RosbotFlowHost.GetConfig(RosbotConstants.ConfigKeyTestMode, false);
+    public static bool IsTestMode() => RosbotFlowHost.GetConfig(ConfigKeys.RosbotTestMode, false);
 
     private static DateTime? LastLogUtc() => RosbotFlowHost.Current?.GetLastLogModifiedUtc();
 

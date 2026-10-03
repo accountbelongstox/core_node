@@ -205,7 +205,10 @@ public sealed class BattlenetAsiaOps
 
     private static BattlenetRegionJudge Judge(IReadOnlyList<BattlenetControl>? controls) => new(controls ?? T.Enumerate());
 
-    /// <summary>ValuePattern first, then keyboard. 1:1 Python _fill_field.</summary>
+    /// <summary>
+    /// Keyboard first, ValuePattern as fallback: the login form is a React web view that ignores a ValuePattern write (live:
+    /// field stays empty for the page). Python _fill_field tried ValuePattern first.
+    /// </summary>
     private static bool FillField(BattlenetControl control, string text, bool isPassword)
     {
         if (string.IsNullOrEmpty(text)) return true;
@@ -224,7 +227,7 @@ public sealed class BattlenetAsiaOps
             t => T.SetControlValue(control, t),
             () => T.FocusControl(control),
             focusXy: null,
-            preferSetValue: true,
+            preferSetValue: false,
             options: FieldOptions);
         if (ok)
             ColorPrinter.Blue($"{LogTag} Field filled ({text.Length} chars)");

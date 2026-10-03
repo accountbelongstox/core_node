@@ -9,6 +9,7 @@ import { normalizePycorePath } from './pycoreEndpoints';
 import { pycoreTargetBackendUrl, rewritePycoreEndpoint } from './pycoreTarget';
 import { pycoreTransportSelector } from './PycoreTransportSelector';
 import { assertRelayFormFits } from './PycoreRelayWire';
+import { pycoreLanSignHeaders } from './pycoreLanAuth';
 import {
   PYCORE_HTTP_HEADER_NAMES,
   PYCORE_HTTP_JSON_CONTENT_TYPE,
@@ -80,6 +81,14 @@ export class PycoreMasterClient extends MasterApiClient {
       signal,
       () => super.deliver(url, init, signal),
     );
+  }
+
+  /** A LAN pycore admits the request only with a K3 signature (K7). */
+  protected async signRequest(url: string, init: RequestInit): Promise<RequestInit> {
+    const headers = init.headers as Record<string, string> | undefined;
+    const contentType = headers?.[PYCORE_HTTP_HEADER_NAMES.contentType] ?? '';
+    const signed = await pycoreLanSignHeaders(String(init.method || 'GET'), url, init.body, contentType);
+    return Object.keys(signed).length > 0 ? { ...init, headers: { ...(headers ?? {}), ...signed } } : init;
   }
 
   /** The selected pycore's link; the relay entry delivers on its own. */
@@ -193,9 +202,10 @@ export class PycoreMasterClient extends MasterApiClient {
    * Headers of a direct request a native writer sends itself (clip bundles
    * written to disk): the same client identity as every other call.
    */
-  async directHeaders(): Promise<Record<string, string>> {
+  async directHeaders(url: string, body: unknown): Promise<Record<string, string>> {
     await this.ensureClientId();
     return {
+      ...(await pycoreLanSignHeaders('POST', url, JSON.stringify(body ?? {}), PYCORE_HTTP_JSON_CONTENT_TYPE)),
       [PYCORE_HTTP_HEADER_NAMES.requestId]: this.newRequestId(),
       [PYCORE_HTTP_HEADER_NAMES.clientId]: this.getClientId(),
       [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),

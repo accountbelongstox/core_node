@@ -483,7 +483,15 @@ public static class BattlenetReadyFlow
                     op.SaveUiElementsSnapshot("B5", "B5_exit");
                     string entryReason = string.IsNullOrEmpty(ctx.B5EntryReason) ? "exit" : ctx.B5EntryReason;
                     ColorPrinter.Blue($"{LogTag} flow B5→B5w | reason: {entryReason} -> kill Battle.net, wait {(int)C.FlowExitWaitSec}s then back to B1");
-                    BattlenetManager.Instance.Kill();
+                    if (!BattlenetManager.Instance.Kill())
+                    {
+                        ColorPrinter.Yellow($"{LogTag} flow B5 hold | reason: user is logging in / entering the code, Battle.net stays open; back to B7 poll");
+                        ctx.B7PollDeadline = 0;
+                        ctx.B7SkipCount = 0;
+                        ctx.B11DeadlineTick = 0;
+                        ctx.CurrentStep = BnStep.BN_WaitResult;
+                        return (false, ResultWait);
+                    }
                     ctx.WaitUntil = now + C.FlowExitWaitSec;
                     ctx.CurrentStep = BnStep.BN_ExitWait;
                     return (false, ResultNone);

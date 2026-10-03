@@ -1,6 +1,7 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow/extension_flow_tick_step.py
 using DotApps.d3d4tester.Core.Flow.ActionGroups;
 using DotCore.Foundations;
+using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Core.Flow;
 
@@ -23,7 +24,7 @@ public enum ExtensionStepResult
 public static class ExtensionFlowTickStep
 {
     private const string LogPrefix = "[ExtensionFlow]";
-    private const string ConfigAutoStartRosbot = "ros_settings.auto_start_rosbot";
+    
 
     private static ExtensionFlowState S => ExtensionFlowState.Instance;
 
@@ -162,7 +163,7 @@ public static class ExtensionFlowTickStep
             {
                 GameInterfaceData.Instance.SetD3Status(true);
                 RosbotManager.Instance.KillIfRunning();
-                if (RosbotFlowHost.GetConfig(ConfigAutoStartRosbot, true) && RosbotManager.Instance.Start())
+                if (RosbotFlowHost.GetConfig(ConfigKeys.RosSettingsAutoStartRosbot, true) && RosbotManager.Instance.Start())
                 {
                     F3LogTimeout.SetRosbotStartedAt();
                     startRosbotTask();

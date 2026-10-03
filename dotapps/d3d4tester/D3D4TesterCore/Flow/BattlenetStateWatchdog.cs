@@ -2,6 +2,7 @@
 using DotApps.d3d4tester.Core.Battlenet;
 using DotCore.Foundations;
 using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
+using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Core.Flow;
 
@@ -10,7 +11,7 @@ namespace DotApps.d3d4tester.Core.Flow;
 /// 1) ensure region first — the UI shows another region than the global choice -> restart with --setregion;
 /// 2) abnormal timeout — connecting / disconnected / login failed / loading / sleeping / unknown longer than the configured time -> restart;
 /// 3) login timeout — any login screen, browser wait or logging in longer than the configured time -> restart.
-/// Security check / verification code wait for the user and are never restarted.
+/// Logging in / security check / e-mail wait / code entry wait for the user and are never restarted (BattlenetManager.Close also refuses).
 /// Each rule can be switched off in config (battlenet.*). A restart resets the B blocks so the guard starts over from login.
 /// </summary>
 public static class BattlenetStateWatchdog
@@ -27,7 +28,7 @@ public static class BattlenetStateWatchdog
     private static readonly BattlenetClientState[] LoginStates =
     {
         BattlenetClientState.LoginCn, BattlenetClientState.LoginCnWeb, BattlenetClientState.LoginEmail,
-        BattlenetClientState.LoginPassword, BattlenetClientState.LoginAsia, BattlenetClientState.BrowserLoginWait, BattlenetClientState.LoggingIn,
+        BattlenetClientState.LoginPassword, BattlenetClientState.LoginAsia, BattlenetClientState.BrowserLoginWait,
     };
 
     private static DateTime? _abnormalSinceUtc;
@@ -38,19 +39,25 @@ public static class BattlenetStateWatchdog
     {
         var s = GameInterfaceData.Instance.GetStateSnapshot();
         var now = DateTime.UtcNow;
+        if (BattlenetClientStatus.IsWaitingForUserState(s.BattlenetClientState))
+        {
+            _abnormalSinceUtc = null;
+            _loginSinceUtc = null;
+            return;
+        }
         if (EnsureRegion(s.BattlenetUiRegion, now)) return;
 
         _abnormalSinceUtc = AbnormalStates.Contains(s.BattlenetClientState) && s.BattlenetWindowFound ? _abnormalSinceUtc ?? now : null;
         _loginSinceUtc = LoginStates.Contains(s.BattlenetClientState) ? _loginSinceUtc ?? now : null;
 
-        if (_abnormalSinceUtc is { } a && RosbotFlowHost.GetConfig(C.ConfigKeyAbnormalRestartEnabled, true)
-            && (now - a).TotalSeconds >= RosbotFlowHost.GetConfig(C.ConfigKeyAbnormalTimeoutSec, C.AbnormalTimeoutSecDefault))
+        if (_abnormalSinceUtc is { } a && RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalRestartEnabled, true)
+            && (now - a).TotalSeconds >= RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalTimeoutSec, C.AbnormalTimeoutSecDefault))
         {
             Restart($"state {s.BattlenetClientState} for {(int)(now - a).TotalSeconds}s (abnormal timeout)");
             return;
         }
-        if (_loginSinceUtc is { } l && RosbotFlowHost.GetConfig(C.ConfigKeyLoginRestartEnabled, true)
-            && (now - l).TotalSeconds >= RosbotFlowHost.GetConfig(C.ConfigKeyLoginTimeoutSec, C.LoginTimeoutSecDefault))
+        if (_loginSinceUtc is { } l && RosbotFlowHost.GetConfig(ConfigKeys.BattlenetLoginRestartEnabled, true)
+            && (now - l).TotalSeconds >= RosbotFlowHost.GetConfig(ConfigKeys.BattlenetLoginTimeoutSec, C.LoginTimeoutSecDefault))
         {
             Restart($"login not finished for {(int)(now - l).TotalSeconds}s ({s.BattlenetClientState}, login timeout)");
         }

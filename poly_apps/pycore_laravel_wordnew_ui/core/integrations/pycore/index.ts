@@ -109,6 +109,7 @@ export {
   getPycoreTargetRecent, forgetPycoreTargetRecent, rememberPycoreTarget, listPycoreEndpoints, setPycoreTarget,
   getPycoreSelectedTarget,
   setPycoreSessionTarget, getPycoreSessionTarget, isPrivateLanHost,
+  setPycoreLanRoute, getPycoreLanRoute, setPycoreLanEndpoints,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isViteDevShell,
   isLoopbackPage, isNativeAppShell, directPycoreHost,
@@ -126,6 +127,7 @@ export {
 } from './PycoreEndpointProbe';
 export type { PycoreProbeResult, PycoreProbeState, PycoreSwitchResult } from './PycoreEndpointProbe';
 export { lanScanHosts, scanLanPycore } from './PycoreLanScanner';
+export { isPycoreLanUrl, pycoreLanSignHeaders } from './pycoreLanAuth';
 export type { LanScanOptions, LanScanResult, LanScanState } from './PycoreLanScanner';
 export { pycoreLink } from './PycoreServiceLink';
 export {

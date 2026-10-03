@@ -81,20 +81,6 @@ public static class RosbotConstants
     public const ushort VkF7 = 0x76;
 
     // ---------- Config keys read from Core via RosbotFlowHost (Python providor keys; app ConfigKeys aliases these) ----------
-    public const string ConfigKeyRosDirectory = "ros_settings.ros_directory";
-    public const string ConfigKeyRosbotExeName = "ros_settings.rosbot_exe_name";
-    public const string ConfigKeyOtherExeSearchPatterns = "ros_settings.other_exe_search_patterns";
-    public const string ConfigKeyOtherExeExcludePatterns = "ros_settings.other_exe_exclude_patterns";
-    public const string ConfigKeyStartupDelaySeconds = "ros_settings.startup_delay_seconds";
-    public const string ConfigKeyProcessDetectionTimeout = "ros_settings.process_detection_timeout";
-    public const string ConfigKeyAutoStartRosbot = "ros_settings.auto_start_rosbot";
-    public const string ConfigKeyTimeoutRestart = "battlenet.timeout_restart";
-    public const string ConfigKeyTestMode = "rosbot.test_mode";
-    public const string ConfigKeyTestTimeoutMinutes = "rosbot.test_timeout_minutes";
-    public const string ConfigKeyTimeoutMinutes = "rosbot.timeout_minutes";
-    public const string ConfigKeyTestRecordedDurationSec = "rosbot.test_recorded_duration_sec";
-    public const string ConfigKeyTestRecordCount = "rosbot.test_record_count";
-    public const string ConfigKeyTotalRestartCount = "rosbot.total_restart_count";
 
     // ---------- UI automation (1:1 Python rosbot_ui_automation + providor.constants.common) ----------
     /// <summary>AutomationIds identifying the ROSBOT main window by content. 1:1 Python _ROSBOT_MAIN_CONTENT_IDS.</summary>
