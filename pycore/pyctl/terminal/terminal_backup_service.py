@@ -36,8 +36,8 @@ BACKUP_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_interval_seconds
 LOW_BATTERY_PERCENT = relay_contract.limit("terminal_backup_low_battery_percent")
 MIN_IDLE_SECONDS = relay_contract.limit("terminal_backup_min_idle_seconds")
 DEFER_RETRY_SECONDS = relay_contract.limit("terminal_backup_defer_retry_seconds")
-MAX_DEFER_SECONDS = relay_contract.limit("terminal_backup_max_defer_seconds")
 SETTLE_SECONDS = relay_contract.limit("terminal_backup_settle_seconds")
+INPUT_TIMESTAMP_TOLERANCE_SECONDS = 1.0
 SCHEDULER_LOCK_TARGET = APP_DATA_DIR / TERMINAL_BACKUP_DIR_NAME / "scheduler"
 STOP_SIGNAL = "terminal.backup.stop"
 SHUTDOWN_HANDLER_NAME = "terminal_backup"
@@ -76,7 +76,6 @@ class TerminalBackupService:
         self._lease: Optional[int] = None
         self._thread: Optional[threading.Thread] = None
         self._deferred_logged = False
-        self._deferred_since: Optional[float] = None
         # In-memory only: a UI change lasts until this process exits; a pycore
         # restart returns to AUTO_BACKUP_PAUSED_BY_DEFAULT.
         self._paused = AUTO_BACKUP_PAUSED_BY_DEFAULT
@@ -84,20 +83,6 @@ class TerminalBackupService:
     def _user_active(self) -> bool:
         idle = self._idle_seconds()
         return idle is not None and idle < MIN_IDLE_SECONDS
-
-    def _activity_defers(self, forced: bool) -> bool:
-        """True while an active user should still postpone the pass; false once the max deferral is spent."""
-        if forced or not self._user_active():
-            return False
-        now = time.monotonic()
-        if self._deferred_since is None:
-            self._deferred_since = now
-        if now - self._deferred_since < MAX_DEFER_SECONDS:
-            return True
-        if self._deferred_logged:
-            ColorPrint.blue(f"[{LABEL}] max deferral {MAX_DEFER_SECONDS}s reached: running while the user is active")
-            self._deferred_logged = False
-        return False
 
     def _enumerate(self) -> List[Dict[str, Any]]:
         windows = self._terminals.snapshot().get("windows") or []
@@ -146,7 +131,6 @@ class TerminalBackupService:
         try:
             result = self._pass(forced, reason)
             if not result.get("deferred"):
-                self._deferred_since = None
                 self._deferred_logged = False
                 if result.get("success"):
                     self._store.record_pass(time.time())
@@ -158,7 +142,7 @@ class TerminalBackupService:
             self._pass_lock.release()
 
     def _pass(self, forced: bool, reason: str) -> Dict[str, Any]:
-        if self._activity_defers(forced):
+        if self._user_active():
             return self._deferred()
         windows = self._enumerate()
         if not windows:
@@ -167,8 +151,6 @@ class TerminalBackupService:
         exported: List[Dict[str, Any]] = []
         with self._focus.preserved(LABEL):
             for window in windows:
-                if self._activity_defers(forced):
-                    return self._deferred()
                 entry = self._export(window)
                 if entry.get("text"):
                     refreshed = self._prompt_handler.handle(
@@ -211,7 +193,7 @@ class TerminalBackupService:
 
     def _deferred(self) -> Dict[str, Any]:
         if not self._deferred_logged:
-            ColorPrint.blue(f"[{LABEL}] pass deferred: user is typing; retry every {DEFER_RETRY_SECONDS}s, max {MAX_DEFER_SECONDS}s")
+            ColorPrint.blue(f"[{LABEL}] pass deferred: recent input; waiting for {MIN_IDLE_SECONDS}s of inactivity")
             self._deferred_logged = True
         return {"success": True, "written": False, "deferred": True}
 
@@ -279,34 +261,57 @@ class TerminalBackupService:
             return
         ColorPrint.green(f"[{LABEL}] scheduler started interval={BACKUP_INTERVAL_SECONDS}s")
         low_battery_armed = True
-        next_due = time.monotonic() + self._initial_wait()
+        now = time.monotonic()
+        idle = self._idle_seconds()
+        last_input_at = now - idle if idle is not None else None
+        next_due = now + self._initial_wait()
+        if idle is not None and idle < MIN_IDLE_SECONDS:
+            next_due = now + MIN_IDLE_SECONDS - idle
         while not self._stopping():
-            delay = max(0.0, next_due - time.monotonic())
+            delay = min(DEFER_RETRY_SECONDS, max(0.0, next_due - time.monotonic()))
             if THREAD_BUS.wait_signal(STOP_SIGNAL, timeout=delay):
                 return
+            now = time.monotonic()
+            idle = self._idle_seconds()
+            if idle is not None:
+                input_at = now - idle
+                if last_input_at is None:
+                    last_input_at = input_at
+                    if idle < MIN_IDLE_SECONDS:
+                        next_due = now + MIN_IDLE_SECONDS - idle
+                elif input_at > last_input_at + INPUT_TIMESTAMP_TOLERANCE_SECONDS:
+                    last_input_at = input_at
+                    next_due = max(now, input_at + MIN_IDLE_SECONDS)
+                if idle < MIN_IDLE_SECONDS:
+                    next_due = max(next_due, now + MIN_IDLE_SECONDS - idle)
             if self._paused:
                 low_battery_armed = True
-                next_due = time.monotonic() + BACKUP_INTERVAL_SECONDS
+                next_due = now + MIN_IDLE_SECONDS
                 continue
             power = read_power_state()
             if power.at_or_below(LOW_BATTERY_PERCENT):
-                if low_battery_armed:
-                    low_battery_armed = False
+                if low_battery_armed and (idle is None or idle >= MIN_IDLE_SECONDS):
                     ColorPrint.yellow(f"[{LABEL}] battery low percent={power.percent:g}: forced backup")
-                    self.run_pass(forced=True, reason=REASON_LOW_BATTERY)
-                    next_due = time.monotonic() + BACKUP_INTERVAL_SECONDS
+                    result = self.run_pass(forced=True, reason=REASON_LOW_BATTERY)
+                    if not result.get("deferred"):
+                        low_battery_armed = True if not result.get("success") else False
+                        next_due = time.monotonic() + BACKUP_INTERVAL_SECONDS
+                        idle = self._idle_seconds()
+                        last_input_at = time.monotonic() - idle if idle is not None else None
             else:
                 low_battery_armed = True
-            if time.monotonic() < next_due or self._stopping():
+            if time.monotonic() < next_due or self._stopping() or (idle is not None and idle < MIN_IDLE_SECONDS):
                 continue
             result = self.run_pass()
             next_due = time.monotonic() + (DEFER_RETRY_SECONDS if result.get("deferred") else BACKUP_INTERVAL_SECONDS)
+            idle = self._idle_seconds()
+            last_input_at = time.monotonic() - idle if idle is not None else None
 
     def _initial_wait(self) -> float:
         """Seconds until the first pass of this process: the persisted schedule survives restarts, an overdue pass runs after the settle delay."""
         last_pass = self._store.last_pass_at()
         if last_pass is None:
-            return float(BACKUP_INTERVAL_SECONDS)
+            return float(MIN_IDLE_SECONDS)
         remaining = min(last_pass + BACKUP_INTERVAL_SECONDS - time.time(), float(BACKUP_INTERVAL_SECONDS))
         if remaining <= SETTLE_SECONDS:
             ColorPrint.blue(f"[{LABEL}] pass overdue at start: running in {SETTLE_SECONDS}s")
