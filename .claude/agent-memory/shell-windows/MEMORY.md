@@ -14,3 +14,4 @@
 - [PS Dictionary.Contains + stub gotchas](ps-dictionary-contains-and-stub-gotchas.md) — use ContainsKey on JSON dictionaries; cmdlet proxy stubs need CmdletBinding, no $ErrorAction
 - [Dot-sourced ServiceContract shadows module](dot-sourced-servicecontract-shadows-module.md) — SharedCacheEnv binds module cmd; repro needs 2 runs in one process
 - [FrankenPHP tailnet Windows fixes](frankenphp-tailnet-windows-fixes.md) — Step175 3 fixes; Windows node desktop-1l9k06n vs Linux debian-gpu; shared certs dir
+- [gitsync conflict recurrence](gitsync-conflict-recurrence.md) — auto-gitsync can open a 2nd merge mid-resolve; README marker/blank-line cleanup
