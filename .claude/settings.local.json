@@ -179,7 +179,10 @@
       "Bash(node -e \"console.log\\(require\\('/d/programing/core_node/config/pycore_relay_contract.json'\\).public_urls.laravel_api_origin\\)\")",
       "Bash(rm -f c2.log)",
       "Bash(node cdp.js collect c2.log)",
-      "Bash(nohup bash mon2.sh)"
+      "Bash(nohup bash mon2.sh)",
+      "Bash(timeout 300 npx tsc --noEmit -p tsconfig.json)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c 'dd.cmd gitsync -m \"fix merge conflict markers in .claude/settings.local.json\"' 2>&1 | Select-Object -Last 8; git status -sb | Select-Object -First 1; Select-String -Path .claude\\\\settings.local.json -Pattern '^\\(<<<<<<<|=======|>>>>>>>\\)' | Measure-Object | % Count; $global:LASTEXITCODE=0)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; git status --short | Select-Object -First 15; Get-Content docs_fix\\\\GITSYNC_MERGE_CONFLICT.md -TotalCount 40; Select-String -Path .claude\\\\settings.local.json -Pattern '^\\(<<<<<<<|=======|>>>>>>>\\)' | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" }; $global:LASTEXITCODE=0)"
     ],
     "deny": [],
     "ask": []

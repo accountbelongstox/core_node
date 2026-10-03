@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.file_lock import FileLockManager
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_WINDOWS
@@ -26,6 +27,7 @@ from pycore.pyutils.native_ui.step11_desktop.system_notification import show_sys
 LABEL = "GitSyncWatch"
 DATA_DIR = APP_DATA_DIR / "gitsync_watch"
 SETTINGS_PATH = DATA_DIR / "settings.json"
+HISTORY_PATH = DATA_DIR / "history.json"
 SCHEDULER_LOCK_TARGET = DATA_DIR / "scheduler"
 STOP_SIGNAL = "gitsync.watch.stop"
 SHUTDOWN_HANDLER_NAME = "gitsync_watch"
@@ -41,6 +43,11 @@ LOOP_TICK_SECONDS = 1.0
 START_DELAY_SECONDS = 30
 RUN_TIMEOUT_SECONDS = 600
 OUTPUT_TAIL_LINES = 80
+HISTORY_MAX_RUNS = 500
+HISTORY_DEFAULT_PAGE_SIZE = 10
+HISTORY_MAX_PAGE_SIZE = 100
+TRIGGER_SCHEDULE = "schedule"
+TRIGGER_MANUAL = "manual"
 NOTIFICATION_DURATION_MS = 8000
 
 COMMIT_DESCRIPTION = "pycore-auto-gitsync"
@@ -108,6 +115,8 @@ class GitSyncWatchService:
         settings = self._read_settings()
         self._interval_minutes = settings["interval_minutes"]
         self._reminder_seconds = settings["reminder_seconds"]
+        self._history_store = AtomicJsonStore(HISTORY_PATH, lambda: {"total": 0, "runs": []})
+        self._history = self._read_history()
 
     # ---- settings ----
 
@@ -128,7 +137,44 @@ class GitSyncWatchService:
             encoding="utf-8",
         )
 
+    def _read_history(self) -> Dict[str, Any]:
+        try:
+            stored = self._history_store.read()
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[{LABEL}] history read failed: {type(exc).__name__}: {exc}")
+            return {"total": 0, "runs": []}
+        runs = [run for run in stored.get("runs") or [] if isinstance(run, dict)][:HISTORY_MAX_RUNS]
+        return {"total": max(_clamp(stored.get("total"), 0, 2**62, 0), len(runs)), "runs": runs}
+
+    def _record_run(self, run: Dict[str, Any]) -> None:
+        with self._lock:
+            self._history = {
+                "total": self._history["total"] + 1,
+                "runs": [run, *self._history["runs"]][:HISTORY_MAX_RUNS],
+            }
+            snapshot = self._history
+        try:
+            self._history_store.write(snapshot)
+        except OSError as exc:
+            ColorPrint.yellow(f"[{LABEL}] history write failed: {exc}")
+
     # ---- public API (UI routes) ----
+
+    def history(self, offset: int = 0, limit: int = HISTORY_DEFAULT_PAGE_SIZE) -> Dict[str, Any]:
+        """One page of the recorded gitsync runs, newest first."""
+        offset = max(0, int(offset))
+        limit = _clamp(limit, 1, HISTORY_MAX_PAGE_SIZE, HISTORY_DEFAULT_PAGE_SIZE)
+        with self._lock:
+            runs = self._history["runs"]
+            total = self._history["total"]
+        return {
+            "success": True,
+            "total": total,
+            "recorded": len(runs),
+            "offset": offset,
+            "limit": limit,
+            "runs": runs[offset:offset + limit],
+        }
 
     @property
     def conflict_doc_path(self) -> Path:
@@ -145,6 +191,7 @@ class GitSyncWatchService:
             "reminder_seconds": self._reminder_seconds,
             "last_run_at": self._last_run_at,
             "last_result": self._last_result,
+            "run_count": self._history["total"],
             "conflict": doc.is_file(),
             "conflict_doc": str(doc),
             "conflict_files": self._unmerged_files() if doc.is_file() else [],
@@ -227,8 +274,9 @@ class GitSyncWatchService:
                 self._remove_readme_alert()
                 alert_may_remain = False
             if self._run_requested or (not self._paused and now >= next_sync):
+                trigger = TRIGGER_MANUAL if self._run_requested else TRIGGER_SCHEDULE
                 self._run_requested = False
-                self._sync_once()
+                self._sync_once(trigger)
                 next_sync = time.monotonic() + self._interval_minutes * 60
                 next_reminder = time.monotonic()
 
@@ -245,10 +293,11 @@ class GitSyncWatchService:
             return ["cmd.exe", "/d", "/c", str(self._root / DD_ENTRY_WINDOWS), GITSYNC_COMMAND, MESSAGE_FLAG, COMMIT_DESCRIPTION]
         return ["bash", str(self._root / DD_ENTRY_LINUX), GITSYNC_COMMAND, MESSAGE_FLAG, COMMIT_DESCRIPTION]
 
-    def _sync_once(self) -> None:
+    def _sync_once(self, trigger: str) -> None:
         self._running = True
         started = time.time()
         output = ""
+        exit_code: Optional[int] = None
         try:
             completed = subprocess.run(
                 self._command(),
@@ -262,6 +311,7 @@ class GitSyncWatchService:
                 check=False,
             )
             output = completed.stdout.decode("utf-8", errors="replace") if completed.stdout else ""
+            exit_code = completed.returncode
         except subprocess.TimeoutExpired as exc:
             output = (exc.stdout or b"").decode("utf-8", errors="replace") + f"\n[{LABEL}] timeout after {RUN_TIMEOUT_SECONDS}s"
         except OSError as exc:
@@ -278,6 +328,14 @@ class GitSyncWatchService:
         else:
             self._last_result = "ok"
             ColorPrint.green(f"[{LABEL}] gitsync finished in {time.time() - started:.1f}s")
+        self._record_run({
+            "started_at": started,
+            "duration_seconds": round(time.time() - started, 1),
+            "trigger": trigger,
+            "result": self._last_result,
+            "exit_code": exit_code,
+            "conflict_files": len(conflicted),
+        })
 
     def _git(self, *arguments: str) -> str:
         try:
