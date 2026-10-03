@@ -162,8 +162,8 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `${name.replace(/[^a-z0-9_-]/gi, '_') || 'screenshot'}_${timestamp}.png`;
         try {
-          // The native host writes into the fixed screenshot folder, so the file
-          // never shows up as a browser download.
+          // The native host writes straight into the Downloads folder: no browser
+          // download entry and no save dialog.
           const saved = await sendFileOperationRequest(
             { action: 'saveScreenshot', base64Data: finalImageDataUrl, fileName: filename },
             SCREENSHOT_SAVE_TIMEOUT_MS,
