@@ -195,12 +195,16 @@ function Install-PycoreDependencyMapPackage {
         [string]$LogPrefix = '[python-deps]'
     )
 
+    $constraintsFile = ''
     $pipBase = Get-PipPackageBaseName -PipSpec $PipSpec
     if (Test-PipPackageInstalled -PipExe $PipExe -PackageName $pipBase) {
         return
     }
     Write-Host "$LogPrefix [..] installing missing $PipSpec ..." -ForegroundColor Yellow
-    & $PipExe install $PipSpec
+    $constraintsFile = [System.IO.Path]::GetTempFileName()
+    & $PythonExe $script:PycorePackagePolicyPath --platform windows --set installer --constraints | Set-Content -LiteralPath $constraintsFile -Encoding ascii
+    & $PipExe install -c $constraintsFile $PipSpec
+    Remove-Item -LiteralPath $constraintsFile -Force -ErrorAction SilentlyContinue
 }
 
 function Install-PycoreWinrtOcrPackages {
