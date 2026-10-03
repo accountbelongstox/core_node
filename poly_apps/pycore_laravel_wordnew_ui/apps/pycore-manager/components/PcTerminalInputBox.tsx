@@ -228,7 +228,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
         className="block w-full resize-y bg-transparent px-3 pb-1 pt-1 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
       />
-      <div className="flex flex-wrap items-center gap-1.5 px-1.5 pb-1.5">
+      <div className="flex items-center gap-1.5 px-1.5 pb-1.5">
         {mode === 'voice' && (
           <>
             <button
@@ -260,8 +260,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             )}
           </>
         )}
-        <span className="flex-1" />
-        {actions && <div className="order-last flex w-full min-w-0 items-center gap-1.5">{actions}</div>}
+        <span className="min-w-0 flex-1" />
         <button
           type="button"
           onClick={toggleMode}
@@ -305,6 +304,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             event.target.value = '';
           }}
         />
+        {actions}
       </div>
       <PcImageLightbox
         open={Boolean(previewItem)}
