@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CodeMart</string>
+    <string name="title_activity_main">CodeMart</string>
+    <string name="package_name">com.corenode.codemart</string>
+    <string name="custom_url_scheme">com.corenode.codemart</string>
+</resources>

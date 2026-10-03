@@ -1990,37 +1990,35 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
         images={images}
         actions={(
           <>
-            <button
-              type="button"
-              onClick={sendDraft}
-              disabled={!selectedActionable}
-              className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {actionWindowId === selectedWindow?.id
-                ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                : <Send className="h-3.5 w-3.5 shrink-0" />}
-              <span className="min-w-0 truncate">{t('terminal.send')}</span>
-              <kbd className="ml-1 hidden shrink-0 rounded border border-white/30 px-1 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
-                {t('terminal.sendShortcut')}
-              </kbd>
-            </button>
             {([
               { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
               { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
             ] as const).map(({ key, icon: Icon, label, hint, tone }) => (
-              <label key={key} title={`${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
+              <label key={key} title={`${label}: ${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
                 <input
                   type="checkbox"
                   className="peer sr-only"
+                  aria-label={label}
                   checked={sendOnce[key]}
                   onChange={(event) => setSendOnce((current) => ({ ...current, [key]: event.target.checked }))}
                 />
-                <span className={`inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-500/20 px-2 text-[10px] font-semibold ${tone}`}>
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-500/20 ${tone}`}>
+                  <Icon className="h-4 w-4" />
                 </span>
               </label>
             ))}
+            <button
+              type="button"
+              onClick={sendDraft}
+              disabled={!selectedActionable}
+              title={`${t('terminal.send')} (${t('terminal.sendShortcut')})`}
+              aria-label={t('terminal.send')}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+            >
+              {actionWindowId === selectedWindow?.id
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Send className="h-4 w-4" />}
+            </button>
           </>
         )}
         session={{
