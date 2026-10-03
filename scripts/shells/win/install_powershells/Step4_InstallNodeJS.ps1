@@ -239,7 +239,7 @@ function Install-PackageManagers {
         # setting in pnpm 10+, so a GLOBAL `pnpm config set` is rejected
         # (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY). It's the default, so we do
         # not set it globally; the .pnpmrc carries it. Docs: https://pnpm.io/settings
-        Write-Host "Y" | & $PnpmExePath setup
+        "Y" | & $PnpmExePath setup
 
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
@@ -392,7 +392,7 @@ function Verify-AndFix-AllConfigs {
         # a global `pnpm config set` errors, so we do NOT set it globally. Docs: https://pnpm.io/settings
 
         Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
-        Write-Host "Y" | & $PnpmExePath setup
+        "Y" | & $PnpmExePath setup
 
         # Always ensure pnpm global bin directory is in PATH (repair step)
         Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Type "Info"

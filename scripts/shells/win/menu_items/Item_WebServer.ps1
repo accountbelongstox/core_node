@@ -15,6 +15,7 @@ $item = @{
     Title = 'Web Server After Installation'
     Var   = 'START_WEB_SERVER'
     Values = @('frankenphp')
+    Presets = @{ base = 'frankenphp'; server = 'frankenphp'; full = 'frankenphp'; desktop = 'frankenphp' }
     Steps = @(
         'Step16_InstallPHP.ps1'
         'Step93_InstallFrankenPHP.ps1'
