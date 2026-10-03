@@ -344,6 +344,17 @@ $script:MenuItems = @(
         }
     },
     @{
+        Text              = "Service Manager"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $serviceManagerScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\ServiceManagerMenu.ps1"
+            Write-ColorMessage -Message "Launching Service Manager..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $serviceManagerScript
+        }
+    },
+    @{
         Text              = "Exit"
         Values            = @("default")
         CurrentValueIndex = 0
