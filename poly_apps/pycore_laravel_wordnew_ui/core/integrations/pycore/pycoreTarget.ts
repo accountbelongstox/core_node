@@ -162,7 +162,7 @@ export function isPycoreDirectAccessAllowed(): boolean {
 function isProxyAllowed(hostname: string): boolean {
   const tailnet = tailnetDomainOf(hostname);
   if (!tailnet) return false;
-  return isNativeAppShell() || isLoopbackPage() || pageTailnetDomain() === tailnet;
+  return isNativeAppShell() || isLoopbackPage() || isLanPage() || pageTailnetDomain() === tailnet;
 }
 
 const PRIVATE_IPV4_RE = /^(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}$/;
@@ -170,6 +170,21 @@ const PRIVATE_IPV4_RE = /^(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3
 /** RFC 1918 IPv4 host (a LAN machine). */
 export function isPrivateLanHost(hostname: string): boolean {
   return PRIVATE_IPV4_RE.test(String(hostname || '').trim());
+}
+
+/** A browser page served from a LAN machine's own address (`http://192.168.x.y:<ui port>`). */
+export function isLanPage(): boolean {
+  return typeof location !== 'undefined' && !isNativeAppShell() && isPrivateLanHost(location.hostname) && pageHostBackendUrl() !== null;
+}
+
+/**
+ * The pycore this page asks about its LAN and tailnet (never a selection): the loopback pycore of a
+ * loopback page, the page host's pycore of a LAN page. Null on native shells (their roster path
+ * reports LAN machines) and on tailnet / relay pages.
+ */
+export function pycoreLanSourceUrl(): string | null {
+  if (isLoopbackPage()) return directEndpointUrl(localPycoreHost());
+  return isLanPage() ? pageHostBackendUrl() : null;
 }
 
 function isAllowedTarget(target: PycoreTarget): boolean {
@@ -181,9 +196,9 @@ function isAllowedTarget(target: PycoreTarget): boolean {
   if (target.kind === 'relay') return relayBackendPreset()?.url === target.url;
   if (target.kind === 'proxy') return isProxyAllowed(parsed.hostname);
   if (target.kind === 'direct' && target.url === pageHostBackendUrl()) return true;
-  // A native shell reaches LAN machines through the native HTTP stack (the K7
-  // gate on pycore still decides whether it is admitted).
-  if (isNativeAppShell() && isPrivateLanHost(parsed.hostname)) return true;
+  // A native shell or a LAN page reaches LAN machines directly (the K7 gate on
+  // pycore still decides whether it is admitted).
+  if ((isNativeAppShell() || isLanPage()) && isPrivateLanHost(parsed.hostname)) return true;
   return isPycoreDirectAccessAllowed() && isPycoreLoopbackHost(parsed.hostname);
 }
 

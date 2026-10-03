@@ -44,6 +44,8 @@ export const TAILNET_PYCORE_PATH: string = contractDocument.access.tailnet.pycor
 export const TAILNET_PYCORE_LEGACY_PATHS: string[] = contractDocument.access.tailnet.pycore_legacy_paths;
 /** pycore publishes the live tailnet machine list here (below its tailnet mount). */
 export const TAILNET_PEERS_ROUTE: string = contractDocument.access.tailnet.peers_route;
+export const LAN_MACHINES_ROUTE: string = contractDocument.access.lan.machines_route;
+export const LAN_MAX_SCAN_HOSTS: number = contractDocument.access.lan.max_scan_hosts;
 /** Tailnet machines on these OSes (phones) never serve an API. */
 export const TAILNET_CLIENT_ONLY_OS: string[] = contractDocument.access.tailnet.client_only_os.map((name) => name.toLowerCase());
 export const DEFAULT_LARAVEL_API_HOST: string = [

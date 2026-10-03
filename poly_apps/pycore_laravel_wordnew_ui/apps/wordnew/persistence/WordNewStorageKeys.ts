@@ -15,6 +15,7 @@ export const WordNewStorageKeys = {
   WORDNEW_DAILY_READING_PLAYER: 'wfnew.dailyReading.player',
   WORDNEW_DAILY_READING_SCROLL_OFFSETS: 'wfnew.dailyReading.scrollOffsets',
   WORDNEW_DAILY_READING_WORD_GROUP: 'wfnew.dailyReading.wordGroup',
+  WORDNEW_DAILY_READING_GUEST_READS: 'wfnew.dailyReading.guestReads',
   WORDNEW_ORCH_AUDIO_PLAYER: 'wfnew.orchAudio.player',
   WORDNEW_ORCH_CLIP_ROOT: 'wfnew.orch.clipRoot',
   /** This device's orchestration id: random, generated once, never derived from a fingerprint. */

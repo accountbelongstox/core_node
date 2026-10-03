@@ -57,7 +57,9 @@ export type {
 export type { DailyReadingTransportState } from './DailyReadingPlaybackEngine';
 export type { DailyReadingPlayer } from './DailyReadingPlayerContract';
 
-export function useDailyReadingPlayer(): DailyReadingPlayer {
+export function useDailyReadingPlayer(onArticleFinished?: (row: DailyReadingRow) => void): DailyReadingPlayer {
+  const articleFinishedRef = useRef(onArticleFinished);
+  articleFinishedRef.current = onArticleFinished;
   const {
     settings,
     settingsRef,
@@ -455,10 +457,16 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
     return nextIndex;
   }, []);
 
+  const finishArticleAndAdvance = useCallback(() => {
+    const finished = listRef.current[indexRef.current];
+    if (finished) articleFinishedRef.current?.(finished);
+    nextRef.current();
+  }, []);
+
   const advanceFromSequenceBoundary = useCallback(() => {
     const completedItem = sequenceRef.current[sequenceIndexRef.current];
     if (!completedItem) {
-      nextRef.current();
+      finishArticleAndAdvance();
       return;
     }
     if (sequenceExecutionSignatureRef.current !== dailyReadingExecutionSignature(settingsRef.current)) {
@@ -468,7 +476,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
         return;
       }
       setActiveItem(EMPTY_DAILY_READING_ACTIVE_ITEM);
-      nextRef.current();
+      finishArticleAndAdvance();
       return;
     }
     if (sequenceIndexRef.current < sequenceRef.current.length - 1) {
@@ -476,8 +484,8 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
       return;
     }
     setActiveItem(EMPTY_DAILY_READING_ACTIVE_ITEM);
-    nextRef.current();
-  }, [playSequenceItem, rebuildRemainingSequence]);
+    finishArticleAndAdvance();
+  }, [finishArticleAndAdvance, playSequenceItem, rebuildRemainingSequence]);
 
   const onSequenceEnded = useCallback((played: boolean) => {
     const completedItem = sequenceRef.current[sequenceIndexRef.current];

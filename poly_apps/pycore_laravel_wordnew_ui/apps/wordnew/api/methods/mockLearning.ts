@@ -38,6 +38,22 @@ export const mockLearningMethods = {
     });
   },
 
+  async getDailyReadingFeed(date: string | null, _cursor: number | null = null, _limit = 20) {
+    return delay({ items: [], date, total: 0, hasMore: false, nextCursor: null });
+  },
+
+  async getDailyReadingCalendar(from: string, to: string) {
+    return delay({ from, to, days: [], latestDate: null });
+  },
+
+  async setDailyReadingRead(articleIds: string[], read: boolean) {
+    return delay(articleIds.map((articleId) => ({
+      articleId,
+      read,
+      readAt: read ? new Date().toISOString() : null,
+    })));
+  },
+
   async previewDailyReadingResources(
     articleId: string,
     settings: Parameters<import('../WfNewApiTypes').WfNewApi['previewDailyReadingResources']>[1],

@@ -88,6 +88,20 @@ export const WfNewApiPaths = {
     p(`/user/book-progress/${encodeURIComponent(sourceKey)}`),
   /** Daily-reading playback progress — one row per authenticated user. */
   userDailyReadingProgress: p('/user/daily-reading-progress'),
+  /** Daily-reading feed of one day (public; read flags with a Bearer token), cursor paged. */
+  dailyReadingFeed: (date: string | null, limit: number, cursor: number | null): string => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (date) query.set('date', date);
+    if (cursor) query.set('cursor', String(cursor));
+    return p(`/daily-reading/feed?${query.toString()}`);
+  },
+  /** Per-day article / read counts for an inclusive YYYY-MM-DD range. */
+  dailyReadingCalendar: (from: string, to: string): string =>
+    p(`/daily-reading/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  /** POST {read} mark one article read/unread; POST {article_ids, read} batch (auth:sanctum). */
+  userDailyReadingRead: (articleId: string): string =>
+    p(`/user/daily-reading/${encodeURIComponent(articleId)}/read`),
+  userDailyReadingReads: p('/user/daily-reading/reads'),
   userDailyReadingResourcePreview: (articleId: string): string =>
     p(`/user/daily-reading/${encodeURIComponent(articleId)}/resource-preview`),
 
