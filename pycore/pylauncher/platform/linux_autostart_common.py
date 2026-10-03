@@ -53,7 +53,7 @@ class LinuxAutostartScript:
         if self.pyservice_script.exists():
             script = str(self.pyservice_script).replace('"', '\\"')
             workdir = str(self.pyservice_script.parent).replace('"', '\\"')
-            return workdir, f'/usr/bin/env bash "{script}" run --no-install --no-reload'
+            return workdir, f'/usr/bin/env bash "{script}" run --no-install --no-reload --no-service-prompt'
         py = str(self.python_exe).replace('"', '\\"')
         launcher = str(self.launcher_script).replace('"', '\\"')
         workdir = str(self.launcher_script.parent).replace('"', '\\"')

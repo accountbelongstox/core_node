@@ -151,7 +151,7 @@ class WindowsStartupManager:
         workdir = _ps_single_quote(str(self.pyservice_script.parent))
         return (
             f"Set-Location -LiteralPath {workdir}\n"
-            f"& {script} -NoInstall -NoReload\n"
+            f"& {script} -NoInstall -NoReload -NoServicePrompt\n"
         )
 
     def _launcher_ps1(self, inline: bool = True) -> str:

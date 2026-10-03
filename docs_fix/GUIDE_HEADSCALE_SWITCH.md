@@ -41,7 +41,7 @@ The key is minted by the Laravel beside Headscale (`POST /api/system/mesh/preaut
 
 ## 5. Converge (flags, HTTPS site, certificates)
 - Linux: `sudo bash scripts/shells/linux/debian/install_shells/97_install_tailscale.sh` (re-applies `--accept-routes`/operator, renders `<machine>.mesh.<region>.<root>` with an acme.sh DNS-01 certificate).
-- Windows: `Invoke-MeshProviderConverge` (same session as step 3).
+- Windows: dot-source `TailscaleCommon.ps1`, `FrankenPhpManager.ps1` and `FrankenPhpCertificateManager.ps1` (all in `scripts\shells\win\win_common`), then run `Invoke-MeshProviderConverge` (without the FrankenPhp scripts the HTTPS-site step is silently skipped). Step 3 persists, so a fresh session is fine.
 Both are idempotent; a rerun changes nothing.
 
 ## 6. Verify

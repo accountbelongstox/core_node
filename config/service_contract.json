@@ -13,7 +13,7 @@
         "voice_client_primary": "1.94.142.130",
         "voice_client_secondary": "47.107.84.210",
         "file_sync_secondary": "45.249.247.163",
-        "tailnet_nuul": "100.101.149.39",
+        "tailnet_nuul": "100.64.0.3",
         "tailnet_api": "100.106.85.16",
         "tailnet_lan": "100.126.119.99"
     },
