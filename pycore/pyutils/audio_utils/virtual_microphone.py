@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""PipeWire virtual microphone: a loopback whose sink side receives a played file and whose
-source side is what a recorder (PIPEWIRE_NODE=<source>) captures. Linux only."""
+"""Virtual microphone. Linux: a PipeWire loopback whose sink side receives a played file and whose
+source side is what a recorder (PIPEWIRE_NODE=<source>) captures. Windows: the virtual audio
+cable of windows_virtual_microphone, same interface."""
 
 from __future__ import annotations
 
@@ -13,6 +14,8 @@ from typing import List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_WINDOWS
+from pycore.pyutils.audio_utils import windows_virtual_microphone
+from pycore.pyutils.audio_utils.windows_virtual_microphone import WindowsVirtualMicrophone
 
 PIPEWIRE_SOCKET_NAME = "pipewire-0"
 RUN_USER_DIR = Path("/run/user")
@@ -38,9 +41,10 @@ def pipewire_runtime_dir() -> Optional[Path]:
 
 
 def available() -> bool:
+    if IS_WINDOWS:
+        return shutil.which(DECODER_BINARY) is not None and windows_virtual_microphone.available()
     return (
-        not IS_WINDOWS
-        and pipewire_runtime_dir() is not None
+        pipewire_runtime_dir() is not None
         and all(shutil.which(binary) for binary in REQUIRED_BINARIES)
     )
 
@@ -74,7 +78,7 @@ def decode_to_wav(source: Path, target: Path) -> Optional[float]:
         return reader.getnframes() / float(reader.getframerate())
 
 
-class VirtualMicrophone:
+class PipeWireMicrophone:
     """Context manager owning the pw-loopback process for one source/sink pair."""
 
     def __init__(self, source_name: str, sink_name: str) -> None:
@@ -82,7 +86,7 @@ class VirtualMicrophone:
         self.sink_name = sink_name
         self._loopback: Optional[subprocess.Popen] = None
 
-    def __enter__(self) -> "VirtualMicrophone":
+    def __enter__(self) -> "PipeWireMicrophone":
         self._loopback = subprocess.Popen(
             [LOOPBACK_BINARY,
              f"--capture-props=media.class=Audio/Sink node.name={self.sink_name} audio.channels={CHANNELS}",
@@ -116,3 +120,7 @@ def _stop(process: Optional[subprocess.Popen]) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+
+
+# The platform's microphone; both take (source_name, sink_name) and offer play(wav) -> poll/terminate/wait.
+VirtualMicrophone = WindowsVirtualMicrophone if IS_WINDOWS else PipeWireMicrophone

@@ -1988,6 +1988,41 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
         rows={overlay ? 6 : 8}
         draftStatus={selectedDraftStatus}
         images={images}
+        actions={(
+          <>
+            <button
+              type="button"
+              onClick={sendDraft}
+              disabled={!selectedActionable}
+              className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+            >
+              {actionWindowId === selectedWindow?.id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Send className="h-3.5 w-3.5" />}
+              {t('terminal.send')}
+              <kbd className="ml-1 hidden rounded border border-white/30 px-1 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
+                {t('terminal.sendShortcut')}
+              </kbd>
+            </button>
+            {([
+              { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
+              { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
+            ] as const).map(({ key, icon: Icon, label, hint, tone }) => (
+              <label key={key} title={`${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={sendOnce[key]}
+                  onChange={(event) => setSendOnce((current) => ({ ...current, [key]: event.target.checked }))}
+                />
+                <span className={`inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-500/20 px-2 text-[10px] font-semibold ${tone}`}>
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </span>
+              </label>
+            ))}
+          </>
+        )}
         session={{
           slot: overlay ? INPUT_SLOT_OVERLAY : INPUT_SLOT_PANEL,
           restore: inputRestore,
@@ -1995,41 +2030,8 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
           onSnapshot: handleInputSnapshot,
         }}
       />
-      {/* One compact send panel: send, one-shot options, keys, commands and choice answers. */}
+      {/* One compact panel: keys, commands and choice answers; send lives in the composer toolbar. */}
       <div className="space-y-1.5 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={sendDraft}
-            disabled={!selectedActionable}
-            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
-          >
-            {actionWindowId === selectedWindow?.id
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <Send className="h-3.5 w-3.5" />}
-            {t('terminal.send')}
-            <kbd className="ml-1 hidden rounded border border-white/30 px-1 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
-              {t('terminal.sendShortcut')}
-            </kbd>
-          </button>
-          {([
-            { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
-            { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
-          ] as const).map(({ key, icon: Icon, label, hint, tone }) => (
-            <label key={key} title={`${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={sendOnce[key]}
-                onChange={(event) => setSendOnce((current) => ({ ...current, [key]: event.target.checked }))}
-              />
-              <span className={`inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-500/20 px-2 text-[10px] font-semibold ${tone}`}>
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </span>
-            </label>
-          ))}
-        </div>
         <div
           className="grid grid-cols-6 gap-0.5 sm:grid-cols-12"
           role="toolbar"
