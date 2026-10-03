@@ -3,7 +3,8 @@
 
 - The bind host is loopback unless the LAN bind setting is on (K7a).
 - A loopback caller needs a loopback ``Host`` header (DNS rebinding) and, when
-  it is a browser (``Origin`` present), an allowed dashboard origin.
+  it is a browser (``Origin`` present), an allowed dashboard origin or a
+  private-LAN origin (echoed for CORS like the LAN path).
 - A non-loopback caller on a private LAN address (RFC 1918, link-local,
   tailnet CGNAT, ULA; ``private_lan_networks``) needs no key: it must name a
   private/loopback ``Host`` and, when it is a browser, a private/loopback
@@ -182,6 +183,13 @@ def origin_is_lan(origin: str) -> bool:
     return parts.scheme.lower() in ORIGIN_SCHEMES and _hostname_is_lan(hostname)
 
 
+def origin_is_private_lan_host(origin: str) -> bool:
+    """A private-LAN browser origin that is not itself a loopback host."""
+    if not origin_is_lan(origin):
+        return False
+    return _hostname(urlsplit(str(origin).strip()).hostname or "") not in LOOPBACK_HOSTS
+
+
 def lan_bind_enabled() -> bool:
     settings = user_data_store.get_section(USER_DATA_SECTION_SYSTEM_SETTINGS) or {}
     return settings.get(LAN_BIND_SETTING_KEY) is True
@@ -232,9 +240,11 @@ def evaluate_request(
     if is_loopback_peer(peer):
         if not host_header_is_loopback(str(headers.get("host") or "")):
             return _decision(False, STATUS_FORBIDDEN, ERROR_HOST_FORBIDDEN)
-        if origin and origin not in origins and normalize_origin(origin) not in origins:
-            return _decision(False, STATUS_FORBIDDEN, ERROR_ORIGIN_FORBIDDEN)
-        return _decision(True, origin=origin)
+        if not origin or origin in origins or normalize_origin(origin) in origins:
+            return _decision(True, origin=origin)
+        if origin_is_private_lan_host(origin):
+            return _decision(True, origin=origin, echo_cors=True)
+        return _decision(False, STATUS_FORBIDDEN, ERROR_ORIGIN_FORBIDDEN)
     lan_decision = _private_lan_decision(headers, origin) if is_private_lan_peer(peer) else None
     if lan_decision is not None and lan_decision["allowed"]:
         return lan_decision
