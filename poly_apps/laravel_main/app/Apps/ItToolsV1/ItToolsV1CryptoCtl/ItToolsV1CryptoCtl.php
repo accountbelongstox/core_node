@@ -75,7 +75,7 @@ class ItToolsV1CryptoCtl extends Controller
         $hash = $request->input('hash');
 
         try {
-            $valid = Hash::check($password, $hash);
+            $valid = password_verify($password, $hash);
 
             return $this->success(['valid' => $valid]);
         } catch (\Exception $e) {

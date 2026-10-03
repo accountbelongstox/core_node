@@ -392,12 +392,17 @@ export class AppQyV1API extends LmBaseAPI {
   }
 
   // ========== Vocabulary Learning ==========
-  async getLearningWords(params: { limit?: number; library_id?: string }): Promise<APIResponse> {
+  async getLearningWords(params: { limit?: number; library_id?: string; lang_code?: string }): Promise<APIResponse> {
     return this.get('/learning/words', params);
   }
 
   async getLibraryWords(libraryId: number, params?: { page?: number; per_page?: number }): Promise<APIResponse> {
     return this.get(`/vocabulary/libraries/${libraryId}/words`, params);
+  }
+
+  /** Single-argument form of getLibraryWords (page of one library's words). */
+  async getLibraryWordsPage(params: { libraryId: number; page?: number; per_page?: number }): Promise<APIResponse> {
+    return this.getLibraryWords(params.libraryId, { page: params.page, per_page: params.per_page });
   }
 
   async getLibraries(params?: { language?: string; category?: string; difficulty?: string; search?: string; page?: number; per_page?: number }): Promise<APIResponse> {

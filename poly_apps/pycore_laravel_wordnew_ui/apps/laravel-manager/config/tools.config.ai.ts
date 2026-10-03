@@ -135,8 +135,8 @@ export const AI_TOOLS: Record<string, ToolDefinition> = {
     description: 'Generate images from text descriptions',
     apiModule: 'appQyV1',
     apiMethod: 'appQyV1.generateImage',
-    // Backend endpoint does not exist yet — shown as coming soon, execute disabled.
-    unavailable: true,
+    // Served by the AI gateway (aiManagement.image) from the Tools workbench.
+    unavailable: false,
     inputSchema: {
       required: ['prompt'],
       properties: {
@@ -167,8 +167,8 @@ export const AI_TOOLS: Record<string, ToolDefinition> = {
     description: 'Convert speech audio to text',
     apiModule: 'appQyV1',
     apiMethod: 'appQyV1.transcribeAudio',
-    // Backend endpoint does not exist yet — shown as coming soon, execute disabled.
-    unavailable: true,
+    // Live dictation runs in the browser (Web Speech API) from the Tools workbench.
+    unavailable: false,
     inputSchema: {
       required: ['audio'],
       properties: {
