@@ -41,8 +41,10 @@ export interface TerminalFramePolicyInput {
   focusId: string | null;
   /** Agent finished and no new prompt since: its screen is static. */
   frozen: ReadonlySet<string>;
-  /** Window ids that still have no frame. */
-  missing: ReadonlySet<string>;
+  /** Online windows that still have no frame at all. */
+  frameless: ReadonlySet<string>;
+  /** Frameless windows still inside their first-preview window (asked for even when off screen). */
+  bootstrap: ReadonlySet<string>;
   /** Tab hidden: nothing is transferred. */
   hidden: boolean;
 }
@@ -62,13 +64,16 @@ export function terminalFramePolicy(input: TerminalFramePolicyInput): TerminalFr
   if (input.hidden) return { wanted: new Set(), demand: [], focus: '' };
   const focusId = input.focusId !== null && online.has(input.focusId) ? input.focusId : null;
   if (focusId !== null) {
+    // A finished (static) terminal is only asked for when it has no frame to show at all.
     const live = !input.frozen.has(focusId);
-    return { wanted: live ? new Set([focusId]) : new Set(), demand: live ? [focusId] : [], focus: live ? focusId : '' };
+    const wanted = live || input.frameless.has(focusId);
+    return { wanted: wanted ? new Set([focusId]) : new Set(), demand: wanted ? [focusId] : [], focus: live ? focusId : '' };
   }
   const wanted = new Set<string>();
   input.visible.forEach((id) => { if (online.has(id)) wanted.add(id); });
-  input.missing.forEach((id) => { if (online.has(id)) wanted.add(id); });
-  input.frozen.forEach((id) => { if (!input.missing.has(id)) wanted.delete(id); });
+  input.bootstrap.forEach((id) => { if (online.has(id)) wanted.add(id); });
+  // Static terminals keep the frame they have; one without a frame is still fetched while on screen.
+  input.frozen.forEach((id) => { if (!input.frameless.has(id)) wanted.delete(id); });
   return { wanted, demand: [...wanted].sort(), focus: '' };
 }
 
@@ -103,16 +108,18 @@ export class TerminalFrameStore {
     return this.frames.has(windowId);
   }
 
-  /** Online windows with no frame that were first seen less than the bootstrap window ago. */
-  missingFrames(windows: readonly TerminalWindowInfo[], now: number): Set<string> {
-    const missing = new Set<string>();
+  /** Online windows with no frame, and those of them first seen less than the bootstrap window ago. */
+  framelessWindows(windows: readonly TerminalWindowInfo[], now: number): { frameless: Set<string>; bootstrap: Set<string> } {
+    const frameless = new Set<string>();
+    const bootstrap = new Set<string>();
     windows.forEach((windowInfo) => {
       if (!windowInfo.online || this.frames.has(windowInfo.id)) return;
+      frameless.add(windowInfo.id);
       const first = this.firstSeen.get(windowInfo.id) ?? now;
       this.firstSeen.set(windowInfo.id, first);
-      if (now - first < BOOTSTRAP_GIVE_UP_MS) missing.add(windowInfo.id);
+      if (now - first < BOOTSTRAP_GIVE_UP_MS) bootstrap.add(windowInfo.id);
     });
-    return missing;
+    return { frameless, bootstrap };
   }
 
   setWanted(wanted: ReadonlySet<string>): void {
