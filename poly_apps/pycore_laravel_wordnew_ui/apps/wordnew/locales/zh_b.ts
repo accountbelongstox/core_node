@@ -235,6 +235,8 @@ export const zhLocaleB: Record<string, string> = {
     'cards.typeStandard': '标准',
     'cards.lexemesTotal': '共 {n} 个词',
     'cards.mastered': '大纲掌握度',
+    'cards.wordsLeft': '剩余 {n} 个',
+    'cards.dueCount': '{n} 个待复习',
     'cards.favTitle': '收藏切换',
     'search.saveBookmark': '保存书签',
     'onb.brand': 'WORDNEW 引导',
