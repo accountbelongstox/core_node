@@ -61,7 +61,7 @@ const ACCENTS: Record<Accent, AccentStyle> = {
 const AccentContext = createContext<Accent>('math');
 export const useAccent = (): AccentStyle => ACCENTS[useContext(AccentContext)];
 
-export const FIELD_CLASS = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none transition placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100';
+export const FIELD_CLASS = 'w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none transition placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100';
 const MUTED = 'text-slate-500 dark:text-slate-400';
 const COPIED_MS = 1200;
 const AUTO_RECORD_MS = 1500;
@@ -75,7 +75,7 @@ export const Bench: React.FC<{ accent: Accent; server?: boolean; children: React
   const Icon = server ? Server : Cpu;
   return (
     <AccentContext.Provider value={accent}>
-      <div className="mx-auto w-full max-w-5xl space-y-4 p-3 sm:p-5">
+      <div className="mx-auto w-full min-w-0 max-w-5xl space-y-4 p-3 sm:p-5 [&_.grid>*]:min-w-0">
         <div className={`flex items-center justify-end gap-1.5 text-[11px] ${MUTED}`}>
           <Icon className="h-3.5 w-3.5" aria-hidden />
           {t(server ? 'uiTools.workbench.server_badge' : 'uiTools.workbench.local_badge')}
@@ -97,10 +97,10 @@ interface CardProps {
 export const Card: React.FC<CardProps> = ({ title, icon, aside, className = '', children }) => {
   const a = useAccent();
   return (
-    <section className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 ${a.cardEdge} ${className}`}>
+    <section className={`min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 ${a.cardEdge} ${className}`}>
       {(title || aside) && (
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${a.cardTitle}`}>{icon}{title}</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h3 className={`flex min-w-0 items-center gap-2 text-xs font-bold uppercase tracking-wider ${a.cardTitle}`}>{icon}{title}</h3>
           {aside}
         </div>
       )}
@@ -209,7 +209,7 @@ export const NumField: React.FC<NumFieldProps> = ({ value, onChange, min, max, n
   };
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative min-w-0 ${className}`}>
       <input
         type="text"
         inputMode={negative ? 'text' : 'decimal'}

@@ -402,6 +402,8 @@ terminal: {
     images: {
       attach: 'Attach images',
       remove: 'Remove image',
+      preview: 'Open the full image',
+      closePreview: 'Close preview',
       retry: 'Retry upload',
       notImage: 'Only image or audio files can be attached.',
       uploadFailed: 'Image upload failed.',
