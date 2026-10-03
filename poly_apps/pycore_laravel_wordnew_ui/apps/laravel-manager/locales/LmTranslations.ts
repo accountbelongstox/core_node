@@ -15,6 +15,20 @@ import { lmEnUiAi } from './LmUiAiEn';
 import { lmZhUiAi } from './LmUiAiZh';
 import { lmEnUiTools } from './LmUiToolsEn';
 import { lmZhUiTools } from './LmUiToolsZh';
+import { lmEnToolsCrypto } from './tools/LmToolsCryptoEn';
+import { lmZhToolsCrypto } from './tools/LmToolsCryptoZh';
+import { lmEnToolsConvert } from './tools/LmToolsConvertEn';
+import { lmZhToolsConvert } from './tools/LmToolsConvertZh';
+import { lmEnToolsWeb } from './tools/LmToolsWebEn';
+import { lmZhToolsWeb } from './tools/LmToolsWebZh';
+import { lmEnToolsText } from './tools/LmToolsTextEn';
+import { lmZhToolsText } from './tools/LmToolsTextZh';
+import { lmEnToolsMedia } from './tools/LmToolsMediaEn';
+import { lmZhToolsMedia } from './tools/LmToolsMediaZh';
+import { lmEnToolsCalc } from './tools/LmToolsCalcEn';
+import { lmZhToolsCalc } from './tools/LmToolsCalcZh';
+import { lmEnToolsOps } from './tools/LmToolsOpsEn';
+import { lmZhToolsOps } from './tools/LmToolsOpsZh';
 import { lmEnUiCommon } from './LmUiCommonEn';
 import { lmZhUiCommon } from './LmUiCommonZh';
 
@@ -30,6 +44,13 @@ const lmEn = {
   ...lmEnUiTask,
   ...lmEnUiAi,
   ...lmEnUiTools,
+  ...lmEnToolsCrypto,
+  ...lmEnToolsConvert,
+  ...lmEnToolsWeb,
+  ...lmEnToolsText,
+  ...lmEnToolsMedia,
+  ...lmEnToolsCalc,
+  ...lmEnToolsOps,
   ...lmEnUiCommon,
 } as const;
 
@@ -49,6 +70,13 @@ const lmZh: LmTranslationDict = {
   ...lmZhUiTask,
   ...lmZhUiAi,
   ...lmZhUiTools,
+  ...lmZhToolsCrypto,
+  ...lmZhToolsConvert,
+  ...lmZhToolsWeb,
+  ...lmZhToolsText,
+  ...lmZhToolsMedia,
+  ...lmZhToolsCalc,
+  ...lmZhToolsOps,
   ...lmZhUiCommon,
 };
 
