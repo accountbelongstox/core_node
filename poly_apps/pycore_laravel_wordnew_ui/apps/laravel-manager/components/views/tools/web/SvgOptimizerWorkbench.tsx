@@ -63,7 +63,7 @@ const SvgOptimizerWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
 
   const readFile = async (file: File) => setInput(await file.text());
   const setFlag = (key: BooleanOption, value: boolean) => setOptions((prev) => ({ ...prev, [key]: value }));
-  const error = result && !result.ok ? result : null;
+  const error = result && result.ok === false ? result : null;
   const beforeUri = useMemo(() => (error || !source.trim() ? '' : svgDataUri(source)), [source, error]);
   const afterUri = useMemo(() => (output ? svgDataUri(output) : ''), [output]);
 

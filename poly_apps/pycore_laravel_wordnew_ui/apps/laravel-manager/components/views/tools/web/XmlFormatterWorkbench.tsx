@@ -47,7 +47,7 @@ const XmlFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
 
   const result = useMemo(() => (source.trim() ? formatXml(source, { indent, minify: mode === 'minify', attrWrap }) : null), [source, indent, mode, attrWrap]);
   const output = result?.ok ? result.output : '';
-  const error = result && !result.ok ? result.error : null;
+  const error = result && result.ok === false ? result.error : null;
   const xpathResult = useMemo(() => (expression.trim() && result?.ok ? evaluateXPath(source, expression.trim()) : null), [expression, source, result]);
   const recordRun = () => record({ xml: input, mode, indent, attrWrap }, { length: output.length });
 
@@ -121,7 +121,7 @@ const XmlFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
           </div>
           <Pane title={t('toolsWeb.xml.xpath')} icon={Search} bodyClassName="space-y-2 p-3">
             <input value={xpath} onChange={(event) => setXpath(event.target.value)} placeholder={t('toolsWeb.xml.xpath_placeholder')} spellCheck={false} aria-label={t('toolsWeb.xml.xpath')} className={`${WEB_MONO_INPUT_CLASS} text-xs`} />
-            {xpathResult && !xpathResult.ok && <Notice tone="error" icon={AlertTriangle}>{xpathResult.message}</Notice>}
+            {xpathResult && xpathResult.ok === false && <Notice tone="error" icon={AlertTriangle}>{xpathResult.message}</Notice>}
             {xpathResult?.ok && xpathResult.scalar !== null && (
               <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs dark:border-slate-700"><Braces className="h-3.5 w-3.5 text-cyan-500" aria-hidden />{xpathResult.scalar}</div>
             )}

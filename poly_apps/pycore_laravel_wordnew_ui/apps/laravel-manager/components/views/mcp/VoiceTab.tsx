@@ -656,14 +656,14 @@ const VoiceTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
               </button>
             </div>
             <div className="flex-1">
-              <p className="font-medium">{currentVoiceTrack.data.queue_item?.content}</p>
+              <p className="font-medium">{(currentVoiceTrack.data.current ?? currentVoiceTrack.data.queue_item)?.content}</p>
               <p className="text-sm text-slate-500">
-                {currentVoiceTrack.data.queue_item?.language} • {currentVoiceTrack.data.queue_item?.type}
+                {(currentVoiceTrack.data.current ?? currentVoiceTrack.data.queue_item)?.language} • {(currentVoiceTrack.data.current ?? currentVoiceTrack.data.queue_item)?.type}
               </p>
             </div>
             <audio
               ref={audioRef}
-              src={currentVoiceTrack.data.queue_item?.audio_url}
+              src={(currentVoiceTrack.data.current ?? currentVoiceTrack.data.queue_item)?.audio_url}
               onEnded={() => setIsPlaying(false)}
               className="hidden"
             />

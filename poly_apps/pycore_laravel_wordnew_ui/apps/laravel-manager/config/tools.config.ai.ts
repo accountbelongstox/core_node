@@ -100,7 +100,7 @@ export const AI_TOOLS: Record<string, ToolDefinition> = {
     name: 'Prompt Manager',
     category: 'AI Tools',
     icon: 'FileText',
-    description: 'Manage and organize AI prompts',
+    description: 'Prompt templates and per-category prompt mapping rules',
     apiModule: 'mcpV1',
     apiMethod: 'mcpV1.getPromptMappings',
     inputSchema: {
@@ -133,8 +133,8 @@ export const AI_TOOLS: Record<string, ToolDefinition> = {
     category: 'AI Tools',
     icon: 'Image',
     description: 'Generate images from text descriptions',
-    apiModule: 'appQyV1',
-    apiMethod: 'appQyV1.generateImage',
+    apiModule: 'aiManagement',
+    apiMethod: 'aiManagement.image',
     // Served by the AI gateway (aiManagement.image) from the Tools workbench.
     unavailable: false,
     inputSchema: {
