@@ -99,7 +99,8 @@
   },
   "session_env": {
     "all": {
-      "CLAUDE_CODE_DISABLE_MOUSE": "1"
+      "CLAUDE_CODE_DISABLE_MOUSE": "1",
+      "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN": "1"
     },
     "lead": {
       "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
@@ -108,7 +109,8 @@
       "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT": "1"
     },
     "remote": {
-      "CLAUDE_CODE_DISABLE_MOUSE": "1"
+      "CLAUDE_CODE_DISABLE_MOUSE": "1",
+      "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN": "1"
     }
   },
   "session_policy": {
