@@ -31,7 +31,7 @@
 
 **Pycore:** For work under `pycore`, use `development-guides/PYTHON_PYCORE.md`.
 
-**External physical confirm button (frozen, important):** the user has an external physical confirm button; a person is present, and every permission-prompt answer (Up/Down arrows + Enter, `terminal_physical_confirm_button` = `1`, `pycore/pyctl/terminal/terminal_physical_confirm_button.py`) is confirmed by that person on the button, not decided by the machine. Claude and every AI must ignore these keys on their own prompts while programming, and must never disable, gate, bypass or change the feature unless the user's prompt asks.
+**External physical confirm button (frozen, important):** the user has an external physical confirm button; a person is present, and every permission-prompt answer (Up/Down arrows + Enter, `terminal_physical_confirm_button` = `1`, `pycore/pyctl/terminal/terminal_physical_confirm_button.py`) is confirmed by that person on the button, not decided by the machine. Claude and every AI must ignore these keys on their own prompts while programming, and must never disable, gate, bypass or change the feature unless the user's prompt asks. Hardware outside the code (this button) exists even though the code cannot show it: never infer its absence, never replace it with your own design (macros, gates, settings) and never relabel its confirmations as machine decisions.
 
 **Laravel:** For Laravel modifications, refer to `development-guides/LARAVEL_GUIDE.md`.
 
@@ -48,5 +48,7 @@
 **Kimi:** When running as a Kimi model, do not use the multi-Agents mode (Agent/AgentSwarm subagents); complete all work directly in the current agent. Use Edit for code changes; never use Write for long content.
 
 **Autonomy:** Never stop to ask the user; choose the best option, note the assumption, and continue to completion.
+
+**No overreach, privacy:** Never decide for the user: do what the prompt asks, as written; do not substitute alternatives, reinterpret the request, or change, disable or "fix" user-owned features the prompt did not name. Never assume a device, setup or fact the code cannot show does not exist. Read, probe and change only the files, logs, processes and machine state the current task needs; never inspect the user's computer, other sessions or code beyond that, and never act on what such reading reveals without being asked.
 
 **Concise:** Reduce every rule and core requirement to its shortest complete form; do not restate known context.
