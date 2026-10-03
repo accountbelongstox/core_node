@@ -11,6 +11,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator, Optional
 
+from pycore.pyfoundations.notebook_policy import local_sqlite_path
+
 
 Row = sqlite3.Row
 Error = sqlite3.Error
@@ -26,7 +28,7 @@ def connect_writable(
     isolation_level: Optional[str] = "",
 ) -> sqlite3.Connection:
     conn = sqlite3.connect(
-        str(db_path),
+        str(local_sqlite_path(db_path)),
         timeout=timeout,
         uri=uri,
         check_same_thread=check_same_thread,
@@ -64,7 +66,7 @@ def open_wal_connection(
     check_same_thread: bool = False,
 ) -> sqlite3.Connection:
     """Open a writable SQLite connection with WAL, busy timeout, and optional pragmas."""
-    path = Path(db_path)
+    path = Path(local_sqlite_path(db_path))
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = connect_writable(
         path.resolve(),

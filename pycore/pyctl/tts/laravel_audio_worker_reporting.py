@@ -44,7 +44,7 @@ def _word_media_path(word: str, language: str) -> str:
     return queue_center_endpoint(
         "audio_word_media",
         lang=str(language or "en").strip().lower(),
-        word=str(word or "").strip().lower(),
+        word=str(word or "").strip(),
     )
 
 
@@ -139,11 +139,12 @@ class LaravelAudioWorkerReportingMixin:
 
     def _backend_word_audio_present(self, word: str, language: str, base_url: str) -> bool:
         """Probe Laravel's per-word media endpoint: True when the backend already
-        stores an audio file for this word (its reportWordResult would hit the
-        already_done short-circuit, so re-uploading the bytes is pure waste).
+        stores an audio file for this EXACT word (a different casing is another
+        word with its own md5; its reportWordResult would hit the already_done
+        short-circuit, so re-uploading the bytes is pure waste).
         Answers are cached in-process; transport errors fail open (upload as
         usual)."""
-        clean_word = str(word or "").strip().lower()
+        clean_word = str(word or "").strip()
         if not clean_word:
             return False
         media_path = _word_media_path(clean_word, language)
@@ -164,7 +165,11 @@ class LaravelAudioWorkerReportingMixin:
             ColorPrint.yellow(f"[AudioWorker] word media probe failed ({media_path}): {exc}")
             return False
         data = body.get("data") if isinstance(body, dict) else None
-        present = bool(data.get("audio_url")) if isinstance(data, dict) else False
+        present = (
+            bool(data.get("audio_url")) and str(data.get("word") or "") == clean_word
+            if isinstance(data, dict)
+            else False
+        )
         _word_media_probe_cache.put(cache_key, {"present": present, "observed_at": time.monotonic()})
         return present
 

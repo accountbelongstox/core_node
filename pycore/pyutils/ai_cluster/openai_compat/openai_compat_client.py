@@ -284,8 +284,8 @@ class OpenAICompatClient:
         data, error = self.get_json(url, timeout)
         if error:
             return [], error
-        raw = data.get(self.profile.models_list_key) if self.profile.models_list_key else data
-        if not raw and self.profile.models_list_fallback:
+        raw = data.get(self.profile.models_list_key) if self.profile.models_list_key and isinstance(data, dict) else data
+        if not raw and self.profile.models_list_fallback and isinstance(data, dict):
             raw = data.get(self.profile.models_list_fallback)
         rows = [
             row for row in (raw if isinstance(raw, list) else [])

@@ -375,6 +375,21 @@ export class CapBlobStore {
     return true;
   }
 
+  /**
+   * Native: move every file of another storage directory that this store does not hold yet
+   * (one sweep after a directory change; nothing is replaced or fetched again). Returns the moved count.
+   */
+  async adoptAllFrom(source: CapBlobStore): Promise<number> {
+    if (!safeIsNative() || source.directory === this.directory) return 0;
+    const names = [...await source.nativeIndex().catch(() => new Set<string>())];
+    let moved = 0;
+    for (const name of names) {
+      if (await this.has(name)) continue;
+      if (await this.adoptFrom(source, name)) moved += 1;
+    }
+    return moved;
+  }
+
   /** The file name a key is stored under. */
   fileName(key: string): string {
     return sanitizeKey(key);
@@ -735,6 +750,7 @@ export class CapBlobStore {
  *   const url = await cache.getOrFetchUrl('w-42', () => `${cdn}/w-42.mp3`);
  */
 export class CapLargeCache {
+  private static readonly swept = new Set<string>();
   private readonly store: CapBlobStore;
   private readonly legacy: CapBlobStore | null;
   private readonly maxBytes: number;
@@ -753,6 +769,10 @@ export class CapLargeCache {
     this.store = new CapBlobStore(dir, options.directory ?? Directory.Cache);
     this.legacy = options.legacyDirectory === undefined ? null : new CapBlobStore(dir, options.legacyDirectory);
     this.maxBytes = Math.max(0, Math.floor(options.maxBytes ?? 2 * 1024 * 1024 * 1024));
+    if (this.legacy && !CapLargeCache.swept.has(dir)) {
+      CapLargeCache.swept.add(dir);
+      void this.store.adoptAllFrom(this.legacy).catch(() => 0);
+    }
   }
 
   /** The underlying blob store (for direct ops). */
