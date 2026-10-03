@@ -12,6 +12,8 @@ from pycore.pyfoundations.system_paths import get_core_node_root
 _PYCORE_CACHE = "callmodule.version.native_pycore"
 _PYCORE_SCAN_RUNNING = "callmodule.version.native_pycore.scan_running"
 _TTL = 15.0
+# Wall-clock start of this process image (a self-restart re-imports it with a new value).
+PROCESS_STARTED_AT = time.time()
 _SKIP_DIRS = frozenset({".git", "__pycache__", "node_modules", ".data", ".cache", ".ruff_cache", "bak"})
 _EXTENSIONS = (".py", ".ts", ".tsx", ".js", ".sh", ".ps1")
 
@@ -68,7 +70,7 @@ def _refresh_pycore_snapshot() -> None:
 
 
 def get_version() -> Dict[str, Any]:
-    return {"success": True, "pycore": _pycore_snapshot()}
+    return {"success": True, "pycore": _pycore_snapshot(), "process_started_at": PROCESS_STARTED_AT}
 
 
 __all__ = ["get_version"]
