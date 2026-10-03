@@ -87,14 +87,15 @@ export const useRecorder = (toolId: string, variant: string): ((input: unknown, 
   }, [run]);
 };
 
-/** Records a live-as-you-type run once the input has been idle for a moment. */
+/** Records a live-as-you-type run once the input has been idle for a moment; the untouched initial state is never recorded. */
 export const useDebouncedRecord = (toolId: string, variant: string, input: unknown, output: unknown, enabled: boolean): void => {
   const record = useRecorder(toolId, variant);
   const latest = useRef({ input, output });
   latest.current = { input, output };
   const key = enabled ? JSON.stringify([input, output]) : '';
+  const initialKey = useRef(key);
   useEffect(() => {
-    if (!key) return undefined;
+    if (!key || key === initialKey.current) return undefined;
     const timer = setTimeout(() => record(latest.current.input, latest.current.output), RECORD_DELAY_MS);
     return () => clearTimeout(timer);
   }, [key, record]);

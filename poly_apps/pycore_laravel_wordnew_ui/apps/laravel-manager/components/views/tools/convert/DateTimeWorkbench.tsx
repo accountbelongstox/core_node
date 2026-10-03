@@ -31,6 +31,8 @@ const DateTimeWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
   const { copied, copy } = useCopy();
   const record = useRecorder(tool.id, variant);
   const allZones = useMemo(() => listZones(), []);
+  const zoneOptions = useMemo(() => (allZones.includes(zone) ? allZones : [zone, ...allZones]).map((entry) => <option key={entry} value={entry}>{entry}</option>), [allZones, zone]);
+  const addZoneOptions = useMemo(() => allZones.filter((entry) => !zones.includes(entry)).map((entry) => <option key={entry} value={entry}>{entry}</option>), [allZones, zones]);
 
   useEffect(() => {
     if (!live) return undefined;
@@ -98,7 +100,7 @@ const DateTimeWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
             <span className={LABEL_CLASS}>{tc('datetime.zone')}</span>
             <select value={zone} onChange={(event) => setZone(event.target.value)} className={`${INPUT_CLASS} !w-auto !py-1`}>
-              {(allZones.includes(zone) ? allZones : [zone, ...allZones]).map((entry) => <option key={entry} value={entry}>{entry}</option>)}
+              {zoneOptions}
             </select>
           </label>
           <ToggleField label={tc('datetime.live')} on={live} onChange={setLive} />
@@ -117,7 +119,7 @@ const DateTimeWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
             <div className="flex items-center gap-1.5">
               <select value={pendingZone} onChange={(event) => setPendingZone(event.target.value)} aria-label={tc('datetime.add_zone')} className={`${INPUT_CLASS} !w-44 !py-1 text-xs`}>
                 <option value="">{tc('datetime.add_zone')}</option>
-                {allZones.filter((entry) => !zones.includes(entry)).map((entry) => <option key={entry} value={entry}>{entry}</option>)}
+                {addZoneOptions}
               </select>
               <button type="button" disabled={!pendingZone} onClick={addZone} className={PRIMARY_BUTTON_CLASS} aria-label={tc('datetime.add_zone')}><Plus className="h-3.5 w-3.5" /></button>
             </div>

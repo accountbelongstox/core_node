@@ -161,7 +161,7 @@ interface SegOption<T extends string | number> {
 interface SegProps<T extends string | number> {
   value: T;
   options: readonly SegOption<T>[];
-  onChange: (value: T) => void;
+  onChange: (value: NoInfer<T>) => void;
   accent?: OpsAccent;
   block?: boolean;
   className?: string;
@@ -199,7 +199,7 @@ export function Seg<T extends string | number>({ value, options, onChange, accen
 interface ChipsProps<T extends string | number | boolean> {
   value: T;
   options: readonly ChipOption<T>[];
-  onChange: (value: T) => void;
+  onChange: (value: NoInfer<T>) => void;
   accent?: OpsAccent;
   nowrap?: boolean;
   className?: string;

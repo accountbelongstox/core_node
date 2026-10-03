@@ -31,9 +31,15 @@ const IpSubnetWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
     if (next && next.prefix !== null) setPrefix(next.prefix);
   };
 
+  const updatePrefix = (next: number): void => {
+    setPrefix(next);
+    if (ipText.includes('/')) setIpText(`${ipText.split('/')[0]}/${next}`);
+  };
+
   const toggleBit = (index: number): void => {
     if (!parsed) return;
-    handleIp(formatIpv4((parsed.ip ^ (2 ** (31 - index))) >>> 0));
+    const flipped = formatIpv4((parsed.ip ^ (2 ** (31 - index))) >>> 0);
+    setIpText(ipText.includes('/') ? `${flipped}/${prefix}` : flipped);
   };
 
   const depth = Math.min(Math.max(1, splitDepth), Math.min(MAX_SPLIT_DEPTH, 32 - prefix));
@@ -64,8 +70,8 @@ const IpSubnetWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
               className={`${FIELD_CLASS} ${a.focus} py-3 text-xl font-bold ${parsed ? '' : 'border-red-500/60'}`}
             />
           </div>
-          <Slider label={t('toolsCalc.subnet.prefix')} value={prefix} min={0} max={32} step={1} onChange={setPrefix} format={(v) => `/${v}`} />
-          <Chips value={prefix} onChange={setPrefix} options={PREFIX_PRESETS.map((p) => ({ value: p, label: `/${p}` }))} />
+          <Slider label={t('toolsCalc.subnet.prefix')} value={prefix} min={0} max={32} step={1} onChange={updatePrefix} format={(v) => `/${v}`} />
+          <Chips value={prefix} onChange={updatePrefix} options={PREFIX_PRESETS.map((p) => ({ value: p, label: `/${p}` }))} />
         </div>
       </Card>
 
