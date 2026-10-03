@@ -338,6 +338,7 @@ domain_setup_lan_cert_paths_refresh() {
     DOMAIN_LAN_TS_DNS01="no"
     if [ "$(mesh_vpn_provider)" = "headscale" ]; then
         headscale_lan_dns01_refresh
+        headscale_lan_acme_cert_paths
     fi
     DOMAIN_LAN_MKCERT_PEM="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*.pem 2>/dev/null | grep -v -- '-key\.pem$' | head -1)"
     DOMAIN_LAN_MKCERT_KEY="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*-key.pem 2>/dev/null | head -1)"

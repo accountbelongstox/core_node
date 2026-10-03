@@ -154,6 +154,40 @@ headscale_lan_dns01_refresh() {
     fi
 }
 
+# acme.sh DNS-01 (DNSPod) certificate dir of this machine's MagicDNS name:
+# SANs <machine>.<domain> + *.<machine>.<domain> cover the UI/API/pycore
+# site and api.<machine>.<domain>. Empty when the dir is unknown.
+headscale_lan_acme_cert_dir() {
+    [ -n "$DOMAIN_TS_DNSNAME" ] && [ -n "${FRANKENPHP_ACME_CERT_DIR:-}" ] || return 0
+    printf '%s/%s' "$FRANKENPHP_ACME_CERT_DIR" "$DOMAIN_TS_DNSNAME"
+}
+
+# Prefer the publicly trusted acme.sh certificate for both tailnet names
+# (called from domain_setup_lan_cert_paths_refresh after the mkcert lookups).
+headscale_lan_acme_cert_paths() {
+    local cert_dir=""
+
+    cert_dir="$(headscale_lan_acme_cert_dir)"
+    [ -n "$cert_dir" ] && [ -s "$cert_dir/fullchain.pem" ] && [ -s "$cert_dir/key.pem" ] || return 0
+    DOMAIN_LAN_TS_CERT="$cert_dir/fullchain.pem"
+    DOMAIN_LAN_TS_KEY="$cert_dir/key.pem"
+    DOMAIN_LAN_TS_API_CERT="$cert_dir/fullchain.pem"
+    DOMAIN_LAN_TS_API_KEY="$cert_dir/key.pem"
+}
+
+# Issue/keep the acme.sh certificate (idempotent: acme_sh_ensure_certificate
+# keeps a ready one). Runs in a subshell: the acme library reassigns
+# SCRIPT_CURRENT_DIR. Renewals reload Caddy through the admin /load hook.
+headscale_lan_acme_cert_ensure() {
+    [ -n "$DOMAIN_TS_DNSNAME" ] || return 0
+    (
+        # shellcheck source=/dev/null
+        source "$HEADSCALE_COMMON_DIR/frankenphp_acme_sh_install.sh" >/dev/null 2>&1
+        acme_sh_ensure_install >/dev/null 2>&1 || true
+        acme_sh_ensure_certificate "$DOMAIN_TS_DNSNAME" "$(acme_sh_caddy_reload_cmd "$FM_DOMAIN_CADDYFILE")" "-"
+    ) | while IFS= read -r line; do echo "[domain]   $line"; done
+}
+
 # Headscale replacement for domain_setup_lan_cert_tailscale: no `tailscale
 # cert`. <machine>.<base> is served by Caddy DNS-01 (DNSPod); without the
 # module/token a mkcert certificate (local CA) is pinned instead.
@@ -185,6 +219,12 @@ headscale_lan_cert_machine() {
     headscale_lan_dns01_refresh
     if [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
         echo "[domain] [OK] $DOMAIN_TS_DNSNAME: Caddy DNS-01 (DNSPod) issues the certificate; no tailscale cert"
+        return 0
+    fi
+    headscale_lan_acme_cert_ensure
+    domain_setup_lan_cert_paths_refresh
+    if [ "$DOMAIN_LAN_TS_CERT" = "$(headscale_lan_acme_cert_dir)/fullchain.pem" ]; then
+        echo "[domain] [OK] $DOMAIN_TS_DNSNAME + *.$DOMAIN_TS_DNSNAME: acme.sh DNS-01 (DNSPod) certificate"
         return 0
     fi
     mkcert_bin="$(command -v mkcert 2>/dev/null || true)"

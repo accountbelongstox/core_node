@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 TAIL_LINE_COUNT = 14
 TAIL_CHAR_LIMIT = 8192
 MIN_SIGNAL_COUNT = 2
+BASH_PROMPT_TAIL_LINES = 3
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
 FRAME_CHARS = "│┃║|╭╮╰╯─━═┌┐└┘├┤┬┴┼"
 QUESTION_PATTERN = re.compile(
@@ -26,6 +27,7 @@ SECOND_YES_DONT_ASK_PATTERN = re.compile(
     re.IGNORECASE,
 )
 HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
+BASH_COMMAND_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*bash\s+command\b", re.IGNORECASE)
 
 
 def _clean_line(line: str) -> str:
@@ -106,6 +108,22 @@ def second_yes_selected(text: str) -> bool:
     )
 
 
+def bash_command_prompt(text: str) -> bool:
+    lines = tail_lines(text)
+    return len(lines) >= 2 and any(
+        BASH_COMMAND_PATTERN.match(line) for line in lines[-BASH_PROMPT_TAIL_LINES:-1]
+    )
+
+
+def waiting_prompt(text: str) -> Optional[str]:
+    digest = confirmation_prompt(text)
+    if digest:
+        return digest
+    if second_yes_prompt(text) or bash_command_prompt(text):
+        return hashlib.sha256("\n".join(tail_lines(text)).encode("utf-8", "replace")).hexdigest()
+    return None
+
+
 class TerminalPromptWatch:
     """Remembers the prompt last reported per terminal so one waiting prompt alerts once; a cleared prompt re-arms the terminal."""
 
@@ -115,7 +133,7 @@ class TerminalPromptWatch:
 
     def check(self, number: int, text: Optional[str]) -> bool:
         """True when the terminal newly shows a confirmation prompt that has not been reported yet."""
-        digest = confirmation_prompt(text) if text else None
+        digest = waiting_prompt(text) if text else None
         with self._lock:
             if digest is None:
                 if text:

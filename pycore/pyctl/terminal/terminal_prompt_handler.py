@@ -4,6 +4,7 @@ import time
 from typing import Any, Callable, Optional
 
 from pycore.pyctl.terminal.terminal_prompt_detector import (
+    bash_command_prompt,
     default_yes_prompt,
     second_yes_prompt,
     second_yes_selected,
@@ -31,7 +32,8 @@ class TerminalPromptHandler:
         current_text = text
         for attempt in range(1, MAX_ENTER_ATTEMPTS + 1):
             use_second_yes = second_yes_prompt(current_text)
-            if not use_second_yes and not default_yes_prompt(current_text):
+            use_bash_command = bash_command_prompt(current_text)
+            if not use_second_yes and not use_bash_command and not default_yes_prompt(current_text):
                 break
             try:
                 result = (
@@ -52,7 +54,8 @@ class TerminalPromptHandler:
                 )
                 break
             ColorPrint.blue(
-                f"[{LABEL}] selected Yes terminal={terminal_number} "
+                f"[{LABEL}] confirmed terminal={terminal_number} "
+                f"prompt={'bash_command' if use_bash_command else 'yes'} "
                 f"option={2 if use_second_yes else 1} attempt={attempt}"
             )
             time.sleep(PROMPT_SETTLE_SECONDS)
