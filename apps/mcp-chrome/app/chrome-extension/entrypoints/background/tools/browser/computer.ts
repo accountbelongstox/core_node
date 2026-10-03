@@ -552,18 +552,11 @@ class ComputerTool extends BaseBrowserToolExecutor {
         }
 
         case 'screenshot': {
-          // screenshotTool re-queries the active tab of the current window and
-          // cannot accept a tabId (lives outside this area), so activate the
-          // resolved tab + its window first so its active-tab query resolves to
-          // targetTab. Best-effort: focus may be unavailable in headless contexts.
-          try {
-            await this.ensureFocus(finalTab, { activate: true, focusWindow: true });
-          } catch (e) {
-            console.warn('Failed to focus target tab for screenshot:', e);
-          }
           return await screenshotTool.execute({
             name: 'computer_screenshot',
             selector: args.selector,
+            tabId: targetTabId,
+            background: args.background,
           });
         }
 

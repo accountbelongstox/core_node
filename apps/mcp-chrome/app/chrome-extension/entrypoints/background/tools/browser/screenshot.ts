@@ -12,6 +12,9 @@ import {
   stitchImages,
   compressImage,
 } from '../../../../utils/image-utils';
+import { sendFileOperationRequest } from '../../native-file-operation';
+
+const SCREENSHOT_SAVE_TIMEOUT_MS = 30000;
 
 // Screenshot-specific constants
 const SCREENSHOT_CONSTANTS = {
@@ -155,41 +158,42 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       }
 
       if (savePng === true) {
-        // Save PNG file to downloads
         this.logInfo('Saving PNG...');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `${name.replace(/[^a-z0-9_-]/gi, '_') || 'screenshot'}_${timestamp}.png`;
         try {
-          // Generate filename
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const filename = `${name.replace(/[^a-z0-9_-]/gi, '_') || 'screenshot'}_${timestamp}.png`;
-
-          // Use Chrome's download API to save the file
-          const downloadId = await chrome.downloads.download({
-            url: finalImageDataUrl,
-            filename: filename,
-            saveAs: false,
-          });
-
-          results.downloadId = downloadId;
-          results.filename = filename;
+          // The native host writes into the fixed screenshot folder, so the file
+          // never shows up as a browser download.
+          const saved = await sendFileOperationRequest(
+            { action: 'saveScreenshot', base64Data: finalImageDataUrl, fileName: filename },
+            SCREENSHOT_SAVE_TIMEOUT_MS,
+          );
+          if (!saved?.success || !saved.filePath) {
+            throw new Error(saved?.error || 'Native host did not save the screenshot');
+          }
+          results.filename = saved.fileName;
+          results.fullPath = saved.filePath;
           results.fileSaved = true;
-
-          // Try to get the full file path
+        } catch (nativeError) {
+          console.warn('Native screenshot save failed; falling back to downloads:', nativeError);
           try {
-            // Wait a moment to ensure download info is updated
+            const downloadId = await chrome.downloads.download({
+              url: finalImageDataUrl,
+              filename,
+              saveAs: false,
+            });
+            results.downloadId = downloadId;
+            results.filename = filename;
+            results.fileSaved = true;
             await waitForDelay(100);
-
-            // Search for download item to get full path
             const [downloadItem] = await chrome.downloads.search({ id: downloadId });
-            if (downloadItem && downloadItem.filename) {
-              // Add full path to response
+            if (downloadItem?.filename) {
               results.fullPath = downloadItem.filename;
             }
-          } catch (pathError) {
-            console.warn('Could not get full file path:', pathError);
+          } catch (error) {
+            console.error('Error saving PNG file:', error);
+            results.saveError = toErrorMessage(error);
           }
-        } catch (error) {
-          console.error('Error saving PNG file:', error);
-          results.saveError = toErrorMessage(error);
         }
       }
     } catch (error) {
