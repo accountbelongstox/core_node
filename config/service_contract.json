@@ -105,7 +105,17 @@
                 "derp_region_id": 900,
                 "derp_region_code": "core",
                 "ip_prefix_v4": "100.64.0.0/10",
-                "ip_prefix_v6": "fd7a:115c:a1e0::/48"
+                "ip_prefix_v6": "fd7a:115c:a1e0::/48",
+                "config_file": "config.yaml",
+                "guide_key_expiration": "24h",
+                "auth_id_pattern": "^hskey-authreq-[A-Za-z0-9_-]{8,64}$",
+                "guide_path": "/api/system/mesh/guide",
+                "preauth_key_path": "/api/system/mesh/preauth-key",
+                "register_path": "/api/system/mesh/register",
+                "mobile_clients": {
+                    "android": "https://play.google.com/store/apps/details?id=com.tailscale.ipn",
+                    "ios": "https://apps.apple.com/app/tailscale/id1470499037"
+                }
             }
         },
         "root_domains": [

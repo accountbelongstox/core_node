@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\System\TokenSessionController;
 use App\Http\System\StatusController;
 use App\Http\System\CodeSyncController;
+use App\Http\System\MeshController;
 use App\Http\Controllers\ServerManagerController;
 use App\Http\Middleware\LocalAccessOnly;
 
@@ -24,6 +25,13 @@ Route::prefix('system/code-sync')->middleware('client.key')->group(function () {
     Route::get('/history', [CodeSyncController::class, 'history']);
     Route::post('/ai-fix', [CodeSyncController::class, 'aiFix']);
     Route::post('/sys-init', [CodeSyncController::class, 'sysInit']);
+});
+
+// Mesh VPN login guide (contract access.mesh.headscale guide_path/preauth_key_path/register_path).
+Route::prefix('system/mesh')->middleware('client.key_or_dashboard')->group(function () {
+    Route::get('/guide', [MeshController::class, 'guide']);
+    Route::post('/preauth-key', [MeshController::class, 'preauthKey']);
+    Route::post('/register', [MeshController::class, 'register']);
 });
 
 Route::prefix('server-manager')->middleware(LocalAccessOnly::class)->group(function () {

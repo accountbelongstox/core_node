@@ -68,3 +68,17 @@ export function meshAllowedHostSuffixes(liveTailnet: string): string[] {
   const tailscaleSuffix = MESH.tailscale.domain_labels.filter((label) => !/^\{\w+\}$/.test(label)).join('.');
   return [...new Set([liveTailnet, meshDomain(), tailscaleSuffix].filter(Boolean).map((domain) => `.${domain}`))];
 }
+
+/** Laravel routes of the mesh login guide, served next to the Headscale control server. */
+export const MESH_GUIDE_ROUTES = {
+  guide: MESH.headscale.guide_path,
+  preauthKey: MESH.headscale.preauth_key_path,
+  register: MESH.headscale.register_path,
+} as const;
+
+const AUTH_ID_PATTERN = new RegExp(MESH.headscale.auth_id_pattern.replace(/^\^|\$$/g, ''));
+
+/** The Headscale auth ID inside a pasted register URL or bare ID; '' when absent. */
+export function meshAuthIdOf(text: string): string {
+  return AUTH_ID_PATTERN.exec(String(text || '').trim())?.[0] ?? '';
+}

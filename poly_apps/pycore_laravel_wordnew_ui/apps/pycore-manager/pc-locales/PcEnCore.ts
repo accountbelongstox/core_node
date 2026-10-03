@@ -111,6 +111,7 @@ nav: {
     terminal: 'Terminal Control',
     windowAutomation: 'Window Automation',
     codeSync: 'Code Sync',
+    meshLogin: 'Mesh Login',
     videoExtract: 'Video Extract',
     books: 'Books',
     content: 'Content',
