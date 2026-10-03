@@ -1126,6 +1126,10 @@
       "path": "ui/terminal/scroll",
       "method": "POST"
     },
+    "terminalText": {
+      "path": "ui/terminal/text",
+      "method": "POST"
+    },
     "terminalView": {
       "path": "ui/terminal/view",
       "method": "POST"

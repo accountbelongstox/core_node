@@ -250,6 +250,11 @@ class TerminalService:
     ) -> Optional[Dict[str, Any]]:
         return self._screenshot_cache.read_resource(window_id, digest)
 
+    def screenshot_captured_at(self, window_id: str) -> int:
+        """Capture time (ms) of the window's newest changed frame, 0 when it has none."""
+        frame = self._screenshot_cache.metadata(window_id)
+        return int(frame.get("captured_at") or 0) if frame else 0
+
     def read_screenshot_text(self, window_id: str, digest: str) -> Dict[str, Any]:
         """OCR text of the window frame ``digest``; cached per window until the frame changes."""
         if not window_id or not digest:
