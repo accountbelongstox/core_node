@@ -477,6 +477,8 @@ export interface WorkNode {
   platform?: string;
   /** Host label the node declared (may be empty). */
   label?: string;
+  /** Direct LAN backend URLs the node serves (`http://<RFC 1918 host>:59000`; empty unless its LAN bind is on). */
+  lan_urls?: string[];
   compute_class: string;
   online: boolean;
   lanes: Record<string, string[]>;
