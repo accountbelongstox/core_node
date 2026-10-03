@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, Hourglass, Moon, Pause, ScanSearch, SquareTerminal, Terminal } from 'lucide-react';
+import { BellRing, CircleCheck, Hourglass, LoaderCircle, Moon, Pause, PenLine, ScanSearch, SquareTerminal, Terminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PcTerminalAgentBadge } from '@/apps/pycore-manager/components/PcTerminalAgentBadge';
@@ -20,6 +20,12 @@ const COUNTDOWN_CLASS: Record<MarkSize, string> = { tile: 'text-[7px] leading-no
 interface TerminalCountdown {
   state: string;
   seconds: number;
+  /** Local wall-clock time the countdown ends at. */
+  endsAt: Date;
+}
+
+function clockText(date: Date): string {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 /** Nearest per-terminal countdown (usage-limit resume first, then prompt follow-up scan). */
@@ -30,7 +36,11 @@ function useTerminalCountdown(terminalNumber: number): { waiting: boolean; follo
   for (const state of [STATE_RESUME_PENDING, STATE_PROMPT_FOLLOW_UP]) {
     const entry = entries.find((item) => item.state === state && typeof item.due_at === 'number');
     if (entry && countdown === null) {
-      countdown = { state, seconds: Math.max(0, Math.ceil(Number(entry.due_at) - watch.serverNow)) };
+      countdown = {
+        state,
+        seconds: Math.max(0, Math.ceil(Number(entry.due_at) - watch.serverNow)),
+        endsAt: watch.localDate(Number(entry.due_at)),
+      };
     }
   }
   return {
@@ -46,15 +56,25 @@ interface PcTerminalStatusMarksProps {
   size?: MarkSize;
   /** Render the countdown inline after the icons (title bars); tiles place it themselves. */
   inlineCountdown?: boolean;
+  /** The UI holds an unsent draft for this terminal. */
+  hasDraft?: boolean;
   className?: string;
 }
 
 /** Tiny per-terminal marks: AI agent / plain terminal, pending confirmation, usage-limit wait, with its countdown. */
-export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdown = true, className = '' }: PcTerminalStatusMarksProps) {
+export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdown = true, hasDraft = false, className = '' }: PcTerminalStatusMarksProps) {
   const { t } = useTranslation('pc');
+  const watch = usePcTerminalWatch();
   const { waiting, followUp, resume, countdown } = useTerminalCountdown(windowInfo.terminal_number);
-  if (!windowInfo.online) return null;
   const icon = ICON_CLASS[size];
+  const draftMark = (hasDraft || windowInfo.has_draft) && (
+    <PenLine className={`${icon} text-cyan-300`} aria-label={t('terminal.marks.draft')}><title>{t('terminal.marks.draft')}</title></PenLine>
+  );
+  if (!windowInfo.online) return draftMark ? <span className={`inline-flex shrink-0 items-center ${className}`}>{draftMark}</span> : null;
+  const activity = windowInfo.agent_activity;
+  const finishedAt = activity?.finished_at ?? null;
+  const unseenFinish = !activity?.busy && finishedAt !== null && finishedAt > (watch.acknowledged[windowInfo.terminal_number] ?? 0);
+  const finishedHint = finishedAt !== null ? t('terminal.marks.finished', { time: clockText(watch.localDate(finishedAt)) }) : '';
   const plainHint = t(windowInfo.agent_scanned ? 'terminal.marks.plain' : 'terminal.marks.notScanned');
   return (
     <span className={`inline-flex shrink-0 items-center gap-px ${className}`}>
@@ -65,6 +85,15 @@ export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdow
       ) : (
         <Terminal className={`${icon} text-slate-500/50`} aria-label={plainHint}><title>{plainHint}</title></Terminal>
       )}
+      {activity?.busy && (
+        <LoaderCircle className={`${icon} animate-spin text-fuchsia-300`} aria-label={t('terminal.marks.working')}>
+          <title>{t('terminal.marks.working')}</title>
+        </LoaderCircle>
+      )}
+      {unseenFinish && (
+        <CircleCheck className={`${icon} text-emerald-400`} aria-label={finishedHint}><title>{finishedHint}</title></CircleCheck>
+      )}
+      {draftMark}
       {(waiting || followUp) && (
         <BellRing className={`${icon} ${waiting ? 'text-amber-400' : 'text-amber-300/70'}`} aria-label={t('terminal.marks.yesPending')}>
           <title>{t('terminal.marks.yesPending')}</title>
@@ -82,15 +111,19 @@ export function PcTerminalStatusMarks({ windowInfo, size = 'bar', inlineCountdow
 
 function PcTerminalCountdownText({ countdown, size }: { countdown: TerminalCountdown; size: MarkSize }) {
   const { t } = useTranslation('pc');
-  const hint = t(countdown.state === STATE_RESUME_PENDING ? 'terminal.marks.limitWait' : 'terminal.marks.followUp');
+  const resume = countdown.state === STATE_RESUME_PENDING;
+  const hint = resume
+    ? t('terminal.marks.limitUntil', { time: clockText(countdown.endsAt) })
+    : t('terminal.marks.followUp');
   return (
     <span
       title={hint}
       className={`font-mono font-semibold tabular-nums ${COUNTDOWN_CLASS[size]} ${
-        countdown.state === STATE_RESUME_PENDING ? 'text-sky-300' : 'text-amber-300'
+        resume ? 'text-sky-300' : 'text-amber-300'
       }`}
     >
       {formatClock(countdown.seconds, { padMinutes: false })}
+      {resume && size === 'bar' && <span className="ml-0.5 opacity-70">→{clockText(countdown.endsAt)}</span>}
     </span>
   );
 }
