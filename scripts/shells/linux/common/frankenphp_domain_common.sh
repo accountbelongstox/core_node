@@ -630,6 +630,10 @@ fm_domain_lan_site_ensure() {
         echo "[fm-domain] [OK] LAN route file: $route_file"
         if [ "$(mesh_vpn_provider)" = "headscale" ]; then
             ts_tls_label="mkcert local CA"
+            if [ -n "$DOMAIN_LAN_TS_CERT" ] && [ "$DOMAIN_LAN_TS_CERT" = "$(headscale_lan_acme_cert_dir)/fullchain.pem" ]; then
+                ts_tls_label="acme.sh DNS-01"
+                ts_api_tls_label="acme.sh DNS-01"
+            fi
             if [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
                 ts_tls_label="$(mesh_cert_source)"
                 ts_api_tls_label="$(mesh_cert_source)"
