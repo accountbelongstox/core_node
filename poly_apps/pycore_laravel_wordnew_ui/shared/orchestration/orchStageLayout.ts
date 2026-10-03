@@ -144,12 +144,29 @@ export function stageKeyframes(cards: OrchStageCard[], centers: number[], layout
 
 export function stageOffsetAt(keyframes: OrchKeyframe[], at: number): number {
   if (at <= keyframes[0][0]) return keyframes[0][1];
-  for (let index = 1; index < keyframes.length; index += 1) {
-    const [t0, o0] = keyframes[index - 1];
-    const [t1, o1] = keyframes[index];
-    if (at <= t1) return t1 <= t0 ? o0 : o0 + ((o1 - o0) * (at - t0)) / (t1 - t0);
+  let low = 1;
+  let high = keyframes.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (at <= keyframes[middle][0]) high = middle;
+    else low = middle + 1;
   }
-  return keyframes[keyframes.length - 1][1];
+  if (low >= keyframes.length) return keyframes[keyframes.length - 1][1];
+  const [t0, o0] = keyframes[low - 1];
+  const [t1, o1] = keyframes[low];
+  return t1 <= t0 ? o0 : o0 + ((o1 - o0) * (at - t0)) / (t1 - t0);
+}
+
+/** Index of the card being spoken (the last one that started by `at`; the first card before any). */
+export function stageCardIndexAt(cards: OrchStageCard[], at: number): number {
+  let low = 0;
+  let high = cards.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (cards[middle].start <= at) low = middle + 1;
+    else high = middle;
+  }
+  return Math.max(0, low - 1);
 }
 
 export function stageLineState(card: OrchStageCard, line: OrchStageLine, at: number): OrchLineState {
