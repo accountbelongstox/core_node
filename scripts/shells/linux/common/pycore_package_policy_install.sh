@@ -20,6 +20,16 @@ pcpi_package_key() {
     printf '%s' "$name"
 }
 
+# "name<version specifier>" of a policy spec that bounds its version (extras
+# dropped: pip constraints take only a name and a specifier); empty otherwise.
+pcpi_constraint_line() {
+    local spec="$1" version
+    version="${spec#"${spec%%[<>=!~]*}"}"
+    if [[ -n "$version" ]]; then
+        printf '%s%s\n' "$(pcpi_package_base "$spec")" "$version"
+    fi
+}
+
 pcpi_metadata_snapshot() {
     local py="$1"
     "$py" - <<'PY'
@@ -79,6 +89,7 @@ install_pycore_package_policy() {
     local base import_name index key name pip_spec ready skipped failed
     local -a pip_flags pip_specs missing_specs
     local -A installed
+    local constraints_file=""
     pip_specs=()
     missing_specs=()
     ready=0
@@ -129,6 +140,15 @@ install_pycore_package_policy() {
         key="$(pcpi_package_key "$name")"
         installed["$key"]=1
     done < <(pcpi_metadata_snapshot "$py")
+
+    # Every version-bounded policy spec constrains each install, so installing
+    # one missing package never moves a present one out of policy (e.g. an
+    # unpinned dependency upgrading mcp past <2).
+    constraints_file="$(mktemp)"
+    for pip_spec in "${pip_specs[@]}"; do
+        pcpi_constraint_line "$pip_spec"
+    done > "$constraints_file"
+    pip_flags+=(-c "$constraints_file")
 
     for index in "${!pip_specs[@]}"; do
         base="$(pcpi_package_base "${pip_specs[$index]}")"
@@ -192,4 +212,5 @@ install_pycore_package_policy() {
         done
         echo "$prefix package policy summary: $ready ready, $failed failed, $skipped headless skipped"
     fi
+    rm -f "$constraints_file"
 }
