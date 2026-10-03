@@ -10,6 +10,7 @@ namespace DotApps.d3d4tester.Core.Flow;
 /// 1) ensure region first — the UI shows another region than the global choice -> restart with --setregion;
 /// 2) abnormal timeout — connecting / disconnected / login failed / loading / sleeping / unknown longer than the configured time -> restart;
 /// 3) login timeout — any login screen, browser wait or logging in longer than the configured time -> restart.
+/// Security check / verification code wait for the user and are never restarted.
 /// Each rule can be switched off in config (battlenet.*). A restart resets the B blocks so the guard starts over from login.
 /// </summary>
 public static class BattlenetStateWatchdog
@@ -25,8 +26,8 @@ public static class BattlenetStateWatchdog
 
     private static readonly BattlenetClientState[] LoginStates =
     {
-        BattlenetClientState.LoginCn, BattlenetClientState.LoginCnWeb, BattlenetClientState.LoginAsiaEmail,
-        BattlenetClientState.LoginAsiaPassword, BattlenetClientState.LoginAsia, BattlenetClientState.BrowserLoginWait, BattlenetClientState.LoggingIn,
+        BattlenetClientState.LoginCn, BattlenetClientState.LoginCnWeb, BattlenetClientState.LoginEmail,
+        BattlenetClientState.LoginPassword, BattlenetClientState.LoginAsia, BattlenetClientState.BrowserLoginWait, BattlenetClientState.LoggingIn,
     };
 
     private static DateTime? _abnormalSinceUtc;
