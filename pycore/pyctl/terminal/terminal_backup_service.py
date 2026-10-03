@@ -15,6 +15,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
     terminal_backup_store,
     text_digest,
 )
+from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.file_lock import FileLockManager
@@ -47,8 +48,8 @@ ERROR_PASS_FAILED = "terminal_backup_pass_failed"
 ERROR_EXPORT_FAILED = "terminal_export_failed"
 ERROR_NO_DISPLAY = "no_display"
 LOG_CONTENT_KIND = "log"
-# Automatic terminal text scanning is paused by default; the UI can resume it until restart.
-AUTO_BACKUP_PAUSED_BY_DEFAULT = True
+# Automatic terminal text scanning runs by default; the UI can pause it until restart.
+AUTO_BACKUP_PAUSED_BY_DEFAULT = False
 
 
 class TerminalBackupService:
@@ -59,12 +60,14 @@ class TerminalBackupService:
         idle_seconds: Callable[[], Optional[float]] = user_idle_seconds,
         notify: Callable[[str, str], Any] = show_system_notification,
         focus: FocusGuard = focus_guard,
+        prompt_watch: Optional[TerminalPromptWatch] = None,
     ) -> None:
         self._terminals = terminals
         self._store = store
         self._idle_seconds = idle_seconds
         self._notify = notify
         self._focus = focus
+        self._prompt_watch = prompt_watch or TerminalPromptWatch()
         self._pass_lock = threading.Lock()
         self._lease_lock = FileLockManager(SCHEDULER_LOCK_TARGET, verbose=False)
         self._lease: Optional[int] = None
@@ -167,6 +170,7 @@ class TerminalBackupService:
         for entry in exported:
             signature = entry.pop("signature")
             entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
+        self._alert_waiting_prompts(exported)
         if not forced and not any(entry["changed"] for entry in exported):
             return {"success": True, "written": False, "terminal_count": len(exported)}
         saved = self._store.save(exported)
@@ -179,6 +183,17 @@ class TerminalBackupService:
         )
         self._announce(saved["terminal_count"], saved["total_bytes"], saved["stored_bytes"])
         return {**saved, "written": True, "failed": failed}
+
+    def _alert_waiting_prompts(self, exported: List[Dict[str, Any]]) -> None:
+        for entry in exported:
+            if not entry.get("text") or not self._prompt_watch.check(entry["number"], entry["text"]):
+                continue
+            ColorPrint.yellow(f"[{LABEL}] confirmation prompt waiting terminal={entry['number']} name={entry['name']}")
+            message = i18n.get(I18nKeys.TERMINAL_BACKUP_STUCK_MESSAGE).format(number=entry["number"], name=entry["name"])
+            try:
+                self._notify(i18n.get(I18nKeys.TERMINAL_BACKUP_STUCK_TITLE), message)
+            except Exception as exc:  # noqa: BLE001 - an alert failure never aborts the backup
+                ColorPrint.yellow(f"[{LABEL}] prompt alert failed terminal={entry['number']}: {type(exc).__name__}: {exc}")
 
     def _deferred(self) -> Dict[str, Any]:
         if not self._deferred_logged:

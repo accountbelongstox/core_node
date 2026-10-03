@@ -84,7 +84,9 @@
   },
   "terminal_backup": {
     "title": "Terminal backup",
-    "message": "Backed up {count} terminals, {kb} K ({stored_kb} K new)"
+    "message": "Backed up {count} terminals, {kb} K ({stored_kb} K new)",
+    "stuck_title": "AI is waiting for you",
+    "stuck_message": "Terminal {number} ({name}) is stuck on a confirmation prompt and needs your intervention"
   },
   "gitsync_watch": {
     "conflict_title": "gitsync merge conflict - fix now",

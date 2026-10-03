@@ -84,7 +84,9 @@
   },
   "terminal_backup": {
     "title": "ターミナルのバックアップ",
-    "message": "{count} 個のターミナルをバックアップしました、{kb} K(新規 {stored_kb} K)"
+    "message": "{count} 個のターミナルをバックアップしました、{kb} K(新規 {stored_kb} K)",
+    "stuck_title": "AI が停止しています",
+    "stuck_message": "ターミナル {number}({name})が確認プロンプトで停止しています。ご本人の対応が必要です"
   },
   "gitsync_watch": {
     "conflict_title": "gitsync のマージ競合 - すぐに修正してください",

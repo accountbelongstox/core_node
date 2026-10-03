@@ -1,0 +1,74 @@
+# -*- coding: utf-8 -*-
+"""Detects an AI agent waiting on a confirmation prompt (e.g. "Do you want to proceed?" / "❯ 1. Yes") at the tail of exported terminal text."""
+
+from __future__ import annotations
+
+import hashlib
+import re
+import threading
+from typing import Dict, List, Optional
+
+TAIL_LINE_COUNT = 14
+TAIL_CHAR_LIMIT = 8192
+MIN_SIGNAL_COUNT = 2
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
+FRAME_CHARS = "│┃║|╭╮╰╯─━═┌┐└┘├┤┬┴┼"
+QUESTION_PATTERN = re.compile(
+    r"\b(?:do you want to|would you like to|proceed|continue|allow|approve|confirm|are you sure)\b[^?\n]*\?",
+    re.IGNORECASE,
+)
+SELECTED_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*1\s*[.)]\s*yes\b", re.IGNORECASE)
+OPTION_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*1\s*[.)]\s*yes\b", re.IGNORECASE)
+OPTION_NEXT_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
+HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
+
+
+def _clean_line(line: str) -> str:
+    return ANSI_ESCAPE_PATTERN.sub("", line).strip().strip(FRAME_CHARS).strip()
+
+
+def tail_lines(text: str) -> List[str]:
+    """Last non-empty, ANSI- and frame-stripped lines of the text."""
+    lines = [_clean_line(line) for line in text[-TAIL_CHAR_LIMIT:].replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    return [line for line in lines if line][-TAIL_LINE_COUNT:]
+
+
+def confirmation_prompt(text: str) -> Optional[str]:
+    """Digest of the waiting prompt when the tail shows one, else None; at least two independent signals are required."""
+    lines = tail_lines(text or "")
+    if not lines:
+        return None
+    selected = any(SELECTED_YES_PATTERN.match(line) for line in lines)
+    option_yes = selected or any(OPTION_YES_PATTERN.match(line) for line in lines)
+    if not option_yes:
+        return None
+    signals = [
+        selected,
+        any(QUESTION_PATTERN.search(line) for line in lines),
+        any(OPTION_NEXT_PATTERN.match(line) and not OPTION_YES_PATTERN.match(line) for line in lines),
+        any(HINT_PATTERN.search(line) for line in lines),
+    ]
+    if sum(signals) < MIN_SIGNAL_COUNT:
+        return None
+    return hashlib.sha256("\n".join(lines).encode("utf-8", "replace")).hexdigest()
+
+
+class TerminalPromptWatch:
+    """Remembers the prompt last reported per terminal so one waiting prompt alerts once; a cleared prompt re-arms the terminal."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._reported: Dict[int, str] = {}
+
+    def check(self, number: int, text: Optional[str]) -> bool:
+        """True when the terminal newly shows a confirmation prompt that has not been reported yet."""
+        digest = confirmation_prompt(text) if text else None
+        with self._lock:
+            if digest is None:
+                if text:
+                    self._reported.pop(number, None)
+                return False
+            if self._reported.get(number) == digest:
+                return False
+            self._reported[number] = digest
+            return True
