@@ -1,3 +1,4 @@
 - [Windows tooling pitfalls](windows-tooling-pitfalls.md) — bun lint needs typescript/bin/tsc; Edit normalizes mixed EOLs; count CR with perl/tr, not MSYS grep/awk; MSYS rewrites /api args (MSYS_NO_PATHCONV=1)
 - [wordnew UI shared primitives](wordnew-ui-shared-primitives.md) — shared/ui primitives, ChangeSignal, word-group/custom-word stores, locale split, tsc lock
 - [mcp-chrome package manager](mcp-chrome-package-manager.md) — bun workspaces; pnpm-workspace.yaml removed on purpose; lockfiles git-ignored; rebuild before pruning deps the stale dist needs
+- [Daily Reading feed redesign](wordnew-daily-reading-feed.md) — date strip + day feed + server read state; endpoints, guest fallback, gaps
