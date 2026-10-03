@@ -199,7 +199,7 @@ class DeviceDiscovery:
 
         try:
             # Get network segments
-            segments = self.network_scanner.get_local_network_segments()
+            segments = [segment["cidr"] for segment in self.network_scanner.local_network_segments()]
             print(f"  Network segments: {segments}")
 
             # Scan network

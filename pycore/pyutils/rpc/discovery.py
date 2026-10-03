@@ -4,21 +4,18 @@
 from __future__ import annotations
 
 import ipaddress
-import socket
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.net_probe import lan_segments
 from pycore.pyfoundations.network_constants import HTTP_STATUS_PATH, PYCORE_HTTP_PORT
+from pycore.pyfoundations.service_contract import lan_max_scan_hosts
 from pycore.pyutils.common.client_key_auth import client_key_headers
 from pycore.pyutils.common.http_client import HttpClient, build_http_base_url
-
-
-psutil = get_third_package_psutil()
 
 
 @dataclass(frozen=True)
@@ -28,39 +25,30 @@ class HttpServiceHost:
     response_time: float
     discovered_at: float = field(default_factory=time.time)
     is_active: bool = True
+    hostname: str = ""
+    instance_id: str = ""
 
 
 class HttpServiceScanner:
-    """Scan local IPv4 networks for the HTTP status endpoint."""
+    """Scan the local RFC 1918 LAN segments for the HTTP status endpoint."""
 
     def __init__(
         self,
         port: int = PYCORE_HTTP_PORT,
         timeout: float = 2.0,
         batch_size: int = 50,
+        max_scan_hosts: int = lan_max_scan_hosts(),
     ) -> None:
         self.port = int(port)
         self.timeout = max(0.1, float(timeout))
         self.batch_size = max(1, int(batch_size))
+        self.max_scan_hosts = max(1, int(max_scan_hosts))
 
-    def get_local_network_segments(self) -> List[str]:
-        segments = []
-        for addresses in psutil.net_if_addrs().values():
-            for address in addresses:
-                ip = address.address
-                netmask = address.netmask
-                if address.family != socket.AF_INET or not ip or not netmask:
-                    continue
-                if ip.startswith(("127.", "169.254.")):
-                    continue
-                network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
-                network_value = str(network)
-                if network_value not in segments:
-                    segments.append(network_value)
-        return segments
+    def local_network_segments(self) -> List[Dict[str, str]]:
+        return lan_segments(self.max_scan_hosts)
 
     def scan_network_segment(self, segment: Optional[str] = None) -> List[HttpServiceHost]:
-        segments = [segment] if segment else self.get_local_network_segments()
+        segments = [segment] if segment else [entry["cidr"] for entry in self.local_network_segments()]
         hosts = []
         for network_value in segments:
             network = ipaddress.IPv4Network(network_value, strict=False)
@@ -97,6 +85,7 @@ class HttpServiceScanner:
         client = HttpClient(
             base_url=base_url,
             default_timeout=self.timeout,
+            trust_env=False,
         )
         # A LAN pycore admits only K3-signed machine callers (K7).
         response = client.get(
@@ -110,6 +99,8 @@ class HttpServiceScanner:
             ip=ip,
             port=self.port,
             response_time=time.monotonic() - started_at,
+            hostname=str(payload.get("hostname") or ""),
+            instance_id=str(payload.get("instance_id") or ""),
         )
 
 
