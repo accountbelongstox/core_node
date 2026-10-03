@@ -22,7 +22,10 @@ RESUME_ATTEMPT_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_resume_a
 RESUME_STATE_PATH = APP_DATA_DIR / TERMINAL_BACKUP_DIR_NAME / "resume_timers.json"
 # Sent to the AI agent in the terminal, not shown in a UI: always English.
 RESUME_MESSAGE = (
-    "Continue the previous task. If it is already complete, ignore this message. "
+    "The usage limit has reset. Was the previous task completed? "
+    "If not, continue it from where it stopped. "
+    "If it is complete, finish with a short summary report of what was done and verified. "
+    "If something else happened (blocked, failed, or a decision is needed), report the situation and the possible options. "
     "Other AI agents may have changed the code in the meantime, so re-check the current state before editing."
 )
 RESUME_SOURCE = "resume"

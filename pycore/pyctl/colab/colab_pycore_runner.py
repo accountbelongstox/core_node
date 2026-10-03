@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyctl.colab.colab_constants import (
     ACCEPT_DIALOG_SCRIPT,
+    BOOT_DONE_MARKER,
     COLAB_NOTEBOOK_ID,
     COLAB_NOTEBOOK_URL,
     DEFAULT_LOG_TAIL_LINES,
@@ -103,10 +104,14 @@ class ColabPycoreRunner:
             ColorPrint.cyan("[Colab] Launch cell already running; finishing its setup prompts")
         deadline = time.monotonic() + START_TIMEOUT_SECONDS
         settled_since: Optional[float] = None
+        booted = False
         while time.monotonic() < deadline:
             await self._confirm_prompts(tab_id)
             state = await self._state(tab_id)
-            if state["state"] != STATE_RUNNING or state.get("dialog") or not state.get("booted"):
+            if state["state"] == STATE_RUNNING and not state.get("dialog") and not booted:
+                booted = BOOT_DONE_MARKER in await colab_reader.live_text(tab_id)
+            state["booted"] = booted
+            if state["state"] != STATE_RUNNING or state.get("dialog") or not booted:
                 settled_since = None
             else:
                 settled_since = settled_since or time.monotonic()

@@ -180,6 +180,10 @@ class TerminalService:
             visible_window_ids,
         )
 
+    def refresh_snapshot(self) -> Dict[str, Any]:
+        """Collect now (decorators run) regardless of viewer demand."""
+        return self._collector.collect()
+
     def finalize_snapshot(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
         snapshot["state_revision"] = self._state_revision(snapshot)
         return snapshot

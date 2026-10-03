@@ -8,6 +8,7 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.pyctl.terminal.terminal_agent_activity import TerminalAgentActivity, TerminalAgentActivityThread
 from pycore.pyctl.terminal.terminal_agent_detector import TerminalAgentWatch, terminal_agent_detector
 from pycore.pyctl.terminal.terminal_backup_store import (
     TERMINAL_BACKUP_DIR_NAME,
@@ -76,6 +77,7 @@ class TerminalBackupService:
         prompt_handler: Optional[TerminalPromptHandler] = None,
         resume_scheduler: Optional[TerminalResumeScheduler] = None,
         agent_watch: Optional[TerminalAgentWatch] = None,
+        agent_activity: Optional[TerminalAgentActivity] = None,
     ) -> None:
         self._terminals = terminals
         self._store = store
@@ -87,6 +89,8 @@ class TerminalBackupService:
         self._resume = resume_scheduler or TerminalResumeScheduler(terminals)
         self._agent_watch = agent_watch or TerminalAgentWatch(terminal_agent_detector)
         terminals.register_snapshot_decorator(self._agent_watch.decorate_snapshot)
+        self._agent_activity = agent_activity or TerminalAgentActivity(notify)
+        terminals.register_snapshot_decorator(self._agent_activity.decorate_snapshot)
         self._pass_lock = threading.Lock()
         self._pass_partial: List[Dict[str, Any]] = []
         self._pass_pending: Optional[List[int]] = None
@@ -161,6 +165,12 @@ class TerminalBackupService:
             entry["signature"] = text_digest(refreshed)
         self._resume.observe(entry["number"], str(window["id"]), refreshed)
         self._agent_watch.observe(entry["number"], str(window["id"]), refreshed, str(window.get("title") or ""))
+        self._agent_activity.observe_text(
+            entry["number"],
+            str(window["id"]),
+            str(window.get("custom_title") or window.get("short_title") or window.get("title") or ""),
+            refreshed,
+        )
         return entry, found_prompt or bool(waiting_prompt(refreshed))
 
     def _observe_prompt(
@@ -507,6 +517,7 @@ class TerminalBackupService:
         THREAD_BUS.clear_signal(STOP_SIGNAL)
         self._thread = threading.Thread(target=self._run, name="TerminalBackupSchedulerThread", daemon=True)
         self._thread.start()
+        TerminalAgentActivityThread(self._terminals.refresh_snapshot, STOP_SIGNAL).start()
         THREAD_BUS.register_shutdown_handler(
             self._shutdown,
             priority=SHUTDOWN_HANDLER_PRIORITY,

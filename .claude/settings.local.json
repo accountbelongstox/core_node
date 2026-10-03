@@ -129,7 +129,8 @@
       "Bash(journalctl -u ncore-mcp-chrome --since \"-3min\" --no-pager)",
       "Bash(timeout 400 /opt/_debian_13/python3_venv/bin/python3 -m pycore.pyctl.colab.colab_cli start)",
       "Bash(timeout 120 /opt/_debian_13/python3_venv/bin/python3 -m pycore.pyctl.colab.colab_cli logs --tail 40)",
-      "Bash(/opt/_debian_13/python3_venv/bin/python3 -c ' *)"
+      "Bash(/opt/_debian_13/python3_venv/bin/python3 -c ' *)",
+      "Bash(/opt/_debian_13/python3_venv/bin/python3 -c \"import pycore.pyctl.colab.colab_cli, pycore.pyctl.devmcp.dev_mcp_server; print\\('import ok'\\)\")"
     ],
     "deny": [],
     "ask": []
