@@ -401,6 +401,7 @@ headscale_server_route_ensure() {
     fi
     route_file="${FM_DOMAIN_ROUTES_DIR}/${host}.caddy"
     rendered="$(headscale_server_route_render "$host" "$FM_DOMAIN_HTTPS_PORT" "$FM_DOMAIN_HTTP_PORT")"
-    printf '%s\n' "$rendered" | write_file_if_changed "$route_file" >/dev/null
+    write_file_if_changed "$route_file" >/dev/null < <(printf '%s\n' "$rendered")
+    HEADSCALE_ROUTE_CHANGED="$WRITE_FILE_CHANGED"
     echo "[headscale] [OK] Route file: $route_file (https://${host} -> 127.0.0.1:$(sc_get ports.headscale))"
 }

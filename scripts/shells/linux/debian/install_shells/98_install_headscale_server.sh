@@ -237,8 +237,10 @@ ensure_user_and_authkey() {
 }
 
 ensure_frankenphp_site() {
+    HEADSCALE_ROUTE_CHANGED="false"
     headscale_server_route_ensure
-    if declare -F fm_domain_caddy_apply_converged >/dev/null 2>&1 && [ -f "$FM_DOMAIN_CADDYFILE" ]; then
+    if [ "$HEADSCALE_ROUTE_CHANGED" = "true" ] \
+        && declare -F fm_domain_caddy_apply_converged >/dev/null 2>&1 && [ -f "$FM_DOMAIN_CADDYFILE" ]; then
         fm_domain_caddy_apply_converged
     fi
 }
