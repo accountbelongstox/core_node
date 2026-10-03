@@ -7,6 +7,9 @@ from typing import Any, Dict, FrozenSet, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.client_key_auth import client_key_present
 from pycore.pyutils.common.local_rpc_guard import (
+    CORS_ALLOWED_HEADERS,
+    CORS_ALLOWED_METHODS,
+    CORS_MAX_AGE_SECONDS,
     ERROR_BODY_TOO_LARGE,
     NON_LOOPBACK_BODY_MAX_BYTES,
     STATUS_PAYLOAD_TOO_LARGE,
@@ -20,6 +23,11 @@ _HEADER_ENCODING = "latin-1"
 _JSON_CONTENT_TYPE = b"application/json"
 _GATED_SCOPE_TYPES = ("http", "websocket")
 _WEBSOCKET_POLICY_VIOLATION = 1008
+_STATUS_NO_CONTENT = 204
+_PREFLIGHT_METHOD = "OPTIONS"
+_CORS_REQUEST_METHOD_HEADER = "access-control-request-method"
+_CORS_REQUEST_HEADERS_HEADER = "access-control-request-headers"
+_CORS_RESPONSE_PREFIX = b"access-control-"
 
 
 class _BodyTooLarge(Exception):
@@ -34,7 +42,9 @@ def scope_headers(scope: Dict[str, Any]) -> Dict[str, str]:
 
 
 class LocalRpcGuardMiddleware:
-    """Loopback callers: loopback Host and an allowed Origin; others: K3."""
+    """Loopback callers: loopback Host and an allowed Origin; private LAN
+    callers: a LAN Host/Origin (echoed for CORS, preflight answered here);
+    public callers: K3."""
 
     def __init__(self, app: Any, origins: FrozenSet[str]) -> None:
         self.app = app
@@ -76,7 +86,50 @@ class LocalRpcGuardMiddleware:
             await self._reject(send, int(decision["status"]), str(decision["error_code"]), str(scope.get("path") or ""))
             return
         scope[LOCAL_RPC_ORIGIN_SCOPE_KEY] = decision["origin"]
+        if scope_type == "http" and decision["echo_cors"]:
+            if str(scope.get("method") or "").upper() == _PREFLIGHT_METHOD and headers.get(_CORS_REQUEST_METHOD_HEADER):
+                await self._preflight(send, headers, str(decision["origin"]))
+                return
+            send = self._with_cors_origin(send, str(decision["origin"]))
         await self.app(scope, forward_receive, send)
+
+    @staticmethod
+    def _cors_headers(origin: str) -> List[Any]:
+        return [
+            (b"access-control-allow-origin", origin.encode(_HEADER_ENCODING)),
+            (b"access-control-allow-private-network", b"true"),
+            (b"vary", b"Origin"),
+        ]
+
+    @classmethod
+    def _with_cors_origin(cls, send: Any, origin: str) -> Any:
+        """Exactly one Access-Control-Allow-Origin, echoing the request origin."""
+
+        async def send_with_cors(message: Dict[str, Any]) -> None:
+            if message.get("type") == "http.response.start":
+                kept = [
+                    (name, value)
+                    for name, value in (message.get("headers") or [])
+                    if not bytes(name).lower().startswith(_CORS_RESPONSE_PREFIX)
+                ]
+                message["headers"] = [*kept, *cls._cors_headers(origin)]
+            await send(message)
+
+        return send_with_cors
+
+    @classmethod
+    async def _preflight(cls, send: Any, headers: Dict[str, str], origin: str) -> None:
+        requested = [name.strip() for name in str(headers.get(_CORS_REQUEST_HEADERS_HEADER) or "").split(",") if name.strip()]
+        allowed_headers = list(dict.fromkeys([*CORS_ALLOWED_HEADERS, *(name.lower() for name in requested)]))
+        response_headers = [
+            *cls._cors_headers(origin),
+            (b"access-control-allow-methods", ", ".join(CORS_ALLOWED_METHODS).encode("ascii")),
+            (b"access-control-allow-headers", ", ".join(allowed_headers).encode(_HEADER_ENCODING)),
+            (b"access-control-max-age", str(CORS_MAX_AGE_SECONDS).encode("ascii")),
+            (b"content-length", b"0"),
+        ]
+        await send({"type": "http.response.start", "status": _STATUS_NO_CONTENT, "headers": response_headers})
+        await send({"type": "http.response.body", "body": b""})
 
     @staticmethod
     async def _read_body(receive: Any, headers: Dict[str, str]) -> bytes:

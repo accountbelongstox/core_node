@@ -148,7 +148,7 @@ export const vxEn = {
     origin_forbidden: 'pycore rejected this page origin {{origin}} ({{code}}). Open Vortex on the pycore machine through a dashboard port, or use the HTTPS relay entry.',
     client_key_rejected: 'pycore rejected this request: the client key check failed ({{code}}). Browsers reach pycore directly only from localhost; open Vortex through the HTTPS relay entry.',
     relay_only: 'This page is not on the pycore machine. pycore accepts direct browser access only from localhost; open Vortex through the HTTPS relay entry.',
-    lan_page: 'pycore at this page host ({{url}}) is not reachable or did not admit this browser. Direct access from another device needs the pycore LAN bind and a signed caller; otherwise open Vortex through a tailnet machine or the HTTPS relay entry.',
+    lan_page: 'pycore at this page host ({{url}}) is not reachable or did not admit this browser. Direct access from another device needs the pycore LAN bind (system setting rpcLanBind) and a private LAN address; otherwise open Vortex through a tailnet machine or the HTTPS relay entry.',
     origin_not_allowed: 'pycore does not answer this page ({{origin}}). pycore accepts browser pages only from localhost on port {{ports}}; open Vortex there or use the HTTPS relay entry.',
   },
   quant: {

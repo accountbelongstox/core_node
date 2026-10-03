@@ -3,8 +3,9 @@
  * Laravel verifier (ClientKeyAuthService) and the pycore signer (client_key_auth.py), all values from
  * config/service_contract.json#client_key_auth.
  *
- * The key is compiled in at build or debug time (`__CORE_NODE_CLIENT_KEY__`, set by vite only for an opted-in
- * build); without it, or without WebCrypto, requests go out unsigned and the session decides.
+ * The key is compiled in only by a native-app build that opts in (`__CORE_NODE_CLIENT_KEY__`, set by vite for
+ * the native target); web builds never hold it, and without it (or WebCrypto) requests go out unsigned and the
+ * web login (session) decides.
  */
 import { CLIENT_KEY_AUTH } from '../../contracts/ServiceContract';
 import { requiresClientKey } from './ClientKeyRouteTable';

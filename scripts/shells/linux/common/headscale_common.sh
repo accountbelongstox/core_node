@@ -412,11 +412,15 @@ headscale_server_route_render() {
         tls_directive="${tls_directive}
 "
     fi
+    # The REST API (/api) is never used remotely (the server CLI manages
+    # Headscale); answering it here keeps internet scanners off it.
     cat <<EOF
 # ${HEADSCALE_ROUTE_MARKER} host=${host}
 
 ${host}:${https_port} {
-${tls_directive}	reverse_proxy ${upstream}
+${tls_directive}	@headscale_rest path /api /api/*
+	respond @headscale_rest 404
+	reverse_proxy ${upstream}
 }
 
 http://${host}:${http_port} {
