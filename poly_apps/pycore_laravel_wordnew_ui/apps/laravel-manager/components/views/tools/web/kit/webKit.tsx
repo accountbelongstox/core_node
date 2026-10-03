@@ -118,8 +118,8 @@ export const Pane: React.FC<PaneProps> = ({ title, icon: Icon, actions, footer, 
 
 interface SegProps<T extends string | number> {
   value: T;
-  options: ReadonlyArray<{ value: T; label: React.ReactNode; title?: string }>;
-  onChange: (value: T) => void;
+  options: ReadonlyArray<{ value: NoInfer<T>; label: React.ReactNode; title?: string }>;
+  onChange: (value: NoInfer<T>) => void;
   ariaLabel?: string;
   className?: string;
 }

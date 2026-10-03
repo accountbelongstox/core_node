@@ -219,7 +219,7 @@ export const toJsonPatch = (entries: JsonDiffEntry[]): JsonPatchOp[] => entries.
 });
 
 export const countNodes = (value: JsonValue): number => {
-  if (Array.isArray(value)) return 1 + value.reduce((sum: number, item) => sum + countNodes(item), 0);
-  if (value && typeof value === 'object') return 1 + Object.values(value).reduce((sum: number, item) => sum + countNodes(item), 0);
+  if (Array.isArray(value)) return 1 + value.reduce<number>((sum, item) => sum + countNodes(item), 0);
+  if (value && typeof value === 'object') return 1 + Object.values(value).reduce<number>((sum, item) => sum + countNodes(item), 0);
   return 1;
 };

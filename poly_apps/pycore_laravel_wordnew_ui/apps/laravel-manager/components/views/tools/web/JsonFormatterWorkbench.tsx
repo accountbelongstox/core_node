@@ -17,8 +17,8 @@ const TREE_OPEN_LEVEL = 2;
 const TREE_ALL = 99;
 
 const depthOf = (value: JsonValue): number => {
-  if (Array.isArray(value)) return 1 + value.reduce((max: number, item) => Math.max(max, depthOf(item)), 0);
-  if (value && typeof value === 'object') return 1 + Object.values(value).reduce((max: number, item) => Math.max(max, depthOf(item)), 0);
+  if (Array.isArray(value)) return 1 + value.reduce<number>((max, item) => Math.max(max, depthOf(item)), 0);
+  if (value && typeof value === 'object') return 1 + Object.values(value).reduce<number>((max, item) => Math.max(max, depthOf(item)), 0);
   return 0;
 };
 
@@ -49,7 +49,7 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
   }, [parsed, source, output]);
 
   const empty = !source.trim();
-  const error = !parsed.ok && !empty ? parsed.error : null;
+  const error = parsed.ok === false && !empty ? parsed.error : null;
   const recordRun = () => record({ json: input, mode, indent, sortKeys }, { bytes: output.length });
   const setTree = (open: number) => setTreeLevel((prev) => ({ open, seq: prev.seq + 1 }));
 
