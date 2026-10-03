@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 from contextlib import nullcontext
-from typing import Any, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pycore.pyutils.window.screen_capture import get_primary_monitor_rect
 

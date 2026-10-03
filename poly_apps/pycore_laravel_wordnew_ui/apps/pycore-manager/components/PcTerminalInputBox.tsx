@@ -176,6 +176,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
       )}
       <textarea
         ref={elementRef}
+        data-terminal-composer=""
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onPointerDown={cancelRestore}

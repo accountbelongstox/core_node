@@ -429,6 +429,8 @@ function formatScheduleCountdown(ms: number): string {
 
 const NO_WINDOWS: TerminalWindowInfo[] = [];
 const AGENT_NOTE_LANGUAGE = 'en';
+// Dictation errors that leave nothing typed (or cleared again): the message falls back to the file path.
+const VOICE_DICTATION_FALLBACK_ERRORS = new Set(['terminal_voice_dictation_unavailable', 'terminal_voice_no_transcript', 'terminal_voice_audio_invalid']);
 const PREVIEW_VIEW_MODES: ReadonlyArray<{ mode: TerminalViewMode; icon: typeof Layers }> = [
   { mode: 'auto', icon: Layers },
   { mode: 'text', icon: FileText },
@@ -1603,11 +1605,24 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     return windowInfo ? terminalName(windowInfo, t('terminal.untitled')) : t('terminal.untitled');
   }, [t]);
 
+  // The composer on screen (the enlarged preview's or the side panel's): scrolled into view and focused, caret at the end.
+  const focusComposer = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const composers = Array.from(document.querySelectorAll<HTMLTextAreaElement>('textarea[data-terminal-composer]'));
+      const composer = composers.reverse().find((element) => element.offsetParent !== null);
+      if (!composer) return;
+      composer.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      composer.focus({ preventScroll: true });
+      composer.setSelectionRange(composer.value.length, composer.value.length);
+    });
+  }, []);
+
   const reuseLogContent = useCallback((text: string) => {
     updateSelectedDraft(text);
     setLogDialogOpen(false);
     setActionNotice({ kind: 'success', translationKey: 'terminal.logs.reused' });
-  }, [updateSelectedDraft]);
+    focusComposer();
+  }, [focusComposer, updateSelectedDraft]);
 
   const closeLogDialog = useCallback(() => setLogDialogOpen(false), []);
 
@@ -1632,6 +1647,10 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     const payload = [voiceNote, draftText, ...attachments.map((attachment) => attachment.displayPath)]
       .filter((part) => part !== '')
       .join(' ');
+    const recordings = attachments.filter((attachment) => attachment.kind === 'audio').map((attachment) => attachment.displayPath);
+    const dictationText = [draftText, ...attachments.filter((attachment) => attachment.kind !== 'audio').map((attachment) => attachment.displayPath)]
+      .filter((part) => part !== '')
+      .join(' ');
     const activeTimer = draftTimersRef.current[key];
     if (activeTimer) {
       window.clearTimeout(activeTimer);
@@ -1639,13 +1658,27 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     }
     const result = await runAction(
       selectedWindow.id,
-      () => terminalApi.inputTerminalText(
-        selectedWindow.id,
-        terminalNumber,
-        payload,
-        clearFirst,
-        interruptFirst,
-      ),
+      async () => {
+        // The agent types the recording itself where pycore can dictate into it; otherwise the file path is sent.
+        if (recordings.length > 0) {
+          const dictated = await terminalApi.dictateTerminalVoice(
+            selectedWindow.id,
+            terminalNumber,
+            recordings,
+            dictationText,
+            clearFirst,
+            interruptFirst,
+          ).catch(() => null);
+          if (dictated && (dictated.success || !VOICE_DICTATION_FALLBACK_ERRORS.has(dictated.error_code ?? ''))) return dictated;
+        }
+        return terminalApi.inputTerminalText(
+          selectedWindow.id,
+          terminalNumber,
+          payload,
+          clearFirst,
+          interruptFirst,
+        );
+      },
       interruptFirst
         ? 'terminal.commands.forceSent'
         : clearFirst ? (payload === '' ? 'terminal.clearedOnly' : 'terminal.clearedAndSent') : 'terminal.sent',
@@ -1716,6 +1749,14 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     const options = takeSendOnce();
     void sendInput(undefined, options.clear, options.force);
   }, [sendInput, takeSendOnce]);
+
+  // A logged message sent again: it becomes the draft and goes through the regular send.
+  const resendLogContent = useCallback((text: string) => {
+    updateSelectedDraft(text);
+    setLogDialogOpen(false);
+    focusComposer();
+    sendDraft();
+  }, [focusComposer, sendDraft, updateSelectedDraft]);
 
   // Commands send at once; the panel's one-shot options (clear first / Ctrl+C first) apply.
   const runQuickCommand = useCallback(async (command: string) => {
@@ -2257,6 +2298,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
         errorTranslationKey={errorTranslationKey}
         onOpenLogs={() => setLogDialogOpen(true)}
         onReuse={reuseLogContent}
+        onResend={resendLogContent}
       />
     </div>
   );
@@ -2934,6 +2976,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
           formatDate={formatLogDate}
           errorTranslationKey={errorTranslationKey}
           onReuse={reuseLogContent}
+          onResend={resendLogContent}
           onClose={closeLogDialog}
         />
       )}

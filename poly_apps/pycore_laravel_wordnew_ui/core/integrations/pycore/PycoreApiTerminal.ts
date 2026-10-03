@@ -642,6 +642,21 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       interrupt_first: interruptFirst ? '1' : '0',
       shell_prompt: shellPrompt ? '1' : '0',
     }) as Promise<TerminalActionResult>,
+    /** Types recordings through the agent's own hold-to-talk dictation, appends text and submits. */
+    dictateTerminalVoice: (
+      windowId: string,
+      terminalNumber: number,
+      recordings: string[],
+      text: string,
+      clearFirst = false,
+      interruptFirst = false,
+    ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalVoice, text, {
+      window_id: windowId,
+      terminal_number: terminalNumber,
+      recordings: recordings.join('\n'),
+      clear_first: clearFirst ? '1' : '0',
+      interrupt_first: interruptFirst ? '1' : '0',
+    }) as Promise<TerminalActionResult>,
     listTerminalCommands: () => requestPycoreHttp(
       PYCORE_HTTP_ROUTES.terminalCommands,
       {},

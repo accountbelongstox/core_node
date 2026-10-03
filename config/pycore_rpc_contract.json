@@ -1094,6 +1094,10 @@
       "path": "ui/terminal/input",
       "method": "POST"
     },
+    "terminalVoice": {
+      "path": "ui/terminal/voice",
+      "method": "POST"
+    },
     "terminalKey": {
       "path": "ui/terminal/key",
       "method": "POST"

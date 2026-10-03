@@ -647,6 +647,7 @@ terminal: {
       copied: 'Log content copied to the clipboard.',
       copyFailed: 'Could not copy the log content.',
       reuse: 'Use as input',
+      reuseAndSend: 'Use as input & resend',
       reused: 'Log content placed in the input box.',
       shownCount: 'Showing {{shown}} of {{total}}',
     },
