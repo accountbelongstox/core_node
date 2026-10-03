@@ -95,7 +95,10 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=5\")",
       "Bash(export *)",
       "Bash(cat *)",
-      "PowerShell(schtasks *)"
+      "PowerShell(schtasks *)",
+      "Bash(adb shell *)",
+      "Bash(adb logcat *)",
+      "Bash(awk '$9>3')"
     ],
     "deny": [],
     "ask": []
