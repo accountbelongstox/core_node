@@ -261,7 +261,7 @@ Principle: probe → plan → smallest action → verify → record. A running p
 ## 11. pycore process on desktop hosts
 
 ### 11.1 Restart, port and tray
-- Tray Restart uses `request_restart(execute_handlers=True)` → shutdown stack → `os.execv`. pycore has no hot reload: after code changes the AI restarts pycore (`development-guides/PYTHON_PYCORE.md` §6).
+- Tray Restart and the self-restart route use `request_restart(execute_handlers=True)` → shutdown stack → `os.execv` (same process, so the systemd unit / Windows service keeps it). `ui/control/restart` (`pyctl/runtime/self_restart_service.py`; local HTTP only, not in the relay contract) restarts without a key when the direct HTTP peer is loopback or private LAN (`restart_lan_only` otherwise), 0.5 s after answering with `process_started_at`; `ui/version/version` also returns `process_started_at`, so the UI (`PcPycoreRestartButton`: terminal page header per node, Settings → Connection; second tap confirms) retries every 1.5 s until a newer process answers. Service-level restart: `dd.sh pycorerestart` / `dd.cmd pycorerestart`. pycore has no hot reload: after code changes the AI restarts pycore (`development-guides/PYTHON_PYCORE.md` §6).
 - Nothing slow runs before the RPC server binds :59000:
   - the audio-lane boot chain runs as `AudioLaneBootChainThread`;
   - queue restore uses the single-transaction `AudioTaskQueue.push_many()`;
