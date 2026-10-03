@@ -38,6 +38,8 @@ final class AppQyV1BookAudioPlanService
     private const HINT_KEY = 'book_plan:hint:';
     private const BUILD_KEY = 'book_plan:build:';
     private const BUILD_LOCK_SECONDS = 300;
+    private const SYNC_KEY = 'book_plan:sync:';
+    private const SYNC_SECONDS = 300;
     private const WORD_PATTERN = "/[\\p{L}]+(?:['\\x{2019}][\\p{L}]+)*/u";
     private const CJK_PATTERN = '/[\x{3040}-\x{30ff}\x{3400}-\x{4dbf}\x{4e00}-\x{9fff}\x{ac00}-\x{d7af}\x{f900}-\x{faff}]/u';
     private const INSERT_CHUNK = 1000;
@@ -123,6 +125,9 @@ final class AppQyV1BookAudioPlanService
                 "UPDATE {$this->plans} SET plan_hash = ?, updated_at = ? WHERE id = ?",
                 [isset($request['plan_hash']) ? mb_substr((string) $request['plan_hash'], 0, 64) : $plan->plan_hash, $now, $plan->id]
             );
+            if ($this->syncMembership($plan) > 0 && $words && $plan->state === 'ready') {
+                $this->startWords($planId, AppQyV1TableMaps::normalizeLangCode((string) ($book->language ?? '')) ?: ($languages[0] ?? ''));
+            }
         }
         if ($words && $plan->state === 'building') {
             $this->startWords($planId, AppQyV1TableMaps::normalizeLangCode((string) ($book->language ?? '')) ?: ($languages[0] ?? ''));
@@ -196,6 +201,7 @@ final class AppQyV1BookAudioPlanService
             return $cached;
         }
         $this->refreshReady($plan);
+        defer(fn () => $this->syncAndRebuildWords($plan));
         $plan = $this->plan($planId);
         $figures = ['total' => 0, 'ready' => 0, 'generating' => 0, 'failed' => 0];
         $sentenceMissing = 0;
@@ -366,15 +372,16 @@ final class AppQyV1BookAudioPlanService
         $this->db->update("UPDATE {$this->plans} SET state = ?, updated_at = ? WHERE id = ?", [$state, now(), $planPk]);
     }
 
-    /** Sentence membership: one statement per language, live library sentences of the book's slots only. */
-    private function buildSentences(object $plan, array $languages, string $sourceKey, ?int $chapter): void
+    /** Sentence membership: one statement per language, live library sentences of the book's slots only. Returns the clips added. */
+    private function buildSentences(object $plan, array $languages, string $sourceKey, ?int $chapter): int
     {
         $chapterSql = $chapter === null ? '' : ' AND ss.chapter_index = ' . (int) $chapter;
+        $added = 0;
 
         foreach ($languages as $language) {
             $table = '"' . WorkLeaseLanes::table(WorkLeaseLanes::SENTENCE_AUDIO, $language) . '"';
             $key = 'ss.lang_content_ids ->> ' . $this->literal($language);
-            $this->db->insert(
+            $added += $this->db->affectingStatement(
                 "INSERT INTO {$this->clips} (plan_pk, lane, language, content_key, position)"
                 . ' SELECT ' . (int) $plan->id . ', CAST(' . $this->literal(WorkLeaseLanes::SENTENCE_AUDIO) . ' AS varchar), CAST(' . $this->literal($language) . " AS varchar), {$key}, MIN(ss.seq)"
                 . " FROM {$this->sourceSentences} ss JOIN {$table} t ON t.content_id = {$key}"
@@ -382,6 +389,69 @@ final class AppQyV1BookAudioPlanService
                 . " GROUP BY {$key} ON CONFLICT DO NOTHING",
                 [$sourceKey]
             );
+        }
+
+        return $added;
+    }
+
+    /**
+     * The plan follows the book: sentences a re-segmentation retired leave it (their rows can
+     * never get audio), the live sentences it lacks join it, and a clip whose audio was taken
+     * back (quality repair, missing file) gets its ready sequence cleared so it is ready again
+     * once regenerated. At most every SYNC_SECONDS. Returns the sentence clips added.
+     */
+    private function syncMembership(object $plan): int
+    {
+        $cache = QueueCenterCacheStore::get();
+
+        if (!$cache->add(self::SYNC_KEY . $plan->plan_id, 1, self::SYNC_SECONDS)) {
+            return 0;
+        }
+        $languages = array_values(array_filter((array) json_decode((string) $plan->languages, true), 'is_string'));
+        $chapter = $plan->chapter_index === null ? null : (int) $plan->chapter_index;
+        $changed = 0;
+
+        foreach ($languages as $language) {
+            $table = '"' . WorkLeaseLanes::table(WorkLeaseLanes::SENTENCE_AUDIO, $language) . '"';
+            $changed += $this->db->affectingStatement(
+                "DELETE FROM {$this->clips} pc USING {$table} t WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND t.content_id = pc.content_key"
+                . ' AND NOT (' . AppQyV1MediaGaps::SENTENCE_LIVE . ')',
+                [$plan->id, WorkLeaseLanes::SENTENCE_AUDIO, $language]
+            );
+        }
+        $added = $this->buildSentences($plan, $languages, (string) $plan->source_key, $chapter);
+        foreach ($this->groups($plan->id) as [$lane, $language]) {
+            $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
+            $key = WorkLeaseLanes::keyColumn($lane);
+            $changed += $this->db->affectingStatement(
+                "UPDATE {$this->clips} pc SET ready_seq = NULL FROM {$table} t WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ?"
+                . " AND pc.ready_seq IS NOT NULL AND t.{$key} = pc.content_key AND t.has_audio IS NOT TRUE",
+                [$plan->id, $lane, $language]
+            );
+        }
+        if ($added > 0) {
+            $this->db->update("UPDATE {$this->plans} SET raised_position = NULL WHERE id = ?", [$plan->id]);
+            $this->raise($this->plan((string) $plan->plan_id));
+        }
+        if ($added + $changed > 0) {
+            $cache->forget(self::STATUS_KEY . $plan->plan_id);
+            Log::info('[BookAudioPlan] membership synced', ['plan' => $plan->plan_id, 'added' => $added, 'changed' => $changed]);
+        }
+
+        return $added;
+    }
+
+    /** Deferred membership sync of a status read; new sentences bring their words into a word plan. */
+    private function syncAndRebuildWords(object $plan): void
+    {
+        try {
+            if ($this->syncMembership($plan) > 0 && (bool) $plan->include_words && $plan->state === 'ready'
+                && QueueCenterCacheStore::get()->add(self::BUILD_KEY . $plan->plan_id, 1, self::BUILD_LOCK_SECONDS)) {
+                $language = AppQyV1TableMaps::normalizeLangCode((string) AppQyV1BookModel::query()->where('source_key', $plan->source_key)->value('language'));
+                $this->buildWords((string) $plan->plan_id, $language);
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('[BookAudioPlan] membership sync failed', ['plan' => $plan->plan_id, 'error' => $exception->getMessage()]);
         }
     }
 

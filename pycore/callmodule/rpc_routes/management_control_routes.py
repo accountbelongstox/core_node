@@ -3,8 +3,10 @@
 
 
 import pycore.pyctl.runtime.autostart_service as autostart_service
+from pycore.pyctl.runtime.self_restart_service import request_self_restart
 from pycore.callmodule.rpc_routes.route_names import (
     UI_CONTROL_GET_AUTOSTART,
+    UI_CONTROL_RESTART,
     UI_CONTROL_SET_AUTOSTART,
 )
 
@@ -21,3 +23,8 @@ def register_management_control_routes(server):
         return autostart_service.set_enabled(enabled, target, mechanism)
 
     server.post(path=UI_CONTROL_SET_AUTOSTART, handler=set_autostart_handler)
+
+    def restart_handler(params, request_id, context):
+        return request_self_restart(context)
+
+    server.post(path=UI_CONTROL_RESTART, handler=restart_handler)

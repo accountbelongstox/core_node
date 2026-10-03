@@ -17,7 +17,7 @@ import { parseOrchResourceBundle } from '../../../../core/integrations/pycore';
 import { protocolFetch } from '../../../../core/network/ProtocolFetch';
 import { readBytesWithStallGuard } from '../../../../core/network/StallGuardedRead';
 import { transferLimiter } from '../../../../core/network/TransferLimiter';
-import { ORCH_BUNDLE_ROUTE_MISSING, type OrchBundleSink, type OrchBundleTransport } from '../../../../shared/orchestration/orchClipBundle';
+import { ORCH_BUNDLE_ROUTE_MISSING, orchTakeHeld, type OrchBundleSink, type OrchBundleTransport } from '../../../../shared/orchestration/orchClipBundle';
 import { OrchChannelPaused, orchPool, orchRetry, type OrchClipSource, type OrchClipSourceContext } from '../../../../shared/orchestration/orchClipResolver';
 import {
   buildOrchClipSchedule,
@@ -49,7 +49,7 @@ const deviceSource: OrchClipSource = {
   origin: 'device',
   async resolve(resources, context, found) {
     context.stage('device', { state: 'running', asked: resources.length, batches: 1, batchesDone: 0, found: 0, known: 0 });
-    const held = await wordNewOrchClipStore.lookup(resources.map((resource) => resource.key));
+    const held = await wordNewOrchClipStore.lookup(resources);
     let delivered = 0;
     resources.forEach((resource) => {
       const hit = held.get(resource.key);
@@ -70,6 +70,7 @@ const DEVICE_SINK: OrchBundleSink = {
   persist: (resource, blob, meaning, origin) => wordNewOrchClipStore.putBlob(resource, blob, origin, meaning),
   nativeTarget: () => wordNewOrchClipStore.nativeTarget(),
   adoptWritten: (resource, bytes, meaning, origin) => wordNewOrchClipStore.adoptWritten(resource, origin, bytes, meaning),
+  held: async (resources) => new Map([...(await wordNewOrchClipStore.lookup(resources))].map(([key, { url, entry }]) => [key, { url, meaning: entry.meaning }])),
 };
 
 /** Object URLs of clips on the web (page lifetime only). */
@@ -185,11 +186,13 @@ const LARAVEL_BUNDLE_TRANSPORT: OrchBundleTransport = {
 
 /** Per-file path: batch-resolved URLs downloaded one clip at a time (web, or a Laravel without bundles). */
 async function laravelPerFile(
-  resources: OrchComposeResource[],
+  asked: OrchComposeResource[],
+  sink: OrchBundleSink,
   context: OrchClipSourceContext,
   found: (resource: OrchComposeResource, clip: OrchResolvedClip) => void,
 ): Promise<number> {
     let failed = 0;
+    const resources = await orchTakeHeld(asked, sink, context, found);
     // Clips without a URL in the inputs: a read-only lookup (R4 - the transfer never touches the queue).
     const unknown = resources.filter((resource) => !resource.laravelUrl);
     const resolved = unknown.length > 0
@@ -232,7 +235,7 @@ const LARAVEL_CHANNEL: OrchClipChannel = {
   available: wordNewChannels.available('laravel'),
   bundle: LARAVEL_BUNDLE_TRANSPORT,
   preferPerFile: !NATIVE,
-  perFile: (resources, _sink, context, found) => laravelPerFile(resources, context, found),
+  perFile: (resources, sink, context, found) => laravelPerFile(resources, sink, context, found),
   generate: (_kind, resources) => requestLaravelGeneration(resources.slice(0, AUDIO_ORCH_TRANSFER.laravelHeadMaxItems)),
   holds: async (resources) => new Set((await laravelLookup(resources)).keys()),
 };
@@ -270,7 +273,6 @@ export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly Orch
       origin: source.origin,
       resolve: (resources, context, found) => {
         const scope = holder.current;
-        console.warn('[DBG] scope', stage, { resources: resources.length, covered: scope?.covered.size, ready: scope?.ready.size, uncovered: scope ? resources.filter((r) => !scope.covered.has(r.key)).length : -1, readyIn: scope ? resources.filter((r) => scope.ready.has(r.key)).length : -1 });
         if (!scope) return source.resolve(resources, context, found);
         if (!generate) {
           return source.resolve(resources.filter((resource) => !scope.covered.has(resource.key) || scope.ready.has(resource.key)), context, found);

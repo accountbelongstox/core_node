@@ -28,6 +28,8 @@ import type {
   AutostartStatus, AutostartTarget, PycoreHealthState, TtsSettings,
 } from '@/apps/pycore-manager/api';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
+import PcPycoreRestartButton from '../components/PcPycoreRestartButton';
+import { pycoreNodeClient } from '@/apps/pycore-manager/api';
 import { useShell } from '../../../shell/ShellContext';
 import { SHELL_LANGUAGES } from '../../../shell/shellTypes';
 import { pcErrorCodeMessage, pcFailureMessage } from '../utils/pcErrorCodes';
@@ -360,6 +362,13 @@ const PcSettingsPage: React.FC = () => {
             : pcHealth.up === false
               ? 'bg-red-500/10 text-red-500'
               : 'bg-slate-500/10 text-slate-400',
+        )}
+
+        {row(
+          <Power className="w-5 h-5" />, t('restart.title'),
+          t('restart.description'),
+          <PcPycoreRestartButton http={pycoreNodeClient(null).http} onBackOnline={recheckConnection} />,
+          'bg-rose-500/10 text-rose-500',
         )}
 
         <div className="flex items-center justify-between gap-4 rounded-2xl p-4 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5">

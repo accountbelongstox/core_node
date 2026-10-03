@@ -17,6 +17,7 @@ import {
   WEB_ACCESS_CONFIG_FILE_NAME,
 } from './ServiceContract';
 import { protocolFetch } from '../network/ProtocolFetch';
+import { isNativeAppShell } from '../network/NativeShell';
 
 export interface WebAccessConfig {
   apiRegionPrefix: string;
@@ -87,6 +88,7 @@ export function resolveApiHostname(hostname: string): string {
  * (missing file, non-JSON, offline) keeps the current/default config.
  */
 export function loadWebAccessConfig(): Promise<WebAccessConfig> {
+  if (isNativeAppShell()) return Promise.resolve(currentConfig);
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     try {

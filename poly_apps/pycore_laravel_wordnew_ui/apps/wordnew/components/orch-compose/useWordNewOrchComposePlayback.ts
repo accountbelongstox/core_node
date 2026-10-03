@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OrchVideoSettings } from '../../../../core/integrations/pycore';
-import type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import type { OrchComposeItem, OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
-import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
 import { buildStageCards, orchEntryPlayable, type OrchStageCard, type OrchTimelineEntry } from '../../../../shared/orchestration/orchStageLayout';
 import { useOrchSequencer, type OrchSequencer } from '../../../../shared/orchestration/useOrchSequencer';
 import { wordNewOrchVirtualReads } from '../../services/orchestration/WordNewOrchVirtualReads';
 import type { OrchPlaybackEdition } from '../../services/orchestration/WordNewOrchEditionStore';
 import type { OrchPlaybackPosition } from '../../services/orchestration/WordNewOrchPlaybackStore';
-import { orchNewWords } from './WordNewOrchNewWords';
 
 export const ORCH_COMPOSE_RATES = [0.75, 1, 1.25, 1.5] as const;
 const LABEL_MAX = 80;
 
-/** What a player plays: the live run (preview) or a frozen edition (player page). */
+/** What a player plays: the task's static edition (preview and player page). */
 export interface OrchPlaybackSource {
   editionId: string;
   timelines: OrchTimelineEntry[][];
@@ -38,8 +35,6 @@ export interface WordNewOrchComposePlayback {
   /** Go to a saved position (its clip, else its time) and optionally play from there. */
   jumpTo: (position: OrchPlaybackPosition, play: boolean) => void;
 }
-
-const LIVE_EDITION_ID = 'live';
 
 function anchorOf(item: OrchComposeItem): string {
   return `${item.kind}:${item.language}:${item.seq}:${item.text}`;
@@ -69,28 +64,7 @@ function timeOf(timeline: OrchTimelineEntry[], position: OrchPlaybackPosition): 
   return Math.max(0, Math.min(position.time, end));
 }
 
-/** The live run as a playback source (the preview follows every change). */
-export function useLiveOrchPlaybackSource(task: OrchComposeTask | null | undefined, session: OrchComposeSession | null): OrchPlaybackSource | null {
-  const plan = session?.plan ?? null;
-  const timelines = session?.timelines;
-  const clips = session?.clips;
-  const wordStates = session?.wordStates;
-  const language = task?.language ?? 'en';
-  const maxReadCount = task?.config.newOnlyMaxReadCount ?? 0;
-  return useMemo(() => {
-    if (!plan || !timelines || !clips || !wordStates) return null;
-    return {
-      editionId: LIVE_EDITION_ID,
-      timelines,
-      sentences: plan.sentences,
-      meaningOf: (word: string) => clips.get(orchResourceKey('word', language, word))?.meaning || wordStates.get(word)?.meaning || '',
-      newWords: new Set(orchNewWords(plan, wordStates, maxReadCount)),
-      wordStates,
-    };
-  }, [plan, timelines, clips, wordStates, language, maxReadCount]);
-}
-
-/** A frozen edition as a playback source (changes only when an edition is published). */
+/** An edition as a playback source (changes only when an edition is published). */
 export function useEditionPlaybackSource(edition: OrchPlaybackEdition | null): OrchPlaybackSource | null {
   return useMemo(() => (edition ? {
     editionId: edition.id,

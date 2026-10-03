@@ -623,6 +623,12 @@ public class ProtocolHttpPlugin extends Plugin {
                 return;
             }
             finalFile = new File(folder, name);
+            if (finalFile.length() > 0) {
+                // A clip the folder already holds is never replaced: its frame is read past.
+                output = null;
+                header.put("written", true);
+                return;
+            }
             partFile = new File(folder, name + PART_SUFFIX);
             output = new FileOutputStream(partFile);
         }

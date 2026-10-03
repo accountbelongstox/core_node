@@ -9,6 +9,7 @@ use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Support\LockedCache;
 use App\Support\TableRowEstimate;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Per-language figures of one audio gap lane (word_audio | sentence_audio)
@@ -58,21 +59,16 @@ final class GapLaneSnapshot
             $tables[$language] = WorkLeaseLanes::table($lane, $language);
         }
         $tables = PerLanguage::requireColumns($connection, $tables, AppQyV1MediaGaps::indexedColumns($isWord));
+        $populated = TableRowEstimate::populated($connection, $tables);
+        $tables = array_intersect_key($tables, $populated);
         if ($tables === []) {
             return [];
         }
-        $gaps = PerLanguage::metricsByLanguage(
-            $connection,
-            $tables,
-            'COUNT(*) AS gap, COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::TTS_FAILED . ') AS failed,'
-            . ' COUNT(*) FILTER (WHERE ' . WorkLeaseLanes::LEASED . ') AS leased',
-            WorkLeaseLanes::gap($lane),
-            [now()]
-        );
+        $gaps = self::gapFigures($connection, $tables, $lane);
         if (!$isWord) {
             $notLive = PerLanguage::countByLanguage($connection, $tables, AppQyV1MediaGaps::SENTENCE_NOT_LIVE);
         }
-        foreach (TableRowEstimate::rowsOfTables($connection, $tables) as $language => $rows) {
+        foreach ($populated as $language => $rows) {
             $gap = (int) ($gaps[$language]['gap'] ?? 0);
             $failed = (int) ($gaps[$language]['failed'] ?? 0);
             $done = max(0, $rows - $gap - (int) ($notLive[$language] ?? 0));
@@ -86,6 +82,37 @@ final class GapLaneSnapshot
                 'leased' => (int) ($gaps[$language]['leased'] ?? 0),
                 'done' => $done,
             ];
+        }
+
+        return $figures;
+    }
+
+    /**
+     * Gap, failed and leased gap rows per language in ONE UNION ALL. Each figure is its own
+     * subquery, so the failed and leased counts read their small partial indexes and the gap
+     * count stays an index-only scan of the gap index.
+     *
+     * @param array<string,string> $tables language => table
+     * @return array<string,array{gap:int,failed:int,leased:int}>
+     */
+    private static function gapFigures(string $connection, array $tables, string $lane): array
+    {
+        $gap = '(' . WorkLeaseLanes::gap($lane) . ')';
+        $pdo = DB::connection($connection)->getPdo();
+        $branches = [];
+        $bindings = [];
+        $figures = [];
+
+        foreach ($tables as $language => $table) {
+            $from = ' FROM "' . $table . '" WHERE ' . $gap;
+            $branches[] = 'SELECT ' . $pdo->quote((string) $language) . ' AS lang,'
+                . ' (SELECT COUNT(*)' . $from . ') AS gap,'
+                . ' (SELECT COUNT(*)' . $from . ' AND ' . AppQyV1MediaGaps::TTS_FAILED . ') AS failed,'
+                . ' (SELECT COUNT(*)' . $from . ' AND ' . WorkLeaseLanes::LEASED . ') AS leased';
+            $bindings[] = now();
+        }
+        foreach (DB::connection($connection)->select(implode(' UNION ALL ', $branches), $bindings) as $row) {
+            $figures[(string) $row->lang] = ['gap' => (int) $row->gap, 'failed' => (int) $row->failed, 'leased' => (int) $row->leased];
         }
 
         return $figures;

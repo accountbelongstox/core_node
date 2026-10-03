@@ -2,6 +2,7 @@
 
 namespace App\Services\WorkLeases;
 
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookAudioPlanService;
 use App\Services\QueueCenter\QueueCenterCacheStore;
 use App\Support\AudioOrchestrationContract;
@@ -303,8 +304,8 @@ final class WorkLeaseAssignments
         foreach ($this->plans->connection()->select(
             "SELECT pc.position FROM {$this->plans->clipsTable()} pc JOIN {$table} t ON t.{$key} = pc.content_key"
             . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.position >= ? AND pc.ready_seq IS NULL'
-            . ' AND t.has_audio IS NOT TRUE'
-            . " AND t.tts_status IS DISTINCT FROM 'failed' ORDER BY pc.position, pc.id LIMIT ?",
+            . ' AND (' . WorkLeaseLanes::gap($lane) . ') AND ' . AppQyV1MediaGaps::TTS_NOT_FAILED
+            . ' ORDER BY pc.position, pc.id LIMIT ?',
             [$plan->id, $lane, $language, $from, $limit]
         ) as $row) {
             $positions[] = (int) $row->position;

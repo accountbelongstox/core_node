@@ -1,23 +1,22 @@
 /**
  * Player page of one composition (`#/orch-audio/<id>?mode=play`). It plays the
- * task's frozen edition (WordNewOrchEditionStore), never the live run: newer
- * resources are offered and replace the edition only when accepted. Resources
+ * task's static pre-compiled edition (WordNewOrchEditionStore), never the live
+ * run: newer compilations are offered and replace the edition only when accepted. Resources
  * keep loading in the background (the mini widget shows it); the position is
  * resumed on open, kept while playing and can be saved to the play history.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { BookmarkPlus, Clapperboard, History, Loader2, Play, Sparkles, X } from 'lucide-react';
-import { TONE_TEXT } from '@/shared/ui/statusTone';
+import React, { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { BookmarkPlus, Clapperboard, History, Loader2, Play, X } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import { formatClockTime } from '../../utils/WordNewTimeFormat';
 import { WordNewOrchAudioSourceBadge } from '../orch-audio/WordNewOrchAudioListPage';
-import { wordNewOrchEditionStore } from '../../services/orchestration/WordNewOrchEditionStore';
 import { wordNewOrchPlaybackStore } from '../../services/orchestration/WordNewOrchPlaybackStore';
 import { capApp } from '../../platform/capabilities/CapAppStateCore';
 import { useWordNewOrchComposeRun } from './useWordNewOrchComposeRun';
 import { useEditionPlaybackSource, useWordNewOrchComposePlayback, type WordNewOrchComposePlayback } from './useWordNewOrchComposePlayback';
 import { WordNewOrchComposePlayer } from './WordNewOrchComposePlayer';
 import { WordNewOrchLoadWidget } from './WordNewOrchLoadWidget';
+import { useWordNewOrchEdition, WordNewOrchEditionOffer } from './useWordNewOrchEdition';
 import { orchSourceTitle } from './orchTaskView';
 import { OrchBackButton, OrchButton, OrchPanel, OrchPanelHeader, OrchTaskUnavailable } from './orchPanels';
 
@@ -129,40 +128,10 @@ const HistoryPanel: React.FC<{ taskId: string; playback: WordNewOrchComposePlayb
 
 export const WordNewOrchComposePlayerPage: React.FC<Props> = ({ taskId, theme, trans, onBack, onOpenResources }) => {
   const { task, session, settings } = useWordNewOrchComposeRun(taskId);
-  const subscribeEdition = useCallback((listener: () => void) => wordNewOrchEditionStore.subscribe(taskId, listener), [taskId]);
-  const readEdition = useCallback(() => wordNewOrchEditionStore.version(taskId), [taskId]);
-  const editionVersion = useSyncExternalStore(subscribeEdition, readEdition, readEdition);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read on a new edition version
-  const [opened, setOpened] = useState<string | null>(null);
-  // The edition is used once `open` brought it up to the live run (so the resume jump is not reset by that).
-  const edition = useMemo(() => (opened === taskId ? wordNewOrchEditionStore.edition(taskId) : null), [taskId, editionVersion, opened]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read on a new edition version
-  const offer = useMemo(() => wordNewOrchEditionStore.pending(taskId), [taskId, editionVersion]);
+  const { edition, offer } = useWordNewOrchEdition(taskId, task);
   const source = useEditionPlaybackSource(edition);
   const playback = useWordNewOrchComposePlayback(task, source, settings);
   useResumePosition(taskId, edition?.id ?? null, playback);
-
-  const planHash = task?.planHash;
-  const taskRef = useRef(task);
-  taskRef.current = task;
-  useEffect(() => {
-    const current = taskRef.current;
-    if (!current) return undefined;
-    let active = true;
-    void wordNewOrchEditionStore.open(current).then(() => { if (active) setOpened(current.id); });
-    return () => {
-      active = false;
-      wordNewOrchEditionStore.release(current.id);
-    };
-  }, [taskId, planHash]);
-
-  const acceptOffer = async (): Promise<void> => {
-    const now = playback.position();
-    const playing = playback.sequencer.playing;
-    playback.sequencer.pause();
-    await wordNewOrchEditionStore.accept(taskId);
-    if (now) playback.jumpTo(now, playing);
-  };
 
   if (!task) return <OrchTaskUnavailable missing={task === null} trans={trans} onBack={onBack} />;
 
@@ -184,18 +153,7 @@ export const WordNewOrchComposePlayerPage: React.FC<Props> = ({ taskId, theme, t
         {widget(false)}
       </div>
 
-      {offer && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px]" role="status">
-          <Sparkles className={`h-3.5 w-3.5 shrink-0 ${TONE_TEXT.emerald}`} aria-hidden />
-          <span className="min-w-0 flex-1 text-emerald-700 dark:text-emerald-200">
-            {trans('orchCompose.edition.offer', { clips: Math.max(0, offer.addedClips), time: formatClockTime(Math.max(0, offer.addedMs) / 1000) })}
-          </span>
-          <button type="button" onClick={() => { void acceptOffer(); }} className={`rounded-lg border px-2.5 py-1 font-bold ${theme.accentBg}`}>
-            {trans('orchCompose.edition.replace')}
-          </button>
-          <OrchButton variant="ghost" onClick={() => wordNewOrchEditionStore.dismiss(taskId)}>{trans('orchCompose.edition.later')}</OrchButton>
-        </div>
-      )}
+      <WordNewOrchEditionOffer taskId={taskId} offer={offer} playback={playback} theme={theme} trans={trans} />
 
       {playable && settings ? (
         <WordNewOrchComposePlayer variant="full" playback={playback} settings={settings} label={task.name} theme={theme} trans={trans} loadWidget={widget} />

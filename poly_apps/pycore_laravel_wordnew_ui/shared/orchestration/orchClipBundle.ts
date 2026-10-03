@@ -57,6 +57,25 @@ export interface OrchBundleSink {
   nativeTarget?: () => Promise<{ folder: string; fileName: (key: string) => string } | null>;
   /** Native: a clip `origin` wrote into the folder joins the store; its URL. */
   adoptWritten?: (resource: OrchComposeResource, bytes: number, meaning: string, origin: OrchApiOrigin) => Promise<string | null>;
+  /** The clips among `resources` the sink already holds, with their URLs (a held clip is never fetched again). */
+  held?: (resources: OrchComposeResource[]) => Promise<Map<string, { url: string; meaning: string }>>;
+}
+
+/** Deliver the clips the sink already holds from it; what is left still needs a transfer. */
+export async function orchTakeHeld(
+  batch: OrchComposeResource[],
+  sink: OrchBundleSink,
+  context: OrchClipSourceContext,
+  found: (resource: OrchComposeResource, clip: OrchResolvedClip) => void,
+): Promise<OrchComposeResource[]> {
+  if (!sink.held || batch.length === 0) return batch;
+  const held = await sink.held(batch).catch(() => new Map<string, { url: string; meaning: string }>());
+  if (held.size === 0) return batch;
+  batch.forEach((resource) => {
+    const clip = held.get(resource.key);
+    if (clip) found(resource, { key: resource.key, url: clip.url, origin: 'device', meaning: clip.meaning || context.meaningOf(resource) });
+  });
+  return batch.filter((resource) => !held.has(resource.key));
 }
 
 export type OrchBundleOutcome =
@@ -112,9 +131,14 @@ export async function resolveByBundles(
   let nextSeq = 0;
   const lane = async (): Promise<void> => {
     while (queue.length > 0 && !unsupported && !failed && !stopped && !context.signal?.aborted) {
-      const batch = queue.splice(0, transport.maxItems);
+      const cut = queue.splice(0, transport.maxItems);
       const seq = nextSeq;
       nextSeq += 1;
+      const batch = await orchTakeHeld(cut, sink, context, found);
+      if (batch.length === 0) {
+        hooks.onBatch?.(seq, cut, cut.length, 0);
+        continue;
+      }
       const baseUrl = transport.baseUrl();
       // The request holds a transfer slot of its backend while it is on the wire; the channel
       // is checked once the slot is held (it may have gone while the request waited), and its
@@ -178,7 +202,7 @@ export async function resolveByBundles(
       batch.forEach((resource) => {
         if (!delivered.has(resource.key)) context.release(resource);
       });
-      hooks.onBatch?.(seq, batch, delivered.size, deferred.length);
+      hooks.onBatch?.(seq, cut, delivered.size + cut.length - batch.length, deferred.length);
       queue.push(...deferred);
     }
   };

@@ -70,6 +70,8 @@ import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminal
 import { PcTerminalGlobalCountdown, PcTerminalStatusMarks, PcTerminalTileCountdown } from '@/apps/pycore-manager/components/terminal/PcTerminalStatusMarks';
 import { PcTerminalWatchProvider, usePcTerminalWatch } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal/PcTerminalAgentDoneToasts';
+import PcPycoreRestartButton from '@/apps/pycore-manager/components/PcPycoreRestartButton';
+import { pycoreNodeClient } from '@/apps/pycore-manager/api';
 import { usePcTerminalFrames } from '@/apps/pycore-manager/components/terminal/usePcTerminalFrames';
 import { PcTerminalNavActionsProvider } from '@/apps/pycore-manager/components/terminal/PcTerminalNavContext';
 import { PcTerminalNavControls } from '@/apps/pycore-manager/components/terminal/PcTerminalNavControls';
@@ -2826,8 +2828,11 @@ const PcTerminalPage: React.FC = () => {
 
   return (
     <>
-      <div className="px-3 pt-2 sm:px-6 md:px-8">
-        <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
+      <div className="flex items-start gap-2 px-3 pt-2 sm:px-6 md:px-8">
+        <div className="min-w-0 flex-1">
+          <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
+        </div>
+        <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
         <PcTerminalWatchProvider>
