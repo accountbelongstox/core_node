@@ -119,6 +119,11 @@ class TerminalBackupService:
             if window.get("online") and window.get("id") and int(window.get("terminal_number") or 0) > 0
         ]
 
+    @staticmethod
+    def _agent_working(window: Dict[str, Any]) -> bool:
+        """An agent working per its title: synthesized select-all/copy keys could reach it as an interrupt."""
+        return TerminalAgentActivity.title_busy(str(window.get("title") or "")) is True
+
     def _sent_inputs(self, number: int, window: Dict[str, Any]) -> List[Dict[str, Any]]:
         inputs = []
         for log in window.get("logs") or []:
@@ -322,6 +327,9 @@ class TerminalBackupService:
                 if int(window["terminal_number"]) in self._fast_prompts
                 and self._fast_prompts[int(window["terminal_number"])]["due"] <= now
             ]
+            for window in [window for window in due_windows if self._agent_working(window)]:
+                self._fast_prompts[int(window["terminal_number"])]["due"] = now + PROMPT_INTERVAL_SECONDS
+                due_windows.remove(window)
             previous = self._store.previous_signatures()
             exported: List[Dict[str, Any]] = []
             with self._focus.preserved(LABEL):
@@ -359,7 +367,7 @@ class TerminalBackupService:
         if not self._pass_lock.acquire(blocking=False):
             return
         try:
-            windows = self._enumerate()
+            windows = [window for window in self._enumerate() if not self._agent_working(window)]
             with self._focus.preserved(LABEL):
                 self._resume.run_due(windows, lambda window: self._export(window).get("text"))
         except Exception as exc:  # noqa: BLE001 - a resume failure must not stop the scheduler
@@ -396,7 +404,8 @@ class TerminalBackupService:
         live = {int(window["terminal_number"]): window for window in windows}
         skipped = [
             number for number, window in live.items()
-            if self._agent_watch.skip_scan(number, str(window["id"]), str(window.get("title") or ""), PLAIN_RECHECK_SECONDS)
+            if self._agent_working(window)
+            or self._agent_watch.skip_scan(number, str(window["id"]), str(window.get("title") or ""), PLAIN_RECHECK_SECONDS)
         ]
         order = self._pass_pending if self._pass_pending is not None else sorted(live)
         queue = [live[number] for number in order if number in live and number not in skipped]

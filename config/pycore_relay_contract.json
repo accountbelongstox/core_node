@@ -213,6 +213,7 @@
     "desktop_view_max_width": 1280,
     "desktop_view_max_height": 720,
     "desktop_view_jpeg_quality": 60,
+    "desktop_view_linux_capture_interval_ms": 5000,
     "terminal_screenshot_max_width": 640,
     "terminal_screenshot_max_height": 360,
     "terminal_screenshot_quality": 60,

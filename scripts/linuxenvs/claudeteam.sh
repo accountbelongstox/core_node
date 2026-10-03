@@ -36,7 +36,8 @@
 #           slot <n> pick the role from device_profiles; the session is named
 #           <device>-<role>-<abbr> (Tailscale device name) with --remote-control,
 #           or prints the manual /remote-control line. No role = plain claude.
-#     Permissions: --permission-mode auto for root and regular users alike.
+#     Permissions: --permission-mode auto for root and regular users alike,
+#     unless the caller passes its own --permission-mode (py launcher: manual).
 #     CLAUDE_AGENTS_SESSION=1 enables the project hooks (git guard, team gate).
 #     The model is the agent's frontmatter model (--agent) or the account default.
 #
@@ -80,6 +81,8 @@ deviceRole=""
 deviceRemoteHint=""
 remoteControlName=""
 passthroughHasRemoteControl="0"
+permissionModeGiven="0"
+permissionModeArgs=()
 claudeDeviceProfileCommonPath=""
 claudeSettingsPresetPath=""
 sharedConfigHome=""
@@ -180,6 +183,10 @@ while [ "$#" -gt 0 ]; do
             ;;
         --remote-control|--remote-control=*|--rc)
             passthroughHasRemoteControl="1"
+            passthrough_args+=("$argument")
+            ;;
+        --permission-mode|--permission-mode=*)
+            permissionModeGiven="1"
             passthrough_args+=("$argument")
             ;;
         *) passthrough_args+=("$argument") ;;
@@ -305,9 +312,13 @@ export CLAUDE_AGENTS_SESSION="1"
 # window. Upgrades stay manual through ai_cli_provision above.
 export DISABLE_AUTOUPDATER="1"
 
-# Every role runs in auto mode; teammates inherit the lead's mode. Do not force
-# ultracode: it adds a planning workflow to every substantive request.
-claude_args+=(--permission-mode auto)
+# Every role runs in auto mode unless the caller passes --permission-mode;
+# teammates inherit the lead's mode. Do not force ultracode: it adds a planning
+# workflow to every substantive request.
+if [ "$permissionModeGiven" = "0" ]; then
+    permissionModeArgs=(--permission-mode auto)
+fi
+claude_args+=("${permissionModeArgs[@]}")
 claude_args+=("${CLAUDE_TEAM_POLICY_ARGS[@]}")
 claude_args+=("${CLAUDE_TEAM_SPEC_ARGS[@]}")
 claude_args+=("${passthrough_args[@]}")
@@ -315,7 +326,7 @@ if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_args+=("$CLAUDE_TEAM_SPEC_KICKOFF")
 fi
 
-claude_invoke_display="claude --permission-mode auto ${CLAUDE_TEAM_POLICY_ARGS[0]:-} ${CLAUDE_TEAM_POLICY_ARGS[1]:-} --append-system-prompt <policy> ${CLAUDE_TEAM_SPEC_ARGS[*]} ${passthrough_args[*]}"
+claude_invoke_display="claude ${permissionModeArgs[*]} ${CLAUDE_TEAM_POLICY_ARGS[0]:-} ${CLAUDE_TEAM_POLICY_ARGS[1]:-} --append-system-prompt <policy> ${CLAUDE_TEAM_SPEC_ARGS[*]} ${passthrough_args[*]}"
 if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_invoke_display="$claude_invoke_display <kickoff ${#CLAUDE_TEAM_SPEC_KICKOFF} chars>"
 fi

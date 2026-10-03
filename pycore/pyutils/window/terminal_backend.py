@@ -228,6 +228,9 @@ class TerminalWindowBackend:
         target_y = int(rectangle["y"]) + min(height - 1, max(0, int(vertical_ratio * height)))
         return self._pointer_action(window, target_x, target_y, POINTER_BUTTON_LEFT)
 
+    # Minimum seconds between two real desktop grabs; viewers polling faster reuse the last frame.
+    desktop_capture_interval_seconds = 0.0
+
     def capture_desktop(self) -> Optional[Dict[str, Any]]:
         """{image, rect} of the primary monitor, or None when the screen cannot be grabbed."""
         rect = get_primary_monitor_rect()

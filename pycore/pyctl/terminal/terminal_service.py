@@ -86,6 +86,9 @@ class TerminalService:
         self._screenshot_cache = screenshot_cache
         self._frame_texts: Dict[str, Dict[str, Any]] = {}
         self._frame_texts_lock = threading.Lock()
+        self._desktop_frame: Optional[Dict[str, Any]] = None
+        self._desktop_frame_at = 0.0
+        self._desktop_frame_lock = threading.Lock()
         # Focus, pointer and clipboard are process-wide: every window action
         # (RPC routes and the scheduler alike) runs on this one input owner.
         init_serialized_owner(self, "pyctl.terminal.input", "TerminalInputThread")
@@ -306,16 +309,24 @@ class TerminalService:
         return self._backend.desktop_integration(action)
 
     def read_desktop_screenshot(self) -> Optional[Dict[str, Any]]:
-        """Fresh JPEG of the primary monitor, grabbed only while a viewer asks for it."""
-        captured = self._backend.capture_desktop()
-        if captured is None:
-            return None
-        return {
-            "body": encode_desktop_jpeg(captured["image"]),
-            "mime": "image/jpeg",
-            "width": int(captured["rect"]["width"]),
-            "height": int(captured["rect"]["height"]),
-        }
+        """JPEG of the primary monitor, grabbed only while a viewer asks and at most once per backend interval."""
+        with self._desktop_frame_lock:
+            if (
+                self._desktop_frame is not None
+                and time.monotonic() - self._desktop_frame_at < self._backend.desktop_capture_interval_seconds
+            ):
+                return self._desktop_frame
+            captured = self._backend.capture_desktop()
+            if captured is None:
+                return None
+            self._desktop_frame = {
+                "body": encode_desktop_jpeg(captured["image"]),
+                "mime": "image/jpeg",
+                "width": int(captured["rect"]["width"]),
+                "height": int(captured["rect"]["height"]),
+            }
+            self._desktop_frame_at = time.monotonic()
+            return self._desktop_frame
 
     @serialized_method
     def desktop_click(
