@@ -107,7 +107,7 @@ const MetaTagGeneratorWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant
             {imageBad && <p className="text-[11px] text-rose-500">{t('toolsWeb.meta.invalid_url')}</p>}
             {text('imageAlt', t('toolsWeb.meta.image_alt'))}
             {text('siteName', t('toolsWeb.meta.site_name'))}
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-3">
               <Field label={t('toolsWeb.meta.page_type')}>
                 <Seg value={input.type} onChange={(next) => set('type', next)} options={PAGE_TYPES.map((value) => ({ value, label: t(`toolsWeb.meta.type_${value}`) }))} />
               </Field>

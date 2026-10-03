@@ -69,7 +69,7 @@ const SvgOptimizerWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
 
   const picture = (uri: string, label: string) => (
     <figure className="min-w-0">
-      <div className="flex aspect-square max-h-[22rem] items-center justify-center overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700" style={BACKGROUND_STYLE[background]}>
+      <div className="mx-auto flex aspect-square w-full max-w-[22rem] items-center justify-center overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700" style={BACKGROUND_STYLE[background]}>
         {uri && <img src={uri} alt={label} className="h-full w-full object-contain p-3" />}
       </div>
       <figcaption className="mt-1 text-center font-mono text-[11px] uppercase tracking-wider text-slate-500">{label}</figcaption>

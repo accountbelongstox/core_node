@@ -274,7 +274,7 @@ export const Slider: React.FC<SliderProps> = ({ value, min, max, step = 1, onCha
       value={value}
       aria-label={label}
       onChange={(event) => onChange(Number(event.target.value))}
-      className="h-1.5 w-full cursor-pointer rounded-lg bg-slate-200 accent-cyan-500 dark:bg-slate-700"
+      className="h-1.5 w-full cursor-pointer rounded-lg bg-slate-200 accent-cyan-500 [color-scheme:light] dark:bg-slate-700 dark:[color-scheme:dark]"
     />
   </div>
 );

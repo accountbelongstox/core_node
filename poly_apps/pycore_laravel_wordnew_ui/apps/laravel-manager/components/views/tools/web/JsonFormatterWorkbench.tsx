@@ -45,7 +45,7 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
     if (!parsed.ok) return null;
     const before = utf8Length(source);
     const after = utf8Length(output);
-    return { before, after, saved: before ? Math.round(((before - after) / before) * 100) : 0, nodes: countNodes(parsed.value), depth: depthOf(parsed.value) };
+    return { before, after, change: before ? Math.round(((after - before) / before) * 100) : 0, nodes: countNodes(parsed.value), depth: depthOf(parsed.value) };
   }, [parsed, source, output]);
 
   const empty = !source.trim();
@@ -126,7 +126,7 @@ const JsonFormatterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <Metric label={t('toolsWeb.json.stat_before')} value={formatBytes(stats.before)} />
           <Metric label={t('toolsWeb.json.stat_after')} value={formatBytes(stats.after)} tone="text-cyan-600 dark:text-cyan-300" />
-          <Metric label={t('toolsWeb.json.stat_saved')} value={`${stats.saved}%`} tone={stats.saved > 0 ? 'text-emerald-600 dark:text-emerald-400' : undefined} />
+          <Metric label={t('toolsWeb.json.stat_change')} value={`${stats.change > 0 ? '+' : ''}${stats.change}%`} tone={stats.change < 0 ? 'text-emerald-600 dark:text-emerald-400' : undefined} />
           <Metric label={t('toolsWeb.json.stat_nodes')} value={stats.nodes} />
           <Metric label={t('toolsWeb.json.stat_depth')} value={stats.depth} />
         </div>

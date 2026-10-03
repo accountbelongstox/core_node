@@ -136,8 +136,10 @@ export const QrStudio: React.FC<QrStudioProps> = ({ payload, settings, onChange,
           <ColorField label={t('toolsWeb.qr.foreground')} value={settings.fg} onChange={(value) => set('fg', value)} />
           <ColorField label={t('toolsWeb.qr.background')} value={settings.bg} onChange={(value) => set('bg', value)} />
         </div>
-        <Toggle on={settings.transparent} onChange={(value) => set('transparent', value)} label={t('toolsWeb.qr.transparent')} />
-        <Btn onClick={() => onChange({ ...DEFAULT_QR_SETTINGS, ecc: settings.ecc })}>{t('toolsWeb.qr.reset_style')}</Btn>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Toggle on={settings.transparent} onChange={(value) => set('transparent', value)} label={t('toolsWeb.qr.transparent')} />
+          <Btn onClick={() => onChange({ ...DEFAULT_QR_SETTINGS, ecc: settings.ecc })}>{t('toolsWeb.qr.reset_style')}</Btn>
+        </div>
       </Pane>
     </div>
   );
