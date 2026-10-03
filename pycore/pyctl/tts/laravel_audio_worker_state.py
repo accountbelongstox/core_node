@@ -375,6 +375,16 @@ class LaravelAudioWorkerStateMixin:
             current["backend_result_accepted"] = bool(accepted)
 
     @serialized_method
+    def _adjust_busy_lanes(self, delta: int) -> int:
+        """Add to the count of fan-out lanes holding a task; the new count."""
+        self._busy_lanes = max(0, self._busy_lanes + int(delta))
+        return self._busy_lanes
+
+    @serialized_method
+    def _busy_lane_count(self) -> int:
+        return self._busy_lanes
+
+    @serialized_method
     def _mark_task_finished(self, task_id: Any, attempt: Optional[int] = None) -> None:
         self._current_tasks.pop(self._current_task_key(task_id, attempt), None)
         self._processing = max(0, self._processing - 1)
