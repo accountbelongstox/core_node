@@ -18,6 +18,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
     terminal_backup_store,
     text_digest,
 )
+from pycore.pyctl.terminal.terminal_permission_mode import terminal_permission_modes
 from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, waiting_prompt
 from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
 from pycore.pyctl.terminal.terminal_resume_scheduler import TerminalResumeScheduler
@@ -92,6 +93,7 @@ class TerminalBackupService:
         self._resume = resume_scheduler or TerminalResumeScheduler(terminals)
         self._agent_watch = agent_watch or TerminalAgentWatch(terminal_agent_detector)
         terminals.register_snapshot_decorator(self._agent_watch.decorate_snapshot)
+        terminals.register_snapshot_decorator(terminal_permission_modes.decorate_snapshot)
         self._agent_activity = agent_activity or TerminalAgentActivity(notify)
         terminals.register_snapshot_decorator(self._agent_activity.decorate_snapshot)
         self._pass_lock = threading.Lock()
@@ -177,6 +179,7 @@ class TerminalBackupService:
             entry["signature"] = text_digest(refreshed)
         self._resume.observe(entry["number"], str(window["id"]), refreshed)
         self._agent_watch.observe(entry["number"], str(window["id"]), refreshed, str(window.get("title") or ""))
+        terminal_permission_modes.observe(str(window["id"]), refreshed)
         self._agent_activity.observe_text(
             entry["number"],
             str(window["id"]),
@@ -225,6 +228,7 @@ class TerminalBackupService:
     def _prune_terminal_states(self, windows: List[Dict[str, Any]]) -> None:
         live = {int(window["terminal_number"]): str(window["id"]) for window in windows}
         self._agent_watch.prune(live)
+        terminal_permission_modes.prune(list(live.values()))
         removed = False
         for number, state in list(self._fast_prompts.items()):
             if live.get(number) != state["window_id"]:
