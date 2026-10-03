@@ -106,6 +106,9 @@ class ChromeBridge:
             },
         )
         frames = json.loads(str(json.loads(text).get("result") or "[]"))
+        if not isinstance(frames, list) or not all(isinstance(frame, dict) for frame in frames):
+            # An extension build without frame targeting evaluates in the top page instead.
+            raise RuntimeError("chrome_frame_targeting_unsupported: reload the mcp-chrome extension")
         return [frame.get("result") for frame in frames]
 
     async def screenshot(self, tab_id: int, full_page: bool) -> Dict[str, str]:
