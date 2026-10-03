@@ -203,6 +203,10 @@ $uiStartPath = $null
 $uiStartArguments = @()
 $helpRequested = $false
 $pycoreServiceName = 'pycore'
+$pycoreLoginTaskName = 'PyCore_RPC_Server'
+$pycoreRpcContractPath = Join-Path $PSScriptRoot 'config\pycore_rpc_contract.json'
+$pycoreRestartRouteName = 'controlRestart'
+$pycoreRestartWaitSeconds = 90
 $pycoreServiceDisplayName = 'Pycore Module Caller'
 $pycoreServiceDescription = 'Pycore Module Caller (headless)'
 $pycoreServiceCommands = @('install', 'uninstall', 'start', 'stop', 'restart', 'status')
@@ -585,11 +589,70 @@ function Uninstall-PycoreService {
     return 1
 }
 
+function Get-PycoreRpcListenerPid {
+    $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $listener) { return 0 }
+    return [int]$listener.OwningProcess
+}
+
+function Wait-PycoreRpcListener {
+    param([int]$PreviousPid = 0)
+    $deadline = (Get-Date).AddSeconds($pycoreRestartWaitSeconds)
+    $currentPid = 0
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 1
+        $currentPid = Get-PycoreRpcListenerPid
+        if (($currentPid -ne 0) -and ($currentPid -ne $PreviousPid)) { return $true }
+    }
+    return $false
+}
+
+# Hosts without the NSSM service run pycore from the logon task (PyCore_RPC_Server): restart goes through
+# the worker's own loopback self-restart route (same path as the tray), start fires the task.
+function Invoke-PycoreLoginTaskControl {
+    param([Parameter(Mandatory = $true)][ValidateSet('start', 'stop', 'restart')][string]$Action)
+    $task = Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue
+    $previousPid = Get-PycoreRpcListenerPid
+    $rpcContract = Get-Content -LiteralPath $pycoreRpcContractPath -Raw | ConvertFrom-Json
+    $restartUri = ('http://127.0.0.1:{0}{1}/{2}' -f $Port, $rpcContract.api_prefix, $rpcContract.routes.$pycoreRestartRouteName.path)
+    $restartResult = $null
+    if (-not $task) { return -1 }
+    if ($Action -eq 'stop') { return -1 }
+    Write-Host ("[i] Service {0} is not installed; managing pycore through the logon task {1}." -f $pycoreServiceName, $pycoreLoginTaskName) -ForegroundColor Yellow
+    if (($Action -eq 'start') -and ($previousPid -ne 0)) {
+        Write-Host ("[OK] pycore is already running (pid {0}, port {1})." -f $previousPid, $Port) -ForegroundColor Green
+        return 0
+    }
+    if ($previousPid -ne 0) {
+        try {
+            $restartResult = Invoke-RestMethod -Method Post -Uri $restartUri -ContentType 'application/json' -Body '{}' -TimeoutSec 15
+        } catch {
+            Write-Host ("[!] Self-restart request failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
+            return 1
+        }
+        if ($restartResult -and ($restartResult.success -eq $false)) {
+            Write-Host ("[!] Self-restart refused: {0}" -f $restartResult.error_code) -ForegroundColor Red
+            return 1
+        }
+    } else {
+        Start-ScheduledTask -TaskName $pycoreLoginTaskName
+    }
+    if (-not (Wait-PycoreRpcListener -PreviousPid $previousPid)) {
+        Write-Host ("[!] pycore did not start listening on port {0} within {1}s." -f $Port, $pycoreRestartWaitSeconds) -ForegroundColor Red
+        return 1
+    }
+    Write-Host ("[OK] pycore {0} done through the logon task (pid {1}, port {2})." -f $Action, (Get-PycoreRpcListenerPid), $Port) -ForegroundColor Green
+    return 0
+}
+
 function Invoke-PycoreServiceControl {
     param([Parameter(Mandatory = $true)][ValidateSet('start', 'stop', 'restart')][string]$Action)
     $runState = Get-ServiceRunState -ServiceName $pycoreServiceName
     $desiredStatus = if ($Action -eq 'stop') { 'Stopped' } else { 'Running' }
+    $taskExitCode = -1
     if ($runState -eq 'absent') {
+        $taskExitCode = Invoke-PycoreLoginTaskControl -Action $Action
+        if ($taskExitCode -ge 0) { return $taskExitCode }
         Write-Host ("[!] Service {0} is not installed. Install it with: .\pyservice.ps1 install" -f $pycoreServiceName) -ForegroundColor Red
         return 1
     }
