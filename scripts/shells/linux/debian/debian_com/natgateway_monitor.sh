@@ -1,6 +1,7 @@
 #!/bin/bash
-# NAT gateway monitor (systemd: ncore-natgateway). Reconciles on every link or
-# address event (ip monitor) and at least every NATGW_POLL_SECONDS; tears the
+# NAT gateway monitor (systemd: ncore-natgateway). Reconciles on every link,
+# address or route event (ip monitor; a DHCP renew re-adding the default route
+# of a relay-only pair uplink) and at least every NATGW_POLL_SECONDS; tears the
 # gateway down on stop so relay ports go back to NetworkManager.
 
 MONITOR_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -16,7 +17,7 @@ source "$MONITOR_COMMON_DIR/natgateway_engine_common.sh"
 
 natgw_start_event_stream() {
     # coproc sets NATGW_EVENTS (fds) and NATGW_EVENTS_PID.
-    coproc NATGW_EVENTS { exec ip -o monitor link address 2>/dev/null; }
+    coproc NATGW_EVENTS { exec ip -o monitor link address route 2>/dev/null; }
     NATGW_EVENTS_FD="${NATGW_EVENTS[0]}"
 }
 
