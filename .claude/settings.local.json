@@ -218,7 +218,11 @@
       "Bash(file *)",
       "PowerShell(Get-PnpDevice *)",
       "Bash(ping -n 2 192.168.1.185)",
-      "Bash(ipconfig)"
+      "Bash(ipconfig)",
+      "Bash(PYCORE_SKIP_DEP_CHECK=1 python -c ' *)",
+      "PowerShell($adbCommand = Get-Command adb -ErrorAction SilentlyContinue; if \\($adbCommand\\) { $adbPath = $adbCommand.Source } else { $adbPath = \\(Get-ChildItem -Path 'D:\\\\' -Filter adb.exe -Recurse -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 1\\).FullName }; $adbPath; & $adbPath devices; & $adbPath shell \"dumpsys power | grep -E 'mStayOn|mWakefulness='\"; & $adbPath shell \"dumpsys package com.corenode.wordnew | grep -m2 -E 'lastUpdateTime|versionName'\")",
+      "PowerShell($adbPath = 'C:\\\\Users\\\\mpc\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe'; & $adbPath devices -l; & $adbPath shell \"getprop ro.product.model; getprop ro.build.version.release; dumpsys power | grep -E 'mWakefulness=|mStayOn'; dumpsys package com.corenode.wordnew | grep -m2 -E 'versionName|lastUpdateTime'\")",
+      "PowerShell(Get-WinEvent *)"
     ],
     "deny": [],
     "ask": []
