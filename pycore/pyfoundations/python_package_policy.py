@@ -220,6 +220,35 @@ def package_rows(set_name: str, platform_name: str, include_optional: bool = Tru
             yield "winrt.windows.media.ocr", pip_spec
 
 
+_SPECIFIER_CHARS = "<>=!~"
+
+
+def _split_spec(pip_spec: str) -> Tuple[str, str]:
+    """(distribution name without extras, version specifier or '')."""
+    cut = min((pip_spec.find(char) for char in _SPECIFIER_CHARS if char in pip_spec), default=len(pip_spec))
+    return pip_spec[:cut].split("[", 1)[0].strip(), pip_spec[cut:].strip()
+
+
+def constraint_line(pip_spec: str) -> str:
+    """'name<specifier>' of a version-bounded pip spec (extras dropped, as pip
+    constraints allow only a name and a specifier); '' when unbounded."""
+    name, specifier = _split_spec(pip_spec)
+    return f"{name}{specifier}" if specifier else ""
+
+
+def constraint_lines(set_name: str, platform_name: str, include_optional: bool = True) -> Iterator[str]:
+    """pip constraints guarding one install: the core installer policy plus the
+    set's own specs (the set wins per package), so installing a missing package
+    never moves a present one out of policy."""
+    lines: Dict[str, str] = {}
+    for current_set in dict.fromkeys(("installer", set_name)):
+        for _import_name, pip_spec in package_rows(current_set, platform_name, include_optional):
+            name, specifier = _split_spec(pip_spec)
+            if specifier:
+                lines[name.lower()] = f"{name}{specifier}"
+    yield from lines.values()
+
+
 __all__ = [
     "BACKEND_IMPORTS",
     "DEPENDENCY_MAP",
@@ -232,6 +261,8 @@ __all__ = [
     "SPECIALIZED_IMPORTS",
     "WINDOWS_OCR_WINRT_PACKAGES",
     "WINDOWS_ONLY_PACKAGES",
+    "constraint_line",
+    "constraint_lines",
     "installer_packages",
     "package_rows",
 ]
