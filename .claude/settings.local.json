@@ -78,7 +78,9 @@
       "Bash(journalctl --user -M debian@ --since \"-3min\" --no-pager)",
       "Bash(journalctl --since \"-3min\" --no-pager)",
       "Bash(dpkg -l)",
-      "Bash(awk '{print $2,$3}')"
+      "Bash(awk '{print $2,$3}')",
+      "Read(//var/_core_node/**)",
+      "Bash(find / -name \"web_access_config*.json\" -not -path \"*/node_modules/*\")"
     ],
     "deny": [],
     "ask": []
