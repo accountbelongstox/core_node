@@ -73,7 +73,12 @@
       "Bash(echo *)",
       "Bash(sudo -u debian env DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 python3 -c ' *)",
       "Bash(sudo -u debian env DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 python3 -c ' *)",
-      "Bash(ps -eo pid,user,comm,args)"
+      "Bash(ps -eo pid,user,comm,args)",
+      "Bash(grep *)",
+      "Bash(journalctl --user -M debian@ --since \"-3min\" --no-pager)",
+      "Bash(journalctl --since \"-3min\" --no-pager)",
+      "Bash(dpkg -l)",
+      "Bash(awk '{print $2,$3}')"
     ],
     "deny": [],
     "ask": []
