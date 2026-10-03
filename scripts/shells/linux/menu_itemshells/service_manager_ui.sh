@@ -12,7 +12,7 @@ show_all_services_status() {
 
     for service in "${SERVICES[@]}"; do
         local service_name="${SERVICE_NAME[$service]}"
-        printf "%-15s : " "$service_name"
+        printf "%-24s : " "$service_name"
         print_status "$service"
     done
 }

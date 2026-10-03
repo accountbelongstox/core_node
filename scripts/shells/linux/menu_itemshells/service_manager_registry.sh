@@ -9,6 +9,8 @@
 #   nexus_dash   -> 175_laravel_main_start.sh --ui-service (ncore-nexus-dash dashboard service)
 # Retained legacy services:
 #   redis / postgresql / docker / mysql / nginx / ssh / pycore (HTTP :59000)
+# Project-installed units (Windows mirror: service_contract.json service_manager.windows):
+#   mcp_chrome / laravel_rescue / rescue_httpd / natgateway / headscale / tailscale / gitea
 #   unified_apps / core_services (aggregates owned by their own managers)
 
 SERVICE_MANAGER_REGISTRY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,6 +22,7 @@ SERVICE_MANAGER_LARAVEL_SERVICE_BASE="ncore-laravel"
 SERVICES=(
     "frankenphp" "composer" "php85" "laravel_main" "nexus_dash"
     "redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore"
+    "mcp_chrome" "laravel_rescue" "rescue_httpd" "natgateway" "headscale" "tailscale" "gitea"
     "unified_apps" "core_services"
 )
 
@@ -88,6 +91,34 @@ SERVICE_NAME["pycore"]="Pycore HTTP"
 SERVICE_KIND["pycore"]="systemd"
 SERVICE_INSTALL_SCRIPT["pycore"]="189_install_pycore_http_service.sh"
 SERVICE_MANAGER_SCRIPT["pycore"]="$SERVICE_MANAGER_SERVER_MANAGER_DIR/pycore_manager.sh"
+
+SERVICE_NAME["mcp_chrome"]="MCP Chrome"
+SERVICE_KIND["mcp_chrome"]="systemd"
+SERVICE_INSTALL_SCRIPT["mcp_chrome"]=""
+
+SERVICE_NAME["laravel_rescue"]="Laravel Rescue Watcher"
+SERVICE_KIND["laravel_rescue"]="systemd"
+SERVICE_INSTALL_SCRIPT["laravel_rescue"]="3_setting_base.sh"
+
+SERVICE_NAME["rescue_httpd"]="Laravel Rescue HTTPD"
+SERVICE_KIND["rescue_httpd"]="systemd"
+SERVICE_INSTALL_SCRIPT["rescue_httpd"]="3_setting_base.sh"
+
+SERVICE_NAME["natgateway"]="NAT Gateway"
+SERVICE_KIND["natgateway"]="systemd"
+SERVICE_INSTALL_SCRIPT["natgateway"]="113_natgateway.sh"
+
+SERVICE_NAME["headscale"]="Headscale"
+SERVICE_KIND["headscale"]="systemd"
+SERVICE_INSTALL_SCRIPT["headscale"]="98_install_headscale_server.sh"
+
+SERVICE_NAME["tailscale"]="Tailscale"
+SERVICE_KIND["tailscale"]="systemd"
+SERVICE_INSTALL_SCRIPT["tailscale"]="97_install_tailscale.sh"
+
+SERVICE_NAME["gitea"]="Gitea"
+SERVICE_KIND["gitea"]="systemd"
+SERVICE_INSTALL_SCRIPT["gitea"]="159_install_gitea.sh"
 
 SERVICE_NAME["unified_apps"]="Unified Apps"
 SERVICE_KIND["unified_apps"]="aggregate"

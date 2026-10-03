@@ -136,7 +136,20 @@
       "PowerShell(Get-Service *)",
       "PowerShell(Get-ScheduledTaskInfo *)",
       "Bash(PYCORE_SKIP_DEP_CHECK=1 timeout 60 python /d/.tmp/claude/D--programing-core-node/38527f7f-baa6-49be-8e40-ccd35fbc6fff/scratchpad/oauth_click.py)",
-      "Bash(sleep *)"
+      "Bash(sleep *)",
+      "Bash(git log *)",
+      "Bash(adb devices *)",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/work/nodes\")",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=10 root@43.163.112.77 'hostname; uptime; ls /var/www 2>/dev/null | head; ps aux | grep -E \"frankenphp|php\" | head -5')",
+      "Bash(ssh *)",
+      "Bash(awk '{print}')",
+      "Bash(sort -k4)",
+      "Bash(uniq -c -f3)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; $e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile\\(\\(Resolve-Path pyservice.ps1\\).Path,[ref]$null,[ref]$e\\); \"parse errors: \" + @\\($e\\).Count; $b=[IO.File]::ReadAllBytes\\(\\(Resolve-Path pyservice.ps1\\).Path\\); $s=[Text.Encoding]::UTF8.GetString\\($b\\); \"CRLF=\" + \\([regex]::Matches\\($s,\"`r`n\"\\)\\).Count + \" LF=\" + \\([regex]::Matches\\($s,\"\\(?<!`r\\)`n\"\\)\\).Count; git diff --stat -- pyservice.ps1; \"before pid=\" + \\(Get-NetTCPConnection -LocalPort 59000 -State Listen\\).OwningProcess; $global:LASTEXITCODE=0)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c \"dd.cmd pycorerestart\" 2>&1 | Select-Object -Last 12; \"after pid=\" + \\(Get-NetTCPConnection -LocalPort 59000 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess; $global:LASTEXITCODE=0)",
+      "PowerShell(foreach \\($u in 'http://127.0.0.1:59000/ui/version/version','http://127.0.0.1:59000/api/ui/version/version','http://127.0.0.1:59000/rpc/ui/version/version'\\) { try { $r=Invoke-WebRequest -Method Post -Uri $u -ContentType 'application/json' -Body '{}' -UseBasicParsing -TimeoutSec 8; \"$u -> $\\($r.StatusCode\\)\" } catch { \"$u -> \" + $_.Exception.Message } }; $global:LASTEXITCODE=0)",
+      "PowerShell($j = Get-Content D:\\\\programing\\\\core_node\\\\config\\\\pycore_rpc_contract.json -Raw | ConvertFrom-Json; $j.PSObject.Properties.Name -join ','; $j.api_prefix; \\($j.PSObject.Properties | Where-Object { $_.Value -is [pscustomobject] -and $_.Value.PSObject.Properties['controlRestart'] }\\).Name; $global:LASTEXITCODE=0)"
     ],
     "deny": [],
     "ask": []
