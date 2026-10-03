@@ -57,7 +57,7 @@ class CodeMartV1ProfileCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);

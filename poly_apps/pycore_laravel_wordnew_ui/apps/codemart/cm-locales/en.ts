@@ -1967,6 +1967,9 @@ export const cmEn = {
   },
   errors: {
     validation_failed: 'Some fields are invalid.',
+    invalid_verification_token: 'The verification link is invalid or has expired. Request a new verification email.',
+    invalid_otp_code: 'The verification code is invalid or has expired.',
+    file_upload_failed: 'The files could not be uploaded. Try again.',
     mail_unavailable: 'Mail delivery is not available on this server right now, so the verification email was not sent. Try again later.',
     role_not_found: 'Role not found.',
     insufficient_balance: 'Insufficient wallet balance.',
