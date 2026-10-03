@@ -1,0 +1,16 @@
+---
+name: project-lane-rates-cache-hits-colab-log
+description: 2026-10-04 why work_nodes lane_rates were 1486-2172/h (cache-hit completions), how zh flapping/peer grace/widening was fixed, Colab log reader trap (hung duplicate tab, httpx flood), T4 batch cap
+metadata:
+  type: project
+---
+
+- `lane_rates` (Laravel `/api/work/nodes`) = `max(Laravel-measured deliveries in the last hour, pycore throughput seed)`. The seed = `max(LeaseBook window rate, capacity_per_hour = parallel*3600/mean task time)`. A restart makes the desktop re-lease rows whose clip already exists (7000 en / 8700 zh files in D:\www\core_node\cache\sentence_audio): they finish in <1 s (`tts_orchestrator.synthesize` returns `cached: True`, or the lane's own file cache), so the mean task time collapses and the seed explodes (lane_rates 8649, batch 500, items_leased 400-900). Real synthesis ratio: count new mp3 mtimes in that cache dir or `[tts] sentence cache MISS; synthesizing` journal lines.
+- Fix: `_cache_hit` task flag (set in `_resolve_audio` from the file cache / `result["cached"]`), `_record_task_result(..., cached)` keeps cached tasks out of `_synth_*` counters, `LeaseBook.note_cached` keeps them out of `_done`. Laravel's own measured part still counts cache-hit deliveries (noteCompletion) - server-side, not changed.
+- Sentence zh/en split: widen only if the claim `progress.languages[narrowed].pending` is 0 (or progress missing); peer language kept for `peer_grace_seconds` (600) after the last peer check that saw it; lookup failure keeps the last peers; a log line per declaration change (`sentence languages declared=... held_back=...`). The pre-fix flap could not be proven from logs (no declaration logging existed): candidates were Colab offline during its restart (desktop declares everything while no GPU peer is online) and an empty narrowed claim.
+- Colab log reader: the Colab output frame holds only 2-6 lines when pycore floods it (httpx INFO "HTTP Request" lines were ~80% of all output; `httpx`/`httpcore` loggers now WARNING in `http_client._open`), and a flooded tab's page script hangs (every chrome_javascript call 30 s timeout). Two tabs on the notebook can coexist; `_notebook_tab` now probes and skips a hung one, `ColabReader.read` tries every tab before using stale frame text. A navigate call to the notebook URL opens a second tab (it fixed the hung-tab restart block).
+- T4 (sm75): GPU util 7-25% and 10 GB VRAM free while qwen3tts generates, i.e. launch/CPU bound, yet `build_capacity_plan` capped sm<8 at batch 2; cap removed (plan limits memory/compute = 3 on T4). Result in the final report of that task.
+- Stray scratch files: a bash poller writing to a relative path inside the repo got auto-committed by gitsync (nodes_poll.jsonl); always write probe output to the scratchpad by absolute path.
+
+**Why:** next throughput/routing question should start from "completed != synthesized".
+**How to apply:** judge node speed from cache-file mtimes / MISS lines, not sent_ok or lane_rates. See [[project-colab-gpu-sentence-routing]], [[project-audio-generation-throughput]], [[project-gitsync-autocommit]].
