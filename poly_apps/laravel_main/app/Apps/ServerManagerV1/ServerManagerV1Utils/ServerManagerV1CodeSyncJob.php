@@ -19,6 +19,10 @@ class ServerManagerV1CodeSyncJob
     private const GITSYNC_SCRIPT_RELATIVE = 'scripts/linuxenvs/gitsync.sh';
     private const WORKERS_RESTART_PATH = '/frankenphp/workers/restart';
     private const WORKERS_RESTART_TIMEOUT_SECONDS = 120;
+    private const WORKERS_RESTART_ATTEMPTS = 3;
+    private const WORKERS_RESTART_RETRY_DELAY_SECONDS = 3;
+    private const ADMIN_READY_PATH = '/config/apps/http/';
+    private const ADMIN_READY_WAIT_SECONDS = 30;
     private const GIT_COMMAND_TIMEOUT_SECONDS = 20;
     private const MIGRATE_COMMAND_TIMEOUT_SECONDS = 600;
     private const ACTIVE_STATUSES = ['pending', 'running'];
@@ -300,17 +304,48 @@ class ServerManagerV1CodeSyncJob
     {
         $host = ServiceContract::host('loopback');
         $port = ServiceContract::port('frankenphp_admin');
+        $base = "http://{$host}:{$port}";
+        $attempt = 0;
+        $detail = '';
         $response = null;
 
-        try {
-            $response = Http::connectTimeout(5)
-                ->timeout(self::WORKERS_RESTART_TIMEOUT_SECONDS)
-                ->post("http://{$host}:{$port}".self::WORKERS_RESTART_PATH);
-        } catch (\Throwable $exception) {
-            return ['success' => false, 'detail' => $exception->getMessage()];
+        for ($attempt = 1; $attempt <= self::WORKERS_RESTART_ATTEMPTS; $attempt++) {
+            try {
+                $response = Http::connectTimeout(5)
+                    ->timeout(self::WORKERS_RESTART_TIMEOUT_SECONDS)
+                    ->post($base.self::WORKERS_RESTART_PATH);
+                if ($response->successful()) {
+                    return ['success' => true, 'detail' => 'HTTP '.$response->status().' attempt '.$attempt];
+                }
+                $detail = 'HTTP '.$response->status();
+            } catch (\Throwable $exception) {
+                $detail = $exception->getMessage();
+            }
+
+            if ($attempt < self::WORKERS_RESTART_ATTEMPTS) {
+                sleep(self::WORKERS_RESTART_RETRY_DELAY_SECONDS);
+                self::waitForAdmin($base);
+            }
         }
 
-        return ['success' => $response->successful(), 'detail' => 'HTTP '.$response->status()];
+        return ['success' => false, 'detail' => $detail.' (after '.self::WORKERS_RESTART_ATTEMPTS.' attempts)'];
+    }
+
+    private static function waitForAdmin(string $base): bool
+    {
+        $deadline = time() + self::ADMIN_READY_WAIT_SECONDS;
+
+        do {
+            try {
+                if (Http::connectTimeout(2)->timeout(5)->get($base.self::ADMIN_READY_PATH)->successful()) {
+                    return true;
+                }
+            } catch (\Throwable $exception) {
+            }
+            sleep(1);
+        } while (time() < $deadline);
+
+        return false;
     }
 
     private static function schedule(array $state): array

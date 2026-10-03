@@ -47,6 +47,10 @@ interface StoredPlan {
   position: number;
   /** Settled ready cursor: every id up to it was delivered or is on the device. */
   cursor: number;
+  /** Server-ready clips behind the cursor that this device's plan does not cover (counted once per cursor pass). */
+  foreign?: number;
+  /** `foreign` as it was when the cursor last settled: what a restart resumes from. */
+  foreignSettled?: number;
   status: WfNewBookPlanStatus | null;
 }
 
@@ -70,6 +74,8 @@ export interface WordNewBookPlanSnapshot {
   status: WfNewBookPlanStatus | null;
   /** Ready ids waiting for delivery to the device. */
   undelivered: number;
+  /** The server counters narrowed to this device's plan: its own clips only, so server and device shares agree. */
+  scope: { total: number; ready: number; generating: number; queued: number; failed: number; outside: number } | null;
 }
 
 interface LivePlan {
@@ -122,6 +128,16 @@ function coveredLanguages(plan: OrchComposePlan, covered: ReadonlySet<string>): 
     if (covered.has(resource.key)) (resource.kind === 'word' ? word : sentence).add(resource.language);
   });
   return { sentence_audio: [...sentence], word_audio: [...word] };
+}
+
+function scopeOf(live: LivePlan): WordNewBookPlanSnapshot['scope'] {
+  const status = live.stored.status;
+  if (!status || status.total <= 0 || live.covered.size === 0) return null;
+  const total = Math.min(live.covered.size, status.total);
+  const ready = Math.min(total, Math.max(0, status.ready - (live.stored.foreign ?? 0)));
+  const failed = Math.min(status.failed, total - ready);
+  const generating = Math.min(status.generating, total - ready - failed);
+  return { total, ready, generating, failed, queued: total - ready - failed - generating, outside: Math.max(0, status.total - total) };
 }
 
 /** Rejects when `work` has not settled in `ms`: the caller retries instead of waiting on a hung request. */
@@ -182,11 +198,11 @@ class WordNewBookAudioPlanService {
       const stored = document.tasks[task.id];
       const kept = stored && stored.planHash === task.planHash ? stored : null;
       live = {
-        stored: { ...(kept ?? { planId: '', planHash: task.planHash, position: 0, cursor: 0 }), status: null },
+        stored: { ...(kept ?? { planId: '', planHash: task.planHash, position: 0, cursor: 0 }), foreign: kept?.foreignSettled ?? 0, status: null },
         covered,
         ready: new Set(),
         fetched: kept?.cursor ?? 0,
-        snapshot: { planId: kept?.planId ?? '', status: null, undelivered: 0 },
+        snapshot: { planId: kept?.planId ?? '', status: null, undelivered: 0, scope: null },
         timer: null,
         wake: null,
         syncing: null,
@@ -220,6 +236,8 @@ class WordNewBookAudioPlanService {
         if (posted.planId !== live.stored.planId || live.stored.planHash !== task.planHash) {
           live.fetched = 0;
           live.stored.cursor = 0;
+          live.stored.foreign = 0;
+          live.stored.foreignSettled = 0;
           live.ready.clear();
         }
         live.stored = { ...live.stored, planId: posted.planId, planHash: task.planHash, position, status: posted };
@@ -248,6 +266,7 @@ class WordNewBookAudioPlanService {
     live.ready.forEach((key) => { if (delivered(key)) live.ready.delete(key); });
     if (live.ready.size === 0 && live.fetched > live.stored.cursor) {
       live.stored.cursor = live.fetched;
+      live.stored.foreignSettled = live.stored.foreign ?? 0;
       this.persist(taskId);
     }
     this.publish(taskId, live);
@@ -269,7 +288,8 @@ class WordNewBookAudioPlanService {
       for (;;) {
         const page = await within(wfNewApi.getBookAudioPlanReady(planId, live.fetched, AUDIO_ORCH_BOOK_PLAN.readyPageDefault), AUDIO_ORCH_BOOK_PLAN.requestTimeoutMs);
         page.ids.forEach((key) => {
-          if (live.covered.has(key) && !live.ready.has(key)) { live.ready.add(key); fresh += 1; }
+          if (!live.covered.has(key)) live.stored.foreign = (live.stored.foreign ?? 0) + 1;
+          else if (!live.ready.has(key)) { live.ready.add(key); fresh += 1; }
         });
         live.fetched = Math.max(live.fetched, page.cursor);
         if (!page.more || page.ids.length === 0) break;
@@ -370,7 +390,7 @@ class WordNewBookAudioPlanService {
   }
 
   private publish(taskId: string, live: LivePlan): void {
-    live.snapshot = { planId: live.stored.planId, status: live.stored.status, undelivered: live.ready.size };
+    live.snapshot = { planId: live.stored.planId, status: live.stored.status, undelivered: live.ready.size, scope: scopeOf(live) };
     this.listeners.get(taskId)?.forEach((listener) => listener());
   }
 

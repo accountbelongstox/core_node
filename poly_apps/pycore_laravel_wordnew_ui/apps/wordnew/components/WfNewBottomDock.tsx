@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Cpu, Library, GraduationCap, AudioLines, Settings } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import type { WordNewTab } from '../routing/WordNewHashRoutes';
+const SOFT_EDGE_MASK = 'radial-gradient(closest-side, #000 35%, transparent 100%)';
+
 const DOCK_KEYFRAMES =
   '@keyframes wfnewDockRing{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.25);opacity:.7}}' +
   '@keyframes wfnewDockGlow{0%,100%{transform:scale(.95);opacity:.4}50%{transform:scale(1.1);opacity:.85}}' +
@@ -68,8 +70,8 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
                 {/* Outer Breathing Ring for the Circle */}
                 <style>{DOCK_KEYFRAMES}</style>
                 <div
-                  style={{ animation: 'wfnewDockRing 2.5s ease-in-out infinite', willChange: 'transform, opacity' }}
-                  className={`absolute w-15 h-15 rounded-full bg-gradient-to-tr ${tab.color} blur-[6px] -z-10`}
+                  style={{ animation: 'wfnewDockRing 2.5s ease-in-out infinite', willChange: 'transform, opacity', WebkitMaskImage: SOFT_EDGE_MASK, maskImage: SOFT_EDGE_MASK }}
+                  className={`absolute w-15 h-15 rounded-full bg-gradient-to-tr ${tab.color} scale-110 -z-10`}
                 />
                 
                 {/* Main circle button */}
@@ -109,8 +111,8 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
               {/* Dynamic Breathing Underglow Glow filter on Focus */}
               {isActive && (
                 <div
-                  style={{ animation: 'wfnewDockGlow 3s ease-in-out infinite', willChange: 'transform, opacity' }}
-                  className={`absolute -bottom-1 w-6 h-1 rounded-full blur-[4px] bg-gradient-to-r ${tab.color}`}
+                  style={{ animation: 'wfnewDockGlow 3s ease-in-out infinite', willChange: 'transform, opacity', WebkitMaskImage: SOFT_EDGE_MASK, maskImage: SOFT_EDGE_MASK }}
+                  className={`absolute -bottom-1 w-6 h-1 rounded-full bg-gradient-to-r ${tab.color}`}
                 />
               )}
 

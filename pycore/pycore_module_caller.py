@@ -251,8 +251,8 @@ def main(
     #    Reuses the proven restart path (request_restart -> graceful stop ->
     #    os.execv re-exec, which re-reads ALL Python). On by default; --no-reload to disable.
     if reload and not notebook_assist_node():
-        from pycore.pyctl.queue_center.reload_drain import begin_drain, is_idle
-        start_reload_watcher(drain=(begin_drain, is_idle))
+        from pycore.pyctl.queue_center.reload_drain import begin_drain, is_idle, keepalive
+        start_reload_watcher(drain=(begin_drain, is_idle, keepalive))
 
     # 8. Wait for shutdown signal (THREAD_BUS is the event center)
     ColorPrint.blue("[Main] Running... (Press Ctrl+C or use tray to exit)")

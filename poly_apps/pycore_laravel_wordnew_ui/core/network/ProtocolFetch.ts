@@ -227,7 +227,10 @@ async function nativeCronetFetch(input: RequestInfo | URL, init?: RequestInit): 
       sendCookies: sendsCookies(request),
       idleTimeoutMs: TRANSFER_IDLE_MS,
     }).catch((error: unknown) => {
-      throw nativeErrorCode(error) === 'STALLED' ? new DOMException('The transfer stalled.', 'TimeoutError') : error;
+      const code = nativeErrorCode(error);
+      if (code === 'STALLED') throw new DOMException('The transfer stalled.', 'TimeoutError');
+      if (code === 'NETWORK_ERROR') throw new TypeError('Failed to fetch', { cause: error });
+      throw error;
     });
     const responseBody = method === 'HEAD' || [204, 205, 304].includes(result.status)
       ? null

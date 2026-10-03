@@ -157,6 +157,10 @@ class BaseLaravelWorkerService:
         """A successful work-lease claim/renew refreshed the worker row."""
         self._registration.heartbeat(base_url)
 
+    def keep_registered(self) -> None:
+        """Refresh the worker row while no claim or renew runs (lane halted)."""
+        self._registration.ensure(self.active_base_url())
+
     def registration_renewed(self) -> None:
         """A fresh registration may face a newly deployed Laravel."""
         self._puller.reset_unsupported_task_types()
