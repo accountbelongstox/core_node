@@ -23,6 +23,7 @@ import {
   FileText,
   Hand,
   ImageIcon,
+  Layers,
   Eraser,
   History,
   Info,
@@ -77,6 +78,7 @@ import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal
 import PcPycoreRestartButton from '@/apps/pycore-manager/components/PcPycoreRestartButton';
 import { pycoreNodeClient } from '@/apps/pycore-manager/api';
 import { usePcTerminalFrames } from '@/apps/pycore-manager/components/terminal/usePcTerminalFrames';
+import type { TerminalViewMode } from '@/apps/pycore-manager/components/terminal/terminalFrames';
 import { PcTerminalNavActionsProvider } from '@/apps/pycore-manager/components/terminal/PcTerminalNavContext';
 import { PcTerminalNavControls } from '@/apps/pycore-manager/components/terminal/PcTerminalNavControls';
 import { terminalNavHistoryFor, useTerminalNavSnapshot } from '@/apps/pycore-manager/components/terminal/terminalNavigation';
@@ -423,6 +425,11 @@ function formatScheduleCountdown(ms: number): string {
 }
 
 const NO_WINDOWS: TerminalWindowInfo[] = [];
+const PREVIEW_VIEW_MODES: ReadonlyArray<{ mode: TerminalViewMode; icon: typeof Layers }> = [
+  { mode: 'auto', icon: Layers },
+  { mode: 'text', icon: FileText },
+  { mode: 'image', icon: ImageIcon },
+];
 const OPERATION_HOLD_MS = 90_000;
 
 function replaceTerminalScheduleQueue(

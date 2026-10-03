@@ -522,6 +522,12 @@
     },
     {
       "match": "exact",
+      "value": "ui/gitsync/history",
+      "profile": "general_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
       "value": "ui/gitsync/control",
       "profile": "general_action",
       "methods": [ "POST" ]
