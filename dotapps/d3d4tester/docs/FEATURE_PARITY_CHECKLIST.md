@@ -117,6 +117,10 @@
 - [x] 仅确保战网流程 + 全局守护（DOT：默认开） — `BnOnlyFlow`、`BattlenetGuardService`
 - [x] 守护规则（DOT）：先确保区服（`--setregion`）、异常超时重启、登录超时重启；安全验证/验证码期间不重启 — `Core/Flow/BattlenetStateWatchdog`
 - [x] 战网客户端状态探测（DOT，含安全验证、等待验证码、登录中、载入账户等） — `BattlenetClientStateDetector` + `IBattlenetOperation.ClassifyClientState`
+- [x] 安全验证页自动点 Continue（id `submit`，60 秒内只点一次，发送验证码邮件） — `BrowserLoginAutomation.SubmitSecurityCheck`，由 `BattlenetStateWatchdog` 在守护运行时调用
+- [~] 验证码输入页（"Please enter the security code sent to: …"，Resend code / Submit / Go Back）— 已识别并等待人工输入；验证码只在邮箱里，程序不能自动填写
+- [x] 登录中 / 安全验证 / 邮件与验证码页期间绝不关闭或重启战网 — `BattlenetManager.Close`（现场探测后拒绝）、`BattlenetReadyFlow` B5 改为继续等待、看门狗豁免
+- [x] 密码输入改为键盘逐字输入（网页表单不接受 ValuePattern 直接赋值） — `BrowserLoginAutomation.Fill`、`BattlenetAsiaOps.FillField`
 - [x] 多账号（DOT，国服/亚服分开、加密、头像菜单退出切换） — `Config/BattlenetAccountService`、`Pages/Battlenet`
 - [x] D 块（启动 D3/D4）、C 分支（C1–C12）、E 块（启动 ROSBOT）、F0–F4、日志掉线重启、系统错误、无物品弹窗、智能回响、“必须启动 D3”弹窗 — `Ctl/LoginTryController`、`Ctl/D3ConnectC3Flow`、`Ctl/RosbotRunFlow`、`Core/Flow/*`、`Services/RosbotLog*`
 

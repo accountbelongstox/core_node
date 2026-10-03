@@ -69,6 +69,8 @@ public static class BattlenetConstants
     /// <summary>Security check page in the login web view: pick how to verify (live scan: "...quick security check. Select how you would like to verify your account." + method dropdown data-select-current, Continue / Go Back). Needs the user.</summary>
     public static readonly string[] SecurityCheckKeywords = { "quick security check", "verify your account", "安全检查", "安全验证", "验证您的账户", "验证你的账户", "驗證您的帳號" };
     public const string SecurityCheckMethodAutomationId = "data-select-current";
+    /// <summary>Continue button on the security check page (live scan: ButtonControl "Continue" id submit); pressing it e-mails the code.</summary>
+    public const string SecurityCheckSubmitAutomationId = "submit";
     /// <summary>Page waiting for the e-mailed / SMS / authenticator code. Needs the user.</summary>
     public static readonly string[] VerificationCodeKeywords =
     {
@@ -82,6 +84,8 @@ public static class BattlenetConstants
 
     /// <summary>Login window while credentials are being verified (live scan: labelLoggingIn "Logging in...").</summary>
     public const string LoggingInAutomationIdSuffix = "labelLoggingIn";
+    /// <summary>Login web view spinner (live scan after submitting the code: LoginWindow ...webFrame.spinnerContainer.labelSpinner, no text yet).</summary>
+    public const string LoginSpinnerAutomationIdSuffix = "labelSpinner";
     public static readonly string[] LoggingInKeywords = { "Logging in", "正在登录", "登录中" };
 
     // ---------- Guard watchdog config (keys shared with the app ConfigKeys; defaults also in Config/default_config.json) ----------

@@ -4,7 +4,7 @@
  * scanned on port 59000, and a found pycore is used for this session - every
  * request switches at once; the next start uses the persisted choice again.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Check, Loader2, Radar, ShieldAlert, Square, Wifi } from 'lucide-react';
 import { lanScanHosts, scanLanPycore, type LanScanResult } from '../../../../core/integrations/pycore';
 import { notify } from '@/shared/notify/notify';
@@ -31,6 +31,7 @@ const STATE_TONE: Record<LanScanResult['state'], StatusTone> = {
 
 export const WfNewPycoreLanScan: React.FC<Props> = ({ activeTheme, trans }) => {
   const snapshot = useWordNewApiService(wordNewPycoreApiService);
+  const { lanRouteUrl } = useSyncExternalStore(wordNewPycoreLink.subscribe, wordNewPycoreLink.getSnapshot, wordNewPycoreLink.getSnapshot);
   const [info, setInfo] = useState<CapLanInfo | null>(null);
   const [subnet, setSubnet] = useState('');
   const [results, setResults] = useState<LanScanResult[]>([]);
@@ -92,6 +93,9 @@ export const WfNewPycoreLanScan: React.FC<Props> = ({ activeTheme, trans }) => {
           </button>
         )}
       </div>
+      {lanRouteUrl && (
+        <p className={`break-all font-mono text-[11px] font-bold ${TONE_TEXT.emerald}`}>{trans('apiCenter.lan.routeActive', { url: lanRouteUrl })}</p>
+      )}
       <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
         {detected
           ? trans('apiCenter.lan.detected', { address: detected, gateway: info?.gateway || '-' })

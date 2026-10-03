@@ -25,6 +25,9 @@ public static class BrowserLoginAutomation
     private const string CheckBoxType = "CheckBox";
     private const string HyperlinkType = "Hyperlink";
     private const int AfterActionMs = 500;
+    /// <summary>One Continue per security check page: each click e-mails a new code.</summary>
+    private const double SecuritySubmitCooldownSec = 60.0;
+    private static DateTime _lastSecuritySubmitUtc = DateTime.MinValue;
 
     private static readonly FieldInputOptions FieldOptions = new()
     {
@@ -74,12 +77,13 @@ public static class BrowserLoginAutomation
 
     private static PollResult Step(IntPtr hwnd, AutomationElement root, string region)
     {
-        if (UIOperations.FindFirstByNameContainsAny(root, C.SecurityCheckKeywords) != null
-            || UIOperations.FindFirstByNameContainsAny(root, C.VerificationCodeKeywords) != null)
+        if (UIOperations.FindFirstByNameContainsAny(root, C.VerificationCodeKeywords) != null)
         {
-            ColorPrinter.Yellow($"{LogTag} security check / verification code page: waiting for the user");
+            ColorPrinter.Yellow($"{LogTag} e-mail / verification code page: waiting for the user to enter the code");
             return PollResult.NeedUser;
         }
+        if (UIOperations.FindFirstByNameContainsAny(root, C.SecurityCheckKeywords) != null)
+            return SubmitSecurityCheck(hwnd, root);
         if (UIOperations.FindFirstByNameContainsAny(root, C.BrowserLoginSuccessKeywords) != null)
         {
             ColorPrinter.Green($"{LogTag} success text found, login done");
@@ -109,6 +113,25 @@ public static class BrowserLoginAutomation
 
         ColorPrinter.Gray($"{LogTag} page loaded but no form / agree / login control yet, wait");
         return PollResult.Waiting;
+    }
+
+    /// <summary>Security check with a verify method selected (e.g. E-Mail): press Continue (id "submit") once so the code is sent.</summary>
+    private static PollResult SubmitSecurityCheck(IntPtr hwnd, AutomationElement root)
+    {
+        if ((DateTime.UtcNow - _lastSecuritySubmitUtc).TotalSeconds < SecuritySubmitCooldownSec)
+        {
+            ColorPrinter.Gray($"{LogTag} security check: Continue already pressed, waiting for the code page");
+            return PollResult.NeedUser;
+        }
+        var submit = UIOperations.FindFirstByAutomationId(root, C.SecurityCheckSubmitAutomationId);
+        if (submit == null)
+        {
+            ColorPrinter.Yellow($"{LogTag} security check: Continue (submit) not found, waiting for the user");
+            return PollResult.NeedUser;
+        }
+        _lastSecuritySubmitUtc = DateTime.UtcNow;
+        Invoke(hwnd, submit, "security check continue");
+        return PollResult.Acted;
     }
 
     private static PollResult FillLoginForm(IntPtr hwnd, AutomationElement root, AutomationElement password, string region)
