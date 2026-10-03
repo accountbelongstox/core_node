@@ -8,6 +8,13 @@ import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { commonClasses } from '@/shared/styles/theme';
 import { LoadingBlock, AlertBox, EmptyState, StatusBadge } from '../../common';
+import { laravelMediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
+import { audioUrlForVoiceFile } from '../tools/ops/opsLogic';
+
+const voiceTrackAudioUrl = (track?: { audio_url?: string; tts_files?: Array<{ file_path?: string }> } | null): string | undefined => {
+  const filePath = track?.tts_files?.find((file) => file.file_path)?.file_path;
+  return track?.audio_url || (filePath ? laravelMediaUrl(audioUrlForVoiceFile(filePath)) : undefined);
+};
 
 /**
  * MCP Voice Subtitle tab — self-contained: queue stats, add text/url/voice/image
@@ -663,7 +670,7 @@ const VoiceTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
             </div>
             <audio
               ref={audioRef}
-              src={(currentVoiceTrack.data.current ?? currentVoiceTrack.data.queue_item)?.audio_url}
+              src={voiceTrackAudioUrl(currentVoiceTrack.data.current ?? currentVoiceTrack.data.queue_item)}
               onEnded={() => setIsPlaying(false)}
               className="hidden"
             />
