@@ -58,7 +58,8 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "sklearn": "scikit-learn",
     "selenium": "selenium",
     "webdriver_manager": "webdriver-manager",
-    "fastmcp": "fastmcp",
+    # fastmcp 4 requires mcp 2 (FastMCP renamed to MCPServer); stay on the mcp<2 major.
+    "fastmcp": "fastmcp>=2,<4",
     "azure.cognitiveservices.speech": "azure-cognitiveservices-speech",
     "vosk": "vosk",
     "pynput": "pynput",
