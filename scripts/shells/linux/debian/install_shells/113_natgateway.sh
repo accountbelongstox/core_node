@@ -1,6 +1,7 @@
 #!/bin/bash
 # NAT gateway (network router): when a USB network adapter is the uplink, this
-# host's onboard ports relay it (NAT + DHCP) to other computers or routers.
+# host's onboard ports relay it (NAT + DHCP) to other computers or routers:
+# one USB for every relay port (single) or one USB per relay port (pairs).
 # Installed as the ncore-natgateway background service; `natgateway` is the CLI.
 # Supported: Ubuntu 24.04-26.04, Debian 12-13 (nftables, iproute2, dnsmasq).
 
@@ -51,11 +52,19 @@ Usage: $NATGATEWAY_COMMAND_NAME [command]
   uninstall [--yes]          Stop and remove the service (configuration is kept)
   status                     Configuration, service state, ports and DHCP leases
   ports                      Detected ports and their current role
-  set-wan usb|<iface>        Uplink: any USB adapter (default) or a named interface
-  set-lan all                Relay on every onboard wired port
-  set-lan one <iface>        Relay on one port
-  set-lan list <if1,if2,...> Relay on the listed ports
-  set-address <a.b.c.d/24>   Gateway address of the relay network (default $NATGW_DEFAULT_ADDRESS)
+  set-mode single|pairs      single: one uplink for the relay ports (default)
+                             pairs: one USB uplink per relay port (1:1)
+  set-wan usb|<iface>        single: any USB adapter (default, auto) or a named interface
+  set-lan all                single: relay on every onboard wired port
+  set-lan one <iface>        single: relay on one port
+  set-lan list <if1,if2,...> single: relay on the listed ports
+  set-pairs auto             pairs: one pair per onboard port, USB auto-detected (default)
+  set-pairs <usb>:<lan>,...  pairs: <usb> = auto or an interface (may be absent until plugged in)
+  set-system-wan auto|none|<iface>
+                             pairs: the one pair USB that also serves this host (default auto);
+                             every other pair USB only relays
+  set-address <a.b.c.d/24>   Gateway address of the relay network (default $NATGW_DEFAULT_ADDRESS;
+                             pairs: pair N uses the next N-th /24)
   set-dhcp on|off            DHCP/DNS server for relay clients
   start | stop | restart     Control the background service
   logs                       Recent service logs
@@ -109,6 +118,7 @@ natgw_ensure_config_file() {
 cmd_install() {
     log_header "NAT Gateway: install as background service"
     echo "Uplink: USB network adapter (auto). Relay: onboard wired ports (NAT + DHCP on $NATGW_DEFAULT_ADDRESS)."
+    echo "Mode single: one USB for every relay port. Mode pairs: one USB per relay port ('$NATGATEWAY_COMMAND_NAME set-mode pairs')."
     echo "Ports carrying this machine's own default route are never taken."
     if ! natgw_confirm "Install and start the ncore-natgateway background service? [Y/n]:" "y"; then
         log_info "Installation cancelled"
@@ -154,7 +164,7 @@ cmd_uninstall() {
 
 natgw_config_saved() {
     natgw_save_config
-    log_success "Saved: WAN_SELECT=$WAN_SELECT LAN_MODE=$LAN_MODE LAN_PORTS=${LAN_PORTS:--} LAN_ADDRESS=$LAN_ADDRESS DHCP=$DHCP_ENABLED"
+    log_success "Saved: ROUTE_MODE=$ROUTE_MODE WAN_SELECT=$WAN_SELECT LAN_MODE=$LAN_MODE LAN_PORTS=${LAN_PORTS:--} PAIRS=${PAIRS:-auto} SYSTEM_WAN=$SYSTEM_WAN LAN_ADDRESS=$LAN_ADDRESS DHCP=$DHCP_ENABLED"
     if systemctl is-active --quiet "$NATGW_SERVICE_NAME"; then
         log_info "The running service applies it within $NATGW_POLL_SECONDS seconds."
     else
@@ -208,6 +218,74 @@ cmd_set_lan() {
     natgw_load_config
     LAN_MODE="$mode"
     LAN_PORTS="$ports"
+    natgw_config_saved
+}
+
+cmd_set_mode() {
+    case "$1" in
+        single|pairs) ;;
+        *) log_error "Usage: set-mode single|pairs"; return 1 ;;
+    esac
+    natgw_load_config
+    ROUTE_MODE="$1"
+    natgw_config_saved
+}
+
+# auto, or "<usb>:<lan>" entries; a bare "<lan>" means "auto:<lan>".
+cmd_set_pairs() {
+    local value="${1// /}"
+    local entry=""
+    local usb=""
+    local lan=""
+    local -a entries=()
+    local -a normalized=()
+    local -a lans=()
+    local -a usbs=()
+
+    if [ -z "$value" ]; then
+        log_error "Usage: set-pairs auto | <usb|auto>:<lan>[,<usb|auto>:<lan>...]"
+        return 1
+    fi
+    if [ "$value" != "auto" ]; then
+        IFS=',' read -r -a entries <<< "$value"
+        for entry in "${entries[@]}"; do
+            [ -n "$entry" ] || continue
+            [[ "$entry" == *:* ]] || entry="auto:$entry"
+            usb="${entry%%:*}"
+            lan="${entry#*:}"
+            if ! natgw_valid_iface_name "$lan" || { [ "$usb" != "auto" ] && ! natgw_valid_iface_name "$usb"; }; then
+                log_error "Invalid pair: $entry"
+                return 1
+            fi
+            if natgw_list_contains "$lan" "${lans[@]}" || { [ "$usb" != "auto" ] && natgw_list_contains "$usb" "${usbs[@]}"; }; then
+                log_error "Each USB and relay port may appear in one pair only: $entry"
+                return 1
+            fi
+            [ "$usb" = "auto" ] || usbs+=("$usb")
+            lans+=("$lan")
+            normalized+=("$usb:$lan")
+            [ -e "/sys/class/net/$lan" ] || log_warning "Not present now (used when plugged in): $lan"
+            [ "$usb" = "auto" ] || [ -e "/sys/class/net/$usb" ] || log_warning "Not present now (used when plugged in): $usb"
+        done
+        if [ ${#normalized[@]} -gt "$NATGW_MAX_PAIRS" ]; then
+            log_error "At most $NATGW_MAX_PAIRS pairs"
+            return 1
+        fi
+        [ ${#normalized[@]} -gt 0 ] || { log_error "No pair given"; return 1; }
+    fi
+    natgw_load_config
+    PAIRS="$(IFS=','; echo "${normalized[*]}")"
+    natgw_config_saved
+}
+
+cmd_set_system_wan() {
+    local value="$1"
+    if [ "$value" != "auto" ] && [ "$value" != "none" ] && ! natgw_valid_iface_name "$value"; then
+        log_error "Usage: set-system-wan auto|none|<iface>"
+        return 1
+    fi
+    natgw_load_config
+    SYSTEM_WAN="$value"
     natgw_config_saved
 }
 
@@ -292,7 +370,10 @@ main() {
         menu) show_interactive_menu ;;
         install) cmd_install ;;
         uninstall) cmd_uninstall ;;
+        set-mode) cmd_set_mode "${2:-}" ;;
         set-wan) cmd_set_wan "${2:-}" ;;
+        set-pairs) cmd_set_pairs "${2:-}" ;;
+        set-system-wan) cmd_set_system_wan "${2:-}" ;;
         set-lan) cmd_set_lan "${2:-}" "${3:-}" ;;
         set-address) cmd_set_address "${2:-}" ;;
         set-dhcp) cmd_set_dhcp "${2:-}" ;;
