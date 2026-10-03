@@ -47,8 +47,8 @@ const normalizeNginxSite = (site: Record<string, unknown>): NginxSite => {
  */
 export class ServerManagerV1API extends LmBaseAPI {
   // ========== System Information ==========
-  async getSystemInfo(): Promise<APIResponse> {
-    return this.get('/system/info', undefined, true, 300000); // Cache 5 minutes
+  async getSystemInfo(options?: { fresh?: boolean }): Promise<APIResponse> {
+    return this.get('/system/info', undefined, !options?.fresh, 300000); // Cache 5 minutes unless fresh
   }
 
   async getProcesses(): Promise<APIResponse> {

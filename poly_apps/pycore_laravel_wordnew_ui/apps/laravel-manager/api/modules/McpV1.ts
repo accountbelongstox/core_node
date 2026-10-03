@@ -129,6 +129,14 @@ export class McpV1API extends LmBaseAPI {
     });
   }
 
+  /** The controller stores `{prefix, suffix, replace_map}` per category (PUT /task-dispatch/mappings/{id}). */
+  async updatePromptMappingRules(
+    categoryId: string,
+    rules: { prefix: string; suffix: string; replace_map: Record<string, string> }
+  ): Promise<APIResponse> {
+    return this.put(`/task-dispatch/mappings/${encodeURIComponent(categoryId)}`, rules);
+  }
+
   // ========== Placeholder Generator ==========
   async getPlaceholders(): Promise<APIResponse> {
     return this.get('/placeholders');
@@ -200,8 +208,10 @@ export class McpV1API extends LmBaseAPI {
     return this.post('/voice-subtitle/add', data);
   }
 
-  async vsAddText(data: { text: string; language?: string; group?: string }): Promise<APIResponse> {
-    return this.post('/voice-subtitle/add-text', data);
+  /** The controller reads `category` (not `group`) and `target_language` for the translation step. */
+  async vsAddText(data: { text: string; language?: string; voice?: string; target_language?: string; group?: string }): Promise<APIResponse> {
+    const { group, ...rest } = data;
+    return this.post('/voice-subtitle/add-text', group ? { ...rest, category: group } : rest);
   }
 
   async vsAddImage(data: { image: File; description?: string; group?: string }): Promise<APIResponse> {
@@ -285,6 +295,20 @@ export class McpV1API extends LmBaseAPI {
       method: 'DELETE',
       data: { id }
     } as any);
+  }
+
+  /** The controller removes by queue index (the `id` form of vsRemoveItem is not read). */
+  async vsRemoveAt(index: number): Promise<APIResponse> {
+    return this.request({
+      url: '/voice-subtitle/remove',
+      method: 'DELETE',
+      data: { index }
+    } as any);
+  }
+
+  /** The controller counts a play by queue index (defaults to the current item). */
+  async vsIncrementPlayCountAt(index?: number): Promise<APIResponse> {
+    return this.post('/voice-subtitle/increment-play-count', index === undefined ? {} : { index });
   }
 
   async vsRemoveItems(ids: string[]): Promise<APIResponse> {

@@ -318,6 +318,7 @@ export interface AgeParts { years: number; months: number; days: number; hours: 
 
 const MS_PER_DAY = 86400000;
 const dayNumber = (d: Date): number => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / MS_PER_DAY;
+export const daysBetween = (from: Date, to: Date): number => dayNumber(to) - dayNumber(from);
 const secondsOfDay = (d: Date): number => d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
 
 const addMonthsClamped = (from: Date, months: number): Date => {

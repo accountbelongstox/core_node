@@ -49,8 +49,8 @@ const LIST_SEPARATORS: Record<Exclude<ListSeparatorId, 'custom'>, string> = {
 const LIST_QUOTES: Record<ListQuoteId, string> = { none: '', single: "'", double: '"', backtick: '`' };
 const LIST_BRACKETS: Record<ListBracketId, [string, string]> = { none: ['', ''], square: ['[', ']'], round: ['(', ')'], curly: ['{', '}'] };
 const TRANSLITERATIONS: Record<string, string> = {
-  'ß': 'ss', 'æ': 'ae', 'Æ': 'AE', 'ø': 'o', 'Ø': 'O', 'đ': 'd', 'Đ': 'D', 'ł': 'l', 'Ł': 'L',
-  'œ': 'oe', 'Œ': 'OE', 'þ': 'th', 'Þ': 'TH', 'ð': 'd', 'Ð': 'D', 'ı': 'i',
+  '\u00df': 'ss', '\u00e6': 'ae', '\u00c6': 'AE', '\u00f8': 'o', '\u00d8': 'O', '\u0111': 'd', '\u0110': 'D', '\u0142': 'l', '\u0141': 'L',
+  '\u0153': 'oe', '\u0152': 'OE', '\u00fe': 'th', '\u00de': 'TH', '\u00f0': 'd', '\u00d0': 'D', '\u0131': 'i',
 };
 const DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
@@ -84,7 +84,7 @@ export const convertCaseText = (text: string, style: CaseStyleId): string => tex
   .join('\n');
 
 export const slugifyText = (text: string, options: SlugOptions): string => text.split(/\r?\n/).map((line) => {
-  let value = line.replace(/[ßæÆøØđĐłŁœŒþÞðÐı]/g, (ch) => TRANSLITERATIONS[ch]);
+  let value = line.replace(/[\u00df\u00e6\u00c6\u00f8\u00d8\u0111\u0110\u0142\u0141\u0153\u0152\u00fe\u00de\u00f0\u00d0\u0131]/g, (ch) => TRANSLITERATIONS[ch]);
   value = value.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
   if (options.lowercase) value = value.toLowerCase();
   const allowed = options.keepUnicode ? /[^\p{L}\p{N}]+/gu : /[^A-Za-z0-9]+/g;

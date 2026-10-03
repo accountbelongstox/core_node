@@ -3,10 +3,10 @@
 const BASE64_STD = /^[A-Za-z0-9+/]*={0,2}$/;
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', copy: '©', reg: '®', trade: '™',
-  hellip: '…', mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
-  euro: '€', pound: '£', yen: '¥', cent: '¢', sect: '§', deg: '°', plusmn: '±',
-  times: '×', divide: '÷', laquo: '«', raquo: '»', bull: '•', middot: '·',
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', copy: '\u00a9', reg: '\u00ae', trade: '\u2122',
+  hellip: '\u2026', mdash: '\u2014', ndash: '\u2013', lsquo: '\u2018', rsquo: '\u2019', ldquo: '\u201c', rdquo: '\u201d',
+  euro: '\u20ac', pound: '\u00a3', yen: '\u00a5', cent: '\u00a2', sect: '\u00a7', deg: '\u00b0', plusmn: '\u00b1',
+  times: '\u00d7', divide: '\u00f7', laquo: '\u00ab', raquo: '\u00bb', bull: '\u2022', middot: '\u00b7',
 };
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const NATO_LETTERS: Record<string, string> = {
@@ -39,7 +39,7 @@ export interface TextCodec {
 }
 
 export class ConvertError extends Error {
-  constructor(public readonly code: string) {
+  constructor(public readonly code: string, public readonly detail = '') {
     super(code);
   }
 }
@@ -281,12 +281,11 @@ export const parseUrlParts = (value: string): { origin: string; path: string; ha
   }
 };
 
-export const textToBytesRadix = (text: string, radix: BinaryRadix, separator = ' '): string => {
-  const pad = radix === 2 ? 8 : radix === 8 ? 3 : radix === 16 ? 2 : 1;
-  return Array.from(utf8ToBytes(text), (b) => b.toString(radix).toUpperCase().padStart(pad, '0')).join(separator);
-};
+export const formatByte = (byte: number, radix: BinaryRadix): string => byte.toString(radix).toUpperCase().padStart(radix === 2 ? 8 : radix === 8 ? 3 : radix === 16 ? 2 : 1, '0');
 
-export const bytesRadixToText = (input: string, radix: BinaryRadix): string => {
+export const textToBytesRadix = (text: string, radix: BinaryRadix, separator = ' '): string => Array.from(utf8ToBytes(text), (b) => formatByte(b, radix)).join(separator);
+
+export const parseRadixBytes = (input: string, radix: BinaryRadix): Uint8Array => {
   const compact = input.trim();
   const digitPattern = radix === 2 ? /^[01]+$/ : radix === 8 ? /^[0-7]+$/ : radix === 10 ? /^\d+$/ : /^[0-9a-fA-F]+$/;
   let tokens = compact.split(/[\s,;]+/).filter(Boolean).map((token) => (radix === 16 ? token.replace(/^0x/i, '') : radix === 2 ? token.replace(/^0b/i, '') : token));
@@ -303,8 +302,10 @@ export const bytesRadixToText = (input: string, radix: BinaryRadix): string => {
     if (value > 255) throw new ConvertError('byte_overflow');
     return value;
   });
-  return bytesToUtf8(Uint8Array.from(bytes), false);
+  return Uint8Array.from(bytes);
 };
+
+export const bytesRadixToText = (input: string, radix: BinaryRadix): string => bytesToUtf8(parseRadixBytes(input, radix), false);
 
 export interface CodePointInfo {
   char: string;
