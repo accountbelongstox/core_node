@@ -553,6 +553,11 @@ acme_sh_preflight_for_service() {
             if head -n 1 "$route_file" 2>/dev/null | grep -q 'lan=local_lan'; then
                 continue
             fi
+            # The Headscale control-server route (hs.<region>.<root>) is a
+            # subdomain served by its root domain's wildcard, never an apex.
+            if head -n 1 "$route_file" 2>/dev/null | grep -q 'managed-by: headscale_common'; then
+                continue
+            fi
             apex="$(basename "$route_file" .caddy)"
             case "$apex_list" in *" $apex "*) continue ;; esac
             apex_list="${apex_list}${apex} "
