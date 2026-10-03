@@ -175,7 +175,7 @@ web_access_resolve() {
     WEB_ACCESS_CORS_ORIGINS="$({
         while IFS= read -r host; do
             [ -z "$host" ] && continue
-            printf 'http://%s:%s\nhttp://%s\nhttps://%s\n' "$host" "$ui_port" "$host" "$host"
+            printf 'http://%s:%s\nhttp://%s:%s\nhttp://%s\nhttps://%s\n' "$host" "$ui_port" "$host" "$live_port" "$host" "$host"
         done <<< "$local_hosts"$'\n'"$WEB_ACCESS_BROWSER_HOSTS"
         while IFS= read -r domain; do
             [ -z "$domain" ] && continue
