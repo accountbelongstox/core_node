@@ -18,16 +18,16 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # AI AGENTS: frozen user-owned auto-confirm (Up/Down arrows + Enter on agent permission prompts).
 # Never disable or change it unless the user's prompt asks for it; ignore its keys while programming.
-LABEL = "TerminalPromptHandler"
+LABEL = "PhysicalConfirmButton"
 MAX_ENTER_ATTEMPTS = 3
 PROMPT_SETTLE_SECONDS = 0.25
 
 
-class TerminalPromptHandler:
+class PhysicalConfirmButtonHandler:
     def __init__(self, terminals: Any = terminal_service) -> None:
         self._terminals = terminals
 
-    def handle(
+    def confirm_by_physical_button(
         self,
         window_id: str,
         terminal_number: int,
