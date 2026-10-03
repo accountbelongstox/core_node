@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyctl.terminal.terminal_backup_store import (
     TERMINAL_BACKUP_DIR_NAME,
@@ -15,7 +15,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
     terminal_backup_store,
     text_digest,
 )
-from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch
+from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, confirmation_prompt, second_yes_prompt
 from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyfoundations.desktop_session import has_graphical_display
@@ -33,6 +33,8 @@ from pycore.pyutils.window.focus_guard import FocusGuard, focus_guard
 
 LABEL = "TerminalBackup"
 BACKUP_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_interval_seconds")
+PROMPT_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_prompt_interval_seconds")
+PROMPT_MISS_LIMIT = relay_contract.limit("terminal_backup_prompt_miss_limit")
 LOW_BATTERY_PERCENT = relay_contract.limit("terminal_backup_low_battery_percent")
 MIN_IDLE_SECONDS = relay_contract.limit("terminal_backup_min_idle_seconds")
 DEFER_RETRY_SECONDS = relay_contract.limit("terminal_backup_defer_retry_seconds")
@@ -76,6 +78,7 @@ class TerminalBackupService:
         self._lease: Optional[int] = None
         self._thread: Optional[threading.Thread] = None
         self._deferred_logged = False
+        self._fast_prompts: Dict[int, Dict[str, Any]] = {}
         # In-memory only: a UI change lasts until this process exits; a pycore
         # restart returns to AUTO_BACKUP_PAUSED_BY_DEFAULT.
         self._paused = AUTO_BACKUP_PAUSED_BY_DEFAULT
@@ -124,6 +127,97 @@ class TerminalBackupService:
         entry["signature"] = inputs_digest(entry["inputs"])
         return entry
 
+    def _scan_window(self, window: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
+        entry = self._export(window)
+        text = entry.get("text")
+        if not text:
+            return entry, False
+        found_prompt = bool(confirmation_prompt(text) or second_yes_prompt(text))
+        refreshed = self._prompt_handler.handle(
+            str(window["id"]),
+            entry["number"],
+            text,
+            lambda: self._export(window).get("text"),
+        )
+        if refreshed != text:
+            entry["text"] = refreshed
+            entry["signature"] = text_digest(refreshed)
+        return entry, found_prompt or bool(confirmation_prompt(refreshed) or second_yes_prompt(refreshed))
+
+    def _observe_prompt(self, window: Dict[str, Any], entry: Dict[str, Any], found_prompt: bool) -> None:
+        number = entry["number"]
+        window_id = str(window["id"])
+        state = self._fast_prompts.get(number)
+        if found_prompt:
+            if state is None or state["window_id"] != window_id:
+                ColorPrint.blue(f"[{LABEL}] prompt follow-up started terminal={number} interval={PROMPT_INTERVAL_SECONDS}s")
+            self._fast_prompts[number] = {"window_id": window_id, "due": time.monotonic() + PROMPT_INTERVAL_SECONDS, "misses": 0}
+            return
+        if state is None or state["window_id"] != window_id:
+            return
+        if not entry.get("text"):
+            state["due"] = time.monotonic() + PROMPT_INTERVAL_SECONDS
+            return
+        misses = int(state["misses"]) + 1
+        if misses >= PROMPT_MISS_LIMIT:
+            self._fast_prompts.pop(number, None)
+            ColorPrint.blue(f"[{LABEL}] prompt follow-up ended terminal={number} misses={misses}")
+            return
+        state["misses"] = misses
+        state["due"] = time.monotonic() + PROMPT_INTERVAL_SECONDS
+
+    def _prune_prompt_states(self, windows: List[Dict[str, Any]]) -> None:
+        live = {int(window["terminal_number"]): str(window["id"]) for window in windows}
+        for number, state in list(self._fast_prompts.items()):
+            if live.get(number) != state["window_id"]:
+                self._fast_prompts.pop(number, None)
+
+    def _fast_due(self) -> float:
+        return min((float(state["due"]) for state in self._fast_prompts.values()), default=float("inf"))
+
+    def _run_fast_pass(self, now: float) -> None:
+        if not self._pass_lock.acquire(blocking=False):
+            for state in self._fast_prompts.values():
+                if state["due"] <= now:
+                    state["due"] = now + DEFER_RETRY_SECONDS
+            return
+        try:
+            if self._user_active():
+                return
+            windows = self._enumerate()
+            self._prune_prompt_states(windows)
+            due_windows = [
+                window for window in windows
+                if int(window["terminal_number"]) in self._fast_prompts
+                and self._fast_prompts[int(window["terminal_number"])]["due"] <= now
+            ]
+            previous = self._store.previous_signatures()
+            exported: List[Dict[str, Any]] = []
+            with self._focus.preserved(LABEL):
+                for window in due_windows:
+                    entry, found_prompt = self._scan_window(window)
+                    self._observe_prompt(window, entry, found_prompt)
+                    signature = entry.pop("signature")
+                    entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
+                    exported.append(entry)
+            self._alert_waiting_prompts(exported)
+            if any(entry["changed"] for entry in exported):
+                saved = self._store.save(exported, merge_previous=True)
+                if saved.get("success"):
+                    ColorPrint.green(
+                        f"[{LABEL}] prompt follow-up backup written terminals={saved['terminal_count']} "
+                        f"path={saved['path']}"
+                    )
+                else:
+                    ColorPrint.yellow(f"[{LABEL}] prompt follow-up backup failed error={saved.get('error_code')}")
+        except Exception as exc:  # noqa: BLE001 - a desktop scan failure must not stop the scheduler
+            ColorPrint.yellow(f"[{LABEL}] prompt follow-up failed: {type(exc).__name__}: {exc}")
+            for state in self._fast_prompts.values():
+                if state["due"] <= now:
+                    state["due"] = time.monotonic() + PROMPT_INTERVAL_SECONDS
+        finally:
+            self._pass_lock.release()
+
     def run_pass(self, forced: bool = False, reason: str = REASON_INTERVAL) -> Dict[str, Any]:
         """One backup pass; never raises. Result: success, written, deferred, error_code."""
         if not self._pass_lock.acquire(blocking=forced):
@@ -145,23 +239,15 @@ class TerminalBackupService:
         if self._user_active():
             return self._deferred()
         windows = self._enumerate()
+        self._prune_prompt_states(windows)
         if not windows:
             return {"success": True, "written": False, "terminal_count": 0}
         previous = self._store.previous_signatures()
         exported: List[Dict[str, Any]] = []
         with self._focus.preserved(LABEL):
             for window in windows:
-                entry = self._export(window)
-                if entry.get("text"):
-                    refreshed = self._prompt_handler.handle(
-                        str(window["id"]),
-                        entry["number"],
-                        entry["text"],
-                        lambda window=window: self._export(window).get("text"),
-                    )
-                    if refreshed != entry["text"]:
-                        entry["text"] = refreshed
-                        entry["signature"] = text_digest(refreshed)
+                entry, found_prompt = self._scan_window(window)
+                self._observe_prompt(window, entry, found_prompt)
                 exported.append(entry)
         for entry in exported:
             signature = entry.pop("signature")
@@ -268,7 +354,8 @@ class TerminalBackupService:
         if idle is not None and idle < MIN_IDLE_SECONDS:
             next_due = now + MIN_IDLE_SECONDS - idle
         while not self._stopping():
-            delay = min(DEFER_RETRY_SECONDS, max(0.0, next_due - time.monotonic()))
+            due = next_due if self._paused else min(next_due, self._fast_due())
+            delay = min(DEFER_RETRY_SECONDS, max(0.0, due - time.monotonic()))
             if THREAD_BUS.wait_signal(STOP_SIGNAL, timeout=delay):
                 return
             now = time.monotonic()
@@ -282,8 +369,12 @@ class TerminalBackupService:
                 elif input_at > last_input_at + INPUT_TIMESTAMP_TOLERANCE_SECONDS:
                     last_input_at = input_at
                     next_due = max(now, input_at + MIN_IDLE_SECONDS)
+                    for state in self._fast_prompts.values():
+                        state["due"] = max(now, input_at + MIN_IDLE_SECONDS)
                 if idle < MIN_IDLE_SECONDS:
                     next_due = max(next_due, now + MIN_IDLE_SECONDS - idle)
+                    for state in self._fast_prompts.values():
+                        state["due"] = max(state["due"], now + MIN_IDLE_SECONDS - idle)
             if self._paused:
                 low_battery_armed = True
                 next_due = now + MIN_IDLE_SECONDS
@@ -300,10 +391,14 @@ class TerminalBackupService:
                         last_input_at = time.monotonic() - idle if idle is not None else None
             else:
                 low_battery_armed = True
-            if time.monotonic() < next_due or self._stopping() or (idle is not None and idle < MIN_IDLE_SECONDS):
+            now = time.monotonic()
+            if self._stopping() or (idle is not None and idle < MIN_IDLE_SECONDS):
                 continue
-            result = self.run_pass()
-            next_due = time.monotonic() + (DEFER_RETRY_SECONDS if result.get("deferred") else BACKUP_INTERVAL_SECONDS)
+            if now >= next_due:
+                result = self.run_pass()
+                next_due = time.monotonic() + (DEFER_RETRY_SECONDS if result.get("deferred") else BACKUP_INTERVAL_SECONDS)
+            elif now >= self._fast_due():
+                self._run_fast_pass(now)
             idle = self._idle_seconds()
             last_input_at = time.monotonic() - idle if idle is not None else None
 
