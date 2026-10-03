@@ -610,6 +610,7 @@ terminal: {
       shownCount: 'Showing {{shown}} of {{total}}',
     },
     scheduleClearAllConfirm: 'Clear every pending timer for all terminals?',
+    previewBack: 'Back',
     special: {
       title: 'Terminals in a special state',
       idle: 'idle {{time}}',

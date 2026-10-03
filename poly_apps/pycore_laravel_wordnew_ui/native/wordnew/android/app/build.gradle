@@ -9,6 +9,7 @@ def coreNodeReleaseSigning = [
     keyPassword  : providers.environmentVariable('CORE_NODE_ANDROID_SIGNING_KEY_PASSWORD').orNull,
 ]
 def coreNodeReleaseSigningReady = coreNodeReleaseSigning.values().every { it }
+def coreNodeDebuggableRelease = providers.environmentVariable('CORE_NODE_ANDROID_DEBUGGABLE').orNull == '1'
 
 android {
     namespace = "com.corenode.wordnew"
@@ -46,7 +47,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (coreNodeReleaseSigningReady) {
                 signingConfig = signingConfigs.release
+            } else if (coreNodeDebuggableRelease) {
+                signingConfig = signingConfigs.debug
             }
+            debuggable = coreNodeDebuggableRelease
         }
     }
 }
