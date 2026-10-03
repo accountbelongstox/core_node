@@ -114,20 +114,22 @@
           <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="Auto"/>
-              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="72"/>
               <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="72"/>
               <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="Auto"/>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="LblMacroStartHotkey" Grid.Column="0" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-            <comp:HotkeyInputBox x:Name="TxtMacroStartHotkey" Width="64" HorizontalAlignment="Left" Grid.Column="1" Margin="0,0,10,0"/>
-            <TextBlock x:Name="LblAssistantHotkey" Grid.Column="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-            <comp:HotkeyInputBox x:Name="TxtAssistantHotkey" Width="64" HorizontalAlignment="Left" Grid.Column="3" Margin="0,0,10,0"/>
-            <TextBlock x:Name="LblQuickSwitch" Grid.Column="4" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-            <comp:HotkeyInputBox x:Name="TxtQuickSwitch" Width="64" HorizontalAlignment="Left" Grid.Column="5" Margin="0,0,10,0"/>
-            <Button x:Name="BtnCombatMacroToggle" Grid.Column="6" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CombatMacroToggleCommand}"/>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblMacroStartHotkey" Grid.Column="0" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,4" VerticalAlignment="Center"/>
+            <comp:HotkeyInputBox x:Name="TxtMacroStartHotkey" Grid.Column="1" Margin="0,0,12,4"/>
+            <TextBlock x:Name="LblAssistantHotkey" Grid.Column="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,4" VerticalAlignment="Center"/>
+            <comp:HotkeyInputBox x:Name="TxtAssistantHotkey" Grid.Column="3" Margin="0,0,0,4"/>
+            <TextBlock x:Name="LblQuickSwitch" Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+            <comp:HotkeyInputBox x:Name="TxtQuickSwitch" Grid.Row="1" Grid.Column="1" Margin="0,0,12,0"/>
+            <Button x:Name="BtnCombatMacroToggle" Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3" HorizontalAlignment="Left" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CombatMacroToggleCommand}"/>
           </Grid>
           <WrapPanel Margin="0,6,0,0">
             <CheckBox x:Name="ChkPlaySoundOnSwitch" Margin="0,0,16,0" VerticalAlignment="Center"/>
