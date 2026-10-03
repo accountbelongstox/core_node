@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from pycore.pyctl.terminal.terminal_prompt_detector import ANSI_ESCAPE_PATTERN
@@ -139,13 +140,33 @@ class TerminalAgentWatch:
     def __init__(self, detector: TerminalAgentDetector) -> None:
         self._detector = detector
         self._rules: Dict[int, Tuple[str, Optional[str]]] = {}
+        self._plain: Dict[int, Tuple[str, str, float]] = {}
 
-    def observe(self, number: int, window_id: str, text: Optional[str]) -> None:
+    def observe(self, number: int, window_id: str, text: Optional[str], title: str = "") -> None:
         """Record a scan; a failed export (no text) keeps the previous result."""
-        if text:
-            self._rules[number] = (window_id, self._detector.text_rule(text))
+        if not text:
+            return
+        rule = self._detector.text_rule(text)
+        self._rules[number] = (window_id, rule)
+        if rule is None and not self._detector.title_rule(title):
+            self._plain[number] = (window_id, title, time.monotonic())
+        else:
+            self._plain.pop(number, None)
+
+    def skip_scan(self, number: int, window_id: str, title: str, recheck_seconds: float) -> bool:
+        """A scanned plain terminal (no agent) is skipped while its window and title are unchanged, until the recheck age."""
+        plain = self._plain.get(number)
+        return (
+            plain is not None
+            and plain[0] == window_id
+            and plain[1] == title
+            and time.monotonic() - plain[2] < recheck_seconds
+        )
 
     def prune(self, live: Dict[int, str]) -> None:
+        for number, (window_id, _title, _at) in list(self._plain.items()):
+            if live.get(number) != window_id:
+                self._plain.pop(number, None)
         for number, (window_id, _rule) in list(self._rules.items()):
             if live.get(number) != window_id:
                 self._rules.pop(number, None)

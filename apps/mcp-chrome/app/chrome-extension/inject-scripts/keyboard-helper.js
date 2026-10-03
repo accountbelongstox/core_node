@@ -130,6 +130,38 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
   }
 
   /**
+   * Perform the default edit of Backspace/Delete/Enter, which synthetic key
+   * events never trigger, unless the page cancelled the keydown.
+   */
+  function applyEditingKey(key, element, modifiers) {
+    if (modifiers && (modifiers.ctrlKey || modifiers.metaKey || modifiers.altKey)) return;
+    const isTextControl =
+      element instanceof HTMLTextAreaElement ||
+      (element instanceof HTMLInputElement && typeof element.selectionStart === 'number');
+    if (key === 'Enter') {
+      if (element instanceof HTMLTextAreaElement) insertTextAtCaret(element, '\n');
+      else if (element.isContentEditable) document.execCommand('insertParagraph');
+      return;
+    }
+    if (key !== 'Backspace' && key !== 'Delete') return;
+    if (element.isContentEditable && !isTextControl) {
+      document.execCommand(key === 'Backspace' ? 'delete' : 'forwardDelete');
+      return;
+    }
+    if (!isTextControl) return;
+    let start = element.selectionStart ?? element.value.length;
+    let end = element.selectionEnd ?? element.value.length;
+    if (start === end) {
+      if (key === 'Backspace') start = Math.max(0, start - 1);
+      else end = Math.min(element.value.length, end + 1);
+    }
+    if (start === end) return;
+    const inputType = key === 'Backspace' ? 'deleteContentBackward' : 'deleteContentForward';
+    element.setRangeText('', start, end, 'end');
+    element.dispatchEvent(new InputEvent('input', { inputType, bubbles: true }));
+  }
+
+  /**
    * Simulates a single key press (keydown, (keypress), keyup) for a parsed key.
    * @param { {key: string, code: string, keyCode: number, charCode?: number, modifiers: object} } parsedKeyInfo
    * @param {Element} element - Target element.
@@ -164,6 +196,7 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
         element.dispatchEvent(new KeyboardEvent('keypress', keypressOptions));
       }
 
+      if (kdRes) applyEditingKey(key, element, modifiers);
       element.dispatchEvent(new KeyboardEvent('keyup', eventOptions));
       return { success: true };
     } catch (error) {

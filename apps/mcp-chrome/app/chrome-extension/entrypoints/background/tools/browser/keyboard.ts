@@ -30,7 +30,7 @@ class KeyboardTool extends BaseBrowserToolExecutor {
       keys,
       selector,
       selectorType,
-      delay = TIMEOUTS.KEYBOARD_DELAY,
+      delay: requestedDelay,
       repeat,
       tabId,
       windowId,
@@ -54,6 +54,10 @@ class KeyboardTool extends BaseBrowserToolExecutor {
       if (!tab?.id) {
         return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
       }
+
+      // A hidden tab clamps page timers to >= 1 s, which turns the default
+      // inter-key delay into a second per key: type without delay there.
+      const delay = requestedDelay ?? (tab.active ? TIMEOUTS.KEYBOARD_DELAY : 0);
 
       await this.injectContentScript(tab.id, ['inject-scripts/keyboard-helper.js']);
 

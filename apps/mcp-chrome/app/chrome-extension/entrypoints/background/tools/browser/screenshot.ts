@@ -3,7 +3,7 @@ import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { TIMEOUTS, ERROR_MESSAGES } from '@/common/constants';
-import { delay as waitForDelay } from '@/utils/async';
+import { delay as waitForDelay, withTimeout } from '@/utils/async';
 import { withDebuggerSession } from '@/utils/debugger-session';
 import {
   canvasToDataURL,
@@ -15,6 +15,7 @@ import {
 import { sendFileOperationRequest } from '../../native-file-operation';
 
 const SCREENSHOT_SAVE_TIMEOUT_MS = 30000;
+const CDP_CAPTURE_TIMEOUT_MS = 5000;
 
 // Screenshot-specific constants
 const SCREENSHOT_CONSTANTS = {
@@ -104,7 +105,10 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     const results: any = { base64: null, fileSaved: false };
     let originalScroll = { x: 0, y: 0 };
     const [previousActiveTab] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
-    const useCdpCapture = !fullPage && !selector && (background || typeof args.tabId === 'number');
+    // CDP capture never yields a frame for a hidden (inactive) tab, so only an active
+    // tab of an unfocused window uses it; a hidden tab is briefly activated instead.
+    const useCdpCapture =
+      !fullPage && !selector && tab.active === true && (background || typeof args.tabId === 'number');
     const shouldActivate = !useCdpCapture && previousActiveTab?.id !== tab.id;
 
     try {
@@ -134,7 +138,10 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
         // Visible area only
         this.logInfo('Capturing visible area...');
         finalImageDataUrl = useCdpCapture
-          ? await this._captureViewport(tab.id)
+          ? await this._captureViewport(tab.id).catch((error) => {
+              console.warn('CDP capture failed; using captureVisibleTab:', error);
+              return chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+            })
           : await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
       }
 
@@ -241,10 +248,11 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
   }
 
   private async _captureViewport(tabId: number): Promise<string> {
-    const response = await withDebuggerSession(tabId, async (target) => chrome.debugger.sendCommand(
-      target,
-      'Page.captureScreenshot',
-      { format: 'png', fromSurface: true },
+    // The timeout lets withDebuggerSession detach instead of leaving the debugger attached.
+    const response = await withDebuggerSession(tabId, async (target) => withTimeout(
+      chrome.debugger.sendCommand(target, 'Page.captureScreenshot', { format: 'png', fromSurface: true }),
+      CDP_CAPTURE_TIMEOUT_MS,
+      'Page.captureScreenshot timed out',
     )) as { data?: string };
     if (!response.data) throw new Error('Page.captureScreenshot returned no data');
     return `data:image/png;base64,${response.data}`;

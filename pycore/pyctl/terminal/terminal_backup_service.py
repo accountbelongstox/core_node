@@ -29,7 +29,7 @@ from pycore.pyfoundations.power_state import read_power_state
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_contract import relay_contract
-from pycore.pyutils.common.user_idle import start_keyboard_idle_watch, user_idle_seconds
+from pycore.pyutils.common.user_idle import input_idle_seconds, start_input_idle_watch
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step11_desktop.system_notification import show_system_notification
@@ -43,6 +43,7 @@ LOW_BATTERY_PERCENT = relay_contract.limit("terminal_backup_low_battery_percent"
 MIN_IDLE_SECONDS = relay_contract.limit("terminal_backup_min_idle_seconds")
 DEFER_RETRY_SECONDS = relay_contract.limit("terminal_backup_defer_retry_seconds")
 SETTLE_SECONDS = relay_contract.limit("terminal_backup_settle_seconds")
+PLAIN_RECHECK_SECONDS = relay_contract.limit("terminal_backup_plain_recheck_seconds")
 INPUT_TIMESTAMP_TOLERANCE_SECONDS = 1.0
 SCHEDULER_LOCK_TARGET = APP_DATA_DIR / TERMINAL_BACKUP_DIR_NAME / "scheduler"
 PROMPT_STATE_PATH = APP_DATA_DIR / TERMINAL_BACKUP_DIR_NAME / "prompt_followups.json"
@@ -68,7 +69,7 @@ class TerminalBackupService:
         self,
         terminals: Any = terminal_service,
         store: TerminalBackupStore = terminal_backup_store,
-        idle_seconds: Callable[[], Optional[float]] = user_idle_seconds,
+        idle_seconds: Callable[[], Optional[float]] = input_idle_seconds,
         notify: Callable[[str, str], Any] = show_system_notification,
         focus: FocusGuard = focus_guard,
         prompt_watch: Optional[TerminalPromptWatch] = None,
@@ -87,6 +88,8 @@ class TerminalBackupService:
         self._agent_watch = agent_watch or TerminalAgentWatch(terminal_agent_detector)
         terminals.register_snapshot_decorator(self._agent_watch.decorate_snapshot)
         self._pass_lock = threading.Lock()
+        self._pass_partial: List[Dict[str, Any]] = []
+        self._pass_pending: Optional[List[int]] = None
         self._lease_lock = FileLockManager(SCHEDULER_LOCK_TARGET, verbose=False)
         self._lease: Optional[int] = None
         self._thread: Optional[threading.Thread] = None
@@ -157,7 +160,7 @@ class TerminalBackupService:
             entry["text"] = refreshed
             entry["signature"] = text_digest(refreshed)
         self._resume.observe(entry["number"], str(window["id"]), refreshed)
-        self._agent_watch.observe(entry["number"], str(window["id"]), refreshed)
+        self._agent_watch.observe(entry["number"], str(window["id"]), refreshed, str(window.get("title") or ""))
         return entry, found_prompt or bool(waiting_prompt(refreshed))
 
     def _observe_prompt(
@@ -306,6 +309,8 @@ class TerminalBackupService:
             exported: List[Dict[str, Any]] = []
             with self._focus.preserved(LABEL):
                 for window in due_windows:
+                    if self._user_active(PROMPT_INTERVAL_SECONDS):
+                        break
                     entry, found_prompt = self._scan_window(window)
                     self._observe_prompt(window, entry, found_prompt)
                     signature = entry.pop("signature")
@@ -363,35 +368,61 @@ class TerminalBackupService:
             self._pass_lock.release()
 
     def _pass(self, forced: bool, reason: str) -> Dict[str, Any]:
+        """Scan terminals in order; input pauses the pass and the next idle pass resumes at the interrupted terminal."""
         if self._user_active():
             return self._deferred()
         windows = self._enumerate()
         self._prune_terminal_states(windows)
         if not windows:
+            self._reset_partial_pass()
             return {"success": True, "written": False, "terminal_count": 0}
+        live = {int(window["terminal_number"]): window for window in windows}
+        skipped = [
+            number for number, window in live.items()
+            if self._agent_watch.skip_scan(number, str(window["id"]), str(window.get("title") or ""), PLAIN_RECHECK_SECONDS)
+        ]
+        order = self._pass_pending if self._pass_pending is not None else sorted(live)
+        queue = [live[number] for number in order if number in live and number not in skipped]
+        exported = [entry for entry in self._pass_partial if entry["number"] in live]
         previous = self._store.previous_signatures()
-        exported: List[Dict[str, Any]] = []
+        paused_at: Optional[int] = None
         with self._focus.preserved(LABEL):
-            for window in windows:
+            for index, window in enumerate(queue):
+                if not forced and self._user_active():
+                    paused_at = index
+                    break
                 entry, found_prompt = self._scan_window(window)
                 self._observe_prompt(window, entry, found_prompt, count_miss=False)
+                signature = entry.pop("signature")
+                entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
                 exported.append(entry)
-        for entry in exported:
-            signature = entry.pop("signature")
-            entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
+        if paused_at is not None:
+            self._pass_partial = exported
+            self._pass_pending = [int(window["terminal_number"]) for window in queue[paused_at:]]
+            ColorPrint.blue(
+                f"[{LABEL}] pass paused by input: scanned={len(exported)} remaining={len(self._pass_pending)}; "
+                f"resumes after {MIN_IDLE_SECONDS}s of inactivity"
+            )
+            return {"success": True, "written": False, "deferred": True}
+        self._reset_partial_pass()
         self._alert_waiting_prompts(exported)
         if not forced and not any(entry["changed"] for entry in exported):
-            return {"success": True, "written": False, "terminal_count": len(exported)}
-        saved = self._store.save(exported)
+            return {"success": True, "written": False, "terminal_count": len(exported), "skipped": len(skipped)}
+        saved = self._store.save(exported, carry_numbers=skipped)
         if not saved.get("success"):
             return {**saved, "written": False}
         failed = sum(1 for entry in exported if entry.get("error_code"))
         ColorPrint.green(
-            f"[{LABEL}] backup written reason={reason} terminals={saved['terminal_count']} "
-            f"failed={failed} bytes={saved['total_bytes']} stored={saved['stored_bytes']} path={saved['path']}"
+            f"[{LABEL}] backup written reason={reason} terminals={saved['terminal_count']} scanned={len(exported)} "
+            f"skipped_plain={len(skipped)} failed={failed} bytes={saved['total_bytes']} stored={saved['stored_bytes']} "
+            f"path={saved['path']}"
         )
         self._announce(saved["terminal_count"], saved["total_bytes"], saved["stored_bytes"])
-        return {**saved, "written": True, "failed": failed}
+        return {**saved, "written": True, "failed": failed, "skipped": len(skipped)}
+
+    def _reset_partial_pass(self) -> None:
+        self._pass_partial = []
+        self._pass_pending = None
 
     def _alert_waiting_prompts(self, exported: List[Dict[str, Any]]) -> None:
         for entry in exported:
@@ -429,6 +460,7 @@ class TerminalBackupService:
             "idle_seconds": self._idle_seconds(),
             "min_idle_seconds": MIN_IDLE_SECONDS,
             "prompt_idle_seconds": PROMPT_INTERVAL_SECONDS,
+            "pass_paused_remaining": len(self._pass_pending or []),
             "special_terminals": self._special_terminals(),
         }
 
@@ -471,7 +503,7 @@ class TerminalBackupService:
         if not has_graphical_display():
             ColorPrint.blue(f"[{LABEL}] scheduler idle: {ERROR_NO_DISPLAY}")
             return False
-        start_keyboard_idle_watch()
+        start_input_idle_watch()
         THREAD_BUS.clear_signal(STOP_SIGNAL)
         self._thread = threading.Thread(target=self._run, name="TerminalBackupSchedulerThread", daemon=True)
         self._thread.start()
