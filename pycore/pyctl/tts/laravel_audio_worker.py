@@ -807,6 +807,7 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     # Qwen3-TTS is a managed HTTP server with its own FIFO queue; allow the
     # shared worker fan-out to keep multiple local sentences in flight.
     CONCURRENCY_LIMIT = 3
+    CAPACITY_BUFFER_FACTOR = 2
 
 
 laravel_word_audio_worker = LaravelWordAudioWorker()

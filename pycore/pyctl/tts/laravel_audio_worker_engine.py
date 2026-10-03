@@ -59,6 +59,11 @@ engine_memory_pauses = EngineMemoryPauses()
 class LaravelAudioWorkerEngineMixin:
     """Own the lane engine plan, memory gate and fan-out."""
 
+    # Requests kept in flight per reported native batch slot. A server that
+    # batches only what is pending when a batch starts needs more than one
+    # batch in flight, or staggered lanes run it with batches of one.
+    CAPACITY_BUFFER_FACTOR = 1
+
     def _required_engine(self) -> Optional[str]:
         """Effective pinned engine for this lane.
 
@@ -178,8 +183,8 @@ class LaravelAudioWorkerEngineMixin:
         concurrency = effective_concurrency(kind, self.get_concurrency())
         limit = self._capacity_limit(engine)
         if self.get_concurrency() <= 0 and self._reported_capacity(engine):
-            # Auto fan-out equals a server's reported native batch: the GPU
-            # batches exactly that many requests; more would only wait queued.
+            # Auto fan-out fills a server's reported native batch times the
+            # lane's buffer factor, so the next batch is already queued.
             concurrency = limit
         if self._required_engine() is None:
             usable_count = len(self._usable_engines())
@@ -201,10 +206,12 @@ class LaravelAudioWorkerEngineMixin:
         return max(0, int(capacity.get("parallel") or 0))
 
     def _capacity_limit(self, engine: str) -> int:
-        """Lane cap: the engine's reported native batch (never above
-        MAX_CONCURRENCY), else the lane's CONCURRENCY_LIMIT."""
+        """Lane cap: the engine's reported native batch times the lane's
+        buffer factor (never above MAX_CONCURRENCY), else CONCURRENCY_LIMIT."""
         reported = self._reported_capacity(engine)
-        return min(MAX_CONCURRENCY, reported) if reported else self.CONCURRENCY_LIMIT
+        if not reported:
+            return self.CONCURRENCY_LIMIT
+        return min(MAX_CONCURRENCY, reported * max(1, int(self.CAPACITY_BUFFER_FACTOR)))
 
     def refresh_engine_capacity(self) -> None:
         """Read the planned engine's parallel capacity (one probe per cycle)."""
