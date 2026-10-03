@@ -17,6 +17,7 @@ import {
   type OrchClipIndexEntry,
   type OrchClipStats,
 } from '../../services/orchestration/WordNewOrchClipStore';
+import { wordNewOrchProgressStore } from '../../services/orchestration/WordNewOrchProgressStore';
 import { WfNewCopyButton } from '../WfNewCopyButton';
 import { WfNewPager } from '../WfNewPager';
 import { OrchEmptyBox, OrchSearchField } from '../orch-compose/orchPanels';
@@ -127,6 +128,7 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
 
   const remove = async (item: OrchClipIndexEntry): Promise<void> => {
     await wordNewOrchClipStore.remove([item.resourceId]);
+    await wordNewOrchProgressStore.clear();
     await load();
     onChanged();
   };

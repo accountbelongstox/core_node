@@ -173,16 +173,20 @@ class AudioResourceDelivery:
         return cached if cached is not None else payload
 
     @staticmethod
-    def durable_clip_path(kind: str, path: str) -> str:
+    def durable_clip_path(kind: str, path: str, language: str = "", text: str = "") -> str:
         """Path the ledger may keep for a clip. A retained payload copy is
         deleted once its delivery rows finish, so a ledger entry pointing at it
-        rots into a missing file; its bytes move to a content-addressed clip
-        file first. Any other path is already a durable cache file."""
+        rots into a missing file; the ledger points at the same bytes in the
+        word cache when it holds them, else they move to a content-addressed
+        clip file first. Any other path is already a durable cache file."""
         source = Path(resolve_portable_path(str(path)))
         if not source.is_file() or not is_retained_payload(source):
             return str(path)
         content = source.read_bytes()
         digest = hashlib.sha256(content).hexdigest()
+        cached = find_cached_word(word_text(text) or text, language) if kind == "word" and text else None
+        if cached is not None and cached.is_file() and hashlib.sha256(cached.read_bytes()).hexdigest() == digest:
+            return str(cached)
         target = get_app_cache_dir().resolve() / AUDIO_CLIP_DIR_NAME / kind / digest[:2] / f"{digest}{source.suffix or '.mp3'}"
         if not target.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -208,7 +212,7 @@ class AudioResourceDelivery:
         (``first_namespace`` first, ``skip_namespace`` excluded - e.g. the
         lane's own server, whose lane row carries the clip); ``md5`` is the
         Laravel word identity when the producer has it."""
-        ledger_row = audio_resource_ledger.record(kind, language, text, self.durable_clip_path(kind, path), provider, variant, md5)
+        ledger_row = audio_resource_ledger.record(kind, language, text, self.durable_clip_path(kind, path, language or "", text), provider, variant, md5)
         if ledger_row is None:
             return {"queued": False}
         if self.below_quality_floor(kind, provider):

@@ -37,6 +37,7 @@ None / [] / False on missing data.
 
 import copy
 import json
+import os
 import re
 import shutil
 import time
@@ -51,6 +52,7 @@ from pycore.pyfoundations.system_paths import get_app_data_dir
 from pycore.pyutils.common.keyset_cursor import KeysetKey, keyset_page
 from pycore.pyutils.common.serialized_files import serialized_file
 from pycore.pyctl.audio_orchestration import orch_messages
+from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 
 _AUTH_FILE = "auth.json"
 _BOOKS_CACHE_FILE = "books_cache.json"
@@ -703,6 +705,23 @@ def delete_manifest(task_id: str) -> bool:
     return _delete_json(path)
 
 
+def _remove_unreferenced(directory: Path, held: Set[Path]) -> None:
+    """Remove ``directory`` except the files the clip ledger still names (a
+    cached clip is never deleted with the task that produced it)."""
+    if not held:
+        shutil.rmtree(directory)
+        return
+    for current, _, names in os.walk(directory, topdown=False):
+        for name in names:
+            path = Path(current) / name
+            if path not in held:
+                path.unlink(missing_ok=True)
+        try:
+            os.rmdir(current)
+        except OSError:
+            pass
+
+
 def delete_task_files(task: Dict[str, Any]) -> None:
     """Remove a deleted task's manifest and output directory (segments and
     staging). Pending output deliveries of a deleted task complete as
@@ -714,6 +733,6 @@ def delete_task_files(task: Dict[str, Any]) -> None:
         root = (base_dir() / _OUTPUT_DIR).resolve()
         directory = (root / str(task.get("slug") or "")).resolve()
         if task.get("slug") and directory.parent == root and directory.is_dir():
-            shutil.rmtree(directory)
+            _remove_unreferenced(directory, audio_resource_ledger.paths_under(directory))
     except OSError as exc:
         ColorPrint.yellow(f"[AudioOrch] delete task files failed {task.get('task_id')}: {exc}")

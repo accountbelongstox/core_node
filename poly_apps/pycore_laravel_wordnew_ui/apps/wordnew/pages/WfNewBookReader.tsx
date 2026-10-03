@@ -57,6 +57,9 @@ function chapterTitleFor(c: WfNewBookChapter, activeLang: string, trans: WfNewBo
   return (t as string) || trans('reader.chapterN', { n: c.chapterIndex + 1 });
 }
 
+/** A store write caused by a state updater runs after the render: updaters may execute while React renders. */
+const afterRender = (effect: () => void): void => queueMicrotask(effect);
+
 export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   sourceKey, title, activeTheme, trans, dark, addToast,
 }) => {
@@ -238,8 +241,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const onReaderVariantSelect = useCallback((lang: string, variantKey: string) => {
     setReaderVariantByLang((prev) => {
       const next = { ...prev, [lang]: variantKey };
-      wfNewSettings.setField('readerVariantByLang', next);
-      persistReaderChange();
+      afterRender(() => {
+        wfNewSettings.setField('readerVariantByLang', next);
+        persistReaderChange();
+      });
       return next;
     });
   }, [persistReaderChange]);
@@ -358,12 +363,12 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       setSimul(prefSimul && langs.length > 1 ? prefSimul : false);
       setSequence((prev) => {
         const next = syncPlaySequenceForBook(prev.length ? prev : wfNewSettings.get('readerPlaySequence'), langs);
-        wfNewSettings.setField('readerPlaySequence', next);
+        afterRender(() => wfNewSettings.setField('readerPlaySequence', next));
         return next;
       });
       setSpeedByLang((prev) => {
         const next = syncSpeedByLangForBook({ ...prev, ...wfNewSettings.get('readerSpeedByLang') }, langs);
-        wfNewSettings.setField('readerSpeedByLang', next);
+        afterRender(() => wfNewSettings.setField('readerSpeedByLang', next));
         return next;
       });
       setChapters(res.chapters || []);
@@ -454,8 +459,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       let next: string[];
       if (simul) next = prev.includes(code) ? (prev.length > 1 ? prev.filter((l) => l !== code) : prev) : [...languages.filter((l) => prev.includes(l) || l === code)];
       else next = [code];
-      wfNewSettings.setField('readerLangs', next);
-      persistReaderChange();
+      afterRender(() => {
+        wfNewSettings.setField('readerLangs', next);
+        persistReaderChange();
+      });
       return next;
     });
   };
@@ -467,8 +474,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     persistReaderChange();
     if (!next) setSelectedLangs((prev) => {
       const collapsed = [prev.find((l) => languages.includes(l)) || languages[0]].filter(Boolean) as string[];
-      wfNewSettings.setField('readerLangs', collapsed);
-      persistReaderChange();
+      afterRender(() => {
+        wfNewSettings.setField('readerLangs', collapsed);
+        persistReaderChange();
+      });
       return collapsed;
     });
   };
