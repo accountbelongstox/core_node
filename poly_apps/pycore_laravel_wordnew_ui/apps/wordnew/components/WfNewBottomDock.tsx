@@ -29,7 +29,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
   const tabs = [
     { id: 'home', icon: <Cpu className="w-5 h-5" />, label: trans('nav.home'), color: 'from-blue-500 to-indigo-500', activeTextColor: 'text-blue-500 dark:text-blue-400', pulseColor: 'rgba(59,130,246,0.35)' },
     { id: 'shelf', icon: <Library className="w-5 h-5" />, label: trans('nav.library'), color: 'from-emerald-500 to-teal-500', activeTextColor: 'text-emerald-500 dark:text-emerald-400', pulseColor: 'rgba(16,185,129,0.35)' },
-    { id: 'practice', icon: <GraduationCap className="w-6 h-6 text-white" />, label: trans('nav.practice'), color: 'from-fuchsia-500 via-rose-500 to-pink-500', activeTextColor: 'text-white', pulseColor: 'rgba(236,72,153,0.45)', isCenter: true },
+    { id: 'practice', icon: <GraduationCap className="w-5 h-5 text-white" />, label: trans('nav.practice'), color: 'from-fuchsia-500 via-rose-500 to-pink-500', activeTextColor: 'text-white', pulseColor: 'rgba(236,72,153,0.45)', isCenter: true },
     { id: 'orch-audio', icon: <AudioLines className="w-5 h-5" />, label: trans('orchAudio.title'), color: 'from-cyan-500 to-sky-500', activeTextColor: 'text-cyan-500 dark:text-cyan-400', pulseColor: 'rgba(6,182,212,0.35)' },
     { id: 'settings', icon: <Settings className="w-5 h-5" />, label: trans('nav.settings'), color: 'from-indigo-500 to-violet-600', activeTextColor: 'text-indigo-500 dark:text-indigo-450', pulseColor: 'rgba(99,102,241,0.35)' }
   ] as const;
@@ -60,25 +60,25 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
             dark ? 'bg-slate-950/85 border-white/10 shadow-2xl' : 'bg-white border-zinc-200/80 shadow-xl'
           }`}
         />
-        <div className={`relative isolate px-3 py-2 flex justify-between items-center ${dark ? 'text-zinc-100' : 'text-slate-800'}`}>
+        <div className={`relative isolate px-3 py-1 flex justify-between items-center ${dark ? 'text-zinc-100' : 'text-slate-800'}`}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id || (tab.id === 'home' && isDeepTab);
           
           if ('isCenter' in tab && tab.isCenter) {
             // Render the elevated glorious central Recital Sphere Button
             return (
-              <div key={tab.id} className="relative flex flex-col items-center justify-center -top-3.5 px-2">
+              <div key={tab.id} className="relative flex flex-col items-center justify-center -top-2.5 px-2">
                 {/* Outer Breathing Ring for the Circle */}
                 <style>{DOCK_KEYFRAMES}</style>
                 <div
                   style={{ animation: 'wfnewDockRing 2.5s ease-in-out 4', willChange: 'transform, opacity', WebkitMaskImage: SOFT_EDGE_MASK, maskImage: SOFT_EDGE_MASK }}
-                  className={`absolute w-15 h-15 rounded-full bg-gradient-to-tr ${tab.color} scale-110 -z-10`}
+                  className={`absolute w-13 h-13 rounded-full bg-gradient-to-tr ${tab.color} scale-110 -z-10`}
                 />
                 
                 {/* Main circle button */}
                 <button
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-tr ${tab.color} shadow-[0_4px_20px_rgba(236,72,153,0.4)] cursor-pointer hover:scale-108 active:scale-95 transition-all duration-300 relative group z-10 border-2 ${
+                  className={`w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-tr ${tab.color} shadow-[0_4px_20px_rgba(236,72,153,0.4)] cursor-pointer hover:scale-108 active:scale-95 transition-all duration-300 relative group z-10 border-2 ${
                     isActive ? 'border-white' : 'border-white/40'
                   }`}
                   title={tab.label}
@@ -95,7 +95,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex-1 relative py-3 flex flex-col items-center justify-center rounded-2xl transition-all duration-300 group cursor-pointer"
+              className="flex-1 relative py-2 flex flex-col items-center justify-center rounded-2xl transition-all duration-300 group cursor-pointer"
               title={tab.label}
             >
               {/* Highlight background blob with active theme-specific colored pulse backing */}

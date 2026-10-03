@@ -62,32 +62,32 @@ export const WfNewHomeLabCard: React.FC<WfNewHomeLabCardProps> = ({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}
-      className={`group relative min-w-0 cursor-pointer select-none overflow-hidden rounded-[1.6rem] bg-gradient-to-b ${TONE_CLASSES[tone]} ring-1 ring-inset ring-white/70 dark:ring-white/10 transition-transform duration-300 active:scale-[0.98] ${
-        wide ? 'flex items-center gap-3 p-4 sm:p-5' : 'flex flex-col items-center p-3 pt-4 text-center sm:p-4'
+      className={`group relative min-w-0 cursor-pointer select-none overflow-hidden rounded-[1.1rem] bg-gradient-to-b ${TONE_CLASSES[tone]} ring-1 ring-inset ring-white/70 dark:ring-white/10 transition-transform duration-300 active:scale-[0.98] ${
+        wide ? 'flex items-center gap-2 px-3 py-2.5 sm:p-4' : 'flex flex-col items-center p-2 pt-2.5 text-center sm:p-3'
       } ${className}`}
     >
       {wide ? (
         <>
           <div className="min-w-0 flex-1">
-            <h4 className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-xl">{title}</h4>
-            {description && <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-slate-500 dark:text-slate-300/80">{description}</p>}
+            <h4 className="text-[15px] font-bold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-lg">{title}</h4>
+            {description && <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-500 dark:text-slate-300/80">{description}</p>}
             {action && (
-              <span className="mt-3 inline-flex rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white dark:bg-white dark:text-slate-900">{action}</span>
+              <span className="mt-2 inline-flex rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white dark:bg-white dark:text-slate-900">{action}</span>
             )}
           </div>
-          <Art art={art} icon={icon} tone={tone} size="h-24 w-24 sm:h-28 sm:w-28" />
+          <Art art={art} icon={icon} tone={tone} size="h-16 w-16 sm:h-20 sm:w-20" />
         </>
       ) : (
         <>
-          <Art art={art} icon={icon} tone={tone} size="h-16 w-16 sm:h-20 sm:w-20" />
-          <h4 className="mt-2 line-clamp-2 w-full text-sm font-bold leading-tight tracking-tight text-slate-900 dark:text-white">{title}</h4>
+          <Art art={art} icon={icon} tone={tone} size="h-11 w-11 sm:h-14 sm:w-14" />
+          <h4 className="mt-1.5 line-clamp-2 w-full text-xs font-bold leading-tight tracking-tight text-slate-900 dark:text-white">{title}</h4>
           {description && (
             <p className="mt-1 hidden w-full sm:block">
               <span className="line-clamp-2 text-[11px] leading-snug text-slate-500 dark:text-slate-300/80">{description}</span>
             </p>
           )}
           {action && (
-            <span className="mt-2.5 inline-flex rounded-full bg-slate-900 px-3.5 py-1 text-[11px] font-semibold text-white dark:bg-white dark:text-slate-900">{action}</span>
+            <span className="mt-1.5 inline-flex rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-semibold text-white dark:bg-white dark:text-slate-900">{action}</span>
           )}
         </>
       )}
@@ -97,7 +97,7 @@ export const WfNewHomeLabCard: React.FC<WfNewHomeLabCardProps> = ({
 
 /** The white (dark: glass) tray a bento of cards sits in. */
 export const WfNewHomeBento: React.FC<{ className?: string; children: React.ReactNode }> = ({ className = '', children }) => (
-  <div className={`grid gap-2 rounded-[2rem] bg-white/85 p-2 shadow-[0_10px_34px_-14px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.03] dark:bg-white/[0.04] dark:ring-white/10 ${className}`}>
+  <div className={`grid gap-1.5 rounded-[1.4rem] bg-white/85 p-1.5 shadow-[0_10px_34px_-14px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.03] dark:bg-white/[0.04] dark:ring-white/10 ${className}`}>
     {children}
   </div>
 );

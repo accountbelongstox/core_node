@@ -38,7 +38,7 @@ export const WfNewSectionHeader: React.FC<WfNewSectionHeaderProps> = ({ title, s
   }
   if (variant === 'bento') {
     return (
-      <h3 className={`px-2 text-lg font-bold tracking-tight text-slate-900 dark:text-white ${className}`}>{title}</h3>
+      <h3 className={`px-2 text-[15px] font-bold tracking-tight text-slate-900 dark:text-white ${className}`}>{title}</h3>
     );
   }
   if (variant === 'section') {
