@@ -219,6 +219,7 @@
     "terminal_screenshot_signature_width": 64,
     "terminal_screenshot_signature_height": 36,
     "terminal_screenshot_signature_levels": 16,
+    "terminal_screenshot_focus_slack_percent": 90,
     "terminal_image_upload_bytes": 20971520,
     "terminal_image_retain_count": 200,
     "terminal_image_retain_seconds": 604800,
