@@ -80,7 +80,7 @@ const PROBE_TIMEOUT_MS = 4_000;
 const RECHECK_INTERVAL_MS = 5 * 60_000;
 /** Without a selection, detection runs again at this pace until something answers. */
 const FIRST_RUN_RETRY_MS = 15_000;
-/** After the LAN route was left, detection tries the LAN again after this long. */
+/** After the LAN route was left, or while the selection is unreachable, detection tries the LAN again after this long. */
 const LAN_RETRY_MS = 60_000;
 /** The first-run choice waits at most this long for Laravel's online work-node roster. */
 const WORK_NODE_ROSTER_TIMEOUT_MS = 4_000;
@@ -279,13 +279,16 @@ class WordNewPycoreLinkService {
     setPycoreLanRoute(null);
     pycoreLink.retarget();
     this.publish({ ...this.snapshot, lanRouteUrl: '' });
-    if (!this.lanRetryTimer) {
-      this.lanRetryTimer = setTimeout(() => {
-        this.lanRetryTimer = null;
-        void this.refresh();
-      }, LAN_RETRY_MS);
-    }
+    this.scheduleLanRetry();
     return true;
+  }
+
+  private scheduleLanRetry(): void {
+    if (this.lanRetryTimer) return;
+    this.lanRetryTimer = setTimeout(() => {
+      this.lanRetryTimer = null;
+      void this.refresh();
+    }, LAN_RETRY_MS);
   }
 
   /**
@@ -313,11 +316,17 @@ class WordNewPycoreLinkService {
       this.publish({ ...this.snapshot, candidates: this.candidates() });
     });
     pycoreLink.subscribe(() => {
-      // The LAN went away (e.g. the phone left the Wi-Fi): continue on the selection's own URL.
-      if (pycoreLink.isReconnecting() && this.dropLanRoute()) return;
+      // The LAN went away (e.g. the phone left the Wi-Fi): continue on the selection's own URL;
+      // the selection itself unreachable (e.g. no tailnet): look for its LAN URL again.
+      if (pycoreLink.isReconnecting()) {
+        if (this.dropLanRoute()) return;
+        this.scheduleLanRetry();
+      }
       if (this.snapshot.state === 'idle' || this.snapshot.state === 'probing' || !this.activeUrl()) return;
       this.publish({ ...this.snapshot, state: this.linkState() });
     });
+    // Availability starts with the first subscriber (R7): the first detection also applies the LAN route.
+    void this.refresh();
   }
 
   private linkState(): WordNewPycoreLinkState {
