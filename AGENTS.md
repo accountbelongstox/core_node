@@ -31,7 +31,7 @@
 
 **Pycore:** For work under `pycore`, use `development-guides/PYTHON_PYCORE.md`.
 
-**Terminal auto-confirm (frozen):** pycore answers agent permission prompts with Up/Down arrows + Enter (`terminal_backup_auto_confirm` = `1`, `pycore/pyctl/terminal/terminal_prompt_handler.py`). Ignore it while programming; never disable, gate or change it unless the user's prompt asks.
+**Terminal auto-confirm (frozen):** pycore's detector automatically answers agent permission prompts with Up/Down arrows + Enter (`terminal_backup_auto_confirm` = `1`, `pycore/pyctl/terminal/terminal_prompt_handler.py`); the user owns, enabled and supervises it. Ignore those keys on your own prompts while programming; never disable, gate, bypass or change it unless the user's prompt asks.
 
 **Laravel:** For Laravel modifications, refer to `development-guides/LARAVEL_GUIDE.md`.
 
