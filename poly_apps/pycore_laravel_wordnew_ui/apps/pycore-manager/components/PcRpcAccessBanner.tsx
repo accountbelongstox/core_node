@@ -53,7 +53,9 @@ export const PcRpcAccessBanner: React.FC = () => {
       ? t('rpcAccess.originForbidden', { origin })
       : access.kind === 'origin_not_allowed'
         ? t('rpcAccess.originHint', { origin, ports: access.ports.join(' / ') })
-        : t(RELAY_HINT_KEY);
+        : access.kind === 'lan_page'
+          ? t('rpcAccess.lanPage', { url: access.url })
+          : t(RELAY_HINT_KEY);
 
   return (
     <div className="mx-3 mt-2 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">

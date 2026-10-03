@@ -73,12 +73,27 @@ final class CloudClipboardCtl extends Controller
 
     public function file(Request $request)
     {
+        $route = $request->route();
+        $ext = $route->parameter('ext');
+        $file = null;
+        $inline = false;
+
+        if ($ext !== null) {
+            $request->merge([
+                Contract::get('namespace_query') => (string) $route->parameter('namespace', ''),
+                'entry_id' => $route->parameter('entry_id'), 'file_id' => $route->parameter('file_id'),
+            ]);
+        }
         $request->validate(['entry_id' => 'required|uuid', 'file_id' => 'required|uuid']);
         $file = $this->clipboard->file($request);
+        abort_if($ext !== null && strtolower($ext) !== $this->clipboard->fileExtension($file['metadata']),
+            404, __('cloud_clipboard.file_missing'));
+        $inline = $this->clipboard->inlineMime($file['metadata']);
 
         return response()->download($file['path'], $file['metadata']['original_name'], [
-            'Content-Type' => 'application/octet-stream',
+            'Content-Type' => $inline ? $file['metadata']['mime_type'] : 'application/octet-stream',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
             'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'no-store, private',
-        ]);
+        ], $inline ? 'inline' : 'attachment');
     }
 }

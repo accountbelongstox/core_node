@@ -15,5 +15,8 @@
   "max_files_per_upload": 20,
   "max_file_kb": 20480,
   "event_type": "clipboard.changed",
-  "upload_subdirectory": "cloud-clipboard"
+  "upload_subdirectory": "cloud-clipboard",
+  "file_path": "file",
+  "fallback_file_extension": "bin",
+  "inline_mime_types": ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/avif"]
 }

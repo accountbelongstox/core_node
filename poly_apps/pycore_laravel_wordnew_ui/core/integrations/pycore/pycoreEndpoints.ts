@@ -5,6 +5,7 @@
  * (page origin, remote preset, etc.).
  */
 import { PYCORE_BACKEND_PORT, PYCORE_HTTP_PATHS } from './PycoreNetwork';
+import { isNativeAppShell } from '../../network/NativeShell';
 
 export { PYCORE_BACKEND_PORT };
 
@@ -16,6 +17,7 @@ export function normalizePycorePath(raw: string): string {
 }
 
 export function pycoreHttpProto(): 'http' | 'https' {
+  if (isNativeAppShell()) return 'http';
   return (typeof location !== 'undefined' && location.protocol === 'https:') ? 'https' : 'http';
 }
 
