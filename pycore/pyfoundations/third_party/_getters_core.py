@@ -28,7 +28,7 @@ import platform
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyfoundations.third_party._cache import _lazy_import
+from pycore.pyfoundations.third_party._cache import _lazy_compose, _lazy_import
 from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
 
 
@@ -292,42 +292,30 @@ def get_third_package_uvicorn():
 
 def get_third_package_websockets():
     """Get websockets with its synchronous client module."""
-    package = _lazy_import('websockets', 'import websockets')
-    if package is None:
-        return None
-    package.sync_client = importlib.import_module('websockets.sync.client')
-    return package
+    return _lazy_compose('websockets', 'import websockets', {'sync_client': 'websockets.sync.client'})
 
 
 def get_third_package_fastapi():
     """Get fastapi package (lazy load)"""
-    package = _lazy_import('fastapi', 'import fastapi')
-    if package is None:
-        return None
-    package.encoders = importlib.import_module('fastapi.encoders')
-    package.responses = importlib.import_module('fastapi.responses')
-    package.CORSMiddleware = importlib.import_module(
-        'fastapi.middleware.cors'
-    ).CORSMiddleware
-    package.StaticFiles = importlib.import_module('fastapi.staticfiles').StaticFiles
-    package.Headers = importlib.import_module('starlette.datastructures').Headers
-    package.MultiPartParser = importlib.import_module('starlette.formparsers').MultiPartParser
-    package.MultiPartException = importlib.import_module('starlette.formparsers').MultiPartException
-    return package
+    return _lazy_compose('fastapi', 'import fastapi', {
+        'encoders': 'fastapi.encoders',
+        'responses': 'fastapi.responses',
+        'CORSMiddleware': 'fastapi.middleware.cors:CORSMiddleware',
+        'StaticFiles': 'fastapi.staticfiles:StaticFiles',
+        'Headers': 'starlette.datastructures:Headers',
+        'MultiPartParser': 'starlette.formparsers:MultiPartParser',
+        'MultiPartException': 'starlette.formparsers:MultiPartException',
+    })
 
 
 def get_third_package_mcp():
     """Get the official MCP SDK with its FastMCP server and Streamable HTTP client."""
-    package = _lazy_import('mcp', 'import mcp')
-    if package is None:
-        return None
-    package.types = importlib.import_module('mcp.types')
-    package.FastMCP = importlib.import_module('mcp.server.fastmcp').FastMCP
-    package.ToolError = importlib.import_module('mcp.server.fastmcp.exceptions').ToolError
-    package.streamable_http_client = importlib.import_module(
-        'mcp.client.streamable_http'
-    ).streamable_http_client
-    return package
+    return _lazy_compose('mcp', 'import mcp', {
+        'types': 'mcp.types',
+        'FastMCP': 'mcp.server.fastmcp:FastMCP',
+        'ToolError': 'mcp.server.fastmcp.exceptions:ToolError',
+        'streamable_http_client': 'mcp.client.streamable_http:streamable_http_client',
+    })
 
 
 # Device and streaming packages
