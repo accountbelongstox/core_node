@@ -138,17 +138,12 @@ class TerminalAgentWatch:
 
     def __init__(self, detector: TerminalAgentDetector) -> None:
         self._detector = detector
-        self._rules: Dict[int, Tuple[str, str]] = {}
+        self._rules: Dict[int, Tuple[str, Optional[str]]] = {}
 
     def observe(self, number: int, window_id: str, text: Optional[str]) -> None:
         """Record a scan; a failed export (no text) keeps the previous result."""
-        if not text:
-            return
-        rule = self._detector.text_rule(text)
-        if rule:
-            self._rules[number] = (window_id, rule)
-        else:
-            self._rules.pop(number, None)
+        if text:
+            self._rules[number] = (window_id, self._detector.text_rule(text))
 
     def prune(self, live: Dict[int, str]) -> None:
         for number, (window_id, _rule) in list(self._rules.items()):
@@ -156,10 +151,10 @@ class TerminalAgentWatch:
                 self._rules.pop(number, None)
 
     def detection(self, number: int, window_id: str, title: str) -> Optional[Dict[str, str]]:
-        """{rule, source} for a window: the scanned text wins, the title is the fallback before any scan."""
+        """{rule, source} for a window: a scan of this window decides, the title is the fallback before any scan."""
         scanned = self._rules.get(number)
         if scanned is not None and scanned[0] == window_id:
-            return {"rule": scanned[1], "source": SOURCE_TEXT}
+            return {"rule": scanned[1], "source": SOURCE_TEXT} if scanned[1] else None
         rule = self._detector.title_rule(title)
         return {"rule": rule, "source": SOURCE_TITLE} if rule else None
 
