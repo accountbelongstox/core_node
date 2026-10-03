@@ -35,6 +35,7 @@ Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class librar
 - A ported app keeps reading the same user config file as its Python twin with the identical JSON schema, so both stay interchangeable.
 - Periodic work registers on the app's single 1 s clock `TickDriver` (every tick; flow step %2, smart echo %3, inactive refresh %10); no ad-hoc timers or poll loops. Exceptions: `DispatcherTimer` for UI-local debounce/drain, and a dedicated loop only where the Python twin has its own thread period (e.g. D4 3 s `D4TickLoop`).
 - New shared runtime state is registered in the app's `Core/InMemoryCentersCatalog`.
+- One definition per value: config key paths only in the sub-app library `ConfigKeys` (so the app and its Core share them), shared enum-like values (regions, client states, folder names, file timestamp formats) only once in Core; other places reference them, never re-declare the literal.
 - Config defaults live in one embedded JSON (`Config/default_config.json`) written as the user config on first run and merged (missing keys only) at every start; code never keeps a second set of defaults, every UI change is written back immediately.
 
 ## 4. i18n

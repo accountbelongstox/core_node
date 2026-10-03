@@ -43,6 +43,8 @@ public static class BattlenetStateWatchdog
         {
             _abnormalSinceUtc = null;
             _loginSinceUtc = null;
+            if (s.BattlenetClientState == BattlenetClientState.SecurityCheck)
+                BrowserLoginAutomation.RunOnePoll();
             return;
         }
         if (EnsureRegion(s.BattlenetUiRegion, now)) return;

@@ -135,13 +135,16 @@ for (let round = 0; round < 300; round += 1) {
     if (c.call === 'laravel:generate' && (c.pycore || c.relay || !c.laravel)) fail(`laravel:generate with pycore=${c.pycore} relay=${c.relay} laravel=${c.laravel}`);
     if (c.call === 'pycore:generate' && !c.pycore) fail('pycore:generate while pycore offline');
   }
+  // R8: with no backend answer this run, unresolved clips stay queued for the next run.
+  const answered = Object.keys(result.endpoints).length > 0;
   result.table.keys.forEach((key: string, index: number) => {
     const item = result.table.entry(index);
-    if (item.state !== 'done' && item.state !== 'missing') fail(`${key} ended ${item.state}`);
+    const settled = item.state === 'done' || item.state === 'missing' || (!answered && item.state === 'queued');
+    if (!settled) fail(`${key} ended ${item.state}`);
     if (item.generating && item.state !== 'missing') fail(`${key} generating but ${item.state}`);
   });
   delivered.forEach((n, k) => { if (n > 1) fail(`${k} delivered ${n} times`); });
-  if (result.table.counts().pending !== 0) fail('pending left');
+  if (answered && result.table.counts().pending !== 0) fail('pending left');
 }
 console.log(`\nrandomized drill: 300 rounds, violations=${violations}`);
 ```
