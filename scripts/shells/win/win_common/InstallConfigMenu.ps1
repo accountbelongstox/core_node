@@ -4,7 +4,6 @@ $INSTALL_CONFIG_AUTO_START_SECONDS = 10
 $INSTALL_CONFIG_NOT_APPLICABLE = @(
     @{ Key = 'G'; Title = 'Install Gitea (Git Service)' },
     @{ Key = 'T'; Title = 'Mesh VPN After Installation' },
-    @{ Key = '#'; Title = 'Setup Network Router' },
     @{ Key = 'C'; Title = 'Set Cloud Provider' }
 )
 $INSTALL_CONFIG_PROMPT = 'Enter=Start full installation, 1-{0} or item key (e.g. R)=run only that item, B=Go back to edit, Q=Quit without saving'

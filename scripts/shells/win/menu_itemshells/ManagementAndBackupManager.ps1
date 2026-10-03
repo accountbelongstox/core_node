@@ -28,6 +28,7 @@ $script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCom
 $script:BACKUP_ACTIONS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "BackupManager.ps1"
 $script:REMOTE_CONTROL_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "RemoteControlCommon.ps1"
 $script:REMOTE_CONTROL_HOST_PREINSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step72_InstallRemoteControlHost.ps1"
+$script:NETWORK_ROUTER_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step73_InstallNetworkRouter.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -144,7 +145,8 @@ function Show-SystemToolsMenu {
         @{ Text = "Repair disk (chkdsk /f)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT } },
         @{ Text = "File recovery (winfr / DMDE)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:FILE_RECOVERY_SCRIPT } },
         @{ Text = "Repair Chrome crash (PUP + compat shim / 0xC0000409)"; Action = { Invoke-ChromeRepair } },
-        @{ Text = "Linux dual boot readiness (Fast Startup)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT } }
+        @{ Text = "Linux dual boot readiness (Fast Startup)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT } },
+        @{ Text = "Network router (USB uplink NAT gateway / ICS)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:NETWORK_ROUTER_SCRIPT -ScriptArguments @("menu") } }
     )
 }
 

@@ -8,8 +8,9 @@ from pycore.pyfoundations.service_contract import build_url, host, path_value, p
 DEV_MCP_SERVER_NAME = "pycore-dev"
 DEV_MCP_PATH = path_value("pycore_dev_mcp")
 DEV_MCP_INSTRUCTIONS = (
-    "Read-only development observation: Chrome tabs, Colab cell output, terminal window text. "
-    "No input, keystroke, shell or permission tool exists on this server."
+    "Development observation: Chrome tabs, Colab cell output, terminal window text. "
+    "chrome_screenshot raises the browser window and captures it at OS level (page, tab strip, DevTools). "
+    "No keystroke, shell or permission tool exists on this server."
 )
 FORWARDING_HEADER_PREFIXES = ("x-forwarded-", "tailscale-")
 FORWARDING_HEADERS = frozenset({"forwarded", "x-real-ip", "via", "x-original-forwarded-for"})
@@ -22,6 +23,12 @@ CHROME_READ_TIMEOUT_SECONDS = 180.0
 CHROME_TOOL_TABS = "get_windows_and_tabs"
 CHROME_TOOL_SCREENSHOT = "chrome_screenshot"
 CHROME_TOOL_JAVASCRIPT = "chrome_javascript"
+CHROME_TOOL_SWITCH_TAB = "chrome_switch_tab"
+WINDOW_CAPTURE_THREAD = "DevMcpBrowserCaptureThread"
+WINDOW_CAPTURE_MAX_WIDTH = 1920
+WINDOW_CAPTURE_JPEG_QUALITY = 85
+SCREENSHOT_MODE_WINDOW = "window"
+SCREENSHOT_MODE_PAGE = "page"
 CHROME_SCREENSHOT_WIDTH = 1600
 CHROME_SCREENSHOT_HEIGHT = 1000
 CHROME_JS_TIMEOUT_MS = 30000
