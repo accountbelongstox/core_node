@@ -94,6 +94,10 @@ class AudioLaneLeases:
         if self._book.settle(outcomes):
             self._worker.request_pull()
 
+    def note_cached(self, task: Dict[str, Any]) -> None:
+        """A leased task was served from the local cache (its completion stays out of the throughput hint)."""
+        self._book.note_cached(audio_dedup_key_from_task(task, self._lane))
+
     def due(self) -> bool:
         """Cheap heartbeat check: a renew, release or claim is due."""
         if not self._worker._is_enabled():
@@ -209,7 +213,7 @@ class AudioLaneLeases:
             work_lease_client.release(base_url, worker.worker_id, rows=unspeakable)
             ColorPrint.yellow(f"{worker.log_prefix} released {len(unspeakable)} leased row(s) with no speakable text")
         if self._focus is not None:
-            self._focus.note_claim(len(tasks))
+            self._focus.note_claim(len(tasks), (data.get("progress") or {}).get(self._lane))
         admitted = audio_queue_center.accept_leased(self._lane, tasks)
         retry_after = 0.0 if tasks else float(data.get("retry_after_seconds") or EMPTY_RETRY_AFTER_SECONDS)
         pooled = [entry for entry in data.get("pooled") or [] if isinstance(entry, dict)]

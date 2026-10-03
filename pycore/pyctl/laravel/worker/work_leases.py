@@ -132,6 +132,7 @@ class LeaseBook:
         self._items: Dict[str, Dict[str, Any]] = {}
         self._to_release: List[Dict[str, Any]] = []
         self._done: Deque[float] = deque()
+        self._cached: Set[str] = set()
         self._last_batch = 0
         self._claim_after = 0.0
         self._idle_after = 0.0
@@ -201,9 +202,16 @@ class LeaseBook:
             keys |= lease["keys"]
             for key in lease["keys"]:
                 self._items.pop(key, None)
+                self._cached.discard(key)
             self._lost["leases"] += 1
             self._lost["rows"] += len(lease["keys"])
         return keys
+
+    @serialized_method
+    def note_cached(self, key: str) -> None:
+        """A held item was served from the local cache: its completion is no synthesis, so it stays out of the throughput window."""
+        if key in self._items:
+            self._cached.add(key)
 
     @serialized_method
     def settle(self, outcomes: Dict[str, bool]) -> int:
@@ -212,6 +220,8 @@ class LeaseBook:
         now = time.monotonic()
         settled = 0
         for key, ok in outcomes.items():
+            cached = key in self._cached
+            self._cached.discard(key)
             item = self._items.pop(key, None)
             if item is None:
                 continue
@@ -221,10 +231,10 @@ class LeaseBook:
                 lease["keys"].discard(key)
                 if not lease["keys"]:
                     self._leases.pop(item["lease_id"], None)
-            if ok:
-                self._done.append(now)
-            else:
+            if not ok:
                 self._to_release.append(item)
+            elif not cached:
+                self._done.append(now)
         while self._done and self._done[0] < now - THROUGHPUT_WINDOW_SECONDS:
             self._done.popleft()
         return settled
@@ -252,6 +262,7 @@ class LeaseBook:
         keys = set(self._items)
         self._leases.clear()
         self._items.clear()
+        self._cached.clear()
         self._to_release.clear()
         return keys
 

@@ -121,6 +121,7 @@ class LaravelAudioWorkerExecutionMixin:
             if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                 ok_cache, _why = validate_mp3(out_path)
                 if ok_cache:
+                    info["_cache_hit"] = True
                     return True, out_path, str(info.get("engine_hint") or "") or self._required_engine() or "cache", "", False
             hinted = str(info.get("engine_hint") or "").strip()
             if hinted and not tts_engine_registry.available(hinted):
@@ -164,6 +165,7 @@ class LaravelAudioWorkerExecutionMixin:
             if cached_path is not None and os.path.getsize(str(cached_path)) > 0:
                 ok_cache, _why = validate_mp3(str(cached_path))
                 if ok_cache:
+                    info["_cache_hit"] = True
                     return True, str(cached_path), planned_engine, "", False
             return (
                 False,
@@ -397,6 +399,7 @@ class LaravelAudioWorkerExecutionMixin:
 
             ok, audio_path, provider, err, cleanup = self._resolve_audio(info)
             task["_terminal_provider"] = provider
+            task["_cache_hit"] = bool(info.get("_cache_hit"))
             try:
                 if not ok:
                     self._report_failure(info, provider, err)

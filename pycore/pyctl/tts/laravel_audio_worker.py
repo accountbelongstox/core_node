@@ -163,7 +163,7 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
                     succeeded += 1
                 else:
                     failed += 1
-                worker._record_task_result(success, time.monotonic() - started)
+                worker._record_task_result(success, time.monotonic() - started, bool(task.get("_cache_hit")))
             worker._log_cycle_task_result(task, outcome)
             worker._complete_queued_task(task, outcome)
         finally:
@@ -274,6 +274,8 @@ class BaseLaravelAudioWorker(
         self._total_succeeded = 0
         self._total_failed = 0
         self._total_duration_s = 0.0
+        self._synth_claimed = 0
+        self._synth_duration_s = 0.0
         self._processing = 0
         self._current_tasks: Dict[Any, Dict[str, Any]] = {}
         self._event_log = WorkerEventLog(self.STATE_OWNER_NAME)
@@ -439,6 +441,8 @@ class BaseLaravelAudioWorker(
         The library releases the whole-Queue dedup/Part1 state and records the
         outcome for owners watching the item (orchestration fill progress).
         """
+        if task.get("_cache_hit"):
+            self._leases.note_cached(task)
         audio_queue_center.complete(
             self.QUEUE_KEY,
             task,
@@ -532,13 +536,14 @@ class BaseLaravelAudioWorker(
 
     def capacity_per_hour(self) -> int:
         """Items this lane can synthesize per hour: parallel slots over the
-        mean task time. Seeds the lease batch independently of how much
-        work the node was given (0 before the first task)."""
-        claimed = int(self._total_claimed)
-        if claimed <= 0 or self._total_duration_s <= 0:
+        mean synthesis time (cache-served tasks excluded). Seeds the lease batch
+        independently of how much work the node was given (0 before the first
+        synthesized task)."""
+        claimed = int(self._synth_claimed)
+        if claimed <= 0 or self._synth_duration_s <= 0:
             return 0
         parallel = batch_constants.group_size() if self.LANE == "word" else self._effective_concurrency()[0]
-        return int(max(1, parallel) * 3600.0 * claimed / self._total_duration_s)
+        return int(max(1, parallel) * 3600.0 * claimed / self._synth_duration_s)
 
     def _pop_lane_task(self) -> Optional[Dict[str, Any]]:
         """Pop the next task for a fan-out lane. The lane counts as busy from
@@ -622,6 +627,7 @@ class BaseLaravelAudioWorker(
                             self._record_task_result(
                                 success,
                                 time.monotonic() - float(entry["started"]),
+                                bool(task.get("_cache_hit")),
                             )
                         self._log_cycle_task_result(task, outcome)
                         self._complete_queued_task(task, outcome)
@@ -660,7 +666,7 @@ class BaseLaravelAudioWorker(
                             succeeded += 1
                         else:
                             failed += 1
-                        self._record_task_result(success, time.monotonic() - started)
+                        self._record_task_result(success, time.monotonic() - started, bool(task.get("_cache_hit")))
                     self._log_cycle_task_result(task, outcome)
                     self._complete_queued_task(task, outcome)
                     if concurrency > 1 and len(self._queue) > 1:
