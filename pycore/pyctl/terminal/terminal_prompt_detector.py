@@ -60,14 +60,15 @@ def _anchors_prompt(line: str) -> bool:
 
 
 def prompt_lines(text: str) -> List[str]:
-    """Lines of the prompt at the bottom: from just above the last "1. Yes" to the end when an option or hint closes it, else the short tail."""
+    """Lines of the prompt at the bottom: from just above the last "1. Yes" to the end when an option or hint closes it; a "1. Yes" followed by other output is stale and left out of the short tail."""
     lines = tail_lines(text or "", PROMPT_SCAN_LINE_COUNT, PROMPT_SCAN_CHAR_LIMIT)
     yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
-    if yes_positions:
-        block = lines[max(0, yes_positions[-1] - PROMPT_LOOKBACK_LINES):]
-        if any(_anchors_prompt(line) for line in block[-PROMPT_ANCHOR_LINES:]):
-            return block
-    return lines[-TAIL_LINE_COUNT:]
+    if not yes_positions:
+        return lines[-TAIL_LINE_COUNT:]
+    block = lines[max(0, yes_positions[-1] - PROMPT_LOOKBACK_LINES):]
+    if any(_anchors_prompt(line) for line in block[-PROMPT_ANCHOR_LINES:]):
+        return block
+    return lines[yes_positions[-1] + 1:][-TAIL_LINE_COUNT:]
 
 
 def confirmation_prompt(text: str) -> Optional[str]:

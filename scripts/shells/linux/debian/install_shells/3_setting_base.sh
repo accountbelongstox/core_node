@@ -401,7 +401,7 @@ install_packages_and_configure_git() {
         nano wget openssl libssl-dev zlib1g-dev libbz2-dev \
         libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
         xz-utils tk-dev libffi-dev liblzma-dev make software-properties-common \
-        dnsutils libvips-dev cpulimit expect tar gzip procps
+        dnsutils libvips-dev cpulimit expect tar gzip procps systemd-coredump
     # xdg-utils provides xdg-open (used by pycore to open files/URLs). Idempotent,
     # non-fatal: only installs when xdg-open is missing. Output streams live.
     if ! command -v xdg-open >/dev/null 2>&1; then $USE_SUDO apt-get install -y xdg-utils || true; fi
