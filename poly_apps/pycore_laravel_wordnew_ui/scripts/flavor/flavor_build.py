@@ -21,6 +21,8 @@ import sys
 
 from brand_preflight import APP_ID_PATTERN
 
+NATIVE_LOGGING_BEHAVIOR = "none"
+
 
 def log(msg: str) -> None:
     print(f"[flavor] {msg}")
@@ -64,6 +66,7 @@ def write_capacitor_config(root: str, flavor: dict, server_url: str | None = Non
         "appName": display_name(flavor),
         "webDir": "dist",
         "backgroundColor": background,
+        "loggingBehavior": NATIVE_LOGGING_BEHAVIOR,
         "server": {"androidScheme": "https", "url": server_url, "cleartext": True} if server_url else {"androidScheme": "https"},
         "android": {"path": f"native/{flavor['id']}/android"},
     }

@@ -101,7 +101,10 @@
       "Bash(adb logcat *)",
       "Bash(awk '$9>3')",
       "Bash(python -m pycore.pyfoundations.console_log_reader --minutes 60 --grep \"debian-gpu\" --limit 15)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(awk '$9>3 {print $1,$9,$NF}')",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes)",
+      "PowerShell(Get-ScheduledTask *)"
     ],
     "deny": [],
     "ask": []

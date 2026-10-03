@@ -362,8 +362,8 @@ final class WorkLeaseAssignments
             $key = WorkLeaseLanes::keyColumn($lane);
             $row = $this->plans->connection()->selectOne(
                 'SELECT ' . implode(', ', $select) . " FROM {$this->plans->clipsTable()} pc JOIN {$table} t ON t.{$key} = pc.content_key"
-                . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ?',
-                [$plan->id, $lane, $language]
+                . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.position >= ? AND pc.position < ?',
+                [$plan->id, $lane, $language, min(array_map(static fn (int $index): int => (int) $ranges[$index]['from'], $indexes)), max(array_map(static fn (int $index): int => (int) $ranges[$index]['to'], $indexes))]
             );
             foreach ($indexes as $index) {
                 $figures[$index] = [
