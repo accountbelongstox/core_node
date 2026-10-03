@@ -351,4 +351,8 @@ export const zhLocaleC: Record<string, string> = {
     "foregroundSync.resolve": "加载音频片段：{done} / {total}",
     "foregroundSync.measure": "测量音频片段：{done} / {total}",
     "foregroundSync.watch": "等待生成音频片段",
+    "orchCompose.langName.en": "英文",
+    "orchCompose.langName.zh": "中文",
+    "orchCompose.missingLang.notice": "有 {count} 个句子没有{language}文本，读取该语言的步骤会跳过这些句子。",
+    "orchCompose.missingLang.advice": "建议优先导入双语书籍（原文 + 译文）。单语书籍只能靠机器翻译补全，速度更慢、准确度更低。",
 };

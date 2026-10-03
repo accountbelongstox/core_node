@@ -29,6 +29,8 @@ import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { BookTextStats, BookFileAnalysis } from '@/apps/pycore-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
 import { BookStatTile, formatBookMetric as nf } from '@/shared/books/BookStats';
+import { NoticeBanner } from '@/shared/ui/NoticeBanner';
+import { bookDetectedLanguages, bookIsMonolingual } from '@/shared/books/bookLanguages';
 
 const L = {
   title: 'addDocument.title',
@@ -62,6 +64,8 @@ const L = {
   uploadFailed: 'addDocument.uploadFailed',
   ingestSummary: 'addDocument.ingestSummary',
   submitFailed: 'addDocument.submitFailed',
+  bilingualHint: 'addDocument.bilingualHint',
+  monolingualNotice: 'addDocument.monolingualNotice',
 } as const;
 
 interface DocEntry { path: string; analysis: BookFileAnalysis; }
@@ -251,6 +255,8 @@ const PcAddDocumentView: React.FC = () => {
           {selectedLangs.size === 0 && <p className="mt-2 text-[11px] font-bold text-amber-500">{t(L.needOneLang)}</p>}
         </div>
 
+        <NoticeBanner icon={Languages} tone="sky" className="mb-4">{t(L.bilingualHint)}</NoticeBanner>
+
         {/* drop zone */}
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -295,6 +301,10 @@ const PcAddDocumentView: React.FC = () => {
                   </div>
 
                   {analysis.stats && renderStats(analysis.stats)}
+
+                  {bookIsMonolingual(analysis.stats?.languages) && (
+                    <NoticeBanner icon={Languages} className="mt-2">{t(L.monolingualNotice, { languages: bookDetectedLanguages(analysis.stats?.languages).join(', ').toUpperCase() })}</NoticeBanner>
+                  )}
 
                   {(analysis.preview || analysis.error) && (
                     <div className="mt-2">

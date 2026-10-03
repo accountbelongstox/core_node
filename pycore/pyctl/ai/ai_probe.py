@@ -28,6 +28,7 @@ from pycore.pyctl.ai.ai_key_rotation import mask_key
 from pycore.pyctl.ai.ai_manifest import provider_block_reason, provider_category
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit, rate_status
 from pycore.pyctl.ai.ai_usage_log import record_usage
+from pycore.pyctl.ai.key_health import record_probe
 from pycore.pyctl.ai.ai_gateway_state import _in_cooldown, _on_probe_result
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.ai_cluster.anthropic.anthropic_client import AnthropicClient
@@ -113,18 +114,27 @@ def _probe_image_only(name: str) -> Dict[str, Any]:
     return rec
 
 
+def _record_key_health(name: str, key: str, error: Optional[str]) -> None:
+    try:
+        record_probe(name, key, error)
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[ai_probe] key health for {name} not saved: {exc}")
+
+
 def _probe_live(name: str) -> Dict[str, Any]:
     if is_image_only(name):
         return _probe_image_only(name)
     rec = _blank(name)
     if not rec["configured"]:
         return rec
+    key = first_secret(name)
     started = time.time()
     try:
-        models, error = _PROBES[client_kind(name)](name, first_secret(name))
+        models, error = _PROBES[client_kind(name)](name, key)
     except Exception as exc:  # noqa: BLE001 - provider SDK boundary: a crash is a failed probe
         ColorPrint.yellow(f"[ai_probe] probe {name} crashed: {exc}")
         models, error = [], str(exc)
+    _record_key_health(name, key, error)
     rec["latency_ms"] = round((time.time() - started) * 1000, 1)
     rec["available"] = error is None
     rec["models"] = models[:MAX_MODELS]

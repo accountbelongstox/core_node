@@ -238,6 +238,8 @@ QUEUE_CENTER_WORK_LEASES: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["work_leases"
 # Quality floor: the only engines whose sentence audio is accepted (work_leases.sentence_quality).
 SENTENCE_QUALITY_ENGINES = frozenset(QUEUE_CENTER_WORK_LEASES["sentence_quality"]["accepted_engines"])
 SENTENCE_QUALITY_REJECT_CODE = str(QUEUE_CENTER_WORK_LEASES["sentence_quality"]["reject_code"])
+# Sentence languages a node declares on a claim (work_leases.sentence_language_focus).
+SENTENCE_LANGUAGE_FOCUS: Dict[str, Any] = dict(QUEUE_CENTER_WORK_LEASES["sentence_language_focus"])
 # W7 pycore -> Laravel resource delivery (server identity, diff, offset-v1
 # batch upload); the one source for pyutils/laravel/identity.py and
 # delivery_diff.py.
@@ -821,6 +823,7 @@ def build_empty_queue_contract(
 
 
 __all__ = [
+    "SENTENCE_LANGUAGE_FOCUS",
     "SENTENCE_QUALITY_ENGINES",
     "SENTENCE_QUALITY_REJECT_CODE",
     "CALLBACK_QUEUE_ROLES",

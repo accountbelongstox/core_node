@@ -7,7 +7,7 @@
  * article = one segment), captions and look. Sections collapse to icons. Any
  * plan edit re-resolves the resources (the plan hash changes).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -31,11 +31,13 @@ import {
   defaultOrchConfig,
   ORCH_DEFAULT_MINUTES,
   ORCH_MAX_STEP_TIMES,
+  orchSkippedLanguages,
   orchTaskVirtualBatch,
 } from '../../../../shared/orchestration/orchPlanner';
 import type {
   OrchComposeConfig,
   OrchComposeLanguages,
+  OrchComposeSentence,
   OrchComposeSource,
   OrchComposeStep,
   OrchComposeStepType,
@@ -44,6 +46,7 @@ import type {
 import { WordNewOrchSourcePicker, type OrchSourceChoice } from './WordNewOrchSourcePicker';
 import { WordNewOrchReadStateField } from './WordNewOrchReadStateField';
 import { WfNewOrchSection } from './WfNewOrchSection';
+import { WordNewOrchMissingLanguageNotice } from './WordNewOrchMissingLanguageNotice';
 import { orchFormStyles } from './orchFormStyles';
 import { orchSourceTitle } from './orchTaskView';
 
@@ -54,6 +57,8 @@ interface Props {
   task: OrchComposeTask | null;
   onClose: () => void;
   onSaved: (task: OrchComposeTask) => void;
+  /** The loaded sentences of the edited task (last resolution): the pattern is checked against their languages. */
+  sentences?: OrchComposeSentence[];
 }
 
 type SectionId = 'source' | 'pattern' | 'words' | 'output';
@@ -74,7 +79,7 @@ function sourceSelection(source: OrchComposeSource, config: OrchComposeConfig): 
   return null;
 }
 
-export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, onClose, onSaved }) => {
+export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, onClose, onSaved, sentences }) => {
   const styles = orchFormStyles(theme);
   const [source, setSource] = useState<OrchComposeSource>(task?.source ?? 'vocab_book');
   const [name, setName] = useState(task?.name ?? '');
@@ -122,6 +127,8 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
     }
     setOpen((current) => ({ ...current, source: false, pattern: true }));
   };
+
+  const missingLanguages = useMemo(() => (sentences ? orchSkippedLanguages(sentences, config.pattern) : null), [sentences, config.pattern]);
 
   const valid = name.trim() !== '' && config.pattern.length > 0 && (source === 'vocab_book' ? !!config.book : !!config.prompt);
 
@@ -239,6 +246,7 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
             <RotateCcw className="h-3 w-3" />{trans('orchCompose.step.default')}
           </button>
         </div>
+        <WordNewOrchMissingLanguageNotice skipped={missingLanguages} trans={trans} />
       </WfNewOrchSection>
 
       <WfNewOrchSection

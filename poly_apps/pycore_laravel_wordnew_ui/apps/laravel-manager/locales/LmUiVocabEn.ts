@@ -106,6 +106,8 @@ export const lmEnUiVocab = {
       characters: "Characters",
       selected_count: "({{count}} selected)",
       languages_hint: "Pick the languages to build a correspondence for. The detected primary language is checked and locked.",
+      bilingual_hint: "Prefer bilingual books (original + translation). Monolingual books get machine translation, which is slower and less accurate.",
+      monolingual_notice: "Only one language was detected ({{languages}}). Missing translations are filled by machine translation (slower, less accurate); until then, steps that read the other language are skipped.",
       primary_locked: "Primary (locked)",
       chapters: "Chapters",
       chapters_hint: "Each row shows every checked language side by side; blank = no correspondence.",

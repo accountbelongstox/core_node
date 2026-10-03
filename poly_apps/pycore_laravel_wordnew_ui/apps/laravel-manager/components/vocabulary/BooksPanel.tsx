@@ -22,6 +22,8 @@ import {
   roughBookTextStats as roughLocalStats,
   ROUGH_TEXT_EXTENSIONS,
 } from '@/shared/books/BookStats';
+import { NoticeBanner } from '@/shared/ui/NoticeBanner';
+import { bookDetectedLanguages, bookIsMonolingual } from '@/shared/books/bookLanguages';
 
 const LIST_LIMIT = 100;
 
@@ -604,6 +606,8 @@ const BooksPanel: React.FC = () => {
           {/* language multi-select (>=1 required; primary auto-checked + locked) */}
           {renderLangSelect()}
 
+          <NoticeBanner icon={Languages} tone="sky">{t('uiVocab.booksPanel.bilingual_hint')}</NoticeBanner>
+
           {/* controls row */}
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -701,6 +705,12 @@ const BooksPanel: React.FC = () => {
                         </button>
                       </div>
                     </div>
+
+                    {bookIsMonolingual(doc.aggregate?.languages) && (
+                      <NoticeBanner icon={Languages} className="mt-2">
+                        {t('uiVocab.booksPanel.monolingual_notice', { languages: bookDetectedLanguages(doc.aggregate?.languages).join(', ').toUpperCase() })}
+                      </NoticeBanner>
+                    )}
 
                     {/* ingest progress */}
                     {busy && ingestProgress && (

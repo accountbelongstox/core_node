@@ -106,6 +106,8 @@ export const lmZhUiVocab = {
       characters: "字符数",
       selected_count: "（已选 {{count}} 种）",
       languages_hint: "选择需要建立对照的语言。检测到的主语言已被勾选并锁定。",
+      bilingual_hint: "建议优先导入双语书籍（原文 + 译文）。单语书籍只能靠机器翻译补全，速度更慢、准确度更低。",
+      monolingual_notice: "只检测到一种语言（{{languages}}）。缺失的译文将由机器翻译补全（更慢、准确度更低）；在此之前，读取另一种语言的步骤会被跳过。",
       primary_locked: "主语言（已锁定）",
       chapters: "章节",
       chapters_hint: "每行并排显示所有已勾选的语言；空白表示没有对应内容。",

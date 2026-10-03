@@ -114,6 +114,7 @@ RUNTIME_ENVIRONMENT_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/runtime_envi
 FS_PERM_HELPERS_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/fs_perm_helpers.sh"
 CLIENT_KEY_COMMON_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/client_key_common.sh"
 NOTEBOOK_RUNTIME_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/notebook_runtime.sh"
+AI_KEY_HEALTH_WARNING_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/ai_key_health_warning.sh"
 NOTEBOOK_PLATFORM=""
 NOTEBOOK_EXPORT_IDENTITY=0
 
@@ -616,6 +617,9 @@ if ! PY="$(resolve_python)"; then
 fi
 echo "[OK] Python : $("$PY" --version 2>&1)"
 echo "       path : $PY"
+if [[ -f "$AI_KEY_HEALTH_WARNING_SCRIPT" ]]; then
+    source "$AI_KEY_HEALTH_WARNING_SCRIPT" && ai_key_health_warning "$SCRIPT_DIR" "$PY" || true
+fi
 
 # Export the venv-aware Python runtime env (PIP_USER / PYTHONUSERBASE) for BOTH the
 # prerequisite install and the worker, identical to prepare.sh's policy (single source of

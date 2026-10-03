@@ -41,6 +41,8 @@ import { PcCoreBookPanel } from './PcCoreBookPage';
 import PcSentenceAudioPanel from '../components/PcSentenceAudioPanel';
 import PcBookSourceExplorer from '../components/PcBookSourceExplorer';
 import { BookStatTile, formatBookMetric as nf } from '@/shared/books/BookStats';
+import { NoticeBanner } from '@/shared/ui/NoticeBanner';
+import { bookDetectedLanguages, bookIsMonolingual } from '@/shared/books/bookLanguages';
 import { pcLaravelErrorMessage } from '../utils/pcErrorCodes';
 import { pcT } from '../utils/pcI18n';
 import { usePcDirectOnly } from '../hooks/usePcDirectOnly';
@@ -75,6 +77,8 @@ const L = {
   dropOr: 'books.dropOr',
   upload: 'books.upload',
   uploadHint: 'books.uploadHint',
+  bilingualHint: 'books.bilingualHint',
+  monolingualNotice: 'books.monolingualNotice',
   formats: 'books.formats',
   filterHint: 'books.filterHint',
   allFormats: 'books.allFormats',
@@ -1033,6 +1037,9 @@ const PcBooksPage: React.FC = () => {
         {renderSourceMeta(path)}
         {a.aggregate && renderStats(a.aggregate, path)}
         {a.aggregate && renderLangChips(a.aggregate)}
+        {a.aggregate && bookIsMonolingual(a.aggregate.languages) && (
+          <NoticeBanner icon={Languages} className="mt-2">{t(L.monolingualNotice, { languages: bookDetectedLanguages(a.aggregate.languages).join(', ').toUpperCase() })}</NoticeBanner>
+        )}
         {a.aggregate && renderTopWords(a.aggregate)}
 
         {/* preview toggle + body */}
@@ -1123,6 +1130,8 @@ const PcBooksPage: React.FC = () => {
 
         {/* language multi-select (>=1 required; primary auto-checked + locked) */}
         <div className="mb-4">{renderLangSelect()}</div>
+
+        <NoticeBanner icon={Languages} tone="sky" className="mb-4">{t(L.bilingualHint)}</NoticeBanner>
 
         {!httpConnected && (
           <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">

@@ -39,6 +39,7 @@ DOWNLOAD_READY=false
 GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
 SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/3_setting_base.sh"
 PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/7_project_validator.sh"
+AI_KEY_HEALTH_WARNING_FILE="$COMMON_SHELLS_DIR/ai_key_health_warning.sh"
 DD_SYMLINK_PATH="/usr/local/bin/dd.sh"
 DD_TTY_SETTINGS=""
 SYSTEM_VERSION=""
@@ -358,6 +359,10 @@ main() {
     echo ""
     echo -e "\033[36m[SECRETS] Checking secret files...\033[0m"
     ensure_secret_keys_ready
+
+    if [ -f "$AI_KEY_HEALTH_WARNING_FILE" ]; then
+        bash "$AI_KEY_HEALTH_WARNING_FILE" "$CORE_NODE_ROOT_DIR" || true
+    fi
 
     echo ""
     cleanup_directory_processing_cache

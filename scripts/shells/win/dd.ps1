@@ -1275,6 +1275,15 @@ if (-not $SkipInitialization) {
     $secretEncryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretEncryptionCheck.ps1"
     & powershell -NoProfile -ExecutionPolicy Bypass -File $secretEncryptCheckScript
 
+    # Warn about AI provider keys the last pycore probe rejected (never blocks startup)
+    $aiKeyHealthWarningScript = Join-Path $script:PS_CURENT_DIR "win_common\AiKeyHealthWarning.ps1"
+    try {
+        . $aiKeyHealthWarningScript
+        Write-AiKeyHealthWarning -RepoRoot $Global:CORE_NODE_DIR
+    } catch {
+        Write-ColorMessage -Message "AI key health check skipped: $($_.Exception.Message)" -Type "Info"
+    }
+
     # Idempotent user profile path mapping (.cursor, .devin, and other dot-folders)
     Write-ColorMessage -Message "Applying user profile path mappings (idempotent)..." -Type "Info"
     $pathMappingOk = Invoke-DefaultUserProfilePathMappings -UserName $env:USERNAME

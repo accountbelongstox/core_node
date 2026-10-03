@@ -351,4 +351,8 @@ export const enLocaleC: Record<string, string> = {
     "foregroundSync.resolve": "Loading clips: {done} / {total}",
     "foregroundSync.measure": "Measuring clips: {done} / {total}",
     "foregroundSync.watch": "Waiting for generated clips",
+    "orchCompose.langName.en": "English",
+    "orchCompose.langName.zh": "Chinese",
+    "orchCompose.missingLang.notice": "{count} sentences have no {language} text, so the steps that read it are skipped for them.",
+    "orchCompose.missingLang.advice": "Prefer bilingual books (original + translation). Monolingual books get machine translation, which is slower and less accurate.",
 };
