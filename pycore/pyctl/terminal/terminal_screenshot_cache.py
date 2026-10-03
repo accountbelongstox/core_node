@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyfoundations.serialized_worker import (
@@ -275,7 +275,10 @@ class TerminalScreenshotCache:
         }
         forced = {str(value) for value in force_window_ids if str(value)}
         plan: Dict[str, Dict[str, Any]] = {}
-        for region in regions:
+        # A batch is limited, so the windows that matter most go first: the focused one, then every
+        # window that never had a frame, then the stalest. Id order would let the first windows
+        # refresh forever while the last ones never get their first frame.
+        for region in sorted(regions, key=lambda item: self._capture_priority(str(item["id"]), focused)):
             window_id = str(region["id"])
             if window_id not in demanded and window_id not in forced:
                 continue
@@ -309,6 +312,14 @@ class TerminalScreenshotCache:
             if len(plan) >= TERMINAL_SCREENSHOT_CAPTURE_BATCH:
                 break
         return plan
+
+    def _capture_priority(self, window_id: str, focused: Set[str]) -> Tuple[int, float, str]:
+        entry = self._entries.get(window_id)
+        if window_id in focused:
+            return (0, 0.0, window_id)
+        if entry is None:
+            return (1, 0.0, window_id)
+        return (2, float(entry.get("stored_at") or 0), window_id)
 
     @serialized_method
     def _commit_capture(
