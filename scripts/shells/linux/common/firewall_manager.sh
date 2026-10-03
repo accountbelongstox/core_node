@@ -436,6 +436,15 @@ _firewalld_remove_port() {
 
 # ========== iptables Implementation ==========
 
+# True when INPUT already accepts <protocol> <port>, with or without a comment
+# (iptables -C only matches the exact rule, so a commented rule never matched).
+_iptables_port_rule_exists() {
+    local protocol="$1"
+    local port="$2"
+
+    $USE_SUDO iptables -S INPUT 2>/dev/null | grep -Eq -- "-p ${protocol} .*--dport ${port}( |$).*-j ACCEPT"
+}
+
 _iptables_allow_port() {
     local port="$1"
     local protocol="$2"
@@ -445,16 +454,16 @@ _iptables_allow_port() {
 
     if [[ "$protocol" == "both" ]]; then
         # Check and add TCP rule
-        if ! $USE_SUDO iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null; then
+        if ! _iptables_port_rule_exists tcp "$port"; then
             $USE_SUDO iptables -I INPUT -p tcp --dport "$port" -j ACCEPT -m comment --comment "$comment (TCP)"
         fi
         # Check and add UDP rule
-        if ! $USE_SUDO iptables -C INPUT -p udp --dport "$port" -j ACCEPT 2>/dev/null; then
+        if ! _iptables_port_rule_exists udp "$port"; then
             $USE_SUDO iptables -I INPUT -p udp --dport "$port" -j ACCEPT -m comment --comment "$comment (UDP)"
         fi
     else
         # Check if rule already exists
-        if ! $USE_SUDO iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT 2>/dev/null; then
+        if ! _iptables_port_rule_exists "$protocol" "$port"; then
             $USE_SUDO iptables -I INPUT -p "$protocol" --dport "$port" -j ACCEPT -m comment --comment "$comment"
         else
             echo "[INFO] iptables: Rule already exists for port $port/$protocol"
