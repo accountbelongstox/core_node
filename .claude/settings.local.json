@@ -113,7 +113,10 @@
       "Bash(netstat -ano)",
       "Bash(tasklist)",
       "Bash(timeout 40 node nav.mjs)",
-      "Bash(awk '$9>5 {print $1,$9,$\\(NF-1\\),substr\\($NF,1,40\\)}')"
+      "Bash(awk '$9>5 {print $1,$9,$\\(NF-1\\),substr\\($NF,1,40\\)}')",
+      "Bash(awk '$9>3 {print $1,$9,$6,$NF}')",
+      "Bash(awk '$9>3 {print $1,$9,$\\(NF-1\\),$NF}')",
+      "Bash(awk '$9>10 {print $1,$9,$\\(NF-1\\)}')"
     ],
     "deny": [],
     "ask": []
