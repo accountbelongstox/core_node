@@ -10,8 +10,9 @@ is sent reports ERROR_UNAVAILABLE, so the caller sends the recording as a file p
 from __future__ import annotations
 
 import json
+import os
 import re
-import secrets
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -31,7 +32,8 @@ ERROR_NO_TRANSCRIPT = "terminal_voice_no_transcript"
 LEVEL_GLYPHS = "▁▂▃▄▅▆▇█"
 # An empty Claude Code input box shows a suggestion placeholder (Try "...").
 PLACEHOLDER_PATTERN = re.compile(r'^Try ".*"$')
-WORK_DIR_NAME = "terminal_voice"
+WORK_FILE_PREFIX = "terminal_voice_"
+WORK_FILE_SUFFIX = ".wav"
 MS_PER_SECOND = 1000.0
 
 
@@ -80,9 +82,10 @@ class TerminalVoiceDictation:
 
     def dictate(self, window_id: str, recording: Path) -> Dict[str, Any]:
         config = self._config
-        work_dir = TMP_DIR / WORK_DIR_NAME
-        work_dir.mkdir(parents=True, exist_ok=True)
-        wav_path = work_dir / f"{secrets.token_hex(8)}.wav"
+        # A file of its own in the shared tmp dir: pycore and launchers may run as different users.
+        handle, name = tempfile.mkstemp(prefix=WORK_FILE_PREFIX, suffix=WORK_FILE_SUFFIX, dir=TMP_DIR)
+        os.close(handle)
+        wav_path = Path(name)
         try:
             if virtual_microphone.decode_to_wav(recording, wav_path) is None:
                 return {"success": False, "error_code": ERROR_AUDIO_INVALID}
