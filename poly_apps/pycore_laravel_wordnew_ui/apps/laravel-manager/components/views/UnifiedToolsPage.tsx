@@ -1,15 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ALL_TOOLS, getAllCategories } from '@/apps/laravel-manager/config/tools.config';
-import { ToolDefinition } from '@/apps/laravel-manager/types';
-import { api } from '@/apps/laravel-manager/api';
-import { useToast } from '../admin';
 import {
-  Search, Star, Clock, Play, Loader, Copy, Check, X, ChevronRight, ChevronLeft,
-  Sparkles, Wrench, Code, Layers, Info, BookOpen, Boxes,
-  Lightbulb, History, StarOff, Menu, FileText, FileJson, ArrowLeft, Ban
+  Search, Star, Clock, X, ChevronLeft, Sparkles, Wrench, Layers, Boxes, StarOff, Menu, ArrowLeft, Loader,
 } from 'lucide-react';
-import { downloadAsFile, toJsonString, copyToClipboard, buildExportFilename } from '@/apps/laravel-manager/utils/exportResult';
+import type { ToolDefinition } from '@/apps/laravel-manager/types';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_Z } from '@/shared/styles/overlay';
 import MCPManager from './MCPManager';
 import AITools from './AITools';
 import {
@@ -18,406 +14,217 @@ import {
   getUnifiedToolAccent as getAccent,
   getUnifiedToolCategoryMeta as getCategoryMeta,
   unifiedToolsInputClass as inputCls,
-  type ToolHistory,
   type ToolsViewTab as ViewTab,
 } from './unifiedToolsTheme';
+import {
+  CANONICAL_TOOLS, categoryLabel, getCanonicalTool, listToolCategories, toolLabel, toolSummary,
+} from './tools/toolCatalog';
+import { toolUsageStore, useToolUsage } from './tools/toolUsageStore';
+import { getToolWorkbench } from './tools/toolWorkbenches';
+import GenericToolForm from './tools/GenericToolForm';
+
+const RECENT_LIMIT = 10;
+
+interface OpenTool {
+  tool: ToolDefinition;
+  variant: string;
+}
 
 /**
- * Unified Tools Page — theme-aware, responsive redesign.
- *
- * Layout:
- * - Top bar: title, Tools/Favorites/Recent tabs, search.
- * - Left: category nav (collapsible drawer on mobile, fixed rail on desktop).
- * - Main: responsive card grid to browse tools; clicking a card opens the
- *   tool detail + execute panel. Backend-missing tools are shown muted with a
- *   disabled Execute button.
+ * Tools page shell: tabs, category nav, card grid and the selected tool's own workbench.
+ * Each tool renders its dedicated workbench from `tools/<group>`; GenericToolForm covers the rest.
  */
-
 export function UnifiedToolsPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<ViewTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedTool, setSelectedTool] = useState<ToolDefinition | null>(null);
-  const [showInfoPanel, setShowInfoPanel] = useState(true);
+  const [openTool, setOpenTool] = useState<OpenTool | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { favorites, history } = useToolUsage();
+  const categories = useMemo(() => listToolCategories(), []);
 
-  // Tool execution state
-  const [formData, setFormData] = useState<Record<string, any>>({});
-  const [result, setResult] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const recentTools = useMemo(
+    () => history.slice(0, RECENT_LIMIT).map((h) => getCanonicalTool(h.toolId)).filter((x): x is ToolDefinition => Boolean(x)),
+    [history],
+  );
 
-  // Favorites and history (localStorage-backed — keys preserved)
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    const saved = localStorage.getItem('unified_tool_favorites');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [history, setHistory] = useState<ToolHistory[]>(() => {
-    const saved = localStorage.getItem('unified_tool_history');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const toast = useToast();
-  const categories = getAllCategories();
-
-  // Recent tools (last 10 distinct)
-  const recentTools = history
-    .slice(0, 10)
-    .map(h => ALL_TOOLS[h.toolId])
-    .filter((t): t is ToolDefinition => Boolean(t));
-
-  // Per-category counts for the nav (respects the active tab, ignores search).
   const tabScopedTools = useMemo<ToolDefinition[]>(() => {
-    if (activeTab === 'favorites') return Object.values(ALL_TOOLS).filter(t => favorites.includes(t.id));
+    if (activeTab === 'favorites') return CANONICAL_TOOLS.filter((tool) => favorites.includes(tool.id));
     if (activeTab === 'recent') return recentTools;
-    return Object.values(ALL_TOOLS);
-  }, [activeTab, favorites, history]);
+    return CANONICAL_TOOLS;
+  }, [activeTab, favorites, recentTools]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    tabScopedTools.forEach(t => { counts[t.category] = (counts[t.category] || 0) + 1; });
+    tabScopedTools.forEach((tool) => { counts[tool.category] = (counts[tool.category] || 0) + 1; });
     return counts;
   }, [tabScopedTools]);
 
-  // Tools shown in the grid: tab + category + search filters.
   const gridTools = useMemo<ToolDefinition[]>(() => {
     let tools = tabScopedTools;
-    if (selectedCategory !== 'all') tools = tools.filter(t => t.category === selectedCategory);
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      tools = tools.filter(t =>
-        t.name.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        t.category.toLowerCase().includes(q)
-      );
+    if (selectedCategory !== 'all') tools = tools.filter((tool) => tool.category === selectedCategory);
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      tools = tools.filter((tool) =>
+        [tool.name, tool.description, tool.category, toolLabel(t, tool), toolSummary(t, tool), categoryLabel(t, tool.category)]
+          .some((text) => text.toLowerCase().includes(q)));
     }
     return tools;
-  }, [tabScopedTools, selectedCategory, searchQuery]);
+  }, [tabScopedTools, selectedCategory, searchQuery, t]);
 
-  // Toggle favorite
-  const toggleFavorite = (toolId: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setFavorites(prev => {
-      const next = prev.includes(toolId) ? prev.filter(id => id !== toolId) : [...prev, toolId];
-      localStorage.setItem('unified_tool_favorites', JSON.stringify(next));
-      return next;
-    });
-  };
-
-  // Add to history
-  const addToHistory = (tool: ToolDefinition, input: any, output: any) => {
-    setHistory(prev => {
-      const next = [
-        { toolId: tool.id, toolName: tool.name, timestamp: Date.now(), input, output },
-        ...prev.filter(h => h.toolId !== tool.id)
-      ].slice(0, 50);
-      localStorage.setItem('unified_tool_history', JSON.stringify(next));
-      return next;
-    });
-  };
-
-  // Open a tool's detail panel
-  const handleToolSelect = (tool: ToolDefinition) => {
-    setSelectedTool(tool);
-    setFormData({});
-    setResult(null);
-    setError(null);
+  const selectTool = (tool: ToolDefinition) => {
+    const canonical = getCanonicalTool(tool.id) ?? tool;
+    const variant = history.find((h) => h.toolId === canonical.id)?.variant ?? canonical.id;
+    setOpenTool({ tool: canonical, variant });
     setMobileNavOpen(false);
   };
 
-  const handleInputChange = (fieldName: string, value: any) => {
-    setFormData(prev => ({ ...prev, [fieldName]: value }));
+  const pickCategory = (category: string) => {
+    setSelectedCategory(category);
+    setOpenTool(null);
+    setMobileNavOpen(false);
   };
 
-  // Execute tool (contract preserved: const [m,fn]=apiMethod.split('.'); api[m][fn](formData))
-  const executeTool = async () => {
-    if (!selectedTool || selectedTool.unavailable) return;
+  const navButtonCls = (active: boolean, activeCls: string) =>
+    `w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+      active ? activeCls : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+    }`;
 
-    setIsLoading(true);
-    setError(null);
-    setResult(null);
+  const countBadge = (count: number) => (
+    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300">{count}</span>
+  );
 
-    try {
-      const [moduleName, methodName] = selectedTool.apiMethod.split('.');
-      const apiModule = (api as any)[moduleName];
-
-      if (!apiModule || typeof apiModule[methodName] !== 'function') {
-        throw new Error(t('uiTools.page.api_method_not_found', { method: selectedTool.apiMethod }));
-      }
-
-      const response = await apiModule[methodName](formData);
-
-      if (response.success) {
-        setResult(response.data);
-        addToHistory(selectedTool, formData, response.data);
-        toast.success(t('uiTools.page.executed_successfully', { name: selectedTool.name }));
-      } else {
-        setError(response.message || t('uiTools.page.operation_failed'));
-        toast.error(response.message || t('uiTools.page.operation_failed'));
-      }
-    } catch (err: any) {
-      const errorMsg = err.message || t('uiTools.page.error_occurred');
-      setError(errorMsg);
-      toast.error(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getResultAsText = (): string =>
-    typeof result === 'string' ? result : toJsonString(result);
-
-  const copyResult = async () => {
-    if (!result) return;
-    const ok = await copyToClipboard(getResultAsText());
-    if (ok) {
-      setCopied(true);
-      toast.success(t('uiTools.page.copied_to_clipboard'));
-      setTimeout(() => setCopied(false), 2000);
-    } else {
-      toast.error(t('uiTools.page.copy_failed'));
-    }
-  };
-
-  const exportResultAsJson = () => {
-    if (!result) return;
-    const toolId = selectedTool?.id || 'result';
-    downloadAsFile(toJsonString(result), buildExportFilename(toolId, 'json'), 'application/json');
-    toast.success(t('uiTools.page.exported_json'));
-  };
-
-  const exportResultAsTxt = () => {
-    if (!result) return;
-    const toolId = selectedTool?.id || 'result';
-    downloadAsFile(getResultAsText(), buildExportFilename(toolId, 'txt'), 'text/plain');
-    toast.success(t('uiTools.page.exported_txt'));
-  };
-
-  // Render a dynamic form field (enum→select, number→number, boolean→checkbox,
-  // file→file, else textarea). Contract preserved.
-  const renderFormField = (fieldName: string, fieldSchema: any) => {
-    const value = formData[fieldName] ?? '';
-    const isRequired = selectedTool?.inputSchema.required?.includes(fieldName);
-    const label = (fieldSchema.title as string) ||
-      fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-
-    return (
-      <div key={fieldName} className="space-y-1.5">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-          {label}
-          {isRequired && <span className="text-rose-500 ml-1">*</span>}
-        </label>
-
-        {fieldSchema.enum ? (
-          <select
-            value={value}
-            onChange={(e) => handleInputChange(fieldName, e.target.value)}
-            className={inputCls}
-          >
-            <option value="">{t('uiTools.page.select_option')}</option>
-            {fieldSchema.enum.map((option: any) => (
-              <option key={String(option)} value={option}>{String(option)}</option>
-            ))}
-          </select>
-        ) : fieldSchema.type === 'number' ? (
-          <input
-            type="number"
-            value={value}
-            onChange={(e) => handleInputChange(fieldName, e.target.value === '' ? '' : parseFloat(e.target.value))}
-            className={inputCls}
-            placeholder={t('uiTools.page.enter_field', { label: label.toLowerCase() })}
-          />
-        ) : fieldSchema.type === 'boolean' ? (
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={!!value}
-              onChange={(e) => handleInputChange(fieldName, e.target.checked)}
-              className="w-4 h-4 rounded text-indigo-600 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-indigo-500 cursor-pointer"
-            />
-            <span className="text-sm text-slate-600 dark:text-slate-300">{t('uiTools.page.enable')}</span>
-          </label>
-        ) : fieldSchema.type === 'file' ? (
-          <input
-            type="file"
-            accept={fieldSchema.accept}
-            onChange={(e) => handleInputChange(fieldName, e.target.files?.[0])}
-            className="w-full px-3 py-2 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 file:cursor-pointer"
-          />
-        ) : (
-          <textarea
-            value={value}
-            onChange={(e) => handleInputChange(fieldName, e.target.value)}
-            rows={3}
-            className={inputCls + ' resize-none'}
-            placeholder={t('uiTools.page.enter_field_ellipsis', { label: label.toLowerCase() })}
-          />
-        )}
-      </div>
-    );
-  };
-
-  // ---- Category nav (shared between desktop rail + mobile drawer) ----
-  // A render function (not a nested component) so the nav is NOT remounted on
-  // every keystroke/state change.
   const renderCategoryNav = () => (
     <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-      <button
-        onClick={() => { setSelectedCategory(AI_TOOLS_CATEGORY); setSelectedTool(null); setMobileNavOpen(false); }}
-        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-          selectedCategory === AI_TOOLS_CATEGORY
-            ? 'bg-fuchsia-50 dark:bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 ring-1 ring-fuchsia-500/30'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
-        }`}
-      >
+      <button onClick={() => pickCategory(AI_TOOLS_CATEGORY)}
+        className={navButtonCls(selectedCategory === AI_TOOLS_CATEGORY, 'bg-fuchsia-50 dark:bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 ring-1 ring-fuchsia-500/30')}>
         <Sparkles className="w-4 h-4 flex-shrink-0" />
         <span className="flex-1 text-left">{t('uiTools.page.nav_ai_tools')}</span>
       </button>
-
-      <button
-        onClick={() => { setSelectedCategory('all'); setMobileNavOpen(false); }}
-        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-          selectedCategory === 'all'
-            ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
-        }`}
-      >
+      <button onClick={() => pickCategory('all')}
+        className={navButtonCls(selectedCategory === 'all', 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30')}>
         <Layers className="w-4 h-4 flex-shrink-0" />
         <span className="flex-1 text-left">{t('uiTools.page.nav_all_tools')}</span>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300">
-          {tabScopedTools.length}
-        </span>
+        {countBadge(tabScopedTools.length)}
       </button>
-
       {categories
-        .filter(cat => (categoryCounts[cat] || 0) > 0)
-        .sort((a, b) => a.localeCompare(b))
-        .map(category => {
+        .filter((cat) => (categoryCounts[cat] || 0) > 0)
+        .sort((a, b) => categoryLabel(t, a).localeCompare(categoryLabel(t, b)))
+        .map((category) => {
           const meta = getCategoryMeta(category);
           const accent = getAccent(meta.accent);
           const Icon = meta.icon;
-          const isSelected = selectedCategory === category;
           return (
-            <button
-              key={category}
-              onClick={() => { setSelectedCategory(category); setMobileNavOpen(false); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                isSelected
-                  ? `${accent.chip} ring-1 ${accent.ring}`
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
+            <button key={category} onClick={() => pickCategory(category)}
+              className={navButtonCls(selectedCategory === category, `${accent.chip} ring-1 ${accent.ring}`)}>
               <Icon className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1 text-left truncate">{category}</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300">
-                {categoryCounts[category]}
-              </span>
+              <span className="flex-1 text-left truncate">{categoryLabel(t, category)}</span>
+              {countBadge(categoryCounts[category])}
             </button>
           );
         })}
-
-      {/* MCP Server utilities (screenshots + placeholder), embedded from the
-          former #/mcp tab. */}
-      <button
-        onClick={() => { setSelectedCategory(MCP_TOOLS_CATEGORY); setSelectedTool(null); setMobileNavOpen(false); }}
-        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-          selectedCategory === MCP_TOOLS_CATEGORY
-            ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
-        }`}
-      >
+      <button onClick={() => pickCategory(MCP_TOOLS_CATEGORY)}
+        className={navButtonCls(selectedCategory === MCP_TOOLS_CATEGORY, 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30')}>
         <Boxes className="w-4 h-4 flex-shrink-0" />
         <span className="flex-1 text-left">{t('uiTools.page.nav_mcp_server')}</span>
       </button>
     </nav>
   );
 
-  // ---- Tool card (grid browse view) ----
-  // Render function (not a nested component) so cards aren't remounted on every
-  // keystroke. The card is a focusable <div> (role=button) so the favorite
-  // <button> can nest inside it without invalid nested-interactive markup.
   const renderToolCard = (tool: ToolDefinition) => {
     const meta = getCategoryMeta(tool.category);
     const accent = getAccent(meta.accent);
     const Icon = meta.icon;
     const isFav = favorites.includes(tool.id);
     return (
-      <div
-        key={tool.id}
-        role="button"
-        tabIndex={0}
-        onClick={() => handleToolSelect(tool)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToolSelect(tool); } }}
+      <div key={tool.id} role="button" tabIndex={0} onClick={() => selectTool(tool)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTool(tool); } }}
         className={`group relative cursor-pointer text-left flex flex-col gap-3 p-4 rounded-xl border transition-all
           bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60
           hover:shadow-md hover:-translate-y-0.5 hover:border-indigo-300 dark:hover:border-indigo-500/50
-          focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500
-          ${tool.unavailable ? 'opacity-70' : ''}`}
-      >
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${tool.unavailable ? 'opacity-70' : ''}`}>
         <div className="flex items-start justify-between">
-          <div className={`p-2.5 rounded-lg ${accent.iconBg}`}>
-            <Icon className="w-5 h-5" />
-          </div>
-          <button
-            type="button"
-            onClick={(e) => toggleFavorite(tool.id, e)}
+          <div className={`p-2.5 rounded-lg ${accent.iconBg}`}><Icon className="w-5 h-5" /></div>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toolUsageStore.toggleFavorite(tool.id); }}
             className="p-1.5 -m-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-            title={isFav ? t('uiTools.page.favorite_remove') : t('uiTools.page.favorite_add')}
-          >
+            title={isFav ? t('uiTools.page.favorite_remove') : t('uiTools.page.favorite_add')}>
             <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : 'text-slate-300 dark:text-slate-600 group-hover:text-slate-400'}`} />
           </button>
         </div>
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">{tool.name}</h3>
-            {tool.unavailable && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400">
-                <Ban className="w-2.5 h-2.5" /> {t('uiTools.page.badge_soon')}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{tool.description}</p>
+          <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">{toolLabel(t, tool)}</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{toolSummary(t, tool)}</p>
         </div>
         <span className={`mt-auto inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${accent.chip}`}>
-          {tool.category}
+          {categoryLabel(t, tool.category)}
         </span>
       </div>
     );
   };
 
-  const tabBtn = (tab: ViewTab, label: string, Icon: any, count: number, activeCls: string) => (
-    <button
-      onClick={() => setActiveTab(tab)}
+  const renderWorkbench = ({ tool, variant }: OpenTool) => {
+    const meta = getCategoryMeta(tool.category);
+    const accent = getAccent(meta.accent);
+    const Icon = meta.icon;
+    const Workbench = getToolWorkbench(tool.id);
+    const lastRun = toolUsageStore.lastRun(tool.id);
+    const isFav = favorites.includes(tool.id);
+    return (
+      <section className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/30">
+          <button onClick={() => setOpenTool(null)} title={t('uiTools.page.back_to_tools')}
+            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className={`p-2 rounded-lg ${accent.iconBg}`}><Icon className="w-4 h-4" /></div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">{toolLabel(t, tool)}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{toolSummary(t, tool)}</p>
+          </div>
+          <button onClick={() => toolUsageStore.toggleFavorite(tool.id)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            title={isFav ? t('uiTools.page.favorite_remove') : t('uiTools.page.favorite_add')}>
+            <Star className={`w-5 h-5 ${isFav ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <Suspense fallback={(
+            <div className="flex items-center justify-center gap-2 py-20 text-sm text-slate-500">
+              <Loader className="w-4 h-4 animate-spin" />{t('uiTools.workbench.loading')}
+            </div>
+          )}>
+            {Workbench
+              ? <Workbench key={`${tool.id}:${variant}`} tool={tool} variant={variant} lastRun={lastRun} />
+              : <GenericToolForm key={`${tool.id}:${variant}`} tool={tool} variant={variant} lastRun={lastRun} />}
+          </Suspense>
+        </div>
+      </section>
+    );
+  };
+
+  const tabBtn = (tab: ViewTab, label: string, Icon: typeof Layers, count: number, activeCls: string) => (
+    <button onClick={() => { setActiveTab(tab); setOpenTool(null); }}
       className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-        activeTab === tab
-          ? activeCls
-          : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
-      }`}
-    >
+        activeTab === tab ? activeCls : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
+      }`}>
       <Icon className={`w-4 h-4 ${tab === 'favorites' && activeTab === tab ? 'fill-current' : ''}`} />
       <span className="hidden sm:inline">{label}</span>
       <span className="px-1.5 py-0.5 bg-black/10 dark:bg-white/15 rounded-full text-xs">{count}</span>
     </button>
   );
 
+  const emptyTitle = activeTab === 'favorites' ? 'empty_favorites_title' : activeTab === 'recent' ? 'empty_recent_title' : 'empty_search_title';
+  const emptyHint = activeTab === 'favorites' ? 'empty_favorites_hint'
+    : activeTab === 'recent' ? 'empty_recent_hint' : searchQuery ? 'empty_search_hint' : 'empty_category_hint';
+  const EmptyIcon = activeTab === 'favorites' ? StarOff : activeTab === 'recent' ? Clock : Search;
+
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
-      {/* Top bar */}
       <header className="flex-shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-3 px-4 sm:px-6 py-3">
-          {/* Mobile nav toggle */}
-          <button
-            onClick={() => setMobileNavOpen(true)}
-            className="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-            title={t('uiTools.page.categories')}
-          >
+          <button onClick={() => setMobileNavOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title={t('uiTools.page.categories')}>
             <Menu className="w-5 h-5" />
           </button>
-
-          {/* Title */}
           <div className="flex items-center gap-2.5 mr-auto">
             <div className="relative">
               <Wrench className="w-7 h-7 text-indigo-500" />
@@ -425,43 +232,30 @@ export function UnifiedToolsPage() {
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">{t('uiTools.page.title')}</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t('uiTools.page.tools_count', { count: Object.keys(ALL_TOOLS).length })}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('uiTools.page.tools_count', { count: CANONICAL_TOOLS.length })}</p>
             </div>
           </div>
-
-          {/* Search */}
           <div className="relative flex-1 sm:flex-none order-2 sm:order-none min-w-[160px] sm:min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('uiTools.page.search_placeholder')}
-              className={inputCls + ' pl-9 sm:w-60'}
-            />
+            <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setOpenTool(null); }}
+              placeholder={t('uiTools.page.search_placeholder')} className={inputCls + ' pl-9 sm:w-60'} />
             {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
-              >
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
                 <X className="w-3.5 h-3.5 text-slate-400" />
               </button>
             )}
           </div>
         </div>
-
         <nav className="flex justify-center border-t border-slate-200/80 dark:border-slate-800/80 px-4 py-2">
           <div className="flex items-center justify-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800/60 p-1">
-            {tabBtn('all', t('uiTools.page.tab_tools'), Layers, Object.keys(ALL_TOOLS).length, 'bg-indigo-600 text-white shadow-sm')}
+            {tabBtn('all', t('uiTools.page.tab_tools'), Layers, CANONICAL_TOOLS.length, 'bg-indigo-600 text-white shadow-sm')}
             {tabBtn('favorites', t('uiTools.page.tab_favorites'), Star, favorites.length, 'bg-amber-500 text-white shadow-sm')}
             {tabBtn('recent', t('uiTools.page.tab_recent'), Clock, history.length, 'bg-purple-600 text-white shadow-sm')}
           </div>
         </nav>
       </header>
 
-      {/* Body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Desktop category rail */}
         <aside className="hidden lg:flex w-64 xl:w-72 flex-col border-r border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
             <Layers className="w-4 h-4 text-indigo-500" />
@@ -470,319 +264,56 @@ export function UnifiedToolsPage() {
           {renderCategoryNav()}
         </aside>
 
-        {/* Mobile drawer */}
         {mobileNavOpen && (
-          <div className="lg:hidden fixed inset-0 z-40 flex">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setMobileNavOpen(false)} />
-            <aside className="relative w-72 max-w-[80%] flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-xl animate-in slide-in-from-left duration-200">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-indigo-500" />
-                  <h2 className="font-semibold text-sm">{t('uiTools.page.categories')}</h2>
+          <Portal>
+            <div className={`lg:hidden fixed inset-0 ${OVERLAY_Z.modal} flex`}>
+              <div className="absolute inset-0 bg-black/50" onClick={() => setMobileNavOpen(false)} />
+              <aside className="relative w-72 max-w-[85%] h-full flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 shadow-xl animate-in slide-in-from-left duration-200">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-indigo-500" />
+                    <h2 className="font-semibold text-sm">{t('uiTools.page.categories')}</h2>
+                  </div>
+                  <button onClick={() => setMobileNavOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button onClick={() => setMobileNavOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              {renderCategoryNav()}
-            </aside>
-          </div>
+                {renderCategoryNav()}
+              </aside>
+            </div>
+          </Portal>
         )}
 
-        {/* Main area: MCP server panel OR grid browse OR tool detail */}
         <main className="flex-1 flex overflow-hidden">
           {selectedCategory === AI_TOOLS_CATEGORY ? (
-            <section className="flex-1 overflow-hidden">
-              <AITools />
-            </section>
+            <section className="flex-1 overflow-hidden"><AITools /></section>
           ) : selectedCategory === MCP_TOOLS_CATEGORY ? (
-            <section className="flex-1 overflow-auto p-4 sm:p-6">
-              <MCPManager allowedTabs={['screenshots', 'placeholder']} />
-            </section>
-          ) : selectedTool ? (
-            <>
-              {/* Detail + execute panel */}
-              <section className="flex-1 flex flex-col overflow-hidden">
-                {/* Detail header */}
-                <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/30">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <button
-                        onClick={() => setSelectedTool(null)}
-                        className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-2"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" /> {t('uiTools.page.back_to_tools')}
-                      </button>
-                      <div className="flex items-center gap-2.5 mb-1.5">
-                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">{selectedTool.name}</h2>
-                        <button
-                          onClick={(e) => toggleFavorite(selectedTool.id, e)}
-                          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          <Star className={`w-5 h-5 ${favorites.includes(selectedTool.id) ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
-                        </button>
-                        {selectedTool.unavailable && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400">
-                            <Ban className="w-3 h-3" /> {t('uiTools.page.badge_unavailable')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{selectedTool.description}</p>
-                      {(() => {
-                        const meta = getCategoryMeta(selectedTool.category);
-                        const accent = getAccent(meta.accent);
-                        const Icon = meta.icon;
-                        return (
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${accent.chip}`}>
-                            <Icon className="w-3.5 h-3.5" />
-                            {selectedTool.category}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setShowInfoPanel(!showInfoPanel)}
-                        className={`hidden xl:inline-flex p-2 rounded-lg transition-all ${
-                          showInfoPanel ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                        title={t('uiTools.page.toggle_info_panel')}
-                      >
-                        <Info className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => setSelectedTool(null)}
-                        className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                      >
-                        <X className="w-5 h-5 text-slate-400" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Form + result */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-                  <div className="max-w-3xl mx-auto space-y-5">
-                    {selectedTool.unavailable && (
-                      <div className="rounded-xl p-4 border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
-                        <div className="flex items-start gap-3">
-                          <Ban className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                          <p className="text-sm text-amber-700 dark:text-amber-300">
-                            {t('uiTools.page.unavailable_notice')}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Input */}
-                    <div className="rounded-xl p-5 border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40">
-                      <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-slate-900 dark:text-white">
-                        <Code className="w-4 h-4 text-indigo-500" />
-                        {t('uiTools.common.input')}
-                      </h3>
-                      <div className="space-y-4">
-                        {Object.keys(selectedTool.inputSchema.properties || {}).length === 0 ? (
-                          <p className="text-sm text-slate-500 dark:text-slate-400">{t('uiTools.page.no_parameters')}</p>
-                        ) : (
-                          Object.entries(selectedTool.inputSchema.properties || {}).map(([fieldName, fieldSchema]) =>
-                            renderFormField(fieldName, fieldSchema)
-                          )
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Execute */}
-                    <button
-                      onClick={executeTool}
-                      disabled={isLoading || selectedTool.unavailable}
-                      className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl font-semibold text-white transition-all shadow-sm
-                        bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
-                    >
-                      {selectedTool.unavailable ? (
-                        <>
-                          <Ban className="w-5 h-5" />
-                          {t('uiTools.page.button_unavailable')}
-                        </>
-                      ) : isLoading ? (
-                        <>
-                          <Loader className="w-5 h-5 animate-spin" />
-                          {t('uiTools.page.button_processing')}
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-5 h-5" />
-                          {t('uiTools.page.button_execute')}
-                          <ChevronRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
-
-                    {/* Error */}
-                    {error && (
-                      <div className="rounded-xl p-4 border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-rose-100 dark:bg-rose-500/20">
-                            <X className="w-5 h-5 text-rose-500" />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-rose-600 dark:text-rose-400 mb-1">{t('uiTools.common.error')}</h4>
-                            <p className="text-rose-600/90 dark:text-rose-300 text-sm">{error}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Result */}
-                    {result && (
-                      <div className="rounded-xl p-5 border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                          <h3 className="text-base font-semibold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                            <Check className="w-5 h-5" />
-                            {t('uiTools.page.result')}
-                          </h3>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={copyResult}
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-                            >
-                              {copied ? (
-                                <><Check className="w-4 h-4 text-emerald-500" /><span className="text-emerald-500">{t('uiTools.common.copied')}</span></>
-                              ) : (
-                                <><Copy className="w-4 h-4" />{t('uiTools.common.copy')}</>
-                              )}
-                            </button>
-                            <button
-                              onClick={exportResultAsJson}
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-                              title={t('uiTools.page.export_json_title')}
-                            >
-                              <FileJson className="w-4 h-4" />JSON
-                            </button>
-                            <button
-                              onClick={exportResultAsTxt}
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-                              title={t('uiTools.page.export_txt_title')}
-                            >
-                              <FileText className="w-4 h-4" />TXT
-                            </button>
-                          </div>
-                        </div>
-                        <div className="rounded-lg p-4 border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-950/50">
-                          <pre className="text-sm text-slate-800 dark:text-emerald-400 overflow-x-auto font-mono whitespace-pre-wrap break-words">
-                            {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              {/* Info panel (desktop xl+) */}
-              {showInfoPanel && (
-                <aside className="hidden xl:flex w-80 flex-col border-l border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40">
-                  <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-                    <h3 className="font-semibold flex items-center gap-2 text-sm">
-                      <BookOpen className="w-4 h-4 text-purple-500" />
-                      {t('uiTools.page.information')}
-                    </h3>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10">
-                      <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="font-semibold text-blue-600 dark:text-blue-400 text-sm mb-1">{t('uiTools.page.about')}</h4>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{selectedTool.description}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10">
-                      <Lightbulb className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="font-semibold text-purple-600 dark:text-purple-400 text-sm mb-1">{t('uiTools.page.tips')}</h4>
-                        <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1 leading-relaxed">
-                          <li>• {t('uiTools.page.tip_required')}</li>
-                          <li>• {t('uiTools.page.tip_export')}</li>
-                          <li>• {t('uiTools.page.tip_star')}</li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/50">
-                      <div className="text-xs text-slate-500 mb-1">{t('uiTools.page.api_method')}</div>
-                      <code className="text-xs text-cyan-600 dark:text-cyan-400 font-mono break-all">{selectedTool.apiMethod}</code>
-                    </div>
-
-                    {history.filter(h => h.toolId === selectedTool.id).length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-sm flex items-center gap-2">
-                          <History className="w-4 h-4 text-slate-400" />
-                          {t('uiTools.page.recent_usage')}
-                        </h4>
-                        <div className="space-y-1">
-                          {history.filter(h => h.toolId === selectedTool.id).slice(0, 3).map((h, i) => (
-                            <div key={i} className="text-xs text-slate-500 p-2 rounded bg-slate-100 dark:bg-slate-800/40">
-                              {new Date(h.timestamp).toLocaleString()}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </aside>
-              )}
-            </>
+            <section className="flex-1 overflow-auto p-4 sm:p-6"><MCPManager allowedTabs={['screenshots', 'placeholder']} /></section>
+          ) : openTool ? (
+            renderWorkbench(openTool)
           ) : (
-            /* Grid browse view */
             <section className="flex-1 overflow-y-auto p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">
-                    {selectedCategory === 'all' ? t('uiTools.page.nav_all_tools') : selectedCategory}
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {t('uiTools.page.tools_count', { count: gridTools.length })}
-                    {searchQuery && <> {t('uiTools.page.matching_query', { query: searchQuery })}</>}
-                  </p>
-                </div>
+              <div className="mb-4">
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">
+                  {selectedCategory === 'all' ? t('uiTools.page.nav_all_tools') : categoryLabel(t, selectedCategory)}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t('uiTools.page.tools_count', { count: gridTools.length })}
+                  {searchQuery && <> {t('uiTools.page.matching_query', { query: searchQuery })}</>}
+                </p>
               </div>
-
               {gridTools.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 sm:gap-4">
-                  {gridTools.map((tool: ToolDefinition) => renderToolCard(tool))}
+                  {gridTools.map(renderToolCard)}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center text-center py-20 max-w-md mx-auto">
-                  <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800/60 mb-4">
-                    {activeTab === 'favorites' ? (
-                      <StarOff className="w-12 h-12 text-slate-400" />
-                    ) : activeTab === 'recent' ? (
-                      <Clock className="w-12 h-12 text-slate-400" />
-                    ) : (
-                      <Search className="w-12 h-12 text-slate-400" />
-                    )}
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {activeTab === 'favorites'
-                      ? t('uiTools.page.empty_favorites_title')
-                      : activeTab === 'recent'
-                      ? t('uiTools.page.empty_recent_title')
-                      : t('uiTools.page.empty_search_title')}
-                  </h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                    {activeTab === 'favorites'
-                      ? t('uiTools.page.empty_favorites_hint')
-                      : activeTab === 'recent'
-                      ? t('uiTools.page.empty_recent_hint')
-                      : searchQuery
-                      ? t('uiTools.page.empty_search_hint')
-                      : t('uiTools.page.empty_category_hint')}
-                  </p>
+                  <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800/60 mb-4"><EmptyIcon className="w-12 h-12 text-slate-400" /></div>
+                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-1">{t(`uiTools.page.${emptyTitle}`)}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{t(`uiTools.page.${emptyHint}`)}</p>
                   {(searchQuery || selectedCategory !== 'all') && (
-                    <button
-                      onClick={() => { setSearchQuery(''); setSelectedCategory('all'); }}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-all"
-                    >
+                    <button onClick={() => { setSearchQuery(''); setSelectedCategory('all'); }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-all">
                       <ChevronLeft className="w-4 h-4" /> {t('uiTools.page.clear_filters')}
                     </button>
                   )}
