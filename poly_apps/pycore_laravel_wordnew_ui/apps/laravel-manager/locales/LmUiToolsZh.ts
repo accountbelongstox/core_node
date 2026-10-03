@@ -123,6 +123,8 @@ export const lmZhUiTools = {
       loading: "正在加载工具…",
       local_badge: "在浏览器中运行",
       server_badge: "在服务器上运行",
+      failed: "此工具加载失败。",
+      reload: "重新加载页面",
     },
     page: {
       title: "工具",
@@ -133,7 +135,7 @@ export const lmZhUiTools = {
       tab_tools: "工具",
       tab_favorites: "收藏",
       tab_recent: "最近",
-      nav_ai_tools: "AI 工具",
+      nav_ai_tools: "AI 工作台",
       nav_all_tools: "全部工具",
       nav_mcp_server: "MCP 服务器",
       favorite_remove: "取消收藏",

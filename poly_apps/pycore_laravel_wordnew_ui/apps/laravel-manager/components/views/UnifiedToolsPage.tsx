@@ -22,6 +22,7 @@ import {
 import { toolUsageStore, useToolUsage } from './tools/toolUsageStore';
 import { getToolWorkbench } from './tools/toolWorkbenches';
 import GenericToolForm from './tools/GenericToolForm';
+import ToolErrorBoundary from './tools/ToolErrorBoundary';
 
 const RECENT_LIMIT = 10;
 
@@ -187,7 +188,8 @@ export function UnifiedToolsPage() {
             <Star className={`w-5 h-5 ${isFav ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden [&_.grid>*]:min-w-0">
+          <ToolErrorBoundary key={`${tool.id}:${variant}`}>
           <Suspense fallback={(
             <div className="flex items-center justify-center gap-2 py-20 text-sm text-slate-500">
               <Loader className="w-4 h-4 animate-spin" />{t('uiTools.workbench.loading')}
@@ -197,6 +199,7 @@ export function UnifiedToolsPage() {
               ? <Workbench key={`${tool.id}:${variant}`} tool={tool} variant={variant} lastRun={lastRun} />
               : <GenericToolForm key={`${tool.id}:${variant}`} tool={tool} variant={variant} lastRun={lastRun} />}
           </Suspense>
+          </ToolErrorBoundary>
         </div>
       </section>
     );
