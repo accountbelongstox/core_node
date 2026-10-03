@@ -319,6 +319,14 @@ acme_sh_deployment_contract_ready() {
     echo "yes"
 }
 
+# Renewal reload hook baked into an acme.sh renewal conf: renewed certs go
+# live through the caddy admin /load endpoint without a service restart
+# (fails harmlessly while the server is not up yet). Usage: <caddyfile>
+acme_sh_caddy_reload_cmd() {
+    printf "curl -fsS -m 5 -X POST -H 'Content-Type: text/caddyfile' --data-binary @%s http://127.0.0.1:%s/load || true" \
+        "$1" "$(sc_get ports.frankenphp_admin)"
+}
+
 # Issue (or keep) the DNSPod DNS-01 certificate for one apex domain via the
 # acme.sh dns_dp provider, installed into the shared cert dir the Caddyfile
 # file-cert gate (fm_acme_cert_dir_for_host) reads. SANs: apex, *.apex and
@@ -327,10 +335,13 @@ acme_sh_deployment_contract_ready() {
 # acme.sh rc 2 means "Domains not changed" - treated as success. The
 # optional second argument is a --reloadcmd baked into the renewal conf
 # (service contexts pass a caddy admin /load poke so renewed certs go live
-# without a service restart; the installer path leaves it empty).
+# without a service restart; the installer path leaves it empty). The optional
+# third argument "-" drops the *.<prefix>.<apex> SAN (e.g. a mesh machine name,
+# whose apex + *.apex already cover <machine> and api.<machine>).
 acme_sh_ensure_certificate() {
     local apex_domain="$1"
     local reload_cmd="${2:-}"
+    local prefix_mode="${3:-}"
     local token_value=""
     local account_email=""
     local prefix=""
@@ -354,6 +365,7 @@ acme_sh_ensure_certificate() {
     if [ -z "$prefix" ]; then
         prefix="$(get_global_var "DOMAIN_API_REGION_PREFIX" "")"
     fi
+    [ "$prefix_mode" = "-" ] && prefix=""
     cert_dir="${FRANKENPHP_ACME_CERT_DIR}/${apex_domain}"
     issue_log="${ACME_INSTALL_CONFIG_DIR}/issue-${apex_domain}.log"
     mkdir -p "$cert_dir"

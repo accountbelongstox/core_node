@@ -300,11 +300,18 @@ class TerminalBackupStore:
             name = f"{base}-{suffix}"
         return self.directory / name
 
-    def save(self, terminals: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    def save(self, terminals: Sequence[Dict[str, Any]], merge_previous: bool = False) -> Dict[str, Any]:
         """terminals: {number, name, text?, error_code?, inputs?, changed?}; blobs land first, the manifest last."""
         with self.lock:
             folder = self._new_folder()
-            entries: List[Dict[str, Any]] = []
+            entries_by_number: Dict[int, Dict[str, Any]] = {}
+            if merge_previous:
+                previous = self.list_manifests()
+                if previous:
+                    entries_by_number = {
+                        int(entry["number"]): {**entry, "changed": False}
+                        for entry in self.manifest_entries(previous[0][2])
+                    }
             try:
                 for terminal in terminals:
                     entry: Dict[str, Any] = {
@@ -324,7 +331,8 @@ class TerminalBackupStore:
                     if inputs:
                         entry["inputs"] = inputs
                         entry["inputs_sha256"] = inputs_digest(inputs)
-                    entries.append(entry)
+                    entries_by_number[entry["number"]] = entry
+                entries = list(entries_by_number.values())
                 manifest = {"created_at": datetime.now().astimezone().isoformat(timespec="seconds")}
                 manifest.update(self._summary(entries))
                 atomic_write_json(folder / MANIFEST_NAME, manifest)
