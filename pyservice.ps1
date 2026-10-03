@@ -38,9 +38,8 @@
     PowerShell common parameter.)
 
 .PARAMETER NoReload
-    Disable backend hot-reload. By default a watcher polls the pycore package's
-    .py files and restarts the backend (via request_restart -> os.execv re-exec)
-    on any change. Pairs with the Vite UI HMR so both layers reload on save.
+    Accepted and ignored: hot reload is off. After code changes restart pycore
+    (service restart or pyservice restart).
 
 .PARAMETER Only
     Run ONLY the idempotent prerequisite step and exit (do not launch the worker
@@ -349,7 +348,7 @@ function Show-Usage {
     Write-Host '  -BindHost HOST    Host the RPC server binds to (default: 0.0.0.0)'
     Write-Host '  -Port PORT        Port the RPC server binds to (default: 59000)'
     Write-Host '  -DebugMode        Enable the worker''s debug mode'
-    Write-Host '  -NoReload         Disable backend hot-reload (watch .py -> restart; ON by default)'
+    Write-Host '  -NoReload         Accepted and ignored: hot reload is off; restart pycore after code changes'
     Write-Host '  -NoServicePrompt  Do not offer the background-service install [Y/n] (interactive run'
     Write-Host '                    offers it when the service is absent; an installed service is'
     Write-Host '                    ensured running and reported instead of a second foreground worker)'
@@ -812,7 +811,6 @@ try {
     # --- 3) launch the worker -------------------------------------------- #
     $pyArgs = @('-u', $workerPath, '--host', $BindHost, '--port', $Port, '--service-mode', $ServiceMode)
     if ($DebugMode)    { $pyArgs += '--debug' }
-    if ($NoReload)     { $pyArgs += '--no-reload' }   # hot-reload is the default; opt out for headless prod
 
     # TTS batch self-check: run the STANDALONE entry as its own process and wait
     # for it to exit BEFORE the worker starts, so the sweep owns the console (no

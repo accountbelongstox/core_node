@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Read-only proxy to the mcp-chrome MCP server (tabs, screenshot, DOM text)."""
+"""Client of the mcp-chrome MCP server (tabs, navigation, screenshot, page JavaScript)."""
 
 import json
 from typing import Any, Dict, List, Optional
 
-from pycore.pyctl.devmcp.dev_mcp_constants import (
+from pycore.pyutils.chrome_mcp.chrome_mcp_constants import (
     CHROME_CONNECT_TIMEOUT_SECONDS,
     CHROME_JS_MAX_OUTPUT_BYTES,
     CHROME_JS_TIMEOUT_MS,

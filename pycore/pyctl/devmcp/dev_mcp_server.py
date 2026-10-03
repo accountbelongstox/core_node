@@ -8,11 +8,7 @@ from io import BytesIO
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 
-from pycore.pyctl.devmcp.chrome_bridge import chrome_bridge
-from pycore.pyctl.devmcp.colab_reader import colab_reader
 from pycore.pyctl.devmcp.dev_mcp_constants import (
-    COLAB_DEFAULT_TAIL_LINES,
-    COLAB_DEFAULT_URL_PART,
     DEV_MCP_INSTRUCTIONS,
     DEV_MCP_PATH,
     DEV_MCP_SERVER_NAME,
@@ -20,7 +16,6 @@ from pycore.pyctl.devmcp.dev_mcp_constants import (
     FORBIDDEN_STATUS,
     FORWARDING_HEADER_PREFIXES,
     FORWARDING_HEADERS,
-    MIME_JPEG,
     PAGE_TEXT_DEFAULT_MAX_CHARS,
     SCREENSHOT_MODE_WINDOW,
     TERMINAL_DEFAULT_LINES,
@@ -33,6 +28,9 @@ from pycore.pyctl.devmcp.terminal_reader import terminal_reader
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.third_party.api import get_third_package_mcp
+from pycore.pyutils.chrome_mcp.chrome_mcp_bridge import chrome_bridge
+from pycore.pyutils.chrome_mcp.chrome_mcp_constants import COLAB_DEFAULT_TAIL_LINES, COLAB_DEFAULT_URL_PART, MIME_JPEG
+from pycore.pyutils.chrome_mcp.colab_reader import colab_reader
 from pycore.pyutils.common.local_rpc_guard import host_header_is_loopback, is_loopback_peer
 from pycore.pyutils.rpc.http.local_rpc_middleware import scope_headers
 from pycore.pyutils.window.browser_window_capture import browser_window_capture

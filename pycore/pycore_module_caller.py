@@ -66,7 +66,6 @@ if sys.platform.startswith('linux'):
     import pycore.pyutils.common.x11_display  # noqa: F401 - installs the Xlib auth hook
 
 from pycore.pylauncher.platform.startup_manager import ensure_startup_launcher
-from pycore.pyutils.common.dev_reload import start_reload_watcher
 from pycore.pyutils.common.process_restart import restart_current_process
 
 from pycore.pyfoundations.system_paths import apply_shared_cache_env
@@ -134,7 +133,6 @@ def main(
     host: str = HTTP_BIND_HOST,
     port: int = PYCORE_HTTP_PORT,
     debug: bool = False,
-    reload: bool = True,
     service_mode: "str | None" = None,
 ):
     """
@@ -144,8 +142,6 @@ def main(
         host: RPC server host
         port: RPC server port
         debug: Debug mode
-        reload: Dev hot-reload. Watch the pycore package's .py files and restart
-            (via the existing THREAD_BUS restart -> os.execv path) on any change.
         service_mode: Explicit startup mode; reconfigures and persists. None
             keeps the env/persisted-cache/default resolution untouched.
     """
@@ -251,12 +247,10 @@ def main(
         if hasattr(signal, signal_name):
             signal.signal(getattr(signal, signal_name), signal_handler)
 
-    # 7. Dev hot-reload: watch .py files and restart the backend on change.
-    #    Reuses the proven restart path (request_restart -> graceful stop ->
-    #    os.execv re-exec, which re-reads ALL Python). On by default; --no-reload to disable.
-    if reload and not notebook_assist_node():
-        from pycore.pyctl.queue_center.reload_drain import begin_drain, is_idle, keepalive
-        start_reload_watcher(drain=(begin_drain, is_idle, keepalive))
+    # 7. No hot reload: long-running features (terminal auto-confirm, agent
+    #    detection, schedulers) need an uninterrupted process. After code
+    #    changes the AI restarts pycore itself (`systemctl restart pycore` /
+    #    `pyservice restart`).
 
     # 8. Wait for shutdown signal (THREAD_BUS is the event center)
     ColorPrint.blue("[Main] Running... (Press Ctrl+C or use tray to exit)")
@@ -278,7 +272,7 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=PYCORE_HTTP_PORT, help='Port to bind')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--no-reload', action='store_true',
-                        help='Disable hot-reload: do not restart backend on .py changes')
+                        help='Accepted for existing callers; hot reload is off (restart pycore after code changes)')
     parser.add_argument(
         '--service-mode',
         choices=pyservice_mode_service.allowed_modes(),
@@ -310,16 +304,10 @@ if __name__ == '__main__':
     # through the locked, idempotent pin_runtime_profile() and waits for it,
     # while the RPC server and tray bind immediately.
     start_bus_task(runtime_profile.pin_runtime_profile, thread_name="TtsRuntimeProfilePinThread")
-    reload_enabled = True
-    if args.no_reload or os.environ.get('PYCORE_NO_RELOAD', '') in ('1', 'true', 'True'):
-        reload_enabled = False
-    if os.environ.get('PYCORE_RELOAD', '') in ('0', 'false', 'False'):
-        reload_enabled = False
     main(
         host=args.host,
         port=args.port,
         debug=args.debug,
-        reload=reload_enabled,
         service_mode=args.service_mode,
     )
 

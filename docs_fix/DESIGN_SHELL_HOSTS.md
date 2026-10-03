@@ -261,7 +261,7 @@ Principle: probe → plan → smallest action → verify → record. A running p
 ## 11. pycore process on desktop hosts
 
 ### 11.1 Restart, port and tray
-- Tray Restart and dev hot-reload share `request_restart(execute_handlers=True)` → shutdown stack → `os.execv`.
+- Tray Restart uses `request_restart(execute_handlers=True)` → shutdown stack → `os.execv`. pycore has no hot reload: after code changes the AI restarts pycore (`development-guides/PYTHON_PYCORE.md` §6).
 - Nothing slow runs before the RPC server binds :59000:
   - the audio-lane boot chain runs as `AudioLaneBootChainThread`;
   - queue restore uses the single-transaction `AudioTaskQueue.push_many()`;
@@ -365,7 +365,7 @@ A notebook host runs an ordinary GPU or CPU node; there is no notebook node kind
 - Idempotency: VM marker `notebook_vm_ready` (the first run on a VM always installs; `--no-install` is ignored then) and persist marker `.cache_initialized`, written only after a complete save (`NOTEBOOK_COPY_INCOMPLETE`); a new persist root seeds from an earlier one when found.
 - Summary (`notebook_print_summary`): platform, accelerator, persist root, data dir, cache state, installers, encrypted secrets left, relay identity, Laravel API, AI services state.
 
-- Assist-only node (`pyfoundations/notebook_policy.py` `notebook_assist_node()` / `local_http_enabled()`; `PYCORE_LOCAL_HTTP=1|0` forces the listener on any host): service mode 2; routes are registered and `start_rpc_runtime` / `relay_agent` run, but `HttpServerRunner(listen=False)` binds no socket on 59000 and HTTP events are off (Relay executes in-process through `rpc_execution_kernel`); no tray, desktop notifications or graphical display, no startup-launcher refresh, no hot reload, no tray code-sync cache, no agent-history / prompt steps; the singleton guard keeps its own port range.
+- Assist-only node (`pyfoundations/notebook_policy.py` `notebook_assist_node()` / `local_http_enabled()`; `PYCORE_LOCAL_HTTP=1|0` forces the listener on any host): service mode 2; routes are registered and `start_rpc_runtime` / `relay_agent` run, but `HttpServerRunner(listen=False)` binds no socket on 59000 and HTTP events are off (Relay executes in-process through `rpc_execution_kernel`); no tray, desktop notifications or graphical display, no startup-launcher refresh, no tray code-sync cache, no agent-history / prompt steps; the singleton guard keeps its own port range.
 - Interpreter: the system Python (Colab: its CUDA torch stack) stays the pycore interpreter; on a notebook `venv_python_common.sh`, `pyservice_entry.sh` `resolve_python` and `python_venv_setup_common.sh` neither select, create nor relink a project venv. Isolated overlay venvs (qwen3tts) are created with `--system-site-packages --without-pip`, reuse the host pip or bootstrap `get-pip.py` (`isolated_venv_runtime.py` `_ensure_overlay_pip`), which also repairs a half-built venv.
 
 ### 15.2 Queue assist on by default
