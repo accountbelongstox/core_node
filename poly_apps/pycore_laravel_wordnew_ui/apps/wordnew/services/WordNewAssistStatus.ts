@@ -43,7 +43,7 @@ export interface WordNewAssistSnapshot {
 
 const deviceOf = (node: WorkNode): WordNewAssistDevice => (node.compute_class === GPU_CLASS ? 'gpu' : 'cpu');
 
-function laneView(lane: string, nodes: WorkNode[], pool: WorkPoolEntry[]): WordNewAssistLane {
+function laneView(lane: string, nodes: WorkNode[], pool: WorkPoolEntry[], languages: readonly string[]): WordNewAssistLane {
   const view: WordNewAssistLane = {
     lane, online: { gpu: 0, cpu: 0 }, assisting: { gpu: 0, cpu: 0 }, itemsLeased: 0, donePerHour: 0, gap: 0, free: 0, poolReasons: [],
   };
@@ -59,7 +59,7 @@ function laneView(lane: string, nodes: WorkNode[], pool: WorkPoolEntry[]): WordN
   }
   const reasons = new Set<string>();
   for (const entry of pool) {
-    if (entry.lane !== lane) continue;
+    if (entry.lane !== lane || (languages.length > 0 && !languages.includes(entry.language))) continue;
     view.gap += entry.gap ?? entry.count ?? 0;
     view.free += entry.free ?? entry.count ?? 0;
     if (entry.reason_code) reasons.add(entry.reason_code);
@@ -182,7 +182,7 @@ class WordNewAssistStatusStore {
   private async loadRoster(): Promise<{ state: WordNewAssistSnapshot['nodes']; lanes: Record<string, WordNewAssistLane> }> {
     try {
       const { nodes, pool } = await laravelApi.getWorkNodes();
-      const lanes = Object.fromEntries([WORD_LANE, SENTENCE_LANE].map((lane) => [lane, laneView(lane, nodes ?? [], pool ?? [])]));
+      const lanes = Object.fromEntries([WORD_LANE, SENTENCE_LANE].map((lane) => [lane, laneView(lane, nodes ?? [], pool ?? [], this.languages)]));
       return { state: 'ready', lanes };
     } catch (error) {
       if (serverSchemaGate.observeError(error)) return { state: 'idle', lanes: {} };

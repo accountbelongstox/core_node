@@ -322,6 +322,7 @@ export const zhLocaleC: Record<string, string> = {
     "apiCenter.lan.useTemporary": "本次使用",
     "apiCenter.lan.using": "在下次启动前使用 {host}。",
     "apiCenter.lan.stopTemporary": "停止使用临时入口",
+    "apiCenter.lan.routeActive": "请求经局域网直连选中的机器：{url}",
     "apiCenter.lan.state.up": "pycore 在线 · {ms} 毫秒",
     "apiCenter.lan.state.refused": "pycore 拒绝未签名设备（K7）· {ms} 毫秒",
     "apiCenter.lan.state.no_route": "59000 有响应，但不是 pycore",

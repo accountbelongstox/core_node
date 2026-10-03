@@ -52,7 +52,9 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         if (T.FindByName(controls, C.BrowserLoginWaitMainKeywords) != null) return new(BattlenetClientState.BrowserLoginWait, Region, null);
         if (T.FindByName(controls, C.LoginFailedPrimaryKeywords) != null && T.FindByName(controls, C.LoginFailedSecondaryKeywords) != null)
             return new(BattlenetClientState.LoginFailed, Region, null);
-        if (controls.Any(c => c.AutomationId.EndsWith(C.LoggingInAutomationIdSuffix, StringComparison.Ordinal)) || HasText(controls, C.LoggingInKeywords))
+        if (controls.Any(c => c.AutomationId.EndsWith(C.LoggingInAutomationIdSuffix, StringComparison.Ordinal)
+                              || c.AutomationId.EndsWith(C.LoginSpinnerAutomationIdSuffix, StringComparison.Ordinal))
+            || HasText(controls, C.LoggingInKeywords))
             return new(BattlenetClientState.LoggingIn, Region, null);
         if (HasText(controls, C.VerificationCodeKeywords)) return new(BattlenetClientState.VerificationCode, Region, null);
         if (HasText(controls, C.SecurityCheckKeywords)) return new(BattlenetClientState.SecurityCheck, Region, SelectedVerifyMethod(controls));

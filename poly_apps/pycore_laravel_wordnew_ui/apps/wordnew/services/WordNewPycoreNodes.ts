@@ -14,6 +14,7 @@ const LEASE_TTL_MS = queueCenterContract.work_leases.lease_ttl_seconds * 1000;
 const MIN_REFRESH_GAP_MS = queueCenterContract.work_leases.nodes_event.min_interval_seconds * 1000;
 const LABEL_HOST_CHARS = 10;
 const UNKNOWN_PLATFORM = 'pc';
+const RETRY_MS = 10_000;
 
 export interface WordNewPycoreNodesSnapshot {
   /** Bumps on every roster or lease change (a render key). */
@@ -57,6 +58,7 @@ class WordNewPycoreNodesStore {
   private loading: Promise<void> | null = null;
   private queued = false;
   private lastLoadAt = 0;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stops: Array<() => void> = [];
 
   readonly subscribe = this.changes.subscribe;
@@ -115,6 +117,9 @@ class WordNewPycoreNodesStore {
         if (changed) this.emit();
       }),
       laravelRealtime.onConnected(() => { void this.refresh(); }),
+      serverSchemaGate.subscribe(() => {
+        if (serverSchemaGate.getSnapshot().schema !== 'pending') void this.refresh();
+      }),
     ];
     laravelRealtime.start();
     void this.refresh();
@@ -125,6 +130,8 @@ class WordNewPycoreNodesStore {
     this.stops = [];
     laravelRealtime.stop();
     this.leased.clear();
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
   }
 
   private refresh(): Promise<void> {
@@ -148,6 +155,8 @@ class WordNewPycoreNodesStore {
   private async load(): Promise<void> {
     this.lastLoadAt = Date.now();
     if (serverSchemaGate.getSnapshot().schema === 'pending') return;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     try {
       const { nodes, revision } = await laravelApi.getWorkNodes(true);
       const online = (nodes ?? []).filter((node) => node.online && node.sid);
@@ -159,6 +168,7 @@ class WordNewPycoreNodesStore {
       this.emit();
     } catch (error) {
       serverSchemaGate.observeError(error);
+      if (this.consumers > 0) this.retryTimer = setTimeout(() => { this.retryTimer = null; void this.refresh(); }, RETRY_MS);
     }
   }
 

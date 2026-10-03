@@ -368,7 +368,8 @@ class WordNewPycoreLinkService {
     await this.applyLanRoute(roster, active, generation);
     const selected = listPycoreEndpoints().find((endpoint) => endpoint.url === active);
     if (active && selected?.kind !== 'relay') {
-      if (getPycoreProbe(active)?.state === 'down') pycoreLink.markDown();
+      // The address requests use: the LAN route when one answered, else the selection itself.
+      if (getPycoreProbe(getPycoreLanRoute()?.url ?? active)?.state === 'down') pycoreLink.markDown();
       else pycoreLink.markOnline();
     }
     if (!active) this.scheduleFirstRun();
