@@ -7,6 +7,8 @@ state separate lets every dependency stay at file scope without a cycle.
 """
 
 import importlib
+import sys
+from typing import Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -14,6 +16,8 @@ from pycore.pyfoundations.third_party._deps import DEPENDENCY_MAP, LINUX_ONLY_PA
 from pycore.pyfoundations.third_party._hf_helpers import get_third_package_cnocr
 from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
 from pycore.pyfoundations.third_party._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
+
+COMPOSED_CACHE_SUFFIX = ':composed'
 
 
 def _lazy_import(package_name: str, import_statement: str):
@@ -70,3 +74,66 @@ def _lazy_import(package_name: str, import_statement: str):
                 )
                 _PACKAGE_CACHE[package_name] = None
     return _PACKAGE_CACHE[package_name]
+
+
+def _pip_spec(package_name: str):
+    for mapping in (DEPENDENCY_MAP, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES, LINUX_ONLY_PACKAGES):
+        if package_name in mapping:
+            return mapping[package_name]
+    return None
+
+
+def _resolve_parts(package, parts: Dict[str, str]):
+    for name, target in parts.items():
+        module_name, _, attribute = target.partition(':')
+        module = importlib.import_module(module_name)
+        setattr(package, name, getattr(module, attribute) if attribute else module)
+    return package
+
+
+def _forget_modules(package_name: str) -> None:
+    prefix = package_name + '.'
+    for name in [name for name in sys.modules if name == package_name or name.startswith(prefix)]:
+        del sys.modules[name]
+    _PACKAGE_CACHE.pop(package_name, None)
+    importlib.invalidate_caches()
+
+
+def _lazy_compose(package_name: str, import_statement: str, parts: Dict[str, str]):
+    """
+    Lazy import plus the submodule attributes a getter exposes ({name: 'module' or 'module:attr'}).
+
+    An installed but incompatible package (e.g. a new major version without these submodules)
+    is repaired once with its policy pip spec and re-imported; if it still does not fit, the
+    getter returns None (reported) so its feature degrades instead of blocking startup.
+    """
+    cache_key = package_name + COMPOSED_CACHE_SUFFIX
+    if cache_key in _PACKAGE_CACHE:
+        return _PACKAGE_CACHE[cache_key]
+    package = _lazy_import(package_name, import_statement)
+    composed = None
+    if package is not None:
+        try:
+            composed = _resolve_parts(package, parts)
+        except (ImportError, AttributeError) as error:
+            pip_package = _pip_spec(package_name)
+            ColorPrint.yellow(
+                f"[INSTALL] '{package_name}' is installed but incompatible ({type(error).__name__}: {error}); "
+                + (f"repairing with '{pip_package}'" if pip_package else "no pip spec to repair with")
+            )
+            if pip_package:
+                run_pip_install_with_realtime_output(build_pip_install_command(pip_package), pip_package)
+                _forget_modules(package_name)
+                package = _lazy_import(package_name, import_statement)
+                try:
+                    composed = _resolve_parts(package, parts) if package is not None else None
+                except (ImportError, AttributeError) as retry_error:
+                    composed = None
+                    error = retry_error
+            if composed is None:
+                ColorPrint.red(
+                    f"[INSTALL] '{package_name}' stays incompatible ({error}); features using it are disabled; "
+                    f"run the pycore prerequisite installer (pyservice.sh / pyservice.ps1)"
+                )
+    _PACKAGE_CACHE[cache_key] = composed
+    return composed

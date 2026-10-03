@@ -20,6 +20,7 @@ QUESTION_PATTERN = re.compile(
 SELECTED_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*1\s*[.)]\s*yes\b", re.IGNORECASE)
 OPTION_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*1\s*[.)]\s*yes\b", re.IGNORECASE)
 OPTION_NEXT_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
+SELECTED_OTHER_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
 HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
 
 
@@ -51,6 +52,20 @@ def confirmation_prompt(text: str) -> Optional[str]:
     if sum(signals) < MIN_SIGNAL_COUNT:
         return None
     return hashlib.sha256("\n".join(lines).encode("utf-8", "replace")).hexdigest()
+
+
+def default_yes_prompt(text: str) -> bool:
+    """Only send Enter when a detected prompt has Yes as the default selection."""
+    lines = tail_lines(text)
+    if not lines or not confirmation_prompt(text):
+        return False
+    if any(SELECTED_OTHER_PATTERN.match(line) for line in lines):
+        return False
+    return bool(
+        OPTION_YES_PATTERN.match(lines[-1])
+        or OPTION_NEXT_PATTERN.match(lines[-1])
+        or HINT_PATTERN.search(lines[-1])
+    )
 
 
 class TerminalPromptWatch:

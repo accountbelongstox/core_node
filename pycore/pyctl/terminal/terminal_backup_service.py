@@ -16,6 +16,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
     text_digest,
 )
 from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch
+from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.file_lock import FileLockManager
@@ -61,6 +62,7 @@ class TerminalBackupService:
         notify: Callable[[str, str], Any] = show_system_notification,
         focus: FocusGuard = focus_guard,
         prompt_watch: Optional[TerminalPromptWatch] = None,
+        prompt_handler: Optional[TerminalPromptHandler] = None,
     ) -> None:
         self._terminals = terminals
         self._store = store
@@ -68,6 +70,7 @@ class TerminalBackupService:
         self._notify = notify
         self._focus = focus
         self._prompt_watch = prompt_watch or TerminalPromptWatch()
+        self._prompt_handler = prompt_handler or TerminalPromptHandler(terminals)
         self._pass_lock = threading.Lock()
         self._lease_lock = FileLockManager(SCHEDULER_LOCK_TARGET, verbose=False)
         self._lease: Optional[int] = None
@@ -166,7 +169,18 @@ class TerminalBackupService:
             for window in windows:
                 if self._activity_defers(forced):
                     return self._deferred()
-                exported.append(self._export(window))
+                entry = self._export(window)
+                if entry.get("text"):
+                    refreshed = self._prompt_handler.handle(
+                        str(window["id"]),
+                        entry["number"],
+                        entry["text"],
+                        lambda window=window: self._export(window).get("text"),
+                    )
+                    if refreshed != entry["text"]:
+                        entry["text"] = refreshed
+                        entry["signature"] = text_digest(refreshed)
+                exported.append(entry)
         for entry in exported:
             signature = entry.pop("signature")
             entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
