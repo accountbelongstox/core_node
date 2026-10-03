@@ -43,7 +43,9 @@ if (-not (Get-Command Get-AiTool -ErrorAction SilentlyContinue)) {
 }
 $AiCliPackages = @{}
 $AiCliLabels = @{}
-foreach ($aiCliKey in @("claude", "codex", "kimi")) {
+# Missing launcher tools are installed by Step65 (Linux: 99_install_ai_tools.sh), in a child process.
+$AiCliStep65Path = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "install_powershells") "Step65_InstallAiTools.ps1"
+foreach ($aiCliKey in @("claude", "codex", "kimi", "gemini", "dsh")) {
     $aiCliTool = Get-AiTool -Key $aiCliKey
     if ($null -eq $aiCliTool) { continue }
     $AiCliPackages[$aiCliKey] = [string](Get-AiToolField -Key $aiCliKey -Field "PnpmFallbackPackage")
@@ -384,6 +386,7 @@ function Install-AiCliIfMissing {
 
     $toolPackage = ""
     $toolLabel = ""
+    $sessionPathSegments = @()
 
     if (-not $AiCliPackages.ContainsKey($Tool)) {
         return
@@ -398,7 +401,20 @@ function Install-AiCliIfMissing {
 
     $toolPackage = $AiCliPackages[$Tool]
     $toolLabel = $AiCliLabels[$Tool]
-    Write-Host "[INFO] $toolLabel is not installed; running the idempotent install..." -ForegroundColor Cyan
+    Write-Host "[INFO] $toolLabel is not installed; running Step65 -Only $Tool ..." -ForegroundColor Cyan
+    & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $AiCliStep65Path -Only $Tool
+    # The child install writes User/Machine PATH; append its new segments to this session.
+    $sessionPathSegments = @($env:Path -split ";")
+    foreach ($scopePath in @([Environment]::GetEnvironmentVariable("Path", "Machine"), [Environment]::GetEnvironmentVariable("Path", "User"))) {
+        foreach ($scopeSegment in @($scopePath -split ";" | Where-Object { $_ -and ($sessionPathSegments -notcontains $_) })) {
+            $env:Path = (@($env:Path, $scopeSegment) -join ";")
+            $sessionPathSegments += $scopeSegment
+        }
+    }
+    if ($null -ne (Get-Command $Tool -ErrorAction SilentlyContinue)) {
+        Write-Host "[INFO] $toolLabel install completed." -ForegroundColor Green
+        return
+    }
     if (-not (Invoke-AiCliNativeInstall -Tool $Tool)) {
         if (-not (Invoke-AiCliPackageManagerInstall -Package $toolPackage)) {
             Write-Host "[WARN] $toolLabel install failed; run dd.cmd to repair the AI CLI tools." -ForegroundColor Yellow

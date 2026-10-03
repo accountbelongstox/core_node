@@ -1244,6 +1244,23 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    DeepSeekHarness = @{
+        PackageId         = "@deepseek-ai/dsh"
+        Exec              = "dsh"
+        Name              = "DeepSeekHarness"
+        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description       = "DeepSeek Harness (dsh) - DeepSeek official agent harness CLI"
+        InstallType       = "pnpm"
+        ForceToInstallDir = $false
+        VerifySuffix      = "--version"
+        AdditionalKeywords = @("dsh.cmd", "deepseek-harness")
+        EnvVars           = @(
+            @{
+                Type = @("Path")
+                Keyword = @("dsh")
+            }
+        )
+    }
     ClaudeCode = @{
         PackageId         = ""
         Exec              = "claude.exe"

@@ -177,6 +177,7 @@ show_main_menu() {
             "Start All Installed Services"
             "Stop All Running Services"
             "Restart All Installed Services"
+            "Restart Pycore Service (pyservice)"
             "Back to Linux Management"
         )
 
@@ -194,7 +195,8 @@ show_main_menu() {
             1) start_all_services ;;
             2) stop_all_services ;;
             3) restart_all_services ;;
-            4) break ;;
+            4) bash "$SERVICE_MANAGER_REGISTRY_LINUX_DIR/common/pycore_service.sh" restart ;;
+            5) break ;;
         esac
         echo ""
         read -p "Press Enter to continue..."
