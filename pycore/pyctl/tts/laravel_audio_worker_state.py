@@ -404,10 +404,14 @@ class LaravelAudioWorkerStateMixin:
         return dict(self._last_cycle_summary)
 
     @serialized_method
-    def _record_task_result(self, success: bool, duration_s: float = 0.0) -> None:
-        """Update lifetime counters as soon as one task reaches a terminal state."""
+    def _record_task_result(self, success: bool, duration_s: float = 0.0, cached: bool = False) -> None:
+        """Update lifetime counters as soon as one task reaches a terminal state. A task served from
+        the local cache is no synthesis: it stays out of the synthesis time that rates the lane."""
         self._total_claimed += 1
         self._total_duration_s += max(0.0, float(duration_s or 0.0))
+        if not cached:
+            self._synth_claimed += 1
+            self._synth_duration_s += max(0.0, float(duration_s or 0.0))
         if success:
             self._total_succeeded += 1
         else:

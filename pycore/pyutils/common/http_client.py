@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import contextvars
 import json as json_module
+import logging
 import socket
 import time
 import urllib.parse
@@ -25,6 +26,7 @@ TRANSFER_PHASE_UPLOADING = "uploading"
 TRANSFER_PHASE_AWAITING_RECEIPT = "awaiting_receipt"
 TRANSFER_PHASE_RECEIVED = "received"
 TRANSFER_PHASE_REJECTED = "rejected"
+_QUIET_TRANSPORT_LOGGERS = ("httpx", "httpcore")
 _POOL_MAX_CONNECTIONS = 64
 _POOL_MAX_KEEPALIVE = 32
 _LOOPBACK_MOUNTS = ("all://127.0.0.1", "all://localhost", "all://[::1]")
@@ -356,6 +358,8 @@ class HttpConnectionPools:
     def _open(self, trust_env: bool) -> Any:
         if trust_env not in self._pools:
             httpx = get_third_package_httpx()
+            for name in _QUIET_TRANSPORT_LOGGERS:
+                logging.getLogger(name).setLevel(logging.WARNING)
             limits = httpx.Limits(
                 max_connections=_POOL_MAX_CONNECTIONS,
                 max_keepalive_connections=_POOL_MAX_KEEPALIVE,
