@@ -1,4 +1,6 @@
 /** Cover carousel playback — wordnew home cards and library rows. */
+import { laravelMediaUrl } from '../../../core/integrations/laravel/LaravelMediaUrl';
+
 export const COVER_ROTATE_INTERVAL_MS = 4000;
 export const COVER_FADE_MS = 400;
 /** Multi-cover contract: each book shows its latest 5 covers. */
@@ -47,7 +49,8 @@ export function resolveCoverUrls(primary?: string | null, extras?: CoverUrlInput
   const seen = new Set<string>();
   const out: string[] = [];
   const push = (raw: string) => {
-    const url = raw.trim();
+    const trimmed = raw.trim();
+    const url = /^http:\/\//i.test(trimmed) ? laravelMediaUrl(trimmed) : trimmed;
     if (!url || seen.has(url)) return;
     seen.add(url);
     out.push(url);
