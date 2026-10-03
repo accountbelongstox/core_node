@@ -12,7 +12,8 @@ import { WfNewOrchSection } from './WfNewOrchSection';
 import { orchTaskVirtualBatch } from '../../../../shared/orchestration/orchPlanner';
 import { navigateToWordNewTab } from '../../routing/WordNewHashRoutes';
 import { useWordNewOrchComposeRun } from './useWordNewOrchComposeRun';
-import { useLiveOrchPlaybackSource, useWordNewOrchComposePlayback } from './useWordNewOrchComposePlayback';
+import { useEditionPlaybackSource, useWordNewOrchComposePlayback } from './useWordNewOrchComposePlayback';
+import { useWordNewOrchEdition, WordNewOrchEditionOffer } from './useWordNewOrchEdition';
 import { WordNewOrchComposePlayer } from './WordNewOrchComposePlayer';
 import { OrchBackButton, OrchButton, OrchEmptyBox, OrchTaskUnavailable } from './orchPanels';
 
@@ -24,12 +25,13 @@ interface Props {
   onOpenPlayer: () => void;
 }
 
-/** One composition's resources page: resolves its clips (device -> pycore -> Laravel) and previews it on the stage. */
+/** One composition's resources page: resolves its clips (device -> pycore -> Laravel) and previews its static edition on the stage. */
 export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans, onBack, onOpenPlayer }) => {
   const [editing, setEditing] = useState(false);
   const [wordsOpen, setWordsOpen] = useState(false);
   const { task, session, settings, compose } = useWordNewOrchComposeRun(taskId);
-  const source = useLiveOrchPlaybackSource(task, session);
+  const { edition, offer } = useWordNewOrchEdition(taskId, task);
+  const source = useEditionPlaybackSource(edition);
   const playback = useWordNewOrchComposePlayback(task, source, settings);
   const { newWords, segmentCount, timeline } = playback;
 
@@ -84,11 +86,14 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
         )}
       </WfNewOrchSection>
 
-      {settings && session?.phase === 'ready' && (
+      {settings && edition && (
         timeline.length === 0 && segmentCount <= 1 ? (
           <OrchEmptyBox className="p-6">{trans('orchCompose.segmentEmpty')}</OrchEmptyBox>
         ) : (
-          <WordNewOrchComposePlayer variant="preview" playback={playback} settings={settings} label={task.name} theme={theme} trans={trans} onOpenPlayer={onOpenPlayer} />
+          <>
+            <WordNewOrchEditionOffer taskId={task.id} offer={offer} playback={playback} theme={theme} trans={trans} />
+            <WordNewOrchComposePlayer variant="preview" playback={playback} settings={settings} label={task.name} theme={theme} trans={trans} onOpenPlayer={onOpenPlayer} />
+          </>
         )
       )}
     </div>

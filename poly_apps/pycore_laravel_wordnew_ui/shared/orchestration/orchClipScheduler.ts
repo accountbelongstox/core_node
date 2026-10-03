@@ -97,6 +97,7 @@ import { readBytesWithStallGuard } from '../../core/network/StallGuardedRead';
 import { transferLimiter } from '../../core/network/TransferLimiter';
 import {
   ORCH_BUNDLE_ROUTE_MISSING,
+  orchTakeHeld,
   resolveByBundles,
   type OrchBundleSink,
   type OrchBundleTransport,
@@ -155,7 +156,8 @@ async function holdsInBatches(
 async function pycoreChunks(resources: OrchComposeResource[], sink: OrchBundleSink, context: OrchClipSourceContext, found: Found): Promise<number> {
   let failed = 0;
   for (let offset = 0; offset < resources.length && !context.signal?.aborted; offset += LOOKUP_BATCH) {
-    const batch = resources.slice(offset, offset + LOOKUP_BATCH);
+    const batch = await orchTakeHeld(resources.slice(offset, offset + LOOKUP_BATCH), sink, context, found);
+    if (batch.length === 0) continue;
     const baseUrl = pycoreTargetBackendUrl();
     const answer = await orchRetry(async () => {
       const result = await pycoreApi.orchResourceLookup(batch.map(refOf));

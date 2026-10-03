@@ -67,6 +67,39 @@ final class TableRowEstimate
         return $rows;
     }
 
+    /**
+     * Only the tables that hold rows, in one pg_class + pg_stat read: the larger of the planner
+     * estimate and the live-tuple counter (an empty or never analyzed table is left out, so a
+     * caller never plans or scans the tables of languages nobody uses).
+     *
+     * @param array<string,string> $keyToTable
+     * @return array<string,int> key => rows, populated tables only
+     */
+    public static function populated(string $connection, array $keyToTable): array
+    {
+        $rows = [];
+        $byTable = [];
+
+        if ($keyToTable === []) {
+            return [];
+        }
+        $placeholders = implode(', ', array_fill(0, count($keyToTable), 'to_regclass(?)'));
+        foreach (DB::connection($connection)->select(
+            'SELECT c.relname, GREATEST(c.reltuples, 0)::bigint AS estimate, COALESCE(s.n_live_tup, 0)::bigint AS live'
+            . ' FROM pg_class c LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid WHERE c.oid IN (' . $placeholders . ')',
+            array_values($keyToTable)
+        ) as $row) {
+            $byTable[(string) $row->relname] = max((int) $row->estimate, (int) $row->live);
+        }
+        foreach ($keyToTable as $key => $table) {
+            if (($byTable[$table] ?? 0) > 0) {
+                $rows[$key] = $byTable[$table];
+            }
+        }
+
+        return $rows;
+    }
+
     private function __construct()
     {
     }

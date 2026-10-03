@@ -351,6 +351,30 @@ export class CapBlobStore {
     if (safeIsNative()) await this.trackNative(sanitizeKey(key), true);
   }
 
+  /**
+   * Native: move a file this store does not hold yet from another storage
+   * directory of the same app (a store that changed directory keeps its files
+   * instead of fetching them again). False when nothing was moved.
+   */
+  async adoptFrom(source: CapBlobStore, key: string): Promise<boolean> {
+    if (!safeIsNative() || source.directory === this.directory || !(await source.has(key))) return false;
+    const name = sanitizeKey(key);
+    try {
+      await capFs.ensureDir(this.dir, this.directory);
+      await Filesystem.rename({
+        from: source.nativePath(key),
+        to: this.nativePath(key),
+        directory: source.directory ?? undefined,
+        toDirectory: this.directory ?? undefined,
+      } as any);
+    } catch {
+      return false;
+    }
+    await source.trackNative(name, false);
+    await this.trackNative(name, true);
+    return true;
+  }
+
   /** The file name a key is stored under. */
   fileName(key: string): string {
     return sanitizeKey(key);
@@ -702,17 +726,19 @@ export class CapBlobStore {
 
 /**
  * A quota-aware LARGE cache for the 10-100 GB media use case. Wraps CapBlobStore
- * with a byte budget + LRU-ish eviction (oldest files first), and a getOrFetch
- * that downloads-on-miss straight to disk/OPFS.
+ * with a byte budget that only stops NEW downloads (a held file is never evicted,
+ * only `remove` / `clear` delete), and a getOrFetch that downloads-on-miss
+ * straight to disk/OPFS. `legacyDirectory`: the directory the files lived in
+ * before (they move over on first use instead of being fetched again).
  *
  *   const cache = new CapLargeCache({ dir: 'audio', maxBytes: 20 * 1024 ** 3 }); // 20 GB
  *   const url = await cache.getOrFetchUrl('w-42', () => `${cdn}/w-42.mp3`);
  */
 export class CapLargeCache {
   private readonly store: CapBlobStore;
+  private readonly legacy: CapBlobStore | null;
   private readonly maxBytes: number;
   private readonly inFlight = new Map<string, Promise<string | null>>();
-  private evictionChain: Promise<void> = Promise.resolve();
   private generation = 0;
   /**
    * Size ledger, oldest first (Map order): read from one listing on first use,
@@ -722,8 +748,10 @@ export class CapLargeCache {
   private ledgerLoading: Promise<Map<string, number>> | null = null;
   private ledgerBytes = 0;
 
-  constructor(options: { dir?: string; maxBytes?: number; directory?: CapDirectory } = {}) {
-    this.store = new CapBlobStore(options.dir ?? 'large-cache', options.directory ?? Directory.Cache);
+  constructor(options: { dir?: string; maxBytes?: number; directory?: CapDirectory; legacyDirectory?: CapDirectory } = {}) {
+    const dir = options.dir ?? 'large-cache';
+    this.store = new CapBlobStore(dir, options.directory ?? Directory.Cache);
+    this.legacy = options.legacyDirectory === undefined ? null : new CapBlobStore(dir, options.legacyDirectory);
     this.maxBytes = Math.max(0, Math.floor(options.maxBytes ?? 2 * 1024 * 1024 * 1024));
   }
 
@@ -732,22 +760,30 @@ export class CapLargeCache {
     return this.store;
   }
 
-  /** Get a servable URL, downloading via `urlFor` on a miss, then enforce budget. */
+  /** Whether the held bytes reached the budget (no new download starts then). */
+  private async full(): Promise<boolean> {
+    await this.loadLedger();
+    return this.ledgerBytes >= this.maxBytes;
+  }
+
+  /** A file held (or moved over from the legacy directory) is served; a miss is downloaded via `urlFor` while the budget has room. */
   async getOrFetchUrl(key: string, urlFor: () => string | Promise<string>, mime?: string): Promise<string | null> {
-    if (await this.store.has(key)) return this.store.getServableUrl(key, mime);
+    if (await this.store.has(key) || (this.legacy && await this.store.adoptFrom(this.legacy, key))) {
+      return this.store.getServableUrl(key, mime);
+    }
     if (this.maxBytes === 0) return null;
     const pending = this.inFlight.get(key);
     if (pending) return pending;
     const generation = this.generation;
     const operation = (async (): Promise<string | null> => {
       try {
+        if (await this.full()) return null;
         await this.store.putFromUrl(key, await urlFor());
         if (generation !== this.generation) {
           await this.store.delete(key);
           return null;
         }
         await this.record(key, await this.store.size(key));
-        await this.enforceBudget();
         if (!(await this.store.has(key))) return null;
         return this.store.getServableUrl(key, mime);
       } finally {
@@ -758,9 +794,9 @@ export class CapLargeCache {
     return operation;
   }
 
-  /** Store a blob and enforce the budget. */
+  /** Store a blob unless the key is held or the budget is full. */
   async put(key: string, blob: Blob, options?: CapBlobPutOptions): Promise<void> {
-    if (this.maxBytes === 0) return;
+    if (this.maxBytes === 0 || await this.store.has(key) || await this.full()) return;
     const generation = this.generation;
     await this.store.putBlob(key, blob, options);
     if (generation !== this.generation) {
@@ -768,7 +804,6 @@ export class CapLargeCache {
       return;
     }
     await this.record(key, blob.size);
-    await this.enforceBudget();
   }
 
   has(key: string): Promise<boolean> {
@@ -792,7 +827,7 @@ export class CapLargeCache {
     this.ledger = new Map();
     this.ledgerLoading = null;
     this.ledgerBytes = 0;
-    return this.store.clear();
+    return this.store.clear().then(() => this.legacy?.clear());
   }
 
   private loadLedger(): Promise<Map<string, number>> {
@@ -817,24 +852,6 @@ export class CapLargeCache {
     if (size === null) return;
     ledger.set(key, size);
     this.ledgerBytes += size;
-  }
-
-  /** Evict the oldest ledger entries until under the byte budget. */
-  enforceBudget(): Promise<void> {
-    const operation = this.evictionChain.catch(() => undefined).then(async () => {
-      const ledger = await this.loadLedger();
-      if (this.ledgerBytes <= this.maxBytes) return;
-      const victims: string[] = [];
-      let total = this.ledgerBytes;
-      for (const [key, size] of ledger) {
-        if (total <= this.maxBytes) break;
-        victims.push(key);
-        total -= size;
-      }
-      for (const key of victims) await this.remove(key);
-    });
-    this.evictionChain = operation;
-    return operation;
   }
 }
 

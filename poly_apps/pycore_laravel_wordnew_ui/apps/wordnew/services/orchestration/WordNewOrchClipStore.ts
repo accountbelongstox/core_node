@@ -269,19 +269,25 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       const destination = blobStoreFor(target);
       const keys = Object.keys(await this.load());
       const copied: string[] = [];
+      const created: string[] = [];
       let done = 0;
       try {
         for (const key of keys) {
-          const blob = await source.getBlob(clipName(key));
-          if (blob) {
-            await destination.putBlob(clipName(key), blob);
+          if (await destination.has(clipName(key))) {
             copied.push(key);
+          } else {
+            const blob = await source.getBlob(clipName(key));
+            if (blob) {
+              await destination.putBlob(clipName(key), blob);
+              copied.push(key);
+              created.push(key);
+            }
           }
           done += 1;
           onProgress?.(done, keys.length * 2);
         }
       } catch (error) {
-        for (const key of copied) await destination.delete(clipName(key));
+        for (const key of created) await destination.delete(clipName(key));
         throw error;
       }
       const next: OrchClipRoot = { kind: target.kind, volumeId: target.volumeId, path: target.path };
@@ -421,16 +427,23 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   }
 
   /**
-   * Which of `keys` the device holds, with their playable URLs and index
+   * Which of `clips` the device holds, with their playable URLs and index
    * entries - one index read, one folder listing and one folder URI for all of
-   * them (a whole book answers in one pass, without a call per clip).
+   * them (a whole book answers in one pass, without a call per clip). A clip
+   * file the index lost (cut-off write, unreadable snapshot) is held all the
+   * same: it joins the index again instead of being fetched again.
    */
-  async lookup(keys: readonly string[]): Promise<Map<string, { url: string; entry: OrchClipIndexEntry }>> {
+  async lookup(clips: readonly OrchClipIdentity[]): Promise<Map<string, { url: string; entry: OrchClipIndexEntry }>> {
     const entries = await this.load();
     const blobs = await this.store();
-    const indexed = keys.filter((key) => entries[key]);
-    const present = await blobs.presentKeys(indexed.map(clipName));
-    const held = indexed.filter((key) => present.has(clipName(key)));
+    const present = await blobs.presentKeys(clips.map(({ resourceId }) => clipName(resourceId)));
+    const files = clips.filter(({ resourceId }) => present.has(clipName(resourceId)));
+    const orphans = files.filter(({ resourceId }) => !entries[resourceId]);
+    if (orphans.length > 0) {
+      const sizes = new Map((await blobs.entries()).map((file) => [file.key, file.size]));
+      orphans.forEach((identity) => this.index(identity, 'pycore', sizes.get(blobs.fileName(clipName(identity.resourceId))) ?? 0, ''));
+    }
+    const held = files.map(({ resourceId }) => resourceId);
     const unknown = held.filter((key) => !this.urls.has(key));
     const fresh = await blobs.servableUrls(unknown.map(clipName), CLIP_MIME);
     unknown.forEach((key) => {
@@ -459,6 +472,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
 
   putBlob(identity: OrchClipIdentity, blob: Blob, origin: OrchClipIndexEntry['origin'], meaning: string): Promise<string | null> {
     return this.write(identity.resourceId, async () => {
+      if (await this.holds(identity)) return;
       await (await this.store()).putBlob(clipName(identity.resourceId), blob);
       await this.remember(identity, origin, blob.size, meaning);
     });
@@ -479,7 +493,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   adoptWritten(identity: OrchClipIdentity, origin: OrchClipIndexEntry['origin'], bytes: number, meaning: string): Promise<string | null> {
     return this.write(identity.resourceId, async () => {
       await (await this.store()).noteNativeWrite(clipName(identity.resourceId));
-      await this.remember(identity, origin, bytes, meaning);
+      if (!(await this.entry(identity.resourceId))) await this.remember(identity, origin, bytes, meaning);
     });
   }
 
@@ -491,9 +505,10 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     onProgress?: (fraction: number) => void,
   ): Promise<string | null> {
     return this.write(identity.resourceId, async () => {
+      if (await this.holds(identity)) return;
       const blobs = await this.store();
       const name = clipName(identity.resourceId);
-      await blobs.putFromUrl(name, remoteUrl, { force: true, onProgress });
+      await blobs.putFromUrl(name, remoteUrl, { onProgress });
       await this.remember(identity, 'laravel', await blobs.size(name), meaning);
     });
   }
@@ -506,18 +521,33 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     this.note({ e: key, v: entries[key] });
   }
 
+  /** Put a clip into the loaded index (the caller has loaded it). */
+  private index(identity: OrchClipIdentity, origin: OrchClipIndexEntry['origin'], bytes: number, meaning: string): void {
+    const { kind, language, text, contentId, resourceId } = identity;
+    const entries = this.entries ?? {};
+    entries[resourceId] = { kind, language, text, contentId, resourceId, origin, bytes, meaning, storedAt: Date.now() };
+    this.note({ e: resourceId, v: entries[resourceId] });
+    this.urls.delete(resourceId);
+    this.notifyChange();
+  }
+
   private async remember(
     identity: OrchClipIdentity,
     origin: OrchClipIndexEntry['origin'],
     bytes: number,
     meaning: string,
   ): Promise<void> {
-    const entries = await this.load();
-    const { kind, language, text, contentId, resourceId } = identity;
-    entries[resourceId] = { kind, language, text, contentId, resourceId, origin, bytes, meaning, storedAt: Date.now() };
-    this.note({ e: resourceId, v: entries[resourceId] });
-    this.urls.delete(resourceId);
-    this.notifyChange();
+    await this.load();
+    this.index(identity, origin, bytes, meaning);
+  }
+
+  /** The device holds this clip (its file exists, indexed or not): it is never written or fetched again. */
+  private async holds(identity: OrchClipIdentity): Promise<boolean> {
+    const blobs = await this.store();
+    const name = clipName(identity.resourceId);
+    if (!(await blobs.has(name).catch(() => false))) return false;
+    if (!(await this.entry(identity.resourceId))) await this.remember(identity, 'pycore', await blobs.size(name), '');
+    return true;
   }
 
   remove(keys: string[]): Promise<void> {
