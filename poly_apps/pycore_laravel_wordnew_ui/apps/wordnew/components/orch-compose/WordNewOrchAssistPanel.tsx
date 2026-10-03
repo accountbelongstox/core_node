@@ -19,6 +19,7 @@ interface Props {
   session: OrchComposeSession | null;
   theme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
+  bookPlanned?: boolean;
 }
 
 const SENTENCE_LANE = 'sentence_audio';
@@ -47,14 +48,14 @@ function nodeSummary(lane: WordNewAssistLane | undefined, trans: Props['trans'])
   });
 }
 
-export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans }) => {
+export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans, bookPlanned = false }) => {
   const plan = session?.plan ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the plan, not the republished session object
   const languages = useMemo(() => planLanguages(session), [plan]);
   const assist = useWordNewAssistStatus(languages);
   const pycoreNodes = useWordNewPycoreNodes();
   const paused = assist.gate.schema === 'pending';
-  const progress = languages.map((language) => [language, assist.sentenceProgress[language]] as const).filter(([, row]) => row);
+  const progress = bookPlanned ? [] : languages.map((language) => [language, assist.sentenceProgress[language]] as const).filter(([, row]) => row);
 
   if (!paused && progress.length === 0 && assist.nodes !== 'ready') return null;
 

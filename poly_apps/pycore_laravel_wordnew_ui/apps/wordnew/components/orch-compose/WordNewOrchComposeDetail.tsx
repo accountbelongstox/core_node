@@ -60,7 +60,7 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
       )}
 
       <WordNewPanelBoundary key={task.id} name="WordNewOrchBookPlanProgress"><WordNewOrchBookPlanProgress taskId={task.id} theme={theme} trans={trans} /></WordNewPanelBoundary>
-      <WordNewOrchResolveProgress session={session} theme={theme} trans={trans} onOpenStorage={() => navigateToWordNewTab('cache')} />
+      <WordNewOrchResolveProgress session={session} theme={theme} trans={trans} bookPlanned={Boolean(task?.config.book)} onOpenStorage={() => navigateToWordNewTab('cache')} />
 
       <WfNewOrchSection
         icon={Sparkles}

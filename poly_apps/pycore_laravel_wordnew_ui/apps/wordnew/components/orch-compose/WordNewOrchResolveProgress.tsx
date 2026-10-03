@@ -30,6 +30,8 @@ interface Props {
   theme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   onOpenStorage?: () => void;
+  /** The task has a server book plan: its own counters replace the global sentence gap in the assist panel. */
+  bookPlanned?: boolean;
 }
 
 const PHASES: Array<Exclude<OrchComposePhase, 'failed'>> = ['inputs', 'plan', 'resolve', 'measure', 'ready'];
@@ -136,7 +138,7 @@ function ProgressBars({ rows, trans }: { rows: BarRow[]; trans: Props['trans'] }
   );
 }
 
-export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, trans, onOpenStorage }) => {
+export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, trans, onOpenStorage, bookPlanned }) => {
   const [expanded, setExpanded] = useState(false);
   const nodes = useWordNewPycoreNodes();
   const phase = session?.phase ?? 'inputs';
@@ -237,7 +239,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
         <WfNewStorageBadge trans={trans} onOpen={onOpenStorage} />
         <WordNewOrchApiEndpoints endpoints={session?.endpoints ?? {}} theme={theme} trans={trans} />
       </div>
-      <WordNewOrchAssistPanel session={session} theme={theme} trans={trans} />
+      <WordNewOrchAssistPanel session={session} theme={theme} trans={trans} bookPlanned={bookPlanned} />
       {session && !session.inputsFresh && phase !== 'inputs' && (
         <p className={`text-[11px] ${TONE_TEXT.amber}`}>{trans('orchCompose.inputsOffline')}</p>
       )}
