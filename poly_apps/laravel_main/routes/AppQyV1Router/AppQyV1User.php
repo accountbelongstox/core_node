@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1UserInitializationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1ProfileController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1BookReadingProgressController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1DailyReadingFeedCtl;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,6 +25,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
         'showDailyReadingResourcePreview',
     ])->middleware('signed:relative')
         ->name('app_qy_v1.daily-reading.resource-preview-json');
+
+    // Daily-reading feed by day (cursor paged) and per-day counts; read flags need a Bearer token.
+    Route::get('/daily-reading/feed', [AppQyV1DailyReadingFeedCtl::class, 'feed']);
+    Route::get('/daily-reading/calendar', [AppQyV1DailyReadingFeedCtl::class, 'calendar']);
 
     Route::get('/user/agent-history/{articleId}/video-resources.json', [
         AppQyV1BookReadingProgressController::class,
@@ -79,6 +84,8 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'getDailyReading']);
         Route::put('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'saveDailyReading']);
         Route::post('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'saveDailyReading']);
+        Route::post('/daily-reading/reads', [AppQyV1DailyReadingFeedCtl::class, 'setReadBatch']);
+        Route::post('/daily-reading/{articleId}/read', [AppQyV1DailyReadingFeedCtl::class, 'setRead']);
         Route::post('/daily-reading/{articleId}/resource-preview', [AppQyV1BookReadingProgressController::class, 'previewDailyReadingResources']);
     });
 });

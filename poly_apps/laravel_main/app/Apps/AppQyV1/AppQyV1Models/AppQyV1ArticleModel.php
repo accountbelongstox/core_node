@@ -116,6 +116,78 @@ class AppQyV1ArticleModel extends AppQyV1Model
         ];
     }
 
+    private const DAILY_DAY_SQL = 'COALESCE(reading_date, created_at::date)';
+
+    private static function dailyCanonicalQuery()
+    {
+        return self::managementQuery('daily')->whereNull('canonical_article_id');
+    }
+
+    /**
+     * One cursor page (newest id first) of canonical daily-reading articles,
+     * optionally limited to a single reading day (YYYY-MM-DD).
+     *
+     * @return array{rows: array<int,self>, total: int, has_more: bool, next_cursor: ?int}
+     */
+    public static function dailyFeedPage(?string $date, ?int $cursorId, int $limit): array
+    {
+        $query = self::dailyCanonicalQuery();
+        $total = 0;
+        $rows = null;
+        $hasMore = false;
+        $last = null;
+
+        if ($date !== null && $date !== '') {
+            $query->whereRaw(self::DAILY_DAY_SQL . ' = ?', [$date]);
+        }
+        $total = (clone $query)->count();
+        if ($cursorId !== null && $cursorId > 0) {
+            $query->where('id', '<', $cursorId);
+        }
+        $rows = $query->orderByDesc('id')->limit($limit + 1)->get();
+        $hasMore = $rows->count() > $limit;
+        $rows = $rows->take($limit)->values();
+        $last = $rows->last();
+
+        return [
+            'rows' => $rows->all(),
+            'total' => $total,
+            'has_more' => $hasMore,
+            'next_cursor' => $hasMore && $last !== null ? (int) $last->id : null,
+        ];
+    }
+
+    /**
+     * (article_id, day) pairs of canonical daily-reading articles inside an
+     * inclusive day range; day is the reading date, else the creation date.
+     *
+     * @return array<int,array{article_id: string, day: string}>
+     */
+    public static function dailyDayRows(string $from, string $to): array
+    {
+        $rows = self::dailyCanonicalQuery()
+            ->whereRaw(self::DAILY_DAY_SQL . ' BETWEEN ? AND ?', [$from, $to])
+            ->selectRaw('article_id, ' . self::DAILY_DAY_SQL . ' AS day')
+            ->get();
+        $pairs = [];
+
+        foreach ($rows as $row) {
+            $pairs[] = ['article_id' => (string) $row->article_id, 'day' => (string) $row->day];
+        }
+
+        return $pairs;
+    }
+
+    /** Newest reading day that has at least one canonical daily article. */
+    public static function dailyLatestDay(): ?string
+    {
+        $day = self::dailyCanonicalQuery()
+            ->selectRaw('MAX(' . self::DAILY_DAY_SQL . ') AS day')
+            ->value('day');
+
+        return $day !== null ? (string) $day : null;
+    }
+
     private static function managementQuery(?string $category)
     {
         $query = self::query();

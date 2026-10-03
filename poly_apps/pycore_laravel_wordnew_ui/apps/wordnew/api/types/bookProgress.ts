@@ -18,6 +18,34 @@ export interface WfNewDailyReadingProgress {
   updatedAt?: string | null;
 }
 
+/** One cursor page of a day's daily-reading articles (GET /daily-reading/feed). */
+export interface WfNewDailyReadingFeedPage {
+  items: import('./media').WfNewAgentArticle[];
+  date: string | null;
+  total: number;
+  hasMore: boolean;
+  nextCursor: number | null;
+}
+
+export interface WfNewDailyReadingCalendarDay {
+  date: string;
+  total: number;
+  read: number;
+}
+
+export interface WfNewDailyReadingCalendar {
+  from: string;
+  to: string;
+  days: WfNewDailyReadingCalendarDay[];
+  latestDate: string | null;
+}
+
+export interface WfNewDailyReadingReadState {
+  articleId: string;
+  read: boolean;
+  readAt: string | null;
+}
+
 export interface WfNewDailyReadingResourcePreviewSettings {
   playbackMode: 'sequential' | 'repeat-all' | 'repeat-one' | 'shuffle';
   wordMode: 'off' | 'new' | 'all';

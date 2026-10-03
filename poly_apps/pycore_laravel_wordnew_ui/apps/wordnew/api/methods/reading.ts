@@ -1,10 +1,17 @@
-import type { WfNewReaderSettingsBlob } from '../WfNewApiTypes';
+import type {
+  WfNewDailyReadingCalendar,
+  WfNewDailyReadingFeedPage,
+  WfNewDailyReadingReadState,
+  WfNewReaderSettingsBlob,
+} from '../WfNewApiTypes';
 import { WfNewApiPaths } from '../WfNewApiPaths';
+import { mapAgentArticle } from '../WfNewApiMappers';
 import {
   authToken,
   authedGetJSON,
   authedPostJSON,
   getJSON,
+  optionalAuthFreshJSON,
   postJSON,
   unwrapEnvelope,
 } from '../WfNewApiTransport';
@@ -108,6 +115,50 @@ export const readingMethods = {
           : 'latest',
         updatedAt: progress.updated_at ?? null,
       };
+    } catch {
+      return null;
+    }
+  },
+
+  async getDailyReadingFeed(date: string | null, cursor: number | null = null, limit = 20): Promise<WfNewDailyReadingFeedPage> {
+    const res = await optionalAuthFreshJSON<any>(WfNewApiPaths.dailyReadingFeed(date, limit, cursor));
+    const items = (Array.isArray(res?.items) ? res.items : []).map(mapAgentArticle);
+    return {
+      items,
+      date: typeof res?.date === 'string' ? res.date : date,
+      total: Number(res?.total ?? items.length),
+      hasMore: res?.has_more === true,
+      nextCursor: res?.next_cursor ? Number(res.next_cursor) : null,
+    };
+  },
+
+  async getDailyReadingCalendar(from: string, to: string): Promise<WfNewDailyReadingCalendar> {
+    const res = await optionalAuthFreshJSON<any>(WfNewApiPaths.dailyReadingCalendar(from, to));
+    return {
+      from: res?.from ?? from,
+      to: res?.to ?? to,
+      days: (Array.isArray(res?.days) ? res.days : []).map((day: any) => ({
+        date: String(day?.date ?? ''),
+        total: Number(day?.total ?? 0),
+        read: Number(day?.read ?? 0),
+      })),
+      latestDate: typeof res?.latest_date === 'string' ? res.latest_date : null,
+    };
+  },
+
+  async setDailyReadingRead(articleIds: string[], read: boolean): Promise<WfNewDailyReadingReadState[] | null> {
+    if (!authToken || articleIds.length === 0) return null;
+    try {
+      const raw = await postJSON<any>(WfNewApiPaths.userDailyReadingReads, {
+        article_ids: articleIds,
+        read,
+      });
+      const states = unwrapEnvelope(raw)?.states;
+      return (Array.isArray(states) ? states : []).map((state: any) => ({
+        articleId: String(state?.article_id ?? ''),
+        read: state?.read === true,
+        readAt: typeof state?.read_at === 'string' ? state.read_at : null,
+      }));
     } catch {
       return null;
     }

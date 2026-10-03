@@ -45,6 +45,9 @@ export interface WfNewAgentArticle {
   reading_date?: string | null;
   created_at?: string | null;
   document_id?: string | null;
+  /** Per-user read state (daily-reading feed only; false for guests). */
+  read?: boolean;
+  read_at?: string | null;
 }
 
 export interface WfNewAgentArticlePage {

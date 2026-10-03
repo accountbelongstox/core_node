@@ -84,6 +84,11 @@
             "private_network_request_header": "Access-Control-Request-Private-Network",
             "private_network_allow_header": "Access-Control-Allow-Private-Network"
         },
+        "lan": {
+            "machines_route": "/api/lan/machines",
+            "max_scan_hosts": 1022,
+            "cache_seconds": 30
+        },
         "tailnet": {
             "api_label": "api",
             "api_path": "/laravel-api",
