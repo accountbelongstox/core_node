@@ -735,13 +735,39 @@ function Invoke-AiCliChromeMcpEnsure {
     }
 }
 
+# Session-only claude --settings file (Windows PowerShell 5.1 strips the quotes of an
+# inline JSON argument). Role windows start about 1 s apart and share this file: it is
+# written only when the content differs, with a per-process file when a parallel writer holds it.
+function Write-AiCliSessionSettingsFile {
+    param([string]$Name, [string]$Json)
+
+    $tempDirectory = [System.IO.Path]::GetTempPath()
+    $settingsFile = Join-Path $tempDirectory ("{0}_settings.json" -f $Name)
+    $existingSettings = $null
+
+    if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
+        try {
+            $existingSettings = [System.IO.File]::ReadAllText($settingsFile)
+        } catch [System.IO.IOException] {
+            $existingSettings = $null
+        }
+    }
+    if ($existingSettings -ne $Json) {
+        try {
+            [System.IO.File]::WriteAllText($settingsFile, $Json)
+        } catch [System.IO.IOException] {
+            $settingsFile = Join-Path $tempDirectory ("{0}_settings_{1}.json" -f $Name, $PID)
+            [System.IO.File]::WriteAllText($settingsFile, $Json)
+        }
+    }
+    return $settingsFile
+}
+
 function Get-AiCliUltracodeArgs {
     param([string]$SettingsName)
 
     $ultracodeChoice = ""
     $ultracodeSettingsFile = $null
-    $existingSettings = $null
-    $tempDirectory = [System.IO.Path]::GetTempPath()
 
     Write-Host "Enable ultracode? [Y/n] (auto-Y in $AiCliUltracodeTimeoutSeconds`s): " -ForegroundColor Yellow -NoNewline
     $ultracodeChoice = Read-AiCliTimedChoice -TimeoutSeconds $AiCliUltracodeTimeoutSeconds
@@ -752,25 +778,7 @@ function Get-AiCliUltracodeArgs {
         Write-Host "[INFO] Ultracode: off" -ForegroundColor Green
         return
     }
-    # Role windows start about 1 s apart and share this file: write only when the
-    # content differs, and fall back to a per-process file when a parallel
-    # writer holds it.
-    $ultracodeSettingsFile = Join-Path $tempDirectory ("{0}_ultracode_settings.json" -f $SettingsName)
-    if (Test-Path -LiteralPath $ultracodeSettingsFile -PathType Leaf) {
-        try {
-            $existingSettings = [System.IO.File]::ReadAllText($ultracodeSettingsFile)
-        } catch [System.IO.IOException] {
-            $existingSettings = $null
-        }
-    }
-    if ($existingSettings -ne $AiCliUltracodeSettingsJson) {
-        try {
-            [System.IO.File]::WriteAllText($ultracodeSettingsFile, $AiCliUltracodeSettingsJson)
-        } catch [System.IO.IOException] {
-            $ultracodeSettingsFile = Join-Path $tempDirectory ("{0}_ultracode_settings_{1}.json" -f $SettingsName, $PID)
-            [System.IO.File]::WriteAllText($ultracodeSettingsFile, $AiCliUltracodeSettingsJson)
-        }
-    }
+    $ultracodeSettingsFile = Write-AiCliSessionSettingsFile -Name ("{0}_ultracode" -f $SettingsName) -Json $AiCliUltracodeSettingsJson
     Write-Host "[INFO] Ultracode: on" -ForegroundColor Green
     return @("--settings", $ultracodeSettingsFile)
 }
