@@ -1,1 +1,2 @@
 - [laravel-manager UI conventions](lm_ui_conventions.md) — shared responsive components, dual i18n, EOL gotchas, auth remount
+- [Laravel server ops facts](laravel_server_ops_facts.md) — log path, UTC-vs-CST DB trap, Caddy/Mercure deploy needs restart, CORS rules
