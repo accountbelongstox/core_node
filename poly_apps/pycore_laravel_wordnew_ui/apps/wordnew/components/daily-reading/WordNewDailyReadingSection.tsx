@@ -353,8 +353,8 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
 
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
-          <div className={`truncate text-base font-bold ${theme.textPrimaryClass}`}>{selectedLabel}</div>
-          <div className={`text-[11px] ${theme.textSecondaryClass}`}>
+          <div className={`truncate text-sm font-bold ${theme.textPrimaryClass}`}>{selectedLabel}</div>
+          <div className={`text-[10px] ${theme.textSecondaryClass}`}>
             {trans('home.dailyReading.dayProgress', { read: dayCount?.read ?? readCount, total: dayCount?.total ?? feed.total })}
           </div>
         </div>
@@ -362,10 +362,10 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => void startPlayer()}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500 px-3 py-1.5 text-[11px] font-bold text-white shadow-md shadow-indigo-500/20 transition-transform active:scale-95"
+            className="flex shrink-0 items-center gap-1 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-md shadow-indigo-500/20 transition-transform active:scale-95"
             title={trans('home.dailyReading.playAll')}
           >
-            <ListMusic className="h-4 w-4" />
+            <ListMusic className="h-3.5 w-3.5" />
             {trans('home.dailyReading.playAll')}
           </button>
         )}
@@ -389,7 +389,7 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
           </p>
         ) : (
           <>
-            <ul className={routeMode ? 'grid min-w-0 w-full auto-rows-min gap-3 xl:grid-cols-2' : 'space-y-2.5'}>
+            <ul className={routeMode ? 'grid min-w-0 w-full auto-rows-min gap-2 xl:grid-cols-2' : 'space-y-1.5'}>
               {rows.map((row) => (
                 <WordNewDailyReadingRowItem
                   key={row.id}
