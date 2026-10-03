@@ -629,8 +629,11 @@ fm_domain_lan_site_ensure() {
         FM_DOMAIN_LAN_SITE_READY="yes"
         echo "[fm-domain] [OK] LAN route file: $route_file"
         if [ "$(mesh_vpn_provider)" = "headscale" ]; then
-            ts_tls_label="$(mesh_cert_source)"
-            [ "$DOMAIN_LAN_TS_DNS01" = "yes" ] && ts_api_tls_label="$(mesh_cert_source)"
+            ts_tls_label="mkcert local CA"
+            if [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
+                ts_tls_label="$(mesh_cert_source)"
+                ts_api_tls_label="$(mesh_cert_source)"
+            fi
         fi
         if [ -n "$DOMAIN_LAN_TS_CERT" ] || [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
             ts_enabled_log="yes"
