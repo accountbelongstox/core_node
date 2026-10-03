@@ -42,25 +42,26 @@ if [ -z "${AI_TOOLS_CATALOG_KEYS[*]:-}" ]; then
     unset AI99_CATALOG_ONLY
 fi
 
-# Only claude/codex/kimi are lazily installed/upgraded by launchers (npm package
-# name = the published-version source); every other catalog tool is handled by
-# 99_install_ai_tools.sh directly.
+# Launcher-provisioned tools (lazily installed through 99_install_ai_tools.sh,
+# upgrade offered from the npm package = the published-version source).
+AI_CLI_LAUNCHER_TOOLS="claude codex kimi gemini dsh"
+
 ai_cli_package() {
-    case "$1" in
-        claude|codex|kimi) ai_catalog_get "$1" "npm_package" ;;
-        *) printf '%s' "" ;;
+    case " $AI_CLI_LAUNCHER_TOOLS " in
+        *" $1 "*) ;;
+        *) printf '%s' ""; return 0 ;;
     esac
+    if [ "$(ai_catalog_get "$1" "install_method")" = "npm" ]; then
+        ai_catalog_get "$1" "package_id"
+    else
+        ai_catalog_get "$1" "npm_package"
+    fi
 }
 
 ai_cli_label() {
-    case "$1" in
-        claude|codex|kimi)
-            local label=""
-            label="$(ai_catalog_get "$1" "name")"
-            printf '%s' "${label:-$1}"
-            ;;
-        *) printf '%s' "$1" ;;
-    esac
+    local label=""
+    label="$(ai_catalog_get "$1" "name")"
+    printf '%s' "${label:-$1}"
 }
 
 # Masked form of a secret for launcher summaries (at most 4 chars kept per end).
