@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Schema;
 use App\Models\AppModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DailyReadingVirtualProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserBookReadingProgressModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserDailyReadingReadModel;
 
 class AppQyV1BookReadingProgressTableService
 {
@@ -22,6 +23,7 @@ class AppQyV1BookReadingProgressTableService
 
         $results += self::ensureBookProgressTable();
         $results += self::ensureDailyReadingVirtualProgressTable();
+        $results += self::ensureDailyReadingReadsTable();
 
         return $results;
     }
@@ -94,6 +96,34 @@ class AppQyV1BookReadingProgressTableService
                     [
                         'columns' => ['user_id', 'last_used_at'],
                         'name' => 'idx_drvp_user_last_used',
+                    ],
+                ],
+            ]
+        );
+    }
+
+    public static function ensureDailyReadingReadsTable(): array
+    {
+        return self::ensureTable(
+            AppQyV1UserDailyReadingReadModel::class,
+            [
+                'columns' => [
+                    'id' => ['type' => 'bigIncrements'],
+                    'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                    'article_id' => ['type' => 'string', 'length' => 255, 'nullable' => false],
+                    'read_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+                ],
+                'indexes' => [
+                    [
+                        'columns' => ['user_id', 'article_id'],
+                        'name' => 'unique_udrr_user_article',
+                        'unique' => true,
+                    ],
+                    [
+                        'columns' => ['user_id', 'read_at'],
+                        'name' => 'idx_udrr_user_read_at',
                     ],
                 ],
             ]

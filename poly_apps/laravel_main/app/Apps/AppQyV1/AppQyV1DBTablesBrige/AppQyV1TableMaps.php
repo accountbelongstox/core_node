@@ -164,6 +164,18 @@ class AppQyV1TableMaps extends TableMaps
         ]
     ];
 
+    public const app_qy_v1_USER_DAILY_READING_READS = [
+        'tablename' => 'user_daily_reading_reads',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'article_id' => 'article_id',
+            'read_at' => 'read_at',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ]
+    ];
+
     public const app_qy_v1_CLIENT_DEVICE_SETTINGS = [
         'tablename' => 'client_device_settings',
         'fields' => [

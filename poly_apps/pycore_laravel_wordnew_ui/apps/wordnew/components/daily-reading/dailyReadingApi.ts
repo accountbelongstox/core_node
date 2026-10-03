@@ -11,7 +11,7 @@ export interface DailyReadingRow extends WfNewAgentArticle {
   title_en: string;
 }
 
-function normalizeDailyReading(item: WfNewAgentArticle, index: number): DailyReadingRow {
+export function normalizeDailyReading(item: WfNewAgentArticle, index: number): DailyReadingRow {
   return {
     ...item,
     id: String(item.id ?? item.article_id ?? item.source_key ?? item.document_id ?? `article-${index}`),
@@ -34,6 +34,8 @@ function normalizeDailyReading(item: WfNewAgentArticle, index: number): DailyRea
       : (typeof item.published_at === 'string' ? item.published_at : null),
     created_at: typeof item.created_at === 'string' ? item.created_at : null,
     word_count: typeof item.word_count === 'number' ? item.word_count : null,
+    read: item.read === true,
+    read_at: typeof item.read_at === 'string' ? item.read_at : null,
   };
 }
 
@@ -65,6 +67,28 @@ export async function fetchDailyReadings(limit = 100, offset = 0): Promise<Daily
       legacyAudio: 0,
       rebuilt: 0,
     },
+  };
+}
+
+export interface DailyReadingFeedPage {
+  items: DailyReadingRow[];
+  total: number;
+  hasMore: boolean;
+  nextCursor: number | null;
+}
+
+/** One cursor page of a day's articles with the signed-in user's read flags. */
+export async function fetchDailyReadingFeed(
+  date: string | null,
+  cursor: number | null,
+  limit: number,
+): Promise<DailyReadingFeedPage> {
+  const page = await wfNewApi.getDailyReadingFeed(date, cursor, limit);
+  return {
+    items: page.items.map((item, index) => normalizeDailyReading(item, index)),
+    total: page.total,
+    hasMore: page.hasMore,
+    nextCursor: page.nextCursor,
   };
 }
 

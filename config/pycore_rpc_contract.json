@@ -662,6 +662,10 @@
       "path": "ui/laravel_delivery/status",
       "method": "POST"
     },
+    "lanMachines": {
+      "path": "lan/machines",
+      "method": "GET"
+    },
     "llmStatusGetSettings": {
       "path": "ui/llm_status/get_settings",
       "method": "POST"

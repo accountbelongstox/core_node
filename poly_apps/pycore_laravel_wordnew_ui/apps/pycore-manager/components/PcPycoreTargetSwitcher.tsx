@@ -21,6 +21,8 @@ import {
   normalizePycoreBackendUrl, classifyPycoreBackendUrl,
   getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints, subscribePycoreProbes, switchPycoreTarget,
   refreshTailnetPeers, subscribeTailnetPeers,
+  getLanMachines, isLanMachinesAvailable, refreshLanMachines, rescanLanMachines, subscribeLanMachines,
+  type LanMachinesSnapshot,
   getPycoreHealth, PYCORE_HEALTH_EVENT,
   designateLaravelRelayDevice, laravelRelayDeviceId, clearLaravelRelayDevice,
   subscribeLaravelRelayDevice,
@@ -69,6 +71,8 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [url, setUrl] = useState('');
   const [endpoints, setEndpoints] = useState<PycoreEndpoint[]>(() => listPycoreEndpoints());
+  const [lan, setLan] = useState<LanMachinesSnapshot>(getLanMachines);
+  const lanAvailable = isLanMachinesAvailable();
   const [probes, setProbes] = useState<Record<string, PycoreProbeResult | null>>({});
   const [health, setHealth] = useState(getPycoreHealth());
   const [switching, setSwitching] = useState('');
@@ -91,7 +95,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   }, []);
 
   const recheckAll = useCallback(() => {
-    void refreshTailnetPeers().then(() => {
+    void Promise.all([refreshLanMachines(), refreshTailnetPeers()]).then(() => {
       const list = listPycoreEndpoints();
       setEndpoints(list);
       readProbes(list);
@@ -112,10 +116,18 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
       setProbes((previous) => ({ ...previous, [probeUrl]: result }));
     });
     const stopPeers = subscribeTailnetPeers(() => setEndpoints(listPycoreEndpoints()));
+    const stopLan = subscribeLanMachines(() => {
+      const list = listPycoreEndpoints();
+      setLan(getLanMachines());
+      setEndpoints(list);
+      void probePycoreEndpoints(list.filter((endpoint) => endpoint.source === 'lan'));
+    });
+    void refreshLanMachines();
     void refreshTailnetPeers();
     return () => {
       stopProbes();
       stopPeers();
+      stopLan();
     };
   }, []);
 
@@ -214,6 +226,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const providers = relayCapabilityProviders();
   const thisMachine = endpoints.filter((endpoint) => endpoint.source === 'this_machine');
   const tailnet = endpoints.filter((endpoint) => endpoint.source === 'tailnet');
+  const lanMachines = endpoints.filter((endpoint) => endpoint.source === 'lan');
   const relays = endpoints.filter((endpoint) => endpoint.kind === 'relay');
   const recent = endpoints.filter((endpoint) => endpoint.source === 'recent' || (endpoint.source === 'host_key' && endpoint.kind !== 'relay'));
   const healthDot = health.up === true ? PROBE_DOT.up : health.up === false ? PROBE_DOT.down
@@ -383,6 +396,31 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             <div className="space-y-1">
               <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.thisMachine')}</div>
               {thisMachine.map(renderEndpoint)}
+            </div>
+          )}
+
+          {lanAvailable && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2 px-1 text-[10px] font-mono uppercase tracking-wide text-slate-400">
+                <span>{t('pycoreTarget.lanHeading', { port: PYCORE_BACKEND_PORT })}</span>
+                <button
+                  type="button"
+                  onClick={() => void rescanLanMachines()}
+                  title={t('pycoreTarget.lanRescan')}
+                  aria-label={t('pycoreTarget.lanRescan')}
+                  className="rounded-md p-1 hover:bg-slate-100 dark:hover:bg-white/5"
+                >
+                  <RefreshCw className={`h-3 w-3 ${lan.scanning ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              {lan.segments.length > 0 && (
+                <p className="px-1 font-mono text-[10px] text-slate-400">
+                  {t('pycoreTarget.lanSegments', { segments: lan.segments.map((segment) => segment.cidr).join(', ') })}
+                </p>
+              )}
+              {lanMachines.length > 0
+                ? lanMachines.map(renderEndpoint)
+                : <p className="px-1 text-[10px] leading-relaxed text-slate-400">{t(lan.scanning ? 'pycoreTarget.lanScanning' : 'pycoreTarget.lanEmpty')}</p>}
             </div>
           )}
 

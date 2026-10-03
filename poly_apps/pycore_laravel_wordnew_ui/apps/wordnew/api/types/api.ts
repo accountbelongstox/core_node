@@ -6,7 +6,7 @@ import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPay
 import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewNearbyUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
 import type { WfNewEndpointKind, WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot } from './endpoints';
-import type { WfNewBookReadingProgress, WfNewDailyReadingProgress, WfNewDailyReadingResourcePreviewResult, WfNewDailyReadingResourcePreviewSettings, WfNewDailyReadingSelectionMode } from './bookProgress';
+import type { WfNewBookReadingProgress, WfNewDailyReadingCalendar, WfNewDailyReadingFeedPage, WfNewDailyReadingProgress, WfNewDailyReadingReadState, WfNewDailyReadingResourcePreviewResult, WfNewDailyReadingResourcePreviewSettings, WfNewDailyReadingSelectionMode } from './bookProgress';
 import type { WfNewClientDeviceSettings, WfNewReaderSettingsBlob } from './readerSettings';
 import type {
   WordNewGroupProgressBlob, WordNewGroupProgressPayload,
@@ -354,6 +354,12 @@ export interface WfNewApi {
     articleId: string | null,
     selectionMode?: WfNewDailyReadingSelectionMode,
   ): Promise<WfNewDailyReadingProgress | null>;
+  /** Cursor page of one day's daily-reading articles with the caller's read flags. */
+  getDailyReadingFeed(date: string | null, cursor?: number | null, limit?: number): Promise<WfNewDailyReadingFeedPage>;
+  /** Per-day article / read counts for the date strip (inclusive YYYY-MM-DD range). */
+  getDailyReadingCalendar(from: string, to: string): Promise<WfNewDailyReadingCalendar>;
+  /** Persist read/unread for articles server-side; null when logged out or the call fails. */
+  setDailyReadingRead(articleIds: string[], read: boolean): Promise<WfNewDailyReadingReadState[] | null>;
   previewDailyReadingResources(
     articleId: string,
     settings: WfNewDailyReadingResourcePreviewSettings,

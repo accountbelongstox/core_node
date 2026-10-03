@@ -1,6 +1,6 @@
 /**
  * Node tabs of the terminal page: this machine (the selected pycore target)
- * first, then every other online pycore found on the tailnet. Selecting one
+ * first, then every other online pycore found on the LAN or the tailnet. Selecting one
  * re-mounts the same terminal view against that node's API.
  */
 import React, { useEffect, useState } from 'react';
@@ -11,7 +11,9 @@ import {
   getPycoreTarget,
   listPycoreEndpoints,
   probePycoreEndpoints,
+  refreshLanMachines,
   refreshTailnetPeers,
+  subscribeLanMachines,
   subscribePycoreProbes,
   subscribeTailnetPeers,
   type PycoreEndpoint,
@@ -39,9 +41,14 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
 
   useEffect(() => {
     const stopPeers = subscribeTailnetPeers(() => setNodes(otherNodes()));
+    const stopLan = subscribeLanMachines(() => {
+      const list = otherNodes();
+      setNodes(list);
+      void probePycoreEndpoints(list);
+    });
     const stopProbes = subscribePycoreProbes(() => setProbeVersion((value) => value + 1));
     const probeAll = () => {
-      void refreshTailnetPeers().then(() => {
+      void Promise.all([refreshLanMachines(), refreshTailnetPeers()]).then(() => {
         const list = otherNodes();
         setNodes(list);
         void probePycoreEndpoints(list);
@@ -51,6 +58,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
     const timer = window.setInterval(probeAll, REPROBE_INTERVAL_MS);
     return () => {
       stopPeers();
+      stopLan();
       stopProbes();
       window.clearInterval(timer);
     };

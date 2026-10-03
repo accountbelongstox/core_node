@@ -267,6 +267,12 @@ export async function authedGetJSON<T>(path: string, fallback: T): Promise<T> {
   return requestJSON<T>(path, true);
 }
 
+/** GET a public endpoint whose body carries per-user fields when a session exists: sends the Bearer token if logged in, always bypasses the resource mirror. */
+export async function optionalAuthFreshJSON<T>(path: string): Promise<T> {
+  syncPersistedToken();
+  return authToken ? requestJSON<T>(path, true, 'network') : requestJSON<T>(path, false, 'network');
+}
+
 /** Fetch short-lived authenticated material directly from its issuer. */
 export async function authedGetFreshJSON<T>(path: string, fallback: T): Promise<T> {
   syncPersistedToken();

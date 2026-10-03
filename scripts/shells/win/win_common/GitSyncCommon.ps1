@@ -62,6 +62,14 @@ $script:GitSyncChangeListMax = 30
 $script:GitSyncNoticeFlag = "--notice-laravel"
 $script:GitSyncSkipNoticeFlag = "--skip-notice-laravel"
 $script:GitSyncSignedCliPath = Join-Path -Path (Join-Path -Path (Join-Path -Path "ncore" -ChildPath "foundation") -ChildPath "common") -ChildPath "laravel_signed_cli.js"
+# Copy-ready AI prompt on a merge conflict; its text lives in config/service_contract.json
+# code_sync.conflict_* (shared with git_sync_common.sh and pycore's gitsync watch service).
+$script:GitSyncServiceContractPath = Join-Path -Path $script:GitSyncCommonScriptDir -ChildPath "ServiceContract.ps1"
+$script:GitSyncPromptSeparator = "-" * 72
+
+if (-not (Get-Command -Name "Get-ServiceContractValue" -ErrorAction SilentlyContinue)) {
+    . $script:GitSyncServiceContractPath
+}
 
 # =============================================================================
 # Path resolution
@@ -534,6 +542,40 @@ function Clear-GitSyncStaleLocks {
     return $true
 }
 
+function Write-GitSyncAiPrompt {
+    <#
+    .SYNOPSIS
+        Prints a delimited prompt the user can paste to an AI agent; references
+        the conflict doc of the pycore gitsync watch service when it exists.
+    #>
+    param(
+        [Parameter(Mandatory = $true)] [string]$RepoRoot,
+        [Parameter(Mandatory = $false)] [string]$ConflictedPaths = ""
+    )
+
+    $conflictDoc = [string](Get-ServiceContractValue -ContractPath "code_sync.conflict_doc")
+    $context = ""
+    $cleanup = ""
+    $conflictedList = @($ConflictedPaths -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+    if (Test-Path -LiteralPath (Join-Path -Path $RepoRoot -ChildPath $conflictDoc)) {
+        $context = ([string](Get-ServiceContractValue -ContractPath "code_sync.conflict_ai_prompt_doc")).Replace("{doc}", $conflictDoc)
+        $cleanup = ([string](Get-ServiceContractValue -ContractPath "code_sync.conflict_ai_prompt_cleanup")).Replace("{doc}", $conflictDoc).Replace("{readme}", [string](Get-ServiceContractValue -ContractPath "code_sync.conflict_readme")).Replace("{marker}", [string](Get-ServiceContractValue -ContractPath "code_sync.conflict_readme_marker"))
+    }
+    $prompt = ([string](Get-ServiceContractValue -ContractPath "code_sync.conflict_ai_prompt")).Replace("{repo}", $RepoRoot).Replace("{context}", $context).Replace("{cleanup}", $cleanup)
+
+    Write-Host "[gitsync] Copy this prompt for your AI:"
+    Write-Host $script:GitSyncPromptSeparator
+    Write-Host $prompt
+    if ($conflictedList.Count -gt 0) {
+        Write-Host ([string](Get-ServiceContractValue -ContractPath "code_sync.conflict_ai_prompt_files"))
+        foreach ($conflictedPath in $conflictedList) {
+            Write-Host "- $($conflictedPath.Trim())"
+        }
+    }
+    Write-Host $script:GitSyncPromptSeparator
+}
+
 function Resume-GitSyncPendingState {
     <#
     .SYNOPSIS
@@ -570,6 +612,7 @@ function Resume-GitSyncPendingState {
         Write-Host "[gitsync] Conflicted paths:"
         Write-Host $unmergedOutput
         Write-Host "[gitsync] Next step: resolve the conflicts, 'git add <file>', then run 'gitsync' again."
+        Write-GitSyncAiPrompt -RepoRoot $RepoRoot -ConflictedPaths $unmergedOutput
         return $false
     }
 
@@ -669,6 +712,7 @@ function Invoke-GitSyncRun {
             Write-Host "[gitsync] Conflicted paths:"
             Write-Host $unmergedOutput
             Write-Host "[gitsync] Next step: resolve the conflicts manually (edit the files, 'git add <file>'), then run 'gitsync' again."
+            Write-GitSyncAiPrompt -RepoRoot $RepoRoot -ConflictedPaths $unmergedOutput
             return $false
         }
 

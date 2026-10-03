@@ -42,7 +42,7 @@ import type {
 } from './WfNewApiTypes';
 import { WfNewApiPaths } from './WfNewApiPaths';
 import {
-  absUrl, toBookVerse, normPresence, toMessage, toNotification,
+  absUrl, mapAgentArticle, toBookVerse, normPresence, toMessage, toNotification,
   toActor, toPostImage, toPost, toComment, toLive, toLiveMsg,
 } from './WfNewApiMappers';
 import { socialMethods } from './methods/social';
@@ -316,42 +316,7 @@ export const wfNewApiHttp: WfNewApi = {
     const rows = Array.isArray(res?.articles)
       ? res.articles
       : Array.isArray(res?.rows) ? res.rows : Array.isArray(res?.items) ? res.items : [];
-    const items = rows.map((item: any, index: number) => {
-      const articleId = item?.article_id ?? item?.source_key ?? null;
-      const language = String(item?.language ?? 'en').toLowerCase();
-      const actualAudioUrl = item?.audio_url ? (absUrl(item.audio_url) ?? null) : null;
-      const expectedAudioUrl = articleId
-        ? absUrl(`/static/app_qy_v1/audio/agent_history/${encodeURIComponent(language)}/${encodeURIComponent(String(articleId))}.mp3`)
-        : null;
-      const audioReady = item?.audio_ready === true
-        || (item?.audio_ready == null && Boolean(item?.tts_generated && actualAudioUrl));
-      return {
-        id: String(item?.id ?? item?.article_id ?? item?.source_key ?? item?.title_en ?? item?.title ?? `article-${index}`),
-        title: String(item?.title ?? item?.title_en ?? 'Article'),
-        title_en: item?.title_en ?? item?.title ?? null,
-        title_cn: item?.title_cn ?? null,
-        reference_cn: item?.reference_cn ?? null,
-        article_en: item?.article_en ?? null,
-        source_key: item?.source_key ?? item?.article_id ?? null,
-        article_id: articleId,
-        source_identity: typeof item?.source_identity === 'string' ? item.source_identity : null,
-        audio_url: actualAudioUrl ?? expectedAudioUrl,
-        audio_ready: audioReady,
-        audio_status: audioReady ? 'ready' : String(item?.audio_status ?? 'queued'),
-        tts_engine: typeof item?.tts_engine === 'string' ? item.tts_engine : null,
-        tts_model: typeof item?.tts_model === 'string' ? item.tts_model : null,
-        tts_chunked: item?.tts_chunked === true,
-        audio_generation_type: item?.tts_chunked === true ? 'multi_sentence' : 'legacy',
-        audio_rebuilt_at: typeof item?.audio_rebuilt_at === 'string' ? item.audio_rebuilt_at : null,
-        language,
-        tts_generated: Boolean(item?.tts_generated),
-        word_count: item?.word_count ?? null,
-        published_at: item?.created_at ?? item?.published_at ?? null,
-        reading_date: item?.reading_date ?? item?.created_at ?? null,
-        created_at: item?.created_at ?? null,
-        document_id: item?.document_id ?? null,
-      };
-    });
+    const items = rows.map(mapAgentArticle);
     return {
       items,
       total: Number(res?.total ?? items.length),
