@@ -28,6 +28,10 @@ PASTE_SETTLE_BASE_SECONDS = 0.3
 PASTE_SETTLE_PER_CHARACTER_SECONDS = 0.0004
 PASTE_SETTLE_MAX_SECONDS = 3.0
 ENTER_HOLD_SECONDS = 0.04
+# A pasted message is submitted with several Enters: an agent still consuming the paste
+# can swallow the first one; Enter on an already empty prompt does nothing.
+SUBMIT_ENTER_PRESSES = 3
+SUBMIT_ENTER_INTERVAL_SECONDS = 0.5
 FOCUS_READY_TIMEOUT_SECONDS = 1.0
 SELECT_ALL_DELAY_SECONDS = 0.15
 TERMINAL_HISTORY_DIRECTIONS = frozenset({"up", "down"})
@@ -398,7 +402,13 @@ class TerminalWindowBackend:
             if not self._paste(window):
                 return failure("terminal_paste_failed")
             time.sleep(paste_settle_seconds(content_length))
-            return self._press_enter(window)
+            pressed = self._press_enter(window)
+            for _ in range(SUBMIT_ENTER_PRESSES - 1):
+                if not pressed.get("success"):
+                    break
+                time.sleep(SUBMIT_ENTER_INTERVAL_SECONDS)
+                pressed = self._press_enter(window)
+            return pressed
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:
         window, blocked = self._input_window(window_id)

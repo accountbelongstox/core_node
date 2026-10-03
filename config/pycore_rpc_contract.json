@@ -1134,6 +1134,10 @@
       "path": "ui/terminal/text",
       "method": "POST"
     },
+    "terminalLogsSearch": {
+      "path": "ui/terminal/logs/search",
+      "method": "POST"
+    },
     "terminalView": {
       "path": "ui/terminal/view",
       "method": "POST"

@@ -79,6 +79,7 @@ CAPTURE_FOCUS_LABEL = "TerminalCapture"
 CUSTOM_TITLE_MAX_CHARS = 120
 CHOICE_MAX_OPTIONS = 9
 CHOICE_SETTLE_SECONDS = 0.15
+TERMINAL_LOG_SEARCH_RESULTS = int(relay_contract.limit("terminal_log_search_results"))
 # shift+tab cycles at most manual/accept edits/plan/auto/bypass; one more step closes the cycle.
 MODE_SWITCH_MAX_STEPS = 6
 MODE_SWITCH_SETTLE_SECONDS = 0.5
@@ -588,6 +589,14 @@ class TerminalService:
             terminal_number,
             expanded,
         )
+
+    def search_logs(self, query: str) -> Dict[str, Any]:
+        """Sent messages of every terminal containing query, newest first."""
+        return {
+            "success": True,
+            "query": query,
+            "results": self._state_repository.search_logs(query, TERMINAL_LOG_SEARCH_RESULTS),
+        }
 
     def read_text(
         self,
