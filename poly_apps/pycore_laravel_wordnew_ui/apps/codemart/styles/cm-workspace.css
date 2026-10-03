@@ -840,6 +840,7 @@
 .cm-status[data-status="in_progress"] { background: #eaf3ff; color: #276bbd; }
 
 .cm-table {
+  position: relative;
   width: 100%;
   border-collapse: collapse;
   overflow: hidden;
@@ -1607,7 +1608,7 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 .cm-chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .cm-chip-list li { padding: 3px 10px; border-radius: 999px; background: #eef2f7; color: #5d6d80; font-size: 12px; font-weight: 600; }
 
-.cm-table-wrap { max-width: 100%; overflow-x: auto; border-radius: 14px; }
+.cm-table-wrap { position: relative; max-width: 100%; overflow-x: auto; border-radius: 14px; }
 .cm-table-wrap .cm-table { min-width: 560px; }
 .cm-table td.is-num, .cm-table th.is-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
