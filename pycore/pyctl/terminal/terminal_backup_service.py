@@ -18,6 +18,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
     terminal_backup_store,
     text_digest,
 )
+from pycore.pyctl.terminal.terminal_permission_mode import terminal_permission_modes
 from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, waiting_prompt
 from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
 from pycore.pyctl.terminal.terminal_resume_scheduler import TerminalResumeScheduler
@@ -40,8 +41,8 @@ LABEL = "TerminalBackup"
 BACKUP_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_interval_seconds")
 PROMPT_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_prompt_interval_seconds")
 PROMPT_MISS_LIMIT = relay_contract.limit("terminal_backup_prompt_miss_limit")
-# Off by default: synthesized Enter/Down keys answered agent permission prompts and,
-# once the prompt was gone, reached the agent's own UI (e.g. stopped background tasks).
+# Enter/arrow keys answer agent permission prompts; the handler re-reads the terminal right
+# before each key so a prompt that already closed never passes keys to the agent's own UI.
 AUTO_CONFIRM_ENABLED = relay_contract.limit("terminal_backup_auto_confirm") == 1
 LOW_BATTERY_PERCENT = relay_contract.limit("terminal_backup_low_battery_percent")
 MIN_IDLE_SECONDS = relay_contract.limit("terminal_backup_min_idle_seconds")
@@ -92,6 +93,7 @@ class TerminalBackupService:
         self._resume = resume_scheduler or TerminalResumeScheduler(terminals)
         self._agent_watch = agent_watch or TerminalAgentWatch(terminal_agent_detector)
         terminals.register_snapshot_decorator(self._agent_watch.decorate_snapshot)
+        terminals.register_snapshot_decorator(terminal_permission_modes.decorate_snapshot)
         self._agent_activity = agent_activity or TerminalAgentActivity(notify)
         terminals.register_snapshot_decorator(self._agent_activity.decorate_snapshot)
         self._pass_lock = threading.Lock()
@@ -118,6 +120,11 @@ class TerminalBackupService:
             for window in windows
             if window.get("online") and window.get("id") and int(window.get("terminal_number") or 0) > 0
         ]
+
+    @staticmethod
+    def _agent_working(window: Dict[str, Any]) -> bool:
+        """An agent working per its title: synthesized select-all/copy keys could reach it as an interrupt."""
+        return TerminalAgentActivity.title_busy(str(window.get("title") or "")) is True
 
     def _sent_inputs(self, number: int, window: Dict[str, Any]) -> List[Dict[str, Any]]:
         inputs = []
@@ -151,6 +158,13 @@ class TerminalBackupService:
         entry["signature"] = inputs_digest(entry["inputs"])
         return entry
 
+    def _scan_isolated(self, window: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
+        """Focus save, scan and focus restore as one input-owner step: a send can never land between them."""
+        def scan() -> Tuple[Dict[str, Any], bool]:
+            with self._focus.preserved(LABEL):
+                return self._scan_window(window)
+        return self._terminals.run_exclusive(scan)
+
     def _scan_window(self, window: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
         entry = self._export(window)
         text = entry.get("text")
@@ -172,6 +186,7 @@ class TerminalBackupService:
             entry["signature"] = text_digest(refreshed)
         self._resume.observe(entry["number"], str(window["id"]), refreshed)
         self._agent_watch.observe(entry["number"], str(window["id"]), refreshed, str(window.get("title") or ""))
+        terminal_permission_modes.observe(str(window["id"]), refreshed)
         self._agent_activity.observe_text(
             entry["number"],
             str(window["id"]),
@@ -220,6 +235,7 @@ class TerminalBackupService:
     def _prune_terminal_states(self, windows: List[Dict[str, Any]]) -> None:
         live = {int(window["terminal_number"]): str(window["id"]) for window in windows}
         self._agent_watch.prune(live)
+        terminal_permission_modes.prune(list(live.values()))
         removed = False
         for number, state in list(self._fast_prompts.items()):
             if live.get(number) != state["window_id"]:
@@ -322,17 +338,19 @@ class TerminalBackupService:
                 if int(window["terminal_number"]) in self._fast_prompts
                 and self._fast_prompts[int(window["terminal_number"])]["due"] <= now
             ]
+            for window in [window for window in due_windows if self._agent_working(window)]:
+                self._fast_prompts[int(window["terminal_number"])]["due"] = now + PROMPT_INTERVAL_SECONDS
+                due_windows.remove(window)
             previous = self._store.previous_signatures()
             exported: List[Dict[str, Any]] = []
-            with self._focus.preserved(LABEL):
-                for window in due_windows:
-                    if self._user_active(PROMPT_INTERVAL_SECONDS):
-                        break
-                    entry, found_prompt = self._scan_window(window)
-                    self._observe_prompt(window, entry, found_prompt)
-                    signature = entry.pop("signature")
-                    entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
-                    exported.append(entry)
+            for window in due_windows:
+                if self._user_active(PROMPT_INTERVAL_SECONDS):
+                    break
+                entry, found_prompt = self._scan_isolated(window)
+                self._observe_prompt(window, entry, found_prompt)
+                signature = entry.pop("signature")
+                entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
+                exported.append(entry)
             self._alert_waiting_prompts(exported)
             if any(entry["changed"] for entry in exported):
                 saved = self._store.save(exported, merge_previous=True)
@@ -359,9 +377,11 @@ class TerminalBackupService:
         if not self._pass_lock.acquire(blocking=False):
             return
         try:
-            windows = self._enumerate()
-            with self._focus.preserved(LABEL):
-                self._resume.run_due(windows, lambda window: self._export(window).get("text"))
+            windows = [window for window in self._enumerate() if not self._agent_working(window)]
+            def resume() -> None:
+                with self._focus.preserved(LABEL):
+                    self._resume.run_due(windows, lambda window: self._export(window).get("text"))
+            self._terminals.run_exclusive(resume)
         except Exception as exc:  # noqa: BLE001 - a resume failure must not stop the scheduler
             ColorPrint.yellow(f"[{LABEL}] resume pass failed: {type(exc).__name__}: {exc}")
         finally:
@@ -396,23 +416,23 @@ class TerminalBackupService:
         live = {int(window["terminal_number"]): window for window in windows}
         skipped = [
             number for number, window in live.items()
-            if self._agent_watch.skip_scan(number, str(window["id"]), str(window.get("title") or ""), PLAIN_RECHECK_SECONDS)
+            if self._agent_working(window)
+            or self._agent_watch.skip_scan(number, str(window["id"]), str(window.get("title") or ""), PLAIN_RECHECK_SECONDS)
         ]
         order = self._pass_pending if self._pass_pending is not None else sorted(live)
         queue = [live[number] for number in order if number in live and number not in skipped]
         exported = [entry for entry in self._pass_partial if entry["number"] in live]
         previous = self._store.previous_signatures()
         paused_at: Optional[int] = None
-        with self._focus.preserved(LABEL):
-            for index, window in enumerate(queue):
-                if not forced and self._user_active():
-                    paused_at = index
-                    break
-                entry, found_prompt = self._scan_window(window)
-                self._observe_prompt(window, entry, found_prompt, count_miss=False)
-                signature = entry.pop("signature")
-                entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
-                exported.append(entry)
+        for index, window in enumerate(queue):
+            if not forced and self._user_active():
+                paused_at = index
+                break
+            entry, found_prompt = self._scan_isolated(window)
+            self._observe_prompt(window, entry, found_prompt, count_miss=False)
+            signature = entry.pop("signature")
+            entry["changed"] = bool(signature) and signature != previous.get(entry["number"])
+            exported.append(entry)
         if paused_at is not None:
             self._pass_partial = exported
             self._pass_pending = [int(window["terminal_number"]) for window in queue[paused_at:]]

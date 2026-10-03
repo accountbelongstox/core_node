@@ -31,6 +31,9 @@
     --remote-control, or prints the manual /remote-control line. No role =
     plain claude.
 
+    --permission-mode <mode> replaces the default auto mode in every case (the py
+    launcher passes manual).
+
 .EXAMPLE
     .\claudeteam.ps1
     .\claudeteam.ps1 -xx
@@ -58,6 +61,7 @@ $deviceRole = ""
 $deviceSession = ""
 $deviceRemoteHint = ""
 $remoteControlSession = ""
+$permissionModeGiven = $false
 $claudeArgs = @()
 $claudeDisplayArgs = @()
 $forwardArgs = @()
@@ -101,6 +105,17 @@ for ($argumentIndex = 0; $argumentIndex -lt $args.Count; $argumentIndex++) {
     if (($argumentText -eq $ClaudeTeamPaneFlag) -and $hasValue) {
         $paneMode = [string]$args[$argumentIndex + 1]
         $argumentIndex++
+        continue
+    }
+    if (($argumentText -eq "--permission-mode") -and $hasValue) {
+        $ClaudeTeamPermissionMode = [string]$args[$argumentIndex + 1]
+        $permissionModeGiven = $true
+        $argumentIndex++
+        continue
+    }
+    if ($argumentText.StartsWith("--permission-mode=")) {
+        $ClaudeTeamPermissionMode = $argumentText.Substring("--permission-mode=".Length)
+        $permissionModeGiven = $true
         continue
     }
     if (($argumentText -eq "--device-slot") -and $hasValue) {
@@ -202,6 +217,9 @@ try {
         if (($deviceSlot -gt 0) -and (-not $deviceRole)) {
             $sessionEnvironment = @{}
             $claudeArgs = $forwardArgs
+            if ($permissionModeGiven) {
+                $claudeArgs = @("--permission-mode", $ClaudeTeamPermissionMode) + $forwardArgs
+            }
             $claudeDisplayArgs = $claudeArgs
         } elseif ($null -ne $paneRow) {
             $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $paneRow

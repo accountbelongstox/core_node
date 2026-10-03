@@ -14,6 +14,7 @@ from pycore.pyutils.common.gnome_shell_dbus import (
     gnome_shell_introspect,
 )
 from pycore.pyutils.common.input_method import input_method_bypassed
+from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.common.x11_display import X11Window, x11_display
 from pycore.pyutils.common.xdg_desktop_portal import xdg_desktop_portal
@@ -63,6 +64,8 @@ class LinuxTerminalBackend(TerminalWindowBackend):
     """X11/Xwayland via Xlib, native Wayland via the GNOME bridge, portal as input/capture fallback."""
 
     platform_name = "linux"
+    # Wayland grabs go through the compositor / portal and stall terminal input when taken every second.
+    desktop_capture_interval_seconds = relay_contract.limit("desktop_view_linux_capture_interval_ms") / 1000
 
     def _list_windows(self) -> List[Dict[str, Any]]:
         session = current_desktop_session()

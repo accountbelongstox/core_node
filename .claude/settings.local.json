@@ -165,7 +165,9 @@
       "Bash(/tmp/q.sh)",
       "Bash(node cdp.js net 20)",
       "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100&minutes=600\")",
-      "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c \"dd.cmd pycorerestart\" 2>&1 | Select-Object -Last 4; try { \\(Invoke-WebRequest -Method Post -Uri http://127.0.0.1:59000/api/ui/version/version -ContentType 'application/json' -Body '{}' -UseBasicParsing -TimeoutSec 10\\).StatusCode } catch { $_.Exception.Message }; $global:LASTEXITCODE=0)"
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c \"dd.cmd pycorerestart\" 2>&1 | Select-Object -Last 4; try { \\(Invoke-WebRequest -Method Post -Uri http://127.0.0.1:59000/api/ui/version/version -ContentType 'application/json' -Body '{}' -UseBasicParsing -TimeoutSec 10\\).StatusCode } catch { $_.Exception.Message }; $global:LASTEXITCODE=0)",
+      "Bash(PYCORE_SKIP_DEP_CHECK=1 python3 -c ' *)",
+      "Bash(timeout 180 bash dd.sh pycorerestart)"
     ],
     "deny": [],
     "ask": []

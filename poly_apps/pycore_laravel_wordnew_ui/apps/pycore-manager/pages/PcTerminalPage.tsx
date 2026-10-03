@@ -21,6 +21,7 @@ import {
   CornerDownLeft,
   Crosshair,
   FileText,
+  Hand,
   ImageIcon,
   Eraser,
   History,
@@ -211,6 +212,11 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_history_key_failed: 'terminal.errors.historyKey',
   terminal_key_invalid: 'terminal.errors.keyInvalid',
   terminal_key_failed: 'terminal.errors.key',
+  terminal_permission_mode_invalid: 'terminal.errors.permissionModeInvalid',
+  terminal_permission_mode_unknown: 'terminal.errors.permissionModeUnknown',
+  terminal_permission_mode_unchanged: 'terminal.errors.permissionModeUnchanged',
+  terminal_permission_mode_unavailable: 'terminal.errors.permissionModeUnavailable',
+  terminal_prompt_waiting: 'terminal.errors.promptWaiting',
   terminal_clear_failed: 'terminal.errors.clear',
   terminal_choice_invalid: 'terminal.errors.choiceInvalid',
   terminal_scroll_mode_invalid: 'terminal.errors.scrollMode',
@@ -1380,6 +1386,15 @@ const PcTerminalNodeView: React.FC = () => {
     );
   }, [runAction, selectedWindow]);
 
+  const switchToManualMode = useCallback(() => {
+    if (!selectedWindow?.online) return;
+    void runAction(
+      selectedWindow.id,
+      () => terminalApi.switchTerminalPermissionMode(selectedWindow.id, selectedWindow.terminal_number, 'manual'),
+      'terminal.permissionMode.switched',
+    );
+  }, [runAction, selectedWindow]);
+
   const scrollTerminal = useCallback((mode: TerminalScrollMode) => {
     if (!selectedWindow?.online) return;
     void runAction(
@@ -1934,7 +1949,7 @@ const PcTerminalNodeView: React.FC = () => {
           ))}
         </div>
         <div
-          className="grid grid-cols-6 gap-0.5 sm:grid-cols-11"
+          className="grid grid-cols-6 gap-0.5 sm:grid-cols-12"
           role="toolbar"
           aria-label={t('terminal.quickKeys')}
         >
@@ -1948,6 +1963,17 @@ const PcTerminalNodeView: React.FC = () => {
               tone: 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
               onClick: () => pressKey(key),
             })),
+            {
+              id: 'manualMode',
+              label: selectedWindow?.permission_mode
+                ? t('terminal.permissionMode.switchHint', { mode: t(`terminal.permissionMode.modes.${selectedWindow.permission_mode.mode}`) })
+                : t('terminal.permissionMode.switchHintUnknown'),
+              icon: Hand,
+              tone: selectedWindow?.permission_mode?.mode === 'manual'
+                ? 'text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400'
+                : 'text-rose-500 hover:bg-rose-500/10',
+              onClick: switchToManualMode,
+            },
             { id: 'previousCommand', label: t('terminal.previousCommand'), icon: ArrowUp, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('up') },
             { id: 'nextCommand', label: t('terminal.nextCommand'), icon: ArrowDown, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('down') },
             { id: 'pageUp', label: t('terminal.pageUp'), icon: ChevronsUp, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_up') },

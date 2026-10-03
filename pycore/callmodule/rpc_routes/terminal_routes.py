@@ -20,6 +20,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
     UI_TERMINAL_KEY,
+    UI_TERMINAL_PERMISSION_MODE,
     UI_TERMINAL_REMOVE,
     UI_TERMINAL_RENAME,
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
@@ -199,6 +200,16 @@ def register_terminal_routes(server) -> None:
             "key",
             request_id,
             lambda: terminal_service.press_key(window_id, key),
+        )
+
+    def permission_mode_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = integer_param(params, "terminal_number")
+        target = str(params.get("mode") or "").strip().lower()
+        return run_terminal_action(
+            "permission_mode",
+            request_id,
+            lambda: terminal_service.switch_permission_mode(window_id, terminal_number, target),
         )
 
     def enter_handler(params, request_id, _context):
@@ -473,6 +484,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_KEY, handler=key_handler)
+    server.post(path=UI_TERMINAL_PERMISSION_MODE, handler=permission_mode_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
     server.post(path=UI_TERMINAL_REMOVE, handler=remove_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)

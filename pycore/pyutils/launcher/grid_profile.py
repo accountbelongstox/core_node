@@ -33,7 +33,10 @@ RESOLUTION_HEIGHT_INDEX = 1
 AUTO_PROFILE_SEPARATOR = ' / '
 # Startup command per grid cell (row-major, resolved on PATH: /usr/local/bin on
 # Linux, .winenvs *.ps1 on Windows); later cells open a plain shell.
-CLAUDETEAM_COMMAND = 'claudeteam'
+# Launcher-started claudeteam sessions begin in Claude Code manual permission
+# mode (claudeteam defaults to auto); shift+tab cycles the mode in the session.
+CLAUDETEAM_PERMISSION_MODE = 'manual'
+CLAUDETEAM_COMMAND = f'claudeteam --permission-mode {CLAUDETEAM_PERMISSION_MODE}'
 GRID_STARTUP_COMMANDS: Tuple[str, ...] = (CLAUDETEAM_COMMAND,) * 8 + ('agyyolo', 'codexyolo', 'kimi1', 'kimi2')
 # Cross-device mode: claudeteam cell n runs `claudeteam --device-slot n`; claudeteam
 # resolves the device, profile and role (config/claude_team_roles.json device_profiles).
