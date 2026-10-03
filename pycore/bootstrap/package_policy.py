@@ -3,6 +3,7 @@
 Installer package-set CLI (run as a file by platform installers):
 
     python <repo>/pycore/bootstrap/package_policy.py --platform linux [--set installer] [--no-optional] [--json]
+    python <repo>/pycore/bootstrap/package_policy.py --platform linux [--set installer] --constraints
 
 Prerequisite phase is stdlib-only: pycore.pyfoundations.python_package_policy
 imports nothing outside the standard library, so this runs before any
@@ -28,7 +29,12 @@ _parser.add_argument(
 )
 _parser.add_argument("--no-optional", action="store_true")
 _parser.add_argument("--json", action="store_true")
+_parser.add_argument("--constraints", action="store_true")
 _args = _parser.parse_args()
+if _args.constraints:
+    for _line in python_package_policy.constraint_lines(_args.set, _args.platform, include_optional=not _args.no_optional):
+        print(_line)
+    sys.exit(0)
 _rows = list(python_package_policy.package_rows(_args.set, _args.platform, include_optional=not _args.no_optional))
 if _args.json:
     print(json.dumps(_rows))

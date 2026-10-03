@@ -154,6 +154,7 @@ function Install-PycorePolicySet {
     $missing = @()
     $pipSpecs = @()
     $remaining = @()
+    $constraintsFile = ''
     $rows = @(Get-PycorePolicyPackageRows -PythonExe $PythonExe -Set $Set)
     $installedPackages = Get-PipInstalledPackageSet -PipExe $PipExe
     $missing = @(Get-PycoreMissingPolicyRows -Rows $rows -InstalledPackages $installedPackages)
@@ -164,7 +165,12 @@ function Install-PycorePolicySet {
 
     $pipSpecs = @($missing | ForEach-Object { [string]$_.PipSpec })
     Write-Host ("$LogPrefix [..] installing {0} missing ${Set} package(s): {1}" -f $pipSpecs.Count, ($pipSpecs -join ', ')) -ForegroundColor Yellow
-    & $PipExe install @pipSpecs
+    # Every version-bounded policy spec constrains the install, so a missing
+    # package never moves a present one out of policy (e.g. fastmcp upgrading mcp past <2).
+    $constraintsFile = [System.IO.Path]::GetTempFileName()
+    & $PythonExe $script:PycorePackagePolicyPath --platform windows --set $Set --constraints | Set-Content -LiteralPath $constraintsFile -Encoding ascii
+    & $PipExe install -c $constraintsFile @pipSpecs
+    Remove-Item -LiteralPath $constraintsFile -Force -ErrorAction SilentlyContinue
 
     $installedPackages = Get-PipInstalledPackageSet -PipExe $PipExe -Refresh
     $remaining = @(Get-PycoreMissingPolicyRows -Rows $rows -InstalledPackages $installedPackages)
