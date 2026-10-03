@@ -172,7 +172,8 @@
       "Bash(nvidia-smi)",
       "Bash(nvidia-smi --query-compute-apps=pid,used_memory,name --format=csv)",
       "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100&minutes=60\")",
-      "PowerShell(cd D:\\\\programing\\\\core_node; foreach\\($i in 1..3\\){ $t=Measure-Command { node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes | Out-Null }; \"{0:n0} ms\" -f $t.TotalMilliseconds })"
+      "PowerShell(cd D:\\\\programing\\\\core_node; foreach\\($i in 1..3\\){ $t=Measure-Command { node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes | Out-Null }; \"{0:n0} ms\" -f $t.TotalMilliseconds })",
+      "Bash(timeout 300 npx tsc --noEmit -p tsconfig.json)"
     ],
     "deny": [],
     "ask": []
