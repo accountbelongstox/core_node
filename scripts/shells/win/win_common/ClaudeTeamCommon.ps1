@@ -667,6 +667,9 @@ function Get-ClaudeTeamOtherRoles {
 function Get-ClaudeTeamSessionEnvironment {
     param([string[]]$Kinds)
     $environment = [ordered]@{}
+    if ($null -eq $script:ClaudeTeamCatalog) {
+        $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamInstallCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
     $sessionEnv = Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "session_env" -Default $null
     $kind = $null
     $block = $null
@@ -1899,9 +1902,6 @@ function Set-ClaudeTeamSessionEnvironment {
     $leadEnvironment = $null
     $key = $null
     [Environment]::SetEnvironmentVariable($ClaudeTeamSessionMarkerVariable, "1", "Process")
-    if ($null -eq $script:ClaudeTeamCatalog) {
-        $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamInstallCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    }
     if (($null -ne $Row) -and (-not $Row.IsLead)) {
         $kinds = Get-ClaudeTeamRoleEnvironmentKinds -Row $Row
         $leadEnvironment = Get-ClaudeTeamSessionEnvironment -Kinds @("lead")
