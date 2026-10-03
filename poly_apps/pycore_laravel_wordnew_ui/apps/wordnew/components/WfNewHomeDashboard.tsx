@@ -120,7 +120,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
         ) : (
           <div
             aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[220%] -translate-x-1/2 -translate-y-1/2 animate-[spin_5s_linear_infinite] motion-reduce:animate-none bg-[conic-gradient(from_0deg,transparent_0deg,transparent_200deg,#818cf8_260deg,#e879f9_310deg,#22d3ee_340deg,transparent_360deg)]"
+            className="pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[220%] -translate-x-1/2 -translate-y-1/2 animate-[spin_5s_linear_3] motion-reduce:animate-none bg-[conic-gradient(from_0deg,transparent_0deg,transparent_200deg,#818cf8_260deg,#e879f9_310deg,#22d3ee_340deg,transparent_360deg)]"
           />
         )}
         <div

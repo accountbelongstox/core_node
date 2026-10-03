@@ -483,9 +483,9 @@ public static class BattlenetReadyFlow
                     op.SaveUiElementsSnapshot("B5", "B5_exit");
                     string entryReason = string.IsNullOrEmpty(ctx.B5EntryReason) ? "exit" : ctx.B5EntryReason;
                     ColorPrinter.Blue($"{LogTag} flow B5→B5w | reason: {entryReason} -> kill Battle.net, wait {(int)C.FlowExitWaitSec}s then back to B1");
-                    if (!BattlenetManager.Instance.Kill())
+                    if (!BattlenetManager.Instance.CloseIfUnhealthy())
                     {
-                        ColorPrinter.Yellow($"{LogTag} flow B5 hold | reason: user is logging in / entering the code, Battle.net stays open; back to B7 poll");
+                        ColorPrinter.Yellow($"{LogTag} flow B5 hold | reason: client is healthy, starting a game or waiting for the user; Battle.net stays open, back to B7 poll");
                         ctx.B7PollDeadline = 0;
                         ctx.B7SkipCount = 0;
                         ctx.B11DeadlineTick = 0;
@@ -518,6 +518,10 @@ public static class BattlenetReadyFlow
     {
         ctx.CurrentStep = BnStep.BN_Confirmed;
         ctx.BnFlowEverConfirmed = true;
+        // A confirmed main UI restarts the "no elements" timers; otherwise B13 would time out (and exit) while logged in.
+        ctx.B13PollDeadline = 0;
+        ctx.B7PollDeadline = 0;
+        ctx.B7SkipCount = 0;
         return (true, ResultConfirmed);
     }
 

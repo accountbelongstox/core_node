@@ -11,3 +11,5 @@ metadata:
 - `laravel_signed_cli.js request GET /api/work/nodes` needs a query string (`?online=0`) or it prints "fetch failed"; `online=1` hides the pool.
 - Other people use phone Chrome; wordnew may be backgrounded and then shows no CPU.
 - Reading SSH secrets (SSH_CONNECTION_1) via secret_crypto.js is blocked by the auto-mode classifier; do not retry.
+- CPU measuring: check `document.visibilityState` first (phone often locked behind PIN -> hidden -> 0% CPU, readings meaningless). App-process CPU = RenderThread+VizWebView (GPU frames), so any continuous 60fps animation costs ~100% regardless of element size; paused animations via `document.getAnimations()` persist until reload (confounds bisects). Decorative home animations are now finite-iteration (3-4 cycles) instead of infinite.
+- ForegroundSyncService crashes the app when startForegroundService gets ACTION_STOP/null intent (stop path never calls startForeground).

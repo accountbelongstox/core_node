@@ -21,7 +21,7 @@ const DECOR_SVGS: Record<string, { colorClass: string; shapes: React.ReactNode }
     shapes: (
       <>
         <circle cx="50" cy="50" r="30" strokeWidth="1" strokeDasharray="4 2" />
-        <circle cx="50" cy="50" r="20" strokeWidth="2" strokeDasharray="8 8" className="animate-[spin_20s_linear_infinite]" />
+        <circle cx="50" cy="50" r="20" strokeWidth="2" strokeDasharray="8 8" className="animate-[spin_20s_linear_3]" />
         <path d="M10,50 L90,50 M50,10 L50,90" strokeWidth="0.5" strokeDasharray="1 3" />
       </>
     ),
@@ -30,7 +30,7 @@ const DECOR_SVGS: Record<string, { colorClass: string; shapes: React.ReactNode }
     colorClass: 'text-emerald-500',
     shapes: (
       <>
-        <path d="M20,10 V90 M40,20 V80 M60,10 V90 M80,20 V80" strokeWidth="1.5" strokeDasharray="5 15" className="animate-[pulse_2s_infinite]" />
+        <path d="M20,10 V90 M40,20 V80 M60,10 V90 M80,20 V80" strokeWidth="1.5" strokeDasharray="5 15" className="animate-[pulse_2s_3]" />
         <circle cx="20" cy="40" r="3" fill="currentColor" />
         <circle cx="60" cy="70" r="3" fill="currentColor" />
       </>
@@ -40,9 +40,9 @@ const DECOR_SVGS: Record<string, { colorClass: string; shapes: React.ReactNode }
     colorClass: 'text-rose-500',
     shapes: (
       <>
-        <polygon points="50,10 53,40 85,43 55,55 60,85 50,65 40,85 45,55 15,43 47,40" strokeWidth="1" className="animate-pulse" />
+        <polygon points="50,10 53,40 85,43 55,55 60,85 50,65 40,85 45,55 15,43 47,40" strokeWidth="1" className="animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_3]" />
         <circle cx="15" cy="15" r="2" fill="currentColor" />
-        <circle cx="85" cy="85" r="2" fill="currentColor" className="animate-ping" />
+        <circle cx="85" cy="85" r="2" fill="currentColor" className="animate-[ping_1s_cubic-bezier(0,0,0.2,1)_3]" />
       </>
     ),
   },
@@ -50,7 +50,7 @@ const DECOR_SVGS: Record<string, { colorClass: string; shapes: React.ReactNode }
     colorClass: 'text-sky-500',
     shapes: (
       <>
-        <path d="M10,30 Q30,60 50,30 T90,30" strokeWidth="1.5" className="animate-[bounce_3s_infinite]" />
+        <path d="M10,30 Q30,60 50,30 T90,30" strokeWidth="1.5" className="animate-[bounce_3s_3]" />
         <path d="M10,50 Q30,80 50,50 T90,50" strokeWidth="1" opacity="0.6" />
         <path d="M10,70 Q30,100 50,70 T90,70" strokeWidth="0.5" opacity="0.3" />
       </>
@@ -61,7 +61,7 @@ const DECOR_SVGS: Record<string, { colorClass: string; shapes: React.ReactNode }
     shapes: (
       <>
         <circle cx="50" cy="50" r="35" strokeWidth="0.5" />
-        <circle cx="50" cy="50" r="25" strokeWidth="1" strokeDasharray="2 2" className="animate-[spin_10s_linear_infinite]" />
+        <circle cx="50" cy="50" r="25" strokeWidth="1" strokeDasharray="2 2" className="animate-[spin_10s_linear_3]" />
         <circle cx="50" cy="50" r="15" strokeWidth="1.5" />
       </>
     ),
@@ -70,9 +70,9 @@ const DECOR_SVGS: Record<string, { colorClass: string; shapes: React.ReactNode }
     colorClass: 'text-fuchsia-500',
     shapes: (
       <>
-        <rect x="20" y="40" width="10" height="40" strokeWidth="1" className="animate-[pulse_1.5s_infinite]" />
-        <rect x="40" y="20" width="10" height="60" strokeWidth="1.5" className="animate-pulse" />
-        <rect x="60" y="50" width="10" height="30" strokeWidth="1" className="animate-[pulse_2.5s_infinite]" />
+        <rect x="20" y="40" width="10" height="40" strokeWidth="1" className="animate-[pulse_1.5s_3]" />
+        <rect x="40" y="20" width="10" height="60" strokeWidth="1.5" className="animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_3]" />
+        <rect x="60" y="50" width="10" height="30" strokeWidth="1" className="animate-[pulse_2.5s_3]" />
       </>
     ),
   },
@@ -108,7 +108,7 @@ export const WfNewHomeDefaultGroupCard: React.FC<WfNewHomeDefaultGroupCardProps>
       />
 
       <div className="absolute inset-0 overflow-hidden opacity-[0.06] dark:opacity-[0.04] pointer-events-none select-none font-mono text-[8px] uppercase tracking-widest leading-none">
-        <div className={`flex flex-col gap-2 ${index % 2 === 0 ? 'animate-[pulse_4s_infinite]' : 'animate-pulse'}`}>
+        <div className={`flex flex-col gap-2 ${index % 2 === 0 ? 'animate-[pulse_4s_3]' : 'animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_3]'}`}>
           {Array.from({ length: WATERFALL_ROWS }).map((_, rowIndex) => (
             <div key={rowIndex} className="flex gap-4 whitespace-nowrap animate-marquee">
               <span>{group.type}</span>

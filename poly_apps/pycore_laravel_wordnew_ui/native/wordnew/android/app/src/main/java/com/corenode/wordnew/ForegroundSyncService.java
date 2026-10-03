@@ -28,22 +28,28 @@ public class ForegroundSyncService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null || ACTION_STOP.equals(intent.getAction())) {
+        boolean stop = intent == null || ACTION_STOP.equals(intent.getAction());
+        // A start through startForegroundService must reach startForeground even when it only stops,
+        // or the system kills the app (ForegroundServiceDidNotStartInTimeException).
+        enterForeground(buildNotification(
+            stop ? null : intent.getStringExtra(EXTRA_TITLE),
+            stop ? null : intent.getStringExtra(EXTRA_TEXT),
+            stop ? null : intent.getStringExtra(EXTRA_CHANNEL_NAME)
+        ));
+        if (stop) {
             shutdown();
             return START_NOT_STICKY;
         }
-        Notification notification = buildNotification(
-            intent.getStringExtra(EXTRA_TITLE),
-            intent.getStringExtra(EXTRA_TEXT),
-            intent.getStringExtra(EXTRA_CHANNEL_NAME)
-        );
+        acquireWakeLock();
+        return START_NOT_STICKY;
+    }
+
+    private void enterForeground(Notification notification) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
-        acquireWakeLock();
-        return START_NOT_STICKY;
     }
 
     /** Android 15 ends a dataSync service after its time budget: release everything. */
