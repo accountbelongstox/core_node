@@ -78,7 +78,7 @@ export class UserModel {
   }
 
   getUser(): UnifiedUser | null {
-    return getAuthSnapshot().user as UnifiedUser | null;
+    return getAuthSnapshot().user as unknown as UnifiedUser | null;
   }
 
   isLoggedIn(): boolean {

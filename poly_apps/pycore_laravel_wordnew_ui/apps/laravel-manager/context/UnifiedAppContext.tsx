@@ -383,7 +383,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     activeView,
     lang: language,
     theme,
-    UnifiedUser: authSnapshot.user as UnifiedUser | null,
+    UnifiedUser: authSnapshot.user as unknown as UnifiedUser | null,
     isLoggedIn: authSnapshot.loggedIn,
     preferences: state.preferences,
     loading: state.loading,
