@@ -17,14 +17,18 @@ use Illuminate\Support\Facades\Validator;
  *
  * Read-only audio URL lookup: no queue write, no head move, no task. Each
  * result keeps the input order and does not echo the request item (index = id):
- * { ready, url, content_id? (sentence), md5? (word) }.
+ * { ready, url, content_id? (sentence), md5? (word), version? }. `version` (the
+ * served file's content version, see AppQyV1AudioBundleService::versions) is only
+ * computed when the body sets with_version, for clients checking held clips.
  */
 class AppQyV1AudioLookupCtl extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly AppQyV1AudioGateway $gateway)
-    {
+    public function __construct(
+        private readonly AppQyV1AudioGateway $gateway,
+        private readonly AppQyV1AudioBundleService $bundles = new AppQyV1AudioBundleService(),
+    ) {
     }
 
     public function lookup(Request $request): JsonResponse
@@ -34,6 +38,7 @@ class AppQyV1AudioLookupCtl extends Controller
             'items.*.kind' => 'required|string|in:' . AppQyV1AudioBundleService::KIND_WORD . ',' . AppQyV1AudioBundleService::KIND_SENTENCE,
             'items.*.language' => 'required|string|max:20',
             'items.*.text' => 'required|string',
+            'with_version' => 'sometimes|boolean',
         ]);
         $items = [];
         $words = [];
@@ -66,9 +71,12 @@ class AppQyV1AudioLookupCtl extends Controller
             ];
         }
 
+        $versions = ($validator->validated()['with_version'] ?? false) ? $this->bundles->versions($items) : null;
+
         return $this->success([
             'results' => array_map(
-                static fn (int $index): array => $results[$index] ?? ['ready' => false, 'url' => null],
+                static fn (int $index): array => ($results[$index] ?? ['ready' => false, 'url' => null])
+                    + ($versions === null ? [] : ['version' => $versions[$index] ?? null]),
                 array_keys($items)
             ),
         ], __('app_qy_v1.messages.audio_lookup_completed'));

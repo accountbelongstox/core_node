@@ -13,7 +13,7 @@ use App\Utils\FileSystemManager;
  * Many word / sentence clips in one response, in the clip bundle frame shared
  * with pycore (config/audio_orchestration_contract.json transfer): per
  * request item, in order, a 4-byte big-endian header length, a UTF-8 JSON
- * header {index, key, hit, bytes, sent, meaning} and the clip bytes when
+ * header {index, key, hit, bytes, sent, meaning, version} and the clip bytes when
  * sent. The first hit is always sent; a hit past the byte budget is
  * `sent:false` (the client asks it again). Paths are resolved here from the
  * passive batch lookups (one query per language, no queue writes), never
@@ -62,6 +62,7 @@ final class AppQyV1AudioBundleService
                 'bytes' => $hit ? strlen($data) : 0,
                 'sent' => $send,
                 'meaning' => '',
+                'version' => $hit ? self::fileVersion($path) : null,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $body .= pack(self::FRAME_LENGTH_FORMAT, strlen($header)) . $header . ($send ? $data : '');
             if ($send) {
@@ -71,6 +72,35 @@ final class AppQyV1AudioBundleService
         }
 
         return $body;
+    }
+
+    /**
+     * Content version per item index (null when Laravel holds no file): the version a bundle
+     * frame reports for the same clip, so a client can tell a replaced file from the one it holds.
+     *
+     * @param array<int,array{kind:string,language:string,text:string}> $items
+     * @return array<int,?int>
+     */
+    public function versions(array $items): array
+    {
+        $items = array_values($items);
+        $paths = $this->paths($items);
+        $versions = [];
+        foreach (array_keys($items) as $index) {
+            $path = $paths[$index] ?? null;
+            $versions[$index] = $path !== null ? self::fileVersion($path) : null;
+        }
+
+        return $versions;
+    }
+
+    /** Content version of a served clip file: its modification time in seconds (null when the file is gone). */
+    private static function fileVersion(string $path): ?int
+    {
+        clearstatcache(true, $path);
+        $time = is_file($path) ? filemtime($path) : false;
+
+        return $time === false ? null : (int) $time;
     }
 
     /**

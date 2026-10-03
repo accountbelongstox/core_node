@@ -75,6 +75,8 @@ export interface NativeBundleEntry {
   bytes: number;
   sent: boolean;
   meaning: string;
+  /** Content version the server reported for the clip (Laravel frames; absent from pycore frames). */
+  version?: number | null;
   /** The clip is now at `folder/names[index]`. */
   written: boolean;
 }
