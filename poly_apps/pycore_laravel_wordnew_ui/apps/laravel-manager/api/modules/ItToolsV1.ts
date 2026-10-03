@@ -494,18 +494,20 @@ export class ItToolsV1API extends LmBaseAPI {
     return this.request({ url: '/advanced/pdf/merge', method: 'POST', data: formData } as any);
   }
 
-  async pdfCompress(data: { pdf: File; quality?: number }): Promise<APIResponse> {
+  // Backend `quality` is a Ghostscript preset name, not a number.
+  async pdfCompress(data: { pdf: File; quality?: 'screen' | 'ebook' | 'printer' | 'prepress' }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('pdf', data.pdf);
-    if (data.quality) formData.append('quality', data.quality.toString());
+    if (data.quality) formData.append('quality', data.quality);
     return this.request({ url: '/advanced/pdf/compress', method: 'POST', data: formData } as any);
   }
 
-  // Backend reads `rotation` (not `angle`).
-  async pdfRotate(data: { pdf: File; angle: number }): Promise<APIResponse> {
+  // Backend reads `rotation` (not `angle`) and `pages` as a JSON array of page numbers (all pages when omitted).
+  async pdfRotate(data: { pdf: File; angle: number; pages?: number[] }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('pdf', data.pdf);
     formData.append('rotation', data.angle.toString());
+    if (data.pages?.length) formData.append('pages', JSON.stringify(data.pages));
     return this.request({ url: '/advanced/pdf/rotate', method: 'POST', data: formData } as any);
   }
 
