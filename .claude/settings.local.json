@@ -104,7 +104,10 @@
       "Bash(python *)",
       "Bash(awk '$9>3 {print $1,$9,$NF}')",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes)",
-      "PowerShell(Get-ScheduledTask *)"
+      "PowerShell(Get-ScheduledTask *)",
+      "Bash(node cdp.mjs \"location.href+' '+[...document.querySelectorAll\\('*'\\)].filter\\(e=>e.children.length===0&&/NIV/.test\\(e.textContent\\)\\).length\")",
+      "Bash(adb exec-out *)",
+      "Bash(node -e ' *)"
     ],
     "deny": [],
     "ask": []
