@@ -89,7 +89,11 @@ public partial class RunLogPage : UserControl
         LblLogOutput.Text = p.GetUiText(I18nKeys.LogPanelLogOutput);
         ResourceMonitor.RefreshI18n();
         foreach (var child in TestButtonsGrid.Children)
-            if (child is Button { Tag: string key } btn) btn.Content = p.GetUiText(key);
+            if (child is Button { Tag: string key } btn)
+            {
+                btn.Content = p.GetUiText(key);
+                btn.ToolTip = btn.Content;
+            }
     }
 
     /// <summary>Register this page as ColorPrint target (Log tab selected). Called from MainWindow.</summary>
@@ -106,7 +110,7 @@ public partial class RunLogPage : UserControl
         if (TestButtonsGrid.Children.Count > 0) return;
         foreach (var key in TestButtonKeys)
         {
-            var btn = new Button { Tag = key, Margin = new Thickness(0, 0, 8, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
+            var btn = new Button { Tag = key, Margin = new Thickness(0, 0, 4, 4), Padding = new Thickness(6, 2, 6, 2), HorizontalAlignment = HorizontalAlignment.Stretch };
             btn.Click += (_, _) => RunTestAction(key);
             TestButtonsGrid.Children.Add(btn);
         }

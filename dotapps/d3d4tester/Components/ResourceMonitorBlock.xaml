@@ -2,9 +2,9 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- System and per-process CPU / memory / GPU memory / GPU usage, refreshed every second while visible -->
-  <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+  <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}" Padding="10,8">
     <StackPanel>
-      <TextBlock x:Name="LblTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+      <TextBlock x:Name="LblTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>
       <Grid x:Name="UsageGrid"/>
     </StackPanel>
   </Border>

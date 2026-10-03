@@ -7,20 +7,25 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
+      <RowDefinition Height="*" MinHeight="120"/>
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
-      <StackPanel>
-        <TextBlock x:Name="LblTestFunctions" Style="{StaticResource SectionHeaderTextStyle}"/>
-        <UniformGrid x:Name="TestButtonsGrid" Columns="8"/>
-      </StackPanel>
-    </Border>
+    <Grid Grid.Row="0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="8"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+      <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}" Padding="10,8">
+        <StackPanel>
+          <TextBlock x:Name="LblTestFunctions" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>
+          <UniformGrid x:Name="TestButtonsGrid" Columns="4"/>
+        </StackPanel>
+      </Border>
+      <components:ResourceMonitorBlock x:Name="ResourceMonitor" Grid.Column="2"/>
+    </Grid>
 
-    <components:ResourceMonitorBlock x:Name="ResourceMonitor" Grid.Row="1"/>
-
-    <Border Grid.Row="2" Style="{StaticResource ToolbarPanelStyle}">
+    <Border Grid.Row="1" Style="{StaticResource ToolbarPanelStyle}">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
@@ -50,7 +55,7 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}">
+    <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}">
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>

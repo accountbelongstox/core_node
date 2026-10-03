@@ -87,7 +87,7 @@ public partial class ResourceMonitorBlock : UserControl
 
     private TextBlock Cell(int row, int column)
     {
-        var tb = new TextBlock { Margin = new Thickness(0, 1, 8, 1), Text = EmptyCell };
+        var tb = new TextBlock { Margin = new Thickness(0, 0, 6, 0), Text = EmptyCell, TextTrimming = TextTrimming.CharacterEllipsis };
         Grid.SetRow(tb, row);
         Grid.SetColumn(tb, column);
         UsageGrid.Children.Add(tb);
@@ -142,8 +142,8 @@ public partial class ResourceMonitorBlock : UserControl
     private void Apply(ResourceSnapshot snapshot)
     {
         var s = snapshot.System;
-        SetRow(GroupSystem, Percent(s.CpuPercent), $"{Size(s.MemoryUsedBytes)} / {Size(s.MemoryTotalBytes)}",
-            s.GpuMemoryUsedBytes is { } used ? (s.GpuMemoryTotalBytes is { } total ? $"{Size(used)} / {Size(total)}" : Size(used)) : EmptyCell,
+        SetRow(GroupSystem, Percent(s.CpuPercent), UsedOfTotal(s.MemoryUsedBytes, s.MemoryTotalBytes),
+            s.GpuMemoryUsedBytes is { } used ? (s.GpuMemoryTotalBytes is { } total ? UsedOfTotal(used, total) : Size(used)) : EmptyCell,
             s.GpuPercent is { } g ? Percent(g) : EmptyCell);
         foreach (var (group, u) in snapshot.Groups)
         {
@@ -169,6 +169,10 @@ public partial class ResourceMonitorBlock : UserControl
     private static string Percent(double value) => value.ToString("0.0", CultureInfo.InvariantCulture) + "%";
 
     private static string Size(long bytes) => bytes >= Gib
-        ? (bytes / Gib).ToString("0.00", CultureInfo.InvariantCulture) + " GB"
+        ? (bytes / Gib).ToString("0.0", CultureInfo.InvariantCulture) + " GB"
         : (bytes / Mib).ToString("0", CultureInfo.InvariantCulture) + " MB";
+
+    /// <summary>Used / total in one unit, e.g. "12.7/15.2 GB" (fits a narrow column).</summary>
+    private static string UsedOfTotal(long used, long total) =>
+        (used / Gib).ToString("0.0", CultureInfo.InvariantCulture) + "/" + (total / Gib).ToString("0.0", CultureInfo.InvariantCulture) + " GB";
 }
