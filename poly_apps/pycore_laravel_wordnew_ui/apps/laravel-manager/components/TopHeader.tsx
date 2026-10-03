@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Power, Sun, Moon, Languages, LogIn, User } from 'lucide-react';
+import { Sun, Moon, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ApiEndpointSwitcher } from './ApiEndpointSwitcher';
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 import { api } from '@/apps/laravel-manager/api';
+import { LaravelAuthChip } from '@/shared/auth/LaravelAuthChip';
 
 const CODE_UPDATE_POLL_MS = 60000;
 const RELATIVE_TICK_MS = 1000;
 
 interface TopHeaderProps {
   isLoggedIn: boolean;
-  onAuthClick: () => void;
 }
 
 function localeTag(lang: string): string {
@@ -60,9 +60,8 @@ function formatRelativeAgo(lastModifiedIso: string, serverNow: number, t: TFunct
  * Right-side top bar. Sticks to the top when the main content scrolls.
  * Rendered inside the main content column (next to the fixed Sidebar).
  */
-const TopHeader: React.FC<TopHeaderProps> = ({ isLoggedIn, onAuthClick }) => {
-  const { lang, theme, toggleLang, toggleTheme, UnifiedUser } = useUnifiedApp();
-  const username = UnifiedUser?.username || UnifiedUser?.name || 'adminroot';
+const TopHeader: React.FC<TopHeaderProps> = ({ isLoggedIn }) => {
+  const { lang, theme, toggleLang, toggleTheme, logout } = useUnifiedApp();
   const { t } = useTranslation();
   const [codeUpdatedAt, setCodeUpdatedAt] = useState<string | null>(null);
   const [codeUpdatedFile, setCodeUpdatedFile] = useState<string | null>(null);
@@ -169,43 +168,8 @@ ${codeUpdatedFile}` : codeUpdateBadge;
 
           <div className="hidden sm:block h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
 
-          {/* User Status and Login / Logout — icon-only buttons below sm */}
-          {isLoggedIn ? (
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <div className={`hidden sm:flex px-2.5 ${chipClass}`}>
-                <User size={13} className="text-indigo-500 dark:text-indigo-400 shrink-0" />
-                <span className="text-slate-400 dark:text-slate-500 text-xs hidden lg:inline">{t('header.logged_in_as')}</span>
-                <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs max-w-[10rem] truncate">{username}</span>
-              </div>
-
-              <button
-                onClick={onAuthClick}
-                className="flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-3 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition-all shrink-0 whitespace-nowrap shadow-sm"
-                title={`${t('header.logout')} (${username})`}
-                aria-label={t('header.logout')}
-              >
-                <Power size={13} className="shrink-0" />
-                <span className="hidden sm:inline">{t('header.logout')}</span>
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <div className={`hidden sm:flex px-2.5 text-slate-500 dark:text-slate-400 text-xs ${chipClass}`}>
-                <User size={13} className="text-slate-400 shrink-0" />
-                <span className="font-medium">{t('header.guest')}</span>
-              </div>
-
-              <button
-                onClick={onAuthClick}
-                className="flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-3.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 border border-transparent shadow-sm shadow-indigo-500/25 transition-all shrink-0 whitespace-nowrap"
-                title={t('header.login')}
-                aria-label={t('header.login')}
-              >
-                <LogIn size={13} className="shrink-0" />
-                <span className="hidden sm:inline">{t('header.login')}</span>
-              </button>
-            </div>
-          )}
+          {/* Shared Laravel login entry of the active API */}
+          <LaravelAuthChip onSignOut={logout} />
         </div>
       </div>
     </header>

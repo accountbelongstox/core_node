@@ -330,36 +330,6 @@ moviesBooksView: {
       aiCommentary: "AI 点评",
       specialUsage: "特殊用法"
     },
-login: {
-      title: "身份验证",
-      subtitle: "请验证身份以访问核心系统。",
-      username: "用户名 / ID",
-      password: "密码",
-      confirm_password: "确认密码",
-      email: "邮箱（可选）",
-      nickname: "昵称（可选）",
-      registration_code: "注册码（可选）",
-      submit: "验证登录",
-      cancel: "取消",
-      processing: "验证中...",
-      register_title: "创建账户",
-      register_subtitle: "注册以访问核心系统。",
-      register_submit: "注册",
-      register_processing: "创建账户中...",
-      switch_to_login: "已有账户？登录",
-      switch_to_register: "没有账户？注册",
-      login_success: "登录成功",
-      register_success: "注册成功",
-      passwords_do_not_match: "两次密码输入不一致",
-      available_codes: "可用邀请码:",
-      errors: {
-        AUTH_USER_NOT_FOUND: "账号不存在，请检查用户名或邮箱。",
-        AUTH_INVALID_PASSWORD: "密码错误，请重试。",
-        AUTH_INVALID_CREDENTIALS: "凭证无效，请检查后重试。",
-        AUTH_VALIDATION_FAILED: "请输入用户名和密码。",
-        default: "登录失败，请重试。"
-      }
-    },
 system: {
       title: "系统信息",
       subtitle: "实时系统配置和状态",

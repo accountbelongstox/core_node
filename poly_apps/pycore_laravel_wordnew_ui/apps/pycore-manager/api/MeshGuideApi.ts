@@ -1,13 +1,18 @@
 /**
  * Mesh login guide client: the Laravel beside the Headscale control server
  * (contract access.mesh.headscale guide/preauth-key/register routes), signed
- * with the client key like every Laravel call.
+ * with the client key when the build carries one, else with the user login of
+ * THAT Laravel API (its own session; a 401 opens the shared login for it).
  */
 import { DEFAULT_LARAVEL_API_ORIGIN } from '@/core/contracts/ServiceContract';
 import { MESH_GUIDE_ROUTES } from '@/core/contracts/MeshDomain';
 import { withClientKey } from '@/core/integrations/laravel/ClientKeySigner';
-import { readLaravelResponse } from '@/core/integrations/laravel/LaravelRequest';
+import { readSessionResponse } from '@/core/integrations/laravel/LaravelRequest';
+import { getAuthHeader } from '@/core/auth/AuthSession';
 import { protocolFetch } from '@/core/network/ProtocolFetch';
+
+/** The Laravel API that serves the mesh guide (and whose login the guide needs). */
+export const MESH_GUIDE_API_ORIGIN = DEFAULT_LARAVEL_API_ORIGIN;
 
 export interface MeshGuideNode {
   name: string;
@@ -36,14 +41,19 @@ interface LaravelEnvelope<T> {
 }
 
 async function request<T>(method: 'GET' | 'POST', path: string, payload?: unknown): Promise<LaravelEnvelope<T>> {
-  const url = `${DEFAULT_LARAVEL_API_ORIGIN}${path}`;
+  const url = `${MESH_GUIDE_API_ORIGIN}${path}`;
   const hasBody = payload !== undefined;
+  const authHeader = getAuthHeader(MESH_GUIDE_API_ORIGIN);
   const init = await withClientKey(url, {
     method,
-    headers: { Accept: 'application/json', ...(hasBody ? { 'Content-Type': 'application/json' } : {}) },
+    headers: {
+      Accept: 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      ...(authHeader ? { Authorization: authHeader } : {}),
+    },
     body: hasBody ? JSON.stringify(payload) : undefined,
   });
-  return readLaravelResponse<LaravelEnvelope<T>>(await protocolFetch(url, init), path);
+  return readSessionResponse<LaravelEnvelope<T>>(await protocolFetch(url, init), path, MESH_GUIDE_API_ORIGIN);
 }
 
 export const meshGuideApi = {

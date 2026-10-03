@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { LmGlobalLoginHost } from '../apps/laravel-manager/auth/LmGlobalLoginHost';
+import { LaravelLoginHost } from '../shared/auth/LaravelLoginHost';
 import { useTranslation } from '../core/i18n/UiI18n';
 import { FloatingAppSwitcher } from './FloatingAppSwitcher';
 import { applyFlavorDocument, FLAVOR_REGISTRY, type FlavorConfig } from './flavor';
@@ -71,7 +71,7 @@ const StandaloneRoutes: React.FC<{ buildFlavor: FlavorConfig }> = ({ buildFlavor
 };
 
 export const StandaloneApp: React.FC<{ flavor: FlavorConfig }> = ({ flavor }) => (
-  <ShellRuntime authHost={<LmGlobalLoginHost />}>
+  <ShellRuntime authHost={<LaravelLoginHost />}>
     <StandaloneRoutes buildFlavor={flavor} />
   </ShellRuntime>
 );

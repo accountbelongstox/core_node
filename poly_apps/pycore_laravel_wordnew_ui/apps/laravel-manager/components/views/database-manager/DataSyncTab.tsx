@@ -16,7 +16,7 @@ import { DataSyncApiError, type DataSyncSessionSnapshot } from '@/apps/laravel-m
 import { formatBytes } from '@/core/utils/formatBytes';
 import { commonClasses } from '@/shared/styles/theme';
 import { AlertBox, EmptyState, Field, StatusBadge } from '../../common';
-import LoginModal from '../../../auth/LmLoginModal';
+import { LaravelLoginModal } from '@/shared/auth/LaravelLoginModal';
 
 const POLL_INTERVAL_MS = 2000;
 const HISTORY_LIMIT = 6;
@@ -751,7 +751,7 @@ export const DataSyncTab: React.FC = () => {
         </div>
       )}
 
-      <LoginModal
+      <LaravelLoginModal
         isOpen={authEndpoint !== null}
         onClose={() => {
           if (authEndpoint) {
@@ -763,7 +763,7 @@ export const DataSyncTab: React.FC = () => {
           setAuthEndpoint(null);
           void afterPeerLogin();
         }}
-        lang={i18n.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en'}
+        baseUrl={authEndpoint?.baseUrl ?? ''}
         titleOverride={t('dbSync.peerLoginTitle')}
         subtitleOverride={t('dbSync.peerLoginSubtitle', { endpoint: authEndpoint?.baseUrl ?? '' })}
         authenticate={async (username, password) => {

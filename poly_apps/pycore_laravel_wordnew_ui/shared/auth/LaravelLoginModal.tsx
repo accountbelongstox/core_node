@@ -1,20 +1,28 @@
-
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Lock, User, ArrowRight, Loader2, AlertTriangle, Mail, UserPlus, Key } from "lucide-react";
-import { useTranslation } from 'react-i18next';
-import { Language } from '../uiTypes';
-import { api } from '@/apps/laravel-manager/api';
-import { InviteCode } from '@/apps/laravel-manager/api';
-import { userModel } from '../models/UserModel';
-import { getAuthErrorMessage } from '../utils/authErrors';
-import Portal from '@/shared/ui/Portal';
-import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP, OVERLAY_BACKDROP_STRONG } from '@/shared/styles/overlay';
+import Portal from '../ui/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP, OVERLAY_BACKDROP_STRONG } from '../styles/overlay';
+import {
+  listLaravelInviteCodes,
+  loginLaravel,
+  registerLaravel,
+  type LaravelPublicInviteCode,
+} from '../../core/integrations/laravel/LaravelAuthClient';
+import { authEndpointLabel } from '../../core/auth/AuthSession';
+import type { LaravelSessionUser } from '../../core/auth/LaravelUser';
+import { LARAVEL_AUTH_NS, laravelAuthErrorText, useTranslation } from './laravelAuthI18n';
 
-interface LoginModalProps {
+const INVITE_CODE_PREVIEW_COUNT = 3;
+const INVITE_CODE_MASK_THRESHOLD = 8;
+const INVITE_CODE_MASK_EDGE = 4;
+
+export interface LaravelLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
-  lang: Language;
+  /** Called after a successful sign-in with the signed-in user (undefined in custom-authenticate mode). */
+  onSuccess: (user?: LaravelSessionUser) => void;
+  /** Laravel API to sign in to. Its token, user and state are stored under this API only. */
+  baseUrl: string;
   /** When true, modal was opened because user hit a protected page: do not close on backdrop click. */
   blockCloseBackdrop?: boolean;
   /** Peer-backend mode: replaces the title/subtitle (identifies the other Laravel node). */
@@ -23,13 +31,13 @@ interface LoginModalProps {
   /**
    * Peer-backend mode: custom credentials handler. When set, the modal is
    * login-only (no registration) and submits through this handler instead of
-   * the shared user session.
+   * the shared Laravel session.
    */
   authenticate?: (username: string, password: string) => Promise<void>;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lang: _lang, blockCloseBackdrop = false, titleOverride, subtitleOverride, authenticate }) => {
-  const { t } = useTranslation();
+export const LaravelLoginModal: React.FC<LaravelLoginModalProps> = ({ isOpen, onClose, onSuccess, baseUrl, blockCloseBackdrop = false, titleOverride, subtitleOverride, authenticate }) => {
+  const { t } = useTranslation(LARAVEL_AUTH_NS);
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -43,31 +51,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
   });
   const [localError, setLocalError] = useState<string | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
-  const [availableCodes, setAvailableCodes] = useState<InviteCode[]>([]);
+  const [availableCodes, setAvailableCodes] = useState<LaravelPublicInviteCode[]>([]);
 
   const error = localError || userError;
 
   // Fetch available invite codes when in register mode
   useEffect(() => {
     if (isRegisterMode && isOpen) {
-      api.inviteCode.listPublic()
+      listLaravelInviteCodes(baseUrl)
         .then(codes => {
-          if (codes && Array.isArray(codes)) {
-            setAvailableCodes(codes.filter(c => c.is_active && c.used_count < c.max_uses));
-          }
+          setAvailableCodes(codes.filter(c => c.is_active && c.used_count < c.max_uses));
         })
         .catch(err => {
           console.warn('Failed to fetch invite codes:', err);
           setAvailableCodes([]);
         });
     }
-  }, [isRegisterMode, isOpen]);
+  }, [isRegisterMode, isOpen, baseUrl]);
 
   if (!isOpen) return null;
 
   const maskCode = (code: string): string => {
-    if (code.length <= 8) return code;
-    return `${code.slice(0, 4)}...${code.slice(-4)}`;
+    if (code.length <= INVITE_CODE_MASK_THRESHOLD) return code;
+    return `${code.slice(0, INVITE_CODE_MASK_EDGE)}...${code.slice(-INVITE_CODE_MASK_EDGE)}`;
   };
 
   const handleInputChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,18 +101,19 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
 
     setLoading(true);
     try {
+      let user: LaravelSessionUser | undefined;
       if (authenticate) {
         await authenticate(formData.username, formData.password);
       } else if (isRegisterMode) {
-        await userModel.register(
-          formData.username,
-          formData.password,
-          formData.email || undefined,
-          formData.nickname || undefined,
-          formData.registrationCode || undefined
-        );
+        user = await registerLaravel(baseUrl, {
+          username: formData.username,
+          password: formData.password,
+          email: formData.email || undefined,
+          nickname: formData.nickname || undefined,
+          registrationCode: formData.registrationCode || undefined,
+        });
       } else {
-        await userModel.login(formData.username, formData.password);
+        user = await loginLaravel(baseUrl, { username: formData.username, password: formData.password });
       }
       setFormData({
         username: '',
@@ -116,14 +123,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
         nickname: '',
         registrationCode: ''
       });
-      onSuccess();
+      onSuccess(user);
     } catch (submitError) {
       const authError = submitError as Error & { errorCode?: string };
-      setUserError(getAuthErrorMessage(
-        authError.errorCode,
-        authError.message,
-        _lang,
-      ));
+      setUserError(laravelAuthErrorText(authError.errorCode, authError.message));
     } finally {
       setLoading(false);
     }
@@ -137,6 +140,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
 
   const title = titleOverride ?? (isRegisterMode ? t('login.register_title') : t('login.title'));
   const subtitle = subtitleOverride ?? (isRegisterMode ? t('login.register_subtitle') : t('login.subtitle'));
+  const targetLabel = authenticate ? '' : t('login.target', { host: authEndpointLabel(baseUrl) });
   const submitText = isRegisterMode ? t('login.register_submit') : t('login.submit');
   const processingText = isRegisterMode ? t('login.register_processing') : t('login.processing');
 
@@ -177,6 +181,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
             <p className="text-slate-500 dark:text-slate-400 text-sm text-center mt-2">
               {subtitle}
             </p>
+            {targetLabel && (
+              <p className="text-indigo-500 dark:text-indigo-400 text-xs font-mono text-center mt-1 break-all">
+                {targetLabel}
+              </p>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -277,7 +286,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                         {t('login.available_codes')}
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        {availableCodes.slice(0, 3).map(code => (
+                        {availableCodes.slice(0, INVITE_CODE_PREVIEW_COUNT).map(code => (
                           <button
                             key={code.id}
                             type="button"
@@ -287,9 +296,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                             {maskCode(code.code)}
                           </button>
                         ))}
-                        {availableCodes.length > 3 && (
+                        {availableCodes.length > INVITE_CODE_PREVIEW_COUNT && (
                           <span className="px-2 py-1 text-[10px] text-indigo-500 dark:text-indigo-400">
-                            +{availableCodes.length - 3} more
+                            {t('login.more_codes', { count: availableCodes.length - INVITE_CODE_PREVIEW_COUNT })}
                           </span>
                         )}
                       </div>
@@ -354,4 +363,4 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
   );
 };
 
-export default LoginModal;
+export default LaravelLoginModal;

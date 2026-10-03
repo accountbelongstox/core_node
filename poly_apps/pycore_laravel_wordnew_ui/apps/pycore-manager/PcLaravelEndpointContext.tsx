@@ -167,9 +167,12 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     }
     const failure = response?.success === true ? null : pcFailureCode(response) || thrownCode || BIND_FAILED_CODE;
     if (failure) setActionError(failure);
+    // The browser's own Laravel transport (and with it the login state) follows the user's choice.
+    await laravelApi.switchEndpoint(url).catch(() => undefined);
+    reloadBrowser();
     await refresh(false);
     setSwitching(null);
-  }, [refresh, switching]);
+  }, [refresh, reloadBrowser, switching]);
 
   const reprobe = useCallback(async () => {
     if (probing) return;

@@ -17,6 +17,7 @@ import PcLaravelEndpointSwitcher from './PcLaravelEndpointSwitcher';
 import PcPycoreTargetSwitcher from './PcPycoreTargetSwitcher';
 import PcVersionChips from './PcVersionChips';
 import PcAppearanceControls from './PcAppearanceControls';
+import { LaravelAuthChip } from '../../../shared/auth/LaravelAuthChip';
 import PcHeaderResourceBars from './PcHeaderResourceBars';
 import { PcGitSyncStatus } from './PcGitSyncStatus';
 import { shellDockRightGutterPx } from '../../../shell/shellChrome';
@@ -57,6 +58,7 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
         <PcGitSyncStatus />
         <PcPycoreTargetSwitcher variant="header" />
         <PcLaravelEndpointSwitcher variant="header" />
+        <LaravelAuthChip />
         <PcAppearanceControls />
       </div>
     </header>
