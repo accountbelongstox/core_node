@@ -13,6 +13,7 @@ from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_TRANSLATE
+from pycore.pyutils.translator.google_batch_client import GOOGLE_BATCH_URL
 from pycore.pyutils.translator.google_translator import (
     googletrans_available,
     GoogleTranslator,
@@ -21,15 +22,13 @@ from pycore.pyutils.translator.translation_cache import translation_cache
 import pycore.pyctl.translation.local_ai_translator as local_ai_translator
 
 
-RECOMMENDED_GOOGLETRANS_VERSION = "4.0.0-rc1"
+RECOMMENDED_GOOGLETRANS_VERSION = "4.0.2"
 
 
 def _google_unavailable_error() -> str:
     block_reason = model_boot.reason("google", CATEGORY_TRANSLATE)
     if block_reason:
         return f"google translate is blocked: {block_reason}"
-    if not googletrans_available():
-        return "googletrans is not installed"
     return ""
 
 
@@ -76,7 +75,8 @@ def status() -> Dict[str, Any]:
         "boot": model_boot.record("google", CATEGORY_TRANSLATE),
         "library": "googletrans",
         "version": version,
-        "service_url": "translate.googleapis.com",
+        "service_url": GOOGLE_BATCH_URL,
+        "fallback_service_url": "translate.googleapis.com",
         "cache_dir": str(translation_cache.root),
         "cache_count": translation_cache.count(),
         "recommended_version": RECOMMENDED_GOOGLETRANS_VERSION,

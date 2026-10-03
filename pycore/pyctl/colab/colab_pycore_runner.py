@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Run the pycore Colab notebook through the user's Chrome (mcp-chrome).
 
-Public surface: start(), logs(), restart(). The notebook is the README launch
+Public surface: start(), logs(), restart(), regpu(). The notebook is the README launch
 cell (clone, notebook_boot.py, pyservice.sh colab); Colab prompts raised by the
 run (untrusted notebook, Drive connection, Google sign-in popup) are confirmed
 automatically.
@@ -54,7 +54,7 @@ def _accelerator(output: str) -> str:
     """gpu | tpu | cpu from the kernel-setup Accelerator line of the run, else unknown."""
     found = re.findall(ACCELERATOR_LINE_PATTERN, output)
     detail = found[-1].upper() if found else ""
-    return next((kind for marker, kind in ACCELERATOR_KINDS if marker in detail), ACCELERATOR_UNKNOWN)
+    return next((kind for marker, kind in ACCELERATOR_KINDS if detail.startswith(marker)), ACCELERATOR_UNKNOWN)
 
 
 def _fresh_output(output: str, baseline: str) -> str:

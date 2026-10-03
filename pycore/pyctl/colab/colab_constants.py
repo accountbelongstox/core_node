@@ -27,7 +27,7 @@ ERROR_DELETE_RUNTIME_MISSING = "colab_delete_runtime_command_missing"
 ACCELERATOR_UNKNOWN = "unknown"
 # "[NOTEBOOK] [5/8] Accelerator: <GPU (CUDA)|TPU|none ... CPU only>" printed by notebook_boot.py.
 ACCELERATOR_LINE_PATTERN = r"\[NOTEBOOK\] \[5/8\] Accelerator: (.*)"
-ACCELERATOR_KINDS = (("GPU", "gpu"), ("TPU", "tpu"), ("CPU", "cpu"))
+ACCELERATOR_KINDS = (("GPU", "gpu"), ("TPU", "tpu"), ("NONE", "cpu"))
 
 # Output lines that show pyservice took over from the kernel setup. Colab keeps
 # only the newest output lines, so the early markers scroll out on long runs and
