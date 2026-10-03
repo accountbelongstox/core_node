@@ -164,7 +164,7 @@ class GitSyncWatchService:
     def history(self, offset: int = 0, limit: int = HISTORY_DEFAULT_PAGE_SIZE) -> Dict[str, Any]:
         """One page of the recorded gitsync runs, newest first."""
         offset = max(0, int(offset))
-        limit = _clamp(limit, 1, HISTORY_MAX_PAGE_SIZE, HISTORY_DEFAULT_PAGE_SIZE)
+        limit = _clamp(limit or HISTORY_DEFAULT_PAGE_SIZE, 1, HISTORY_MAX_PAGE_SIZE, HISTORY_DEFAULT_PAGE_SIZE)
         with self._lock:
             runs = self._history["runs"]
             total = self._history["total"]
