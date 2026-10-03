@@ -109,6 +109,13 @@ public static class BattlenetConstants
     public const string AvatarEditButtonId = "avatar-edit-button";
     public const string DropdownMenuButtonPrefix = "DropdownMenu_";
     public const string DropdownMenuButtonSuffix = "_button";
+    /// <summary>
+    /// Account presence shown on the avatar menu "&lt;BattleTag&gt;, &lt;status&gt;" (live scan Asia: "MegRyanA, Appear Offline").
+    /// Connected = logged in; not connected = offline / (re)connecting.
+    /// </summary>
+    public static readonly string[] AccountConnectedStatuses = { "Online", "Away", "Busy", "Appear Offline", "在线", "离开", "忙碌", "显示为离线", "在線", "離開", "忙碌中", "顯示為離線" };
+    public static readonly string[] AccountNotConnectedStatuses = { "Offline", "Connecting", "Reconnecting", "离线", "连接中", "重新连接", "離線", "連線中", "重新連線" };
+    public const string AccountStatusSeparator = ", ";
     public static readonly string[] LogOutKeywords = { "Log Out", "Log out", "Sign Out", "退出登录", "登出", "注销" };
     public const int AccountMenuOpenWaitMs = 800;
 

@@ -158,6 +158,12 @@ export const WfNewApp: React.FC = () => {
     return () => setAudioCachePaused(true);
   }, []);
 
+  // R9: unfinished orchestration tasks of this device resume at start, whether or not their page is
+  // open; loading the composer starts it (channels, pycore link, resume triggers).
+  useEffect(() => {
+    void import('./services/orchestration/WordNewOrchComposer');
+  }, []);
+
   return (
     <div className={dark ? 'dark' : ''}>
       <div className={`min-h-screen transition-all duration-1000 overflow-x-clip ${activeTheme.bgClass} ${

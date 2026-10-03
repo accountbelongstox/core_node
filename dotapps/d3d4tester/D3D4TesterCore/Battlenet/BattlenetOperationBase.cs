@@ -88,7 +88,16 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         var play = FindMainPlayButton(controls);
         if (play != null && PlayButtonIndicatesStarting(play)) return new(BattlenetClientState.GameStarting, Region, play.Name);
         if (HasText(controls, C.AccountLoadingKeywords)) return new(BattlenetClientState.LoadingAccount, Region, null);
-        // Logged-in main UI: the top nav is enough (HOME / SHOP pages have no Play button; live scan Asia HOME).
+        // Main UI health comes from the top-right avatar presence: Offline / Connecting / Reconnecting = not connected yet;
+        // Online / Away / Busy / Appear Offline = normal (HOME / SHOP pages have no Play button, so Play is detail only).
+        if (ReadAccountPresence(controls) is { } presence)
+        {
+            string detail = presence.Tag + AccountDetailSeparator + presence.Status + (play != null ? AccountDetailSeparator + play.Name : "");
+            if (C.AccountNotConnectedStatuses.Contains(presence.Status, StringComparer.OrdinalIgnoreCase))
+                return new(BattlenetClientState.AccountOffline, Region, detail);
+            if (C.AccountConnectedStatuses.Contains(presence.Status, StringComparer.OrdinalIgnoreCase))
+                return new(BattlenetClientState.Normal, Region, detail);
+        }
         if (T.FindByAutomationId(controls, C.MainNavContainerAutomationId, exactMatch: true) != null)
             return new(BattlenetClientState.Normal, Region, play?.Name);
         if (HasText(controls, C.LoadingIndicatorNameSubstrings)) return new(BattlenetClientState.Loading, Region, null);
@@ -102,11 +111,8 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     public bool LogOut()
     {
         var controls = T.Enumerate();
-        int avatar = controls.FindIndex(c => c.AutomationId == C.AvatarEditButtonId);
-        var menuButton = controls.Skip(Math.Max(0, avatar)).FirstOrDefault(c =>
-            c.AutomationId.StartsWith(C.DropdownMenuButtonPrefix, StringComparison.Ordinal)
-            && c.AutomationId.EndsWith(C.DropdownMenuButtonSuffix, StringComparison.Ordinal));
-        if (avatar < 0 || menuButton == null)
+        var menuButton = FindAccountMenu(controls);
+        if (menuButton == null)
         {
             ColorPrinter.Yellow("[BattlenetOperation] LogOut: account menu not found (not on the main UI?)");
             return false;
@@ -136,8 +142,31 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         return i > 0 && controls[i - 1].Type == C.LoadingIndicatorControlType ? controls[i - 1].Name : null;
     }
 
+    /// <summary>The account menu next to the top-right avatar (first DropdownMenu_N_button after avatar-edit-button), or null.</summary>
+    public static BattlenetControl? FindAccountMenu(IReadOnlyList<BattlenetControl> controls)
+    {
+        int avatar = -1;
+        for (int i = 0; i < controls.Count; i++)
+            if (controls[i].AutomationId == C.AvatarEditButtonId) { avatar = i; break; }
+        if (avatar < 0) return null;
+        return controls.Skip(avatar).FirstOrDefault(c =>
+            c.AutomationId.StartsWith(C.DropdownMenuButtonPrefix, StringComparison.Ordinal)
+            && c.AutomationId.EndsWith(C.DropdownMenuButtonSuffix, StringComparison.Ordinal));
+    }
+
+    /// <summary>(BattleTag, presence) from the avatar menu name "&lt;tag&gt;, &lt;status&gt;"; null when the menu is not shown.</summary>
+    public static (string Tag, string Status)? ReadAccountPresence(IReadOnlyList<BattlenetControl> controls)
+    {
+        string name = FindAccountMenu(controls)?.Name ?? "";
+        int sep = name.LastIndexOf(C.AccountStatusSeparator, StringComparison.Ordinal);
+        if (sep <= 0) return null;
+        return (name[..sep].Trim(), name[(sep + C.AccountStatusSeparator.Length)..].Trim());
+    }
+
     /// <summary>Region login screens (CN: NetEase page / web login popup; Asia: email / password / combined); null when not on one.</summary>
     protected abstract BattlenetClientState? ClassifyLoginScreen(IReadOnlyList<BattlenetControl> controls);
+
+    private const string AccountDetailSeparator = " · ";
 
     /// <summary>Main-window Play button: AutomationId when present, else a button whose name starts with a Play label (live scans: no id).</summary>
     protected static BattlenetControl? FindMainPlayButton(IReadOnlyList<BattlenetControl> controls) =>

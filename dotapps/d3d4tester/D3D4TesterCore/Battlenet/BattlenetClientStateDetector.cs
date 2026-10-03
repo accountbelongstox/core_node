@@ -24,6 +24,8 @@ public enum BattlenetClientState
     LoginPassword,
     LoginAsia,
     Popup,
+    /// <summary>Main UI shown but the top-right avatar presence says Offline: the client is not connected (abnormal).</summary>
+    AccountOffline,
     Disconnected,
     Connecting,
     GameStarting,
