@@ -15,7 +15,7 @@ from pycore.pyctl.terminal.terminal_backup_store import (
     terminal_backup_store,
     text_digest,
 )
-from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, confirmation_prompt, second_yes_prompt
+from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, waiting_prompt
 from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyfoundations.desktop_session import has_graphical_display
@@ -132,7 +132,7 @@ class TerminalBackupService:
         text = entry.get("text")
         if not text:
             return entry, False
-        found_prompt = bool(confirmation_prompt(text) or second_yes_prompt(text))
+        found_prompt = bool(waiting_prompt(text))
         refreshed = self._prompt_handler.handle(
             str(window["id"]),
             entry["number"],
@@ -142,7 +142,7 @@ class TerminalBackupService:
         if refreshed != text:
             entry["text"] = refreshed
             entry["signature"] = text_digest(refreshed)
-        return entry, found_prompt or bool(confirmation_prompt(refreshed) or second_yes_prompt(refreshed))
+        return entry, found_prompt or bool(waiting_prompt(refreshed))
 
     def _observe_prompt(self, window: Dict[str, Any], entry: Dict[str, Any], found_prompt: bool) -> None:
         number = entry["number"]
