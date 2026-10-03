@@ -10,6 +10,7 @@ is sent reports ERROR_UNAVAILABLE, so the caller sends the recording as a file p
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import time
 from pathlib import Path
@@ -28,6 +29,8 @@ ERROR_AUDIO_INVALID = "terminal_voice_audio_invalid"
 ERROR_NO_TRANSCRIPT = "terminal_voice_no_transcript"
 # Claude Code draws the live input level in the input box while recording.
 LEVEL_GLYPHS = "▁▂▃▄▅▆▇█"
+# An empty Claude Code input box shows a suggestion placeholder (Try "...").
+PLACEHOLDER_PATTERN = re.compile(r'^Try ".*"$')
 WORK_DIR_NAME = "terminal_voice"
 MS_PER_SECOND = 1000.0
 
@@ -37,7 +40,8 @@ def _config() -> Dict[str, Any]:
 
 
 def transcript_text(input_text: Optional[str]) -> str:
-    return (input_text or "").translate({ord(glyph): None for glyph in LEVEL_GLYPHS}).strip()
+    text = (input_text or "").translate({ord(glyph): None for glyph in LEVEL_GLYPHS}).strip()
+    return "" if PLACEHOLDER_PATTERN.match(text) else text
 
 
 def resolve_recordings(references: List[str], voice_directory: Path) -> Optional[List[Path]]:

@@ -235,7 +235,8 @@
       "Bash(tmux ls *)",
       "Bash(bash -n claudeteam.sh)",
       "Bash(bash -n ../shells/linux/common/claude_team_common.sh)",
-      "Bash(timeout 400 npx tsc --noEmit -p tsconfig.json)"
+      "Bash(timeout 400 npx tsc --noEmit -p tsconfig.json)",
+      "Bash(timeout 300 ./dd.sh pycorerestart)"
     ],
     "deny": [],
     "ask": []
