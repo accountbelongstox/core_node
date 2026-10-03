@@ -122,10 +122,10 @@ class ComputerTool extends BaseBrowserToolExecutor {
       world: 'ISOLATED',
       func: (
         evType: string,
-        coords: { x: number; y: number } | undefined,
-        sel: string | undefined,
-        count: number | undefined,
-        mods: Record<string, boolean> | undefined,
+        coords: { x: number; y: number } | null,
+        sel: string | null,
+        count: number | null,
+        mods: Record<string, boolean> | null,
       ) => {
         try {
           let el: Element | null = null;
@@ -191,13 +191,8 @@ class ComputerTool extends BaseBrowserToolExecutor {
           return { success: false, error: err?.message || String(err) };
         }
       },
-      args: [
-        eventType,
-        coordinates || undefined,
-        selector || undefined,
-        clickCount || undefined,
-        modifiers || undefined,
-      ],
+      // chrome.scripting rejects undefined args; pass null for absent values.
+      args: [eventType, coordinates ?? null, selector ?? null, clickCount ?? null, modifiers ?? null],
     } as any);
 
     const result = results?.[0]?.result as {
@@ -239,7 +234,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'ISOLATED',
-      func: (dir: string, scrollTicks: number, coords: { x: number; y: number } | undefined, sel: string | undefined) => {
+      func: (dir: string, scrollTicks: number, coords: { x: number; y: number } | null, sel: string | null) => {
         try {
           let el: Element | Window = window;
           if (coords && typeof coords.x === 'number' && typeof coords.y === 'number') {
@@ -281,7 +276,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           return { success: false, error: err?.message || String(err) };
         }
       },
-      args: [direction, ticks, coordinates || undefined, selector || undefined],
+      args: [direction, ticks, coordinates ?? null, selector ?? null],
     } as any);
 
     const result = results?.[0]?.result as {
@@ -325,7 +320,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'ISOLATED',
-      func: (sel: string | undefined, coords: { x: number; y: number } | undefined) => {
+      func: (sel: string | null, coords: { x: number; y: number } | null) => {
         try {
           let el: Element | null = null;
           if (sel) {
@@ -342,7 +337,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           return { success: false, error: err?.message || String(err) };
         }
       },
-      args: [resolvedSelector || undefined, coordinates || undefined],
+      args: [resolvedSelector ?? null, coordinates ?? null],
     } as any);
 
     const result = results?.[0]?.result as {

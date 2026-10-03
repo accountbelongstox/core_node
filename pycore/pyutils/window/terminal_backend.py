@@ -177,9 +177,9 @@ class TerminalWindowBackend:
         }
 
     def activate(self, window_id: str) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         center = window["center"]
         return self._pointer_action(
             window,
@@ -194,9 +194,9 @@ class TerminalWindowBackend:
         horizontal_ratio: float,
         vertical_ratio: float,
     ) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         rectangle = window["rect"]
         width = max(1, int(rectangle["width"]))
         height = max(1, int(rectangle["height"]))
@@ -205,9 +205,9 @@ class TerminalWindowBackend:
         return self._pointer_action(window, target_x, target_y, POINTER_BUTTON_LEFT)
 
     def navigate_history(self, window_id: str, direction: str) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         key = HISTORY_DIRECTION_KEYS.get(direction)
         if key is None:
             return failure("terminal_history_direction_invalid")
@@ -218,16 +218,16 @@ class TerminalWindowBackend:
         return success(window)
 
     def press_enter(self, window_id: str) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         with self._input_guard():
             return self._press_enter(window)
 
     def move_selection(self, window_id: str, steps: int) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         with self._input_guard():
             if not self._input_target_ready(window):
                 return failure("terminal_focus_failed")
@@ -246,9 +246,9 @@ class TerminalWindowBackend:
         return success(window)
 
     def press_key(self, window_id: str, key: str) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         keys = TERMINAL_KEY_ACTIONS.get(key)
         if keys is None:
             return failure("terminal_key_invalid")
@@ -261,9 +261,9 @@ class TerminalWindowBackend:
         return success(window)
 
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         if mode not in TERMINAL_SCROLL_MODES:
             return failure("terminal_scroll_mode_invalid")
         # Keys scroll the emulator's own scrollback; a wheel event reaches an
@@ -295,9 +295,9 @@ class TerminalWindowBackend:
         interrupt_first: bool = False,
         shell_prompt: bool = False,
     ) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         with self._input_guard():
             if not self._input_target_ready(window):
                 return failure("terminal_focus_failed")
@@ -313,9 +313,9 @@ class TerminalWindowBackend:
             return self._press_enter(window)
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:
-        window = self.find_window(window_id)
+        window, blocked = self._input_window(window_id)
         if window is None:
-            return failure("terminal_window_not_found")
+            return blocked
         with self._input_guard():
             if not self._select_all(window):
                 return failure("terminal_select_all_failed")
@@ -400,6 +400,20 @@ class TerminalWindowBackend:
         if not released:
             return failure("terminal_raise_failed")
         return success(window, point={"x": x, "y": y})
+
+    def _input_window(self, window_id: str) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+        """(window, {}) when synthesized input can reach the window, else (None, failure)."""
+        window = self.find_window(window_id)
+        if window is None:
+            return None, failure("terminal_window_not_found")
+        blocked = self._input_blocked(window)
+        if blocked:
+            return None, failure(blocked, window=window)
+        return window, {}
+
+    def _input_blocked(self, window: Dict[str, Any]) -> Optional[str]:
+        """Error code when the OS would drop synthesized input for this window, else None."""
+        return None
 
     def find_window(self, window_id: str) -> Optional[Dict[str, Any]]:
         if not window_id:

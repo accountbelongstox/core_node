@@ -768,7 +768,23 @@ terminal: {
       notControllable: '该终端可见，但在当前桌面会话中无法控制。',
       windowsNotControllable: '部分终端可见但无法控制，请安装 pycore GNOME 窗口桥接以控制原生 Wayland 终端。',
       integrationAction: '桌面集成操作无效。',
+      inputDesktopUnavailable: '桌面已锁定或正在显示 UAC 提示，Windows 不接收模拟输入，请先解锁桌面。',
+      targetElevated: '该终端以管理员身份运行，而 pycore 不是，Windows 会拦截发给它的输入。请以管理员身份重启 pycore，或在提升权限的会话中重新开启开机自启（会注册为最高权限计划任务）。',
       unknown: '终端操作失败。',
+    },
+    agent: {
+      badge: 'AI',
+      hint: '检测到 AI agent（{{rule}}，来源：{{source}}）',
+      rules: {
+        framed_input: '横线输入框',
+        boxed_input: '方框输入框',
+        prompt_footer: '提示符状态栏',
+        title_glyph: '标题状态符号',
+      },
+      sources: {
+        text: '终端文本扫描',
+        title: '窗口标题',
+      },
     },
   },
 taskLog: {

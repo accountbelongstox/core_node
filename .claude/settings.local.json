@@ -82,7 +82,9 @@
       "Read(//var/_core_node/**)",
       "Bash(find / -name \"web_access_config*.json\" -not -path \"*/node_modules/*\")",
       "Bash(break)",
-      "Bash(systemctl is-active *)"
+      "Bash(systemctl is-active *)",
+      "Bash(systemctl list-units *)",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=5\")"
     ],
     "deny": [],
     "ask": []

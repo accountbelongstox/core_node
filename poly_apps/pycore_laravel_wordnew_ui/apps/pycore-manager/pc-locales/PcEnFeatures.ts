@@ -768,7 +768,23 @@ terminal: {
       notControllable: 'This terminal is visible but cannot be controlled in the current desktop session.',
       windowsNotControllable: 'Some terminals are visible but not controllable. Install the pycore GNOME window bridge to control native Wayland terminals.',
       integrationAction: 'The desktop integration action is invalid.',
+      inputDesktopUnavailable: 'The desktop is locked or showing a UAC prompt, so Windows accepts no synthesized input. Unlock the desktop first.',
+      targetElevated: 'This terminal runs as Administrator but pycore does not, so Windows blocks input sent to it. Restart pycore as Administrator, or re-enable auto-start from an elevated session (it registers a highest-privilege scheduled task).',
       unknown: 'The terminal operation failed.',
+    },
+    agent: {
+      badge: 'AI',
+      hint: 'AI agent detected ({{rule}}, from {{source}})',
+      rules: {
+        framed_input: 'ruled input box',
+        boxed_input: 'boxed input',
+        prompt_footer: 'prompt with status footer',
+        title_glyph: 'title status glyph',
+      },
+      sources: {
+        text: 'terminal text scan',
+        title: 'window title',
+      },
     },
   },
 taskLog: {

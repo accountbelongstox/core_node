@@ -68,6 +68,7 @@ import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manag
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import PcTerminalBackupPanel from '@/apps/pycore-manager/components/PcTerminalBackupPanel';
 import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminalSpecialStates';
+import { PcTerminalAgentBadge } from '@/apps/pycore-manager/components/PcTerminalAgentBadge';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
@@ -188,6 +189,8 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_enter_failed: 'terminal.errors.enter',
   terminal_input_failed: 'terminal.errors.input',
   terminal_window_offline: 'terminal.errors.windowOffline',
+  terminal_input_desktop_unavailable: 'terminal.errors.inputDesktopUnavailable',
+  terminal_target_elevated: 'terminal.errors.targetElevated',
   terminal_viewer_id_required: 'terminal.errors.viewerIdRequired',
   terminal_viewer_window_limit_exceeded: 'terminal.errors.viewerWindowLimit',
   terminal_viewer_limit_exceeded: 'terminal.errors.viewerLimit',
@@ -1727,6 +1730,7 @@ const PcTerminalNodeView: React.FC = () => {
               ? `#${selectedWindow.terminal_number} · ${terminalName(selectedWindow, t('terminal.untitled'))}`
               : t('terminal.selectPrompt')}
           </span>
+          {selectedWindow?.online && <PcTerminalAgentBadge agent={selectedWindow.ai_agent} />}
           {selectedWindow && (
             <button
               type="button"
@@ -2100,6 +2104,9 @@ const PcTerminalNodeView: React.FC = () => {
               {level.chars === 0
                 ? <Terminal className="h-3.5 w-3.5 shrink-0" />
                 : <span className="min-w-0 truncate whitespace-nowrap">{shortTitle}</span>}
+              {windowInfo.online && windowInfo.ai_agent && (
+                <span className={`absolute ${compact || level.chars === 0 ? 'left-0.5 top-0.5' : 'left-1 top-1'} h-1.5 w-1.5 rounded-full bg-fuchsia-500`} />
+              )}
               {windowInfo.online && (
                 <span className={`absolute ${compact || level.chars === 0 ? 'right-0.5 top-0.5' : 'right-1 top-1'} h-1.5 w-1.5 rounded-full ${
                   windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
@@ -2149,6 +2156,7 @@ const PcTerminalNodeView: React.FC = () => {
             <span className="truncate text-sm font-semibold">
               {terminalName(windowInfo, t('terminal.untitled'))}
             </span>
+            {windowInfo.online && <PcTerminalAgentBadge agent={windowInfo.ai_agent} iconOnly={compactLayout} />}
             {windowInfo.online && windowInfo.control && !compactLayout && (
               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${
                 windowInfo.controllable === false
@@ -2339,6 +2347,7 @@ const PcTerminalNodeView: React.FC = () => {
                         <span className="truncate text-[10px] font-semibold">
                           {terminalName(windowInfo, t('terminal.untitled'))}
                         </span>
+                        {windowInfo.online && <PcTerminalAgentBadge agent={windowInfo.ai_agent} iconOnly />}
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                           windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
                         }`} />
