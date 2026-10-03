@@ -3,10 +3,11 @@ import { motion } from 'framer-motion';
 import { BookOpen, Star, Volume2, ShieldCheck, Tag } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import type { Word, WordGroup } from '../api/WfNewApiTypes';
-import { isDefaultVocabularyGroup } from '../api';
-import { wfNewStudyProgress } from './study/WfNewStudyProgress';
-import { ProgressBar } from '@/shared/ui/ProgressBar';
-import { percentOf } from '../../../core/utils/mathUtils';
+import { useWordGroupProgress } from './study/useWordGroupProgress';
+import { TickBar } from '@/shared/ui/ProgressBar';
+import { homeArt } from './WfNewHomeArt';
+
+const GROUP_ART = 'mode-reading';
 
 interface CourseBlockCardProps {
   group: WordGroup;
@@ -20,63 +21,44 @@ export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
   group,
   theme,
   onClick,
-  lang,
   trans
 }) => {
-  // The Default Vocabulary Group derives its % live from the study-progress
-  // store (synced with the backend blob on content load); every other group
-  // keeps the API-provided value (which getAllGroup never returns — stays 0).
-  const isDefault = isDefaultVocabularyGroup(group);
-  const [version, setVersion] = React.useState(0);
-  React.useEffect(() => {
-    if (!isDefault) return undefined;
-    return wfNewStudyProgress.subscribe(() => setVersion((v) => v + 1));
-  }, [isDefault]);
-  const percentage = React.useMemo(() => {
-    if (!isDefault) return Math.round(group.progress || 0);
-    const lib = wfNewStudyProgress.computeLibraryStats(String(group.id), group.count);
-    return percentOf(lib.readWords, lib.total);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDefault, group.id, group.count, group.progress, version]);
+  const progress = useWordGroupProgress(group);
+  const art = homeArt(GROUP_ART);
 
   return (
     <motion.div
       onClick={onClick}
-      whileHover={{ y: -4, scale: 1.01 }}
       whileTap={{ scale: 0.98 }}
-      className={`p-5 rounded-3xl cursor-pointer group transition-all duration-300 ${theme.cardClass}`}
+      className={`cursor-pointer select-none rounded-2xl p-3 transition-colors ${theme.cardClass}`}
     >
-      <div className="flex flex-col h-full justify-between gap-5">
-        
-        {/* Top Header */}
-        <div className="flex justify-between items-start">
-          <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 group-hover:scale-105 transition-transform">
-            <BookOpen className="w-5 h-5 text-indigo-400" />
-          </div>
-          <span className="text-[10px] font-mono uppercase bg-white/5 border border-white/5 text-zinc-400 px-2 py-0.5 rounded">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <span className={`inline-block rounded-full bg-indigo-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide ${theme.accentText}`}>
             {group.type || trans('cards.typeStandard')}
           </span>
+          <h4 className={`mt-1 line-clamp-2 text-sm font-bold leading-snug ${theme.textPrimaryClass}`}>{group.name}</h4>
+          <p className={`mt-0.5 flex items-center gap-1.5 text-[11px] ${theme.textSecondaryClass}`}>
+            <span>{trans('cards.lexemesTotal', { n: progress.total })}</span>
+            <span aria-hidden className="h-0.5 w-0.5 rounded-full bg-current" />
+            <span>{progress.percent}%</span>
+            {progress.due > 0 && (
+              <>
+                <span aria-hidden className="h-0.5 w-0.5 rounded-full bg-current" />
+                <span className="text-amber-500">{trans('cards.dueCount', { n: progress.due })}</span>
+              </>
+            )}
+          </p>
         </div>
-
-        {/* Info */}
-        <div className="space-y-1.5">
-          <h4 className="font-extrabold text-base leading-snug text-slate-100 group-hover:text-indigo-400 dark:text-inherit dark:group-hover:text-indigo-500 transition-colors truncate">
-            {group.name}
-          </h4>
-          <p className="text-xs text-zinc-500 font-mono tracking-wide">{trans('cards.lexemesTotal', { n: group.count })}</p>
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-fuchsia-100 dark:from-sky-500/20 dark:to-fuchsia-500/15">
+          {art
+            ? <img src={art} alt="" aria-hidden loading="lazy" decoding="async" draggable={false} className="h-12 w-12 object-contain drop-shadow-[0_6px_8px_rgba(15,23,42,0.2)]" />
+            : <BookOpen className="h-6 w-6 text-indigo-400" />}
         </div>
-
-        {/* Progress stats bar */}
-        <div className="space-y-2 pt-2 border-t border-white/5">
-          <div className="flex justify-between items-center text-[10px] font-mono">
-            <span className="text-zinc-500">{trans('cards.mastered')}</span>
-            <span className="font-bold text-indigo-400">{percentage}%</span>
-          </div>
-          <div className="flex">
-            <ProgressBar done={percentage} total={100} tone="indigo" label={trans('cards.mastered')} />
-          </div>
-        </div>
-
+      </div>
+      <div className="mt-2.5 flex items-center gap-2 rounded-full bg-black/[0.04] p-1 pr-3 dark:bg-white/[0.04]">
+        <TickBar done={progress.read} total={progress.total} className="h-3.5" label={trans('cards.mastered')} />
+        <span className={`shrink-0 text-[10px] font-medium ${theme.textSecondaryClass}`}>{trans('cards.wordsLeft', { n: progress.left })}</span>
       </div>
     </motion.div>
   );

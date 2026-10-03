@@ -281,6 +281,7 @@
         "firefox_extension_dir": "build_extension_firefox",
         "build_stamp_file": "build-stamp.json",
         "downloads_dir_name": "Downloads",
+        "native_reconnect_page": "native-reconnect.html",
         "service_name": "ncore-mcp-chrome",
         "service_description": "Core Node MCP Chrome watcher and recovery supervisor",
         "service_cpu_quota": "200%",
@@ -492,7 +493,9 @@
         "assist_default_capabilities": ["translation", "tts", "sentence_audio"],
         "tts_engines": {
             "colab": ["kokoro", "qwen3tts"]
-        }
+        },
+        "colab_notebook_url": "https://colab.research.google.com/drive/14KvPty1A3nTX9udP_vaiAJkXx9oq7f61",
+        "colab_notebook_id": "14KvPty1A3nTX9udP_vaiAJkXx9oq7f61"
     },
     "tts_runtime_plan": {
         "purpose": "Pinned startup TTS engine chains per capability and mode (pyutils/tts/runtime_profile.py reads them; notebook_runtime.sh installs only the engines of the active mode). Engines outside the plan are never auto-scheduled. The word_batch chain is the single owner of the word-batch engine (Queue Center word audio, Laravel and UI read it here).",

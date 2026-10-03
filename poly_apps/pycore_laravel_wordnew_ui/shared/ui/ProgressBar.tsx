@@ -21,6 +21,28 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ done, total, tone = 'i
   );
 };
 
+interface TickBarProps {
+  done: number;
+  total: number;
+  ticks?: number;
+  label?: string;
+  className?: string;
+  /** Filled tick colour (solid or gradient). */
+  fillClassName?: string;
+}
+
+/** Pill of evenly spaced ticks; filled ticks show the done share. */
+export const TickBar: React.FC<TickBarProps> = ({ done, total, ticks = 24, label, className = 'h-4', fillClassName = 'bg-gradient-to-b from-sky-400 to-blue-600' }) => {
+  const filled = total > 0 ? Math.round(Math.min(1, done / total) * ticks) : 0;
+  return (
+    <div className={`flex flex-1 items-stretch gap-[2px] rounded-full bg-white p-[3px] dark:bg-white/[0.06] ${className}`} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+      {Array.from({ length: ticks }, (_, i) => (
+        <span key={i} className={`flex-1 rounded-full transition-colors duration-300 ${i < filled ? fillClassName : 'bg-slate-200 dark:bg-white/10'}`} />
+      ))}
+    </div>
+  );
+};
+
 interface SegmentedBarProps {
   segments: ReadonlyArray<{ key: string; value: number; tone: StatusTone }>;
   total: number;

@@ -224,6 +224,8 @@ export const jaLocaleB: Record<string, string> = {
     'cards.typeStandard': '標準',
     'cards.lexemesTotal': '計 {n} 語',
     'cards.mastered': 'シラバス習得度',
+    'cards.wordsLeft': '残り {n} 語',
+    'cards.dueCount': '復習 {n} 語',
     'cards.favTitle': 'お気に入り切替',
     'search.saveBookmark': 'ブックマーク保存',
     'onb.brand': 'WORDNEW オンボーディング',

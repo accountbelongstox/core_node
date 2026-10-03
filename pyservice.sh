@@ -13,7 +13,6 @@
 #   ./pyservice.sh 2                     # Relay UI intermediary mode
 #   ./pyservice.sh 1 --no-install        # skip prereqs, just launch
 #   ./pyservice.sh --port 8000 --debug   # launch on port 8000 in debug mode
-#   ./pyservice.sh --no-reload           # disable backend hot-reload (.py -> restart)
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs
 #
 # Subcommands: run (default) | config | codesync (frozen: retired, use gitsync) |

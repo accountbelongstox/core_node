@@ -115,9 +115,13 @@
       "Bash(tasklist)",
       "Bash(timeout 40 node nav.mjs)",
       "Bash(awk '$9>5 {print $1,$9,$\\(NF-1\\),substr\\($NF,1,40\\)}')",
+      "Bash(journalctl -u ncore-mcp-chrome --since \"-2min\" --no-pager)",
       "Bash(awk '$9>3 {print $1,$9,$6,$NF}')",
       "Bash(awk '$9>3 {print $1,$9,$\\(NF-1\\),$NF}')",
-      "Bash(awk '$9>10 {print $1,$9,$\\(NF-1\\)}')"
+      "Bash(awk '$9>10 {print $1,$9,$\\(NF-1\\)}')",
+      "Bash(/opt/_debian_13/python3_venv/bin/python3 -c \"import pycore.pyctl.devmcp.dev_mcp_server, pycore.pyutils.chrome_mcp.colab_reader; print\\('import ok'\\)\")",
+      "Bash(cp pycore/pyctl/devmcp/__init__.py pycore/pyctl/colab/__init__.py)",
+      "Bash(/opt/_debian_13/python3_venv/bin/python3 -m pycore.pyctl.colab.colab_cli --help)"
     ],
     "deny": [],
     "ask": []

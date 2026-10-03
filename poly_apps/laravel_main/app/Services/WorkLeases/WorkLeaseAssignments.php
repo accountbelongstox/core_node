@@ -302,7 +302,8 @@ final class WorkLeaseAssignments
 
         foreach ($this->plans->connection()->select(
             "SELECT pc.position FROM {$this->plans->clipsTable()} pc JOIN {$table} t ON t.{$key} = pc.content_key"
-            . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.position >= ? AND t.has_audio IS NOT TRUE'
+            . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.position >= ? AND pc.ready_seq IS NULL'
+            . ' AND t.has_audio IS NOT TRUE'
             . " AND t.tts_status IS DISTINCT FROM 'failed' ORDER BY pc.position, pc.id LIMIT ?",
             [$plan->id, $lane, $language, $from, $limit]
         ) as $row) {

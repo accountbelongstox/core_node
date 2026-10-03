@@ -15,13 +15,11 @@ import { WfNewHomeDashboard } from './WfNewHomeDashboard';
 import { WfNewHomeBento, WfNewHomeLabCard } from './WfNewHomeLabCard';
 import { WfNewHomeDefaultGroupCard } from './WfNewHomeDefaultGroupCard';
 import { WfNewSectionHeader } from './WfNewSectionHeader';
+import { homeArt } from './WfNewHomeArt';
 import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
 import { dailyReadingHash } from '../routing/WordNewHashRoutes';
 import { cancelSpeech } from '../utils/WordNewSpeech';
 
-/** 3D illustrations of the home bento (`assets/home/<art>.webp`); a missing one falls back to the icon. */
-const HOME_ART = import.meta.glob('../assets/home/*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
-const homeArt = (name: string): string | undefined => HOME_ART[`../assets/home/${name}.webp`];
 
 /** Labs bento: wide cards span both columns (four on large screens). */
 const HOME_LAB_CARDS = [

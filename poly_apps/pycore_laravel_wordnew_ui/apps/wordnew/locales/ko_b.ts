@@ -224,6 +224,8 @@ export const koLocaleB: Record<string, string> = {
     'cards.typeStandard': '표준',
     'cards.lexemesTotal': '총 {n} 단어',
     'cards.mastered': '실라버스 숙련도',
+    'cards.wordsLeft': '{n}개 남음',
+    'cards.dueCount': '복습 {n}개',
     'cards.favTitle': '즐겨찾기 전환',
     'search.saveBookmark': '북마크 저장',
     'onb.brand': 'WORDNEW 온보딩',

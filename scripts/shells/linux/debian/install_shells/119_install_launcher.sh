@@ -51,6 +51,8 @@ HAVE_EMULATOR=0
 # Central spawnable-emulator list plus kitty (no -e convention; only used by
 # the launcher's paned-grid path, but still counts as "an emulator exists").
 EMULATOR_CANDIDATES=("${TERMINAL_EMULATOR_CANDIDATES[@]}" "kitty")
+KEYBOARD_IDLE_UDEV_RULE="/etc/udev/rules.d/70-core-node-keyboard-idle.rules"
+KEYBOARD_IDLE_UDEV_LINE='SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_KEYBOARD}=="1", TAG+="uaccess"'
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -142,13 +144,27 @@ else
     echo "[i] no graphical session (DISPLAY/WAYLAND_DISPLAY unset); skipping preferred-emulator install."
 fi
 
+if [[ "$(id -u)" -ne 0 ]]; then
+    command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+fi
+
+# Keyboard idle (pycore user_idle.py): the seat user reads keyboard evdev
+# devices to time the last key press; pointer devices stay inaccessible.
+if [[ ! -f "$KEYBOARD_IDLE_UDEV_RULE" ]] && command -v udevadm >/dev/null 2>&1; then
+    if echo "$KEYBOARD_IDLE_UDEV_LINE" | $SUDO tee "$KEYBOARD_IDLE_UDEV_RULE" >/dev/null; then
+        $SUDO udevadm control --reload >/dev/null 2>&1 || true
+        $SUDO udevadm trigger --subsystem-match=input --action=change >/dev/null 2>&1 || true
+        echo "[OK] keyboard idle udev rule installed: $KEYBOARD_IDLE_UDEV_RULE"
+    else
+        echo "[!] keyboard idle udev rule not installed; pycore idle falls back to all session input."
+    fi
+else
+    echo "[OK] keyboard idle udev rule present or udev unavailable; skipping."
+fi
+
 if [[ ${#NEED[@]} -eq 0 ]]; then
     echo "[OK] launcher prerequisites already satisfied."
     exit 0
-fi
-
-if [[ "$(id -u)" -ne 0 ]]; then
-    command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 fi
 
 $SUDO apt-get update >/dev/null 2>&1 || true

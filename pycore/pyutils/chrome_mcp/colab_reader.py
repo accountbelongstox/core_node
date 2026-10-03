@@ -4,8 +4,8 @@
 import re
 from typing import Any, Dict, List, Optional
 
-from pycore.pyctl.devmcp.chrome_bridge import chrome_bridge
-from pycore.pyctl.devmcp.dev_mcp_constants import ANSI_ESCAPE_PATTERN, COLAB_OUTPUT_SCRIPT
+from pycore.pyutils.chrome_mcp.chrome_mcp_bridge import chrome_bridge
+from pycore.pyutils.chrome_mcp.chrome_mcp_constants import ANSI_ESCAPE_PATTERN, COLAB_OUTPUT_SCRIPT
 
 
 class ColabReader:

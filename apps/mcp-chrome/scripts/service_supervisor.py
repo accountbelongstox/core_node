@@ -35,6 +35,7 @@ NATIVE_HOST_NAME = f"{contract_value('mcp_chrome.native_host_name')}.json"
 BUILD_OUTPUT_DIR_NAME = contract_value("mcp_chrome.build_output_dir")
 EXTENSION_DIR_NAME = contract_value("mcp_chrome.extension_dir")
 EXTENSION_ID = contract_value("mcp_chrome.extension_id")
+NATIVE_RECONNECT_PAGE = contract_value("mcp_chrome.native_reconnect_page")
 MCP_PORT = port("mcp_chrome")
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
@@ -278,7 +279,7 @@ def extension_recovery_url() -> Optional[str]:
             continue
         for origin in manifest.get("allowed_origins", []):
             if isinstance(origin, str) and origin.startswith("chrome-extension://"):
-                return f"{origin}popup.html"
+                return f"{origin}{NATIVE_RECONNECT_PAGE}"
     return None
 
 
@@ -363,7 +364,7 @@ def wake_extension(force: bool = False) -> None:
     if not recovery_url:
         print("[Supervisor] Native host manifest has no Chrome extension origin.", flush=True)
         return
-    reconnect_url = f"{recovery_url}?reconnectNative=1"
+    reconnect_url = recovery_url
     try:
         if chrome_path:
             subprocess.Popen(

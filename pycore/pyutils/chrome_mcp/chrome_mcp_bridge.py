@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Read-only proxy to the mcp-chrome MCP server (tabs, screenshot, DOM text)."""
+"""Client of the mcp-chrome MCP server (tabs, navigation, screenshot, page JavaScript)."""
 
 import json
 from typing import Any, Dict, List, Optional
 
-from pycore.pyctl.devmcp.dev_mcp_constants import (
+from pycore.pyutils.chrome_mcp.chrome_mcp_constants import (
     CHROME_CONNECT_TIMEOUT_SECONDS,
     CHROME_JS_MAX_OUTPUT_BYTES,
     CHROME_JS_TIMEOUT_MS,
@@ -13,6 +13,7 @@ from pycore.pyctl.devmcp.dev_mcp_constants import (
     CHROME_SCREENSHOT_HEIGHT,
     CHROME_SCREENSHOT_WIDTH,
     CHROME_TOOL_JAVASCRIPT,
+    CHROME_TOOL_NAVIGATE,
     CHROME_TOOL_SCREENSHOT,
     CHROME_TOOL_SWITCH_TAB,
     CHROME_TOOL_TABS,
@@ -109,6 +110,14 @@ class ChromeBridge:
         if not data:
             raise RuntimeError("chrome_screenshot_empty")
         return {"data": data, "mime": MIME_JPEG if data.startswith(JPEG_BASE64_PREFIX) else MIME_PNG}
+
+    async def open_tab(self, url: str) -> int:
+        """Open url in a background tab (or reuse a tab already on it) and return its id."""
+        document = json.loads(await self.call_text(CHROME_TOOL_NAVIGATE, {"url": url, "background": True}))
+        tab_id = document.get("tabId") or next(iter(document.get("tabs") or []), {}).get("tabId")
+        if not tab_id:
+            raise RuntimeError("chrome_navigate_no_tab")
+        return int(tab_id)
 
     async def focus_tab(self, tab_id: int, window_id: int) -> None:
         """Activate the tab and focus its browser window through the extension."""

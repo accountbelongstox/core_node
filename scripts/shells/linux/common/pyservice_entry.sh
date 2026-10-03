@@ -28,7 +28,6 @@
 #   ./pyservice.sh 2                     # Relay UI intermediary mode
 #   ./pyservice.sh 1 --no-install        # skip prereqs, just launch
 #   ./pyservice.sh --port 8000 --debug   # launch on port 8000 in debug mode
-#   ./pyservice.sh --no-reload           # disable backend hot-reload (.py -> restart)
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs (args after
 #                                                     # `--` go to prepare.sh)
 #   ./pyservice.sh colab                 # Google Colab VM: Relay agent (mode 2) with
@@ -75,7 +74,7 @@
 # ---------------------------------------------------------------------------
 # `install` delegates to scripts/shells/linux/common/pycore_service.sh (part of
 # the dd.sh call chain; reuses debian_service_manager.sh). The unit runs headless:
-#   ExecStart=/bin/bash <repo>/pyservice.sh run --no-ui --no-install   (hot reload on)
+#   ExecStart=/bin/bash <repo>/pyservice.sh run --no-ui --no-install   (no hot reload: restart the unit after code changes)
 #   + root companion unit core-node-owner-guard (root-created entries -> real user)
 #   WorkingDirectory=<repo>   User=<real user>   Restart=always
 # On Windows there is no systemd: use the desktop UI's Settings -> Auto-start on
@@ -168,7 +167,6 @@ BIND_HOST=""
 PORT="59000"
 RPC_PORT="59000"
 DEBUG=0
-RELOAD=1
 NO_INSTALL=0
 NO_SERVICE_PROMPT=0
 ONLY=0
@@ -250,7 +248,7 @@ Modes:
   1            Current local UI mode (default)
   2            Relay UI intermediary mode
 
-Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
+Hosted notebook platforms (imply mode 2, --no-ui):
   colab        Google Colab VM: outbound-only Relay agent to Laravel. Config,
                Relay identity and model/pip caches persist under
                /content/drive/MyDrive/core_node_notebook, decrypted secrets
@@ -295,8 +293,7 @@ Options (apply to 'run'):
                    also needs: pyservice.sh config system set --key rpcLanBind --value true)
   --port PORT      Port the RPC server binds to (default: 59000)
   --debug          Enable the worker's debug mode
-  --no-reload      Disable backend hot-reload (watch .py -> restart; ON by default)
-  --reload         (legacy alias; hot-reload is already the default)
+  --no-reload, --reload  Accepted and ignored: hot reload is off; restart pycore after code changes
   --no-install     Skip all shell prerequisite installers
   --no-service-prompt  Do not offer the background-service install [Y/n] (interactive run
                    offers it when the service is absent; an installed service is
@@ -521,8 +518,7 @@ while [[ $# -gt 0 ]]; do
         --host)       BIND_HOST="$2"; shift 2 ;;
         --port)       PORT="$2";      shift 2 ;;
         --debug)      DEBUG=1;        shift   ;;
-        --no-reload)  RELOAD=0;       shift   ;;
-        --reload)     RELOAD=1;       shift   ;;
+        --no-reload|--reload) shift ;;
         --no-install) NO_INSTALL=1; shift ;;
         --no-service-prompt) NO_SERVICE_PROMPT=1; shift ;;
         --only)       ONLY=1;         shift   ;;
@@ -539,7 +535,6 @@ done
 # A notebook VM has no inbound access or desktop: always the Relay agent.
 if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
     SERVICE_MODE="2"
-    RELOAD=0
 elif [[ "$NOTEBOOK_EXPORT_IDENTITY" -eq 1 ]]; then
     echo "[!] --export-identity requires a notebook platform: colab or kaggle" >&2
     exit 2
@@ -808,7 +803,6 @@ fi
 PY_ARGS=(-u "$WORKER_REL" --port "$PORT" --service-mode "$SERVICE_MODE")
 if [[ -n "$BIND_HOST" ]]; then PY_ARGS+=(--host "$BIND_HOST"); fi
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
-if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
 
 # TTS batch self-check: run the STANDALONE entry as its own process and wait for
 # it to exit BEFORE the worker starts, so the sweep owns the console (no
