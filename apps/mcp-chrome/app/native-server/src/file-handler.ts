@@ -13,43 +13,22 @@ const serviceContract = require('../../../../../config/service_contract');
 // clamped well below that to leave room for base64 expansion and JSON framing.
 const MAX_READ_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_READ_CHUNK_BYTES = 512 * 1024;
-const DAY_MS = 24 * 60 * 60 * 1000;
-const SCREENSHOT_RETENTION_MS = Number(serviceContract.value('mcp_chrome.screenshot_retention_days')) * DAY_MS;
+const XDG_USER_DIRS_FILE = path.join('.config', 'user-dirs.dirs');
+const XDG_DOWNLOAD_PATTERN = /^XDG_DOWNLOAD_DIR="(.+)"$/m;
 
-// Screenshots land in one fixed runtime folder instead of the browser's Downloads:
-// <legacy_linux_data_dir>/<runtime>/<screenshots> on POSIX (next to the host logs),
-// %LOCALAPPDATA%/<core_node>/<runtime>/<screenshots> on Windows.
-function screenshotDir(): string {
-  const runtimeDirName = serviceContract.value('mcp_chrome.runtime_dir_name');
-  const screenshotDirName = serviceContract.value('mcp_chrome.screenshot_dir_name');
-  const baseDir =
-    process.platform === 'win32'
-      ? path.join(
-          process.env.LOCALAPPDATA || os.homedir(),
-          serviceContract.value('paths.core_node_data_dir_name'),
-        )
-      : serviceContract.value('paths.legacy_linux_data_dir');
-  return path.join(baseDir, runtimeDirName, screenshotDirName);
+// Screenshots are written straight into the user's Downloads folder (no browser
+// download, no save dialog): XDG_DOWNLOAD_DIR on Linux, ~/Downloads elsewhere.
+function downloadsDir(): string {
+  const home = os.homedir();
+  const fallback = path.join(home, serviceContract.value('mcp_chrome.downloads_dir_name'));
+  if (process.platform !== 'linux') return fallback;
+  try {
+    const match = fs.readFileSync(path.join(home, XDG_USER_DIRS_FILE), 'utf8').match(XDG_DOWNLOAD_PATTERN);
+    return match ? match[1].replace(/^\$HOME/, home) : fallback;
+  } catch {
+    return fallback;
+  }
 }
-
-// Block private/loopback/link-local ranges so a caller-supplied fileUrl cannot
-// be aimed at internal services or cloud-metadata endpoints (SSRF). Every
-// address a hostname resolves to is checked, so DNS-rebinding to an internal
-// host is rejected too.
-const SSRF_BLOCKLIST = (() => {
-  const bl = new net.BlockList();
-  bl.addSubnet('0.0.0.0', 8, 'ipv4');      // "this network"
-  bl.addSubnet('10.0.0.0', 8, 'ipv4');     // private (RFC1918)
-  bl.addSubnet('127.0.0.0', 8, 'ipv4');    // loopback
-  bl.addSubnet('169.254.0.0', 16, 'ipv4'); // link-local / cloud metadata
-  bl.addSubnet('172.16.0.0', 12, 'ipv4');  // private (RFC1918)
-  bl.addSubnet('192.168.0.0', 16, 'ipv4'); // private (RFC1918)
-  bl.addSubnet('100.64.0.0', 10, 'ipv4');  // CGNAT (RFC6598)
-  bl.addSubnet('::1', 128, 'ipv6');        // loopback
-  bl.addSubnet('fc00::', 7, 'ipv6');       // unique-local
-  bl.addSubnet('fe80::', 10, 'ipv6');      // link-local
-  return bl;
-})();
 
 /**
  * File handler for managing file uploads through the native messaging host
@@ -172,33 +151,13 @@ export class FileHandler {
     if (!base64Data) {
       return { success: false, error: 'base64Data is required' };
     }
-    let dir = screenshotDir();
-    try {
-      await fs.promises.mkdir(dir, { recursive: true });
-      await fs.promises.access(dir, fs.constants.W_OK);
-    } catch {
-      dir = path.join(os.tmpdir(), 'chrome-mcp-screenshots');
-      await fs.promises.mkdir(dir, { recursive: true });
-    }
-    await this.pruneOldFiles(dir, SCREENSHOT_RETENTION_MS);
+    const dir = downloadsDir();
+    await fs.promises.mkdir(dir, { recursive: true });
     const buffer = Buffer.from(base64Data.replace(/^data:.*?;base64,/, ''), 'base64');
     const safeName = path.basename(fileName || `screenshot-${Date.now()}.png`).replace(/[^\w.-]/g, '_');
     const filePath = path.join(dir, safeName);
     await fs.promises.writeFile(filePath, buffer);
     return { success: true, filePath, fileName: safeName, size: buffer.length };
-  }
-
-  private async pruneOldFiles(dir: string, maxAgeMs: number): Promise<void> {
-    const cutoff = Date.now() - maxAgeMs;
-    for (const entry of await fs.promises.readdir(dir)) {
-      const entryPath = path.join(dir, entry);
-      try {
-        const stat = await fs.promises.stat(entryPath);
-        if (stat.isFile() && stat.mtimeMs < cutoff) await fs.promises.unlink(entryPath);
-      } catch {
-        // A file removed concurrently needs no pruning.
-      }
-    }
   }
 
   /**
