@@ -22,6 +22,7 @@ interface WatchSnapshot {
   minIdleSeconds: number;
   promptIdleSeconds: number;
   nextPassAt: number | null;
+  passPausedRemaining: number;
   paused: boolean;
   running: boolean;
   receivedAt: number;
@@ -39,6 +40,8 @@ export interface PcTerminalWatch {
   promptIdleSeconds: number;
   /** Pycore wall-clock seconds of the next interval pass; null before the first pass or when stopped. */
   nextPassAt: number | null;
+  /** Terminals left in a pass paused by input (0: none). */
+  passPausedRemaining: number;
   available: boolean;
 }
 
@@ -50,6 +53,7 @@ const EMPTY_WATCH: PcTerminalWatch = {
   minIdleSeconds: 0,
   promptIdleSeconds: 0,
   nextPassAt: null,
+  passPausedRemaining: 0,
   available: false,
 };
 
@@ -81,6 +85,7 @@ export const PcTerminalWatchProvider: React.FC<{ children: React.ReactNode }> = 
         minIdleSeconds: Number(result.min_idle_seconds) || 0,
         promptIdleSeconds: Number(result.prompt_idle_seconds) || 0,
         nextPassAt: lastPass !== null && interval > 0 ? lastPass + interval : null,
+        passPausedRemaining: Number(result.pass_paused_remaining) || 0,
         paused: Boolean(result.paused),
         running: Boolean(result.running),
         receivedAt,
@@ -123,6 +128,7 @@ export const PcTerminalWatchProvider: React.FC<{ children: React.ReactNode }> = 
       minIdleSeconds: snapshot.minIdleSeconds,
       promptIdleSeconds: snapshot.promptIdleSeconds,
       nextPassAt: snapshot.running && !snapshot.paused ? snapshot.nextPassAt : null,
+      passPausedRemaining: snapshot.passPausedRemaining,
       available: true,
     };
   }, [snapshot, nowMs]);

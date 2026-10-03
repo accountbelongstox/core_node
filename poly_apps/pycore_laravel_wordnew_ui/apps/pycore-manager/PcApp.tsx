@@ -14,6 +14,7 @@ import {
 import { registerPcLocales } from './pc-locales';
 import { PcLanguageSync } from './PcLanguageSync';
 import { PcUiStateBackupGate } from './persistence/PcUiStateBackupGate';
+import { PcUiSessionRouteGate } from './persistence/PcUiSessionRoute';
 import {
   createAppRouteElements,
   type AppRouteElementDefinition,
@@ -67,15 +68,17 @@ const PcApp: React.FC = () => {
     <PcUiStateBackupGate>
       <PcLanguageSync />
       <PcProviders>
-        <Routes>
-          <Route element={<PcLayout />}>
-        {/* Page routes are generated from PC_PAGES (above) — add a registry
-            entry, get a route. */}
-        {pcPageRoutes}
-        <Route path={CLOUD_CLIPBOARD_PAGE_SLUG} element={<PcCloudClipboardRedirect />} />
-        <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
-          </Route>
-        </Routes>
+        <PcUiSessionRouteGate>
+          <Routes>
+            <Route element={<PcLayout />}>
+          {/* Page routes are generated from PC_PAGES (above) — add a registry
+              entry, get a route. */}
+          {pcPageRoutes}
+          <Route path={CLOUD_CLIPBOARD_PAGE_SLUG} element={<PcCloudClipboardRedirect />} />
+          <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
+            </Route>
+          </Routes>
+        </PcUiSessionRouteGate>
       </PcProviders>
     </PcUiStateBackupGate>
   );

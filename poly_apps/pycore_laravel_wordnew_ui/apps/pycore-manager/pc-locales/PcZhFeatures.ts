@@ -617,7 +617,8 @@ terminal: {
       limitWait: '用量限制：恢复倒计时',
       globalNext: '下次扫描 {{time}} 后',
       globalDue: '即将扫描',
-      globalWaitingIdle: '扫描等待键盘空闲',
+      globalWaitingIdle: '扫描等待键盘鼠标空闲',
+      globalPaused: '键盘/鼠标操作中，扫描已暂停；空闲后继续剩余 {{count}} 个终端',
     },
     backup: {
       title: '终端备份',

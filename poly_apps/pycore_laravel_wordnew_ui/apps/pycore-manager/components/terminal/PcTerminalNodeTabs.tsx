@@ -3,7 +3,7 @@
  * first, then every other online pycore found on the LAN or the tailnet. Selecting one
  * re-mounts the same terminal view against that node's API.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Monitor, Network } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -38,6 +38,10 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
   const target = getPycoreTarget();
   const [nodes, setNodes] = useState<PycoreEndpoint[]>(otherNodes);
   const [, setProbeVersion] = useState(0);
+  const activeUrlRef = useRef(activeUrl);
+  activeUrlRef.current = activeUrl;
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     const stopPeers = subscribeTailnetPeers(() => setNodes(otherNodes()));
@@ -47,11 +51,18 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
       void probePycoreEndpoints(list);
     });
     const stopProbes = subscribePycoreProbes(() => setProbeVersion((value) => value + 1));
+    let firstDiscovery = true;
     const probeAll = () => {
       void Promise.all([refreshLanMachines(), refreshTailnetPeers()]).then(() => {
         const list = otherNodes();
         setNodes(list);
         void probePycoreEndpoints(list);
+        // A node restored from the last session that discovery no longer knows falls back to this machine, once.
+        const restoredUrl = activeUrlRef.current;
+        if (firstDiscovery && restoredUrl !== null && !list.some((node) => node.url === restoredUrl)) {
+          onSelectRef.current(null);
+        }
+        firstDiscovery = false;
       });
     };
     probeAll();

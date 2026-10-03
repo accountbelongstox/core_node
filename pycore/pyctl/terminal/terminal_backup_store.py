@@ -301,21 +301,28 @@ class TerminalBackupStore:
             name = f"{base}-{suffix}"
         return self.directory / name
 
-    def save(self, terminals: Sequence[Dict[str, Any]], merge_previous: bool = False) -> Dict[str, Any]:
+    def save(
+        self,
+        terminals: Sequence[Dict[str, Any]],
+        merge_previous: bool = False,
+        carry_numbers: Optional[Sequence[int]] = None,
+    ) -> Dict[str, Any]:
         """terminals: {number, name, text?, error_code?, inputs?, changed?}; blobs land first, the manifest last.
-        merge_previous (follow-up passes): carry the newest pass forward; consecutive follow-up passes rewrite one folder so they use a single retention slot."""
+        merge_previous (follow-up passes): carry the newest pass forward; consecutive follow-up passes rewrite one folder so they use a single retention slot.
+        carry_numbers (interval passes that skip terminals): a new folder that keeps these terminals' newest entries (pointers only)."""
         with self.lock:
             folder: Optional[Path] = None
             entries_by_number: Dict[int, Dict[str, Any]] = {}
-            if merge_previous:
+            if merge_previous or carry_numbers:
                 previous = self.list_manifests()
                 if previous:
                     _name, previous_folder, previous_manifest = previous[0]
                     entries_by_number = {
                         int(entry["number"]): {**entry, "changed": False}
                         for entry in self.manifest_entries(previous_manifest)
+                        if merge_previous or int(entry["number"]) in set(carry_numbers or ())
                     }
-                    if previous_manifest.get(MANIFEST_FOLLOW_UP_KEY):
+                    if merge_previous and previous_manifest.get(MANIFEST_FOLLOW_UP_KEY):
                         folder = previous_folder
                         self._gc_pending = True
             if folder is None:

@@ -80,6 +80,21 @@ import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/ap
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
+import {
+  emptyPcUiSessionNode,
+  readPcUiSessionNode,
+  readPcUiSessionTerminalNodeUrl,
+  updatePcUiSessionNode,
+  updatePcUiSessionTerminalNodeUrl,
+  type PcUiSessionInput,
+  type PcUiSessionNode,
+  type PcUiSessionTerminalIdentity,
+} from '@/apps/pycore-manager/persistence/PcUiSessionStore';
+import { restoreScrollTop, trackScrollTop } from '@/apps/pycore-manager/persistence/PcUiSessionDom';
+import {
+  matchPcTerminalWindow,
+  pcTerminalIdentityOf,
+} from '@/apps/pycore-manager/persistence/PcUiSessionTerminal';
 import { StorageManager } from '../../../core/persistence';
 import type {
   TerminalActionResult,
@@ -95,6 +110,10 @@ import type {
 
 const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
+/** How long a restored terminal selection keeps waiting for its window to show up in a snapshot. */
+const SESSION_RESTORE_GRACE_MS = 15_000;
+const INPUT_SLOT_PANEL = 'panel';
+const INPUT_SLOT_OVERLAY = 'overlay';
 const CANVAS_PADDING_PX = 16;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Gap kept between the sticky jump bar and a card scrolled to by number. */
@@ -243,17 +262,17 @@ interface NormalizedImagePoint {
 }
 
 function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string {
-  return windowInfo.custom_title || windowInfo.title || windowInfo.app || fallback;
+  return windowInfo.custom_title || windowInfo.short_title || windowInfo.title || windowInfo.app || fallback;
 }
 
 function terminalShortTitle(windowInfo: TerminalWindowInfo): string {
-  const characters = Array.from((windowInfo.custom_title || windowInfo.title || windowInfo.app || '').trim());
+  const characters = Array.from((windowInfo.custom_title || windowInfo.short_title || windowInfo.title || windowInfo.app || '').trim());
   if (characters.length <= SHORT_TITLE_HEAD_CHARS + SHORT_TITLE_TAIL_CHARS) return characters.join('');
   return `${characters.slice(0, SHORT_TITLE_HEAD_CHARS).join('')}${SHORT_TITLE_ELLIPSIS}${characters.slice(-SHORT_TITLE_TAIL_CHARS).join('')}`;
 }
 
 function terminalHeadTitle(windowInfo: TerminalWindowInfo, chars: number): string {
-  const title = (windowInfo.custom_title || windowInfo.title || windowInfo.app || '').trim();
+  const title = (windowInfo.custom_title || windowInfo.short_title || windowInfo.title || windowInfo.app || '').trim();
   return Array.from(title.replace(TITLE_LEADING_SYMBOLS, '') || title).slice(0, chars).join('');
 }
 
@@ -606,6 +625,13 @@ const PcTerminalNodeView: React.FC = () => {
   const screenshotFailuresRef = useRef<Map<string, number>>(new Map());
   const screenshotSeenAtRef = useRef<Map<string, number>>(new Map());
   const [screenshotVersion, setScreenshotVersion] = useState(0);
+  const { nodeKey: sessionNodeKey } = usePcTerminalNode();
+  const [savedSession] = useState<PcUiSessionNode | null>(() => readPcUiSessionNode(sessionNodeKey));
+  const pendingSessionRef = useRef<PcUiSessionNode | null>(savedSession);
+  const sessionRestoreDeadlineRef = useRef(Date.now() + SESSION_RESTORE_GRACE_MS);
+  const overlayScrollRestoreRef = useRef(0);
+  const overlayScrollCleanupRef = useRef<(() => void) | null>(null);
+  const [inputRestore, setInputRestore] = useState<PcUiSessionInput | null>(null);
 
   const loadScreenshotResource = useCallback(async (
     resource: TerminalScreenshotResourceMeta,
@@ -818,12 +844,36 @@ const PcTerminalNodeView: React.FC = () => {
     await reconcileTerminalSchedules(nextSnapshot.windows);
     if (!mountedRef.current) return;
     setSnapshot(applyFrontendTerminalSchedules(nextSnapshot));
+    // The terminal the user last operated wins over the default selection; the match is retried
+    // for a grace period because a restarted terminal host reports its windows gradually.
+    let restoredNumber: number | null = null;
+    const pendingSession = pendingSessionRef.current;
+    if (pendingSession) {
+      const matched = matchPcTerminalWindow(nextSnapshot.windows, pendingSession.selected);
+      if (matched) {
+        pendingSessionRef.current = null;
+        restoredNumber = matched.terminal_number;
+        const matchedKey = terminalDraftKey(matched.terminal_number);
+        setPreviewTerminalNumber(pendingSession.previewOpen ? matched.terminal_number : null);
+        if (pendingSession.operationsExpanded !== null) {
+          setPreviewExpandedStates((current) => ({ ...current, [matchedKey]: pendingSession.operationsExpanded as boolean }));
+        }
+        setScheduleOpen(pendingSession.scheduleOpen);
+        setLogDialogOpen(pendingSession.logDialogOpen);
+        overlayScrollRestoreRef.current = pendingSession.previewOpen ? pendingSession.overlayScrollTop : 0;
+        setInputRestore(pendingSession.input);
+      } else if (!pendingSession.selected || Date.now() > sessionRestoreDeadlineRef.current) {
+        pendingSessionRef.current = null;
+      }
+    }
     setSelectedTerminalNumber((current) => (
-      nextSnapshot.windows.some(
-        (windowInfo) => windowInfo.terminal_number === current,
-      )
-        ? current
-        : nextSnapshot.windows[0]?.terminal_number || null
+      restoredNumber !== null
+        ? restoredNumber
+        : nextSnapshot.windows.some(
+          (windowInfo) => windowInfo.terminal_number === current,
+        )
+          ? current
+          : nextSnapshot.windows[0]?.terminal_number || null
     ));
   }, [reconcileTerminalSchedules, loadSnapshotScreenshotResources]);
 
@@ -1023,6 +1073,47 @@ const PcTerminalNodeView: React.FC = () => {
   const selectedDraftStatus = selectedDraftKey
     ? draftStatuses[selectedDraftKey]
     : undefined;
+  // A poll replaces the window objects every time, so the effect keys on the identity's value.
+  const selectedIdentityJson = selectedWindow ? JSON.stringify(pcTerminalIdentityOf(selectedWindow)) : '';
+  const previewOpen = previewTerminalNumber !== null;
+  const previewExpandedSaved = previewWindow ? previewExpanded : null;
+  // The saved node state is only rewritten once the restore has had its chance, so a reload that
+  // starts with an empty snapshot cannot erase the terminal it is about to return to.
+  useEffect(() => {
+    if (pendingSessionRef.current || !selectedIdentityJson) return;
+    const selected = JSON.parse(selectedIdentityJson) as PcUiSessionTerminalIdentity;
+    const stored = readPcUiSessionNode(sessionNodeKey) ?? emptyPcUiSessionNode();
+    const sameTerminal = stored.selected?.number === selected.number && stored.selected?.id === selected.id;
+    updatePcUiSessionNode(sessionNodeKey, {
+      selected,
+      previewOpen,
+      operationsExpanded: previewExpandedSaved,
+      scheduleOpen,
+      logDialogOpen,
+      ...(sameTerminal ? {} : { input: null }),
+      ...(previewOpen && sameTerminal ? {} : { overlayScrollTop: 0 }),
+    });
+  }, [logDialogOpen, previewExpandedSaved, previewOpen, scheduleOpen, selectedIdentityJson, sessionNodeKey]);
+  const handleInputSnapshot = useCallback((input: PcUiSessionInput) => {
+    updatePcUiSessionNode(sessionNodeKey, { input });
+  }, [sessionNodeKey]);
+  const handleInputRestored = useCallback(() => setInputRestore(null), []);
+  const overlayPanelRef = useCallback((element: HTMLDivElement | null) => {
+    overlayScrollCleanupRef.current?.();
+    overlayScrollCleanupRef.current = null;
+    if (!element) return;
+    const stopTracking = trackScrollTop(element, (scrollTop) => {
+      updatePcUiSessionNode(sessionNodeKey, { overlayScrollTop: Math.round(scrollTop) });
+    });
+    const restoreTop = overlayScrollRestoreRef.current;
+    overlayScrollRestoreRef.current = 0;
+    const stopRestoring = restoreScrollTop(element, restoreTop);
+    overlayScrollCleanupRef.current = () => {
+      stopTracking();
+      stopRestoring();
+    };
+  }, [sessionNodeKey]);
+  useEffect(() => () => overlayScrollCleanupRef.current?.(), []);
   const selectedScheduleQueue: TerminalScheduleEntry[] = selectedWindow?.schedule_queue || [];
   const nextQueueRunAt = selectedScheduleQueue.reduce<number | null>(
     (earliest, entry) => (
@@ -1448,6 +1539,7 @@ const PcTerminalNodeView: React.FC = () => {
     ) {
       flushDraft(selectedTerminalNumber);
     }
+    pendingSessionRef.current = null;
     setSelectedTerminalNumber(terminalNumber);
   }, [flushDraft, selectedTerminalNumber]);
 
@@ -1717,7 +1809,10 @@ const PcTerminalNodeView: React.FC = () => {
   }, [actionWindowId, selectedWindow, updateSelectedDraft]);
 
   const renderOperationPanel = (overlay: boolean) => (
-    <div className={`space-y-4 [&_button]:whitespace-nowrap ${overlay ? 'h-full overflow-y-auto p-3 md:p-4' : 'p-5'}`}>
+    <div
+      ref={overlay ? overlayPanelRef : undefined}
+      className={`space-y-4 [&_button]:whitespace-nowrap ${overlay ? 'h-full overflow-y-auto p-3 md:p-4' : 'p-5'}`}
+    >
       {selectedWindow && renameText !== null ? (
         <form
           className="flex items-center gap-1.5"
@@ -1790,6 +1885,12 @@ const PcTerminalNodeView: React.FC = () => {
         rows={overlay ? 6 : 8}
         draftStatus={selectedDraftStatus}
         images={images}
+        session={{
+          slot: overlay ? INPUT_SLOT_OVERLAY : INPUT_SLOT_PANEL,
+          restore: inputRestore,
+          onRestored: handleInputRestored,
+          onSnapshot: handleInputSnapshot,
+        }}
       />
       {/* One compact send panel: send, one-shot options, keys, commands and choice answers. */}
       <div className="space-y-1.5 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
@@ -2707,12 +2808,16 @@ const PcTerminalNodeView: React.FC = () => {
 
 // Node tabs on top: this machine first, then every other online pycore; the view below is the same for all.
 const PcTerminalPage: React.FC = () => {
-  const [nodeUrl, setNodeUrl] = useState<string | null>(null);
+  const [nodeUrl, setNodeUrl] = useState<string | null>(readPcUiSessionTerminalNodeUrl);
+  const selectNode = useCallback((url: string | null) => {
+    setNodeUrl(url);
+    updatePcUiSessionTerminalNodeUrl(url);
+  }, []);
 
   return (
     <>
       <div className="px-3 pt-2 sm:px-6 md:px-8">
-        <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={setNodeUrl} />
+        <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
         <PcTerminalWatchProvider>

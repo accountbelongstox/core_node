@@ -23,23 +23,34 @@ ERROR_START_TIMEOUT = "colab_start_timeout"
 ERROR_STOP_TIMEOUT = "colab_stop_timeout"
 ERROR_RUN_BUTTON_MISSING = "colab_run_button_missing"
 
+# Last kernel-setup step of notebook_boot.py; pyservice.sh starts right after it.
+BOOT_DONE_MARKER = "[NOTEBOOK] [8/8]"
+
+# Colab dialogs (md-dialog) keep their buttons in the light DOM: a visible
+# [dialogaction="ok"] button marks an open prompt.
+_OPEN_DIALOG_JS = """
+const okButton = [...document.querySelectorAll('[dialogaction="ok"]')].find((item) => item.getClientRects().length > 0);
+const dialog = okButton ? (okButton.closest('md-dialog, mwc-dialog, colab-dialog, [role=dialog]') || okButton.parentElement) : null;
+const dialogText = dialog ? (dialog.innerText || dialog.textContent || '').trim().slice(0, 300) : '';
+"""
+
 # State of the launch cell (the first code cell) and any open Colab dialog.
-STATE_SCRIPT = """
+STATE_SCRIPT = _OPEN_DIALOG_JS + """
 const ready = !!(window.colab && window.colab.global && window.colab.global.notebookModel);
 const cell = document.querySelector('.cell.code');
 const button = cell ? cell.querySelector('colab-run-button') : null;
-const running = !!(cell && (cell.classList.contains('running') || cell.classList.contains('pending')
-  || (button && (button.hasAttribute('running') || button.hasAttribute('pending')))));
-const dialog = document.querySelector('mwc-dialog[open], md-dialog[open], colab-dialog[open]');
+const running = !!(cell && (cell.classList.contains('running') || cell.classList.contains('pending')));
+const output = cell ? [...cell.querySelectorAll('colab-static-output-renderer')].map((item) => item.innerText).join('\\n') : '';
 const connect = document.querySelector('colab-connect-button');
 return JSON.stringify({
   ready,
   hasRunButton: !!button,
   running,
-  dialog: dialog ? (dialog.innerText || '').trim().slice(0, 300) : '',
+  booted: output.includes(BOOT_MARKER),
+  dialog: dialogText,
   connection: connect ? (connect.innerText || '').trim().slice(0, 80) : '',
 });
-"""
+""".replace("BOOT_MARKER", repr(BOOT_DONE_MARKER))
 
 # Clicking the run button starts an idle cell and interrupts a running one.
 TOGGLE_RUN_SCRIPT = """
@@ -52,14 +63,12 @@ const inner = button.shadowRoot && button.shadowRoot.querySelector('#run-button,
 return JSON.stringify({clicked: true});
 """
 
-# Confirms Colab prompts raised by a run: "Run anyway", "Connect to Google Drive".
-ACCEPT_DIALOG_SCRIPT = """
-const dialog = document.querySelector('mwc-dialog[open], md-dialog[open], colab-dialog[open]');
-if (!dialog) { return JSON.stringify({accepted: false}); }
-const ok = dialog.querySelector('[dialogaction="ok"], [dialog-action="ok"], [value="ok"]');
-if (!ok) { return JSON.stringify({accepted: false, text: (dialog.innerText || '').trim().slice(0, 300)}); }
-ok.click();
-return JSON.stringify({accepted: true, text: (dialog.innerText || '').trim().slice(0, 300)});
+# Confirms Colab prompts raised by a run: "Run anyway", "Connect without GPU",
+# "Connect to Google Drive".
+ACCEPT_DIALOG_SCRIPT = _OPEN_DIALOG_JS + """
+if (!okButton) { return JSON.stringify({accepted: false}); }
+okButton.click();
+return JSON.stringify({accepted: true, text: dialogText});
 """
 
 # Google sign-in popup opened by drive.mount: pick the account, tick the

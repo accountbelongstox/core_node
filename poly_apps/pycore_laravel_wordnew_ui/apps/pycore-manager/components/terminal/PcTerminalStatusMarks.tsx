@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, Hourglass, Moon, ScanSearch, SquareTerminal, Terminal } from 'lucide-react';
+import { BellRing, Hourglass, Moon, Pause, ScanSearch, SquareTerminal, Terminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PcTerminalAgentBadge } from '@/apps/pycore-manager/components/PcTerminalAgentBadge';
@@ -110,7 +110,21 @@ export function PcTerminalTileCountdown({ windowInfo, className = '' }: { window
 export function PcTerminalGlobalCountdown({ className = '' }: { className?: string }) {
   const { t } = useTranslation('pc');
   const watch = usePcTerminalWatch();
-  if (!watch.available || watch.nextPassAt === null) return null;
+  if (!watch.available) return null;
+  if (watch.passPausedRemaining > 0) {
+    const pausedHint = t('terminal.marks.globalPaused', { count: watch.passPausedRemaining });
+    return (
+      <span
+        title={pausedHint}
+        aria-label={pausedHint}
+        className={`pointer-events-auto inline-flex items-center gap-0.5 font-mono text-[9px] font-semibold tabular-nums text-amber-400 ${className}`}
+      >
+        <Pause className="h-2.5 w-2.5" />
+        {watch.passPausedRemaining}
+      </span>
+    );
+  }
+  if (watch.nextPassAt === null) return null;
   const remaining = Math.ceil(watch.nextPassAt - watch.serverNow);
   const waitingIdle = remaining <= 0 && watch.idleNow !== null && watch.idleNow < watch.minIdleSeconds;
   const hint = remaining > 0
