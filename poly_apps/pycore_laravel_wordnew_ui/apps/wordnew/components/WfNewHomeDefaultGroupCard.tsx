@@ -96,7 +96,7 @@ export const WfNewHomeDefaultGroupCard: React.FC<WfNewHomeDefaultGroupCardProps>
       onClick={onOpen}
       whileHover={{ scale: 1.015, y: -4 }}
       transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-      className={`w-full h-[160px] rounded-3xl relative overflow-hidden cursor-pointer group flex flex-col justify-between p-6 transition-all duration-300 border backdrop-blur-xl ${
+      className={`w-full h-[160px] rounded-3xl relative overflow-hidden cursor-pointer group flex flex-col justify-between p-6 transition-all duration-300 border ${
         dark
           ? `bg-slate-900/40 border-white/5 hover:border-indigo-500/30 ${activeTheme.glowClass}`
           : 'bg-white/40 border-zinc-200 hover:border-indigo-400/40 shadow-sm hover:shadow-indigo-100/40'

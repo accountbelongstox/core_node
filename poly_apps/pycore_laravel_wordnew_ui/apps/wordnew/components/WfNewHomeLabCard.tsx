@@ -97,7 +97,7 @@ export const WfNewHomeLabCard: React.FC<WfNewHomeLabCardProps> = ({
 
 /** The white (dark: glass) tray a bento of cards sits in. */
 export const WfNewHomeBento: React.FC<{ className?: string; children: React.ReactNode }> = ({ className = '', children }) => (
-  <div className={`grid gap-2 rounded-[2rem] bg-white/85 p-2 shadow-[0_10px_34px_-14px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:bg-white/[0.04] dark:ring-white/10 ${className}`}>
+  <div className={`grid gap-2 rounded-[2rem] bg-white/85 p-2 shadow-[0_10px_34px_-14px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.03] dark:bg-white/[0.04] dark:ring-white/10 ${className}`}>
     {children}
   </div>
 );
