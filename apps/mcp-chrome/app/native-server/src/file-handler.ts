@@ -30,6 +30,25 @@ function downloadsDir(): string {
   }
 }
 
+// Block private/loopback/link-local ranges so a caller-supplied fileUrl cannot
+// be aimed at internal services or cloud-metadata endpoints (SSRF). Every
+// address a hostname resolves to is checked, so DNS-rebinding to an internal
+// host is rejected too.
+const SSRF_BLOCKLIST = (() => {
+  const bl = new net.BlockList();
+  bl.addSubnet('0.0.0.0', 8, 'ipv4');      // "this network"
+  bl.addSubnet('10.0.0.0', 8, 'ipv4');     // private (RFC1918)
+  bl.addSubnet('127.0.0.0', 8, 'ipv4');    // loopback
+  bl.addSubnet('169.254.0.0', 16, 'ipv4'); // link-local / cloud metadata
+  bl.addSubnet('172.16.0.0', 12, 'ipv4');  // private (RFC1918)
+  bl.addSubnet('192.168.0.0', 16, 'ipv4'); // private (RFC1918)
+  bl.addSubnet('100.64.0.0', 10, 'ipv4');  // CGNAT (RFC6598)
+  bl.addSubnet('::1', 128, 'ipv6');        // loopback
+  bl.addSubnet('fc00::', 7, 'ipv6');       // unique-local
+  bl.addSubnet('fe80::', 10, 'ipv6');      // link-local
+  return bl;
+})();
+
 /**
  * File handler for managing file uploads through the native messaging host
  */
