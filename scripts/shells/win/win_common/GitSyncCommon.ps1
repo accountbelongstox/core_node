@@ -56,10 +56,6 @@ $script:GitSyncDescriptionSeparator = "-"
 $script:GitSyncDescriptionPromptSeconds = 3
 $script:GitSyncDescriptionPollMilliseconds = 100
 $script:GitSyncChangeListMax = 30
-$script:GitSyncPullAttempts = 3
-$script:GitSyncPullRetrySeconds = 5
-$script:GitSyncConflictMarkers = @("CONFLICT", "Automatic merge failed")
-$script:GitSyncRemoteExceptionText = "System.Management.Automation.RemoteException"
 # Opt-in Laravel code-sync notice after a successful push (config/service_contract.json code_sync):
 # the signed CLI starts the server job (gitsync --skip-notice-laravel, safe migrations, worker
 # restart) and polls its status. The skip flag always wins; it is what the server job passes.
@@ -663,52 +659,28 @@ function Invoke-GitSyncRun {
             }
         }
 
-        $pullConflict = $false
-        $pullExitCode = 0
-        for ($pullAttempt = 1; $pullAttempt -le $script:GitSyncPullAttempts; $pullAttempt++) {
-            Write-Host "[gitsync] Executing: git pull --no-rebase origin $script:GitSyncTargetBranch"
-            # PowerShell 5.1 wraps redirected native stderr (git progress) in
-            # ErrorRecords; stringify each line so it prints as plain text.
-            $callerErrorAction = $ErrorActionPreference
-            $ErrorActionPreference = 'Continue'
-            try {
-                $pullOutput = (git pull --no-rebase origin $script:GitSyncTargetBranch 2>&1 | ForEach-Object { "$_".Replace($script:GitSyncRemoteExceptionText, "") } | Out-String)
-                $pullExitCode = $LASTEXITCODE
-            } finally {
-                $ErrorActionPreference = $callerErrorAction
-            }
-            Write-Host $pullOutput
+        Write-Host "[gitsync] Executing: git pull --no-rebase origin $script:GitSyncTargetBranch"
+        git pull --no-rebase origin $script:GitSyncTargetBranch
 
-            $unmergedOutput = (git diff --name-only --diff-filter=U 2>$null | Out-String)
-            $pullConflict = -not [string]::IsNullOrWhiteSpace($unmergedOutput)
-            foreach ($conflictMarker in $script:GitSyncConflictMarkers) {
-                if ($pullOutput.Contains($conflictMarker)) { $pullConflict = $true }
-            }
-            if ($pullConflict -or $pullExitCode -eq 0) {
-                break
-            }
-            if ($pullAttempt -lt $script:GitSyncPullAttempts) {
-                Write-Host "[gitsync] WARNING: pull failed without conflicts (network/remote); retrying in $script:GitSyncPullRetrySeconds s ($pullAttempt/$script:GitSyncPullAttempts)."
-                Start-Sleep -Seconds $script:GitSyncPullRetrySeconds
-            }
-        }
-
-        if ($pullConflict) {
+        $unmergedOutput = (git diff --name-only --diff-filter=U | Out-String)
+        $mergeHeadPath = Join-Path -Path (Get-GitSyncGitDir -RepoRoot $RepoRoot) -ChildPath $script:GitSyncMergeHeadName
+        if (-not [string]::IsNullOrWhiteSpace($unmergedOutput) -or (Test-Path -LiteralPath $mergeHeadPath)) {
             Write-Host "[gitsync] ERROR: pull produced conflicts. Push skipped."
             Write-Host "[gitsync] Conflicted paths:"
             Write-Host $unmergedOutput
             Write-Host "[gitsync] Next step: resolve the conflicts manually (edit the files, 'git add <file>'), then run 'gitsync' again."
             return $false
         }
-        if ($pullExitCode -ne 0) {
-            Write-Host "[gitsync] ERROR: pull failed (remote unreachable or rejected; no conflicts). Push skipped; the local commit is kept."
-            Write-Host "[gitsync] Next step: check network/DNS and SSH access ('ssh -T git@github.com'), then run 'gitsync' again."
-            return $false
-        }
 
         Write-Host "[gitsync] Executing: git push origin $script:GitSyncTargetBranch"
         git push origin $script:GitSyncTargetBranch
-        return ($LASTEXITCODE -eq 0)
+
+        $unpushedCount = (git rev-list --count "$script:GitSyncRemoteName/$script:GitSyncTargetBranch..HEAD" | Out-String).Trim()
+        if ($unpushedCount -ne "0") {
+            Write-Host "[gitsync] ERROR: $unpushedCount local commit(s) not on $script:GitSyncRemoteName/$script:GitSyncTargetBranch; see the git output above, then run 'gitsync' again."
+            return $false
+        }
+        return $true
     } finally {
         Set-Location -Path $previousLocation
     }

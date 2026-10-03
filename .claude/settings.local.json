@@ -65,7 +65,9 @@
       "Bash(tailscale status *)",
       "Bash(timeout 120 ssh1 'echo \"== services\"; systemctl is-active ncore-laravel-frankenphp headscale tailscaled; systemctl show ncore-laravel-frankenphp -p NRestarts -p ActiveEnterTimestamp; echo \"== frankenphp errors \\(2h\\)\"; journalctl -u ncore-laravel-frankenphp --no-pager --since \"-2h\" | grep -iE \"error|fatal|panic|status=|segv\" | grep -v \"SECRET_MANAGER\\\\|/opt has\" | tail -12; echo \"== headscale \\(2h\\)\"; journalctl -u headscale --no-pager --since \"-2h\" | grep -iE \" ERR | WRN |error|fail\" | tail -10; echo \"== coredumps\"; coredumpctl list --no-pager 2>/dev/null | tail -3; echo \"== laravel.log\"; tail -c 4000 /www/programing/core_node/poly_apps/laravel_main/storage/logs/laravel.log | grep -E \"^\\\\[20\" | tail -6' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3 | cut -c1-260)",
       "Bash(timeout 60 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/history?limit=20\")",
-      "Bash(timeout 120 ssh1 'journalctl --no-pager --since \"09:19:50\" --until \"09:21:15\" | grep -iE \"code-sync|codesync|frankenphp|workers|Started|Finished|status=\" | grep -v \"SECRET_MANAGER\\\\|/opt has\" | cut -c1-220 | tail -25' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)"
+      "Bash(timeout 120 ssh1 'journalctl --no-pager --since \"09:19:50\" --until \"09:21:15\" | grep -iE \"code-sync|codesync|frankenphp|workers|Started|Finished|status=\" | grep -v \"SECRET_MANAGER\\\\|/opt has\" | cut -c1-220 | tail -25' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
+      "Bash(timeout 90 ssh1 'journalctl -u headscale --no-pager --since \"-6h\" | grep -B3 -A1 \"missing \\\\\"Bearer\" | grep -E \"path=|Bearer\" | cut -c1-230 | tail -20; echo \"== count\"; journalctl -u headscale --no-pager --since \"-6h\" | grep -c \"missing \\\\\"Bearer\"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
+      "Bash(timeout 900 bash dd.sh gitsync -m \"headscale route: answer /api with 404 at Caddy \\(scanner noise\\)\" --notice-laravel)"
     ],
     "deny": [],
     "ask": []

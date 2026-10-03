@@ -26,9 +26,6 @@ GIT_SYNC_LOCK_POLL_SECONDS=2
 GIT_SYNC_VM_MARKER="VM"
 GIT_SYNC_DESCRIPTION_PROMPT_SECONDS=3
 GIT_SYNC_CHANGE_LIST_MAX=30
-GIT_SYNC_PULL_ATTEMPTS=3
-GIT_SYNC_PULL_RETRY_SECONDS=5
-GIT_SYNC_CONFLICT_PATTERN="CONFLICT|Automatic merge failed"
 # Opt-in Laravel code-sync notice after a successful push (config/service_contract.json code_sync):
 # the signed CLI starts the server job (gitsync --skip-notice-laravel, safe migrations, worker
 # restart) and polls its status. The skip flag always wins; it is what the server job passes.
@@ -334,7 +331,7 @@ git_sync_run() {
     local dry_run="${2:-false}"
     local description="$3"
     local no_prompt="${4:-false}"
-    local commit_message="" pull_output="" pull_rc=0
+    local commit_message=""
 
     if [ -z "$repo_root" ] || [ ! -d "$repo_root" ]; then
         echo "[gitsync] ERROR: repo root not found: $repo_root" >&2
@@ -377,42 +374,28 @@ git_sync_run() {
         git commit -m "$commit_message" || return 1
     fi
 
-    local pull_attempt pull_conflict unmerged_output
-    for ((pull_attempt = 1; pull_attempt <= GIT_SYNC_PULL_ATTEMPTS; pull_attempt++)); do
-        echo "[gitsync] Executing: git pull --no-rebase origin $GIT_SYNC_TARGET_BRANCH"
-        pull_output="$(git pull --no-rebase origin "$GIT_SYNC_TARGET_BRANCH" 2>&1)"
-        pull_rc=$?
-        echo "$pull_output"
+    local unmerged_output unpushed_count
+    echo "[gitsync] Executing: git pull --no-rebase origin $GIT_SYNC_TARGET_BRANCH"
+    git pull --no-rebase origin "$GIT_SYNC_TARGET_BRANCH"
 
-        unmerged_output="$(git diff --name-only --diff-filter=U 2>/dev/null)"
-        pull_conflict=false
-        if [ -n "$unmerged_output" ] || echo "$pull_output" | grep -qE "$GIT_SYNC_CONFLICT_PATTERN"; then
-            pull_conflict=true
-        fi
-        if [ "$pull_conflict" = true ] || [ $pull_rc -eq 0 ]; then
-            break
-        fi
-        if [ "$pull_attempt" -lt "$GIT_SYNC_PULL_ATTEMPTS" ]; then
-            echo "[gitsync] WARNING: pull failed without conflicts (network/remote); retrying in ${GIT_SYNC_PULL_RETRY_SECONDS}s ($pull_attempt/$GIT_SYNC_PULL_ATTEMPTS)." >&2
-            sleep "$GIT_SYNC_PULL_RETRY_SECONDS"
-        fi
-    done
-
-    if [ "$pull_conflict" = true ]; then
+    unmerged_output="$(git diff --name-only --diff-filter=U)"
+    if [ -n "$unmerged_output" ] || [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
         echo "[gitsync] ERROR: pull produced conflicts. Push skipped." >&2
         echo "[gitsync] Conflicted paths:" >&2
         echo "$unmerged_output" >&2
         echo "[gitsync] Next step: resolve the conflicts manually (edit the files, 'git add <file>'), then run 'gitsync' again." >&2
         return 1
     fi
-    if [ $pull_rc -ne 0 ]; then
-        echo "[gitsync] ERROR: pull failed (remote unreachable or rejected; no conflicts). Push skipped; the local commit is kept." >&2
-        echo "[gitsync] Next step: check network/DNS and SSH access ('ssh -T git@github.com'), then run 'gitsync' again." >&2
-        return 1
-    fi
 
     echo "[gitsync] Executing: git push origin $GIT_SYNC_TARGET_BRANCH"
     git push origin "$GIT_SYNC_TARGET_BRANCH"
+
+    unpushed_count="$(git rev-list --count "$GIT_SYNC_REMOTE_NAME/$GIT_SYNC_TARGET_BRANCH..HEAD")"
+    if [ "$unpushed_count" != "0" ]; then
+        echo "[gitsync] ERROR: $unpushed_count local commit(s) not on $GIT_SYNC_REMOTE_NAME/$GIT_SYNC_TARGET_BRANCH; see the git output above, then run 'gitsync' again." >&2
+        return 1
+    fi
+    return 0
 }
 
 # git_sync_notice_laravel REPO_ROOT DRY_RUN -> asks the Laravel server to pull, migrate and

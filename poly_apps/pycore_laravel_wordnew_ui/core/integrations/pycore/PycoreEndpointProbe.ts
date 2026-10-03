@@ -7,7 +7,6 @@
 import { PYCORE_HEALTH_DEFAULTS, PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import { protocolFetch } from '../../network/ProtocolFetch';
 import { setPycoreTarget, type PycoreTarget } from './pycoreTarget';
-import { pycoreLanSignHeaders } from './pycoreLanAuth';
 
 /** no_route: the host answers, but not with pycore (its 175 /pycore-api mount is missing). */
 export type PycoreProbeState = 'probing' | 'up' | 'down' | 'rejected' | 'no_route' | 'relay';
@@ -82,8 +81,7 @@ export function probePycoreEndpoint(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = performance.now();
   const statusUrl = `${target.url}${PYCORE_HTTP_PATHS.status}`;
-  const probe = pycoreLanSignHeaders('GET', statusUrl)
-    .then((headers) => protocolFetch(statusUrl, { cache: 'no-store', headers, signal: controller.signal }))
+  const probe = protocolFetch(statusUrl, { cache: 'no-store', signal: controller.signal })
     .then(async (response) => {
       const ms = Math.round(performance.now() - started);
       if (REJECTED_HTTP_STATUSES.has(response.status)) return outcome('rejected', ms, response.status);
