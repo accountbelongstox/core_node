@@ -209,7 +209,11 @@
       "Bash(adb start-server *)",
       "Bash(adb -s 192.168.1.185:46888 shell echo ok)",
       "Bash(adb -s 192.168.1.185:42097 shell echo ok)",
-      "Bash(ping -n 6 -w 1000 192.168.1.185)"
+      "Bash(ping -n 6 -w 1000 192.168.1.185)",
+      "Bash(adb reconnect *)",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?limit=2000\")",
+      "Bash(chmod +x /tmp/reconnect.sh)",
+      "Bash(/tmp/reconnect.sh)"
     ],
     "deny": [],
     "ask": []
