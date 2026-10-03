@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
  * Laravel adapter for the canonical service contract (ports, loopback host,
@@ -329,6 +330,66 @@ final class ServiceContract
             static fn (string $tailnet): string => '#^https?://[a-z0-9-]+\.'.preg_quote($tailnet, '#').'(:\d+)?$#',
             array_unique($tailnets),
         ));
+    }
+
+    /**
+     * CORS origin patterns for every machine of each mesh provider whose domain template
+     * (access.mesh.<provider>.domain_labels) resolves from the contract alone: {region} is
+     * this deployment's API region prefix, {root} any access.root_domains entry. Templates
+     * with other placeholders (the Tailscale {tailnet}) come from tailnetCorsOriginPatterns.
+     */
+    public static function meshCorsOriginPatterns(): array
+    {
+        $region = preg_quote(strtolower(self::webAccessDocument()['apiRegionPrefix']), '#');
+        $roots = '(?:'.implode('|', array_map(
+            static fn (string $root): string => preg_quote(strtolower($root), '#'),
+            self::stringList('access.root_domains'),
+        )).')';
+        $patterns = [];
+
+        foreach (self::stringList('access.mesh.providers') as $provider) {
+            $labels = self::document()['access']['mesh'][$provider]['domain_labels'] ?? null;
+            if (!is_array($labels) || $labels === []) {
+                continue;
+            }
+            $domain = [];
+            foreach ($labels as $label) {
+                $domain[] = match (true) {
+                    $label === '{region}' => $region,
+                    $label === '{root}' => $roots,
+                    (bool) preg_match('/^\{\w+\}$/', (string) $label) => null,
+                    default => preg_quote(strtolower((string) $label), '#'),
+                };
+            }
+            if (in_array(null, $domain, true)) {
+                continue;
+            }
+            $patterns[] = '#^https?://(?:[a-z0-9-]+\.)+'.implode('\.', $domain).'(:\d+)?$#';
+        }
+
+        return array_values(array_unique(array_merge($patterns, self::tailnetCorsOriginPatterns())));
+    }
+
+    /**
+     * True when the Origin is a loopback, LAN (RFC1918) or mesh (CGNAT) address or a
+     * loopback host name on any port (access.cors), e.g. a UI dev server opened by LAN IP.
+     */
+    public static function isPrivateCorsOrigin(string $origin): bool
+    {
+        $parts = parse_url(strtolower(trim($origin)));
+        $scheme = is_array($parts) ? ($parts['scheme'] ?? '') : '';
+        $host = is_array($parts) ? trim($parts['host'] ?? '', '[]') : '';
+
+        if ($host === '' || isset($parts['path']) || isset($parts['user'])
+            || !in_array($scheme, self::stringList('access.cors.private_origin_schemes'), true)) {
+            return false;
+        }
+        if (in_array($host, self::stringList('access.cors.private_origin_hostnames'), true)) {
+            return true;
+        }
+
+        return filter_var($host, FILTER_VALIDATE_IP) !== false
+            && IpUtils::checkIp($host, self::stringList('access.cors.private_origin_ranges'));
     }
 
     /**

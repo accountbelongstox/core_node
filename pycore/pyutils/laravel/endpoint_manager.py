@@ -47,7 +47,8 @@ Architecture / layering (pycore rules):
 import re
 import socket
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, FrozenSet, List, Optional
+from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -56,14 +57,14 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
     serialized_method,
 )
-from pycore.pyfoundations.service_contract import laravel_api_retired_host_urls
+from pycore.pyfoundations.service_contract import laravel_api_retired_host_urls, tailnet_machine_of
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
     laravel_worker_api_urls,
 )
-from pycore.pyutils.common.tailnet_peers import current_tailnet_domain
+from pycore.pyutils.common.tailnet_peers import current_tailnet_document, tailnet_server_hosts
 from pycore.pyutils.common.user_data_store import UserDataStore, user_data_store
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 from pycore.pyutils.laravel.identity import (
@@ -163,6 +164,13 @@ def _normalize(url: Optional[str]) -> str:
 
 
 RETIRED_ENDPOINTS = frozenset(_normalize(url) for url in laravel_api_retired_host_urls())
+
+
+def _stale_mesh_endpoint(url: str, live_machines: FrozenSet[str]) -> bool:
+    """True for a route on a mesh machine name (any provider's tailnet domain,
+    e.g. a former Tailscale ts.net machine) that the live mesh no longer lists."""
+    machine = tailnet_machine_of(urlsplit(url).hostname or "")
+    return bool(machine) and machine not in live_machines
 
 
 def _normalize_candidates(values: Any) -> List[str]:
@@ -395,8 +403,19 @@ class LaravelEndpointManager:
     # ----------------------------------------------------------------- #
     @staticmethod
     def _configured_candidates() -> List[str]:
-        """Return the shared contract catalog with the runtime default first."""
-        return _normalize_candidates(list(laravel_worker_api_urls(current_tailnet_domain())))
+        """Return the discovered catalog with the runtime default first: the
+        configured domains plus the machines of the live mesh."""
+        document = current_tailnet_document()
+        return _normalize_candidates(list(laravel_worker_api_urls(document["tailnet"], tailnet_server_hosts(document))))
+
+    @staticmethod
+    def _live_mesh_machines() -> Optional[FrozenSet[str]]:
+        """Machines of the live mesh; None while this machine is in no mesh
+        (nothing can be told stale then)."""
+        document = current_tailnet_document()
+        if not document["tailnet"]:
+            return None
+        return frozenset(str(host).lower() for host in tailnet_server_hosts(document))
 
     @staticmethod
     def _merge_candidates(*groups: List[str]) -> List[str]:
@@ -428,19 +447,27 @@ class LaravelEndpointManager:
             migrated = bool(legacy)
 
         current = _normalize(section.get("current")) or None
+        # Routes on a mesh machine the live mesh no longer lists are dropped; only an
+        # explicit user selection is kept (it is never switched automatically).
+        live_machines = self._live_mesh_machines()
+        selected = current if section.get("selection_explicit") is True else None
+
+        def discovered(url: str) -> bool:
+            return url == selected or live_machines is None or not _stale_mesh_endpoint(url, live_machines)
+
         stored_endpoints = [
             url for url in _normalize_candidates(section.get("endpoints"))
-            if url == current or url not in RETIRED_ENDPOINTS
+            if (url == current or url not in RETIRED_ENDPOINTS) and discovered(url)
         ]
-        cached_frontend = _normalize_candidates(section.get("frontend_endpoints"))
-        incoming_frontend = _normalize_candidates(frontend_endpoints)
+        cached_frontend = [url for url in _normalize_candidates(section.get("frontend_endpoints")) if discovered(url)]
+        incoming_frontend = [url for url in _normalize_candidates(frontend_endpoints) if discovered(url)]
         frontend_supplied = isinstance(frontend_endpoints, list)
         active_frontend = incoming_frontend if frontend_supplied else cached_frontend
         raw_backend = section.get("backend_endpoints")
         if isinstance(raw_backend, list):
             backend_endpoints = [
                 url for url in _normalize_candidates(raw_backend)
-                if url == current or url not in RETIRED_ENDPOINTS
+                if (url == current or url not in RETIRED_ENDPOINTS) and discovered(url)
             ]
             if frontend_supplied and not cached_frontend:
                 backend_endpoints = [

@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApplyRequestLocale;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\HandleAppearance;
+use App\Http\Middleware\HandleCors;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ClientKeyOnly;
 use App\Http\Middleware\ClientKeyOrDashboard;
@@ -88,6 +89,9 @@ $application = Application::configure(basePath: dirname(__DIR__))
 
         // Response language from Accept-Language, set on every request.
         $middleware->prepend(ApplyRequestLocale::class);
+
+        // Framework CORS plus private-address origins and Private Network Access.
+        $middleware->replace(\Illuminate\Http\Middleware\HandleCors::class, HandleCors::class);
 
         $middleware->api(prepend: [
             GoLatency::class,

@@ -17,6 +17,7 @@
 import {
   SERVICE_CONTRACT_URL_ENTRIES,
   TAILNET_PEERS_FILE_NAME,
+  TAILNET_CLIENT_ONLY_OS,
   TAILNET_PEERS_ROUTE,
   TAILNET_PYCORE_PATH,
 } from '../contracts/ServiceContract';
@@ -32,8 +33,7 @@ type TailnetListener = (document: TailnetPeersDocument) => void;
 declare const __TAILNET_PEERS_SEED__: TailnetPeersDocument | undefined;
 declare const __TAILNET_PEERS_LIVE__: boolean | undefined;
 
-/** Tailnet machines on these OSes (phones) never serve an API. */
-const CLIENT_ONLY_OS = new Set(['android', 'ios']);
+const CLIENT_ONLY_OS = new Set(TAILNET_CLIENT_ONLY_OS);
 /** The page is served by the dev server that read the starting list: its `self` machine is this page's machine. */
 const SEED_FROM_PAGE_SERVER = typeof __TAILNET_PEERS_LIVE__ !== 'undefined' && __TAILNET_PEERS_LIVE__ === true;
 
