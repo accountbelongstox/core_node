@@ -31,7 +31,7 @@ interface WeekPageProps extends Pick<Props, 'theme' | 'trans' | 'selectedDate' |
 }
 
 const WeekPage: React.FC<WeekPageProps> = ({ theme, trans, selectedDate, todayKey, calendar, onSelect, weekStart }) => (
-  <div className="grid min-w-full shrink-0 snap-start grid-cols-7 gap-1 px-1" role="group">
+  <div className="grid min-w-full shrink-0 snap-start grid-cols-7 gap-0.5 px-0.5" role="group">
     {weekDays(weekStart).map((day, index) => {
       const count = calendar[day];
       const hasArticles = (count?.total ?? 0) > 0;
@@ -51,16 +51,16 @@ const WeekPage: React.FC<WeekPageProps> = ({ theme, trans, selectedDate, todayKe
           disabled={isFuture}
           onClick={() => onSelect(day)}
           aria-pressed={isSelected}
-          className={`flex min-w-0 flex-col items-center gap-1.5 py-1 transition-opacity ${isFuture ? 'opacity-30' : hasArticles || isSelected || isToday ? '' : 'opacity-55'}`}
+          className={`flex min-w-0 flex-col items-center gap-1 py-0.5 transition-opacity ${isFuture ? 'opacity-30' : hasArticles || isSelected || isToday ? '' : 'opacity-55'}`}
         >
-          <span className={`text-[11px] font-medium ${isToday ? `${theme.accentText} font-bold` : theme.textSecondaryClass}`}>
+          <span className={`text-[10px] font-medium ${isToday ? `${theme.accentText} font-bold` : theme.textSecondaryClass}`}>
             {trans(`home.dailyReading.weekday.${WEEKDAY_KEYS[index]}`)}
           </span>
-          <span className={`relative flex h-10 w-10 items-center justify-center rounded-full text-sm transition-transform ${circleTone} ${isToday && !isSelected ? `ring-1 ring-current ${theme.accentText}` : ''}`}>
+          <span className={`relative flex h-8 w-8 items-center justify-center rounded-full text-xs transition-transform ${circleTone} ${isToday && !isSelected ? `ring-1 ring-current ${theme.accentText}` : ''}`}>
             {dayOfMonth(day)}
             {done && (
-              <span className={`absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-white ${TONE_BAR.emerald}`}>
-                <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
+              <span className={`absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-white ${TONE_BAR.emerald}`}>
+                <Check className="h-2 w-2" strokeWidth={3.5} />
               </span>
             )}
           </span>
@@ -130,8 +130,8 @@ export const WordNewDailyReadingDateStrip: React.FC<Props> = ({
   }, [todayKey, visibleIndex, weekStarts]);
 
   return (
-    <div className={`rounded-2xl border ${theme.borderClass} bg-black/[0.03] p-3 dark:bg-white/[0.03]`}>
-      <div className="mb-1 flex items-center justify-between px-1">
+    <div className={`rounded-xl border ${theme.borderClass} bg-black/[0.03] px-2 py-1.5 dark:bg-white/[0.03]`}>
+      <div className="flex items-center justify-between px-1">
         <span className={`text-xs font-bold ${theme.textPrimaryClass}`}>{monthLabel}</span>
         <div className="flex items-center gap-1">
           <button
@@ -142,7 +142,7 @@ export const WordNewDailyReadingDateStrip: React.FC<Props> = ({
             aria-label={trans('home.dailyReading.prevWeek')}
             title={trans('home.dailyReading.prevWeek')}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -152,7 +152,7 @@ export const WordNewDailyReadingDateStrip: React.FC<Props> = ({
             aria-label={trans('home.dailyReading.nextWeek')}
             title={trans('home.dailyReading.nextWeek')}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>

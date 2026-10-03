@@ -43,32 +43,32 @@ export const WordNewDailyReadingRowItem: React.FC<Props> = ({
     dateLabel ? new Date(dateLabel).toLocaleDateString() : '',
   ].filter(Boolean);
   return (
-    <li className={`rounded-2xl border ${theme.borderClass} bg-black/[0.03] p-3 transition-colors dark:bg-white/[0.04] ${routeMode ? 'h-full min-w-0 max-w-full' : ''}`}>
-      <div className="flex items-center gap-3">
+    <li className={`rounded-xl border ${theme.borderClass} bg-black/[0.03] px-2.5 py-2 transition-colors dark:bg-white/[0.04] ${routeMode ? 'h-full min-w-0 max-w-full' : ''}`}>
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={openCard}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
           title={trans('home.dailyReading.openReader')}
           aria-label={`${trans('home.dailyReading.openReader')}: ${row.title_en}`}
         >
-          <span className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border ${theme.borderClass} bg-black/[0.04] dark:bg-white/[0.06] ${theme.textSecondaryClass}`}>
-            <Newspaper className="h-4 w-4" />
-            <span className="text-[9px] font-semibold leading-none">
+          <span className={`flex h-9 w-9 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border ${theme.borderClass} bg-black/[0.04] dark:bg-white/[0.06] ${theme.textSecondaryClass}`}>
+            <Newspaper className="h-3 w-3" />
+            <span className="text-[8px] font-semibold leading-none">
               {row.word_count ? trans('home.dailyReading.wordsCaption', { count: row.word_count }) : '–'}
             </span>
           </span>
           <span className="min-w-0 flex-1">
-            <span className={`line-clamp-2 break-words text-sm font-bold leading-snug ${isRead ? theme.textSecondaryClass : theme.textPrimaryClass}`}>
+            <span className={`line-clamp-2 break-words text-[13px] font-semibold leading-snug ${isRead ? theme.textSecondaryClass : theme.textPrimaryClass}`}>
               {row.title_en}
             </span>
-            <span className={`mt-1 flex min-w-0 items-center gap-1.5 text-[11px] ${theme.textSecondaryClass}`}>
-              <SubtitleIcon className="h-3 w-3 shrink-0" />
+            <span className={`mt-0.5 flex min-w-0 items-center gap-1 text-[10px] ${theme.textSecondaryClass}`}>
+              <SubtitleIcon className="h-2.5 w-2.5 shrink-0" />
               <span className="truncate">{subtitleParts.join(' · ')}</span>
             </span>
           </span>
         </button>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1">
           {audioReady && (
             <button
               type="button"
@@ -77,7 +77,7 @@ export const WordNewDailyReadingRowItem: React.FC<Props> = ({
               title={trans('home.dailyReading.playFrom')}
               aria-label={trans('home.dailyReading.playFrom')}
             >
-              <Play className="h-4 w-4" />
+              <Play className="h-3.5 w-3.5" />
             </button>
           )}
           {row.audio_url && !audioReady && (
@@ -109,13 +109,13 @@ export const WordNewDailyReadingRowItem: React.FC<Props> = ({
             onClick={onToggleRead}
             role="checkbox"
             aria-checked={isRead}
-            className={`flex h-9 w-9 items-center justify-center rounded-full border-2 transition-colors ${isRead
+            className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-colors ${isRead
               ? `border-emerald-500/60 ${TONE_TINT.emerald} ${TONE_TEXT.emerald}`
               : `${theme.borderClass} ${theme.textSecondaryClass} opacity-70 hover:opacity-100`}`}
             title={trans(isRead ? 'home.dailyReading.markUnread' : 'home.dailyReading.markRead')}
             aria-label={trans(isRead ? 'home.dailyReading.markUnread' : 'home.dailyReading.markRead')}
           >
-            {isRead && <Check className="h-4 w-4" strokeWidth={3} />}
+            {isRead && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
           </button>
         </div>
       </div>
