@@ -1114,6 +1114,10 @@
       "path": "ui/terminal/screenshot",
       "method": "GET"
     },
+    "terminalScreenshotText": {
+      "path": "ui/terminal/screenshot_text",
+      "method": "POST"
+    },
     "terminalScroll": {
       "path": "ui/terminal/scroll",
       "method": "POST"

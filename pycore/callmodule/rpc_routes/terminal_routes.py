@@ -25,6 +25,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
     UI_TERMINAL_SCHEDULE_QUEUE_SYNC,
     UI_TERMINAL_SCREENSHOT,
+    UI_TERMINAL_SCREENSHOT_TEXT,
     UI_TERMINAL_SCROLL,
     UI_TERMINAL_VIEW,
     UI_TERMINAL_VIEWER_DEMAND,
@@ -404,6 +405,17 @@ def register_terminal_routes(server) -> None:
             quiet=True,
         )
 
+    def screenshot_text_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        digest = str(params.get("digest") or "")
+        return run_terminal_action(
+            "screenshot_text",
+            request_id,
+            lambda: terminal_service.read_screenshot_text(window_id, digest),
+            log_result=False,
+            quiet=True,
+        )
+
     def screenshot_handler(params, request_id, context):
         window_id = str(params.get("window_id") or "")
         digest = str(params.get("digest") or "")
@@ -476,4 +488,5 @@ def register_terminal_routes(server) -> None:
     )
     server.get(path=UI_TERMINAL_CONTENT, handler=content_handler)
     server.get(path=UI_TERMINAL_SCREENSHOT, handler=screenshot_handler)
+    server.post(path=UI_TERMINAL_SCREENSHOT_TEXT, handler=screenshot_text_handler)
     server.get(path=UI_TERMINAL_DESKTOP_SCREENSHOT, handler=desktop_screenshot_handler)

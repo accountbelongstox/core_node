@@ -236,6 +236,18 @@ class GnomeShellBridge:
         )
         return bytes(reply.value(0)) if reply.success else None
 
+    def capture_area_png(self, x: int, y: int, width: int, height: int) -> Optional[bytes]:
+        """Compositor screenshot of a screen rectangle; None when the running bridge predates CaptureArea."""
+        if self._running_version() < BRIDGE_VERSION:
+            return None
+        reply = self._call(
+            "CaptureArea",
+            "iiii",
+            (int(x), int(y), int(width), int(height)),
+            BRIDGE_CAPTURE_TIMEOUT_SECONDS,
+        )
+        return bytes(reply.value(0)) if reply.success else None
+
     def _running_version(self) -> int:
         if not name_has_owner(BRIDGE_BUS_NAME):
             return 0

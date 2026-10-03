@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import secrets
+import threading
 import time
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -18,6 +19,7 @@ from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
     terminal_screenshot_cache,
 )
+from pycore.pyctl.terminal.terminal_text_ocr import recognize_region_text
 from pycore.pyctl.terminal.terminal_window_views import assign_short_titles
 from pycore.pyctl.terminal.terminal_snapshot_collector import (
     TerminalSnapshotCollector,
@@ -27,6 +29,7 @@ from pycore.pyctl.terminal.terminal_state_repository import (
     terminal_state_repository,
 )
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
+from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
 from pycore.pyutils.window.focus_guard import focus_guard
@@ -68,6 +71,7 @@ CAPTURE_FOCUS_LABEL = "TerminalCapture"
 CUSTOM_TITLE_MAX_CHARS = 120
 CHOICE_MAX_OPTIONS = 9
 CHOICE_SETTLE_SECONDS = 0.15
+TERMINAL_TEXT_MIN_CONFIDENCE = relay_contract.limit("terminal_text_min_confidence_percent") / 100
 
 
 class TerminalService:
@@ -80,6 +84,8 @@ class TerminalService:
         self._backend = backend
         self._state_repository = state_repository
         self._screenshot_cache = screenshot_cache
+        self._frame_texts: Dict[str, Dict[str, Any]] = {}
+        self._frame_texts_lock = threading.Lock()
         # Focus, pointer and clipboard are process-wide: every window action
         # (RPC routes and the scheduler alike) runs on this one input owner.
         init_serialized_owner(self, "pyctl.terminal.input", "TerminalInputThread")
@@ -227,6 +233,43 @@ class TerminalService:
         digest: str,
     ) -> Optional[Dict[str, Any]]:
         return self._screenshot_cache.read_resource(window_id, digest)
+
+    def read_screenshot_text(self, window_id: str, digest: str) -> Dict[str, Any]:
+        """OCR text of the window frame ``digest``; cached per window until the frame changes."""
+        if not window_id or not digest:
+            return self._failure("terminal_window_id_required")
+        with self._frame_texts_lock:
+            cached = self._frame_texts.get(window_id)
+        if cached is not None and cached["digest"] == digest:
+            return dict(cached)
+        frame = self._screenshot_cache.metadata(window_id)
+        if frame is None or str(frame.get("digest") or "") != digest:
+            return self._failure("terminal_screenshot_stale")
+        window = self._collector.online_window(window_id)
+        if window is None:
+            return self._failure("terminal_window_offline")
+        recognized = recognize_region_text(TerminalService.window_capture_region(window))
+        text = str(recognized.get("text") or "").strip("\n")
+        confidence = float(recognized.get("confidence") or 0)
+        readable = bool(text.strip()) and confidence >= TERMINAL_TEXT_MIN_CONFIDENCE
+        result: Dict[str, Any] = {
+            "success": readable,
+            "window_id": window_id,
+            "digest": digest,
+            "text": text if readable else "",
+            "confidence": confidence,
+            "error_code": None if readable else str(recognized.get("error") or "terminal_text_unreadable"),
+        }
+        with self._frame_texts_lock:
+            current = self._screenshot_cache.metadata(window_id)
+            self._frame_texts = {
+                key: value
+                for key, value in self._frame_texts.items()
+                if self._collector.online_window(key) is not None
+            }
+            if current is not None and str(current.get("digest") or "") == digest:
+                self._frame_texts[window_id] = result
+        return dict(result)
 
     def resolve_window_id(self, terminal_number: int) -> str:
         if terminal_number <= 0:

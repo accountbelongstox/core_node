@@ -181,6 +181,7 @@
     "terminal_screenshot_capture_lease_seconds": 10,
     "terminal_viewer_demand_lease_seconds": 15,
     "terminal_screenshot_resource_retention_seconds": 120,
+    "terminal_text_retry_seconds": 60,
     "subscriber_connect_timeout_seconds": 10,
     "subscriber_read_timeout_seconds": 90,
     "subscriber_reconnect_min_seconds": 1,
@@ -220,6 +221,7 @@
     "terminal_screenshot_signature_height": 36,
     "terminal_screenshot_signature_levels": 16,
     "terminal_screenshot_focus_slack_percent": 90,
+    "terminal_text_min_confidence_percent": 60,
     "terminal_image_upload_bytes": 20971520,
     "terminal_image_retain_count": 200,
     "terminal_image_retain_seconds": 604800,
@@ -537,6 +539,12 @@
       "value": "ui/terminal/screenshot",
       "profile": "terminal_resource",
       "methods": [ "GET" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/screenshot_text",
+      "profile": "terminal_read",
+      "methods": [ "POST" ]
     },
     {
       "match": "exact",

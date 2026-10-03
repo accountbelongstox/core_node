@@ -9,11 +9,15 @@
  *  - a terminal whose agent finished is static until a new prompt: no frames, except the last one
  *    when it is opened.
  * The server mirrors this through the viewer demand lease (visible / focus / force ids).
+ * Each frame is first asked for as OCR text (a few KB); only when the text is unreadable, or the
+ * window must be clicked on its picture, is the image itself transferred.
  */
 import { ChangeSignal } from '../../../../core/events/ChangeSignal';
+import { RELAY_CONTRACT } from '@/core/contracts/RelayContract';
 import type {
   PycoreHttpBinaryResult,
   TerminalScreenshotResourceMeta,
+  TerminalScreenshotTextResult,
   TerminalWindowInfo,
 } from '@/apps/pycore-manager/api';
 
@@ -22,11 +26,20 @@ const FAILURE_COOLDOWN_MS = 10_000;
 const FETCH_CONCURRENCY = 2;
 const BOOTSTRAP_GIVE_UP_MS = 20_000;
 const GRACE_MS = 30_000;
+const TEXT_FETCH_TIMEOUT_MS = RELAY_CONTRACT.durations.terminal_screenshot_capture_lease_seconds * 1000;
+const TEXT_RETRY_MS = RELAY_CONTRACT.durations.terminal_text_retry_seconds * 1000;
+const TEXT_STALE_CODE = 'terminal_screenshot_stale';
 
 export const TERMINAL_FOCUS_POLL_MS = 1_000;
 
+export type TerminalFrameKind = 'text' | 'image';
+
 export interface TerminalFrame {
+  kind: TerminalFrameKind;
+  /** Object URL of the image ('' for a text frame). */
   url: string;
+  /** OCR text of the frame ('' for an image frame). */
+  text: string;
   mime: string;
   width: number;
   height: number;
@@ -78,6 +91,10 @@ export function terminalFramePolicy(input: TerminalFramePolicyInput): TerminalFr
 }
 
 type FetchFrame = (windowId: string, digest: string, timeoutMs: number) => Promise<PycoreHttpBinaryResult>;
+type FetchText = (windowId: string, digest: string, timeoutMs: number) => Promise<TerminalScreenshotTextResult>;
+
+/** A frame was replaced while it was read: nothing failed, the newer digest is fetched next. */
+const STALE = 'stale';
 
 /** Newest frame per window, fetched under the policy; older frames are released as soon as a newer one lands. */
 export class TerminalFrameStore {
@@ -89,12 +106,14 @@ export class TerminalFrameStore {
   private readonly firstSeen = new Map<string, number>();
   private readonly seenAt = new Map<string, number>();
   private readonly pendingForce = new Set<string>();
+  private readonly textFailedAt = new Map<string, number>();
   private wanted: ReadonlySet<string> = new Set();
+  private imageRequired: ReadonlySet<string> = new Set();
   private running = 0;
   private disposed = false;
   private revision = 0;
 
-  constructor(private readonly fetchFrame: FetchFrame) {}
+  constructor(private readonly fetchFrame: FetchFrame, private readonly fetchText: FetchText) {}
 
   readonly subscribe = this.changes.subscribe;
 
@@ -127,6 +146,12 @@ export class TerminalFrameStore {
     this.pump();
   }
 
+  /** Windows that must show their picture (clicked by position): text frames there are replaced by images. */
+  setImageRequired(windowIds: ReadonlySet<string>): void {
+    this.imageRequired = windowIds;
+    this.pump();
+  }
+
   /** The newest frame metadata of a window (snapshot, demand answer or action result). */
   offer(meta: TerminalScreenshotResourceMeta | null | undefined): void {
     if (!meta?.window_id || !meta.digest) return;
@@ -145,6 +170,7 @@ export class TerminalFrameStore {
       this.seenAt.delete(id);
       this.newest.delete(id);
       this.firstSeen.delete(id);
+      this.textFailedAt.delete(id);
       this.release(id);
     });
   }
@@ -155,6 +181,12 @@ export class TerminalFrameStore {
     this.pump();
   }
 
+  /** Mounted (again): StrictMode and remounts dispose and reopen the same store. */
+  open(): void {
+    this.disposed = false;
+    this.pump();
+  }
+
   dispose(): void {
     this.disposed = true;
     [...this.frames.keys()].forEach((id) => this.release(id));
@@ -162,7 +194,7 @@ export class TerminalFrameStore {
 
   private release(windowId: string): void {
     const frame = this.frames.get(windowId);
-    if (frame) URL.revokeObjectURL(frame.url);
+    if (frame?.url) URL.revokeObjectURL(frame.url);
     this.frames.delete(windowId);
   }
 
@@ -172,8 +204,9 @@ export class TerminalFrameStore {
     for (const windowId of candidates) {
       if (this.running >= FETCH_CONCURRENCY) return;
       const meta = this.newest.get(windowId);
-      if (!meta || this.inflight.has(windowId) || this.frames.get(windowId)?.digest === meta.digest) {
-        if (meta && this.frames.get(windowId)?.digest === meta.digest) this.pendingForce.delete(windowId);
+      const current = meta ? this.isCurrent(windowId, meta) : false;
+      if (!meta || this.inflight.has(windowId) || current) {
+        if (current) this.pendingForce.delete(windowId);
         continue;
       }
       const failedAt = this.failures.get(windowId);
@@ -182,27 +215,30 @@ export class TerminalFrameStore {
     }
   }
 
+  private isCurrent(windowId: string, meta: TerminalScreenshotResourceMeta): boolean {
+    const frame = this.frames.get(windowId);
+    return frame?.digest === meta.digest && (frame.kind === 'image' || !this.imageRequired.has(windowId));
+  }
+
+  private textAllowed(windowId: string): boolean {
+    const failedAt = this.textFailedAt.get(windowId);
+    return !this.imageRequired.has(windowId) && (failedAt === undefined || Date.now() - failedAt >= TEXT_RETRY_MS);
+  }
+
   private start(windowId: string, meta: TerminalScreenshotResourceMeta): void {
     this.inflight.set(windowId, meta.digest);
     this.running += 1;
-    void this.fetchFrame(windowId, meta.digest, FETCH_TIMEOUT_MS)
-      .then((result) => {
-        if (this.disposed || result.status !== 200 || !result.bytes) {
+    void this.load(windowId, meta)
+      .then((frame) => {
+        if (frame === STALE || this.disposed) return;
+        if (!frame) {
           this.failures.set(windowId, Date.now());
           return;
         }
         this.failures.delete(windowId);
         this.pendingForce.delete(windowId);
-        const mime = meta.mime || 'image/webp';
         this.release(windowId);
-        this.frames.set(windowId, {
-          url: URL.createObjectURL(new Blob([new Uint8Array(result.bytes)], { type: mime })),
-          mime,
-          width: meta.width,
-          height: meta.height,
-          captured_at: meta.captured_at,
-          digest: meta.digest,
-        });
+        this.frames.set(windowId, frame);
         this.revision += 1;
         this.changes.emit();
       })
@@ -212,5 +248,30 @@ export class TerminalFrameStore {
         this.running -= 1;
         this.pump();
       });
+  }
+
+  /** Text first; the image only when the text is unreadable or the window needs its picture. */
+  private async load(windowId: string, meta: TerminalScreenshotResourceMeta): Promise<TerminalFrame | null | typeof STALE> {
+    const base = { width: meta.width, height: meta.height, captured_at: meta.captured_at, digest: meta.digest };
+    if (this.textAllowed(windowId)) {
+      const result = await this.fetchText(windowId, meta.digest, TEXT_FETCH_TIMEOUT_MS).catch(() => null);
+      if (this.disposed) return null;
+      if (result?.error_code === TEXT_STALE_CODE) return STALE;
+      if (result?.success && result.text) {
+        this.textFailedAt.delete(windowId);
+        return { ...base, kind: 'text', url: '', text: result.text, mime: 'text/plain' };
+      }
+      this.textFailedAt.set(windowId, Date.now());
+    }
+    const result = await this.fetchFrame(windowId, meta.digest, FETCH_TIMEOUT_MS);
+    if (this.disposed || result.status !== 200 || !result.bytes) return null;
+    const mime = meta.mime || 'image/webp';
+    return {
+      ...base,
+      kind: 'image',
+      url: URL.createObjectURL(new Blob([new Uint8Array(result.bytes)], { type: mime })),
+      text: '',
+      mime,
+    };
   }
 }

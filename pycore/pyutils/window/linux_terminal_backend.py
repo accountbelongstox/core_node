@@ -276,7 +276,7 @@ class LinuxTerminalBackend(TerminalWindowBackend):
             window_id = str(region.get("id") or "")
             image = None
             if window_id == DESKTOP_WINDOW_ID:
-                image = grab_screen_regions([region]).get(window_id)
+                image = self._capture_desktop_region(region)
             elif window_id.startswith(X11_WINDOW_PREFIX):
                 image = x11_display.capture(int(window_id[len(X11_WINDOW_PREFIX):], 16))
             elif window_id.startswith(GNOME_WINDOW_PREFIX):
@@ -289,6 +289,23 @@ class LinuxTerminalBackend(TerminalWindowBackend):
         if missing and current_desktop_session().is_wayland:
             images.update(xdg_desktop_portal.capture_regions(missing))
         return images
+
+    @staticmethod
+    def _capture_desktop_region(region: Dict[str, Any]) -> Optional[Any]:
+        """X11 grabs via mss; Wayland compositors hide other clients from Xwayland (black frame),
+        so GNOME uses the bridge and everything else falls through to the portal."""
+        session = current_desktop_session()
+        if not session.is_wayland:
+            return grab_screen_regions([region]).get(DESKTOP_WINDOW_ID)
+        if not session.is_gnome:
+            return None
+        png = gnome_shell_bridge.capture_area_png(
+            int(region["left"]),
+            int(region["top"]),
+            int(region["width"]),
+            int(region["height"]),
+        )
+        return get_third_package_PIL_Image().open(BytesIO(png)).convert("RGB") if png else None
 
     @staticmethod
     def _dispatch(

@@ -1,26 +1,20 @@
 # -*- coding: utf-8 -*-
 """Read-only terminal window listing and text (live screenshot OCR or the latest stored backup)."""
 
-import secrets
 import time
 from typing import Any, Dict, List
 
 from pycore.pyctl.devmcp.dev_mcp_constants import (
     TERMINAL_LIST_THREAD,
-    TERMINAL_OCR_MODEL,
     TERMINAL_READ_THREAD,
     TERMINAL_SOURCE_AUTO,
     TERMINAL_SOURCE_BACKUP,
     TERMINAL_SOURCE_OCR,
-    TERMINAL_TMP_DIR_NAME,
-    TERMINAL_TMP_IMAGE_TEMPLATE,
 )
 from pycore.pyctl.terminal.terminal_backup_store import TEXT_ENCODING, TEXT_ERRORS, terminal_backup_store
 from pycore.pyctl.terminal.terminal_service import TerminalService, terminal_service
-from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyctl.terminal.terminal_text_ocr import recognize_region_text
 from pycore.pyfoundations.serialized_worker import await_bus_task
-from pycore.pyutils.common.ocr.manager import ocr_manager
-from pycore.pyutils.window.terminal_platform import terminal_backend
 
 
 class TerminalReader:
@@ -73,27 +67,10 @@ class TerminalReader:
         return self._read_backup(window)
 
     def _read_ocr(self, window: Dict[str, Any]) -> Dict[str, Any]:
-        rect = window.get("rect") or {}
         region = TerminalService.window_capture_region(
-            {"id": window["window_id"], "rect": rect}
+            {"id": window["window_id"], "rect": window.get("rect") or {}}
         )
-        image = terminal_backend.capture_windows([region]).get(window["window_id"])
-        if image is None:
-            return {"source": TERMINAL_SOURCE_OCR, "text": "", "error": "terminal_capture_failed"}
-        directory = TMP_DIR / TERMINAL_TMP_DIR_NAME
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / TERMINAL_TMP_IMAGE_TEMPLATE.format(token=secrets.token_hex(6))
-        image.save(path, format="PNG")
-        try:
-            recognized = ocr_manager.recognize_image(str(path), model_type=TERMINAL_OCR_MODEL)
-        finally:
-            path.unlink(missing_ok=True)
-        return {
-            "source": TERMINAL_SOURCE_OCR,
-            "text": str(recognized.get("text") or ""),
-            "error": recognized.get("error"),
-            "confidence": recognized.get("confidence"),
-        }
+        return {"source": TERMINAL_SOURCE_OCR, **recognize_region_text(region)}
 
     def _read_backup(self, window: Dict[str, Any]) -> Dict[str, Any]:
         number = window.get("terminal_number")
