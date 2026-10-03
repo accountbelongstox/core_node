@@ -29,13 +29,16 @@ OPTION_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*1\s*[.)]\
 OPTION_NEXT_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
 SELECTED_OTHER_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
 SECOND_YES_DONT_ASK_PATTERN = re.compile(
-    r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*2\s*[.)].*\bdon\W*t\s+ask\b",
+    r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*2\s*[.)](?:.*\bdon\W*t\s+ask\b|\s*yes\b.*\ballow(?:ed)?\b)",
     re.IGNORECASE,
 )
 HINT_PATTERN = re.compile(r"\besc\b.*\b(?:cancel|exit)\b|\benter\b.*\b(?:select|confirm)\b", re.IGNORECASE)
 OPTION_NUMBER_PATTERN = re.compile(r"^(?P<marker>❯|›|>|▶|►|➜|→|\*)?\s*(?P<number>[1-9])\s*[.)]\s*\S")
 # Options that change the agent's permission mode are never chosen or confirmed automatically.
-MODE_SWITCH_OPTION_PATTERN = re.compile(r"\bauto[\s-]*(?:mode|accept)|\bbypass(?:es)?\s+permissions?\b|\byolo\b", re.IGNORECASE)
+MODE_SWITCH_OPTION_PATTERN = re.compile(
+    r"\bauto[\s-]*(?:mode|accept)|\bbypass(?:es)?\s+permissions?\b|\byolo\b|\ballow\s+all\s+edits\b",
+    re.IGNORECASE,
+)
 BASH_COMMAND_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*bash\s+command\b", re.IGNORECASE)
 
 USAGE_LIMIT_PATTERN = re.compile(
