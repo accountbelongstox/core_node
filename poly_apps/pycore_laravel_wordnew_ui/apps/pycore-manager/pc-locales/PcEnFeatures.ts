@@ -610,6 +610,12 @@ terminal: {
       misses: 'misses {{misses}}/{{limit}}',
     },
     marks: {
+      working: 'AI agent is working',
+      finished: 'AI agent finished at {{time}} (open to clear)',
+      draft: 'Unsent draft in this terminal',
+      limitUntil: 'Usage limit: resumes at {{time}}, then asks whether the previous task is complete',
+      doneToastTitle: 'AI agent finished',
+      doneToastBody: '#{{number}} {{name}}',
       plain: 'Plain terminal (scanned, no AI agent)',
       notScanned: 'Not scanned yet',
       yesPending: 'Confirmation prompt to click Yes',

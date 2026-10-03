@@ -610,6 +610,12 @@ terminal: {
       misses: '未命中 {{misses}}/{{limit}}',
     },
     marks: {
+      working: 'AI Agent 正在工作',
+      finished: 'AI Agent 已于 {{time}} 完成（打开该终端后清除）',
+      draft: '该终端有未发送的草稿',
+      limitUntil: '用量限制：{{time}} 到期后恢复，并询问之前的任务是否完成',
+      doneToastTitle: 'AI Agent 已完成',
+      doneToastBody: '#{{number}} {{name}}',
       plain: '普通终端（已扫描，非 AI Agent）',
       notScanned: '尚未扫描',
       yesPending: '有待点击 Yes 的确认提示',
