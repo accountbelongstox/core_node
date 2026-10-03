@@ -112,20 +112,29 @@ export const OrchStage: React.FC<Props> = ({ cards, settings, timeRef, duration,
 
   useEffect(() => {
     let frame = 0;
+    let drawnAt = Number.NaN;
     const draw = (): void => {
+      frame = requestAnimationFrame(draw);
       const at = timeRef.current;
+      if (at === drawnAt) return;
+      const low = Math.min(at, drawnAt);
+      const high = Math.max(at, drawnAt);
+      const everything = Number.isNaN(drawnAt);
+      drawnAt = at;
       if (columnRef.current) {
         columnRef.current.style.transform = `translate(-50%, ${focus - stageOffsetAt(keyframes, at)}px)`;
       }
       if (progressRef.current) {
         progressRef.current.style.width = `${duration > 0 ? Math.min(100, (at / duration) * 100) : 0}%`;
       }
-      cards.forEach((card, cardIndex) => card.lines.forEach((line, lineIndex) => {
-        const element = lineRefs.current[cardIndex]?.[lineIndex];
-        const state = stageLineState(card, line, at);
-        if (element && element.dataset.state !== state) element.dataset.state = state;
-      }));
-      frame = requestAnimationFrame(draw);
+      cards.forEach((card, cardIndex) => {
+        if (!everything && (card.end < low || card.start > high)) return;
+        card.lines.forEach((line, lineIndex) => {
+          const element = lineRefs.current[cardIndex]?.[lineIndex];
+          const state = stageLineState(card, line, at);
+          if (element && element.dataset.state !== state) element.dataset.state = state;
+        });
+      });
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
