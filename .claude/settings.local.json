@@ -168,7 +168,12 @@
       "PowerShell(Set-Location D:\\\\programing\\\\core_node; cmd /c \"dd.cmd pycorerestart\" 2>&1 | Select-Object -Last 4; try { \\(Invoke-WebRequest -Method Post -Uri http://127.0.0.1:59000/api/ui/version/version -ContentType 'application/json' -Body '{}' -UseBasicParsing -TimeoutSec 10\\).StatusCode } catch { $_.Exception.Message }; $global:LASTEXITCODE=0)",
       "Bash(PYCORE_SKIP_DEP_CHECK=1 python3 -c ' *)",
       "Bash(timeout 180 bash dd.sh pycorerestart)",
-      "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100\")"
+      "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100\")",
+      "Bash(nvidia-smi)",
+      "Bash(nvidia-smi --query-compute-apps=pid,used_memory,name --format=csv)",
+      "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100&minutes=60\")",
+      "PowerShell(cd D:\\\\programing\\\\core_node; foreach\\($i in 1..3\\){ $t=Measure-Command { node ncore/foundation/common/laravel_signed_cli.js request GET /api/work/nodes | Out-Null }; \"{0:n0} ms\" -f $t.TotalMilliseconds })",
+      "Bash(timeout 300 npx tsc --noEmit -p tsconfig.json)"
     ],
     "deny": [],
     "ask": []

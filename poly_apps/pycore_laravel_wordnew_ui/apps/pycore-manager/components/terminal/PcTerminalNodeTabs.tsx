@@ -126,10 +126,9 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
           disabled={scanning}
           title={t('pycoreTarget.lanRescan')}
           aria-label={t('pycoreTarget.lanRescan')}
-          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl border border-slate-500/20 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-500/10 disabled:opacity-60 dark:text-slate-300"
+          className="inline-flex shrink-0 items-center rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-500/10 disabled:opacity-60 dark:text-slate-400"
         >
-          <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${scanning ? 'animate-spin' : ''}`} />
-          <span>{t('pycoreTarget.lanRescan')}</span>
+          <RefreshCw className={`h-3.5 w-3.5 ${scanning ? 'animate-spin' : ''}`} />
         </button>
       )}
     </div>

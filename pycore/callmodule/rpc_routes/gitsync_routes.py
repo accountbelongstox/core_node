@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""HTTP routes of the automatic gitsync watch (state, pause, intervals, run now)."""
-from pycore.callmodule.rpc_routes.route_names import UI_GITSYNC_CONTROL, UI_GITSYNC_STATE
+"""HTTP routes of the automatic gitsync watch (state, pause, intervals, run now, run history)."""
+from pycore.callmodule.rpc_routes.route_names import UI_GITSYNC_CONTROL, UI_GITSYNC_HISTORY, UI_GITSYNC_STATE
 from pycore.pyctl.gitsync.gitsync_watch_service import gitsync_watch_service
 from pycore.pyctl.terminal.terminal_rpc import bool_param, integer_param
 
@@ -25,5 +25,12 @@ def register_gitsync_routes(server) -> None:
             run_now=bool_param(params, "run_now"),
         )
 
+    def history_handler(params, _request_id, _context):
+        return gitsync_watch_service.history(
+            offset=integer_param(params, "offset"),
+            limit=integer_param(params, "limit"),
+        )
+
     server.post(path=UI_GITSYNC_STATE, handler=state_handler)
+    server.post(path=UI_GITSYNC_HISTORY, handler=history_handler)
     server.post(path=UI_GITSYNC_CONTROL, handler=control_handler)

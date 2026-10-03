@@ -1,18 +1,104 @@
 /**
- * Top-bar status of pycore's automatic gitsync: a merge-conflict alert (with the
- * AI prompt to copy), pause until restart, sync interval, reminder interval, run now.
+ * Top-bar status of pycore's automatic gitsync: run count, a merge-conflict alert (with the
+ * AI prompt to copy), pause until restart, sync interval, reminder interval, run now, paged run history.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Copy, GitMerge, Loader2, Pause, Play, RefreshCw } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, GitMerge, Loader2, Pause, Play, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { pycoreApi } from '@/apps/pycore-manager/api';
-import type { GitSyncState } from '@/apps/pycore-manager/api';
+import type { GitSyncHistoryPage, GitSyncState } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 import { formatTimestamp } from '../../../core/utils/formatters';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 const POLL_INTERVAL_MS = 15_000;
 const MS_PER_SECOND = 1000;
+const HISTORY_PAGE_SIZE = 10;
+const BADGE_MAX_COUNT = 99;
+
+/** Paged run history, loaded only while expanded; reloads when a new run is counted. */
+const PcGitSyncHistory: React.FC<{ runCount: number }> = ({ runCount }) => {
+  const { t } = useTranslation('pc');
+  const [expanded, setExpanded] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [page, setPage] = useState<GitSyncHistoryPage | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+    let alive = true;
+    setLoading(true);
+    pycoreApi.getGitSyncHistory(pageIndex * HISTORY_PAGE_SIZE, HISTORY_PAGE_SIZE)
+      .then((result) => { if (alive && result?.success) setPage(result); })
+      .catch(() => undefined)
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [expanded, pageIndex, runCount]);
+
+  const pages = Math.max(1, Math.ceil((page?.recorded ?? 0) / HISTORY_PAGE_SIZE));
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        className="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition ${expanded ? 'rotate-180' : ''}`} />
+        {t(expanded ? 'gitsyncWatch.historyHide' : 'gitsyncWatch.historyShow')}
+        {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+      </button>
+      {expanded && page && (
+        page.runs.length === 0
+          ? <p className="text-slate-400">{t('gitsyncWatch.historyEmpty')}</p>
+          : (
+            <>
+              <ul className="divide-y divide-slate-500/10 rounded-lg border border-slate-500/15">
+                {page.runs.map((run) => (
+                  <li key={run.started_at} className="flex items-center gap-2 px-2 py-1 font-mono text-[10px]">
+                    <span className="min-w-0 flex-1 truncate text-slate-500">{formatTimestamp(run.started_at * MS_PER_SECOND)}</span>
+                    <span className="text-slate-400">{t(`gitsyncWatch.trigger.${run.trigger}`)}</span>
+                    <span className="text-slate-400">{t('gitsyncWatch.historyDuration', { seconds: run.duration_seconds })}</span>
+                    <span className={run.result === 'conflict' || (run.exit_code ?? 0) !== 0 ? 'text-rose-500' : 'text-emerald-500'}>
+                      {run.result === 'ok' && run.exit_code !== null && run.exit_code !== 0
+                        ? t('gitsyncWatch.historyExitCode', { code: run.exit_code })
+                        : t(`gitsyncWatch.result.${run.result}`)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-center justify-between gap-2 text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => setPageIndex((value) => Math.max(0, value - 1))}
+                  disabled={pageIndex === 0 || loading}
+                  title={t('gitsyncWatch.historyPrevious')}
+                  aria-label={t('gitsyncWatch.historyPrevious')}
+                  className="rounded-md p-1 hover:bg-slate-500/10 disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <span>{t('gitsyncWatch.historyPage', { page: pageIndex + 1, pages })}</span>
+                <button
+                  type="button"
+                  onClick={() => setPageIndex((value) => Math.min(pages - 1, value + 1))}
+                  disabled={pageIndex >= pages - 1 || loading}
+                  title={t('gitsyncWatch.historyNext')}
+                  aria-label={t('gitsyncWatch.historyNext')}
+                  className="rounded-md p-1 hover:bg-slate-500/10 disabled:opacity-40"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {page.total > page.recorded && (
+                <p className="text-[10px] text-slate-400">{t('gitsyncWatch.historyKept', { count: page.recorded })}</p>
+              )}
+            </>
+          )
+      )}
+    </div>
+  );
+};
 
 export const PcGitSyncStatus: React.FC = () => {
   const { t } = useTranslation('pc');
@@ -77,14 +163,16 @@ export const PcGitSyncStatus: React.FC = () => {
   if (!state) return null;
 
   const conflict = state.conflict;
+  const runCount = state.run_count ?? 0;
+  const buttonLabel = `${t(conflict ? 'gitsyncWatch.conflictTitle' : 'gitsyncWatch.title')} · ${t('gitsyncWatch.runCountShort', { count: runCount })}`;
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        title={t(conflict ? 'gitsyncWatch.conflictTitle' : 'gitsyncWatch.title')}
-        aria-label={t(conflict ? 'gitsyncWatch.conflictTitle' : 'gitsyncWatch.title')}
+        title={buttonLabel}
+        aria-label={buttonLabel}
         className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl border transition ${
           conflict
             ? 'animate-pulse border-rose-500/50 bg-rose-500/15 text-rose-500'
@@ -94,10 +182,18 @@ export const PcGitSyncStatus: React.FC = () => {
         }`}
       >
         {state.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitMerge className="h-4 w-4" />}
+        {runCount > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 min-w-[1.1rem] rounded-full bg-indigo-600 px-1 text-center text-[9px] font-bold leading-[1.1rem] text-white">
+            {runCount > BADGE_MAX_COUNT ? `${BADGE_MAX_COUNT}+` : runCount}
+          </span>
+        )}
       </button>
       {open && (
-        <div className={`${isMobile ? 'fixed inset-x-2 top-14' : 'absolute right-0 top-full mt-2 w-80'} z-50 space-y-2.5 rounded-xl border border-slate-200/80 bg-white p-3 text-[11px] shadow-xl dark:border-white/10 dark:bg-slate-900`}>
-          <p className="font-bold text-slate-600 dark:text-slate-300">{t('gitsyncWatch.title')}</p>
+        <div className={`${isMobile ? 'fixed inset-x-2 top-14' : 'absolute right-0 top-full mt-2 w-80'} z-50 max-h-[80vh] space-y-2.5 overflow-y-auto rounded-xl border border-slate-200/80 bg-white p-3 text-[11px] shadow-xl dark:border-white/10 dark:bg-slate-900`}>
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="font-bold text-slate-600 dark:text-slate-300">{t('gitsyncWatch.title')}</p>
+            <span className="whitespace-nowrap font-mono text-[10px] text-indigo-500">{t('gitsyncWatch.runCount', { count: runCount })}</span>
+          </div>
           {conflict && (
             <div className="space-y-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400">
               <p className="font-semibold">{t('gitsyncWatch.conflictTitle')}</p>
@@ -166,6 +262,7 @@ export const PcGitSyncStatus: React.FC = () => {
               {t('gitsyncWatch.runNow')}
             </button>
           </div>
+          <PcGitSyncHistory runCount={runCount} />
         </div>
       )}
     </div>

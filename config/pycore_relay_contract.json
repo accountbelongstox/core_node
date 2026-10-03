@@ -234,7 +234,7 @@
     "terminal_backup_interval_seconds": 60,
     "terminal_backup_prompt_interval_seconds": 10,
     "terminal_backup_prompt_miss_limit": 10,
-    "terminal_backup_auto_confirm": 1,
+    "terminal_backup_auto_confirm": 0,
     "terminal_backup_resume_delay_seconds": 30,
     "terminal_backup_resume_attempts": 3,
     "terminal_backup_resume_attempt_interval_seconds": 5,
@@ -517,6 +517,12 @@
     {
       "match": "exact",
       "value": "ui/gitsync/state",
+      "profile": "general_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/gitsync/history",
       "profile": "general_read",
       "methods": [ "POST" ]
     },

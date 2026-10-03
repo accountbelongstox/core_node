@@ -1010,6 +1010,10 @@
       "path": "ui/gitsync/state",
       "method": "POST"
     },
+    "gitsyncHistory": {
+      "path": "ui/gitsync/history",
+      "method": "POST"
+    },
     "terminalActivate": {
       "path": "ui/terminal/activate",
       "method": "POST"
