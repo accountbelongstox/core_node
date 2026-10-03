@@ -177,7 +177,9 @@ class ItToolsV1PdfUtil
         $pdftk = self::getPdftkPath();
         $outputPath = tempnam(sys_get_temp_dir(), 'pdf_rotate_') . '.pdf';
         
-        $validRotations = [90 => 'east', 180 => 'south', 270 => 'west'];
+        // Relative directions (right/down/left) add to the page's existing rotation;
+        // compass names (east/south/west) would set an absolute orientation instead.
+        $validRotations = [90 => 'right', 180 => 'down', 270 => 'left'];
         if (!isset($validRotations[$rotation])) {
             throw new \InvalidArgumentException("Invalid rotation. Must be 90, 180, or 270");
         }
@@ -188,9 +190,28 @@ class ItToolsV1PdfUtil
         if ($pages === null) {
             $pageSpec = "1-end$direction";
         } else {
-            $pageSpec = implode(' ', array_map(function($page) use ($direction) {
-                return $page . $direction;
-            }, $pages));
+            // Every page is kept in the output; only the selected ones get the rotation.
+            $selected = [];
+            foreach ($pages as $page) {
+                $number = (int)$page;
+                if ($number >= 1 && $number <= $totalPages) {
+                    $selected[$number] = true;
+                }
+            }
+            if (!$selected) {
+                throw new \InvalidArgumentException("No valid pages to rotate");
+            }
+            $segments = [];
+            $start = 1;
+            for ($number = 2; $number <= $totalPages + 1; $number++) {
+                if ($number <= $totalPages && isset($selected[$number]) === isset($selected[$start])) {
+                    continue;
+                }
+                $range = $start === $number - 1 ? (string)$start : $start . '-' . ($number - 1);
+                $segments[] = isset($selected[$start]) ? $range . $direction : $range;
+                $start = $number;
+            }
+            $pageSpec = implode(' ', $segments);
         }
         
         $cmd = sprintf(
@@ -210,7 +231,7 @@ class ItToolsV1PdfUtil
         return [
             'path' => $outputPath,
             'rotation' => $rotation,
-            'pages' => $pages ?? 'all',
+            'pages' => $pages === null ? 'all' : array_keys($selected),
             'file_size' => filesize($outputPath)
         ];
     }
