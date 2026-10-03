@@ -70,6 +70,11 @@ export function authNamespaceOf(endpoint: string): string {
   }
 }
 
+/** Short display form of an API identity: `host[:port][/path]`. */
+export function authEndpointLabel(endpoint: string): string {
+  return authNamespaceOf(endpoint).replace(/^https?:\/\//, '');
+}
+
 function readStore(): AuthStore {
   if (store) return store;
   const saved = StorageManager.get<unknown>(AuthStorageKeys.SESSIONS, null);

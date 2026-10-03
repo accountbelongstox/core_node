@@ -4,7 +4,7 @@ import { htmlErrorManager } from './HtmlErrorEvents';
 import { unwrapLaravelData } from './LaravelEnvelope';
 import { appendLog } from '../../../logstore/logStore';
 import { clearCoordinatedRequests, coordinateRequest } from '../../../network/RequestCoordinator';
-import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
+import { getAuthHeader, setActiveAuthNamespace, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
 import { isUploadBody, progressUpload } from '../../../network/ProgressUpload';
@@ -117,6 +117,7 @@ export function setSharedBaseURL(url: string): void {
   // Keep the one transport base outside the hot-replaced module. Vite HMR
   // must not reset Laravel requests to the construction-time default.
   sharedTransportRegistry[SHARED_BASE_URL_GLOBAL_KEY] = nextBaseURL;
+  setActiveAuthNamespace(nextBaseURL);
   if (currentBaseURL !== nextBaseURL && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(SHARED_BASE_URL_CHANGED_EVENT, {
       detail: { url: nextBaseURL },
@@ -154,12 +155,12 @@ function getSharedServiceLink(): ServiceLink | null {
   return (sharedTransportRegistry[SHARED_SERVICE_LINK_GLOBAL_KEY] as ServiceLink | null | undefined) ?? null;
 }
 
-/** Set the process-wide bearer value used by every request path. */
+/** Set the bearer token of the ACTIVE Laravel API (every API keeps its own session). */
 export function setSharedAuthToken(token: string | null): void {
   setAuthToken(token);
 }
 
-/** Return the current process-wide bearer value, if authenticated. */
+/** Return the bearer value of the ACTIVE Laravel API, if authenticated. */
 export function getSharedAuthToken(): string | null {
   return getAuthHeader();
 }
@@ -334,7 +335,7 @@ export class BaseAPI {
   protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
     if (config.method === 'GET') {
       const fullURL = this.buildURL(config.url, config.baseURL, config.root);
-      const authKey = this.resolveRequestHeaders(config.headers).Authorization || 'anonymous';
+      const authKey = this.resolveRequestHeaders(config.headers, this.authBaseFor(config.url, config.baseURL)).Authorization || 'anonymous';
       return coordinateRequest(
         `base-get:${readGeneration}:${authKey}:${fullURL}:${JSON.stringify(config.params || {})}`,
         () => this.send<T>(config, retryCount),
@@ -357,7 +358,8 @@ export class BaseAPI {
   private async send<T>(config: APIRequestConfig, retryCount: number): Promise<APIResponse<T>> {
     const link = this.endpointMode === 'active' && config.retry !== false ? getSharedServiceLink() : null;
     if (!link) return this.sendOnce<T>(config, retryCount, false);
-    const idempotent = READ_METHODS.has(config.method) || hasIdempotencyKey(this.resolveRequestHeaders(config.headers));
+    const idempotent = READ_METHODS.has(config.method)
+      || hasIdempotencyKey(this.resolveRequestHeaders(config.headers, this.authBaseFor(config.url, config.baseURL)));
     const startedAt = performance.now();
     try {
       return await runWithReconnect(link, () => this.sendOnce<T>(config, 0, true), {
@@ -394,7 +396,8 @@ export class BaseAPI {
     const timeoutMs = config.timeout || this.timeout || DEFAULT_REQUEST_TIMEOUT_MS;
     const abortController = new AbortController();
     const timeoutId = uploading ? null : setTimeout(() => abortController.abort(), timeoutMs);
-    const requestHeaders = this.resolveRequestHeaders(config.headers);
+    const authBase = this.authBaseFor(config.url, config.baseURL);
+    const requestHeaders = this.resolveRequestHeaders(config.headers, authBase);
 
     const requestConfig: RequestInit = {
       method: config.method,
@@ -473,7 +476,7 @@ export class BaseAPI {
         const clientKeyCode = response.status === 401 ? clientKeyFailureCode(data) : null;
         if (response.status === 401 && !clientKeyCode) {
           if (this.unauthorizedHandler) this.unauthorizedHandler();
-          else requestGlobalLogin();
+          else requestGlobalLogin({ baseUrl: authBase ?? this.baseURL });
         }
         // Error response - trigger HTML error modal if debug info available
         if (data.exception || data.trace) {
@@ -580,7 +583,7 @@ export class BaseAPI {
     const method = String(init.method || 'GET').toUpperCase();
     const extraHeaders = Object.fromEntries(new Headers(init.headers).entries());
     const isLaravelEndpoint = url === this.baseURL || url.startsWith(`${this.baseURL}/`);
-    const headers = includeAuth && isLaravelEndpoint ? this.resolveRequestHeaders(extraHeaders) : extraHeaders;
+    const headers = includeAuth && isLaravelEndpoint ? this.resolveRequestHeaders(extraHeaders, this.baseURL) : extraHeaders;
     let response: Response;
 
     try {
@@ -611,7 +614,7 @@ export class BaseAPI {
     try {
       response = await progressUpload(
         url,
-        await withClientKey(url, { method: 'POST', headers: this.resolveRequestHeaders(), body: data }),
+        await withClientKey(url, { method: 'POST', headers: this.resolveRequestHeaders({}, this.authBaseFor(path)), body: data }),
         { onProgress: (fraction) => onProgress(Math.round(fraction * 100)) },
       );
     } catch (error: any) {
@@ -655,15 +658,28 @@ export class BaseAPI {
   }
 
   /**
+   * The Laravel API a request goes to, which decides whose token it may carry:
+   * the per-request base, else the module's own. A full URL outside that base
+   * (a foreign host) gets no token at all.
+   */
+  private authBaseFor(path: string, requestBaseURL?: string): string | null {
+    const base = requestBaseURL ? normalizeBaseURL(requestBaseURL) : this.baseURL;
+    if (!/^https?:\/\//i.test(path)) return base;
+    return path === base || path.startsWith(`${base}/`) ? base : null;
+  }
+
+  /**
    * The sole header resolver for laravel-manager API modules. It prefers the
    * module's own authToken resolver (fixed peer endpoints with their own
-   * login state), falls back to the shared session token, and removes stale
-   * module tokens after logout, including raw fetch helpers that cannot call
-   * request().
+   * login state), falls back to the session of the API the request targets
+   * (never another API's token), and removes stale module tokens after
+   * logout, including raw fetch helpers that cannot call request().
    */
-  protected resolveRequestHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  protected resolveRequestHeaders(extra: Record<string, string> = {}, authBase: string | null = this.baseURL): Record<string, string> {
     const headers: Record<string, string> = { ...this.headers, ...extra };
-    const authHeader = this.authTokenResolver ? this.authTokenResolver() : getSharedAuthToken();
+    const authHeader = this.authTokenResolver
+      ? this.authTokenResolver()
+      : (authBase ? getAuthHeader(authBase) : null);
     if (authHeader) headers.Authorization = authHeader;
     else delete headers.Authorization;
     return headers;
