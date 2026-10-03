@@ -27,6 +27,13 @@ TERMINAL_SCREENSHOT_FRESHNESS_SECONDS = relay_contract.duration(
 TERMINAL_SCREENSHOT_FOCUS_INTERVAL_SECONDS = relay_contract.duration(
     "terminal_screenshot_focus_interval_seconds"
 )
+# A focused window is due slightly before the interval elapsed, so a trigger that lands a hair early
+# (the 1 s demand tick races the 1 s interval) does not skip a whole interval.
+TERMINAL_SCREENSHOT_FOCUS_DUE_SECONDS = (
+    TERMINAL_SCREENSHOT_FOCUS_INTERVAL_SECONDS
+    * relay_contract.limit("terminal_screenshot_focus_slack_percent")
+    / 100
+)
 TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS = relay_contract.duration(
     "terminal_screenshot_capture_lease_seconds"
 )
@@ -288,7 +295,7 @@ class TerminalScreenshotCache:
             geometry = self._geometry_version(region)
             entry = self._entries.get(window_id)
             freshness = (
-                TERMINAL_SCREENSHOT_FOCUS_INTERVAL_SECONDS
+                TERMINAL_SCREENSHOT_FOCUS_DUE_SECONDS
                 if window_id in focused
                 else TERMINAL_SCREENSHOT_FRESHNESS_SECONDS
             )
