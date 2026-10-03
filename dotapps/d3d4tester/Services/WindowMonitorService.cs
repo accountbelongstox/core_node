@@ -2,6 +2,7 @@
 // PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Battlenet;
 using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.Ctl;
 using DotCore.Foundations;
@@ -141,7 +142,11 @@ public sealed class WindowMonitorService
         if (ShutdownManager.IsShutdownRequested || RosbotFlowState.Instance.BnOnlyEnabled) return;
         try
         {
-            if (BattlenetStatusProvider.Refresh().Changed)
+            bool changed = BattlenetStatusProvider.Refresh().Changed;
+            if (GameInterfaceData.Instance.GetStateSnapshot().BattlenetClientState == BattlenetClientState.Popup
+                && BattlenetPopupDismiss.TryCloseModal())
+                changed |= BattlenetStatusProvider.Refresh().Changed;
+            if (changed)
                 GameInterfaceData.Instance.NotifyCallbacks();
         }
         catch (Exception ex)

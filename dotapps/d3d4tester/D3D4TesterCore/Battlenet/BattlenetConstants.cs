@@ -54,6 +54,12 @@ public static class BattlenetConstants
 
     // ---------- Client state probe (BattlenetClientStateDetector; verified by tools/BnProbe live scans and docs/uidocs) ----------
     public const string ButtonControlType = "ButtonControl";
+    /// <summary>In-page modal popups (live scan: welcome-screen-modal "Explore your favorite games..." with Continue / Close).</summary>
+    public const string ModalAutomationIdSuffix = "-modal";
+    public static readonly string[] ModalCloseNames = { "Close", "关闭", "關閉" };
+    /// <summary>Play label game names (live scan CN: "Play: Diablo III, Version: 2.8.1.101167").</summary>
+    public static readonly string[] D3PlayLabelKeywords = { "Diablo III", "暗黑破坏神III", "暗黑破壞神III", "暗黑破坏神Ⅲ" };
+    public static readonly string[] D4PlayLabelKeywords = { "Diablo IV", "暗黑破坏神IV", "暗黑破壞神IV", "暗黑破坏神Ⅳ" };
     /// <summary>Main-window Play button has no AutomationId in live scans; its Name starts with these (e.g. "Play: Diablo III, Version: ...").</summary>
     public static readonly string[] PlayButtonNamePrefixes = { "Play", "开始游戏", "開始遊戲", "正在", "进行中" };
     /// <summary>Login web popup (NetEase / password entry, also the security check page for any region). Not a region signal.</summary>

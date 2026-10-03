@@ -45,7 +45,26 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     /// Shared screen classification (priority order): sleep, browser-login wait, login failed, region login screens
     /// (<see cref="ClassifyLoginScreen"/>), disconnected, connecting, game starting, main UI normal, loading, unknown.
     /// </summary>
-    public BattlenetClientStatus ClassifyClientState(IReadOnlyList<BattlenetControl> controls)
+    public BattlenetClientStatus ClassifyClientState(IReadOnlyList<BattlenetControl> controls) =>
+        ClassifyScreen(controls) with { GameUi = DetectGameUi(controls) };
+
+    /// <summary>
+    /// D3 / D4 nav tabs by exact automation id (CN D3CN / Fen / D4CN, Asia D3 / D4) and Play attributed to a game by its label
+    /// (live scan: "Play: Diablo III, Version: ...").
+    /// </summary>
+    public static BattlenetGameUi DetectGameUi(IReadOnlyList<BattlenetControl> controls)
+    {
+        if (controls.Count == 0) return BattlenetGameUi.None;
+        bool d3Tab = controls.Any(c => C.D3TabAutomationIdsCn.Contains(c.AutomationId, StringComparer.Ordinal) || C.D3TabAutomationIdsAsia.Contains(c.AutomationId, StringComparer.Ordinal));
+        bool d4Tab = controls.Any(c => C.D4TabAutomationIdsCn.Contains(c.AutomationId, StringComparer.Ordinal) || C.D4TabAutomationIdsAsia.Contains(c.AutomationId, StringComparer.Ordinal));
+        var play = FindMainPlayButton(controls);
+        string label = play?.Name ?? "";
+        bool d4Play = play != null && BattlenetRegionJudge.ContainsAny(label, C.D4PlayLabelKeywords);
+        bool d3Play = play != null && !d4Play && BattlenetRegionJudge.ContainsAny(label, C.D3PlayLabelKeywords);
+        return new BattlenetGameUi(d3Tab, d3Play, d4Tab, d4Play);
+    }
+
+    private BattlenetClientStatus ClassifyScreen(IReadOnlyList<BattlenetControl> controls)
     {
         if (controls.Count == 0) return BattlenetClientStatus.None;
         if (HasText(controls, C.SleepModeTextKeywords)) return new(BattlenetClientState.Sleeping, Region, null);
@@ -62,6 +81,7 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         if (form.IsAsiaEmailStep()) return new(BattlenetClientState.LoginEmail, Region, null);
         if (form.IsAsiaPasswordStep()) return new(BattlenetClientState.LoginPassword, Region, AccountShownOnForm(controls));
         if (ClassifyLoginScreen(controls) is { } login) return new(login, Region, null);
+        if (BattlenetPopupDismiss.FindModal(controls) is { } modal) return new(BattlenetClientState.Popup, Region, modal.AutomationId);
         var judge = new BattlenetRegionJudge(controls);
         if (judge.HasDisconnect()) return new(BattlenetClientState.Disconnected, Region, null);
         if (judge.HasConnecting()) return new(BattlenetClientState.Connecting, Region, null);

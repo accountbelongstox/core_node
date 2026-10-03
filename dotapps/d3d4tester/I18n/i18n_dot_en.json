@@ -58,6 +58,14 @@
       "row_d3": "D3",
       "row_d4": "D4",
       "row_rosbot": "ROSBOT"
+    },
+    "game_ui": {
+      "d3_tab": "D3 game tab",
+      "d3_play": "D3 Play button",
+      "d4_tab": "D4 game tab",
+      "d4_play": "D4 Play button",
+      "found": "recognised",
+      "missing": "not found"
     }
   },
   "skills": {

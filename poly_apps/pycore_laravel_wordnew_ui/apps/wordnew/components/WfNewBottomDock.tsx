@@ -47,25 +47,6 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
 
       {/* Main Breathing Backing bar */}
       <motion.div
-        animate={{
-          boxShadow: [
-            '0 10px 30px rgba(99, 102, 241, 0.1)',
-            '0 10px 45px rgba(236, 72, 153, 0.22)',
-            '0 10px 30px rgba(20, 184, 166, 0.1)',
-            '0 10px 30px rgba(99, 102, 241, 0.1)'
-          ],
-          borderColor: [
-            'rgba(255, 255, 255, 0.08)',
-            'rgba(236, 72, 153, 0.3)',
-            'rgba(20, 184, 166, 0.25)',
-            'rgba(255, 255, 255, 0.08)'
-          ]
-        }}
-        transition={{
-          duration: 6,
-          repeat: Infinity,
-          ease: 'easeInOut'
-        }}
         className={`w-full pointer-events-auto rounded-[32px] border backdrop-blur-2xl px-3 py-2 flex justify-between items-center transition-all duration-500 ${
           dark
             ? 'bg-slate-950/85 border-white/10 shadow-2xl text-zinc-100'

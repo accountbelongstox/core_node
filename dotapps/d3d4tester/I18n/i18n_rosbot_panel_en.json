@@ -47,6 +47,7 @@
         "security_check": "Security check: choose a method (manual)",
         "verification_code": "Waiting for the verification code (manual)",
         "login_asia": "Asia login",
+        "popup": "Popup (auto close)",
         "disconnected": "Disconnected",
         "connecting": "Connecting",
         "game_starting": "Game starting",
