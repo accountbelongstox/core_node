@@ -17,6 +17,7 @@ Stdlib-only: imported by secret_manager.
 """
 
 import os
+import tempfile
 
 NOTEBOOK_PLATFORM_ENV = "NOTEBOOK_PLATFORM"
 LOCAL_MODELS_ONLY_ENV = "PYCORE_LOCAL_MODELS_ONLY"
@@ -24,6 +25,8 @@ LOCAL_HTTP_ENV = "PYCORE_LOCAL_HTTP"
 NOTEBOOK_PLATFORMS = ("colab", "kaggle")
 LOCAL_MODELS_ONLY_PLATFORM = "local-models-only"
 _TRUE_VALUES = ("1", "true", "yes", "on")
+COLAB_DRIVE_MOUNT = "/content/drive"
+LOCAL_SQLITE_DIR_NAME = "core_node_sqlite"
 
 
 def notebook_platform() -> str:
@@ -57,8 +60,19 @@ def policy_platform() -> str:
     return notebook_platform() or LOCAL_MODELS_ONLY_PLATFORM
 
 
+def local_sqlite_path(path):
+    """SQLite WAL needs shared memory and POSIX locks, which the Colab Drive
+    mount (FUSE) lacks: a database there turns "malformed". A database path
+    under the mount maps to the VM disk; any other path is returned unchanged."""
+    text = str(path).replace("\\", "/")
+    if notebook_platform() != "colab" or not text.startswith(COLAB_DRIVE_MOUNT + "/"):
+        return path
+    relative = text[len(COLAB_DRIVE_MOUNT) + 1:]
+    return os.path.join(tempfile.gettempdir(), LOCAL_SQLITE_DIR_NAME, *relative.split("/"))
+
+
 __all__ = [
     "NOTEBOOK_PLATFORM_ENV", "LOCAL_MODELS_ONLY_ENV", "LOCAL_HTTP_ENV", "NOTEBOOK_PLATFORMS",
     "notebook_platform", "notebook_assist_node", "local_http_enabled",
-    "local_models_only", "policy_platform",
+    "local_models_only", "policy_platform", "local_sqlite_path",
 ]

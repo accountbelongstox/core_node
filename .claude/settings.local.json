@@ -198,7 +198,18 @@
       "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js history)",
       "Bash(nohup D:/.tmp/claude/D--programing-core-node/38527f7f-baa6-49be-8e40-ccd35fbc6fff/scratchpad/phone/sample.sh 1500 20)",
       "Bash(awk '{print substr\\($2,1,5\\)}')",
-      "Bash(adb connect *)"
+      "Bash(adb connect *)",
+      "Bash(adb disconnect *)",
+      "Bash(adb mdns *)",
+      "Bash(ping -n 2 -w 1500 192.168.1.185)",
+      "Bash(ping -n 2 -w 1500 100.64.0.4)",
+      "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request POST /api/worker/register '{}')",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?limit=300&level=warning\")",
+      "Bash(adb kill-server *)",
+      "Bash(adb start-server *)",
+      "Bash(adb -s 192.168.1.185:46888 shell echo ok)",
+      "Bash(adb -s 192.168.1.185:42097 shell echo ok)",
+      "Bash(ping -n 6 -w 1000 192.168.1.185)"
     ],
     "deny": [],
     "ask": []
