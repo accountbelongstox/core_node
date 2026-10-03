@@ -46,6 +46,7 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private BattlenetClientState _battlenetClientState = BattlenetClientState.Unknown;
     private string? _battlenetUiRegion;
     private string? _battlenetStateDetail;
+    private BattlenetGameUi _battlenetGameUi = BattlenetGameUi.None;
     private string _rosbotFoundExeName = "";
     private string _rosbotFoundWindowTitle = "";
     private bool _rosbotNeedKeyInput = false;
@@ -169,6 +170,7 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 BattlenetClientState = _battlenetClientState,
                 BattlenetUiRegion = _battlenetUiRegion,
                 BattlenetStateDetail = _battlenetStateDetail,
+                BattlenetGameUi = _battlenetGameUi,
                 RosbotFoundExeName = _rosbotFoundExeName,
                 RosbotFoundWindowTitle = _rosbotFoundWindowTitle,
                 RosbotNeedKeyInput = _rosbotNeedKeyInput,
@@ -373,7 +375,9 @@ public sealed class GameInterfaceData : IGameInterfaceData
         lock (_lock)
         {
             if (_battlenetClientState == status.State && _battlenetUiRegion == status.UiRegion && _battlenetStateDetail == status.Detail
+                && _battlenetGameUi == status.GameUi
                 && _battlenetOnLoginScreen == onLogin && _battlenetDisconnected == disconnected && _battlenetNormalAvailable == normal) return false;
+            _battlenetGameUi = status.GameUi;
             _battlenetClientState = status.State;
             _battlenetUiRegion = status.UiRegion;
             _battlenetStateDetail = status.Detail;

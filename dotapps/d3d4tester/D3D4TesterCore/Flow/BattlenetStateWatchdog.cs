@@ -47,6 +47,11 @@ public static class BattlenetStateWatchdog
                 BrowserLoginAutomation.RunOnePoll();
             return;
         }
+        if (s.BattlenetClientState == BattlenetClientState.Popup)
+        {
+            BattlenetPopupDismiss.TryCloseModal();
+            return;
+        }
         if (EnsureRegion(s.BattlenetUiRegion, now)) return;
 
         _abnormalSinceUtc = AbnormalStates.Contains(s.BattlenetClientState) && s.BattlenetWindowFound ? _abnormalSinceUtc ?? now : null;

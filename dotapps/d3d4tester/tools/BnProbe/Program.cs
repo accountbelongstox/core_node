@@ -95,7 +95,7 @@ public static class Program
             c.GetProperty("Level").GetInt32())).ToList();
         string? uiRegion = BattlenetClientStateDetector.UiRegion(controls);
         var status = BattlenetOperationFactory.GetOperation(uiRegion).ClassifyClientState(controls) with { UiRegion = uiRegion };
-        Console.WriteLine($"[BnProbe] replay {Path.GetFileName(file)}: state={status.State} ui_region={status.UiRegion ?? "-"} detail={status.Detail ?? "-"}");
+        Console.WriteLine($"[BnProbe] replay {Path.GetFileName(file)}: state={status.State} ui_region={status.UiRegion ?? "-"} detail={status.Detail ?? "-"} game_ui={status.GameUi}");
     }
 
     private static int ReadWatchSeconds(string[] args)

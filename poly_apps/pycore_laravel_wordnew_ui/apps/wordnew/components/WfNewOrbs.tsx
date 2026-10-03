@@ -3,6 +3,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
+const ORB_COLORS = {
+  upper: { dark: 'rgba(79, 70, 229, 0.14)', light: 'rgba(192, 160, 250, 0.32)' },
+  middle: { dark: 'rgba(192, 38, 211, 0.1)', light: 'rgba(251, 150, 190, 0.3)' },
+  bottom: { dark: 'rgba(5, 150, 105, 0.1)', light: 'rgba(110, 231, 183, 0.28)' },
+} as const;
+
+const orbFill = (orb: keyof typeof ORB_COLORS, dark: boolean): React.CSSProperties => ({
+  backgroundImage: `radial-gradient(closest-side, ${ORB_COLORS[orb][dark ? 'dark' : 'light']}, transparent)`,
+  willChange: 'transform',
+});
+
 interface WfNewOrbsProps {
   disableBgBreathing: boolean;
   dark: boolean;
@@ -22,11 +33,8 @@ export const WfNewOrbs: React.FC<WfNewOrbsProps> = ({ disableBgBreathing, dark }
             repeat: Infinity,
             ease: "easeInOut"
           }}
-          className={`absolute top-[-10%] right-[5%] w-[450px] h-[450px] rounded-full filter blur-[120px] transition-colors duration-1000 ${
-            dark 
-              ? 'bg-indigo-600/10' 
-              : 'bg-indigo-400/25 shadow-[inset_0_0_80px_rgba(168,85,247,0.15)] bg-purple-300/20'
-          }`}
+          className="absolute top-[-10%] right-[5%] w-[600px] h-[600px] rounded-full"
+          style={orbFill('upper', dark)}
         />
         {/* Orb 2: Middle Left */}
         <motion.div
@@ -41,11 +49,8 @@ export const WfNewOrbs: React.FC<WfNewOrbsProps> = ({ disableBgBreathing, dark }
             ease: "easeInOut",
             delay: 1
           }}
-          className={`absolute top-[35%] left-[-5%] w-[380px] h-[380px] rounded-full filter blur-[100px] transition-colors duration-1000 ${
-            dark 
-              ? 'bg-fuchsia-600/8' 
-              : 'bg-pink-400/25 shadow-[inset_0_0_80px_rgba(244,63,94,0.15)] bg-rose-200/20'
-          }`}
+          className="absolute top-[35%] left-[-15%] w-[520px] h-[520px] rounded-full"
+          style={orbFill('middle', dark)}
         />
         {/* Orb 3: Bottom Right */}
         <motion.div
@@ -60,11 +65,8 @@ export const WfNewOrbs: React.FC<WfNewOrbsProps> = ({ disableBgBreathing, dark }
             ease: "easeInOut",
             delay: 2
           }}
-          className={`absolute bottom-[10%] right-[-5%] w-[420px] h-[420px] rounded-full filter blur-[110px] transition-colors duration-1000 ${
-            dark 
-              ? 'bg-emerald-600/8' 
-              : 'bg-emerald-300/25 bg-teal-200/15'
-          }`}
+          className="absolute bottom-[10%] right-[-15%] w-[560px] h-[560px] rounded-full"
+          style={orbFill('bottom', dark)}
         />
       </div>
 );
