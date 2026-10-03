@@ -460,6 +460,16 @@ terminal: {
       force: '先 ^C',
       hint: '只对下一次发送生效，发送后自动取消。',
     },
+    sentSearch: {
+      placeholder: '搜索已发送的文字',
+      clear: '清空搜索',
+      results: '找到的已发送消息',
+      searching: '搜索中…',
+      empty: '没有已发送的消息包含这段文字。',
+      failed: '搜索失败，请检查 pycore 连接。',
+      target: '#{{number}} · {{name}}',
+      missing: '该终端在这个节点上已不存在。',
+    },
     nodes: {
       title: 'Pycore 节点',
       thisMachine: '本机',

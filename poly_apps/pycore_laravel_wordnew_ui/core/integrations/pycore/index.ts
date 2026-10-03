@@ -78,6 +78,8 @@ export type {
   TerminalPlatformProfile,
   TerminalDraftResult,
   TerminalLogEntry,
+  TerminalLogSearchHit,
+  TerminalLogSearchResult,
   TerminalLogSource,
   TerminalScheduleClearResult,
   TerminalScheduleDefinition,

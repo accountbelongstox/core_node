@@ -4,7 +4,7 @@
  * re-mounts the same terminal view against that node's API.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Monitor, Network, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   getLanMachines,
@@ -21,6 +21,7 @@ import {
   subscribeTailnetPeers,
   type PycoreEndpoint,
 } from '@/apps/pycore-manager/api';
+import { PcOsIcon, pcOsKind } from '@/apps/pycore-manager/components/terminal/PcOsIcon';
 
 const PROBE_UP = 'up';
 const REPROBE_INTERVAL_MS = 30_000;
@@ -33,7 +34,7 @@ interface PcTerminalNodeTabsProps {
   onSelect: (url: string | null) => void;
 }
 
-function dueForProbe(nodes: PycoreEndpoint[]): PycoreEndpoint[] {
+function dueForProbe<T extends { url: string }>(nodes: T[]): T[] {
   const now = Date.now();
   return nodes.filter((node) => {
     const probe = getPycoreProbe(node.url);
@@ -62,7 +63,7 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
     const stopLan = subscribeLanMachines(() => {
       const list = otherNodes();
       setNodes(list);
-      void probePycoreEndpoints(dueForProbe(list));
+      void probePycoreEndpoints(dueForProbe([getPycoreTarget(), ...list]));
     });
     const stopProbes = subscribePycoreProbes(() => setProbeVersion((value) => value + 1));
     let firstDiscovery = true;
@@ -70,7 +71,8 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
       void Promise.all([refreshLanMachines(), refreshTailnetPeers()]).then(() => {
         const list = otherNodes();
         setNodes(list);
-        void probePycoreEndpoints(dueForProbe(list));
+        // This machine is probed too: its /api/status reports the OS its tab shows.
+        void probePycoreEndpoints(dueForProbe([getPycoreTarget(), ...list]));
         // A node restored from the last session that discovery no longer knows falls back to this machine, once.
         const restoredUrl = activeUrlRef.current;
         if (firstDiscovery && restoredUrl !== null && !list.some((node) => node.url === restoredUrl)) {
@@ -98,33 +100,34 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
   const online = nodes.filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP);
   const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || t('terminal.nodes.thisMachine');
 
-  const tab = (url: string | null, label: string, icon: React.ReactNode, title: string) => (
+  const tab = (url: string | null, index: number, os: string | undefined, title: string) => (
     <button
       key={url ?? 'primary'}
       type="button"
       role="tab"
       aria-selected={activeUrl === url}
+      aria-label={title}
       onClick={() => onSelect(url)}
       title={title}
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+      className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-[11px] font-bold tabular-nums transition ${
         activeUrl === url
           ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/30'
           : 'border border-slate-500/20 text-slate-600 hover:bg-slate-500/10 dark:text-slate-300'
       }`}
     >
-      {icon}
-      <span className="max-w-[10rem] truncate">{label}</span>
+      <PcOsIcon os={pcOsKind(getPycoreProbe(url ?? target.url)?.platform || os)} />
+      <span>{index}</span>
     </button>
   );
 
   return (
-    <div role="tablist" aria-label={t('terminal.nodes.title')} className="flex items-center gap-1.5 overflow-x-auto pb-1">
-      {tab(null, thisLabel, <Monitor className="h-3.5 w-3.5 shrink-0" />, t('terminal.nodes.thisMachineHint', { url: target.url }))}
-      {online.map((node) => tab(
+    <div role="tablist" aria-label={t('terminal.nodes.title')} className="flex items-center gap-1 overflow-x-auto pb-1">
+      {tab(null, 1, undefined, `${thisLabel} · ${t('terminal.nodes.thisMachineHint', { url: target.url })}`)}
+      {online.map((node, index) => tab(
         node.url,
-        node.label,
-        <Network className="h-3.5 w-3.5 shrink-0" />,
-        t('terminal.nodes.otherHint', { url: node.url, os: node.os || '-' }),
+        index + 2,
+        node.os,
+        `${node.label} · ${t('terminal.nodes.otherHint', { url: node.url, os: node.os || '-' })}`,
       ))}
       {online.length === 0 && (
         <span className="whitespace-nowrap text-[10px] text-slate-400">{t('terminal.nodes.noOthers')}</span>
