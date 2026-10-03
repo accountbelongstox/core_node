@@ -1,6 +1,7 @@
-# Installation "Confirm Configuration" screen (caller: dd.ps1 Show-InstallerSubMenu); mirrors Linux selector_common.sh.
+# Installation configuration editor + "Confirm Configuration" screen (caller: dd.ps1 Show-InstallerSubMenu); mirrors Linux selector_common.sh.
 $INSTALL_CONFIG_MENU_DIR = Split-Path -Parent $PSCommandPath
 $INSTALL_CONFIG_AUTO_START_SECONDS = 10
+$INSTALL_CONFIG_MODE_VAR = 'INSTALL_TYPE'
 $INSTALL_CONFIG_NOT_APPLICABLE = @(
     @{ Key = 'G'; Title = 'Install Gitea (Git Service)' },
     @{ Key = 'T'; Title = 'Mesh VPN After Installation' },
@@ -8,6 +9,11 @@ $INSTALL_CONFIG_NOT_APPLICABLE = @(
 )
 $INSTALL_CONFIG_PROMPT = 'Enter=Start full installation, 1-{0} or item key (e.g. R)=run only that item, B=Go back to edit, Q=Quit without saving'
 $INSTALL_CONFIG_NOT_APPLICABLE_TEXT = 'not applicable on Windows'
+$INSTALL_CONFIG_EDITOR_TITLE = 'Install the Windows Configuration'
+$INSTALL_CONFIG_EDITOR_CONTROLS = 'Up/Down=Navigate, Left/Right=Change value, Enter=Confirm, B=Back, Q=Quit'
+$INSTALL_CONFIG_SEPARATOR = '--------------------------------------'
+$INSTALL_CONFIG_RESULT_CONFIRM = 'confirm'
+$INSTALL_CONFIG_RESULT_CANCEL = 'cancel'
 
 . (Join-Path $INSTALL_CONFIG_MENU_DIR 'InstallItemRunner.ps1')
 
@@ -45,36 +51,105 @@ function Read-InstallConfigChoice {
     }
 }
 
+function Get-InstallConfigMode {
+    param([array]$Items)
+    $modeItem = $Items | Where-Object { $_.Var -eq $INSTALL_CONFIG_MODE_VAR } | Select-Object -First 1
+    $mode = Get-GlobalVar -key $INSTALL_CONFIG_MODE_VAR
+    if ($modeItem -and @($modeItem.Values) -notcontains $mode) { $mode = @($modeItem.Values)[0] }
+    return $mode
+}
+
+function Get-InstallItemPreset {
+    param([hashtable]$Item, [string]$Mode)
+    if ($Item.ContainsKey('Presets') -and $Item.Presets.ContainsKey($Mode)) { return $Item.Presets[$Mode] }
+    return @($Item.Values)[0]
+}
+
 function Get-InstallItemValue {
-    param([hashtable]$Item)
+    param([hashtable]$Item, [array]$Items)
     $value = Get-GlobalVar -key $Item.Var
-    if ([string]::IsNullOrWhiteSpace($value)) { $value = @($Item.Values)[0] }
+    if (@($Item.Values) -notcontains $value) {
+        if ($Item.Var -eq $INSTALL_CONFIG_MODE_VAR) { return (Get-InstallConfigMode -Items $Items) }
+        $value = Get-InstallItemPreset -Item $Item -Mode (Get-InstallConfigMode -Items $Items)
+    }
     return $value
 }
 
-function Invoke-InstallConfigEdit {
-    param([array]$Items)
-    $menuItems = @()
-    foreach ($item in $Items) {
-        $values = @($item.Values)
-        $index = [array]::IndexOf($values, (Get-InstallItemValue -Item $item))
-        if ($index -lt 0) { $index = 0 }
-        $menuItems += @{ Text = $item.Title; Values = $values; CurrentValueIndex = $index; Key = $item.Var; Action = { } }
+# Switching the mode resets every item that has presets to that mode's preset (Linux reset_to_mode_defaults)
+function Set-InstallConfigValue {
+    param([hashtable]$Item, [string]$Value, [array]$Items)
+    Set-GlobalVar -key $Item.Var -value $Value | Out-Null
+    if ($Item.Var -ne $INSTALL_CONFIG_MODE_VAR) { return }
+    foreach ($other in $Items) {
+        if ($other.ContainsKey('Presets') -and $other.Presets.ContainsKey($Value)) {
+            Set-GlobalVar -key $other.Var -value $other.Presets[$Value] | Out-Null
+        }
     }
-    $menuItems += @{ Text = 'Done'; Values = @('default'); CurrentValueIndex = 0; Key = $null; Action = { } }
-    do {
-        $picked = Invoke-InteractiveMenu -Items $menuItems -Title 'Edit configuration (Left/Right to change value, Enter on Done to finish)' -EnableValueToggle $true
-    } while ($picked -ge 0 -and $picked -lt ($menuItems.Count - 1))
+}
+
+function Step-InstallConfigValue {
+    param([hashtable]$Item, [int]$Direction, [array]$Items)
+    $values = @($Item.Values)
+    if ($values.Count -lt 2) { return }
+    $index = [array]::IndexOf($values, (Get-InstallItemValue -Item $Item -Items $Items))
+    if ($index -lt 0) { $index = 0 }
+    $index = ($index + $Direction + $values.Count) % $values.Count
+    Set-InstallConfigValue -Item $Item -Value $values[$index] -Items $Items
+}
+
+function Write-InstallConfigEditor {
+    param([array]$Items, [int]$Selected)
+    Clear-Host
+    Write-Host $INSTALL_CONFIG_EDITOR_TITLE -ForegroundColor Cyan
+    Write-Host ("Current Mode: {0}" -f (Get-InstallConfigMode -Items $Items))
+    Write-Host $INSTALL_CONFIG_SEPARATOR
+    Write-Host $INSTALL_CONFIG_EDITOR_CONTROLS
+    Write-Host $INSTALL_CONFIG_SEPARATOR
+    for ($i = 0; $i -lt $Items.Count; $i++) {
+        $line = "[{0}] {1,-36} [{2}]" -f $Items[$i].Key, $Items[$i].Title, (Get-InstallItemValue -Item $Items[$i] -Items $Items)
+        if ($i -eq $Selected) {
+            Write-Host ("> {0}" -f $line) -ForegroundColor Black -BackgroundColor White
+        } else {
+            Write-Host ("  {0}" -f $line)
+        }
+    }
+    foreach ($na in $INSTALL_CONFIG_NOT_APPLICABLE) {
+        Write-Host ("  [{0}] {1,-36} {2}" -f $na.Key, $na.Title, $INSTALL_CONFIG_NOT_APPLICABLE_TEXT) -ForegroundColor DarkGray
+    }
+}
+
+# Arrow-key editor (Linux selector_common.sh main loop); returns confirm or cancel
+function Invoke-InstallConfigEditor {
+    param([array]$Items)
+    $selected = 0
+    while ($true) {
+        Write-InstallConfigEditor -Items $Items -Selected $selected
+        try {
+            $keyInfo = [Console]::ReadKey($true)
+        } catch {
+            return $INSTALL_CONFIG_RESULT_CONFIRM
+        }
+        switch ($keyInfo.Key) {
+            'UpArrow'    { $selected = ($selected - 1 + $Items.Count) % $Items.Count }
+            'DownArrow'  { $selected = ($selected + 1) % $Items.Count }
+            'LeftArrow'  { Step-InstallConfigValue -Item $Items[$selected] -Direction -1 -Items $Items }
+            'RightArrow' { Step-InstallConfigValue -Item $Items[$selected] -Direction 1 -Items $Items }
+            'Enter'      { return $INSTALL_CONFIG_RESULT_CONFIRM }
+        }
+        $char = [string]$keyInfo.KeyChar
+        if ($char -ieq 'B' -or $char -ieq 'Q') { return $INSTALL_CONFIG_RESULT_CANCEL }
+    }
 }
 
 # Returns $true to start the installation (DD_RUN_ITEM set for a single item, cleared for full), $false to cancel
 function Show-InstallConfirmMenu {
     $items = @(Get-InstallItems)
+    if ((Invoke-InstallConfigEditor -Items $items) -ne $INSTALL_CONFIG_RESULT_CONFIRM) { return $false }
     while ($true) {
         Clear-Host
         Write-Host 'Confirm Configuration' -ForegroundColor Cyan
         for ($i = 0; $i -lt $items.Count; $i++) {
-            Write-Host ("{0}. [{1}] {2}: {3}" -f ($i + 1), $items[$i].Key, $items[$i].Title, (Get-InstallItemValue -Item $items[$i]))
+            Write-Host ("{0}. [{1}] {2}: {3}" -f ($i + 1), $items[$i].Key, $items[$i].Title, (Get-InstallItemValue -Item $items[$i] -Items $items))
         }
         foreach ($na in $INSTALL_CONFIG_NOT_APPLICABLE) {
             Write-Host ("      [{0}] {1,-36} {2}" -f $na.Key, $na.Title, $INSTALL_CONFIG_NOT_APPLICABLE_TEXT) -ForegroundColor DarkGray
@@ -86,7 +161,10 @@ function Show-InstallConfirmMenu {
             return $true
         }
         if ($choice -ieq 'Q') { return $false }
-        if ($choice -ieq 'B') { Invoke-InstallConfigEdit -Items $items; continue }
+        if ($choice -ieq 'B') {
+            if ((Invoke-InstallConfigEditor -Items $items) -ne $INSTALL_CONFIG_RESULT_CONFIRM) { return $false }
+            continue
+        }
 
         $picked = $null
         $number = 0

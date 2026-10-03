@@ -15,6 +15,7 @@ $item = @{
     Title = 'Database After Installation'
     Var   = 'DATABASE_ENGINE'
     Values = @('pg','none')
+    Presets = @{ base = 'pg'; server = 'pg'; full = 'pg'; desktop = 'none' }
     Steps = @(
         'Step17_InstallPostgreSQL.ps1'
     )
