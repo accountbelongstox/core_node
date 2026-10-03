@@ -425,7 +425,7 @@ class TerminalService:
         try:
             activation = self._backend.activate(window_id) if activate_window else {"success": True}
             action = (
-                self._backend.paste_and_submit(window_id, len(content), clear_first, interrupt_first, shell_prompt)
+                self._backend.paste_and_submit(window_id, len(text), clear_first, interrupt_first, shell_prompt)
                 if activation.get("success")
                 else activation
             )

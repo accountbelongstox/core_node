@@ -1603,7 +1603,9 @@ const PcTerminalNodeView: React.FC = () => {
         clearFirst,
         interruptFirst,
       ),
-      interruptFirst ? 'terminal.commands.forceSent' : clearFirst ? 'terminal.clearedAndSent' : 'terminal.sent',
+      interruptFirst
+        ? 'terminal.commands.forceSent'
+        : clearFirst ? (payload === '' ? 'terminal.clearedOnly' : 'terminal.clearedAndSent') : 'terminal.sent',
     );
     if (result?.log?.id) {
       dirtyDraftsRef.current.delete(terminalNumber);

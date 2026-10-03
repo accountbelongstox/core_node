@@ -356,7 +356,7 @@ def _cpu_info(psutil) -> dict:
     }
 
 
-def _battery_info(psutil) -> dict | None:
+def _battery_info(psutil):
     """Battery charge of this host, or None when it has no battery (desktops, servers)."""
     try:
         battery = psutil.sensors_battery() if psutil is not None else None

@@ -437,6 +437,7 @@ terminal: {
     sendEnterHint: 'Submit an empty command: paste nothing and just press Enter.',
     clearAndSend: 'Clear & send',
     clearAndSendHint: 'First clears the text already typed in the terminal input (Ctrl+K, then Ctrl+U across lines), then pastes and presses Enter.',
+    clearedOnly: 'Terminal input cleared.',
     clearedAndSent: 'Terminal input cleared, text pasted, submitted, and the clipboard restored.',
     quickKeys: 'Quick keys',
     sendOnce: {
