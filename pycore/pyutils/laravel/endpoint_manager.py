@@ -45,6 +45,7 @@ Architecture / layering (pycore rules):
 """
 
 import re
+import socket
 import time
 from typing import Any, Callable, Dict, List, Optional
 
@@ -80,7 +81,11 @@ from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 # --------------------------------------------------------------------------- #
 # Cache section this manager owns.
 ENDPOINT_CACHE_SECTION = "laravel_api"
+# The data directory is shared by both OSes of a dual-boot machine, each a
+# separate tailnet node: the selection is scoped to the running host.
+HOST_ENDPOINT_CACHE_SECTION = f"{ENDPOINT_CACHE_SECTION}@{(socket.gethostname() or 'host').strip().lower()}"
 ENDPOINT_CACHE_FILE_NAME = "laravel_endpoint_cache.json"
+UNRESOLVED_PLACEHOLDER_PATTERN = re.compile(r"\{[a-z_]+\}")
 FALLBACK_ENDPOINT = LARAVEL_WORKER_API_URL
 # laravel_main's cheap liveness route (no DB, no auth - see routes/api.php).
 HEALTH_PATH = queue_center_endpoint("laravel_health")
@@ -148,7 +153,7 @@ def _normalize(url: Optional[str]) -> str:
     two never show up as separate endpoints.
     """
     u = (url or "").strip()
-    if not u:
+    if not u or UNRESOLVED_PLACEHOLDER_PATTERN.search(u):
         return ""
     if not (u.startswith("http://") or u.startswith("https://")):
         u = "http://" + u
@@ -412,11 +417,15 @@ class LaravelEndpointManager:
         remain persistent.
         """
         cache_file_exists = endpoint_cache_store.path.is_file()
-        section = endpoint_cache_store.get_section(ENDPOINT_CACHE_SECTION) or {}
+        section = endpoint_cache_store.get_section(HOST_ENDPOINT_CACHE_SECTION) or {}
         migrated = False
-        if not section and not cache_file_exists:
-            section = user_data_store.get_section(ENDPOINT_CACHE_SECTION) or {}
-            migrated = bool(section)
+        if not section:
+            legacy = endpoint_cache_store.get_section(ENDPOINT_CACHE_SECTION) or {}
+            if not legacy and not cache_file_exists:
+                legacy = user_data_store.get_section(ENDPOINT_CACHE_SECTION) or {}
+            # A legacy shared selection may belong to the other OS's host.
+            section = {**legacy, "current": None, "selection_explicit": False} if legacy else {}
+            migrated = bool(legacy)
 
         current = _normalize(section.get("current")) or None
         stored_endpoints = [
@@ -496,7 +505,7 @@ class LaravelEndpointManager:
             frontend_endpoints,
         )
         endpoint_cache_store.set_section(
-            ENDPOINT_CACHE_SECTION,
+            HOST_ENDPOINT_CACHE_SECTION,
             {
                 "backend_endpoints": list(backend_endpoints),
                 "frontend_endpoints": list(frontend_endpoints),

@@ -197,6 +197,14 @@ headscale_lan_cert_machine() {
         echo "[domain] [MANUAL] No DNSPod token/module and no mkcert; cannot certify $DOMAIN_TS_DNSNAME"
         return 1
     fi
+    # Idempotent: keep a certificate that already covers the name for 30+ days.
+    if [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.crt" ] && [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.key" ] \
+        && openssl x509 -in "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.crt" -noout -checkend 2592000 >/dev/null 2>&1 \
+        && openssl x509 -in "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.crt" -noout -ext subjectAltName 2>/dev/null | grep -qF "DNS:$DOMAIN_TS_DNSNAME"; then
+        echo "[domain] [OK] mkcert (local CA) certificate for $DOMAIN_TS_DNSNAME still valid; kept"
+        domain_setup_lan_cert_paths_refresh
+        [ -n "$DOMAIN_LAN_TS_CERT" ] && return 0
+    fi
     echo "[domain] [WARN] No DNSPod token/module for DNS-01; using a mkcert (local CA) certificate for $DOMAIN_TS_DNSNAME"
     (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" -cert-file "$DOMAIN_TS_DNSNAME.crt" -key-file "$DOMAIN_TS_DNSNAME.key" "$DOMAIN_TS_DNSNAME" 2>&1) \
         | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done

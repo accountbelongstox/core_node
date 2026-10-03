@@ -67,9 +67,9 @@ public partial class ResourceMonitorBlock : UserControl
 
     private void BuildGrid()
     {
-        UsageGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) });
-        for (int c = 1; c < ColumnKeys.Length; c++)
-            UsageGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        double[] weights = { 1.0, 0.9, 1.6, 1.4, 0.8 };
+        for (int c = 0; c < ColumnKeys.Length; c++)
+            UsageGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(weights[c], GridUnitType.Star) });
         for (int r = 0; r <= RowGroups.Length; r++)
             UsageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (int c = 0; c < ColumnKeys.Length; c++)
