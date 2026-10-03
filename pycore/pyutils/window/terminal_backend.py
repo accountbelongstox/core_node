@@ -5,6 +5,8 @@ import time
 from contextlib import nullcontext
 from typing import Any, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from pycore.pyutils.window.screen_capture import get_primary_monitor_rect
+
 
 TERMINAL_SCROLL_PAGE_UP = "page_up"
 TERMINAL_SCROLL_PAGE_DOWN = "page_down"
@@ -80,6 +82,28 @@ POINTER_BUTTON_LEFT = 1
 POINTER_BUTTON_RIGHT = 3
 CONTROL_NONE = "none"
 FOCUS_UNSUPPORTED = "focus_unsupported"
+DESKTOP_WINDOW_ID = "desktop"
+# Desktop view key ids (UI) -> key names the backends press; a single a-z / 0-9 character is its own name.
+DESKTOP_KEY_NAMES = {
+    "enter": TERMINAL_KEY_ENTER,
+    "escape": "Escape",
+    "tab": "Tab",
+    "backspace": "BackSpace",
+    "delete": "Delete",
+    "space": "space",
+    "up": TERMINAL_KEY_UP,
+    "down": TERMINAL_KEY_DOWN,
+    "left": "Left",
+    "right": "Right",
+    "home": "Home",
+    "end": "End",
+    "page_up": "Prior",
+    "page_down": "Next",
+    "ctrl": "Control_L",
+    "alt": "Alt_L",
+    "shift": "Shift_L",
+}
+DESKTOP_KEY_MAX_COMBO = 4
 
 
 def focus_entry(source: str, key: str, window_id: str, title: str, restorable: bool = True, **extra: Any) -> Dict[str, Any]:
@@ -203,6 +227,64 @@ class TerminalWindowBackend:
         target_x = int(rectangle["x"]) + min(width - 1, max(0, int(horizontal_ratio * width)))
         target_y = int(rectangle["y"]) + min(height - 1, max(0, int(vertical_ratio * height)))
         return self._pointer_action(window, target_x, target_y, POINTER_BUTTON_LEFT)
+
+    def capture_desktop(self) -> Optional[Dict[str, Any]]:
+        """{image, rect} of the primary monitor, or None when the screen cannot be grabbed."""
+        rect = get_primary_monitor_rect()
+        if rect is None:
+            return None
+        region = {
+            "id": DESKTOP_WINDOW_ID,
+            "left": rect["x"],
+            "top": rect["y"],
+            "width": rect["width"],
+            "height": rect["height"],
+        }
+        image = self._capture([region]).get(DESKTOP_WINDOW_ID)
+        return None if image is None else {"image": image, "rect": rect}
+
+    def desktop_click(
+        self,
+        horizontal_ratio: float,
+        vertical_ratio: float,
+        button: int = POINTER_BUTTON_LEFT,
+        clicks: int = 1,
+    ) -> Dict[str, Any]:
+        rect = get_primary_monitor_rect()
+        if rect is None:
+            return failure("terminal_coordinates_unavailable")
+        window = self._desktop_window()
+        blocked = self._input_blocked(window)
+        if blocked:
+            return failure(blocked, window=window)
+        width = max(1, int(rect["width"]))
+        height = max(1, int(rect["height"]))
+        target_x = int(rect["x"]) + min(width - 1, max(0, int(horizontal_ratio * width)))
+        target_y = int(rect["y"]) + min(height - 1, max(0, int(vertical_ratio * height)))
+        for _index in range(max(1, int(clicks))):
+            if not self._click(window, target_x, target_y, button):
+                return failure("terminal_click_failed")
+        return success(window, point={"x": target_x, "y": target_y})
+
+    def desktop_key(self, key_names: Sequence[str]) -> Dict[str, Any]:
+        window = self._desktop_window()
+        blocked = self._input_blocked(window)
+        if blocked:
+            return failure(blocked, window=window)
+        with self._input_guard():
+            if not self._keys(window, list(key_names)):
+                return failure("terminal_key_failed")
+        return success(window)
+
+    def _desktop_window(self) -> Dict[str, Any]:
+        """Synthetic window standing for the whole desktop, for the pointer / key primitives."""
+        return {
+            "id": DESKTOP_WINDOW_ID,
+            "native_id": "0",
+            "control": CONTROL_NONE,
+            "controllable": True,
+            "process_id": 0,
+        }
 
     def navigate_history(self, window_id: str, direction: str) -> Dict[str, Any]:
         window, blocked = self._input_window(window_id)

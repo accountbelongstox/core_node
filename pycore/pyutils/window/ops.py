@@ -148,7 +148,8 @@ class WindowOps:
             'ESCAPE': 0x1B, 'ENTER': 0x0D, 'SPACE': 0x20, 'TAB': 0x09,
             'CTRL': 0x11, 'CONTROL': 0x11, 'SHIFT': 0x10, 'END': 0x23,
             'PRIOR': 0x21, 'NEXT': 0x22, 'HOME': 0x24,
-            'UP': 0x26, 'DOWN': 0x28, 'LEFT': 0x25, 'RIGHT': 0x27
+            'UP': 0x26, 'DOWN': 0x28, 'LEFT': 0x25, 'RIGHT': 0x27,
+            'BACKSPACE': 0x08, 'DELETE': 0x2E, 'ALT': 0x12
         }
     
     def _setup_function_signatures(self):

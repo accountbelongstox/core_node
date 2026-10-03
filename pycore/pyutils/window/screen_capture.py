@@ -32,6 +32,9 @@ TERMINAL_CAPTURE_MAX_HEIGHT = relay_contract.limit(
 TERMINAL_CAPTURE_PNG_COMPRESSION = relay_contract.limit(
     "terminal_screenshot_png_compression"
 )
+DESKTOP_VIEW_MAX_WIDTH = relay_contract.limit("desktop_view_max_width")
+DESKTOP_VIEW_MAX_HEIGHT = relay_contract.limit("desktop_view_max_height")
+DESKTOP_VIEW_JPEG_QUALITY = relay_contract.limit("desktop_view_jpeg_quality")
 screen_capture_activity_log = ActivityLog("ScreenCapture")
 
 
@@ -180,6 +183,47 @@ def encode_capture_png(image: "Image.Image", captured_at: int) -> Dict[str, Any]
         "height": image.height,
         "captured_at": captured_at,
     }
+
+
+def get_primary_monitor_rect() -> Optional[Dict[str, int]]:
+    """Return the primary monitor rectangle {x, y, width, height} in desktop pixels, or None."""
+    mss = get_third_package_mss()
+    MSS_ERRORS = (mss.ScreenShotError, OSError) if mss is not None else (OSError,)
+    try:
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]
+            return {
+                "x": int(monitor["left"]),
+                "y": int(monitor["top"]),
+                "width": int(monitor["width"]),
+                "height": int(monitor["height"]),
+            }
+    except MSS_ERRORS as e:
+        screen_capture_activity_log.error(
+            "primary_monitor_rect.read.failed",
+            error_type=type(e).__name__,
+            error=e,
+        )
+        return None
+
+
+def encode_desktop_jpeg(image: "Image.Image") -> bytes:
+    """Downscale a desktop capture to the desktop-view limits and encode it as JPEG."""
+    Image = get_third_package_PIL_Image()
+    width, height = image.size
+    scale = min(
+        1.0,
+        DESKTOP_VIEW_MAX_WIDTH / max(1, width),
+        DESKTOP_VIEW_MAX_HEIGHT / max(1, height),
+    )
+    if scale < 1.0:
+        image = image.resize(
+            (max(1, int(width * scale)), max(1, int(height * scale))),
+            Image.BILINEAR,
+        )
+    buffer = BytesIO()
+    image.convert("RGB").save(buffer, format="JPEG", quality=DESKTOP_VIEW_JPEG_QUALITY)
+    return buffer.getvalue()
 
 
 def get_primary_monitor_size() -> Optional[Tuple[int, int]]:

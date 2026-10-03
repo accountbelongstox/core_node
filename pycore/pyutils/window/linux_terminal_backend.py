@@ -17,8 +17,10 @@ from pycore.pyutils.common.input_method import input_method_bypassed
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.common.x11_display import X11Window, x11_display
 from pycore.pyutils.common.xdg_desktop_portal import xdg_desktop_portal
+from pycore.pyutils.window.screen_capture import grab_screen_regions
 from pycore.pyutils.window.terminal_backend import (
     CONTROL_NONE,
+    DESKTOP_WINDOW_ID,
     FOCUS_DELAY_SECONDS,
     FOCUS_READY_TIMEOUT_SECONDS,
     SCROLL_PAGE_KEYS,
@@ -217,6 +219,11 @@ class LinuxTerminalBackend(TerminalWindowBackend):
             lambda: bool(xdg_desktop_portal.key_combo(names).get("success")),
         )
 
+    def _desktop_window(self) -> Dict[str, Any]:
+        window = super()._desktop_window()
+        window["control"] = CONTROL_X11 if current_desktop_session().has_x11_display else CONTROL_GNOME_BRIDGE
+        return window
+
     def _input_target_ready(self, window: Dict[str, Any]) -> bool:
         if str(window["control"]) != CONTROL_X11:
             return True
@@ -268,7 +275,9 @@ class LinuxTerminalBackend(TerminalWindowBackend):
         for region in regions:
             window_id = str(region.get("id") or "")
             image = None
-            if window_id.startswith(X11_WINDOW_PREFIX):
+            if window_id == DESKTOP_WINDOW_ID:
+                image = grab_screen_regions([region]).get(window_id)
+            elif window_id.startswith(X11_WINDOW_PREFIX):
                 image = x11_display.capture(int(window_id[len(X11_WINDOW_PREFIX):], 16))
             elif window_id.startswith(GNOME_WINDOW_PREFIX):
                 png = gnome_shell_bridge.capture_png(window_id[len(GNOME_WINDOW_PREFIX):])

@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 import time
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -29,7 +30,12 @@ from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
 from pycore.pyutils.window.focus_guard import focus_guard
+from pycore.pyutils.window.screen_capture import encode_desktop_jpeg
 from pycore.pyutils.window.terminal_backend import (
+    DESKTOP_KEY_MAX_COMBO,
+    DESKTOP_KEY_NAMES,
+    POINTER_BUTTON_LEFT,
+    POINTER_BUTTON_RIGHT,
     TERMINAL_HISTORY_DIRECTIONS,
     TERMINAL_KEY_ACTIONS,
     TERMINAL_SCROLL_MODES,
@@ -40,6 +46,9 @@ from pycore.pyutils.window.terminal_platform import terminal_backend
 
 
 CLIPBOARD_RESTORE_DELAY_SECONDS = 0.12
+DESKTOP_CLICK_BUTTONS = frozenset((POINTER_BUTTON_LEFT, POINTER_BUTTON_RIGHT))
+DESKTOP_CLICK_MAX_COUNT = 2
+DESKTOP_KEY_CHARACTER = re.compile(r"[a-z0-9]")
 SCROLL_CAPTURE_DELAY_SECONDS = 0.28
 TERMINAL_EVENT_SCHEMA_VERSION = 1
 # Relay device events are capped at 64 KiB of canonical JSON; a snapshot that
@@ -228,6 +237,42 @@ class TerminalService:
 
     def desktop_integration(self, action: str) -> Dict[str, Any]:
         return self._backend.desktop_integration(action)
+
+    def read_desktop_screenshot(self) -> Optional[Dict[str, Any]]:
+        """Fresh JPEG of the primary monitor, grabbed only while a viewer asks for it."""
+        captured = self._backend.capture_desktop()
+        if captured is None:
+            return None
+        return {
+            "body": encode_desktop_jpeg(captured["image"]),
+            "mime": "image/jpeg",
+            "width": int(captured["rect"]["width"]),
+            "height": int(captured["rect"]["height"]),
+        }
+
+    @serialized_method
+    def desktop_click(
+        self,
+        horizontal_ratio: float,
+        vertical_ratio: float,
+        button: int,
+        clicks: int,
+    ) -> Dict[str, Any]:
+        if not (
+            0.0 <= horizontal_ratio <= 1.0
+            and 0.0 <= vertical_ratio <= 1.0
+        ):
+            return self._failure("terminal_click_coordinates_invalid")
+        if button not in DESKTOP_CLICK_BUTTONS or not 1 <= clicks <= DESKTOP_CLICK_MAX_COUNT:
+            return self._failure("terminal_click_coordinates_invalid")
+        return self._backend.desktop_click(horizontal_ratio, vertical_ratio, button, clicks)
+
+    @serialized_method
+    def desktop_key(self, keys: List[str]) -> Dict[str, Any]:
+        names = [DESKTOP_KEY_NAMES.get(key) or (key if DESKTOP_KEY_CHARACTER.fullmatch(key) else "") for key in keys]
+        if not names or len(names) > DESKTOP_KEY_MAX_COMBO or not all(names):
+            return self._failure("terminal_key_invalid")
+        return self._backend.desktop_key(names)
 
     def save_draft(self, terminal_number: int, text: str) -> Dict[str, Any]:
         if terminal_number <= 0:

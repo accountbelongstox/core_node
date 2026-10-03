@@ -81,6 +81,7 @@ NATIVE_KEY_NAMES = {
     TERMINAL_KEY_PAGE_DOWN: "NEXT",
     TERMINAL_KEY_ESCAPE: "ESCAPE",
     TERMINAL_KEY_TAB: "TAB",
+    "Alt_L": "ALT",
 }
 NATIVE_BUTTON_NAMES = {1: "left", 3: "right"}
 # A Linux shell prompt or path in the tab title (user@host:..., ~/..., /path) marks a WSL shell.
