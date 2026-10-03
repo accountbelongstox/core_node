@@ -11,6 +11,11 @@ from typing import Dict, List, Optional, Tuple
 
 TAIL_LINE_COUNT = 14
 TAIL_CHAR_LIMIT = 8192
+# A prompt whose options wrap a long command spans many lines: scan wider, then keep only the anchored prompt block.
+PROMPT_SCAN_LINE_COUNT = 60
+PROMPT_SCAN_CHAR_LIMIT = 16384
+PROMPT_LOOKBACK_LINES = 4
+PROMPT_ANCHOR_LINES = 3
 MIN_SIGNAL_COUNT = 2
 BASH_PROMPT_TAIL_LINES = 3
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
@@ -44,15 +49,30 @@ def _clean_line(line: str) -> str:
     return ANSI_ESCAPE_PATTERN.sub("", line).strip().strip(FRAME_CHARS).strip()
 
 
-def tail_lines(text: str) -> List[str]:
+def tail_lines(text: str, count: int = TAIL_LINE_COUNT, char_limit: int = TAIL_CHAR_LIMIT) -> List[str]:
     """Last non-empty, ANSI- and frame-stripped lines of the text."""
-    lines = [_clean_line(line) for line in text[-TAIL_CHAR_LIMIT:].replace("\r\n", "\n").replace("\r", "\n").split("\n")]
-    return [line for line in lines if line][-TAIL_LINE_COUNT:]
+    lines = [_clean_line(line) for line in text[-char_limit:].replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    return [line for line in lines if line][-count:]
+
+
+def _anchors_prompt(line: str) -> bool:
+    return bool(OPTION_YES_PATTERN.match(line) or OPTION_NEXT_PATTERN.match(line) or HINT_PATTERN.search(line))
+
+
+def prompt_lines(text: str) -> List[str]:
+    """Lines of the prompt at the bottom: from just above the last "1. Yes" to the end when an option or hint closes it, else the short tail."""
+    lines = tail_lines(text or "", PROMPT_SCAN_LINE_COUNT, PROMPT_SCAN_CHAR_LIMIT)
+    yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
+    if yes_positions:
+        block = lines[max(0, yes_positions[-1] - PROMPT_LOOKBACK_LINES):]
+        if any(_anchors_prompt(line) for line in block[-PROMPT_ANCHOR_LINES:]):
+            return block
+    return lines[-TAIL_LINE_COUNT:]
 
 
 def confirmation_prompt(text: str) -> Optional[str]:
     """Digest of the waiting prompt when the tail shows one, else None; at least two independent signals are required."""
-    lines = tail_lines(text or "")
+    lines = prompt_lines(text)
     if not lines:
         return None
     selected = any(SELECTED_YES_PATTERN.match(line) for line in lines)
@@ -72,7 +92,7 @@ def confirmation_prompt(text: str) -> Optional[str]:
 
 def default_yes_prompt(text: str) -> bool:
     """Only send Enter when a detected prompt has Yes as the default selection."""
-    lines = tail_lines(text)
+    lines = prompt_lines(text)
     if not lines or not confirmation_prompt(text):
         return False
     if any(SELECTED_OTHER_PATTERN.match(line) for line in lines):
@@ -86,7 +106,7 @@ def default_yes_prompt(text: str) -> bool:
 
 def second_yes_prompt(text: str) -> bool:
     """Detect a Yes choice whose second option suppresses future questions."""
-    lines = tail_lines(text)
+    lines = prompt_lines(text)
     yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
     if not yes_positions:
         return False
@@ -108,7 +128,7 @@ def second_yes_prompt(text: str) -> bool:
 
 
 def second_yes_selected(text: str) -> bool:
-    lines = tail_lines(text)
+    lines = prompt_lines(text)
     yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
     if not yes_positions:
         return False
@@ -119,7 +139,7 @@ def second_yes_selected(text: str) -> bool:
 
 
 def bash_command_prompt(text: str) -> bool:
-    lines = tail_lines(text)
+    lines = prompt_lines(text)
     return len(lines) >= 2 and any(
         BASH_COMMAND_PATTERN.match(line) for line in lines[-BASH_PROMPT_TAIL_LINES:-1]
     )
@@ -130,7 +150,7 @@ def waiting_prompt(text: str) -> Optional[str]:
     if digest:
         return digest
     if second_yes_prompt(text) or bash_command_prompt(text):
-        return hashlib.sha256("\n".join(tail_lines(text)).encode("utf-8", "replace")).hexdigest()
+        return hashlib.sha256("\n".join(prompt_lines(text)).encode("utf-8", "replace")).hexdigest()
     return None
 
 

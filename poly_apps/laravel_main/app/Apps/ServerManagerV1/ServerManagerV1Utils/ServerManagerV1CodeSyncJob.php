@@ -216,12 +216,17 @@ class ServerManagerV1CodeSyncJob
             }
 
             $state = self::advance($state, 'reload');
-            $reload = self::restartWorkers();
-            $state['workers_reloaded'] = $reload['success'];
-            if (!$reload['success']) {
-                $state['reload_detail'] = $reload['detail'];
+            if (!self::workersNeedRestart($state['commit_before'], $state['commit_after'] ?? null)) {
+                $state['workers_reloaded'] = false;
+                $state['reload_skipped'] = true;
+            } else {
+                $reload = self::restartWorkers();
+                $state['workers_reloaded'] = $reload['success'];
+                if (!$reload['success']) {
+                    $state['reload_detail'] = $reload['detail'];
 
-                return self::fail($state, 'reload_failed');
+                    return self::fail($state, 'reload_failed');
+                }
             }
         } catch (\Throwable $exception) {
             $state['error_detail'] = $exception->getMessage();
@@ -298,6 +303,34 @@ class ServerManagerV1CodeSyncJob
         $parts = explode(self::FIELD_SEPARATOR, $line, 3);
 
         return count($parts) === 3 ? ['commit' => $parts[0], 'date' => $parts[1], 'subject' => $parts[2]] : null;
+    }
+
+    /**
+     * A worker restart re-enters FrankenPHP's thread reboot path, which can crash the
+     * whole process (php/frankenphp#2568, exit 139), so restart only when the pulled
+     * commits touch what the workers load (code_sync.reload_paths). Fails safe to true.
+     */
+    private static function workersNeedRestart(?string $before, ?string $after): bool
+    {
+        $pathspecs = [];
+        $result = [];
+
+        if ($before === null || $after === null) {
+            return true;
+        }
+        if ($before === $after) {
+            return false;
+        }
+        $pathspecs = array_merge(
+            ServiceContract::stringList('code_sync.reload_paths'),
+            array_map(
+                static fn (string $path): string => ':(exclude)'.$path,
+                ServiceContract::stringList('code_sync.reload_excluded_paths'),
+            ),
+        );
+        $result = self::git(array_merge(['diff', '--name-only', $before, $after, '--'], $pathspecs));
+
+        return !$result['success'] || trim((string) $result['output']) !== '';
     }
 
     private static function restartWorkers(): array
