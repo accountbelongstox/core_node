@@ -20,6 +20,7 @@ type Translate = (key: string, replacements?: Record<string, string | number>) =
 const UNREACHABLE_ACCESS: PycoreAccess = { kind: 'unreachable' };
 const ACCESS_HINT_KEYS: Record<PycoreAccess['kind'], string> = {
   relay_only: 'ttsPriority.relayOnly',
+  lan_page: 'ttsPriority.lanPage',
   origin_not_allowed: 'ttsPriority.originNotAllowed',
   host_forbidden: 'ttsPriority.hostForbidden',
   origin_forbidden: 'ttsPriority.originForbidden',
@@ -32,6 +33,7 @@ function accessHint(access: PycoreAccess, trans: Translate): string {
     origin: window.location.origin,
     code: 'code' in access ? access.code : '',
     ports: access.kind === 'origin_not_allowed' ? access.ports.join(' / ') : '',
+    url: access.kind === 'lan_page' ? access.url : '',
   });
 }
 

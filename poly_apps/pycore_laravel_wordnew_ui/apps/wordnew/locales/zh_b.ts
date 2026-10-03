@@ -555,6 +555,7 @@ export const zhLocaleB: Record<string, string> = {
     'ttsPriority.saveFailed': '保存失败，请重试。',
     'ttsPriority.unreachable': 'TTS 优先级不可用 -- 后端可能已离线。',
     'ttsPriority.relayOnly': 'TTS 优先级需要 pycore，但此页面不在 pycore 所在机器上。pycore 只接受来自 localhost 的浏览器直连，请通过 HTTPS Relay 入口打开 WordNew。',
+    'ttsPriority.lanPage': 'TTS 优先级需要 pycore，但此页面所在主机上的 pycore（{url}）无法访问，或未放行此浏览器。其他设备直连需要开启 pycore 局域网绑定并使用已签名的调用方；否则请通过 tailnet 机器或 HTTPS Relay 入口打开 WordNew。',
     'ttsPriority.originNotAllowed': 'pycore 未响应此页面（{origin}）。pycore 只接受 localhost 上端口 {ports} 的浏览器页面，请在该端口打开 WordNew，或使用 HTTPS Relay 入口。',
     'ttsPriority.hostForbidden': 'pycore 拒绝了此页面（{code}）：请求的 Host 不是回环地址。请在 pycore 所在机器上通过 localhost 打开 WordNew，或使用 HTTPS Relay 入口。',
     'ttsPriority.originForbidden': 'pycore 拒绝了此页面来源 {origin}（{code}）。请在 pycore 所在机器上通过控制台端口打开 WordNew，或使用 HTTPS Relay 入口。',
