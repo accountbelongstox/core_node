@@ -211,6 +211,7 @@ rpcAccess: {
     originHint: 'pycore does not answer this page ({{origin}}). pycore accepts browser pages only from localhost on port {{ports}}; open the UI there or use the HTTPS relay entry.',
     hostForbidden: 'pycore rejected this page: the request Host is not a loopback name. Open the UI through localhost or 127.0.0.1 on the pycore machine.',
     originForbidden: 'pycore rejected this page origin ({{origin}}). Open the UI on the pycore machine through a dashboard port, or use the HTTPS relay entry.',
+    lanPage: 'pycore at this page host ({{url}}) is not reachable or did not admit this browser. Direct access from another device needs the pycore LAN bind and a signed caller; otherwise manage it through a tailnet machine or an HTTPS relay entry.',
   },
 pycoreTarget: {
     chipTitle: 'Choose which pycore node this UI manages',

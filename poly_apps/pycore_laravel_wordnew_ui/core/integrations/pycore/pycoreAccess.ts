@@ -8,8 +8,10 @@ import { PycoreHttpError } from './PycoreClient';
 import {
   isPycoreDashboardOrigin,
   isPycoreDirectAccessAllowed,
+  isPycorePageHostTarget,
   isPycoreProxyMode,
   isPycoreRelayMode,
+  pageHostBackendUrl,
   pycoreDashboardOriginPorts,
 } from './pycoreTarget';
 
@@ -20,12 +22,15 @@ const LOCAL_RPC_REJECTIONS = Object.keys(LOCAL_RPC_ERROR_CODES) as LocalRpcRejec
 export type PycoreAccess =
   | { kind: LocalRpcRejection | 'client_key_rejected'; code: string }
   | { kind: 'relay_only' }
+  | { kind: 'lan_page'; url: string }
   | { kind: 'origin_not_allowed'; ports: string[] }
   | { kind: 'unreachable' };
 
 function pageAccessIssue(): PycoreAccess | null {
   if (isPycoreRelayMode() || isPycoreProxyMode()) return null;
   if (!isPycoreDirectAccessAllowed()) return { kind: 'relay_only' };
+  const pageHost = pageHostBackendUrl();
+  if (pageHost) return { kind: 'lan_page', url: pageHost };
   if (!isPycoreDashboardOrigin()) return { kind: 'origin_not_allowed', ports: pycoreDashboardOriginPorts() };
   return null;
 }
@@ -40,7 +45,10 @@ export function classifyPycoreAccess(error?: unknown): PycoreAccess | null {
   const code = error instanceof PycoreHttpError ? error.code : '';
   const localRpcKind = code ? LOCAL_RPC_REJECTIONS.find((kind) => LOCAL_RPC_ERROR_CODES[kind] === code) : undefined;
   if (localRpcKind) return { kind: localRpcKind, code };
-  if (code && CLIENT_KEY_ERROR_CODES.includes(code)) return { kind: 'client_key_rejected', code };
+  if (code && CLIENT_KEY_ERROR_CODES.includes(code)) {
+    const pageHost = pageHostBackendUrl();
+    return pageHost && isPycorePageHostTarget() ? { kind: 'lan_page', url: pageHost } : { kind: 'client_key_rejected', code };
+  }
   const pageIssue = pageAccessIssue();
   if (pageIssue) return pageIssue;
   return error === undefined ? null : { kind: 'unreachable' };

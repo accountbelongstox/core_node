@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Symfony\Component\Mime\MimeTypes;
 
 final class CloudClipboardService
 {
@@ -132,7 +133,8 @@ final class CloudClipboardService
     {
         return [
             'id' => $entry->id, 'text' => $entry->text,
-            'files' => json_decode($entry->files, true, 512, JSON_THROW_ON_ERROR),
+            'files' => array_map(fn (array $file) => $file + ['extension' => $this->fileExtension($file)],
+                json_decode($entry->files, true, 512, JSON_THROW_ON_ERROR)),
             'revision' => (int) $entry->revision,
             'created_at' => $entry->created_at, 'updated_at' => $entry->updated_at,
         ];
@@ -325,6 +327,23 @@ final class CloudClipboardService
     private function filePath(string $id): string
     {
         return PathMapper::getLaravelUploadsDir(Contract::get('upload_subdirectory').'/'.$id);
+    }
+
+    public function inlineMime(array $file): bool
+    {
+        return in_array((string) ($file['mime_type'] ?? ''), Contract::get('inline_mime_types'), true);
+    }
+
+    public function fileExtension(array $file): string
+    {
+        $name = strtolower(pathinfo((string) ($file['original_name'] ?? ''), PATHINFO_EXTENSION));
+        $known = MimeTypes::getDefault()->getExtensions((string) ($file['mime_type'] ?? ''));
+
+        if (preg_match('/^[a-z0-9]{1,16}$/D', $name) === 1 && (!$this->inlineMime($file) || in_array($name, $known, true))) {
+            return $name;
+        }
+
+        return $known[0] ?? Contract::get('fallback_file_extension');
     }
 
     public function file(Request $request): array

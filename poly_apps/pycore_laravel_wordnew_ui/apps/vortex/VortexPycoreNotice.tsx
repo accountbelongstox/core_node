@@ -27,6 +27,7 @@ export const VortexPycoreNotice: React.FC<Props> = ({ failure, unreachableText }
         origin: window.location.origin,
         code: 'code' in access ? access.code : '',
         ports: access.kind === 'origin_not_allowed' ? access.ports.join(' / ') : '',
+        url: access.kind === 'lan_page' ? access.url : '',
       });
 
   return (

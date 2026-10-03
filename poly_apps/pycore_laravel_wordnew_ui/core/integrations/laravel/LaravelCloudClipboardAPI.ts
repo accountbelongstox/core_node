@@ -1,4 +1,4 @@
-import { CLOUD_CLIPBOARD, type CloudClipboardAction, type CloudClipboardSnapshot, type CloudClipboardEntry } from '../../contracts/CloudClipboardContract';
+import { CLOUD_CLIPBOARD, type CloudClipboardAction, type CloudClipboardFile, type CloudClipboardSnapshot, type CloudClipboardEntry } from '../../contracts/CloudClipboardContract';
 import { BaseAPI } from './transport/BaseAPI';
 import { createLaravelModuleConfig } from './transport/ApiContract';
 import { readLaravelResponse, resolveLaravelBaseURL, withQuery } from './LaravelRequest';
@@ -60,15 +60,18 @@ export class LaravelCloudClipboardAPI {
     });
   }
 
-  /** Direct download URL of an uploaded file on the selected Laravel server. */
-  fileUrl(entryId: string, fileId: string): string {
-    return `${resolveLaravelBaseURL()}${withQuery(`${CLOUD_CLIPBOARD.api_prefix}/file`, {
-      [CLOUD_CLIPBOARD.namespace_query]: this.namespace, entry_id: entryId, file_id: fileId,
-    })}`;
+  /** Direct URL of an uploaded file on the selected Laravel server; ends with the file extension when the server reports it. */
+  fileUrl(entryId: string, file: CloudClipboardFile): string {
+    const base = `${resolveLaravelBaseURL()}${CLOUD_CLIPBOARD.api_prefix}/${CLOUD_CLIPBOARD.file_path}`;
+    if (!file.extension) {
+      return withQuery(base, { [CLOUD_CLIPBOARD.namespace_query]: this.namespace, entry_id: entryId, file_id: file.id });
+    }
+    return [base, this.namespace, entryId, `${file.id}.${file.extension}`]
+      .filter(Boolean).map((part, index) => (index === 0 ? part : encodeURIComponent(part))).join('/');
   }
 
   async file(entryId: string, fileId: string): Promise<Blob> {
-    const response = await this.raw(withQuery('file', { entry_id: entryId, file_id: fileId }));
+    const response = await this.raw(withQuery(CLOUD_CLIPBOARD.file_path, { entry_id: entryId, file_id: fileId }));
     if (!response.ok) await readLaravelResponse(response, 'file');
     return response.blob();
   }

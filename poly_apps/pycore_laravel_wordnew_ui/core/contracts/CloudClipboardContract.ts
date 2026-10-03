@@ -8,6 +8,7 @@ export interface CloudClipboardFile {
   mime_type: string;
   size: number;
   uploaded_at: string;
+  extension?: string;
 }
 
 export interface CloudClipboardEntry {

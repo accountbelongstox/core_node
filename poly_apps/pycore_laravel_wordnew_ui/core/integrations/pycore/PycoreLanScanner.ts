@@ -7,7 +7,7 @@
  * runs pycore but refuses this caller (K7); silent hosts are skipped.
  */
 import { protocolFetch } from '../../network/ProtocolFetch';
-import { PYCORE_BACKEND_PORT } from './pycoreEndpoints';
+import { PYCORE_BACKEND_PORT, pycoreHttpProto } from './pycoreEndpoints';
 import { PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import { recordPycoreProbe } from './PycoreEndpointProbe';
 import { pycoreLanSignHeaders } from './pycoreLanAuth';
@@ -16,7 +16,7 @@ export type LanScanState = 'up' | 'refused' | 'no_route';
 
 export interface LanScanResult {
   host: string;
-  /** Direct backend URL (`http://<host>:59000`). */
+  /** Direct backend URL (`<scheme>://<host>:59000`). */
   url: string;
   state: LanScanState;
   ms: number;
@@ -48,7 +48,7 @@ export function lanScanHosts(address: string): string[] {
 }
 
 async function probe(host: string, port: number, timeoutMs: number, signal?: AbortSignal): Promise<LanScanResult | null> {
-  const url = `http://${host}:${port}`;
+  const url = `${pycoreHttpProto()}://${host}:${port}`;
   const controller = new AbortController();
   const stop = (): void => controller.abort();
   const timer = setTimeout(stop, timeoutMs);

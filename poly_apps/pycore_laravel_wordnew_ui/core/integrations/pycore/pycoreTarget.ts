@@ -20,6 +20,7 @@ import {
   PYCORE_BACKEND_PORT,
   buildPycoreHttpUrl,
   normalizePycorePath,
+  pycoreHttpProto,
 } from './pycoreEndpoints';
 import { RELAY_CONTRACT } from '../../contracts/RelayContract';
 import {
@@ -115,12 +116,13 @@ export function normalizePycoreBackendUrl(input: string): string | null {
   const raw = (input || '').trim();
   if (!raw) return null;
   const hasScheme = /^https?:\/\//i.test(raw);
-  const parsed = parseBackendUrl(hasScheme ? raw : `http://${raw}`);
+  const scheme = pycoreHttpProto();
+  const parsed = parseBackendUrl(hasScheme ? raw : `${scheme}://${raw}`);
   if (!parsed || !parsed.hostname) return null;
   if (!hasScheme && !parsed.port && urlPath(parsed) === '') {
     return tailnetDomainOf(parsed.hostname)
       ? `https://${parsed.hostname}${PROXY_PATH}`
-      : `http://${parsed.hostname}:${PYCORE_BACKEND_PORT}`;
+      : `${scheme}://${parsed.hostname}:${PYCORE_BACKEND_PORT}`;
   }
   const path = urlPath(parsed);
   // A tailnet URL on a former pycore mount names the current mount.
@@ -128,9 +130,29 @@ export function normalizePycoreBackendUrl(input: string): string | null {
   return `${parsed.protocol}//${parsed.host}${mount}`;
 }
 
-/** K7a: browsers reach pycore directly only from a loopback page on the pycore machine. */
+/**
+ * The backend a non-loopback page derives from its own origin: `<page scheme>://<page host>:59000`.
+ * Null on loopback, tailnet and native pages and on domain-served HTTPS pages (those use the relay).
+ */
+export function pageHostBackendUrl(): string | null {
+  if (typeof location === 'undefined' || isNativeAppShell() || isLoopbackPage() || pageTailnetDomain()) return null;
+  if (relayBackendPreset()) return null;
+  const parsed = parseBackendUrl(location.origin);
+  if (!parsed || !parsed.hostname || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) return null;
+  parsed.port = String(PYCORE_BACKEND_PORT);
+  return parsed.origin;
+}
+
+/** True when the active target is the backend derived from this page's host. */
+export function isPycorePageHostTarget(): boolean {
+  const pageHost = pageHostBackendUrl();
+  const target = readTarget();
+  return pageHost !== null && target.kind === 'direct' && target.url === pageHost;
+}
+
+/** K7a: a loopback page, or a page whose own host is offered as a candidate (K3 still decides on pycore). */
 export function isPycoreDirectAccessAllowed(): boolean {
-  return isLoopbackPage();
+  return isLoopbackPage() || pageHostBackendUrl() !== null;
 }
 
 /**
@@ -158,6 +180,7 @@ function isAllowedTarget(target: PycoreTarget): boolean {
   // proxy page can never be switched into relay mode by a stored or typed URL.
   if (target.kind === 'relay') return relayBackendPreset()?.url === target.url;
   if (target.kind === 'proxy') return isProxyAllowed(parsed.hostname);
+  if (target.kind === 'direct' && target.url === pageHostBackendUrl()) return true;
   // A native shell reaches LAN machines through the native HTTP stack (the K7
   // gate on pycore still decides whether it is admitted).
   if (isNativeAppShell() && isPrivateLanHost(parsed.hostname)) return true;
@@ -447,6 +470,8 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
   if (isLoopbackPage()) {
     candidates.push({ kind: 'direct', url: directEndpointUrl(localPycoreHost()), label: localPycoreHost(), source: 'this_machine' });
   }
+  const pageHost = pageHostBackendUrl();
+  if (pageHost) candidates.push({ kind: 'direct', url: pageHost, label: location.hostname, source: 'this_machine' });
   getServiceUrlEntries().forEach((entry) => {
     const endpoint = contractMachineEndpoint(entry);
     if (endpoint) candidates.push(endpoint);
