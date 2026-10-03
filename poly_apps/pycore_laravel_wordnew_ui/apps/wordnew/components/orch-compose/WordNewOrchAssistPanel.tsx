@@ -34,6 +34,27 @@ function planLanguages(session: OrchComposeSession | null): string[] {
   return [...languages];
 }
 
+interface BookLaneRow {
+  lane: typeof SENTENCE_LANE | typeof WORD_LANE;
+  language: string;
+  total: number;
+  pending: number;
+}
+
+/** What this composition still lacks per lane and language (from the run's own plan and delivered clips). */
+function bookRemaining(session: OrchComposeSession | null): BookLaneRow[] {
+  const rows = new Map<string, BookLaneRow>();
+  session?.plan?.resources.forEach((resource) => {
+    const lane = resource.kind === 'word' ? WORD_LANE : SENTENCE_LANE;
+    const key = `${lane}|${resource.language}`;
+    const row = rows.get(key) ?? { lane, language: resource.language, total: 0, pending: 0 };
+    row.total += 1;
+    if (!session.clips.has(resource.key)) row.pending += 1;
+    rows.set(key, row);
+  });
+  return [...rows.values()].sort((left, right) => left.lane.localeCompare(right.lane) || left.language.localeCompare(right.language));
+}
+
 function nodeSummary(lane: WordNewAssistLane | undefined, trans: Props['trans']): string {
   if (!lane) return '';
   const online = lane.online.gpu + lane.online.cpu;
@@ -55,9 +76,10 @@ export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans,
   const assist = useWordNewAssistStatus(languages);
   const pycoreNodes = useWordNewPycoreNodes();
   const paused = assist.gate.schema === 'pending';
-  const progress = bookPlanned ? [] : languages.map((language) => [language, assist.sentenceProgress[language]] as const).filter(([, row]) => row);
+  const book = useMemo(() => (bookPlanned ? bookRemaining(session) : []), [bookPlanned, session?.plan, session?.table?.version]); // eslint-disable-line react-hooks/exhaustive-deps
+  const progress = languages.map((language) => [language, assist.sentenceProgress[language]] as const).filter(([, row]) => row);
 
-  if (!paused && progress.length === 0 && assist.nodes !== 'ready') return null;
+  if (!paused && progress.length === 0 && book.length === 0 && assist.nodes !== 'ready') return null;
 
   return (
     <OrchPanel theme={theme} label={trans('orchAssist.title')} className="space-y-1.5 text-[11px]">
@@ -68,10 +90,19 @@ export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans,
           <span>{trans('orchAssist.paused', { seconds: assist.gate.retryAfterSeconds })}</span>
         </p>
       )}
-      {!paused && progress.map(([language, row]) => (
-        <div key={language} className="space-y-0.5">
+      {!paused && book.map((row) => (
+        <div key={`${row.lane}|${row.language}`} className="space-y-0.5">
           <div className="flex items-center justify-between gap-2 text-zinc-600 dark:text-zinc-300">
-            <span>{trans('orchAssist.sentences', { language, pending: row.pending, failed: row.failed, done: row.done, total: row.total })}</span>
+            <span>{trans('orchAssist.book', { lane: trans(`orchAssist.lane.${row.lane}`), language: row.language, pending: row.pending, done: row.total - row.pending, total: row.total })}</span>
+            <span className="font-mono text-zinc-500">{Math.round(((row.total - row.pending) / Math.max(1, row.total)) * 100)}%</span>
+          </div>
+          <ProgressBar done={row.total - row.pending} total={row.total} tone="emerald" />
+        </div>
+      ))}
+      {!paused && progress.map(([language, row]) => (
+        <div key={language} className={`space-y-0.5 ${bookPlanned ? 'opacity-70' : ''}`}>
+          <div className="flex items-center justify-between gap-2 text-zinc-600 dark:text-zinc-300">
+            <span>{trans(bookPlanned ? 'orchAssist.sentencesGlobal' : 'orchAssist.sentences', { language, pending: row.pending, failed: row.failed, done: row.done, total: row.total })}</span>
             <span className="font-mono text-zinc-500">{queueProgressPercent(row)}%</span>
           </div>
           <ProgressBar done={row.done} total={row.total} tone="sky" />

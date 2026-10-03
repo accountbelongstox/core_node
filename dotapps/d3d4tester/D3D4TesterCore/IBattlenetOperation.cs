@@ -41,7 +41,7 @@ public interface IBattlenetOperation
     /// <summary>Click Play / Start game button.</summary>
     bool ClickStartGame();
 
-    /// <summary>Current UI state: on_login, disconnected, normal_available (D3 tab+Play), play_button_name, connecting, region. 1:1 Python get_dynamic_state().</summary>
+    /// <summary>Current UI state: on_login, disconnected, normal_available (logged-in main UI by avatar presence), play_button_name, connecting, region. 1:1 Python get_dynamic_state().</summary>
     BattlenetDynamicState GetDynamicState();
 
     /// <summary>If in-UI popup or reconnect banner is present, find and click to close. 1:1 Python try_close_popup.</summary>

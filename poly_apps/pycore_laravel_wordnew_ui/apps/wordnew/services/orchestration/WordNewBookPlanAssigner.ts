@@ -39,10 +39,10 @@ export function defaultDirectShare(): Record<AudioLaneKey, number> {
 
 const rateOf = (node: WorkNode, lane: AudioLaneKey): number => Math.max(1, Number(node.lane_rates?.[lane] ?? node.done_per_hour) || 0);
 
-/** Clips a node of `rate` items per hour works through in the contract horizon. */
-function windowOf(rate: number): number {
+/** Clips a node of `rate` items per hour works through in the contract horizon, never fewer than one lease batch (the node's next claim stays inside the plan). */
+function windowOf(rate: number, leaseBatch = 0): number {
   const clips = Math.ceil(rate * AUDIO_ORCH_BOOK_PLAN.assignmentHorizonMinutes / MINUTES_PER_HOUR);
-  return Math.max(AUDIO_ORCH_BOOK_PLAN.assignmentMinClips, Math.min(AUDIO_ORCH_BOOK_PLAN.assignmentWindowMax, clips));
+  return Math.max(AUDIO_ORCH_BOOK_PLAN.assignmentMinClips, Math.min(AUDIO_ORCH_BOOK_PLAN.assignmentWindowMax, Math.max(clips, leaseBatch)));
 }
 
 function median(values: number[]): number {
@@ -85,7 +85,7 @@ export function buildAssignment({ roster, directHost, languages }: AssignmentInp
     direct[lane] = directWindow;
     if (directWindow > 0) windows.push(...perLanguage(AUDIO_ORCH_BOOK_PLAN.directSid, lane, wanted, directWindow));
     for (const entry of nodes) {
-      const own = windowOf(rateOf(entry.node, lane)) - (entry === machine ? directWindow : 0);
+      const own = windowOf(rateOf(entry.node, lane), Number(entry.node.batch_size) || 0) - (entry === machine ? directWindow : 0);
       windows.push(...perLanguage(entry.node.sid as string, lane, entry.served, own));
     }
   }

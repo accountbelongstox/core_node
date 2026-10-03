@@ -89,10 +89,6 @@ public sealed class BattlenetOperationAsia : BattlenetOperationBase
         return ctrl != null && PlayButtonIndicatesStarting(ctrl);
     }
 
-    public override BattlenetDynamicState GetDynamicState()
-        => ComputeDynamicState(C.LoginWindowAutomationIdMarkersAsia, C.LoginScreenKeywordsFallbackAsia,
-            C.D3TabAutomationIdsAsia, C.D3TabNameKeywordsFallbackAsia, C.StartGameAutomationIdsAsia, C.StartGameNameKeywordsFallbackAsia);
-
     public override bool IsOnLoginScreen() => false;
 
     public override bool IsOnAsiaLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight()).IsAsiaLoginUi();

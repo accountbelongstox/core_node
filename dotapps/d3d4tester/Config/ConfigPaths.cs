@@ -14,5 +14,7 @@ public static class ConfigPaths
         ".core_node", ".d3check");
 
     public static string CurrentUserDataPath => UserDataDir;
+    /// <summary>Daily app log files (ColorPrinter file log).</summary>
+    public static string LogDirectory => Path.Combine(UserDataDir, "logs");
     public static string ConfigUserPath => Path.Combine(UserDataDir, "d3check_config.json");
 }

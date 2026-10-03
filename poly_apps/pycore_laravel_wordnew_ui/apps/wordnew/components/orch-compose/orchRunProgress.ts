@@ -6,7 +6,9 @@ export interface OrchRunProgress {
   /** The run's counters, never going down across runs of the same plan. */
   counts: OrchResolveCounts | undefined;
   total: number;
+  /** Clips with a final answer this run (on the device or reported missing). */
   settled: number;
+  /** Share of clips that are on the device: missing ones (waiting for generation) do not count. */
   percent: number;
   /** Clips being transferred right now. */
   loading: number;
@@ -22,5 +24,6 @@ export function orchRunProgress(session: OrchComposeSession | null): OrchRunProg
   const counts = session ? floorOrchCounts(session.planHash, session.counts) : undefined;
   const total = counts?.total ?? 0;
   const settled = total - (counts?.pending ?? 0);
-  return { counts, total, settled, percent: orchShare(settled, total), loading: session?.table?.loading.size ?? 0 };
+  const resolved = settled - (counts?.missing ?? 0);
+  return { counts, total, settled, percent: orchShare(resolved, total), loading: session?.table?.loading.size ?? 0 };
 }

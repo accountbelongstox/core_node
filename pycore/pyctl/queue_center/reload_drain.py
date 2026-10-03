@@ -24,4 +24,10 @@ def is_idle() -> bool:
     return all(worker.inflight_count() == 0 for worker in _workers())
 
 
-__all__ = ["begin_drain", "is_idle"]
+def keepalive() -> None:
+    """Refresh each lane's server registration so a long drain keeps the node online."""
+    for worker in _workers():
+        worker.keep_registered()
+
+
+__all__ = ["begin_drain", "is_idle", "keepalive"]

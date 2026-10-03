@@ -25,11 +25,14 @@ public partial class App : Application
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 
+    private const string AppLogFilePrefix = "d3d4tester";
+
     private void App_Startup(object sender, StartupEventArgs e)
     {
         var (bridgeOnly, host, port) = ParseArgs(e.Args);
         SetAppUserModelId();
         Exit += App_Exit;
+        ColorPrinter.EnableFileLog(ConfigPaths.LogDirectory, AppLogFilePrefix);
         if (!SystemInitializer.Initialize(guiMode: !bridgeOnly))
         {
             ColorPrinter.Red("[MAIN] System initialization failed, exiting...");

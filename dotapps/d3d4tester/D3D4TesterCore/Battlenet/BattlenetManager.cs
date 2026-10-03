@@ -87,7 +87,7 @@ public sealed class BattlenetManager
         string exe = region != null && File.Exists(launcher) ? launcher : battlenetExePath;
         string args = region == null ? "" : string.Format(BattlenetConstants.SetRegionArgFormat,
             region == BattlenetConstants.RegionCn ? BattlenetConstants.SetRegionCodeCn : BattlenetConstants.SetRegionCodeAsia);
-        ColorPrinter.Blue($"{LogPrefix} Starting Battle.net: {exe} {args}");
+        ColorPrinter.Yellow($"{LogPrefix} Starting Battle.net: {exe} {args} caller: {DescribeCaller()}");
         try
         {
             // Outside our job object: a dotnet watch restart / app exit must not take Battle.net down with it.
@@ -115,11 +115,18 @@ public sealed class BattlenetManager
             ColorPrinter.Yellow($"{LogPrefix} Not closing Battle.net: {status.State} (user is logging in / entering the code)");
             return false;
         }
-        ColorPrinter.Blue($"{LogPrefix} Killing Battle.net...");
+        ColorPrinter.Yellow($"{LogPrefix} Killing Battle.net (state {BattlenetClientStateDetector.Detect().State}, force={force}) caller: {DescribeCaller()}");
         bool ok = ProcessUtil.KillProcessByExe(BattlenetConstants.BattlenetExeName, BattlenetConstants.KillWaitTimeoutSec, LogPrefix);
         BattlenetControlTree.InvalidateLightCache();
         return ok;
     }
+
+    /// <summary>First few calling methods outside this class, so every kill in the log names who asked for it.</summary>
+    private static string DescribeCaller() => string.Join(" <- ", new StackTrace(2, false).GetFrames()
+        .Select(f => f.GetMethod())
+        .Where(m => m?.DeclaringType != null && m.DeclaringType != typeof(BattlenetManager) && m.DeclaringType.Namespace?.StartsWith("DotApps", StringComparison.Ordinal) == true)
+        .Take(4)
+        .Select(m => m!.DeclaringType!.Name + "." + m.Name));
 
     /// <summary>Alias of Close. 1:1 Python kill.</summary>
     public bool Kill(bool force = false) => Close(force);

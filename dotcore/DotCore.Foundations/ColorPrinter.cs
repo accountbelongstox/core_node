@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 
 namespace DotCore.Foundations;
 
@@ -16,6 +18,53 @@ public static class ColorPrinter
 
     private static readonly object Lock = new();
     private static readonly List<LogCallback> Callbacks = new();
+    private const string FileLogDateFormat = "yyyyMMdd";
+    private const string FileLogLineTimeFormat = "yyyy-MM-dd HH:mm:ss.fff";
+    private const string FileLogExtension = ".log";
+    private static string? _fileLogDirectory;
+    private static string _fileLogPrefix = "";
+
+    /// <summary>
+    /// Also append every line to a daily file "&lt;directory&gt;/&lt;prefix&gt;_yyyyMMdd.log" (timestamp + level), so events stay
+    /// traceable after the fact (UI log tabs only exist while open). Files older than keepDays are deleted.
+    /// </summary>
+    public static void EnableFileLog(string directory, string filePrefix, int keepDays = 7)
+    {
+        try
+        {
+            Directory.CreateDirectory(directory);
+            foreach (var old in Directory.EnumerateFiles(directory, filePrefix + "_*" + FileLogExtension))
+                if (File.GetLastWriteTime(old) < DateTime.Now.AddDays(-keepDays)) File.Delete(old);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Trace.WriteLine($"[ColorPrinter] file log disabled: {ex.Message}");
+            return;
+        }
+        lock (Lock)
+        {
+            _fileLogDirectory = directory;
+            _fileLogPrefix = filePrefix;
+        }
+    }
+
+    private static void AppendFileLog(string message, string? logLevel)
+    {
+        lock (Lock)
+        {
+            if (_fileLogDirectory == null) return;
+            var now = DateTime.Now;
+            string path = Path.Combine(_fileLogDirectory, _fileLogPrefix + "_" + now.ToString(FileLogDateFormat, CultureInfo.InvariantCulture) + FileLogExtension);
+            try
+            {
+                File.AppendAllText(path, $"{now.ToString(FileLogLineTimeFormat, CultureInfo.InvariantCulture)} [{logLevel ?? "INFO"}] {message}{Environment.NewLine}");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // a locked or full disk must never break logging callers
+            }
+        }
+    }
 
     /// <summary>Register a callback for all ColorPrinter output. Same instance must be passed to UnregisterCallback.</summary>
     public static void RegisterCallback(LogCallback callback)
@@ -67,6 +116,7 @@ public static class ColorPrinter
     private static void Write(string message, string colorType, string? logLevel)
     {
         Trace.WriteLine(message);
+        AppendFileLog(message, logLevel);
         NotifyCallbacks(message, colorType, logLevel);
     }
 

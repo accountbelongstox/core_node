@@ -24,11 +24,13 @@ Design notes
 - On by default; disable with ``--no-reload`` / ``PYCORE_NO_RELOAD=1``. The
   reload flag rides through os.execv (sys.argv is preserved), so the choice stays
   on across restarts.
-- A reload never interrupts generation: once a change is settled and compiles,
-  the ``drain`` hooks stop the assist lanes' intake (unstarted leased rows go
-  back to the pool) and the restart waits until no task is mid-generation, for
-  at most RELOAD_MAX_DRAIN_SECONDS (then it restarts anyway and says so). Edits
-  made while draining coalesce into the same restart.
+- A reload never interrupts generation: once the edits have been quiet for
+  RELOAD_QUIET_SECONDS and compile, the ``drain`` hooks stop the assist lanes'
+  intake (unstarted leased rows go back to the pool) and the restart waits until
+  no task is mid-generation, for at most RELOAD_MAX_DRAIN_SECONDS (then it
+  restarts anyway and says so). While waiting, the ``keepalive`` hook keeps the
+  node registered so a long drain never ages it out of the work-node roster.
+  Edits made while draining coalesce into the same restart.
 - Logs the EXACT file and change kind that triggered the restart (not a generic
   "files changed"), and routes through ColorPrint so it also reaches live HTTP events
   log bridge.
@@ -55,6 +57,9 @@ PROCESS_IMAGE_STARTED_NS = time.time_ns()
 # Longest a pending reload waits for in-flight generation to finish.
 RELOAD_MAX_DRAIN_SECONDS = 600.0
 RELOAD_DRAIN_POLL_SECONDS = 1.0
+# Edits must stop this long before the lanes are halted, so a multi-file edit
+# session does not repeatedly stop the assist lanes and restart the backend.
+RELOAD_QUIET_SECONDS = 45.0
 
 # Directories never worth watching: caches, vendored JS (Vite owns the FE),
 # backups, generated trees. Pruned in-place so os.walk never descends into them.
@@ -143,8 +148,9 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4, drain=None):
         interval: seconds between scans.
         debounce: after a change is seen, wait this long and re-scan so a burst
             of saves coalesces into a single restart.
-        drain: optional ``(begin, is_idle)`` hooks; the restart waits for
-            ``is_idle()`` (at most RELOAD_MAX_DRAIN_SECONDS) after ``begin()``.
+        drain: optional ``(begin, is_idle, keepalive)`` hooks; the restart waits
+            for ``is_idle()`` (at most RELOAD_MAX_DRAIN_SECONDS) after ``begin()``
+            and calls ``keepalive()`` on every wait poll.
 
     Returns:
         The started ``threading.Thread``.
@@ -171,6 +177,8 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4, drain=None):
 
         reported = {}
         draining_since = None
+        last_settled = None
+        changed_at = time.monotonic()
 
         while not THREAD_BUS.is_shutdown_requested():
             time.sleep(interval)
@@ -204,14 +212,21 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4, drain=None):
                     )
                 continue
 
+            if settled != last_settled:
+                last_settled = settled
+                changed_at = time.monotonic()
+            if draining_since is None and time.monotonic() - changed_at < RELOAD_QUIET_SECONDS:
+                continue
+
             if drain is not None:
-                begin, is_idle = drain
+                begin, is_idle, keepalive = drain
                 if draining_since is None:
                     draining_since = time.monotonic()
                     ColorPrint.yellow("[reload] change settled - draining assist work before restart")
                     begin()
                 waited = time.monotonic() - draining_since
                 if not is_idle():
+                    keepalive()
                     if waited < RELOAD_MAX_DRAIN_SECONDS:
                         time.sleep(RELOAD_DRAIN_POLL_SECONDS)
                         continue

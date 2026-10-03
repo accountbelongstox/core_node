@@ -205,28 +205,31 @@ final class AppQyV1BookAudioPlanService
         foreach ($this->groups($plan->id) as [$lane, $language]) {
             $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
             $key = WorkLeaseLanes::keyColumn($lane);
-            $row = $this->db->selectOne(
-                'SELECT count(*) AS total,'
+            $total = 0;
+            $ready = 0;
+            foreach ($this->db->select(
+                'SELECT (t.has_audio IS NOT TRUE AND t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ?) AS leased,'
+                . ' CASE WHEN t.has_audio IS NOT TRUE AND t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ? THEN t.tts_locked_by END AS worker,'
+                . ' count(*) AS total,'
                 . ' count(*) FILTER (WHERE t.has_audio IS TRUE) AS ready,'
                 . ' count(*) FILTER (WHERE t.has_audio IS NOT TRUE AND t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ?) AS generating,'
                 . " count(*) FILTER (WHERE t.has_audio IS NOT TRUE AND t.tts_status = 'failed') AS failed"
                 . " FROM {$this->clips} pc JOIN {$table} t ON t.{$key} = pc.content_key"
-                . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ?',
-                [$now, $plan->id, $lane, $language]
-            );
-            foreach (array_keys($figures) as $field) {
-                $figures[$field] += (int) $row->{$field};
+                . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ?'
+                . ' GROUP BY 1, 2',
+                [$now, $now, $now, $plan->id, $lane, $language]
+            ) as $row) {
+                foreach (array_keys($figures) as $field) {
+                    $figures[$field] += (int) $row->{$field};
+                }
+                $total += (int) $row->total;
+                $ready += (int) $row->ready;
+                if ($row->leased) {
+                    $nodes[(string) $row->worker] = ($nodes[(string) $row->worker] ?? 0) + (int) $row->generating;
+                }
             }
             if ($lane === WorkLeaseLanes::SENTENCE_AUDIO) {
-                $sentenceMissing += (int) $row->total - (int) $row->ready;
-            }
-            foreach ($this->db->select(
-                "SELECT t.tts_locked_by AS worker, count(*) AS clips FROM {$this->clips} pc JOIN {$table} t ON t.{$key} = pc.content_key"
-                . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND t.has_audio IS NOT TRUE AND t.tts_lease_id IS NOT NULL AND t.tts_lease_expires_at >= ?'
-                . ' GROUP BY t.tts_locked_by',
-                [$plan->id, $lane, $language, $now]
-            ) as $node) {
-                $nodes[(string) $node->worker] = ($nodes[(string) $node->worker] ?? 0) + (int) $node->clips;
+                $sentenceMissing += $total - $ready;
             }
         }
         $fastEnabled = (bool) self::setting('fast_pass.enabled');
