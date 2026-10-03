@@ -11,13 +11,15 @@
  *   public-volume    `WordNew/` on a volume root (all-files access; kept after
  *                    a reinstall - its index is mirrored next to the clips and
  *                    adopted again by `adoptPublicRoots`)
- * The web keeps clips in OPFS (persistent-storage grant requested). Nothing is
- * evicted by a budget. The index holds each clip's identity, origin, meaning
- * and duration, so compositions resolve and render offline and the cache page
- * lists words and sentences.
+ * The web schedule writes no clips here (WORDNEW_GUIDE 1.1: Laravel URLs and
+ * page-lifetime object URLs); on the web only the index (durations) is kept.
+ * Nothing is evicted by a budget. The index holds each clip's identity, origin,
+ * meaning and duration, so compositions resolve and render offline and the
+ * cache page lists words and sentences.
  *
- * Writes, removals and relocation run one at a time (`exclusive`), so a move
- * never misses a clip that a running composition writes.
+ * Clip writes run in parallel (one per key; a second write of a key joins the
+ * first); removals and relocation run alone (`exclusive`) after the writes in
+ * flight, so a move never misses a clip that a running composition writes.
  */
 import { ChangeSignal } from '../../../../core/events/ChangeSignal';
 import { StorageManager } from '../../../../core/persistence';

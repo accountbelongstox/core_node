@@ -303,7 +303,6 @@ class WordNewBookAudioPlanService {
       serverSchemaGate.observeError(error);
       live.retryMs = live.backoff.next();
     }
-    console.warn('[DBG] pull', { fresh, fetched: live.fetched, ready: live.ready.size, covered: live.covered.size, retryMs: live.retryMs });
     this.publish(taskId, live);
     if (fresh > 0) live.onNewReady?.();
   }
