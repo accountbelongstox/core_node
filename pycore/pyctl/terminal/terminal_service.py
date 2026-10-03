@@ -28,6 +28,13 @@ from pycore.pyctl.terminal.terminal_screenshot_cache import (
     terminal_screenshot_cache,
 )
 from pycore.pyctl.terminal.terminal_text_ocr import recognize_region_text
+from pycore.pyctl.terminal.terminal_voice_dictation import (
+    ERROR_AUDIO_INVALID,
+    ERROR_NO_TRANSCRIPT,
+    ERROR_UNAVAILABLE,
+    TerminalVoiceDictation,
+    resolve_recordings,
+)
 from pycore.pyctl.terminal.terminal_window_views import assign_short_titles
 from pycore.pyctl.terminal.terminal_snapshot_collector import (
     TerminalSnapshotCollector,
@@ -682,6 +689,71 @@ class TerminalService:
                 "clipboard_restored": clipboard_restored,
             },
         )
+
+    @serialized_method
+    def dictate_voice(
+        self,
+        window_id: str,
+        terminal_number: int,
+        recordings: List[str],
+        text: str = "",
+        clear_first: bool = False,
+        interrupt_first: bool = False,
+    ) -> Dict[str, Any]:
+        """Type recordings through the agent's hold-to-talk dictation, append text, submit. ERROR_UNAVAILABLE = nothing typed."""
+        if not window_id:
+            return self._failure("terminal_window_id_required")
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        if not TerminalVoiceDictation.available():
+            return self._failure(ERROR_UNAVAILABLE)
+        paths = resolve_recordings(recordings, terminal_image_store.voice_directory)
+        if paths is None:
+            return self._failure(ERROR_AUDIO_INVALID)
+        activation = self._backend.activate(window_id)
+        if not activation.get("success"):
+            return activation
+        if clear_first or interrupt_first:
+            prepared = self._backend.prepare_input(window_id, clear_first, interrupt_first)
+            if not prepared.get("success"):
+                return prepared
+        dictation = TerminalVoiceDictation(self._backend, lambda: self.export_text(window_id, terminal_number))
+        before = dictation.ready_input()
+        if before is None:
+            return self._failure(ERROR_UNAVAILABLE)
+        transcript = before
+        for path in paths:
+            held = dictation.dictate(window_id, path)
+            if not held.get("success"):
+                self._backend.clear_input(window_id)
+                return held
+            dictated = dictation.await_transcript(transcript)
+            if dictated is None:
+                self._backend.clear_input(window_id)
+                return self._failure(ERROR_NO_TRANSCRIPT)
+            transcript = dictated
+        content = " ".join(part for part in (transcript, text) if part)
+        pending_log = self._state_repository.begin_submission(terminal_number, content, "voice")
+        log_id = str((pending_log or {}).get("id") or "")
+        appended = f" {text}" if text else ""
+        clipboard_backup = clipboard_manager.get_text() if appended else None
+        if appended and not clipboard_manager.set_text(appended, self._backend.paste_uses_primary_selection()):
+            return self._complete_input(terminal_number, log_id, self._failure("clipboard_write_failed"))
+        try:
+            action = self._backend.append_and_submit(window_id, len(appended))
+            if appended:
+                time.sleep(CLIPBOARD_RESTORE_DELAY_SECONDS)
+        finally:
+            if clipboard_backup is not None:
+                clipboard_manager.set_text(clipboard_backup)
+        terminal_activity_log.info(
+            "voice.dictated",
+            terminal_number=terminal_number,
+            recordings=len(paths),
+            transcript_chars=len(transcript),
+            success=bool(action.get("success")),
+        )
+        return self._complete_input(terminal_number, log_id, {**action, "transcript": transcript})
 
     @serialized_method
     def run_exclusive(self, action: Callable[[], Any]) -> Any:

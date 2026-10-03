@@ -77,6 +77,17 @@ class FramedInputRule:
         )
 
 
+def framed_input_text(text: Optional[str]) -> Optional[str]:
+    """Text typed in the bottom framed input box (prompt marker removed), else None when there is no such box."""
+    lines = agent_tail(text or "")
+    rules = [index for index, line in enumerate(lines) if is_horizontal_rule(line)]
+    for upper, lower in reversed(list(zip(rules, rules[1:]))):
+        if 1 < lower - upper <= MAX_INPUT_LINES + 1 and starts_with_prompt(lines[upper + 1]) and _near_bottom(lower, lines):
+            first = lines[upper + 1].strip()[1:]
+            return "\n".join([first, *lines[upper + 2:lower]]).strip()
+    return None
+
+
 class BoxedInputRule:
     """Prompt line inside a rounded box (Kimi)."""
 

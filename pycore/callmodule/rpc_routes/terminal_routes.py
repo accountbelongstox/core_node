@@ -19,6 +19,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_DRAFT,
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
+    UI_TERMINAL_VOICE,
     UI_TERMINAL_KEY,
     UI_TERMINAL_PERMISSION_MODE,
     UI_TERMINAL_REMOVE,
@@ -164,6 +165,26 @@ def register_terminal_routes(server) -> None:
                 clear_first=clear_first,
                 interrupt_first=interrupt_first,
                 shell_prompt=shell_prompt,
+            ),
+        )
+
+    def voice_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = integer_param(params, "terminal_number")
+        text = str(params.get("text") or "")
+        recordings = [line for line in str(params.get("recordings") or "").splitlines() if line.strip()]
+        clear_first = bool_param(params, "clear_first")
+        interrupt_first = bool_param(params, "interrupt_first")
+        return run_terminal_action(
+            "voice",
+            request_id,
+            lambda: terminal_service.dictate_voice(
+                window_id,
+                terminal_number,
+                recordings,
+                text,
+                clear_first=clear_first,
+                interrupt_first=interrupt_first,
             ),
         )
 
@@ -513,6 +534,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_DRAFT, handler=draft_handler)
     server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
+    server.post(path=UI_TERMINAL_VOICE, handler=voice_handler)
     server.post(path=UI_TERMINAL_KEY, handler=key_handler)
     server.post(path=UI_TERMINAL_PERMISSION_MODE, handler=permission_mode_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)

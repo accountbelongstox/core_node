@@ -647,6 +647,7 @@ terminal: {
       copied: '日志内容已复制到剪贴板。',
       copyFailed: '无法复制日志内容。',
       reuse: '填入输入框',
+      reuseAndSend: '填入输入框并重新发送',
       reused: '日志内容已填入输入框。',
       shownCount: '显示 {{shown}} / 共 {{total}} 条',
     },

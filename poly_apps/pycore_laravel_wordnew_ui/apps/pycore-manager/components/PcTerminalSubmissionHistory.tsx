@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clock3, Copy, Loader2, Pencil, ScrollText } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clock3, Copy, Loader2, Pencil, ScrollText, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
@@ -31,11 +31,13 @@ interface PcTerminalSubmissionHistoryProps {
   errorTranslationKey: (errorCode?: string | null) => string;
   onOpenLogs: () => void;
   onReuse: (text: string) => void;
+  /** Place the text in the composer and send it with the regular send. */
+  onResend: (text: string) => void;
 }
 
 /** Submission history: every row shows a short content snippet and expands on its own. */
 export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryProps> = ({
-  windowInfo, overlay, formatDate, errorTranslationKey, onOpenLogs, onReuse,
+  windowInfo, overlay, formatDate, errorTranslationKey, onOpenLogs, onReuse, onResend,
 }) => {
   const { t } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
@@ -172,6 +174,15 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
                       >
                         <Pencil className="h-3 w-3" />
                         {t('terminal.logs.reuse')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onResend(fullText)}
+                        disabled={!fullText || !windowInfo?.online}
+                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                      >
+                        <Send className="h-3 w-3" />
+                        {t('terminal.logs.reuseAndSend')}
                       </button>
                     </div>
                   </div>
