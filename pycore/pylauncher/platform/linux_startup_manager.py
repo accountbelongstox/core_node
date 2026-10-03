@@ -105,7 +105,8 @@ class LinuxStartupManager:
     def is_enabled(self) -> bool:
         return any(p.exists() for p in self._entry_paths())
 
-    def enable(self) -> dict:
+    def enable(self, start_now: bool = True) -> dict:
+        # An XDG entry only takes effect at the next login, so start_now is moot.
         # Always refresh the fixed launcher script so config changes are reflected.
         try:
             self._write_sh()

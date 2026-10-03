@@ -223,7 +223,7 @@ def register_event_handlers(
     # Auto-start on boot is toggled from the pycore-manager UI (Settings ->
     # Startup) via GET/POST /api/manage/control/autostart, so the tray no longer
     # carries a toggle and this handler was removed. The boot-time
-    # refresh_startup_launcher() in pycore_module_caller.py is unaffected.
+    # ensure_startup_launcher() in pycore_module_caller.py is unaffected.
 
     def handle_tray_toggle_voice_subtitle(event_data):
         """Toggle voice subtitle window visibility via THREAD_BUS"""

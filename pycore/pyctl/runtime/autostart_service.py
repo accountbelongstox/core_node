@@ -3,7 +3,11 @@
 
 from typing import Any, Dict, Optional
 
-from pycore.pylauncher.platform.autostart_target import VALID_MECHANISMS, VALID_TARGETS
+from pycore.pylauncher.platform.autostart_target import (
+    VALID_MECHANISMS,
+    VALID_TARGETS,
+    write_preference,
+)
 from pycore.pylauncher.platform.startup_manager import get_startup_manager
 
 
@@ -20,4 +24,7 @@ def set_enabled(
     mechanism: Optional[str] = None,
 ) -> Dict[str, Any]:
     manager = get_startup_manager(target=target, mechanism=mechanism)
-    return manager.enable() if enabled else manager.disable()
+    result = manager.enable() if enabled else manager.disable()
+    if result.get("success"):
+        write_preference(enabled=enabled)
+    return result

@@ -146,7 +146,7 @@ class WindowsStartupManager:
         workdir = _ps_single_quote(str(self.pyservice_script.parent))
         return (
             f"Set-Location -LiteralPath {workdir}\n"
-            f"& {script} -NoInstall\n"
+            f"& {script} -NoInstall -NoReload -NoServicePrompt\n"
         )
 
     def _launcher_ps1(self, inline: bool = True) -> str:
@@ -344,8 +344,11 @@ class WindowsStartupManager:
         """Auto-start is on iff the elevated task or a shortcut (common or per-user) exists."""
         return any(p.exists() for p in self._shortcut_paths()) or self._task_exists()
 
-    def enable(self) -> dict:
-        """Regenerate the PS1, then create the startup shortcut (common, then user)."""
+    def enable(self, start_now: bool = True) -> dict:
+        """Regenerate the PS1, then register the logon task (shortcut as fallback).
+
+        Nothing is started here, so ``start_now`` is moot on Windows.
+        """
         # Always refresh the fixed PS1 so config changes are reflected.
         try:
             self._write_ps1()
@@ -408,7 +411,7 @@ class WindowsStartupManager:
         return self.disable() if self.is_enabled() else self.enable()
 
     def refresh(self) -> bool:
-        """If enabled, rewrite the launcher and recreate existing shortcuts.
+        """If enabled, rewrite the launcher; migrate shortcuts to the elevated logon task.
 
         Called on every service start so launchers written by an OLDER version
         are upgraded to the current full-path pythonw entry without the user

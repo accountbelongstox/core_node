@@ -104,7 +104,8 @@ class SystemdUserStartupManager:
             return (res.stdout or "").strip() == "enabled"
         return False
 
-    def enable(self) -> dict:
+    def enable(self, start_now: bool = True) -> dict:
+        """``start_now=False`` only registers the unit (the caller is the running service)."""
         disable_xdg_autostart(self.app_name)
         try:
             self._script.write_sh()
@@ -123,7 +124,10 @@ class SystemdUserStartupManager:
                     "targets": list(VALID_TARGETS), "mechanisms": list(VALID_MECHANISMS)}
 
         self._run(["systemctl", "--user", "daemon-reload"])
-        res = self._run(["systemctl", "--user", "enable", "--now", self.unit_name])
+        enable_args = ["systemctl", "--user", "enable", self.unit_name]
+        if start_now:
+            enable_args.insert(3, "--now")
+        res = self._run(enable_args)
         self._run(["loginctl", "enable-linger", os.environ.get("USER", "")])
 
         write_preference(self._script.target, mechanism="systemd")
