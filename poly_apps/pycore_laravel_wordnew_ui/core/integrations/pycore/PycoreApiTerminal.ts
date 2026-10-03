@@ -480,6 +480,26 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       horizontal_ratio: horizontalRatio.toFixed(8),
       vertical_ratio: verticalRatio.toFixed(8),
     }) as Promise<TerminalActionResult>,
+    /** Fresh JPEG of the whole primary monitor; pycore grabs it only for this request. */
+    getDesktopScreenshot: (timeoutMs?: number) => requestPycoreHttpBinary(
+      PYCORE_HTTP_ROUTES.terminalDesktopScreenshot,
+      { t: String(Date.now()) },
+      timeoutMs,
+    ) as Promise<PycoreHttpBinaryResult>,
+    clickDesktop: (
+      horizontalRatio: number,
+      verticalRatio: number,
+      button: 'left' | 'right' = 'left',
+    ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalDesktopClick, {
+      horizontal_ratio: horizontalRatio.toFixed(8),
+      vertical_ratio: verticalRatio.toFixed(8),
+      button: button === 'right' ? '3' : '1',
+      clicks: '1',
+    }) as Promise<TerminalActionResult>,
+    /** Presses the keys together (modifiers first), e.g. ['ctrl', 'c']. */
+    pressDesktopKeys: (keys: string[]) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalDesktopKey, {
+      keys: keys.join(','),
+    }) as Promise<TerminalActionResult>,
     saveTerminalDraft: (terminalNumber: number, text: string) =>
       requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraft, text, {
         terminal_number: terminalNumber,

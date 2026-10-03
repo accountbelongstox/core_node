@@ -1042,6 +1042,18 @@
       "path": "ui/terminal/click",
       "method": "POST"
     },
+    "terminalDesktopClick": {
+      "path": "ui/terminal/desktop_click",
+      "method": "POST"
+    },
+    "terminalDesktopKey": {
+      "path": "ui/terminal/desktop_key",
+      "method": "POST"
+    },
+    "terminalDesktopScreenshot": {
+      "path": "ui/terminal/desktop_screenshot",
+      "method": "GET"
+    },
     "terminalCommandHistory": {
       "path": "ui/terminal/command_history",
       "method": "POST"

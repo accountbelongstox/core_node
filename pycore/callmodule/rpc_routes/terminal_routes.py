@@ -12,7 +12,10 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_COMMAND_HISTORY,
     UI_TERMINAL_COMMANDS,
     UI_TERMINAL_CONTENT,
+    UI_TERMINAL_DESKTOP_CLICK,
     UI_TERMINAL_DESKTOP_INTEGRATION,
+    UI_TERMINAL_DESKTOP_KEY,
+    UI_TERMINAL_DESKTOP_SCREENSHOT,
     UI_TERMINAL_DRAFT,
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
@@ -90,6 +93,53 @@ def register_terminal_routes(server) -> None:
                 horizontal_ratio,
                 vertical_ratio,
             ),
+        )
+
+    def desktop_click_handler(params, request_id, _context):
+        horizontal_ratio = ratio_param(params, "horizontal_ratio")
+        vertical_ratio = ratio_param(params, "vertical_ratio")
+        button = integer_param(params, "button") or 1
+        clicks = integer_param(params, "clicks") or 1
+        return run_terminal_action(
+            "desktop_click",
+            request_id,
+            lambda: terminal_service.desktop_click(
+                horizontal_ratio,
+                vertical_ratio,
+                button,
+                clicks,
+            ),
+        )
+
+    def desktop_key_handler(params, request_id, _context):
+        keys = [key for key in str(params.get("keys") or "").split(",") if key]
+        return run_terminal_action(
+            "desktop_key",
+            request_id,
+            lambda: terminal_service.desktop_key(keys),
+        )
+
+    def desktop_screenshot_handler(_params, request_id, _context):
+        def read_response():
+            resource = terminal_service.read_desktop_screenshot()
+            if resource is None:
+                return Response(status_code=404)
+            return Response(
+                content=resource["body"],
+                status_code=200,
+                headers={
+                    "Cache-Control": "no-store",
+                    "X-Desktop-Width": str(resource["width"]),
+                    "X-Desktop-Height": str(resource["height"]),
+                },
+                media_type=str(resource["mime"]),
+            )
+
+        return run_terminal_action(
+            "desktop_screenshot",
+            request_id,
+            read_response,
+            quiet=True,
         )
 
     def input_handler(params, request_id, _context):
@@ -387,6 +437,8 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_CAPTURE, handler=capture_handler)
     server.post(path=UI_TERMINAL_CHOOSE, handler=choose_handler)
     server.post(path=UI_TERMINAL_CLICK, handler=click_handler)
+    server.post(path=UI_TERMINAL_DESKTOP_CLICK, handler=desktop_click_handler)
+    server.post(path=UI_TERMINAL_DESKTOP_KEY, handler=desktop_key_handler)
     server.post(path=UI_TERMINAL_COMMANDS, handler=commands_handler)
     server.post(
         path=UI_TERMINAL_COMMAND_HISTORY,
@@ -420,3 +472,4 @@ def register_terminal_routes(server) -> None:
     )
     server.get(path=UI_TERMINAL_CONTENT, handler=content_handler)
     server.get(path=UI_TERMINAL_SCREENSHOT, handler=screenshot_handler)
+    server.get(path=UI_TERMINAL_DESKTOP_SCREENSHOT, handler=desktop_screenshot_handler)

@@ -208,6 +208,9 @@
     "terminal_viewers": 128,
     "terminal_screenshot_resources": 256,
     "terminal_screenshot_capture_batch": 8,
+    "desktop_view_max_width": 1280,
+    "desktop_view_max_height": 720,
+    "desktop_view_jpeg_quality": 60,
     "terminal_screenshot_max_width": 640,
     "terminal_screenshot_max_height": 360,
     "terminal_screenshot_png_compression": 1,
@@ -575,6 +578,24 @@
       "value": "ui/terminal/click",
       "profile": "terminal_action",
       "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/desktop_click",
+      "profile": "terminal_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/desktop_key",
+      "profile": "terminal_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/desktop_screenshot",
+      "profile": "terminal_resource",
+      "methods": [ "GET" ]
     },
     {
       "match": "exact",
