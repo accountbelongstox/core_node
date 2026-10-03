@@ -109,6 +109,7 @@
       "Bash(node cdp.mjs \"location.href+' '+[...document.querySelectorAll\\('*'\\)].filter\\(e=>e.children.length===0&&/NIV/.test\\(e.textContent\\)\\).length\")",
       "Bash(adb exec-out *)",
       "Bash(node -e ' *)",
+      "Bash(ps -eo pid,lstart,cmd)",
       "Bash(adb forward *)",
       "Bash(netstat -ano)",
       "Bash(tasklist)",
