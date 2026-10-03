@@ -90,13 +90,9 @@ public sealed class BattlenetManager
         ColorPrinter.Blue($"{LogPrefix} Starting Battle.net: {exe} {args}");
         try
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = exe,
-                Arguments = args,
-                UseShellExecute = true,
-                WorkingDirectory = dir
-            });
+            // Outside our job object: a dotnet watch restart / app exit must not take Battle.net down with it.
+            if (!ShellOpen.StartProgram(exe, args.Length > 0 ? new[] { args } : Array.Empty<string>()))
+                throw new InvalidOperationException("start failed");
             ColorPrinter.Green($"{LogPrefix} Battle.net start command sent");
             return true;
         }
