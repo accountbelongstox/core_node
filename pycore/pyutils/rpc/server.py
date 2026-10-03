@@ -33,6 +33,7 @@ from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
 )
 from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
+from pycore.pyutils.common.prerequisite_steps import current_platform
 from pycore.pyutils.rpc.dispatcher import HttpRoute
 from pycore.pyutils.rpc.execution import RpcExecutionError, rpc_execution_kernel
 from pycore.pyutils.rpc.http.ws_event_service import WsEventService
@@ -296,6 +297,7 @@ class HttpServer:
             "service": "HttpServer",
             "transport": str(execution_context.get("transport") or "http"),
             "hostname": socket.gethostname(),
+            "platform": current_platform(),
             "instance_id": event_journal.instance_id,
         }
 

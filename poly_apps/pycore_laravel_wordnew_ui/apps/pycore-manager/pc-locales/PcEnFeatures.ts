@@ -460,6 +460,16 @@ terminal: {
       force: '^C',
       hint: 'Applies to the next send only, then turns off.',
     },
+    sentSearch: {
+      placeholder: 'Search sent messages',
+      clear: 'Clear the search',
+      results: 'Sent messages found',
+      searching: 'Searching…',
+      empty: 'No sent message contains this text.',
+      failed: 'The search failed; check the pycore connection.',
+      target: '#{{number}} · {{name}}',
+      missing: 'That terminal no longer exists on this node.',
+    },
     nodes: {
       title: 'Pycore nodes',
       thisMachine: 'This machine',

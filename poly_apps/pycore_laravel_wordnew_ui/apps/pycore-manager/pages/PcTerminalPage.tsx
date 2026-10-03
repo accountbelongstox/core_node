@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { isHttpConnected } from '../../../core/integrations/pycore/PycoreEventClient';
 import {
   AlertTriangle,
@@ -90,6 +91,7 @@ import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
+import { PcTerminalSentSearch } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
@@ -114,6 +116,7 @@ import type {
   TerminalActionResult,
   TerminalDesktopIntegrationAction,
   TerminalKeyAction,
+  TerminalLogSearchHit,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
   TerminalSnapshot,
@@ -557,7 +560,8 @@ function calculateCanvasLayout(
 }
 
 // One node's terminals; re-mounted per node, so every piece of state belongs to that node.
-const PcTerminalNodeView: React.FC = () => {
+/** searchSlot: the node-tab row element the sent-message search renders into. */
+const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ searchSlot }) => {
   const { t } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
   const terminalWatch = usePcTerminalWatch();
@@ -1572,15 +1576,31 @@ const PcTerminalNodeView: React.FC = () => {
     />
   );
 
-  const updateSelectedDraft = useCallback((text: string) => {
-    if (!selectedWindow) return;
-    const terminalNumber = selectedWindow.terminal_number;
+  const setDraftFor = useCallback((terminalNumber: number, text: string) => {
     const key = terminalDraftKey(terminalNumber);
     draftsRef.current = { ...draftsRef.current, [key]: text };
     setDrafts(draftsRef.current);
     writeCachedDraft(terminalNumber, text);
     scheduleDraftSave(terminalNumber, text);
-  }, [scheduleDraftSave, selectedWindow]);
+  }, [scheduleDraftSave]);
+
+  const updateSelectedDraft = useCallback((text: string) => {
+    if (selectedWindow) setDraftFor(selectedWindow.terminal_number, text);
+  }, [setDraftFor, selectedWindow]);
+
+  // A sent message picked in the search: open its terminal with that message in the composer.
+  const pickSentMessage = useCallback((hit: TerminalLogSearchHit) => {
+    if (!terminalExists(hit.terminal_number)) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.sentSearch.missing' });
+      return;
+    }
+    openTerminal(hit.terminal_number);
+    setDraftFor(hit.terminal_number, hit.content);
+  }, [openTerminal, setDraftFor, terminalExists]);
+  const sentSearchNameFor = useCallback((terminalNumber: number) => {
+    const windowInfo = snapshotRef.current?.windows.find((entry) => entry.terminal_number === terminalNumber);
+    return windowInfo ? terminalName(windowInfo, t('terminal.untitled')) : t('terminal.untitled');
+  }, [t]);
 
   const reuseLogContent = useCallback((text: string) => {
     updateSelectedDraft(text);
@@ -2433,6 +2453,10 @@ const PcTerminalNodeView: React.FC = () => {
 
   return (
     <PcTerminalNavActionsProvider value={navActions}>
+    {searchSlot && createPortal(
+      <PcTerminalSentSearch nameFor={sentSearchNameFor} formatDate={formatLogDate} onPick={pickSentMessage} />,
+      searchSlot,
+    )}
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">
@@ -2918,6 +2942,7 @@ const PcTerminalPage: React.FC = () => {
     setNodeUrl(url);
     updatePcUiSessionTerminalNodeUrl(url);
   }, []);
+  const [searchSlot, setSearchSlot] = useState<HTMLElement | null>(null);
 
   return (
     <>
@@ -2925,11 +2950,12 @@ const PcTerminalPage: React.FC = () => {
         <div className="min-w-0 flex-1">
           <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
         </div>
+        <div ref={setSearchSlot} className="min-w-0 shrink" />
         <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
         <PcTerminalWatchProvider>
-          <PcTerminalNodeView />
+          <PcTerminalNodeView searchSlot={searchSlot} />
         </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
     </>

@@ -3,3 +3,4 @@
 - [mcp-chrome package manager](mcp-chrome-package-manager.md) — bun workspaces; pnpm-workspace.yaml removed on purpose; lockfiles git-ignored; rebuild before pruning deps the stale dist needs
 - [Daily Reading feed redesign](wordnew-daily-reading-feed.md) — date strip + day feed + server read state; endpoints, guest fallback, gaps
 - [Phone debug pitfalls](wordnew-phone-debug-pitfalls.md) — start Vite alone, CDP driving, shared-phone ANRs, stage windowing and Capacitor log findings
+- [Device test playbook](wordnew-device-test-playbook.md) — release APK needs CORE_NODE_ANDROID_DEBUGGABLE=1; live build ?t= module trap; dev build CPU is not release CPU
