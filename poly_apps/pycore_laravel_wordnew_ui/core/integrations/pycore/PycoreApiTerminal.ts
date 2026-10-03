@@ -33,6 +33,15 @@ export interface TerminalScreenshotResourceMeta {
   resource: { window_id: string; digest: string };
 }
 
+export interface TerminalScreenshotTextResult {
+  success: boolean;
+  error_code?: string | null;
+  window_id?: string;
+  digest?: string;
+  text?: string;
+  confidence?: number;
+}
+
 export type TerminalLogSource = 'input' | 'enter' | 'schedule';
 
 export interface TerminalLogEntry {
@@ -457,6 +466,16 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { window_id: windowId, digest },
       timeoutMs,
     ) as Promise<PycoreHttpBinaryResult>,
+    /** OCR text of one frame; the UI shows it instead of the image when it succeeds. */
+    getTerminalScreenshotText: (
+      windowId: string,
+      digest: string,
+      timeoutMs?: number,
+    ) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalScreenshotText,
+      { window_id: windowId, digest },
+      timeoutMs,
+    ) as Promise<TerminalScreenshotTextResult>,
     activateTerminal: (windowId: string) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
         window_id: windowId,

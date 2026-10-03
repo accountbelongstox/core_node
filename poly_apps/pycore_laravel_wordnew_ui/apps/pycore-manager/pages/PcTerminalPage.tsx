@@ -20,6 +20,8 @@ import {
   Clock3,
   CornerDownLeft,
   Crosshair,
+  FileText,
+  ImageIcon,
   Eraser,
   History,
   Info,
@@ -86,6 +88,7 @@ import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/Pyco
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
+import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
 import {
@@ -564,6 +567,7 @@ const PcTerminalNodeView: React.FC = () => {
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
   const [previewExpandedStates, setPreviewExpandedStates] = useState<Record<string, boolean>>({});
   const [previewDirectClick, setPreviewDirectClick] = useState(false);
+  const [previewShowImage, setPreviewShowImage] = useState(false);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [draftStatuses, setDraftStatuses] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
@@ -643,7 +647,11 @@ const PcTerminalNodeView: React.FC = () => {
     if (number === null) return null;
     return snapshot?.windows.find((windowInfo) => windowInfo.terminal_number === number)?.id ?? null;
   }, [isMobile, operatedTerminalNumber, previewTerminalNumber, snapshot]);
-  const frames = usePcTerminalFrames({ windows: snapshot?.windows ?? NO_WINDOWS, focusWindowId });
+  // Frames travel as OCR text; the previewed window switches to its picture when clicked by position or asked for.
+  const imageWindowId = previewTerminalNumber !== null && (previewDirectClick || previewShowImage)
+    ? snapshot?.windows.find((windowInfo) => windowInfo.terminal_number === previewTerminalNumber)?.id ?? null
+    : null;
+  const frames = usePcTerminalFrames({ windows: snapshot?.windows ?? NO_WINDOWS, focusWindowId, imageWindowId });
   const screenshotImageFor = frames.imageFor;
   const screenshotVersion = frames.version;
 
@@ -1415,7 +1423,7 @@ const PcTerminalNodeView: React.FC = () => {
       return;
     }
     const image = screenshotImageFor(previewWindow);
-    if (!previewWindow?.online || !image || actionWindowId) {
+    if (!previewWindow?.online || image?.kind !== 'image' || actionWindowId) {
       return;
     }
     const point = normalizedImagePoint(
@@ -2358,11 +2366,10 @@ const PcTerminalNodeView: React.FC = () => {
         >
           {screenshotImage ? (
             <>
-              <img
-                src={screenshotImage.url}
+              <PcTerminalFrameView
+                frame={screenshotImage}
                 alt={terminalName(windowInfo, t('terminal.untitled'))}
-                decoding="async"
-                className="h-full w-full object-contain"
+                size="card"
               />
               <Maximize2 className="absolute bottom-2 right-2 h-5 w-5 rounded bg-slate-950/70 p-0.5 text-white" />
             </>
@@ -2553,11 +2560,10 @@ const PcTerminalNodeView: React.FC = () => {
                     >
                       {screenshotImage ? (
                         <>
-                          <img
-                            src={screenshotImage.url}
+                          <PcTerminalFrameView
+                            frame={screenshotImage}
                             alt={terminalName(windowInfo, t('terminal.untitled'))}
-                            decoding="async"
-                            className="h-full w-full object-contain"
+                            size={compact ? 'tiny' : 'card'}
                           />
                           {!tiny && (
                             <Maximize2 className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded bg-slate-950/70 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
@@ -2747,6 +2753,24 @@ const PcTerminalNodeView: React.FC = () => {
                     {t('terminal.directClickMode')}
                   </button>
                 )}
+                {previewWindow.online && !previewDirectClick && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewShowImage((current) => !current)}
+                    aria-pressed={previewShowImage}
+                    title={t('terminal.frameModeHint')}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold ${
+                      previewShowImage
+                        ? 'border-indigo-400 bg-indigo-600 text-white'
+                        : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {previewScreenshot?.kind === 'text'
+                      ? <FileText className="h-3.5 w-3.5" />
+                      : <ImageIcon className="h-3.5 w-3.5" />}
+                    {t(previewScreenshot?.kind === 'text' ? 'terminal.frameText' : 'terminal.frameImage')}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -2782,13 +2806,12 @@ const PcTerminalNodeView: React.FC = () => {
                   {t('terminal.previewBack')}
                 </button>
                 {previewScreenshot ? (
-                  <img
-                    src={previewScreenshot.url}
+                  <PcTerminalFrameView
+                    frame={previewScreenshot}
                     alt={terminalName(previewWindow, t('terminal.untitled'))}
-                    onClick={clickPreview}
-                    className={`h-full w-full object-contain ${
-                      previewDirectClick && previewWindow.online ? 'cursor-crosshair' : 'cursor-zoom-out'
-                    }`}
+                    size="preview"
+                    onImageClick={clickPreview}
+                    imageClassName={previewDirectClick && previewWindow.online ? 'cursor-crosshair' : 'cursor-zoom-out'}
                   />
                 ) : (
                   <div className="flex h-full min-h-[6rem] items-center justify-center gap-2 text-xs text-slate-400">

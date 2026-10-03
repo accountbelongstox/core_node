@@ -9,7 +9,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const BUS_NAME = 'org.corenode.PycoreWindowBridge';
 const OBJECT_PATH = '/org/corenode/PycoreWindowBridge';
-const BRIDGE_VERSION = 2;
+const BRIDGE_VERSION = 3;
 const ACTIVATE_POLL_MS = 20;
 const ACTIVATE_TIMEOUT_MS = 500;
 const X11_DESCRIPTION_PATTERN = /^(0x[0-9a-fA-F]+)/;
@@ -44,6 +44,13 @@ const BRIDGE_INTERFACE = `
     </method>
     <method name="CaptureWindow">
       <arg type="t" direction="in" name="window_id"/>
+      <arg type="ay" direction="out" name="png"/>
+    </method>
+    <method name="CaptureArea">
+      <arg type="i" direction="in" name="x"/>
+      <arg type="i" direction="in" name="y"/>
+      <arg type="i" direction="in" name="width"/>
+      <arg type="i" direction="in" name="height"/>
       <arg type="ay" direction="out" name="png"/>
     </method>
   </interface>
@@ -192,6 +199,17 @@ class PycoreWindowBridge {
             0,
             1,
             stream).then(() => {
+            stream.close(null);
+            const bytes = stream.steal_as_bytes();
+            invocation.return_value(new GLib.Variant('(ay)', [bytes.toArray()]));
+        }).catch(error => {
+            invocation.return_dbus_error(`${BUS_NAME}.Error.CaptureFailed`, String(error));
+        });
+    }
+
+    CaptureAreaAsync([x, y, width, height], invocation) {
+        const stream = Gio.MemoryOutputStream.new_resizable();
+        new Shell.Screenshot().screenshot_area(x, y, width, height, stream).then(() => {
             stream.close(null);
             const bytes = stream.steal_as_bytes();
             invocation.return_value(new GLib.Variant('(ay)', [bytes.toArray()]));

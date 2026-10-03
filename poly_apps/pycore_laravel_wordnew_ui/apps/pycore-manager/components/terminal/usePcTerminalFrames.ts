@@ -36,6 +36,8 @@ interface Options {
   windows: readonly TerminalWindowInfo[];
   /** The terminal being operated; its window is polled once a second and every other one is paused. */
   focusWindowId: string | null;
+  /** The window clicked by position on its picture: it gets image frames instead of text. */
+  imageWindowId?: string | null;
 }
 
 function finishedAtOf(windowInfo: TerminalWindowInfo): number | null {
@@ -43,10 +45,13 @@ function finishedAtOf(windowInfo: TerminalWindowInfo): number | null {
   return activity && !activity.busy && typeof activity.finished_at === 'number' ? activity.finished_at : null;
 }
 
-export function usePcTerminalFrames({ windows, focusWindowId }: Options): PcTerminalFrames {
+export function usePcTerminalFrames({ windows, focusWindowId, imageWindowId = null }: Options): PcTerminalFrames {
   const terminalApi = usePcTerminalApi();
   const store = useMemo(
-    () => new TerminalFrameStore((windowId, digest, timeoutMs) => terminalApi.getTerminalScreenshot(windowId, digest, timeoutMs)),
+    () => new TerminalFrameStore(
+      (windowId, digest, timeoutMs) => terminalApi.getTerminalScreenshot(windowId, digest, timeoutMs),
+      (windowId, digest, timeoutMs) => terminalApi.getTerminalScreenshotText(windowId, digest, timeoutMs),
+    ),
     [terminalApi],
   );
   const version = useSyncExternalStore(store.subscribe, store.getVersion, store.getVersion);
@@ -65,7 +70,10 @@ export function usePcTerminalFrames({ windows, focusWindowId }: Options): PcTerm
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
-  useEffect(() => () => store.dispose(), [store]);
+  useEffect(() => {
+    store.open();
+    return () => store.dispose();
+  }, [store]);
 
   const frozen = useMemo(() => {
     const ids = new Set<string>();
@@ -90,6 +98,7 @@ export function usePcTerminalFrames({ windows, focusWindowId }: Options): PcTerm
   demandIdsRef.current = policy.demand.slice(0, MAX_DEMANDED_WINDOWS);
 
   useEffect(() => { store.setWanted(policy.wanted); }, [store, policy.wanted]);
+  useEffect(() => { store.setImageRequired(new Set(imageWindowId ? [imageWindowId] : [])); }, [store, imageWindowId]);
 
   const renew = useCallback(() => {
     const forced = [...forceQueue.current];
