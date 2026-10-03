@@ -324,6 +324,9 @@ systemBars: {
     loading: 'Loading usage…',
     unavailable: 'Usage unavailable',
     threads: '{{count}} threads',
+    battery: 'Battery',
+    charging: 'charging',
+    discharging: 'on battery',
     window: 'last 20 min',
   },
 appearance: {

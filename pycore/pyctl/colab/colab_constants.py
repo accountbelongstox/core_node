@@ -23,8 +23,15 @@ ERROR_START_TIMEOUT = "colab_start_timeout"
 ERROR_STOP_TIMEOUT = "colab_stop_timeout"
 ERROR_RUN_BUTTON_MISSING = "colab_run_button_missing"
 
-# Last kernel-setup step of notebook_boot.py; pyservice.sh starts right after it.
-BOOT_DONE_MARKER = "[NOTEBOOK] [8/8]"
+# Output lines that show pyservice took over from the kernel setup. Colab keeps
+# only the newest output lines, so the early markers scroll out on long runs and
+# the recurring prerequisite / runtime lines stand in for them.
+PYSERVICE_STAGE_MARKERS = (
+    "[NOTEBOOK] [8/8]",
+    "Pycore Service - entry point",
+    "[..] Prerequisite: ",
+    "HTTP Request: ",
+)
 
 # Colab dialogs (md-dialog) keep their buttons in the light DOM: a visible
 # [dialogaction="ok"] button marks an open prompt.

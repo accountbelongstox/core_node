@@ -324,6 +324,9 @@ systemBars: {
     loading: '正在读取占用…',
     unavailable: '无法获取占用',
     threads: '{{count}} 线程',
+    battery: '电量',
+    charging: '充电中',
+    discharging: '使用电池',
     window: '最近 20 分钟',
   },
 appearance: {

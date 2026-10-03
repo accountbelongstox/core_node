@@ -14,7 +14,6 @@ from typing import Any, Dict, Optional
 
 from pycore.pyctl.colab.colab_constants import (
     ACCEPT_DIALOG_SCRIPT,
-    BOOT_DONE_MARKER,
     COLAB_NOTEBOOK_ID,
     COLAB_NOTEBOOK_URL,
     DEFAULT_LOG_TAIL_LINES,
@@ -26,6 +25,7 @@ from pycore.pyctl.colab.colab_constants import (
     NOTEBOOK_READY_TIMEOUT_SECONDS,
     OAUTH_STEP_SCRIPT,
     POLL_SECONDS,
+    PYSERVICE_STAGE_MARKERS,
     START_SETTLE_SECONDS,
     START_TIMEOUT_SECONDS,
     STATE_IDLE,
@@ -109,7 +109,8 @@ class ColabPycoreRunner:
             await self._confirm_prompts(tab_id)
             state = await self._state(tab_id)
             if state["state"] == STATE_RUNNING and not state.get("dialog") and not booted:
-                booted = BOOT_DONE_MARKER in await colab_reader.live_text(tab_id)
+                output = await colab_reader.live_text(tab_id)
+                booted = any(marker in output for marker in PYSERVICE_STAGE_MARKERS)
             state["booted"] = booted
             if state["state"] != STATE_RUNNING or state.get("dialog") or not booted:
                 settled_since = None

@@ -307,6 +307,8 @@ class TerminalWindowBackend:
                 time.sleep(INTERRUPT_SETTLE_SECONDS)
             if (clear_first or interrupt_first) and not self._clear_input(window, shell_prompt):
                 return failure("terminal_clear_failed")
+            if clear_first and not interrupt_first and content_length <= 0:
+                return success(window)
             if not self._paste(window):
                 return failure("terminal_paste_failed")
             time.sleep(paste_settle_seconds(content_length))

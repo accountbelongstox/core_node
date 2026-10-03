@@ -356,6 +356,17 @@ def _cpu_info(psutil) -> dict:
     }
 
 
+def _battery_info(psutil):
+    """Battery charge of this host, or None when it has no battery (desktops, servers)."""
+    try:
+        battery = psutil.sensors_battery() if psutil is not None else None
+    except (AttributeError, OSError):
+        return None
+    if battery is None or battery.percent is None:
+        return None
+    return {"percent": float(battery.percent), "charging": bool(battery.power_plugged)}
+
+
 def _collect_system_resources() -> dict:
     """Snapshot of CPU%, memory, and GPUs for the UI's live resource meters."""
     psutil = get_third_package_psutil()
@@ -378,6 +389,7 @@ def _collect_system_resources() -> dict:
             "total_mb": int(vm.total / (1024 * 1024)),
             "percent": float(vm.percent),
         },
+        "battery": _battery_info(psutil),
         "gpus": _query_gpus(),
     }
 

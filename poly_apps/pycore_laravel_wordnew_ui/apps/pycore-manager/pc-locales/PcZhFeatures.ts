@@ -437,6 +437,7 @@ terminal: {
     sendEnterHint: '发送空指令：不粘贴内容，直接在终端按一次回车。',
     clearAndSend: '清空后发送',
     clearAndSendHint: '先清除终端输入框里已有的文字（Ctrl+K，再逐行 Ctrl+U），然后粘贴并回车。',
+    clearedOnly: '已清空终端输入。',
     clearedAndSent: '已清空终端输入，文本已粘贴并执行，剪贴板也已恢复。',
     quickKeys: '快捷按键',
     sendOnce: {

@@ -94,6 +94,8 @@ export interface SystemResources {
   /** CPU model and logical core count (newer pycore). */
   cpu?: { name: string; logical_cores: number };
   mem: { used_mb: number; total_mb: number; percent: number };
+  /** Null or absent when the host has no battery. */
+  battery?: { percent: number; charging: boolean } | null;
   gpus: SystemGpu[];
 }
 
