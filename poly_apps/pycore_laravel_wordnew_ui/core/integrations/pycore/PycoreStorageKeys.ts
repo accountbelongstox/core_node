@@ -1,6 +1,7 @@
 export const PycoreStorageKeys = {
   TARGET: 'pycore_target',
   TARGET_RECENT: 'pycore_target_recent',
+  LAN_URLS: 'pycore_lan_urls',
   HTTP_BROWSER_ID: 'pycore_http_browser_id',
   HTTP_CLIENT_IDS: 'pycore_http_client_ids',
   HTTP_EVENT_CURSORS: 'pycore_http_event_cursors',

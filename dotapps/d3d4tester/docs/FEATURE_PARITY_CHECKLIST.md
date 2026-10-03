@@ -30,6 +30,11 @@
 - [~] 卡奈转换 + 材料 — 仅打印“未实现”（Py 为 TODO）
 - [~] 丢弃装备 — 只绑定配置（Py 同）
 - [x] 自动确保战网正常（DOT） — `Services/BattlenetGuardService`
+- [x] 战网状态以右上角头像为准（Offline = 头像离线异常；Online/Away/Busy/Appear Offline = 正常） — `BattlenetOperationBase.ReadAccountPresence`
+- [x] 广告/欢迎弹窗（`*-modal` + Close）自动识别并关闭 — `BattlenetPopupDismiss.TryCloseModal`
+- [x] D3/D4 页签、开始按钮识别（状态栏 4 个图标） — `BattlenetOperationBase.DetectGameUi`
+- [ ] 切换 D3/D4 页签并点开始游戏（基于上面的识别）
+- [x] 战网、ROSBOT 不是本程序的子进程（父进程 = 桌面 explorer，程序重启/退出不影响） — `DotCore.Utils.ShellOpen.StartProgram`
 - [x] 启动 D3（不带 ROSBOT） — `LoginTryController.EnsureD3RunningFromBattlenetNoRosbot`
 - [x] 背包偏移 — `BagInfoCollector.BagOffsetProvider`（`use_in_calculation` 无 UI，Py 同）
 - [x] 界面识别（铁匠/卡奈）+ DEBUG 调试图 — `D3InterfaceDetection`
@@ -131,18 +136,20 @@
 1. 宏运行中修改技能 / HTTP `/api/config/update` 后实时重载（`MacroConfigLoader.LoadActive` 挂到配置变更通知）。
 2. 调试按钮补处理器：血岩、拾取、重铸、转换、分解、丢装、声音、暂停；修正“调试卡奈升级”。
 3. 扫描结果弹窗。
-4. Python 也未实现、但 UI 已有的配置：按住策略、快速切换热键、智能暂停、自定义站立键、血岩/拾取/丢装、卡奈重铸模式与转换、ROSBOT 蓝门/拾血岩/防卡/开机启动/回响等待秒数、地下城进度。
+4. 战网主界面切换 D3/D4 页签并点开始游戏（用 `DetectGameUi` 的识别结果；亚服 D4 页签 id 为 `Fen`）。
+5. Python 也未实现、但 UI 已有的配置：按住策略、快速切换热键、智能暂停、自定义站立键、血岩/拾取/丢装、卡奈重铸模式与转换、ROSBOT 蓝门/拾血岩/防卡/开机启动/回响等待秒数、地下城进度。
 
 ## 统计
 | 区域 | [x] | [~] | [ ] |
 |---|---|---|---|
 | 主页 | 11 | 5 | 0 |
-| 辅助自动化 | 9 | 5 | 0 |
-| ROSBOT | 16 | 5 | 1 |
-| D4 | 11 | 3 | 0 |
+| 辅助自动化 + 战网守护 | 12 | 5 | 1 |
+| ROSBOT | 14 | 5 | 1 |
+| D4 | 12 | 3 | 0 |
 | 坐标校准 | 7 | 0 | 0 |
 | 日志页 | 5 | 3 | 0 |
-| 状态栏/标题栏/托盘/HTTP/定时 | 8 | 3 | 0 |
-| 流程 / D3 检测 | 7 | 0 | 0 |
+| 状态栏/标题栏/托盘/HTTP/定时 | 6 | 3 | 0 |
+| 流程 / D3 检测 | 10 | 1 | 0 |
+| **合计** | **77** | **25** | **2** |
 
-`[~]` 中多数为 Python 同样未实现；真正的移植缺口见“待办”1–3。
+`[~]` 中多数为 Python 同样未实现；真正的移植缺口见“待办”1–4。

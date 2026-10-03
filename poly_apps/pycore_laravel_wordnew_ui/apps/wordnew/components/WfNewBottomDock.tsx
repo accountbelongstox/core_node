@@ -3,6 +3,11 @@ import { motion } from 'framer-motion';
 import { Cpu, Library, GraduationCap, AudioLines, Settings } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import type { WordNewTab } from '../routing/WordNewHashRoutes';
+const DOCK_KEYFRAMES =
+  '@keyframes wfnewDockRing{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.25);opacity:.7}}' +
+  '@keyframes wfnewDockGlow{0%,100%{transform:scale(.95);opacity:.4}50%{transform:scale(1.1);opacity:.85}}' +
+  '@keyframes wfnewDockIcon{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(8deg) scale(1.08)}75%{transform:rotate(-8deg) scale(1.08)}}';
+
 interface WfNewBottomDockProps {
   activeTab: WordNewTab;
   setActiveTab: (tab: WordNewTab) => void;
@@ -61,16 +66,9 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
             return (
               <div key={tab.id} className="relative flex flex-col items-center justify-center -top-3.5 px-2">
                 {/* Outer Breathing Ring for the Circle */}
-                <motion.div
-                  animate={{
-                    scale: [1, 1.25, 1],
-                    opacity: [0.3, 0.7, 0.3]
-                  }}
-                  transition={{
-                    duration: 2.5,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
+                <style>{DOCK_KEYFRAMES}</style>
+                <div
+                  style={{ animation: 'wfnewDockRing 2.5s ease-in-out infinite', willChange: 'transform, opacity' }}
                   className={`absolute w-15 h-15 rounded-full bg-gradient-to-tr ${tab.color} blur-[6px] -z-10`}
                 />
                 
@@ -82,15 +80,9 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
                   }`}
                   title={tab.label}
                 >
-                  <motion.div
-                    animate={isActive ? {
-                      rotate: [0, 8, -8, 0],
-                      scale: [1, 1.08, 1]
-                    } : {}}
-                    transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-                  >
+                  <div style={isActive ? { animation: 'wfnewDockIcon 3s ease-in-out infinite', willChange: 'transform' } : undefined}>
                     {tab.icon}
-                  </motion.div>
+                  </div>
                 </button>
               </div>
             );
@@ -116,16 +108,8 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
 
               {/* Dynamic Breathing Underglow Glow filter on Focus */}
               {isActive && (
-                <motion.div
-                  animate={{
-                    opacity: [0.4, 0.85, 0.4],
-                    scale: [0.95, 1.1, 0.95]
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
+                <div
+                  style={{ animation: 'wfnewDockGlow 3s ease-in-out infinite', willChange: 'transform, opacity' }}
                   className={`absolute -bottom-1 w-6 h-1 rounded-full blur-[4px] bg-gradient-to-r ${tab.color}`}
                 />
               )}

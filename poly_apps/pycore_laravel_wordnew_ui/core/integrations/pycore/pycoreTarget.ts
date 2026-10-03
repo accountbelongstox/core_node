@@ -304,6 +304,23 @@ export function getPycoreLanRoute(): PycoreTarget | null {
   return lanRoute;
 }
 
+const LAN_URLS_PER_HOST = 4;
+
+/**
+ * LAN URLs per machine (host label) as last reported, merged with `reported`: a machine that left
+ * the roster for a while (restarting, busy) keeps its last URLs; a probe decides whether they answer.
+ */
+export function rememberPycoreLanUrls(reported: Map<string, string[]>): Map<string, string[]> {
+  const stored = StorageManager.get<Record<string, unknown> | null>(StorageKeys.LAN_URLS, null) ?? {};
+  const merged = new Map<string, string[]>();
+  Object.entries(stored).forEach(([host, urls]) => {
+    if (Array.isArray(urls)) merged.set(host, urls.filter((url): url is string => typeof url === 'string' && targetFromUrl(url)?.kind === 'direct'));
+  });
+  reported.forEach((urls, host) => merged.set(host, urls.filter((url) => targetFromUrl(url)?.kind === 'direct').slice(0, LAN_URLS_PER_HOST)));
+  StorageManager.set(StorageKeys.LAN_URLS, Object.fromEntries(merged));
+  return merged;
+}
+
 /** Replace the LAN candidates (every entry must be a usable direct LAN URL). */
 export function setPycoreLanEndpoints(entries: Array<{ url: string; label: string }>): void {
   lanEndpoints = entries.flatMap((entry): PycoreEndpoint[] => {

@@ -48,6 +48,7 @@
         "verification_code": "等待输入验证码（需人工）",
         "login_asia": "亚服登录页",
         "popup": "弹窗（自动关闭）",
+        "account_offline": "头像离线（异常）",
         "disconnected": "已断开",
         "connecting": "连接中",
         "game_starting": "游戏启动中",
