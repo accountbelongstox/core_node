@@ -80,6 +80,16 @@ export const AUDIO_ORCH_TRANSFER = {
   laravelWordBatch: contract.transfer.laravel_word_batch_max_items,
 } as const;
 
+/** Server-declared content updates of held clips (R14's only automatic exception). */
+export const AUDIO_ORCH_CONTENT_UPDATE = {
+  /** A device checks its held clips against the server versions this often. */
+  checkIntervalMs: contract.content_update.check_interval_minutes * 60_000,
+  /** Lookup batches (laravel_bundle_max_items clips each) one check run covers; the next run continues from its cursor. */
+  batchesPerRun: contract.content_update.batches_per_run,
+  /** Changed clips downloaded at the same time. */
+  downloadParallel: contract.content_update.download_parallel,
+} as const;
+
 /** Server-owned book audio plan (contract `book_plan`): the client posts a plan once and follows its counters and ready ids by cursor. */
 export const AUDIO_ORCH_BOOK_PLAN = {
   readyPageDefault: contract.book_plan.ready_page_default,

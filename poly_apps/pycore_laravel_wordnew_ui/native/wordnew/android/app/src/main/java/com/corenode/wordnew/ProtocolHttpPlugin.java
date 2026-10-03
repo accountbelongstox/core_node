@@ -640,6 +640,13 @@ public class ProtocolHttpPlugin extends Plugin {
             }
             output.close();
             output = null;
+            if (finalFile.length() > 0) {
+                // A concurrent writer stored the clip meanwhile: the held file is kept.
+                partFile.delete();
+                header.put("written", true);
+                entries.put(header);
+                return;
+            }
             if (finalFile.exists() && !finalFile.delete()) {
                 throw new IOException("Cannot replace " + finalFile);
             }

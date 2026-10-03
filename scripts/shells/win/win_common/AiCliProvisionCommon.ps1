@@ -29,6 +29,31 @@ $AiCliUltracodeSettingsJson = '{"ultracode":true}'
 $AiCliKimiInstallerUrl = "https://code.kimi.com/kimi-code/install.ps1"
 $AiCliClaudeLatestUrl = "https://downloads.claude.ai/claude-code-releases/latest"
 $AiCliNativeInstallerFileName = "ai-cli-native-install.ps1"
+$AiCliNativeFetchTimeoutSeconds = 30
+$AiCliNativePollMilliseconds = 1000
+$AiCliNativeLogEverySeconds = 5
+$AiCliBytesPerMegabyte = 1MB
+# Size of a file another process is writing: a zero-access handle ignores the writer's share mode.
+$AiCliOpenFileSizeSource = @'
+using System;
+using System.Runtime.InteropServices;
+public static class AiCliOpenFileSize {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool GetFileSizeEx(IntPtr handle, out long size);
+    [DllImport("kernel32.dll")]
+    static extern bool CloseHandle(IntPtr handle);
+    public static long Get(string path) {
+        IntPtr handle = CreateFileW(path, 0, 7, IntPtr.Zero, 3, 0x80, IntPtr.Zero);
+        if (handle == new IntPtr(-1)) { return 0; }
+        long size;
+        bool ok = GetFileSizeEx(handle, out size);
+        CloseHandle(handle);
+        return ok ? size : 0;
+    }
+}
+'@
 $AiCliPathFunctionPath = Join-Path $PSScriptRoot "WindowsPathFunction.ps1"
 $AiCliGlobalPackageManagers = @("pnpm", "npm")
 
@@ -114,6 +139,102 @@ function Get-AiCliNativeExe {
     return (Join-Path ([string](Get-AiToolField -Key $Tool -Field "NativeBinDir")) ([string](Get-AiToolField -Key $Tool -Field "Exec")))
 }
 
+# Expected download size of <Tool>'s native binary (claude: release manifest), or 0 when unknown.
+function Get-AiCliNativeDownloadSize {
+    param([string]$Tool)
+
+    $releaseBaseUrl = $AiCliClaudeLatestUrl.Substring(0, $AiCliClaudeLatestUrl.LastIndexOf('/'))
+    $platform = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "win32-arm64" } else { "win32-x64" }
+    $version = ""
+    $manifest = $null
+
+    if ($Tool -ne "claude") {
+        return 0
+    }
+    try {
+        $version = ([string](Invoke-RestMethod -Uri $AiCliClaudeLatestUrl -TimeoutSec $AiCliNativeFetchTimeoutSeconds -ErrorAction Stop)).Trim()
+        $manifest = Invoke-RestMethod -Uri ("{0}/{1}/manifest.json" -f $releaseBaseUrl, $version) -TimeoutSec $AiCliNativeFetchTimeoutSeconds -ErrorAction Stop
+        Write-Host ("[INFO] Latest release: {0} ({1}, {2:N1} MB)" -f $version, $platform, ([double]$manifest.platforms.$platform.size / $AiCliBytesPerMegabyte)) -ForegroundColor Cyan
+        return [long]$manifest.platforms.$platform.size
+    }
+    catch {
+        Write-Host "[WARN] Release manifest unavailable ($($_.Exception.Message)); download size unknown" -ForegroundColor Yellow
+        return 0
+    }
+}
+
+# Bytes written to <DownloadDir> since <Since> (largest file), 0 when nothing yet.
+# NTFS directory listings lag for files still being written, so the size is read from an open handle.
+function Get-AiCliNativeDownloadedBytes {
+    param([string]$DownloadDir, [datetime]$Since)
+
+    $file = $null
+    $size = [long]0
+    $largest = [long]0
+
+    if ([string]::IsNullOrWhiteSpace($DownloadDir) -or -not (Test-Path -LiteralPath $DownloadDir)) {
+        return $largest
+    }
+    if (-not ('AiCliOpenFileSize' -as [type])) {
+        Add-Type -TypeDefinition $AiCliOpenFileSizeSource
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath $DownloadDir -File -ErrorAction SilentlyContinue | Where-Object { ($_.CreationTime -ge $Since) -or ($_.LastWriteTime -ge $Since) })) {
+        $size = [AiCliOpenFileSize]::Get($file.FullName)
+        if ($size -gt $largest) { $largest = $size }
+    }
+    return $largest
+}
+
+# Run the installer script in a child PowerShell and report progress until it exits; returns its exit code.
+# The official installers hide their own progress, so download bytes, speed and elapsed time are polled here.
+function Invoke-AiCliNativeInstallerProcess {
+    param([string]$Tool, [string]$InstallerFile)
+
+    $toolInfo = Get-AiTool -Key $Tool
+    $powerShellExe = (Get-Process -Id $PID).Path
+    $downloadDir = [string](Get-AiToolField -Key $Tool -Field "NativeInstallerDownloadDir")
+    $totalBytes = Get-AiCliNativeDownloadSize -Tool $Tool
+    $startTime = Get-Date
+    $lastLogTime = $startTime
+    $process = $null
+    $elapsedSeconds = 0.0
+    $downloadedBytes = 0
+    $speedMbps = 0.0
+    $percent = 0
+    $status = ""
+    $activity = "Installing $($toolInfo.Name)"
+
+    Write-Host "[INFO] Running: $powerShellExe -NoProfile -ExecutionPolicy Bypass -File `"$InstallerFile`"" -ForegroundColor Cyan
+    if ($downloadDir) {
+        Write-Host "[INFO] Download directory: $downloadDir" -ForegroundColor Cyan
+    }
+    $process = Start-Process -FilePath $powerShellExe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$InstallerFile`"") -NoNewWindow -PassThru
+    $null = $process.Handle
+    while (-not $process.WaitForExit($AiCliNativePollMilliseconds)) {
+        $elapsedSeconds = ((Get-Date) - $startTime).TotalSeconds
+        $downloadedBytes = Get-AiCliNativeDownloadedBytes -DownloadDir $downloadDir -Since $startTime
+        $speedMbps = if ($elapsedSeconds -gt 0) { ($downloadedBytes / $AiCliBytesPerMegabyte) / $elapsedSeconds } else { 0 }
+        if ($downloadedBytes -le 0) {
+            $status = "connecting / preparing, elapsed {0:N0}s" -f $elapsedSeconds
+        }
+        elseif ($totalBytes -gt 0) {
+            $percent = [Math]::Min(100, [int](($downloadedBytes * 100) / $totalBytes))
+            $status = "downloaded {0:N1} / {1:N1} MB ({2}%), {3:N2} MB/s, elapsed {4:N0}s" -f ($downloadedBytes / $AiCliBytesPerMegabyte), ($totalBytes / $AiCliBytesPerMegabyte), $percent, $speedMbps, $elapsedSeconds
+        }
+        else {
+            $status = "downloaded {0:N1} MB, {1:N2} MB/s, elapsed {2:N0}s" -f ($downloadedBytes / $AiCliBytesPerMegabyte), $speedMbps, $elapsedSeconds
+        }
+        Write-Progress -Activity $activity -Status $status -PercentComplete $percent
+        if (((Get-Date) - $lastLogTime).TotalSeconds -ge $AiCliNativeLogEverySeconds) {
+            Write-Host "[PROGRESS] $($toolInfo.Name): $status" -ForegroundColor DarkCyan
+            $lastLogTime = Get-Date
+        }
+    }
+    Write-Progress -Activity $activity -Completed
+    Write-Host ("[INFO] Installer finished in {0:N0}s with exit code {1}" -f ((Get-Date) - $startTime).TotalSeconds, $process.ExitCode) -ForegroundColor Cyan
+    return $process.ExitCode
+}
+
 # Run the official installer of <Tool> from each catalog URL until one leaves
 # the native executable in place. Child process: official installers call
 # exit on failure, which would otherwise terminate the caller.
@@ -124,7 +245,6 @@ function Invoke-AiCliNativeInstaller {
     $installerUrl = $null
     $installerContent = $null
     $installerFile = Join-Path ([System.IO.Path]::GetTempPath()) $AiCliNativeInstallerFileName
-    $powerShellExe = (Get-Process -Id $PID).Path
     $installerExitCode = 1
     $envName = ""
     $savedEnv = @{}
@@ -137,14 +257,14 @@ function Invoke-AiCliNativeInstaller {
     try {
         foreach ($installerUrl in @($toolInfo.NativeInstallerUrls)) {
             try {
-                Write-Host "[INSTALL] Fetching official installer for $($toolInfo.Name): $installerUrl" -ForegroundColor Cyan
-                $installerContent = Invoke-RestMethod -Uri $installerUrl -ErrorAction Stop
+                Write-Host "[INSTALL] Fetching official installer for $($toolInfo.Name): $installerUrl (timeout $($AiCliNativeFetchTimeoutSeconds)s)" -ForegroundColor Cyan
+                $installerContent = Invoke-RestMethod -Uri $installerUrl -TimeoutSec $AiCliNativeFetchTimeoutSeconds -ErrorAction Stop
                 if (($installerContent -isnot [string]) -or ($installerContent -match '<html')) {
                     throw "unexpected installer content"
                 }
                 Set-Content -LiteralPath $installerFile -Value $installerContent -Encoding UTF8
-                & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $installerFile
-                $installerExitCode = $LASTEXITCODE
+                Write-Host ("[INFO] Installer script saved: {0} ({1} chars)" -f $installerFile, $installerContent.Length) -ForegroundColor Cyan
+                $installerExitCode = Invoke-AiCliNativeInstallerProcess -Tool $Tool -InstallerFile $installerFile
                 Remove-Item -LiteralPath $installerFile -Force -ErrorAction SilentlyContinue
                 if (($installerExitCode -eq 0) -and (Test-Path -LiteralPath (Get-AiCliNativeExe -Tool $Tool))) {
                     return $true
