@@ -163,7 +163,8 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js)",
       "PowerShell(tail *)",
       "Bash(/tmp/q.sh)",
-      "Bash(node cdp.js net 20)"
+      "Bash(node cdp.js net 20)",
+      "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=100&minutes=600\")"
     ],
     "deny": [],
     "ask": []
