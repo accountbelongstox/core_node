@@ -610,6 +610,7 @@ terminal: {
       shownCount: '显示 {{shown}} / 共 {{total}} 条',
     },
     scheduleClearAllConfirm: '确定清除所有终端的全部待执行定时器？',
+    previewBack: '返回',
     special: {
       title: '处于特殊状态的终端',
       idle: '空闲 {{time}}',
