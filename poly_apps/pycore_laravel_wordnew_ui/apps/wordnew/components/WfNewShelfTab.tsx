@@ -47,7 +47,7 @@ export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
                 <>
                   <WfNewSectionHeader variant="page" title={trans('library.title')} subtitle={trans('library.subtitle')} />
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     {gGroups.map(g => (
                       <CourseBlockCard
                         key={g.id}

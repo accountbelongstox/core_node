@@ -54,8 +54,8 @@ export const WfNewSectionHeader: React.FC<WfNewSectionHeaderProps> = ({ title, s
   if (variant === 'page') {
     return (
       <div className={className}>
-        <h2 className="text-2xl font-black tracking-tight">{title}</h2>
-        {subtitle && <p className="mt-1 text-xs text-zinc-500">{subtitle}</p>}
+        <h2 className="text-lg font-bold tracking-tight">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-[11px] text-zinc-500">{subtitle}</p>}
       </div>
     );
   }
