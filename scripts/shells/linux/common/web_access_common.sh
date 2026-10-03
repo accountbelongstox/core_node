@@ -152,11 +152,13 @@ web_access_resolve() {
     local host=""
     local prefix=""
     local ui_port=""
+    local live_port=""
     local local_hosts=""
 
     web_access_load_sources
     prefix="$WEB_ACCESS_API_REGION_PREFIX"
     ui_port="$(sc_require ports.nexus_dash_frontend)"
+    live_port="$(sc_require ports.native_live_reload)"
     local_hosts="$(web_access_local_hosts | web_access_valid_hosts | web_access_unique_lines)"
     WEB_ACCESS_ALLOWED_HOSTS="$({
         printf '%s\n' "$local_hosts"
