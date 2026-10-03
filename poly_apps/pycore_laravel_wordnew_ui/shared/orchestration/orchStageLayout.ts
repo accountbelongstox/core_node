@@ -176,17 +176,42 @@ export function stageLineState(card: OrchStageCard, line: OrchStageLine, at: num
   return 'past';
 }
 
-/** Clip offsets inside a segment (clip, gap, clip, ...), as pycore `_segment_timeline`. */
+const PLACEHOLDER_WORD_MS = 900;
+const PLACEHOLDER_MIN_MS = 1_200;
+const PLACEHOLDER_MAX_MS = 15_000;
+const PLACEHOLDER_CJK_CHAR_MS = 220;
+const PLACEHOLDER_LATIN_CHAR_MS = 65;
+const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
+
+/** Estimated length of a clip that does not exist yet (its placeholder keeps the timeline complete). */
+export function orchPlaceholderMs(item: OrchComposeItem): number {
+  if (item.kind === 'word' && !item.meaningOf) return PLACEHOLDER_WORD_MS;
+  const perChar = CJK_PATTERN.test(item.text) ? PLACEHOLDER_CJK_CHAR_MS : PLACEHOLDER_LATIN_CHAR_MS;
+  return Math.min(PLACEHOLDER_MAX_MS, Math.max(PLACEHOLDER_MIN_MS, item.text.length * perChar));
+}
+
+/** A timeline entry without a clip yet: shown on the stage, skipped by the player. */
+export function orchEntryPlayable(entry: OrchTimelineEntry): boolean {
+  return entry.clipUrl !== '';
+}
+
+/**
+ * Clip offsets inside a segment (clip, gap, clip, ...), as pycore `_segment_timeline`.
+ * With `placeholderMs` every item is laid out (pre-compiled): a missing clip gets an
+ * entry without URL and the estimated length, so later clips keep their place.
+ */
 export function buildTimeline(
   items: OrchComposeItem[],
   clipOf: (item: OrchComposeItem) => { url: string; durationMs: number } | null,
   gapMs: number,
+  placeholderMs?: (item: OrchComposeItem) => number,
 ): OrchTimelineEntry[] {
   const timeline: OrchTimelineEntry[] = [];
   let cursor = 0;
   for (const item of items) {
-    const clip = clipOf(item);
-    if (!clip || clip.durationMs <= 0) continue;
+    const found = clipOf(item);
+    const clip = found && found.durationMs > 0 ? found : placeholderMs ? { url: '', durationMs: placeholderMs(item) } : null;
+    if (!clip) continue;
     if (timeline.length > 0) cursor += gapMs;
     timeline.push({ item, clipUrl: clip.url, startMs: cursor, endMs: cursor + clip.durationMs });
     cursor += clip.durationMs;

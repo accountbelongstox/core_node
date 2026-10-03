@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { OrchTimelineEntry } from './orchStageLayout';
+import { orchEntryPlayable, type OrchTimelineEntry } from './orchStageLayout';
 
 export interface OrchSequencer {
   playing: boolean;
@@ -52,11 +52,21 @@ export function useOrchSequencer(timeline: OrchTimelineEntry[], rate: number, on
     gapStartRef.current = null;
   };
 
-  const startClip = useCallback((index: number, offsetMs: number): void => {
+  const startClip = useCallback((requested: number, requestedOffsetMs: number): void => {
     const audio = audioRef.current;
+    if (!audio || !timeline[requested]) return;
+    // Clips not available yet (placeholders of the pre-compiled timeline) are skipped.
+    let index = requested;
+    while (timeline[index] && !orchEntryPlayable(timeline[index])) index += 1;
     const entry = timeline[index];
-    if (!audio || !entry) return;
     clearGap();
+    if (!entry) {
+      indexRef.current = timeline.length - 1;
+      audio.pause();
+      if (playingRef.current) advanceRef.current();
+      return;
+    }
+    const offsetMs = index === requested ? requestedOffsetMs : 0;
     indexRef.current = index;
     if (audio.src !== entry.clipUrl) audio.src = entry.clipUrl;
     audio.playbackRate = rate;
