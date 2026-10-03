@@ -12,8 +12,8 @@
  *     paired machine (RelayTransport).
  *
  * LAN route: a native shell reaches the selected machine's pycore at a LAN
- * address that machine reported (`http://<RFC 1918 host>:59000`, K3-signed by
- * pycoreLanAuth). The route only changes the address requests use; the
+ * address that machine reported (`http://<RFC 1918 host>:59000`, open to a
+ * private LAN peer, no key). The route only changes the address requests use; the
  * selection, and its availability (`pycoreLink`), stay the same machine.
  */
 import {
