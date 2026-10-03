@@ -36,6 +36,7 @@ BUILD_OUTPUT_DIR_NAME = contract_value("mcp_chrome.build_output_dir")
 EXTENSION_DIR_NAME = contract_value("mcp_chrome.extension_dir")
 EXTENSION_ID = contract_value("mcp_chrome.extension_id")
 NATIVE_RECONNECT_PAGE = contract_value("mcp_chrome.native_reconnect_page")
+EXTENSION_RELOAD_PAGE = contract_value("mcp_chrome.extension_reload_page")
 MCP_PORT = port("mcp_chrome")
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
@@ -271,7 +272,7 @@ def manifest_candidates() -> list[Path]:
     return candidates
 
 
-def extension_recovery_url() -> Optional[str]:
+def extension_page_url(page: str) -> Optional[str]:
     for manifest_path in manifest_candidates():
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -279,7 +280,7 @@ def extension_recovery_url() -> Optional[str]:
             continue
         for origin in manifest.get("allowed_origins", []):
             if isinstance(origin, str) and origin.startswith("chrome-extension://"):
-                return f"{origin}{NATIVE_RECONNECT_PAGE}"
+                return f"{origin}{page}"
     return None
 
 
@@ -347,10 +348,16 @@ def chrome_executable() -> Optional[str]:
 
 # Builds reload themselves (WXT dev client, build stamp, native host self-exit);
 # waking only asks a disconnected extension to reconnect its native host.
-def wake_extension(force: bool = False) -> None:
-    recovery_url = extension_recovery_url()
+def open_extension_page(page_url: str) -> None:
     chrome_path = chrome_executable()
-    reconnect_url: Optional[str] = None
+    if chrome_path:
+        subprocess.Popen([chrome_path, page_url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        webbrowser.open(page_url, new=0, autoraise=False)
+
+
+def wake_extension(force: bool = False) -> None:
+    recovery_url = extension_page_url(NATIVE_RECONNECT_PAGE)
     now = time.time()
     remaining = wake_interval_remaining(now)
 
@@ -364,16 +371,8 @@ def wake_extension(force: bool = False) -> None:
     if not recovery_url:
         print("[Supervisor] Native host manifest has no Chrome extension origin.", flush=True)
         return
-    reconnect_url = recovery_url
     try:
-        if chrome_path:
-            subprocess.Popen(
-                [chrome_path, reconnect_url],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        else:
-            webbrowser.open(reconnect_url, new=0, autoraise=False)
+        open_extension_page(recovery_url)
         record_wake(now)
         print("[Supervisor] Requested Chrome extension reconnect.", flush=True)
     except OSError as error:
@@ -441,6 +440,11 @@ def align_registered_extension_paths(project_root: Path) -> None:
                 f"[Supervisor] Chrome loads the extension from {registered_path}; linked it to {build_dir}.",
                 flush=True,
             )
+            reload_url = extension_page_url(EXTENSION_RELOAD_PAGE)
+            if reload_url:
+                # Chrome keeps the old service worker across restarts until the
+                # extension itself reloads.
+                open_extension_page(reload_url)
         except (OSError, subprocess.CalledProcessError) as error:
             print(f"[Supervisor] Could not link {registered_path} to {build_dir}: {error}", flush=True)
 

@@ -18,6 +18,7 @@ WNDENUMPROC = ctypes.WINFUNCTYPE(BOOL, HWND, LPARAM)
 POINT = wintypes.POINT
 
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
+from pycore.pyutils.common.user_idle import SELF_INPUT_MARKER
 
 
 PROCESS_TERMINATE = 0x0001
@@ -386,8 +387,8 @@ class WindowOps:
             and self.user32.AttachThreadInput(current_thread, foreground_thread, True)
         )
         try:
-            self.user32.keybd_event(VK_MENU, 0, 0, None)
-            self.user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, None)
+            self.user32.keybd_event(VK_MENU, 0, 0, SELF_INPUT_MARKER)
+            self.user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, SELF_INPUT_MARKER)
             self.user32.BringWindowToTop(hwnd)
             self.user32.SetForegroundWindow(hwnd)
         finally:
@@ -514,7 +515,7 @@ class WindowOps:
         else:
             inputs[0].mouse.flags = MOUSEEVENTF_LEFTDOWN
             inputs[1].mouse.flags = MOUSEEVENTF_LEFTUP
-        sent = self.user32.SendInput(2, inputs, ctypes.sizeof(NativeInput))
+        sent = self._send_inputs(inputs)
         return sent == 2
 
     def get_wheel_scroll_lines(self) -> int:
@@ -546,11 +547,7 @@ class WindowOps:
             inputs[index].type = INPUT_MOUSE
             inputs[index].mouse.mouse_data = delta & 0xFFFFFFFF
             inputs[index].mouse.flags = MOUSEEVENTF_WHEEL
-        sent = self.user32.SendInput(
-            len(inputs),
-            inputs,
-            ctypes.sizeof(NativeInput),
-        )
+        sent = self._send_inputs(inputs)
         return sent == len(inputs)
 
     def press_native_key(self, key: Union[str, int]) -> bool:
@@ -563,7 +560,7 @@ class WindowOps:
         inputs[1].type = INPUT_KEYBOARD
         inputs[1].keyboard.virtual_key = key_code
         inputs[1].keyboard.flags = KEYEVENTF_KEYUP
-        sent = self.user32.SendInput(2, inputs, ctypes.sizeof(NativeInput))
+        sent = self._send_inputs(inputs)
         return sent == 2
 
     def press_native_key_combo(self, keys: List[Union[str, int]], hold_seconds: float = 0.0) -> bool:
@@ -576,14 +573,22 @@ class WindowOps:
             self._fill_key_input(presses[index], key_code, 0)
         for index, key_code in enumerate(reversed(key_codes)):
             self._fill_key_input(releases[index], key_code, KEYEVENTF_KEYUP)
-        input_size = ctypes.sizeof(NativeInput)
         if hold_seconds <= 0:
             both = (NativeInput * (len(key_codes) * 2))(*presses, *releases)
-            return self.user32.SendInput(len(both), both, input_size) == len(both)
-        if self.user32.SendInput(len(presses), presses, input_size) != len(presses):
+            return self._send_inputs(both) == len(both)
+        if self._send_inputs(presses) != len(presses):
             return False
         time.sleep(hold_seconds)
-        return self.user32.SendInput(len(releases), releases, input_size) == len(releases)
+        return self._send_inputs(releases) == len(releases)
+
+    def _send_inputs(self, inputs: Any) -> int:
+        """SendInput with pycore's marker, so the input idle watch never counts pycore's own input as user activity."""
+        for entry in inputs:
+            if entry.type == INPUT_KEYBOARD:
+                entry.keyboard.extra_info = SELF_INPUT_MARKER
+            elif entry.type == INPUT_MOUSE:
+                entry.mouse.extra_info = SELF_INPUT_MARKER
+        return int(self.user32.SendInput(len(inputs), inputs, ctypes.sizeof(NativeInput)))
 
     def _fill_key_input(self, entry: NativeInput, key_code: int, flags: int) -> None:
         entry.type = INPUT_KEYBOARD

@@ -33,11 +33,19 @@ SCAN_TIMEOUT_SECONDS = 1.2
 SCAN_WORKERS = 128
 SCAN_HOST_RANGE = range(1, 255)
 TARGETS_STATE = "devices.json"
-TARGETS_KEEP = 8
+TARGETS_KEEP = 12
+CHOICE_WAIT_SECONDS = 5
+TAILNET_TIMEOUT_SECONDS = 5
+TAILNET_ANDROID_OS = "android"
+TAILSCALE_WINDOWS_BIN = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Tailscale" / "tailscale.exe"
+VIA_LAN = "lan"
+VIA_TAILNET = "tailnet"
+DEFAULT_NETWORK = "default"
+WINDOWS_SSID_PATTERN = re.compile(r"^\s*SSID\s*:\s*(.+?)\s*$", re.MULTILINE)
 MDNS_CONNECT_PATTERN = re.compile(r"_adb(-tls-connect)?\._tcp")
 MDNS_PAIRING_PATTERN = re.compile(r"_adb-tls-pairing\._tcp")
 MDNS_SERIAL_PATTERN = re.compile(r"^adb-([^-]+)-")
-DISCOVERY_STEPS = 4
+DISCOVERY_STEPS = 5
 # Typed pairing details as shown in the phone's pairing dialog: "[IP:]PORT CODE" or "CODE" alone
 # (the pairing port is then looked up over mDNS).
 PAIRING_INPUT_PATTERN = re.compile(r"^\s*(?:(?:(\d+\.\d+\.\d+\.\d+):)?(\d{2,5})\s+)?(\d{6})\s*$")
@@ -186,15 +194,125 @@ def known_targets(state_dir: Path) -> list[dict]:
     return [entry for entry in entries if isinstance(entry, dict) and entry.get("endpoint")]
 
 
+def is_tailnet_host(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host) in CARRIER_NAT_NETWORK
+    except ValueError:
+        return False
+
+
+def current_network() -> str:
+    """Namespace of the network this computer is on: the WiFi SSID, else the first local /24."""
+    ssid = ""
+    try:
+        if os.name == "nt":
+            listing = subprocess.run(["netsh", "wlan", "show", "interfaces"], capture_output=True, text=True,
+                                     errors="replace", check=False, timeout=TAILNET_TIMEOUT_SECONDS, **NO_WINDOW).stdout
+            match = WINDOWS_SSID_PATTERN.search(listing)
+            ssid = match.group(1) if match else ""
+        elif shutil.which("iwgetid"):
+            ssid = subprocess.run(["iwgetid", "-r"], capture_output=True, text=True, check=False,
+                                  timeout=TAILNET_TIMEOUT_SECONDS).stdout.strip()
+        elif shutil.which("nmcli"):
+            listing = subprocess.run(["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"], capture_output=True,
+                                     text=True, check=False, timeout=TAILNET_TIMEOUT_SECONDS).stdout
+            ssid = next((line[4:] for line in listing.splitlines() if line.startswith("yes:")), "")
+    except (OSError, subprocess.TimeoutExpired):
+        ssid = ""
+    if ssid:
+        return f"wifi:{ssid}"
+    subnets = local_subnets()
+    return f"lan:{subnets[0]}.0/24" if subnets else DEFAULT_NETWORK
+
+
+def network_of(host: str) -> str:
+    return VIA_TAILNET if is_tailnet_host(host) else current_network()
+
+
+def saved_pairings(state_dir: Path, network: str) -> dict:
+    pairings = (load_json(state_dir / TARGETS_STATE).get("pairings") or {}).get(network) or {}
+    return pairings if isinstance(pairings, dict) else {}
+
+
+def save_pairing(state_dir: Path, endpoint: str, code: str) -> None:
+    """Stores the pairing code under the network namespace (one entry per phone host)."""
+    host = split_endpoint(endpoint)[0]
+    network = network_of(host)
+    state = load_json(state_dir / TARGETS_STATE)
+    state.setdefault("pairings", {}).setdefault(network, {})[host] = {
+        "pair_endpoint": endpoint, "code": code, "updated": datetime.now().isoformat(timespec="seconds")}
+    write_json(state_dir / TARGETS_STATE, state)
+    log(f"Pairing code saved for {host} in network '{network}'.")
+
+
+def device_tailnet_ip(adb_bin: str, serial: str) -> str:
+    listing = adb(adb_bin, serial, "shell", "ip", "-f", "inet", "addr", "show")
+    return next((text for text in IP_LINE_PATTERN.findall(listing) if is_tailnet_host(text)), "")
+
+
 def remember_target(adb_bin: str, state_dir: Path, serial: str, endpoint: str) -> None:
+    """Remembers the endpoint and, when the phone runs Tailscale/Headscale, the same port on its tailnet IP."""
     hardware = hardware_serial(adb_bin, serial)
-    default_port = split_endpoint(endpoint)[1] == ADB_DEFAULT_PORT
-    kept = [entry for entry in known_targets(state_dir)
-            if entry["endpoint"] != endpoint and not (
-                entry.get("hardware") == hardware and (split_endpoint(entry["endpoint"])[1] == ADB_DEFAULT_PORT) == default_port)]
-    entry = {"endpoint": endpoint, "hardware": hardware, "model": device_model(adb_bin, serial),
-             "last_ok": datetime.now().isoformat(timespec="seconds")}
-    write_json(state_dir / TARGETS_STATE, {"targets": ([entry] + kept)[:TARGETS_KEEP]})
+    host, port = split_endpoint(endpoint)
+    base = {"hardware": hardware, "model": device_model(adb_bin, serial),
+            "last_ok": datetime.now().isoformat(timespec="seconds")}
+    via = VIA_TAILNET if is_tailnet_host(host) else VIA_LAN
+    fresh = [{"endpoint": endpoint, "via": via, "network": network_of(host), **base}]
+    tailnet_ip = device_tailnet_ip(adb_bin, serial) if via == VIA_LAN else ""
+    if tailnet_ip:
+        fresh.append({"endpoint": f"{tailnet_ip}:{port}", "via": VIA_TAILNET, "network": VIA_TAILNET, **base})
+
+    def replaced(entry: dict) -> bool:
+        return any(entry["endpoint"] == item["endpoint"] or (
+            entry.get("hardware") == hardware and entry.get("via", VIA_LAN) == item["via"]
+            and (split_endpoint(entry["endpoint"])[1] == ADB_DEFAULT_PORT) == (port == ADB_DEFAULT_PORT)) for item in fresh)
+
+    state = load_json(state_dir / TARGETS_STATE)
+    state["targets"] = (fresh + [entry for entry in known_targets(state_dir) if not replaced(entry)])[:TARGETS_KEEP]
+    write_json(state_dir / TARGETS_STATE, state)
+
+
+def tailscale_bin() -> str:
+    found = shutil.which("tailscale")
+    if found:
+        return found
+    return str(TAILSCALE_WINDOWS_BIN) if os.name == "nt" and TAILSCALE_WINDOWS_BIN.is_file() else ""
+
+
+def tailnet_peers() -> list[tuple[str, str, str]]:
+    """Online tailnet peers as (IPv4, host name, OS); the same CLI serves Tailscale and Headscale tailnets."""
+    binary = tailscale_bin()
+    if not binary:
+        return []
+    try:
+        output = subprocess.run([binary, "status", "--json"], capture_output=True, text=True, errors="replace",
+                                check=False, timeout=TAILNET_TIMEOUT_SECONDS, **NO_WINDOW).stdout
+        status = json.loads(output or "{}")
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return []
+    peers: list[tuple[str, str, str]] = []
+    for peer in (status.get("Peer") or {}).values():
+        if not isinstance(peer, dict) or not peer.get("Online"):
+            continue
+        address = next((ip for ip in peer.get("TailscaleIPs") or [] if "." in ip), "")
+        if address:
+            peers.append((address, peer.get("HostName") or "", (peer.get("OS") or "").lower()))
+    return peers
+
+
+def tailnet_endpoints(state_dir: Path) -> list[str]:
+    """Reachable adb endpoints on the tailnet: remembered tailnet targets plus Android peers on known ports."""
+    if not tailscale_bin():
+        log("  tailnet: tailscale CLI not found (Tailscale, or a Headscale server via "
+            "'tailscale up --login-server <URL>'); skipped.")
+        return []
+    peers = tailnet_peers()
+    log(f"  tailnet: {len(peers)} online peer(s)"
+        + (f" ({', '.join(f'{name or ip} [{os_name}]' for ip, name, os_name in peers)})" if peers else ""))
+    ports = scan_ports(state_dir)
+    candidates = [entry["endpoint"] for entry in known_targets(state_dir) if entry.get("via") == VIA_TAILNET]
+    candidates += [f"{ip}:{port}" for ip, _name, os_name in peers if os_name in (TAILNET_ANDROID_OS, "") for port in ports]
+    return open_endpoints(list(dict.fromkeys(candidates)))
 
 
 def mdns_records(adb_bin: str) -> list[tuple[str, str, str]]:
@@ -286,7 +404,7 @@ def connect_authorized(adb_bin: str, target: str) -> bool:
     return False
 
 
-def pair_device(adb_bin: str, target: str, code: str, interactive: bool) -> bool:
+def pair_device(adb_bin: str, target: str, code: str, interactive: bool, state_dir: Path | None = None) -> bool:
     if ":" not in target:
         log("Pair target must be IP:PAIR_PORT from 'Wireless debugging -> Pair device with pairing code'.")
         return False
@@ -298,7 +416,10 @@ def pair_device(adb_bin: str, target: str, code: str, interactive: bool) -> bool
     log(f"Pairing with {target} (Android 11+ wireless debugging)...")
     output = run_adb(adb_bin, "pair", target, code, timeout=ADB_PAIR_TIMEOUT_SECONDS)
     log_lines(output)
-    return "Successfully paired" in output
+    paired = "Successfully paired" in output
+    if paired and state_dir is not None:
+        save_pairing(state_dir, target, code)
+    return paired
 
 
 def local_subnets() -> list[str]:
@@ -367,7 +488,7 @@ def scan_ports(state_dir: Path) -> list[int]:
 
 def scan_and_connect(adb_bin: str, state_dir: Path) -> None:
     show_mdns(adb_bin)
-    hits = scan_lan([ADB_DEFAULT_PORT])
+    hits = scan_lan([ADB_DEFAULT_PORT]) + tailnet_endpoints(state_dir)
     for endpoint in hits:
         log(f"Found adb host: {endpoint}")
         if connect_authorized(adb_bin, endpoint):
@@ -406,17 +527,26 @@ def print_pairing_help(adb_bin: str, unpaired: list[str], pairing: list[str]) ->
     log("After pairing once, every later run connects by itself (the phone keeps this computer paired).")
 
 
-def read_pairing_input(adb_bin: str, unpaired: list[str]) -> tuple[str, str]:
-    """Asks for the pairing details from the phone dialog; returns (IP:PORT, CODE) or empty when skipped."""
+def read_pairing_input(adb_bin: str, unpaired: list[str], state_dir: Path | None = None) -> tuple[str, str]:
+    """Asks for the pairing details from the phone dialog; returns (IP:PORT, CODE) or empty when skipped.
+    's' reuses the code saved for this network (accepted only while that phone dialog is still open)."""
     host = split_endpoint(unpaired[0])[0] if unpaired else ""
+    network = network_of(host) if host else current_network()
+    saved = saved_pairings(state_dir, network) if state_dir is not None else {}
+    for saved_host, entry in saved.items():
+        log(f"Saved pairing in '{network}': {saved_host} code {entry.get('code', '')} ({entry.get('updated', '')})")
     while True:
         try:
-            reply = input("Type the 6-digit CODE (or PORT CODE, or IP:PORT CODE) from the phone dialog; "
-                          "empty skips: ").strip()
+            reply = input("Type the 6-digit CODE (or PORT CODE, or IP:PORT CODE) from the phone dialog"
+                          + ("; 's' reuses the saved code" if saved else "") + "; empty skips: ").strip()
         except (EOFError, KeyboardInterrupt):
             return "", ""
         if not reply:
             return "", ""
+        if reply.lower() == "s" and saved:
+            saved_host = host if host in saved else next(iter(saved))
+            host = saved_host
+            reply = str(saved[saved_host].get("code", ""))
         match = PAIRING_INPUT_PATTERN.match(reply)
         if not match:
             log(f"Not understood: '{reply}'. Examples: 123456 | 37421 123456 | 192.168.1.20:37421 123456")
@@ -433,9 +563,10 @@ def read_pairing_input(adb_bin: str, unpaired: list[str]) -> tuple[str, str]:
         log("The phone does not announce its pairing port over mDNS; type PORT CODE (the port shown in the dialog).")
 
 
-def pair_and_connect(adb_bin: str, endpoint: str, code: str, unpaired: list[str]) -> bool:
+def pair_and_connect(adb_bin: str, endpoint: str, code: str, unpaired: list[str],
+                     state_dir: Path | None = None) -> bool:
     """Pairs with endpoint, then connects to the phone's wireless-debugging port on the same host."""
-    if not pair_device(adb_bin, endpoint, code, True):
+    if not pair_device(adb_bin, endpoint, code, True, state_dir):
         log("Pairing failed: the code expires when the dialog closes; reopen it and use the new port and code.")
         return False
     host = split_endpoint(endpoint)[0]
@@ -451,7 +582,8 @@ def pair_and_connect(adb_bin: str, endpoint: str, code: str, unpaired: list[str]
     return False
 
 
-def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool, unpaired: list[str] | None = None) -> bool:
+def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool, unpaired: list[str] | None = None,
+                state_dir: Path | None = None) -> bool:
     unpaired = unpaired or []
     if not pairing and not unpaired:
         log("No device found over WiFi. On the phone enable Settings -> Developer options -> Wireless debugging "
@@ -462,11 +594,11 @@ def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool, unpaired: l
     if not interactive:
         log("Non-interactive run: pair with the commands above, then re-run this script.")
         return False
-    endpoint, code = read_pairing_input(adb_bin, unpaired)
+    endpoint, code = read_pairing_input(adb_bin, unpaired, state_dir)
     if not endpoint:
         log("Pairing skipped; run the commands above, then re-run this script.")
         return False
-    return pair_and_connect(adb_bin, endpoint, code, unpaired)
+    return pair_and_connect(adb_bin, endpoint, code, unpaired, state_dir)
 
 
 def discover(adb_bin: str, state_dir: Path, interactive: bool) -> bool:
@@ -497,16 +629,20 @@ def discover(adb_bin: str, state_dir: Path, interactive: bool) -> bool:
             return True
         if endpoint_open(endpoint):
             unpaired.append(endpoint)
+    log(f"Step 3/{DISCOVERY_STEPS}: tailnet (Tailscale/Headscale; remote phones, no mDNS across the tailnet) ...")
+    for endpoint in tailnet_endpoints(state_dir):
+        if attempt(endpoint):
+            return True
     ports = scan_ports(state_dir)
-    log(f"Step 3/{DISCOVERY_STEPS}: LAN scan of port(s) {', '.join(str(port) for port in ports)} on "
+    log(f"Step 4/{DISCOVERY_STEPS}: LAN scan of port(s) {', '.join(str(port) for port in ports)} on "
         f"{', '.join(prefix + '.0/24' for prefix in local_subnets()) or 'no local subnet'} "
         "(finds 'adb tcpip' phones; Android 11+ wireless debugging uses a random port that only mDNS reveals)")
     for endpoint in scan_lan(ports):
         log(f"Found adb host: {endpoint}")
         if attempt(endpoint):
             return True
-    log(f"Step 4/{DISCOVERY_STEPS}: pairing")
-    if not pair_nearby(adb_bin, pairing_points, interactive, unpaired):
+    log(f"Step 5/{DISCOVERY_STEPS}: pairing")
+    if not pair_nearby(adb_bin, pairing_points, interactive, unpaired, state_dir):
         return False
     remember_online(adb_bin, state_dir)
     return True
@@ -555,7 +691,58 @@ def switch_usb_devices_to_wifi(adb_bin: str, state_dir: Path, port: int) -> bool
     return all([switch_to_wifi(adb_bin, state_dir, serial, port) for serial in usb])
 
 
+def scan_other_devices(adb_bin: str, state_dir: Path, interactive: bool) -> None:
+    """Connects every further wireless-debugging phone found via mDNS, the tailnet and the LAN scan; offers pairing."""
+    connected = set(online_serials(adb_bin))
+    describe_mdns(adb_bin)
+    connect_points, pairing_points = mdns_endpoints(adb_bin)
+    candidates = list(dict.fromkeys(connect_points + tailnet_endpoints(state_dir) + scan_lan(scan_ports(state_dir))))
+    unpaired: list[str] = []
+    for endpoint in candidates:
+        if endpoint in connected:
+            continue
+        if connect_authorized(adb_bin, endpoint):
+            connected.add(endpoint)
+        elif endpoint_open(endpoint):
+            unpaired.append(endpoint)
+    remember_online(adb_bin, state_dir)
+    if unpaired or pairing_points:
+        pair_nearby(adb_bin, pairing_points, interactive, unpaired, state_dir)
+        remember_online(adb_bin, state_dir)
+    log(f"Online device(s): {', '.join(online_serials(adb_bin)) or 'none'}")
+
+
+def update_pairing(adb_bin: str, state_dir: Path) -> None:
+    """Pairs again with a new code from the phone dialog and stores it under the current network."""
+    print_pairing_help(adb_bin, [], mdns_endpoints(adb_bin)[1])
+    endpoint, code = read_pairing_input(adb_bin, [], state_dir)
+    if endpoint:
+        pair_and_connect(adb_bin, endpoint, code, [], state_dir)
+        remember_online(adb_bin, state_dir)
+
+
+def offer_device_options(adb_bin: str, state_dir: Path, interactive: bool) -> None:
+    """With a device already paired/online: a short Y window to scan other phones, then one to update the pairing code."""
+    if not interactive:
+        return
+    network = current_network()
+    if timed_yes_no(f"Press Y to scan '{network}' and the tailnet for other wireless-debugging devices",
+                    CHOICE_WAIT_SECONDS, False):
+        scan_other_devices(adb_bin, state_dir, interactive)
+    saved = saved_pairings(state_dir, network)
+    if timed_yes_no(f"Press Y to update the pairing code of network '{network}' ({len(saved)} saved)",
+                    CHOICE_WAIT_SECONDS, False):
+        update_pairing(adb_bin, state_dir)
+
+
 def resolve_device(adb_bin: str, state_dir: Path, interactive: bool) -> bool:
+    resolved = resolve_first_device(adb_bin, state_dir, interactive)
+    if resolved:
+        offer_device_options(adb_bin, state_dir, interactive)
+    return resolved
+
+
+def resolve_first_device(adb_bin: str, state_dir: Path, interactive: bool) -> bool:
     run_adb(adb_bin, "start-server")
     devices = list_devices(adb_bin)
     for serial, state in devices:
