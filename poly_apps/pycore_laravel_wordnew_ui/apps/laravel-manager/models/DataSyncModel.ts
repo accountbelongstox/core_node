@@ -17,7 +17,7 @@ import {
   createFixedLaravelModuleConfig,
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
-import { getSharedAuthToken } from '../../../core/integrations/laravel/transport/BaseAPI';
+import { getAuthHeader } from '../../../core/auth/AuthSession';
 import { requestGlobalLogin } from '../../../core/integrations/laravel/transport/LoginRequestBridge';
 import { LARAVEL_API_BACKEND_PORT } from '../../../core/contracts/ServiceContract';
 import { StorageManager } from '../../../core/persistence';
@@ -211,7 +211,7 @@ export class DataSyncModel {
     const token = typeof payload?.token === 'string' && payload.token !== '' ? payload.token : null;
 
     if (!response.success || !token) {
-      const error = new Error(response.error || i18n.t('login.errors.default')) as Error & { errorCode?: string };
+      const error = new Error(response.error || i18n.t('laravelAuth:login.errors.default')) as Error & { errorCode?: string };
       error.errorCode = response.debugInfo?.error_code;
       throw error;
     }
@@ -435,10 +435,10 @@ export class DataSyncModel {
     return apiManager.getCurrentEndpoint()?.id === endpointId;
   }
 
-  private authHeaderFor(endpointId: string): string | null {
+  private authHeaderFor(endpointId: string, baseUrl: string): string | null {
     const peerAuth = this.peerAuth(endpointId);
     if (peerAuth) return `Bearer ${peerAuth.token}`;
-    return this.isCurrentEndpoint(endpointId) ? getSharedAuthToken() : null;
+    return getAuthHeader(baseUrl);
   }
 
   private hostnameOf(address: string): string {
@@ -493,7 +493,7 @@ export class DataSyncModel {
         endpoint.baseUrl,
         WORKSPACE_TIMEOUT_MS,
       ),
-      authToken: () => this.authHeaderFor(endpointId),
+      authToken: () => this.authHeaderFor(endpointId, endpoint.baseUrl),
       // Remote nodes own a separate login state: their 401s open the
       // endpoint-scoped peer login, never the shared login modal.
       onUnauthorized: () => {

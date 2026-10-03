@@ -30,6 +30,7 @@
 import { ViewType } from '../uiTypes';
 import type { Language } from '../uiTypes';
 import i18n from '../i18n';
+import { isAuthBypassed, setAuthBypass } from '../../../core/auth/AuthBypass';
 
 /** All view types that require the user to be logged in for protected operations. */
 export const REQUIRE_LOGIN_VIEWS: ViewType[] = [
@@ -55,16 +56,14 @@ export const REQUIRE_LOGIN_VIEWS: ViewType[] = [
  * it via isDebugAuthBypass(). Kept as a module flag (not React state) so it is
  * available synchronously to AuthGuard without threading new props/context.
  */
-let debugAuthBypass = false;
-
-/** Set by app startup after probing GET /auth/debug-status. */
+/** Set by app startup after probing GET /auth/debug-status (the bypass belongs to the probed Laravel API). */
 export function setDebugAuthBypass(enabled: boolean): void {
-  debugAuthBypass = enabled === true;
+  setAuthBypass(enabled === true);
 }
 
-/** True when the loopback debug bypass is active (treat all users as authed). */
+/** True when the loopback debug bypass is active for the active Laravel API (treat all users as authed). */
 export function isDebugAuthBypass(): boolean {
-  return debugAuthBypass;
+  return isAuthBypassed();
 }
 
 /** Map ViewType -> key path in TRANSLATIONS[lang] for auth_required message (e.g. server_manager.auth_required). Only entries for REQUIRE_LOGIN_VIEWS. */

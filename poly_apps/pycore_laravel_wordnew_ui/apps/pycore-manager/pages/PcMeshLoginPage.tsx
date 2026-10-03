@@ -4,12 +4,17 @@
  * MagicDNS domain and devices; a single-use pre-auth key is minted on demand;
  * a key-less login (iOS, browser flow) is approved here by its auth ID.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, KeyRound, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Check, Copy, KeyRound, Loader2, LogIn, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { copyTextToSystemClipboard } from '@/core/browser/SystemClipboard';
 import { meshAuthIdOf } from '@/core/contracts/MeshDomain';
-import { meshGuideApi, type MeshGuide, type MeshPreauthKey } from '@/apps/pycore-manager/api/MeshGuideApi';
+import { meshGuideApi, MESH_GUIDE_API_ORIGIN, type MeshGuide, type MeshPreauthKey } from '@/apps/pycore-manager/api/MeshGuideApi';
+import { requestAuthLogin } from '@/core/auth/AuthRequestCenter';
+import { authEndpointLabel } from '@/core/auth/AuthSession';
+import { useAuthSnapshot } from '@/core/auth/useAuthSession';
+import { laravelUserLabel } from '@/core/auth/LaravelUser';
+import { logoutLaravel } from '@/core/integrations/laravel/LaravelAuthClient';
 
 type Platform = 'android' | 'ios' | 'windows' | 'linux' | 'macos';
 
@@ -17,7 +22,9 @@ const PLATFORMS: Platform[] = ['android', 'ios', 'windows', 'linux', 'macos'];
 const COPIED_RESET_MS = 1_500;
 const KEY_PLACEHOLDER = '<pre-auth key>';
 
+const UNAUTHORIZED_STATUS = 401;
 const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+const isUnauthorized = (error: unknown): boolean => (error as { status?: unknown } | null)?.status === UNAUTHORIZED_STATUS;
 const localTime = (iso: string | null): string => (iso ? new Date(iso).toLocaleString() : '');
 
 const CopyValue: React.FC<{ value: string; mono?: boolean }> = ({ value, mono = true }) => {
@@ -45,6 +52,9 @@ const PcMeshLoginPage: React.FC = () => {
   const [guide, setGuide] = useState<MeshGuide | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [needsLogin, setNeedsLogin] = useState(false);
+  const auth = useAuthSnapshot(MESH_GUIDE_API_ORIGIN);
+  const host = authEndpointLabel(MESH_GUIDE_API_ORIGIN);
   const [key, setKey] = useState<MeshPreauthKey | null>(null);
   const [keyBusy, setKeyBusy] = useState(false);
   const [keyError, setKeyError] = useState('');
@@ -56,16 +66,32 @@ const PcMeshLoginPage: React.FC = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError('');
+    setNeedsLogin(false);
     try {
       setGuide(await meshGuideApi.guide());
     } catch (error) {
-      setLoadError(t('meshLogin.loadFailed', { error: errorText(error) }));
+      if (isUnauthorized(error)) {
+        setGuide(null);
+        setNeedsLogin(true);
+      } else setLoadError(t('meshLogin.loadFailed', { error: errorText(error) }));
     } finally {
       setLoading(false);
     }
   }, [t]);
 
-  useEffect(() => { void load(); }, [load]);
+  // The guide is read on entry and again after a sign-in; a sign-out only shows the sign-in prompt.
+  const wasLoggedInRef = useRef(false);
+  useEffect(() => {
+    if (!auth.loggedIn && wasLoggedInRef.current) {
+      wasLoggedInRef.current = false;
+      setGuide(null);
+      setKey(null);
+      setNeedsLogin(true);
+      return;
+    }
+    wasLoggedInRef.current = auth.loggedIn;
+    void load();
+  }, [load, auth.loggedIn]);
 
   const generateKey = useCallback(async () => {
     setKeyBusy(true);
@@ -117,6 +143,27 @@ const PcMeshLoginPage: React.FC = () => {
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        {auth.loggedIn ? (
+          <>
+            <span>{t('meshLogin.auth.signedIn', { host, user: laravelUserLabel(auth.user) })}</span>
+            <button type="button" onClick={() => void logoutLaravel(MESH_GUIDE_API_ORIGIN)}
+              className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1 pc-glass">
+              <LogOut size={12} />{t('meshLogin.auth.logout')}
+            </button>
+          </>
+        ) : null}
+      </div>
+      {needsLogin && (
+        <section className="pc-glass p-4 space-y-3">
+          <p className="text-sm">{t('meshLogin.auth.required', { host })}</p>
+          <button type="button"
+            onClick={() => requestAuthLogin({ source: 'pycore-mesh', reason: 'mesh-guide', baseUrl: MESH_GUIDE_API_ORIGIN })}
+            className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs bg-indigo-600 text-white">
+            <LogIn size={14} />{t('meshLogin.auth.login')}
+          </button>
+        </section>
+      )}
       {loading && !guide && <p className="text-sm text-slate-500">{t('meshLogin.loading')}</p>}
       {loadError && <p className="text-sm text-rose-500">{loadError}</p>}
 

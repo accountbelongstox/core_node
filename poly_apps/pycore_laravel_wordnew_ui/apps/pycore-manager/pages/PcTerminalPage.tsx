@@ -267,6 +267,30 @@ function terminalDraftKey(terminalNumber: number): string {
   return String(terminalNumber);
 }
 
+// Every keystroke is mirrored synchronously into localStorage so a draft survives a reload,
+// a closed tab or a failed server save; the entry is dropped once the server holds the same text.
+function readCachedDrafts(): Record<string, string> {
+  const stored = StorageManager.get<Record<string, unknown> | null>(DRAFT_CACHE_STORAGE_KEY, null);
+  if (!stored || typeof stored !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(stored).filter(([, text]) => typeof text === 'string' && text !== ''),
+  ) as Record<string, string>;
+}
+
+function writeCachedDraft(terminalNumber: number, text: string | null): void {
+  const key = terminalDraftKey(terminalNumber);
+  const drafts = readCachedDrafts();
+  if (text === null || text === '') {
+    if (!(key in drafts)) return;
+    delete drafts[key];
+  } else {
+    if (drafts[key] === text) return;
+    drafts[key] = text;
+  }
+  if (Object.keys(drafts).length === 0) StorageManager.remove(DRAFT_CACHE_STORAGE_KEY);
+  else StorageManager.set(DRAFT_CACHE_STORAGE_KEY, drafts);
+}
+
 function terminalRequestErrorCode(error: unknown): string {
   const message = error instanceof Error ? error.message : '';
   return ERROR_TRANSLATION_KEYS[message] ? message : 'request_failed';
@@ -289,6 +313,7 @@ function toDatetimeLocalValue(value: number): string {
 
 const DEFAULT_SCHEDULE_INTERVAL_TEXT = '60';
 const SCHEDULE_EDITOR_STORAGE_KEY = StorageKeys.PYCORE_TERMINAL_SCHEDULE_EDITOR;
+const DRAFT_CACHE_STORAGE_KEY = StorageKeys.PYCORE_TERMINAL_DRAFT_CACHE;
 
 interface ScheduleEditorState {
   mode: TerminalScheduleEditorMode;
@@ -689,6 +714,7 @@ const PcTerminalNodeView: React.FC = () => {
       if (!result.success) throw new Error(String(result.error_code || 'request_failed'));
       if (draftsRef.current[key] === text) {
         dirtyDraftsRef.current.delete(terminalNumber);
+        writeCachedDraft(terminalNumber, null);
         if (mountedRef.current) {
           setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
         }
@@ -1035,6 +1061,13 @@ const PcTerminalNodeView: React.FC = () => {
     const key = terminalDraftKey(terminalNumber);
     if (loadedDraftsRef.current.has(terminalNumber)) return;
     loadedDraftsRef.current.add(terminalNumber);
+    const cachedDraft = readCachedDrafts()[key];
+    if (cachedDraft !== undefined && !dirtyDraftsRef.current.has(terminalNumber)) {
+      draftsRef.current = { ...draftsRef.current, [key]: cachedDraft };
+      setDrafts(draftsRef.current);
+      scheduleDraftSave(terminalNumber, cachedDraft);
+      return;
+    }
     if (!selectedWindow.has_draft) {
       draftsRef.current = { ...draftsRef.current, [key]: '' };
       setDrafts(draftsRef.current);
@@ -1055,7 +1088,7 @@ const PcTerminalNodeView: React.FC = () => {
           setDraftStatuses((current) => ({ ...current, [key]: 'error' }));
         }
       });
-  }, [selectedWindow]);
+  }, [scheduleDraftSave, selectedWindow]);
 
   // The schedule editor (mode / time / interval) is global and shared by every
   // terminal; persist the last selection so all terminals inherit it.
@@ -1177,6 +1210,7 @@ const PcTerminalNodeView: React.FC = () => {
     terminalNumbers.forEach((terminalNumber) => {
       dirtyDraftsRef.current.delete(terminalNumber);
       loadedDraftsRef.current.delete(terminalNumber);
+      writeCachedDraft(terminalNumber, null);
       scheduleSyncInFlightRef.current.delete(terminalNumber);
     });
     const omitKeys = <T,>(record: Record<string, T>) => Object.fromEntries(
@@ -1422,6 +1456,7 @@ const PcTerminalNodeView: React.FC = () => {
     const key = terminalDraftKey(terminalNumber);
     draftsRef.current = { ...draftsRef.current, [key]: text };
     setDrafts(draftsRef.current);
+    writeCachedDraft(terminalNumber, text);
     scheduleDraftSave(terminalNumber, text);
   }, [scheduleDraftSave, selectedWindow]);
 
@@ -1466,12 +1501,14 @@ const PcTerminalNodeView: React.FC = () => {
     );
     if (result?.log?.id) {
       dirtyDraftsRef.current.delete(terminalNumber);
+      writeCachedDraft(terminalNumber, null);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     } else if (!result?.success) {
       void persistDraft(terminalNumber, draftText);
     }
     if (result?.success) {
       if (textOverride === undefined) images.clear();
+      writeCachedDraft(terminalNumber, null);
       draftsRef.current = { ...draftsRef.current, [key]: '' };
       setDrafts(draftsRef.current);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));

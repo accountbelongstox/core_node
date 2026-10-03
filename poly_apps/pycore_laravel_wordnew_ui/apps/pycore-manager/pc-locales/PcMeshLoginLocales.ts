@@ -5,6 +5,12 @@ export const meshLoginEn = {
   refresh: 'Refresh',
   loading: 'Loading the guide from the Headscale server…',
   loadFailed: 'Could not load the guide: {{error}}',
+  auth: {
+    required: 'The mesh guide needs a login on {{host}}. Sign in to load it.',
+    login: 'Sign in',
+    signedIn: 'Signed in to {{host}} as {{user}}',
+    logout: 'Sign out',
+  },
   copy: 'Copy',
   copied: 'Copied',
   server: {
@@ -70,6 +76,12 @@ export const meshLoginZh: MeshLoginDict = {
   refresh: '刷新',
   loading: '正在从 Headscale 服务器读取指南…',
   loadFailed: '无法读取指南：{{error}}',
+  auth: {
+    required: '读取联网指南需要登录 {{host}}，请先登录。',
+    login: '登录',
+    signedIn: '已登录 {{host}}，用户 {{user}}',
+    logout: '退出登录',
+  },
   copy: '复制',
   copied: '已复制',
   server: {
