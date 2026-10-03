@@ -18,8 +18,10 @@ public enum BattlenetClientState
     LoginFailed,
     LoginCn,
     LoginCnWeb,
-    LoginAsiaEmail,
-    LoginAsiaPassword,
+    SecurityCheck,
+    VerificationCode,
+    LoginEmail,
+    LoginPassword,
     LoginAsia,
     Disconnected,
     Connecting,
@@ -36,8 +38,8 @@ public sealed record BattlenetClientStatus(BattlenetClientState State, string? U
     public (bool OnLogin, bool Disconnected, bool Normal) DynamicTriple => State switch
     {
         BattlenetClientState.Disconnected => (false, true, false),
-        BattlenetClientState.LoginCn or BattlenetClientState.LoginCnWeb or BattlenetClientState.LoginAsiaEmail
-            or BattlenetClientState.LoginAsiaPassword or BattlenetClientState.LoginAsia => (true, false, false),
+        BattlenetClientState.LoginCn or BattlenetClientState.LoginCnWeb or BattlenetClientState.LoginEmail
+            or BattlenetClientState.LoginPassword or BattlenetClientState.LoginAsia => (true, false, false),
         BattlenetClientState.Normal or BattlenetClientState.GameStarting => (false, false, true),
         _ => (false, false, false),
     };

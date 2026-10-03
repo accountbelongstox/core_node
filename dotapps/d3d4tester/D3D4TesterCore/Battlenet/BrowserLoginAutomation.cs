@@ -9,14 +9,15 @@ using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Web login step (B11) by UI Automation instead of OCR clicks and the Tampermonkey callback. Targets the Battle.net CN login
-/// popup (Phoenix::LoginPopupWindow, embedded web page) and external browser login windows. One poll: success text -> Success;
-/// login form (account + password) -> type the saved credentials and submit; EULA checkbox -> tick; Agree / Login button -> invoke.
+/// Web login step (B11) by UI Automation instead of OCR clicks and the Tampermonkey callback. Targets the Battle.net login window
+/// account form (Phoenix::LoginWindow), the CN login popup (Phoenix::LoginPopupWindow) and external browser login windows.
+/// One poll: security check / verification code page -> NeedUser (never clicked; the code only reaches the user); success text
+/// -> Success; login form -> type the saved credentials, tick "Keep me logged in", submit; EULA -> tick; Agree / Login -> invoke.
 /// The confirm page sometimes turns into the login form, so the form is checked first.
 /// </summary>
 public static class BrowserLoginAutomation
 {
-    public enum PollResult { Success, Acted, NeedCredentials, Waiting, NoWindow }
+    public enum PollResult { Success, Acted, NeedCredentials, NeedUser, Waiting, NoWindow }
 
     private const string LogTag = "[BrowserLogin]";
     private const string EditType = "Edit";
@@ -50,7 +51,7 @@ public static class BrowserLoginAutomation
                 if (root != null) result = Step(hwnd, root, region);
                 return true;
             });
-            if (result is PollResult.Success or PollResult.Acted or PollResult.NeedCredentials) break;
+            if (result is PollResult.Success or PollResult.Acted or PollResult.NeedCredentials or PollResult.NeedUser) break;
         }
         return result;
     }
@@ -58,12 +59,14 @@ public static class BrowserLoginAutomation
     private static List<(IntPtr Hwnd, string Region)> FindTargets()
     {
         var targets = new List<(IntPtr, string)>();
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        string accountRegion = snapshot.BattlenetUiRegion ?? BattlenetManager.Instance.GetConfiguredRegion() ?? snapshot.BattlenetRegion ?? C.RegionAsia;
         foreach (var w in BattlenetManager.Instance.FindWindows())
         {
-            if (w.ClassName == C.CnBrowserConfirmWindowClassName)
-                targets.Add((w.Hwnd, C.RegionCn));
+            if (w.ClassName == C.CnBrowserConfirmWindowClassName || w.ClassName == C.LoginWindowClassName)
+                targets.Add((w.Hwnd, accountRegion));
         }
-        string browserRegion = GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion ?? C.RegionAsia;
+        string browserRegion = accountRegion;
         foreach (var w in BrowserWindowFinder.FindBrowserLoginWindows(C.CnBrowserLoginWindowTitleKeywords))
             targets.Add((w.Hwnd, browserRegion));
         return targets;
@@ -71,6 +74,12 @@ public static class BrowserLoginAutomation
 
     private static PollResult Step(IntPtr hwnd, AutomationElement root, string region)
     {
+        if (UIOperations.FindFirstByNameContainsAny(root, C.SecurityCheckKeywords) != null
+            || UIOperations.FindFirstByNameContainsAny(root, C.VerificationCodeKeywords) != null)
+        {
+            ColorPrinter.Yellow($"{LogTag} security check / verification code page: waiting for the user");
+            return PollResult.NeedUser;
+        }
         if (UIOperations.FindFirstByNameContainsAny(root, C.BrowserLoginSuccessKeywords) != null)
         {
             ColorPrinter.Green($"{LogTag} success text found, login done");
@@ -114,6 +123,8 @@ public static class BrowserLoginAutomation
         var account = UIOperations.FindFirst(root, el => IsType(el, EditType) && !IsPasswordEdit(el));
         if (account != null && !Fill(hwnd, account, c.Account)) return PollResult.Waiting;
         if (!Fill(hwnd, password, c.Password)) return PollResult.Waiting;
+        var persist = UIOperations.FindFirstByAutomationId(root, C.PersistLoginAutomationId);
+        if (persist != null && UIOperations.GetToggleState(persist) == false) UIOperations.Toggle(persist);
         var submit = UIOperations.FindFirst(root, el => IsType(el, ButtonType) && ContainsAny(el, C.BrowserLoginSubmitKeywords) && !ContainsAny(el, C.BrowserLoginRejectKeywords));
         ColorPrinter.Blue($"{LogTag} login form filled ({region}), submit found={submit != null}");
         return submit != null ? Invoke(hwnd, submit, "submit") : PollResult.Acted;

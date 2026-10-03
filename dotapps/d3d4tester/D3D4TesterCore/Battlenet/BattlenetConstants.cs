@@ -65,8 +65,19 @@ public static class BattlenetConstants
     /// <summary>Exact ids that only the CN client shows (D3 tab D3CN, NetEase login). Substring matching must not be used: D3CN contains D3.</summary>
     public static readonly string[] CnRegionAutomationIds = { "game-nav-btn-D3CN", "game-nav-btn-D4CN", "ntes" };
     /// <summary>Exact ids that only the Asia client shows (global D3 tab, Asia account/password fields).</summary>
-    public static readonly string[] AsiaRegionAutomationIds = { "game-nav-btn-D3", "accountName", "password" };
+    /// <summary>Only the global D3 tab: the account form (accountName / password) is the same for CN and Asia accounts (live scan).</summary>
+    public static readonly string[] AsiaRegionAutomationIds = { "game-nav-btn-D3" };
     /// <summary>Update agent sleep message text (uidocs 战网_85BFA152: "战网更新服务进入了睡眠模式。正在尝试唤醒它…"). The announcer group itself is always present.</summary>
+    /// <summary>Security check page in the login web view: pick how to verify (live scan: "...quick security check. Select how you would like to verify your account." + method dropdown data-select-current, Continue / Go Back). Needs the user.</summary>
+    public static readonly string[] SecurityCheckKeywords = { "quick security check", "verify your account", "安全检查", "安全验证", "验证您的账户", "验证你的账户", "驗證您的帳號" };
+    public const string SecurityCheckMethodAutomationId = "data-select-current";
+    /// <summary>Page waiting for the e-mailed / SMS / authenticator code. Needs the user.</summary>
+    public static readonly string[] VerificationCodeKeywords = { "Enter the code", "enter the code", "verification code", "security code", "验证码", "驗證碼", "安全码", "输入代码" };
+    /// <summary>"Keep me logged in" checkbox on the account form (live scan: persistLogin).</summary>
+    public const string PersistLoginAutomationId = "persistLogin";
+    /// <summary>Battle.net login window (Qt) hosting the account form web view.</summary>
+    public const string LoginWindowClassName = "Phoenix::LoginWindow";
+
     /// <summary>Login window while credentials are being verified (live scan: labelLoggingIn "Logging in...").</summary>
     public const string LoggingInAutomationIdSuffix = "labelLoggingIn";
     public static readonly string[] LoggingInKeywords = { "Logging in", "正在登录", "登录中" };

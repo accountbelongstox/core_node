@@ -54,6 +54,11 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
             return new(BattlenetClientState.LoginFailed, Region, null);
         if (controls.Any(c => c.AutomationId.EndsWith(C.LoggingInAutomationIdSuffix, StringComparison.Ordinal)) || HasText(controls, C.LoggingInKeywords))
             return new(BattlenetClientState.LoggingIn, Region, null);
+        if (HasText(controls, C.VerificationCodeKeywords)) return new(BattlenetClientState.VerificationCode, Region, null);
+        if (HasText(controls, C.SecurityCheckKeywords)) return new(BattlenetClientState.SecurityCheck, Region, SelectedVerifyMethod(controls));
+        var form = new BattlenetRegionJudge(controls);
+        if (form.IsAsiaEmailStep()) return new(BattlenetClientState.LoginEmail, Region, null);
+        if (form.IsAsiaPasswordStep()) return new(BattlenetClientState.LoginPassword, Region, AccountShownOnForm(controls));
         if (ClassifyLoginScreen(controls) is { } login) return new(login, Region, null);
         var judge = new BattlenetRegionJudge(controls);
         if (judge.HasDisconnect()) return new(BattlenetClientState.Disconnected, Region, null);
@@ -93,6 +98,19 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         }
         ColorPrinter.Blue($"[BattlenetOperation] LogOut: clicking '{logOut.Name}'");
         return T.ClickControl(logOut);
+    }
+
+    /// <summary>Verify method selected on the security check page (the dropdown text after the prompt, e.g. "E-Mail").</summary>
+    private static string? SelectedVerifyMethod(IReadOnlyList<BattlenetControl> controls) =>
+        controls.FirstOrDefault(c => c.AutomationId == C.SecurityCheckMethodAutomationId) is { } menu
+            ? controls.SkipWhile(c => c != menu).Skip(1).FirstOrDefault(c => c.Type == C.LoadingIndicatorControlType && c.Name.Length > 0)?.Name
+            : null;
+
+    /// <summary>Account already shown on the password form (text before "Switch account"), for the state detail.</summary>
+    private static string? AccountShownOnForm(IReadOnlyList<BattlenetControl> controls)
+    {
+        int i = controls.ToList().FindIndex(c => BattlenetRegionJudge.ContainsAny(c.Name, C.AsiaLoginSwitchAccountKeywords));
+        return i > 0 && controls[i - 1].Type == C.LoadingIndicatorControlType ? controls[i - 1].Name : null;
     }
 
     /// <summary>Region login screens (CN: NetEase page / web login popup; Asia: email / password / combined); null when not on one.</summary>
