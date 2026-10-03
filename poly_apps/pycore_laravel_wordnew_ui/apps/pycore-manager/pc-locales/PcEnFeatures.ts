@@ -469,6 +469,7 @@ terminal: {
       recordings: 'Voice recordings',
       textPlaceholder: 'Optional text sent with the recording…',
       micDenied: 'Microphone access was denied; allow it or use the system recorder.',
+      micInsecure: 'This browser blocks the microphone on plain http pages; open the page over https or localhost, or use the app.',
       failed: 'Recording failed; try the system recorder.',
       agentNote: '[Voice message] The audio file below is my instruction. First transcribe it and repeat the transcript here as text, check that it makes sense, then start the work right away. Do not stop to wait for my confirmation; if the transcript is wrong I will correct you afterwards.',
     },
