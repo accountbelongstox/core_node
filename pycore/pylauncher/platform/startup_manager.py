@@ -11,17 +11,18 @@ mechanism (Windows: a .lnk shortcut in the common Startup folder; Linux: an XDG
 
 import platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pylauncher.platform.autostart_target import (
+    normalize_mechanism,
+    read_preference,
+)
 
 
 PLATFORM_SYSTEM = platform.system()
+SUPPORTED_PLATFORMS = ("Windows", "Linux")
 
 if PLATFORM_SYSTEM == "Windows":
     from pycore.pylauncher.platform.windows_startup_manager import WindowsStartupManager
 elif PLATFORM_SYSTEM == "Linux":
-    from pycore.pylauncher.platform.autostart_target import (
-        normalize_mechanism,
-        read_preference,
-    )
     from pycore.pylauncher.platform.linux_startup_manager import LinuxStartupManager
     from pycore.pylauncher.platform.systemd_user_startup_manager import (
         SystemdUserStartupManager,
@@ -67,7 +68,7 @@ def get_startup_manager(app_name: str = "PyCore_RPC_Server", target=None, mechan
     ``target`` (pyservice/launcher/both) chooses WHAT auto-start launches;
     ``mechanism`` (Linux only: xdg/systemd) chooses HOW it registers. When either
     is omitted the persisted unified user setting supplies it, so callers like
-    ``refresh_startup_launcher`` (no args) recover the user's last choice.
+    ``ensure_startup_launcher`` recover the user's last choice.
     """
     system = PLATFORM_SYSTEM
     if system == "Windows":
@@ -82,18 +83,35 @@ def get_startup_manager(app_name: str = "PyCore_RPC_Server", target=None, mechan
     return _UnsupportedStartupManager(system)
 
 
-def refresh_startup_launcher(app_name: str = "PyCore_RPC_Server") -> bool:
-    """Self-heal the auto-start launcher script (best-effort, never raises).
+def ensure_startup_launcher(app_name: str = "PyCore_RPC_Server") -> str:
+    """Keep pyservice registered for boot (best-effort, never raises).
 
-    If auto-start is enabled, regenerate the fixed launcher script so the next
-    boot runs the CURRENT canonical entry point (pyservice.ps1 / pyservice.sh =
-    dashboard UI dev server + worker). This upgrades launchers written by older
-    versions (which launched the bare worker only, so the boot-mode UI never
-    started) without the user toggling auto-start off and on. Called on every
-    service start; returns True if the script was rewritten.
+    Called on every service start. Auto-start is ON by default: unless the user
+    explicitly disabled it, a missing registration is created (Windows: logon
+    task; Linux: systemd --user unit with linger, XDG entry as fallback) and an
+    existing one is refreshed so the next boot runs the CURRENT entry point. A
+    Linux host already running the ``pycore`` system unit needs neither.
+    Returns "registered", "refreshed" or "" (nothing done).
     """
     try:
-        return bool(get_startup_manager(app_name).refresh())
+        if PLATFORM_SYSTEM not in SUPPORTED_PLATFORMS:
+            return ""
+        pref = read_preference()
+        if pref["enabled"] is False:
+            return ""
+        if PLATFORM_SYSTEM == "Linux":
+            from pycore.pylauncher.platform.system_service_manager import pycore_service_enabled
+            if pycore_service_enabled():
+                return ""
+        mechanism = None if pref["mechanism_chosen"] else "systemd"
+        manager = get_startup_manager(app_name, mechanism=mechanism)
+        if manager.is_enabled():
+            return "refreshed" if manager.refresh() else ""
+        result = manager.enable(start_now=False)
+        if not result.get("success"):
+            ColorPrint.yellow(f"[StartupManager] register auto-start failed: {result.get('message')}")
+            return ""
+        return "registered"
     except OSError as exc:
-        ColorPrint.yellow(f"[StartupManager] refresh launcher for {app_name} failed: {exc}")
-        return False
+        ColorPrint.yellow(f"[StartupManager] ensure auto-start for {app_name} failed: {exc}")
+        return ""

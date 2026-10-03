@@ -65,7 +65,7 @@ ensure_session_environment()
 if sys.platform.startswith('linux'):
     import pycore.pyutils.common.x11_display  # noqa: F401 - installs the Xlib auth hook
 
-from pycore.pylauncher.platform.startup_manager import refresh_startup_launcher
+from pycore.pylauncher.platform.startup_manager import ensure_startup_launcher
 from pycore.pyutils.common.dev_reload import start_reload_watcher
 from pycore.pyutils.common.process_restart import restart_current_process
 
@@ -116,6 +116,12 @@ _SUPERSEDED = {'flag': False}
 # (default priority 100) registered on the same event by event_handlers.
 AGENT_HISTORY_TRAY_KEEP_PRIORITY = 10
 STOP_SIGNAL_NAMES = ("SIGINT", "SIGTERM", "SIGBREAK")
+
+
+def _ensure_autostart() -> None:
+    outcome = ensure_startup_launcher()
+    if outcome:
+        ColorPrint.blue(f"[Main] Boot auto-start {outcome} (pyservice + UI, hot reload off)")
 
 
 def init_rpc_routes(server) -> None:
@@ -212,13 +218,11 @@ def main(
         _SUPERSEDED['flag'] = True
     on_singleton_superseded(_on_superseded)
 
-    # 3b. Self-heal the boot auto-start launcher: if enabled, rewrite its fixed
-    #     script so the next boot runs the CURRENT canonical entry point
-    #     (pyservice.ps1/.sh = dashboard UI dev server + worker). Launchers
-    #     written by older versions started the bare worker only, so the UI dev
-    #     server never came up in boot mode (webview -> ERR_CONNECTION_REFUSED).
-    if not notebook_assist_node() and refresh_startup_launcher():
-        ColorPrint.blue("[Main] Auto-start launcher refreshed (next boot uses pyservice + UI)")
+    # 3b. Boot auto-start is on by default: register it when missing (unless the
+    #     user turned it off) and refresh an existing launcher so the next boot
+    #     runs the CURRENT entry point (pyservice + UI, hot reload off).
+    if not notebook_assist_node():
+        start_bus_task(_ensure_autostart, thread_name="AutostartEnsureThread")
 
     # 4. Update tray menu with singleton port.
     #    The tray runs in every service mode (relay reroutes UI content through
