@@ -469,7 +469,7 @@ def device_action(args: argparse.Namespace, root: Path, interactive: bool) -> No
     elif args.action == "scan":
         scan_and_connect(args.adb, state_dir)
     elif args.action == "pair":
-        pair_device(args.adb, args.target, args.code, interactive)
+        pair_device(args.adb, args.target, args.code, interactive, state_dir)
     elif args.action == "tcpip":
         switch_usb_devices_to_wifi(args.adb, state_dir, args.port)
     elif args.action == "mdns":
