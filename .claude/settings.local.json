@@ -99,7 +99,8 @@
       "PowerShell(schtasks *)",
       "Bash(adb shell *)",
       "Bash(adb logcat *)",
-      "Bash(awk '$9>3')"
+      "Bash(awk '$9>3')",
+      "Bash(python -m pycore.pyfoundations.console_log_reader --minutes 60 --grep \"debian-gpu\" --limit 15)"
     ],
     "deny": [],
     "ask": []
