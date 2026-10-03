@@ -21,6 +21,7 @@ $script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "Use
 $script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
 $script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager.ps1"
 $script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
+$script:FILE_RECOVERY_SCRIPT = Join-Path $script:PS_CURRENT_DIR "FileRecoveryManager.ps1"
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
 $script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
 $script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
@@ -141,6 +142,7 @@ function Show-SystemToolsMenu {
                 if (Test-Path $script:EXTEND_WINDOWS_UPDATE_SCRIPT) { & $script:EXTEND_WINDOWS_UPDATE_SCRIPT } else { Write-ColorMessage -Message "Step15 script not found at: $script:EXTEND_WINDOWS_UPDATE_SCRIPT" -Type "Error" }
             } },
         @{ Text = "Repair disk (chkdsk /f)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT } },
+        @{ Text = "File recovery (winfr / DMDE)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:FILE_RECOVERY_SCRIPT } },
         @{ Text = "Repair Chrome crash (PUP + compat shim / 0xC0000409)"; Action = { Invoke-ChromeRepair } },
         @{ Text = "Linux dual boot readiness (Fast Startup)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT } }
     )

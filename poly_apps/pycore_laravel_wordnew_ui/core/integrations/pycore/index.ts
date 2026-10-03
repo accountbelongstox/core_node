@@ -109,7 +109,7 @@ export {
   getPycoreTargetRecent, forgetPycoreTargetRecent, rememberPycoreTarget, listPycoreEndpoints, setPycoreTarget,
   getPycoreSelectedTarget,
   setPycoreSessionTarget, getPycoreSessionTarget, isPrivateLanHost,
-  setPycoreLanRoute, getPycoreLanRoute, setPycoreLanEndpoints,
+  setPycoreLanRoute, getPycoreLanRoute, setPycoreLanEndpoints, rememberPycoreLanUrls,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isViteDevShell,
   isLoopbackPage, isNativeAppShell, directPycoreHost,

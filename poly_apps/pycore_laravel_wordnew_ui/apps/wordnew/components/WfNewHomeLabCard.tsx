@@ -20,7 +20,7 @@ const ICON_TONE: Record<WfNewHomeLabTone, string> = {
 
 interface WfNewHomeLabCardProps {
   tone: WfNewHomeLabTone;
-  /** Illustration URL; the icon is the fallback. */
+  /** 3D illustration URL; the icon is the fallback. */
   art?: string;
   icon: LucideIcon;
   title: string;
@@ -42,7 +42,7 @@ const Art: React.FC<{ art?: string; icon: LucideIcon; tone: WfNewHomeLabTone; si
       loading="lazy"
       decoding="async"
       draggable={false}
-      className={`${size} shrink-0 object-contain transition-transform duration-300 group-hover:scale-105 dark:rounded-3xl dark:bg-white/90 dark:p-2 dark:shadow-sm`}
+      className={`${size} shrink-0 object-contain drop-shadow-[0_10px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-2`}
     />
   ) : (
     <span className={`${size} inline-flex shrink-0 items-center justify-center rounded-3xl bg-white/70 shadow-inner ring-1 ring-white/80 dark:bg-white/10 dark:ring-white/10 ${ICON_TONE[tone]}`}>
@@ -51,7 +51,7 @@ const Art: React.FC<{ art?: string; icon: LucideIcon; tone: WfNewHomeLabTone; si
   )
 );
 
-/** Home bento widget: a soft gradient card with a flat illustration, bold title and an optional pill action. */
+/** Home bento widget: a soft gradient card with a 3D illustration, bold title and an optional pill action. */
 export const WfNewHomeLabCard: React.FC<WfNewHomeLabCardProps> = ({
   tone, art, icon, title, description, action, onOpen, layout = 'tile', className = '',
 }) => {

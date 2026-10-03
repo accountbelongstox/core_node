@@ -37,6 +37,7 @@ import {
   normalizePycoreBackendUrl,
   probePycoreEndpoints,
   pycoreLink,
+  rememberPycoreLanUrls,
   refreshTailnetPeers,
   rememberPycoreTarget,
   setPycoreLanEndpoints,
@@ -104,7 +105,7 @@ export function hostKey(url: string): string {
 interface WorkNodeRoster {
   /** First-run rank per host label: a GPU node, a CPU node. */
   ranks: Map<string, number>;
-  /** LAN URLs per host label of the online nodes. */
+  /** LAN URLs per host label: the online nodes' reports over the last remembered ones. */
   lanUrls: Map<string, string[]>;
 }
 
@@ -128,8 +129,9 @@ async function workNodeRoster(): Promise<WorkNodeRoster> {
       if (lan.length > 0) roster.lanUrls.set(host, [...new Set([...(roster.lanUrls.get(host) ?? []), ...lan])]);
     }
   } catch {
-    // No roster: no LAN route, and the first run falls back to the fastest reachable entry.
+    // No roster: the remembered LAN URLs only, and the first run falls back to the fastest reachable entry.
   }
+  roster.lanUrls = rememberPycoreLanUrls(roster.lanUrls);
   return roster;
 }
 
