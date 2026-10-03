@@ -163,6 +163,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   private readonly urls = new Map<string, string>();
   private readonly rootChanged = new ChangeSignal();
   private readonly clipsChanged = new ChangeSignal();
+  private readonly clipsRemoved = new ChangeSignal();
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
   private entries: Record<string, OrchClipIndexEntry> | null = null;
   private durations: Record<string, number> = {};
@@ -245,6 +246,11 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       this.changeTimer = null;
       this.clipsChanged.emit();
     }, CHANGE_NOTIFY_MS);
+  }
+
+  /** Called after clips were removed (playable URLs handed out for them are invalid). */
+  onRemoved(listener: () => void): () => void {
+    return this.clipsRemoved.subscribe(listener);
   }
 
   /** Called after the root changed (playable URLs of the old root are invalid). */
@@ -659,6 +665,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       }
       await this.saveNow();
       this.notifyChange();
+      this.clipsRemoved.emit();
     });
   }
 

@@ -114,6 +114,7 @@ const audioAssets = new CapResourceAssetCache({
 });
 
 wordNewOrchClipStore.onRootChanged(() => audioAssets.forgetResolved());
+wordNewOrchClipStore.onRemoved(() => audioAssets.forgetResolved());
 
 export function ensureAudio(url: string): Promise<string | null> {
   return audioAssets.ensure(url);
