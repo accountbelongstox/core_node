@@ -40,6 +40,9 @@ LABEL = "TerminalBackup"
 BACKUP_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_interval_seconds")
 PROMPT_INTERVAL_SECONDS = relay_contract.limit("terminal_backup_prompt_interval_seconds")
 PROMPT_MISS_LIMIT = relay_contract.limit("terminal_backup_prompt_miss_limit")
+# Off by default: synthesized Enter/Down keys answered agent permission prompts and,
+# once the prompt was gone, reached the agent's own UI (e.g. stopped background tasks).
+AUTO_CONFIRM_ENABLED = relay_contract.limit("terminal_backup_auto_confirm") == 1
 LOW_BATTERY_PERCENT = relay_contract.limit("terminal_backup_low_battery_percent")
 MIN_IDLE_SECONDS = relay_contract.limit("terminal_backup_min_idle_seconds")
 DEFER_RETRY_SECONDS = relay_contract.limit("terminal_backup_defer_retry_seconds")
@@ -154,11 +157,15 @@ class TerminalBackupService:
         if not text:
             return entry, False
         found_prompt = bool(waiting_prompt(text))
-        refreshed = self._prompt_handler.handle(
-            str(window["id"]),
-            entry["number"],
-            text,
-            lambda: self._export(window).get("text"),
+        refreshed = (
+            self._prompt_handler.handle(
+                str(window["id"]),
+                entry["number"],
+                text,
+                lambda: self._export(window).get("text"),
+            )
+            if AUTO_CONFIRM_ENABLED
+            else text
         )
         if refreshed != text:
             entry["text"] = refreshed
