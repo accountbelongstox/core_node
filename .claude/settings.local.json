@@ -27,7 +27,9 @@
       "Bash(V=/opt/_debian_13/python3_venv/bin/python3; C=/var/_core_node/_tmp/claude-0/-www-programing-core-node/0603631d-cd7d-4a46-90ac-e53961877957/scratchpad/constraints.txt; timeout 300 $V -m pip install --dry-run -c $C \"mcp>=1,<2\" \"fastmcp>=2,<4\" 2>&1 | grep -iE \"would install|mcp|error|conflict\" | head; $V -m pip list 2>/dev/null | grep -iE \"^\\(mcp|fastmcp\\)\"; ls /opt/_debian_13/python3_venv/lib/python3.13/site-packages | grep -iE \"^mcp\")",
       "Bash(getent ahostsv4 *)",
       "Bash(curl *)",
-      "Bash(timeout 60 ssh1 'date; ss -ltnp | grep -i franken | head; journalctl -u ncore-laravel-frankenphp --no-pager --since \"08:41:00\" | tail -25; curl -s -m 3 localhost:2019/config/ | head -c 300' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)"
+      "Bash(timeout 60 ssh1 'date; ss -ltnp | grep -i franken | head; journalctl -u ncore-laravel-frankenphp --no-pager --since \"08:41:00\" | tail -25; curl -s -m 3 localhost:2019/config/ | head -c 300' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
+      "Bash(openssl s_client -connect hs.si.12gm.com:443 -servername hs.si.12gm.com)",
+      "Bash(openssl x509 *)"
     ],
     "deny": [],
     "ask": []
