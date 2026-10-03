@@ -175,6 +175,11 @@ class TerminalPromptWatch:
             self._reported[number] = digest
             return True
 
+    def waiting_numbers(self) -> List[int]:
+        """Terminals whose last scan showed a waiting confirmation prompt."""
+        with self._lock:
+            return sorted(self._reported)
+
 
 def _reset_time(match: "re.Match[str]", now: datetime) -> Optional[datetime]:
     if match.group("meridiem"):

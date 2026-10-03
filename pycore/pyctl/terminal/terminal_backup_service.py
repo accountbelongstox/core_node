@@ -55,6 +55,9 @@ ERROR_PASS_FAILED = "terminal_backup_pass_failed"
 ERROR_EXPORT_FAILED = "terminal_export_failed"
 ERROR_NO_DISPLAY = "no_display"
 LOG_CONTENT_KIND = "log"
+SPECIAL_PROMPT_WAITING = "prompt_waiting"
+SPECIAL_PROMPT_FOLLOW_UP = "prompt_follow_up"
+SPECIAL_RESUME_PENDING = "resume_pending"
 # Automatic terminal text scanning runs by default; the UI can pause it until restart.
 AUTO_BACKUP_PAUSED_BY_DEFAULT = False
 
@@ -416,7 +419,37 @@ class TerminalBackupService:
             "running": self._thread is not None,
             "interval_seconds": BACKUP_INTERVAL_SECONDS,
             "last_pass_at": self._store.last_pass_at(),
+            "server_time": time.time(),
+            "idle_seconds": self._idle_seconds(),
+            "min_idle_seconds": MIN_IDLE_SECONDS,
+            "prompt_idle_seconds": PROMPT_INTERVAL_SECONDS,
+            "special_terminals": self._special_terminals(),
         }
+
+    def _special_terminals(self) -> List[Dict[str, Any]]:
+        """Terminals in a tracked state, each with the wall-clock time its countdown runs to (seconds, or None)."""
+        now = time.monotonic()
+        wall_time = time.time()
+        special: List[Dict[str, Any]] = [
+            {"number": number, "state": SPECIAL_PROMPT_WAITING, "due_at": None}
+            for number in self._prompt_watch.waiting_numbers()
+        ]
+        for number, state in list(self._fast_prompts.items()):
+            special.append({
+                "number": number,
+                "state": SPECIAL_PROMPT_FOLLOW_UP,
+                "due_at": wall_time + max(0.0, float(state["due"]) - now),
+                "misses": int(state["misses"]),
+                "miss_limit": PROMPT_MISS_LIMIT,
+            })
+        for number, timer in self._resume.timers().items():
+            special.append({
+                "number": number,
+                "state": SPECIAL_RESUME_PENDING,
+                "due_at": timer["due_at"],
+                "notice": timer["key"],
+            })
+        return sorted(special, key=lambda item: (item["number"], item["state"]))
 
     def set_paused(self, paused: bool) -> Dict[str, Any]:
         """Pause or resume automatic passes (interval, low battery, shutdown) until the process restarts."""
