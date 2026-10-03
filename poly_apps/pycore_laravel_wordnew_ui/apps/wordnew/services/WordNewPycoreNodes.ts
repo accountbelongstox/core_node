@@ -15,6 +15,7 @@ const MIN_REFRESH_GAP_MS = queueCenterContract.work_leases.nodes_event.min_inter
 const LABEL_HOST_CHARS = 10;
 const UNKNOWN_PLATFORM = 'pc';
 const RETRY_MS = 10_000;
+const FALLBACK_REFRESH_MS = 60_000;
 
 export interface WordNewPycoreNodesSnapshot {
   /** Bumps on every roster or lease change (a render key). */
@@ -59,6 +60,7 @@ class WordNewPycoreNodesStore {
   private queued = false;
   private lastLoadAt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private fallbackTimer: ReturnType<typeof setInterval> | null = null;
   private stops: Array<() => void> = [];
 
   readonly subscribe = this.changes.subscribe;
@@ -122,6 +124,7 @@ class WordNewPycoreNodesStore {
       }),
     ];
     laravelRealtime.start();
+    this.fallbackTimer = setInterval(() => { void this.refresh(); }, FALLBACK_REFRESH_MS);
     void this.refresh();
   }
 
@@ -132,6 +135,8 @@ class WordNewPycoreNodesStore {
     this.leased.clear();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
+    if (this.fallbackTimer) clearInterval(this.fallbackTimer);
+    this.fallbackTimer = null;
   }
 
   private refresh(): Promise<void> {

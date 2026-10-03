@@ -25,6 +25,7 @@ TERMINAL_BACKUP_DIR_NAME = "terminal_backup"
 TERMINAL_BACKUP_RETAIN_COUNT = relay_contract.limit("terminal_backup_retain_count")
 TERMINAL_BACKUP_RETAIN_SECONDS = relay_contract.limit("terminal_backup_retain_seconds")
 MANIFEST_NAME = "manifest.json"
+MANIFEST_FOLLOW_UP_KEY = "follow_up"
 FILE_NAME_TEMPLATE = "terminal-{number}.txt"
 FOLDER_NAME_PATTERN = re.compile(r"^\d{8}-\d{6}(?:-\d+)?$", re.ASCII)
 TERMINAL_FILE_PATTERN = re.compile(r"^terminal-\d+\.txt$", re.ASCII)
@@ -301,17 +302,24 @@ class TerminalBackupStore:
         return self.directory / name
 
     def save(self, terminals: Sequence[Dict[str, Any]], merge_previous: bool = False) -> Dict[str, Any]:
-        """terminals: {number, name, text?, error_code?, inputs?, changed?}; blobs land first, the manifest last."""
+        """terminals: {number, name, text?, error_code?, inputs?, changed?}; blobs land first, the manifest last.
+        merge_previous (follow-up passes): carry the newest pass forward; consecutive follow-up passes rewrite one folder so they use a single retention slot."""
         with self.lock:
-            folder = self._new_folder()
+            folder: Optional[Path] = None
             entries_by_number: Dict[int, Dict[str, Any]] = {}
             if merge_previous:
                 previous = self.list_manifests()
                 if previous:
+                    _name, previous_folder, previous_manifest = previous[0]
                     entries_by_number = {
                         int(entry["number"]): {**entry, "changed": False}
-                        for entry in self.manifest_entries(previous[0][2])
+                        for entry in self.manifest_entries(previous_manifest)
                     }
+                    if previous_manifest.get(MANIFEST_FOLLOW_UP_KEY):
+                        folder = previous_folder
+                        self._gc_pending = True
+            if folder is None:
+                folder = self._new_folder()
             try:
                 for terminal in terminals:
                     entry: Dict[str, Any] = {
@@ -334,6 +342,8 @@ class TerminalBackupStore:
                     entries_by_number[entry["number"]] = entry
                 entries = list(entries_by_number.values())
                 manifest = {"created_at": datetime.now().astimezone().isoformat(timespec="seconds")}
+                if merge_previous:
+                    manifest[MANIFEST_FOLLOW_UP_KEY] = True
                 manifest.update(self._summary(entries))
                 atomic_write_json(folder / MANIFEST_NAME, manifest)
             except OSError as exc:

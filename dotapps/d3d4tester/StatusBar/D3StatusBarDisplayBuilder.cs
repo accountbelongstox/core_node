@@ -216,7 +216,8 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     public static string BattlenetStateBrushKey(BattlenetClientState state) => state switch
     {
         BattlenetClientState.Normal or BattlenetClientState.GameStarting => SuccessBrushKey,
-        BattlenetClientState.NotRunning or BattlenetClientState.Disconnected or BattlenetClientState.LoginFailed => ErrorBrushKey,
+        BattlenetClientState.NotRunning or BattlenetClientState.Disconnected or BattlenetClientState.LoginFailed
+            or BattlenetClientState.AccountOffline => ErrorBrushKey,
         _ => WarningBrushKey,
     };
 }

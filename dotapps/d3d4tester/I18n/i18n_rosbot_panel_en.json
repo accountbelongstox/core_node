@@ -48,6 +48,7 @@
         "verification_code": "Waiting for the verification code (manual)",
         "login_asia": "Asia login",
         "popup": "Popup (auto close)",
+        "account_offline": "Avatar offline (abnormal)",
         "disconnected": "Disconnected",
         "connecting": "Connecting",
         "game_starting": "Game starting",

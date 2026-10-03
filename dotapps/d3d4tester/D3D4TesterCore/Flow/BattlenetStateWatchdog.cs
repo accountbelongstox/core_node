@@ -21,7 +21,7 @@ public static class BattlenetStateWatchdog
 
     private static readonly BattlenetClientState[] AbnormalStates =
     {
-        BattlenetClientState.Connecting, BattlenetClientState.Disconnected, BattlenetClientState.LoginFailed,
+        BattlenetClientState.AccountOffline, BattlenetClientState.Connecting, BattlenetClientState.Disconnected, BattlenetClientState.LoginFailed,
         BattlenetClientState.Loading, BattlenetClientState.LoadingAccount, BattlenetClientState.Sleeping, BattlenetClientState.Unknown,
     };
 
