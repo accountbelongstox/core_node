@@ -174,11 +174,12 @@ class ReadPageTool extends BaseBrowserToolExecutor {
         console.warn('read_page fallback failed:', fallbackErr);
       }
 
-      // If we reach here, both tree (usable) and fallback failed
+      // A small page legitimately yields a sparse tree: return it rather than fail.
+      if (treeOk) {
+        return createJsonResponse(basePayload);
+      }
       return createErrorResponse(
-        treeOk
-          ? 'Accessibility tree is too sparse and fallback failed'
-          : resp?.error || 'Failed to generate accessibility tree and fallback failed',
+        resp?.error || 'Failed to generate accessibility tree and fallback failed',
       );
     } catch (error) {
       console.error('Error in read page tool:', error);

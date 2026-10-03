@@ -9,6 +9,11 @@ import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { ContentIndexer } from '@/utils/content-indexer';
 import { LIMITS, ERROR_MESSAGES } from '@/common/constants';
 import type { SearchResult } from '@/utils/vector-database';
+import { withTimeoutFallback } from '@/utils/async';
+
+// Stay under the native bridge's default 30s call timeout; a first-use model
+// download keeps running in the background and the next call reuses it.
+const INIT_WAIT_MS = 20000;
 
 interface VectorSearchResult {
   tabId: number;
@@ -27,6 +32,7 @@ class VectorSearchTabsContentTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.SEARCH_TABS_CONTENT;
   private contentIndexer: ContentIndexer;
   private isInitialized = false;
+  private initialization: Promise<void> | null = null;
 
   constructor() {
     super();
@@ -67,13 +73,22 @@ class VectorSearchTabsContentTool extends BaseBrowserToolExecutor {
             'Vector search engine is still initializing (model downloading). Please wait a moment and try again.',
           );
         } else {
-          // Try to initialize
           console.log('VectorSearchTabsContentTool: Initializing content indexer...');
-          await this.initializeIndexer();
+          this.initialization ??= this.initializeIndexer().finally(() => {
+            this.initialization = null;
+          });
+          const finished = await withTimeoutFallback(
+            this.initialization.then(() => true),
+            INIT_WAIT_MS,
+            () => false,
+          );
 
-          // Check semantic engine status again
           if (!this.contentIndexer.isSemanticEngineReady()) {
-            return createErrorResponse('Failed to initialize vector search engine');
+            return createErrorResponse(
+              finished
+                ? 'Failed to initialize vector search engine'
+                : 'Vector search engine is still initializing (model downloading). Please wait a moment and try again.',
+            );
           }
         }
       }

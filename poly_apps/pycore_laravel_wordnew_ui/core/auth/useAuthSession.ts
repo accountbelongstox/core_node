@@ -1,13 +1,28 @@
 import { useSyncExternalStore } from 'react';
-import { getAuthToken, subscribeAuthSession } from './AuthSession';
+import {
+  getAuthSnapshot,
+  getAuthToken,
+  getServerAuthSnapshot,
+  subscribeAuthStore,
+  type AuthSnapshot,
+} from './AuthSession';
 
-const getSessionSnapshot = (): boolean => getAuthToken() !== null;
 const getServerSessionSnapshot = (): boolean => false;
 
-export function useAuthSession(): boolean {
+/** True while the API (default: the active one) holds a bearer token. */
+export function useAuthSession(endpoint?: string | null): boolean {
   return useSyncExternalStore(
-    subscribeAuthSession,
-    getSessionSnapshot,
+    subscribeAuthStore,
+    () => getAuthToken(endpoint) !== null,
     getServerSessionSnapshot,
+  );
+}
+
+/** Login state and user of one Laravel API (default: the active one); re-renders on every change. */
+export function useAuthSnapshot(endpoint?: string | null): AuthSnapshot {
+  return useSyncExternalStore(
+    subscribeAuthStore,
+    () => getAuthSnapshot(endpoint),
+    getServerAuthSnapshot,
   );
 }

@@ -79,7 +79,11 @@ async function readRelayResponse<T>(response: Response, path: string): Promise<T
     return await readLaravelResponse<T>(response, path);
   } catch (error) {
     if (response.status === 401 && isRelayAuthorizationFailure(error) && !(await clientKeyAvailable())) {
-      requestGlobalLogin({ source: 'pycore-relay', reason: 'relay-owner' });
+      requestGlobalLogin({
+        source: 'pycore-relay',
+        reason: 'relay-owner',
+        baseUrl: RELAY_CONTRACT.public_urls.laravel_api_origin,
+      });
     }
     throw error;
   }
