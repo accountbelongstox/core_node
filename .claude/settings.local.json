@@ -29,7 +29,9 @@
       "Bash(curl *)",
       "Bash(timeout 60 ssh1 'date; ss -ltnp | grep -i franken | head; journalctl -u ncore-laravel-frankenphp --no-pager --since \"08:41:00\" | tail -25; curl -s -m 3 localhost:2019/config/ | head -c 300' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
       "Bash(openssl s_client -connect hs.si.12gm.com:443 -servername hs.si.12gm.com)",
-      "Bash(openssl x509 *)"
+      "Bash(openssl x509 *)",
+      "Bash(timeout 60 ssh1 'for u in https://debian.mesh.si.12gm.com/ https://debian.mesh.si.12gm.com/laravel-api/api/health https://debian.mesh.si.12gm.com/pycore-api/api/tailnet/peers; do printf \"%s -> \" $u; curl -s -o /dev/null -w \"%{http_code} verify=%{ssl_verify_result}\\\\n\" --max-time 10 $u; done; curl -s --max-time 10 https://debian.mesh.si.12gm.com/pycore-api/api/tailnet/peers | head -c 300; echo; echo | openssl s_client -connect debian.mesh.si.12gm.com:443 -servername debian.mesh.si.12gm.com 2>/dev/null | openssl x509 -noout -issuer -ext subjectAltName | tr \"\\\\n\" \" \"' 2>&1 | sed -n '/key authentication succeeded/,$p' | tail -n +3)",
+      "Bash(timeout 900 bash dd.sh gitsync -m \"headscale: acme.sh DNS-01 certificates for mesh machine names; shared acme reload command\" --notice-laravel)"
     ],
     "deny": [],
     "ask": []
