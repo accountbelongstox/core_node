@@ -131,10 +131,7 @@ REQUEST_MAX_EXECUTION_TIME="${REQUEST_MAX_EXECUTION_TIME:-$(sc_require php_runti
 
 FRANKENPHP_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 FRANKENPHP_ADMIN_PORT="$(sc_get ports.frankenphp_admin)"
-# Renewal reload hook baked into the acme.sh renewal conf: renewed certs go
-# live through the caddy admin /load endpoint without a service restart
-# (fails harmlessly while the server is not up yet).
-FRANKENPHP_ACME_RELOAD_CMD="curl -fsS -m 5 -X POST -H 'Content-Type: text/caddyfile' --data-binary @${FRANKENPHP_CADDYFILE} http://127.0.0.1:${FRANKENPHP_ADMIN_PORT}/load || true"
+FRANKENPHP_ACME_RELOAD_CMD="$(acme_sh_caddy_reload_cmd "$FRANKENPHP_CADDYFILE")"
 
 # Mercure hub keys: provisioned (never rotated) BEFORE the canonical
 # Caddyfile render so the literal publisher_jwt/subscriber_jwt values are present.
