@@ -20,11 +20,11 @@ public static class D4Constants
     public const double TickIntervalSec = 3.0;
     public const int TickIntervalMs = 3000;
 
-    public const string TmpDirParent = "pytools";
-    public const string TmpDirName = "tmp";
+    public const string TmpDirParent = D3PathConstants.PytoolsDirName;
+    public const string TmpDirName = D3PathConstants.TmpDirName;
     public const string ScreenshotDirName = "d4_screenshots";
     public const string AnnotatedDirName = "d4_annotated";
-    public const string TimestampFormat = "yyyyMMdd_HHmmss_fff";
+    public const string TimestampFormat = D3PathConstants.FileTimestampMsFormat;
     public const string ImageExtension = ".png";
 
     public const string ExpFarmingScreenshotPrefix = "d4_exp_farming_";

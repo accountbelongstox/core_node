@@ -51,6 +51,6 @@ public static class BattlenetUiAnalyzeService
     private static string DocsBasenameWithRegion()
     {
         var region = GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion;
-        return region is AppConstants.RegionAsia or AppConstants.RegionCn ? $"{DocsBasename}_{region}" : DocsBasename;
+        return region is BattlenetConstants.RegionAsia or BattlenetConstants.RegionCn ? $"{DocsBasename}_{region}" : DocsBasename;
     }
 }

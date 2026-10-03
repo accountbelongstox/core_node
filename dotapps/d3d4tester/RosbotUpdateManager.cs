@@ -15,6 +15,7 @@ using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
 using DotCore.Foundations;
+using DotApps.d3d4tester.Core.Battlenet;
 
 namespace DotApps.d3d4tester;
 
@@ -68,18 +69,18 @@ public sealed class RosbotUpdateManager
     public static string GetRegionDisplay(string? region)
     {
         var p = D3D4TesterI18n.Provider;
-        return region == AppConstants.RegionAsia ? p.GetUiText(I18nKeys.StatusServerAsia)
-            : region == AppConstants.RegionCn ? p.GetUiText(I18nKeys.StatusServerCn)
+        return region == BattlenetConstants.RegionAsia ? p.GetUiText(I18nKeys.StatusServerAsia)
+            : region == BattlenetConstants.RegionCn ? p.GetUiText(I18nKeys.StatusServerCn)
             : p.GetUiText(I18nKeys.StatusServerUnknown);
     }
 
     public bool ZipMatchesRegion(string filename, string region)
     {
-        if (region != AppConstants.RegionAsia && region != AppConstants.RegionCn) return false;
+        if (region != BattlenetConstants.RegionAsia && region != BattlenetConstants.RegionCn) return false;
         string lower = filename.ToLowerInvariant();
         bool matchesAsia = D3PathConstants.RosbotZipKeywordsAsia.Any(k => filename.Contains(k, StringComparison.Ordinal) || lower.Contains(k.ToLowerInvariant()));
         bool matchesCn = D3PathConstants.RosbotZipKeywordsCn.Any(k => filename.Contains(k, StringComparison.Ordinal) || lower.Contains(k.ToLowerInvariant()));
-        if (region == AppConstants.RegionAsia) return matchesAsia;
+        if (region == BattlenetConstants.RegionAsia) return matchesAsia;
         return matchesCn && !matchesAsia;
     }
 
@@ -87,7 +88,7 @@ public sealed class RosbotUpdateManager
     public List<(string Path, long Size, (int Major, int Minor)? Version)> FindRosbotZipsInDownloads(string region)
     {
         var list = new List<(string Path, long Size, (int Major, int Minor)? Version)>();
-        if (region != AppConstants.RegionAsia && region != AppConstants.RegionCn) return list;
+        if (region != BattlenetConstants.RegionAsia && region != BattlenetConstants.RegionCn) return list;
         string down = GetDownloadsDir();
         if (!Directory.Exists(down)) return list;
         foreach (var f in Directory.EnumerateFiles(down, ZipPattern, SearchOption.TopDirectoryOnly))
@@ -122,7 +123,7 @@ public sealed class RosbotUpdateManager
     /// <summary>Current installed version for this region (configured path when it is this region, else GameTools\{Asia|CN}_*).</summary>
     public ((int Major, int Minor)? Version, long Ctime) GetCurrentVersionForRegion(string region)
     {
-        if (region != AppConstants.RegionAsia && region != AppConstants.RegionCn) return (null, 0);
+        if (region != BattlenetConstants.RegionAsia && region != BattlenetConstants.RegionCn) return (null, 0);
         string prefix = RegionDirName(region) + "_";
         var (rosDir, curCtime, curVer) = GetCurrentRosDirInfo();
         if (!string.IsNullOrEmpty(rosDir))
@@ -192,7 +193,7 @@ public sealed class RosbotUpdateManager
     /// <summary>Target dir GameTools\{Asia|CN}_{version}\RosBot for (region, version). 1:1 Python get_target_final_dir.</summary>
     public string? GetTargetFinalDir(string region, string? versionStr = null, string? zipPath = null)
     {
-        if (region != AppConstants.RegionAsia && region != AppConstants.RegionCn) return null;
+        if (region != BattlenetConstants.RegionAsia && region != BattlenetConstants.RegionCn) return null;
         versionStr = ResolveVersionStr(versionStr, zipPath);
         if (string.IsNullOrEmpty(versionStr)) return null;
         return Path.Combine(D3PathConstants.RosbotGameToolsBase, $"{RegionDirName(region)}_{versionStr}", RosbotFinalDirName);
@@ -215,7 +216,7 @@ public sealed class RosbotUpdateManager
     public bool ApplyUpdate(string zipPath, string region, string? versionStr = null)
     {
         if (!File.Exists(zipPath) || !zipPath.EndsWith(ZipExtension, StringComparison.OrdinalIgnoreCase)) return false;
-        if (region != AppConstants.RegionAsia && region != AppConstants.RegionCn)
+        if (region != BattlenetConstants.RegionAsia && region != BattlenetConstants.RegionCn)
         {
             ColorPrinter.Yellow($"{LogTag} Battle.net region not detected (need asia/cn), skipping update");
             return false;
@@ -303,7 +304,7 @@ public sealed class RosbotUpdateManager
     public (string? ZipPath, bool IsNewer, string? VersionStr, string? Region) CheckUpdate()
     {
         string? region = GetBattlenetRegion();
-        if (region != AppConstants.RegionAsia && region != AppConstants.RegionCn)
+        if (region != BattlenetConstants.RegionAsia && region != BattlenetConstants.RegionCn)
         {
             ColorPrinter.Gray($"{LogTag} Battle.net region not detected (need asia/cn), skipping update check");
             return (null, false, null, null);
@@ -329,24 +330,24 @@ public sealed class RosbotUpdateManager
         string? currentRegion = GetBattlenetRegion();
         bool checkBoth = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.RosSettingsCheckBothRegionsForUpdate, ShellConstants.RosbotCheckBothRegionsDefault);
         var regions = new List<string>();
-        if (currentRegion == AppConstants.RegionAsia || currentRegion == AppConstants.RegionCn)
+        if (currentRegion == BattlenetConstants.RegionAsia || currentRegion == BattlenetConstants.RegionCn)
         {
             regions.Add(currentRegion!);
             ColorPrinter.Blue($"{PanelLogTag} Current region detected: {currentRegion}");
             if (checkBoth)
             {
-                string other = currentRegion == AppConstants.RegionAsia ? AppConstants.RegionCn : AppConstants.RegionAsia;
+                string other = currentRegion == BattlenetConstants.RegionAsia ? BattlenetConstants.RegionCn : BattlenetConstants.RegionAsia;
                 regions.Add(other);
                 ColorPrinter.Blue($"{PanelLogTag} Also checking: {other}");
             }
-            if (regions.Count == 2 && regions[0] != AppConstants.RegionAsia)
-                regions = new List<string> { AppConstants.RegionAsia, AppConstants.RegionCn };
+            if (regions.Count == 2 && regions[0] != BattlenetConstants.RegionAsia)
+                regions = new List<string> { BattlenetConstants.RegionAsia, BattlenetConstants.RegionCn };
         }
         else
         {
             ColorPrinter.Gray($"{PanelLogTag} No region detected, checking both Asia and CN (Asia first)");
-            regions.Add(AppConstants.RegionAsia);
-            regions.Add(AppConstants.RegionCn);
+            regions.Add(BattlenetConstants.RegionAsia);
+            regions.Add(BattlenetConstants.RegionCn);
         }
 
         var (curDir, _, curVer) = GetCurrentRosDirInfo();
@@ -423,7 +424,7 @@ public sealed class RosbotUpdateManager
     }
 
     private static string RegionDirName(string region) =>
-        region == AppConstants.RegionAsia ? D3PathConstants.RosbotDirNamespaceAsia : D3PathConstants.RosbotDirNamespaceCn;
+        region == BattlenetConstants.RegionAsia ? D3PathConstants.RosbotDirNamespaceAsia : D3PathConstants.RosbotDirNamespaceCn;
 
     private static int VersionKey((int Major, int Minor)? version) =>
         version == null ? 0 : version.Value.Major * 10000 + version.Value.Minor;

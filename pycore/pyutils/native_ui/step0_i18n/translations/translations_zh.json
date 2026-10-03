@@ -84,7 +84,9 @@
   },
   "terminal_backup": {
     "title": "终端备份",
-    "message": "已备份 {count} 个终端,{kb} K(新增 {stored_kb} K)"
+    "message": "已备份 {count} 个终端,{kb} K(新增 {stored_kb} K)",
+    "stuck_title": "AI 卡住了",
+    "stuck_message": "终端 {number}({name})停在确认提示上,AI 卡住了,需要您本人介入"
   },
   "gitsync_watch": {
     "conflict_title": "gitsync 合并冲突，请立即修复",

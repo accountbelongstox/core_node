@@ -114,12 +114,6 @@ public static partial class I18nKeys
     public const string ConfigTabsConfig2 = "ui.config_tabs.config2";
     public const string ConfigTabsConfig3 = "ui.config_tabs.config3";
     public const string ConfigTabsConfig4 = "ui.config_tabs.config4";
-    public const string SkillTableSkill = "ui.skill_config.skill";
-    public const string SkillTableKey = "ui.skill_config.key";
-    public const string SkillTableStrategy = "ui.skill_config.strategy";
-    public const string SkillTableInterval = "ui.skill_config.interval";
-    public const string SkillTableDelay = "ui.skill_config.delay";
-    public const string SkillTableRandom = "ui.skill_config.random_delay";
     public const string SkillTableSkillsSkill1 = "ui.skill_table.skills.skill1";
     public const string SkillTableSkillsSkill2 = "ui.skill_table.skills.skill2";
     public const string SkillTableSkillsSkill3 = "ui.skill_table.skills.skill3";
@@ -138,7 +132,6 @@ public static partial class I18nKeys
     public const string AuxiliarySoundFeedback = "ui.auxiliary_panel.sound_feedback";
     public const string AuxiliarySmartPause = "ui.auxiliary_panel.smart_pause";
     public const string OptionsCustomStandKey = "ui.common.use_custom_stand_key";
-    public const string AuxiliaryPlaySoundOnSwitch = "ui.options.play_sound_on_switch";
     public const string MainFunctionsPanelQuickSwitch = "ui.main_functions_panel.quick_switch";
     public const string MainFunctionsPanelAnimationSpeedLabel = "ui.main_functions_panel.animation_speed_label";
     public const string MainFunctionsPanelAnimationSpeedSlow = "ui.main_functions_panel.animation_speed_slow";

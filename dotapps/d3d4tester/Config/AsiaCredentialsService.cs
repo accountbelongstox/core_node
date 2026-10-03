@@ -3,6 +3,7 @@ using System.Text.Json;
 using DotApps.d3d4tester.Constants;
 using DotCore.Foundations;
 using DotCore.Utils.Security;
+using DotApps.d3d4tester.Core.Battlenet;
 
 namespace DotApps.d3d4tester.Config;
 
@@ -12,15 +13,13 @@ namespace DotApps.d3d4tester.Config;
 /// </summary>
 public static class AsiaCredentialsService
 {
-    public const string RegionAsia = "asia";
-    public const string RegionCn = "cn";
 
     private static readonly object DialogLock = new();
     private static Func<string, bool>? _dialogPresenter;
     private static bool _dialogPending;
 
     private static string ConfigKeyForRegion(string region) =>
-        region == RegionCn ? ConfigKeys.BattlenetCnCredentials : ConfigKeys.BattlenetAsiaCredentials;
+        region == BattlenetConstants.RegionCn ? ConfigKeys.BattlenetCnCredentials : ConfigKeys.BattlenetAsiaCredentials;
 
     private static readonly JsonSerializerOptions DeserializeOptions = new()
     {
@@ -149,7 +148,7 @@ public static class AsiaCredentialsService
     }
 
     /// <summary>Show the dialog once, non-blocking; pending until OK/Cancel. 1:1 Python schedule_battlenet_credentials_dialog.</summary>
-    public static void ScheduleCredentialsDialog(string defaultRegion = RegionAsia)
+    public static void ScheduleCredentialsDialog(string defaultRegion = BattlenetConstants.RegionAsia)
     {
         Func<string, bool>? presenter;
         lock (DialogLock)

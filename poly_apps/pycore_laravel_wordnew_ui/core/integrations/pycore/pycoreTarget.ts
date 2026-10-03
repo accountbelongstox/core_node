@@ -306,12 +306,10 @@ export function getPycoreLanRoute(): PycoreTarget | null {
 
 /** Replace the LAN candidates (every entry must be a usable direct LAN URL). */
 export function setPycoreLanEndpoints(entries: Array<{ url: string; label: string }>): void {
-  lanEndpoints = entries
-    .map((entry) => {
-      const target = targetFromUrl(entry.url);
-      return target?.kind === 'direct' ? { ...target, label: entry.label, source: 'lan' as const } : null;
-    })
-    .filter((entry): entry is PycoreEndpoint => entry !== null);
+  lanEndpoints = entries.flatMap((entry): PycoreEndpoint[] => {
+    const target = targetFromUrl(entry.url);
+    return target?.kind === 'direct' ? [{ ...target, label: entry.label, source: 'lan' }] : [];
+  });
 }
 
 /** The selection without the LAN route: the address the event socket keeps (no signed WebSocket upgrade). */

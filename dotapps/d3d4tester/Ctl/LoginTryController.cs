@@ -168,10 +168,10 @@ public static class LoginTryController
             ColorPrinter.Gray($"{LogPrefix} Battle.net region not in config, skip login flow by region");
             return false;
         }
-        if (region != AppConstants.RegionCn)
+        if (region != BattlenetConstants.RegionCn)
         {
             if (AsiaCredentialsService.IsDialogPending) return false;
-            var creds = AsiaCredentialsService.GetCredentials(AsiaCredentialsService.RegionAsia);
+            var creds = AsiaCredentialsService.GetCredentials(BattlenetConstants.RegionAsia);
             if (creds == null)
             {
                 AsiaCredentialsService.ScheduleCredentialsDialog();

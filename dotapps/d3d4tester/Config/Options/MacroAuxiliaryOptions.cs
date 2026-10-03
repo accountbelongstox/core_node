@@ -60,7 +60,7 @@ public sealed class AuxiliaryFeatureOptions
     public const string BloodShardTypeDefault = "weapon";
     public const string KanaiReforgeModeDefault = "until_ancient";
     public const string KanaiConvertMaterialDefault = "forgotten_soul";
-    public const string AutoSalvageKeepDefault = "keep_ancient_plus";
+    public const string AutoSalvageKeepDefault = DotApps.d3d4tester.Core.Blacksmith.BlacksmithHandler.KeepAncientPlus;
 
     [ConfigurationKeyName("enabled")]
     public bool Enabled { get; set; }

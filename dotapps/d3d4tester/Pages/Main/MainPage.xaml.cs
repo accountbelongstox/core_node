@@ -72,18 +72,18 @@ public partial class MainPage : UserControl
         var p = D3D4TesterI18n.Provider;
         LblSkillConfigTitle.Text = p.GetUiText(I18nKeys.SkillConfigTitle);
         LblCurrentConfig.Text = p.GetUiText(I18nKeys.MainFunctionsPanelCurrentConfig);
-        LblSkill.Text = p.GetUiText(I18nKeys.SkillTableSkill);
-        LblKey.Text = p.GetUiText(I18nKeys.SkillTableKey);
-        LblStrategy.Text = p.GetUiText(I18nKeys.SkillTableStrategy);
-        LblInterval.Text = p.GetUiText(I18nKeys.SkillTableInterval);
-        LblDelay.Text = p.GetUiText(I18nKeys.SkillTableDelay);
-        LblRandom.Text = p.GetUiText(I18nKeys.SkillTableRandom);
+        LblSkill.Text = p.GetUiText(I18nKeys.SkillConfigSkill);
+        LblKey.Text = p.GetUiText(I18nKeys.SkillConfigKey);
+        LblStrategy.Text = p.GetUiText(I18nKeys.SkillConfigStrategy);
+        LblInterval.Text = p.GetUiText(I18nKeys.SkillConfigInterval);
+        LblDelay.Text = p.GetUiText(I18nKeys.SkillConfigDelay);
+        LblRandom.Text = p.GetUiText(I18nKeys.SkillConfigRandomDelay);
         LblHotkeysTitle.Text = p.GetUiText(I18nKeys.MainFunctionsPanelAdditionalSettings);
         LblMacroStartHotkey.Text = p.GetUiText(I18nKeys.MainFunctionsPanelMacroStartHotkeyLabel);
         LblAssistantHotkey.Text = p.GetUiText(I18nKeys.MainFunctionsPanelMacroPauseHotkeyLabel);
         LblQuickSwitch.Text = p.GetUiText(I18nKeys.AdditionalSettingsQuickSwitch);
         BtnCombatMacroToggle.Content = p.GetUiText(I18nKeys.MainFunctionsPanelCombatMacroToggleButton);
-        ChkPlaySoundOnSwitch.Content = p.GetUiText(I18nKeys.AuxiliaryPlaySoundOnSwitch);
+        ChkPlaySoundOnSwitch.Content = p.GetUiText(I18nKeys.OptionsPlaySoundOnSwitch);
         ChkSmartPauseBar.Content = p.GetUiText(I18nKeys.OptionsSmartPause);
         ChkCustomStand.Content = p.GetUiText(I18nKeys.OptionsUseCustomStandKey);
 

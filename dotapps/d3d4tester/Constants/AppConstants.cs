@@ -54,8 +54,6 @@ public static class AppConstants
     public const string ClientTypeD4Game = "d4_game";
 
     // ---------- Battle.net region (ros_settings.battlenet_region_cache, flow) ----------
-    public const string RegionAsia = "asia";
-    public const string RegionCn = "cn";
 
     // ---------- Log level (config: log_settings.log_level) ----------
     public const string LogLevelDebug = "DEBUG";
@@ -63,7 +61,7 @@ public static class AppConstants
     public const string LogLevelWarning = "WARNING";
     public const string LogLevelError = "ERROR";
     public const string LogLevelCritical = "CRITICAL";
-    public const string LogLevelDefault = "INFO";
+    public const string LogLevelDefault = LogLevelInfo;
 
     // ---------- Rosbot panel defaults (same as Python d3.py ROSBOT_*_DEFAULT where applicable) ----------
     public const int RosbotSmartEchoWaitSecondsDefault = 15;

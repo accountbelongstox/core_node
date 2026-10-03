@@ -17,7 +17,7 @@ namespace DotApps.d3d4tester.Core;
 public static class D3AssistantCapture
 {
     private const string UiRegionSourceOptimized = "window_cache_optimized";
-    private const string TimestampFormat = "yyyyMMdd_HHmmss_fff";
+    private const string TimestampFormat = D3PathConstants.FileTimestampMsFormat;
     private const string DebugUiPrefix = "debug_ui_optimized_";
     private const string AnnotatedPrefix = "optimized_detection_";
     private const int AnnotateRectThickness = 3;

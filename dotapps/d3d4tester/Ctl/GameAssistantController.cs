@@ -27,7 +27,7 @@ public sealed class GameAssistantController
     private const string DebugCaptureDirName = "debug_capture";
     private const string DebugLeftFilePrefix = "autouse_debug_left30_";
     private const string DebugAnnotatorFilePrefix = "autouse_annotator_";
-    private const string DebugFileTimeFormat = "yyyyMMdd_HHmmss";
+    private const string DebugFileTimeFormat = D3PathConstants.FileTimestampFormat;
     private const string PngExt = ".png";
 
     private static readonly Lazy<GameAssistantController> LazyInstance = new(() => new GameAssistantController());
