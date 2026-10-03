@@ -118,6 +118,20 @@ declare -gA AI_TOOLS_CATALOG=(
     ["gemini_config_doc_url"]="https://github.com/google-gemini/gemini-cli/issues/2815"
     ["gemini_shareable"]="no"
 
+    ["dsh_name"]="DeepSeek Harness"
+    ["dsh_exec"]="dsh"
+    ["dsh_package_id"]="@deepseek-ai/dsh"
+    ["dsh_install_method"]="npm"
+    ["dsh_native_bin"]=".local/bin/dsh"
+    ["dsh_install_dirs"]=".local/lib/node_modules/@deepseek-ai"
+    ["dsh_link_names"]="dsh"
+    ["dsh_description"]="DeepSeek Harness (dsh) - DeepSeek official agent harness CLI"
+    ["dsh_verify_command"]="--version"
+    ["dsh_config_env"]="DSH_HOME"
+    ["dsh_config_dir"]="\$HOME/.dsh"
+    ["dsh_config_doc_url"]="https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/reference/README.md"
+    ["dsh_shareable"]="no"
+
     ["qwen_name"]="Qwen Code"
     ["qwen_exec"]="qwen"
     ["qwen_package_id"]="https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh"
@@ -336,7 +350,7 @@ declare -gA AI_TOOLS_CATALOG=(
 )
 
 AI_TOOLS_CATALOG_KEYS=(
-    claude codex gemini qwen cursor_agent kimi cline arkcli superclaude
+    claude codex gemini dsh qwen cursor_agent kimi cline arkcli superclaude
     opencode auggie droid zhipuai bun pi omp agy
 )
 
