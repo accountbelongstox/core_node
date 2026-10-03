@@ -8,6 +8,7 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.pyctl.terminal.terminal_agent_detector import TerminalAgentWatch, terminal_agent_detector
 from pycore.pyctl.terminal.terminal_backup_store import (
     TERMINAL_BACKUP_DIR_NAME,
     TerminalBackupStore,
@@ -73,6 +74,7 @@ class TerminalBackupService:
         prompt_watch: Optional[TerminalPromptWatch] = None,
         prompt_handler: Optional[TerminalPromptHandler] = None,
         resume_scheduler: Optional[TerminalResumeScheduler] = None,
+        agent_watch: Optional[TerminalAgentWatch] = None,
     ) -> None:
         self._terminals = terminals
         self._store = store
@@ -82,6 +84,8 @@ class TerminalBackupService:
         self._prompt_watch = prompt_watch or TerminalPromptWatch()
         self._prompt_handler = prompt_handler or TerminalPromptHandler(terminals)
         self._resume = resume_scheduler or TerminalResumeScheduler(terminals)
+        self._agent_watch = agent_watch or TerminalAgentWatch(terminal_agent_detector)
+        terminals.register_snapshot_decorator(self._agent_watch.decorate_snapshot)
         self._pass_lock = threading.Lock()
         self._lease_lock = FileLockManager(SCHEDULER_LOCK_TARGET, verbose=False)
         self._lease: Optional[int] = None
@@ -153,6 +157,7 @@ class TerminalBackupService:
             entry["text"] = refreshed
             entry["signature"] = text_digest(refreshed)
         self._resume.observe(entry["number"], str(window["id"]), refreshed)
+        self._agent_watch.observe(entry["number"], str(window["id"]), refreshed)
         return entry, found_prompt or bool(waiting_prompt(refreshed))
 
     def _observe_prompt(
@@ -192,8 +197,9 @@ class TerminalBackupService:
         self._save_fast_prompts()
         ColorPrint.blue(f"[{LABEL}] prompt follow-up scanned terminal={number} misses={misses}/{PROMPT_MISS_LIMIT}")
 
-    def _prune_prompt_states(self, windows: List[Dict[str, Any]]) -> None:
+    def _prune_terminal_states(self, windows: List[Dict[str, Any]]) -> None:
         live = {int(window["terminal_number"]): str(window["id"]) for window in windows}
+        self._agent_watch.prune(live)
         removed = False
         for number, state in list(self._fast_prompts.items()):
             if live.get(number) != state["window_id"]:
@@ -290,7 +296,7 @@ class TerminalBackupService:
             if self._user_active(PROMPT_INTERVAL_SECONDS):
                 return
             windows = self._enumerate()
-            self._prune_prompt_states(windows)
+            self._prune_terminal_states(windows)
             due_windows = [
                 window for window in windows
                 if int(window["terminal_number"]) in self._fast_prompts
@@ -360,7 +366,7 @@ class TerminalBackupService:
         if self._user_active():
             return self._deferred()
         windows = self._enumerate()
-        self._prune_prompt_states(windows)
+        self._prune_terminal_states(windows)
         if not windows:
             return {"success": True, "written": False, "terminal_count": 0}
         previous = self._store.previous_signatures()

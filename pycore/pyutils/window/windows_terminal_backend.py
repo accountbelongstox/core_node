@@ -14,6 +14,7 @@ from pycore.pyutils.common.terminal_identifiers import (
 from pycore.pyutils.window.ops import (
     bring_window_to_top,
     click_screen_point,
+    current_process_elevated,
     enum_windows,
     get_cursor_position,
     get_foreground_window,
@@ -23,9 +24,11 @@ from pycore.pyutils.window.ops import (
     get_window_text,
     get_window_thread_process_id,
     get_wheel_scroll_lines,
+    input_desktop_name,
     is_window_topmost,
     WM_COMMAND,
     post_window_message,
+    process_elevated,
     press_native_key_combo,
     restore_foreground_window,
     scroll_mouse_wheel,
@@ -62,6 +65,11 @@ WINDOW_ID_PREFIX = "win32:"
 CONTROL_WIN32 = "win32"
 FOCUS_SOURCE_WIN32 = "win32"
 FOCUS_ERROR_NONE_FOCUSED = "no_focused_window"
+# SendInput only reaches the unlocked user desktop, and UIPI drops input a
+# non-elevated process sends to an elevated (Administrator) window.
+INPUT_DESKTOP_DEFAULT = "default"
+ERROR_INPUT_DESKTOP_UNAVAILABLE = "terminal_input_desktop_unavailable"
+ERROR_TARGET_ELEVATED = "terminal_target_elevated"
 NATIVE_KEY_NAMES = {
     TERMINAL_KEY_ENTER: "ENTER",
     TERMINAL_KEY_UP: "UP",
@@ -158,6 +166,14 @@ class WindowsTerminalBackend(TerminalWindowBackend):
     def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str], hold_seconds: float = 0.0) -> bool:
         native_keys = [NATIVE_KEY_NAMES.get(name, name) for name in keysym_names]
         return press_native_key_combo(native_keys, hold_seconds)
+
+    def _input_blocked(self, window: Dict[str, Any]) -> Optional[str]:
+        if input_desktop_name().lower() != INPUT_DESKTOP_DEFAULT:
+            return ERROR_INPUT_DESKTOP_UNAVAILABLE
+        process_id = int(window.get("process_id") or 0)
+        if process_id <= 0 or current_process_elevated():
+            return None
+        return None if process_elevated(process_id) is False else ERROR_TARGET_ELEVATED
 
     def _input_target_ready(self, window: Dict[str, Any]) -> bool:
         native_id = int(window["native_id"])
