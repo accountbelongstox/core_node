@@ -246,6 +246,10 @@ export LARAVEL_OCTANE=1
 export OCTANE_SERVER=frankenphp
 export MAX_REQUESTS
 export REQUEST_MAX_EXECUTION_TIME
+# Crash diagnostics: a fatal signal dumps every goroutine stack to the journal
+# and aborts with a core that systemd-coredump keeps (`coredumpctl info
+# frankenphp`); PHP-thread SIGSEGVs otherwise exit 139 without any trace.
+export GOTRACEBACK=crash
 
 case "$WORKERS" in
     ""|auto) CADDY_SERVER_WORKER_DIRECTIVE="" ;;
