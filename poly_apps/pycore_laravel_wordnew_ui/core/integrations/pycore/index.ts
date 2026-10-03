@@ -87,6 +87,7 @@ export type {
   TerminalSnapshot,
   TerminalScreenshotResourceMeta,
   TerminalScreenshotTextResult,
+  TerminalTextResult,
   TerminalViewResult,
   TerminalViewerDemandOptions,
   TerminalViewerDemandResult,

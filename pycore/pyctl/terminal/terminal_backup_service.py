@@ -23,6 +23,7 @@ from pycore.pyctl.terminal.terminal_prompt_detector import TerminalPromptWatch, 
 from pycore.pyctl.terminal.terminal_prompt_handler import TerminalPromptHandler
 from pycore.pyctl.terminal.terminal_resume_scheduler import TerminalResumeScheduler
 from pycore.pyctl.terminal.terminal_service import terminal_service
+from pycore.pyctl.terminal.terminal_text_buffer import terminal_text_buffer
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.file_lock import FileLockManager
@@ -61,6 +62,12 @@ REASON_SHUTDOWN = "shutdown"
 ERROR_PASS_FAILED = "terminal_backup_pass_failed"
 ERROR_EXPORT_FAILED = "terminal_export_failed"
 ERROR_NO_DISPLAY = "no_display"
+TEXT_SKIP_OFFLINE = "terminal_window_offline"
+TEXT_SKIP_PAUSED = "terminal_text_paused"
+TEXT_SKIP_AGENT_WORKING = "terminal_text_agent_working"
+TEXT_SKIP_USER_ACTIVE = "terminal_text_user_active"
+TEXT_SKIP_RECENT = "terminal_text_recent"
+TEXT_SKIP_BUSY = "terminal_text_busy"
 LOG_CONTENT_KIND = "log"
 SPECIAL_PROMPT_WAITING = "prompt_waiting"
 SPECIAL_PROMPT_FOLLOW_UP = "prompt_follow_up"
@@ -152,11 +159,38 @@ class TerminalBackupService:
         if result.get("success") and result.get("text"):
             entry["text"] = result["text"]
             entry["signature"] = text_digest(result["text"])
+            terminal_text_buffer.offer(number, str(window["id"]), result["text"])
             return entry
         entry["error_code"] = str(result.get("error_code") or ERROR_EXPORT_FAILED)
         entry["inputs"] = self._sent_inputs(number, window)
         entry["signature"] = inputs_digest(entry["inputs"])
         return entry
+
+    def refresh_text(self, window_id: str) -> Dict[str, Any]:
+        """Export one window's scrollback now for a viewer, under the gates of a scan pass."""
+        window = next((item for item in self._enumerate() if str(item["id"]) == window_id), None)
+        if window is None:
+            return {"refreshed": False, "skip_code": TEXT_SKIP_OFFLINE}
+        number = int(window["terminal_number"])
+        skip_code = (
+            TEXT_SKIP_PAUSED if self._paused
+            else TEXT_SKIP_AGENT_WORKING if self._agent_working(window)
+            else TEXT_SKIP_USER_ACTIVE if self._user_active()
+            else TEXT_SKIP_RECENT if not terminal_text_buffer.claim_refresh(number)
+            else None
+        )
+        if skip_code is not None:
+            return {"refreshed": False, "skip_code": skip_code}
+        if not self._pass_lock.acquire(blocking=False):
+            return {"refreshed": False, "skip_code": TEXT_SKIP_BUSY}
+        try:
+            def export() -> Dict[str, Any]:
+                with self._focus.preserved(LABEL):
+                    return self._export(window)
+            entry = self._terminals.run_exclusive(export)
+        finally:
+            self._pass_lock.release()
+        return {"refreshed": bool(entry.get("text")), "skip_code": entry.get("error_code")}
 
     def _scan_isolated(self, window: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
         """Focus save, scan and focus restore as one input-owner step: a send can never land between them."""

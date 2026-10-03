@@ -28,6 +28,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_SCREENSHOT,
     UI_TERMINAL_SCREENSHOT_TEXT,
     UI_TERMINAL_SCROLL,
+    UI_TERMINAL_TEXT,
     UI_TERMINAL_VIEW,
     UI_TERMINAL_VIEWER_DEMAND,
     UI_TERMINAL_IMAGE_UPLOAD,
@@ -46,6 +47,7 @@ from pycore.pyctl.terminal.terminal_rpc import (
     string_list_param,
 )
 from pycore.pyctl.terminal.terminal_service import terminal_service
+from pycore.pyctl.terminal.terminal_text_buffer import terminal_text_buffer
 
 
 fastapi = get_third_package_fastapi()
@@ -416,6 +418,23 @@ def register_terminal_routes(server) -> None:
             quiet=True,
         )
 
+    def text_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = integer_param(params, "terminal_number")
+        since_revision = integer_param(params, "revision")
+        refresh = bool_param(params, "refresh")
+
+        def read_text():
+            refreshed = terminal_backup_service.refresh_text(window_id) if refresh and window_id else {}
+            result = terminal_text_buffer.read(
+                terminal_number,
+                since_revision,
+                terminal_service.screenshot_captured_at(window_id),
+            )
+            return {**result, "refresh_skip_code": refreshed.get("skip_code")}
+
+        return run_terminal_action("text", request_id, read_text, log_result=False, quiet=True)
+
     def screenshot_text_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
         digest = str(params.get("digest") or "")
@@ -501,4 +520,5 @@ def register_terminal_routes(server) -> None:
     server.get(path=UI_TERMINAL_CONTENT, handler=content_handler)
     server.get(path=UI_TERMINAL_SCREENSHOT, handler=screenshot_handler)
     server.post(path=UI_TERMINAL_SCREENSHOT_TEXT, handler=screenshot_text_handler)
+    server.post(path=UI_TERMINAL_TEXT, handler=text_handler)
     server.get(path=UI_TERMINAL_DESKTOP_SCREENSHOT, handler=desktop_screenshot_handler)

@@ -42,6 +42,27 @@ export interface TerminalScreenshotTextResult {
   engine?: string | null;
 }
 
+/** Exported scrollback text: `full` for a new viewer, `delta` (keep N lines, then `lines`) or `same` after. */
+export interface TerminalTextResult {
+  success: boolean;
+  error_code?: string | null;
+  terminal_number?: number;
+  window_id?: string;
+  revision?: number;
+  digest?: string;
+  columns?: number;
+  exported_at?: number;
+  source?: 'export' | 'backup';
+  line_count?: number;
+  /** The screen changed after this text was exported. */
+  stale?: boolean;
+  mode?: 'full' | 'delta' | 'same';
+  base_revision?: number;
+  keep?: number;
+  lines?: string[];
+  refresh_skip_code?: string | null;
+}
+
 export type TerminalLogSource = 'input' | 'enter' | 'schedule';
 
 export interface TerminalLogEntry {
@@ -494,6 +515,18 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { window_id: windowId, digest },
       timeoutMs,
     ) as Promise<TerminalScreenshotTextResult>,
+    /** Scrollback text of a terminal; `refresh` asks pycore to export it now (idle-gated server side). */
+    getTerminalText: (
+      windowId: string,
+      terminalNumber: number,
+      revision: number,
+      refresh: boolean,
+      timeoutMs?: number,
+    ) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalText,
+      { window_id: windowId, terminal_number: terminalNumber, revision, refresh },
+      timeoutMs,
+    ) as Promise<TerminalTextResult>,
     activateTerminal: (windowId: string) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
         window_id: windowId,

@@ -1,53 +1,26 @@
-/** One terminal frame: its OCR text when the server could read it, otherwise its picture. */
-import React, { useLayoutEffect, useRef } from 'react';
-import type { TerminalFrame } from '@/apps/pycore-manager/components/terminal/terminalFrames';
-
-export type PcTerminalFrameSize = 'tiny' | 'card' | 'preview';
-
-const TEXT_SIZE_CLASSES: Record<PcTerminalFrameSize, string> = {
-  tiny: 'text-[7px] leading-[9px] p-1',
-  card: 'text-[10px] leading-[13px] p-2',
-  preview: 'text-xs leading-5 p-4 pt-14',
-};
+/** One terminal view: its scrollback text laid out like the terminal, or its picture. */
+import React from 'react';
+import type { TerminalView } from '@/apps/pycore-manager/components/terminal/terminalFrames';
+import PcTerminalTextView, { type PcTerminalTextSize } from '@/apps/pycore-manager/components/terminal/PcTerminalTextView';
 
 interface Props {
-  frame: TerminalFrame;
+  view: TerminalView;
   alt: string;
-  size: PcTerminalFrameSize;
+  size: PcTerminalTextSize;
   imageClassName?: string;
   onImageClick?: (event: React.MouseEvent<HTMLImageElement>) => void;
 }
 
-const PcTerminalFrameView: React.FC<Props> = ({ frame, alt, size, imageClassName = '', onImageClick }) => {
-  const textRef = useRef<HTMLPreElement | null>(null);
-
-  // A terminal reads from the bottom: keep the newest lines in view.
-  useLayoutEffect(() => {
-    const element = textRef.current;
-    if (element) element.scrollTop = element.scrollHeight;
-  }, [frame.text]);
-
-  if (frame.kind === 'image') {
-    return (
-      <img
-        src={frame.url}
-        alt={alt}
-        decoding="async"
-        onClick={onImageClick}
-        className={`h-full w-full object-contain ${imageClassName}`}
-      />
-    );
-  }
+const PcTerminalFrameView: React.FC<Props> = ({ view, alt, size, imageClassName = '', onImageClick }) => {
+  if (view.kind === 'text') return <PcTerminalTextView doc={view.doc} size={size} label={alt} />;
   return (
-    <pre
-      ref={textRef}
-      aria-label={alt}
-      className={`absolute inset-0 m-0 whitespace-pre-wrap break-words bg-slate-950 text-left font-mono text-slate-200 ${
-        size === 'preview' ? 'select-text overflow-auto' : 'overflow-hidden'
-      } ${TEXT_SIZE_CLASSES[size]}`}
-    >
-      {frame.text}
-    </pre>
+    <img
+      src={view.frame.url}
+      alt={alt}
+      decoding="async"
+      onClick={onImageClick}
+      className={`h-full w-full object-contain ${imageClassName}`}
+    />
   );
 };
 
