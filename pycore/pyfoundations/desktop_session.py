@@ -27,6 +27,7 @@ SESSION_BUS_SOCKET = "bus"
 BUS_ADDRESS_FORMAT = "unix:path={path}"
 BUS_ADDRESS_ENV = "DBUS_SESSION_BUS_ADDRESS"
 RUNTIME_DIR_ENV = "XDG_RUNTIME_DIR"
+GNOME_SHELL_RUNTIME_DIR_NAME = "gnome-shell"
 DISPLAY_ENV = "DISPLAY"
 WAYLAND_DISPLAY_ENV = "WAYLAND_DISPLAY"
 XAUTHORITY_ENV = "XAUTHORITY"
@@ -242,11 +243,14 @@ def _resolve_session_type(display: str, wayland_display: str) -> str:
     return SESSION_TTY if PLATFORM_NAME == "Linux" else SESSION_UNKNOWN
 
 
-def _resolve_desktop() -> Tuple[str, Tuple[str, ...]]:
+def _resolve_desktop(runtime_dir: str = "") -> Tuple[str, Tuple[str, ...]]:
     raw = os.environ.get("XDG_CURRENT_DESKTOP", "") or os.environ.get(
         "DESKTOP_SESSION",
         "",
     )
+    if not raw and runtime_dir and (Path(runtime_dir) / GNOME_SHELL_RUNTIME_DIR_NAME).is_dir():
+        # A service without the session env still runs inside a GNOME session.
+        raw = DESKTOP_GNOME
     names = tuple(part.strip().lower() for part in raw.split(":") if part.strip())
     if any(DESKTOP_GNOME in name for name in names):
         return DESKTOP_GNOME, names
@@ -259,7 +263,7 @@ def current_desktop_session() -> DesktopSession:
     runtime_dir = _user_runtime_dir()
     display = os.environ.get(DISPLAY_ENV, "")
     wayland_display = os.environ.get(WAYLAND_DISPLAY_ENV, "")
-    desktop, desktop_names = _resolve_desktop()
+    desktop, desktop_names = _resolve_desktop(runtime_dir)
     return DesktopSession(
         platform=PLATFORM_NAME,
         session_type=_resolve_session_type(display, wayland_display),
