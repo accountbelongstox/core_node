@@ -200,6 +200,20 @@ relayTarget: {
     headlessTitle: 'No desktop session: terminals, windows and clipboard are not available on this machine.',
     designateFailed: 'The machine could not be designated.',
   },
+restart: {
+  title: 'Restart pycore',
+  description: 'Restart this pycore service in place; the page waits and reconnects. Allowed from this machine and the private LAN without a key.',
+  action: 'Restart',
+  confirm: 'Tap again to restart',
+  waiting: 'Restarting… {{seconds}}s',
+  online: 'Back online',
+  failed: 'Restart failed',
+  hint: 'Restart pycore (local network only); waits and retries until it answers',
+  errors: {
+    restart_lan_only: 'Restart is allowed only from this machine or the private LAN',
+    restart_already_in_progress: 'A restart is already in progress',
+  },
+},
 settingsPage: {
     autostartFailed: 'Failed to update auto-start',
     autostartEnabled: 'Auto-start enabled ({{target}})',

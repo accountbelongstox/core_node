@@ -200,6 +200,20 @@ relayTarget: {
     headlessTitle: '没有桌面会话：此设备上无法使用终端、窗口和剪贴板。',
     designateFailed: '无法指定该设备。',
   },
+restart: {
+  title: '重启 pycore',
+  description: '原地重启该 pycore 服务；页面会等待并自动重连。本机和私有局域网无需密钥即可使用。',
+  action: '重启',
+  confirm: '再点一次确认重启',
+  waiting: '重启中… {{seconds}} 秒',
+  online: '已恢复在线',
+  failed: '重启失败',
+  hint: '重启 pycore（仅限局域网）；会一直等待并重试直到恢复',
+  errors: {
+    restart_lan_only: '只允许从本机或私有局域网重启',
+    restart_already_in_progress: '已有重启正在进行',
+  },
+},
 settingsPage: {
     autostartFailed: '更新开机自启失败',
     autostartEnabled: '已启用开机自启（{{target}}）',
