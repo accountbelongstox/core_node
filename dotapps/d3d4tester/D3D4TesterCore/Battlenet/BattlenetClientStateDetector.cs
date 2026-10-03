@@ -23,15 +23,25 @@ public enum BattlenetClientState
     LoginEmail,
     LoginPassword,
     LoginAsia,
+    Popup,
     Disconnected,
     Connecting,
     GameStarting,
     Normal,
 }
 
+/// <summary>Which game entry points the main UI shows: D3 / D4 nav tab and their Play button (by the Play label).</summary>
+public sealed record BattlenetGameUi(bool D3Tab, bool D3Play, bool D4Tab, bool D4Play)
+{
+    public static readonly BattlenetGameUi None = new(false, false, false, false);
+}
+
 /// <summary>Probe result: state, region read from the UI itself (null when the screen does not tell), detail (e.g. Play label).</summary>
 public sealed record BattlenetClientStatus(BattlenetClientState State, string? UiRegion, string? Detail)
 {
+    /// <summary>D3 / D4 tab and Play recognition from the same walk.</summary>
+    public BattlenetGameUi GameUi { get; init; } = BattlenetGameUi.None;
+
     public static readonly BattlenetClientStatus None = new(BattlenetClientState.Unknown, null, null);
 
     /// <summary>The (on_login, disconnected, normal_available) triple kept by GameInterfaceData for the flows.</summary>

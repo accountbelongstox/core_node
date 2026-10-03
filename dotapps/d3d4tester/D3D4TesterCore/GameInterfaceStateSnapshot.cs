@@ -31,6 +31,8 @@ public sealed class GameInterfaceStateSnapshot
     public Battlenet.BattlenetClientState BattlenetClientState { get; init; }
     /// <summary>Region the client UI shows ("cn" / "asia"), null when the screen does not tell.</summary>
     public string? BattlenetUiRegion { get; init; }
+    /// <summary>D3 / D4 tab and Play button recognised on the client (status bar icons; next step switches tab and starts the game).</summary>
+    public Battlenet.BattlenetGameUi BattlenetGameUi { get; init; } = Battlenet.BattlenetGameUi.None;
     /// <summary>Extra text for the state (e.g. the Play button label).</summary>
     public string? BattlenetStateDetail { get; init; }
     /// <summary>True when BN is in sleep mode and we are waiting for wake (show 唤醒中 in status bar). ROSBOT must not start until false.</summary>

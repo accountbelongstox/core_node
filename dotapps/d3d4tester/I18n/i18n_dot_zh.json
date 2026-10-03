@@ -58,6 +58,14 @@
       "row_d3": "D3",
       "row_d4": "D4",
       "row_rosbot": "ROSBOT"
+    },
+    "game_ui": {
+      "d3_tab": "D3 游戏页签",
+      "d3_play": "D3 开始游戏按钮",
+      "d4_tab": "D4 游戏页签",
+      "d4_play": "D4 开始游戏按钮",
+      "found": "已识别",
+      "missing": "未识别"
     }
   },
   "skills": {

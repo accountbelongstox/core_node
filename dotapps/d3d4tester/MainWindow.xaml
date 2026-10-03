@@ -86,6 +86,12 @@
             <TextBlock x:Name="TxtStatusWindowSize" Text="0x0" Style="{StaticResource CaptionTextStyle}" FontFamily="{StaticResource MonoFontFamily}" VerticalAlignment="Center"/>
           </StackPanel>
           <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+            <StackPanel x:Name="PanelGameUi" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+              <TextBlock x:Name="IconD3Tab" Style="{StaticResource IconTextStyle}" Text="&#xE7FC;" Margin="0,0,4,0"/>
+              <TextBlock x:Name="IconD3Play" Style="{StaticResource IconTextStyle}" Text="&#xE768;" Margin="0,0,10,0"/>
+              <TextBlock x:Name="IconD4Tab" Style="{StaticResource IconTextStyle}" Text="&#xE7FC;" Margin="0,0,4,0"/>
+              <TextBlock x:Name="IconD4Play" Style="{StaticResource IconTextStyle}" Text="&#xE768;"/>
+            </StackPanel>
             <Border x:Name="ChipPathBn" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
               <TextBlock x:Name="TxtPathBn" Text="○ BN"/>
             </Border>

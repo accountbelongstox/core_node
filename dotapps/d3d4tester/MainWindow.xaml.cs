@@ -44,6 +44,8 @@ namespace DotApps.d3d4tester;
 
 public partial class MainWindow : Window, IMainWindowHost
 {
+    private const string GameUiFoundBrushKey = "TextSuccessBrush";
+    private const string GameUiMissingBrushKey = "TextMutedBrush";
     private const int WM_HOTKEY = 0x0312;
     private const int WM_SIZING = 0x0214;
     private const int WMSZ_LEFT = 1, WMSZ_RIGHT = 2, WMSZ_TOP = 3, WMSZ_BOTTOM = 4;
@@ -418,6 +420,7 @@ public partial class MainWindow : Window, IMainWindowHost
     private void UpdateStatusFromState(GameInterfaceStateSnapshot s)
     {
         var p = D3D4TesterI18n.Provider;
+        UpdateGameUiIcons(s.BattlenetGameUi, p);
         // Side effects: region-change and BN/ROSBOT mismatch auto-scan (1:1 Python)
         string? regionKey = s.BattlenetRegion;
         if (regionKey == BattlenetConstants.RegionAsia || regionKey == BattlenetConstants.RegionCn)
@@ -671,6 +674,22 @@ public partial class MainWindow : Window, IMainWindowHost
         WindowMonitorService.Instance.Unregister();
         UiRegistry.UnregisterMainUi();
         base.OnClosed(e);
+    }
+
+    /// <summary>Status bar icons: D3 tab, D3 Play, D4 tab, D4 Play (success brush when recognised, muted otherwise).</summary>
+    private void UpdateGameUiIcons(BattlenetGameUi ui, II18nProvider p)
+    {
+        (TextBlock Icon, bool Found, string Key)[] items =
+        {
+            (IconD3Tab, ui.D3Tab, I18nKeys.GameUiD3Tab), (IconD3Play, ui.D3Play, I18nKeys.GameUiD3Play),
+            (IconD4Tab, ui.D4Tab, I18nKeys.GameUiD4Tab), (IconD4Play, ui.D4Play, I18nKeys.GameUiD4Play),
+        };
+        string found = p.GetUiText(I18nKeys.GameUiFound), missing = p.GetUiText(I18nKeys.GameUiMissing);
+        foreach (var (icon, isFound, key) in items)
+        {
+            icon.SetResourceReference(TextBlock.ForegroundProperty, isFound ? GameUiFoundBrushKey : GameUiMissingBrushKey);
+            icon.ToolTip = $"{p.GetUiText(key)}: {(isFound ? found : missing)}";
+        }
     }
 
     public object? GetPage(string key)

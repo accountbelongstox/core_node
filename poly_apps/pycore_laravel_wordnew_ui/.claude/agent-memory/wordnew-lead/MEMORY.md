@@ -1,0 +1,1 @@
+- [Phone debug via CDP](phone_debug_cdp.md) — inspect live wordnew service state on the phone; gotchas
