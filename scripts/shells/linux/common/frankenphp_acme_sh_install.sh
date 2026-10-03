@@ -453,6 +453,27 @@ acme_sh_ensure_certificate() {
     fi
 }
 
+# Idempotent removal of one acme.sh-managed certificate that must not exist
+# (a subdomain served by its root wildcard, e.g. hs.<region>.<root>): drops
+# the renewal entry, the acme.sh domain state and the deployed copy. No-op
+# when nothing is left.
+acme_sh_prune_certificate() {
+    local domain="$1"
+    local acme_bin=""
+    local path=""
+
+    [[ "$domain" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || return 0
+    acme_bin="$(acme_install_linked_binary)"
+    if [ -n "$acme_bin" ] && [ -d "${ACME_INSTALL_CONFIG_DIR}/${domain}_ecc" ]; then
+        "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --remove -d "$domain" --ecc >/dev/null 2>&1 || true
+    fi
+    for path in "${ACME_INSTALL_CONFIG_DIR}/${domain}_ecc" "${FRANKENPHP_ACME_CERT_DIR}/${domain}"; do
+        [ -e "$path" ] || continue
+        rm -rf -- "$path"
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] removed stale certificate state for ${domain}: ${path}"
+    done
+}
+
 # Iterate the configured DOMAIN_DOMAINS_LIST (no-op when unset/empty); a
 # failing domain defers that certificate without aborting the install flow.
 acme_sh_ensure_domains() {
@@ -568,6 +589,7 @@ acme_sh_preflight_for_service() {
             # The Headscale control-server route (hs.<region>.<root>) is a
             # subdomain served by its root domain's wildcard, never an apex.
             if head -n 1 "$route_file" 2>/dev/null | grep -q 'managed-by: headscale_common'; then
+                acme_sh_prune_certificate "$(basename "$route_file" .caddy)"
                 continue
             fi
             apex="$(basename "$route_file" .caddy)"

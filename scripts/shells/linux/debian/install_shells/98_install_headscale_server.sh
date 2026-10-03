@@ -236,6 +236,17 @@ ensure_user_and_authkey() {
     print_success_from_common_functions "Pre-auth key stored as $(headscale_authkey_secret_name) (not printed; encrypt it with dd.sh and sync it to the nodes)"
 }
 
+# The hs.* route is served by the root wildcard; an own certificate for it
+# (issued by an older pre-flight) is pruned. Subshell: the acme library
+# reassigns SCRIPT_CURRENT_DIR.
+prune_own_certificate() {
+    (
+        # shellcheck source=/dev/null
+        source "$PARENT_DIR_LEVEL_2/common/frankenphp_acme_sh_install.sh" >/dev/null 2>&1
+        acme_sh_prune_certificate "$SERVER_HOST"
+    )
+}
+
 ensure_frankenphp_site() {
     HEADSCALE_ROUTE_CHANGED="false"
     headscale_server_route_ensure
@@ -281,6 +292,7 @@ main() {
     ensure_user_and_authkey
     headscale_extra_records_sync
     ensure_frankenphp_site
+    prune_own_certificate
     open_stun_port
     join_local_node
     mesh_provider_converge --skip-client

@@ -345,7 +345,7 @@
         "ai_fix_timeout_seconds": 180,
         "sys_init_path": "/api/system/code-sync/sys-init",
         "sys_init_timeout_seconds": 1800,
-        "reload_paths": ["poly_apps/laravel_main/", "config/"],
+        "reload_paths": ["poly_apps/laravel_main/"],
         "reload_excluded_paths": ["poly_apps/laravel_main/storage/"]
     },
     "codemart_admin_password": {

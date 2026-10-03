@@ -16,7 +16,10 @@ class ServerManagerV1CodeSyncJob
     private const LOCK_KEY = 'server_manager:code_sync';
     private const LOCK_SECONDS = 30;
     private const LOCK_WAIT_SECONDS = 5;
-    private const GITSYNC_SCRIPT_RELATIVE = 'scripts/linuxenvs/gitsync.sh';
+    // The system command `dd.sh gitsync` (same entry as every host); the POST
+    // endpoints only queue this job for remote/AI callers.
+    private const GITSYNC_SCRIPT_RELATIVE = 'dd.sh';
+    private const GITSYNC_COMMAND = 'gitsync';
     private const WORKERS_RESTART_PATH = '/frankenphp/workers/restart';
     private const WORKERS_RESTART_TIMEOUT_SECONDS = 120;
     private const WORKERS_RESTART_ATTEMPTS = 3;
@@ -188,6 +191,7 @@ class ServerManagerV1CodeSyncJob
             $state = self::advance($state, 'git');
             $gitsync = ServerManagerV1Utils::executeCommand('bash', [
                 $repoDir.'/'.self::GITSYNC_SCRIPT_RELATIVE,
+                self::GITSYNC_COMMAND,
                 ServiceContract::string('code_sync.skip_flag'),
                 '-m',
                 ServiceContract::string('code_sync.job_description'),
@@ -308,7 +312,7 @@ class ServerManagerV1CodeSyncJob
     /**
      * A worker restart re-enters FrankenPHP's thread reboot path, which can crash the
      * whole process (php/frankenphp#2568, exit 139), so restart only when the pulled
-     * commits touch what the workers load (code_sync.reload_paths). Fails safe to true.
+     * commits change laravel_main (code_sync.reload_paths). Fails safe to true.
      */
     private static function workersNeedRestart(?string $before, ?string $after): bool
     {

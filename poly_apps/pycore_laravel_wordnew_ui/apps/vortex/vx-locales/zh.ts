@@ -150,6 +150,7 @@ export const vxZh: VxTranslationDict = {
     origin_forbidden: 'pycore 拒绝了此页面来源 {{origin}}（{{code}}）。请在 pycore 所在机器上通过控制台端口打开 Vortex，或使用 HTTPS Relay 入口。',
     client_key_rejected: 'pycore 拒绝了此请求：客户端密钥校验失败（{{code}}）。浏览器只能在 pycore 所在机器上通过 localhost 直连，请通过 HTTPS Relay 入口打开 Vortex。',
     relay_only: '此页面不在 pycore 所在机器上。pycore 只接受来自 localhost 的浏览器直连，请通过 HTTPS Relay 入口打开 Vortex。',
+    lan_page: '此页面所在主机上的 pycore（{{url}}）无法访问，或未放行此浏览器。其他设备直连需要开启 pycore 局域网绑定并使用已签名的调用方；否则请通过 tailnet 机器或 HTTPS Relay 入口打开 Vortex。',
     origin_not_allowed: 'pycore 未响应此页面（{{origin}}）。pycore 只接受 localhost 上端口 {{ports}} 的浏览器页面，请在该端口打开 Vortex，或使用 HTTPS Relay 入口。',
   },
   quant: {

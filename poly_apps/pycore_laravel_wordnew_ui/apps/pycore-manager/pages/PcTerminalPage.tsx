@@ -67,6 +67,7 @@ import type { PcTerminalCaptureRecord } from '@/apps/pycore-manager/components/P
 import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import PcTerminalBackupPanel from '@/apps/pycore-manager/components/PcTerminalBackupPanel';
+import PcTerminalSpecialStates from '@/apps/pycore-manager/components/PcTerminalSpecialStates';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
@@ -1007,6 +1008,13 @@ const PcTerminalNodeView: React.FC = () => {
   );
   const offlineWindows = useMemo(
     () => (snapshot?.windows || []).filter((windowInfo) => !windowInfo.online),
+    [snapshot?.windows],
+  );
+  const terminalNames = useMemo(
+    () => Object.fromEntries((snapshot?.windows || []).map((windowInfo) => [
+      windowInfo.terminal_number,
+      terminalName(windowInfo, ''),
+    ])) as Record<number, string>,
     [snapshot?.windows],
   );
   const desktopBounds = useMemo(
@@ -2499,6 +2507,8 @@ const PcTerminalNodeView: React.FC = () => {
         onAction={(action) => void runDesktopIntegration(action)}
       />
 
+
+      <PcTerminalSpecialStates terminalNames={terminalNames} />
 
       <PcMachineSendDock
         tabs={[{

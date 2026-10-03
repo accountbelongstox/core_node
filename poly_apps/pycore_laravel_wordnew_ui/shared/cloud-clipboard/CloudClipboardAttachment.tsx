@@ -22,7 +22,7 @@ export default function CloudClipboardAttachment({ model, entryId, file, onRemov
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const preview = SYSTEM_CLIPBOARD_IMAGE_MIMES.has(file.mime_type);
-  const fileUrl = model.api.fileUrl(entryId, file.id);
+  const fileUrl = model.api.fileUrl(entryId, file);
 
   useEffect(() => {
     let active = true;
