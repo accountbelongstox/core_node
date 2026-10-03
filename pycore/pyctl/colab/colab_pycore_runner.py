@@ -11,7 +11,7 @@ import asyncio
 import json
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from pycore.pyctl.colab.colab_constants import (
     ACCELERATOR_KINDS,
@@ -68,6 +68,9 @@ def _fresh_output(output: str, baseline: str) -> str:
 
 
 class ColabPycoreRunner:
+    def __init__(self) -> None:
+        self._hung_tabs: Set[int] = set()
+
     def start(self) -> Dict[str, Any]:
         """Open the notebook and run the launch cell; no-op while it already runs."""
         return asyncio.run(self._start())
@@ -92,11 +95,14 @@ class ColabPycoreRunner:
             int(tab["tabId"]) for tab in await chrome_bridge.tabs()
             if COLAB_NOTEBOOK_ID in str(tab.get("url") or "")
         ]
+        candidates.sort(key=lambda tab_id: tab_id in self._hung_tabs)
         for tab_id in candidates:
             try:
                 await chrome_bridge.evaluate(tab_id, TAB_PROBE_SCRIPT)
+                self._hung_tabs.discard(tab_id)
                 return tab_id
             except RuntimeError as error:
+                self._hung_tabs.add(tab_id)
                 ColorPrint.yellow(f"[Colab] tab {tab_id} does not answer ({error})")
         if candidates:
             return candidates[0]
