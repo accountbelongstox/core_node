@@ -10,6 +10,7 @@ from pycore.pyutils.chrome_mcp.chrome_mcp_constants import (
     ANSI_ESCAPE_PATTERN,
     COLAB_FRAME_TEXT_SCRIPT,
     COLAB_MAX_CHARS,
+    COLAB_OUTPUT_FRAME_PAGE,
     COLAB_OUTPUT_SCRIPT,
     COLAB_OUTPUT_SEGMENTS_SCRIPT,
 )
@@ -31,6 +32,11 @@ class ColabReader:
                 parts.append(str(segment.get("text") or ""))
         return "\n".join(part for part in parts if part.strip())
 
+    async def frames_text(self, tab_id: int) -> str:
+        """Every output frame's text, read without the top page (used when the notebook page is too busy to answer)."""
+        texts = await chrome_bridge.evaluate_frames(tab_id, COLAB_OUTPUT_FRAME_PAGE, COLAB_FRAME_TEXT_SCRIPT)
+        return "\n".join(str(text or "") for text in texts if str(text or "").strip())
+
     async def read(
         self,
         url_contains: str,
@@ -43,7 +49,11 @@ class ColabReader:
         failures: List[str] = []
         for tab in tabs:
             try:
-                text = await self.live_text(int(tab["tabId"]))
+                try:
+                    text = await self.live_text(int(tab["tabId"]))
+                except RuntimeError as error:
+                    text = await self.frames_text(int(tab["tabId"]))
+                    failures.append(f"{tab['tabId']}: top page unavailable, read output frames ({error})")
                 if not text:
                     page = await chrome_bridge.evaluate(int(tab["tabId"]), COLAB_OUTPUT_SCRIPT)
                     text = str(page.get("text") or "")

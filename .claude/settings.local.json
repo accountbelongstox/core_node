@@ -153,7 +153,16 @@
       "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/internal/pycore/logs/latest?level=error&limit=60\")",
       "Bash(git checkout *)",
       "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/work/nodes\")",
-      "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/work/nodes?online=1\")"
+      "Bash(MSYS_NO_PATHCONV=1 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/work/nodes?online=1\")",
+      "PowerShell($p = Get-CimInstance Win32_Process -Filter \"ProcessId=36056\"; $p.CommandLine; $p.ParentProcessId; $p.CreationDate; try { $env2 = [System.Diagnostics.Process]::GetProcessById\\(36056\\); } catch {}; \\(Get-Process -Id 14608\\).StartTime)",
+      "Bash(PYTHONPATH=/d/programing/core_node python /d/.tmp/claude/D--programing-core-node/342005db-e80a-4500-aaef-2118ef0b2aaf/scratchpad/chk.py)",
+      "Read(//d/.tmp/claude/D--programing-core-node/38527f7f-baa6-49be-8e40-ccd35fbc6fff/scratchpad/**)",
+      "Bash(cat)",
+      "Bash(bash prog.sh)",
+      "PowerShell($p=Get-CimInstance Win32_Process -Filter \"ProcessId=38856\"; \"pid38856 start=\" + $p.CreationDate; \\(Get-Item D:\\\\programing\\\\core_node\\\\pycore\\\\pyctl\\\\terminal\\\\terminal_prompt_detector.py\\).LastWriteTime; try { \\(Invoke-WebRequest -Method Post -Uri http://127.0.0.1:59000/api/ui/version/version -ContentType 'application/json' -Body '{}' -UseBasicParsing -TimeoutSec 10\\).StatusCode } catch { $_.Exception.Message }; $global:LASTEXITCODE=0)",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js)",
+      "PowerShell(tail *)",
+      "Bash(/tmp/q.sh)"
     ],
     "deny": [],
     "ask": []
