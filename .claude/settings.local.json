@@ -162,7 +162,8 @@
       "PowerShell($p=Get-CimInstance Win32_Process -Filter \"ProcessId=38856\"; \"pid38856 start=\" + $p.CreationDate; \\(Get-Item D:\\\\programing\\\\core_node\\\\pycore\\\\pyctl\\\\terminal\\\\terminal_prompt_detector.py\\).LastWriteTime; try { \\(Invoke-WebRequest -Method Post -Uri http://127.0.0.1:59000/api/ui/version/version -ContentType 'application/json' -Body '{}' -UseBasicParsing -TimeoutSec 10\\).StatusCode } catch { $_.Exception.Message }; $global:LASTEXITCODE=0)",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js)",
       "PowerShell(tail *)",
-      "Bash(/tmp/q.sh)"
+      "Bash(/tmp/q.sh)",
+      "Bash(node cdp.js net 20)"
     ],
     "deny": [],
     "ask": []

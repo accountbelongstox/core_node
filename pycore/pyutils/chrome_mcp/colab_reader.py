@@ -5,6 +5,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.chrome_mcp.chrome_mcp_bridge import chrome_bridge
 from pycore.pyutils.chrome_mcp.chrome_mcp_constants import (
     ANSI_ESCAPE_PATTERN,
@@ -52,11 +53,11 @@ class ColabReader:
                 try:
                     text = await self.live_text(int(tab["tabId"]))
                 except RuntimeError as error:
+                    ColorPrint.yellow(f"[ColabReader] tab {tab['tabId']} top page unavailable ({error}); reading output frames")
                     text = await self.frames_text(int(tab["tabId"]))
-                    failures.append(f"{tab['tabId']}: top page unavailable, read output frames ({error})")
                 if not text:
                     page = await chrome_bridge.evaluate(int(tab["tabId"]), COLAB_OUTPUT_SCRIPT)
-                    text = str(page.get("text") or "")
+                    text = str(page.get("text") or "") if isinstance(page, dict) else str(page or "")
             except RuntimeError as error:
                 failures.append(f"{tab['tabId']}: {error}")
                 continue
