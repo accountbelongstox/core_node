@@ -60,6 +60,9 @@ $ClaudeTeamClaudeProcessNames = @("claude.exe", "node.exe")
 $ClaudeTeamShellProcessNames = @("powershell.exe", "pwsh.exe")
 $ClaudeTeamNamedProcessFilter = "Name='claude.exe' OR Name='node.exe' OR Name='powershell.exe' OR Name='pwsh.exe'"
 $ClaudeTeamNameFlags = @("--name", "-n")
+$ClaudeTeamVoiceConfigPath = Join-Path (Join-Path $ClaudeTeamRootDir "config") "claude_voice_dictation.json"
+$ClaudeTeamVoiceSettingsName = "claude_voice_dictation"
+$ClaudeTeamSettingsFlag = "--settings"
 $ClaudeTeamLeadRole = "orchestrator"
 $ClaudeTeamLegacyPidModes = @("team", "sessions")
 $ClaudeTeamPaneFlag = "--team-pane"
@@ -526,6 +529,34 @@ function Get-ClaudeTeamPolicyArguments {
     }
     Write-Host ("[DEBUG] session policy: disallowedTools={0} append-system-prompt={1} chars (catalog {2})" -f $(if ($disallowed) { $disallowed } else { "<none>" }), $prompt.Length, $ClaudeTeamInstallCatalogPath) -ForegroundColor DarkGray
     return $policyArgs
+}
+
+# Voice dictation (config/claude_voice_dictation.json): a local session gets the session-only
+# hold-to-talk settings when the virtual cable's capture device exists; pycore makes that device
+# the default recorder while it plays a voice message. Empty when the caller passes its own
+# --settings or the cable is missing. Linux: claude_team_voice_dictation_spec.
+function Get-ClaudeTeamVoiceDictationArguments {
+    param([object[]]$Arguments = @())
+
+    $config = $null
+    $cable = $null
+    $settingsFile = ""
+    $argument = $null
+
+    foreach ($argument in $Arguments) {
+        if (([string]$argument -eq $ClaudeTeamSettingsFlag) -or ([string]$argument).StartsWith("$ClaudeTeamSettingsFlag=")) {
+            return @()
+        }
+    }
+    $config = Get-Content -LiteralPath $ClaudeTeamVoiceConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $cable = Get-PnpDevice -Class AudioEndpoint -Status OK -ErrorAction SilentlyContinue |
+        Where-Object { $_.FriendlyName -like ("*{0}*" -f $config.windows_capture_device) } | Select-Object -First 1
+    if ($null -eq $cable) {
+        Write-Host ("[INFO] Voice dictation: off ({0} capture device not installed; Step74 installs it)" -f $config.windows_capture_device) -ForegroundColor DarkGray
+        return @()
+    }
+    $settingsFile = Write-AiCliSessionSettingsFile -Name $ClaudeTeamVoiceSettingsName -Json ($config.session_settings | ConvertTo-Json -Compress -Depth 5)
+    return @($ClaudeTeamSettingsFlag, $settingsFile)
 }
 
 function Import-ClaudeTeamCatalog {

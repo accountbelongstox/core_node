@@ -2,6 +2,8 @@
   "description": "Voice messages typed into Claude Code by its own hold-to-talk dictation: claudeteam starts local Claude sessions on the PipeWire virtual microphone below with session-only voice settings; pycore plays the recording into that microphone while holding the push-to-talk key, then submits the transcript.",
   "pipewire_source": "claude_vmic",
   "pipewire_sink": "claude_vmic_sink",
+  "windows_capture_device": "CABLE Output",
+  "windows_playback_device": "CABLE Input",
   "session_settings": {
     "voiceEnabled": true,
     "voice": {
