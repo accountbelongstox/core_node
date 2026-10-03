@@ -6,6 +6,7 @@ using DotApps.d3d4tester.Core.Flow;
 using DotCore.Foundations;
 using DotCore.Utils;
 using DotCore.Utils.Input;
+using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Core;
 
@@ -38,22 +39,22 @@ public sealed class RosbotManager
     {
         get
         {
-            var name = RosbotFlowHost.GetConfig<string>(RosbotConstants.ConfigKeyRosbotExeName, null);
+            var name = RosbotFlowHost.GetConfig<string>(ConfigKeys.RosSettingsRosbotExeName, null);
             return string.IsNullOrWhiteSpace(name) ? RosbotConstants.DefaultRosbotExeName : name.Trim();
         }
     }
 
-    private static string RawRosDirectory => (RosbotFlowHost.GetConfig<string>(RosbotConstants.ConfigKeyRosDirectory, null) ?? "").Trim();
+    private static string RawRosDirectory => (RosbotFlowHost.GetConfig<string>(ConfigKeys.RosSettingsRosDirectory, null) ?? "").Trim();
 
     private static IReadOnlyList<string> SearchPatterns =>
-        RosbotFlowHost.Current?.GetConfigStringList(RosbotConstants.ConfigKeyOtherExeSearchPatterns) ?? RosbotConstants.OtherExeSearchPatterns;
+        RosbotFlowHost.Current?.GetConfigStringList(ConfigKeys.RosSettingsOtherExeSearchPatterns) ?? RosbotConstants.OtherExeSearchPatterns;
 
     private static IReadOnlyList<string> ExcludePatterns =>
-        RosbotFlowHost.Current?.GetConfigStringList(RosbotConstants.ConfigKeyOtherExeExcludePatterns) ?? RosbotConstants.DefaultOtherExeExcludePatterns;
+        RosbotFlowHost.Current?.GetConfigStringList(ConfigKeys.RosSettingsOtherExeExcludePatterns) ?? RosbotConstants.DefaultOtherExeExcludePatterns;
 
-    public int StartupDelaySeconds => RosbotFlowHost.GetConfig(RosbotConstants.ConfigKeyStartupDelaySeconds, RosbotConstants.StartupDelaySecondsDefault);
+    public int StartupDelaySeconds => RosbotFlowHost.GetConfig(ConfigKeys.RosSettingsStartupDelaySeconds, RosbotConstants.StartupDelaySecondsDefault);
 
-    public int DetectionTimeoutSeconds => RosbotFlowHost.GetConfig(RosbotConstants.ConfigKeyProcessDetectionTimeout, RosbotConstants.ProcessDetectionTimeoutDefault);
+    public int DetectionTimeoutSeconds => RosbotFlowHost.GetConfig(ConfigKeys.RosSettingsProcessDetectionTimeout, RosbotConstants.ProcessDetectionTimeoutDefault);
 
     /// <summary>Configured ROS directory (directory of exe if config is an exe path), or null. 1:1 Python get_ros_directory.</summary>
     public string? GetRosDirectory()

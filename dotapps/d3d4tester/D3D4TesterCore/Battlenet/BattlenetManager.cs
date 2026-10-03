@@ -65,7 +65,7 @@ public sealed class BattlenetManager
     /// Switch the client region the official way: close Battle.net, then start it with --setregion (CN / TW) so it comes up in
     /// that region. 1:1 with the documented launcher argument; Battle.net.config LastLoginRegion then reads CN / KR.
     /// </summary>
-    public bool RestartWithRegion(string region, double waitAfterSec = 2.0)
+    public bool RestartWithRegion(string region, double waitAfterSec = 2.0, bool force = false)
     {
         string? path = GetPath();
         if (path == null)
@@ -74,7 +74,7 @@ public sealed class BattlenetManager
             return false;
         }
         ColorPrinter.Blue($"{LogPrefix} Restart Battle.net in region {region}");
-        Close();
+        if (!Close(force)) return false;
         if (waitAfterSec > 0) Thread.Sleep((int)(waitAfterSec * 1000));
         return Launch(path, region);
     }
@@ -107,9 +107,18 @@ public sealed class BattlenetManager
         }
     }
 
-    /// <summary>Kill Battle.net.exe and wait for exit (15 s). Always true. 1:1 Python kill() via kill_process_by_exe.</summary>
-    public bool Close()
+    /// <summary>
+    /// Kill Battle.net.exe and wait for exit (15 s). 1:1 Python kill() via kill_process_by_exe. Every close and restart in the app
+    /// goes through here: unless forced by an explicit user action, it refuses while the client is logging in or waiting for a
+    /// security check / verification code (fresh probe), and returns false.
+    /// </summary>
+    public bool Close(bool force = false)
     {
+        if (!force && BattlenetClientStateDetector.Detect() is { IsWaitingForUser: true } status)
+        {
+            ColorPrinter.Yellow($"{LogPrefix} Not closing Battle.net: {status.State} (user is logging in / entering the code)");
+            return false;
+        }
         ColorPrinter.Blue($"{LogPrefix} Killing Battle.net...");
         bool ok = ProcessUtil.KillProcessByExe(BattlenetConstants.BattlenetExeName, BattlenetConstants.KillWaitTimeoutSec, LogPrefix);
         BattlenetControlTree.InvalidateLightCache();
@@ -117,15 +126,15 @@ public sealed class BattlenetManager
     }
 
     /// <summary>Alias of Close. 1:1 Python kill.</summary>
-    public bool Kill() => Close();
+    public bool Kill(bool force = false) => Close(force);
 
-    /// <summary>Kill then start. 1:1 Python restart(exe_path, wait_after_sec).</summary>
-    public bool Restart(string? exePath = null, double waitAfterSec = 2.0)
+    /// <summary>Kill then start (skipped entirely when Close refuses). 1:1 Python restart(exe_path, wait_after_sec).</summary>
+    public bool Restart(string? exePath = null, double waitAfterSec = 2.0, bool force = false)
     {
         string? path = exePath ?? GetPath();
         if (string.IsNullOrWhiteSpace(path))
             return false;
-        Close();
+        if (!Close(force)) return false;
         if (waitAfterSec > 0)
             Thread.Sleep((int)(waitAfterSec * 1000));
         return Start(path);

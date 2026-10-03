@@ -3,13 +3,14 @@
  * every host of a /24 (port 59000), bounded concurrency, short timeouts,
  * results streamed as they arrive. Requests go through `protocolFetch` (native
  * Cronet in the app: plain LAN http is allowed there, the WebView would block
- * it). A host that answers 401 / 403 runs pycore but refuses unsigned callers
- * (K7); silent hosts are skipped.
+ * it). Probes are K3-signed (pycoreLanAuth); a host that still answers 401 / 403
+ * runs pycore but refuses this caller (K7); silent hosts are skipped.
  */
 import { protocolFetch } from '../../network/ProtocolFetch';
 import { PYCORE_BACKEND_PORT } from './pycoreEndpoints';
 import { PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import { recordPycoreProbe } from './PycoreEndpointProbe';
+import { pycoreLanSignHeaders } from './pycoreLanAuth';
 
 export type LanScanState = 'up' | 'refused' | 'no_route';
 
@@ -54,7 +55,9 @@ async function probe(host: string, port: number, timeoutMs: number, signal?: Abo
   signal?.addEventListener('abort', stop, { once: true });
   const started = performance.now();
   try {
-    const response = await protocolFetch(`${url}${PYCORE_HTTP_PATHS.status}`, { cache: 'no-store', signal: controller.signal });
+    const statusUrl = `${url}${PYCORE_HTTP_PATHS.status}`;
+    const headers = await pycoreLanSignHeaders('GET', statusUrl);
+    const response = await protocolFetch(statusUrl, { cache: 'no-store', headers, signal: controller.signal });
     const ms = Math.round(performance.now() - started);
     if (REFUSED.has(response.status)) return { host, url, state: 'refused', ms, hostname: '' };
     const payload = response.ok ? await response.json().catch(() => null) : null;
