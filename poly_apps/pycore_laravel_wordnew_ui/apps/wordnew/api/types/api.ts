@@ -43,6 +43,8 @@ export interface WfNewAudioLookupItem {
 export interface WfNewAudioLookupResult {
   ready: boolean;
   url: string | null;
+  /** Content version of the served file (only when asked with `withVersion`; null when the server holds none). */
+  version?: number | null;
 }
 
 export interface WfNewApi {
@@ -319,7 +321,7 @@ export interface WfNewApi {
    * Read-only audio lookup for many words / sentences in one request (no queue
    * write): per item, in input order, whether Laravel holds the clip and its URL.
    */
-  lookupAudio(items: WfNewAudioLookupItem[]): Promise<WfNewAudioLookupResult[]>;
+  lookupAudio(items: WfNewAudioLookupItem[], options?: { withVersion?: boolean }): Promise<WfNewAudioLookupResult[]>;
 
   /** Resolve sentence-library audio (file-first). On miss, backend moves it to the queue head.
    *  `variantKey` requests a specific accent/voice variant; the response carries

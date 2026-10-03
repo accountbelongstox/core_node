@@ -162,6 +162,7 @@ export const WfNewApp: React.FC = () => {
   // open; loading the composer starts it (channels, pycore link, resume triggers).
   useEffect(() => {
     void import('./services/orchestration/WordNewOrchComposer');
+    void import('./services/orchestration/WordNewClipUpdater');
   }, []);
 
   return (

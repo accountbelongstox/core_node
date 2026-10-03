@@ -22,6 +22,8 @@ import type { OrchResourceKind } from '../../core/integrations/pycore';
 
 const PUNCTUATION_RE = /[\p{P}\p{S}]/gu;
 const WHITESPACE_RE = /\s+/g;
+/** Laravel's public sentence file `<language>/<content id>.mp3` (the default voice; a `_variant` file is another audio). */
+const SENTENCE_FILE_RE = /\/static\/app_qy_v1\/sentence_sounds\/([A-Za-z0-9-]+)\/([0-9a-f]{32})\.mp3$/i;
 
 /** Directory of the clip store inside any storage root (same on every end). */
 export const ORCH_CLIP_DIR = 'orch-clips';
@@ -45,6 +47,19 @@ export function orchContentId(text: string): string {
 export function orchClipIdentity(kind: OrchResourceKind, language: string, text: string): OrchClipIdentity {
   const contentId = kind === 'sentence' ? orchContentId(text) : text.trim().toLowerCase();
   return { kind, language, text, contentId, resourceId: sha256Hex(`${kind}:${language}:${contentId}`) };
+}
+
+/**
+ * The identity a clip URL proves by itself: a Laravel sentence file URL names its language and content id, so
+ * the resource id follows without the text (the identity text stays empty). Word file URLs carry a voice hash,
+ * not the word, and accent / quality variants are other audio than the orchestration clip: those give null.
+ */
+export function orchClipIdentityOfUrl(url: string): OrchClipIdentity | null {
+  const match = SENTENCE_FILE_RE.exec(url.split(/[?#]/, 1)[0]);
+  if (!match) return null;
+  const language = match[1].toLowerCase();
+  const contentId = match[2].toLowerCase();
+  return { kind: 'sentence', language, text: '', contentId, resourceId: sha256Hex(`sentence:${language}:${contentId}`) };
 }
 
 export interface OrchClipLocations {

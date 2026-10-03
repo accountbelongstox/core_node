@@ -352,27 +352,58 @@ export class CapBlobStore {
   }
 
   /**
-   * Native: move a file this store does not hold yet from another storage
-   * directory of the same app (a store that changed directory keeps its files
-   * instead of fetching them again). False when nothing was moved.
+   * Native: move a file this store does not hold yet from another folder of the same app (a store that
+   * changed directory keeps its files instead of fetching them again), under `targetKey` (default: the
+   * same key). Nothing is overwritten. False when nothing was moved.
    */
-  async adoptFrom(source: CapBlobStore, key: string): Promise<boolean> {
-    if (!safeIsNative() || source.directory === this.directory || !(await source.has(key))) return false;
-    const name = sanitizeKey(key);
+  async adoptFrom(source: CapBlobStore, key: string, targetKey = key): Promise<boolean> {
+    if (!safeIsNative() || (source.directory === this.directory && source.dir === this.dir)) return false;
+    if (!(await source.has(key)) || await this.has(targetKey)) return false;
+    const name = sanitizeKey(targetKey);
     try {
       await capFs.ensureDir(this.dir, this.directory);
       await Filesystem.rename({
         from: source.nativePath(key),
-        to: this.nativePath(key),
+        to: this.nativePath(targetKey),
         directory: source.directory ?? undefined,
         toDirectory: this.directory ?? undefined,
       } as any);
     } catch {
       return false;
     }
-    await source.trackNative(name, false);
+    await source.trackNative(sanitizeKey(key), false);
     await this.trackNative(name, true);
     return true;
+  }
+
+  /** Move a held entry to another key of this store (nothing is overwritten or fetched). False when nothing was moved. */
+  async rename(fromKey: string, toKey: string): Promise<boolean> {
+    const from = sanitizeKey(fromKey);
+    const to = sanitizeKey(toKey);
+    if (from === to || !(await this.has(fromKey)) || await this.has(toKey)) return false;
+    if (safeIsNative()) {
+      try {
+        await Filesystem.rename({
+          from: this.nativePath(fromKey),
+          to: this.nativePath(toKey),
+          directory: this.directory ?? undefined,
+        } as any);
+      } catch {
+        return false;
+      }
+      await this.trackNative(from, false);
+      await this.trackNative(to, true);
+      return true;
+    }
+    if (!opfsSupported()) return false;
+    try {
+      const handle = await (await opfsDir(this.dir, false))?.getFileHandle(from);
+      if (typeof handle?.move !== 'function') return false;
+      await handle.move(to);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -786,9 +817,20 @@ export class CapLargeCache {
     return this.ledgerBytes >= this.maxBytes;
   }
 
-  /** A file held (or moved over from the legacy directory) is served; a miss is downloaded via `urlFor` while the budget has room. */
-  async getOrFetchUrl(key: string, urlFor: () => string | Promise<string>, mime?: string): Promise<string | null> {
+  /**
+   * A file held (or moved over from the legacy directory) is served; a miss is downloaded via `urlFor` while the
+   * budget has room. `alternates`: older keys of the same resource - a file held under one is renamed to `key`
+   * (served as it is when the rename fails) instead of being fetched again.
+   */
+  async getOrFetchUrl(key: string, urlFor: () => string | Promise<string>, mime?: string, alternates: readonly string[] = []): Promise<string | null> {
     if (await this.store.has(key) || (this.legacy && await this.store.adoptFrom(this.legacy, key))) {
+      return this.store.getServableUrl(key, mime);
+    }
+    for (const alternate of alternates) {
+      if (!(await this.store.has(alternate)) && !(this.legacy && await this.store.adoptFrom(this.legacy, alternate))) continue;
+      if (!(await this.store.rename(alternate, key))) return this.store.getServableUrl(alternate, mime);
+      await this.record(alternate, null);
+      await this.record(key, await this.store.size(key));
       return this.store.getServableUrl(key, mime);
     }
     if (this.maxBytes === 0) return null;

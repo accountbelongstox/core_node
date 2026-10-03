@@ -18,8 +18,9 @@ use Illuminate\Support\Facades\Validator;
  * Read-only audio URL lookup: no queue write, no head move, no task. Each
  * result keeps the input order and does not echo the request item (index = id):
  * { ready, url, content_id? (sentence), md5? (word), version? }. `version` (the
- * served file's content version, see AppQyV1AudioBundleService::versions) is only
- * computed when the body sets with_version, for clients checking held clips.
+ * content version of the file a bundle would carry, with that file's url, see
+ * AppQyV1AudioBundleService::served) is only computed when the body sets
+ * with_version, for clients checking held clips.
  */
 class AppQyV1AudioLookupCtl extends Controller
 {
@@ -71,12 +72,22 @@ class AppQyV1AudioLookupCtl extends Controller
             ];
         }
 
-        $versions = ($validator->validated()['with_version'] ?? false) ? $this->bundles->versions($items) : null;
+        $served = ($validator->validated()['with_version'] ?? false) ? $this->bundles->served($items) : null;
 
         return $this->success([
             'results' => array_map(
-                static fn (int $index): array => ($results[$index] ?? ['ready' => false, 'url' => null])
-                    + ($versions === null ? [] : ['version' => $versions[$index] ?? null]),
+                static function (int $index) use ($results, $served): array {
+                    $result = $results[$index] ?? ['ready' => false, 'url' => null];
+                    if ($served === null) {
+                        return $result;
+                    }
+
+                    // The URL of the file a bundle would carry (a quality variant), with its content version.
+                    return array_merge($result, [
+                        'url' => $served[$index]['url'] ?? $result['url'],
+                        'version' => $served[$index]['version'] ?? null,
+                    ]);
+                },
                 array_keys($items)
             ),
         ], __('app_qy_v1.messages.audio_lookup_completed'));
