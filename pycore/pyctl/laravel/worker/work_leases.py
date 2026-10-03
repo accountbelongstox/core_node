@@ -105,6 +105,12 @@ class WorkLeaseClient:
         ))
 
     @staticmethod
+    def nodes(base_url: str) -> List[Dict[str, Any]]:
+        """Online work nodes (GET work_nodes?online=1)."""
+        data = _data(laravel_client.get(queue_center_endpoint("work_nodes"), base_url=base_url, params={"online": 1}, response=RESPONSE_CONTROL))
+        return [node for node in data.get("nodes") or [] if isinstance(node, dict)]
+
+    @staticmethod
     def release(base_url: str, worker_id: str, lease_id: str = "", rows: Optional[List[Dict[str, Any]]] = None) -> int:
         """``lease_id`` empty and no rows = every lease of the worker."""
         body: Dict[str, Any] = {"worker_id": worker_id}

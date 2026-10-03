@@ -22,6 +22,12 @@ ERROR_NOTEBOOK_NOT_READY = "colab_notebook_not_ready"
 ERROR_START_TIMEOUT = "colab_start_timeout"
 ERROR_STOP_TIMEOUT = "colab_stop_timeout"
 ERROR_RUN_BUTTON_MISSING = "colab_run_button_missing"
+ERROR_DELETE_RUNTIME_MISSING = "colab_delete_runtime_command_missing"
+
+ACCELERATOR_UNKNOWN = "unknown"
+# "[NOTEBOOK] [5/8] Accelerator: <GPU (CUDA)|TPU|none ... CPU only>" printed by notebook_boot.py.
+ACCELERATOR_LINE_PATTERN = r"\[NOTEBOOK\] \[5/8\] Accelerator: (.*)"
+ACCELERATOR_KINDS = (("GPU", "gpu"), ("TPU", "tpu"), ("CPU", "cpu"))
 
 # Output lines that show pyservice took over from the kernel setup. Colab keeps
 # only the newest output lines, so the early markers scroll out on long runs and
@@ -48,10 +54,12 @@ const cell = document.querySelector('.cell.code');
 const button = cell ? cell.querySelector('colab-run-button') : null;
 const running = !!(cell && (cell.classList.contains('running') || cell.classList.contains('pending')));
 const connect = document.querySelector('colab-connect-button');
+const notebookMetadata = ready ? (window.colab.global.notebookModel.metadata || {}) : {};
 return JSON.stringify({
   ready,
   hasRunButton: !!button,
   running,
+  requestedAccelerator: String(notebookMetadata.accelerator || ''),
   dialog: dialogText,
   connection: connect ? (connect.innerText || '').trim().slice(0, 80) : '',
 });
@@ -65,6 +73,14 @@ if (!button) { return JSON.stringify({clicked: false}); }
 cell.scrollIntoView({block: 'center'});
 const inner = button.shadowRoot && button.shadowRoot.querySelector('#run-button, .cell-execution');
 (inner || button).click();
+return JSON.stringify({clicked: true});
+"""
+
+# Runtime menu command "Disconnect and delete runtime"; its confirmation is a dialog.
+DELETE_RUNTIME_SCRIPT = """
+const item = document.querySelector('[command="powerwash-current-vm"]');
+if (!item) { return JSON.stringify({clicked: false}); }
+item.click();
 return JSON.stringify({clicked: true});
 """
 

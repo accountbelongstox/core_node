@@ -123,6 +123,8 @@ export interface OrchComposePlan {
   sentences: OrchComposeSentence[];
   /** Unique resources in first-use order. */
   resources: OrchComposeResource[];
+  /** Per sentence language the pattern reads: how many sentences have no text in it (their steps are skipped). */
+  skippedLanguages: Record<string, number>;
 }
 
 export interface OrchComposeResource extends OrchClipIdentity {

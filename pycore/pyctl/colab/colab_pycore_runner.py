@@ -9,14 +9,20 @@ automatically.
 
 import asyncio
 import json
+import re
 import time
 from typing import Any, Dict, Optional
 
 from pycore.pyctl.colab.colab_constants import (
+    ACCELERATOR_KINDS,
+    ACCELERATOR_LINE_PATTERN,
+    ACCELERATOR_UNKNOWN,
     ACCEPT_DIALOG_SCRIPT,
     COLAB_NOTEBOOK_ID,
     COLAB_NOTEBOOK_URL,
     DEFAULT_LOG_TAIL_LINES,
+    DELETE_RUNTIME_SCRIPT,
+    ERROR_DELETE_RUNTIME_MISSING,
     ERROR_NOTEBOOK_NOT_READY,
     ERROR_RUN_BUTTON_MISSING,
     ERROR_START_TIMEOUT,
@@ -44,6 +50,21 @@ def _as_dict(result: Any) -> Dict[str, Any]:
     return result if isinstance(result, dict) else json.loads(str(result))
 
 
+def _accelerator(output: str) -> str:
+    """gpu | tpu | cpu from the kernel-setup Accelerator line of the run, else unknown."""
+    found = re.findall(ACCELERATOR_LINE_PATTERN, output)
+    detail = found[-1].upper() if found else ""
+    return next((kind for marker, kind in ACCELERATOR_KINDS if marker in detail), ACCELERATOR_UNKNOWN)
+
+
+def _fresh_output(output: str, baseline: str) -> str:
+    """The part of the cell output written after ``baseline`` (the previous run's
+    output, still shown until the new run replaces or extends it)."""
+    if not baseline:
+        return output
+    return output[len(baseline):] if output.startswith(baseline) else output
+
+
 class ColabPycoreRunner:
     def start(self) -> Dict[str, Any]:
         """Open the notebook and run the launch cell; no-op while it already runs."""
@@ -56,6 +77,11 @@ class ColabPycoreRunner:
     def restart(self) -> Dict[str, Any]:
         """Interrupt the running launch cell (SIGINT to pyservice), then start it again."""
         return asyncio.run(self._restart())
+
+    def regpu(self) -> Dict[str, Any]:
+        """Disconnect and delete the runtime, then start the launch cell: the notebook
+        asks Colab for a GPU runtime again and falls back to CPU when none is granted."""
+        return asyncio.run(self._regpu())
 
     async def _notebook_tab(self) -> int:
         for tab in await chrome_bridge.tabs():
@@ -97,6 +123,7 @@ class ColabPycoreRunner:
         tab_id = await self._notebook_tab()
         state = await self._ready_state(tab_id)
         started = state["state"] != STATE_RUNNING
+        baseline = await colab_reader.live_text(tab_id) if started else ""
         if started:
             await chrome_bridge.evaluate(tab_id, TOGGLE_RUN_SCRIPT)
             ColorPrint.cyan("[Colab] Launch cell started")
@@ -105,13 +132,16 @@ class ColabPycoreRunner:
         deadline = time.monotonic() + START_TIMEOUT_SECONDS
         settled_since: Optional[float] = None
         booted = False
+        accelerator = ACCELERATOR_UNKNOWN
         while time.monotonic() < deadline:
             await self._confirm_prompts(tab_id)
             state = await self._state(tab_id)
             if state["state"] == STATE_RUNNING and not state.get("dialog") and not booted:
-                output = await colab_reader.live_text(tab_id)
+                output = _fresh_output(await colab_reader.live_text(tab_id), baseline)
                 booted = any(marker in output for marker in PYSERVICE_STAGE_MARKERS)
+                accelerator = _accelerator(output)
             state["booted"] = booted
+            state["accelerator"] = accelerator
             if state["state"] != STATE_RUNNING or state.get("dialog") or not booted:
                 settled_since = None
             else:
@@ -126,7 +156,12 @@ class ColabPycoreRunner:
         tab_id = await self._notebook_tab()
         state = await self._state(tab_id)
         output = await colab_reader.read(COLAB_NOTEBOOK_ID, "", grep, tail)
-        return {**output, "state": state["state"], "connection": state.get("connection")}
+        return {
+            **output,
+            "state": state["state"],
+            "connection": state.get("connection"),
+            "requestedAccelerator": state.get("requestedAccelerator"),
+        }
 
     async def _restart(self) -> Dict[str, Any]:
         tab_id = await self._notebook_tab()
@@ -140,6 +175,23 @@ class ColabPycoreRunner:
                 state = await self._state(tab_id)
             if state["state"] == STATE_RUNNING:
                 raise RuntimeError(ERROR_STOP_TIMEOUT)
+        return await self._start()
+
+    async def _regpu(self) -> Dict[str, Any]:
+        tab_id = await self._notebook_tab()
+        await self._ready_state(tab_id)
+        clicked = _as_dict(await chrome_bridge.evaluate(tab_id, DELETE_RUNTIME_SCRIPT))
+        if not clicked.get("clicked"):
+            raise RuntimeError(ERROR_DELETE_RUNTIME_MISSING)
+        ColorPrint.cyan("[Colab] Disconnect and delete runtime requested")
+        deadline = time.monotonic() + STOP_TIMEOUT_SECONDS
+        state = await self._state(tab_id)
+        while state["state"] == STATE_RUNNING and time.monotonic() < deadline:
+            await self._confirm_prompts(tab_id)
+            await asyncio.sleep(POLL_SECONDS)
+            state = await self._state(tab_id)
+        if state["state"] == STATE_RUNNING:
+            raise RuntimeError(ERROR_STOP_TIMEOUT)
         return await self._start()
 
 

@@ -267,6 +267,14 @@ def _attention_implementation(device: str, dtype) -> str:
     return "sdpa"
 
 
+def _model_dtype(device: str):
+    """float32 on CPU, bfloat16 on CUDA cards with native bf16 (Ampere and newer), float16 below that (a Colab T4)."""
+    if not device.startswith("cuda"):
+        return torch.float32
+    index = int(device.rsplit(":", 1)[-1]) if ":" in device and device.rsplit(":", 1)[-1].isdigit() else 0
+    return torch.bfloat16 if torch.cuda.get_device_capability(index)[0] >= 8 else torch.float16
+
+
 def _logical_gpu_index() -> int:
     device = _device or _resolve_device()
     suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
@@ -412,7 +420,7 @@ async def _status_snapshot() -> Dict[str, Any]:
         int(queue.get("average_elapsed_ms") or 0) * queue_count
         + int(direct.get("average_elapsed_ms") or 0) * direct_count
     )
-    dtype = "float32" if (_device or _resolve_device()) == "cpu" else "bfloat16"
+    dtype = str(_model_dtype(_device or _resolve_device())).replace("torch.", "")
     return {
         **_health_snapshot(),
         "model_id": _model_id(),
@@ -441,7 +449,7 @@ def _load_model():
         _load_error = str(exc)
         raise
     _device = _resolve_device()
-    dtype = torch.float32 if _device == "cpu" else torch.bfloat16
+    dtype = _model_dtype(_device)
     attention_implementation = _attention_implementation(_device, dtype)
     _attention_backend = attention_implementation
     _log(f"[api] loading Qwen3-TTS model: {model_id}")
