@@ -40,6 +40,7 @@ from pycore.pyctl.colab.colab_constants import (
     STATE_UNRESPONSIVE,
     STATE_SCRIPT,
     STOP_TIMEOUT_SECONDS,
+    TAB_PROBE_SCRIPT,
     TOGGLE_RUN_SCRIPT,
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -85,9 +86,20 @@ class ColabPycoreRunner:
         return asyncio.run(self._regpu())
 
     async def _notebook_tab(self) -> int:
-        for tab in await chrome_bridge.tabs():
-            if COLAB_NOTEBOOK_ID in str(tab.get("url") or ""):
-                return int(tab["tabId"])
+        """The notebook tab whose page still answers; a hung tab (a flooded output pane
+        freezes the page script) is skipped when another tab on the notebook is usable."""
+        candidates = [
+            int(tab["tabId"]) for tab in await chrome_bridge.tabs()
+            if COLAB_NOTEBOOK_ID in str(tab.get("url") or "")
+        ]
+        for tab_id in candidates:
+            try:
+                await chrome_bridge.evaluate(tab_id, TAB_PROBE_SCRIPT)
+                return tab_id
+            except RuntimeError as error:
+                ColorPrint.yellow(f"[Colab] tab {tab_id} does not answer ({error})")
+        if candidates:
+            return candidates[0]
         ColorPrint.cyan(f"[Colab] Opening {COLAB_NOTEBOOK_URL}")
         return await chrome_bridge.open_tab(COLAB_NOTEBOOK_URL)
 

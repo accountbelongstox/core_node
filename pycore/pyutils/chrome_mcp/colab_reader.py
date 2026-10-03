@@ -48,29 +48,44 @@ class ColabReader:
         pattern = re.compile(grep) if grep else None
         tabs = await chrome_bridge.matching_tabs(0, url_contains, title_contains)
         failures: List[str] = []
+        hung_tab: Optional[Dict[str, Any]] = None
+        text = ""
+        chosen: Optional[Dict[str, Any]] = None
         for tab in tabs:
             try:
                 try:
                     text = await self.live_text(int(tab["tabId"]))
                 except RuntimeError as error:
-                    ColorPrint.yellow(f"[ColabReader] tab {tab['tabId']} top page unavailable ({error}); reading output frames")
-                    text = await self.frames_text(int(tab["tabId"]))
+                    ColorPrint.yellow(f"[ColabReader] tab {tab['tabId']} top page unavailable ({error})")
+                    hung_tab = hung_tab or tab
+                    failures.append(f"{tab['tabId']}: {error}")
+                    continue
                 if not text:
                     page = await chrome_bridge.evaluate(int(tab["tabId"]), COLAB_OUTPUT_SCRIPT)
                     text = str(page.get("text") or "") if isinstance(page, dict) else str(page or "")
             except RuntimeError as error:
                 failures.append(f"{tab['tabId']}: {error}")
                 continue
-            lines = ANSI_ESCAPE_PATTERN.sub("", text[-COLAB_MAX_CHARS:]).split("\n")
-            matched = [line for line in lines if pattern.search(line)] if pattern else lines
-            return {
-                "tab_id": tab["tabId"],
-                "title": tab.get("title"),
-                "output_chars": len(text),
-                "matched_lines": len(matched),
-                "lines": matched[-tail:] if tail > 0 else matched,
-            }
-        raise LookupError("colab_notebook_model_unavailable: " + "; ".join(failures))
+            chosen = tab
+            break
+        if chosen is None and hung_tab is not None:
+            # Every tab's page script hangs: the output frames still hold what the stream last rendered.
+            try:
+                text = await self.frames_text(int(hung_tab["tabId"]))
+                chosen = hung_tab
+            except RuntimeError as error:
+                failures.append(f"{hung_tab['tabId']}: {error}")
+        if chosen is None:
+            raise LookupError("colab_notebook_model_unavailable: " + "; ".join(failures))
+        lines = ANSI_ESCAPE_PATTERN.sub("", text[-COLAB_MAX_CHARS:]).split("\n")
+        matched = [line for line in lines if pattern.search(line)] if pattern else lines
+        return {
+            "tab_id": chosen["tabId"],
+            "title": chosen.get("title"),
+            "output_chars": len(text),
+            "matched_lines": len(matched),
+            "lines": matched[-tail:] if tail > 0 else matched,
+        }
 
 
 colab_reader = ColabReader()

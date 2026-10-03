@@ -95,6 +95,7 @@ export function toBookPlanStatus(raw: any): WfNewBookPlanStatus {
     generating: count(raw?.generating),
     queued: count(raw?.queued),
     failed: count(raw?.failed),
+    emptyLanguages: (Array.isArray(raw?.empty_languages) ? raw.empty_languages : []).filter((lang: unknown): lang is string => typeof lang === 'string' && lang !== ''),
     readyCursor: count(raw?.ready_cursor),
     nodes: (Array.isArray(raw?.nodes) ? raw.nodes : []).map((node: any) => ({
       sid: text(node?.sid),
