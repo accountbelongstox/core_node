@@ -79,6 +79,7 @@ import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
+import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
 import {
@@ -595,6 +596,7 @@ const PcTerminalNodeView: React.FC = () => {
   const [captureRecords, setCaptureRecords] = useState<Record<number, PcTerminalCaptureRecord>>({});
   const [integrationAction, setIntegrationAction] = useState<TerminalDesktopIntegrationAction | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
+  const [commonView, setCommonView] = useState<'windows' | 'desktop'>('windows');
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [scheduleMode, setScheduleMode] = useState<TerminalScheduleEditorMode>(
     () => bootstrapScheduleEditorState().mode,
@@ -1029,7 +1031,7 @@ const PcTerminalNodeView: React.FC = () => {
     resizeObserver.observe(canvas);
     updateCanvasSize();
     return () => resizeObserver.disconnect();
-  }, [isMobile]);
+  }, [commonView, isMobile]);
 
   const selectedWindow = useMemo(() => (
     snapshot?.windows.find(
@@ -2406,12 +2408,34 @@ const PcTerminalNodeView: React.FC = () => {
         <section className="pc-glass overflow-clip">
           <div className="relative px-4 py-1.5 border-b border-slate-500/10">
             <PcTerminalGlobalCountdown className="absolute right-3 top-2" />
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-              {t('terminal.windowsTitle')}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                {t('terminal.windowsTitle')}
+              </h2>
+              <div className="flex rounded-lg border border-slate-500/20 p-0.5 text-[10px] font-semibold" role="tablist">
+                {(['windows', 'desktop'] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    role="tab"
+                    aria-selected={commonView === view}
+                    onClick={() => setCommonView(view)}
+                    className={`rounded-md px-2 py-0.5 ${
+                      commonView === view ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-500/10'
+                    }`}
+                  >
+                    {t(view === 'windows' ? 'terminal.desktopView.windowsTab' : 'terminal.desktopView.tab')}
+                  </button>
+                ))}
+              </div>
+            </div>
             <p className="mt-0.5 hidden text-[11px] text-slate-500 sm:block">{t('terminal.windowsHint')}</p>
           </div>
-          {isMobile ? (
+          {commonView === 'desktop' ? (
+            <div className="h-[52vh] min-h-[22rem] max-h-[38rem] bg-slate-950/[0.03] dark:bg-slate-950/40">
+              <PcTerminalDesktopView />
+            </div>
+          ) : isMobile ? (
             <div
               ref={mobileListRef}
               className="relative flex flex-col p-3"
