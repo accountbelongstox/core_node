@@ -58,7 +58,7 @@ const ImageCompressorWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant,
     setFitMissed(false);
     try {
       const fit = await fitQualityToSize(working.image, format, targetKb * BYTES_PER_KB);
-      if (fit) setQuality(Math.round(fit.quality * 100) / 100);
+      if (fit) setQuality(Math.floor(fit.quality * 100) / 100);
       else setFitMissed(true);
     } finally {
       setFitting(false);

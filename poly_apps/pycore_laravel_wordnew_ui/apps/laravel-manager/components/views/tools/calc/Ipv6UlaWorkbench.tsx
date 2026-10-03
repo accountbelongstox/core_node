@@ -44,7 +44,7 @@ const Ipv6UlaWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun
 
   const segments = current ? [
     { key: 'prefix', label: t('toolsCalc.ula.seg_prefix'), bits: 8, text: 'fd', style: 'bg-rose-700 text-white' },
-    { key: 'global', label: t('toolsCalc.ula.seg_global'), bits: 40, text: `${current.item.globalId.slice(0, 2)}${current.item.globalId.slice(2, 6)}:${current.item.globalId.slice(6)}`, style: 'bg-rose-500 text-white' },
+    { key: 'global', label: t('toolsCalc.ula.seg_global'), bits: 40, text: `${current.item.globalId.slice(0, 2)}:${current.item.globalId.slice(2, 6)}:${current.item.globalId.slice(6)}`, style: 'bg-rose-500 text-white' },
     { key: 'subnet', label: t('toolsCalc.ula.seg_subnet'), bits: 16, text: hex4(subnetId), style: 'bg-rose-300 text-rose-950' },
     { key: 'iid', label: t('toolsCalc.ula.seg_interface'), bits: 64, text: current.item.interfaceId.map(hex4).join(':'), style: 'bg-slate-300 text-slate-800 dark:bg-slate-700 dark:text-slate-100' },
   ] : [];

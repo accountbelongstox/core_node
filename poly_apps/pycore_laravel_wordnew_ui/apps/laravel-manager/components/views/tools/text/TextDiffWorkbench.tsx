@@ -132,7 +132,7 @@ const TextDiffWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
         <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3">
           <div>
             <FieldLabel>{t('toolsText.diff.view')}</FieldLabel>
-            <Segmented value={view} onChange={setView} ariaLabel={t('toolsText.diff.view')} options={VIEWS.map((id) => ({ value: id, label: t(`toolsText.diff.view_${id}`) }))} />
+            <Segmented value={view} onChange={(next) => setView(next)} ariaLabel={t('toolsText.diff.view')} options={VIEWS.map((id) => ({ value: id, label: t(`toolsText.diff.view_${id}`) }))} />
           </div>
           <div>
             <FieldLabel>{t('toolsText.diff.options')}</FieldLabel>

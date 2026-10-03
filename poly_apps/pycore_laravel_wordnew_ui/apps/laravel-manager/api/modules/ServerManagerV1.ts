@@ -7,6 +7,7 @@ type NginxSiteType = NginxSite['site_type'];
 const FRANKENPHP_CONFIG_TIMEOUT_MS = 3 * 60 * 1000;
 const FRANKENPHP_RELOAD_POLL_INTERVAL_MS = 1000;
 const FRANKENPHP_RELOAD_POLL_LIMIT = 180;
+const EXECUTE_SCRIPT_TIMEOUT_MS = 130 * 1000;
 
 /** Map backend listSites fields (`name`, `root_directory`, `config_type`) to UI shape. */
 const normalizeNginxSite = (site: Record<string, unknown>): NginxSite => {
@@ -187,7 +188,8 @@ export class ServerManagerV1API extends LmBaseAPI {
   }
 
   async executeScript(data: { script?: string; script_id?: number; args?: any }): Promise<APIResponse> {
-    return this.post('/executor/run', data);
+    // Predefined scripts may run up to their server-side timeout (max 120 s): wait for them.
+    return this.request({ url: '/executor/run', method: 'POST', data, timeout: EXECUTE_SCRIPT_TIMEOUT_MS, retry: false });
   }
 
   async getExecutorLogs(): Promise<APIResponse> {

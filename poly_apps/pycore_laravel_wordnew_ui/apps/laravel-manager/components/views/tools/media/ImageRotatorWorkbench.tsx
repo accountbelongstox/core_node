@@ -128,7 +128,7 @@ const ImageRotatorWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
             <Toggle checked={expand} onChange={setExpand} label={m('rotator.expand')} />
             <Field label={m('rotator.background')}>
               <div className="flex items-center gap-2">
-                <Segmented value={backgroundMode} onChange={setBackgroundMode} ariaLabel={m('rotator.background')} options={BACKGROUND_MODES.map((value) => ({ value, label: m(`rotator.bg_${value}`) }))} />
+                <Segmented<BackgroundMode> value={backgroundMode} onChange={setBackgroundMode} ariaLabel={m('rotator.background')} options={BACKGROUND_MODES.map((value) => ({ value, label: m(`rotator.bg_${value}`) }))} />
                 {backgroundMode === 'color' && <input type="color" aria-label={m('rotator.background')} value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="h-8 w-10 shrink-0 cursor-pointer rounded border border-slate-300 bg-transparent dark:border-slate-600" />}
               </div>
             </Field>

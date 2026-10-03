@@ -131,10 +131,10 @@ export class McpV1API extends LmBaseAPI {
 
   /** The controller stores `{prefix, suffix, replace_map}` per category (PUT /task-dispatch/mappings/{id}). */
   async updatePromptMappingRules(
-    categoryId: string,
-    rules: { prefix: string; suffix: string; replace_map: Record<string, string> }
+    rules: { category_id: string; prefix: string; suffix: string; replace_map: Record<string, string> }
   ): Promise<APIResponse> {
-    return this.put(`/task-dispatch/mappings/${encodeURIComponent(categoryId)}`, rules);
+    const { category_id: categoryId, ...body } = rules;
+    return this.put(`/task-dispatch/mappings/${encodeURIComponent(categoryId)}`, body);
   }
 
   // ========== Placeholder Generator ==========

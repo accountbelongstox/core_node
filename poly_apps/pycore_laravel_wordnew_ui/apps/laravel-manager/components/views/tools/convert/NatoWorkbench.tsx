@@ -69,7 +69,7 @@ const NatoWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun })
             ) : (
               <div key={index} className="flex min-w-[3.6rem] flex-col items-center rounded-xl border border-sky-200 bg-sky-50 px-2 py-1.5 text-center dark:border-sky-500/30 dark:bg-sky-500/10">
                 <span className="font-mono text-lg font-bold text-sky-700 dark:text-sky-300">{token.char.toUpperCase()}</span>
-                <span className="text-[11px] text-slate-600 dark:text-slate-300">{token.word ?? '·'}</span>
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">{token.word ?? '\u00b7'}</span>
               </div>
             )))}
           </div>

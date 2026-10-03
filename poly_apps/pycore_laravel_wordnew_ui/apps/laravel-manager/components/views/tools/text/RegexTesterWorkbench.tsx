@@ -104,7 +104,7 @@ const RegexTesterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, las
         </Paper>
 
         <Paper
-          title={<Segmented value={tab} onChange={setTab} ariaLabel={t('toolsText.regex.view')} options={TABS.map((id) => ({ value: id, label: t(`toolsText.regex.tab_${id}`) }))} />}
+          title={<Segmented value={tab} onChange={(next) => setTab(next)} ariaLabel={t('toolsText.regex.view')} options={TABS.map((id) => ({ value: id, label: t(`toolsText.regex.tab_${id}`) }))} />}
           actions={<span className="rounded-full bg-violet-600 px-2.5 py-0.5 font-mono text-[11px] font-bold text-white">{t('toolsText.regex.match_count', { n: scan.matches.length })}</span>}
         >
           {tab === 'matches' ? (

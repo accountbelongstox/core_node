@@ -172,7 +172,7 @@ export function optimizeSvg(source: string, options: SvgOptimizeOptions): SvgOpt
       if (options.removeEditorData && isEditorName(name)) { el.removeAttribute(name); return; }
       if (value.trim() === '' && name !== 'd') { el.removeAttribute(name); return; }
       if (name === 'style') {
-        const css = minifyCss(value.replace(/^\s*|\s*$/g, ''), options.shortenColors);
+        const css = minifyCss(value, options.shortenColors).replace(/-?\d*\.\d+/g, (match) => formatNumber(Number(match), precision));
         if (css) el.setAttribute(name, css); else el.removeAttribute(name);
         return;
       }

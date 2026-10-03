@@ -22,7 +22,7 @@ export interface JwtTiming {
   notBeforeInMs: number | null;
 }
 
-export type JwtVerifyResult = 'valid' | 'invalid' | 'key_format' | 'unsupported_alg' | 'none_alg';
+export type JwtVerifyResult = 'valid' | 'invalid' | 'key_format' | 'unsupported_alg' | 'none_alg' | 'no_crypto';
 
 export const JWT_TIME_CLAIMS = ['exp', 'iat', 'nbf'] as const;
 
@@ -101,6 +101,7 @@ const pemToDer = (pem: string): ArrayBuffer | null => {
 /** Verifies HS*, RS*, PS* and ES* tokens; `key` is a shared secret (HS*), a SPKI PEM, or a JWK JSON for any family. */
 export async function verifyJwt(parts: [string, string, string], alg: string, key: string): Promise<JwtVerifyResult> {
   if (alg.toLowerCase() === 'none') return 'none_alg';
+  if (!globalThis.crypto?.subtle) return 'no_crypto';
   const family = alg.slice(0, 2);
   const bits = alg.slice(2);
   const hash = HASH_BY_BITS[bits];

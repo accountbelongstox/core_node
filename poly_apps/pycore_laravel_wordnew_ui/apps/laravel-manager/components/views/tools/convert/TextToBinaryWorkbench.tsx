@@ -90,7 +90,7 @@ const TextToBinaryWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, la
           <div className="flex flex-wrap gap-1.5">
             {Array.from(bytes.subarray(0, TILE_LIMIT), (byte, index) => (
               <div key={index} className="flex w-[3.4rem] flex-col items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1 py-1.5 dark:border-slate-700/60 dark:bg-white/5" title={`${byte}`}>
-                <span className="h-4 font-mono text-xs text-slate-700 dark:text-slate-200">{byte > 32 && byte < 127 ? String.fromCharCode(byte) : '·'}</span>
+                <span className="h-4 font-mono text-xs text-slate-700 dark:text-slate-200">{byte > 32 && byte < 127 ? String.fromCharCode(byte) : '\u00b7'}</span>
                 <div className="grid grid-cols-4 gap-px">
                   {Array.from({ length: 8 }, (_v, bit) => (
                     <span key={bit} className={`h-2 w-2 rounded-[2px] ${(byte >> (7 - bit)) & 1 ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'}`} />

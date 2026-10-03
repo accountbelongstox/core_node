@@ -39,13 +39,13 @@ const SafelinkWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRu
     <Desk>
       <Paper
         title={t('toolsText.safelink.link')}
-        actions={<Segmented value={mode} onChange={setMode} ariaLabel={t('toolsText.safelink.mode')} options={MODES.map((id) => ({ value: id, label: t(`toolsText.safelink.mode_${id}`) }))} />}
+        actions={<Segmented value={mode} onChange={(next) => setMode(next)} ariaLabel={t('toolsText.safelink.mode')} options={MODES.map((id) => ({ value: id, label: t(`toolsText.safelink.mode_${id}`) }))} />}
       >
         <PaperTextarea mono rows={5} value={input} onChange={setInput} ariaLabel={t('toolsText.safelink.link')} placeholder={mode === 'decode' ? t('toolsText.safelink.placeholder_decode') : t('toolsText.safelink.placeholder_encode')} />
         {mode === 'encode' && (
           <div className="mt-3">
             <FieldLabel>{t('toolsText.safelink.method')}</FieldLabel>
-            <Segmented value={method} onChange={setMethod} ariaLabel={t('toolsText.safelink.method')} options={ENCODE_METHODS.map((id) => ({ value: id, label: t(`toolsText.safelink.method_${id}`), title: t(`toolsText.safelink.method_${id}_hint`) }))} />
+            <Segmented value={method} onChange={(next) => setMethod(next)} ariaLabel={t('toolsText.safelink.method')} options={ENCODE_METHODS.map((id) => ({ value: id, label: t(`toolsText.safelink.method_${id}`), title: t(`toolsText.safelink.method_${id}_hint`) }))} />
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t(`toolsText.safelink.method_${method}_hint`)}</p>
           </div>
         )}

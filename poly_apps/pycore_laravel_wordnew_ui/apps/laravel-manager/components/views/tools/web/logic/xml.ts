@@ -48,7 +48,7 @@ export function parseXml(source: string): { doc: Document } | { error: XmlParseF
   const text = failure.textContent ?? '';
   const where = ERROR_LINE.exec(text) ?? ERROR_LINE_FIREFOX.exec(text);
   const detail = /error on line \d+ at column \d+:\s*([^\n]+)/i.exec(text)?.[1] ?? /XML Parsing Error:\s*([^\n]+)/i.exec(text)?.[1] ?? text.split('\n')[0];
-  return { error: { empty: false, message: detail.trim(), line: where ? Number(where[1]) : null, column: where ? Number(where[2]) : null } };
+  return { error: { empty: false, message: detail.replace(/Below is a rendering.*$/is, '').trim(), line: where ? Number(where[1]) : null, column: where ? Number(where[2]) : null } };
 }
 
 const escapeText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

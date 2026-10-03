@@ -239,7 +239,7 @@ export const FloatingButton: React.FC<{ onClick: () => void; children: React.Rea
 
 /** Square-ish lightbox: checkerboard backdrop sized for the image, with room for floating bars. */
 export const Stage: React.FC<{ children: React.ReactNode; className?: string; minHeight?: string }> = ({ children, className = '', minHeight = 'min-h-[320px] sm:min-h-[460px]' }) => (
-  <div className={`relative flex w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 p-3 pb-12 pt-12 dark:border-slate-700/60 ${CHECKER_CLASS} ${minHeight} ${className}`}>
+  <div className={`relative flex w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 p-3 pb-16 pt-20 sm:pb-12 sm:pt-12 dark:border-slate-700/60 ${CHECKER_CLASS} ${minHeight} ${className}`}>
     {children}
   </div>
 );

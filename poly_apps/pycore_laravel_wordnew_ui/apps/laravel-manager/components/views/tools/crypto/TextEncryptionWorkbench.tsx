@@ -99,7 +99,7 @@ const TextEncryptionWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, 
           {encrypting && (
             <div>
               <FieldLabel>{t('toolsCrypto.textEncryption.iterations')}</FieldLabel>
-              <ChipGroup value={iterations} onChange={setIterations} label={t('toolsCrypto.textEncryption.iterations')} options={PBKDF2_ITERATION_OPTIONS.map((count) => ({ value: count, label: count.toLocaleString() }))}
+              <ChipGroup value={iterations} onChange={(count) => setIterations(count)} label={t('toolsCrypto.textEncryption.iterations')} options={PBKDF2_ITERATION_OPTIONS.map((count) => ({ value: count, label: count.toLocaleString() }))}
                 chipClassName={CHIP_CLASS} selectedClassName={CHIP_SELECTED} idleClassName={CHIP_IDLE} />
             </div>
           )}

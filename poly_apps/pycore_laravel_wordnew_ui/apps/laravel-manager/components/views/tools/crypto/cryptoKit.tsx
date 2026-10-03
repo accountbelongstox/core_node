@@ -43,9 +43,10 @@ export const useVaultRecorder = (toolId: string, variant: string): ((settings: R
 export const readSettings = <T extends object>(lastRun: ToolUsageEntry | undefined, defaults: T): T => {
   const saved = lastRun?.input;
   if (!saved || typeof saved !== 'object') return defaults;
-  const merged: Record<string, unknown> = { ...defaults };
+  const base = defaults as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(saved as Record<string, unknown>)) {
-    if (key in defaults && typeof value === typeof (defaults as Record<string, unknown>)[key]) merged[key] = value;
+    if (key in base && typeof value === typeof base[key]) merged[key] = value;
   }
   return merged as T;
 };
@@ -118,7 +119,7 @@ export const ToggleRow: React.FC<{ label: string; on: boolean; onChange: (next: 
   </div>
 );
 
-export function ModeTabs<T extends string | number>({ value, options, onChange, label }: { value: T; options: readonly SegmentOption<T>[]; onChange: (value: T) => void; label?: string }): React.ReactElement {
+export function ModeTabs<T extends string | number>({ value, options, onChange, label }: { value: T; options: readonly SegmentOption<NoInfer<T>>[]; onChange: (value: NoInfer<T>) => void; label?: string }): React.ReactElement {
   return (
     <div className="max-w-full overflow-x-auto">
       <SegmentedControl value={value} options={options} onChange={onChange} ariaLabel={label} activeClassName={VAULT_TAB_ACTIVE}
@@ -318,6 +319,6 @@ export const VaultRange: React.FC<VaultRangeProps> = ({ label, value, min, max, 
   </div>
 );
 
-export function VaultSelect<T extends string | number>({ value, options, onChange, label }: { value: T; options: readonly SelectOption<T>[]; onChange: (value: T) => void; label: string }): React.ReactElement {
+export function VaultSelect<T extends string | number>({ value, options, onChange, label }: { value: T; options: readonly SelectOption<NoInfer<T>>[]; onChange: (value: NoInfer<T>) => void; label: string }): React.ReactElement {
   return <SelectField value={value} options={options} onChange={onChange} label={label} inputClassName={VAULT_SELECT} />;
 }

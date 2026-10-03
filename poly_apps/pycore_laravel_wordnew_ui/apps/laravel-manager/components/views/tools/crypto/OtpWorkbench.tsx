@@ -110,7 +110,7 @@ const OtpWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }) 
         <VaultPanel title={tab === 'generate' ? t('toolsCrypto.otpGenerator.code_title') : t('toolsCrypto.otpGenerator.verify_title')} vault className="space-y-4">
           {tab === 'generate' ? (
             <>
-              <div className="flex items-center gap-5">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                 {settings.kind === 'totp' && (
                   <ProgressRing progress={left / settings.period} sizeClass="h-24 w-24" colorClass={left <= 5 ? 'text-rose-400' : 'text-emerald-400'} trackClassName="text-emerald-400/10" durationSec={TICK_MS / 1000}>
                     <span className="font-mono text-2xl font-black text-emerald-200">{Math.ceil(left)}</span>
@@ -119,7 +119,7 @@ const OtpWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }) 
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-emerald-500/80">{settings.kind === 'totp' ? t('toolsCrypto.otpGenerator.current_code') : t('toolsCrypto.otpGenerator.counter_code', { counter })}</p>
-                  <p className={`mt-1 font-mono text-4xl font-black tracking-widest sm:text-5xl ${current ? (settings.kind === 'totp' && left <= 5 ? 'text-rose-300' : 'text-emerald-300') : 'text-emerald-500/30'}`}>{current ? groupCode(current) : '— —'}</p>
+                  <p className={`mt-1 font-mono text-3xl font-black tracking-wider sm:text-5xl sm:tracking-widest ${current ? (settings.kind === 'totp' && left <= 5 ? 'text-rose-300' : 'text-emerald-300') : 'text-emerald-500/30'}`}>{current ? groupCode(current) : '— —'}</p>
                   <div className="mt-2 flex items-center gap-2">
                     <CopyButton value={current ?? ''} caption dark onCopied={recordUse} />
                     {settings.kind === 'hotp' && (
@@ -136,7 +136,7 @@ const OtpWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }) 
                 {offsets.map((offset, index) => (
                   <div key={offset} className={`rounded-xl border px-2 py-2 text-center font-mono ${offset === 0 ? 'border-emerald-400/50 bg-emerald-400/10' : 'border-emerald-500/15 bg-black/20'}`}>
                     <p className="text-[9px] uppercase tracking-wider text-emerald-500/60">{t(`toolsCrypto.otpGenerator.slot_${SLOT_KEYS[offset]}`)}</p>
-                    <p className="mt-0.5 text-sm font-black text-emerald-200">{codes[index] ? groupCode(codes[index]!) : '—'}</p>
+                    <p className="mt-0.5 text-xs font-black text-emerald-200 sm:text-sm">{codes[index] ? groupCode(codes[index]!) : '—'}</p>
                   </div>
                 ))}
               </div>
@@ -150,7 +150,7 @@ const OtpWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }) 
               </div>
               <div>
                 <p className="mb-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-emerald-500/80">{t(settings.kind === 'totp' ? 'toolsCrypto.otpGenerator.window_totp' : 'toolsCrypto.otpGenerator.window_hotp')}</p>
-                <ChipGroup value={windowSize} onChange={setWindowSize} label={t('toolsCrypto.otpGenerator.window')} options={VERIFY_WINDOWS.map((size) => ({ value: size, label: `±${size}` }))}
+                <ChipGroup value={windowSize} onChange={(size) => setWindowSize(size)} label={t('toolsCrypto.otpGenerator.window')} options={VERIFY_WINDOWS.map((size) => ({ value: size, label: `±${size}` }))}
                   chipClassName={CHIP_CLASS} selectedClassName="border-emerald-400 bg-emerald-400/20 text-emerald-200" idleClassName="border-emerald-500/20 bg-black/20 text-emerald-500/70 hover:bg-emerald-400/10" />
               </div>
               <div className={`flex items-center gap-2 rounded-xl border px-3 py-3 font-mono text-sm font-bold ${verification === null ? 'border-emerald-500/15 text-emerald-500/50' : verification.valid ? 'border-emerald-400/50 bg-emerald-400/10 text-emerald-300' : 'border-rose-500/40 bg-rose-500/10 text-rose-300'}`}>

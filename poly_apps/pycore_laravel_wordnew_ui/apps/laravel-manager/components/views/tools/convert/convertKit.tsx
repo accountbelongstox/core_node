@@ -147,8 +147,8 @@ export const ToolbarGroup: React.FC<{ label?: string; children: React.ReactNode 
 
 interface SkyChipsProps<T extends string | number | boolean> {
   value: T;
-  options: readonly ChipOption<T>[];
-  onChange: (value: T) => void;
+  options: readonly ChipOption<NoInfer<T>>[];
+  onChange: (value: NoInfer<T>) => void;
   label?: string;
   className?: string;
 }

@@ -63,7 +63,7 @@ const CaseConverterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
                 {tc(`case.style_${id}`)}
                 {copied === id && <Check className="h-3.5 w-3.5 text-emerald-500" />}
               </span>
-              <span className="w-full whitespace-pre-wrap break-all font-mono text-[13px] text-slate-900 dark:text-slate-100">{value || ' '}</span>
+              <span className="w-full whitespace-pre-wrap break-all font-mono text-[13px] text-slate-900 dark:text-slate-100">{value || '\u00a0'}</span>
             </button>
           ))}
         </div>

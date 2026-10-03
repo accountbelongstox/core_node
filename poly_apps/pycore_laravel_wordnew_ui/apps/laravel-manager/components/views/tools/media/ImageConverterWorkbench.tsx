@@ -67,7 +67,7 @@ const ImageConverterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, 
         <>
           <Panel title={m('converter.target')}>
             <Field label={m('output.format')}>
-              <Segmented
+              <Segmented<ImageMime>
                 value={format}
                 onChange={setFormat}
                 ariaLabel={m('output.format')}

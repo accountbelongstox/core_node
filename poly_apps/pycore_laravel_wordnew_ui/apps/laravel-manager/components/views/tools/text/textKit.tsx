@@ -110,14 +110,14 @@ export const PaperTextarea: React.FC<PaperTextareaProps> = ({
       spellCheck={false}
       wrap={wrap ? 'soft' : 'off'}
       onChange={(event) => onChange(event.target.value)}
-      className={`block w-full min-w-0 resize-y rounded-xl px-3.5 py-3 text-sm leading-relaxed ${mono ? 'font-mono' : serif ? 'font-serif text-base' : ''} ${autoGrow ? 'resize-none overflow-hidden' : ''} ${bare ? BARE_SURFACE : `${SURFACE} ${FOCUS_RING}`} ${className}`}
+      className={`block w-full min-w-0 rounded-xl px-3.5 py-3 text-sm leading-relaxed ${mono ? 'font-mono' : serif ? 'font-serif text-base' : ''} ${autoGrow ? 'resize-none overflow-hidden' : 'resize-y'} ${bare ? BARE_SURFACE : `${SURFACE} ${FOCUS_RING}`} ${className}`}
     />
   );
 };
 
 interface SegmentedProps<T extends string | number> {
   value: T;
-  options: ReadonlyArray<{ value: T; label: React.ReactNode; title?: string }>;
+  options: ReadonlyArray<{ value: NoInfer<T>; label: React.ReactNode; title?: string }>;
   onChange: (value: T) => void;
   ariaLabel?: string;
   className?: string;
@@ -197,7 +197,7 @@ export interface CopyControl {
 
 export const useCopy = (): CopyControl => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   const copy = useCallback(async (text: string, key = 'default'): Promise<boolean> => {
     const ok = await copyToClipboard(text);
@@ -254,7 +254,7 @@ export const Notice: React.FC<{ tone?: NoticeTone; children: React.ReactNode; cl
 
 export const Tile: React.FC<{ label: string; value: React.ReactNode; hint?: React.ReactNode; accent?: boolean }> = ({ label, value, hint, accent = false }) => (
   <div className={`min-w-0 rounded-2xl border px-3.5 py-3 ${accent ? 'border-violet-300 bg-violet-600 text-white dark:border-violet-500/50' : 'border-stone-200 bg-white dark:border-slate-700/60 dark:bg-slate-900/60'}`}>
-    <p className={`truncate font-mono text-2xl font-black tabular-nums ${accent ? '' : 'text-slate-800 dark:text-slate-100'}`}>{value}</p>
+    <p className={`truncate font-mono text-xl font-black tabular-nums sm:text-2xl ${accent ? '' : 'text-slate-800 dark:text-slate-100'}`}>{value}</p>
     <p className={`mt-0.5 truncate text-[10px] font-bold uppercase tracking-wider ${accent ? 'text-violet-100' : 'text-slate-500 dark:text-slate-400'}`}>{label}</p>
     {hint && <p className={`mt-1 truncate text-[10px] ${accent ? 'text-violet-100/80' : 'text-slate-400'}`}>{hint}</p>}
   </div>

@@ -115,8 +115,8 @@ export const FieldLabel: React.FC<{ children: React.ReactNode; htmlFor?: string;
 
 interface SegProps<T extends string | number> {
   value: T;
-  options: ReadonlyArray<{ value: T; label: React.ReactNode; title?: string }>;
-  onChange: (value: T) => void;
+  options: ReadonlyArray<{ value: NoInfer<T>; label: React.ReactNode; title?: string }>;
+  onChange: (value: NoInfer<T>) => void;
   ariaLabel?: string;
   className?: string;
 }
@@ -144,8 +144,8 @@ export function Seg<T extends string | number>({ value, options, onChange, ariaL
 
 interface ChipsProps<T extends string | number> {
   value: T | null;
-  options: ReadonlyArray<{ value: T; label: React.ReactNode; title?: string }>;
-  onChange: (value: T) => void;
+  options: ReadonlyArray<{ value: NoInfer<T>; label: React.ReactNode; title?: string }>;
+  onChange: (value: NoInfer<T>) => void;
   className?: string;
 }
 
@@ -373,7 +373,7 @@ export function prefillInput<T extends object>(lastRun: ToolUsageEntry | undefin
   const stored = lastRun?.input;
   if (!stored || typeof stored !== 'object') return defaults;
   const source = stored as Record<string, unknown>;
-  const out: Record<string, unknown> = { ...defaults };
+  const out = { ...defaults } as Record<string, unknown>;
   (Object.keys(defaults) as Array<keyof T & string>).forEach((key) => {
     if (typeof source[key] === typeof defaults[key]) out[key] = source[key];
   });

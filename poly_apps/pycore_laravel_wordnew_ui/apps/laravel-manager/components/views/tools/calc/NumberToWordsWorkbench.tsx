@@ -34,7 +34,7 @@ const NumberToWordsWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
     return /^[+-]?\d*\.?\d*$/.test(cleaned) && /\d/.test(cleaned) ? groupDigits(cleaned) : '';
   }, [value]);
 
-  useAutoRecord(record, { value, lang, enStyle, zhStyle, currency, british }, { text: result.ok ? result.text : '' }, result.ok);
+  useAutoRecord(record, { value, lang, enStyle, zhStyle, currency, british }, { text: result.text }, result.error === null);
 
   return (
     <Bench accent="math">
@@ -77,15 +77,15 @@ const NumberToWordsWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
       <Lcd className="space-y-3">
         <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-wider opacity-60">
           <span>{t('toolsCalc.words.result')}</span>
-          {result.ok && <CopyButton text={result.text} label={t('toolsCalc.common.copy')} className="!text-orange-200 hover:!bg-white/10">{t('toolsCalc.common.copy')}</CopyButton>}
+          {result.error === null && <CopyButton text={result.text} label={t('toolsCalc.common.copy')} className="!text-orange-200 hover:!bg-white/10">{t('toolsCalc.common.copy')}</CopyButton>}
         </div>
-        {result.ok ? (
+        {result.error === null ? (
           <p lang={lang} className={`break-words text-2xl font-semibold leading-snug sm:text-3xl ${lang === 'zh' ? 'tracking-wide' : 'first-letter:uppercase'}`}>{result.text}</p>
         ) : (
           <p className="text-sm opacity-60">{result.error === 'empty' ? t('toolsCalc.words.empty') : null}</p>
         )}
       </Lcd>
-      {!result.ok && result.error !== 'empty' && <Notice>{t(`toolsCalc.words.errors.${result.error}`)}</Notice>}
+      {result.error !== null && result.error !== 'empty' && <Notice>{t(`toolsCalc.words.errors.${result.error}`)}</Notice>}
     </Bench>
   );
 };

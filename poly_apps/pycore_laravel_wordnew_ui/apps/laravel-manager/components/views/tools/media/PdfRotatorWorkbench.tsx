@@ -65,7 +65,7 @@ const PdfRotatorWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, last
                 <Chip key={value} tone="indigo" active={angle === value} onClick={() => setAngle(value)}>{m(`rotator_pdf.angle_${value}`)}</Chip>
               ))}
             </div>
-            <Segmented value={scope} onChange={setScope} tone="indigo" ariaLabel={m('rotator_pdf.scope')} className="sm:max-w-xs" options={SCOPES.map((value) => ({ value, label: m(`rotator_pdf.scope_${value}`) }))} />
+            <Segmented<Scope> value={scope} onChange={setScope} tone="indigo" ariaLabel={m('rotator_pdf.scope')} className="sm:max-w-xs" options={SCOPES.map((value) => ({ value, label: m(`rotator_pdf.scope_${value}`) }))} />
           </PdfSection>
           <PdfSection title={m('rotator_pdf.pages')} aside={scope === 'selected' ? <span className="font-mono text-[11px] text-slate-500">{m('rotator_pdf.selected_count', { n: selected.length })}</span> : undefined}>
             {total ? (

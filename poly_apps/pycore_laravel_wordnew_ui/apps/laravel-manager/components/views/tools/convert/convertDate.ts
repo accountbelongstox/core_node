@@ -36,15 +36,6 @@ const zoneFormatter = (zone: string): Intl.DateTimeFormat => {
   return formatter;
 };
 
-export const isValidZone = (zone: string): boolean => {
-  try {
-    zoneFormatter(zone);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 export const listZones = (): string[] => {
   const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
   const zones = supported ? supported('timeZone') : FALLBACK_ZONES;

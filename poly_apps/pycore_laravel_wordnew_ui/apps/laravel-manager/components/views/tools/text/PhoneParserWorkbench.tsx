@@ -48,7 +48,7 @@ const PhoneParserWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, las
           </div>
           <div className="sm:col-span-2">
             <FieldLabel>{t('toolsText.phone.default_region')}</FieldLabel>
-            <SelectField value={region} options={regionOptions} onChange={setRegion} inputClassName={SELECT_THEME} />
+            <SelectField value={region} options={regionOptions} onChange={(next) => setRegion(next)} inputClassName={SELECT_THEME} />
           </div>
         </div>
         <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label={t('toolsText.phone.examples')}>

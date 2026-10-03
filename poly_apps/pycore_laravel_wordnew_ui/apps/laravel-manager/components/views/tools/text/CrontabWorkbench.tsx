@@ -31,6 +31,10 @@ const nameOf = (locale: string, field: CronField, value: number): string => {
   return String(value);
 };
 
+const shortNameOf = (locale: string, field: CronField, value: number): string => (field === 'month'
+  ? new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(2024, value - 1, 1))
+  : new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(2024, 0, REFERENCE_SUNDAY + value)));
+
 const valueText = ({ t, locale }: Describe, field: CronField, parsed: ParsedField): string => {
   const range = /^([\w]+)-([\w]+)$/.exec(parsed.raw);
   if (range && parsed.values.length > 2 && parsed.kind === 'list') {
@@ -59,20 +63,20 @@ const describeCron = (ctx: Describe, parse: CronParse): string => {
   else if (dayOfMonth.kind === 'list') parts.push(t('toolsText.cron.d_on_day', { v: valueText(ctx, 'dayOfMonth', dayOfMonth) }));
   if (month.kind !== 'any') parts.push(t('toolsText.cron.d_in_month', { v: valueText(ctx, 'month', month) }));
   if (dayOfWeek.kind !== 'any') parts.push(t('toolsText.cron.d_on_weekday', { v: valueText(ctx, 'dayOfWeek', dayOfWeek) }));
-  return parts.join(', ');
+  return parts.join(t('toolsText.cron.d_join'));
 };
 
 const ValueStrip: React.FC<{ field: CronField; parsed: ParsedField; locale: string }> = ({ field, parsed, locale }) => {
   const spec = FIELD_SPECS[field];
   const max = field === 'dayOfWeek' ? 6 : spec.max;
   const cells = Array.from({ length: max - spec.min + 1 }, (_, index) => spec.min + index);
-  const columns = field === 'minute' ? 15 : field === 'hour' ? 12 : field === 'dayOfMonth' ? 11 : cells.length;
+  const columns = field === 'minute' ? 15 : field === 'hour' ? 12 : field === 'dayOfMonth' ? 11 : field === 'month' ? 6 : cells.length;
   const labelled = field === 'month' || field === 'dayOfWeek';
   return (
     <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} aria-hidden>
       {cells.map((value) => {
         const on = !parsed.error && parsed.values.includes(value);
-        const label = labelled ? nameOf(locale, field, value).slice(0, field === 'month' ? 3 : 2) : String(value);
+        const label = labelled ? shortNameOf(locale, field, value) : String(value);
         return (
           <span
             key={value}

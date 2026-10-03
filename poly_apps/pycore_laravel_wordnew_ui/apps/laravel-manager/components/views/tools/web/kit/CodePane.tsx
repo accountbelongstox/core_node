@@ -1,5 +1,5 @@
 /** Line-numbered CodeMirror pane for the web workbenches (lazy chunk). */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import CodeMirror, { Decoration, EditorView, type Extension } from '@uiw/react-codemirror';
 import { loadLanguage, type LanguageName } from '@uiw/codemirror-extensions-langs';
 
@@ -16,6 +16,8 @@ export interface CodePaneProps {
   errorLine?: number | null;
   wrap?: boolean;
   onReady?: (view: EditorView) => void;
+  /** Moves the caret to a character offset and scrolls it into view whenever `seq` changes. */
+  jumpTo?: { offset: number; seq: number } | null;
 }
 
 const LANGUAGE_KEYS: Record<Exclude<CodeLanguage, 'text'>, LanguageName> = {
@@ -32,7 +34,8 @@ const PANE_THEME = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
 });
 
-const CodePane: React.FC<CodePaneProps> = ({ value, onChange, language, readOnly = false, dark, placeholder, errorLine = null, wrap = true, onReady }) => {
+const CodePane: React.FC<CodePaneProps> = ({ value, onChange, language, readOnly = false, dark, placeholder, errorLine = null, wrap = true, onReady, jumpTo = null }) => {
+  const viewRef = useRef<EditorView | null>(null);
   const extensions = useMemo(() => {
     const list: Extension[] = [PANE_THEME];
     if (wrap) list.push(EditorView.lineWrapping);
@@ -48,6 +51,13 @@ const CodePane: React.FC<CodePaneProps> = ({ value, onChange, language, readOnly
     return list;
   }, [language, errorLine, wrap]);
 
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !jumpTo) return;
+    view.dispatch({ selection: { anchor: Math.min(jumpTo.offset, view.state.doc.length) }, scrollIntoView: true });
+    view.focus();
+  }, [jumpTo]);
+
   return (
     <CodeMirror
       value={value}
@@ -58,7 +68,7 @@ const CodePane: React.FC<CodePaneProps> = ({ value, onChange, language, readOnly
       placeholder={placeholder}
       extensions={extensions}
       onChange={onChange}
-      onCreateEditor={onReady}
+      onCreateEditor={(view) => { viewRef.current = view; onReady?.(view); }}
       basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: !readOnly, highlightActiveLineGutter: !readOnly }}
       style={{ height: '100%' }}
     />

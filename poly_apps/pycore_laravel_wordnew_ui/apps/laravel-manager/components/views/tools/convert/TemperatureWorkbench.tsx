@@ -9,7 +9,7 @@ interface TemperatureInput {
   celsius: number;
 }
 
-const SYMBOLS: Record<TemperatureUnit, string> = { C: '°C', F: '°F', K: 'K', R: '°R', Re: '°Ré' };
+const SYMBOLS: Record<TemperatureUnit, string> = { C: '\u00b0C', F: '\u00b0F', K: 'K', R: '\u00b0R', Re: '\u00b0R\u00e9' };
 const REFERENCES: Array<{ id: string; celsius: number }> = [
   { id: 'absolute_zero', celsius: ABSOLUTE_ZERO_C },
   { id: 'freezing', celsius: 0 },

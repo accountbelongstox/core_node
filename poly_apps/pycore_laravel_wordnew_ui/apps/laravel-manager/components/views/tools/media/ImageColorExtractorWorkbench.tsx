@@ -108,7 +108,7 @@ const ImageColorExtractorWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, vari
         <>
           <Panel title={m('colors.settings')}>
             <Field label={m('colors.algorithm')}>
-              <Segmented value={algorithm} onChange={setAlgorithm} ariaLabel={m('colors.algorithm')} options={ALGORITHMS.map((value) => ({ value, label: m(`colors.algo_${value}`) }))} />
+              <Segmented<PaletteAlgorithm> value={algorithm} onChange={setAlgorithm} ariaLabel={m('colors.algorithm')} options={ALGORITHMS.map((value) => ({ value, label: m(`colors.algo_${value}`) }))} />
             </Field>
             <Field label={m('colors.count')}>
               <Slider value={count} min={COUNT_MIN} max={COUNT_MAX} onChange={setCount} nudge={1} ariaLabel={m('colors.count')} />

@@ -70,7 +70,7 @@ const TextStatisticsWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, 
             <Tile label={t('toolsText.stats.speaking_time')} value={formatTime(speakingMinutes)} />
           </div>
           <Paper title={t('toolsText.stats.pace')}>
-            <Segmented value={pace} onChange={setPace} ariaLabel={t('toolsText.stats.pace')} options={READING_PACES.map((wpm) => ({ value: wpm, label: t('toolsText.stats.wpm', { n: wpm }) }))} />
+            <Segmented value={pace} onChange={(next) => setPace(next)} ariaLabel={t('toolsText.stats.pace')} options={READING_PACES.map((wpm) => ({ value: wpm, label: t('toolsText.stats.wpm', { n: wpm }) }))} />
             <dl className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
               <div><dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t('toolsText.stats.avg_word')}</dt><dd className="font-mono text-base font-bold text-slate-800 dark:text-slate-100">{stats.avgWordLength}</dd></div>
               <div><dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t('toolsText.stats.bytes')}</dt><dd className="font-mono text-base font-bold text-slate-800 dark:text-slate-100">{stats.bytes.toLocaleString()}</dd></div>

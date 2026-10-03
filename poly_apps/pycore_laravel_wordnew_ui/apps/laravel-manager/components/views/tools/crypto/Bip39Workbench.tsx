@@ -98,7 +98,7 @@ const Bip39Workbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }
             ))}
           </ol>
           <div className="flex flex-wrap items-center gap-3">
-            <ChipGroup value={strength} onChange={setStrength} label={t('toolsCrypto.bip39Generator.words')}
+            <ChipGroup value={strength} onChange={(bits) => setStrength(bits)} label={t('toolsCrypto.bip39Generator.words')}
               options={BIP39_STRENGTHS.map((bits, index) => ({ value: bits, label: t('toolsCrypto.bip39Generator.word_count', { count: BIP39_WORD_COUNTS[index] }) }))}
               chipClassName={CHIP_CLASS} selectedClassName="border-emerald-400 bg-emerald-400/20 text-emerald-200" idleClassName="border-emerald-500/20 bg-black/20 text-emerald-500/70 hover:bg-emerald-400/10" />
             <button type="button" onClick={() => setRound((prev) => prev + 1)} className={`${VAULT_BUTTON} ml-auto`}>

@@ -35,7 +35,7 @@ const TextObfuscatorWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, 
 
   return (
     <Desk wide>
-      <Paper title={t('toolsText.obfuscate.method')} actions={REVERSIBLE[method] ? <Segmented value={direction} onChange={setDirection} ariaLabel={t('toolsText.obfuscate.direction')} options={DIRECTIONS.map((id) => ({ value: id, label: t(`toolsText.obfuscate.dir_${id}`) }))} /> : undefined}>
+      <Paper title={t('toolsText.obfuscate.method')} actions={REVERSIBLE[method] ? <Segmented value={direction} onChange={(next) => setDirection(next)} ariaLabel={t('toolsText.obfuscate.direction')} options={DIRECTIONS.map((id) => ({ value: id, label: t(`toolsText.obfuscate.dir_${id}`) }))} /> : undefined}>
         <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5" role="radiogroup" aria-label={t('toolsText.obfuscate.method')}>
           {previews.map(({ id, sample }) => (
             <button

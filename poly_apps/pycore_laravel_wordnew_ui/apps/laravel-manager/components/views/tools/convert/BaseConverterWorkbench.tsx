@@ -66,7 +66,7 @@ const BaseConverterWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
                 <span className={LABEL_CLASS}>{id === 'custom' ? tc('base.custom') : tc(`base.name_${id}`)}</span>
                 <div className="flex items-center gap-1">
                   {id === 'custom' && <NumberInput value={custom} min={BASE_MIN} max={BASE_MAX} step={1} label={tc('base.custom_base')} onChange={(next) => { setEditing(null); setCustom(next); }} className="w-14 text-center" />}
-                  {id !== 'custom' && <StatChip>{`×${base}`}</StatChip>}
+                  {id !== 'custom' && <StatChip>{`\u00d7${base}`}</StatChip>}
                   <CopyButton text={value === null ? '' : formatBaseValue(value, base)} />
                 </div>
               </div>

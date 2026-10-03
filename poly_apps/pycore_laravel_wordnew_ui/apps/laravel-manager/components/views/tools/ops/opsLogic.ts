@@ -182,6 +182,30 @@ export const pickTranslation = (raw: unknown, preferred: readonly string[]): str
   return '';
 };
 
+/** Saves a blob through a temporary anchor (works for generated files and fetched media). */
+export const saveBlob = (blob: Blob, filename: string): void => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+/** Downloads a remote file as a blob; falls back to opening it when the fetch is blocked. */
+export const downloadUrl = async (url: string, filename: string): Promise<void> => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(String(response.status));
+    saveBlob(await response.blob(), filename);
+  } catch {
+    window.open(url, '_blank', 'noopener');
+  }
+};
+
 const delay = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 /** Repeats `step` until `done` accepts its value, the attempts run out, or the caller cancels. */

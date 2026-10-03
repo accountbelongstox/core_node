@@ -19,7 +19,11 @@ export async function callToolApi<T = unknown>(apiMethod: string, payload?: unkn
   const fn = (api as unknown as ApiModules)[moduleName]?.[methodName];
   if (typeof fn !== 'function') throw new ToolRunError('api_method_not_found', { method: apiMethod });
   const response = await fn.call((api as unknown as ApiModules)[moduleName], payload);
-  if (!response?.success) throw new ToolRunError('remote_failed', { message: response?.message ?? '' });
+  if (!response?.success) throw new ToolRunError('remote_failed', { message: response?.error ?? response?.message ?? '' });
+  const body = response.data as { success?: unknown; message?: unknown; error?: unknown } | null;
+  if (body && typeof body === 'object' && body.success === false) {
+    throw new ToolRunError('remote_failed', { message: String(body.error ?? body.message ?? '') });
+  }
   return response.data as T;
 }
 

@@ -90,7 +90,7 @@ const TextToUnicodeWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
               <tbody className="divide-y divide-slate-100 font-mono dark:divide-slate-700/50">
                 {points.map((point, index) => (
                   <tr key={index} className="text-slate-800 dark:text-slate-100">
-                    <td className="px-3 py-1.5 text-base">{point.code < 32 || point.code === 127 ? '·' : point.char}</td>
+                    <td className="px-3 py-1.5 text-base">{point.code < 32 || point.code === 127 ? '\u00b7' : point.char}</td>
                     <td className="px-3 py-1.5 text-sky-700 dark:text-sky-300">{`U+${point.hex.padStart(4, '0')}`}</td>
                     <td className="px-3 py-1.5">{point.code}</td>
                     <td className="px-3 py-1.5">{point.utf8}</td>

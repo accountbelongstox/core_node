@@ -24,7 +24,7 @@ const flagOf = (country: string): string => (/^[A-Z]{2}$/.test(country)
   : '');
 
 const kindsOf = (report: IbanReport): string[] => {
-  const kinds = Array.from(report.clean, (_, index) => (index < 2 ? 'country' : index < 4 ? 'check' : 'bban'));
+  const kinds: string[] = Array.from(report.clean, (_, index) => (index < 2 ? 'country' : index < 4 ? 'check' : 'bban'));
   let cursor = 4;
   report.parts.forEach((part) => {
     for (let i = 0; i < part.length; i += 1) kinds[cursor + i] = part.key === 'check' ? 'check' : part.key;
@@ -48,7 +48,7 @@ const IbanValidatorWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, l
     }
   }, [report.country, i18n.language]);
   const recordRun = (): void => record({ iban: report.clean }, { valid: report.valid });
-  const chunks = report.clean.match(/.{1,4}/g) ?? [];
+  const chunks: string[] = report.clean.match(/.{1,4}/g) ?? [];
   const progress = report.expectedLength ? Math.min(100, Math.round((report.clean.length / report.expectedLength) * 100)) : 0;
 
   return (

@@ -283,8 +283,6 @@ export const parseUrlParts = (value: string): { origin: string; path: string; ha
 
 export const formatByte = (byte: number, radix: BinaryRadix): string => byte.toString(radix).toUpperCase().padStart(radix === 2 ? 8 : radix === 8 ? 3 : radix === 16 ? 2 : 1, '0');
 
-export const textToBytesRadix = (text: string, radix: BinaryRadix, separator = ' '): string => Array.from(utf8ToBytes(text), (b) => formatByte(b, radix)).join(separator);
-
 export const parseRadixBytes = (input: string, radix: BinaryRadix): Uint8Array => {
   const compact = input.trim();
   const digitPattern = radix === 2 ? /^[01]+$/ : radix === 8 ? /^[0-7]+$/ : radix === 10 ? /^\d+$/ : /^[0-9a-fA-F]+$/;
@@ -304,8 +302,6 @@ export const parseRadixBytes = (input: string, radix: BinaryRadix): Uint8Array =
   });
   return Uint8Array.from(bytes);
 };
-
-export const bytesRadixToText = (input: string, radix: BinaryRadix): string => bytesToUtf8(parseRadixBytes(input, radix), false);
 
 export interface CodePointInfo {
   char: string;
@@ -367,8 +363,6 @@ export const textToNatoTokens = (text: string): NatoToken[] => Array.from(text.n
   const upper = char.toUpperCase();
   return { char: /\s/.test(char) ? NATO_SPACE : char, word: NATO_LETTERS[upper] ?? null };
 });
-
-export const natoTokensToText = (tokens: NatoToken[]): string => tokens.map((token) => (token.word ? token.word : token.char)).join(' ').replace(/ +/g, ' ');
 
 export const natoToText = (input: string): { text: string; unknown: string[] } => {
   const unknown: string[] = [];

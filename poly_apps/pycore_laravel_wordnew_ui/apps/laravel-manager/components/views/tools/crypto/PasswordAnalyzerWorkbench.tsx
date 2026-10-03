@@ -52,7 +52,7 @@ const PasswordAnalyzerWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant
       </VaultPanel>
 
       <VaultPanel title={t('toolsCrypto.passwordAnalyzer.verdict_title')} vault className="space-y-4">
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <p className={`font-mono text-2xl font-black ${empty ? 'text-emerald-500/40' : SCORE_TEXT[report.score]}`}>
             {empty ? '—' : t(`toolsCrypto.passwordAnalyzer.score_${report.score}`)}
           </p>

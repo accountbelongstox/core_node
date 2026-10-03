@@ -136,7 +136,7 @@ export const ResultCard: React.FC<{ output: PdfOutput; fileName: string; tone: T
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700/60 dark:bg-slate-800/50">
       <div className={`flex h-12 w-10 shrink-0 items-center justify-center rounded-md ${TONE[tone].soft}`}><FileText className="h-5 w-5" /></div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[11rem] flex-1">
         <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100" title={fileName}>{label ? `${label} - ${fileName}` : fileName}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
           <span className="font-mono">{formatBytes(output.blob.size)}</span>

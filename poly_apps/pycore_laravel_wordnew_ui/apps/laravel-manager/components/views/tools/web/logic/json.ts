@@ -169,7 +169,7 @@ export const jsonTypeOf = (value: JsonValue): 'null' | 'boolean' | 'number' | 's
 
 export const jsonChildCount = (value: JsonValue): number => (Array.isArray(value) ? value.length : value && typeof value === 'object' ? Object.keys(value).length : 0);
 
-const pathKey = (path: string, key: string | number): string => {
+export const jsonPathKey = (path: string, key: string | number): string => {
   if (typeof key === 'number') return `${path}[${key}]`;
   return IDENTIFIER.test(key) ? `${path}.${key}` : `${path}[${JSON.stringify(key)}]`;
 };
@@ -188,9 +188,9 @@ export function diffJson(before: JsonValue, after: JsonValue): JsonDiffEntry[] {
     }
     if (Array.isArray(a) && Array.isArray(b)) {
       const shared = Math.min(a.length, b.length);
-      for (let i = 0; i < shared; i++) walk(a[i], b[i], pathKey(path, i), pointerKey(pointer, i));
-      for (let i = shared; i < b.length; i++) entries.push({ kind: 'added', path: pathKey(path, i), pointer: pointerKey(pointer, i), after: b[i] });
-      for (let i = a.length - 1; i >= shared; i--) entries.push({ kind: 'removed', path: pathKey(path, i), pointer: pointerKey(pointer, i), before: a[i] });
+      for (let i = 0; i < shared; i++) walk(a[i], b[i], jsonPathKey(path, i), pointerKey(pointer, i));
+      for (let i = shared; i < b.length; i++) entries.push({ kind: 'added', path: jsonPathKey(path, i), pointer: pointerKey(pointer, i), after: b[i] });
+      for (let i = a.length - 1; i >= shared; i--) entries.push({ kind: 'removed', path: jsonPathKey(path, i), pointer: pointerKey(pointer, i), before: a[i] });
       return;
     }
     if (a && b && typeof a === 'object' && typeof b === 'object') {
@@ -198,7 +198,7 @@ export function diffJson(before: JsonValue, after: JsonValue): JsonDiffEntry[] {
       const objB = b as { [key: string]: JsonValue };
       const keys = new Set([...Object.keys(objA), ...Object.keys(objB)]);
       keys.forEach((key) => {
-        const childPath = pathKey(path, key);
+        const childPath = jsonPathKey(path, key);
         const childPointer = pointerKey(pointer, key);
         if (!(key in objB)) entries.push({ kind: 'removed', path: childPath, pointer: childPointer, before: objA[key] });
         else if (!(key in objA)) entries.push({ kind: 'added', path: childPath, pointer: childPointer, after: objB[key] });
