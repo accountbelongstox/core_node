@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.file_lock import FileLockManager
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_WINDOWS
+from pycore.pyfoundations.service_contract import value as service_contract_value
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
@@ -50,20 +51,34 @@ MESSAGE_FLAG = "-m"
 NONINTERACTIVE_ENV = {"DD_AUTO_CONTINUE": "1", "NONINTERACTIVE": "1", "GIT_TERMINAL_PROMPT": "0"}
 BLOCKING_GIT_STATES = ("rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "REVERT_HEAD")
 
-DOCS_FIX_DIR_NAME = "docs_fix"
-CONFLICT_DOC_NAME = "GITSYNC_MERGE_CONFLICT.md"
-README_NAME = "README.md"
-README_MARKER = "<!-- GITSYNC_MERGE_CONFLICT -->"
+CONFLICT_DOC_RELATIVE = service_contract_value("code_sync.conflict_doc")
+CONFLICT_README_RELATIVE = service_contract_value("code_sync.conflict_readme")
+DOCS_FIX_DIR_NAME = Path(CONFLICT_DOC_RELATIVE).parent.as_posix()
+CONFLICT_DOC_NAME = Path(CONFLICT_DOC_RELATIVE).name
+README_NAME = Path(CONFLICT_README_RELATIVE).name
+README_MARKER = service_contract_value("code_sync.conflict_readme_marker")
 README_ALERT_LINE = (
     f"{README_MARKER} **AI: an automatic gitsync hit an unresolved merge conflict. Fix it immediately: "
-    f"read `docs_fix/{CONFLICT_DOC_NAME}`, resolve it, then delete that file and this line.**"
+    f"read `{CONFLICT_DOC_RELATIVE}`, resolve it, then delete that file and this line.**"
 )
-AI_PROMPT = (
-    "The core_node repository has an unresolved git merge conflict from the automatic gitsync. "
-    f"Read docs_fix/{CONFLICT_DOC_NAME}, resolve every conflicted file (keep both sides' intended changes), "
-    "git add the files, finish the merge with git commit --no-edit, run the project's gitsync to push, "
-    f"then delete docs_fix/{CONFLICT_DOC_NAME} and the first line of docs_fix/{README_NAME} that starts with "
-    f"{README_MARKER}."
+
+
+def _fill(template: str, **values: str) -> str:
+    for name, text in values.items():
+        template = template.replace("{" + name + "}", text)
+    return template
+
+
+AI_PROMPT = _fill(
+    service_contract_value("code_sync.conflict_ai_prompt"),
+    repo=str(get_core_node_root()),
+    context=_fill(service_contract_value("code_sync.conflict_ai_prompt_doc"), doc=CONFLICT_DOC_RELATIVE),
+    cleanup=_fill(
+        service_contract_value("code_sync.conflict_ai_prompt_cleanup"),
+        doc=CONFLICT_DOC_RELATIVE,
+        readme=CONFLICT_README_RELATIVE,
+        marker=README_MARKER,
+    ),
 )
 
 
@@ -309,7 +324,7 @@ class GitSyncWatchService:
             "1. Resolve every conflicted file below, keeping the intended changes of both sides.",
             "2. `git add` the resolved files and finish with `git commit --no-edit` (or finish/abort the blocking git operation).",
             "3. Run the project's gitsync (`dd.cmd gitsync -m \"resolve merge conflict\"` / `dd.sh gitsync -m \"resolve merge conflict\"`).",
-            f"4. Delete this file and the first line of `docs_fix/{README_NAME}` that starts with `{README_MARKER}`.",
+            f"4. Delete this file and the first line of `{CONFLICT_README_RELATIVE}` that starts with `{README_MARKER}`.",
             "",
             "## Conflicted files",
             "",
@@ -363,7 +378,7 @@ class GitSyncWatchService:
     def _remind(self) -> None:
         show_system_notification(
             i18n.get(I18nKeys.GITSYNC_CONFLICT_TITLE),
-            i18n.get(I18nKeys.GITSYNC_CONFLICT_MESSAGE).format(path=f"{DOCS_FIX_DIR_NAME}/{CONFLICT_DOC_NAME}"),
+            i18n.get(I18nKeys.GITSYNC_CONFLICT_MESSAGE).format(path=CONFLICT_DOC_RELATIVE),
             duration_ms=NOTIFICATION_DURATION_MS,
             copy_text=AI_PROMPT,
         )

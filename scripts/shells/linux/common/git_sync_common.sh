@@ -32,6 +32,12 @@ GIT_SYNC_CHANGE_LIST_MAX=30
 GIT_SYNC_NOTICE_FLAG="--notice-laravel"
 GIT_SYNC_SKIP_NOTICE_FLAG="--skip-notice-laravel"
 GIT_SYNC_SIGNED_CLI_RELATIVE="ncore/foundation/common/laravel_signed_cli.js"
+# Copy-ready AI prompt on a merge conflict; its text lives in config/service_contract.json
+# code_sync.conflict_* (shared with GitSyncCommon.ps1 and pycore's gitsync watch service).
+GIT_SYNC_SERVICE_CONTRACT_SH="$GIT_SYNC_COMMON_DIR/service_contract_common.sh"
+GIT_SYNC_PROMPT_SEPARATOR="------------------------------------------------------------------------"
+
+source "$GIT_SYNC_SERVICE_CONTRACT_SH"
 
 # Resolve the dd project root without a hardcoded path: prefer the central
 # constant CORE_NODE_PROJECT_ROOT (gvar_common.sh -> gvar_storage_common.sh),
@@ -284,6 +290,41 @@ git_sync_clear_stale_locks() {
     done
 }
 
+# git_sync_print_ai_prompt REPO_ROOT CONFLICTED_PATHS -> prints a delimited prompt the user can
+# paste to an AI agent; references the conflict doc of the watch service when it exists.
+git_sync_print_ai_prompt() {
+    local repo_root="$1"
+    local conflicted="$2"
+    local prompt="" context="" cleanup="" doc="" path=""
+
+    doc="$(sc_get code_sync.conflict_doc)"
+    prompt="$(sc_get code_sync.conflict_ai_prompt)"
+    [ -n "$prompt" ] || return 0
+    if [ -n "$doc" ] && [ -f "$repo_root/$doc" ]; then
+        context="$(sc_get code_sync.conflict_ai_prompt_doc)"
+        context="${context//'{doc}'/"$doc"}"
+        cleanup="$(sc_get code_sync.conflict_ai_prompt_cleanup)"
+        cleanup="${cleanup//'{doc}'/"$doc"}"
+        cleanup="${cleanup//'{readme}'/"$(sc_get code_sync.conflict_readme)"}"
+        cleanup="${cleanup//'{marker}'/"$(sc_get code_sync.conflict_readme_marker)"}"
+    fi
+    prompt="${prompt//'{repo}'/"$repo_root"}"
+    prompt="${prompt//'{context}'/"$context"}"
+    prompt="${prompt//'{cleanup}'/"$cleanup"}"
+
+    echo "[gitsync] Copy this prompt for your AI:" >&2
+    echo "$GIT_SYNC_PROMPT_SEPARATOR" >&2
+    echo "$prompt" >&2
+    if [ -n "$conflicted" ]; then
+        sc_get code_sync.conflict_ai_prompt_files >&2
+        echo >&2
+        while IFS= read -r path; do
+            [ -n "$path" ] && echo "- $path" >&2
+        done <<< "$conflicted"
+    fi
+    echo "$GIT_SYNC_PROMPT_SEPARATOR" >&2
+}
+
 # Resumes an interrupted sync: stops on an unfinished rebase/cherry-pick or
 # unresolved merge conflicts, and concludes a merge whose conflicts are all
 # resolved so the following pull/push can proceed.
@@ -305,6 +346,7 @@ git_sync_resume_pending_state() {
         echo "[gitsync] Conflicted paths:" >&2
         echo "$unmerged" >&2
         echo "[gitsync] Next step: resolve the conflicts, 'git add <file>', then run 'gitsync' again." >&2
+        git_sync_print_ai_prompt "$(pwd)" "$unmerged"
         return 1
     fi
 
@@ -384,6 +426,7 @@ git_sync_run() {
         echo "[gitsync] Conflicted paths:" >&2
         echo "$unmerged_output" >&2
         echo "[gitsync] Next step: resolve the conflicts manually (edit the files, 'git add <file>'), then run 'gitsync' again." >&2
+        git_sync_print_ai_prompt "$repo_root" "$unmerged_output"
         return 1
     fi
 

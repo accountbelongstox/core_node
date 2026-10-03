@@ -157,6 +157,21 @@ def tailnet_client_only_os() -> frozenset:
     return frozenset(str(name).lower() for name in value("access.tailnet.client_only_os"))
 
 
+def lan_machines_route() -> str:
+    """HTTP path of the LAN machine list (access.lan.machines_route)."""
+    return str(value("access.lan.machines_route"))
+
+
+def lan_max_scan_hosts() -> int:
+    """Upper bound of hosts probed per LAN segment (access.lan.max_scan_hosts)."""
+    return int(value("access.lan.max_scan_hosts"))
+
+
+def lan_cache_seconds() -> float:
+    """Age after which the cached LAN scan is refreshed in the background (access.lan.cache_seconds)."""
+    return float(value("access.lan.cache_seconds"))
+
+
 def service_url_entries(mesh_domain_value: str = "") -> tuple[dict[str, str], ...]:
     """Contract URL entries; {mesh_domain} becomes the live tailnet domain, else the default provider's."""
     entries = value("access.service_url_entries")

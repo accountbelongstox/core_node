@@ -5,7 +5,9 @@ Live tailnet machine list from ``tailscale status --json`` - the same document
 client (e.g. a compiled phone app, which cannot list the tailnet itself) can
 discover every machine from any reachable machine that runs pycore.
 
-Without Tailscale (binary missing, logged out, timeout) the list is empty.
+Without Tailscale peers (binary missing, logged out, timeout) a machine that runs the
+Headscale control server answers with its ``headscale nodes list`` in the same shape;
+without either the list is empty.
 """
 
 import json
@@ -13,10 +15,13 @@ import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import Commander
-from pycore.pyfoundations.service_contract import tailnet_client_only_os
+from pycore.pyfoundations.service_contract import mesh_domain, tailnet_client_only_os
 
 TAILSCALE_STATUS_COMMAND = ["tailscale", "status", "--json"]
 TAILSCALE_STATUS_TIMEOUT_SECONDS = 4
+HEADSCALE_PROVIDER = "headscale"
+HEADSCALE_NODES_COMMAND = [HEADSCALE_PROVIDER, "nodes", "list", "--output", "json"]
+HEADSCALE_NODES_TIMEOUT_SECONDS = 4
 TAILNET_DOMAIN_CACHE_SECONDS = 60
 
 _tailnet_document_cache: Dict[str, Any] = {"at": 0.0, "document": {"tailnet": "", "peers": []}}
@@ -37,8 +42,33 @@ def _peer(node: Any, is_self: bool, tailnet: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def read_tailnet_peers() -> Dict[str, Any]:
-    """{tailnet, peers:[{dnsName, hostName, os, online, self}]} of this machine's tailnet."""
+def _headscale_peer(node: Any, domain: str) -> Optional[Dict[str, Any]]:
+    """One machine of a Headscale node record; None for a node without a name."""
+    entry = node if isinstance(node, dict) else {}
+    name = str(entry.get("given_name") or entry.get("name") or "").lower()
+    if not name:
+        return None
+    return {
+        "dnsName": f"{name}.{domain}",
+        "hostName": str(entry.get("name") or name),
+        "os": str(entry.get("os") or ""),
+        "online": bool(entry.get("online")),
+        "self": False,
+    }
+
+
+def _read_headscale_peers() -> Dict[str, Any]:
+    """The tailnet document of this machine's Headscale control server; empty without one."""
+    domain = mesh_domain(HEADSCALE_PROVIDER)
+    result = Commander.run_args(HEADSCALE_NODES_COMMAND, timeout=HEADSCALE_NODES_TIMEOUT_SECONDS)
+    output = (result.stdout or "").strip()
+    if not domain or not result.success or not output.startswith("["):
+        return {"tailnet": "", "peers": []}
+    peers: List[Dict[str, Any]] = [peer for peer in (_headscale_peer(node, domain) for node in json.loads(output)) if peer]
+    return {"tailnet": domain, "peers": peers}
+
+
+def _read_tailscale_peers() -> Dict[str, Any]:
     result = Commander.run_args(TAILSCALE_STATUS_COMMAND, timeout=TAILSCALE_STATUS_TIMEOUT_SECONDS)
     output = (result.stdout or "").strip()
     if not result.success or not output.startswith("{"):
@@ -49,6 +79,12 @@ def read_tailnet_peers() -> Dict[str, Any]:
     nodes = [(status.get("Self"), True)] + [(node, False) for node in (status.get("Peer") or {}).values()]
     peers: List[Dict[str, Any]] = [peer for peer in (_peer(node, is_self, tailnet) for node, is_self in nodes) if peer]
     return {"tailnet": tailnet, "peers": peers}
+
+
+def read_tailnet_peers() -> Dict[str, Any]:
+    """{tailnet, peers:[{dnsName, hostName, os, online, self}]} of this machine's tailnet (Tailscale first, then its Headscale)."""
+    document = _read_tailscale_peers()
+    return document if document["peers"] else _read_headscale_peers()
 
 
 def current_tailnet_document() -> Dict[str, Any]:

@@ -129,11 +129,15 @@ export {
   recordPycoreProbe, subscribePycoreProbes,
 } from './PycoreEndpointProbe';
 export type { PycoreProbeResult, PycoreProbeState, PycoreSwitchResult } from './PycoreEndpointProbe';
-export { lanScanHosts, scanLanPycore } from './PycoreLanScanner';
-export type { LanScanOptions, LanScanResult, LanScanState } from './PycoreLanScanner';
+export { lanScanHosts, lanSegmentHosts, scanLanPycore } from './PycoreLanScanner';
+export type { LanScanOptions, LanScanResult, LanScanState, LanSegment } from './PycoreLanScanner';
+export {
+  getLanMachines, refreshLanMachines, rescanLanMachines, subscribeLanMachines, isLanMachinesAvailable,
+} from './PycoreLanMachines';
+export type { LanMachine, LanMachinesSnapshot, LanMachinesSource } from './PycoreLanMachines';
 export { pycoreLink } from './PycoreServiceLink';
 export {
-  getTailnetPeers, refreshTailnetPeers, subscribeTailnetPeers, addTailnetDiscoveryOrigins,
+  getTailnetPeers, refreshTailnetPeers, subscribeTailnetPeers, addTailnetDiscoveryOrigins, addTailnetPublishers,
 } from '../../network/TailnetDiscovery';
 export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
 export { deliverThroughRelay, relayPycoreFetch, relayPycoreOrigin } from './RelayDelivery';

@@ -1,9 +1,8 @@
-/** Daily Reading article list and routed player page. Lists the latest reading
- * articles (title_en + title_cn + date); clicking a row expands the reading
- * text inline (article_en with reference_cn). A Play button (header = play
- * all, per row = start from that article) opens the article route; the book
- * button opens the read-along reader. */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+/** Daily Reading: a swipeable week date strip over a day-scoped, cursor-paged
+ * article list. Each card shows a round read-check backed by Laravel (tap to
+ * toggle); tapping the card opens the reader (which marks it read), the small
+ * play icon starts audio, and finishing playback marks the article read. */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Home,
   ListMusic,
@@ -19,7 +18,10 @@ import {
   type DailyReadingRow,
 } from './dailyReadingApi';
 import { useDailyReadingPlayer } from './useDailyReadingPlayer';
+import { useDailyReadingFeed } from './useDailyReadingFeed';
+import { rowDayKey } from './dailyReadingDates';
 import { WordNewDailyReadingPlayerOverlay } from './WordNewDailyReadingPlayerOverlay';
+import { WordNewDailyReadingDateStrip } from './WordNewDailyReadingDateStrip';
 import { LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../../core/integrations/laravel';
 import { wfNewApi, type WfNewDailyReadingSelectionMode } from '../../api';
 import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
@@ -27,6 +29,8 @@ import { dailyReadingArticleId, dailyReadingHash } from '../../routing/WordNewHa
 import { WordNewDailyReadingResourcePreview } from './WordNewDailyReadingResourcePreview';
 import { WordNewDailyReadingRowItem } from './WordNewDailyReadingRowItem';
 import { SelectField } from '@/shared/ui/SelectField';
+import { useWfNewLoadMoreSentinel } from '../../hooks/useWfNewLoadMoreSentinel';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 interface Props {
   theme: ElementTheme;
@@ -41,7 +45,9 @@ interface Props {
 }
 
 const POLL_MS = 12_000;
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 20;
+const ROUTE_PAGE_SIZE = 50;
+const DEEP_LINK_LOOKUP_LIMIT = 100;
 const SELECTION_MODE_OPTIONS: Array<{
   value: WfNewDailyReadingSelectionMode;
   labelKey: string;
@@ -75,19 +81,8 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   onOpenPage,
   onPlaybackStateChange,
 }) => {
-  const [rows, setRows] = useState<DailyReadingRow[]>([]);
-  const [totalRows, setTotalRows] = useState(0);
-  const [statistics, setStatistics] = useState({
-    total: 0,
-    rawTotal: 0,
-    historicalDuplicates: 0,
-    multiSentence: 0,
-    legacyAudio: 0,
-    rebuilt: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const feed = useDailyReadingFeed(routeMode ? ROUTE_PAGE_SIZE : PAGE_SIZE, trans('home.dailyReading.loadFailed'));
+  const rows = feed.items;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState<WfNewDailyReadingSelectionMode>('latest');
   const [savedArticleId, setSavedArticleId] = useState<string | null>(null);
@@ -95,8 +90,11 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   const mounted = useRef(true);
   const deepLinkHandled = useRef(false);
   const playerWasOpen = useRef(false);
-  const player = useDailyReadingPlayer();
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const player = useDailyReadingPlayer((finished) => feed.markRead(finished.id));
   const routeArticleId = routeMode ? readDailyHashId() : null;
+  const { selectDate, loadMore, refresh, patchItems, loading } = feed;
 
   useEffect(() => {
     onPlaybackStateChange?.({ open: player.open, playing: player.playing });
@@ -107,8 +105,9 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   }, [onPlaybackStateChange]);
 
   /** Start the player and reflect the playing article in the URL hash. */
-  const startPlayer = useCallback((startId?: string, singleArticle = false) => {
-    const playableRows = rows.filter((row) => row.audio_ready === true && !!row.audio_url);
+  const startPlayer = useCallback(async (startId?: string, singleArticle = false) => {
+    const allRows = !startId && feed.hasMore ? await feed.loadAll() : rows;
+    const playableRows = allRows.filter((row) => row.audio_ready === true && !!row.audio_url);
     let articleId = startId;
     if (!articleId && selectionMode === 'resume') {
       articleId = playableRows.find((row) => row.id === savedArticleId)?.id;
@@ -125,12 +124,12 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     }
     const playbackRows = singleArticle
       ? playableRows.filter((row) => row.id === articleId)
-      : rows;
+      : allRows;
     player.start(playbackRows, articleId);
     if (routeMode && typeof window !== 'undefined') {
       window.history.replaceState(null, '', dailyReadingHash(articleId));
     }
-  }, [onOpenPage, player, routeMode, rows, savedArticleId, selectionMode]);
+  }, [feed, onOpenPage, player, routeMode, rows, savedArticleId, selectionMode]);
 
   useEffect(() => {
     if (!player.open || !player.current) return;
@@ -157,21 +156,33 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     }
   }, [player.open, routeMode]);
 
-  // Deep link: #/daily-reading/<articleId> auto-starts once rows arrive.
+  // Deep link: #/daily-reading/<articleId> starts once its article is known.
+  // The article may sit on another day, so the legacy newest-first list is the fallback lookup.
   useEffect(() => {
-    if (deepLinkHandled.current || rows.length === 0) return;
+    if (deepLinkHandled.current || loading) return;
     const id = readDailyHashId();
     if (!id) return;
-    const target = rows.find((row) => row.id === id);
-    if (!target) return;
     deepLinkHandled.current = true;
-    if (target.audio_ready) {
-      player.start([target], target.id);
-    } else {
-      setExpandedId(target.id);
+    const start = (target: DailyReadingRow) => {
+      if (target.audio_ready) {
+        player.start([target], target.id);
+      } else {
+        const day = rowDayKey(target.reading_date, target.created_at);
+        if (day) selectDate(day);
+        setExpandedId(target.id);
+      }
+    };
+    const local = rows.find((row) => row.id === id);
+    if (local) {
+      start(local);
+      return;
     }
+    void fetchDailyReadings(DEEP_LINK_LOOKUP_LIMIT, 0).then((page) => {
+      const target = page.items.find((row) => row.id === id);
+      if (target && mounted.current) start(target);
+    }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player, rows]);
+  }, [loading, player, rows]);
 
   const changeSelectionMode = useCallback((next: WfNewDailyReadingSelectionMode) => {
     setSelectionMode(next);
@@ -182,66 +193,6 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     }
   }, [savedArticleId]);
 
-  const load = useCallback(async (silent = false) => {
-    const firstPageSize = routeMode ? PAGE_SIZE : 20;
-    if (!silent) setLoading(true);
-    try {
-      const page = await fetchDailyReadings(firstPageSize, 0);
-      if (mounted.current) {
-        setRows((current) => {
-          if (!silent) return page.items;
-          const freshIds = new Set(page.items.map((item) => item.id));
-          const merged = [
-            ...page.items,
-            ...current.filter((item) => !freshIds.has(item.id)),
-          ];
-          return merged.slice(0, Math.max(page.items.length, page.total));
-        });
-        setTotalRows(page.total);
-        setStatistics(page.statistics);
-        setError(null);
-      }
-      if (!silent && routeMode) {
-        let offset = page.items.length;
-        while (mounted.current && offset < page.total) {
-          const nextPage = await fetchDailyReadings(PAGE_SIZE, offset);
-          if (nextPage.items.length === 0) break;
-          setRows((current) => {
-            const currentIds = new Set(current.map((item) => item.id));
-            return [...current, ...nextPage.items.filter((item) => !currentIds.has(item.id))];
-          });
-          setTotalRows(nextPage.total);
-          setStatistics(nextPage.statistics);
-          offset += nextPage.items.length;
-        }
-      }
-    } catch (loadError) {
-      if (mounted.current) {
-        setError(loadError instanceof Error ? loadError.message : trans('home.dailyReading.loadFailed'));
-      }
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [routeMode, trans]);
-
-  const loadMore = useCallback(async () => {
-    if (loadingMore || rows.length >= totalRows) return;
-    setLoadingMore(true);
-    try {
-      const page = await fetchDailyReadings(PAGE_SIZE, rows.length);
-      if (mounted.current) {
-        setRows((current) => {
-          const currentIds = new Set(current.map((item) => item.id));
-          return [...current, ...page.items.filter((item) => !currentIds.has(item.id))];
-        });
-        setTotalRows(page.total);
-        setStatistics(page.statistics);
-      }
-    } finally {
-      if (mounted.current) setLoadingMore(false);
-    }
-  }, [loadingMore, rows.length, totalRows]);
-
   const queueAudio = useCallback(async (row: DailyReadingRow) => {
     if (!row.audio_url || row.audio_ready) return;
     if (!wfNewApi.isAuthenticated()) {
@@ -251,15 +202,14 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     setQueueingId(row.id);
     try {
       await requestDailyReadingAudio(row);
-      await load(true);
+      await refresh(true);
     } finally {
       if (mounted.current) setQueueingId(null);
     }
-  }, [load]);
+  }, [refresh]);
 
   useEffect(() => {
     mounted.current = true;
-    load(false);
     if (wfNewApi.isAuthenticated()) {
       void wfNewApi.getDailyReadingProgress().then((progress) => {
         if (!progress || !mounted.current) return;
@@ -267,8 +217,8 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
         setSelectionMode(progress.selectionMode);
       });
     }
-    const id = setInterval(() => load(true), POLL_MS);
-    const onArticlePublished = () => load(true);
+    const id = setInterval(() => void refresh(true), POLL_MS);
+    const onArticlePublished = () => void refresh(true);
     const unsubscribePublished = laravelRealtime.subscribe(
       LARAVEL_REALTIME_EVENTS.articlePublished,
       onArticlePublished,
@@ -276,7 +226,7 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     const unsubscribeAudio = laravelRealtime.subscribe(
       LARAVEL_REALTIME_EVENTS.articleAudioReady,
       (payload) => {
-        setRows((current) => current.map((row) => applyDailyReadingAudioReady(row, payload)));
+        patchItems((row) => applyDailyReadingAudioReady(row, payload));
       },
     );
     laravelRealtime.start();
@@ -287,40 +237,56 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
       unsubscribeAudio();
       laravelRealtime.stop();
     };
-  }, [load]);
+  }, [patchItems, refresh]);
 
+  const openBook = useCallback((sourceKey: string, title: string) => {
+    feed.markRead(sourceKey);
+    onOpenBook(sourceKey, title);
+  }, [feed, onOpenBook]);
+
+  const pullRefresh = usePullToRefresh(listRef, () => refresh(true), !player.open);
+  useWfNewLoadMoreSentinel(sentinelRef, feed.hasMore && !feed.loadingMore && !loading, () => void loadMore(), rows.length);
+
+  const dayCount = feed.calendar[feed.selectedDate];
+  const readCount = useMemo(() => rows.filter((row) => row.read === true).length, [rows]);
   const playableCount = rows.filter((row) => row.audio_ready === true && !!row.audio_url).length;
+  const multiSentenceCount = rows.filter((row) => row.audio_generation_type === 'multi_sentence').length;
   const statisticPills = [
-    { key: 'articles', labelKey: 'home.dailyReading.articleCount', count: totalRows, className: 'border-white/5 bg-white/[0.03]' },
+    { key: 'articles', labelKey: 'home.dailyReading.articleCount', count: feed.total, className: 'border-white/5 bg-white/[0.03]' },
+    { key: 'read', labelKey: 'home.dailyReading.readArticlesCount', count: dayCount?.read ?? readCount, className: 'border-emerald-500/15 bg-emerald-500/5 text-emerald-400/80' },
     { key: 'playable', labelKey: 'home.dailyReading.playableCount', count: playableCount, className: 'border-emerald-500/15 bg-emerald-500/5 text-emerald-400/80' },
-    { key: 'multi', labelKey: 'home.dailyReading.multiSentenceCount', count: statistics.multiSentence, className: 'border-emerald-500/15 bg-emerald-500/5 text-emerald-400/80' },
-    { key: 'legacy', labelKey: 'home.dailyReading.legacyAudioCount', count: statistics.legacyAudio, className: 'border-amber-500/15 bg-amber-500/5 text-amber-400/80' },
-    { key: 'rebuilt', labelKey: 'home.dailyReading.rebuiltCount', count: statistics.rebuilt, className: 'border-sky-500/15 bg-sky-500/5 text-sky-400/80' },
-    ...(statistics.historicalDuplicates > 0
-      ? [{ key: 'archived', labelKey: 'home.dailyReading.archivedDuplicateCount', count: statistics.historicalDuplicates, className: 'border-zinc-500/15 bg-zinc-500/5 text-zinc-400/80' }]
-      : []),
+    { key: 'multi', labelKey: 'home.dailyReading.multiSentenceCount', count: multiSentenceCount, className: 'border-emerald-500/15 bg-emerald-500/5 text-emerald-400/80' },
+    { key: 'legacy', labelKey: 'home.dailyReading.legacyAudioCount', count: Math.max(0, rows.length - multiSentenceCount), className: 'border-amber-500/15 bg-amber-500/5 text-amber-400/80' },
   ];
+  const selectedLabel = feed.selectedDate === feed.todayKey
+    ? trans('home.dailyReading.today')
+    : new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+      .format(new Date(`${feed.selectedDate}T12:00:00`));
 
   if (player.open) {
     return <WordNewDailyReadingPlayerOverlay player={player} trans={trans} onGoHome={onGoHome} />;
   }
 
+  const refreshButtonClass = `inline-flex items-center gap-2 px-3 py-2 rounded-xl border ${theme.borderClass} text-xs font-bold ${theme.textSecondaryClass} transition-colors`;
+
   return (
     <section className={`${theme.cardClass} border border-white/5 ${routeMode
       ? 'min-h-[calc(100vh-10rem)] rounded-[2rem] p-5 sm:p-8 flex flex-col gap-6 overflow-hidden'
-      : 'rounded-3xl p-5 space-y-4'}`}>
+      : 'rounded-3xl p-4 space-y-4'}`}>
       <div className={routeMode
         ? 'relative rounded-3xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/10 via-slate-950/40 to-fuchsia-500/5 p-5 sm:p-7 space-y-5 overflow-hidden'
         : 'flex items-center justify-between gap-3'}>
         <div className={routeMode ? 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5' : 'contents'}>
-          <div>
-            <h2 className={`${routeMode ? 'text-xl sm:text-2xl' : 'text-sm font-mono uppercase tracking-widest'} font-black text-indigo-400 flex items-center gap-2`}>
+          <div className="min-w-0">
+            <h2 className={`${routeMode ? 'text-xl sm:text-2xl' : 'text-sm font-mono uppercase tracking-widest'} font-black ${theme.accentText} flex items-center gap-2`}>
               <Newspaper className={routeMode ? 'w-6 h-6' : 'w-4 h-4'} />
               {trans('home.dailyReading.title')}
             </h2>
-            <p className={`${routeMode ? 'text-sm max-w-2xl' : 'text-[11px]'} text-zinc-500 mt-1`}>
-              {trans('home.dailyReading.subtitle')}
-            </p>
+            {routeMode && (
+              <p className={`text-sm max-w-2xl ${theme.textSecondaryClass} mt-1`}>
+                {trans('home.dailyReading.subtitle')}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {routeArticleId && (
@@ -330,38 +296,25 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
                 trans={trans}
               />
             )}
-            {routeMode && (
-              <button
-                type="button"
-                onClick={() => void load(false)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 text-xs font-bold text-zinc-300 hover:text-indigo-300 hover:border-indigo-500/30 transition-colors"
-                title={trans('home.dailyReading.refresh')}
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                {trans('home.dailyReading.refresh')}
-              </button>
-            )}
-            {!routeMode && loading && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+            <button
+              type="button"
+              onClick={() => void refresh(false)}
+              className={routeMode ? refreshButtonClass : `rounded-full p-2 ${theme.textSecondaryClass}`}
+              title={trans('home.dailyReading.refresh')}
+              aria-label={trans('home.dailyReading.refresh')}
+            >
+              <RefreshCw className={`w-4 h-4 ${loading || pullRefresh.refreshing ? 'animate-spin' : ''}`} />
+              {routeMode && trans('home.dailyReading.refresh')}
+            </button>
             {routeMode && onGoHome && (
               <button
                 type="button"
                 onClick={onGoHome}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 text-xs font-bold text-zinc-300 hover:text-indigo-300 hover:border-indigo-500/30 transition-colors"
+                className={refreshButtonClass}
                 title={trans('home.dailyReading.backHome')}
               >
                 <Home className="w-4 h-4" />
                 {trans('home.dailyReading.backHome')}
-              </button>
-            )}
-            {playableCount > 0 && (
-              <button
-                type="button"
-                onClick={() => startPlayer()}
-                className={`${routeMode ? 'px-4 py-2 text-xs' : 'px-3 py-1.5 text-[11px]'} flex items-center gap-1.5 rounded-xl font-bold bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-transform`}
-                title={trans('home.dailyReading.playAll')}
-              >
-                <ListMusic className="w-4 h-4" />
-                {trans('home.dailyReading.playAll')}
               </button>
             )}
           </div>
@@ -388,42 +341,92 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
         )}
       </div>
 
-      {rows.length === 0 ? (
-        <p className={`text-xs ${error ? 'text-rose-400' : 'text-zinc-500'}`}>
-          {loading ? '…' : error || trans('home.dailyReading.empty')}
-        </p>
-      ) : (
-        <>
-          <ul className={routeMode ? 'grid min-w-0 w-full flex-1 auto-rows-min gap-4 xl:grid-cols-2' : 'space-y-3 max-h-[420px] overflow-y-auto pr-1'}>
-          {rows.map((row) => (
-            <WordNewDailyReadingRowItem
-              key={row.id}
-              row={row}
-              routeMode={routeMode}
-              expanded={expandedId === row.id}
-              queueing={queueingId === row.id}
-              player={player}
-              trans={trans}
-              onToggleExpand={() => setExpandedId(expandedId === row.id ? null : row.id)}
-              onPlay={() => startPlayer(row.id, true)}
-              onQueueAudio={() => void queueAudio(row)}
-              onOpenBook={onOpenBook}
-            />
-          ))}
-          </ul>
-          {routeMode && rows.length < totalRows && (
-            <button
-              type="button"
-              onClick={() => void loadMore()}
-              disabled={loadingMore}
-              className="mx-auto inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-bold text-zinc-300 hover:border-indigo-500/30 hover:text-indigo-300 disabled:opacity-50"
-            >
-              {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
-              {trans('home.dailyReading.loadMore')}
-            </button>
-          )}
-        </>
-      )}
+      <WordNewDailyReadingDateStrip
+        theme={theme}
+        trans={trans}
+        selectedDate={feed.selectedDate}
+        todayKey={feed.todayKey}
+        calendar={feed.calendar}
+        onSelect={selectDate}
+        onVisibleWeek={feed.ensureWeek}
+      />
+
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <div className={`truncate text-base font-bold ${theme.textPrimaryClass}`}>{selectedLabel}</div>
+          <div className={`text-[11px] ${theme.textSecondaryClass}`}>
+            {trans('home.dailyReading.dayProgress', { read: dayCount?.read ?? readCount, total: dayCount?.total ?? feed.total })}
+          </div>
+        </div>
+        {playableCount > 0 && (
+          <button
+            type="button"
+            onClick={() => void startPlayer()}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500 px-3 py-1.5 text-[11px] font-bold text-white shadow-md shadow-indigo-500/20 transition-transform active:scale-95"
+            title={trans('home.dailyReading.playAll')}
+          >
+            <ListMusic className="h-4 w-4" />
+            {trans('home.dailyReading.playAll')}
+          </button>
+        )}
+      </div>
+
+      <div ref={listRef} className="min-w-0 flex-1">
+        <div
+          className={`flex items-center justify-center gap-2 overflow-hidden text-[11px] ${theme.textSecondaryClass} transition-[height] ${pullRefresh.pull > 0 || pullRefresh.refreshing ? '' : 'h-0'}`}
+          style={pullRefresh.pull > 0 || pullRefresh.refreshing ? { height: pullRefresh.refreshing ? 32 : pullRefresh.pull } : undefined}
+        >
+          {pullRefresh.refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {pullRefresh.refreshing
+            ? trans('home.dailyReading.refreshing')
+            : pullRefresh.pull > 0
+              ? trans(pullRefresh.ready ? 'home.dailyReading.releaseToRefresh' : 'home.dailyReading.pullToRefresh')
+              : null}
+        </div>
+        {rows.length === 0 ? (
+          <p className={`py-6 text-center text-xs ${feed.error ? 'text-rose-400' : theme.textSecondaryClass}`}>
+            {loading ? '…' : feed.error || trans('home.dailyReading.emptyDay')}
+          </p>
+        ) : (
+          <>
+            <ul className={routeMode ? 'grid min-w-0 w-full auto-rows-min gap-3 xl:grid-cols-2' : 'space-y-2.5'}>
+              {rows.map((row) => (
+                <WordNewDailyReadingRowItem
+                  key={row.id}
+                  row={row}
+                  theme={theme}
+                  routeMode={routeMode}
+                  expanded={expandedId === row.id}
+                  queueing={queueingId === row.id}
+                  player={player}
+                  trans={trans}
+                  onToggleExpand={() => setExpandedId(expandedId === row.id ? null : row.id)}
+                  onToggleRead={() => void feed.setRead(row.id, row.read !== true)}
+                  onPlay={() => void startPlayer(row.id, true)}
+                  onQueueAudio={() => void queueAudio(row)}
+                  onOpenBook={openBook}
+                />
+              ))}
+            </ul>
+            <div ref={sentinelRef} className="h-px" />
+            {feed.hasMore ? (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={feed.loadingMore}
+                className={`mx-auto mt-3 inline-flex items-center gap-2 rounded-xl border ${theme.borderClass} px-4 py-2 text-xs font-bold ${theme.textSecondaryClass} disabled:opacity-50`}
+              >
+                {feed.loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                {trans(feed.loadingMore ? 'home.dailyReading.loadingMore' : 'home.dailyReading.loadMore')}
+              </button>
+            ) : (
+              <p className={`mt-3 text-center text-[11px] ${theme.textSecondaryClass} opacity-60`}>
+                {trans('home.dailyReading.allLoaded')}
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </section>
   );
 };

@@ -15,6 +15,7 @@
  * asked on the next refresh too.
  */
 import {
+  PYCORE_BACKEND_PORT,
   SERVICE_CONTRACT_URL_ENTRIES,
   TAILNET_PEERS_FILE_NAME,
   TAILNET_CLIENT_ONLY_OS,
@@ -41,6 +42,8 @@ let current: TailnetPeersDocument = buildSeed();
 let pending: Promise<TailnetPeersDocument> | null = null;
 const listeners = new Set<TailnetListener>();
 const registeredOrigins = new Set<string>();
+/** Peers documents of other machines' pycore (LAN machines): their `self` marker names that machine, not this page's. */
+const registeredPublishers = new Set<string>();
 
 function isPeersDocument(value: unknown): value is TailnetPeersDocument {
   const document = value as TailnetPeersDocument;
@@ -80,11 +83,19 @@ function publisherUrls(origin: string): string[] {
   return [`${origin}/${TAILNET_PEERS_FILE_NAME}`, `${origin}${PYCORE_PEERS_PATH}`];
 }
 
+/** The page host's own pycore (direct :59000): it lists the tailnet of its machine whatever serves the UI. */
+function pageHostPycoreUrl(): string[] {
+  if (typeof location === 'undefined' || !location.hostname) return [];
+  const scheme = location.protocol === 'https:' ? 'https' : 'http';
+  return [`${scheme}://${location.hostname}:${PYCORE_BACKEND_PORT}${TAILNET_PEERS_ROUTE}`];
+}
+
 function discoveryUrls(): string[] {
   if (!isNativeAppShell()) {
     // A tailnet page also reaches its machine's pycore through the same-origin mount.
     const onTailnet = typeof location !== 'undefined' && tailnetOrigin(location.origin) !== '';
-    return onTailnet ? publisherUrls('') : [`/${TAILNET_PEERS_FILE_NAME}`];
+    const own = onTailnet ? publisherUrls('') : [`/${TAILNET_PEERS_FILE_NAME}`, ...pageHostPycoreUrl()];
+    return [...new Set([...own, ...registeredPublishers])];
   }
   const origins = new Set<string>(registeredOrigins);
   getServiceUrlEntries().forEach((entry) => {
@@ -94,7 +105,7 @@ function discoveryUrls(): string[] {
   getTailnetServerPeers().forEach((peer) => {
     if (peer.online) origins.add(`https://${peer.dnsName}`);
   });
-  return [...origins].flatMap(publisherUrls);
+  return [...new Set([...[...origins].flatMap(publisherUrls), ...registeredPublishers])];
 }
 
 async function readDocument(url: string): Promise<TailnetPeersDocument | null> {
@@ -104,7 +115,10 @@ async function readDocument(url: string): Promise<TailnetPeersDocument | null> {
     const response = await protocolFetch(url, { cache: 'no-store', signal: controller.signal });
     if (!response.ok) return null;
     const document: unknown = await response.json();
-    return isPeersDocument(document) ? document : null;
+    if (!isPeersDocument(document)) return null;
+    return registeredPublishers.has(url)
+      ? { ...document, peers: document.peers.map((peer) => ({ ...peer, self: false })) }
+      : document;
   } catch {
     return null;
   } finally {
@@ -149,6 +163,16 @@ export function addTailnetDiscoveryOrigins(urls: string[]): boolean {
     if (origin) registeredOrigins.add(origin);
   });
   return registeredOrigins.size !== before;
+}
+
+/**
+ * Peers documents of other machines' pycore a page also asks (the LAN machines found by the scan).
+ * Returns true when a new publisher was added.
+ */
+export function addTailnetPublishers(urls: string[]): boolean {
+  const before = registeredPublishers.size;
+  urls.forEach((url) => { if (/^https?:\/\//i.test(url)) registeredPublishers.add(url); });
+  return registeredPublishers.size !== before;
 }
 
 /** Re-read the live list (shared in-flight request; keeps the last list when nothing answers). */
