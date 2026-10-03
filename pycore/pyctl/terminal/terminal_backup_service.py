@@ -144,14 +144,24 @@ class TerminalBackupService:
             entry["signature"] = text_digest(refreshed)
         return entry, found_prompt or bool(waiting_prompt(refreshed))
 
-    def _observe_prompt(self, window: Dict[str, Any], entry: Dict[str, Any], found_prompt: bool) -> None:
+    def _observe_prompt(
+        self,
+        window: Dict[str, Any],
+        entry: Dict[str, Any],
+        found_prompt: bool,
+        count_miss: bool = True,
+    ) -> None:
         number = entry["number"]
         window_id = str(window["id"])
         state = self._fast_prompts.get(number)
         if found_prompt:
             if state is None or state["window_id"] != window_id:
                 ColorPrint.blue(f"[{LABEL}] prompt follow-up started terminal={number} interval={PROMPT_INTERVAL_SECONDS}s")
+            elif state["misses"]:
+                ColorPrint.blue(f"[{LABEL}] prompt follow-up reset terminal={number} previous_misses={state['misses']}")
             self._fast_prompts[number] = {"window_id": window_id, "due": time.monotonic() + PROMPT_INTERVAL_SECONDS, "misses": 0}
+            return
+        if not count_miss:
             return
         if state is None or state["window_id"] != window_id:
             return
@@ -165,6 +175,7 @@ class TerminalBackupService:
             return
         state["misses"] = misses
         state["due"] = time.monotonic() + PROMPT_INTERVAL_SECONDS
+        ColorPrint.blue(f"[{LABEL}] prompt follow-up scanned terminal={number} misses={misses}/{PROMPT_MISS_LIMIT}")
 
     def _prune_prompt_states(self, windows: List[Dict[str, Any]]) -> None:
         live = {int(window["terminal_number"]): str(window["id"]) for window in windows}
@@ -276,7 +287,7 @@ class TerminalBackupService:
         with self._focus.preserved(LABEL):
             for window in windows:
                 entry, found_prompt = self._scan_window(window)
-                self._observe_prompt(window, entry, found_prompt)
+                self._observe_prompt(window, entry, found_prompt, count_miss=False)
                 exported.append(entry)
         for entry in exported:
             signature = entry.pop("signature")
