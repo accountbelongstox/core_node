@@ -218,7 +218,8 @@
       "Bash(file *)",
       "PowerShell(Get-PnpDevice *)",
       "Bash(ping -n 2 192.168.1.185)",
-      "Bash(ipconfig)"
+      "Bash(ipconfig)",
+      "Bash(PYCORE_SKIP_DEP_CHECK=1 python -c ' *)"
     ],
     "deny": [],
     "ask": []
