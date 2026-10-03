@@ -141,12 +141,12 @@ class XdgDesktopPortal:
         return {"success": True, "error_code": None}
 
     @serialized_method
-    def capture_regions(self, regions: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
-        """One non-interactive screenshot cropped per region; returns {region_id: PIL image}."""
+    def capture_screen(self) -> Optional[Any]:
+        """One non-interactive screenshot of the whole desktop as a PIL RGB image, or None."""
         Image = get_third_package_PIL_Image()
         connection = self._ensure_connection()
-        if connection is None or not regions:
-            return {}
+        if connection is None:
+            return None
         response, results = self._request(
             connection,
             PORTAL_SCREENSHOT_INTERFACE,
@@ -158,12 +158,19 @@ class XdgDesktopPortal:
         )
         if response != PORTAL_RESPONSE_SUCCESS:
             portal_activity_log.warning("screenshot.failed", response=response)
-            return {}
+            return None
         path = Path(unquote(urlparse(str(results.get("uri", ("s", ""))[1])).path))
-        images: Dict[str, Any] = {}
         with Image.open(path) as screenshot:
             frame = screenshot.convert("RGB")
         path.unlink(missing_ok=True)
+        return frame
+
+    def capture_regions(self, regions: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+        """One non-interactive screenshot cropped per region; returns {region_id: PIL image}."""
+        frame = self.capture_screen() if regions else None
+        if frame is None:
+            return {}
+        images: Dict[str, Any] = {}
         for region in regions:
             left = int(region.get("left") or 0)
             top = int(region.get("top") or 0)

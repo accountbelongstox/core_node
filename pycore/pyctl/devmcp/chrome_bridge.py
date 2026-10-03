@@ -14,6 +14,7 @@ from pycore.pyctl.devmcp.dev_mcp_constants import (
     CHROME_SCREENSHOT_WIDTH,
     CHROME_TOOL_JAVASCRIPT,
     CHROME_TOOL_SCREENSHOT,
+    CHROME_TOOL_SWITCH_TAB,
     CHROME_TOOL_TABS,
     JPEG_BASE64_PREFIX,
     MIME_JPEG,
@@ -108,6 +109,10 @@ class ChromeBridge:
         if not data:
             raise RuntimeError("chrome_screenshot_empty")
         return {"data": data, "mime": MIME_JPEG if data.startswith(JPEG_BASE64_PREFIX) else MIME_PNG}
+
+    async def focus_tab(self, tab_id: int, window_id: int) -> None:
+        """Activate the tab and focus its browser window through the extension."""
+        await self.call_text(CHROME_TOOL_SWITCH_TAB, {"tabId": tab_id, "windowId": window_id})
 
     async def page_text(self, tab_id: int) -> Dict[str, Any]:
         return await self.evaluate(tab_id, PAGE_TEXT_SCRIPT)

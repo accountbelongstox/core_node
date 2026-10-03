@@ -850,6 +850,11 @@ systemd_desktop_session_env() {
         elif [ -e /tmp/.X11-unix/X0 ]; then
             session_env="$session_env DISPLAY=:0"
         fi
+        if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
+            session_env="$session_env XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP}"
+        elif [ -d "${runtime_dir}/gnome-shell" ]; then
+            session_env="$session_env XDG_CURRENT_DESKTOP=GNOME"
+        fi
     fi
     printf '%s' "$session_env"
 }
