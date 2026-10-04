@@ -83,6 +83,9 @@ import type { TerminalViewMode } from '@/apps/pycore-manager/components/terminal
 import { PcTerminalNavActionsProvider } from '@/apps/pycore-manager/components/terminal/PcTerminalNavContext';
 import { PcTerminalNavControls } from '@/apps/pycore-manager/components/terminal/PcTerminalNavControls';
 import { terminalNavHistoryFor, useTerminalNavSnapshot } from '@/apps/pycore-manager/components/terminal/terminalNavigation';
+import { baseGridColumns, layoutTerminalRows } from '@/apps/pycore-manager/components/terminal/terminalGridLayout';
+import { pickIdleAgentTerminal, useTerminalDispatchSetting } from '@/apps/pycore-manager/components/terminal/terminalAgentDispatch';
+import { PcTerminalDispatchToggle } from '@/apps/pycore-manager/components/PcTerminalDispatchToggle';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
@@ -131,6 +134,8 @@ const SESSION_RESTORE_GRACE_MS = 15_000;
 const INPUT_SLOT_PANEL = 'panel';
 const INPUT_SLOT_OVERLAY = 'overlay';
 const CANVAS_PADDING_PX = 16;
+const TILE_GRID_GAP_PX = 8;
+const TILE_ASPECT_RATIO = 4 / 3;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Gap kept between the sticky jump bar and a card scrolled to by number. */
 const MOBILE_JUMP_GAP_PX = 8;
@@ -578,6 +583,11 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
   );
   useEffect(() => () => setTerminalScheduleScope(''), []);
   const isMobile = useIsMobile();
+  const dispatchSetting = useTerminalDispatchSetting();
+  const dispatchActive = !isMobile && dispatchSetting.enabled;
+  const terminalWatchRef = useRef(terminalWatch);
+  terminalWatchRef.current = terminalWatch;
+  const dispatchedAtRef = useRef<Map<number, number>>(new Map());
   const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
   const [selectedTerminalNumber, setSelectedTerminalNumber] = useState<number | null>(null);
   const [jumpTitleVisible, setJumpTitleVisible] = useState(false);
@@ -593,6 +603,11 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
   const [draftStatuses, setDraftStatuses] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
   const [loading, setLoading] = useState(true);
   const [actionWindowId, setActionWindowId] = useState('');
+  // Leaving a terminal always works: a send that never answers stops locking the main view.
+  const closePreview = useCallback(() => {
+    setPreviewTerminalNumber(null);
+    setActionWindowId('');
+  }, []);
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
   const [removingTerminals, setRemovingTerminals] = useState(false);
   const mobileListRef = useRef<HTMLDivElement | null>(null);
@@ -935,11 +950,11 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
   useEffect(() => {
     if (previewTerminalNumber === null || logDialogOpen) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPreviewTerminalNumber(null);
+      if (event.key === 'Escape') closePreview();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [logDialogOpen, previewTerminalNumber]);
+  }, [closePreview, logDialogOpen, previewTerminalNumber]);
 
   useEffect(() => {
     const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -1076,13 +1091,11 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     ])) as Record<number, string>,
     [snapshot?.windows],
   );
-  const desktopBounds = useMemo(
-    () => calculateDesktopBounds(onlineWindows),
-    [onlineWindows],
-  );
-  const canvasLayout = useMemo(
-    () => calculateCanvasLayout(desktopBounds, canvasSize),
-    [canvasSize, desktopBounds],
+  const gridInnerWidth = Math.max(1, canvasSize.width - CANVAS_PADDING_PX * 2);
+  const gridBaseColumns = baseGridColumns(gridInnerWidth);
+  const tileRows = useMemo(
+    () => layoutTerminalRows(onlineWindows, gridBaseColumns),
+    [gridBaseColumns, onlineWindows],
   );
 
   useEffect(() => {
@@ -1146,6 +1159,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     windowId: string,
     action: () => Promise<TerminalActionResult>,
     successTranslationKey: string,
+    successTranslationValues?: Record<string, string | number>,
   ) => {
     setActionWindowId(windowId);
     setActionNotice(null);
@@ -1155,7 +1169,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
       const result = await action();
       if (result.screenshot_resource) frames.receive(result.screenshot_resource);
       if (result.success) {
-        setActionNotice({ kind: 'success', translationKey: successTranslationKey });
+        setActionNotice({ kind: 'success', translationKey: successTranslationKey, translationValues: successTranslationValues });
       } else {
         setActionNotice({
           kind: 'error',
@@ -1167,7 +1181,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
       setActionNotice({ kind: 'error', translationKey: 'terminal.errors.request' });
       return null;
     } finally {
-      setActionWindowId('');
+      setActionWindowId((current) => (current === windowId ? '' : current));
       void refresh(false);
     }
   }, [errorTranslationKey, refresh, frames.receive, touchOperation]);
@@ -1495,13 +1509,18 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
   useEffect(() => {
     if (!previewOpen) return undefined;
     window.history.pushState({ [PREVIEW_HISTORY_KEY]: true }, '');
-    const onPopState = () => setPreviewTerminalNumber(null);
+    const onPopState = () => closePreview();
     window.addEventListener('popstate', onPopState);
     return () => {
       window.removeEventListener('popstate', onPopState);
       if ((window.history.state as Record<string, unknown> | null)?.[PREVIEW_HISTORY_KEY]) window.history.back();
     };
-  }, [previewOpen]);
+  }, [closePreview, previewOpen]);
+
+  // A terminal that failed and left the snapshot no longer holds the preview open.
+  useEffect(() => {
+    if (previewOpen && snapshot && !previewWindow && !pendingSessionRef.current) closePreview();
+  }, [closePreview, previewOpen, previewWindow, snapshot]);
 
   const hasLocalDraft = (terminalNumber: number) => Boolean(drafts[terminalDraftKey(terminalNumber)]?.trim());
   const agentToastName = useCallback(
@@ -1632,6 +1651,27 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     if (!selectedWindow || !selectedWindow.online) return;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
+    // With dispatch on, the message goes to an idle agent terminal of the chosen kind; the draft stays with this terminal.
+    let target = selectedWindow;
+    if (dispatchActive) {
+      const idleTarget = pickIdleAgentTerminal({
+        windows: snapshotRef.current?.windows ?? NO_WINDOWS,
+        excludeTerminalNumber: terminalNumber,
+        agent: dispatchSetting.agent,
+        watch: terminalWatchRef.current,
+        recentDispatches: dispatchedAtRef.current,
+        now: Date.now(),
+      });
+      if (!idleTarget) {
+        setActionNotice({
+          kind: 'error',
+          translationKey: 'terminal.dispatch.noIdle',
+          translationValues: { agent: t(`terminal.dispatch.agents.${dispatchSetting.agent}`) },
+        });
+        return;
+      }
+      target = idleTarget;
+    }
     // Attachments belong to the draft message only, never to an explicit text resend.
     const attachments = textOverride === undefined ? await images.uploadAll() : [];
     if (attachments === null) {
@@ -1657,13 +1697,13 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
       delete draftTimersRef.current[key];
     }
     const result = await runAction(
-      selectedWindow.id,
+      target.id,
       async () => {
         // The agent types the recording itself where pycore can dictate into it; otherwise the file path is sent.
         if (recordings.length > 0) {
           const dictated = await terminalApi.dictateTerminalVoice(
-            selectedWindow.id,
-            terminalNumber,
+            target.id,
+            target.terminal_number,
             recordings,
             dictationText,
             clearFirst,
@@ -1672,16 +1712,19 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
           if (dictated && (dictated.success || !VOICE_DICTATION_FALLBACK_ERRORS.has(dictated.error_code ?? ''))) return dictated;
         }
         return terminalApi.inputTerminalText(
-          selectedWindow.id,
-          terminalNumber,
+          target.id,
+          target.terminal_number,
           payload,
           clearFirst,
           interruptFirst,
         );
       },
-      interruptFirst
-        ? 'terminal.commands.forceSent'
-        : clearFirst ? (payload === '' ? 'terminal.clearedOnly' : 'terminal.clearedAndSent') : 'terminal.sent',
+      target !== selectedWindow
+        ? 'terminal.dispatch.sent'
+        : interruptFirst
+          ? 'terminal.commands.forceSent'
+          : clearFirst ? (payload === '' ? 'terminal.clearedOnly' : 'terminal.clearedAndSent') : 'terminal.sent',
+      target !== selectedWindow ? { number: target.terminal_number } : undefined,
     );
     if (result?.log?.id) {
       dirtyDraftsRef.current.delete(terminalNumber);
@@ -1691,14 +1734,15 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
       void persistDraft(terminalNumber, draftText);
     }
     if (result?.success) {
-      frames.thaw(terminalNumber);
+      if (target !== selectedWindow) dispatchedAtRef.current.set(target.terminal_number, Date.now());
+      frames.thaw(target.terminal_number);
       if (textOverride === undefined) images.clear();
       writeCachedDraft(terminalNumber, null);
       draftsRef.current = { ...draftsRef.current, [key]: '' };
       setDrafts(draftsRef.current);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     }
-  }, [images, persistDraft, runAction, selectedDraft, selectedWindow, t]);
+  }, [dispatchActive, dispatchSetting.agent, images, persistDraft, runAction, selectedDraft, selectedWindow, t]);
 
   // Saves the UI name (empty restores the window title) and asks pycore to retitle the OS window.
   const renameSelected = useCallback(async () => {
@@ -1988,6 +2032,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
         rows={overlay ? 6 : 8}
         draftStatus={selectedDraftStatus}
         images={images}
+        leading={isMobile ? undefined : <PcTerminalDispatchToggle setting={dispatchSetting} disabled={!selectedWindow} />}
         actions={(
           <>
             {([
@@ -2014,7 +2059,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
             type="button"
             onClick={sendDraft}
             disabled={!selectedActionable}
-            title={`${t('terminal.send')} (${t('terminal.sendShortcut')})`}
+            title={`${t('terminal.send')} (${t(isMobile ? 'terminal.sendShortcut' : 'terminal.sendShortcutDesktop')})`}
             aria-label={t('terminal.send')}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
           >
@@ -2100,6 +2145,15 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
           />
         )}
       </div>
+      <PcTerminalSubmissionHistory
+        windowInfo={selectedWindow}
+        overlay={overlay}
+        formatDate={formatLogDate}
+        errorTranslationKey={errorTranslationKey}
+        onOpenLogs={() => setLogDialogOpen(true)}
+        onReuse={reuseLogContent}
+        onResend={resendLogContent}
+      />
       {selectedWindow && (
         <div className="rounded-xl border border-slate-500/15 bg-white/40 dark:bg-slate-950/20">
           <button
@@ -2292,16 +2346,6 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
         <p className="mt-1 leading-relaxed">{t('terminal.inputSequence')}</p>
         <p className="mt-1 leading-relaxed text-amber-600 dark:text-amber-400">{t('terminal.rightClickHint')}</p>
       </details>
-
-      <PcTerminalSubmissionHistory
-        windowInfo={selectedWindow}
-        overlay={overlay}
-        formatDate={formatLogDate}
-        errorTranslationKey={errorTranslationKey}
-        onOpenLogs={() => setLogDialogOpen(true)}
-        onReuse={reuseLogContent}
-        onResend={resendLogContent}
-      />
     </div>
   );
 
@@ -2570,7 +2614,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
             </div>
           ) : (
           <div className="flex h-[52vh] min-h-[22rem] max-h-[38rem] flex-col overflow-hidden bg-slate-950/[0.03] dark:bg-slate-950/40">
-            <div ref={canvasRef} className="relative min-h-0 flex-1 overflow-hidden">
+            <div ref={canvasRef} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
             <div
               className="pointer-events-none absolute inset-0 opacity-40 dark:opacity-20"
               style={{
@@ -2584,11 +2628,19 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
                   ? t('common.loading')
                   : t(snapshot?.windows.length ? 'terminal.offline' : 'terminal.empty')}
               </div>
-            ) : canvasLayout && desktopBounds && onlineWindows.map((windowInfo) => {
+            ) : (
+            <div className="relative flex flex-col" style={{ gap: TILE_GRID_GAP_PX, padding: CANVAS_PADDING_PX }}>
+            {tileRows.map((row, rowIndex) => (
+            <div
+              key={rowIndex}
+              className="grid"
+              style={{ gap: TILE_GRID_GAP_PX, gridTemplateColumns: `repeat(${row.columns}, minmax(0, 1fr))` }}
+            >
+            {row.items.map((windowInfo) => {
               const selected = windowInfo.terminal_number === selectedTerminalNumber;
               const busy = actionWindowId === windowInfo.id;
-              const mappedWidth = windowInfo.rect.width * canvasLayout.scale;
-              const mappedHeight = windowInfo.rect.height * canvasLayout.scale;
+              const mappedWidth = (gridInnerWidth - TILE_GRID_GAP_PX * (row.columns - 1)) / row.columns;
+              const mappedHeight = mappedWidth / TILE_ASPECT_RATIO;
               const compact = mappedWidth < 180;
               const tiny = mappedWidth < 110;
               const titleBarHeight = Math.min(30, Math.max(18, mappedHeight * 0.22));
@@ -2597,21 +2649,13 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
                 <article
                   key={windowInfo.terminal_number}
                   ref={frames.refFor(windowInfo.id)}
-                  className={`absolute overflow-hidden rounded-lg border shadow-sm transition-all ${
+                  className={`relative aspect-[4/3] min-w-0 overflow-hidden rounded-lg border shadow-sm transition-all ${
                     selected
                       ? 'z-30 border-indigo-500 bg-indigo-500/20 ring-2 ring-indigo-500/20'
                       : windowInfo.active
                         ? 'z-20 border-emerald-500/70 bg-emerald-500/15'
                         : 'z-10 border-slate-500/40 bg-white/80 hover:border-indigo-400 dark:bg-slate-900/80'
                   } ${windowInfo.online ? '' : 'border-dashed'}`}
-                  style={{
-                    left: canvasLayout.left
-                      + (windowInfo.rect.x - desktopBounds.minX) * canvasLayout.scale,
-                    top: canvasLayout.top
-                      + (windowInfo.rect.y - desktopBounds.minY) * canvasLayout.scale,
-                    width: mappedWidth,
-                    height: mappedHeight,
-                  }}
                 >
                   <div className="flex h-full min-h-0 flex-col">
                     <div
@@ -2694,6 +2738,10 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
                 </article>
               );
             })}
+            </div>
+            ))}
+            </div>
+            )}
             </div>
             {offlineWindows.length > 0 && (
               <div className="relative z-40 shrink-0 border-t border-slate-500/15 bg-slate-100/80 p-3 dark:bg-slate-950/70">
@@ -2829,7 +2877,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
           aria-label={t('terminal.previewDialog', {
             number: previewWindow.terminal_number,
           })}
-          onClick={() => setPreviewTerminalNumber(null)}
+          onClick={closePreview}
         >
           <div
             className="flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-none border-white/15 bg-slate-950 shadow-2xl md:h-[94vh] md:rounded-2xl md:border"
@@ -2905,7 +2953,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPreviewTerminalNumber(null)}
+                  onClick={closePreview}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white"
                   aria-label={t('common.close')}
                 >
@@ -2917,7 +2965,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
               <div className="relative min-h-0 flex-1 overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => setPreviewTerminalNumber(null)}
+                  onClick={closePreview}
                   title={t('terminal.previewBack')}
                   aria-label={t('terminal.previewBack')}
                   className="absolute left-2 top-2 z-10 inline-flex h-9 items-center gap-1 rounded-full border border-white/20 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100 shadow-lg backdrop-blur hover:bg-slate-800"

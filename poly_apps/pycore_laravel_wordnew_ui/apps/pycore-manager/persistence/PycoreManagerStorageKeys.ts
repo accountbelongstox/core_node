@@ -32,6 +32,8 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_TERMINAL_SCHEDULE_EDITOR: 'pc.terminal.scheduleEditor.v1',
   PYCORE_TERMINAL_DRAFT_CACHE: 'pc.terminal.draftCache.v1',
   PYCORE_TERMINAL_CAPTURE_OPEN_EDITOR: 'pc.terminal.captureOpenEditor.v1',
+  PYCORE_TERMINAL_DISPATCH_ENABLED: 'pc.terminal.dispatchIdle.enabled.v1',
+  PYCORE_TERMINAL_DISPATCH_AGENT: 'pc.terminal.dispatchIdle.agent.v1',
   PYCORE_MACHINE_SEND_SHORTCUT: 'pc.machineSend.shortcut',
   PYCORE_MACHINE_SEND_DOCK_OPEN: 'pc.machineSend.dockOpen',
   PYCORE_MACHINE_SEND_DOCK_TAB: 'pc.machineSend.dockTab',

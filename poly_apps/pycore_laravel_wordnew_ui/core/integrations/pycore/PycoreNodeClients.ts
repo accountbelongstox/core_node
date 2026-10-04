@@ -7,17 +7,20 @@ import { PycoreMasterClient } from './PycoreClient';
 import { createPycoreHttp, primaryPycoreHttp, type PycoreHttpApi } from './PycoreHttp';
 import { createPycoreApiTerminal, pycoreApiTerminal, type PycoreTerminalApi } from './PycoreApiTerminal';
 import { createPycoreApiMachineSend, pycoreApiMachineSend, type PycoreMachineSendApi } from './PycoreApiMachineSend';
+import { createPycoreApiGitSync, pycoreApiGitSync, type PycoreGitSyncApi } from './PycoreApiGitSync';
 
 export interface PycoreNodeClient {
   http: PycoreHttpApi;
   terminal: PycoreTerminalApi;
   machineSend: PycoreMachineSendApi;
+  gitSync: PycoreGitSyncApi;
 }
 
 const PRIMARY_NODE: PycoreNodeClient = {
   http: primaryPycoreHttp,
   terminal: pycoreApiTerminal,
   machineSend: pycoreApiMachineSend,
+  gitSync: pycoreApiGitSync,
 };
 const nodeClients = new Map<string, PycoreNodeClient>();
 
@@ -27,7 +30,7 @@ export function pycoreNodeClient(backendUrl: string | null): PycoreNodeClient {
   let client = nodeClients.get(key);
   if (!client) {
     const http = createPycoreHttp(new PycoreMasterClient(key));
-    client = { http, terminal: createPycoreApiTerminal(http), machineSend: createPycoreApiMachineSend(http) };
+    client = { http, terminal: createPycoreApiTerminal(http), machineSend: createPycoreApiMachineSend(http), gitSync: createPycoreApiGitSync(http) };
     nodeClients.set(key, client);
   }
   return client;

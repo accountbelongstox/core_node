@@ -1,4 +1,5 @@
-import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
+import { PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
+import { primaryPycoreHttp, type PycoreHttpApi } from './PycoreHttp';
 
 /** Automatic gitsync of the pycore machine and its unresolved-merge-conflict alert. */
 export interface GitSyncState {
@@ -47,16 +48,24 @@ export interface GitSyncControl {
   run_now?: boolean;
 }
 
-export const pycoreApiGitSync = {
-  getGitSyncState: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncState, {}) as Promise<GitSyncState>,
-  getGitSyncHistory: (offset: number, limit: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncHistory, {
-    offset,
-    limit,
-  }) as Promise<GitSyncHistoryPage>,
-  controlGitSync: (control: GitSyncControl) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncControl, {
-    paused: control.paused === undefined ? undefined : (control.paused ? '1' : '0'),
-    interval_minutes: control.interval_minutes,
-    reminder_seconds: control.reminder_seconds,
-    run_now: control.run_now ? '1' : undefined,
-  }) as Promise<GitSyncState>,
-};
+/** Gitsync of one pycore node; the node tabs pick which machine the top-bar status shows. */
+export function createPycoreApiGitSync(http: PycoreHttpApi) {
+  const { requestPycoreHttp } = http;
+  return {
+    getGitSyncState: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncState, {}) as Promise<GitSyncState>,
+    getGitSyncHistory: (offset: number, limit: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncHistory, {
+      offset,
+      limit,
+    }) as Promise<GitSyncHistoryPage>,
+    controlGitSync: (control: GitSyncControl) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncControl, {
+      paused: control.paused === undefined ? undefined : (control.paused ? '1' : '0'),
+      interval_minutes: control.interval_minutes,
+      reminder_seconds: control.reminder_seconds,
+      run_now: control.run_now ? '1' : undefined,
+    }) as Promise<GitSyncState>,
+  };
+}
+
+export type PycoreGitSyncApi = ReturnType<typeof createPycoreApiGitSync>;
+
+export const pycoreApiGitSync = createPycoreApiGitSync(primaryPycoreHttp);

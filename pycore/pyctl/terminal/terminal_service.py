@@ -646,10 +646,11 @@ class TerminalService:
         if pending_log is None:
             return self._failure("terminal_state_not_found")
         log_id = str(pending_log.get("id") or "")
-        clipboard_backup = clipboard_manager.get_text()
+        clipboard_backup = clipboard_manager.snapshot()
         if not clipboard_manager.set_text(
             content,
             self._backend.paste_uses_primary_selection(),
+            transient=True,
         ):
             return self._complete_input(
                 terminal_number,
@@ -668,13 +669,7 @@ class TerminalService:
             )
             time.sleep(CLIPBOARD_RESTORE_DELAY_SECONDS)
         finally:
-            # A non-text (or unreadable) clipboard is left alone instead of
-            # being overwritten with an empty string.
-            clipboard_restored = (
-                clipboard_manager.set_text(clipboard_backup)
-                if clipboard_backup is not None
-                else True
-            )
+            clipboard_restored = clipboard_manager.restore_snapshot(clipboard_backup)
 
         success = bool(action.get("success")) and clipboard_restored
         error_code = action.get("error_code")
@@ -741,16 +736,16 @@ class TerminalService:
         pending_log = self._state_repository.begin_submission(terminal_number, content, "voice")
         log_id = str((pending_log or {}).get("id") or "")
         appended = f" {text}" if text else ""
-        clipboard_backup = clipboard_manager.get_text() if appended else None
-        if appended and not clipboard_manager.set_text(appended, self._backend.paste_uses_primary_selection()):
+        clipboard_backup = clipboard_manager.snapshot() if appended else None
+        if appended and not clipboard_manager.set_text(appended, self._backend.paste_uses_primary_selection(), transient=True):
             return self._complete_input(terminal_number, log_id, self._failure("clipboard_write_failed"))
         try:
             action = self._backend.append_and_submit(window_id, len(appended))
             if appended:
                 time.sleep(CLIPBOARD_RESTORE_DELAY_SECONDS)
         finally:
-            if clipboard_backup is not None:
-                clipboard_manager.set_text(clipboard_backup)
+            if appended:
+                clipboard_manager.restore_snapshot(clipboard_backup)
         terminal_activity_log.info(
             "voice.dictated",
             terminal_number=terminal_number,
@@ -777,15 +772,14 @@ class TerminalService:
         if text:
             pending_log = self._state_repository.begin_submission(terminal_number, text, "voice")
             log_id = str((pending_log or {}).get("id") or "")
-            clipboard_backup = clipboard_manager.get_text()
-            if not clipboard_manager.set_text(text, self._backend.paste_uses_primary_selection()):
+            clipboard_backup = clipboard_manager.snapshot()
+            if not clipboard_manager.set_text(text, self._backend.paste_uses_primary_selection(), transient=True):
                 return self._complete_input(terminal_number, log_id, self._failure("clipboard_write_failed"))
             try:
                 action = self._backend.append_and_submit(window_id, len(text))
                 time.sleep(CLIPBOARD_RESTORE_DELAY_SECONDS)
             finally:
-                if clipboard_backup is not None:
-                    clipboard_manager.set_text(clipboard_backup)
+                clipboard_manager.restore_snapshot(clipboard_backup)
             action = self._complete_input(terminal_number, log_id, action)
         terminal_activity_log.info(
             "voice.realtime",
@@ -810,10 +804,10 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
-        clipboard_backup = clipboard_manager.get_text()
+        clipboard_backup = clipboard_manager.snapshot()
         sentinel = f"{CAPTURE_SENTINEL_PREFIX}{secrets.token_hex(8)}"
         use_primary = self._backend.paste_uses_primary_selection()
-        if not clipboard_manager.set_text(sentinel, use_primary):
+        if not clipboard_manager.set_text(sentinel, use_primary, transient=True):
             return self._failure("clipboard_write_failed")
         captured: Optional[str] = None
         action: Dict[str, Any] = self._failure("terminal_copy_failed")
@@ -827,11 +821,7 @@ class TerminalService:
             if action.get("success"):
                 captured = self._await_capture(sentinel, use_primary)
         finally:
-            clipboard_restored = (
-                clipboard_manager.set_text(clipboard_backup)
-                if clipboard_backup is not None
-                else True
-            )
+            clipboard_restored = clipboard_manager.restore_snapshot(clipboard_backup)
         if not action.get("success"):
             return {**action, "clipboard_restored": clipboard_restored}
         text = (
