@@ -48,7 +48,7 @@ function Install-PnpmAndYarn {
 
     if (Test-Path $pnpmPath) {
         Write-Host "$LogPrefix Running pnpm setup..." -ForegroundColor Yellow
-        Write-Host "Y" | & $pnpmPath setup
+        & $pnpmPath setup
         Write-Host "$LogPrefix pnpm setup completed" -ForegroundColor Green
 
         # Always ensure pnpm global bin directory is in PATH (repair step)

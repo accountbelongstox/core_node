@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 SCRIPT_INDEX="125"
 # ---------------------------------------------------------------------------
-# install_ocr.sh - Prerequisite installer for the local OCR engines (Linux/Mac).
+# 125_install_ocr.sh - Prerequisite installer for the local OCR engines (Linux/Mac).
 #
 # Discovered & run by prepare_pycore_prerequisites.sh before pycore_module_caller.py launches. Sets up
 # the LOCAL OCR engines for the voice-subtitle screenshot pipeline.
@@ -20,8 +20,8 @@ SCRIPT_INDEX="125"
 # into EASYOCR_MODULE_PATH/model, CNSTD_HOME and CNOCR_HOME (shared cache).
 #
 # Usage:
-#   ./install_ocr.sh --python /usr/bin/python3
-#   ./install_ocr.sh --python python3 --force
+#   ./125_install_ocr.sh --python /usr/bin/python3
+#   ./125_install_ocr.sh --python python3 --force
 # ---------------------------------------------------------------------------
 set -uo pipefail
 

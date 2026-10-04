@@ -153,7 +153,7 @@ class ScrcpyDevice(AndroidDevice):
         env = os.environ.copy()
         env['ANDROID_SERIAL'] = self.serial
         # CRITICAL: Disable Git Bash path conversion for CLASSPATH
-        # Without this, /data/local/tmp becomes D:/applications/Git/data/local/tmp
+        # Without this, /data/local/tmp becomes <APP_INSTALL_DIR>/Git/data/local/tmp
         # This affects CLASSPATH variable even inside adb shell commands
         env['MSYS_NO_PATHCONV'] = '1'
 

@@ -13,6 +13,10 @@ $ErrorActionPreference = "Stop"
 $InitialDir = Get-Location
 $WorkDir = ""
 $TargetDirArg = $TargetDirectory
+$GlobalVarsPath = Join-Path (Split-Path -Parent $PSScriptRoot) "shells\win\win_common\GlobalVars.ps1"
+
+. $GlobalVarsPath
+Set-StrictMode -Off
 
 # Determine Windows version for Chocolatey directory
 function Get-WindowsVersionInfo {
@@ -140,7 +144,7 @@ $WinCaption = $WinInfo.Caption
 $WinBuildNumber = $WinInfo.BuildNumber
 
 # Set Chocolatey install directory
-$ChocolateyInstallDir = "D:\.dev_win$WinVersionShort\node_via_choco"
+$ChocolateyInstallDir = Join-Path $Global:LANG_COMPILER_DIR "node_via_choco"
 
 # Color codes for output
 function Write-ColorOutput {

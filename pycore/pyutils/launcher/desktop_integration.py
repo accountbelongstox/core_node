@@ -14,6 +14,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import PROJECT_ROOT, TMP_DIR
 from pycore.pyfoundations.runtime_abi import PYTHON_VERSION
 from pycore.pyfoundations.shortcut_manager import ShortcutManager
+from pycore.pyfoundations.system_paths import get_lang_compiler_dir
 from pycore.pyutils.launcher.launcher_text import launcher_text
 
 LAUNCHER_DIR = Path(__file__).resolve().parent
@@ -28,6 +29,8 @@ PYTHON_DIR_PREFIX = "python"
 PYTHON_EXE_NAME = "python.exe"
 ICON_ICO_NAME = "icon.ico"
 ICON_PNG_NAME = "icon.png"
+# The Windows shortcut lives on the user desktop; the organizer pins it there
+# (DesktopIconManager.ps1 DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP).
 
 # Linux freedesktop entry. The canonical helper (installed by
 # 193_install_window_launcher_shortcut.sh) spawns a known emulator itself; the
@@ -49,8 +52,8 @@ class DesktopI18nKeys:
 
 def launcher_python_exe() -> Path:
     """Interpreter the Windows shortcut targets: GlobalVars.ps1 PYTHON_EXE_PATH
-    (D:\\.dev_<winver>\\python<ver>\\python.exe) when installed, else the running one."""
-    lang_compiler_dir = ShortcutManager.get_dev_env_path().parent
+    (<LANG_COMPILER_DIR>\\python<ver>\\python.exe) when installed, else the running one."""
+    lang_compiler_dir = get_lang_compiler_dir()
     canonical_python = lang_compiler_dir / f"{PYTHON_DIR_PREFIX}{PYTHON_VERSION.replace('.', '')}" / PYTHON_EXE_NAME
     if canonical_python.is_file():
         return canonical_python
@@ -99,9 +102,11 @@ def _ensure_windows_shortcut() -> None:
     else:
         icon_path = str(python_exe)
 
-    # DesktopIconGenerator rewrites the .lnk only when a property differs.
+    # DesktopIconGenerator rewrites the .lnk only when a property differs;
+    # its default desktop_path is the user desktop.
     try:
-        DesktopIconGenerator().create_shortcut(
+        generator = DesktopIconGenerator()
+        generator.create_shortcut(
             target_path=python_exe,
             name=LAUNCHER_SHORTCUT_NAME,
             icon_path=icon_path,

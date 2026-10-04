@@ -86,7 +86,7 @@ try {
 }
 
 $Global:CORE_NODE_DIR = $Global:BASE_DIR
-$Global:CORE_NODE_SCRIPTS_DIR = Join-Path $BASE_DIR "scripts"
+$Global:CORE_NODE_SCRIPTS_DIR = Join-Path $Global:BASE_DIR "scripts"
 
 # Backup configuration
 $Global:BACKUP_PARENT_DIR = Split-Path $Global:BASE_DIR -Parent
@@ -95,17 +95,22 @@ $Global:BACKUP_NAME_PREFIX = "core_node"
 # Check if current script is running from BASE_DIR or its subdirectories
 $Global:IS_RUNNING_FROM_BASE_DIR = $PSScriptRoot -like "$Global:BASE_DIR*"
 $Global:IS_RUNNING_FROM_BASE_DIR_SUBDIR = $PSScriptRoot -like (Join-Path $Global:BASE_DIR "*")
-$Global:APPS_DIR = Join-Path $BASE_DIR "apps"
+$Global:APPS_DIR = Join-Path $Global:BASE_DIR "apps"
 $Global:TEMP_DIR = "D:\.tmp"
-$Global:DOWNLOADS_DIR = Join-Path $TEMP_DIR "Downloads"
-$Global:LOGS_DIR = Join-Path $TEMP_DIR ".logs"
-# Redirect this session's temp variables onto the project temp drive so every
-# child process (pip, installers, downloaders) never builds on C:.
-if (-not (Test-Path -LiteralPath $Global:TEMP_DIR)) {
-    New-Item -ItemType Directory -Force -Path $Global:TEMP_DIR | Out-Null
+$Global:DOWNLOADS_DIR = Resolve-CnMappedProgramDir -LegacyPath $Global:CN_LEGACY_DOWNLOADS_ROOT -TargetPath $Global:CN_DOWNLOADS_ROOT
+# Scratch for unpacking / extracting / building program files (E:; D:\.tmp without E:).
+$Global:WORK_DIR = $Global:CN_WORK_ROOT
+$Global:LOGS_DIR = Join-Path $Global:TEMP_DIR ".logs"
+# Redirect this session's temp variables onto the program work dir so every
+# child process (pip, installers, downloaders) unpacks and builds neither on C:
+# nor on the D: shared data (TEMP_DIR stays the explicit shared temp dir).
+foreach ($tempRoot in @($Global:TEMP_DIR, $Global:WORK_DIR)) {
+    if (-not (Test-Path -LiteralPath $tempRoot)) {
+        New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+    }
 }
-$env:TEMP = $Global:TEMP_DIR
-$env:TMP = $Global:TEMP_DIR
+$env:TEMP = $Global:WORK_DIR
+$env:TMP = $Global:WORK_DIR
 $env:PIP_NO_WARN_SCRIPT_LOCATION = '1'
 # Large accelerator wheels (torch, nvidia_cudnn_cuXX, paddle ~2GB) outlast pip's
 # 15s read timeout on slow or shared links; resume-retries restarts an
@@ -114,11 +119,12 @@ $env:PIP_NO_WARN_SCRIPT_LOCATION = '1'
 if (-not $env:PIP_DEFAULT_TIMEOUT) { $env:PIP_DEFAULT_TIMEOUT = '120' }
 if (-not $env:PIP_RETRIES) { $env:PIP_RETRIES = '10' }
 if (-not $env:PIP_RESUME_RETRIES) { $env:PIP_RESUME_RETRIES = '10' }
-$Global:LOG_FILE = Join-Path $LOGS_DIR "devops_setup.log"
+$Global:LOG_FILE = Join-Path $Global:LOGS_DIR "devops_setup.log"
 $Global:STEP_COUNT = 1
 
 # Debug Configuration
-$Global:DEBUG_MODE = $true  # Set to $false to disable debug output
+# [DEBUG] lines on screen only when CN_DEBUG=1; Write-DebugLog always keeps them in LOGS_DIR\install_debug.log
+$Global:DEBUG_MODE = ($env:CN_DEBUG -eq '1')
 $Global:DEBUG_PREFIX = "[DEBUG]"
 
 # Execution Mode Configuration
@@ -127,9 +133,9 @@ $Global:EXECUTION_MODE = "PROJECT"  # Default to PROJECT mode, will be set by In
 # Desktop Cleanup Configuration
 $Global:AGGRESSIVE_CLEANUP_ENABLED = $false  # Set to $true to enable aggressive desktop cleanup
 
-$Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
+$Global:LANG_COMPILER_DIR = Resolve-CnMappedProgramDir -LegacyPath $Global:CN_LEGACY_TOOL_ROOT -TargetPath $Global:CN_TOOL_ROOT
 $Global:WINENVS_DIR = ".winenvs"  # Windows environment scripts directory name
-$Global:APP_INSTALL_DIR = "D:\applications"
+$Global:APP_INSTALL_DIR = Resolve-CnMappedProgramDir -LegacyPath $Global:CN_LEGACY_APP_ROOT -TargetPath $Global:CN_APP_ROOT
 $Global:CURSOR_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "cursor"
 $Global:WEIXIN_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "Weixin"
 $Global:WEIXIN_EXE_PATH = Join-Path $Global:WEIXIN_INSTALL_DIR "Weixin.exe"
@@ -139,17 +145,17 @@ $Global:DATA_RECOVERY_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "DataRecov
 $Global:DMDE_INSTALL_DIR = Join-Path $Global:DATA_RECOVERY_INSTALL_DIR "DMDE"
 $Global:PROJECT_ROOT_DIR = $Global:WINDOWS_PROGRAMING_DIR
 $Global:PROJECT_DIR = $Global:CORE_NODE_PROJECT_ROOT
-$Global:PROJECT_SCRIPTS_DIR = Join-Path $PROJECT_DIR "scripts"
-$Global:PROJECT_WIN_SCRIPTS_DIR = Join-Path $PROJECT_SCRIPTS_DIR "shells\win"
-$Global:INLINE_WINENVS_DIR = Join-Path $PROJECT_SCRIPTS_DIR "winenvs"  # Inline scripts directory - scripts in memory travel with code
+$Global:PROJECT_SCRIPTS_DIR = Join-Path $Global:PROJECT_DIR "scripts"
+$Global:PROJECT_WIN_SCRIPTS_DIR = Join-Path $Global:PROJECT_SCRIPTS_DIR "shells\win"
+$Global:INLINE_WINENVS_DIR = Join-Path $Global:PROJECT_SCRIPTS_DIR "winenvs"  # Inline scripts directory - scripts in memory travel with code
 $Global:CHOCO_DIR = "C:\ProgramData\chocolatey"
-$Global:SCOOP_CACHE_DIR = Join-Path $TEMP_DIR "scoop"
-$Global:SCOOP_DIR = Join-Path $LANG_COMPILER_DIR "scoop"
-$Global:SCOOP_APPS_DIR = Join-Path $LANG_COMPILER_DIR "scoop\apps"
-$Global:SCOOP_EXE = Join-Path $SCOOP_DIR "shims\scoop.cmd"
-$Global:SCOOP_GLOBAL_DIR = Join-Path $LANG_COMPILER_DIR "scoop\apps"
-$Global:CHOCO_EXE = Join-Path $CHOCO_DIR "choco.exe"
-$Global:CHOCO_CACHE_DIR = Join-Path $TEMP_DIR "chocolatey"
+$Global:SCOOP_CACHE_DIR = Join-Path $Global:DOWNLOADS_DIR "scoop"
+$Global:SCOOP_DIR = Join-Path $Global:LANG_COMPILER_DIR "scoop"
+$Global:SCOOP_APPS_DIR = Join-Path $Global:LANG_COMPILER_DIR "scoop\apps"
+$Global:SCOOP_EXE = Join-Path $Global:LANG_COMPILER_DIR $Global:CN_SCOOP_SHIM_SUBPATH
+$Global:SCOOP_GLOBAL_DIR = Join-Path $Global:LANG_COMPILER_DIR "scoop\apps"
+$Global:CHOCO_EXE = Join-Path $Global:CHOCO_DIR "choco.exe"
+$Global:CHOCO_CACHE_DIR = Join-Path $Global:DOWNLOADS_DIR "chocolatey"
 
 $Global:PROGRAMING_USERS_DIR = $Global:WINDOWS_PROGRAMING_USERS_DIR
 $Global:PROGRAMING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
@@ -203,6 +209,10 @@ $Global:DESKTOP_CATEGORY_EDUCATION = "Education"
 $Global:DESKTOP_CATEGORY_FINANCE = "Finance"
 $Global:DESKTOP_CATEGORY_SHOPPING = "Shopping"
 $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS = "AICLITools"
+# Fallback category for desktop shortcuts no other category matches
+$Global:DESKTOP_CATEGORY_OTHER_APPS = "OtherApps"
+# Category folders the desktop organizer files shortcuts into (one desktop link per folder)
+$Global:DESKTOP_BACKUP_DIR = Join-Path $Global:LANG_COMPILER_DIR ".desktopIcons"
 # Global variables directory (must-be-defined-first)
 $Global:GLOBAL_VAR_DIR = Join-Path $Global:USER_DIR "global_var"
 
@@ -410,7 +420,7 @@ $Global:SET_ENV_JS_PATH = Join-Path $Global:SCRIPTS_DIR "winpath.js"
 $Global:SET_ENV_JS_URL = "$Global:GITEE_UTILS_URL/win_tool/libs/winpath.js"
 
 # Global 7-Zip Variables
-$Global:SEVENZIP_TEMP_DIR = $Global:TEMP_DIR
+$Global:SEVENZIP_TEMP_DIR = $Global:WORK_DIR
 $Global:SEVENZIP_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "7z"
 $Global:SEVENZIP_DOWNLOAD_URL = "https://www.7-zip.org/a/7z2408-x64.exe"
 $Global:SEVENZIP_EXE_PATH = Join-Path $Global:SEVENZIP_INSTALL_DIR "7z.exe"
@@ -442,6 +452,7 @@ $Global:PHP_VERSIONS = @(
         IsDefault = $true
     }
 )
+$Global:PHP_NATIVE_INSTALL_DIR = Join-Path (Join-Path $Global:LANG_COMPILER_DIR "PHP") "php8.5"
 $Global:PHP_CONFIGFILE_URL = "$Global:GITEE_SCRIPTS_URL/shells/win/1_phpconfig/configure_php_ini.php"
 $Global:PHP_CONFIGFILE_PATH = Join-Path $Global:SCRIPTS_DIR "configure_php_ini.php"
 $Global:PHP_CONFIGFILE_LOCAL_PATH = Join-Path $Global:PROJECT_WIN_SCRIPTS_DIR "1_phpconfig\configure_php_ini.php"
@@ -454,9 +465,9 @@ $Global:PHP_CONFIGFILE_LOCAL_PATH = Join-Path $Global:PROJECT_WIN_SCRIPTS_DIR "1
 $Global:ANDROID_STUDIO_VERSION = "2025.1.3.7"
 $Global:ANDROID_STUDIO_DOWNLOAD_URL = "https://redirector.gvt1.com/edgedl/android/studio/install/2025.1.3.7/android-studio-2025.1.3.7-windows.exe"
 $Global:ANDROID_DIR = "C:\Program Files\Android"
-$Global:ANDROID_STUDIO_DIR = Join-Path $ANDROID_DIR "Android Studio"
-$Global:ANDROID_STUDIO_EXE_PATH = Join-Path $ANDROID_STUDIO_DIR "bin\studio64.exe"
-$Global:ANDROID_SDK_DIR = Join-Path $ANDROID_DIR "Sdk"
+$Global:ANDROID_STUDIO_DIR = Join-Path $Global:ANDROID_DIR "Android Studio"
+$Global:ANDROID_STUDIO_EXE_PATH = Join-Path $Global:ANDROID_STUDIO_DIR "bin\studio64.exe"
+$Global:ANDROID_SDK_DIR = Join-Path $Global:ANDROID_DIR "Sdk"
 $Global:ANDROID_STUDIO_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "AndroidStudio_Installed_flag"
 
 # Note: Go configuration moved to ApplicationsList.ps1 for consistency
@@ -649,10 +660,10 @@ $Global:UBUNTU_DEFAULT_PASSWORD = "123456"
 $Global:DEBIAN_VERSION = "13"
 $Global:DEBIAN_WSL_DOWNLOAD_URL = "https://salsa.debian.org/debian/WSL/-/jobs/9606244/artifacts/raw/Debian_WSL_AMD64_v1.26.0.0.wsl"
 $Global:DEBIAN_WSL_FILENAME = "Debian_WSL_AMD64_v1.26.0.0.wsl"
-$Global:DEBIAN_WSL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:DEBIAN_WSL_FILENAME
+$Global:DEBIAN_WSL_LOCAL_PATH = Join-Path $Global:DOWNLOADS_DIR $Global:DEBIAN_WSL_FILENAME
 $Global:WSL2_KERNEL_UPDATE_URL = "https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi"
 $Global:WSL2_KERNEL_FILENAME = "wsl_update_x64.msi"
-$Global:WSL2_KERNEL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:WSL2_KERNEL_FILENAME
+$Global:WSL2_KERNEL_LOCAL_PATH = Join-Path $Global:DOWNLOADS_DIR $Global:WSL2_KERNEL_FILENAME
 $Global:DEV_QUICK_SCRIPTS_DIR = Join-Path $Global:LANG_COMPILER_DIR ".dev_quickscripts"
 
 # WSL Disk Management - Use LANG_COMPILER_DIR instead of TEMP_DIR
@@ -663,8 +674,6 @@ $Global:WSL_DEBIAN_DISK_DIR = Join-Path $Global:WSL_DISK_DIR "debian"
 
 # MCP Services Configuration
 $Global:MCP_SOURCE_DIR = Join-Path $Global:BASE_DIR "ncore\mcp_server"
-$Global:MCP_DEPLOY_DIR = Join-Path $Global:LANG_COMPILER_DIR "mcp_service"
 $Global:MCP_HTTP_SERVER_PORT = 38000
 $Global:MCP_HTTP_SERVER_SCRIPT = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "shells\scripts\mcp_http_server.js"
 
-# MCP Services Array - REMOVED: Framework adjustment - services now managed via MCP_SERVICES_PACKAGES

@@ -48,7 +48,7 @@ TTS_ENTRIES = (
         health_paths=("/",), languages=_MULTI_CJK, chunk_capable=True, library_kind="api",
         install_markers=("deps", "GPT_SoVITS/pretrained_models/.snapshot_done", "api_v2.py", "GPT_SoVITS"),
         staging_env="GPTSOVITS_DIR",
-        installer="Step54_InstallGptsovits.ps1 / 137_install_gptsovits.sh",
+        installer="Model_Gptsovits.ps1 / 137_install_gptsovits.sh",
     ),
     ModelEntry(
         "streamelements", CATEGORY_TTS, RUNTIME_CLOUD,
@@ -73,7 +73,7 @@ TTS_ENTRIES = (
         languages=frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
         chunk_capable=True, library_kind="api",
         install_markers=("venv",),
-        installer="Step55_InstallMelotts.ps1 -Full / 139_install_melotts.sh",
+        installer="Model_Melotts.ps1 -Full / 139_install_melotts.sh",
     ),
     ModelEntry(
         "edge", CATEGORY_TTS, RUNTIME_CLOUD,
@@ -105,7 +105,7 @@ TTS_ENTRIES = (
         managed_kind="server", concurrency="server", health_paths=("/health", "/"),
         languages=_EN_ZH, library_kind="api",
         packages=(("ChatTTS", "ChatTTS"),), install_markers=("packages", "deps"), staging_env="CHATTTS_DIR",
-        installer="Step51_InstallChatTts.ps1 / 131_install_chattts.sh",
+        installer="Model_ChatTts.ps1 / 131_install_chattts.sh",
     ),
     ModelEntry(
         "cosyvoice", CATEGORY_TTS, RUNTIME_SERVER,
@@ -115,7 +115,7 @@ TTS_ENTRIES = (
         library_kind="api",
         install_markers=("venv", "deps", "runtime/python/fastapi/server.py", "runtime/python"),
         staging_env="COSYVOICE_DIR",
-        installer="Step52_InstallCosyVoice.ps1 / 133_install_cosyvoice.sh",
+        installer="Model_CosyVoice.ps1 / 133_install_cosyvoice.sh",
     ),
     ModelEntry(
         "fishspeech", CATEGORY_TTS, RUNTIME_SERVER,
@@ -124,7 +124,7 @@ TTS_ENTRIES = (
         health_paths=("/v1/health", "/health", "/"), languages=frozenset({"en", "zh", "ja"}),
         chunk_capable=True, library_kind="api",
         install_markers=("venv", "deps", "tools/api_server.py"), staging_env="FISHSPEECH_DIR",
-        installer="Step56_InstallFishspeech.ps1 / 143_install_fishspeech.sh",
+        installer="Model_Fishspeech.ps1 / 143_install_fishspeech.sh",
     ),
     ModelEntry(
         "qwen3tts", CATEGORY_TTS, RUNTIME_SERVER,
@@ -134,7 +134,7 @@ TTS_ENTRIES = (
         languages=frozenset({"en", "zh", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"}),
         chunk_capable=True, live=LIVE_QWEN_QUEUE, library_kind="api",
         install_markers=("venv",), staging_env="QWEN3TTS_DIR",
-        installer="Step61_InstallQwen3Tts.ps1 / 183_install_qwen3tts.sh",
+        installer="Model_Qwen3Tts.ps1 / 183_install_qwen3tts.sh",
     ),
     ModelEntry(
         "bark", CATEGORY_TTS, RUNTIME_MODEL,
@@ -146,7 +146,7 @@ TTS_ENTRIES = (
         chunk_capable=True, library_kind="api",
         packages=(("transformers", "transformers"), ("scipy", "scipy")),
         install_markers=("packages", "deps"), staging_env="BARK_DIR",
-        installer="Step59_InstallBark.ps1 / 141_install_bark.sh",
+        installer="Model_Bark.ps1 / 141_install_bark.sh",
     ),
     ModelEntry(
         "parler", CATEGORY_TTS, RUNTIME_MODEL,
@@ -155,7 +155,7 @@ TTS_ENTRIES = (
         library_kind="api",
         packages=(("parler_tts", "parler-tts"), ("soundfile", "soundfile"), ("transformers", "transformers")),
         install_markers=("packages",), staging_env="PARLER_DIR",
-        installer="Step60_InstallParler.ps1 / 181_install_parler.sh",
+        installer="Model_Parler.ps1 / 181_install_parler.sh",
     ),
     ModelEntry(
         "voxcpm2", CATEGORY_TTS, RUNTIME_SERVER,
@@ -166,8 +166,8 @@ TTS_ENTRIES = (
         health_paths=("/health", "/"), languages=_EN_ZH, chunk_capable=True,
         install_markers=("venv", "deps"), staging_env="VOXCPM2_DIR",
         installer=(
-            "Step58_InstallVoxcpm2.ps1 / 147_install_voxcpm2.sh (requires the dedicated "
-            "Python 3.12; Windows: Step13_InstallPython310_312.ps1 -Runtime 312)"
+            "Model_Voxcpm2.ps1 / 147_install_voxcpm2.sh (requires the dedicated "
+            "Python 3.12; Windows: Python_Isolated310.ps1 -Runtime 312)"
         ),
     ),
     ModelEntry(
@@ -177,7 +177,7 @@ TTS_ENTRIES = (
         tier_engine="kokoro", tiered=True, pip=_SHERPA_ONNX, library_name="kokoro",
         library_kind="pip", library_probe=True, languages=_EN_ZH, chunk_capable=True, live=LIVE_WORD_BATCH,
         packages=(_SHERPA_ONNX,), install_markers=("packages",),
-        installer="Step57_InstallKokoro.ps1 / 145_install_kokoro.sh",
+        installer="Model_Kokoro.ps1 / 145_install_kokoro.sh",
     ),
     ModelEntry(
         "f5tts", CATEGORY_TTS, RUNTIME_SERVER,
@@ -185,7 +185,7 @@ TTS_ENTRIES = (
         managed_kind="server", concurrency="server", health_paths=("/health", "/"),
         languages=_EN_ZH, library_kind="api",
         packages=(("f5_tts", "f5-tts"),), install_markers=("deps", "packages"), staging_env="F5TTS_DIR",
-        installer="Step53_InstallF5Tts.ps1 / 135_install_f5tts.sh",
+        installer="Model_F5Tts.ps1 / 135_install_f5tts.sh",
     ),
 )
 

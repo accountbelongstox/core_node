@@ -19,7 +19,7 @@
     Windows build (auggie: no official Windows installer found) are marked
     Supported = $false rather than inventing an installer. bun/pi/omp have no
     DEV_SOFTWARE_PACKAGES entry -- they are installed as a group by the
-    existing Step41_InstallPiHarness.ps1 (kept as-is; StepOnly points at it).
+    existing AiTools_PiHarness.ps1 (kept as-is; StepOnly points at it).
 
     Consumers (must read this file instead of keeping their own AI package
     table):
@@ -222,7 +222,7 @@ $Global:AiToolsCatalog = @{
     }
     opencode = @{
         Name = "OpenCode AI"
-        Exec = "opencode.exe"
+        Exec = "opencode.cmd"
         WindowsPackageKey = "OpenCode"
         PnpmFallbackPackage = ""
         StepOnly = $null
@@ -279,7 +279,7 @@ $Global:AiToolsCatalog = @{
         Exec = "bun.exe"
         WindowsPackageKey = $null
         PnpmFallbackPackage = ""
-        StepOnly = "Step41_InstallPiHarness.ps1"
+        StepOnly = "AiTools_PiHarness.ps1"
         Supported = $true
         VerifyArg = "--version"
         ConfigEnv = ""
@@ -292,7 +292,7 @@ $Global:AiToolsCatalog = @{
         Exec = "pi"
         WindowsPackageKey = $null
         PnpmFallbackPackage = "@earendil-works/pi-coding-agent"
-        StepOnly = "Step41_InstallPiHarness.ps1"
+        StepOnly = "AiTools_PiHarness.ps1"
         Supported = $true
         VerifyArg = "--version"
         ConfigEnv = ""
@@ -305,7 +305,7 @@ $Global:AiToolsCatalog = @{
         Exec = "omp.exe"
         WindowsPackageKey = $null
         PnpmFallbackPackage = ""
-        StepOnly = "Step41_InstallPiHarness.ps1"
+        StepOnly = "AiTools_PiHarness.ps1"
         Supported = $true
         VerifyArg = "--version"
         ConfigEnv = ""

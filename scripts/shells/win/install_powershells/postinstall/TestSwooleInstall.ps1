@@ -10,67 +10,38 @@ param(
 
 Write-Host "Testing Swoole installation methods for Windows..." -ForegroundColor Cyan
 
-# Get PHP info
-$phpInfoOutput = & $PhpPath -i 2>&1 | Out-String
-
-# Get PHP architecture
-$phpArch = "x64"
-if ($phpInfoOutput -match 'Architecture.*x86') {
-    $phpArch = "x86"
-}
-
-# Get PHP thread safety
-$phpThreadSafety = "nts"
-if ($phpInfoOutput -match 'Thread Safety.*enabled') {
-    $phpThreadSafety = "ts"
-}
-
-Write-Host "PHP Architecture: $phpArch" -ForegroundColor Yellow
-Write-Host "PHP Thread Safety: $phpThreadSafety" -ForegroundColor Yellow
-
-# Get extension directory
-$extDirOutput = & $PhpPath -i 2>&1 | Select-String "extension_dir"
-$extDir = $null
-if ($extDirOutput) {
-    $extDirLine = $extDirOutput.ToString()
-    Write-Host "Extension dir output: $extDirLine" -ForegroundColor Yellow
-    
-    # Try different regex patterns
-    if ($extDirLine -match 'extension_dir\s*=>\s*([^\s=]+)') {
-        $extDir = $matches[1].Trim()
-        Write-Host "Matched pattern 1: $extDir" -ForegroundColor Green
-    }
-    elseif ($extDirLine -match 'extension_dir.*?=>\s*([^\s=]+)') {
-        $extDir = $matches[1].Trim()
-        Write-Host "Matched pattern 2: $extDir" -ForegroundColor Green
-    }
-}
-
+# PHP build facts straight from PHP (no output scraping)
+$phpArch = if (([string](& $PhpPath -r "echo PHP_INT_SIZE;" 2>$null)).Trim() -eq '4') { "x86" } else { "x64" }
+$phpThreadSafety = if (([string](& $PhpPath -r "echo PHP_ZTS;" 2>$null)).Trim() -eq '1') { "ts" } else { "nts" }
+$phpMinorVersion = ([string](& $PhpPath -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>$null)).Trim()
+$extDir = ([string](& $PhpPath -r "echo ini_get('extension_dir');" 2>$null)).Trim()
 if ([string]::IsNullOrEmpty($extDir)) {
     $extDir = Join-Path $InstallDir "ext"
     Write-Host "Using default extension directory: $extDir" -ForegroundColor Yellow
 }
 
+Write-Host "PHP Version: $phpMinorVersion" -ForegroundColor Yellow
+Write-Host "PHP Architecture: $phpArch" -ForegroundColor Yellow
+Write-Host "PHP Thread Safety: $phpThreadSafety" -ForegroundColor Yellow
 Write-Host "Extension Directory: $extDir" -ForegroundColor Cyan
 
-# Test different Swoole versions and sources
-$swooleVersions = @("6.1.0", "6.0.0", "5.1.0", "4.8.15", "4.8.0")
+# Official Windows PECL builds (same source and naming as PhpPostInstallProcessor.ps1)
+. (Join-Path (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "win_common") "ServiceContract.ps1")
+$swooleVersion = [string](Get-ServiceContractValue -ContractPath 'versions.swoole_windows')
+$releaseUrl = 'https://downloads.php.net/~windows/pecl/releases/swoole'
 
-Write-Host "`nTesting windows.php.net PECL releases..." -ForegroundColor Cyan
-foreach ($version in $swooleVersions) {
-    $dllUrl = "https://windows.php.net/downloads/pecl/releases/swoole/$version/php_swoole-$version-$phpThreadSafety-$phpArch.dll"
-    Write-Host "Testing: $dllUrl" -ForegroundColor Yellow
+Write-Host "`nTesting official Windows PECL builds of Swoole $swooleVersion..." -ForegroundColor Cyan
+foreach ($vsTag in @('vs17', 'vs16')) {
+    $zipUrl = "{0}/{1}/php_swoole-{2}-{3}-{4}-{5}-{6}.zip" -f $releaseUrl, $swooleVersion, $swooleVersion.ToLowerInvariant(), $phpMinorVersion, $phpThreadSafety, $vsTag, $phpArch
+    Write-Host "Testing: $zipUrl" -ForegroundColor Yellow
     try {
-        $response = Invoke-WebRequest -Uri $dllUrl -Method Head -UseBasicParsing -ErrorAction Stop
-        if ($response.StatusCode -eq 200) {
-            Write-Host "  ✓ Available" -ForegroundColor Green
-        }
+        Invoke-WebRequest -Uri $zipUrl -Method Head -UseBasicParsing -ErrorAction Stop | Out-Null
+        Write-Host "  [OK] Available" -ForegroundColor Green
     }
     catch {
-        Write-Host "  ✗ Not found (Status: $($_.Exception.Response.StatusCode.value__))" -ForegroundColor Red
+        Write-Host "  [FAIL] Not found (Status: $($_.Exception.Response.StatusCode.value__))" -ForegroundColor Red
     }
 }
-
 # Test GitHub releases
 Write-Host "`nTesting GitHub releases..." -ForegroundColor Cyan
 $githubReleasesUrl = "https://api.github.com/repos/swoole/swoole-src/releases/latest"
@@ -90,14 +61,14 @@ catch {
 Write-Host "`nTesting alternative sources..." -ForegroundColor Cyan
 
 # Test PECL snapshots
-$peclSnapshotsUrl = "https://windows.php.net/downloads/pecl/snaps/swoole/"
+$peclSnapshotsUrl = "https://downloads.php.net/~windows/pecl/snaps/swoole/"
 Write-Host "Testing PECL snapshots: $peclSnapshotsUrl" -ForegroundColor Yellow
 try {
     $snapshotsResponse = Invoke-WebRequest -Uri $peclSnapshotsUrl -UseBasicParsing -ErrorAction Stop
-    Write-Host "  ✓ Snapshots page accessible" -ForegroundColor Green
+    Write-Host "  [OK] Snapshots page accessible" -ForegroundColor Green
 }
 catch {
-    Write-Host "  ✗ Snapshots page not accessible" -ForegroundColor Red
+    Write-Host "  [FAIL] Snapshots page not accessible" -ForegroundColor Red
 }
 
 Write-Host "`nTest completed." -ForegroundColor Cyan

@@ -8,6 +8,7 @@ $CoreNodeDir = $null
 $PyTool = $null
 $PythonExe = $null
 $Cmd = $null
+$GlobalVarsPath = $null
 
 $ScriptDir = $PSScriptRoot
 $ExtensionRoot = Split-Path -Parent $ScriptDir
@@ -17,6 +18,9 @@ for ($i = 0; $i -lt 4; $i++) {
 }
 $PyTool = Join-Path $CoreNodeDir (Join-Path "scripts" (Join-Path "pytools" "chrome_extension_icons.py"))
 $PyTool = Resolve-Path -LiteralPath $PyTool
+$GlobalVarsPath = Join-Path $CoreNodeDir (Join-Path "scripts" (Join-Path "shells" (Join-Path "win" (Join-Path "win_common" "GlobalVars.ps1"))))
+. $GlobalVarsPath
+Set-StrictMode -Off
 
 function Test-UsablePythonPath {
     param([string]$Path)
@@ -31,7 +35,7 @@ if ($env:PYTHON_EXE -and (Test-UsablePythonPath $env:PYTHON_EXE)) {
 }
 
 if (-not $PythonExe) {
-    $Candidate = "D:\.dev_win10\python311\python.exe"
+    $Candidate = Join-Path $Global:LANG_COMPILER_DIR (Join-Path "python311" "python.exe")
     if (Test-UsablePythonPath $Candidate) {
         $PythonExe = $Candidate
     }

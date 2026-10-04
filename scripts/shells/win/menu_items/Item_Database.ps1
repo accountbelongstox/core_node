@@ -14,10 +14,12 @@ $item = @{
     Order = 30
     Title = 'Database After Installation'
     Var   = 'DATABASE_ENGINE'
-    Values = @('pg','none')
-    Presets = @{ base = 'pg'; server = 'pg'; full = 'pg'; desktop = 'pg' }
+    Values = @('pg','mysql','both','none')
+    Setter = { param($Value) Set-DatabaseEngine -Engine $Value }
+    Presets = @{ desktop = 'pg'; server = 'pg' }
     Steps = @(
-        'Step17_InstallPostgreSQL.ps1'
+        'Database_PostgreSQL.ps1'
+        'Database_MySQL.ps1'
     )
 }
 

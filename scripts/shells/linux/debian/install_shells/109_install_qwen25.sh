@@ -51,7 +51,7 @@ check_python() {
         return 1
     fi
 
-    echo "[99] $python_cmd --version" >&2
+    echo "[109]$python_cmd --version" >&2
     local python_version=$($python_cmd --version 2>&1)
     print_success "Python is available: $python_version" >&2
 
@@ -110,18 +110,18 @@ install_dependencies() {
         _qwen_torch_idx="$(torch_cuda_index_url)"
         print_info "torch not found - installing driver-matched GPU torch ($_qwen_torch_idx)..."
         echo ""
-        echo "[99] $VENV_PIP3 install torch torchvision torchaudio --index-url $_qwen_torch_idx"
+        echo "[109]$VENV_PIP3 install torch torchvision torchaudio --index-url $_qwen_torch_idx"
         vpip "$VENV_PIP3" install torch torchvision torchaudio --index-url "$_qwen_torch_idx"
         echo ""
     else
         print_info "torch not found and no GPU - installing CPU torch..."
         echo ""
-        echo "[99] $VENV_PIP3 install torch torchvision torchaudio --index-url $AI_TORCH_CPU_INDEX"
+        echo "[109]$VENV_PIP3 install torch torchvision torchaudio --index-url $AI_TORCH_CPU_INDEX"
         vpip "$VENV_PIP3" install torch torchvision torchaudio --index-url "$AI_TORCH_CPU_INDEX"
         echo ""
     fi
 
-    echo "[99] checking the centralized transformers pin and accelerate"
+    echo "[109]checking the centralized transformers pin and accelerate"
     if shared_transformers_matches_from_common_functions "$VENV_PYTHON3" && "$VENV_PYTHON3" -c "import accelerate" >/dev/null 2>&1; then
         print_success "transformers and accelerate already installed, skipping installation"
         echo ""
@@ -129,13 +129,13 @@ install_dependencies() {
         print_info "Installing transformers and accelerate..."
         echo ""
         ensure_shared_transformers_from_common_functions "$VENV_PYTHON3"
-        echo "[99] $VENV_PIP3 install accelerate"
+        echo "[109]$VENV_PIP3 install accelerate"
         vpip "$VENV_PIP3" install accelerate
         echo ""
     fi
 
     print_info "Verifying installation..."
-    echo "[99] $VENV_PYTHON3 -c \"import transformers; print('[OK] transformers version:', transformers.__version__)\"" >&2
+    echo "[109]$VENV_PYTHON3 -c \"import transformers; print('[OK] transformers version:', transformers.__version__)\"" >&2
     local verify_result=$("$VENV_PYTHON3" -c "import transformers; print('[OK] transformers version:', transformers.__version__)" 2>&1)
 
     if [[ "$verify_result" == *"[OK]"* ]]; then
@@ -166,8 +166,11 @@ test_model_load() {
     print_info "Using shared runner script: $test_script_path"
 
     echo ""
-    echo "[99] $VENV_PYTHON3 $test_script_path"
-    "$VENV_PYTHON3" "$test_script_path"
+    echo "[109]$VENV_PYTHON3 $test_script_path"
+    if ! "$VENV_PYTHON3" "$test_script_path"; then
+        print_error "Model load test failed"
+        return 1
+    fi
     echo ""
 
     print_success "========================================"
@@ -203,7 +206,7 @@ echo "========================================"
 echo ""
 echo "Starting chat... Please wait..."
 echo ""
-echo "[99] $VENV_PYTHON3 $test_script_path --chat"
+echo "[109]$VENV_PYTHON3 $test_script_path --chat"
 "$VENV_PYTHON3" "$test_script_path" --chat
 echo ""
 echo "========================================"
@@ -274,7 +277,7 @@ main() {
     python_cmd=$(check_python)
     if [ -z "$python_cmd" ]; then
         print_error "Python 3.8+ is required but not found"
-        return
+        return 1
     fi
 
     echo ""
@@ -287,7 +290,7 @@ main() {
 
     echo ""
     print_info "Step 3: Test model loading (local weights)"
-    test_model_load "$python_cmd"
+    test_model_load "$python_cmd" || return 1
 
     echo ""
     print_success "========================================"
@@ -308,3 +311,4 @@ main() {
 }
 
 main
+exit $?

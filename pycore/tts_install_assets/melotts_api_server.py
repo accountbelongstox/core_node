@@ -49,7 +49,7 @@ melo_api = tts_server_common.engine_imports.module("melo.api")
 
 _network_constants = tts_server_common.load_network_constants()
 _DEFAULT_PORT = getattr(_network_constants, "MELOTTS_HTTP_PORT", 57212)
-_INSTALLER = tts_server_common.installer_step("139_install_melotts.sh", "Step55_InstallMelotts.ps1")
+_INSTALLER = tts_server_common.installer_step("139_install_melotts.sh", "Model_Melotts.ps1")
 
 app = FastAPI()
 _models: Dict[str, Any] = {}

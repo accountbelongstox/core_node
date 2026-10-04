@@ -9,8 +9,8 @@
     every key with a Windows build delegates to the existing generic installer
     (Step21_InstallApplications.ps1 -ExactPackageName <DEV_SOFTWARE_PACKAGES key>,
     already used by the APP Install menu and idempotent on its own); bun/pi/omp
-    delegate to the existing Step41_InstallPiHarness.ps1 (installs all three
-    together); mcp_chrome delegates to apps/mcp-chrome/scripts/start.ps1 plus
+    delegate to the existing AiTools_PiHarness.ps1 (installs all three
+    together); codex also runs AiTools_CodexMultiDevice.ps1; mcp_chrome delegates to apps/mcp-chrome/scripts/start.ps1 plus
     the existing scripts/ai_ps1tools/*_sync_mcp_servers.ps1 sync scripts. Keys
     with Supported = $false (auggie: no official Windows build found) are
     skipped with a message instead of inventing an installer.
@@ -47,10 +47,13 @@ $winCommonDir = Join-Path $winShellsDir "win_common"
 $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 $aiToolsCatalogPath = Join-Path $winCommonDir "AiToolsCatalog.ps1"
 $aiCliProvisionPath = Join-Path $winCommonDir "AiCliProvisionCommon.ps1"
-$step4Path = Join-Path $installPowerShellsDir "Step4_InstallNodeJS.ps1"
-$step8Path = Join-Path $installPowerShellsDir "Step8_InstallDefaultPython.ps1"
+$nodeRuntimePath = Join-Path $installPowerShellsDir "Node_Runtime.ps1"
+$pythonDefaultPath = Join-Path $installPowerShellsDir "Python_Default.ps1"
 $step22Path = Join-Path $installPowerShellsDir "Step22_InstallChrome.ps1"
-$step41Path = Join-Path $installPowerShellsDir "Step41_InstallPiHarness.ps1"
+$aiToolsPiHarnessPath = Join-Path $installPowerShellsDir "AiTools_PiHarness.ps1"
+# Codex multi-device collaboration stack: part of the codex tool, run from this single AI-tools step.
+$aiToolsCodexMultiDevicePath = Join-Path $installPowerShellsDir "AiTools_CodexMultiDevice.ps1"
+$codexCatalogKey = "codex"
 $step21Path = Join-Path $installPowerShellsDir "Step21_InstallApplications.ps1"
 $pathFunctionPath = Join-Path $winCommonDir "WindowsPathFunction.ps1"
 $ai65LogPrefix = "ai_tools_install"
@@ -59,7 +62,6 @@ $ai65NodeToolchainCommands = @("node", "npm")
 $ai65StepOnlyResults = @{}
 $ai65LogFile = $null
 $ai65LatestLog = $null
-$mcpChromeStartPath = $null
 $aiPs1ToolsDir = $null
 $requestedKeys = @()
 $includeMcpChrome = $true
@@ -70,7 +72,6 @@ $mcpChromeCatalogKey = "mcp_chrome"
 . $aiToolsCatalogPath
 . $aiCliProvisionPath
 
-$mcpChromeStartPath = Join-Path $Global:CORE_NODE_DIR (Join-Path "apps" (Join-Path "mcp-chrome" (Join-Path "scripts" "start.ps1")))
 $aiPs1ToolsDir = Join-Path $Global:CORE_NODE_DIR (Join-Path "scripts" "ai_ps1tools")
 
 function Write-Ai65Log {
@@ -162,9 +163,9 @@ function Invoke-Ai65PrereqIfMissing {
 function Invoke-Ai65EnsurePrerequisites {
     Invoke-Ai65PrereqIfMissing -ReadyCheck {
         (Test-Path -LiteralPath $Global:NODE_EXE_PATH) -and (Test-Path -LiteralPath $Global:NPM_EXE_PATH) -and (Test-Path -LiteralPath $Global:PNPM_EXE_PATH)
-    } -ScriptPath $step4Path -Label "Node/npm/pnpm toolchain"
+    } -ScriptPath $nodeRuntimePath -Label "Node/npm/pnpm toolchain"
     Write-Ai65ToolchainVersions
-    Invoke-Ai65PrereqIfMissing -ReadyCheck { Test-Path -LiteralPath $Global:PYTHON_EXE_PATH } -ScriptPath $step8Path -Label "Python"
+    Invoke-Ai65PrereqIfMissing -ReadyCheck { Test-Path -LiteralPath $Global:PYTHON_EXE_PATH } -ScriptPath $pythonDefaultPath -Label "Python"
     if ($includeMcpChrome) {
         Invoke-Ai65PrereqIfMissing -ReadyCheck {
             (Get-Command "chrome" -ErrorAction SilentlyContinue) -or
@@ -234,7 +235,7 @@ function Invoke-Ai65EnsureStepOnlyGroup {
         return $false
     }
     Write-Ai65Log "Running $StepFileName (installs bun + pi + omp together) ..."
-    try { & $stepPath; $ai65StepOnlyResults[$StepFileName] = $true } catch {
+    try { & $stepPath | Out-Host; $ai65StepOnlyResults[$StepFileName] = $true } catch {
         Write-Ai65Log "$StepFileName reported errors: $($_.Exception.Message)" "Warning"
         $ai65StepOnlyResults[$StepFileName] = $false
     }
@@ -258,7 +259,11 @@ function Invoke-Ai65EnsureTool {
         return [bool](Invoke-AiCliNativeEnsure -Tool $Key)
     }
     if (-not [string]::IsNullOrWhiteSpace([string]$tool.StepOnly)) {
-        return (Invoke-Ai65EnsureStepOnlyGroup -StepFileName ([string]$tool.StepOnly))
+        $stepOnlyOk = [bool](Invoke-Ai65EnsureStepOnlyGroup -StepFileName ([string]$tool.StepOnly))
+        if ($stepOnlyOk -and -not [string]::IsNullOrWhiteSpace([string]$tool.Exec)) {
+            $stepOnlyOk = [bool](Get-Command ([string]$tool.Exec) -ErrorAction SilentlyContinue)
+        }
+        return $stepOnlyOk
     }
     if ([string]::IsNullOrWhiteSpace([string]$tool.WindowsPackageKey)) {
         Write-Ai65Log "[SKIP] $($tool.Name) ($Key): no install method resolved." "Warning"
@@ -290,37 +295,15 @@ function Invoke-Ai65EnsureTool {
 
 # --- mcp-chrome ---------------------------------------------------------------
 function Invoke-Ai65EnsureMcpChrome {
-    if (-not (Test-Path -LiteralPath $mcpChromeStartPath)) {
-        Write-Ai65Log "mcp-chrome start script not found: $mcpChromeStartPath" "Error"
-        return $false
-    }
-    Write-Ai65Log "Building + registering Chrome MCP as the ncore-mcp-chrome logon task (hot reload via dev-watch) ..."
-    Remove-Item Env:\MCP_SKIP_BUILD -ErrorAction SilentlyContinue
-    $ddPython = if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) { $Global:PYTHON_EXE_PATH } else { $null }
-    $prevPythonExe = $env:PYTHON_EXE
-    $prevPath = $env:PATH
-    if ($ddPython -and $Global:PYTHON_DIR -and (Test-Path -LiteralPath $Global:PYTHON_DIR)) {
-        $env:PYTHON_EXE = $ddPython
-        $pythonScriptsDir = Join-Path $Global:PYTHON_DIR "Scripts"
-        if (Test-Path -LiteralPath $pythonScriptsDir) {
-            $env:PATH = "$Global:PYTHON_DIR;$pythonScriptsDir;$env:PATH"
-        }
-    }
-    $prevDir = Get-Location
-    try {
-        Set-Location (Split-Path -Parent (Split-Path -Parent $mcpChromeStartPath))
-        & $mcpChromeStartPath -Service
-    } catch {
-        Write-Ai65Log "mcp-chrome build/service reported an error: $($_.Exception.Message)" "Warning"
-    } finally {
-        Set-Location $prevDir
-        if ($null -ne $prevPythonExe) { $env:PYTHON_EXE = $prevPythonExe } else { Remove-Item -Path env:PYTHON_EXE -ErrorAction SilentlyContinue }
-        $env:PATH = $prevPath
+    . (Join-Path $winCommonDir "McpChromeBuildCommon.ps1")
+    $mcpChromeBuilt = [bool](Invoke-McpChromeBuild -LogPrefix "[$ai65LogPrefix][mcp-chrome]" | Select-Object -Last 1)
+    if (-not $mcpChromeBuilt) {
+        Write-Ai65Log "mcp-chrome build/service reported an error" "Warning"
     }
 
     Write-Ai65Log "Syncing the chrome MCP entry to every installed AI tool (context7 stays opt-in: it is only added when a CONTEXT7_API_KEY secret is configured, so it is not part of this default flow) ..."
     Invoke-Ai65SyncAllAiTools
-    return $true
+    return $mcpChromeBuilt
 }
 
 function Invoke-Ai65SyncAllAiTools {
@@ -356,6 +339,11 @@ foreach ($requestedKey in $requestedKeys) {
     if (-not (Invoke-Ai65EnsureTool -Key $requestedKey)) {
         $failedKeys += $requestedKey
     }
+}
+
+if ($requestedKeys -contains $codexCatalogKey -and $failedKeys -notcontains $codexCatalogKey) {
+    Write-Ai65Log "Ensuring the Codex multi-device stack ($(Split-Path -Leaf $aiToolsCodexMultiDevicePath)) ..."
+    try { & $aiToolsCodexMultiDevicePath } catch { Write-Ai65Log "$(Split-Path -Leaf $aiToolsCodexMultiDevicePath) reported errors (continuing): $($_.Exception.Message)" "Warning" }
 }
 
 if ($includeMcpChrome) {

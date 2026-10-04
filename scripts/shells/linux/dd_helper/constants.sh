@@ -30,7 +30,7 @@ GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 # Directory Paths
 LINUXENVS_DIR_RELATIVE="scripts/linuxenvs"
 BIN_DIR_PATH="/usr/local/bin"
-CORE_NODE_TMP_DIR="$CORE_NODE_DATA_DIR/_tmp"
+CORE_NODE_TMP_DIR="${GLOBAL_TEMP_DIR:-${TMPDIR:-/tmp}}/core_node_dd"
 # Project directories whose *.sh files get CRLF -> LF and +x at startup.
 DD_SH_TARGET_DIRS=("apps" "ncore" "scripts")
 

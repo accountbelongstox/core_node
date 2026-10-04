@@ -26,8 +26,8 @@ from pycore.pyutils.common.model_checks import module_present
 ENGINE_FASTER_WHISPER = "faster-whisper"
 ENGINE_WHISPER = "whisper"
 WHISPER_MODEL_CANDIDATES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
-FASTER_WHISPER_INSTALLER = "Step11_InstallFasterWhisper.ps1 / 151_install_faster_whisper.sh"
-WHISPER_INSTALLER = "Step42_InstallWhisper.ps1 / 127_install_whisper.sh"
+FASTER_WHISPER_INSTALLER = "Model_FasterWhisper.ps1 / 151_install_faster_whisper.sh"
+WHISPER_INSTALLER = "Model_Whisper.ps1 / 127_install_whisper.sh"
 
 _LOADED_SIGNAL_PREFIX = "pyutils.common.whisper_models.loaded"
 _LOAD_TIMEOUT_S = 900.0

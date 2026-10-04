@@ -1,5 +1,30 @@
 #!/bin/bash
 
+INSTALL_METHODS_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_METHODS_SHELLS_DIR="$(dirname "$INSTALL_METHODS_COMMON_DIR")/debian/install_shells"
+
+# Ensure uv through the canonical installer (25_install_uv.sh is idempotent).
+ensure_uv_via_installer() {
+    if command_exists uv; then
+        return 0
+    fi
+    log_install "Installing uv via 25_install_uv.sh..."
+    bash "$INSTALL_METHODS_SHELLS_DIR/25_install_uv.sh" || true
+    hash -r 2>/dev/null
+    command_exists uv
+}
+
+# Ensure pipx through the canonical installer (19_install_default_pipx.sh is idempotent).
+ensure_pipx_via_installer() {
+    if command_exists pipx; then
+        return 0
+    fi
+    log_install "Installing pipx via 19_install_default_pipx.sh..."
+    bash "$INSTALL_METHODS_SHELLS_DIR/19_install_default_pipx.sh" || true
+    hash -r 2>/dev/null
+    command_exists pipx
+}
+
 # Install via APT
 install_via_apt() {
     local package_id="$1"
@@ -346,7 +371,7 @@ install_via_npm() {
 
     while [ $retry_count -lt $max_retries ]; do
         if timeout 300 env "PATH=$pnpm_run_path" "npm_config_confirm_modules_purge=false" \
-            "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
+            "$pnpm_bin" add -g --config.confirm-modules-purge=false ${PNPM_ALLOW_ALL_BUILDS_ARG:-} "$package_id"; then
             log_success "Successfully installed $app_name via PNPM"
 
             if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
@@ -388,17 +413,9 @@ install_via_pipx() {
     log_install "Installing $app_name via PIPX: $package_id"
     
     # Check if pipx is installed
-    if ! command_exists pipx; then
-        log_install "Installing pipx first..."
-        $USE_SUDO apt update
-        if $USE_SUDO apt install -y python3-pip; then
-            $USE_SUDO pip3 install pipx
-            $USE_SUDO pipx ensurepath
-            log_success "pipx installed successfully"
-        else
-            log_error "Failed to install pipx"
-            return 1
-        fi
+    if ! ensure_pipx_via_installer; then
+        log_error "Failed to install pipx"
+        return 1
     fi
     
     # Install pipx package
@@ -419,17 +436,11 @@ install_via_uv() {
     log_install "Installing $app_name via UV: $package_id"
     
     # Check if uv is installed
-    if ! command_exists uv; then
-        log_install "Installing uv first..."
-        if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-            source ~/.bashrc
-            log_success "uv installed successfully"
-        else
-            log_error "Failed to install uv"
-            return 1
-        fi
+    if ! ensure_uv_via_installer; then
+        log_error "Failed to install uv"
+        return 1
     fi
-    
+
     # Install uv package
     if $USE_SUDO uv add "$package_id"; then
         log_success "Successfully installed $app_name via UV"
@@ -454,15 +465,9 @@ install_via_uv_tool() {
     local uv_tool_bin_dir="/usr/local/bin"
 
     # Check if uv is installed
-    if ! command_exists uv; then
-        log_install "Installing uv first..."
-        if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-            source ~/.bashrc
-            log_success "uv installed successfully"
-        else
-            log_error "Failed to install uv"
-            return 1
-        fi
+    if ! ensure_uv_via_installer; then
+        log_error "Failed to install uv"
+        return 1
     fi
 
     # Heal: drop any copy previously installed under the invoking user's home
@@ -491,19 +496,17 @@ install_via_uvx() {
     log_install "Installing $app_name via UVX: $package_id"
     
     # Check if uvx is installed (usually comes with uv)
-    if ! command_exists uvx; then
-        log_install "Installing uv (includes uvx) first..."
-        if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-            source ~/.bashrc
-            log_success "uv/uvx installed successfully"
-        else
-            log_error "Failed to install uv/uvx"
-            return 1
-        fi
+    if ! command_exists uvx && ! ensure_uv_via_installer; then
+        log_error "Failed to install uv/uvx"
+        return 1
     fi
-    
-    # Install uvx package
-    if uvx "$package_id"; then
+
+    # Install uvx package (the canonical uv install ships only uv; `uv tool run` is uvx)
+    local uvx_run=(uvx)
+    if ! command_exists uvx; then
+        uvx_run=(uv tool run)
+    fi
+    if "${uvx_run[@]}" "$package_id"; then
         log_success "Successfully installed $app_name via UVX"
         return 0
     else
@@ -551,13 +554,17 @@ install_via_curl() {
     log_install "Executing installation script with clean PATH..."
     log_install "Download URL: $package_url"
 
-    # Download and execute install script with clean environment
-    if PATH="$clean_path" curl -fsSL "$package_url" | PATH="$clean_path" $USE_SUDO bash; then
+    # Download to a file first (curl -f failure must not be masked by the pipe), then execute it
+    local script_file=""
+    script_file="$(mktemp)" || { log_error "Failed to create a temporary file"; return 1; }
+    if PATH="$clean_path" curl -fsSL "$package_url" -o "$script_file" && PATH="$clean_path" $USE_SUDO bash "$script_file"; then
+        rm -f "$script_file"
         log_success "Successfully installed $app_name via CURL"
         # Restore original PATH
         export PATH="$original_path"
         return 0
     else
+        rm -f "$script_file"
         log_error "Failed to install $app_name via CURL"
         log_error "This may be due to network issues or package unavailability"
         # Restore original PATH

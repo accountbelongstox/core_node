@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 SCRIPT_INDEX="119"
 # ---------------------------------------------------------------------------
-# install_launcher.sh - Prerequisite installer for the multi-terminal grid
+# 119_install_launcher.sh - Prerequisite installer for the multi-terminal grid
 #   launcher (pycore/pyutils/launcher: linux_terminal_launcher.py). It arranges
 #   a grid of native terminals across the display and is the `launcher` autostart
 #   target (python -m pycore.pyutils.launcher --mode windows). The autostart
@@ -27,8 +27,8 @@ SCRIPT_INDEX="119"
 # back to tmux/kitty paned grids or N separate unpositioned windows).
 #
 # Usage:
-#   ./install_launcher.sh --python /usr/bin/python3   # --python ignored (system pkgs)
-#   ./install_launcher.sh --force                     # reinstall even if present
+#   ./119_install_launcher.sh --python /usr/bin/python3   # --python ignored (system pkgs)
+#   ./119_install_launcher.sh --force                     # reinstall even if present
 # ---------------------------------------------------------------------------
 # Path setup and shared helpers (sourced before `set -u` so the shared files
 # do not have to be unset-variable safe). common_functions.sh provides the

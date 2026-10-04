@@ -9,12 +9,6 @@ SCRIPT_INDEX="55"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
-# Get USE_SUDO variable
-USE_SUDO=$(get_var "USE_SUDO")
-if [ -z "$USE_SUDO" ]; then
-    USE_SUDO="sudo"
-fi
-
 APT_INDEX_REFRESHED="false"
 PNPM_GLOBAL_ROOT=""
 

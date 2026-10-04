@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.I18n;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Services;
@@ -47,6 +48,8 @@ public static class EventCenter
             Hub.Subscribe(AppEventIds.WindowMaximize, OnMaximize);
             Hub.Subscribe(AppEventIds.ExtensionMainStartMacro, OnMainStartMacro, MainExtensionPriority);
             Hub.Subscribe(AppEventIds.ExtensionMainStopMacro, OnMainStopMacro, MainExtensionPriority);
+            Hub.Subscribe(AppEventIds.ExtensionRosbotStarted, OnRosbotStartedNotify);
+            Hub.Subscribe(AppEventIds.ExtensionRosbotStopped, _ => NotifyTray(I18nKeys.TrayRosbotStopped));
             ColorPrinter.Blue("[EventCenter] Main-thread handlers registered: exit/restart/show/minimize/maximize");
         }
         Hub.SetMainThreadDispatcher(new UiDispatcher(ui.Dispatcher));
@@ -95,7 +98,12 @@ public static class EventCenter
     public static void NotifySkillConfigSwitched(string configName)
     {
         bool sound = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.AuxiliarySoundFeedback, true);
-        if (!sound) return;
+        if (sound) PlayFeedbackBeep();
+    }
+
+    /// <summary>Feedback beep on a worker thread (winsound.Beep(1000, 100) on Windows).</summary>
+    public static void PlayFeedbackBeep()
+    {
         _ = Task.Run(() =>
         {
             try
@@ -110,6 +118,19 @@ public static class EventCenter
                 ColorPrinter.Gray($"[DEBUG][EventCenter] Beep failed: {ex.Message}");
             }
         });
+    }
+
+    /// <summary>Tray balloon for ROSBOT start results (the window is often hidden in the tray while the flow runs).</summary>
+    private static void OnRosbotStartedNotify(object? payload)
+    {
+        if (payload is RosbotStartedPayload p)
+            NotifyTray(p.Success ? I18nKeys.TrayRosbotStarted : I18nKeys.TrayRosbotStartFailed);
+    }
+
+    private static void NotifyTray(string messageKey)
+    {
+        if (_ui is not MainWindow main) return;
+        main.ShowTrayNotification(main.Title, D3D4TesterI18n.Provider.GetUiText(messageKey));
     }
 
     private static void OnExit(object? _)

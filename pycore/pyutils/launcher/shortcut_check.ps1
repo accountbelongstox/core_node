@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# Window Launcher desktop shortcut check (called by scripts/shells/win/dd.ps1).
+# Window Launcher shortcut check (called by scripts/shells/win/dd.ps1). The shortcut lives on the
+# user desktop; the organizer pins it there (DesktopIconManager.ps1 DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP).
 # Writes exactly the .lnk that pycore/pyutils/launcher/desktop_integration.py
 # ensure_desktop_shortcut writes, so neither writer rewrites the other:
 #   TargetPath = GlobalVars.ps1 PYTHON_EXE_PATH, Arguments = -m pycore.pyutils.launcher,
@@ -19,45 +20,13 @@ $IconIcoPath = Join-Path $ScriptDir "icon.ico"
 $IconPngPath = Join-Path $ScriptDir "icon.png"
 $PythonExe = $null
 $IconPath = $null
-$DesktopPath = $null
+$ShortcutDirectory = $null
 $ShortcutPath = $null
 $ShortcutMatches = $false
 
 . $GlobalVarsScript
 $PythonExe = $Global:PYTHON_EXE_PATH
 
-function Get-DesktopPath {
-    $shell = $null
-    $desktop = $null
-    try {
-        $shell = New-Object -ComObject WScript.Shell
-        $desktop = $shell.SpecialFolders.Item("Desktop")
-        if (-not [string]::IsNullOrWhiteSpace($desktop)) {
-            return $desktop
-        }
-    } catch {
-        $desktop = $null
-    }
-
-    if ($env:USERPROFILE) {
-        $desktop = Join-Path $env:USERPROFILE "Desktop"
-        if (Test-Path -LiteralPath $desktop) {
-            return $desktop
-        }
-    }
-    if ($env:PUBLIC) {
-        $desktop = Join-Path $env:PUBLIC "Desktop"
-        if (Test-Path -LiteralPath $desktop) {
-            return $desktop
-        }
-    }
-    if ($env:USERPROFILE) {
-        $desktop = Join-Path $env:USERPROFILE "Desktop"
-        New-Item -ItemType Directory -Path $desktop -Force | Out-Null
-        return $desktop
-    }
-    return $null
-}
 
 function Get-ComparablePath {
     param([string]$Path)
@@ -122,12 +91,8 @@ if (Test-Path -LiteralPath $IconIcoPath -PathType Leaf) {
     $IconPath = $PythonExe
 }
 
-$DesktopPath = Get-DesktopPath
-if ([string]::IsNullOrWhiteSpace([string]$DesktopPath)) {
-    Write-Host "Warning: Could not determine desktop path, skipping shortcut creation" -ForegroundColor Yellow
-    return
-}
-$ShortcutPath = Join-Path $DesktopPath $ShortcutFileName
+$ShortcutDirectory = [Environment]::GetFolderPath('Desktop')
+$ShortcutPath = Join-Path $ShortcutDirectory $ShortcutFileName
 
 try {
     if (Test-Path -LiteralPath $ShortcutPath) {
@@ -136,12 +101,12 @@ try {
             -Description $ShortcutDescription
     }
     if ($ShortcutMatches) {
-        Write-Host "Desktop shortcut already exists and is correct: $ShortcutName" -ForegroundColor Cyan
+        Write-Host "Shortcut already exists and is correct: $ShortcutPath" -ForegroundColor Cyan
     } else {
         Set-LauncherShortcut -Path $ShortcutPath -TargetPath $PythonExe -Arguments $ShortcutArguments `
             -WorkingDirectory $RepoRootDir -IconLocation $IconPath -Description $ShortcutDescription
-        Write-Host "Created/updated desktop shortcut: $ShortcutName" -ForegroundColor Green
+        Write-Host "Created/updated shortcut: $ShortcutPath" -ForegroundColor Green
     }
 } catch {
-    Write-Host "Warning: Failed to write desktop shortcut: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "Warning: Failed to write shortcut ${ShortcutPath}: $($_.Exception.Message)" -ForegroundColor Yellow
 }

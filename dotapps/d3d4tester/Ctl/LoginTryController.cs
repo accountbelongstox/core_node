@@ -30,7 +30,6 @@ public static class LoginTryController
     private const int AfterActivateMs = 1000;
     private const int AfterActivateFastMs = 300;
     private const int AfterActivateLoginCheckMs = 500;
-    private const int AfterD3TabMs = 800;
     private const int AfterLoginFlowMs = 2000;
     private const int AfterLoginByRegionMs = 3000;
     private const int LoginPollIdleMs = 2000;
@@ -50,18 +49,13 @@ public static class LoginTryController
     private static readonly LaunchTarget D3Target = new(
         "D3",
         D3Manager.Instance,
-        op =>
-        {
-            if (!op.ClickD3Tab()) return false;
-            Thread.Sleep(AfterD3TabMs);
-            return op.ClickStartGame();
-        },
+        BattlenetGameLauncher.ClickD3TabAndPlay,
         () => GameInterfaceData.Instance.SetD3Status(true));
 
     private static readonly LaunchTarget D4Target = new(
         "D4",
         D4Manager.Instance,
-        D4Pipeline.LaunchFromBattlenet,
+        BattlenetGameLauncher.ClickD4TabAndPlay,
         () => GameInterfaceData.Instance.D4.GameRunning = true);
 
     /// <summary>Register the "Login try" log callback and prepare the screenshot directory. 1:1 Python controller init + register_login_try_callback.</summary>

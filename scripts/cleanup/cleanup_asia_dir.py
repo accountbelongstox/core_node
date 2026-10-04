@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Recursively clean directory D:\\applications\\GameTools\\Asia_36.0129
+Recursively clean directory <APP_INSTALL_DIR>\\GameTools\\Asia_36.0129
 Delete all contents under the directory (or delete the directory itself).
 """
 import argparse
@@ -9,13 +9,19 @@ import shutil
 import sys
 from pathlib import Path
 
-TARGET_DIR = Path(r"D:\applications\GameTools\Asia_36.0129")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
+
+TARGET_DIR = get_windows_program_dir('app_root') / "GameTools" / "Asia_36.0129"
 
 
 def main():
     parser = argparse.ArgumentParser(description="Recursively clean Asia_36.0129 directory")
     parser.add_argument("--dry-run", action="store_true", help="List items to be deleted only, do not actually delete")
-    parser.add_argument("--path", type=str, default=None, help="Directory to clean (default: D:\\applications\\GameTools\\Asia_36.0129)")
+    parser.add_argument("--path", type=str, default=None, help="Directory to clean (default: <APP_INSTALL_DIR>\\GameTools\\Asia_36.0129)")
     args = parser.parse_args()
 
     root = Path(args.path) if args.path else TARGET_DIR

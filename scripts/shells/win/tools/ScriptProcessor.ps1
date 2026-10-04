@@ -163,18 +163,20 @@ function Ensure-LineEndings {
 
         foreach ($file in $files) {
             try {
-                $content = Get-Content $file.FullName -Raw -ErrorAction Stop
-                if ($null -eq $content) {
-                    continue
-                }
+                $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+                $content = [System.Text.Encoding]::ASCII.GetString($bytes)
                 # Only rewrite when there is an actual CRLF to convert. Skipping the write for
                 # already-LF files avoids opening the file for truncation, which is what fails
                 # with ERROR_USER_MAPPED_FILE when the file is currently memory-mapped.
                 if (-not $content.Contains("`r`n")) {
                     continue
                 }
-                $newContent = $content -replace "`r`n", "`n"
-                Set-Content -Path $file.FullName -Value $newContent -NoNewline -ErrorAction Stop
+                $lfBytes = New-Object System.Collections.Generic.List[byte] ($bytes.Length)
+                for ($b = 0; $b -lt $bytes.Length; $b++) {
+                    if ($bytes[$b] -eq 13 -and ($b + 1) -lt $bytes.Length -and $bytes[$b + 1] -eq 10) { continue }
+                    $lfBytes.Add($bytes[$b])
+                }
+                [System.IO.File]::WriteAllBytes($file.FullName, $lfBytes.ToArray())
             }
             catch {
                 # A file mapped into memory (a script currently executing in this dd run, or one

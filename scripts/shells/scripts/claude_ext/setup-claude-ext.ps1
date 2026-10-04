@@ -6,6 +6,12 @@ param(
     [switch]$Help
 )
 
+$globalVarsPath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "win\win_common\GlobalVars.ps1"
+$callerErrorAction = $ErrorActionPreference
+. $globalVarsPath
+$ErrorActionPreference = $callerErrorAction
+Set-StrictMode -Off
+
 if ($Help) {
     Write-Host "Claude Code Extension - Auto Setup Script"
     Write-Host ""
@@ -39,7 +45,7 @@ Write-Info "Step 1: Searching for claude.ps1..."
 
 # Try known location first
 $claudePath = $null
-$knownPath = "D:\.dev_win11\node\claude.ps1"
+$knownPath = Join-Path $Global:LANG_COMPILER_DIR "node\claude.ps1"
 
 if (Test-Path $knownPath) {
     $claudePath = $knownPath

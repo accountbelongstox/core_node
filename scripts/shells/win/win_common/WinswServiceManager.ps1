@@ -23,17 +23,29 @@
 
 $script:SharedCacheEnvPath = Join-Path $PSScriptRoot 'SharedCacheEnv.ps1'
 . $script:SharedCacheEnvPath
+if (-not (Get-Command Get-FileWithSizeCheck -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot 'CommonFunc.ps1')
+}
 
 # Pinned stable release (WinSW-x64.exe is the self-contained x64 build -- no local
 # .NET Framework/Core dependency, matching nssm.exe's standalone nature).
 $Global:WinswReleaseTag = "v2.12.0"
 $Global:WinswAssetName = "WinSW-x64.exe"
 
-# Resolve a cached WinSW-x64.exe under <cache>\pycore\tools\winsw. Returns $null if not found.
+# Windows-only download cache for the release binary: <DOWNLOADS_DIR>\winsw (GlobalVars.ps1),
+# resolved the same way GlobalVars.ps1 does when only SharedCacheEnv.ps1 is loaded.
+function Get-WinswDownloadDir {
+    $downloadsRoot = Get-Variable -Name 'DOWNLOADS_DIR' -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    if (-not $downloadsRoot) {
+        $downloadsRoot = Resolve-CnMappedProgramDir -LegacyPath $Global:CN_LEGACY_DOWNLOADS_ROOT -TargetPath $Global:CN_DOWNLOADS_ROOT
+    }
+    return (Join-Path $downloadsRoot 'winsw')
+}
+
+# Resolve a cached WinSW-x64.exe under <DOWNLOADS_DIR>\winsw. Returns $null if not found.
 function Find-WinswExe {
     param([Parameter(Mandatory = $true)][string]$RepoRootDir)
-    $winswCacheRoot = $Global:CORE_NODE_CACHE_DIR
-    $cacheDir = Join-Path $winswCacheRoot 'pycore\tools\winsw'
+    $cacheDir = Get-WinswDownloadDir
     $cachedExe = Join-Path $cacheDir $Global:WinswAssetName
     if (Test-Path -LiteralPath $cachedExe) { return $cachedExe }
     return $null
@@ -46,15 +58,16 @@ function Ensure-Winsw {
     $existing = Find-WinswExe -RepoRootDir $RepoRootDir
     if ($existing) { return $existing }
 
-    $winswCacheRoot = $Global:CORE_NODE_CACHE_DIR
-    $cacheDir = Join-Path $winswCacheRoot 'pycore\tools\winsw'
+    $cacheDir = Get-WinswDownloadDir
     if (-not (Test-Path -LiteralPath $cacheDir)) { New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null }
     $targetExe = Join-Path $cacheDir $Global:WinswAssetName
     $downloadUrl = "https://github.com/winsw/winsw/releases/download/$($Global:WinswReleaseTag)/$($Global:WinswAssetName)"
 
     Write-Host "[WinswServiceManager] WinSW not found -> downloading $($Global:WinswReleaseTag) (idempotent, one-time)..." -ForegroundColor Yellow
     try {
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $targetExe -UseBasicParsing
+        if (-not (Get-FileWithSizeCheck -localPath $targetExe -remoteUrl $downloadUrl -description "WinSW $($Global:WinswReleaseTag)")) {
+            throw "download failed: $downloadUrl"
+        }
     } catch {
         Write-Host "[WinswServiceManager] Download failed: $($_.Exception.Message)" -ForegroundColor Red
         return $null

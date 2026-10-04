@@ -11,15 +11,15 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$COMMON_DIR/common_functions.sh"
 
 # Check if Node.js installation is enabled
-INSTALL_NODE=$(get_var "INSTALL_NODE")
-if [ "$INSTALL_NODE" != "true" ]; then
-    echo "[31] Skipping npmrc configuration (INSTALL_NODE: $INSTALL_NODE)"
+INSTALL_NODE="${INSTALL_NODE:-$(get_var "INSTALL_NODE" 2>/dev/null || echo "true")}"
+if [ "$INSTALL_NODE" = "false" ]; then
+    echo "[39]Skipping npmrc configuration (INSTALL_NODE: $INSTALL_NODE)"
     exit 0
 fi
 
 # Get region information
 SELECTED_REGION=$(get_var "SELECTED_REGION")
-echo "[31] Selected Region: $SELECTED_REGION"
+echo "[39]Selected Region: $SELECTED_REGION"
 
 SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 CHECK_NPMRC_SCRIPT="$SHELLS_SCRIPTS_DIR/check_npmrc.js"
@@ -32,7 +32,7 @@ NPM_CMD="$(resolve_tool_bin npm 2>/dev/null || true)"
 
 configure_pnpm_global_dirs() {
     if [ -z "$PNPM_CMD" ]; then
-        echo "[31] pnpm not installed, skipping global directory configuration"
+        echo "[39]pnpm not installed, skipping global directory configuration"
         return 0
     fi
 
@@ -47,12 +47,12 @@ configure_pnpm_global_dirs() {
 
     local current_store_dir=$("$PNPM_CMD" store path 2>/dev/null)
     if [[ "$current_store_dir" == *"MyBest"* ]] || [ -z "$pnpm_store_dir" ] || [ "$pnpm_store_dir" = "undefined" ]; then
-        echo "[31] Detected user-specific store path or unconfigured store-dir, reconfiguration needed"
+        echo "[39]Detected user-specific store path or unconfigured store-dir, reconfiguration needed"
         needs_configuration=true
     fi
 
     if [ "$needs_configuration" = true ]; then
-        echo "[31] Configuring pnpm directories..."
+        echo "[39]Configuring pnpm directories..."
 
         local node_home
         if [ -n "$NODE_HOME" ]; then
@@ -67,10 +67,10 @@ configure_pnpm_global_dirs() {
         local pnpm_global_bin_new="$pnpm_global_dir_new/bin"
         local pnpm_store_dir_new="$CORE_NODE_DATA_DIR/.pnpm-store"
 
-        echo "[31] Setting pnpm directories..."
-        echo "[31]   global-dir: $pnpm_global_dir_new"
-        echo "[31]   global-bin-dir: $pnpm_global_bin_new"
-        echo "[31]   store-dir: $pnpm_store_dir_new"
+        echo "[39]Setting pnpm directories..."
+        echo "[39]  global-dir: $pnpm_global_dir_new"
+        echo "[39]  global-bin-dir: $pnpm_global_bin_new"
+        echo "[39]  store-dir: $pnpm_store_dir_new"
 
         "$PNPM_CMD" config set global-dir "$pnpm_global_dir_new"
         "$PNPM_CMD" config set global-bin-dir "$pnpm_global_bin_new"
@@ -80,31 +80,26 @@ configure_pnpm_global_dirs() {
         mkdir -p "$pnpm_global_bin_new"
         mkdir -p "$pnpm_store_dir_new"
 
-        echo "[31] pnpm directories configured successfully"
+        echo "[39]pnpm directories configured successfully"
     else
-        echo "[31] pnpm directories already configured:"
-        echo "[31]   global-dir: $pnpm_global_dir"
-        echo "[31]   global-bin-dir: $pnpm_global_bin"
-        echo "[31]   store-dir: $pnpm_store_dir"
+        echo "[39]pnpm directories already configured:"
+        echo "[39]  global-dir: $pnpm_global_dir"
+        echo "[39]  global-bin-dir: $pnpm_global_bin"
+        echo "[39]  store-dir: $pnpm_store_dir"
     fi
 }
 
 fix_npm_config() {
-    local USE_SUDO=$(get_var "USE_SUDO")
-    if [ -z "$USE_SUDO" ]; then
-        USE_SUDO="sudo"
-    fi
-
-    echo "[31] Checking and fixing pnpm configuration..."
+    echo "[39]Checking and fixing pnpm configuration..."
 
     if [ -n "$PNPM_HOME" ]; then
-        echo "[31] Clearing PNPM_HOME: $PNPM_HOME"
+        echo "[39]Clearing PNPM_HOME: $PNPM_HOME"
         unset PNPM_HOME
     fi
 
     if [ -f /etc/environment ]; then
         if grep -q "NPM_CONFIG_PREFIX" /etc/environment; then
-            echo "[31] Removing NPM_CONFIG_PREFIX from /etc/environment..."
+            echo "[39]Removing NPM_CONFIG_PREFIX from /etc/environment..."
             $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
         fi
     fi
@@ -112,7 +107,7 @@ fix_npm_config() {
     # Configure pnpm global directories
     configure_pnpm_global_dirs
 
-    echo "[31] Configuration check completed"
+    echo "[39]Configuration check completed"
     return 0
 }
 
@@ -141,8 +136,8 @@ print_error() {
 print_header_from_common_functions "PNPM Configuration Setup"
 
 if [ -z "$PNPM_CMD" ] || [ -z "$NODE_CMD" ]; then
-    echo "[31] pnpm/node not available (PATH minimal and gvar paths missing) - skipping npmrc configuration"
-    echo "[31] Run 17_install_node_toolchain_26.sh first."
+    echo "[39]pnpm/node not available (PATH minimal and gvar paths missing) - skipping npmrc configuration"
+    echo "[39]Run 17_install_node_toolchain_26.sh first."
     exit 0
 fi
 
@@ -197,7 +192,7 @@ else
     print_step_from_common_functions "Warning: check_npmrc.js not found, verifying basic configuration..."
     
     if [ "$SELECTED_REGION" = "China" ]; then
-        echo "[31] Setting up China mirror configuration..."
+        echo "[39]Setting up China mirror configuration..."
         "$PNPM_CMD" config set registry https://repo.huaweicloud.com/repository/npm/
         "$PNPM_CMD" config set disturl https://repo.huaweicloud.com/nodejs
         "$PNPM_CMD" config set sass_binary_site https://repo.huaweicloud.com/node-sass
@@ -209,7 +204,7 @@ else
         "$PNPM_CMD" config set node_sqlite3_binary_host_mirror https://repo.huaweicloud.com/node-sqlite3/
         "$PNPM_CMD" config set better_sqlite3_binary_host_mirror https://repo.huaweicloud.com/better-sqlite3/
     else
-        echo "[31] Setting up Global registry configuration..."
+        echo "[39]Setting up Global registry configuration..."
         "$PNPM_CMD" config set registry https://registry.npmjs.org/
     fi
 fi
@@ -280,7 +275,7 @@ for config in "${REQUIRED_CONFIGS[@]}"; do
             print_error_from_common_functions "Missing configuration: $config"
             CONFIG_STATUS="FAILED"
         else
-            echo "[31] Configuration $config not set (optional for Global region)"
+            echo "[39]Configuration $config not set (optional for Global region)"
         fi
     else
         print_success_from_common_functions "$config = $value"

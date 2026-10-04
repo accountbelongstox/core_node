@@ -1040,6 +1040,13 @@ if [ "$AS_SERVICE" = "yes" ]; then
     fi
 fi
 
+# An unattended chain (DD_AUTO_CONTINUE) must never block on the foreground
+# server: fail the step so the chain moves on and reports it.
+if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
+    laravel_main_fail "unattended run: the background service is not running and the foreground server is not started (re-run interactively or with AS_SERVICE=yes on a systemd host)"
+    return
+fi
+
 # --- Start runtime ---
 # Plane dispatch (shared php_runtime_plane from gvar_common.sh): the
 # frankenphp plane runs the single octane:frankenphp branch (HTTPS 443/h3 +

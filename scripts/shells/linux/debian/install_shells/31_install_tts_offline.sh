@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
         --python)    PYTHON="$2"; shift 2 ;;
         --force)     FORCE=1;     shift   ;;
         --core-only|--melotts|--gptsovits|--chattts|--cosyvoice|--f5tts|--parallel)
-            echo "[23_install_tts_offline] [i] $1 is deprecated; this script installs sherpa only. Run sibling scripts or prepare_pycore_prerequisites.sh."
+            echo "[31_install_tts_offline] [i] $1 is deprecated; this script installs sherpa only. Run sibling scripts or prepare_pycore_prerequisites.sh."
             shift ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac

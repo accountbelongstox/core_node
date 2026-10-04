@@ -13,6 +13,10 @@ Write-Host "=== Qt6 Deployment Script for SmartMatrix ===" -ForegroundColor Gree
 # Set error action preference
 $ErrorActionPreference = "Stop"
 
+$globalVarsPath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "scripts\shells\win\win_common\GlobalVars.ps1"
+. $globalVarsPath
+Set-StrictMode -Off
+
 # Get script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $OutputDir = Join-Path $ScriptDir "output\$Architecture\$BuildType"
@@ -48,7 +52,7 @@ function Find-QtInstallation {
     }
     
     # Try to find Qt in system dev directory
-    $DevDir = "D:\.dev_win11"
+    $DevDir = $Global:LANG_COMPILER_DIR
     if (Test-Path $DevDir) {
         $QtDirs = Get-ChildItem $DevDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(qt|Qt)' }
         
@@ -94,7 +98,7 @@ if (-not $QtInstallPath) {
     Write-Error "Qt 6.x MSVC installation not found"
     Write-Host "Please install Qt 6.x with MSVC 2022 64-bit support" -ForegroundColor Yellow
     Write-Host "Expected paths:" -ForegroundColor Yellow
-    Write-Host "  - D:\.dev_win11\Qt\6.9.3\msvc2022_64" -ForegroundColor Cyan
+    Write-Host "  - $(Join-Path $Global:QT_INSTALL_BASE_DIR '6.9.3\msvc2022_64')" -ForegroundColor Cyan
     Write-Host "  - C:\Qt\6.x.x\msvc2022_64" -ForegroundColor Cyan
     exit 1
 }

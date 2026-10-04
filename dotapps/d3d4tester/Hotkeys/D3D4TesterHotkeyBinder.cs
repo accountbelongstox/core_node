@@ -4,6 +4,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Services;
 using DotCore.Foundations;
 using DotCore.Utils;
 
@@ -22,6 +23,9 @@ public sealed class D3D4TesterHotkeyBinder
     private IAssistantExecutionState? _assistantState;
     /// <summary>Current hotkey per id for skip-if-unchanged and rollback. Keys: "assistant", "combat".</summary>
     private readonly Dictionary<string, string> _currentHotkey = new(StringComparer.OrdinalIgnoreCase);
+    private const string QuickSwitchIdPrefix = "quick_switch:";
+    /// <summary>Registered quick switch hotkeys (canonical); one registration per distinct hotkey.</summary>
+    private readonly HashSet<string> _quickSwitchHotkeys = new(StringComparer.OrdinalIgnoreCase);
 
     public D3D4TesterHotkeyBinder(IGlobalHotkeyService service)
     {
@@ -53,6 +57,7 @@ public sealed class D3D4TesterHotkeyBinder
     public void Initialize()
     {
         ReregisterAuxiliary();
+        ReregisterQuickSwitch();
     }
 
     /// <summary>
@@ -63,13 +68,55 @@ public sealed class D3D4TesterHotkeyBinder
         D3D4TesterConfigChangeHub.Notifier.Unsubscribe(OnConfigChanged);
         _service.UnregisterAll();
         _currentHotkey.Clear();
+        _quickSwitchHotkeys.Clear();
     }
 
     private void OnConfigChanged(string? keyPath)
     {
         if (string.IsNullOrEmpty(keyPath)) return;
         if (keyPath.StartsWith(ConfigKeys.HotkeyConfigPathAuxiliary, StringComparison.OrdinalIgnoreCase))
+        {
             ReregisterAuxiliary();
+            ReregisterQuickSwitch();
+        }
+        else if (keyPath.StartsWith(ConfigKeys.MacroConfigsSkillConfigs, StringComparison.OrdinalIgnoreCase))
+            ReregisterQuickSwitch();
+    }
+
+    /// <summary>
+    /// Register one global hotkey per distinct quick switch key (macro_configs.skill_configs.&lt;name&gt;.quick_switch, default F1);
+    /// configs sharing a key cycle in order. Keys equal to the assistant / combat hotkeys are skipped. No-op when the set is unchanged.
+    /// </summary>
+    private void ReregisterQuickSwitch()
+    {
+        var taken = new HashSet<string>(_currentHotkey.Values, StringComparer.OrdinalIgnoreCase);
+        var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in MacroConfigLoader.GetConfigNames())
+        {
+            var hotkey = SkillConfigSwitcher.QuickSwitchHotkey(name);
+            if (string.IsNullOrEmpty(hotkey)) continue;
+            if (taken.Contains(hotkey))
+            {
+                ColorPrinter.Yellow($"[HOTKEY] Quick switch {hotkey} ({name}) equals the assistant/combat hotkey, skipped");
+                continue;
+            }
+            wanted.Add(hotkey);
+        }
+        if (wanted.SetEquals(_quickSwitchHotkeys)) return;
+        foreach (var old in _quickSwitchHotkeys)
+            _service.Unregister(QuickSwitchIdPrefix + old);
+        _quickSwitchHotkeys.Clear();
+        foreach (var hotkey in wanted)
+        {
+            var key = hotkey;
+            if (_service.Register(QuickSwitchIdPrefix + key, key, () => SkillConfigSwitcher.SwitchByQuickSwitchHotkey(key)))
+            {
+                _quickSwitchHotkeys.Add(key);
+                ColorPrinter.Gray($"[HOTKEY] Registered id={QuickSwitchIdPrefix}{key} key={key}");
+            }
+            else
+                ColorPrinter.Yellow($"[HOTKEY] Quick switch {key} register failed");
+        }
     }
 
     /// <summary>

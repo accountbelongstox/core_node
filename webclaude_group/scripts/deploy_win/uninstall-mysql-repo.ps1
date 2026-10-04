@@ -2,7 +2,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Removes MySQL wrongly installed under the repository (repo\mysql), not D:\.dev_win10\mysql.
+    Removes MySQL wrongly installed under the repository (repo\mysql), not <LANG_COMPILER_DIR>\mysql.
 
 .EXAMPLE
     .\uninstall-mysql-repo.ps1

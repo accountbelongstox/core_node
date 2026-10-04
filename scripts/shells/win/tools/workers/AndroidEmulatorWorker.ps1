@@ -6,8 +6,8 @@ $script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR 'win_common'
 $script:SHARED_CACHE_ENV_PATH = Join-Path $script:WIN_COMMON_DIR 'SharedCacheEnv.ps1'
 . $script:SHARED_CACHE_ENV_PATH
 $script:INSTALL_DIR = Join-Path $script:WIN_DIR "install_powershells"
-$script:STUDIO_INSTALLER = Join-Path $script:INSTALL_DIR "Step26_InstallAndroidStudio.ps1"
-$script:PLATFORM_INSTALLER = Join-Path $script:INSTALL_DIR "Step27_InstallAndroidPlatformTools.ps1"
+$script:STUDIO_INSTALLER = Join-Path $script:INSTALL_DIR "Android_Studio.ps1"
+$script:PLATFORM_INSTALLER = Join-Path $script:INSTALL_DIR "Android_PlatformTools.ps1"
 $script:DEVICE_WAIT_SECONDS = 120
 $script:POLL_SECONDS = 5
 $script:DEVICE_POLL_LOG = 5

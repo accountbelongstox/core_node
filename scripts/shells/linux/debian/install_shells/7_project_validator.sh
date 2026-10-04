@@ -1,5 +1,5 @@
 #!/bin/bash
-# Index8 Script - Core Node Project Root Detection and Validation
+# Index7 Script - Core Node Project Root Detection and Validation
 # This script checks if the current project exists at CORE_NODE_PROJECT_ROOT
 # and validates the project structure relative to gvar_common.sh
 

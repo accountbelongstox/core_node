@@ -230,5 +230,9 @@ function Test-AndInstallWinGet {
 }
 
 Test-SystemRequirements
+Invoke-CnProgramDriveMigration
+# Reload so LANG_COMPILER_DIR, APP_INSTALL_DIR and every dir derived from them
+# follow the migration (the old D: dirs must not be recreated below).
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
 Initialize-BaseStructure
 Step1_InitializeBaseDirectories

@@ -10,7 +10,7 @@
                      client = TightVNC viewer (tvnviewer.exe), Remmina on Linux.
       RDP (desktop): host = built-in Remote Desktop (Pro/Enterprise/Education); client = mstsc.
                      RDP takes over the console and locks the local screen.
-      SSH (shell):   host = OpenSSH Server + the shared decrypted key (Step5_InstallGitSSH.ps1);
+      SSH (shell):   host = OpenSSH Server + the shared decrypted key (Git_SshKeys.ps1);
                      client = OpenSSH Client.
     Password = Windows sign-in password (RDP/SSH authenticate against the local account).
 
@@ -38,7 +38,7 @@ $script:REMOTE_CONTROL_DIR = $PSScriptRoot
 $script:REMOTE_CONTROL_SCRIPT = $PSCommandPath
 $script:TAILSCALE_COMMON_FOR_RC = Join-Path $script:REMOTE_CONTROL_DIR 'TailscaleCommon.ps1'
 $script:INSTALL_POWERSHELLS_DIR_FOR_RC = Join-Path (Split-Path $script:REMOTE_CONTROL_DIR -Parent) 'install_powershells'
-$script:SHARED_KEY_INSTALLER = Join-Path $script:INSTALL_POWERSHELLS_DIR_FOR_RC 'Step5_InstallGitSSH.ps1'
+$script:SHARED_KEY_INSTALLER = Join-Path $script:INSTALL_POWERSHELLS_DIR_FOR_RC 'Git_SshKeys.ps1'
 $script:RC_HOST_PREINSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR_FOR_RC 'Step72_InstallRemoteControlHost.ps1'
 # Claude Peer Link reuses the Claude team installer checks (account, Remote Control blockers).
 $script:CLAUDE_TEAM_INSTALL_COMMON_FOR_RC = Join-Path $script:REMOTE_CONTROL_DIR 'ClaudeTeamInstallCommon.ps1'
@@ -124,7 +124,7 @@ function Show-RemoteControlPeerTable {
     }
 }
 
-# Shared key pair decrypted by Step5_InstallGitSSH.ps1: id_ed25519 first, else
+# Shared key pair decrypted by Git_SshKeys.ps1: id_ed25519 first, else
 # any *.pub with a matching private key (same rule as Test-SSHKeyPairExists).
 function Find-RemoteControlSharedKey {
     $preferred = Join-Path $Global:SSH_DIR $script:RcSharedKeyName
@@ -143,8 +143,8 @@ function Confirm-RemoteControlSharedKey {
     $answer = ''
 
     if ($null -ne (Find-RemoteControlSharedKey)) { return $true }
-    Write-ColorMessage -Message "Shared SSH key not found in $($Global:SSH_DIR); it is decrypted by Step5_InstallGitSSH.ps1." -Type 'Warning'
-    $answer = Read-Host 'Run Step5_InstallGitSSH.ps1 now? [y/N]'
+    Write-ColorMessage -Message "Shared SSH key not found in $($Global:SSH_DIR); it is decrypted by Git_SshKeys.ps1." -Type 'Warning'
+    $answer = Read-Host 'Run Git_SshKeys.ps1 now? [y/N]'
     if ($answer -match '^(?i)y') {
         & powershell -NoProfile -ExecutionPolicy Bypass -File $script:SHARED_KEY_INSTALLER
     } else {
@@ -1027,7 +1027,7 @@ function Show-RemoteControlDiagnostics {
 
     $sharedKey = Find-RemoteControlSharedKey
     if ($null -eq $sharedKey) {
-        [void](Write-RemoteControlCheck -Name 'Shared key authorized' -Ok $false -WarnOnly -Detail 'no shared key; password login still works (Step5_InstallGitSSH.ps1 installs it)')
+        [void](Write-RemoteControlCheck -Name 'Shared key authorized' -Ok $false -WarnOnly -Detail 'no shared key; password login still works (Git_SshKeys.ps1 installs it)')
     } else {
         $pubLine = (Get-Content -LiteralPath "$sharedKey.pub" -TotalCount 1).Trim()
         $ok = (Test-Path -LiteralPath $script:RcAdminKeysFile) -and (Select-String -LiteralPath $script:RcAdminKeysFile -SimpleMatch -Pattern $pubLine -Quiet)
@@ -1246,7 +1246,7 @@ function Show-RemoteControlHelp {
     }
     Write-Host '  Tailscale SSH (tailscale set --ssh) works only on Linux/macOS hosts, not on Windows.'
     Write-Host ''
-    Write-Host "Shared key: $($Global:SSH_DIR)\$script:RcSharedKeyName (decrypted by Step5_InstallGitSSH.ps1 / 27_install_git_ssh.sh)."
+    Write-Host "Shared key: $($Global:SSH_DIR)\$script:RcSharedKeyName (decrypted by Git_SshKeys.ps1 / 27_install_git_ssh.sh)."
     Write-Host ''
     Write-Host 'Docs:'
     Write-Host '  https://tailscale.com/kb/1095/secure-rdp-windows'

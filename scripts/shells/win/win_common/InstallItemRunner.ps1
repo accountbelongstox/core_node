@@ -5,6 +5,11 @@ $INSTALL_ITEM_STEPS_DIR = Join-Path $INSTALL_ITEM_SHELLS_WIN_DIR 'install_powers
 $INSTALL_ITEM_MENU_ITEMS_DIR = Join-Path $INSTALL_ITEM_SHELLS_WIN_DIR 'menu_items'
 $INSTALL_ITEM_STEPS_SUBPATH = 'shells/win/install_powershells'
 $INSTALL_ITEM_SELECTED_ITEM_VAR = 'DD_RUN_ITEM'
+$INSTALL_ITEM_MODE_VAR = 'INSTALL_TYPE'
+$INSTALL_ITEM_SWITCH_VALUES = @('false', 'true')
+$INSTALL_ITEM_SWITCH_OFF = 'false'
+
+. (Join-Path $INSTALL_ITEM_RUNNER_DIR 'AiModelLevelCommon.ps1')
 
 function Install-Script {
     param(
@@ -30,6 +35,10 @@ function Install-Script {
         return
     }
 
+    if ($shouldExecute -and -not (Test-AiModelStepAllowed -ScriptName $scriptName)) {
+        Write-AiModelStepSkipped -ScriptName $scriptName
+        return
+    }
     if ($shouldExecute) {
         Write-Host "Executing script: $actualScriptPath" -ForegroundColor Cyan
         $scriptLeaf = Split-Path -Leaf $actualScriptPath
@@ -38,11 +47,46 @@ function Install-Script {
             $pythonExe = Resolve-InstallerStepPythonExe
         }
         if (Get-Command Invoke-InstallerStepScript -ErrorAction SilentlyContinue) {
-            Invoke-InstallerStepScript -ScriptName $scriptLeaf -Region $selectedRegion -PythonExe $pythonExe | Out-Null
+            Invoke-InstallerStepScript -ScriptName $scriptLeaf -ScriptPath $actualScriptPath -Region $selectedRegion -PythonExe $pythonExe | Out-Null
         } else {
             & $actualScriptPath $selectedRegion
         }
+        # Any step may install software that drops desktop icons: tidy once (skips when unchanged)
+        if (Get-Command Invoke-DesktopIconTidyAfterInstall -ErrorAction SilentlyContinue) {
+            Invoke-DesktopIconTidyAfterInstall -Reason $scriptLeaf
+        }
     }
+}
+
+# Prints every script a run is about to execute, numbered in execution order,
+# before the first one starts; steps the AI model level skips and step files
+# missing locally are marked.
+function Write-InstallPlan {
+    param(
+        [Parameter(Mandatory = $true)][string]$Title,
+        [AllowEmptyCollection()][string[]]$Steps = @(),
+        [AllowEmptyCollection()][string[]]$SwitchedOffSteps = @()
+    )
+    $index = 0
+    $note = ''
+
+    Write-Host ''
+    Write-Host ("{0}: {1} script(s) in order" -f $Title, $Steps.Count) -ForegroundColor Cyan
+    foreach ($stepName in $Steps) {
+        $index++
+        $note = ''
+        if ($SwitchedOffSteps -contains $stepName) {
+            $note = ' [skip: switched off]'
+        }
+        elseif (-not (Test-AiModelStepAllowed -ScriptName $stepName)) {
+            $note = ' [skip: AI model level]'
+        }
+        elseif (-not (Test-Path -LiteralPath (Join-Path $INSTALL_ITEM_STEPS_DIR $stepName) -PathType Leaf)) {
+            $note = ' [not local: loaded on demand]'
+        }
+        Write-Host ("  {0,3}. {1}{2}" -f $index, $stepName, $note) -ForegroundColor $(if ($note) { 'DarkGray' } else { 'White' })
+    }
+    Write-Host ''
 }
 
 function Invoke-InstallItemMain {
@@ -55,7 +99,7 @@ function Invoke-InstallItemMain {
     )
 
     if ($Describe) { return $Item }
-    $steps = if ($Item.StepsProvider) { @(& $Item.StepsProvider) } else { @($Item.Steps) }
+    $steps = if ($Item.ContainsKey('StepsProvider') -and $Item.StepsProvider) { @(& $Item.StepsProvider) } else { @($Item.Steps) }
 
     if ($Step) {
         $steps = @($steps | Where-Object { $_ -eq $Step -or $_ -like "$Step`_*" -or $_ -like "Step$Step`_*" })
@@ -86,6 +130,7 @@ function Invoke-InstallItemMain {
     }
 
     Write-Host "Running item [$($Item.Key)] $($Item.Title)" -ForegroundColor Cyan
+    Write-InstallPlan -Title ("Item [{0}] {1}" -f $Item.Key, $Item.Title) -Steps $steps
     foreach ($stepName in $steps) {
         Install-Script -scriptName $stepName -shouldExecute $true
     }
@@ -104,6 +149,44 @@ function Get-InstallItems {
         }
     }
     return @($items | Sort-Object { [int]$_.Order })
+}
+
+function Get-InstallConfigMode {
+    param([array]$Items)
+    $modeItem = $Items | Where-Object { $_.Var -eq $INSTALL_ITEM_MODE_VAR } | Select-Object -First 1
+    $mode = Get-GlobalVar -key $INSTALL_ITEM_MODE_VAR
+    if ($modeItem -and @($modeItem.Values) -notcontains $mode) { $mode = @($modeItem.Values)[0] }
+    return $mode
+}
+
+function Get-InstallItemPreset {
+    param([hashtable]$Item, [string]$Mode)
+    if ($Item.ContainsKey('Presets') -and $Item.Presets.ContainsKey($Mode)) { return $Item.Presets[$Mode] }
+    return @($Item.Values)[0]
+}
+
+# Stored value, else the current mode's preset (what the configuration menu shows)
+function Get-InstallItemValue {
+    param([hashtable]$Item, [array]$Items)
+    $value = Get-GlobalVar -key $Item.Var
+    if (@($Item.Values) -notcontains $value) {
+        if ($Item.Var -eq $INSTALL_ITEM_MODE_VAR) { return (Get-InstallConfigMode -Items $Items) }
+        $value = Get-InstallItemPreset -Item $Item -Mode (Get-InstallConfigMode -Items $Items)
+    }
+    return $value
+}
+
+# Steps of the on/off menu items switched off (e.g. [R] Redis = false): the full installation skips them.
+function Get-InstallItemDisabledSteps {
+    $items = @(Get-InstallItems)
+    $disabled = @()
+    $item = $null
+    foreach ($item in $items) {
+        if (-not $item.ContainsKey('Steps')) { continue }
+        if ((@($item.Values) -join ',') -ne ($INSTALL_ITEM_SWITCH_VALUES -join ',')) { continue }
+        if ((Get-InstallItemValue -Item $item -Items $items) -eq $INSTALL_ITEM_SWITCH_OFF) { $disabled += @($item.Steps) }
+    }
+    return $disabled
 }
 
 function Get-InstallItemByKey {

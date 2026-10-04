@@ -36,7 +36,7 @@ class ChromeFinder:
     """Find Chrome executables per release channel and keep app_cache.json current."""
 
     def preferred_stable_path(self) -> Optional[str]:
-        """Preferred stable Chrome on Windows: D:\\applications\\Chrome\\Chrome copy."""
+        """Preferred stable Chrome on Windows: <APP_INSTALL_DIR>\\Chrome\\Chrome copy."""
         if sys.platform == 'win32' and CHROME_PORTABLE_EXE.is_file():
             return str(CHROME_PORTABLE_EXE.resolve())
         return None

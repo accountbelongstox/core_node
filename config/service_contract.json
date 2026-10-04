@@ -46,6 +46,8 @@
         "ncore_backend": 58000,
         "postgresql": 5432,
         "redis": 6379,
+        "mysql": 3306,
+        "php_cgi_fastcgi": 9001,
         "laravel_rescue_httpd": 16888,
         "headscale": 18086,
         "headscale_metrics": 19090,
@@ -57,6 +59,11 @@
     },
     "versions": {
         "frankenphp": "v1.12.7",
+        "mysql": "26.7.0",
+        "postgresql": "18.6",
+        "postgresql_previous_majors": {"16": "16.15", "17": "17.11"},
+        "nginx": "1.31.6",
+        "swoole_windows": "6.3.0RC1",
         "mercure": "v0.24.2",
         "scrcpy": "3.3.4",
         "vbcable": "45",
@@ -220,7 +227,7 @@
         "drive_layout": {
             "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/DESIGN_SHELL_HOSTS.md): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27, D28 and D30 (one namespace directory per drive/filesystem: development-guides/DIRECTORY_NAMESPACE_RULES.md).",
             "namespaces": {
-                "windows_program_drive": "core_node_compiler",
+                "windows_program_drive": "_<sys>_dev",
                 "windows_data_drive": "www",
                 "linux_ext4": "/opt/core_node",
                 "linux_ntfs_shared_data": "/www/www",
@@ -233,12 +240,48 @@
             "program_partuuid_source": "detected per machine (the E: NTFS volume PARTUUID), stored in global vars, never committed",
             "linux_mounts_program_drive": false,
             "tool_root": {
-                "windows": "<program_drive>\\core_node_compiler\\.dev_<sys>",
-                "windows_d_fallback": "D:\\www\\.dev_<sys>",
+                "windows": "<program_drive>\\_<sys>_dev",
                 "linux": "/opt/core_node/_<os>_<ver>"
             },
+            "app_root": {
+                "windows": "<program_drive>\\applications"
+            },
+            "downloads_root": {
+                "purpose": "Windows-only installer/package downloads (archives, setup files). Never on D: (shared data only); without E: they stay in legacy_program_dirs.downloads_root",
+                "windows": "<program_drive>\\_<sys>_dev\\Downloads"
+            },
+            "work_root": {
+                "purpose": "Windows-only scratch for unpacking, extracting and building program files. Never on D:; without E: the D:\\.tmp temp dir is used",
+                "windows": "<program_drive>\\_<sys>_dev\\work"
+            },
+            "legacy_program_dirs": {
+                "purpose": "Pre-D30 Windows program dirs on D: (user-approved migration 2026-10-03), so D: holds shared data only: D:\\.dev_<sys> -> E:\\_<sys>_dev, D:\\applications -> E:\\applications, D:\\.tmp\\Downloads -> E:\\_<sys>_dev\\Downloads, D:\\.pnpm-store -> <cache_root.windows>\\pnpm-store, D:\\www\\cache\\core_node\\downloads -> downloads_root, D:\\www\\cache\\pip -> <cache_root.windows>\\pip (D:\\.tmp itself stays: shared temp). Migration branch only (a fresh install has no old dir): while an old dir still holds program entries, Step 1 (1) copies every entry not yet in manifest_name with PowerShell Copy-Item (in-use files still copy), recreates inner links (broken ones are dropped) and verifies every file; any failure stops here and nothing is deleted; (2) switches: records the verified set in the manifest, rewrites the old and superseded_tool_roots in E: text files, re-roots PATH and every environment variable (WindowsPathFunction.ps1 moveroot), launcher .exe files (relocate_script), shortcuts, scheduled tasks and registry (SystemReferenceRelocation.ps1), runs scoop reset * and records the live dirs (windows_resolved_vars); (3) deletes each D: entry file by file with remove_script (locked files stay until the next run), removes obsolete_staging_suffix leftovers, moves entries matching keep_patterns (models, drafts) to kept_data_root\\<target dir name> on D:, and removes the old dir once empty. No link is left at an old path",
+                "tool_root": "D:\\.dev_<sys>",
+                "app_root": "D:\\applications",
+                "downloads_root": "D:\\.tmp\\Downloads",
+                "downloads_cache": "D:\\www\\cache\\core_node\\downloads",
+                "work_root": "D:\\.tmp",
+                "work_root_note": "work_root is only the value used without E: (and before Step 1 records WORK_DIR); D:\\.tmp is shared temp and is never migrated",
+                "pnpm_store": "D:\\.pnpm-store",
+                "pip_cache": "D:\\www\\cache\\pip",
+                "keep_patterns": ["*model*", "*weight*", "*checkpoint*", "huggingface", "datasets", "*Drafts*"],
+                "kept_data_root": "D:\\www\\program_data",
+                "superseded_tool_roots": ["E:\\core_node_compiler\\_<sys>_compiler", "E:\\core_node_compiler\\.dev_<sys>"],
+                "obsolete_staging_suffix": ".cn_moving",
+                "repairs_marker_name": ".cn_repairs_pending",
+                "manifest_name": ".cn_migrated",
+                "remove_script": "scripts/pytools/fs_tools/remove_tree_best_effort.py",
+                "relocate_script": "scripts/pytools/fs_tools/relocate_launchers.py"
+            },
+            "windows_resolved_vars": {
+                "purpose": "Per-OS var-center keys where Step 1 (SharedCacheEnv.ps1, the only Windows resolver) records the live Windows tool and app dirs; pycore and Laravel read them on Windows instead of re-resolving, and fall back to legacy_program_dirs before the first record",
+                "tool_root": "LANG_COMPILER_DIR",
+                "app_root": "APP_INSTALL_DIR",
+                "downloads_root": "DOWNLOADS_DIR",
+                "work_root": "WORK_DIR"
+            },
             "cache_root": {
-                "windows": "<program_drive>\\core_node_compiler\\cache",
+                "windows": "<program_drive>\\_<sys>_dev\\cache",
                 "windows_d_fallback": "D:\\www\\cache",
                 "linux": "/opt/core_node/cache"
             },
@@ -251,7 +294,7 @@
                 "corepack"
             ],
             "trees_root": {
-                "windows": "<program_drive>\\core_node_compiler\\trees",
+                "windows": "<program_drive>\\_<sys>_dev\\trees",
                 "linux": "/opt/core_node/trees"
             },
             "trees_mount_linux": "/www/core_node_compiler/trees",
@@ -435,38 +478,76 @@
             "cpu": 1
         }
     },
+    "ai_models": {
+        "purpose": "AI model install level (gvar level_key; installer menu [A]). A model step runs when its level is at or below the selected level in levels order; none installs no model step. Default: default_gpu when an NVIDIA GPU is present, else default_cpu. basic = OCR/TTS only, under basic_download_budget_mb of downloads in total. Keys of levels_by_id are prerequisites.steps ids; extra_steps lists model steps outside that manifest.",
+        "level_key": "AI_MODEL_LEVEL",
+        "levels": ["none", "basic", "medium", "full"],
+        "default_gpu": "medium",
+        "default_cpu": "basic",
+        "basic_download_budget_mb": 1024,
+        "levels_by_id": {
+            "ocr": "basic",
+            "edge_tts": "basic",
+            "sherpa": "basic",
+            "faster_whisper": "medium",
+            "whisper": "medium",
+            "vosk": "medium",
+            "kokoro": "medium",
+            "chattts": "medium",
+            "melotts": "medium",
+            "f5tts": "medium",
+            "ollama": "medium",
+            "nllb200": "medium",
+            "cosyvoice": "full",
+            "fishspeech": "full",
+            "voxcpm2": "full",
+            "bark": "full",
+            "parler": "full",
+            "qwen3tts": "full",
+            "gptsovits": "full",
+            "deepseek_vl": "full",
+            "deepseek_ocr": "full",
+            "qwen25": "full"
+        },
+        "extra_steps": [
+            {"id": "nllb200", "windows": ["Model_NLLB200.ps1"]},
+            {"id": "deepseek_vl", "windows": ["Model_DeepSeek.ps1"]},
+            {"id": "deepseek_ocr", "windows": ["Model_DeepSeekOCR.ps1"]},
+            {"id": "qwen25", "windows": ["Model_Qwen25.ps1"]}
+        ]
+    },
     "prerequisites": {
         "purpose": "The ONE ordered pycore prerequisite manifest (dependency order). Read by prepare_pycore_prerequisites.sh (Linux), PycorePrerequisitesList.ps1 (Windows) and pyutils/common/prerequisite_steps.py (missing-prerequisite report). linux/windows list the scripts of a step in run order; an empty list means no step exists on that platform. skip_env: variable that skips the step when 1. mode: '' always runs, 'local_ai' opt-in (local_ai.install_env or an explicit include), 'neural' joins the neural TTS batch, 'explicit' needs an include or its own install variable. full: the step accepts --full / -Full. provides: prerequisite names the step satisfies (default: its id).",
         "linux_script_dir": "scripts/shells/linux/debian/install_shells",
         "windows_script_dir": "scripts/shells/win/install_powershells",
         "steps": [
-            {"id": "cuda_policy", "linux": ["11_cuda_nvidia_prereq.sh"], "windows": ["Step9_InstallCudaNvidiaPrereq.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "python310", "linux": ["14_install_python310.sh"], "windows": ["Step13_InstallPython310_312.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "python_prereqs", "linux": ["15_install_default_python_prereq_packages.sh"], "windows": ["Step10_InstallPythonPrereqPackages.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "cuda_policy", "linux": ["11_cuda_nvidia_prereq.sh"], "windows": ["Python_CudaPrereq.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "python310", "linux": ["14_install_python310.sh"], "windows": ["Python_Isolated310.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "python_prereqs", "linux": ["15_install_default_python_prereq_packages.sh"], "windows": ["Python_PrereqPackages.ps1"], "skip_env": "", "mode": "", "full": false},
             {"id": "launcher", "linux": ["119_install_launcher.sh"], "windows": ["Step49_InstallLauncher.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "ffmpeg", "linux": ["115_install_ffmpeg.sh"], "windows": ["Step67_InstallFfmpeg.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "ffmpeg", "linux": ["115_install_ffmpeg.sh"], "windows": ["BaseTools_Ffmpeg.ps1"], "skip_env": "", "mode": "", "full": false},
             {"id": "document_parsing", "linux": ["121_install_document_parsing.sh"], "windows": ["Step47_InstallDocumentParsing.ps1"], "skip_env": "", "mode": "", "full": false},
             {"id": "dictionaries", "linux": ["123_install_dictionaries.sh"], "windows": [], "skip_env": "", "mode": "", "full": false},
-            {"id": "ocr", "linux": ["125_install_ocr.sh"], "windows": ["Step46_InstallOcr.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "faster_whisper", "linux": ["151_install_faster_whisper.sh"], "windows": ["Step11_InstallFasterWhisper.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "whisper", "linux": ["127_install_whisper.sh"], "windows": ["Step42_InstallWhisper.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "vosk", "linux": ["129_install_vosk.sh"], "windows": ["Step43_InstallVosk.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "edge_tts", "linux": ["29_install_edge_tts.sh"], "windows": ["Step12_InstallEdgeTts.ps1"], "skip_env": "", "mode": "", "full": false},
-            {"id": "ollama", "linux": ["117_install_ollama.sh"], "windows": ["Step66_InstallOllama.ps1"], "skip_env": "OLLAMA_SKIP", "mode": "local_ai", "full": false},
-            {"id": "chattts", "linux": ["131_install_chattts.sh"], "windows": ["Step51_InstallChatTts.ps1"], "skip_env": "CHATTTS_SKIP", "mode": "neural", "full": true},
-            {"id": "cosyvoice", "linux": ["133_install_cosyvoice.sh"], "windows": ["Step52_InstallCosyVoice.ps1"], "skip_env": "COSYVOICE_SKIP", "mode": "neural", "full": true},
-            {"id": "fishspeech", "linux": ["143_install_fishspeech.sh"], "windows": ["Step56_InstallFishspeech.ps1"], "skip_env": "FISHSPEECH_SKIP", "mode": "neural", "full": true},
-            {"id": "kokoro", "linux": ["145_install_kokoro.sh"], "windows": ["Step57_InstallKokoro.ps1"], "skip_env": "KOKORO_SKIP", "mode": "neural", "full": false},
-            {"id": "sherpa", "linux": ["31_install_tts_offline.sh"], "windows": ["Step70_InstallSherpa.ps1"], "skip_env": "SHERPA_SKIP", "mode": "neural", "full": false},
-            {"id": "voxcpm2", "linux": ["147_install_voxcpm2.sh"], "windows": ["Step58_InstallVoxcpm2.ps1"], "skip_env": "VOXCPM2_SKIP", "mode": "neural", "full": true},
-            {"id": "bark", "linux": ["141_install_bark.sh"], "windows": ["Step59_InstallBark.ps1"], "skip_env": "BARK_SKIP", "mode": "neural", "full": true},
-            {"id": "parler", "linux": ["181_install_parler.sh"], "windows": ["Step60_InstallParler.ps1"], "skip_env": "PARLER_SKIP", "mode": "neural", "full": true},
-            {"id": "qwen3tts", "linux": ["183_install_qwen3tts.sh"], "windows": ["Step61_InstallQwen3Tts.ps1"], "skip_env": "QWEN3TTS_SKIP", "mode": "neural", "full": true},
-            {"id": "f5tts", "linux": ["135_install_f5tts.sh"], "windows": ["Step53_InstallF5Tts.ps1"], "skip_env": "F5TTS_SKIP", "mode": "neural", "full": true},
-            {"id": "gptsovits", "linux": ["137_install_gptsovits.sh"], "windows": ["Step54_InstallGptsovits.ps1"], "skip_env": "GPTSOVITS_SKIP", "mode": "explicit", "full": true},
-            {"id": "melotts", "linux": ["139_install_melotts.sh"], "windows": ["Step55_InstallMelotts.ps1"], "skip_env": "MELOTTS_SKIP", "mode": "explicit", "full": true},
-            {"id": "device_tools", "linux": ["149_install_device_tools.sh"], "windows": ["Step27_InstallAndroidPlatformTools.ps1", "Step68_InstallScrcpy.ps1"], "skip_env": "DEVICE_TOOLS_SKIP", "mode": "", "full": false, "provides": ["adb", "scrcpy"]},
-            {"id": "frontend_packages", "linux": ["197_install_frontend_packages.sh"], "windows": ["Step69_InstallFrontendPackages.ps1"], "skip_env": "FRONTEND_PACKAGES_SKIP", "mode": "", "full": false}
+            {"id": "ocr", "linux": ["125_install_ocr.sh"], "windows": ["Model_Ocr.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "faster_whisper", "linux": ["151_install_faster_whisper.sh"], "windows": ["Model_FasterWhisper.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "whisper", "linux": ["127_install_whisper.sh"], "windows": ["Model_Whisper.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "vosk", "linux": ["129_install_vosk.sh"], "windows": ["Model_Vosk.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "edge_tts", "linux": ["29_install_edge_tts.sh"], "windows": ["Model_EdgeTts.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "ollama", "linux": ["117_install_ollama.sh"], "windows": ["Model_Ollama.ps1"], "skip_env": "OLLAMA_SKIP", "mode": "local_ai", "full": false},
+            {"id": "chattts", "linux": ["131_install_chattts.sh"], "windows": ["Model_ChatTts.ps1"], "skip_env": "CHATTTS_SKIP", "mode": "neural", "full": true},
+            {"id": "cosyvoice", "linux": ["133_install_cosyvoice.sh"], "windows": ["Model_CosyVoice.ps1"], "skip_env": "COSYVOICE_SKIP", "mode": "neural", "full": true},
+            {"id": "fishspeech", "linux": ["143_install_fishspeech.sh"], "windows": ["Model_Fishspeech.ps1"], "skip_env": "FISHSPEECH_SKIP", "mode": "neural", "full": true},
+            {"id": "kokoro", "linux": ["145_install_kokoro.sh"], "windows": ["Model_Kokoro.ps1"], "skip_env": "KOKORO_SKIP", "mode": "neural", "full": false},
+            {"id": "sherpa", "linux": ["31_install_tts_offline.sh"], "windows": ["Model_Sherpa.ps1"], "skip_env": "SHERPA_SKIP", "mode": "neural", "full": false},
+            {"id": "voxcpm2", "linux": ["147_install_voxcpm2.sh"], "windows": ["Model_Voxcpm2.ps1"], "skip_env": "VOXCPM2_SKIP", "mode": "neural", "full": true},
+            {"id": "bark", "linux": ["141_install_bark.sh"], "windows": ["Model_Bark.ps1"], "skip_env": "BARK_SKIP", "mode": "neural", "full": true},
+            {"id": "parler", "linux": ["181_install_parler.sh"], "windows": ["Model_Parler.ps1"], "skip_env": "PARLER_SKIP", "mode": "neural", "full": true},
+            {"id": "qwen3tts", "linux": ["183_install_qwen3tts.sh"], "windows": ["Model_Qwen3Tts.ps1"], "skip_env": "QWEN3TTS_SKIP", "mode": "neural", "full": true},
+            {"id": "f5tts", "linux": ["135_install_f5tts.sh"], "windows": ["Model_F5Tts.ps1"], "skip_env": "F5TTS_SKIP", "mode": "neural", "full": true},
+            {"id": "gptsovits", "linux": ["137_install_gptsovits.sh"], "windows": ["Model_Gptsovits.ps1"], "skip_env": "GPTSOVITS_SKIP", "mode": "explicit", "full": true},
+            {"id": "melotts", "linux": ["139_install_melotts.sh"], "windows": ["Model_Melotts.ps1"], "skip_env": "MELOTTS_SKIP", "mode": "explicit", "full": true},
+            {"id": "device_tools", "linux": ["149_install_device_tools.sh"], "windows": ["Android_PlatformTools.ps1", "Android_Scrcpy.ps1"], "skip_env": "DEVICE_TOOLS_SKIP", "mode": "", "full": false, "provides": ["adb", "scrcpy"]},
+            {"id": "frontend_packages", "linux": ["197_install_frontend_packages.sh"], "windows": ["Node_FrontendPackages.ps1"], "skip_env": "FRONTEND_PACKAGES_SKIP", "mode": "", "full": false}
         ]
     },
     "laravel_rescue": {

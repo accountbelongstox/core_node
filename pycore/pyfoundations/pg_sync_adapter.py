@@ -23,7 +23,9 @@ Path mapping mirrors system_paths.map_web_path():
   win_pg_root  - /mnt/{X}/www/wwwroot/postgresql  (Windows: D:\\www\\wwwroot\\postgresql)
   linux_pg_dir - /var/lib/postgresql/d             (WSL pg_mount)  OR
                  {base}/www/wwwroot/postgresql      (Linux native)
-  win_pg_bin   - /mnt/{X}/.dev_win10/PG/bin  or  /mnt/{X}/.dev_win11/PG/bin
+  win_pg_bin   - <Windows tool root>/PG/bin, contract drive_layout tool_root.windows
+                 (/mnt/e/core_node_compiler/_win10_compiler) or the old
+                 legacy_program_dirs.tool_root (/mnt/d/.dev_win10)
   win_secrets  - /mnt/{X}/var/_core_node/global_var/POSTGRES_PASSWORD
   sync_meta    - /mnt/{X}/var/_core_node/pg_sync_meta.json
   dump_file    - /mnt/{X}/www/wwwroot/postgresql/pg_win_export.sql
@@ -45,6 +47,7 @@ from datetime import datetime, timezone
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_info import is_wsl
+from pycore.pyfoundations import service_contract
 from pycore.pyfoundations.system_paths import map_web_path
 
 
@@ -61,8 +64,8 @@ PG_DATA_SUBPATH = Path('data')
 # error is expected on every restore. Any other ERROR fails the restore.
 RESTORE_BENIGN_ERRORS = (re.compile(r'ERROR:\s+role "[^"]+" already exists'),)
 RESTORE_ERROR_MARKER = 'ERROR:'
-# Candidate Windows tool root names under /mnt/{X}
-WIN_TOOL_ROOTS = ['.dev_win10', '.dev_win11']
+# Windows <sys> names a Windows tool root can carry (contract <sys> placeholder)
+WIN_SYS_NAMES = ('win10', 'win11')
 # Timeout (seconds) for PG to start/stop
 PG_WAIT_TIMEOUT = 30
 
@@ -90,6 +93,23 @@ def _find_win_mount() -> Optional[Path]:
             if (child / 'www' / 'wwwroot').is_dir():
                 return child
     return None
+
+
+def _win_path_on_mount(win_path: str) -> Path:
+    r"""'E:\a\b' -> /mnt/e/a/b (the /mnt/{X} convention of _find_win_mount)."""
+    drive, _, rest = win_path.partition(':')
+    return Path('/mnt') / drive.lower() / rest.replace('\\', '/').strip('/')
+
+
+def _win_tool_root_candidates() -> List[Path]:
+    """Windows tool roots seen from Linux: the E: tool root, then the old D: one."""
+    layout = service_contract.value('paths.drive_layout')
+    templates = (
+        str(layout['tool_root']['windows']).replace('<program_drive>', str(layout['program_drive_primary'])),
+        str(layout['legacy_program_dirs']['tool_root']),
+    )
+    return [_win_path_on_mount(template.replace('<sys>', sys_name))
+            for template in templates for sys_name in WIN_SYS_NAMES]
 
 
 def _pg_run(cmd: List, env: Optional[dict] = None, timeout: int = 60) -> Tuple[int, str, str]:
@@ -232,8 +252,8 @@ class PgSyncAdapter:
         self.win_secrets_dir = m / 'var' / '_core_node' / 'global_var'
         self.sync_meta_path = m / 'var' / '_core_node' / SYNC_META_FILENAME
         self.dump_path = self.win_pg_root / DUMP_FILENAME
-        for tool_root in WIN_TOOL_ROOTS:
-            candidate = m / tool_root / 'PG' / 'bin'
+        for tool_root in _win_tool_root_candidates():
+            candidate = tool_root / 'PG' / 'bin'
             if (candidate / 'pg_dump.exe').exists() or (candidate / 'pg_dumpall.exe').exists():
                 self.win_pg_bin = candidate
                 break
@@ -677,7 +697,8 @@ class PgSyncAdapter:
         if self.env == PgEnv.WSL:
             if not self.win_pg_bin:
                 ColorPrint.plain('[pg-sync] Windows PG binaries not found - cannot auto-sync.', flush=True)
-                ColorPrint.plain(f'[pg-sync] Expected: {self.win_mount}/.dev_win10/PG/bin or .dev_win11/PG/bin', flush=True)
+                expected = ' or '.join(str(root / 'PG' / 'bin') for root in _win_tool_root_candidates())
+                ColorPrint.plain(f'[pg-sync] Expected: {expected}', flush=True)
                 return 0
             if not self.prompt_3x_confirm(win_ts, linux_ts):
                 return 0

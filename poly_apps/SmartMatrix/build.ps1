@@ -78,36 +78,10 @@ function Write-Warning-Custom {
     Write-ColorOutput "[WARN] $Message" 'Yellow'
 }
 
-# Get dev directory from GlobalVars or detect manually
+# Get dev directory from GlobalVars
 function Get-DevDirectory {
-    # Use GlobalVars if loaded
-    if ($Global:LANG_COMPILER_DIR) {
-        Write-Host "  Using system dev directory: $Global:LANG_COMPILER_DIR" -ForegroundColor Cyan
-        return $Global:LANG_COMPILER_DIR
-    }
-
-    # Fallback: manual detection
-    Write-Section "Detecting System Version"
-
-    $osInfo = Get-CimInstance Win32_OperatingSystem
-    $winBuild = [int]$osInfo.BuildNumber
-
-    $systemName = "win"
-    if ($winBuild -ge 22000) {
-        $systemName = "win11"
-        Write-Host "  Detected: Windows 11 (Build $winBuild)" -ForegroundColor Green
-    }
-    elseif ($osInfo.Version.StartsWith("10.0")) {
-        $systemName = "win10"
-        Write-Host "  Detected: Windows 10 (Build $winBuild)" -ForegroundColor Green
-    }
-    else {
-        Write-Warning-Custom "Unknown Windows version, using default"
-    }
-
-    $devDir = "D:\.dev_$systemName"
-    Write-Host "  Dev directory: $devDir" -ForegroundColor Cyan
-    return $devDir
+    Write-Host "  Using system dev directory: $Global:LANG_COMPILER_DIR" -ForegroundColor Cyan
+    return $Global:LANG_COMPILER_DIR
 }
 
 # Test if directory contains Qt installation

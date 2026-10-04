@@ -34,11 +34,13 @@ $stepState = ''
 $stepPending = $false
 $scriptName = ''
 $localAiInstallEnv = ''
+$modelLevelBlocked = @()
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 . $manifestPath
 . (Join-Path $winCommonDir 'ServiceContract.ps1')
+. (Join-Path $winCommonDir 'AiModelLevelCommon.ps1')
 
 $localAiInstallEnv = [string](Get-ServiceContractValue -ContractPath 'local_ai.install_env')
 
@@ -61,8 +63,16 @@ foreach ($entry in $PycorePrerequisiteScripts) {
         continue
     }
 
-    # Local AI runtime (Ollama + translation model, GBs): opt-in on regular hosts.
-    if ($installMode -eq 'local_ai' -and $Include.Count -eq 0 -and [Environment]::GetEnvironmentVariable($localAiInstallEnv, 'Process') -ne '1') {
+    # AI model level (contract ai_models): an explicit -Include always runs the step.
+    $modelLevelBlocked = @($entry.Scripts | Where-Object { -not (Test-AiModelStepAllowed -ScriptName $_) })
+    if ($Include.Count -eq 0 -and $modelLevelBlocked.Count -gt 0) {
+        Write-AiModelStepSkipped -ScriptName $modelLevelBlocked[0]
+        continue
+    }
+
+    # Local AI runtime (Ollama + translation model, GBs): opt-in via the env or an AI model level that includes it.
+    if ($installMode -eq 'local_ai' -and $Include.Count -eq 0 -and [Environment]::GetEnvironmentVariable($localAiInstallEnv, 'Process') -ne '1' -and
+        $null -eq (Get-AiModelStepLevels)[[string]$entry.Scripts[0]]) {
         Write-Host ("[skip] {0} (opt-in: {1}=1 or -Include {0})" -f $name, $localAiInstallEnv) -ForegroundColor DarkGray
         continue
     }

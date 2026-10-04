@@ -22,14 +22,16 @@ public static class AppConstants
     public const string PanelKeyCalibration = "calibration";
     public const string PanelKeyLog = "log";
     public const string PanelKeyBattlenet = "battlenet";
+    public const string PanelKeyDecompile = "decompile";
     public const int TabIndexMain = 0;
     public const int TabIndexRosbot = 1;
     public const int TabIndexD4 = 2;
     public const int TabIndexCalibration = 3;
     /// <summary>Battle.net management sits before the log; the log tab is always last.</summary>
     public const int TabIndexBattlenet = 4;
-    public const int TabIndexLog = 5;
-    public const int TabCount = 6;
+    public const int TabIndexDecompile = 5;
+    public const int TabIndexLog = 6;
+    public const int TabCount = 7;
 
     // ---------- Popup keys (UiRegistry.RegisterPopup/GetPopup; 1:1 Python POPUP_KEY_*) ----------
     public const string PopupKeyDebugWindow = "debug_window";
@@ -39,6 +41,9 @@ public static class AppConstants
     public const string DefaultAssistantHotkey = "F10";
     /// <summary>Per-config hotkey default (macro_configs.skill_configs.&lt;name&gt;.quick_switch). 1:1 Python PER_CONFIG_HOTKEY_SPEC.</summary>
     public const string DefaultQuickSwitchHotkey = "F1";
+
+    /// <summary>Default custom force-stand key (macro_configs.auxiliary_config.custom_stand_key).</summary>
+    public const string DefaultCustomStandKey = "Shift";
 
     // ---------- UI defaults: preset window size for title-bar "Restore" button and config fallback (single source of truth) ----------
     public const int DefaultWindowWidth = 800;

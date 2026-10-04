@@ -35,7 +35,7 @@ STT_ENTRIES = (
         note="Vosk offline ASR (lightweight; needs a model dir)",
         managed_kind="model", concurrency="in_process", distribution="vosk",
         pip=("vosk", "vosk"), library_kind="pip",
-        installer="Step43_InstallVosk.ps1 / 129_install_vosk.sh",
+        installer="Model_Vosk.ps1 / 129_install_vosk.sh",
     ),
     ModelEntry(
         "azure", CATEGORY_STT, RUNTIME_CLOUD,

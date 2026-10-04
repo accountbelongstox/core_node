@@ -26,6 +26,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CORE_NODE_DIR = SCRIPT_DIR.parent.parent.parent.parent
 sys.path.insert(0, str(CORE_NODE_DIR))
 
+from pycore.pyfoundations.program_material_dirs import make_program_work_dir
 from pycore.pyfoundations.system_paths import map_web_path
 
 
@@ -340,15 +341,19 @@ def restore_from_backup(backup_path: Path, item_type: Optional[str] = None) -> b
     """
     # Extract if it's a zip file
     if backup_path.suffix == '.zip':
-        extract_dir = backup_path.parent / backup_path.stem
+        extract_root = make_program_work_dir(f"{backup_path.stem}_")
         try:
-            with zipfile.ZipFile(backup_path, 'r') as zip_ref:
-                zip_ref.extractall(extract_dir)
-            backup_path = extract_dir
-            print(f"[+] Extracted archive to: {extract_dir}")
-        except Exception as e:
-            print(f"[X] Failed to extract archive: {e}")
-            return False
+            try:
+                with zipfile.ZipFile(backup_path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_root)
+                print(f"[+] Extracted archive to: {extract_root}")
+            except Exception as e:
+                print(f"[X] Failed to extract archive: {e}")
+                return False
+            extracted = extract_root / backup_path.stem
+            return restore_from_backup(extracted if extracted.is_dir() else extract_root, item_type)
+        finally:
+            shutil.rmtree(extract_root, ignore_errors=True)
 
     if not backup_path.is_dir():
         print(f"[X] Invalid backup directory: {backup_path}")

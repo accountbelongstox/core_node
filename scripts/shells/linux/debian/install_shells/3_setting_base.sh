@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# Index 2 - Base System Setup: Disk Detection, Mount Management, and Mail Service Control
+# Index 3 - Base System Setup: Disk Detection, Mount Management, and Mail Service Control
 # =============================================================================
 
 set -e
@@ -44,7 +44,7 @@ source "$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
 # Native apt sources restore (distro-aware self-heal for polluted
 # sources.list; consumed here and by frankenphp_static_prereq.sh).
 source "$PARENT_DIR_LEVEL_2/common/apt_sources_restore.sh"
-MOUNT_LOG_PREFIX="[2]"
+MOUNT_LOG_PREFIX="[3]"
 
 # PID of the background sudo keepalive loop (empty when not started / as root)
 SUDO_KEEPALIVE_PID=""
@@ -475,9 +475,13 @@ main() {
         ensure_distro_archive_keyring_from_apt_repository_manager
     fi
     if command -v repair_repositories_from_apt_repository_manager >/dev/null 2>&1; then
-        echo "=== Repository Repair and Verification ==="
-        repair_repositories_from_apt_repository_manager
-        verify_repository_health_from_apt_repository_manager
+        if $USE_SUDO apt-get update >/dev/null 2>&1; then
+            echo "apt-get update OK; skipping repository repair"
+        else
+            echo "=== Repository Repair and Verification ==="
+            repair_repositories_from_apt_repository_manager
+            verify_repository_health_from_apt_repository_manager
+        fi
     fi
     if command -v manage_repositories_from_apt_repository_manager >/dev/null 2>&1; then
         manage_repositories_from_apt_repository_manager
@@ -583,7 +587,7 @@ main() {
 
     # Mark disk setup as completed
     if [ -n "$GLOBAL_VAR_DIR" ]; then
-        echo "[2] echo \"\$(date +%Y%m%d_%H%M%S)\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
+        echo "[3] echo \"\$(date +%Y%m%d_%H%M%S)\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
         echo "$(date +%Y%m%d_%H%M%S)" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED" >/dev/null
         log "Disk setup completion flag saved"
     fi

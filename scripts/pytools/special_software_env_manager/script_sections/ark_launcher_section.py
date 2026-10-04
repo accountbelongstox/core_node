@@ -193,7 +193,7 @@ $aiCliProvisionCommonPath = Join-Path $scriptsDirPath "shells\\win\\win_common\\
 . $aiCliProvisionCommonPath
 $projectRootPath = Split-Path $scriptsDirPath -Parent
 
-# Ensure PATH + absolute pnpm path (Global:PNPM_EXE_PATH from Step4_InstallNodeJS).
+# Ensure PATH + absolute pnpm path (Global:PNPM_EXE_PATH from Node_Runtime).
 $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
@@ -363,7 +363,7 @@ function Resolve-PnpmExe {{
         if ($cmd) {{ $exe = [string]$cmd.Source }}
     }}
     if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {{
-        Write-Host "[ERROR] pnpm not found (run Step4_InstallNodeJS.ps1 first)." -ForegroundColor Red
+        Write-Host "[ERROR] pnpm not found (run Node_Runtime.ps1 first)." -ForegroundColor Red
         exit 1
     }}
     return $exe

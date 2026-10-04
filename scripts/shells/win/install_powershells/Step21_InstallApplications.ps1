@@ -22,7 +22,7 @@
 param(
     [string]$Region = "Global", # This parameter is now largely superseded by Get-GlobalVar
     [string]$PackageName = "", # Filter packages by name (supports partial matching with wildcards)
-    [string]$PackageGroup = "", # Filter by package group (BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages - supports partial matching)
+    [string]$PackageGroup = "", # Filter by package group (BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpChrome, DevSoftwarePackages - supports partial matching)
     [string]$ExactPackageName = "" # When set, only the package whose key equals this value is installed (used by APP Install menu)
 )
 
@@ -40,9 +40,9 @@ param(
 
     PACKAGE GROUP FILTERING:
     - Use -PackageGroup to filter entire package groups (supports partial matching)
-    - Available groups: Windows10EssentialPatches, BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages
+    - Available groups: Windows10EssentialPatches, BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpChrome, DevSoftwarePackages
     - Examples: -PackageGroup "Windows10" (matches Windows10EssentialPatches - Win10 only)
-    - Examples: -PackageGroup "Mcp" (matches McpServicesPackages)
+    - Examples: -PackageGroup "Mcp" (matches McpChrome: builds apps/mcp-chrome)
     - Examples: -PackageGroup "Base" (matches BasePackages)
     - Examples: -PackageGroup "Dev" (matches DevSoftwarePackages)
 
@@ -86,6 +86,8 @@ $script:ExactPackageNameFilter = $ExactPackageName
 
 # Track installed packages' desktop categories for final organization
 $script:InstalledDesktopCategories = @()
+# Package IDs already handled in this run: a package listed in two groups is installed once
+$script:ProcessedPackageIds = @{}
 
 # Check if filters are provided
 if (-not [string]::IsNullOrWhiteSpace($ExactPackageName)) {
@@ -188,7 +190,8 @@ function Install-SinglePackageViaManager {
                 $results += $result
             }
         }
-        return if ($results.Count -gt 0) { $results[0] } else { $null } # Return first successful result
+        if ($results.Count -gt 0) { return $results[0] }
+        return $null
     }
 
     # Handle single package (original logic)
@@ -416,7 +419,7 @@ function Install-PackageManager {
     param(
         [string]$PackageName,
         [hashtable]$PackageMeta,
-        [ValidateSet("BaseDir", "AppDir", "ProjectDir", "McpDir")]
+        [ValidateSet("BaseDir", "AppDir", "ProjectDir")]
         [string]$BaseDirectory = "BaseDir"
     )
 
@@ -435,6 +438,16 @@ function Install-PackageManager {
     }
 
     $InstallType = $PackageMeta.InstallType
+
+    # One install per package per run: a second entry for the same package (different install dir)
+    # would uninstall and reinstall it in the other location on every run.
+    if ($PackageMeta.ContainsKey("PackageId") -and $PackageMeta.PackageId) {
+        if ($script:ProcessedPackageIds.ContainsKey([string]$PackageMeta.PackageId)) {
+            Write-Host "$SCRIPT_INDEX Skipping $PackageName - package $($PackageMeta.PackageId) was already handled as '$($script:ProcessedPackageIds[[string]$PackageMeta.PackageId])' in this run (duplicate entry in ApplicationsList.ps1)" -ForegroundColor Yellow
+            return $null
+        }
+        $script:ProcessedPackageIds[[string]$PackageMeta.PackageId] = $PackageName
+    }
 
     # Handle combo installation
     if ($InstallType -eq "combo" -and $PackageMeta.ContainsKey("ComboMethods")) {
@@ -496,9 +509,7 @@ function Get-PackageParameters {
     if ($PackageMeta.ContainsKey("RegistrySearchKeyword")) {
         $REGISTRY_SEARCH_KEYWORDS += $PackageMeta.RegistrySearchKeyword
     }
-    # Always include EXEC_NAME and NAME as fallback keywords
-    if ($EXEC_NAME) { $REGISTRY_SEARCH_KEYWORDS += $EXEC_NAME -replace "\.exe$", "" }
-    if ($NAME) { $REGISTRY_SEARCH_KEYWORDS += $NAME }
+    # Only the explicit RegistrySearchKeyword: exe stems/names (go, rg, http, Code) match unrelated programs
     # Remove duplicates and empty entries
     $REGISTRY_SEARCH_KEYWORDS = $REGISTRY_SEARCH_KEYWORDS | Where-Object { $_ -and $_.Trim() } | Select-Object -Unique
     $REGISTRY_SEARCH_KEYWORD = $REGISTRY_SEARCH_KEYWORDS -join ";"
@@ -621,7 +632,7 @@ function Install-BasePackage {
     param(
         [string]$PackageName,
         [hashtable]$PackageMeta,
-        [ValidateSet("BaseDir", "AppDir", "ProjectDir", "McpDir")]
+        [ValidateSet("BaseDir", "AppDir", "ProjectDir")]
         [string]$BaseDirectory = "BaseDir",
         [hashtable]$SubInstallMethod = $null
     )
@@ -671,7 +682,6 @@ function Install-BasePackage {
         "BaseDir" { $Global:LANG_COMPILER_DIR }
         "AppDir" { $Global:APP_INSTALL_DIR }
         "ProjectDir" { $Global:PROJECT_ROOT_DIR }
-        "McpDir" { $Global:MCP_DEPLOY_DIR }
         default { $Global:LANG_COMPILER_DIR }
     }
 
@@ -758,8 +768,15 @@ function Install-BasePackage {
                     $installed = $false
                 } else {
                     Write-Host "$SCRIPT_INDEX Running postscript installer: $InstallScript" -ForegroundColor Cyan
-                    & $scriptPath
-                    $installed = $?
+                    # A postscript reports its result as a final $true/$false output; one that emits none is judged by $?.
+                    try {
+                        $postscriptOutput = @(& $scriptPath)
+                        $installed = $?
+                        if ($postscriptOutput.Count -gt 0 -and $postscriptOutput[-1] -is [bool]) { $installed = $postscriptOutput[-1] }
+                    } catch {
+                        Write-Host "$SCRIPT_INDEX Postscript installer error: $($_.Exception.Message)" -ForegroundColor Red
+                        $installed = $false
+                    }
                     if (-not $installed) {
                         Write-Host "$SCRIPT_INDEX Postscript installer reported failure" -ForegroundColor Red
                     }
@@ -801,7 +818,7 @@ function Install-BasePackage {
             }
         }
         else {
-            Write-Host "$SCRIPT_INDEX No verification suffix specified for $PackageName" -ForegroundColor Yellow
+            Write-DebugLog -Message "No verification suffix specified for $PackageName" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
         }
     }
     else {
@@ -865,20 +882,9 @@ function Install-BasePackage {
             
             # Debug scanKeywords
             Write-DebugLog -Message "scanKeywords: $($scanKeywords -join ', ')" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
-            Write-Host "$SCRIPT_INDEX Shortcut Name: $shortcutName" -ForegroundColor Cyan
-            Write-Host "$SCRIPT_INDEX Exe Path: $executable" -ForegroundColor Cyan
-            # Write-Host "$SCRIPT_INDEX Icon Path: $iconPath" -ForegroundColor Cyan
-            Write-Host "$SCRIPT_INDEX Category Names: $($DESKTOP_CATEGORIES -join ', ')" -ForegroundColor Cyan
-            Write-Host "$SCRIPT_INDEX Scan Keywords: $scanKeywords" -ForegroundColor Cyan
-            
-            # Debug: Show detailed parameter information
-            Write-DebugLog -Message "Parameter details:" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
-            Write-Host "$SCRIPT_INDEX   - ShortcutName type: $($(if ($shortcutName) { $shortcutName.GetType().Name } else { 'null' })), value: '$shortcutName'" -ForegroundColor Magenta
-            Write-Host "$SCRIPT_INDEX   - ExePath type: $($(if ($executable) { $executable.GetType().Name } else { 'null' })), value: '$executable'" -ForegroundColor Magenta
-            # Write-Host "$SCRIPT_INDEX   - IconPath type: $($(if ($iconPath) { $iconPath.GetType().Name } else { 'null' })), value: '$iconPath'" -ForegroundColor Magenta
-            Write-Host "$SCRIPT_INDEX   - CategoryNames type: $($(if ($DESKTOP_CATEGORIES) { $DESKTOP_CATEGORIES.GetType().Name } else { 'null' })), count: $($(if ($DESKTOP_CATEGORIES) { $DESKTOP_CATEGORIES.Count } else { 0 }))" -ForegroundColor Magenta
-            Write-Host "$SCRIPT_INDEX   - ScanKeywords type: $($(if ($scanKeywords) { $scanKeywords.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
-            
+            Write-Host ("{0} Shortcut {1} -> {2} [{3}]" -f $SCRIPT_INDEX, $shortcutName, $executable, ($DESKTOP_CATEGORIES -join ', ')) -ForegroundColor Cyan
+            Write-DebugLog -Message ("Shortcut parameters: ShortcutName='{0}' ExePath='{1}' Categories={2} ScanKeywords='{3}'" -f $shortcutName, $executable, $(if ($DESKTOP_CATEGORIES) { $DESKTOP_CATEGORIES.Count } else { 0 }), ($scanKeywords -join ', ')) -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
+
             # Ensure scanKeywords is an array
             if ($scanKeywords -is [string]) {
                 Write-DebugLog -Message "Converting scanKeywords from string to array" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
@@ -890,14 +896,6 @@ function Install-BasePackage {
             else {
                 Write-DebugLog -Message "scanKeywords is neither string nor array, converting to empty array" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
                 $scanKeywords = @()
-            }
-            
-            Write-Host "$SCRIPT_INDEX   - ScanKeywords count: $($(if ($scanKeywords) { $scanKeywords.Count } else { 0 }))" -ForegroundColor Magenta
-            if ($scanKeywords -and $scanKeywords.Count -gt 0) {
-                for ($i = 0; $i -lt $scanKeywords.Count; $i++) {
-                    $keyword = $scanKeywords[$i]
-                    Write-Host "$SCRIPT_INDEX     - ScanKeywords[$i]: type=$($(if ($keyword) { $keyword.GetType().Name } else { 'null' })), value='$keyword'" -ForegroundColor Magenta
-                }
             }
             
             # Validate parameters before calling Create-DesktopShortcutsForPackage
@@ -950,7 +948,7 @@ function Install-BasePackage {
                 }
             }
             else {
-                Write-Host "$SCRIPT_INDEX [WARNING] scanKeywords is empty or null, will use empty array" -ForegroundColor Yellow
+                Write-DebugLog -Message "No scan keywords for $PackageName; using none" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
                 $scanKeywords = @()
             }
             
@@ -972,13 +970,7 @@ function Install-BasePackage {
                             $script:InstalledDesktopCategories += $category
                         }
 
-                        # Debug: Print all parameters passed to Create-DesktopShortcutsForPackage
-                        Write-Host "$SCRIPT_INDEX [DEBUG] Create-DesktopShortcutsForPackage Parameters:" -ForegroundColor Magenta
-                        Write-Host "$SCRIPT_INDEX   - ShortcutName: '$shortcutName' (Type: $(if ($shortcutName) { $shortcutName.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
-                        Write-Host "$SCRIPT_INDEX   - ExePath: '$executable' (Type: $(if ($executable) { $executable.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
-                        Write-Host "$SCRIPT_INDEX   - IconPath: '$iconPath' (Type: $(if ($iconPath) { $iconPath.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
-                        Write-Host "$SCRIPT_INDEX   - CategoryName: '$category' (Type: $(if ($category) { $category.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
-                        Write-Host "$SCRIPT_INDEX   - ScanKeywords: '$($scanKeywords -join ', ')' (Type: $(if ($scanKeywords) { $scanKeywords.GetType().Name } else { 'null' }), Count: $(if ($scanKeywords) { $scanKeywords.Count } else { 0 }))" -ForegroundColor Magenta
+                        Write-DebugLog -Message ("Create-DesktopShortcutsForPackage ShortcutName='{0}' ExePath='{1}' IconPath='{2}' CategoryName='{3}' ScanKeywords='{4}'" -f $shortcutName, $executable, $iconPath, $category, ($scanKeywords -join ', ')) -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
 
                         Create-DesktopShortcutsForPackage -ShortcutName $shortcutName -ExePath $executable -IconPath $iconPath -CategoryName $category -ScanKeywords $scanKeywords
                     }
@@ -998,10 +990,7 @@ function Install-BasePackage {
     
     # Handle context menu if MenuName is defined
     if ($PackageMeta.ContainsKey("MenuName") -and $PackageMeta.MenuName -and $executable) {
-        Write-Host "$SCRIPT_INDEX Context menu configuration found for $PackageName" -ForegroundColor Cyan
-        Write-Host "$SCRIPT_INDEX Menu Name: $($PackageMeta.MenuName)" -ForegroundColor Cyan
-        Write-Host "$SCRIPT_INDEX TODO: Context menu creation functionality not yet implemented" -ForegroundColor Yellow
-        Write-Host "$SCRIPT_INDEX Would create context menu: '$($PackageMeta.MenuName)' for executable: $executable" -ForegroundColor Yellow
+        Write-DebugLog -Message "Context menu '$($PackageMeta.MenuName)' for $executable is not created here (not implemented)" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
     }
     elseif ($PackageMeta.ContainsKey("MenuName") -and $PackageMeta.MenuName -and -not $executable) {
         Write-Host "$SCRIPT_INDEX Skipping context menu for $PackageName - executable not found" -ForegroundColor Yellow
@@ -1116,8 +1105,11 @@ function Install-BasePackage {
         Write-Host "$SCRIPT_INDEX Skipping desktop cleanup for $PackageName (no executable found)" -ForegroundColor Yellow
     }
 
-    # Note: Final desktop organization is now performed once after all packages are installed
-    # to avoid redundant executions (moved to main script after all installation loops)
+    # File this package's desktop icons now (idempotent; skips when the desktop is unchanged).
+    # The full organization with its summary still runs once after all packages.
+    if ($executable) {
+        Invoke-DesktopIconTidyAfterInstall -Reason $PackageName
+    }
 
     Write-Host "$SCRIPT_INDEX $PackageName installation completed." -ForegroundColor Green
     Write-Host ""
@@ -1188,43 +1180,15 @@ if (Test-PackageGroupFilter -GroupName "CommonSoftwarePackages") {
         }
     }
 }
-# Install MCP Services Packages
-if (Test-PackageGroupFilter -GroupName "McpServicesPackages") {
-    Write-Host "$SCRIPT_INDEX Installing all MCP services packages from GlobalVars.ps1" -ForegroundColor Cyan
-    Write-Host "$SCRIPT_INDEX MCP Services Packages: $($Global:MCP_SERVICES_PACKAGES.Keys -join ', ')" -ForegroundColor Cyan
-    foreach ($packageName in $Global:MCP_SERVICES_PACKAGES.Keys) {
-        $packageMeta = $Global:MCP_SERVICES_PACKAGES[$packageName]
-        Install-PackageManager -PackageName $packageName -PackageMeta $packageMeta -BaseDirectory "McpDir"
-    }
-}
-
-# Execute post-MCP installation callbacks (Total Callback)
-Write-Host "$SCRIPT_INDEX Executing post-MCP installation integration..." -ForegroundColor Cyan
-try {
-    # Execute Gemini MCP integration
-    $mcpConfigPath = Join-Path $Global:PROJECT_DIR "_prompt\mcp.json"
-    # Check if mcp.json exists, if not copy from template
-    if (-not (Test-Path $mcpConfigPath)) {
-        $templatePath = Join-Path $Global:PROJECT_DIR "_prompt\mcpWindowsTemplate.json"
-        if (Test-Path $templatePath) {
-            Copy-Item $templatePath $mcpConfigPath
-            Write-Host "$SCRIPT_INDEX [GEMINI_MCP] Created mcp.json from template" -ForegroundColor Green
-        }
-        else {
-            Write-Host "$SCRIPT_INDEX [GEMINI_MCP] Error: Template file not found: $templatePath" -ForegroundColor Red
-        }
-    }
-    $geminiIntegrationResult = Invoke-GeminiMcpIntegration -McpConfigPath $mcpConfigPath -LogPrefix "$SCRIPT_INDEX [GEMINI_MCP]"
-
-    if ($geminiIntegrationResult) {
-        Write-Host "$SCRIPT_INDEX Gemini MCP integration completed successfully" -ForegroundColor Green
+# MCP: only apps/mcp-chrome is built, by its own start script (shared Invoke-McpChromeBuild)
+if (Test-PackageGroupFilter -GroupName "McpChrome") {
+    . (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "McpChromeBuildCommon.ps1")
+    if (Invoke-McpChromeBuild -LogPrefix "$SCRIPT_INDEX [mcp-chrome]") {
+        Write-Host "$SCRIPT_INDEX mcp-chrome build completed" -ForegroundColor Green
     }
     else {
-        Write-Host "$SCRIPT_INDEX Gemini MCP integration failed" -ForegroundColor Yellow
+        Write-Host "$SCRIPT_INDEX mcp-chrome build failed - see messages above" -ForegroundColor Yellow
     }
-}
-catch {
-    Write-Host "$SCRIPT_INDEX Error during post-MCP integration: $($_.Exception.Message)" -ForegroundColor Red
 }
 # Install Dev Software Packages
 if (Test-PackageGroupFilter -GroupName "DevSoftwarePackages") {

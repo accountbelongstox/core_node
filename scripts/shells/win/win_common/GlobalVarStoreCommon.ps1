@@ -1,4 +1,12 @@
 # Shared encrypted global-variable storage functions.
+$script:WebServerPlaneKey = 'START_WEB_SERVER'
+$script:WebServerPlaneMirrorKey = 'WEB_SERVER_PLANE'
+$script:WebServerPlanes = @('frankenphp', 'nginx', 'none')
+$script:WebServerPlaneDefault = 'frankenphp'
+$script:PhpRuntimePlaneKey = 'PHP_RUNTIME_PLANE'
+$script:DatabaseEngineKey = 'DATABASE_ENGINE'
+$script:DatabaseEngines = @('pg', 'mysql', 'both', 'none')
+$script:DatabaseEngineDefault = 'pg'
 
 function Invoke-GlobalVarEncryption {
     param([string]$Content, [string]$Password)
@@ -133,7 +141,8 @@ if ($null -eq (Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ErrorActi
         'GIT_PUSH_BRANCH',
         'GIT_UPDATE_TYPE',
         'WINDOWS_RTC_UTC',
-        'MESH_VPN_PROVIDER'
+        'MESH_VPN_PROVIDER',
+        'CN_PROGRAM_PARTUUID'
     )
 }
 if (-not (Get-Command Get-GlobalVarWriteName -ErrorAction SilentlyContinue)) {
@@ -178,7 +187,7 @@ function Get-GlobalVar {
     foreach ($name in (Get-GlobalVarReadNames $key)) {
         $filePath = Join-Path $Global:GLOBAL_VAR_DIR $name
         if (Test-Path -LiteralPath $filePath -PathType Leaf) {
-            $value = Get-Content -LiteralPath $filePath -Raw
+            $value = Get-Content -LiteralPath $filePath -Raw -Encoding UTF8
             if (-not [string]::IsNullOrWhiteSpace($value)) {
                 return $value.Trim()
             }
@@ -190,10 +199,10 @@ function Get-GlobalVar {
 <#
 .SYNOPSIS
     Absolute node.exe for the secret tools; installs Node.js once through the
-    idempotent Step4_InstallNodeJS.ps1 when it is missing
+    idempotent Node_Runtime.ps1 when it is missing
 #>
 function Resolve-SecretNodeExe {
-    $installScript = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "install_powershells") "Step4_InstallNodeJS.ps1"
+    $installScript = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "install_powershells") "Node_Runtime.ps1"
     $nodeCmd = $null
 
     if (Test-Path -LiteralPath $Global:NODE_EXE_PATH -PathType Leaf) {
@@ -617,8 +626,59 @@ function Set-GlobalVar {
         Write-Warning "Global variable key collides with a directory and was not written: $key"
         return $false
     }
-    Set-Content -LiteralPath $filePath -Value $value -Force
+    [System.IO.File]::WriteAllText($filePath, ("{0}`r`n" -f $value), (New-Object System.Text.UTF8Encoding($false)))
     return $true
+}
+
+# Web server plane (Linux set_web_server_plane): the selector key and its mirror are written together.
+function Get-WebServerPlane {
+    $plane = ([string](Get-GlobalVar -key $script:WebServerPlaneKey -defaultValue $script:WebServerPlaneDefault)).Trim().ToLowerInvariant()
+    if ($script:WebServerPlanes -notcontains $plane) { return $script:WebServerPlaneDefault }
+    return $plane
+}
+
+function Set-WebServerPlane {
+    param([Parameter(Mandatory = $true)][string]$Plane)
+    $normalized = $Plane.Trim().ToLowerInvariant()
+    if ($script:WebServerPlanes -notcontains $normalized) { return $false }
+    Set-GlobalVar -key $script:WebServerPlaneKey -value $normalized | Out-Null
+    Set-GlobalVar -key $script:WebServerPlaneMirrorKey -value $normalized | Out-Null
+    return $true
+}
+
+# PHP runtime plane (Linux php_runtime_plane): an explicit PHP_RUNTIME_PLANE wins
+# (system, anything else frankenphp); otherwise the nginx plane uses the native PHP.
+function Get-PhpRuntimePlane {
+    $runtime = ([string](Get-GlobalVar -key $script:PhpRuntimePlaneKey -defaultValue '')).Trim().ToLowerInvariant()
+    if ($runtime) {
+        if ($runtime -eq 'system') { return 'system' }
+        return 'frankenphp'
+    }
+    if ((Get-WebServerPlane) -eq 'nginx') { return 'system' }
+    return 'frankenphp'
+}
+
+# Database engine (Linux sync_database_engine): DATABASE_ENGINE plus its START_POSTGRESQL/START_MYSQL mirrors.
+function Get-DatabaseEngine {
+    $engine = ([string](Get-GlobalVar -key $script:DatabaseEngineKey -defaultValue $script:DatabaseEngineDefault)).Trim().ToLowerInvariant()
+    if ($script:DatabaseEngines -notcontains $engine) { return $script:DatabaseEngineDefault }
+    return $engine
+}
+
+function Set-DatabaseEngine {
+    param([Parameter(Mandatory = $true)][string]$Engine)
+    $normalized = $Engine.Trim().ToLowerInvariant()
+    if ($script:DatabaseEngines -notcontains $normalized) { return $false }
+    Set-GlobalVar -key $script:DatabaseEngineKey -value $normalized | Out-Null
+    Set-GlobalVar -key 'START_POSTGRESQL' -value ([string](@('pg', 'both') -contains $normalized)).ToLowerInvariant() | Out-Null
+    Set-GlobalVar -key 'START_MYSQL' -value ([string](@('mysql', 'both') -contains $normalized)).ToLowerInvariant() | Out-Null
+    return $true
+}
+
+function Test-DatabaseEngineSelected {
+    param([Parameter(Mandatory = $true)][ValidateSet('pg', 'mysql')][string]$Engine)
+    $selected = Get-DatabaseEngine
+    return ($selected -eq $Engine -or $selected -eq 'both')
 }
 
 function Import-LegacyGlobalVarDirectory {
@@ -702,7 +762,7 @@ function Get-AllGlobalVars {
         }
 
         try {
-            $vars[$_.Name] = Get-Content $_.FullName -Raw -ErrorAction Stop
+            $vars[$_.Name] = Get-Content $_.FullName -Raw -Encoding UTF8 -ErrorAction Stop
             # Write-Host "    OK" -ForegroundColor Green  # Removed - silent mode
         } catch [System.OutOfMemoryException] {
             Write-Host "    ERROR: Out of memory reading file: $($_.Name)" -ForegroundColor Red

@@ -169,7 +169,10 @@
       "yolo_flow_prepare_failed": "准备训练数据失败：",
       "yolo_flow_prepare_ok": "训练数据已准备：",
       "yolo_flow_clean_confirm": "删除最新片段 frames 中无标注的图片和无图片的标注？此操作不可撤销。",
-      "yolo_capture_not_available": "此版本暂不提供坐标拾取窗口。"
+      "yolo_capture_not_available": "此版本暂不提供坐标拾取窗口。",
+      "yolo_flow_export_started": "训练完成，正在导出 ONNX：",
+      "yolo_flow_export_failed": "ONNX 导出失败：",
+      "yolo_flow_export_done": "ONNX 模型已就绪（城镇寻路使用）："
     },
     "yolo_collect": {
       "window_title": "YOLO训练数据采集",

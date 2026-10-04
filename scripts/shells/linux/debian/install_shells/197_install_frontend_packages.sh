@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPT_INDEX="197"
 # ---------------------------------------------------------------------------
-# install_frontend_packages.sh - Frontend dependency prerequisite for the UI that
+# 197_install_frontend_packages.sh - Frontend dependency prerequisite for the UI that
 # pycore launches (poly_apps/pycore_laravel_wordnew_ui, the callmodule FRONTEND_DIR;
 # every native_ui frontend app lives in that one workspace root). pycore only checks
 # that node_modules exists and names this step; it never runs a package manager.

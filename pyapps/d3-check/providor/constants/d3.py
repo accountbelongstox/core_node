@@ -3,6 +3,7 @@
 D3-only constants. All symbols use D3_* or are specific to Diablo III / ROSBOT / D3 Battle.net tab and play.
 Import directly: from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH
 """
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
 from providor.constants.common import (
     WINDOW_BORDER_LEFT,
     WINDOW_BORDER_RIGHT,
@@ -101,7 +102,7 @@ DIABLO_III_EXE_NAME = "Diablo III.exe"
 ROSBOT_EXE_PATTERNS = ("ros-bot*.exe", "RoS-BoT*.exe")
 
 # ROSBOT update check: GameTools base dir (ros-bot*.exe from here or config); Downloads dir for zip
-ROSBOT_GAMETOOLS_BASE = r"D:\applications\GameTools"
+ROSBOT_GAMETOOLS_BASE = str(get_windows_program_dir("app_root") / "GameTools")
 ROSBOT_ZIP_MIN_SIZE_MB = 20
 ROSBOT_ZIP_MAX_SIZE_MB = 50  # Zip size range 20-50MB
 # Region semantics: CN = 国服 only; Asia = 亚服 + 国际服 (international). Version is per-region: dir = {Asia|CN}_{version}.

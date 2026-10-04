@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DotCore.Foundations;
 using DotCore.Utils;
+using DotCore.Utils.Input;
 
 namespace DotApps.d3d4tester.Core;
 
@@ -13,14 +14,28 @@ namespace DotApps.d3d4tester.Core;
 /// Runs a background loop: find D3 hwnd, refresh window cache and activate window, then each tick run MacroSkillRunner.RunOneSkillTick (send keys/mouse from config).
 /// Skill config is provided by the app via SetSkillConfigProvider (e.g. MacroConfigLoader.Instance.GetCurrentSkillConfig).
 /// </summary>
+/// <summary>Runtime macro options read each tick: smart pause (Tab pauses, Enter/T/M stop) and the custom force-stand key held around left clicks.</summary>
+public sealed record MacroRuntimeOptions(bool SmartPause, bool UseCustomStandKey, string? CustomStandKey);
+
 public sealed class MacroFallbackRunner
 {
+    private const int TickMs = 100;
+    private const int KeyPollMs = 20;
+    private const int VkTab = 0x09;
+    private static readonly int[] SmartStopKeys = { 0x0D, 0x54, 0x4D };
+
     private readonly object _lock = new();
     private Task? _task;
     private CancellationTokenSource? _cts;
 
     /// <summary>Provider for current skill config. Set from app (e.g. CombatMacroController) to () => MacroConfigLoader.Instance.GetCurrentSkillConfig().</summary>
     public static Func<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>>? SkillConfigProvider { get; set; }
+
+    /// <summary>Runtime options provider (smart pause, custom stand key). Set from app.</summary>
+    public static Func<MacroRuntimeOptions>? RuntimeOptionsProvider { get; set; }
+
+    /// <summary>Called when smart pause stops the macro (Enter / T / M in D3), so the owner clears its running state.</summary>
+    public static Action? SmartStopRequested { get; set; }
 
     public static MacroFallbackRunner Instance { get; } = new();
 
@@ -62,55 +77,109 @@ public sealed class MacroFallbackRunner
         bool cacheRefreshedThisRun = false;
         int noHwndLogTicks = 0;
         bool loggedEmptyConfig = false;
-        while (!token.IsCancellationRequested && shouldContinue())
+        var smart = new SmartPauseState();
+        try
         {
-            try
+            while (!token.IsCancellationRequested && shouldContinue())
             {
-                IntPtr hwnd = D3WindowFinder.FindFirstHandle();
-                if (hwnd == IntPtr.Zero)
+                IntPtr hwnd = IntPtr.Zero;
+                var runtime = RuntimeOptionsProvider?.Invoke();
+                try
                 {
-                    noHwndLogTicks++;
-                    if (noHwndLogTicks == 1 || (noHwndLogTicks % 20 == 0))
-                        ColorPrinter.Yellow($"[MacroFallback] D3 window not found (tick {noHwndLogTicks}). Set D3 path in config or ensure game window is open.");
-                }
-                else
-                {
-                    if (!cacheRefreshedThisRun)
+                    hwnd = D3WindowFinder.FindFirstHandle();
+                    if (hwnd == IntPtr.Zero)
                     {
-                        var rect = WindowInputHelper.GetWindowClientRectScreen(hwnd);
-                        if (rect.HasValue)
+                        noHwndLogTicks++;
+                        if (noHwndLogTicks == 1 || (noHwndLogTicks % 20 == 0))
+                            ColorPrinter.Yellow($"[MacroFallback] D3 window not found (tick {noHwndLogTicks}). Set D3 path in config or ensure game window is open.");
+                    }
+                    else if (!smart.Paused)
+                    {
+                        if (!cacheRefreshedThisRun)
                         {
-                            GameInterfaceData.Instance.RefreshD3WindowCache(rect.Value.Left, rect.Value.Top, rect.Value.Right, rect.Value.Bottom);
-                            WindowInputHelper.SetForegroundWindow(hwnd);
-                            cacheRefreshedThisRun = true;
-                            ColorPrinter.Blue($"[MacroFallback] D3 window found hwnd=0x{hwnd.ToString("X")}, activating and refreshing cache.");
+                            var rect = WindowInputHelper.GetWindowClientRectScreen(hwnd);
+                            if (rect.HasValue)
+                            {
+                                GameInterfaceData.Instance.RefreshD3WindowCache(rect.Value.Left, rect.Value.Top, rect.Value.Right, rect.Value.Bottom);
+                                WindowInputHelper.SetForegroundWindow(hwnd);
+                                cacheRefreshedThisRun = true;
+                                ColorPrinter.Blue($"[MacroFallback] D3 window found hwnd=0x{hwnd.ToString("X")}, activating and refreshing cache.");
+                            }
                         }
+                        var skills = SkillConfigProvider?.Invoke() ?? new Dictionary<string, IReadOnlyDictionary<string, string>>();
+                        if (skills.Count == 0 && !loggedEmptyConfig)
+                        {
+                            loggedEmptyConfig = true;
+                            ColorPrinter.Yellow("[MacroFallback] Skill config empty. Ensure LoadActive() was called and macro_configs.skill_configs.{name}.skills is set.");
+                        }
+                        double now = DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
+                        var cachedRect = GameInterfaceData.Instance.GetCachedD3ClientRect();
+                        var nextTimes = MacroSkillRunner.RunOneSkillTick(hwnd, skills, lastSkillTimes, now, cachedRect, ResolveStandKey(runtime));
+                        lastSkillTimes.Clear();
+                        foreach (var kv in nextTimes) lastSkillTimes[kv.Key] = kv.Value;
                     }
-                    var skills = SkillConfigProvider?.Invoke() ?? new Dictionary<string, IReadOnlyDictionary<string, string>>();
-                    if (skills.Count == 0 && !loggedEmptyConfig)
+                }
+                catch (Exception ex)
+                {
+                    ColorPrinter.Yellow($"[MacroFallback] Tick error: {ex.Message}");
+                }
+                for (int waited = 0; waited < TickMs; waited += KeyPollMs)
+                {
+                    if (runtime?.SmartPause == true && hwnd != IntPtr.Zero && WindowInputHelper.IsForegroundWindow(hwnd) && smart.Poll())
                     {
-                        loggedEmptyConfig = true;
-                        ColorPrinter.Yellow("[MacroFallback] Skill config empty. Ensure LoadActive() was called and macro_configs.skill_configs.{name}.skills is set.");
+                        ColorPrinter.Yellow("[MacroFallback] Smart pause: Enter/T/M pressed in D3, stopping macro");
+                        var stop = SmartStopRequested;
+                        if (stop != null) Task.Run(stop);
+                        return;
                     }
-                    double now = DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
-                    var cachedRect = GameInterfaceData.Instance.GetCachedD3ClientRect();
-                    var nextTimes = MacroSkillRunner.RunOneSkillTick(hwnd, skills, lastSkillTimes, now, cachedRect);
-                    lastSkillTimes.Clear();
-                    foreach (var kv in nextTimes) lastSkillTimes[kv.Key] = kv.Value;
+                    try
+                    {
+                        Task.Delay(KeyPollMs, token).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
                 }
             }
-            catch (Exception ex)
+        }
+        finally
+        {
+            MacroSkillRunner.ReleaseHeld();
+        }
+    }
+
+    private static ushort? ResolveStandKey(MacroRuntimeOptions? runtime) =>
+        runtime is { UseCustomStandKey: true, CustomStandKey: { Length: > 0 } key } && ClickHandler.TryResolveKey(key.Trim(), out ushort vk) ? vk : null;
+
+    /// <summary>Key edge tracking for smart pause: Tab toggles pause (held keys released / re-held next tick); Enter, T or M request stop.</summary>
+    private sealed class SmartPauseState
+    {
+        private readonly Dictionary<int, bool> _wasDown = new();
+
+        public bool Paused { get; private set; }
+
+        /// <summary>Returns true when a stop key was pressed.</summary>
+        public bool Poll()
+        {
+            if (Pressed(VkTab))
             {
-                ColorPrinter.Yellow($"[MacroFallback] Tick error: {ex.Message}");
+                Paused = !Paused;
+                if (Paused) MacroSkillRunner.ReleaseHeld();
+                ColorPrinter.Blue(Paused ? "[MacroFallback] Smart pause: paused (Tab)" : "[MacroFallback] Smart pause: resumed (Tab)");
             }
-            try
-            {
-                Task.Delay(100, token).GetAwaiter().GetResult();
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+            bool stop = false;
+            foreach (var vk in SmartStopKeys)
+                stop |= Pressed(vk);
+            return stop;
+        }
+
+        private bool Pressed(int vk)
+        {
+            bool down = WindowInputHelper.IsKeyDown(vk);
+            bool was = _wasDown.TryGetValue(vk, out var w) && w;
+            _wasDown[vk] = down;
+            return down && !was;
         }
     }
 }

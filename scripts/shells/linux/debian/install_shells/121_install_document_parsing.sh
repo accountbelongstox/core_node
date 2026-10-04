@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 SCRIPT_INDEX="121"
 # ---------------------------------------------------------------------------
-# install_document_parsing.sh - Prerequisite installer for the Books / document
+# 121_install_document_parsing.sh - Prerequisite installer for the Books / document
 # ingest pipeline (Linux/Mac/Debian side).
 #
 # Invoked sequentially by prepare_pycore_prerequisites.sh (pyservice; scripts never call siblings).
@@ -24,8 +24,8 @@ SCRIPT_INDEX="121"
 # binary is skipped when already on PATH.
 #
 # Usage:
-#   ./install_document_parsing.sh --python /usr/bin/python3
-#   ./install_document_parsing.sh --python python3 --force
+#   ./121_install_document_parsing.sh --python /usr/bin/python3
+#   ./121_install_document_parsing.sh --python python3 --force
 # ---------------------------------------------------------------------------
 set -uo pipefail
 

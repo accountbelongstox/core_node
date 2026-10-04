@@ -30,4 +30,9 @@ public static partial class I18nKeys
     public const string RosbotUpdateUsageInstructions = "ui.rosbot.update_usage_instructions";
     public const string RosbotUpdateUsageTitle = "ui.rosbot_update.usage_title";
     public const string BottomBarOneClickScanTooltip = "ui.bottom_bar.one_click_scan_tooltip";
+
+    /// <summary>Tray balloon texts (DOT-only).</summary>
+    public const string TrayRosbotStarted = "ui.tray.rosbot_started";
+    public const string TrayRosbotStartFailed = "ui.tray.rosbot_start_failed";
+    public const string TrayRosbotStopped = "ui.tray.rosbot_stopped";
 }

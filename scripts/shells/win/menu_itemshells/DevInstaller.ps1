@@ -94,6 +94,12 @@ if (-not $stepsList) {
 
 . $stepsList
 
+$disabledItemSteps = @(Get-InstallItemDisabledSteps)
+Write-InstallPlan -Title 'Full installation' -Steps $InstallerScripts -SwitchedOffSteps $disabledItemSteps
 foreach ($stepScript in $InstallerScripts) {
+    if ($disabledItemSteps -contains $stepScript) {
+        Write-Host "[skip] $stepScript (switched off in the installation configuration)" -ForegroundColor DarkGray
+        continue
+    }
     Install-Script -scriptName $stepScript -shouldExecute $true
 }

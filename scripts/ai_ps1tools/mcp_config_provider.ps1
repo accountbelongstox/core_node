@@ -14,6 +14,7 @@ $script:MCP_SECRET_KEYS_DIR = Join-Path $script:MCP_PROJECT_ROOT ".secret_keys"
 $script:MCP_SECRET_RAW_DIR = Join-Path $script:MCP_SECRET_KEYS_DIR ".secret_ignore"
 $script:MCP_WIN_COMMON_DIR = Join-Path $script:MCP_PROJECT_ROOT "scripts\shells\win\win_common"
 $script:MCP_SERVICE_CONTRACT_COMMON = Join-Path $script:MCP_WIN_COMMON_DIR "ServiceContract.ps1"
+$script:MCP_GLOBAL_VARS_PS1 = Join-Path $script:MCP_WIN_COMMON_DIR "GlobalVars.ps1"
 . $script:MCP_SERVICE_CONTRACT_COMMON
 $script:MCP_CHROME_URL = New-ServiceContractUrl -Protocol "http" -HostName (Get-ServiceContractHost -Name "loopback") -Port (Get-ServiceContractPort -Name "mcp_chrome") -Path "mcp"
 $script:MCP_PYCORE_DEV_URL = New-ServiceContractUrl -Protocol "http" -HostName (Get-ServiceContractHost -Name "loopback") -Port (Get-ServiceContractPort -Name "pycore_backend") -Path (Get-ServiceContractValue -ContractPath "paths.pycore_dev_mcp")
@@ -132,8 +133,10 @@ function Set-ClaudeGitBashEnv {
     if ($env:CLAUDE_CODE_GIT_BASH_PATH -and (Test-Path -LiteralPath $env:CLAUDE_CODE_GIT_BASH_PATH)) {
         return
     }
+    $appInstallVar = Get-Variable -Name APP_INSTALL_DIR -Scope Global -ErrorAction SilentlyContinue
+    if (-not $appInstallVar) { . $script:MCP_GLOBAL_VARS_PS1 }
     $searchPaths = @(
-        "D:\applications\Git\bin\bash.exe",
+        (Join-Path $Global:APP_INSTALL_DIR "Git\bin\bash.exe"),
         "C:\Program Files\Git\bin\bash.exe",
         "C:\Program Files (x86)\Git\bin\bash.exe",
         "D:\Git\bin\bash.exe",
@@ -166,12 +169,11 @@ function Get-MCPPythonExe {
     if ($ddPythonVar -and $ddPythonVar.Value -and (Test-Path -LiteralPath $ddPythonVar.Value)) {
         return $ddPythonVar.Value
     }
-    # Priority 2: Detect DD Python via D:\.dev_${systemName}\python311\python.exe
-    $systemNames = @("win10", "win11", "win", "win_8", "win_7")
-    foreach ($sn in $systemNames) {
-        $ddPyPath = Join-Path "D:\.dev_$sn" "python311\python.exe"
-        if (Test-Path -LiteralPath $ddPyPath) { return $ddPyPath }
-    }
+    # Priority 2: Detect DD Python via <LANG_COMPILER_DIR>\python311\python.exe
+    $langCompilerVar = Get-Variable -Name LANG_COMPILER_DIR -Scope Global -ErrorAction SilentlyContinue
+    if (-not $langCompilerVar) { . $script:MCP_GLOBAL_VARS_PS1 }
+    $ddPyPath = Join-Path $Global:LANG_COMPILER_DIR "python311\python.exe"
+    if (Test-Path -LiteralPath $ddPyPath) { return $ddPyPath }
     # Priority 3: System python3/python (skip Windows Store alias)
     $py3 = Get-Command python3 -ErrorAction SilentlyContinue
     if ($py3 -and $py3.Source -and (-not ($py3.Source -like "*WindowsApps*"))) {

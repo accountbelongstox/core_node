@@ -55,7 +55,7 @@ class NLLB200TranslationProvider extends TranslationProvider {
       const fs = require('fs');
       if (!fs.existsSync(this.translatorScriptPath)) {
         logger.error(`NLLB-200 translator script not found: ${this.translatorScriptPath}`);
-        logger.error('Please run Step98_InstallNLLB200.ps1 to install NLLB-200');
+        logger.error('Please run Model_NLLB200.ps1 to install NLLB-200');
         return false;
       }
 

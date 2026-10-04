@@ -36,7 +36,7 @@ WHISPER_FORMAT = "wav"
 
 
 # The prerequisite step that installs ffmpeg (Windows / Linux).
-FFMPEG_INSTALLER = "Step67_InstallFfmpeg.ps1 / 115_install_ffmpeg.sh"
+FFMPEG_INSTALLER = "BaseTools_Ffmpeg.ps1 / 115_install_ffmpeg.sh"
 
 def get_whisper_cache_dir() -> Path:
     """

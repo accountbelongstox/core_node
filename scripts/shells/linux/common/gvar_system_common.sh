@@ -207,6 +207,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/shared_cache_env.sh"
 # vs CPU build + small model the SAME way. Defining-only (no side effects); safe under set -u.
 source "$(dirname "${BASH_SOURCE[0]}")/base_libs/lib_gpu.sh"
 
-# Global download directory for all installation scripts
-CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
+# Global download directory for all installation scripts: Linux installer
+# downloads are Linux-only, so they live on ext4 under the contract cache root
+# (CN_CACHE_ROOT, shared_cache_env.sh), never on the NTFS data share.
+CORE_NODE_SHARED_DOWNLOADS="$CN_CACHE_ROOT/shared_downloads"
 

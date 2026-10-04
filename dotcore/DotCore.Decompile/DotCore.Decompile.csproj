@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DotCore.Decompile</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Ttd\JitExtractorX64.js" />
+    <EmbeddedResource Include="Ttd\HvmTokenExtractorX64.js" />
+    <EmbeddedResource Include="Ttd\HvmLocalTypeExtractorX64.js" />
+  </ItemGroup>
+</Project>

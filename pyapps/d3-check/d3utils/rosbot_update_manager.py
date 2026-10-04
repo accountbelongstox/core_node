@@ -55,7 +55,7 @@ _VERSION_RE = re.compile(r"(\d{1,4})\.?(\d{2,5})")
 _MIN_ZIP_BYTES = ROSBOT_ZIP_MIN_SIZE_MB * 1024 * 1024
 _MAX_ZIP_BYTES = ROSBOT_ZIP_MAX_SIZE_MB * 1024 * 1024
 ROSBOT_FINAL_DIR_NAME = "RosBot"  # Renamed directory name
-# Temporary directory base: D:\applications\GameTools\.tmp\tmp_xxx (unique per run)
+# Temporary directory base: <APP_INSTALL_DIR>\GameTools\.tmp\tmp_xxx (unique per run)
 ROSBOT_TEMP_BASE_DIR = os.path.join(ROSBOT_GAMETOOLS_BASE, ".tmp")
 
 
@@ -425,7 +425,7 @@ class RosbotUpdateManager:
                 return False
 
     def _get_unique_temp_dir(self) -> str:
-        """Generate unique temp directory path: D:\applications\GameTools\.tmp\tmp_xxx"""
+        """Generate unique temp directory path: <APP_INSTALL_DIR>\GameTools\.tmp\tmp_xxx"""
         os.makedirs(ROSBOT_TEMP_BASE_DIR, exist_ok=True)
         unique_id = uuid.uuid4().hex[:8]
         return os.path.join(ROSBOT_TEMP_BASE_DIR, f"tmp_{unique_id}")

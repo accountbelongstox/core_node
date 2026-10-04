@@ -59,7 +59,6 @@ if ($winBuild -ge 22000) {
     $Global:isWin10 = $false
 }
 
-$Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
 $Global:WINENVS_DIR = ".winenvs"
 
 # Load GlobalVars.ps1 to get PROJECT_DIR and INLINE_WINENVS_DIR
@@ -437,6 +436,94 @@ function Optimize-Path {
     }
     Update-ProcessPath
     Write-Log "PATH dedupe complete: $totalRemoved segment(s) removed" -color "Green"
+}
+
+# One environment value with every ';'-separated segment that is <OldRoot> or
+# lies under it re-rooted to <NewRoot> (case-insensitive, whole path segments).
+function Convert-EnvironmentRootValue {
+    param (
+        [string]$Value,
+        [string]$OldRoot,
+        [string]$NewRoot
+    )
+    $segment = ""
+    $trimmed = ""
+    $converted = New-Object System.Collections.Generic.List[string]
+
+    foreach ($segment in ($Value -split ";")) {
+        $trimmed = $segment.Trim()
+        if ($trimmed -ieq $OldRoot) {
+            $converted.Add($NewRoot)
+        } elseif ($trimmed.StartsWith("$OldRoot\", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $converted.Add($NewRoot + $trimmed.Substring($OldRoot.Length))
+        } else {
+            $converted.Add($segment)
+        }
+    }
+    return ($converted -join ";")
+}
+
+# Idempotent re-rooting after a program dir moved (e.g. D:\.dev_win10 ->
+# E:\_win10_dev): every Machine and User environment variable (PATH, JAVA_HOME,
+# GOROOT, ...) pointing at or under <OldRoot> now points under <NewRoot>, PATH
+# is deduplicated, and this process is refreshed. Writes only changed values;
+# Machine needs administrator rights.
+function Move-EnvironmentRoot {
+    param (
+        [string]$OldRoot,
+        [string]$NewRoot
+    )
+    $oldPrefix = Normalize-WindowsPath $OldRoot
+    $newPrefix = Normalize-WindowsPath $NewRoot
+    $scope = ""
+    $key = ""
+    $item = $null
+    $name = ""
+    $raw = ""
+    $kind = $null
+    $updated = ""
+    $changed = $false
+    $backedUp = $false
+    $processVar = $null
+
+    if (-not $oldPrefix -or -not $newPrefix -or ($oldPrefix -ieq $newPrefix)) { return }
+
+    foreach ($scope in $script:PathScopes) {
+        if ($scope -eq "Machine" -and -not $Global:HAS_ADMIN_RIGHTS) {
+            Write-Log "[$scope] administrator rights required to re-root $oldPrefix; left unchanged" -color "Yellow"
+            continue
+        }
+        $key = if ($scope -eq "Machine") { $script:MachineEnvironmentKey } else { $script:UserEnvironmentKey }
+        $item = Get-Item -LiteralPath $key -ErrorAction SilentlyContinue
+        if ($null -eq $item) { continue }
+        foreach ($name in $item.GetValueNames()) {
+            $kind = $item.GetValueKind($name)
+            if ($kind -ne [Microsoft.Win32.RegistryValueKind]::String -and $kind -ne [Microsoft.Win32.RegistryValueKind]::ExpandString) { continue }
+            $raw = [string]$item.GetValue($name, "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            $updated = Convert-EnvironmentRootValue -Value $raw -OldRoot $oldPrefix -NewRoot $newPrefix
+            if ($updated -ceq $raw) { continue }
+            if (-not $backedUp) {
+                Backup-Environment
+                $backedUp = $true
+            }
+            Set-ItemProperty -LiteralPath $key -Name $name -Value $updated -Type $kind -ErrorAction Stop
+            Write-Log "  [$scope] $name re-rooted: $oldPrefix -> $newPrefix" -color "Green"
+            $changed = $true
+        }
+    }
+
+    foreach ($processVar in @(Get-ChildItem Env: | Where-Object { $_.Name -ne "Path" })) {
+        $updated = Convert-EnvironmentRootValue -Value ([string]$processVar.Value) -OldRoot $oldPrefix -NewRoot $newPrefix
+        if ($updated -cne [string]$processVar.Value) {
+            [Environment]::SetEnvironmentVariable($processVar.Name, $updated, "Process")
+        }
+    }
+    if ($changed) {
+        Send-EnvironmentChange
+        Optimize-Path
+    }
+    Update-ProcessPath
+    Write-Log "Environment re-rooted: $oldPrefix -> $newPrefix" -color "Green"
 }
 
 # Every PATH directory (Machine first, then User) that provides <Name> through
@@ -1034,6 +1121,9 @@ switch ($action) {
     "dedupe" {
         Optimize-Path
     }
+    "moveroot" {
+        Move-EnvironmentRoot -OldRoot $param1 -NewRoot $param2
+    }
     "unique" {
         Set-ExecutableUniquePath -Name $param1 -UniqueDir $param2
     }
@@ -1188,6 +1278,7 @@ switch ($action) {
         Write-Log "    show                          - Display current PATH entries" -color "White"
         Write-Log "    dedupe                        - Remove duplicate Machine/User PATH segments (idempotent)" -color "White"
         Write-Log "    unique <name> <dir>           - Make <dir> the ONLY PATH provider of executable <name> (replaces others)" -color "White"
+        Write-Log "    moveroot <oldRoot> <newRoot>  - Re-root every PATH segment and environment variable under <oldRoot> (idempotent)" -color "White"
         Write-Log "  Environment Variables:" -color "Yellow"
         Write-Log "    setvar <varName> <varValue>   - Set environment variable" -color "White"
         Write-Log "    getvar <varName>              - Get environment variable value" -color "White"

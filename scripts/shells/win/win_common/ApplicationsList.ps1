@@ -96,13 +96,6 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
           * "{{PLACEHOLDER}}" -> "custom_value" (uses literal value)
         - Description: Description of the operation (optional)
         - RequiresAdmin: Whether admin privileges are required (optional, default: true)
-      * Type: "mcp" - MCP (Model Context Protocol) configuration processor
-        - Operation: "replace_path" - Replace executable path in MCP JSON config
-        - Operation: "copy_config" - Copy MCP configuration to target directory
-        - Operation: "merge_servers" - Merge MCP server configurations
-        - McpConfigPath: Relative path to MCP configuration file
-        - SearchValue: Value to search for in JSON (for replace_path operation)
-        - TemplatePath: Template file path (optional, for initialization)
       * All file paths relative to executable directory (except registry_template)
       * Supports Unicode filenames via $Global:CHINESE_* variables
       * Configurator respects SELECTED_REGION global variable
@@ -177,7 +170,7 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
 .NOTES
     - InstallType determines which package manager will be used
     - If InstallType is not specified, "winget" is used as default
-    - Each installation method has its own implementation in Step32_InstallBasePackages.ps1
+    - Each installation method has its own implementation in win_common/PackageManagerInvokes.ps1
     - Environment variables are automatically configured after successful installation
     - Installation directory is automatically generated based on LANG_COMPILER_DIR and PackageId
     
@@ -239,20 +232,8 @@ $Global:WINDOWS_10_ESSENTIAL_PATCHES = @{
             }
         )
     }
-    Bandizip = @{
-        PackageId          = "Bandisoft.Bandizip"
-        Exec              = "Bandizip.exe"
-        Name              = "Bandizip"
-        Description       = "Lightweight, fast and free All-In-One Zip Archiver - Essential for Windows 10"
-        InstallType       = "winget"
-        ForceToInstallDir = $false
-        VerifySuffix      = ""
-        IncludeSystemPaths = $true
-        AdditionalKeywords = @("bandizip", "bz")
-        EnvVars           = @()
-        DesktopShortcuts  = @()
-        PostInstallCallbacks = @()
-    }
+    # Bandizip is defined once, in APPLICATIONS_PACKAGES (installed on every Windows version): a second
+    # entry with another install dir made each run uninstall and reinstall it in the other location.
 }
 
 $Global:BasePackages = @{
@@ -275,13 +256,13 @@ $Global:BasePackages = @{
                 Type    = @("Var")
                 Name    = "RUST_HOME"
                 Keyword = @("rustc.exe")
-                SubPath = ""
+                SubPath = ".."
             }
             @{
                 Type    = @("Var")
                 Name    = "CARGO_HOME"
                 Keyword = @("rustc.exe")
-                SubPath = ".cargo"
+                SubPath = "../.cargo"
             }
         )
         DesktopShortcuts    = @()
@@ -298,10 +279,10 @@ $Global:BasePackages = @{
             }
         )
     }
-    # NodeJS configuration moved to Step4_InstallNodeJS.ps1
-    # Node.js is now installed and configured by Step4_InstallNodeJS.ps1 directly
-    # Python configuration moved to Step8_InstallDefaultPython.ps1
-    # Python is now installed and configured by Step8_InstallDefaultPython.ps1 directly
+    # NodeJS configuration moved to Node_Runtime.ps1
+    # Node.js is now installed and configured by Node_Runtime.ps1 directly
+    # Python configuration moved to Python_Default.ps1
+    # Python is now installed and configured by Python_Default.ps1 directly
     Pandoc     = @{
         PackageId           = "JohnMacFarlane.Pandoc"
         Exec               = "pandoc.exe"
@@ -471,13 +452,13 @@ $Global:BasePackages = @{
                 Type    = @("Var")
                 Name    = "GOROOT"
                 Keyword = @("go.exe")
-                SubPath = ""
+                SubPath = ".."
             }
             @{
                 Type    = @("Var")
                 Name    = "GOPATH"
                 Keyword = @("go.exe")
-                SubPath = "go"
+                SubPath = "../go"
             }
         )
         DesktopShortcuts  = $null
@@ -515,7 +496,7 @@ $Global:BasePackages = @{
                 Type    = @("Var")
                 Name    = "RUBY_HOME"
                 Keyword = @("ruby.exe")
-                SubPath = ""
+                SubPath = ".."
             }
         )
         DesktopShortcuts  = $null
@@ -546,7 +527,7 @@ $Global:APPLICATIONS_PACKAGES = @{
         VerifySuffix        = ""
         # Legacy fields preserved
         MenuName            = "Open with VSCode"
-        AppCustomInstallDir = "C:\Users\$env:USERNAME\AppData\Local\Programs\Microsoft VS Code"
+        AppCustomInstallDir = (Join-Path $env:LOCALAPPDATA "Programs\Microsoft VS Code")
         EnvVars             = @(
             @{
                 Type = @("AddExec")
@@ -614,28 +595,6 @@ $Global:APPLICATIONS_PACKAGES = @{
             }
         )
     }
-    Windsurf        = @{
-        PackageId          = "Codeium.Windsurf"
-        Exec              = "Windsurf.exe"
-        Name              = "Windsurf"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
-        Description       = "Windsurf - AI-powered code editor by Codeium"
-        InstallType       = "winget"
-        ForceToInstallDir = $true
-        VerifySuffix      = ""
-        MenuName          = "Open with Windsurf"
-        # AppCustomInstallDir = "C:\Users\$env:USERNAME\AppData\Local\Programs\Windsurf"
-        EnvVars           = @(
-            @{
-                Type = @("AddExec")
-            }
-        )
-        DesktopShortcuts  = @(
-            @{
-                CreateDesktopShortcut = $true
-            }
-        )
-    }
     VSCodium        = @{
         PackageId            = "VSCodium.VSCodium"
         Exec                = "VSCodium.exe"
@@ -646,7 +605,7 @@ $Global:APPLICATIONS_PACKAGES = @{
         ForceToInstallDir   = $true
         VerifySuffix        = ""
         MenuName            = "Open with VSCodium"
-        AppCustomInstallDir = "C:\Users\$env:USERNAME\AppData\Local\Programs\VSCodium"
+        AppCustomInstallDir = (Join-Path $env:LOCALAPPDATA "Programs\VSCodium")
         RegistrySearchKeyword = "VSCodium"
         EnvVars             = @(
             @{
@@ -815,7 +774,7 @@ $Global:APPLICATIONS_PACKAGES = @{
         ForceToInstallDir   = $true
         VerifySuffix        = ""
         MenuName            = "Open with Devin"
-        AppCustomInstallDir = "C:\Users\$env:USERNAME\AppData\Local\Programs\Windsurf"
+        AppCustomInstallDir = (Join-Path $env:LOCALAPPDATA "Programs\Windsurf")
         AdditionalKeywords  = @("devin", "windsurf")
         DesktopShortcuts    = @(
             @{
@@ -981,7 +940,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         InstallType        = "winget"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
-        AdditionalKeywords = @("TablePlus", "database-gui")
+        AdditionalKeywords = @("dbeaver")
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true
@@ -1013,7 +972,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         InstallType        = "winget"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
-        AdditionalKeywords = @("CloudMounter", "cloud-storage")
+        AdditionalKeywords = @("rclone")
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true
@@ -1054,14 +1013,14 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
     }
     WinSocat       = @{
         PackageId           = "Firejox.WinSocat"
-        Exec               = "socat.exe"
+        Exec               = "winsocat.exe"
         Name               = "WinSocat"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_NETWORK_TOOLS
         Description        = "Windows port of socat network utility"
         InstallType        = "winget"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
-        AdditionalKeywords = @("Nmap", "network-scanner")
+        AdditionalKeywords = @("winsocat")
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true
@@ -1077,7 +1036,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         InstallType        = "winget"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
-        AdditionalKeywords = @("Nessus", "vulnerability-scanner")
+        AdditionalKeywords = @("nmap")
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true
@@ -1109,7 +1068,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         InstallType        = "winget"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
-        AdditionalKeywords = @("NetLimiter", "bandwidth-monitor")
+        AdditionalKeywords = @("iperf3")
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true
@@ -1172,7 +1131,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
     }
     ClaudeCodeRouter = @{
         PackageId           = "@musistudio/claude-code-router"
-        Exec               = "claude-code-router.exe"
+        Exec               = "ccr"
         Name               = "ClaudeCodeRouter"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description        = "Claude Code Router for AI-powered code analysis and routing"
@@ -1234,13 +1193,6 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             @{
                 Type = @("Path")
                 Keyword = @("gemini")
-            }
-        )
-        PostInstallCallbacks = @(
-            @{
-                Type = "mcp"
-                Operation = "copy_config"
-                TargetDirectory = Join-Path $env:USERPROFILE ".gemini"
             }
         )
     }
@@ -1606,58 +1558,19 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Name              = "OpenCode"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description       = "OpenCode - AI-powered development platform"
-        InstallType       = "web"
+        InstallType       = "pnpm"
         ForceToInstallDir = $false
         VerifySuffix      = "--version"
-        PackageId         = "https://opencode.ai/install"
+        PackageId         = "opencode-ai"
         AdditionalKeywords = @("opencode", "open-code")
         EnvVars           = @(
             @{
                 Type = @("Path")
             }
         )
-        # TODO: Unknown callback requirements and exact download mechanism for OpenCode
     }
 }
-# MCP Services Packages - Tools providing MCP services for IDEs
-# For PostInstallCallbacks usage, see: <#POSTINSTALL_CALLBACKS_ANCHOR#>
-$Global:MCP_SERVICES_PACKAGES = @{
-    AlibabaDataworksMCP = @{
-        Name              = "AlibabaDataworksMCP"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "Alibaba Cloud DataWorks MCP Server - Cloud data processing and management (pnpm global install)"
-        InstallType       = "pnpm"
-        PackageId         = "alibabacloud-dataworks-mcp-server"
-        ForceToInstallDir = $false
-        VerifySuffix      = ""
-        PostInstallCallbacks = @(
-            @{
-                Type = "mcp"
-                Operation = "npm_global_install"
-                PackageName = "alibabacloud-dataworks-mcp-server"
-                ServiceName = "alibaba_dataworks_mcp"
-            }
-        )
-    }
-    FeedbackEnhancedMCP = @{
-        Name              = "FeedbackEnhancedMCP"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "MCP Feedback Enhanced Server - Interactive feedback collection with web interface (uvx install)"
-        InstallType       = "uvx"
-        PackageId         = "mcp-feedback-enhanced@latest"
-        UvxId             = "mcp-feedback-enhanced@latest"
-        ForceToInstallDir = $false
-        VerifySuffix      = ""
-        PostInstallCallbacks = @(
-            @{
-                Type = "mcp"
-                Operation = "uvx_install"
-                PackageName = "mcp-feedback-enhanced@latest"
-                ServiceName = "feedback_enhanced_mcp"
-            }
-        )
-    }
-}
+# MCP: no MCP server packages are installed here; Step21 only builds apps/mcp-chrome (McpChromeBuildCommon.ps1)
 
 
 # Global Common Software Variables
@@ -1893,22 +1806,7 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
             }
         )
     }
-    Chrome         = @{
-        PackageId           = "Google.Chrome"
-        Exec               = "chrome.exe"
-        Name               = "Chrome"
-        DesktopCategory    = $Global:DESKTOP_CATEGORY_BROWSERS
-        Description        = "Google Chrome web browser"
-        InstallType        = "winget"
-        ForceToInstallDir  = $false
-        VerifySuffix       = ""
-        AdditionalKeywords = @("Chrome", "Google Chrome")
-        DesktopShortcuts   = @(
-            @{
-                CreateDesktopShortcut = $true
-            }
-        )
-    }
+    # Chrome: installed only by Step22_InstallChrome.ps1 (junction layout)
     Edge           = @{
         PackageId            = "Microsoft.Edge"
         Exec                = "msedge.exe"

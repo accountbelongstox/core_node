@@ -11,12 +11,6 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Get region information
 SELECTED_REGION=$(get_var "SELECTED_REGION")
 
-# Get USE_SUDO variable 
-USE_SUDO=$(get_var "USE_SUDO")
-if [ -z "$USE_SUDO" ]; then
-    USE_SUDO="sudo"
-fi
-
 CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_packages.js"
 INSTALLED_PNPM=""
 PNPM_GLOBAL_ROOT=""
@@ -155,9 +149,9 @@ ensure_package() {
     do_install() {
         local temp_log=$(mktemp)
         if [ "$package" = "puppeteer" ]; then
-            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_with_absolute_path --config.confirm-modules-purge=false add -g "$package" 2>&1 | tee "$temp_log"
+            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_with_absolute_path --config.confirm-modules-purge=false ${PNPM_ALLOW_ALL_BUILDS_ARG:-} add -g "$package" 2>&1 | tee "$temp_log"
         else
-            run_pnpm_with_absolute_path --config.confirm-modules-purge=false add -g "$package" 2>&1 | tee "$temp_log"
+            run_pnpm_with_absolute_path --config.confirm-modules-purge=false ${PNPM_ALLOW_ALL_BUILDS_ARG:-} add -g "$package" 2>&1 | tee "$temp_log"
         fi
         
         if grep -q "ERR_PNPM_UNEXPECTED_STORE" "$temp_log"; then
@@ -168,9 +162,9 @@ ensure_package() {
                 find "$pnpm_global_dir" -maxdepth 1 -type d -name "[0-9]*" -exec rm -rf {} + 2>/dev/null || true
                 echo "[$SCRIPT_INDEX] Retrying installation of $package..."
                 if [ "$package" = "puppeteer" ]; then
-                    PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_with_absolute_path --config.confirm-modules-purge=false add -g "$package" || true
+                    PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_with_absolute_path --config.confirm-modules-purge=false ${PNPM_ALLOW_ALL_BUILDS_ARG:-} add -g "$package" || true
                 else
-                    run_pnpm_with_absolute_path --config.confirm-modules-purge=false add -g "$package" || true
+                    run_pnpm_with_absolute_path --config.confirm-modules-purge=false ${PNPM_ALLOW_ALL_BUILDS_ARG:-} add -g "$package" || true
                 fi
             fi
         fi
@@ -387,18 +381,14 @@ bootstrap_pnpm() {
     if [ -n "$npm_bin" ] && [ -x "$npm_bin" ]; then
         # No --ignore-scripts: pnpm's postinstall installs its native binary;
         # skipping it leaves pnpm "running through Node.js".
-        "$npm_bin" install -g pnpm@latest --no-audit --no-fund || true
+        # Same pnpm major as 17_install_node_toolchain_26.sh (PNPM_COREPACK_FALLBACK_SPEC).
+        "$npm_bin" install -g pnpm@10 --no-audit --no-fund || true
         echo "[$SCRIPT_INDEX] pnpm installed successfully"
     else
         echo "[$SCRIPT_INDEX] ERROR: npm not found, cannot install pnpm"
     fi
 
     INSTALLED_PNPM="$(resolve_pnpm_binary_path)"
-    if [ -f "$NODE_BIN_DIR/pnpm" ]; then
-        $USE_SUDO ln -sf "$NODE_BIN_DIR/pnpm" /usr/local/bin/pnpm
-        echo "[$SCRIPT_INDEX] Ensured symlink: /usr/local/bin/pnpm"
-        INSTALLED_PNPM="/usr/local/bin/pnpm"
-    fi
 }
 
 bootstrap_pnpm
@@ -433,8 +423,6 @@ declare -A PACKAGES=(
     ["typescript"]="typescript"
     ["ts-node"]="ts-node"
     ["nodemon"]="nodemon"
-    ["yarn"]="yarn"
-    ["pnpm"]="pnpm"
     ["http-server"]="http-server"
     ["puppeteer"]="puppeteer"
     ["serve"]="serve"
@@ -535,8 +523,6 @@ handle_node_binaries() {
     local pnpm_bin_dir=""
     local binary=""
     local binary_name=""
-    local real_binary=""
-    local current_target=""
 
     pnpm_bin="$(resolve_pnpm_binary_path)"
     if [ -n "$pnpm_bin" ] && [ -x "$pnpm_bin" ]; then
@@ -553,17 +539,12 @@ handle_node_binaries() {
         for binary in "$pnpm_bin_dir"/*; do
             if [ -f "$binary" ] && [ -x "$binary" ]; then
                 binary_name="$(basename "$binary")"
-                real_binary="$(readlink -f "$binary" 2>/dev/null || echo "$binary")"
+                case "$binary_name" in
+                    pnpm|pnpx|yarn|yarnpkg|corepack|npm|npx|node|bun) continue ;;
+                esac
 
-                if [ -L "/usr/local/bin/$binary_name" ]; then
-                    current_target="$(readlink -f "/usr/local/bin/$binary_name" 2>/dev/null || readlink "/usr/local/bin/$binary_name")"
-                    if [ -n "$current_target" ] && [ "$current_target" = "$real_binary" ]; then
-                        continue
-                    fi
-                fi
-
-                echo "[$SCRIPT_INDEX] Creating symlink for: $binary_name"
-                $USE_SUDO ln -sf "$binary" "/usr/local/bin/$binary_name"
+                echo "[$SCRIPT_INDEX] Ensuring launcher for: $binary_name"
+                ensure_pnpm_shim_wrapper_from_common_functions "$binary" "/usr/local/bin/$binary_name" || true
             fi
         done
 

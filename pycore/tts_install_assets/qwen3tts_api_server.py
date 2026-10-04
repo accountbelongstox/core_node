@@ -124,7 +124,7 @@ transformers = tts_server_common.engine_imports.module("transformers")
 _MANAGED_CODE_ID = os.environ.get("PYCORE_MANAGED_CODE_ID") or ""
 _HTTP_SSE_MODULE_NAME = "pycore.pyfoundations.http_sse"
 _log = tts_server_common.log
-_INSTALLER = tts_server_common.installer_step("183_install_qwen3tts.sh", "Step61_InstallQwen3Tts.ps1")
+_INSTALLER = tts_server_common.installer_step("183_install_qwen3tts.sh", "Model_Qwen3Tts.ps1")
 
 
 _network_constants = tts_server_common.load_network_constants()

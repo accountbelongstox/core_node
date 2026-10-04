@@ -1,7 +1,7 @@
 # Idempotent: ensures bun .bin shims are Windows-compatible. Bun on Windows writes
 # `<name>.exe` + `<name>.bunx` (bun >= 1.1) or `<name>.cmd` (older); a .bin dir with only
 # Unix-style shims (created by bash/WSL bun install) is fixed by removing all
-# node_modules and reinstalling from PowerShell. Safe to run multiple times — exits
+# node_modules and reinstalling from PowerShell. Safe to run multiple times - exits
 # early when any Windows shim form is present.
 
 param(
@@ -35,7 +35,7 @@ if (Test-WindowsShim) {
     return
 }
 
-Write-Host "  [FIX] Windows bun shims missing — bun was previously installed via bash/WSL." -ForegroundColor Yellow
+Write-Host "  [FIX] Windows bun shims missing - bun was previously installed via bash/WSL." -ForegroundColor Yellow
 Write-Host "  [FIX] Removing all node_modules and reinstalling from PowerShell..." -ForegroundColor Yellow
 
 foreach ($Dir in $NmDirs) {
@@ -54,6 +54,6 @@ Set-Location -LiteralPath $SavedLocation.Path
 if (Test-WindowsShim) {
     Write-Host "  OK Windows bun shims now present" -ForegroundColor Green
 } else {
-    Write-Host "  ERROR: Windows bun shims still missing after reinstall — bun install may have failed." -ForegroundColor Red
+    Write-Host "  ERROR: Windows bun shims still missing after reinstall - bun install may have failed." -ForegroundColor Red
     throw "Windows bun command shims are still missing after reinstall."
 }

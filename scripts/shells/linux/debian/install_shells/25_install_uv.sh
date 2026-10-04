@@ -137,13 +137,17 @@ install_uv() {
 
     # Install uv to temporary location first
     echo "[$SCRIPT_INDEX] Downloading and installing UV from official source..."
-    echo "[$SCRIPT_INDEX] CARGO_HOME=$temp_install_dir timeout 300 curl -LsSf https://astral.sh/uv/install.sh | timeout 300 sh -s -- --no-modify-path"
-    if CARGO_HOME="$temp_install_dir" timeout 300 curl -LsSf https://astral.sh/uv/install.sh | timeout 300 sh -s -- --no-modify-path; then
+    local installer_script="$temp_install_dir/uv_install.sh"
+    echo "[$SCRIPT_INDEX] timeout 300 curl -fLsS https://astral.sh/uv/install.sh -o $installer_script"
+    if timeout 300 curl -fLsS https://astral.sh/uv/install.sh -o "$installer_script" \
+        && UV_UNMANAGED_INSTALL="$temp_install_dir" timeout 300 sh "$installer_script" --no-modify-path; then
         echo "[$SCRIPT_INDEX] [OK] UV downloaded successfully"
 
         # Find the UV binary in temp location
         local temp_uv=""
-        if [ -f "$temp_install_dir/bin/uv" ]; then
+        if [ -f "$temp_install_dir/uv" ]; then
+            temp_uv="$temp_install_dir/uv"
+        elif [ -f "$temp_install_dir/bin/uv" ]; then
             temp_uv="$temp_install_dir/bin/uv"
         elif [ -f "$HOME/.local/bin/uv" ]; then
             temp_uv="$HOME/.local/bin/uv"
@@ -270,7 +274,9 @@ configure_uv() {
 
     # Create basic uv configuration
     local uv_config_file="$uv_config_dir/uv.toml"
-    local uv_cache_dir="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/uv"
+    # Package cache on ext4: UV_CACHE_DIR is wired by shared_cache_env.sh to the
+    # contract cache root; XDG_CACHE_HOME may be the NTFS share on dual-boot.
+    local uv_cache_dir="${UV_CACHE_DIR:-$HOME/.cache/uv}"
     mkdir -p "$uv_cache_dir"
 
     if [ ! -f "$uv_config_file" ]; then

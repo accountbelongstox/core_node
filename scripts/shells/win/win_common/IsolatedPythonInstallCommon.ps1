@@ -92,8 +92,9 @@ function Ensure-IsolatedPythonPip {
         New-Item -ItemType Directory -Path $Global:DOWNLOADS_DIR -Force | Out-Null
     }
     if (-not (Test-Path -LiteralPath $IsolatedPythonGetPipFile -PathType Leaf)) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX Command: Invoke-WebRequest -Uri `"$IsolatedPythonGetPipUrl`" -OutFile `"$IsolatedPythonGetPipFile`" -UseBasicParsing -ErrorAction Stop" -Type "Info"
-        Invoke-WebRequest -Uri $IsolatedPythonGetPipUrl -OutFile $IsolatedPythonGetPipFile -UseBasicParsing -ErrorAction Stop
+        if (-not (Get-FileWithSizeCheck -localPath $IsolatedPythonGetPipFile -remoteUrl $IsolatedPythonGetPipUrl -description "get-pip.py")) {
+            throw "download failed: $IsolatedPythonGetPipUrl"
+        }
     }
     Write-ColorMessage -Message "$SCRIPT_INDEX Command: & `"$IsolatedPythonExePath`" `"$IsolatedPythonGetPipFile`" --no-warn-script-location" -Type "Info"
     & $IsolatedPythonExePath $IsolatedPythonGetPipFile --no-warn-script-location
@@ -137,7 +138,9 @@ function Ensure-IsolatedPythonDevelopmentFiles {
     }
     Write-ColorMessage -Message "$SCRIPT_INDEX Repairing missing Python headers and import libraries from $developmentUrl" -Type 'Info'
     if (-not (Test-Path -LiteralPath $developmentArchiveFile -PathType Leaf)) {
-        Invoke-WebRequest -Uri $developmentUrl -OutFile $developmentArchiveFile -UseBasicParsing -ErrorAction Stop
+        if (-not (Get-FileWithSizeCheck -localPath $developmentArchiveFile -remoteUrl $developmentUrl -description "Python $IsolatedPythonVersion headers and libs")) {
+            throw "download failed: $developmentUrl"
+        }
     }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $developmentArchive = [System.IO.Compression.ZipFile]::OpenRead($developmentArchiveFile)
@@ -214,8 +217,9 @@ function Install-IsolatedPythonWithArchive {
         New-Item -ItemType Directory -Path $Global:DOWNLOADS_DIR -Force | Out-Null
     }
     if (-not (Test-Path -LiteralPath $IsolatedPythonArchiveFile -PathType Leaf)) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX Command: Invoke-WebRequest -Uri `"$IsolatedPythonArchiveUrl`" -OutFile `"$IsolatedPythonArchiveFile`" -UseBasicParsing -ErrorAction Stop" -Type "Info"
-        Invoke-WebRequest -Uri $IsolatedPythonArchiveUrl -OutFile $IsolatedPythonArchiveFile -UseBasicParsing -ErrorAction Stop
+        if (-not (Get-FileWithSizeCheck -localPath $IsolatedPythonArchiveFile -remoteUrl $IsolatedPythonArchiveUrl -description "Python $IsolatedPythonVersion")) {
+            throw "download failed: $IsolatedPythonArchiveUrl"
+        }
     }
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem

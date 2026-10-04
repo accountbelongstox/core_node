@@ -23,9 +23,15 @@ import os
 import subprocess
 import sys
 
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
+
 # --- Module-level configuration (declared at top) ---------------------------
 DEFAULT_REFERENCE = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-DEFAULT_SUSPECT = r"D:\applications\Chrome\Chrome\Application\chrome.exe"
+DEFAULT_SUSPECT = str(get_windows_program_dir("app_root") / "Chrome" / "Chrome" / "Application" / "chrome.exe")
 HASH_ALGORITHMS = ("md5", "sha256")
 READ_CHUNK_SIZE = 1024 * 1024  # 1 MiB streaming read, safe for large binaries
 POWERSHELL_TIMEOUT = 60  # seconds

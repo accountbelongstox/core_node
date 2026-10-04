@@ -100,9 +100,6 @@ public static class KanaiOperations
     /// <summary>Validate -> reset panel -> navigate to upgrade page -> process rare items. 1:1 run_upgrade_operation.</summary>
     public static bool RunUpgradeOperation(GameInterfaceData shared) => RunPageOperation(shared, UpgradePageClicks);
 
-    /// <summary>Validate -> reset panel -> navigate to reforge page -> process rare items. 1:1 run_reforge_operation.</summary>
-    public static bool RunReforgeOperation(GameInterfaceData shared) => RunPageOperation(shared, ReforgePageClicks);
-
     private static bool RunPageOperation(GameInterfaceData shared, int pageClicks)
     {
         if (shared.InterfaceType != D3InterfaceDetection.InterfaceKanaiCube)

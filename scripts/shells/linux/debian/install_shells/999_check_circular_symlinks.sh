@@ -5,8 +5,8 @@
 # which can cause "Too many levels of symbolic links" errors in system tools.
 #
 # Usage:
-#   ./999_check_circular_symlinks.sh          # Check and report only
-#   ./999_check_circular_symlinks.sh --fix    # Check and fix automatically
+#   ./999_check_circular_symlinks.sh          # Check and fix automatically (default)
+#   ./999_check_circular_symlinks.sh --check  # Check and report only
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
@@ -14,11 +14,11 @@ source "$COMMON_DIR/gvar_common.sh"
 source "$COMMON_DIR/common_functions.sh"
 
 SCRIPT_INDEX="999"
-FIX_MODE=false
+FIX_MODE=true
 
 # Parse arguments
-if [[ "$1" == "--fix" ]]; then
-    FIX_MODE=true
+if [[ "$1" == "--check" ]]; then
+    FIX_MODE=false
 fi
 
 print_step_from_common_functions "Checking for circular symlinks in /usr/local/bin..."
@@ -88,7 +88,6 @@ if [[ "$FIX_MODE" == true ]]; then
         print_warning_from_common_functions "Some tools may need reinstallation"
     fi
 else
-    print_warning_from_common_functions "Run with --fix to remove circular symlinks"
-    print_info_from_common_functions "Command: $0 --fix"
+    print_warning_from_common_functions "Report only (--check); run without --check to remove circular symlinks"
     exit 1
 fi

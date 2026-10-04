@@ -18,6 +18,7 @@ from ..unified_styles import UnifiedStyles
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
 from ..utils.tk_variables import var_str, var_bool
 
 # Import CONFIG from providor (path set by main.py / app entry)
@@ -93,8 +94,8 @@ def _fetch_rosbot_config_on_main_then_create(panel: "RosbotExtensionPanel") -> N
 
 # Config keys and defaults for this panel; read in timer thread to avoid main-thread block (THREAD_BUS: no blocking on config worker).
 ROSBOT_PANEL_CONFIG_KEYS = [
-    ("ros_settings.ros_directory", "D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18"),
-    ("battlenet.battlenet_path", "D:\\applications\\Games\\Battle.net\\Battle.net.exe"),
+    ("ros_settings.ros_directory", str(get_windows_program_dir("app_root") / "GamesBot" / "ros-bot7.18" / "ros-bot7.18")),
+    ("battlenet.battlenet_path", str(get_windows_program_dir("app_root") / "Games" / "Battle.net" / "Battle.net.exe")),
     ("d3.d3_path", ""),
     ("ros_settings.auto_enable_latest_ros", True),
     ("rosbot.pickup_blood_shards", False),

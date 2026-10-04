@@ -30,7 +30,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
     private const string ErrorSegmentPath = "segment_path required and must be an existing directory";
     private const string ErrorMissingConfigData = "Missing config_name or config_data";
     private const string ErrorMissingConfigName = "Missing config_name";
-    private static readonly string[] ValidConfigNames = { "config1", "config2", "config3", "config4" };
+    private static string[] ValidConfigNames => MacroConfigLoader.GetConfigNames();
 
     private readonly LocalJsonHttpHost _host;
     private readonly Func<CombatMacroController?> _macroController;
@@ -188,11 +188,8 @@ public sealed class D3D4TesterHttpBridge : IDisposable
                 return Error(ErrorMissingConfigName);
             if (!ValidConfigNames.Contains(name))
                 return Error($"Invalid config name: {name}");
-            D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.MacroConfigsCurrentSkillConfig, name);
-            MacroConfigLoader.Instance.LoadActive();
-            D3D4TesterConfigChangeHub.Notify(ConfigKeys.MacroConfigsCurrentSkillConfig);
+            SkillConfigSwitcher.Switch(name, "HTTP bridge");
             ColorPrinter.Blue($"[HTTPBridgeController] Switched to skill configuration: {name}");
-            EventCenter.NotifySkillConfigSwitched(name);
             return Message($"Switched to configuration {name}");
         }
         catch (Exception ex) { return Error(ex.Message); }

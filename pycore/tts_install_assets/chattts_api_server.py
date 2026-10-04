@@ -50,7 +50,7 @@ _network_constants = tts_server_common.load_network_constants()
 _CHATTS_MIN_FREE_VRAM_MB = getattr(_network_constants, "CHATTTS_MIN_FREE_VRAM_MB", 4096)
 _DEFAULT_PORT = getattr(_network_constants, "CHATTTS_HTTP_PORT", 8000)
 _MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
-_INSTALLER = tts_server_common.installer_step("131_install_chattts.sh", "Step51_InstallChatTts.ps1")
+_INSTALLER = tts_server_common.installer_step("131_install_chattts.sh", "Model_ChatTts.ps1")
 
 _chat = None
 _chat_lock = threading.Lock()

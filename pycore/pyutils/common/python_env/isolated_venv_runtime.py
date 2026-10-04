@@ -9,7 +9,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
@@ -17,6 +16,7 @@ from typing import Iterable, List, Optional, Sequence
 from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyfoundations.program_material_dirs import get_program_download_dir, program_work_env
 from pycore.pyfoundations.system_paths import get_lang_compiler_dir
 from pycore.pyutils.common.python_env.runtime_policy import (
     engine_compatibility,
@@ -38,6 +38,7 @@ _BASE_HEALTH = "import uvicorn, fastapi, soundfile, numpy"
 _GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 _GET_PIP_FILE = "pycore-get-pip.py"
 _GET_PIP_TIMEOUT_SECONDS = 60
+_INSTALL_WORK_SUBDIR = "isolated_venv"
 _PIP_TO_IMPORT = {
     "melotts": "melo",
     "opencv-python": "cv2",
@@ -210,7 +211,7 @@ def _run(
         executable = str(argv[0])
         if not clean:
             clean = _is_self_contained_venv_python(executable)
-        command_env = _subprocess_env(executable, clean=clean)
+        command_env = program_work_env(_INSTALL_WORK_SUBDIR, _subprocess_env(executable, clean=clean))
         if extra_env:
             command_env.update(extra_env)
         ColorPrint.blue(f"[isolated-venv] {' '.join(str(item) for item in argv)}")
@@ -820,7 +821,7 @@ def _ensure_overlay_pip(venv_python: str) -> bool:
     probe = [venv_python, "-m", "pip", "--version"]
     if subprocess.run(probe, capture_output=True, check=False).returncode == 0:
         return True
-    installer = Path(tempfile.gettempdir()) / _GET_PIP_FILE
+    installer = get_program_download_dir() / _GET_PIP_FILE
     ColorPrint.blue(f"[isolated-venv] pip missing in {venv_python}; bootstrapping from {_GET_PIP_URL}")
     try:
         with urllib.request.urlopen(_GET_PIP_URL, timeout=_GET_PIP_TIMEOUT_SECONDS) as response:

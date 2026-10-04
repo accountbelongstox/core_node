@@ -89,6 +89,7 @@ class Commander:
         capture_output: bool = False,
         timeout: Optional[int] = None,
         cwd: Optional[str] = None,
+        env: Optional[dict] = None,
     ) -> Optional[subprocess.CompletedProcess]:
         """
         Base command execution for pycore. All subprocess runs that need stream or capture
@@ -107,12 +108,14 @@ class Commander:
                 encoding="utf-8",
                 errors="replace",
                 cwd=cwd,
+                env=env,
             )
         proc = subprocess.Popen(
             cmd,
             stdout=None,
             stderr=None,
             cwd=cwd,
+            env=env,
         )
         proc.wait()
         return None

@@ -6,7 +6,7 @@ namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// Red portal: OR mask of 12 portal colors (±5 %), column-major scan inside the scaled margins, first window (≤ max size)
-/// holding ≥ min area matched pixels -> its bounding box. Unused (no caller in Python or C#), kept for the farming loop.
+/// holding ≥ min area matched pixels -> its bounding box. Run per D4 tick by D4Pipeline (Python had no caller).
 /// 1:1 Python pyapps/d3-check/d4utils/d4_red_portal_detector.py.
 /// </summary>
 public static class D4RedPortalDetector

@@ -1283,7 +1283,7 @@ function Invoke-IsolatedTtsVenvEnsure {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
     $vsInstaller = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\setup.exe'
     $buildToolsInstallation = ''
-    $runtimeInstaller = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'install_powershells') 'Step13_InstallPython310_312.ps1'
+    $runtimeInstaller = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'install_powershells') 'Python_Isolated310.ps1'
     $runtimePolicyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')

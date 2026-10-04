@@ -63,7 +63,7 @@ $MpSettings = @(
 # Folders excluded from any residual scanning (dev tree + the Chrome under audit).
 $ExclusionPaths = @(
     $ProjectRoot
-    "D:\applications\Chrome\Chrome"
+    (Join-Path $Global:APP_INSTALL_DIR "Chrome\Chrome")
     (Join-Path $ProjectRoot "scripts\chromefix")
 )
 
@@ -275,7 +275,7 @@ if ($Stats.blocked -gt 0) {
 }
 Write-ColorMessage "[Step ${STEP_NUMBER}] A reboot (or 'gpupdate /force') finalizes the Group Policy + service changes." -Type "Info"
 
-New-Item -ItemType File -Path $Global:STEP8_DV_INSTALLED_FLAG -Force | Out-Null
+if ($Stats.failed -eq 0) { New-Item -ItemType File -Path $Global:STEP8_DV_INSTALLED_FLAG -Force | Out-Null }
 Write-ColorMessage "[Step ${STEP_NUMBER}] Idempotency flag written. Step complete." -Type "Success"
 
 # Pop up the verification UI so the result can be confirmed by hand (non-blocking).

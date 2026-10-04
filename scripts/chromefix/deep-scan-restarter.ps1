@@ -33,8 +33,8 @@
     # Watch with no auto-launch (open Chrome yourself during the 60-second window)
     powershell -ExecutionPolicy Bypass -File .\deep-scan-restarter.ps1
 
-    # Auto-launch the D-drive Chrome and capture for 45 seconds
-    powershell -ExecutionPolicy Bypass -File .\deep-scan-restarter.ps1 -CaptureSeconds 45 -ChromeExe 'D:\applications\Chrome\Chrome\Application\chrome.exe'
+    # Auto-launch the portable Chrome and capture for 45 seconds
+    powershell -ExecutionPolicy Bypass -File .\deep-scan-restarter.ps1 -CaptureSeconds 45 -ChromeExe '<APP_INSTALL_DIR>\Chrome\Chrome\Application\chrome.exe'
 #>
 
 [CmdletBinding()]
@@ -47,11 +47,14 @@ $ErrorActionPreference = 'Stop'
 
 # --- Configuration (declared at top) ----------------------------------------
 $scriptDir        = Split-Path -Parent $MyInvocation.MyCommand.Path
+$globalVarsPath   = Join-Path (Split-Path -Parent $scriptDir) 'shells\win\win_common\GlobalVars.ps1'
+. $globalVarsPath
+Set-StrictMode -Off
 $procmonDir       = 'C:\Users\mpc\Downloads\ProcessMonitor'
 $autorunsDir      = 'C:\Users\mpc\Downloads\Autoruns'
 $procmon          = Join-Path $procmonDir 'Procmon64.exe'
 $autorunsc        = Join-Path $autorunsDir 'autorunsc64.exe'
-$pythonExe        = 'D:\.dev_win10\python311\python.exe'
+$pythonExe        = Join-Path $Global:LANG_COMPILER_DIR 'python311\python.exe'
 $analyzeScript    = Join-Path $scriptDir 'analyze-procmon-csv.py'
 $stamp            = [datetime]::Now.ToString('yyyyMMdd-HHmmss')
 $outDir           = Join-Path $scriptDir 'logs'

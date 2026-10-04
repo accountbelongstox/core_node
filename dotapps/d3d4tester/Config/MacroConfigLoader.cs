@@ -1,6 +1,7 @@
 // PY-REF: pyapps/d3-check/d3utils/macro_config_loader.py
 // PY-REF: pyapps/d3-check/d3utils/macro_config_provider.py
 using System.Collections.Generic;
+using System.Text.Json;
 using DotApps.d3d4tester.Constants;
 using DotCore.Foundations;
 
@@ -13,6 +14,9 @@ namespace DotApps.d3d4tester.Config;
 /// </summary>
 public sealed class MacroConfigLoader
 {
+    /// <summary>Config names used when macro_configs.skill_configs is missing or empty.</summary>
+    public static readonly string[] DefaultConfigNames = { "config1", "config2", "config3", "config4" };
+
     private static readonly string[] SkillKeys = { "skill1", "skill2", "skill3", "skill4", "left_click", "right_click", "potion" };
     private static readonly string[] SkillFields = { "key", "strategy", "interval", "delay", "random_delay" };
 
@@ -66,6 +70,28 @@ public sealed class MacroConfigLoader
         }
         return skills;
     }
+
+    /// <summary>Config names = keys of macro_configs.skill_configs, else config1..config4. 1:1 Python main_functions_panel._create_config_selection.</summary>
+    public static string[] GetConfigNames()
+    {
+        var raw = D3D4TesterConfigService.Instance.GetRawText(ConfigKeys.MacroConfigsSkillConfigs);
+        if (string.IsNullOrWhiteSpace(raw)) return DefaultConfigNames;
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return DefaultConfigNames;
+            var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToArray();
+            return keys.Length > 0 ? keys : DefaultConfigNames;
+        }
+        catch (JsonException)
+        {
+            return DefaultConfigNames;
+        }
+    }
+
+    /// <summary>Per-config quick switch hotkey path (macro_configs.skill_configs.&lt;name&gt;.quick_switch).</summary>
+    public static string QuickSwitchKey(string configName) =>
+        $"{ConfigKeys.MacroConfigsSkillConfigs}.{configName}.{ConfigKeys.SkillConfigQuickSwitchField}";
 
     /// <summary>Active config name (config1..config4). 1:1 Python get_current_config_name().</summary>
     public string GetCurrentConfigName()

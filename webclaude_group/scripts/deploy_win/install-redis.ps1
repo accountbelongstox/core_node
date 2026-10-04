@@ -20,6 +20,12 @@ param([string]$RepoRoot = "")
 Set-StrictMode -Version Latest
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$CoreNodeRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptDir))
+$GlobalVarsPath = Join-Path $CoreNodeRoot "scripts\shells\win\win_common\GlobalVars.ps1"
+$WindowsPathFunctionPath = Join-Path $CoreNodeRoot "scripts\shells\win\win_common\WindowsPathFunction.ps1"
+$CallerErrorAction = $ErrorActionPreference
+. $GlobalVarsPath
+$ErrorActionPreference = $CallerErrorAction
 if (-not $RepoRoot) { $RepoRoot = $env:WEBCLAUDE_SERVICE_ROOT }
 if (-not $RepoRoot -or -not (Test-Path -LiteralPath $RepoRoot)) {
     Write-Host "  [FAIL] Pass -RepoRoot <service-repo> or set WEBCLAUDE_SERVICE_ROOT (directory with .env / .env.example)." -ForegroundColor Red
@@ -28,10 +34,10 @@ if (-not $RepoRoot -or -not (Test-Path -LiteralPath $RepoRoot)) {
 $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Constants - fixed install root (D:\.dev_win10\redis)
+# Constants - install root (<LANG_COMPILER_DIR>\redis)
 # ═══════════════════════════════════════════════════════════════════════════════
 $REDIS_VERSION   = "5.0.14.1"
-$DEV_WIN_ROOT    = "D:\.dev_win10"
+$DEV_WIN_ROOT    = $Global:LANG_COMPILER_DIR
 $INSTALL_DIR     = Join-Path $DEV_WIN_ROOT "redis"
 $SERVICE_NAME    = "Redis"
 $PASSWORD_FILE   = Join-Path $INSTALL_DIR ".redis_password"
@@ -218,10 +224,11 @@ function Install-Binary {
         return
     }
 
-    $tempDir = Join-Path $env:TEMP "redis_install"
-    $zipPath = Join-Path $tempDir "Redis-x64-${REDIS_VERSION}.zip"
+    $tempDir = Join-Path $Global:WORK_DIR "redis_install"
+    $zipPath = Join-Path $Global:DOWNLOADS_DIR "Redis-x64-${REDIS_VERSION}.zip"
 
     if (-not (Test-Path $tempDir)) { New-Item -ItemType Directory -Path $tempDir -Force | Out-Null }
+    if (-not (Test-Path $Global:DOWNLOADS_DIR)) { New-Item -ItemType Directory -Path $Global:DOWNLOADS_DIR -Force | Out-Null }
 
     if (-not (Test-Path $zipPath)) {
         Write-Info "Downloading Redis $REDIS_VERSION ..."
@@ -375,12 +382,8 @@ function Start-RedisService {
 # Step 5 - Add to PATH
 # ═══════════════════════════════════════════════════════════════════════════════
 function Add-ToPath {
-    $currentPath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-    if ($currentPath -notlike "*$INSTALL_DIR*") {
-        [System.Environment]::SetEnvironmentVariable("Path", "$currentPath;$INSTALL_DIR", "Machine")
-        $env:Path = "$env:Path;$INSTALL_DIR"
-        Write-Ok "Added $INSTALL_DIR to system PATH"
-    }
+    & $WindowsPathFunctionPath add $INSTALL_DIR -SkipInit
+    Write-Ok "$INSTALL_DIR is on the system PATH"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 SCRIPT_INDEX="195"
 # ---------------------------------------------------------------------------
-# install_remmina.sh - Idempotent installer for the Remmina remote-desktop
+# 195_install_remmina.sh - Idempotent installer for the Remmina remote-desktop
 #   client (RDP/VNC/SSH GUI). It is the single owner of the Remmina package
 #   list: the window launcher (pycore/pyutils/launcher) and the remote-control
 #   menu (common/remote_control_common.sh) both call it.

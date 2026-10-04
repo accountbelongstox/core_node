@@ -281,8 +281,12 @@ function Init-WingetSource {
         } else {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Not using the USTC mirror. Resetting and setting to USTC mirror..." -Type "Warning"
             winget source reset --force
-            winget source remove winget -ErrorAction SilentlyContinue
+            winget source remove --name winget
             winget source add winget https://mirrors.ustc.edu.cn/winget-source --accept-source-agreements --trust-level trusted
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] winget source add failed (exit $LASTEXITCODE)" -Type "Error"
+                return $false
+            }
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Set to USTC mirror source." -Type "Success"
             $sourceList = winget source list | Out-String
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Current sources:\n$sourceList" -Type "Info"

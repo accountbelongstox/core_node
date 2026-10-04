@@ -21,6 +21,8 @@ from typing import Optional, List, Tuple
 import urllib.request
 import tempfile
 
+from pycore.pyfoundations.program_material_dirs import get_program_download_dir
+
 
 class ADBInstaller:
     """ADB 管理器"""
@@ -174,7 +176,7 @@ class ADBInstaller:
             print("This may take a few minutes...")
 
             # 下载到临时文件
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip', dir=str(get_program_download_dir())) as tmp_file:
                 tmp_path = Path(tmp_file.name)
 
                 # 显示下载进度

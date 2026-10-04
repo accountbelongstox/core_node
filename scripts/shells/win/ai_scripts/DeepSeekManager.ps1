@@ -258,7 +258,7 @@ function Show-DeepSeekInfo {
     else {
         Write-Host "`nInstallation Status: NOT INSTALLED" -ForegroundColor Red
         Write-Host "To install, run:" -ForegroundColor Yellow
-        Write-Host "  .\Step95_InstallDeepSeek.ps1" -ForegroundColor Yellow
+        Write-Host "  .\Model_DeepSeek.ps1" -ForegroundColor Yellow
     }
 
     Write-Host "======================================`n" -ForegroundColor Cyan

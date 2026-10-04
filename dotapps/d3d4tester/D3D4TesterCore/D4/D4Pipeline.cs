@@ -104,6 +104,7 @@ public sealed class D4Pipeline
             if (!capture.Success) return new D4TickResult(false, capture, null, null, null, null);
             var regions = DetectRegions();
             if (!regions.Success) return new D4TickResult(false, capture, regions, null, null, null);
+            DetectFrameMarkers();
             var mapSwitch = DetectMapSwitch();
             var mapName = RecognizeMapName();
             var save = SaveScreenshotAndAnnotate();
@@ -131,6 +132,7 @@ public sealed class D4Pipeline
                 ColorPrinter.Yellow("[D4Controller] Region detection failed for debug window");
                 return new D4TickResult(false, capture, regions, null, null, null);
             }
+            DetectFrameMarkers();
             var mapSwitch = DetectMapSwitch();
             var mapName = RecognizeMapName();
             return new D4TickResult(true, capture, regions, mapSwitch, mapName, null);
@@ -157,11 +159,24 @@ public sealed class D4Pipeline
     /// <summary>Post-switch idle -> normal on a user action.</summary>
     public void ResetPostSwitchIdle() => D4MapSwitchDetector.Instance.ResetPostSwitchIdle(Data);
 
-    /// <summary>Red portal in the current frame (unused feature; no caller in the farming loop yet).</summary>
+    /// <summary>Red portal in the current frame.</summary>
     public Rect? DetectRedPortal()
     {
         using var frame = Data.CloneGameWindowImage();
         return frame == null ? null : D4RedPortalDetector.Detect(frame, Data.IsWindowedMode());
+    }
+
+    /// <summary>Per-frame markers on the captured image: dungeon progress bar and red portal (logged when it appears).</summary>
+    private void DetectFrameMarkers()
+    {
+        using var frame = Data.CloneGameWindowImage();
+        if (frame == null) return;
+        bool windowed = Data.IsWindowedMode();
+        Data.DungeonProgress = D4DungeonProgressDetector.Detect(frame, windowed);
+        var portal = D4RedPortalDetector.Detect(frame, windowed);
+        if (portal != null && Data.RedPortal == null)
+            ColorPrinter.Green($"{LogPrefix} Red portal detected at ({portal.Value.X},{portal.Value.Y}) {portal.Value.Width}x{portal.Value.Height}");
+        Data.RedPortal = portal;
     }
 
     /// <summary>Clear the shared data and detector state (call on Stop).</summary>
@@ -173,28 +188,5 @@ public sealed class D4Pipeline
             D4MapSwitchDetector.Instance.Reset();
             D4MapNameRecognizer.Instance.Reset();
         }
-    }
-
-    /// <summary>True when Battle.net reports D4 starting or running.</summary>
-    public static bool IsD4StartingFromBattlenet(IBattlenetOperation operation) => operation.IsD4Starting();
-
-    /// <summary>Click the D4 tab, then Play in Battle.net; true when already starting or Play was clicked.</summary>
-    public static bool LaunchFromBattlenet(IBattlenetOperation operation)
-    {
-        if (operation.IsD4Starting())
-        {
-            ColorPrinter.Blue($"{LogPrefix} D4 already starting from Battle.net");
-            return true;
-        }
-        if (!operation.ClickD4Tab())
-        {
-            ColorPrinter.Yellow($"{LogPrefix} D4 tab not clicked");
-            return false;
-        }
-        Thread.Sleep(D4Constants.BattlenetTabToPlayDelayMs);
-        bool ok = operation.ClickStartGame();
-        if (ok) ColorPrinter.Green($"{LogPrefix} D4 Play clicked");
-        else ColorPrinter.Yellow($"{LogPrefix} D4 Play button not found");
-        return ok;
     }
 }

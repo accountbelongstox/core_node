@@ -16,14 +16,16 @@
     Run from an elevated PowerShell for full coverage (HKLM, services, tasks).
 #>
 
-$ErrorActionPreference = 'SilentlyContinue'
-
 # --- Configuration (declared at top) ----------------------------------------
 $scriptRoot       = Split-Path -Parent $MyInvocation.MyCommand.Path
+$globalVarsPath   = Join-Path (Split-Path -Parent $scriptRoot) 'shells\win\win_common\GlobalVars.ps1'
+. $globalVarsPath
+Set-StrictMode -Off
+$ErrorActionPreference = 'SilentlyContinue'
 $chromeAppDirs    = @(
     'C:\Program Files\Google\Chrome\Application',
     'C:\Program Files (x86)\Google\Chrome\Application',
-    'D:\applications\Chrome\Chrome\Application'
+    (Join-Path $Global:APP_INSTALL_DIR 'Chrome\Chrome\Application')
 )
 $userDataRoots    = @(
     (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data')

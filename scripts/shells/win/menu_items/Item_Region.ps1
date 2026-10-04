@@ -16,10 +16,10 @@ $item = @{
     Var   = 'SELECTED_REGION'
     Values = @('China','Global')
     Steps = @(
-        'Step4_InstallNodeJS.ps1'
-        'Step8_InstallDefaultPython.ps1'
+        'Node_Runtime.ps1'
+        'Python_Default.ps1'
         'Step28_InstallFlutter.ps1'
-        'Step33_InstallQtBuildTools.ps1'
+        'Qt_BuildTools.ps1'
         'Step44_CheckCoreNodeProject.ps1'
     )
 }

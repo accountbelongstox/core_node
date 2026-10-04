@@ -4,7 +4,7 @@ SCRIPT_INDEX="131"
 # Official: pip install ChatTTS (https://github.com/2noise/ChatTTS#installation)
 # API: chattts_api_server.py -> POST /v1/audio/speech
 #
-# Invocation: install_chattts.sh --python <py> [--full] [--force]
+# Invocation: 131_install_chattts.sh --python <py> [--full] [--force]
 # Env: CHATTTS_SKIP=1, CHATTTS_INSTALL=1, NEURAL_TTS_INSTALL=1, CHATTTS_DIR, CHATTTS_URL
 set -uo pipefail
 

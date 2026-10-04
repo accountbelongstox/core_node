@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.core_node_dirs import (
     get_core_node_data_dir,
     get_global_var_dir,
+    get_windows_program_dir,
     global_var_read_names,
     global_var_write_name,
     iter_global_var_dirs,
@@ -45,14 +46,14 @@ def _usable_tmp_dir(preferred: Path) -> Path:
 
 
 if IS_WINDOWS:
+    APPLICATIONS_DIR = str(get_windows_program_dir('app_root'))
     SEVEN_ZIP_PATHS = [
         os.path.join(PROJECT_ROOT, "pycore", "base", "library", "win32", "7za.exe"),
-        r"D:\applications\7-Zip\7z.exe",
+        os.path.join(APPLICATIONS_DIR, "7-Zip", "7z.exe"),
         r"C:\Program Files\7-Zip\7z.exe",
         r"C:\Program Files (x86)\7-Zip\7z.exe",
     ]
     TMP_DIR = Path(r"D:\.tmp")
-    APPLICATIONS_DIR = r"D:\applications"
 else:
     SEVEN_ZIP_PATHS = [
         os.path.join(PROJECT_ROOT, "pycore", "base", "library", "linux", "7z"),

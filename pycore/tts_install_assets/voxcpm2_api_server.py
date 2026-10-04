@@ -62,7 +62,7 @@ voxcpm = tts_server_common.engine_imports.module("voxcpm")
 
 _network_constants = tts_server_common.load_network_constants()
 _DEFAULT_PORT = getattr(_network_constants, "VOXCPM2_HTTP_PORT", 57214)
-_INSTALLER = tts_server_common.installer_step("147_install_voxcpm2.sh", "Step58_InstallVoxcpm2.ps1")
+_INSTALLER = tts_server_common.installer_step("147_install_voxcpm2.sh", "Model_Voxcpm2.ps1")
 
 app = FastAPI()
 _model: Any = None

@@ -258,6 +258,15 @@
       }
     }
   },
+  "tools": {
+    "rbassist_path": ""
+  },
+  "navigation": {
+    "npc_model_path": "",
+    "target": "blacksmith",
+    "confidence": 0.35,
+    "max_steps": 8
+  },
   "ui_analysis": {
     "bag_offset": {
       "left": 0,

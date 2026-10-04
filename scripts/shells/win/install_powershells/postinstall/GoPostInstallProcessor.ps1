@@ -33,12 +33,15 @@ function Configure-GoProxy {
         Write-Host "$LogPrefix Using default Go proxy (Global region)" -ForegroundColor Cyan
     }
     
-    # Note: GOPROXY, GOSUMDB, GO111MODULE environment variables should be set via
-    # ApplicationsList.ps1 EnvVars configuration and handled by Step12
+    # go env -w persists the settings in Go's own env file (idempotent; a rerun rewrites the same values).
+    & $GoPath env -w "GOPROXY=$proxyUrl" "GOSUMDB=$sumdbUrl" 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "$LogPrefix go env -w failed (exit $LASTEXITCODE)" -ForegroundColor Red
+        return $false
+    }
     Write-Host "$LogPrefix Configured Go proxy settings: $proxyUrl" -ForegroundColor Green
     Write-Host "$LogPrefix Configured Go sumdb: $sumdbUrl" -ForegroundColor Green
-    Write-Host "$LogPrefix Note: Environment variables will be set by Step12" -ForegroundColor Cyan
-    
+
     return $true
 }
 
@@ -138,8 +141,9 @@ function Test-GoInstallation {
         }
         
         # Test Go environment
-        $goEnv = & $GoPath env GOROOT GOPATH GOPROXY 2>&1
-        if ("$goEnv" -match 'GOROOT=') {
+        # `go env A B C` prints one value per line (no NAME= prefix), in the order asked.
+        $goEnv = @(& $GoPath env GOROOT GOPATH GOPROXY 2>&1)
+        if ($goEnv.Count -ge 3 -and -not [string]::IsNullOrWhiteSpace([string]$goEnv[0])) {
             Write-Host "$LogPrefix Go environment check passed" -ForegroundColor Green
             foreach ($line in $goEnv) {
                 Write-Host "$LogPrefix $line" -ForegroundColor Cyan
@@ -193,7 +197,7 @@ function Invoke-GoPostInstallProcessor {
         }
         "full_setup" {
             Write-Host "$LogPrefix Performing Go configuration (Proxy + Workspace + Tools + Test)..." -ForegroundColor Yellow
-            Write-Host "$LogPrefix Note: Environment variables handled by Step12" -ForegroundColor Cyan
+            Write-Host "$LogPrefix Note: Environment variables handled by Step21_InstallApplications.ps1" -ForegroundColor Cyan
 
             # Step 1: Configure proxy
             $proxySuccess = Configure-GoProxy -GoPath $ExecutablePath -InstallDir $InstallDir -GoCallback $GoCallback -LogPrefix $LogPrefix

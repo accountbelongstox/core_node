@@ -151,7 +151,7 @@ fi
 # STEP 13: service enable/start per the merged web-server choice
 service_wanted="stop"
 [ "$START_WEB_SERVER" = "nginx" ] && service_wanted="start"
-step_run "$NGINX_STEP_NAMESPACE" "service-state" "$service_wanted" nm_service_state "$service_wanted" || {
+nm_service_state "$service_wanted" || {
     echo "[$SCRIPT_INDEX] [WARN] Service step reported failure"
 }
 

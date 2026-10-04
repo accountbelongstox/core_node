@@ -14,18 +14,26 @@ Usage:
 """
 
 import csv
+import ntpath
 import os
 import sys
 
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
+
 # --- Module-level configuration (declared at top) ---------------------------
+APP_INSTALL_DIR = str(get_windows_program_dir("app_root")).lower()
 CONFIG_MARKERS  = ("Secure Preferences", "Preferences", "Local State")
 WRITE_OPS       = ("WriteFile", "SetRenameInformationFile", "SetDispositionInformationFile")
 REG_WRITE_OPS   = ("RegSetValue", "RegCreateKey", "RegDeleteValue")
 CHROME_ROOTS    = (
     r"c:\program files\google\chrome",
     r"c:\program files (x86)\google\chrome",
-    r"d:\applications\chrome",
-    r"d:\applications\chrome beta",
+    ntpath.join(APP_INSTALL_DIR, "chrome"),
+    ntpath.join(APP_INSTALL_DIR, "chrome beta"),
 )
 WINDOWS_ROOT    = r"c:\windows"
 PCA_STORE_FRAG  = r"compatibility assistant\store"

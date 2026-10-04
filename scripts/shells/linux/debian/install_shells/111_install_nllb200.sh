@@ -124,13 +124,16 @@ test_model_load() {
 
     if [ ! -f "$runner_script_path" ]; then
         print_error "Runner script not found at: $runner_script_path"
-        return
+        return 1
     fi
 
     print_info "Using shared tester script: $runner_script_path"
 
     echo ""
-    print_and_run_from_common "$VENV_PYTHON3" "$runner_script_path"
+    if ! print_and_run_from_common "$VENV_PYTHON3" "$runner_script_path"; then
+        print_error "Model load test failed"
+        return 1
+    fi
     echo ""
 
     print_success "========================================"
@@ -233,8 +236,8 @@ main() {
     echo ""
     print_info "Checking prerequisites..."
 
-    local python_cmd=$(check_python)
-    if [ $? -ne 0 ]; then
+    local python_cmd=""
+    if ! python_cmd="$(check_python)"; then
         print_error "Python 3.8+ is required but not found"
         return 1
     fi
@@ -249,7 +252,7 @@ main() {
 
     echo ""
     print_info "Step 3: Test model loading (local weights)"
-    test_model_load "$python_cmd"
+    test_model_load "$python_cmd" || return 1
 
     echo ""
     print_success "========================================"

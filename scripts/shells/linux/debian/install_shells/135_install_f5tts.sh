@@ -11,7 +11,7 @@ SCRIPT_INDEX="135"
 #
 # Linux extras: apt ffmpeg + espeak-ng (some builds need a phonemizer backend).
 #
-# Invocation: install_f5tts.sh --python <py> [--full] [--force]
+# Invocation: 135_install_f5tts.sh --python <py> [--full] [--force]
 # Env: F5TTS_SKIP=1, F5TTS_INSTALL=1, F5TTS_DIR, F5TTS_URL
 set -uo pipefail
 

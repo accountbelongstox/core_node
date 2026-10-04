@@ -862,7 +862,7 @@ Manual UI steps when automation is not possible:
     Settings > Accounts > Sign-in options > turn off "Only allow Windows Hello sign-in".
   $(rc_acl_note) tcp:$RC_VNC_PORT, tcp:$RC_RDP_PORT and tcp:$RC_SSH_PORT.
 
-Shared key: ~/.ssh/$RC_SHARED_KEY_NAME (decrypted by 27_install_git_ssh.sh / Step5_InstallGitSSH.ps1).
+Shared key: ~/.ssh/$RC_SHARED_KEY_NAME (decrypted by 27_install_git_ssh.sh / Git_SshKeys.ps1).
 
 Docs:
   https://gitlab.gnome.org/GNOME/gnome-remote-desktop/-/blob/master/README.md

@@ -46,6 +46,7 @@ from pycore.pyfoundations.data_owner import ensure_owned_dir, mount_source
 from pycore.pyfoundations.desktop_session import LINUX_DISTRO, LinuxDistro
 from pycore.pyfoundations.service_contract import path_value as _contract_path
 from pycore.pyfoundations.service_contract import path_values as _contract_paths
+from pycore.pyfoundations.service_contract import value as _contract_value
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 CORE_NODE_DATA_DIR_NAME = _contract_path('core_node_data_dir_name')
@@ -333,6 +334,22 @@ def read_global_var(key: str) -> Optional[str]:
     return None
 
 
+def get_windows_program_dir(kind: str) -> Path:
+    r"""Live Windows program dir ``kind`` ('tool_root', 'app_root' or
+    'downloads_root').
+
+    The value Step 1 (SharedCacheEnv.ps1, the only Windows resolver) recorded
+    under the contract key ``paths.drive_layout.windows_resolved_vars.<kind>``
+    (e.g. ``E:\_win10_dev``); before the first record, the old D: dir
+    ``paths.drive_layout.legacy_program_dirs.<kind>``.
+    """
+    recorded = read_global_var(str(_contract_value(f'paths.drive_layout.windows_resolved_vars.{kind}')))
+    if recorded:
+        return Path(recorded)
+    legacy = str(_contract_value(f'paths.drive_layout.legacy_program_dirs.{kind}'))
+    return Path(legacy.replace('<sys>', OS_VAR_TAG.lower()))
+
+
 __all__ = [
     'CORE_NODE_DATA_DIR_NAME',
     'GLOBAL_VAR_DIR_NAME',
@@ -358,6 +375,7 @@ __all__ = [
     'get_core_node_data_dir',
     'get_global_var_dir',
     'get_unified_manager_launcher_dir',
+    'get_windows_program_dir',
     'UNIFIED_MANAGER_DIR_NAME',
     'UNIFIED_MANAGER_LAUNCHER_DIR_NAME',
     'iter_global_var_dirs',

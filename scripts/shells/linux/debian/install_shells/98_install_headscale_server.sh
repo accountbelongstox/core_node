@@ -288,7 +288,10 @@ main() {
 
     install_headscale_package || exit 1
     configure_headscale
-    enable_headscale_service
+    if ! enable_headscale_service; then
+        print_error_from_common_functions "$HEADSCALE_SERVICE did not start; Headscale server is NOT ready"
+        exit 1
+    fi
     ensure_user_and_authkey
     headscale_extra_records_sync
     ensure_frankenphp_site

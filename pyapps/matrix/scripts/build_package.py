@@ -27,6 +27,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Import after path setup
 from pycore.pyfoundations.pybasecommon.commander import Commander
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.program_material_dirs import get_program_work_dir, program_work_env
+
+BUILD_WORK_SUBDIR = "matrix_pyinstaller"
 
 
 class MatrixPackager:
@@ -38,7 +41,8 @@ class MatrixPackager:
         self.resources_dir = self.app_root / "resources"
         self.frontend_dir = self.project_root / "poly_apps" / "matrixui"
         self.dist_dir = self.app_root / "dist"
-        self.build_dir = self.app_root / "build"
+        self.build_dir = get_program_work_dir(BUILD_WORK_SUBDIR)
+        self.build_env = program_work_env(BUILD_WORK_SUBDIR)
         self.spec_file = self.app_root / "matrix.spec"
 
     def check_pyinstaller(self):
@@ -61,7 +65,8 @@ class MatrixPackager:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1
+            bufsize=1,
+            env=self.build_env
         )
 
         # Print output in real-time
@@ -333,7 +338,8 @@ coll = COLLECT(
             "-m", "PyInstaller",
             str(self.spec_file),
             "--clean",
-            "--noconfirm"
+            "--noconfirm",
+            "--workpath", str(self.build_dir)
         ]
 
         ColorPrint.blue(f"Executing: {' '.join(cmd)}")
@@ -346,7 +352,8 @@ coll = COLLECT(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            env=self.build_env
         )
 
         # Print all output in real-time

@@ -292,7 +292,7 @@ install_mysql() {
         # Initialize MySQL if needed
         if [ $need_init -eq 1 ]; then
             echo "Initializing MySQL data directory..."
-            mysqld --initialize --user=mysql --datadir="$MYSQL_DATA_DIR"
+            mysqld --initialize-insecure --user=mysql --datadir="$MYSQL_DATA_DIR"
         fi
 
         # Start MySQL service
@@ -304,8 +304,11 @@ install_mysql() {
         # so fall back to password auth for idempotency.
         echo "Securing MySQL installation..."
         mysql --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_password';" 2>/dev/null || \
-            mysql -uroot -p"$root_password" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_password';"
-        
+            mysql -uroot -p"$root_password" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_password';" || {
+                echo "[$SCRIPT_INDEX] Failed to set the MySQL root password"
+                return 1
+            }
+
         # Store MySQL information
         store_mysql_info
         
@@ -382,8 +385,7 @@ if [ "$START_MYSQL" = "true" ]; then
 
     # Install or upgrade MySQL (idempotent: apt install is a no-op when the
     # latest version is already present; config/init steps below are repeatable)
-    install_mysql
-    if ! check_mysql; then
+    if ! install_mysql || ! check_mysql; then
         echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
         exit 1
     fi

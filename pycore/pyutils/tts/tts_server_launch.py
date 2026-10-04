@@ -387,7 +387,7 @@ def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
 def _missing_torchcodec_ffmpeg_dlls(venv_python: str) -> List[str]:
     """Windows: torchcodec's libtorchcodec_core*.dll links against UNHASHED
     FFmpeg DLL names while PyAV's av.libs ships delvewheel-hashed names;
-    Step54_InstallGptsovits.ps1 copies both namings next to libtorchcodec.
+    Model_Gptsovits.ps1 copies both namings next to libtorchcodec.
     Returns the missing names (empty off Windows or without torchcodec)."""
     if os.name != "nt":
         return []
@@ -531,7 +531,7 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
 
     RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
     at start time. Provisioning is done idempotently by the install scripts
-    (Step61_InstallQwen3Tts.ps1 / 183_install_qwen3tts.sh) that pyservice runs; a
+    (Model_Qwen3Tts.ps1 / 183_install_qwen3tts.sh) that pyservice runs; a
     missing venv -> no start + disabled_reason points at the installer."""
     venv_python = resolve_isolated_python(QWEN_ENGINE_NAME)
     model_id = qwen_weights.resolve_model_id(allow_remote=False)

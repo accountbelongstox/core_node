@@ -200,7 +200,7 @@ def redownload_hint_lines(model_id: Optional[str] = None) -> list:
         "        pip install modelscope",
         f'        modelscope download --model {repo} --local_dir "{weights}"',
         "[FIX] Option C - project installer (curl resume + size verify):",
-        "        Step61_InstallQwen3Tts.ps1",
+        "        Model_Qwen3Tts.ps1",
         "        scripts/shells/linux/debian/install_shells/183_install_qwen3tts.sh",
         f'[FIX] Delete bad files first, e.g. "{weights / "model.safetensors"}"',
     ]

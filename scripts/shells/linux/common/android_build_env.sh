@@ -11,7 +11,7 @@
 ANDROID_BUILD_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # dd constants via gvar_common.sh (CORE_NODE_CACHE_DIR, COMPILE_DIR); source once.
-if [ -z "${CORE_NODE_CACHE_DIR:-}" ]; then
+if [ -z "${CORE_NODE_CACHE_DIR:-}" ] || [ -z "${COMPILE_DIR:-}" ]; then
     # shellcheck disable=SC1091
     source "${ANDROID_BUILD_LIB_DIR}/gvar_common.sh"
 fi
@@ -21,7 +21,9 @@ ANDROID_BUILD_REQUIRED_JAVA_MAJOR=21
 ANDROID_BUILD_API=36
 ANDROID_BUILD_TOOLS="36.0.0"
 ANDROID_BUILD_CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-14742923_latest.zip"
-ANDROID_BUILD_SDK_CACHE_ROOT="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/pycore/android-build/android-sdk"
+# Linux SDK install root: a Linux-only tool install, so ext4 under the dev
+# tool root (COMPILE_DIR), never the shared model cache (NTFS on dual-boot).
+ANDROID_BUILD_SDK_CACHE_ROOT="${COMPILE_DIR}/android-sdk"
 ANDROID_BUILD_LICENSE_FILE="licenses/android-sdk-license"
 ANDROID_BUILD_SDK_GATE="INSTALL_ANDROID_SDK"
 ANDROID_BUILD_JAVA_GATE="INSTALL_JAVA"

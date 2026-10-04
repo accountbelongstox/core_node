@@ -268,7 +268,7 @@ def check_import(verbose: bool = True) -> bool:
             print("[HINT]  qwen-tts requires transformers==4.57.3, which conflicts with")
             print("[HINT]  the main interpreter's transformers==4.46.x (parler-tts pin).")
             print("[HINT]  It runs in a DEDICATED venv - provision it with:")
-            print("[HINT]    scripts/shells/win/install_powershells/Step61_InstallQwen3Tts.ps1")
+            print("[HINT]    scripts/shells/win/install_powershells/Model_Qwen3Tts.ps1")
             print("[HINT]    scripts/shells/linux/debian/install_shells/183_install_qwen3tts.sh")
 
     return ready

@@ -73,7 +73,7 @@ model_ok() {
 download_model() {
     local archive tmp inner src expected have
     archive="$MODEL_DIR/.download.tar.bz2"
-    tmp="${MODEL_DIR}/.extract"
+    tmp=""
     mkdir -p "$MODEL_DIR"
     expected="$(curl -fsI --connect-timeout 30 "$MODEL_URL" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
     if [[ -f "$archive" ]]; then
@@ -93,10 +93,9 @@ download_model() {
         echo "[install_kokoro] [!] download incomplete; archive kept to resume next run."
         return 1
     fi
-    if [[ -e "$tmp" ]]; then
-        _backup_install_asset_path "$tmp" "[install_kokoro] "
-    fi
-    mkdir -p "$tmp"
+    # Extraction scratch on the system temp (ext4), never inside the shared
+    # model dir (NTFS on a dual-boot machine); only the final files go there.
+    tmp="$(mktemp -d)" || return 1
     "$PYTHON" -c "import tarfile,sys
 t=tarfile.open(sys.argv[1],'r:bz2')
 try:

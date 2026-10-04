@@ -468,11 +468,13 @@ PYTHON_EOF
     cd "$install_dir"
     echo ""
     echo "[run] $run_python $test_script"
-    "$run_python" "$test_script"
+    local test_rc=0
+    "$run_python" "$test_script" || test_rc=$?
     echo ""
     cd - > /dev/null
 
     rm -f "$test_script"
+    return "$test_rc"
 }
 
 test_installation() {
@@ -480,7 +482,10 @@ test_installation() {
     local python_cmd=$2
 
     print_info "Running model load test..."
-    test_model_load "$install_dir" "$python_cmd"
+    if ! test_model_load "$install_dir" "$python_cmd"; then
+        print_error "Model load test failed"
+        return 1
+    fi
 
     echo ""
     print_success "========================================"
@@ -553,7 +558,7 @@ main() {
 
         echo ""
         print_info "Testing installation..."
-        test_installation "$install_dir" "$python_cmd"
+        test_installation "$install_dir" "$python_cmd" || return 1
 
         echo ""
         print_info "You can use DeepSeek-OCR with:"
@@ -584,7 +589,7 @@ main() {
 
         echo ""
         print_info "Step 4: Testing installation"
-        test_installation "$install_dir" "$python_cmd"
+        test_installation "$install_dir" "$python_cmd" || return 1
 
         echo ""
         print_info "Next steps:"
@@ -596,7 +601,9 @@ main() {
     else
         echo ""
         print_error "Installation verification failed"
+        return 1
     fi
 }
 
 main
+exit $?

@@ -421,7 +421,7 @@ function Install-TailscaleWinget {
         }
     } else {
         try {
-            Start-Process -FilePath 'winget.exe' -ArgumentList $wingetArgs -NoNewWindow -Wait | Out-Null
+            Invoke-WithProgramWorkTemp { Start-Process -FilePath 'winget.exe' -ArgumentList $wingetArgs -NoNewWindow -Wait } | Out-Null
         } catch {
             Write-ColorMessage -Message "winget install failed to start: $($_.Exception.Message)" -Type 'Error'
             return $false

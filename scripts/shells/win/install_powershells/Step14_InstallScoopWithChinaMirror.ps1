@@ -7,6 +7,7 @@ $STEP_NUMBER = 14
 
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
+$scoopInstallerDownloadDir = Join-Path $Global:DOWNLOADS_DIR "scoop"
 
 function Install-ScoopWithChinaMirror {
     [CmdletBinding()]
@@ -50,8 +51,8 @@ function Install-ScoopWithChinaMirror {
         }
 
         # Create necessary directories
-        if (-not (Test-Path $SCOOP_CACHE_DIR)) {
-            New-Item -ItemType Directory -Path $SCOOP_CACHE_DIR -Force | Out-Null
+        if (-not (Test-Path $scoopInstallerDownloadDir)) {
+            New-Item -ItemType Directory -Path $scoopInstallerDownloadDir -Force | Out-Null
         }
         if (-not (Test-Path $SCOOP_DIR)) {
             New-Item -ItemType Directory -Path $SCOOP_DIR -Force | Out-Null
@@ -71,7 +72,7 @@ function Install-ScoopWithChinaMirror {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Scoop..." -Type "Warning"
         
         # Download and execute installer
-        $installerPath = Join-Path $SCOOP_CACHE_DIR "install.ps1"
+        $installerPath = Join-Path $scoopInstallerDownloadDir "install.ps1"
         
         if ($Global:RegionIsChina) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Using China mirror for Scoop installation..." -Type "Warning"
@@ -126,7 +127,8 @@ function Install-ScoopWithChinaMirror {
         }
     }
 
-    if ($isFirstInstall) {
+    # Buckets are checked on every run so a missing main/extras bucket is repaired
+    if ($true) {
         try {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Configuring Scoop..." -Type "Warning"
 
@@ -159,7 +161,7 @@ function Install-ScoopWithChinaMirror {
                 }
 
                 # Update Scoop
-                & $SCOOP_EXE update
+                if ($isFirstInstall) { & $SCOOP_EXE update }
             }
         }
         catch {

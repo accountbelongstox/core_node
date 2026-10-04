@@ -378,8 +378,9 @@ mcp_ensure_node_deps() {
         exit 1
     fi
 
-    # 5. Ensure bun is available
-    if command -v bun &>/dev/null; then
+    # 5. Ensure bun is available. It counts only when it runs: the bun npm package installs its
+    # native binary in a postinstall script, which npm's allowScripts gate blocks unless allowed.
+    if command -v bun &>/dev/null && bun --version &>/dev/null; then
         # bun found - repair symlink if in node bin dir
         if [ -e "$mcp_node_bin_dir/bun" ]; then
             mcp_ensure_symlink "bun" "$mcp_node_bin_dir/bun"
@@ -387,14 +388,14 @@ mcp_ensure_node_deps() {
         return
     fi
 
-    # bun not found - try to install it
-    echo -e "${YELLOW}  bun not found, auto-installing...${NC}"
+    # bun missing or not runnable (postinstall blocked) - (re)install it with its postinstall allowed
+    echo -e "${YELLOW}  bun not found or not runnable, auto-installing...${NC}"
     export npm_config_confirm_modules_purge=false
 
     if [ -x "$mcp_node_bin_dir/npm" ]; then
-        "$mcp_node_bin_dir/npm" install -g bun --config.confirm-modules-purge=false 2>&1 | tail -3
+        "$mcp_node_bin_dir/npm" install -g bun --allow-scripts=bun --config.confirm-modules-purge=false 2>&1 | tail -3
     else
-        npm install -g bun --config.confirm-modules-purge=false 2>&1 | tail -3
+        npm install -g bun --allow-scripts=bun --config.confirm-modules-purge=false 2>&1 | tail -3
     fi
 
     # Repair symlink after install
@@ -403,9 +404,9 @@ mcp_ensure_node_deps() {
     fi
 
     # Final check
-    if ! command -v bun &>/dev/null; then
+    if ! command -v bun &>/dev/null || ! bun --version &>/dev/null; then
         echo -e "${RED}  [ERROR] bun auto-install failed${NC}"
-        echo -e "${YELLOW}  Install bun manually: npm install -g bun${NC}"
+        echo -e "${YELLOW}  Install bun manually: npm install -g bun --allow-scripts=bun${NC}"
         exit 1
     fi
     echo -e "${GREEN}  [OK] bun auto-installed successfully${NC}"

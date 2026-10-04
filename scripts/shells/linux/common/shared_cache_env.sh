@@ -194,6 +194,10 @@ for __scc_subdir in "${CN_CACHE_SUBDIR_NAMES[@]}"; do
     [ -n "$__scc_var" ] || continue
     __scc_wire_tool_cache "$__scc_var" "$__scc_subdir"
 done
+# pip wheel/HTTP cache is a Linux package-manager cache (manylinux wheels the
+# other OS never reads), so it is ext4 too -- never the shared model tree,
+# which is the NTFS share on a dual-boot machine (LINUX_SHELL_RULES.md #2).
+__scc_wire_tool_cache PIP_CACHE_DIR pip
 unset -f __scc_wire_tool_cache __scc_cache_var_for_subdir
 unset __scc_subdir __scc_var
 
@@ -256,20 +260,21 @@ fi
 # uid/gid/fmask from the mount options); every call is already failure-tolerant.
 for __scc_d in "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" \
                "$SHARED_CACHE_DIR/huggingface/hub" "$SHARED_CACHE_DIR/torch" \
-               "$SHARED_CACHE_DIR/pip" "$SHARED_CACHE_DIR/xdg" \
+               "$SHARED_CACHE_DIR/xdg" \
                "$SHARED_CACHE_DIR/whisper" "$SHARED_CACHE_DIR/nltk_data" \
                "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr"; do
     [ -d "$__scc_d" ] || fs_perm_run_privileged mkdir -p "$__scc_d" || true
 done
 ensure_shared_dir 1777 "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR"
 
-# The shared pip cache follows the central ownership policy: owned by the
-# auto-detected real user (repair_owned_tree_777; only mismatched entries
-# change), so the user-run pycore service keeps its cache. Only root repairs;
-# a non-root caller never escalates. (pip itself disables the cache for root
-# runs over a user-owned tree - a warning, not a failure.)
-if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d "$SHARED_CACHE_DIR/pip" ]; then
-    repair_owned_tree_777 "$SHARED_CACHE_DIR/pip" >/dev/null 2>&1 || true
+# The shared ext4 pip cache (PIP_CACHE_DIR, wired above) follows the central
+# ownership policy: owned by the auto-detected real user
+# (repair_owned_tree_777; only mismatched entries change), so the user-run
+# pycore service keeps its cache. Only root repairs; a non-root caller never
+# escalates. (pip itself disables the cache for root runs over a user-owned
+# tree - a warning, not a failure.)
+if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${PIP_CACHE_DIR:-}" ] && [ -d "$PIP_CACHE_DIR" ]; then
+    repair_owned_tree_777 "$PIP_CACHE_DIR" >/dev/null 2>&1 || true
 fi
 
 # Only wire the shared cache when the tree is writable; otherwise keep per-user defaults.
@@ -289,13 +294,13 @@ if [ -w "$SHARED_CACHE_DIR" ]; then
         unset TRANSFORMERS_CACHE
     fi
 
-    # PyTorch hub weights, pip wheel cache, whisper .pt models, and the generic
-    # XDG cache. On the cross-OS NTFS tree XDG_CACHE_HOME is the cache ROOT
+    # PyTorch hub weights, whisper .pt models, and the generic XDG cache (the
+    # pip cache is ext4, wired with the toolchain caches above). On the
+    # cross-OS NTFS tree XDG_CACHE_HOME is the cache ROOT
     # itself -- mirroring SharedCacheEnv.ps1 (XDG_CACHE_HOME = D:\www\cache) --
     # so openai-whisper finds the SAME $CACHE/whisper/*.pt files Windows
     # downloaded. On the native Linux tree the historical xdg/ subdir is kept.
     : "${TORCH_HOME:=$SHARED_CACHE_DIR/torch}";  export TORCH_HOME
-    : "${PIP_CACHE_DIR:=$SHARED_CACHE_DIR/pip}"; export PIP_CACHE_DIR
     # WHISPER_CACHE_DIR is this project's own explicit variable (no consumer
     # reads it today -- see the XDG_CACHE_HOME note below); exported anyway so
     # a future whisper_provider.py/stt_orchestrator.py fix (pass

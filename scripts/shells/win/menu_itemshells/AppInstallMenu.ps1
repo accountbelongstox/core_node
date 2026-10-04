@@ -9,36 +9,36 @@
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
-$script:STEP16_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step21_InstallApplications.ps1"
+$script:APPLICATIONS_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step21_InstallApplications.ps1"
 
 # Script-based installs: Key must start with "script:" then filename; Display = menu text
 $script:SCRIPT_INSTALL_ENTRIES = @(
-    @{ Key = "script:Step4_InstallNodeJS.ps1"; Display = "Node.js" },
-    @{ Key = "script:Step8_InstallDefaultPython.ps1"; Display = "Python" },
-    @{ Key = "script:Step13_InstallPython310_312.ps1"; Display = "Python 3.10 / 3.12 (isolated model runtimes)" },
-    @{ Key = "script:Step64_InstallPython312.ps1"; Display = "Python 3.12 (isolated model runtime)" },
-    @{ Key = "script:Step16_InstallPHP.ps1"; Display = "PHP" },
-    @{ Key = "script:Step6_InstallGit.ps1"; Display = "Git" },
+    @{ Key = "script:Node_Runtime.ps1"; Display = "Node.js" },
+    @{ Key = "script:Python_Default.ps1"; Display = "Python" },
+    @{ Key = "script:Python_Isolated310.ps1"; Display = "Python 3.10 / 3.12 (isolated model runtimes)" },
+    @{ Key = "script:Python_Isolated312.ps1"; Display = "Python 3.12 (isolated model runtime)" },
+    @{ Key = "script:Web_Php.ps1"; Display = "PHP" },
+    @{ Key = "script:Git_Install.ps1"; Display = "Git" },
     @{ Key = "script:Step22_InstallChrome.ps1"; Display = "Chrome (script)" },
-    @{ Key = "script:Step45_InstallRedis.ps1"; Display = "Redis" },
-    @{ Key = "script:Step26_InstallAndroidStudio.ps1"; Display = "Android Studio" },
-    @{ Key = "script:Step27_InstallAndroidPlatformTools.ps1"; Display = "Android Platform Tools" },
+    @{ Key = "script:Database_Redis.ps1"; Display = "Redis" },
+    @{ Key = "script:Android_Studio.ps1"; Display = "Android Studio" },
+    @{ Key = "script:Android_PlatformTools.ps1"; Display = "Android Platform Tools" },
     @{ Key = "script:Step28_InstallFlutter.ps1"; Display = "Flutter" },
-    @{ Key = "script:Step25_InstallApkTool.ps1"; Display = "ApkTool" },
-    @{ Key = "script:Step23_InstallPuppeteerPlugins.ps1"; Display = "Puppeteer Plugins" },
-    @{ Key = "script:Step20_Install7ipBase.ps1"; Display = "7-Zip Base" },
+    @{ Key = "script:Android_ApkTool.ps1"; Display = "ApkTool" },
+    @{ Key = "script:Node_PuppeteerPlugins.ps1"; Display = "Puppeteer Plugins" },
+    @{ Key = "script:BaseTools_7Zip.ps1"; Display = "7-Zip Base" },
     @{ Key = "script:Step14_InstallScoopWithChinaMirror.ps1"; Display = "Scoop" },
-    @{ Key = "script:Step29_InstallWSL.ps1"; Display = "WSL" },
-    @{ Key = "script:Step30_InstallWSLDebian13.ps1"; Display = "WSL Debian 13" },
-    @{ Key = "script:Step31_SetRootLoginWSLUbuntuDebian.ps1"; Display = "WSL Root Login" },
+    @{ Key = "script:Wsl_Install.ps1"; Display = "WSL" },
+    @{ Key = "script:Wsl_Debian13.ps1"; Display = "WSL Debian 13" },
+    @{ Key = "script:Wsl_RootLogin.ps1"; Display = "WSL Root Login" },
     @{ Key = "script:Step32_InstallVisualStudio.ps1"; Display = "Visual Studio" },
-    @{ Key = "script:Step33_InstallQtBuildTools.ps1"; Display = "Qt Build Tools" },
-    @{ Key = "script:Step34_InstallQt.ps1"; Display = "Qt" },
-    @{ Key = "script:Step35_InstallQtOfficial.ps1"; Display = "Qt Official" },
-    @{ Key = "script:Step36_InstallDeepSeek.ps1"; Display = "DeepSeek" },
-    @{ Key = "script:Step37_InstallDeepSeekOCR.ps1"; Display = "DeepSeek OCR" },
-    @{ Key = "script:Step38_InstallQwen25.ps1"; Display = "Qwen 2.5" },
-    @{ Key = "script:Step39_InstallNLLB200.ps1"; Display = "NLLB 200" }
+    @{ Key = "script:Qt_BuildTools.ps1"; Display = "Qt Build Tools" },
+    @{ Key = "script:Qt_Install.ps1"; Display = "Qt" },
+    @{ Key = "script:Qt_Official.ps1"; Display = "Qt Official" },
+    @{ Key = "script:Model_DeepSeek.ps1"; Display = "DeepSeek" },
+    @{ Key = "script:Model_DeepSeekOCR.ps1"; Display = "DeepSeek OCR" },
+    @{ Key = "script:Model_Qwen25.ps1"; Display = "Qwen 2.5" },
+    @{ Key = "script:Model_NLLB200.ps1"; Display = "NLLB 200" }
 )
 
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -72,13 +72,6 @@ function Get-AllPackagesFlatList {
     if ($Global:COMMON_SOFTWARE_PACKAGES) {
         foreach ($key in $Global:COMMON_SOFTWARE_PACKAGES.Keys) {
             $meta = $Global:COMMON_SOFTWARE_PACKAGES[$key]
-            $display = if ($meta.Name) { $meta.Name } else { $key }
-            $list += @{ Key = $key; Display = $display }
-        }
-    }
-    if ($Global:MCP_SERVICES_PACKAGES) {
-        foreach ($key in $Global:MCP_SERVICES_PACKAGES.Keys) {
-            $meta = $Global:MCP_SERVICES_PACKAGES[$key]
             $display = if ($meta.Name) { $meta.Name } else { $key }
             $list += @{ Key = $key; Display = $display }
         }
@@ -154,15 +147,15 @@ function Show-AppInstallMenu {
             & $scriptPath
         }
         else {
-            if (-not (Test-Path $script:STEP16_SCRIPT)) {
-                Write-Host "Step16 script not found: $script:STEP16_SCRIPT" -ForegroundColor Red
+            if (-not (Test-Path $script:APPLICATIONS_SCRIPT)) {
+                Write-Host "Applications script not found: $script:APPLICATIONS_SCRIPT" -ForegroundColor Red
                 Read-Host "Press Enter to continue"
                 continue
             }
             Write-Host ""
             Write-Host "Running Step16 for package: $displayName ($packageKey)..." -ForegroundColor Cyan
             Write-Host ""
-            & $script:STEP16_SCRIPT -ExactPackageName $packageKey
+            & $script:APPLICATIONS_SCRIPT -ExactPackageName $packageKey
         }
 
         Write-Host ""

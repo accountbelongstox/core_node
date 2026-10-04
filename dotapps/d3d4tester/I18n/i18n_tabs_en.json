@@ -169,7 +169,10 @@
       "yolo_flow_prepare_failed": "Prepare training data failed: ",
       "yolo_flow_prepare_ok": "Training data prepared: ",
       "yolo_flow_clean_confirm": "Remove images without labels and labels without images in the latest segment frames? This cannot be undone.",
-      "yolo_capture_not_available": "Coordinate picker is not available in this version."
+      "yolo_capture_not_available": "Coordinate picker is not available in this version.",
+      "yolo_flow_export_started": "Training finished, exporting ONNX: ",
+      "yolo_flow_export_failed": "ONNX export failed: ",
+      "yolo_flow_export_done": "ONNX model ready (town navigation uses it): "
     },
     "yolo_collect": {
       "window_title": "YOLO Training Data Collection",

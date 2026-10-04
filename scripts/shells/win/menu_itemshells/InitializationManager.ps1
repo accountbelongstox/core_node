@@ -249,18 +249,8 @@ function Add-ProjectDirToPath {
             # PROJECT_DIR should always be D:\programing\core_node (from GlobalVars.ps1)
             Write-Host "[*] Using PROJECT_DIR from GlobalVars.ps1: $($Global:PROJECT_DIR)" -ForegroundColor Cyan
 
-            # Add PROJECT_DIR to PATH if not already present
-            $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-            $paths = $currentPath -split ';'
-
-            if (-not ($paths -contains $Global:PROJECT_DIR)) {
-                Write-Host "[*] Adding PROJECT_DIR to system PATH: $($Global:PROJECT_DIR)" -ForegroundColor Cyan
-                $newPath = $currentPath + ";" + $Global:PROJECT_DIR
-                [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
-                Write-Host "[OK] Added PROJECT_DIR to system PATH" -ForegroundColor Green
-            } else {
-                Write-Host "[INFO] PROJECT_DIR already exists in PATH: $($Global:PROJECT_DIR)" -ForegroundColor Yellow
-            }
+            # Idempotent add through the central PATH library
+            & (Join-Path $WIN_COMMON_DIR "WindowsPathFunction.ps1") add $Global:PROJECT_DIR -SkipInit
         } else {
             Write-Host "[WARNING] GlobalVars.ps1 not found: $globalVarsPath" -ForegroundColor Yellow
         }

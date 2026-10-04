@@ -7,7 +7,7 @@ SCRIPT_INDEX="129"
 # pycore.pyutils.stt.stt_orchestrator scans (looks for */conf). Idempotent +
 # resumable. Docs: https://alphacephei.com/vosk/models
 #
-# Invocation (prepare_pycore_prerequisites.sh):  install_vosk.sh --python <py>
+# Invocation (prepare_pycore_prerequisites.sh):  129_install_vosk.sh --python <py>
 #   --model auto|small|large   (default auto: CUDA->large, else small)
 #   --force                    (re-run dependency repair; preserve local model)
 set -uo pipefail

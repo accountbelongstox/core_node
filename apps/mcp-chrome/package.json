@@ -6,8 +6,7 @@
   "type": "module",
   "workspaces": [
     "app/*",
-    "packages/*",
-    "advanced-control-panel"
+    "packages/shared"
   ],
   "trustedDependencies": [
     "wxt"

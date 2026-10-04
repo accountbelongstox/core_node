@@ -187,7 +187,7 @@ tts_dependency_stamp_matches() {
     local expected actual
     [[ -f "$stamp" ]] || return 1
     expected="$(tts_dependency_fingerprint "$py" "$engine")"
-    actual="$(tr -d '\r\n\ufeff' < "$stamp" 2>/dev/null || true)"
+    actual="$(_hf_read_sentinel "$stamp" || true)"
     [[ -n "$expected" && "$actual" == "$expected" ]]
 }
 

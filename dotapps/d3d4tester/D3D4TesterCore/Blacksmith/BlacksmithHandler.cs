@@ -117,30 +117,14 @@ public sealed class BlacksmithHandler
     public bool HandleAutoSalvageBySlots(string keep, bool debugOnly = false)
     {
         var shared = GameInterfaceData.Instance;
-        var coords = shared.BagCoordinates;
-        var layout = shared.BagLayout;
-        if (coords == null || layout == null || layout.Items.Count == 0)
-        {
-            ColorPrinter.Red("[BlacksmithHandler] No bag coordinates/layout for auto salvage");
-            return false;
-        }
-        var (ox, oy) = shared.WindowOffset;
-        var topLeft = coords.TopLeft;
-        double slotWidth = coords.Width / (double)coords.Cols;
-        double slotHeight = coords.Height / (double)coords.Rows;
-
-        var slots = new List<(int R, int C, BagItemInfo Info)>();
-        for (int r = 0; r < coords.Rows; r++)
-            for (int c = 0; c < coords.Cols; c++)
-                if (layout.Items.TryGetValue((r, c), out var info) && info.Type is BagSlotValues.TypeItem1Slot or BagSlotValues.TypeItem2Slot)
-                    slots.Add((r, c, info));
-
+        if (!HasBagLayout(shared, "auto salvage")) return false;
         if (debugOnly)
         {
-            ColorPrinter.Gray($"[BlacksmithHandler] Salvage preview (debug_only): {slots.Count} slots to scan (hover each then decide)");
+            ColorPrinter.Gray($"[BlacksmithHandler] Salvage preview (debug_only): {GearSlots(shared).Count} slots to scan (hover each then decide)");
             return true;
         }
 
+        var (ox, oy) = shared.WindowOffset;
         var ui = D3StandardCoordinates.GetScaledBlacksmithUiCoords();
         var (tabX, tabY) = ui[D3StandardCoordinates.KeyTabSalvageMaterials];
         var (salvageX, salvageY) = ui[D3StandardCoordinates.KeySalvageDialogSalvageButton];
@@ -149,34 +133,10 @@ public sealed class BlacksmithHandler
         ClickDirect(ox + tabX, oy + tabY);
         Thread.Sleep(AfterSalvageTabMs);
 
-        var (windowW, windowH) = shared.GameWindowSize;
-        if (windowW <= 0 || windowH <= 0)
-        {
-            using var img = shared.CloneGameWindowImage();
-            (windowW, windowH) = img != null ? (img.Width, img.Height) : (FallbackWindowWidth, FallbackWindowHeight);
-        }
-
-        var provider = ScreenCaptureService.GetScreenshotProvider();
-        double searchLength = SearchLengthRatio * slotWidth;
         int salvaged = 0;
-        foreach (var (r, c, info) in slots)
+        ForEachGearSlotTier(shared, null, (slotX, slotY, info, tier) =>
         {
-            int slotX = (int)(ox + topLeft.X + (c + 0.5) * slotWidth);
-            int slotY = (int)(oy + topLeft.Y + (r + 0.5) * slotHeight);
-            _click.MoveMouse(slotX, slotY, HoverMoveDurationSec);
-            Thread.Sleep(HoverSettleMs);
-            var (xMin, yMin, xMax, yMax, leftEdgeX, centerY) = DebugBagHover.SearchRegionBounds(topLeft, slotWidth, slotHeight, r, c, windowW, windowH);
-            int regionW = xMax - xMin, regionH = yMax - yMin;
-            if (regionW <= 0 || regionH <= 0) continue;
-            using var regionBmp = provider.CaptureRegion(ox + xMin, oy + yMin, regionW, regionH);
-            if (regionBmp == null) continue;
-            using var crop = ImageConvert.NormalizeToBgr(regionBmp);
-            var line = SlotQuality.FindLineInCrop(crop, leftEdgeX - xMin, centerY - yMin, searchLength);
-            string tier = line.Kind == SlotQuality.KindOrange && line.Height != null ? BagSlotValues.TierPrimal
-                : line.Kind == SlotQuality.KindAncient && line.Height != null ? BagSlotValues.TierAncient
-                : BagSlotValues.TierNormal;
-            if (!ShouldSalvage(info.Quality, tier, keep)) continue;
-
+            if (!ShouldSalvage(info.Quality, tier, keep)) return;
             ClickDirect(slotX, slotY);
             Thread.Sleep(AfterSlotClickMs);
             ClickDirect(ox + salvageX, oy + salvageY);
@@ -184,9 +144,77 @@ public sealed class BlacksmithHandler
             ClickDirect(ox + confirmX, oy + confirmY);
             Thread.Sleep(AfterConfirmMs);
             salvaged++;
-        }
+        });
         ColorPrinter.Green($"[BlacksmithHandler] Auto salvage by slots completed (salvaged {salvaged})");
         return true;
+    }
+
+    /// <summary>True when the shared bag coordinates and layout are present; logs the failing feature otherwise.</summary>
+    public static bool HasBagLayout(GameInterfaceData shared, string feature)
+    {
+        if (shared.BagCoordinates != null && shared.BagLayout is { Items.Count: > 0 }) return true;
+        ColorPrinter.Red($"[BlacksmithHandler] No bag coordinates/layout for {feature}");
+        return false;
+    }
+
+    /// <summary>Occupied gear slots (top cell of each item) in row-major order.</summary>
+    public static List<(int R, int C, BagItemInfo Info)> GearSlots(GameInterfaceData shared)
+    {
+        var slots = new List<(int R, int C, BagItemInfo Info)>();
+        var coords = shared.BagCoordinates;
+        var layout = shared.BagLayout;
+        if (coords == null || layout == null) return slots;
+        for (int r = 0; r < coords.Rows; r++)
+            for (int c = 0; c < coords.Cols; c++)
+                if (layout.Items.TryGetValue((r, c), out var info) && info.Type is BagSlotValues.TypeItem1Slot or BagSlotValues.TypeItem2Slot)
+                    slots.Add((r, c, info));
+        return slots;
+    }
+
+    /// <summary>
+    /// Hover every gear slot, read its legendary tier from the hover line and call onSlot(screenX, screenY, info, tier).
+    /// shouldStop is polled before each slot. Shared by auto salvage and drop equipment.
+    /// </summary>
+    public void ForEachGearSlotTier(GameInterfaceData shared, Func<bool>? shouldStop, Action<int, int, BagItemInfo, string> onSlot)
+    {
+        foreach (var (r, c, info) in GearSlots(shared))
+        {
+            if (shouldStop?.Invoke() == true) return;
+            var read = ReadSlotTier(shared, r, c);
+            if (read != null) onSlot(read.Value.ScreenX, read.Value.ScreenY, info, read.Value.Tier);
+        }
+    }
+
+    /// <summary>Hover bag slot (r, c) and read its legendary tier (primal / ancient / normal) from the hover line; null when the region cannot be captured.</summary>
+    public (int ScreenX, int ScreenY, string Tier)? ReadSlotTier(GameInterfaceData shared, int r, int c)
+    {
+        var coords = shared.BagCoordinates;
+        if (coords == null) return null;
+        var (ox, oy) = shared.WindowOffset;
+        var topLeft = coords.TopLeft;
+        double slotWidth = coords.Width / (double)coords.Cols;
+        double slotHeight = coords.Height / (double)coords.Rows;
+        var (windowW, windowH) = shared.GameWindowSize;
+        if (windowW <= 0 || windowH <= 0)
+        {
+            using var img = shared.CloneGameWindowImage();
+            (windowW, windowH) = img != null ? (img.Width, img.Height) : (FallbackWindowWidth, FallbackWindowHeight);
+        }
+        int slotX = (int)(ox + topLeft.X + (c + 0.5) * slotWidth);
+        int slotY = (int)(oy + topLeft.Y + (r + 0.5) * slotHeight);
+        _click.MoveMouse(slotX, slotY, HoverMoveDurationSec);
+        Thread.Sleep(HoverSettleMs);
+        var (xMin, yMin, xMax, yMax, leftEdgeX, centerY) = DebugBagHover.SearchRegionBounds(topLeft, slotWidth, slotHeight, r, c, windowW, windowH);
+        int regionW = xMax - xMin, regionH = yMax - yMin;
+        if (regionW <= 0 || regionH <= 0) return null;
+        using var regionBmp = ScreenCaptureService.GetScreenshotProvider().CaptureRegion(ox + xMin, oy + yMin, regionW, regionH);
+        if (regionBmp == null) return null;
+        using var crop = ImageConvert.NormalizeToBgr(regionBmp);
+        var line = SlotQuality.FindLineInCrop(crop, leftEdgeX - xMin, centerY - yMin, SearchLengthRatio * slotWidth);
+        string tier = line.Kind == SlotQuality.KindOrange && line.Height != null ? BagSlotValues.TierPrimal
+            : line.Kind == SlotQuality.KindAncient && line.Height != null ? BagSlotValues.TierAncient
+            : BagSlotValues.TierNormal;
+        return (slotX, slotY, tier);
     }
 
     /// <summary>Salvage decision by quality, tier and keep rule. 1:1 inline rule in handle_auto_salvage_by_slots.</summary>
@@ -198,7 +226,7 @@ public sealed class BlacksmithHandler
         return tier is BagSlotValues.TierNormal or BagSlotValues.TierAncient;
     }
 
-    private void ClickDirect(int x, int y) =>
+    public void ClickDirect(int x, int y) =>
         _click.Click(x, y, MouseButton.Left, StateAwareClickHandler.ClickMoveDurationSec, returnToOriginal: true, directClick: true,
             pauseAfterMove: StateAwareClickHandler.ClickPauseAfterMoveSec);
 }

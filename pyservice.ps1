@@ -293,7 +293,8 @@ if (($Command -ieq 'run' -or $Command -ieq 'install') -and $Rest.Count -gt 0) {
 }
 
 # --------------------------------------------------------------------------- #
-# Single system Python 3.13 (D:\.dev_win10\python313); no venv, no py launcher #
+# Single system Python 3.13 (<LANG_COMPILER_DIR>\python313); no venv, no py  #
+# launcher                                                                     #
 # fallbacks to other minors.                                                   #
 # --------------------------------------------------------------------------- #
 function Resolve-Python {
@@ -519,7 +520,7 @@ function Install-PycoreService {
     if (-not $NoInstall) {
         $python = Resolve-Python
         if (-not $python) {
-            Write-Host ("[!] System Python 3.13 was not found at {0}; run Step8_InstallDefaultPython.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
+            Write-Host ("[!] System Python 3.13 was not found at {0}; run Python_Default.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
             return 1
         }
         Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
@@ -814,7 +815,7 @@ Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (
 
 $py = Resolve-Python
 if (-not $py) {
-    throw ("System Python 3.13 was not found at {0}; run Step8_InstallDefaultPython.ps1." -f $Global:PYTHON_EXE_PATH)
+    throw ("System Python 3.13 was not found at {0}; run Python_Default.ps1." -f $Global:PYTHON_EXE_PATH)
 }
 Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
 Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green

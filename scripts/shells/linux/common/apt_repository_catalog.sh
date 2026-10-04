@@ -575,33 +575,42 @@ remove_apt_repository_from_apt_repository_manager() {
         fi
     done
     
-    # Remove MySQL/MariaDB specific files (including legacy MariaDB setup-script files)
-    if [ "$repo_name" = "mysql" ] || [ "$repo_name" = "mariadb" ]; then
-        local mysql_files=(
-            "/etc/apt/sources.list.d/mysql.list"
-            "/etc/apt/sources.list.d/mariadb.list"
-            "/etc/apt/sources.list.d/mariadb-10.11.list"
-            "/etc/apt/sources.list.d/mariadb-maxscale.list"
-        )
-        for file in "${mysql_files[@]}"; do
-            if [ -f "$file" ]; then
-                $USE_SUDO rm -f "$file"
-                echo "Removed: $file"
-            fi
-        done
-
-        local mysql_keys=(
-            "/usr/share/keyrings/mysql-archive-keyring.gpg"
-            "/usr/share/keyrings/mariadb-keyring.gpg"
-            "/usr/share/keyrings/mariadb-archive-keyring.gpg"
-        )
-        for key in "${mysql_keys[@]}"; do
-            if [ -f "$key" ]; then
-                $USE_SUDO rm -f "$key"
-                echo "Removed: $key"
-            fi
-        done
-    fi
+    # Remove the vendor-specific files of exactly the requested repository: mysql never
+    # touches MariaDB files and vice versa (legacy MariaDB setup-script files included).
+    local vendor_files=()
+    local vendor_keys=()
+    case "$repo_name" in
+        mysql)
+            vendor_files=("/etc/apt/sources.list.d/mysql.list")
+            vendor_keys=("/usr/share/keyrings/mysql-archive-keyring.gpg")
+            ;;
+        mariadb)
+            vendor_files=(
+                "/etc/apt/sources.list.d/mariadb.list"
+                "/etc/apt/sources.list.d/mariadb-10.11.list"
+                "/etc/apt/sources.list.d/mariadb-maxscale.list"
+            )
+            vendor_keys=(
+                "/usr/share/keyrings/mariadb-keyring.gpg"
+                "/usr/share/keyrings/mariadb-archive-keyring.gpg"
+            )
+            ;;
+        edge)
+            vendor_files=("/etc/apt/sources.list.d/microsoft-edge.list")
+            ;;
+    esac
+    for file in "${vendor_files[@]}"; do
+        if [ -f "$file" ]; then
+            $USE_SUDO rm -f "$file"
+            echo "Removed: $file"
+        fi
+    done
+    for key in "${vendor_keys[@]}"; do
+        if [ -f "$key" ]; then
+            $USE_SUDO rm -f "$key"
+            echo "Removed: $key"
+        fi
+    done
     
     echo "Repository removal completed: $repo_name"
     return 0
@@ -635,7 +644,7 @@ manage_repositories_from_apt_repository_manager() {
         local edge_repo_line="deb [arch=amd64 signed-by=$edge_key_file] https://packages.microsoft.com/repos/edge stable main"
         
         # Check if already added
-        if [ -f "/etc/apt/sources.list.d/microsoft-edge.list" ]; then
+        if [ -f "/etc/apt/sources.list.d/microsoft-edge.list" ] || [ -f "$APT_SOURCES_LIST_D/edge.list" ]; then
             echo "Edge repository already added"
         else
             # Add Edge repository (permanent, no restore)

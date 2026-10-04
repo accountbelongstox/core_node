@@ -356,65 +356,6 @@ confirm_configuration() {
     done
 }
 
-# Main Program Entry Point
-
-# Initialize menu configuration
-parse_menu_config
-initialize_menu_values
-
-# Ensure current_selection is within bounds
-if [ $current_selection -ge ${#menu_names[@]} ]; then
-    current_selection=0
-fi
-
-
-# Main loop
-while true; do
-    show_menu
-    
-    # Read keyboard input
-    read -rsn1 key
-    case "$key" in
-        $'\x1b')  # ESC sequence (arrow keys)
-            read -rsn2 -t 0.1 key2
-            case "$key2" in
-                '[A')  # Up arrow
-                    if [ $current_selection -gt 0 ]; then
-                        ((current_selection--))
-                    fi
-                    ;;
-                '[B')  # Down arrow
-                    if [ $current_selection -lt $((${#menu_names[@]} - 1)) ]; then
-                        ((current_selection++))
-                    fi
-                    ;;
-                '[C')  # Right arrow
-                    cycle_value "right"
-                    ;;
-                '[D')  # Left arrow
-                    cycle_value "left"
-                    ;;
-            esac
-            ;;
-        "")  # Enter key
-            confirm_configuration
-            ;;
-        [mM])  # M key for Linux management
-            show_linux_management_menu
-            ;;
-        [qQ])  # Q key to quit
-            echo ""
-            echo "Exiting without saving."
-            exit "$CANCEL_RETURN_EXIT_CODE"
-            ;;
-        [bB])  # B key for return
-            echo ""
-            echo "Returning to previous menu."
-            exit "$CANCEL_RETURN_EXIT_CODE"
-            ;;
-    esac
-done
-
 # Function to show Linux management menu
 show_linux_management_menu() {
     local menu_items=(
@@ -686,3 +627,62 @@ manage_xrdp_service() {
     echo "Press any key to continue..."
     read -n 1
 }
+
+# Main Program Entry Point (after every menu function is defined)
+
+# Initialize menu configuration
+parse_menu_config
+initialize_menu_values
+
+# Ensure current_selection is within bounds
+if [ $current_selection -ge ${#menu_names[@]} ]; then
+    current_selection=0
+fi
+
+
+# Main loop
+while true; do
+    show_menu
+
+    # Read keyboard input
+    read -rsn1 key
+    case "$key" in
+        $'\x1b')  # ESC sequence (arrow keys)
+            read -rsn2 -t 0.1 key2
+            case "$key2" in
+                '[A')  # Up arrow
+                    if [ $current_selection -gt 0 ]; then
+                        ((current_selection--))
+                    fi
+                    ;;
+                '[B')  # Down arrow
+                    if [ $current_selection -lt $((${#menu_names[@]} - 1)) ]; then
+                        ((current_selection++))
+                    fi
+                    ;;
+                '[C')  # Right arrow
+                    cycle_value "right"
+                    ;;
+                '[D')  # Left arrow
+                    cycle_value "left"
+                    ;;
+            esac
+            ;;
+        "")  # Enter key
+            confirm_configuration
+            ;;
+        [mM])  # M key for Linux management
+            show_linux_management_menu
+            ;;
+        [qQ])  # Q key to quit
+            echo ""
+            echo "Exiting without saving."
+            exit "$CANCEL_RETURN_EXIT_CODE"
+            ;;
+        [bB])  # B key for return
+            echo ""
+            echo "Returning to previous menu."
+            exit "$CANCEL_RETURN_EXIT_CODE"
+            ;;
+    esac
+done

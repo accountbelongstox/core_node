@@ -188,16 +188,16 @@ Write-Info "Working directory:  $AppRoot"
 # --- 1) Toolchain: bun (idempotent auto-install via the canonical DevInstaller step) + node ---
 $BunWasMissing = -not (Resolve-Bun)
 if ($BunWasMissing) {
-    Write-Info "bun not found -> invoking canonical installer (idempotent, installs node + bun): Step4_InstallNodeJS.ps1"
-    Invoke-DevInstallerStep -RepoRootDir $RepoRoot -StepScriptName "Step4_InstallNodeJS.ps1" | Out-Null
+    Write-Info "bun not found -> invoking canonical installer (idempotent, installs node + bun): Node_Runtime.ps1"
+    Invoke-DevInstallerStep -RepoRootDir $RepoRoot -StepScriptName "Node_Runtime.ps1" | Out-Null
 }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Write-Info "node not found -> invoking canonical installer (idempotent): Step4_InstallNodeJS.ps1"
-    Invoke-DevInstallerStep -RepoRootDir $RepoRoot -StepScriptName "Step4_InstallNodeJS.ps1" | Out-Null
+    Write-Info "node not found -> invoking canonical installer (idempotent): Node_Runtime.ps1"
+    Invoke-DevInstallerStep -RepoRootDir $RepoRoot -StepScriptName "Node_Runtime.ps1" | Out-Null
 }
 if (-not (Resolve-Bun)) {
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-        Write-Err "node still not found after Step4_InstallNodeJS.ps1. Run it manually via the Installer Menu."
+        Write-Err "node still not found after Node_Runtime.ps1. Run it manually via the Installer Menu."
     } else {
         Write-Err "bun not found on PATH. Install: npm i -g bun"
     }

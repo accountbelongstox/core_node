@@ -48,16 +48,20 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir      = $PSScriptRoot
+$GlobalVarsPath = Join-Path (Split-Path -Parent $ScriptDir) 'shells\win\win_common\GlobalVars.ps1'
+. $GlobalVarsPath
+Set-StrictMode -Off
 $LogDir         = Join-Path $ScriptDir 'logs'
 $LogFile        = Join-Path $LogDir 'chrome_monitor.log'
+$AppChromeDir   = Join-Path $Global:APP_INSTALL_DIR 'Chrome'
 
 $ReferenceApp   = 'C:\Program Files\Google\Chrome\Application'
-$SuspectApp     = 'D:\applications\Chrome\Chrome\Application'
+$SuspectApp     = Join-Path $AppChromeDir 'Chrome\Application'
 
 $UserDataSeeds  = @(
     (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data'),
-    'D:\applications\Chrome\Chrome\User Data',
-    'D:\applications\Chrome\User Data'
+    (Join-Path $AppChromeDir 'Chrome\User Data'),
+    (Join-Path $AppChromeDir 'User Data')
 )
 $ShortcutSeeds  = @(
     [Environment]::GetFolderPath('Desktop'),

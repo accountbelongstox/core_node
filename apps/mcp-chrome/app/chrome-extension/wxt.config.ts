@@ -3,7 +3,6 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite';
-import { FIREFOX_EXTENSION_ID } from 'chrome-mcp-shared';
 
 // Load configuration from config.cjs
 const configPath = resolve(__dirname, 'config.cjs');
@@ -15,6 +14,10 @@ const SERVICE_CONTRACT = JSON.parse(
   readFileSync(join(REPOSITORY_ROOT, 'config', 'service_contract.json'), 'utf8'),
 );
 const MCP_CHROME_LAYOUT = SERVICE_CONTRACT.mcp_chrome;
+// Read straight from the contract (the value chrome-mcp-shared also exports): `wxt prepare` runs as
+// this package's postinstall, before chrome-mcp-shared's dist is built, so importing it here
+// would fail on every clean install.
+const FIREFOX_EXTENSION_ID: string = MCP_CHROME_LAYOUT.firefox_extension_id;
 
 // Detect the target browser from the wxt CLI args (this file is plain TS run by
 // the wxt CLI, so process.argv is the only reliable pre-config signal). Used to
