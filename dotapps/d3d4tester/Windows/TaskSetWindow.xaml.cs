@@ -17,7 +17,6 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.ViewModels;
 using DotCore.Common;
-using DotCore.VocAnnotator;
 using DotCore.VocAnnotatorUI;
 using DotCore.YoloRecord;
 using DotCore.YoloTaskSet;
@@ -35,9 +34,6 @@ public partial class TaskSetWindow : Window
     private const int SaveDebounceMs = 400;
     private const int MaxImagesPerTarget = 100_000;
     private const string DatasetStampFormat = "yyyyMMdd_HHmmss";
-    private const string DatasetsSubdir = YoloDataLayout.ReservedPrefix + "datasets";
-    private const string ImagePatterns = "*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.tif;*.tiff";
-    private const string VideoPatterns = "*.mp4;*.avi;*.mkv;*.mov;*.wmv;*.webm";
     private const string AllFilesPattern = "*.*";
     private const string GlyphImage = "";
     private const string GlyphVideo = "";
@@ -48,6 +44,9 @@ public partial class TaskSetWindow : Window
     private const string ChipSuccess = "StatusChipSuccessStyle";
     private const string ChipWarning = "StatusChipWarningStyle";
     private const string ChipDanger = "StatusChipDangerStyle";
+
+    private static readonly string ImagePatterns = Patterns(TaskSetStore.ImageExtensions);
+    private static readonly string VideoPatterns = Patterns(TaskSetStore.VideoExtensions);
 
     private static readonly IReadOnlyList<AugField> AugFields = new AugField[]
     {
@@ -141,6 +140,8 @@ public partial class TaskSetWindow : Window
     private enum Pool { Variants, Scenes, Common }
 
     private static string T(string key) => D3D4TesterI18n.Provider.GetUiText(key);
+
+    private static string Patterns(IEnumerable<string> extensions) => string.Join(";", extensions.Select(e => "*" + e));
 
     /// <summary>Show the single manager window (reused when open), optionally selecting a task set.</summary>
     public static TaskSetWindow ShowSingle(Window? owner, string? taskSetId = null)
@@ -746,10 +747,9 @@ public partial class TaskSetWindow : Window
             row.Info = T(I18nKeys.YoloTaskSetKindImage);
             return;
         }
-        var detail = row.FramesFailed ? T(I18nKeys.YoloTaskSetVideoFramesFailed)
+        row.Info = row.FramesFailed ? T(I18nKeys.YoloTaskSetVideoFramesFailed)
             : row.Frames is { } n ? T(I18nKeys.YoloTaskSetVideoFrames).Replace("{count}", n.ToString(CultureInfo.InvariantCulture))
             : T(I18nKeys.YoloTaskSetVideoFramesPending);
-        row.Info = T(I18nKeys.YoloTaskSetKindVideo) + " · " + detail;
     }
 
     private static bool Accepts(Pool pool, string path) =>
@@ -1178,7 +1178,7 @@ public partial class TaskSetWindow : Window
             return;
         }
         var dir = _store.GetDir(set.Id);
-        var outDir = System.IO.Path.Combine(dir, DatasetsSubdir, DateTime.Now.ToString(DatasetStampFormat, CultureInfo.InvariantCulture));
+        var outDir = System.IO.Path.Combine(dir, TaskSetStore.DatasetsSubdir, DateTime.Now.ToString(DatasetStampFormat, CultureInfo.InvariantCulture));
         var cts = new CancellationTokenSource();
         _generateCts = cts;
         _result = null;

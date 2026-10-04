@@ -16,6 +16,8 @@ public static class TaskSetSynthesizer
 
     private const int MaxPlacementAttempts = 50;
     private const int MinBoxSide = 4;
+    // Feathered / antialiased fringe below ~25 % opacity is not part of the labeled extent.
+    private const double LabelMaskThreshold = 63;
     private const int PreviewCount = 6;
     private const int FewBackgroundsThreshold = 5;
     private const double OversizeFit = 0.95;
@@ -392,7 +394,12 @@ public static class TaskSetSynthesizer
             if ((double)visible.Width * visible.Height < keep * ow * oh) continue;
             var local = new Rect(visible.X - x, visible.Y - y, visible.Width, visible.Height);
             Rect tight;
-            using (var maskRoi = new Mat(mask, local)) tight = Cv2.BoundingRect(maskRoi);
+            using (var maskRoi = new Mat(mask, local))
+            using (var visibleMask = new Mat())
+            {
+                Cv2.Threshold(maskRoi, visibleMask, LabelMaskThreshold, byte.MaxValue, ThresholdTypes.Binary);
+                tight = Cv2.BoundingRect(visibleMask);
+            }
             if (tight.Width < MinBoxSide || tight.Height < MinBoxSide) continue;
             var box = new AnnotationBox(label, visible.X + tight.X, visible.Y + tight.Y, visible.X + tight.X + tight.Width, visible.Y + tight.Y + tight.Height);
             if (placed.Any(p => p.IoU(box) > s.MaxOverlapIou)) continue;

@@ -101,6 +101,7 @@ public partial class CalibrationPage : UserControl
         BtnYoloImportPatchToolbar.Click += (_, _) => ShowPatchMenu(BtnYoloImportPatchToolbar);
         BtnYoloCleanUnlabeled.Click += (_, _) => OnCleanUnlabeled();
         BtnYoloTrain.Click += (_, _) => OnTrain();
+        BtnYoloTaskSets.Click += (_, _) => TaskSetWindow.ShowSingle(Window.GetWindow(this));
         CboYoloProject.SelectionChanged += (_, _) => OnProjectSwitch();
         BtnYoloLoadProject.Click += (_, _) => OnProjectLoad();
         BtnYoloCreateProject.Click += (_, _) => OnProjectCreate();
@@ -140,6 +141,7 @@ public partial class CalibrationPage : UserControl
         BtnYoloImportPatchToolbar.Content = T(I18nKeys.CoordCalYoloPatchImport);
         BtnYoloCleanUnlabeled.Content = T(I18nKeys.CoordCalYoloFlowCleanUnlabeled);
         BtnYoloTrain.Content = T(I18nKeys.CoordCalYoloFlowTrain);
+        BtnYoloTaskSets.Content = T(I18nKeys.YoloTaskSetOpenButton);
         LblYoloProject.Text = T(I18nKeys.CoordCalYoloDataProjectLabel);
         BtnYoloLoadProject.Content = T(I18nKeys.CoordCalYoloProjectLoad);
         BtnYoloCreateProject.Content = T(I18nKeys.CoordCalYoloProjectCreate);
