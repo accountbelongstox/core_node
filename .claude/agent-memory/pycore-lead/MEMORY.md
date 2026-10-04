@@ -13,3 +13,7 @@
 - [Battle.net never restart mid-login](feedback_battlenet_no_restart_during_login.md) — no close/restart while logging in or on code pages; UI region only from main-UI ids
 - [LAN browser pycore](project_lan_browser_pycore.md) — 2026-10-03 private-LAN peers open (no key), guard echoes CORS + preflight; web never holds K3
 - [Headscale Windows switch](project_headscale_windows_switch.md) — 2026-10-03 win host 100.64.0.3; converge silently skips site without FrankenPhp scripts; leftovers
+- [Audio generation throughput](project_audio_generation_throughput.md) — 2026-10-03 fan-out lane fix, GPU ceiling 240-290/h, Kokoro threads, Colab restart/401 facts
+- [Colab GPU sentence routing](project_colab_gpu_sentence_routing.md) — 2026-10-04 declaration-based zh/en routing, T4 fp16, stale-boot fix, regpu, hung-tab trap
+- [Google translate transport](project_google_translate_transport.md) — 2026-10-04 TLS stack decides, not googletrans version; clients5 batch endpoint; NIV zh backfill driver
+- [lane_rates / cache hits / Colab log](project_lane_rates_cache_hits_colab_log.md) — 2026-10-04 completed != synthesized; zh flap fix; hung Colab tab; T4 batch cap

@@ -23,7 +23,13 @@ use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1PublicHomeCtl;
 // NOTE: this file is required from routes/api.php, which already applies the
 // /api prefix; the group prefix below must stay 'codemart/v1' so the public
 // base is /api/codemart/v1 (not /api/api/...).
-Route::prefix('codemart/v1')->name('codemart.')->group(function () {
+$codeMartNumericParams = [
+    'projectId', 'milestoneId', 'taskId', 'submissionId', 'fileIndex', 'paymentId', 'depositId', 'analysisId',
+    'attachmentId', 'notificationId', 'userId', 'kycId', 'testimonialId', 'applicationId', 'messageId',
+    'refundId', 'withdrawalId', 'escrowId',
+];
+
+Route::prefix('codemart/v1')->name('codemart.')->where(array_fill_keys($codeMartNumericParams, '[0-9]+'))->group(function () {
 
     // Public, no bearer token (rate limited).
     Route::middleware(CodeMartV1Constants::THROTTLE_PUBLIC)->group(function () {

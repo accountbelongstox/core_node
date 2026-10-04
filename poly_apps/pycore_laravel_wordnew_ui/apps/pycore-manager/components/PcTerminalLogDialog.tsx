@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Copy, CornerDownLeft, ScrollText, Search, Send, Timer, X } from 'lucide-react';
+import { Copy, CornerDownLeft, Pencil, ScrollText, Search, Send, Timer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
@@ -46,6 +46,8 @@ interface PcTerminalLogDialogProps {
   formatDate: (value: string) => string;
   errorTranslationKey: (errorCode?: string | null) => string;
   onReuse: (text: string) => void;
+  /** Place the text in the composer and send it with the regular send. */
+  onResend: (text: string) => void;
   onClose: () => void;
 }
 
@@ -54,6 +56,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
   formatDate,
   errorTranslationKey,
   onReuse,
+  onResend,
   onClose,
 }) => {
   const { t } = useTranslation('pc');
@@ -224,8 +227,17 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
                     disabled={contentLoading || terminalLogSource(selectedLog) === 'enter'}
                     className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/10 px-2 py-1 font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
                   >
-                    <Send className="h-3 w-3" />
+                    <Pencil className="h-3 w-3" />
                     {t('terminal.logs.reuse')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onResend(content)}
+                    disabled={contentLoading || !content || !windowInfo.online || terminalLogSource(selectedLog) === 'enter'}
+                    className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    <Send className="h-3 w-3" />
+                    {t('terminal.logs.reuseAndSend')}
                   </button>
                 </div>
                 {copyState && (

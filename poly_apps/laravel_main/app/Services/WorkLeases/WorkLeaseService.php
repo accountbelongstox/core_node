@@ -103,22 +103,37 @@ final class WorkLeaseService
             $held[$item['lane']][] = $item['row_id'];
         }
 
-        foreach ($this->claimOrder($computeClass, $lanes, $online) as [$lane, $language, $laneMax]) {
-            $take = min(
-                $budget - count($items),
-                $laneMax - count($held[$lane] ?? []),
-                $this->fairShare($lane, $language, $workerId, $computeClass, $rate, $online, $rates)
-            );
-            if ($take <= 0) {
-                continue;
-            }
-            $leaseFastRows = !($fastNode && $lane === WorkLeaseLanes::SENTENCE_AUDIO);
-            foreach ($this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt, $this->excludedKeys($workerId, $lane, $language), $leaseFastRows, $assignments->excludeOthers($workerId, $lane, $language, '"' . WorkLeaseLanes::table($lane, $language) . '"')) as $item) {
-                $items[] = $item;
-                $held[$lane][] = $item['row_id'];
-            }
-            if (count($items) >= $budget) {
-                break;
+        $order = $this->claimOrder($computeClass, $lanes, $online);
+        $shares = $this->languageShares($order, $budget - count($items));
+        $exhausted = [];
+
+        // Pass 1 gives every language of a lane its share of the lane cap (so a big backlog never starves the others); pass 2 fills the rest in claim order.
+        foreach ([$shares, []] as $caps) {
+            foreach ($order as [$lane, $language, $laneMax]) {
+                if (isset($exhausted[$lane . '|' . $language])) {
+                    continue;
+                }
+                $take = min(
+                    $budget - count($items),
+                    $laneMax - count($held[$lane] ?? []),
+                    $this->fairShare($lane, $language, $workerId, $computeClass, $rate, $online, $rates),
+                    $caps[$lane] ?? PHP_INT_MAX
+                );
+                if ($take <= 0) {
+                    continue;
+                }
+                $leaseFastRows = !($fastNode && $lane === WorkLeaseLanes::SENTENCE_AUDIO);
+                $leased = $this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt, $this->excludedKeys($workerId, $lane, $language), $leaseFastRows, $assignments->excludeOthers($workerId, $lane, $language, '"' . WorkLeaseLanes::table($lane, $language) . '"'));
+                foreach ($leased as $item) {
+                    $items[] = $item;
+                    $held[$lane][] = $item['row_id'];
+                }
+                if (count($leased) < $take) {
+                    $exhausted[$lane . '|' . $language] = true;
+                }
+                if (count($items) >= $budget) {
+                    break 2;
+                }
             }
         }
         if ($items !== []) {
@@ -721,6 +736,33 @@ final class WorkLeaseService
         }
 
         return $order;
+    }
+
+    /**
+     * Per-language row cap of the first claim pass: a lane whose free rows
+     * span several languages splits its cap (the lane max, at most the claim
+     * budget) evenly over them (lane => cap).
+     *
+     * @param array<int,array{0:string,1:string,2:int}> $order claim order
+     * @return array<string,int>
+     */
+    private function languageShares(array $order, int $budget): array
+    {
+        $open = [];
+        $caps = [];
+
+        foreach ($order as [$lane, $language, $laneMax]) {
+            $figures = GapLaneSnapshot::language($lane, $language);
+            if ($figures['gap'] - $figures['leased'] > 0) {
+                $open[$lane] = ($open[$lane] ?? 0) + 1;
+                $caps[$lane] = min($laneMax, $budget);
+            }
+        }
+        foreach ($open as $lane => $count) {
+            $caps[$lane] = $count > 1 ? max(1, (int) ceil($caps[$lane] / $count)) : PHP_INT_MAX;
+        }
+
+        return $caps;
     }
 
     /**

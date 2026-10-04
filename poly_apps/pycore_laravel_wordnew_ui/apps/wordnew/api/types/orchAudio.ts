@@ -202,6 +202,8 @@ export interface WfNewBookPlanStatus {
   generating: number;
   queued: number;
   failed: number;
+  /** Requested sentence languages that hold no clip yet on the server (empty when none). */
+  emptyLanguages: string[];
   readyCursor: number;
   nodes: WfNewBookPlanNode[];
   fastPass: boolean;

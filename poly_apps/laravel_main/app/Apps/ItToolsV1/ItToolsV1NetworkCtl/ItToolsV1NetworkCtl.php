@@ -391,14 +391,30 @@ class ItToolsV1NetworkCtl extends Controller
 
     private function getOuiDatabase(): array
     {
-        return array_replace($this->getLegacyOuiDatabase(), $this->getVerifiedOuiEntries());
+        static $registry = null;
+        if ($registry === null) {
+            $registry = [];
+            $path = resource_path('network/oui_vendors.tsv');
+            $handle = is_readable($path) ? fopen($path, 'r') : false;
+            if ($handle !== false) {
+                while (($line = fgets($handle)) !== false) {
+                    $parts = explode("\t", rtrim($line, "\r\n"), 2);
+                    if (count($parts) === 2) {
+                        $registry[$parts[0]] = $parts[1];
+                    }
+                }
+                fclose($handle);
+            }
+        }
+
+        return $registry !== [] ? $registry : $this->getVerifiedOuiEntries();
     }
 
     private function getVerifiedOuiEntries(): array
     {
         return [
             '001B21' => 'Intel Corporate',
-            '3C970E' => 'Intel Corporate',
+            '3C970E' => 'Wistron InfoComm(Kunshan)Co.,Ltd.',
             '001E67' => 'Intel Corporate',
             'B827EB' => 'Raspberry Pi Trading Ltd',
             'DCA632' => 'Raspberry Pi Trading Ltd',

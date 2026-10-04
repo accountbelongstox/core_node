@@ -224,11 +224,15 @@
     "terminal_screenshot_signature_height": 36,
     "terminal_screenshot_signature_levels": 16,
     "terminal_screenshot_focus_slack_percent": 90,
+    "terminal_log_search_results": 10,
     "terminal_text_min_word_chars": 8,
     "terminal_text_revisions_kept": 4,
     "terminal_image_upload_bytes": 20971520,
     "terminal_image_retain_count": 200,
     "terminal_image_retain_seconds": 604800,
+    "terminal_voice_retain_count": 200,
+    "terminal_voice_retain_seconds": 3600,
+    "terminal_voice_prune_interval_seconds": 300,
     "terminal_capture_retain_count": 100,
     "terminal_capture_retain_seconds": 2592000,
     "terminal_backup_interval_seconds": 60,
@@ -323,6 +327,13 @@
       "timeout_seconds": 150,
       "delivery": "at_most_once_action",
       "ack": true
+    },
+    "terminal_voice": {
+      "exposure": "relay",
+      "permission": "relay.terminal.control",
+      "payload": "json-object",
+      "timeout_seconds": 180,
+      "delivery": "at_most_once_action"
     },
     "terminal_upload": {
       "exposure": "relay",
@@ -558,6 +569,12 @@
     },
     {
       "match": "exact",
+      "value": "ui/terminal/logs/search",
+      "profile": "terminal_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
       "value": "ui/terminal/screenshot_text",
       "profile": "terminal_read",
       "methods": [ "POST" ]
@@ -650,6 +667,12 @@
       "match": "exact",
       "value": "ui/terminal/input",
       "profile": "terminal_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/voice",
+      "profile": "terminal_voice",
       "methods": [ "POST" ]
     },
     {

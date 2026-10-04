@@ -53,7 +53,7 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         // The start script (175) provisions the installation access (super)
@@ -128,11 +128,11 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         if (!$this->emailService->verifyToken($request->email, $request->token)) {
-            return $this->error(__('codemart.messages.invalid_or_expired_verification_token'), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_INVALID_VERIFICATION_TOKEN, __('codemart.messages.invalid_or_expired_verification_token'), null, 422);
         }
 
         $user = CodeMartV1UserModel::findByEmail((string) $request->email);
@@ -190,7 +190,7 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         if (!CodeMartV1OtpService::smsDeliveryAvailable()) {
@@ -214,11 +214,11 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         if (!$this->otpService->verifyOtp($user->id, $request->otp_code)) {
-            return $this->error(__('codemart.messages.invalid_or_expired_otp_code'), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_INVALID_OTP_CODE, __('codemart.messages.invalid_or_expired_otp_code'), null, 422);
         }
 
         return $this->success([
@@ -250,7 +250,7 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $idFrontPath = $this->fileUploadService->uploadKycImage(
@@ -272,7 +272,7 @@ class CodeMartV1RegistrationCtl extends Controller
         );
 
         if (!$idFrontPath || !$selfiePath) {
-            return $this->error(__('codemart.messages.file_upload_failed'), 500);
+            return $this->codedError(CodeMartV1Constants::ERROR_FILE_UPLOAD_FAILED, __('codemart.messages.file_upload_failed'), null, 500);
         }
 
         // Re-upload after a rejection updates the user's existing record in

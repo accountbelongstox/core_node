@@ -133,6 +133,10 @@ from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 
 
 
+# An idle fan-out lane re-checks the queue at least this often while a peer works.
+LANE_IDLE_WAIT_SECONDS = 2.0
+
+
 def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
     """Drain one synth lane; payload and result travel through THREAD_BUS."""
     worker = payload["worker"]
@@ -140,25 +144,30 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
     while True:
         if not worker._await_engine_memory():
             break
-        task = audio_queue_center.pop_next(worker.QUEUE_KEY)
+        task = worker._pop_lane_task()
         if task is None:
+            if worker._await_lane_work():
+                continue
             break
-        processed += 1
-        started = time.monotonic()
-        outcome = worker._process_claimed(task)
-        if outcome == TASK_OUTCOME_SKIPPED:
-            # Claim rejected / duplicate dispatch: never synthesized, so the
-            # lifetime counters and backend progress stay untouched.
-            skipped += 1
-        else:
-            success = outcome == TASK_OUTCOME_COMPLETED
-            if success:
-                succeeded += 1
+        try:
+            processed += 1
+            started = time.monotonic()
+            outcome = worker._process_claimed(task)
+            if outcome == TASK_OUTCOME_SKIPPED:
+                # Claim rejected / duplicate dispatch: never synthesized, so the
+                # lifetime counters and backend progress stay untouched.
+                skipped += 1
             else:
-                failed += 1
-            worker._record_task_result(success, time.monotonic() - started)
-        worker._log_cycle_task_result(task, outcome)
-        worker._complete_queued_task(task, outcome)
+                success = outcome == TASK_OUTCOME_COMPLETED
+                if success:
+                    succeeded += 1
+                else:
+                    failed += 1
+                worker._record_task_result(success, time.monotonic() - started, bool(task.get("_cache_hit")))
+            worker._log_cycle_task_result(task, outcome)
+            worker._complete_queued_task(task, outcome)
+        finally:
+            worker._adjust_busy_lanes(-1)
     return {
         "processed": processed,
         "succeeded": succeeded,
@@ -243,6 +252,10 @@ class BaseLaravelAudioWorker(
         # Atomic single-flight guard of the drain cycle (the signal above is
         # the observable state only).
         self._drain_guard = SerializedValue(False, f"{self.LANE.title()}AudioDrainGuardThread")
+        # Fan-out lanes that hold a popped task, and the wake signal that
+        # tells idle lanes of a running cycle that new work arrived.
+        self._busy_lanes = 0
+        self._work_signal = f"laravel_audio_worker.work_arrived.{self.LANE}"
         THREAD_BUS.register_shutdown_handler(
             self.wake_memory_wait,
             priority=60,
@@ -261,6 +274,8 @@ class BaseLaravelAudioWorker(
         self._total_succeeded = 0
         self._total_failed = 0
         self._total_duration_s = 0.0
+        self._synth_claimed = 0
+        self._synth_duration_s = 0.0
         self._processing = 0
         self._current_tasks: Dict[Any, Dict[str, Any]] = {}
         self._event_log = WorkerEventLog(self.STATE_OWNER_NAME)
@@ -426,6 +441,8 @@ class BaseLaravelAudioWorker(
         The library releases the whole-Queue dedup/Part1 state and records the
         outcome for owners watching the item (orchestration fill progress).
         """
+        if task.get("_cache_hit"):
+            self._leases.note_cached(task)
         audio_queue_center.complete(
             self.QUEUE_KEY,
             task,
@@ -486,7 +503,10 @@ class BaseLaravelAudioWorker(
         if THREAD_BUS.is_shutdown_requested():
             return
         if not self._drain_guard.compare_and_set(False, True):
-            return  # previous cycle still in flight - it drains the whole heap
+            # The running cycle drains the whole heap; its idle fan-out lanes
+            # take the new work.
+            THREAD_BUS.signal(self._work_signal, True)
+            return
         THREAD_BUS.signal(self._cycle_signal, True)
         try:
             start_bus_task(self._drain_cycle, thread_name=f"{self.LANE}-audio-worker-cycle")
@@ -516,13 +536,36 @@ class BaseLaravelAudioWorker(
 
     def capacity_per_hour(self) -> int:
         """Items this lane can synthesize per hour: parallel slots over the
-        mean task time. Seeds the lease batch independently of how much
-        work the node was given (0 before the first task)."""
-        claimed = int(self._total_claimed)
-        if claimed <= 0 or self._total_duration_s <= 0:
+        mean synthesis time (cache-served tasks excluded). Seeds the lease batch
+        independently of how much work the node was given (0 before the first
+        synthesized task)."""
+        claimed = int(self._synth_claimed)
+        if claimed <= 0 or self._synth_duration_s <= 0:
             return 0
         parallel = batch_constants.group_size() if self.LANE == "word" else self._effective_concurrency()[0]
-        return int(max(1, parallel) * 3600.0 * claimed / self._total_duration_s)
+        return int(max(1, parallel) * 3600.0 * claimed / self._synth_duration_s)
+
+    def _pop_lane_task(self) -> Optional[Dict[str, Any]]:
+        """Pop the next task for a fan-out lane. The lane counts as busy from
+        before the pop, so its peers never see an empty queue and no busy lane
+        in the same instant; a lane that popped nothing is not busy."""
+        self._adjust_busy_lanes(1)
+        task = audio_queue_center.pop_next(self.QUEUE_KEY)
+        if task is None:
+            self._adjust_busy_lanes(-1)
+        elif len(self._queue) > 0:
+            THREAD_BUS.signal(self._work_signal, True)
+        return task
+
+    def _await_lane_work(self) -> bool:
+        """An idle fan-out lane waits for new work while a peer still works
+        (leases arrive during a cycle and must not run on one lane only).
+        False when the lane should end: no peer is busy, halt or shutdown."""
+        if self._busy_lane_count() <= 0 or self._lane_halt_requested() or THREAD_BUS.is_shutdown_requested():
+            return False
+        THREAD_BUS.wait_signal(self._work_signal, timeout=LANE_IDLE_WAIT_SECONDS)
+        THREAD_BUS.clear_signal(self._work_signal)
+        return True
 
     def _lane_blocked(self) -> bool:
         return self._assist_state()["state"] == ASSIST_BLOCKED
@@ -584,6 +627,7 @@ class BaseLaravelAudioWorker(
                             self._record_task_result(
                                 success,
                                 time.monotonic() - float(entry["started"]),
+                                bool(task.get("_cache_hit")),
                             )
                         self._log_cycle_task_result(task, outcome)
                         self._complete_queued_task(task, outcome)
@@ -622,7 +666,7 @@ class BaseLaravelAudioWorker(
                             succeeded += 1
                         else:
                             failed += 1
-                        self._record_task_result(success, time.monotonic() - started)
+                        self._record_task_result(success, time.monotonic() - started, bool(task.get("_cache_hit")))
                     self._log_cycle_task_result(task, outcome)
                     self._complete_queued_task(task, outcome)
                     if concurrency > 1 and len(self._queue) > 1:

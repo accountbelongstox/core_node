@@ -20,7 +20,7 @@ $STEP73_MONITOR_SCRIPT = Join-Path $STEP73_WIN_COMMON_DIR 'NatGatewayMonitor.ps1
 $STEP73_POWERSHELL_EXE = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $STEP73_INSTALL_FLAG_KEY = 'INSTALL_NETWORK_ROUTER'
 $STEP73_MENU_PATH_HINT = 'dd.cmd > Management & Backup > System Tools > Network router'
-$STEP73_NO_ADMIN_COMMANDS = @('help', 'status', 'ports', 'logs', 'set-wan', 'set-lan', 'set-address', 'set-dhcp')
+$STEP73_NO_ADMIN_COMMANDS = @('help', 'status', 'ports', 'logs', 'set-mode', 'set-wan', 'set-lan', 'set-pairs', 'set-system-wan', 'set-address', 'set-dhcp')
 $STEP73_LOG_TAIL_LINES = 80
 $STEP73_CONFIG_FILE = ''
 $STEP73_LOG_FILE = ''
@@ -45,10 +45,16 @@ Usage: Step73_InstallNetworkRouter.ps1 [command] [value] [ports] [-Yes]
   uninstall [-Yes]           Stop and remove the service, disable sharing (configuration is kept)
   status                     Configuration, service state, ICS pair and relay clients
   ports                      Detected ports and their current role
-  set-wan usb|<adapter>      Uplink: any USB adapter (default) or a named adapter
-  set-lan all                Relay on the first onboard wired port with link (a Network Bridge first)
-  set-lan one <adapter>      Relay on one port
-  set-lan list "<a1>,<a2>"   Relay on the first listed port with link
+  set-mode single|pairs      single: one uplink for the relay port (default)
+                             pairs: one USB uplink per relay port (ICS shares one pair at a time)
+  set-wan usb|<adapter>      single: any USB adapter (default, auto) or a named adapter
+  set-lan all                single: relay on the first onboard wired port with link (a Network Bridge first)
+  set-lan one <adapter>      single: relay on one port
+  set-lan list "<a1>,<a2>"   single: relay on the first listed port with link
+  set-pairs auto             pairs: one pair per onboard port, USB auto-detected (default)
+  set-pairs "<usb>:<lan>,..." pairs: <usb> = auto or an adapter (may be absent until plugged in)
+  set-system-wan auto|none|<adapter>
+                             pairs: host uplink, stored for router.conf (applied by the Linux engine)
   set-address <a.b.c.d/24>   Gateway address of the relay network (default $script:NatGwDefaultAddress)
   set-dhcp on|off            ICS always serves DHCP/DNS; off is not available on Windows
   start | stop | restart     Control the background service (stop also disables sharing)
@@ -81,8 +87,9 @@ function Test-NetworkRouterServiceCurrent {
 
 function Save-NetworkRouterConfig {
     Save-NatGwConfig
-    Write-ColorMessage ('Saved: WAN_SELECT={0} LAN_MODE={1} LAN_PORTS={2} LAN_ADDRESS={3}' -f $script:NatGwConfig.WAN_SELECT,
-        $script:NatGwConfig.LAN_MODE, $(if ($script:NatGwConfig.LAN_PORTS) { $script:NatGwConfig.LAN_PORTS } else { '-' }), $script:NatGwConfig.LAN_ADDRESS) -Type 'Success'
+    Write-ColorMessage ('Saved: ROUTE_MODE={0} WAN_SELECT={1} LAN_MODE={2} LAN_PORTS={3} PAIRS={4} SYSTEM_WAN={5} LAN_ADDRESS={6}' -f $script:NatGwConfig.ROUTE_MODE,
+        $script:NatGwConfig.WAN_SELECT, $script:NatGwConfig.LAN_MODE, $(if ($script:NatGwConfig.LAN_PORTS) { $script:NatGwConfig.LAN_PORTS } else { '-' }),
+        $(if ($script:NatGwConfig.PAIRS) { $script:NatGwConfig.PAIRS } else { 'auto' }), $script:NatGwConfig.SYSTEM_WAN, $script:NatGwConfig.LAN_ADDRESS) -Type 'Success'
     if ((Get-NetworkRouterServiceState) -eq 'running') {
         Write-ColorMessage "The running service applies it within $script:NatGwPollSeconds seconds." -Type 'Info'
     } else {
@@ -180,6 +187,69 @@ function Set-NetworkRouterLan {
     Save-NetworkRouterConfig
 }
 
+function Set-NetworkRouterMode {
+    param([string]$Mode)
+    if ($script:NatGwRouteModes -notcontains $Mode) {
+        Write-ColorMessage 'Usage: set-mode single|pairs' -Type 'Error'
+        return
+    }
+    Read-NatGwConfig
+    $script:NatGwConfig.ROUTE_MODE = $Mode
+    Save-NetworkRouterConfig
+}
+
+# auto, or "<usb>:<lan>" entries; a bare "<lan>" means "auto:<lan>".
+function Set-NetworkRouterPairs {
+    param([string]$PairList)
+    $entries = @()
+    $normalized = @()
+    $lans = @()
+    $usbs = @()
+    $known = @()
+    $usb = ''
+    $lan = ''
+    $PairList = ([string]$PairList).Replace(' ', '')
+    if (-not $PairList) {
+        Write-ColorMessage 'Usage: set-pairs auto | "<usb|auto>:<lan>[,<usb|auto>:<lan>...]"' -Type 'Error'
+        return
+    }
+    if ($PairList -ne $script:NatGwAutoUsb) {
+        $known = @(Get-NatGwAdapters | ForEach-Object { $_.Name })
+        $entries = @($PairList.Split(',') | Where-Object { $_ })
+        foreach ($entry in $entries) {
+            $usb = $(if ($entry -like '*:*') { $entry.Split(':')[0] } else { $script:NatGwAutoUsb })
+            $lan = $(if ($entry -like '*:*') { $entry.Substring($entry.IndexOf(':') + 1) } else { $entry })
+            if (-not $usb -or -not $lan -or $lans -contains $lan -or ($usb -ne $script:NatGwAutoUsb -and $usbs -contains $usb)) {
+                Write-ColorMessage "Invalid pair (each USB and relay port may appear in one pair only): $entry" -Type 'Error'
+                return
+            }
+            if ($usb -ne $script:NatGwAutoUsb) { $usbs += $usb }
+            $lans += $lan
+            $normalized += ('{0}:{1}' -f $usb, $lan)
+            if ($known -notcontains $lan) { Write-ColorMessage "Not present now (used when plugged in): $lan" -Type 'Warning' }
+            if ($usb -ne $script:NatGwAutoUsb -and $known -notcontains $usb) { Write-ColorMessage "Not present now (used when plugged in): $usb" -Type 'Warning' }
+        }
+        if ($normalized.Count -eq 0 -or $normalized.Count -gt $script:NatGwMaxPairs) {
+            Write-ColorMessage "Give 1-$script:NatGwMaxPairs pairs" -Type 'Error'
+            return
+        }
+    }
+    Read-NatGwConfig
+    $script:NatGwConfig.PAIRS = $normalized -join ','
+    Save-NetworkRouterConfig
+}
+
+function Set-NetworkRouterSystemWan {
+    param([string]$Selection)
+    if ([string]::IsNullOrWhiteSpace($Selection)) {
+        Write-ColorMessage 'Usage: set-system-wan auto|none|<adapter>' -Type 'Error'
+        return
+    }
+    Read-NatGwConfig
+    $script:NatGwConfig.SYSTEM_WAN = $Selection.Trim()
+    Save-NetworkRouterConfig
+}
+
 function Set-NetworkRouterAddress {
     param([string]$Address)
     if (-not (Test-NatGwAddressValid -Address $Address)) {
@@ -243,8 +313,52 @@ function Show-NetworkRouterMenuHeader {
     Read-NatGwConfig
     Write-Host ('Service: {0} | State: {1}' -f (Get-NetworkRouterServiceState),
         $(if ($applied.PublicName -and $applied.PrivateName) { "ACTIVE ($($applied.PublicName) -> $($applied.PrivateName))" } else { 'IDLE' }))
-    Write-Host ('Uplink: {0} | Relay: {1}{2} | Gateway: {3} | DHCP: always (ICS)' -f $script:NatGwConfig.WAN_SELECT, $script:NatGwConfig.LAN_MODE,
+    if ($script:NatGwConfig.ROUTE_MODE -eq 'pairs') {
+        Write-Host ('Mode: pairs (ICS shares one pair) | Pairs: {0} | Gateway: {1} | DHCP: always (ICS)' -f
+            $(if ($script:NatGwConfig.PAIRS) { $script:NatGwConfig.PAIRS } else { 'auto' }), $script:NatGwConfig.LAN_ADDRESS)
+        return
+    }
+    Write-Host ('Mode: single | Uplink: {0} | Relay: {1}{2} | Gateway: {3} | DHCP: always (ICS)' -f $script:NatGwConfig.WAN_SELECT, $script:NatGwConfig.LAN_MODE,
         $(if ($script:NatGwConfig.LAN_PORTS) { " ($($script:NatGwConfig.LAN_PORTS))" } else { '' }), $script:NatGwConfig.LAN_ADDRESS)
+}
+
+# One prompt per onboard wired port: 0 = USB auto, a USB number or name, Enter = no pair.
+function Read-NetworkRouterPairsPick {
+    $ports = @(Get-NatGwAdapters | Where-Object { -not (Test-NatGwBridge -Adapter $_) -and -not (Test-NatGwUsb -Adapter $_) -and -not (Test-NatGwWireless -Adapter $_) })
+    $usbs = @(Get-NatGwAdapters | Where-Object { Test-NatGwUsb -Adapter $_ })
+    $pairs = @()
+    $index = 0
+    $reply = ''
+    $script:STEP73_MENU_PICK = ''
+    if ($ports.Count -eq 0) {
+        Write-ColorMessage 'No onboard wired port available' -Type 'Warning'
+        return $false
+    }
+    Write-Host '  0) auto (first free USB adapter, when plugged in)'
+    foreach ($usb in $usbs) {
+        $index++
+        Write-Host ('  {0}) {1} (link {2}, {3}) {4}' -f $index, $usb.Name, $usb.Status, (Get-NatGwIPv4 -InterfaceIndex $usb.ifIndex), $usb.InterfaceDescription)
+    }
+    foreach ($port in $ports) {
+        $reply = ([string](Read-Host "USB uplink for relay port '$($port.Name)' (number or name, Enter = no pair)")).Trim()
+        if (-not $reply) { continue }
+        if ($reply -eq '0') {
+            $pairs += ('{0}:{1}' -f $script:NatGwAutoUsb, $port.Name)
+        } elseif ($reply -match '^\d+$' -and [int]$reply -ge 1 -and [int]$reply -le $usbs.Count) {
+            $pairs += ('{0}:{1}' -f $usbs[[int]$reply - 1].Name, $port.Name)
+        } else {
+            $pairs += ('{0}:{1}' -f $reply, $port.Name)
+        }
+    }
+    if ($pairs.Count -eq 0) { return $false }
+    $script:STEP73_MENU_PICK = $pairs -join ','
+    return $true
+}
+
+function Read-NetworkRouterSystemWanPick {
+    $reply = ([string](Read-Host 'Host uplink: auto, none or an adapter name (Enter cancels)')).Trim()
+    $script:STEP73_MENU_PICK = $reply
+    return [bool]$reply
 }
 
 # Wired ports that can relay (the current uplink is excluded).
@@ -315,10 +429,15 @@ function Show-NetworkRouterMenu {
         @{ Text = 'Quick Install / Repair (background service)'; Action = { Install-NetworkRouter } },
         @{ Text = 'Status'; Action = { Show-NatGwStatus -ServiceState (Get-NetworkRouterServiceState) } },
         @{ Text = 'Detected Ports'; Action = { Show-NatGwPorts } },
-        @{ Text = 'Relay: All onboard ports (first with link)'; Action = { Set-NetworkRouterLan -Mode 'all' -PortList '' } },
-        @{ Text = 'Relay: One port...'; Action = { if (Read-NetworkRouterPick -Adapters (Get-NetworkRouterRelayCandidates) -Prompt 'Port number or name') { Set-NetworkRouterLan -Mode 'one' -PortList $script:STEP73_MENU_PICK } } },
-        @{ Text = 'Relay: Selected ports...'; Action = { if (Read-NetworkRouterPick -Adapters (Get-NetworkRouterRelayCandidates) -Prompt 'Ports (numbers or names, comma separated)' -Multiple) { Set-NetworkRouterLan -Mode 'list' -PortList $script:STEP73_MENU_PICK } } },
-        @{ Text = 'Uplink (WAN): USB auto / specific...'; Action = { if (Read-NetworkRouterWanPick) { Set-NetworkRouterWan -Selection $script:STEP73_MENU_PICK } } },
+        @{ Text = 'Mode: Single (one USB -> relay port)'; Action = { Set-NetworkRouterMode -Mode 'single' } },
+        @{ Text = 'Mode: Pairs (one USB per relay port; ICS shares one pair)'; Action = { Set-NetworkRouterMode -Mode 'pairs' } },
+        @{ Text = 'Single: Relay on all onboard ports (first with link)'; Action = { Set-NetworkRouterLan -Mode 'all' -PortList '' } },
+        @{ Text = 'Single: Relay on one port...'; Action = { if (Read-NetworkRouterPick -Adapters (Get-NetworkRouterRelayCandidates) -Prompt 'Port number or name') { Set-NetworkRouterLan -Mode 'one' -PortList $script:STEP73_MENU_PICK } } },
+        @{ Text = 'Single: Relay on selected ports...'; Action = { if (Read-NetworkRouterPick -Adapters (Get-NetworkRouterRelayCandidates) -Prompt 'Ports (numbers or names, comma separated)' -Multiple) { Set-NetworkRouterLan -Mode 'list' -PortList $script:STEP73_MENU_PICK } } },
+        @{ Text = 'Single: Uplink (WAN) USB auto / specific...'; Action = { if (Read-NetworkRouterWanPick) { Set-NetworkRouterWan -Selection $script:STEP73_MENU_PICK } } },
+        @{ Text = 'Pairs: Auto (every onboard port, USB auto)'; Action = { Set-NetworkRouterPairs -PairList 'auto' } },
+        @{ Text = 'Pairs: Edit pairs...'; Action = { if (Read-NetworkRouterPairsPick) { Set-NetworkRouterPairs -PairList $script:STEP73_MENU_PICK } } },
+        @{ Text = 'Pairs: Host uplink (auto / none / specific)...'; Action = { if (Read-NetworkRouterSystemWanPick) { Set-NetworkRouterSystemWan -Selection $script:STEP73_MENU_PICK } } },
         @{ Text = 'Gateway Address...'; Action = { Edit-NetworkRouterAddress } },
         @{ Text = 'Restart Service'; Action = { Invoke-NetworkRouterService -Action 'restart' } },
         @{ Text = 'Stop Service'; Action = { Invoke-NetworkRouterService -Action 'stop' } },
@@ -360,7 +479,10 @@ switch ($Command) {
     'menu' { Show-NetworkRouterMenu }
     'install' { Install-NetworkRouter }
     'uninstall' { Uninstall-NetworkRouter }
+    'set-mode' { Set-NetworkRouterMode -Mode $Value }
     'set-wan' { Set-NetworkRouterWan -Selection $Value }
+    'set-pairs' { Set-NetworkRouterPairs -PairList $Value }
+    'set-system-wan' { Set-NetworkRouterSystemWan -Selection $Value }
     'set-lan' { Set-NetworkRouterLan -Mode $Value -PortList $Ports }
     'set-address' { Set-NetworkRouterAddress -Address $Value }
     'set-dhcp' { Set-NetworkRouterDhcp -State $Value }

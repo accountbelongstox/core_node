@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 from contextlib import nullcontext
-from typing import Any, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pycore.pyutils.window.screen_capture import get_primary_monitor_rect
 
@@ -28,6 +28,14 @@ PASTE_SETTLE_BASE_SECONDS = 0.3
 PASTE_SETTLE_PER_CHARACTER_SECONDS = 0.0004
 PASTE_SETTLE_MAX_SECONDS = 3.0
 ENTER_HOLD_SECONDS = 0.04
+# A pasted message is submitted with several Enters: an agent still consuming the paste
+# can swallow the first one; Enter on an already empty prompt does nothing.
+SUBMIT_ENTER_PRESSES = 3
+SUBMIT_ENTER_INTERVAL_SECONDS = 0.5
+# Before a message is pasted, a few Enters move an agent past a confirmation screen ("Do you want
+# to proceed? 1. Yes") it may be stuck on; Enter on an empty prompt does nothing.
+PRE_SUBMIT_ENTER_PRESSES = 3
+PRE_SUBMIT_ENTER_INTERVAL_SECONDS = 0.3
 FOCUS_READY_TIMEOUT_SECONDS = 1.0
 SELECT_ALL_DELAY_SECONDS = 0.15
 TERMINAL_HISTORY_DIRECTIONS = frozenset({"up", "down"})
@@ -391,14 +399,83 @@ class TerminalWindowBackend:
                 if not self._keys(window, list(INTERRUPT_KEYS)):
                     return failure("terminal_key_failed")
                 time.sleep(INTERRUPT_SETTLE_SECONDS)
-            if (clear_first or interrupt_first) and not self._clear_input(window, shell_prompt):
+            clearing = clear_first or interrupt_first
+            if clearing and not self._clear_input(window, shell_prompt):
                 return failure("terminal_clear_failed")
             if clear_first and not interrupt_first and content_length <= 0:
                 return success(window)
+            # Cleared first, so leftover input is never submitted by these Enters; cleared again after,
+            # since a confirmation screen the Enters closed may have left input behind it.
+            if not self._press_enters(window, PRE_SUBMIT_ENTER_PRESSES, PRE_SUBMIT_ENTER_INTERVAL_SECONDS):
+                return failure("terminal_enter_failed")
+            if clearing and not self._clear_input(window, shell_prompt):
+                return failure("terminal_clear_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
             time.sleep(paste_settle_seconds(content_length))
-            return self._press_enter(window)
+            return self._submit(window)
+
+    def prepare_input(self, window_id: str, clear_first: bool = False, interrupt_first: bool = False) -> Dict[str, Any]:
+        """Optional Ctrl+C, then optional clear of the input line; nothing is pasted or submitted."""
+        window, blocked = self._input_window(window_id)
+        if window is None:
+            return blocked
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            if interrupt_first:
+                if not self._keys(window, list(INTERRUPT_KEYS)):
+                    return failure("terminal_key_failed")
+                time.sleep(INTERRUPT_SETTLE_SECONDS)
+            if (clear_first or interrupt_first) and not self._clear_input(window):
+                return failure("terminal_clear_failed")
+        return success(window)
+
+    def hold_key(
+        self,
+        window_id: str,
+        keysym_name: str,
+        holding: Callable[[], bool],
+        interval_seconds: float,
+    ) -> Dict[str, Any]:
+        """Repeat the key like keyboard auto-repeat while holding() is true (hold-to-talk dictation)."""
+        window, blocked = self._input_window(window_id)
+        if window is None:
+            return blocked
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            while holding():
+                if not self._keys(window, [keysym_name]):
+                    return failure("terminal_key_failed")
+                time.sleep(interval_seconds)
+        return success(window)
+
+    def append_and_submit(self, window_id: str, content_length: int = 0) -> Dict[str, Any]:
+        """Paste the clipboard after the current input (no clearing) when content_length > 0, then submit."""
+        window, blocked = self._input_window(window_id)
+        if window is None:
+            return blocked
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            if content_length > 0:
+                if not self._paste(window):
+                    return failure("terminal_paste_failed")
+                time.sleep(paste_settle_seconds(content_length))
+            return self._submit(window)
+
+    def clear_input(self, window_id: str) -> Dict[str, Any]:
+        return self.prepare_input(window_id, clear_first=True)
+
+    def _submit(self, window: Dict[str, Any]) -> Dict[str, Any]:
+        pressed = self._press_enter(window)
+        for _ in range(SUBMIT_ENTER_PRESSES - 1):
+            if not pressed.get("success"):
+                break
+            time.sleep(SUBMIT_ENTER_INTERVAL_SECONDS)
+            pressed = self._press_enter(window)
+        return pressed
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:
         window, blocked = self._input_window(window_id)
@@ -434,6 +511,15 @@ class TerminalWindowBackend:
 
     def move_pointer(self, x: int, y: int) -> bool:
         return False
+
+    def _press_enters(self, window: Dict[str, Any], presses: int, interval_seconds: float) -> bool:
+        for index in range(presses):
+            if index:
+                time.sleep(interval_seconds)
+            if not self._press_enter(window).get("success"):
+                return False
+        time.sleep(interval_seconds)
+        return True
 
     def _press_enter(self, window: Dict[str, Any]) -> Dict[str, Any]:
         if not self._input_target_ready(window):

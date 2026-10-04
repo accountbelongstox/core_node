@@ -72,6 +72,12 @@ const TtsWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }) 
   const serverVoice = options.data?.voices?.[language] ?? '';
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.defaultPlaybackRate = rate;
+    audioRef.current.playbackRate = rate;
+  }, [rate, clip]);
+
   const speak = (): void => {
     if (!synth || !trimmed) return;
     synth.cancel();
@@ -187,6 +193,9 @@ const TtsWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, variant, lastRun }) 
                   {options.loading ? <Spinner /> : null}
                   <span className="truncate">{serverVoice || t('toolsOps.tts.voice_auto')}</span>
                 </div>
+              </Field>
+              <Field label={t('toolsOps.tts.rate', { value: rate.toFixed(1) })}>
+                <RangeField value={rate} {...RATE_RANGE} onChange={setRate} />
               </Field>
               <Notice tone="info">{t('toolsOps.tts.server_note')}</Notice>
               {options.error && <Notice tone="warn">{options.error}</Notice>}

@@ -150,6 +150,32 @@ function sentenceLangText(sentence: OrchComposeSentence, lang: string): string {
   return text || (lang === sentence.language ? sentence.text.trim() : '');
 }
 
+/** The sentence language a pattern step reads (null for word steps). */
+export function orchStepSentenceLanguage(type: OrchComposeStep['type']): string | null {
+  if (type === 'sentence_en') return 'en';
+  if (type === 'sentence_zh') return 'zh';
+  return null;
+}
+
+/** How many sentences have no text in `lang` (the steps reading it are skipped for them). */
+export function countSentencesMissingLanguage(sentences: ReadonlyArray<OrchComposeSentence>, lang: string): number {
+  let missing = 0;
+  for (const sentence of sentences) if (!sentenceLangText(sentence, lang)) missing += 1;
+  return missing;
+}
+
+/** Per sentence language read by `pattern`: the sentences without it (only languages with a gap are listed). */
+export function orchSkippedLanguages(sentences: ReadonlyArray<OrchComposeSentence>, pattern: ReadonlyArray<OrchComposeStep>): Record<string, number> {
+  const skipped: Record<string, number> = {};
+  for (const step of pattern) {
+    const lang = orchStepSentenceLanguage(step.type);
+    if (!lang || lang in skipped) continue;
+    const missing = countSentencesMissingLanguage(sentences, lang);
+    if (missing > 0) skipped[lang] = missing;
+  }
+  return skipped;
+}
+
 /**
  * Word policy per step: `words_all` reads every token; `words_new` reads the
  * tokens whose read count is within the limit and that no earlier sentence of
@@ -194,7 +220,7 @@ function sentenceItems(
       }
       continue;
     }
-    const lang = step.type === 'sentence_en' ? 'en' : 'zh';
+    const lang = orchStepSentenceLanguage(step.type) ?? 'zh';
     const text = sentenceLangText(sentence, lang);
     if (!text) continue;
     for (let round = 0; round < times; round += 1) {
@@ -235,7 +261,7 @@ export function planComposition(
     }
     return { index: part.index, start: part.start, end: part.end, estSeconds: part.estSeconds, items };
   });
-  return { segments, sentences, resources: [...resources.values()] };
+  return { segments, sentences, resources: [...resources.values()], skippedLanguages: orchSkippedLanguages(sentences, config.pattern) };
 }
 
 /** Hash of everything that shapes the plan (sync conflict + staleness marker). */

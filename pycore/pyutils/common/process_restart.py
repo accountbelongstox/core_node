@@ -10,24 +10,14 @@ import sys
 from pathlib import Path
 from typing import Optional, Sequence
 
+from pycore.pyfoundations.windowless_subprocess import windows_has_console
+
 
 _RESTART_PARENT_PID_ENV = "PYCORE_RESTART_PARENT_PID"
 _WINDOWS_RESTART_WAIT_MS = 30_000
 _WINDOWS_SYNCHRONIZE = 0x00100000
 _WINDOWS_DETACHED_PROCESS = 0x00000008
 _WINDOWS_CREATE_NEW_PROCESS_GROUP = 0x00000200
-
-
-def _windows_has_console() -> bool:
-    """True when this process is attached to a console window.
-
-    Canonical Win32 probe (GetConsoleWindow): terminal-started processes
-    (pyservice.ps1 runs python as a direct console child) return a non-NULL
-    handle; tray / launcher / autostart / pythonw contexts return NULL.
-    """
-    kernel32 = ctypes.windll.kernel32
-    kernel32.GetConsoleWindow.restype = ctypes.c_void_p
-    return bool(kernel32.GetConsoleWindow())
 
 
 def wait_for_restart_parent() -> None:
@@ -92,7 +82,7 @@ def restart_current_process(
         return
 
     restart_env[_RESTART_PARENT_PID_ENV] = str(os.getpid())
-    if _windows_has_console():
+    if windows_has_console():
         # No CREATE_NEW_PROCESS_GROUP either: staying in the console's
         # process group keeps Ctrl+C delivery identical to pre-restart.
         subprocess.Popen(command, cwd=restart_cwd, env=restart_env)

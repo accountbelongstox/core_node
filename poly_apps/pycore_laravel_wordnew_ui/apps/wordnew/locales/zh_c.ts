@@ -279,6 +279,7 @@ export const zhLocaleC: Record<string, string> = {
     "orchCompose.plan.assign.direct": "本机直连 pycore",
     "orchCompose.plan.assign.row": "{node} · {lane}：已分配 {assigned} · 生成中 {generating} · 已完成 {done}",
     "orchCompose.plan.fastPass": "已启用快速首遍；高质量升级 {done}/{total}",
+    "orchCompose.plan.emptyLanguages": "服务器上还没有这本书的{language}音频片段（缺少译文或仍在同步）。",
     "orchCompose.storage.detail": "音频缓存 {total}（编排片段 {clips} + 单词音频 {audio}）· 单词 {words} · 句子 {sentences} · 剩余 {free}",
     "orchCompose.api.laravel": "Laravel",
     "orchCompose.api.pycore": "pycore",
@@ -351,4 +352,10 @@ export const zhLocaleC: Record<string, string> = {
     "foregroundSync.resolve": "加载音频片段：{done} / {total}",
     "foregroundSync.measure": "测量音频片段：{done} / {total}",
     "foregroundSync.watch": "等待生成音频片段",
+    "orchCompose.langName.en": "英文",
+    "orchCompose.langName.zh": "中文",
+    "orchCompose.langName.ja": "日文",
+    "orchCompose.langName.ko": "韩文",
+    "orchCompose.missingLang.notice": "有 {count} 个句子没有{language}文本，读取该语言的步骤会跳过这些句子。",
+    "orchCompose.missingLang.advice": "建议优先导入双语书籍（原文 + 译文）。单语书籍只能靠机器翻译补全，速度更慢、准确度更低。",
 };

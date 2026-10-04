@@ -45,7 +45,7 @@
         "pycore_bundle_max_items": 256,
         "pycore_bundle_max_bytes": 8388608,
         "pycore_bundle_media_type": "application/x-core-node-clip-bundle",
-        "pycore_bundle_frame": "per request item, in order: 4-byte big-endian header length, UTF-8 JSON header {index, key, hit, bytes, sent, meaning}, then `bytes` payload bytes when sent is true (a hit past the byte budget is sent:false and is asked again)",
+        "pycore_bundle_frame": "per request item, in order: 4-byte big-endian header length, UTF-8 JSON header {index, key, hit, bytes, sent, meaning, version?}, then `bytes` payload bytes when sent is true (a hit past the byte budget is sent:false and is asked again)",
         "laravel_bundle_max_items": 256,
         "laravel_bundle_max_bytes": 8388608,
         "parallel_defaults": {
@@ -67,6 +67,12 @@
         "rerun_min_seconds": 20,
         "rerun_max_seconds": 600,
         "laravel_word_batch_max_items": 100
+    },
+    "content_update": {
+        "purpose": "Server-declared content update of a held clip (WORDNEW_GUIDE R14, the only automatic exception). Laravel reports a clip's `version` (the mtime in seconds of the file it serves, 0 or null when it holds none) in the bundle frame header and, when the audio/lookup request sets with_version, in every lookup result (with the url of that very file: a sentence quality variant is named, not the default file). The app records the version of each clip it stores and replaces only the clips whose reported version differs from the recorded one; a clip stored without a version records the first reported version without any download.",
+        "check_interval_minutes": 60,
+        "batches_per_run": 8,
+        "download_parallel": 2
     },
     "book_plan": {
         "purpose": "Server-owned audio plan of one book. The client posts the plan once (book, languages, reading position); Laravel derives the required clips from its own book data, raises their gap rows by reading position and keeps counters; the client follows by cursor and downloads only newly ready clips. Every node generates through work leases.",
@@ -97,6 +103,7 @@
             "generating": "int clips under a live lease",
             "queued": "int clips waiting",
             "failed": "int clips whose retry budget ran out",
+            "empty_languages": "[language] requested sentence languages that hold no clip yet (their sentences are not in the library; the server adds them by itself once they are)",
             "ready_cursor": "int, the highest ready sequence handed out (0 = none)",
             "nodes": "[{sid, label, platform, compute_class, count}] clips of the plan each node generates now",
             "assignments": "assignments_response of the plan (fresh false when no app heartbeat is live)",
@@ -118,6 +125,7 @@
         "head_window": 400,
         "reprioritize_min_move": 100,
         "word_build_chunk": 500,
+        "membership_sync_max_plans": 4,
         "local_head_items": 16,
         "direct_sid": "direct",
         "request_timeout_seconds": 30,

@@ -65,7 +65,9 @@
         "nginx": "1.31.6",
         "swoole_windows": "6.3.0RC1",
         "mercure": "v0.24.2",
-        "scrcpy": "3.3.4"
+        "scrcpy": "3.3.4",
+        "vbcable": "45",
+        "vbcable_sha256": "b950e39f01af1d04ea623c8f6d8eb9b6ea5c477c637295fabf20631c85116bfb"
     },
     "realtime": {
         "mercure_cookie": "mercureAuthorization",

@@ -47,6 +47,9 @@ CLAUDE_TEAM_TERMINAL_LOG_PATH="$CLAUDE_TEAM_STATE_DIR/terminal.log"
 CLAUDE_TEAM_ROOT_BUS_PATH="/run/user/0/bus"
 CLAUDE_TEAM_LEAD_ROLE="orchestrator"
 CLAUDE_TEAM_GIT_GUARD_ENV="CLAUDE_AGENTS_SESSION=1"
+CLAUDE_TEAM_VOICE_CONFIG_PATH="$CLAUDE_TEAM_ROOT_DIR/config/claude_voice_dictation.json"
+CLAUDE_TEAM_PIPEWIRE_SOCKET_NAME="pipewire-0"
+CLAUDE_TEAM_RUN_USER_DIR="/run/user"
 CLAUDE_TEAM_USER_CONFIG_DIR="$CCI_USER_CLAUDE_DIR"
 CLAUDE_TEAM_USER_TEAMS_DIR="$CLAUDE_TEAM_USER_CONFIG_DIR/teams"
 CLAUDE_TEAM_USER_TASKS_DIR="$CLAUDE_TEAM_USER_CONFIG_DIR/tasks"
@@ -887,6 +890,38 @@ claude_team_role_spec() {
     if [ "$with_kickoff" = "1" ]; then
         CLAUDE_TEAM_SPEC_KICKOFF="$(claude_team_kickoff_for "$role" "$session")"
     fi
+}
+
+# Voice dictation (config/claude_voice_dictation.json): a local session records from
+# the PipeWire virtual microphone pycore plays voice messages into, with session-only
+# hold-to-talk settings. Sets CLAUDE_TEAM_VOICE_ENV (NAME=VALUE) and CLAUDE_TEAM_VOICE_ARGS;
+# both stay empty without a PipeWire socket or when the caller passes its own --settings.
+claude_team_pipewire_runtime_dir() {
+    local candidate=""
+    for candidate in "${PIPEWIRE_RUNTIME_DIR:-}" "${XDG_RUNTIME_DIR:-}" "$CLAUDE_TEAM_RUN_USER_DIR"/*; do
+        if [ -n "$candidate" ] && [ -S "$candidate/$CLAUDE_TEAM_PIPEWIRE_SOCKET_NAME" ]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+claude_team_voice_dictation_spec() {
+    local runtimeDir=""
+    local voiceFields=""
+    local argument=""
+    CLAUDE_TEAM_VOICE_ENV=()
+    CLAUDE_TEAM_VOICE_ARGS=()
+    for argument in "$@"; do
+        case "$argument" in
+            --settings|--settings=*) return 0 ;;
+        esac
+    done
+    runtimeDir="$(claude_team_pipewire_runtime_dir)" || return 0
+    voiceFields="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1],encoding="utf-8")); print(d["pipewire_source"]); print(json.dumps(d["session_settings"],separators=(",",":")))' "$CLAUDE_TEAM_VOICE_CONFIG_PATH" 2>/dev/null)" || return 0
+    CLAUDE_TEAM_VOICE_ENV=("PIPEWIRE_RUNTIME_DIR=$runtimeDir" "PIPEWIRE_NODE=${voiceFields%%$'\n'*}")
+    CLAUDE_TEAM_VOICE_ARGS=(--settings "${voiceFields#*$'\n'}")
 }
 
 # The pane command: claudeteam.sh --team-pane expands the kickoff and session_env

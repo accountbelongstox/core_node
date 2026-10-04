@@ -16,7 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 from adb_connect import (
-    ADB_DEFAULT_PORT, NO_WINDOW, adb, connect_authorized, load_json, log, log_lines, pair_device, resolve_device, scan_and_connect,
+    ADB_DEFAULT_PORT, NO_WINDOW, adb, connect_authorized, load_json, log, log_lines, pair_by_code, pair_device, resolve_device,
+    scan_and_connect,
     show_mdns, switch_usb_devices_to_wifi, timed_yes_no, unique_serials, write_json,
 )
 
@@ -451,8 +452,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--app", default="", help="app flavor id (selects its APK and appId)")
     parser.add_argument("--app-id", default="")
     parser.add_argument("--serials", nargs="*", default=[])
-    parser.add_argument("--target", default="", help="connect/pair target (connect: IP[:PORT]; pair: IP:PAIR_PORT)")
-    parser.add_argument("--code", default="", help="pairing code")
+    parser.add_argument("--target", default="", help="connect/pair target (connect: IP[:PORT]; pair: IP:PAIR_PORT, "
+                                                       "IP alone or empty to find the pairing port by mDNS/port scan)")
+    parser.add_argument("--code", default="", help="6-digit pairing code (pair needs only this)")
     parser.add_argument("--port", type=int, default=ADB_DEFAULT_PORT, help="adb tcpip port")
     parser.add_argument("--no-follow", action="store_true")
     parser.add_argument("--non-interactive", action="store_true")
@@ -469,7 +471,10 @@ def device_action(args: argparse.Namespace, root: Path, interactive: bool) -> No
     elif args.action == "scan":
         scan_and_connect(args.adb, state_dir)
     elif args.action == "pair":
-        pair_device(args.adb, args.target, args.code, interactive, state_dir)
+        if ":" in args.target:
+            pair_device(args.adb, args.target, args.code, interactive, state_dir)
+        else:
+            pair_by_code(args.adb, state_dir, args.code, args.target)
     elif args.action == "tcpip":
         switch_usb_devices_to_wifi(args.adb, state_dir, args.port)
     elif args.action == "mdns":

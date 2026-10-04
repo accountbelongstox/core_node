@@ -77,6 +77,18 @@ export interface TerminalLogEntry {
   error_code?: string | null;
 }
 
+/** A sent message found by the history search, with its full text. */
+export interface TerminalLogSearchHit extends TerminalLogEntry {
+  content: string;
+}
+
+export interface TerminalLogSearchResult {
+  success: boolean;
+  query: string;
+  results: TerminalLogSearchHit[];
+  error_code?: string | null;
+}
+
 export type TerminalScheduleMode = 'once' | 'interval';
 
 export type TerminalKeyAction = 'escape' | 'ctrl_c' | 'tab' | 'shift_tab';
@@ -527,6 +539,9 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       { window_id: windowId, terminal_number: terminalNumber, revision, refresh },
       timeoutMs,
     ) as Promise<TerminalTextResult>,
+    /** Sent messages of every terminal containing `query`, newest first (contract-limited count). */
+    searchTerminalLogs: (query: string) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalLogsSearch, { query }) as Promise<TerminalLogSearchResult>,
     activateTerminal: (windowId: string) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
         window_id: windowId,
@@ -626,6 +641,21 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       clear_first: clearFirst ? '1' : '0',
       interrupt_first: interruptFirst ? '1' : '0',
       shell_prompt: shellPrompt ? '1' : '0',
+    }) as Promise<TerminalActionResult>,
+    /** Types recordings through the agent's own hold-to-talk dictation, appends text and submits. */
+    dictateTerminalVoice: (
+      windowId: string,
+      terminalNumber: number,
+      recordings: string[],
+      text: string,
+      clearFirst = false,
+      interruptFirst = false,
+    ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalVoice, text, {
+      window_id: windowId,
+      terminal_number: terminalNumber,
+      recordings: recordings.join('\n'),
+      clear_first: clearFirst ? '1' : '0',
+      interrupt_first: interruptFirst ? '1' : '0',
     }) as Promise<TerminalActionResult>,
     listTerminalCommands: () => requestPycoreHttp(
       PYCORE_HTTP_ROUTES.terminalCommands,

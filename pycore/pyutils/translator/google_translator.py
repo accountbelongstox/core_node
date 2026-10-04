@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import asyncio
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -8,10 +9,11 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_googletrans_Translator
 from pycore.pyutils.common.model_boot import ThirdPartyServiceBlocked, third_party_block_reason
+from pycore.pyutils.translator.google_batch_client import google_batch_client
 from pycore.pyutils.translator.translation_cache import translation_cache
 
 GOOGLE_TRANSLATE_SERVICE = "google"
-
+GOOGLETRANS_LANGUAGE_ALIASES = {"zh": "zh-cn", "zh-hans": "zh-cn", "zh-hant": "zh-tw", "he": "iw"}
 
 
 def googletrans_translator_class() -> Optional[Any]:
@@ -72,9 +74,9 @@ class TranslationResult:
 
 
 class GoogleTranslator:
+    """Google translation: keyless batch endpoint first, googletrans (gtx) for what it missed."""
+
     def __init__(self, service_urls: Optional[List[str]] = None):
-        if not googletrans_available():
-            raise ImportError("googletrans is not installed. Install it with: pip install googletrans")
         policy_reason = third_party_block_reason(GOOGLE_TRANSLATE_SERVICE)
         if policy_reason:
             raise ThirdPartyServiceBlocked(policy_reason)
@@ -86,13 +88,26 @@ class GoogleTranslator:
         self._translator = None
 
     async def __aenter__(self):
-        self._translator = googletrans_translator_class()(service_urls=self.service_urls)
-        await self._translator.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self._translator:
             await self._translator.__aexit__(exc_type, exc_val, exc_tb)
+            self._translator = None
+
+    async def _googletrans(self) -> Optional[Any]:
+        if self._translator is None:
+            translator_class = googletrans_translator_class()
+            if translator_class is None:
+                return None
+            self._translator = translator_class(service_urls=self.service_urls, raise_exception=True)
+            await self._translator.__aenter__()
+        return self._translator
+
+    @staticmethod
+    def googletrans_language(language: str) -> str:
+        value = str(language or '').strip().lower().replace('_', '-')
+        return GOOGLETRANS_LANGUAGE_ALIASES.get(value, value)
 
     async def translate_single(
         self,
@@ -121,31 +136,69 @@ class GoogleTranslator:
         if not uncached_indices:
             return results
 
-        uncached_texts = [texts[index] for index in uncached_indices]
-        try:
-            translations = await self._translator.translate(
-                uncached_texts if len(uncached_texts) > 1 else uncached_texts[0], src=src, dest=dest
-            )
-        except Exception as exc:  # googletrans surfaces transport errors as arbitrary exceptions
-            ColorPrint.yellow(f"[GoogleTranslator] translate failed src={src} dest={dest} count={len(uncached_texts)}: {exc}")
-            for index in uncached_indices:
+        errors: Dict[int, str] = {}
+        pending = list(uncached_indices)
+        batch_pairs = await asyncio.to_thread(
+            google_batch_client.translate, [texts[index] for index in pending], src, dest
+        )
+        still_pending: List[int] = []
+        for index, (translated, detected) in zip(pending, batch_pairs):
+            if translated:
                 results[index] = TranslationResult(
-                    original_text=texts[index], translated_text='', src_lang=src, dest_lang=dest, error=str(exc)
+                    original_text=texts[index], translated_text=translated,
+                    src_lang=detected or src, dest_lang=dest,
                 )
-            return results
+            else:
+                still_pending.append(index)
+        if still_pending:
+            await self._translate_with_googletrans(texts, still_pending, src, dest, results, errors)
 
-        if not isinstance(translations, list):
-            translations = [translations]
-        for index, translation in zip(uncached_indices, translations):
-            result = TranslationResult.from_googletrans(translation)
-            results[index] = result
-            if use_cache:
+        for index in uncached_indices:
+            result = results[index]
+            if result is None:
+                results[index] = TranslationResult(
+                    original_text=texts[index], translated_text='', src_lang=src, dest_lang=dest,
+                    error=errors.get(index) or 'google translate returned no result',
+                )
+            elif use_cache and result.translated_text and not result.error:
                 translation_cache.set(texts[index], src, dest, result.cache_payload())
         return results
 
+    async def _translate_with_googletrans(
+        self,
+        texts: List[str],
+        indices: List[int],
+        src: str,
+        dest: str,
+        results: List[Optional[TranslationResult]],
+        errors: Dict[int, str],
+    ) -> None:
+        pending_texts = [texts[index] for index in indices]
+        try:
+            translator = await self._googletrans()
+            if translator is None:
+                raise ImportError('googletrans is not installed')
+            translations = await translator.translate(
+                pending_texts, src=self.googletrans_language(src), dest=self.googletrans_language(dest)
+            )
+        except Exception as exc:  # googletrans surfaces transport errors as arbitrary exceptions
+            ColorPrint.yellow(f"[GoogleTranslator] googletrans failed src={src} dest={dest} count={len(pending_texts)}: {exc}")
+            for index in indices:
+                errors[index] = str(exc)
+            return
+
+        if not isinstance(translations, list):
+            translations = [translations]
+        for index, translation in zip(indices, translations):
+            if translation.text:
+                results[index] = TranslationResult.from_googletrans(translation)
+
     async def detect_language(self, text: str) -> Dict[str, Any]:
         try:
-            result = await self._translator.detect(text)
+            translator = await self._googletrans()
+            if translator is None:
+                raise ImportError('googletrans is not installed')
+            result = await translator.detect(text)
         except Exception as exc:  # googletrans surfaces transport errors as arbitrary exceptions
             ColorPrint.yellow(f"[GoogleTranslator] detect failed chars={len(text)}: {exc}")
             return {'language': 'unknown', 'confidence': 0.0, 'text': text, 'error': str(exc)}

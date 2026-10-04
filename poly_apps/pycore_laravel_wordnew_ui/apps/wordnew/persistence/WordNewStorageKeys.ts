@@ -18,6 +18,9 @@ export const WordNewStorageKeys = {
   WORDNEW_DAILY_READING_GUEST_READS: 'wfnew.dailyReading.guestReads',
   WORDNEW_ORCH_AUDIO_PLAYER: 'wfnew.orchAudio.player',
   WORDNEW_ORCH_CLIP_ROOT: 'wfnew.orch.clipRoot',
+  /** Content-update check of held clips: the index position the next slice starts at, and when the last run ended. */
+  WORDNEW_CLIP_UPDATE_CURSOR: 'wfnew.orch.clipUpdate.cursor',
+  WORDNEW_CLIP_UPDATE_CHECKED_AT: 'wfnew.orch.clipUpdate.checkedAt',
   /** This device's orchestration id: random, generated once, never derived from a fingerprint. */
   WORDNEW_ORCH_DEVICE_ID: 'wfnew.orch.deviceId',
   WORDNEW_CUSTOM_WORDS: 'wfnew_custom_words',

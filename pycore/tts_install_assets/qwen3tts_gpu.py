@@ -104,8 +104,6 @@ def build_capacity_plan(
     calculated = min(memory_limit, compute_limit, profile_limit)
     if not logical_device.startswith("cuda"):
         calculated = 1
-    elif major and major < 8:
-        calculated = min(calculated, 2)
     environment_cap = (os.environ.get("QWEN3TTS_MAX_PARALLEL") or "").strip()
     requested_cap = int(environment_cap) if environment_cap.isdigit() else None
     if requested_cap is not None:

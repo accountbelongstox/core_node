@@ -279,6 +279,7 @@ export const enLocaleC: Record<string, string> = {
     "orchCompose.plan.assign.direct": "This device's pycore",
     "orchCompose.plan.assign.row": "{node} · {lane}: assigned {assigned} · generating {generating} · done {done}",
     "orchCompose.plan.fastPass": "Fast first pass on; quality upgrade {done}/{total}",
+    "orchCompose.plan.emptyLanguages": "The server has no {language} clips for this book yet (translation missing or still syncing).",
     "orchCompose.storage.detail": "Audio cache {total} (clips {clips} + word audio {audio}) · {words} words · {sentences} sentences · {free} free",
     "orchCompose.api.laravel": "Laravel",
     "orchCompose.api.pycore": "pycore",
@@ -351,4 +352,10 @@ export const enLocaleC: Record<string, string> = {
     "foregroundSync.resolve": "Loading clips: {done} / {total}",
     "foregroundSync.measure": "Measuring clips: {done} / {total}",
     "foregroundSync.watch": "Waiting for generated clips",
+    "orchCompose.langName.en": "English",
+    "orchCompose.langName.zh": "Chinese",
+    "orchCompose.langName.ja": "Japanese",
+    "orchCompose.langName.ko": "Korean",
+    "orchCompose.missingLang.notice": "{count} sentences have no {language} text, so the steps that read it are skipped for them.",
+    "orchCompose.missingLang.advice": "Prefer bilingual books (original + translation). Monolingual books get machine translation, which is slower and less accurate.",
 };

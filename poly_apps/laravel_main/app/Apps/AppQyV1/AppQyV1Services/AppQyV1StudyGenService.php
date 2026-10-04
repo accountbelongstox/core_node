@@ -330,6 +330,7 @@ class AppQyV1StudyGenService
 
         // Progress cache (source of truth is study_segments; hasColumn-guarded).
         $this->recomputeProgress($sourceType, $sourceKey);
+        app(AppQyV1BookAudioPlanService::class)->noteSourceChanged($sourceKey);
 
         return [
             'ok' => true,

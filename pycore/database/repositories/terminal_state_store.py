@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Generator, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
 from pycore.database.adapters.sqlite_local import open_wal_connection
 from pycore.database.schema.terminal_state_schema import (
@@ -65,6 +65,14 @@ class TerminalStateStore:
             (key,),
         ).fetchone()
         return str(row[0]) if row is not None else None
+
+    def search_values(self, key_suffix: str, needle: str) -> List[Tuple[str, str]]:
+        """(key, value) of the keys ending in key_suffix whose value contains needle (ASCII case-insensitive)."""
+        rows = self._connection.execute(
+            f"SELECT key, value FROM {TERMINAL_STATE_TABLE} WHERE key LIKE ? AND instr(lower(value), lower(?)) > 0",
+            (f"%{key_suffix}", needle),
+        ).fetchall()
+        return [(str(key), str(value)) for key, value in rows]
 
     def delete(self, key: str) -> None:
         self._connection.execute(

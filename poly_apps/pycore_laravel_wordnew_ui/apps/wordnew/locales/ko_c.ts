@@ -279,6 +279,7 @@ export const koLocaleC: Record<string, string> = {
     'orchCompose.plan.assign.direct': '이 기기의 pycore',
     'orchCompose.plan.assign.row': '{node} · {lane}: 할당 {assigned} · 생성 중 {generating} · 완료 {done}',
     'orchCompose.plan.fastPass': '빠른 1차 패스 켜짐. 품질 업그레이드 {done}/{total}',
+    "orchCompose.plan.emptyLanguages": "서버에 이 책의 {language} 클립이 아직 없습니다(번역이 없거나 동기화 중).",
     'orchCompose.storage.detail': '오디오 캐시 {total}(클립 {clips} + 단어 오디오 {audio}) · 단어 {words}개 · 문장 {sentences}개 · {free} 사용 가능',
     'orchCompose.api.laravel': 'Laravel',
     'orchCompose.api.pycore': 'pycore',
@@ -353,4 +354,10 @@ export const koLocaleC: Record<string, string> = {
     'foregroundSync.watch': '생성된 클립 대기 중',
     'orchCompose.progress.kindShort.word': 'W',
     'orchCompose.progress.kindShort.sentence': 'S',
+    "orchCompose.langName.en": "영어",
+    "orchCompose.langName.zh": "중국어",
+    "orchCompose.langName.ja": "일본어",
+    "orchCompose.langName.ko": "한국어",
+    "orchCompose.missingLang.notice": "{count}개 문장에 {language} 텍스트가 없어 해당 언어를 읽는 단계는 이 문장들에서 건너뜁니다.",
+    "orchCompose.missingLang.advice": "이중 언어 도서(원문 + 번역)를 가져오는 것을 권장합니다. 단일 언어 도서는 기계 번역으로 보완되어 더 느리고 정확도가 떨어집니다.",
 };

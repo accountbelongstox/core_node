@@ -23,7 +23,7 @@
 #   Non-interactive:   ./start_build.sh --app wordnew --release-apk --non-interactive
 #   List sub-apps:     ./start_build.sh --list
 #   Device menu:       ./start_build.sh --adb-menu
-#   Pair (Android 11+):./start_build.sh --adb-pair <IP:PAIR_PORT> [--adb-pair-code <CODE>]
+#   Pair (Android 11+):./start_build.sh --adb-pair-code <CODE> [--adb-pair <IP[:PAIR_PORT]>] (port found by mDNS/port scan; idempotent)
 #   Connect:           ./start_build.sh --adb-connect <IP[:PORT]>
 #   LAN auto-scan:     ./start_build.sh --adb-scan   (mDNS + subnet probe, connect + authorize)
 #   Build + install:   ./start_build.sh --adb-install (builds an APK first when none exists)
@@ -209,13 +209,14 @@ adb_list_devices() { "$ADB_BIN" devices -l; }
 
 adb_pair_device() {
     local target="$1" code="$2"
-    if [ -z "$target" ]; then err "Pair target required: IP:PAIR_PORT from 'Wireless debugging -> Pair using pairing code'."; return 1; fi
-    case "$target" in *:*) ;; *) err "Pair target must include the pairing port (IP:PAIR_PORT)."; return 1 ;; esac
-    if [ -n "$code" ]; then
-        live_debug pair --target "$target" --code "$code"
-    else
-        live_debug pair --target "$target"
-    fi
+    local pair_args=(pair)
+    case "$target" in
+        *:*) ;;
+        *) if [ -z "$code" ]; then err "Pairing needs the 6-digit code from 'Wireless debugging -> Pair device with pairing code' (IP:PAIR_PORT optional)."; return 1; fi ;;
+    esac
+    if [ -n "$target" ]; then pair_args+=(--target "$target"); fi
+    if [ -n "$code" ]; then pair_args+=(--code "$code"); fi
+    live_debug "${pair_args[@]}"
 }
 
 # Current `adb devices` state for a target (device/unauthorized/offline; empty
@@ -353,7 +354,7 @@ run_action_menu() {
         printf '  3) Build release APK\n'
         printf '  4) Install the latest built APK to the connected device (offers a build when none exists)\n'
         printf '  5) Find and connect a device over WiFi (remembered + mDNS + LAN scan, no USB cable)\n'
-        printf '  6) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)\n'
+        printf '  6) Pair device - Android 11+ (pairing code; IP:PAIR_PORT optional)\n'
         printf '  7) Connect device (adb connect IP[:PORT], default %s)\n' "$ADB_DEFAULT_PORT"
         printf '  8) Discover devices via mDNS (adb mdns services)\n'
         printf '  9) Switch the USB device to WiFi (adb tcpip %s + adb connect)\n' "$ADB_DEFAULT_PORT"
@@ -385,8 +386,8 @@ run_action_menu() {
                 ;;
             5) adb_connect_online || true ;;
             6)
-                read -r -p "Pair target IP:PAIR_PORT: " input
-                read -r -p "Pairing code: " code
+                read -r -p "Pairing code (6 digits): " code
+                read -r -p "Pair target IP[:PAIR_PORT] (empty = find by mDNS/port scan): " input
                 adb_pair_device "$input" "$code" || true
                 ;;
             7) read -r -p "Device IP[:PORT]: " input; adb_ensure_authorized "$input" || true ;;
@@ -414,7 +415,7 @@ run_device_actions() {
         if adb_connect_online; then BUILD_FOR_INSTALL=1; APK_BUILD_TYPE="debug"; else ok=0; fi
     fi
     if [ -n "$ADB_SCAN" ]; then adb_scan_lan || ok=0; fi
-    if [ -n "$ADB_PAIR_TARGET" ]; then adb_pair_device "$ADB_PAIR_TARGET" "$ADB_PAIR_CODE" || ok=0; fi
+    if [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_PAIR_CODE" ]; then adb_pair_device "$ADB_PAIR_TARGET" "$ADB_PAIR_CODE" || ok=0; fi
     if [ -n "$ADB_CONNECT_TARGET" ]; then adb_ensure_authorized "$ADB_CONNECT_TARGET" || ok=0; fi
     if [ -n "$ADB_DISCONNECT_TARGET" ]; then adb_disconnect_device "$ADB_DISCONNECT_TARGET" || ok=0; fi
     if [ -n "$ADB_INSTALL" ]; then
@@ -516,7 +517,7 @@ elif [ "$PLATFORM" != "android" ]; then
 fi
 
 # --- Device debugging mode: ADB wireless connect menu/actions (no build) ---
-if [ -n "$ADB_MENU" ] || [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_CONNECT_TARGET" ] || \
+if [ -n "$ADB_MENU" ] || [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_PAIR_CODE" ] || [ -n "$ADB_CONNECT_TARGET" ] || \
    [ -n "$ADB_DISCONNECT_TARGET" ] || [ -n "$ADB_TCPIP_PORT" ] || [ -n "$ADB_INSTALL" ] || \
    [ -n "$ADB_SCAN" ] || [ -n "$ADB_LIST" ] || [ -n "$LIVE_RELOAD" ]; then
     DEVICE_MODE=1

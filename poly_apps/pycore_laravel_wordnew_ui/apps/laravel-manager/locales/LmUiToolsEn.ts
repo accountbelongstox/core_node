@@ -123,6 +123,8 @@ export const lmEnUiTools = {
       loading: "Loading tool...",
       local_badge: "Runs in your browser",
       server_badge: "Runs on the server",
+      failed: "This tool could not be loaded.",
+      reload: "Reload page",
     },
     page: {
       title: "Tools",
@@ -133,7 +135,7 @@ export const lmEnUiTools = {
       tab_tools: "Tools",
       tab_favorites: "Favorites",
       tab_recent: "Recent",
-      nav_ai_tools: "AI Tools",
+      nav_ai_tools: "AI Workspace",
       nav_all_tools: "All Tools",
       nav_mcp_server: "MCP Server",
       favorite_remove: "Remove from favorites",

@@ -80,6 +80,20 @@ def _kokoro_lexicons(model_root: Path) -> List[Path]:
     return picked or all_lex
 
 
+# sherpa-onnx runs one inference thread unless told otherwise; measured per
+# word (Kokoro, CPU): 1 thread 1.62s, 2 threads 0.92s, 4 threads 0.77s, 8
+# threads 0.83s, so more than a few threads only steals cores from the GPU
+# engines' host threads.
+_INFERENCE_THREADS_MIN = 2
+_INFERENCE_THREADS_MAX = 4
+
+
+def inference_threads() -> int:
+    """CPU inference threads of the sherpa-onnx model: half the host's logical
+    cores, kept within the measured useful range."""
+    return max(_INFERENCE_THREADS_MIN, min(_INFERENCE_THREADS_MAX, (os.cpu_count() or 1) // 2))
+
+
 def build_offline_config(model_root: Path) -> Any:
     """Auto-detect the Kokoro / VITS layout in the model dir -> OfflineTtsConfig.
 
@@ -107,7 +121,9 @@ def build_offline_config(model_root: Path) -> Any:
         )
         if hasattr(kokoro, "lang"):
             kokoro.lang = _kokoro_phonemizer_language()
-        return sherpa.OfflineTtsConfig(model=sherpa.OfflineTtsModelConfig(kokoro=kokoro, provider="cpu"))
+        return sherpa.OfflineTtsConfig(
+            model=sherpa.OfflineTtsModelConfig(kokoro=kokoro, num_threads=inference_threads(), provider="cpu")
+        )
     vits = sherpa.OfflineTtsVitsModelConfig(
         model=str(onnx),
         tokens=str(tokens),
@@ -115,7 +131,9 @@ def build_offline_config(model_root: Path) -> Any:
         data_dir=data_dir,
         dict_dir=dict_dir,
     )
-    return sherpa.OfflineTtsConfig(model=sherpa.OfflineTtsModelConfig(vits=vits, provider="cpu"))
+    return sherpa.OfflineTtsConfig(
+        model=sherpa.OfflineTtsModelConfig(vits=vits, num_threads=inference_threads(), provider="cpu")
+    )
 
 
 class SherpaEngine(SerializedModelEngine):

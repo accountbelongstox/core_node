@@ -1969,6 +1969,9 @@ export const cmZh: CmTranslationDict = {
   },
   errors: {
     validation_failed: '部分字段无效。',
+    invalid_verification_token: '验证链接无效或已过期，请重新发送验证邮件。',
+    invalid_otp_code: '验证码无效或已过期。',
+    file_upload_failed: '文件上传失败，请重试。',
     mail_unavailable: '本服务器目前无法发送邮件，验证邮件未发出，请稍后再试。',
     role_not_found: '未找到该角色。',
     insufficient_balance: '钱包余额不足。',

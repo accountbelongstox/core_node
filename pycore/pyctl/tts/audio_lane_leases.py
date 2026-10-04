@@ -16,6 +16,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyutils.common.queue_center_contract import SENTENCE_QUALITY_ENGINES, audio_dedup_key_from_task
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyctl.tts.audio_lane_language_focus import SENTENCE_LANE, SentenceLanguageFocus
 from pycore.pyutils.tts.audio_queue_model import (
     LOCAL_SOURCE_LEASE,
     LOCAL_SOURCE_MANUAL,
@@ -54,6 +55,8 @@ class AudioLaneLeases:
         self._base_url = ""
         self._error_logged = ""
         self._pooled_logged: List[Dict[str, Any]] = []
+        self._claim_rounds = 0
+        self._focus = SentenceLanguageFocus() if self._lane == SENTENCE_LANE else None
 
     # -------------------- capability --------------------
 
@@ -90,6 +93,10 @@ class AudioLaneLeases:
         """Queue-center hook: identities reached a terminal state."""
         if self._book.settle(outcomes):
             self._worker.request_pull()
+
+    def note_cached(self, task: Dict[str, Any]) -> None:
+        """A leased task was served from the local cache (its completion stays out of the throughput hint)."""
+        self._book.note_cached(audio_dedup_key_from_task(task, self._lane))
 
     def due(self) -> bool:
         """Cheap heartbeat check: a renew, release or claim is due."""
@@ -152,9 +159,25 @@ class AudioLaneLeases:
                 ColorPrint.yellow(f"{worker.log_prefix} work lease unavailable ({error}); working the held batch")
             return {"leased": 0, "error": error}
 
+    def _claim_languages(self, languages: List[str], base_url: str) -> List[str]:
+        """Laravel fills a claim's budget language by language in the declared
+        order, so a fixed order starves the later languages while the first
+        has a gap. The word lane (many small rows, every node) rotates the
+        order per claim; the sentence lane declares by node role
+        (SentenceLanguageFocus: Chinese on a GPU notebook, English first on
+        the desktop GPU node)."""
+        if self._focus is not None:
+            return self._focus.declared(languages, base_url, self._worker.log_prefix)
+        if len(languages) < 2:
+            return languages
+        shift = self._claim_rounds % len(languages)
+        self._claim_rounds += 1
+        return [*languages[shift:], *languages[:shift]]
+
     def _claim(self, base_url: str) -> Dict[str, Any]:
         worker = self._worker
         capability = self.capability()
+        capability = {**capability, "languages": self._claim_languages(list(capability["languages"]), base_url)}
         open_keys = self._book.open_keys()
         plan_id = current_plan_hint()
         request = {
@@ -189,6 +212,9 @@ class AudioLaneLeases:
         if unspeakable:
             work_lease_client.release(base_url, worker.worker_id, rows=unspeakable)
             ColorPrint.yellow(f"{worker.log_prefix} released {len(unspeakable)} leased row(s) with no speakable text")
+        if self._focus is not None:
+            progress = data.get("progress") if isinstance(data.get("progress"), dict) else {}
+            self._focus.note_claim(len(tasks), progress.get(self._lane))
         admitted = audio_queue_center.accept_leased(self._lane, tasks)
         retry_after = 0.0 if tasks else float(data.get("retry_after_seconds") or EMPTY_RETRY_AFTER_SECONDS)
         pooled = [entry for entry in data.get("pooled") or [] if isinstance(entry, dict)]

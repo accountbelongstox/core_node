@@ -52,6 +52,8 @@ const ROOT_JOURNAL_NAME = 'index.log';
 /** Journal records after which the snapshot is rewritten and the journal dropped. */
 const JOURNAL_COMPACT_RECORDS = 5_000;
 const PUBLIC_FOLDER = 'WordNew';
+/** Folder of the reader's audio cache (runtime-store/WfNewAudioCache) in app data; its sentence clips live in this store. */
+export const READER_AUDIO_DIR = 'wfnew-audio';
 const CLIP_MIME = 'audio/mpeg';
 const INDEX_SAVE_DELAY_MS = 1_500;
 const CHANGE_NOTIFY_MS = 400;
@@ -78,6 +80,8 @@ export interface OrchClipIndexEntry extends OrchClipIdentity {
   bytes: number;
   meaning: string;
   storedAt: number;
+  /** Content version the server reported for the stored copy (absent until known); see wordNewClipUpdater. */
+  version?: number;
 }
 
 export interface OrchClipQuery {
@@ -159,6 +163,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   private readonly urls = new Map<string, string>();
   private readonly rootChanged = new ChangeSignal();
   private readonly clipsChanged = new ChangeSignal();
+  private readonly clipsRemoved = new ChangeSignal();
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
   private entries: Record<string, OrchClipIndexEntry> | null = null;
   private durations: Record<string, number> = {};
@@ -168,6 +173,8 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   private activeRoot: OrchClipRoot | null = null;
   private blobs: CapBlobStore | null = null;
   private queue: Promise<unknown> = Promise.resolve();
+  /** The reader cache folders (app data, and the old app cache folder its files moved from). */
+  private readonly readerStores = [new CapBlobStore(READER_AUDIO_DIR, Directory.Data), new CapBlobStore(READER_AUDIO_DIR, Directory.Cache)];
   /** Clip writes in flight, by key (one write per clip at a time). */
   private readonly writes = new Map<string, Promise<string | null>>();
 
@@ -239,6 +246,11 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       this.changeTimer = null;
       this.clipsChanged.emit();
     }, CHANGE_NOTIFY_MS);
+  }
+
+  /** Called after clips were removed (playable URLs handed out for them are invalid). */
+  onRemoved(listener: () => void): () => void {
+    return this.clipsRemoved.subscribe(listener);
   }
 
   /** Called after the root changed (playable URLs of the old root are invalid). */
@@ -445,6 +457,9 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       const sizes = new Map((await blobs.entries()).map((file) => [file.key, file.size]));
       orphans.forEach((identity) => this.index(identity, 'pycore', sizes.get(blobs.fileName(clipName(identity.resourceId))) ?? 0, ''));
     }
+    files.forEach((identity) => {
+      if (identity.text && entries[identity.resourceId] && !entries[identity.resourceId].text) this.setText(identity.resourceId, identity.text);
+    });
     const held = files.map(({ resourceId }) => resourceId);
     const unknown = held.filter((key) => !this.urls.has(key));
     const fresh = await blobs.servableUrls(unknown.map(clipName), CLIP_MIME);
@@ -472,11 +487,11 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     return url;
   }
 
-  putBlob(identity: OrchClipIdentity, blob: Blob, origin: OrchClipIndexEntry['origin'], meaning: string): Promise<string | null> {
+  putBlob(identity: OrchClipIdentity, blob: Blob, origin: OrchClipIndexEntry['origin'], meaning: string, version?: number | null): Promise<string | null> {
     return this.write(identity.resourceId, async () => {
       if (await this.holds(identity)) return;
       await (await this.store()).putBlob(clipName(identity.resourceId), blob);
-      await this.remember(identity, origin, blob.size, meaning);
+      await this.remember(identity, origin, blob.size, meaning, version);
     });
   }
 
@@ -492,10 +507,36 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   }
 
   /** Native: a clip the native stack wrote into the store folder joins the store. */
-  adoptWritten(identity: OrchClipIdentity, origin: OrchClipIndexEntry['origin'], bytes: number, meaning: string): Promise<string | null> {
+  adoptWritten(identity: OrchClipIdentity, origin: OrchClipIndexEntry['origin'], bytes: number, meaning: string, version?: number | null): Promise<string | null> {
     return this.write(identity.resourceId, async () => {
       await (await this.store()).noteNativeWrite(clipName(identity.resourceId));
-      if (!(await this.entry(identity.resourceId))) await this.remember(identity, origin, bytes, meaning);
+      if (!(await this.entry(identity.resourceId))) await this.remember(identity, origin, bytes, meaning, version);
+    });
+  }
+
+  /**
+   * Native: a sentence clip the reader cache (wfnew-audio, app data or the old app cache folder) holds under
+   * one of `keys` moves into this store (copied when the move is impossible, e.g. an SD-card root): the clip is
+   * kept once and never fetched again. Its playable URL, or null when the reader cache holds none of the keys.
+   */
+  adoptReaderFile(identity: OrchClipIdentity, keys: readonly string[]): Promise<string | null> {
+    return this.write(identity.resourceId, async () => {
+      if (!isNativeAppShell() || await this.holds(identity)) return;
+      const blobs = await this.store();
+      const name = clipName(identity.resourceId);
+      for (const source of this.readerStores) {
+        for (const key of keys) {
+          if (!(await source.has(key).catch(() => false))) continue;
+          if (!(await blobs.adoptFrom(source, key, name))) {
+            const blob = await source.getBlob(key);
+            if (!blob || blob.size === 0) continue;
+            await blobs.putBlob(name, blob);
+            await source.delete(key);
+          }
+          await this.remember(identity, 'laravel', await blobs.size(name), '');
+          return;
+        }
+      }
     });
   }
 
@@ -505,14 +546,69 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     remoteUrl: string,
     meaning: string,
     onProgress?: (fraction: number) => void,
+    version?: number | null,
   ): Promise<string | null> {
     return this.write(identity.resourceId, async () => {
       if (await this.holds(identity)) return;
       const blobs = await this.store();
       const name = clipName(identity.resourceId);
       await blobs.putFromUrl(name, remoteUrl, { onProgress });
-      await this.remember(identity, 'laravel', await blobs.size(name), meaning);
+      await this.remember(identity, 'laravel', await blobs.size(name), meaning, version);
     });
+  }
+
+  /**
+   * Content update (WORDNEW_GUIDE R14's only automatic exception): the server declared a new version of this
+   * held clip. The new file is downloaded beside the old one and replaces it only when complete; a failed
+   * download leaves the held copy untouched. True when the clip was replaced.
+   */
+  async replaceFromUrl(entry: OrchClipIndexEntry, remoteUrl: string, version: number): Promise<boolean> {
+    const key = entry.resourceId;
+    const replaced = await this.write(key, async () => {
+      const blobs = await this.store();
+      const name = clipName(key);
+      await blobs.putFromUrl(name, remoteUrl, { force: true });
+      const entries = await this.load();
+      entries[key] = { ...(entries[key] ?? entry), bytes: await blobs.size(name), version, storedAt: Date.now() };
+      this.note({ e: key, v: entries[key] });
+      this.durations[key] = 0;
+      this.note({ d: key, v: 0 });
+      this.urls.delete(key);
+      this.notifyChange();
+    }).catch(() => null);
+    return replaced !== null;
+  }
+
+  /**
+   * A slice of the indexed clips that can be checked against the server (they have the text to ask with):
+   * up to `count` from position `offset`, and the position the next slice starts at (0 after the last).
+   */
+  async checkSlice(offset: number, count: number): Promise<{ entries: OrchClipIndexEntry[]; next: number }> {
+    const entries = await this.load();
+    const keys = Object.keys(entries);
+    const slice: OrchClipIndexEntry[] = [];
+    let position = offset >= keys.length ? 0 : offset;
+    while (position < keys.length && slice.length < count) {
+      const entry = entries[keys[position]];
+      if (entry?.text) slice.push(entry);
+      position += 1;
+    }
+    return { entries: slice, next: position >= keys.length ? 0 : position };
+  }
+
+  /** The first server version seen for a clip stored without one: it becomes the version later reports are compared with. */
+  async noteVersion(key: string, version: number): Promise<void> {
+    const entries = await this.load();
+    if (!entries[key] || entries[key].version === version) return;
+    entries[key] = { ...entries[key], version };
+    this.note({ e: key, v: entries[key] });
+  }
+
+  private setText(key: string, text: string): void {
+    const entries = this.entries ?? {};
+    if (!entries[key]) return;
+    entries[key] = { ...entries[key], text };
+    this.note({ e: key, v: entries[key] });
   }
 
   /** A meaning learned later (e.g. from Laravel) is kept with the clip. */
@@ -524,10 +620,10 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   }
 
   /** Put a clip into the loaded index (the caller has loaded it). */
-  private index(identity: OrchClipIdentity, origin: OrchClipIndexEntry['origin'], bytes: number, meaning: string): void {
+  private index(identity: OrchClipIdentity, origin: OrchClipIndexEntry['origin'], bytes: number, meaning: string, version?: number | null): void {
     const { kind, language, text, contentId, resourceId } = identity;
     const entries = this.entries ?? {};
-    entries[resourceId] = { kind, language, text, contentId, resourceId, origin, bytes, meaning, storedAt: Date.now() };
+    entries[resourceId] = { kind, language, text, contentId, resourceId, origin, bytes, meaning, storedAt: Date.now(), ...(version ? { version } : {}) };
     this.note({ e: resourceId, v: entries[resourceId] });
     this.urls.delete(resourceId);
     this.notifyChange();
@@ -538,9 +634,10 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     origin: OrchClipIndexEntry['origin'],
     bytes: number,
     meaning: string,
+    version?: number | null,
   ): Promise<void> {
     await this.load();
-    this.index(identity, origin, bytes, meaning);
+    this.index(identity, origin, bytes, meaning, version);
   }
 
   /** The device holds this clip (its file exists, indexed or not): it is never written or fetched again. */
@@ -548,7 +645,9 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     const blobs = await this.store();
     const name = clipName(identity.resourceId);
     if (!(await blobs.has(name).catch(() => false))) return false;
-    if (!(await this.entry(identity.resourceId))) await this.remember(identity, 'pycore', await blobs.size(name), '');
+    const entry = await this.entry(identity.resourceId);
+    if (!entry) await this.remember(identity, 'pycore', await blobs.size(name), '');
+    else if (!entry.text && identity.text) this.setText(identity.resourceId, identity.text);
     return true;
   }
 
@@ -566,6 +665,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       }
       await this.saveNow();
       this.notifyChange();
+      this.clipsRemoved.emit();
     });
   }
 

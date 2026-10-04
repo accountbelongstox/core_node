@@ -43,6 +43,14 @@ export interface CapResourceStats {
   bytes: number;
 }
 
+/** A store outside the asset cache that holds (or takes) one resource, e.g. the orchestration clip store. */
+export interface CapResourceExternalStore {
+  /** The playable URL when the store already holds the resource (no download, no copy); null otherwise. */
+  held: () => Promise<string | null>;
+  /** Download the resource into the store; its playable URL (null when it could not be stored). */
+  fetch: () => Promise<string | null>;
+}
+
 export interface CapResourceAssetCacheOptions {
   dir: string;
   /** Where the files live (default: the app cache folder, which the OS may purge). */
@@ -52,6 +60,13 @@ export interface CapResourceAssetCacheOptions {
   budget: () => number | Promise<number>;
   extractUrls?: (payload: unknown) => Iterable<string>;
   keyFor?: (url: string) => string;
+  /**
+   * Ordered keys of one resource: the first is the stable content key a download is stored under, the others are
+   * older keys of the same file (a file held under one is renamed to the first, never fetched again).
+   */
+  keysFor?: (url: string) => readonly string[];
+  /** The external store that owns a resource instead of this cache (null: this cache stores it). */
+  externalFor?: (url: string) => CapResourceExternalStore | null;
   mimeFor?: (url: string) => string | undefined;
   concurrency?: number;
   budgetRefreshMs?: number;
@@ -67,10 +82,25 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_BUDGET_REFRESH_MS = 60 * 60 * 1000;
 const DEFAULT_ASSET_CONCURRENCY = 4;
 
-function defaultAssetKey(url: string): string {
+function assetExtension(url: string): string {
   const match = /\.([a-zA-Z0-9]{2,5})(?:[?#]|$)/.exec(url);
-  const extension = match ? `.${match[1].toLowerCase()}` : '.bin';
-  return `r${stableHash(url)}${extension}`;
+  return match ? `.${match[1].toLowerCase()}` : '.bin';
+}
+
+/** The first generation of asset keys: a hash of the whole URL (host and query included). */
+export function urlAssetKey(url: string): string {
+  return `r${stableHash(url)}${assetExtension(url)}`;
+}
+
+/** An asset key of the URL's path only: the same file under another host or query keeps one key. */
+export function pathAssetKey(url: string): string {
+  let path = url.split(/[?#]/, 1)[0];
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    /* A relative URL is already a path. */
+  }
+  return `p${stableHash(path)}${assetExtension(url)}`;
 }
 
 function estimateJsonBytes(value: unknown): number {
@@ -161,13 +191,26 @@ export class CapResourceAssetCache {
     const generation = this.generation;
     const operation = (async (): Promise<string | null> => {
       try {
+        const external = this.options.externalFor?.(url) ?? null;
+        if (external) {
+          const heldUrl = await external.held();
+          if (heldUrl) {
+            if (generation === this.generation) this.resolved.set(url, heldUrl);
+            return heldUrl;
+          }
+        }
         // Route gate: no NEW fetch while the owning route is inactive; the
         // promise settles when resumed (state preserved, never rejected).
         await this.waitResumed();
+        if (external) {
+          const fetchedUrl = await external.fetch();
+          if (fetchedUrl && generation === this.generation) this.resolved.set(url, fetchedUrl);
+          return fetchedUrl;
+        }
         const cache = await this.cache();
-        const key = (this.options.keyFor ?? defaultAssetKey)(url);
+        const [key, ...alternates] = this.options.keysFor?.(url) ?? [(this.options.keyFor ?? urlAssetKey)(url)];
         const mime = this.options.mimeFor?.(url);
-        const localUrl = await cache.getOrFetchUrl(key, () => url, mime);
+        const localUrl = await cache.getOrFetchUrl(key, () => url, mime, alternates);
         if (generation !== this.generation) {
           await cache.remove(key);
           if (localUrl?.startsWith('blob:') && typeof URL !== 'undefined') URL.revokeObjectURL(localUrl);
@@ -183,6 +226,14 @@ export class CapResourceAssetCache {
     })();
     this.inFlight.set(url, operation);
     return operation;
+  }
+
+  /** Forget the playable URLs handed out so far (a store they pointed into moved); files are untouched. */
+  forgetResolved(): void {
+    for (const localUrl of this.resolved.values()) {
+      if (localUrl.startsWith('blob:') && typeof URL !== 'undefined') URL.revokeObjectURL(localUrl);
+    }
+    this.resolved.clear();
   }
 
   resolveSync(url: string | null | undefined): string | undefined {

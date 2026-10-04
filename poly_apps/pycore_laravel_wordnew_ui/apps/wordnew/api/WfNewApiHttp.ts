@@ -596,12 +596,17 @@ export const wfNewApiHttp: WfNewApi = {
     return mapWordAudioState(res, word, language);
   },
 
-  async lookupAudio(items) {
-    const raw = await postJSON<any>(WfNewApiPaths.audioLookup, { items });
+  async lookupAudio(items, options) {
+    const raw = await postJSON<any>(WfNewApiPaths.audioLookup, options?.withVersion ? { items, with_version: true } : { items });
     const results: any[] = asArray(unwrapEnvelope(raw), 'results');
     return items.map((_, index) => {
       const url = absUrl(results[index]?.url) ?? null;
-      return { ready: !!results[index]?.ready && url !== null, url };
+      const version = Number(results[index]?.version);
+      return {
+        ready: !!results[index]?.ready && url !== null,
+        url,
+        ...(options?.withVersion ? { version: Number.isFinite(version) && version > 0 ? version : null } : {}),
+      };
     });
   },
 

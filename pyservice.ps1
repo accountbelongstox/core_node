@@ -221,6 +221,7 @@ $pycoreServiceArguments = ('-NoProfile -ExecutionPolicy Bypass -File "{0}" run -
 $pycoreServiceExitCode = 0
 $preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
 $secretManagerPath = Join-Path $winCommonDir 'SecretManager.ps1'
+$aiKeyHealthWarningPath = Join-Path $winCommonDir 'AiKeyHealthWarning.ps1'
 . $pycoreServiceNssmScript
 
 if ($Command -in @('1', '2')) {
@@ -819,6 +820,12 @@ if (-not $py) {
 Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
 Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green
 Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
+try {
+    . $aiKeyHealthWarningPath
+    Write-AiKeyHealthWarning -RepoRoot $PSScriptRoot -PythonExe $py.Path
+} catch {
+    Write-Host ("[i] AI key health check skipped: {0}" -f $_.Exception.Message) -ForegroundColor DarkGray
+}
 
 # Absolute paths resolved from this script's folder (repo root).
 $workerPath = Join-Path $PSScriptRoot 'pycore\pycore_module_caller.py'

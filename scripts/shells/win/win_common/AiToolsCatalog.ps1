@@ -85,6 +85,8 @@ $Global:AiToolsCatalog = @{
         NativeBinDir = (Join-Path (Join-Path $env:USERPROFILE ".local") "bin")
         NativeInstallerUrls = @("https://claude.ai/install.ps1", "https://downloads.claude.ai/claude-code-releases/bootstrap.ps1")
         NativeInstallerEnv = @{}
+        # Where the official installer downloads the binary (progress is read from here).
+        NativeInstallerDownloadDir = (Join-Path (Join-Path $env:USERPROFILE ".claude") "downloads")
         NonNativePackage = "@anthropic-ai/claude-code"
         WindowsPackageKey = "ClaudeCode"
         StepOnly = $null

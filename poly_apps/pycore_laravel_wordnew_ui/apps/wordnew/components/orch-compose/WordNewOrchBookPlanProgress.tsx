@@ -4,7 +4,8 @@
  * how many - live, independent of this device's resolve run.
  */
 import React, { useCallback, useSyncExternalStore } from 'react';
-import { Server } from 'lucide-react';
+import { Languages, Server } from 'lucide-react';
+import { NoticeBanner } from '@/shared/ui/NoticeBanner';
 import { Pill } from '@/shared/ui/Pill';
 import { SegmentedBar } from '@/shared/ui/ProgressBar';
 import type { StatusTone } from '@/shared/ui/statusTone';
@@ -29,6 +30,12 @@ const SEGMENTS: ReadonlyArray<{ key: 'ready' | 'generating' | 'queued' | 'failed
   { key: 'failed', tone: 'rose' },
 ];
 
+function emptyLanguageName(lang: string, trans: Props['trans']): string {
+  const key = `orchCompose.langName.${lang}`;
+  const name = trans(key);
+  return name && name !== key ? name : lang.toUpperCase();
+}
+
 export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, trans }) => {
   const subscribe = useCallback((listener: () => void) => wordNewBookAudioPlan.subscribe(taskId, listener), [taskId]);
   const read = useCallback(() => wordNewBookAudioPlan.snapshot(taskId), [taskId]);
@@ -40,6 +47,7 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
   const { total } = scope;
   // A status from an older server (or mid-deploy) may lack nodes/assignments: never crash the page.
   const nodes = status.nodes ?? [];
+  const emptyLanguages = status.emptyLanguages ?? [];
   const windows = status.assignments?.windows ?? [];
   const appAssigned = status.assignments?.fresh === true;
   const percent = orchShare(scope.ready, total);
@@ -112,6 +120,13 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
             })}
           </ul>
         </div>
+      )}
+      {emptyLanguages.length > 0 && (
+        <NoticeBanner icon={Languages}>
+          {emptyLanguages.map((lang) => (
+            <p key={lang}>{trans('orchCompose.plan.emptyLanguages', { language: emptyLanguageName(lang, trans) })}</p>
+          ))}
+        </NoticeBanner>
       )}
       {status.fastPass && (
         <p className="text-[10px] text-zinc-500">{trans('orchCompose.plan.fastPass', { done: status.upgrade.done, total: status.upgrade.total })}</p>

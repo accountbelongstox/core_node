@@ -28,6 +28,7 @@ WORKER_REGISTER_RETRY_SECONDS = 10.0
 NODE_ID_CHARS = 12
 COMPUTE_CLASS_GPU = "gpu"
 COMPUTE_CLASS_CPU_ONLY = "cpu_only"
+COMPUTE_RECHECK_SECONDS = 60.0
 
 
 def _slug(value: str) -> str:
@@ -77,6 +78,24 @@ def detect_compute_identity() -> Dict[str, Any]:
         "gpu_name": str(first.get("name") or "") or None,
         "gpu_vram_mb": int(vram.group(1)) if vram else None,
     }
+
+
+class ComputeIdentityProbe:
+    """Compute identity of the node. A GPU verdict is kept; a cpu_only verdict
+    is re-detected (detector cache reset) at most every COMPUTE_RECHECK_SECONDS,
+    so a node whose CUDA torch or driver became ready after startup (a notebook
+    runtime) reports gpu from its next claim on."""
+
+    def __init__(self) -> None:
+        self._identity = detect_compute_identity()
+        self._checked_at = time.monotonic()
+
+    def current(self) -> Dict[str, Any]:
+        if self._identity["compute_class"] != COMPUTE_CLASS_GPU and time.monotonic() - self._checked_at >= COMPUTE_RECHECK_SECONDS:
+            CUDADetector.reset_cache()
+            self._identity = detect_compute_identity()
+            self._checked_at = time.monotonic()
+        return self._identity
 
 
 class RegistrationState:

@@ -17,6 +17,8 @@ export interface PycoreProbeResult {
   httpStatus: number;
   /** Identity the backend reports in /api/status. */
   hostname: string;
+  /** `windows` / `linux` as the backend reports it; empty for older backends. */
+  platform: string;
   instanceId: string;
   checkedAt: number;
 }
@@ -42,6 +44,7 @@ function outcome(state: PycoreProbeState, ms: number | null, httpStatus = 0, pay
     ms,
     httpStatus,
     hostname: String(payload?.hostname || ''),
+    platform: String(payload?.platform || ''),
     instanceId: String(payload?.instance_id || ''),
     checkedAt: Date.now(),
   };

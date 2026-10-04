@@ -23,7 +23,12 @@ final class GoogleTranslateClient
     private const FALLBACK_CLIENT = 'dict-chrome-ex';
     private const AUTO_LANGUAGE = 'auto';
     private const TIMEOUT_SECONDS = 15;
+    private const BATCH_TIMEOUT_SECONDS = 30;
+    private const BATCH_MAX_ITEMS = 50;
+    private const BATCH_MAX_CHARS = 20000;
     private const CACHE_PREFIX = 'google_translate:';
+    private const PRIMARY_BLOCKED_KEY = 'google_translate:primary_blocked';
+    private const PRIMARY_BLOCKED_MINUTES = 10;
     private const CACHE_DAYS = 30;
     /** Region-qualified codes Google expects in upper case after the dash. */
     private const REGION_SEPARATOR = '-';
@@ -32,14 +37,14 @@ final class GoogleTranslateClient
     {
         $source = self::languageCode($sourceLanguage !== '' ? $sourceLanguage : self::AUTO_LANGUAGE);
         $target = self::languageCode($targetLanguage);
-        $cacheKey = self::CACHE_PREFIX.sha1($source.'|'.$target.'|'.$text);
+        $cacheKey = self::cacheKey($source, $target, $text);
         $cached = $useCache ? Cache::get($cacheKey) : null;
         $item = null;
 
         if (is_array($cached)) {
             return ['from_cache' => true] + $cached;
         }
-        $item = self::primary($text, $source, $target) ?? self::fallback($text, $source, $target);
+        $item = self::primaryOrFallback($text, $source, $target);
         if ($item === null) {
             return self::failure($text, $source, $target, __('pycore.google_translate_unavailable'));
         }
@@ -54,14 +59,112 @@ final class GoogleTranslateClient
     public static function translateBatch(array $texts, string $sourceLanguage, array $targetLanguages, bool $useCache = true): array
     {
         $results = [];
+        $texts = array_values($texts);
+        $source = self::languageCode($sourceLanguage !== '' ? $sourceLanguage : self::AUTO_LANGUAGE);
 
-        foreach (array_values($texts) as $textIndex => $text) {
-            foreach (array_values($targetLanguages) as $targetLanguage) {
-                $results[$textIndex][] = self::translate((string) $text, $sourceLanguage, (string) $targetLanguage, $useCache);
+        foreach (array_values($targetLanguages) as $targetIndex => $targetLanguage) {
+            $target = self::languageCode((string) $targetLanguage);
+            $pending = [];
+
+            foreach ($texts as $textIndex => $text) {
+                $cached = $useCache ? Cache::get(self::cacheKey($source, $target, (string) $text)) : null;
+                if (is_array($cached)) {
+                    $results[$textIndex][$targetIndex] = ['from_cache' => true] + $cached;
+                } else {
+                    $pending[$textIndex] = (string) $text;
+                }
+            }
+            foreach (self::batchChunks($pending) as $chunk) {
+                $translated = self::batchRequest(array_values($chunk), $source, $target);
+                foreach (array_keys($chunk) as $position => $textIndex) {
+                    $item = $translated[$position] ?? null;
+                    if ($item === null) {
+                        $item = self::translate($chunk[$textIndex], $sourceLanguage, (string) $targetLanguage, $useCache);
+                    } elseif ($useCache) {
+                        Cache::put(self::cacheKey($source, $target, $chunk[$textIndex]), $item, now()->addDays(self::CACHE_DAYS));
+                    }
+                    $results[$textIndex][$targetIndex] = $item;
+                }
+            }
+        }
+        foreach ($results as &$perText) {
+            ksort($perText);
+        }
+        unset($perText);
+        ksort($results);
+
+        return $results;
+    }
+
+    /** @return array<int, array<int, string>> text index => text, grouped by item and character budget */
+    private static function batchChunks(array $pending): array
+    {
+        $chunks = [];
+        $current = [];
+        $chars = 0;
+
+        foreach ($pending as $textIndex => $text) {
+            if ($current !== [] && (count($current) >= self::BATCH_MAX_ITEMS || $chars + strlen($text) > self::BATCH_MAX_CHARS)) {
+                $chunks[] = $current;
+                $current = [];
+                $chars = 0;
+            }
+            $current[$textIndex] = $text;
+            $chars += strlen($text);
+        }
+        if ($current !== []) {
+            $chunks[] = $current;
+        }
+
+        return $chunks;
+    }
+
+    /** One request for many texts; items align with $texts, null where Google gave nothing. */
+    private static function batchRequest(array $texts, string $source, string $target): array
+    {
+        $body = implode('&', array_map(static fn (string $text): string => 'q='.rawurlencode($text), $texts));
+        $query = http_build_query(['client' => self::FALLBACK_CLIENT, 'sl' => $source, 'tl' => $target], '', '&', PHP_QUERY_RFC3986);
+        $data = null;
+        $items = [];
+
+        try {
+            $response = Http::timeout(self::BATCH_TIMEOUT_SECONDS)
+                ->withBody($body, 'application/x-www-form-urlencoded; charset=utf-8')
+                ->post(self::FALLBACK_ENDPOINT.'?'.$query);
+            $data = $response->successful() ? $response->json() : null;
+        } catch (ConnectionException) {
+            return [];
+        }
+        if (!is_array($data) || count($data) !== count($texts)) {
+            return [];
+        }
+        foreach ($texts as $position => $text) {
+            $entry = $data[$position];
+            $translation = is_array($entry) ? ($entry[0] ?? null) : $entry;
+            $detected = is_array($entry) && is_string($entry[1] ?? null) ? $entry[1] : $source;
+            $items[$position] = is_string($translation) ? self::item($text, $detected, $target, trim($translation), null) : null;
+        }
+
+        return $items;
+    }
+
+    private static function primaryOrFallback(string $text, string $source, string $target): ?array
+    {
+        $item = null;
+
+        if (!Cache::has(self::PRIMARY_BLOCKED_KEY)) {
+            $item = self::primary($text, $source, $target);
+            if ($item === null) {
+                Cache::put(self::PRIMARY_BLOCKED_KEY, true, now()->addMinutes(self::PRIMARY_BLOCKED_MINUTES));
             }
         }
 
-        return $results;
+        return $item ?? self::fallback($text, $source, $target);
+    }
+
+    private static function cacheKey(string $source, string $target, string $text): string
+    {
+        return self::CACHE_PREFIX.sha1($source.'|'.$target.'|'.$text);
     }
 
     private static function primary(string $text, string $source, string $target): ?array

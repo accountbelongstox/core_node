@@ -7,6 +7,10 @@
 # connection and always serves DHCP/DNS on it, so all/list modes relay on the first suitable port
 # (a "Network Bridge" adapter is preferred: bridging several ports relays on all of them).
 # The private address comes from the ICS ScopeAddress registry value (/24).
+# ROUTE_MODE=pairs (one USB uplink per relay port, PAIRS "<usb|auto>:<lan>"): ICS shares one public
+# connection at a time, so Windows applies one pair: the applied pair while it stays live, else the
+# first live pair; every other pair is reported as waiting. SYSTEM_WAN is kept for router.conf
+# compatibility; the Linux engine applies it.
 #
 # References: INetSharingManager / INetSharingConfiguration
 # (learn.microsoft.com/windows/win32/api/netcon), ICS reboot persistence
@@ -16,8 +20,11 @@ $script:NatGwConfigFile = ''
 $script:NatGwServiceName = 'ncore-natgateway'
 $script:NatGwDefaultAddress = '192.168.50.1/24'
 $script:NatGwPollSeconds = 5
-$script:NatGwConfigKeys = @('WAN_SELECT', 'LAN_MODE', 'LAN_PORTS', 'LAN_ADDRESS', 'DHCP_ENABLED')
+$script:NatGwConfigKeys = @('ROUTE_MODE', 'WAN_SELECT', 'LAN_MODE', 'LAN_PORTS', 'PAIRS', 'SYSTEM_WAN', 'LAN_ADDRESS', 'DHCP_ENABLED')
 $script:NatGwLanModes = @('all', 'one', 'list')
+$script:NatGwRouteModes = @('single', 'pairs')
+$script:NatGwAutoUsb = 'auto'
+$script:NatGwMaxPairs = 16
 $script:NatGwIcsServiceName = 'SharedAccess'
 $script:NatGwIcsParametersKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters'
 $script:NatGwIcsPersistKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\SharedAccess'
@@ -35,6 +42,7 @@ $script:NatGwWan = $null
 $script:NatGwLan = $null
 $script:NatGwLanCandidates = @()
 $script:NatGwLanSkipped = @()
+$script:NatGwPairReport = @()
 $script:NatGwLastState = ''
 
 function Initialize-NatGateway {
@@ -64,9 +72,12 @@ function Read-NatGwConfig {
     $key = ''
     $value = ''
     $script:NatGwConfig = @{
+        ROUTE_MODE   = 'single'
         WAN_SELECT   = 'usb'
         LAN_MODE     = 'all'
         LAN_PORTS    = ''
+        PAIRS        = ''
+        SYSTEM_WAN   = 'auto'
         LAN_ADDRESS  = $script:NatGwDefaultAddress
         DHCP_ENABLED = 'yes'
     }
@@ -78,7 +89,11 @@ function Read-NatGwConfig {
             if ($script:NatGwConfigKeys -contains $key) { $script:NatGwConfig[$key] = $value }
         }
     }
+    if ($script:NatGwRouteModes -notcontains $script:NatGwConfig.ROUTE_MODE) { $script:NatGwConfig.ROUTE_MODE = 'single' }
     if ($script:NatGwLanModes -notcontains $script:NatGwConfig.LAN_MODE) { $script:NatGwConfig.LAN_MODE = 'all' }
+    if ([string]::IsNullOrWhiteSpace($script:NatGwConfig.SYSTEM_WAN)) { $script:NatGwConfig.SYSTEM_WAN = 'auto' }
+    $script:NatGwConfig.PAIRS = ([string]$script:NatGwConfig.PAIRS).Replace(' ', '')
+    if ($script:NatGwConfig.PAIRS -eq $script:NatGwAutoUsb) { $script:NatGwConfig.PAIRS = '' }
     if ([string]::IsNullOrWhiteSpace($script:NatGwConfig.WAN_SELECT)) { $script:NatGwConfig.WAN_SELECT = 'usb' }
     if (-not (Test-NatGwAddressValid -Address $script:NatGwConfig.LAN_ADDRESS)) { $script:NatGwConfig.LAN_ADDRESS = $script:NatGwDefaultAddress }
     $script:NatGwConfig.DHCP_ENABLED = 'yes'
@@ -88,7 +103,7 @@ function Read-NatGwConfig {
 function Save-NatGwConfig {
     $configDir = Split-Path -Parent $script:NatGwConfigFile
     $tmpFile = Join-Path $configDir ('.router.conf.{0}' -f [guid]::NewGuid().ToString('N'))
-    $lines = @('# NAT gateway configuration (natgateway set-wan / set-lan / set-address / set-dhcp)')
+    $lines = @('# NAT gateway configuration (natgateway set-mode / set-wan / set-lan / set-pairs / set-system-wan / set-address / set-dhcp)')
     foreach ($key in $script:NatGwConfigKeys) { $lines += ('{0}="{1}"' -f $key, $script:NatGwConfig[$key]) }
     if (-not (Test-Path -LiteralPath $configDir)) { New-Item -ItemType Directory -Path $configDir -Force | Out-Null }
     Set-Content -LiteralPath $tmpFile -Value $lines -Encoding ASCII
@@ -223,6 +238,109 @@ function Resolve-NatGwLan {
     if (-not $script:NatGwLan) { $script:NatGwLan = $candidates | Select-Object -First 1 }
 }
 
+# "<usb|auto>:<lan>" entries; PAIRS empty = one auto pair per onboard wired port (except ports
+# carrying this host's default route that are not already relaying).
+function Get-NatGwPairSpecs {
+    param([object[]]$Adapters, [string]$AppliedPrivateGuid = '')
+    $specs = @()
+    $defaultIndexes = @()
+    $entry = ''
+    if ($script:NatGwConfig.PAIRS) {
+        foreach ($entry in @($script:NatGwConfig.PAIRS.Split(',') | Where-Object { $_ })) {
+            if ($entry -notlike '*:*') { $entry = '{0}:{1}' -f $script:NatGwAutoUsb, $entry }
+            $specs += [pscustomobject]@{ Usb = $entry.Split(':')[0]; Lan = $entry.Substring($entry.IndexOf(':') + 1) }
+        }
+    } else {
+        $defaultIndexes = Get-NatGwDefaultRouteIndexes
+        foreach ($adapter in $Adapters) {
+            if ((Test-NatGwBridge -Adapter $adapter) -or (Test-NatGwUsb -Adapter $adapter) -or (Test-NatGwWireless -Adapter $adapter)) { continue }
+            if (($defaultIndexes -contains [int]$adapter.ifIndex) -and $adapter.InterfaceGuid -ne $AppliedPrivateGuid) { continue }
+            $specs += [pscustomobject]@{ Usb = $script:NatGwAutoUsb; Lan = $adapter.Name }
+        }
+    }
+    return @($specs | Select-Object -First $script:NatGwMaxPairs)
+}
+
+# Named USB adapters are reserved first, auto pairs take the next free live USB adapter. ICS
+# shares one pair: the applied pair while it stays live, else the first live pair.
+function Resolve-NatGwPairs {
+    param([object[]]$Adapters, [string]$AppliedPublicGuid = '', [string]$AppliedPrivateGuid = '')
+    $specs = @()
+    $ready = @()
+    $taken = @()
+    $usedLans = @()
+    $pairs = @()
+    $usb = $null
+    $lan = $null
+    $state = ''
+    $chosen = $null
+    $script:NatGwWan = $null
+    $script:NatGwLan = $null
+    $script:NatGwLanCandidates = @()
+    $script:NatGwLanSkipped = @()
+    $script:NatGwPairReport = @()
+
+    $specs = Get-NatGwPairSpecs -Adapters $Adapters -AppliedPrivateGuid $AppliedPrivateGuid
+    $ready = @($Adapters | Where-Object { (Test-NatGwUsb -Adapter $_) -and (Test-NatGwWanReady -Adapter $_) })
+    foreach ($spec in $specs) {
+        $usb = $null
+        if ($spec.Usb -ne $script:NatGwAutoUsb) {
+            $usb = Resolve-NatGwAdapterName -Wanted $spec.Usb -Adapters $ready
+            if ($usb -and $taken -contains [string]$usb.InterfaceGuid) { $usb = $null }
+            if ($usb) { $taken += [string]$usb.InterfaceGuid }
+        }
+        $pairs += [pscustomobject]@{ Spec = $spec; Usb = $usb }
+    }
+    foreach ($pair in $pairs) {
+        if ($pair.Spec.Usb -ne $script:NatGwAutoUsb) { continue }
+        $pair.Usb = $ready | Where-Object { $taken -notcontains [string]$_.InterfaceGuid } | Select-Object -First 1
+        if ($pair.Usb) { $taken += [string]$pair.Usb.InterfaceGuid }
+    }
+    foreach ($pair in $pairs) {
+        $lan = Resolve-NatGwAdapterName -Wanted $pair.Spec.Lan -Adapters $Adapters
+        $state = 'live'
+        if (-not $pair.Usb) {
+            $state = 'waiting for USB uplink'
+        } elseif (-not $lan -or (Test-NatGwWireless -Adapter $lan) -or $taken -contains [string]$lan.InterfaceGuid) {
+            $state = 'relay port unavailable'
+        } elseif ($usedLans -contains [string]$lan.InterfaceGuid) {
+            $state = 'relay port used by an earlier pair'
+        }
+        if ($state -eq 'live') {
+            $usedLans += [string]$lan.InterfaceGuid
+            if (-not $chosen -or ($pair.Usb.InterfaceGuid -eq $AppliedPublicGuid -and $lan.InterfaceGuid -eq $AppliedPrivateGuid)) {
+                $chosen = [pscustomobject]@{ Wan = $pair.Usb; Lan = $lan }
+            }
+        }
+        $script:NatGwPairReport += [pscustomobject]@{
+            Usb      = $pair.Spec.Usb
+            Relay    = $pair.Spec.Lan
+            LiveUsb  = $(if ($pair.Usb) { $pair.Usb.Name } else { '-' })
+            State    = $state
+            LanGuid  = $(if ($lan) { [string]$lan.InterfaceGuid } else { '' })
+        }
+    }
+    if (-not $chosen) { return }
+    $script:NatGwWan = $chosen.Wan
+    $script:NatGwLan = $chosen.Lan
+    $script:NatGwLanCandidates = @($chosen.Lan)
+    foreach ($report in $script:NatGwPairReport) {
+        if ($report.State -ne 'live') { continue }
+        $report.State = $(if ($report.LanGuid -eq [string]$chosen.Lan.InterfaceGuid) { 'shared (ICS)' } else { 'waiting: ICS shares one pair' })
+    }
+}
+
+function Resolve-NatGwDesired {
+    param([object[]]$Adapters, $Applied)
+    if ($script:NatGwConfig.ROUTE_MODE -eq 'pairs') {
+        Resolve-NatGwPairs -Adapters $Adapters -AppliedPublicGuid $Applied.PublicGuid -AppliedPrivateGuid $Applied.PrivateGuid
+        return
+    }
+    $script:NatGwPairReport = @()
+    Resolve-NatGwWan -Adapters $Adapters
+    Resolve-NatGwLan -Adapters $Adapters -AppliedPrivateGuid $Applied.PrivateGuid
+}
+
 # ------------------------------------------------------------------- ICS ----
 
 function Get-NatGwSharingEntries {
@@ -326,11 +444,10 @@ function Invoke-NatGwReconcile {
     $adapters = Get-NatGwAdapters
     $entries = @(Get-NatGwSharingEntries)
     $applied = Get-NatGwAppliedState -Entries $entries
-    Resolve-NatGwWan -Adapters $adapters
-    Resolve-NatGwLan -Adapters $adapters -AppliedPrivateGuid $applied.PrivateGuid
+    Resolve-NatGwDesired -Adapters $adapters -Applied $applied
 
     if (-not $script:NatGwWan -or -not $script:NatGwLan) {
-        $state = $(if (-not $script:NatGwWan) { 'idle: no uplink ready' } else { 'idle: no relay port' })
+        $state = $(if ($script:NatGwConfig.ROUTE_MODE -eq 'pairs') { 'idle: no pair has a USB uplink and a relay port' } elseif (-not $script:NatGwWan) { 'idle: no uplink ready' } else { 'idle: no relay port' })
         if ($script:NatGwLanSkipped.Count -gt 0) { $state = '{0} (skipped: {1})' -f $state, ($script:NatGwLanSkipped -join ' ') }
         if ($state -ne $script:NatGwLastState) {
             Write-NatGwLog $state
@@ -378,8 +495,7 @@ function Show-NatGwPorts {
     $applied = Get-NatGwAppliedState -Entries @(Get-NatGwSharingEntries)
     $defaultIndexes = Get-NatGwDefaultRouteIndexes
     Read-NatGwConfig
-    Resolve-NatGwWan -Adapters $adapters
-    Resolve-NatGwLan -Adapters $adapters -AppliedPrivateGuid $applied.PrivateGuid
+    Resolve-NatGwDesired -Adapters $adapters -Applied $applied
     $adapters | ForEach-Object {
         [pscustomobject]@{
             Name   = $_.Name
@@ -402,15 +518,22 @@ function Show-NatGwStatus {
     $icsService = Get-Service -Name $script:NatGwIcsServiceName -ErrorAction SilentlyContinue
     $icsState = $(if ($icsService) { [string]$icsService.Status } else { 'absent' })
     Read-NatGwConfig
-    Resolve-NatGwWan -Adapters $adapters
-    Resolve-NatGwLan -Adapters $adapters -AppliedPrivateGuid $applied.PrivateGuid
+    Resolve-NatGwDesired -Adapters $adapters -Applied $applied
 
     Write-Host "Config:   $script:NatGwConfigFile"
-    Write-Host ('Settings: uplink={0} relay={1}{2} gateway={3} dhcp=always (ICS)' -f $script:NatGwConfig.WAN_SELECT, $script:NatGwConfig.LAN_MODE,
-        $(if ($script:NatGwConfig.LAN_PORTS) { " ($($script:NatGwConfig.LAN_PORTS))" } else { '' }), $script:NatGwConfig.LAN_ADDRESS)
+    if ($script:NatGwConfig.ROUTE_MODE -eq 'pairs') {
+        Write-Host ('Settings: mode=pairs pairs={0} host-uplink={1} gateway={2} dhcp=always (ICS shares one pair at a time)' -f
+            $(if ($script:NatGwConfig.PAIRS) { $script:NatGwConfig.PAIRS } else { 'auto' }), $script:NatGwConfig.SYSTEM_WAN, $script:NatGwConfig.LAN_ADDRESS)
+    } else {
+        Write-Host ('Settings: mode=single uplink={0} relay={1}{2} gateway={3} dhcp=always (ICS)' -f $script:NatGwConfig.WAN_SELECT, $script:NatGwConfig.LAN_MODE,
+            $(if ($script:NatGwConfig.LAN_PORTS) { " ($($script:NatGwConfig.LAN_PORTS))" } else { '' }), $script:NatGwConfig.LAN_ADDRESS)
+    }
     Write-Host "Service:  $script:NatGwServiceName $ServiceState | ICS service: $icsState"
     Write-Host ('Desired:  {0} -> {1}' -f $(if ($script:NatGwWan) { $script:NatGwWan.Name } else { '(no uplink ready)' }), $(if ($script:NatGwLan) { $script:NatGwLan.Name } else { '(no relay port)' }))
     if ($script:NatGwLanSkipped.Count -gt 0) { Write-Host "Skipped:  $($script:NatGwLanSkipped -join ' ')" }
+    if ($script:NatGwPairReport.Count -gt 0) {
+        $script:NatGwPairReport | Select-Object Usb, Relay, LiveUsb, State | Format-Table -AutoSize | Out-Host
+    }
     Write-Host ('Applied:  public={0} private={1} scope={2}' -f $(if ($applied.PublicName) { $applied.PublicName } else { '-' }), $(if ($applied.PrivateName) { $applied.PrivateName } else { '-' }), (Get-NatGwScopeAddress))
     if (-not $applied.PrivateGuid) { return }
     $lanAdapter = $adapters | Where-Object { $_.InterfaceGuid -eq $applied.PrivateGuid } | Select-Object -First 1

@@ -279,6 +279,7 @@ export const jaLocaleC: Record<string, string> = {
     'orchCompose.plan.assign.direct': 'このデバイスのpycore',
     'orchCompose.plan.assign.row': '{node} · {lane}：割り当て {assigned} · 生成中 {generating} · 完了 {done}',
     'orchCompose.plan.fastPass': '高速ファーストパスがオン。品質アップグレード {done}/{total}',
+    "orchCompose.plan.emptyLanguages": "サーバーにはこの本の{language}クリップがまだありません（翻訳がないか、同期中です）。",
     'orchCompose.storage.detail': '音声キャッシュ {total}（クリップ {clips} + 単語音声 {audio}）· {words} 語 · {sentences} 文 · 空き {free}',
     'orchCompose.api.laravel': 'Laravel',
     'orchCompose.api.pycore': 'pycore',
@@ -353,4 +354,10 @@ export const jaLocaleC: Record<string, string> = {
     'foregroundSync.watch': '生成されたクリップを待機中',
     'orchCompose.progress.kindShort.word': 'W',
     'orchCompose.progress.kindShort.sentence': 'S',
+    "orchCompose.langName.en": "英語",
+    "orchCompose.langName.zh": "中国語",
+    "orchCompose.langName.ja": "日本語",
+    "orchCompose.langName.ko": "韓国語",
+    "orchCompose.missingLang.notice": "{count} 件の文に{language}のテキストがないため、その言語を読むステップはこれらの文でスキップされます。",
+    "orchCompose.missingLang.advice": "対訳書籍（原文＋翻訳）の取り込みをおすすめします。単言語の書籍は機械翻訳で補うため、処理が遅く精度も下がります。",
 };

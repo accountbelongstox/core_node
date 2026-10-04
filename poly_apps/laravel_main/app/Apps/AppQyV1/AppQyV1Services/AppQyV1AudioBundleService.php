@@ -13,7 +13,7 @@ use App\Utils\FileSystemManager;
  * Many word / sentence clips in one response, in the clip bundle frame shared
  * with pycore (config/audio_orchestration_contract.json transfer): per
  * request item, in order, a 4-byte big-endian header length, a UTF-8 JSON
- * header {index, key, hit, bytes, sent, meaning} and the clip bytes when
+ * header {index, key, hit, bytes, sent, meaning, version} and the clip bytes when
  * sent. The first hit is always sent; a hit past the byte budget is
  * `sent:false` (the client asks it again). Paths are resolved here from the
  * passive batch lookups (one query per language, no queue writes), never
@@ -62,6 +62,7 @@ final class AppQyV1AudioBundleService
                 'bytes' => $hit ? strlen($data) : 0,
                 'sent' => $send,
                 'meaning' => '',
+                'version' => $hit ? self::fileVersion($path) : null,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $body .= pack(self::FRAME_LENGTH_FORMAT, strlen($header)) . $header . ($send ? $data : '');
             if ($send) {
@@ -74,12 +75,55 @@ final class AppQyV1AudioBundleService
     }
 
     /**
+     * What a bundle frame would carry per item index (missing when Laravel holds no file): the content
+     * version of the file (its modification time in seconds) and the public URL of that very file - for a
+     * sentence with a quality variant that is the variant, not the default file a plain lookup names - so a
+     * client can tell a replaced file from the one it holds and fetch exactly the new one.
+     *
+     * @param array<int,array{kind:string,language:string,text:string}> $items
+     * @return array<int,array{version:?int,url:string}>
+     */
+    public function served(array $items): array
+    {
+        $served = [];
+        foreach ($this->located(array_values($items)) as $index => $file) {
+            clearstatcache(true, $file['path']);
+            $time = is_file($file['path']) ? filemtime($file['path']) : false;
+            if ($time !== false) {
+                $served[$index] = ['version' => (int) $time, 'url' => $file['url']];
+            }
+        }
+
+        return $served;
+    }
+
+    /** Content version of a served clip file: its modification time in seconds (null when the file is gone). */
+    private static function fileVersion(string $path): ?int
+    {
+        clearstatcache(true, $path);
+        $time = is_file($path) ? filemtime($path) : false;
+
+        return $time === false ? null : (int) $time;
+    }
+
+    /**
      * Disk path per item index (missing when Laravel holds no file).
      *
      * @param array<int,array{kind:string,language:string,text:string}> $items
      * @return array<int,string>
      */
     private function paths(array $items): array
+    {
+        return array_map(static fn (array $file): string => $file['path'], $this->located($items));
+    }
+
+    /**
+     * Disk path and public URL per item index (missing when Laravel holds no file).
+     *
+     * @param array<int,array{kind:string,language:string,text:string}> $items
+     * @return array<int,array{path:string,url:string}>
+     */
+    private function located(array $items): array
     {
         $words = [];
         $sentences = [];
@@ -91,35 +135,41 @@ final class AppQyV1AudioBundleService
             }
         }
 
-        $paths = [];
+        $files = [];
         if ($words !== []) {
             $indexes = array_keys($words);
             foreach ($this->gateway->resolveWordsPassive(array_values($words)) as $position => $resolved) {
-                $relative = is_string($resolved['audio_url'] ?? null) ? AppQyV1TtsUrl::relativeOf($resolved['audio_url']) : null;
+                $url = is_string($resolved['audio_url'] ?? null) ? $resolved['audio_url'] : null;
+                $relative = $url !== null ? AppQyV1TtsUrl::relativeOf($url) : null;
                 if ($relative !== null) {
-                    $paths[$indexes[$position]] = PathMapper::getAppQyV1AudioBaseDir($relative);
+                    $files[$indexes[$position]] = ['path' => PathMapper::getAppQyV1AudioBaseDir($relative), 'url' => $url];
                 }
             }
         }
         if ($sentences !== []) {
             foreach ($this->gateway->resolveSentencesPassive($sentences) as $index => $resolved) {
-                $relative = is_string($resolved['url'] ?? null) ? AppQyV1SentenceAudioUrl::relativeOf($resolved['url']) : null;
+                $url = is_string($resolved['url'] ?? null) ? $resolved['url'] : null;
+                $relative = $url !== null ? AppQyV1SentenceAudioUrl::relativeOf($url) : null;
                 if ($relative !== null) {
-                    $paths[$index] = $this->qualityPath($relative) ?? PathMapper::getAppQyV1SentenceSoundsDir($relative);
+                    $quality = $this->qualityRelative($relative);
+                    $files[$index] = $quality !== null
+                        ? ['path' => PathMapper::getAppQyV1SentenceSoundsDir($quality), 'url' => AppQyV1SentenceAudioUrl::forRelative($quality)]
+                        : ['path' => PathMapper::getAppQyV1SentenceSoundsDir($relative), 'url' => $url];
                 }
             }
         }
 
-        return $paths;
+        return $files;
     }
 
-    /** The quality variant of a sentence clip (book plan fast pass upgrade) when the server holds it, else null. */
-    private function qualityPath(string $relative): ?string
+    /** The quality variant of a sentence clip (book plan fast pass upgrade) as a relative path when the server holds it, else null. */
+    private function qualityRelative(string $relative): ?string
     {
         $variant = '_' . (string) AudioOrchestrationContract::bookPlan('fast_pass.quality_variant') . '.mp3';
-        $path = PathMapper::getAppQyV1SentenceSoundsDir(preg_replace('/\.mp3$/i', $variant, $relative) ?? $relative);
+        $candidate = preg_replace('/\.mp3$/i', $variant, $relative) ?? $relative;
+        $path = PathMapper::getAppQyV1SentenceSoundsDir($candidate);
 
-        return $path !== null && is_file($path) ? $path : null;
+        return $path !== null && is_file($path) ? $candidate : null;
     }
 
     /** The resource id every end uses: sha256("kind:language:content"). */

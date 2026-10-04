@@ -338,7 +338,7 @@ def _read_first_line(path: Path) -> str:
     return ""
 
 
-def _read_secret_value(key_name: str) -> str:
+def _read_secret_value(key_name: str, allow_decrypt: bool = True) -> str:
     """
     Internal function to read secret value using standard protocol:
     1. First try to read from RAW_DIR
@@ -376,7 +376,8 @@ def _read_secret_value(key_name: str) -> str:
     # Step 2: If not found in RAW_DIR, check ENCRYPTED_DIR for .js file
     encrypted_file = dirs['ENCRYPTED_DIR'] / f"{key_name}.js"
     should_decrypt = (
-        encrypted_file.exists()
+        allow_decrypt
+        and encrypted_file.exists()
         and _BATCH_DECRYPTION_ATTEMPTED.compare_and_set(False, True)
     )
     if should_decrypt:
@@ -404,6 +405,11 @@ def get_secret_key(key_name: str) -> str:
         Secret value as string (first non-empty line) or empty string if not available
     """
     return _read_secret_value(key_name)
+
+
+def peek_secret_key(key_name: str) -> str:
+    """Read a secret from the env or the raw dir only: never triggers decryption or a password prompt."""
+    return _read_secret_value(key_name, allow_decrypt=False)
 
 
 def get_secret_key_indexed(base_name: str, max_index: int = 5) -> str:
@@ -544,6 +550,7 @@ def get_all_secret_keys() -> Dict[str, str]:
 __all__ = [
     'get_secret_directories',
     'get_secret_key',
+    'peek_secret_key',
     'get_secret_key_indexed',
     'get_all_secret_keys',
     'decrypt_all_secrets',

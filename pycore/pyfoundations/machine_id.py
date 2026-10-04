@@ -19,6 +19,7 @@ import sys
 import uuid
 from typing import Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.windowless_subprocess import CREATE_NO_WINDOW
 
 if sys.platform == "win32":
     import winreg
@@ -80,10 +81,6 @@ def _windows_machine_guid() -> Optional[str]:
     return (guid or "").strip()
 
 
-def _subprocess_no_window() -> int:
-    return subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-
-
 def _windows_smbios_uuid() -> Optional[str]:
     """SMBIOS product UUID via wmic (Win32_ComputerSystemProduct.UUID)."""
     if sys.platform != "win32":
@@ -94,7 +91,7 @@ def _windows_smbios_uuid() -> Optional[str]:
             capture_output=True,
             text=True,
             timeout=10,
-            creationflags=_subprocess_no_window(),
+            creationflags=CREATE_NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         ColorPrint.yellow(f"[MachineId] wmic csproduct get uuid failed: {exc}")

@@ -68,6 +68,8 @@ export interface OrchResourceBundleEntry {
   /** False for a hit past the byte budget: ask it again. */
   sent: boolean;
   meaning: string;
+  /** Content version the server reported (Laravel frames); null when the frame carries none. */
+  version: number | null;
   /** The clip bytes when sent. */
   data: Uint8Array | null;
 }
@@ -98,6 +100,7 @@ export function parseOrchResourceBundle(body: Uint8Array): OrchResourceBundleEnt
       bytes,
       sent,
       meaning: String(header.meaning || ''),
+      version: Number.isFinite(Number(header.version)) && Number(header.version) > 0 ? Number(header.version) : null,
       data: sent ? body.slice(offset, offset + bytes) : null,
     });
     if (sent) offset += bytes;

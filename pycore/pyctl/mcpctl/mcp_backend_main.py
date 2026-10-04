@@ -26,6 +26,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.windowless_subprocess import windowless_subprocess
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.launcher_config import LauncherConfig
 from pycore.pylauncher.launcher import ServiceLauncher
@@ -181,6 +182,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
 def main():
     """Main entry point"""
 
+    windowless_subprocess.install()
     parser = argparse.ArgumentParser(description="MCP Backend Server (RPC Architecture)")
     parser.add_argument(
         "--no-shutdown-existing",

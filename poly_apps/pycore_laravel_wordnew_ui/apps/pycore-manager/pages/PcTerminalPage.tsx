@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { isHttpConnected } from '../../../core/integrations/pycore/PycoreEventClient';
 import {
   AlertTriangle,
@@ -90,6 +91,7 @@ import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
+import { PcTerminalSentSearch } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
@@ -114,6 +116,7 @@ import type {
   TerminalActionResult,
   TerminalDesktopIntegrationAction,
   TerminalKeyAction,
+  TerminalLogSearchHit,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
   TerminalSnapshot,
@@ -425,6 +428,9 @@ function formatScheduleCountdown(ms: number): string {
 }
 
 const NO_WINDOWS: TerminalWindowInfo[] = [];
+const AGENT_NOTE_LANGUAGE = 'en';
+// Dictation errors that leave nothing typed (or cleared again): the message falls back to the file path.
+const VOICE_DICTATION_FALLBACK_ERRORS = new Set(['terminal_voice_dictation_unavailable', 'terminal_voice_no_transcript', 'terminal_voice_audio_invalid']);
 const PREVIEW_VIEW_MODES: ReadonlyArray<{ mode: TerminalViewMode; icon: typeof Layers }> = [
   { mode: 'auto', icon: Layers },
   { mode: 'text', icon: FileText },
@@ -557,8 +563,9 @@ function calculateCanvasLayout(
 }
 
 // One node's terminals; re-mounted per node, so every piece of state belongs to that node.
-const PcTerminalNodeView: React.FC = () => {
-  const { t } = useTranslation('pc');
+/** searchSlot: the node-tab row element the sent-message search renders into. */
+const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ searchSlot }) => {
+  const { t, i18n } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
   const terminalWatch = usePcTerminalWatch();
   // Pushed terminal events come from the selected pycore only; every other piece of state is namespaced per node.
@@ -1572,21 +1579,50 @@ const PcTerminalNodeView: React.FC = () => {
     />
   );
 
-  const updateSelectedDraft = useCallback((text: string) => {
-    if (!selectedWindow) return;
-    const terminalNumber = selectedWindow.terminal_number;
+  const setDraftFor = useCallback((terminalNumber: number, text: string) => {
     const key = terminalDraftKey(terminalNumber);
     draftsRef.current = { ...draftsRef.current, [key]: text };
     setDrafts(draftsRef.current);
     writeCachedDraft(terminalNumber, text);
     scheduleDraftSave(terminalNumber, text);
-  }, [scheduleDraftSave, selectedWindow]);
+  }, [scheduleDraftSave]);
+
+  const updateSelectedDraft = useCallback((text: string) => {
+    if (selectedWindow) setDraftFor(selectedWindow.terminal_number, text);
+  }, [setDraftFor, selectedWindow]);
+
+  // A sent message picked in the search: open its terminal with that message in the composer.
+  const pickSentMessage = useCallback((hit: TerminalLogSearchHit) => {
+    if (!terminalExists(hit.terminal_number)) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.sentSearch.missing' });
+      return;
+    }
+    openTerminal(hit.terminal_number);
+    setDraftFor(hit.terminal_number, hit.content);
+  }, [openTerminal, setDraftFor, terminalExists]);
+  const sentSearchNameFor = useCallback((terminalNumber: number) => {
+    const windowInfo = snapshotRef.current?.windows.find((entry) => entry.terminal_number === terminalNumber);
+    return windowInfo ? terminalName(windowInfo, t('terminal.untitled')) : t('terminal.untitled');
+  }, [t]);
+
+  // The composer on screen (the enlarged preview's or the side panel's): scrolled into view and focused, caret at the end.
+  const focusComposer = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const composers = Array.from(document.querySelectorAll<HTMLTextAreaElement>('textarea[data-terminal-composer]'));
+      const composer = composers.reverse().find((element) => element.offsetParent !== null);
+      if (!composer) return;
+      composer.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      composer.focus({ preventScroll: true });
+      composer.setSelectionRange(composer.value.length, composer.value.length);
+    });
+  }, []);
 
   const reuseLogContent = useCallback((text: string) => {
     updateSelectedDraft(text);
     setLogDialogOpen(false);
     setActionNotice({ kind: 'success', translationKey: 'terminal.logs.reused' });
-  }, [updateSelectedDraft]);
+    focusComposer();
+  }, [focusComposer, updateSelectedDraft]);
 
   const closeLogDialog = useCallback(() => setLogDialogOpen(false), []);
 
@@ -1596,15 +1632,25 @@ const PcTerminalNodeView: React.FC = () => {
     if (!selectedWindow || !selectedWindow.online) return;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
-    // Attached images belong to the draft message only, never to an explicit text resend.
-    const imagePaths = textOverride === undefined ? await images.uploadAll() : [];
-    if (imagePaths === null) {
+    // Attachments belong to the draft message only, never to an explicit text resend.
+    const attachments = textOverride === undefined ? await images.uploadAll() : [];
+    if (attachments === null) {
       setActionNotice({ kind: 'error', translationKey: 'terminal.images.sendBlocked' });
       return;
     }
     // Read the draft after the uploads: typing during an upload is part of the message.
     const draftText = stripImagePlaceholders(textOverride === undefined ? (draftsRef.current[key] ?? selectedDraft) : textOverride);
-    const payload = [draftText, ...imagePaths].filter((part) => part !== '').join(' ');
+    // A voice message leads with the instruction to the agent, always in English whatever the UI language.
+    const voiceNote = attachments.some((attachment) => attachment.kind === 'audio')
+      ? i18n.getFixedT(AGENT_NOTE_LANGUAGE, 'pc')('terminal.voice.agentNote')
+      : '';
+    const payload = [voiceNote, draftText, ...attachments.map((attachment) => attachment.displayPath)]
+      .filter((part) => part !== '')
+      .join(' ');
+    const recordings = attachments.filter((attachment) => attachment.kind === 'audio').map((attachment) => attachment.displayPath);
+    const dictationText = [draftText, ...attachments.filter((attachment) => attachment.kind !== 'audio').map((attachment) => attachment.displayPath)]
+      .filter((part) => part !== '')
+      .join(' ');
     const activeTimer = draftTimersRef.current[key];
     if (activeTimer) {
       window.clearTimeout(activeTimer);
@@ -1612,13 +1658,27 @@ const PcTerminalNodeView: React.FC = () => {
     }
     const result = await runAction(
       selectedWindow.id,
-      () => terminalApi.inputTerminalText(
-        selectedWindow.id,
-        terminalNumber,
-        payload,
-        clearFirst,
-        interruptFirst,
-      ),
+      async () => {
+        // The agent types the recording itself where pycore can dictate into it; otherwise the file path is sent.
+        if (recordings.length > 0) {
+          const dictated = await terminalApi.dictateTerminalVoice(
+            selectedWindow.id,
+            terminalNumber,
+            recordings,
+            dictationText,
+            clearFirst,
+            interruptFirst,
+          ).catch(() => null);
+          if (dictated && (dictated.success || !VOICE_DICTATION_FALLBACK_ERRORS.has(dictated.error_code ?? ''))) return dictated;
+        }
+        return terminalApi.inputTerminalText(
+          selectedWindow.id,
+          terminalNumber,
+          payload,
+          clearFirst,
+          interruptFirst,
+        );
+      },
       interruptFirst
         ? 'terminal.commands.forceSent'
         : clearFirst ? (payload === '' ? 'terminal.clearedOnly' : 'terminal.clearedAndSent') : 'terminal.sent',
@@ -1638,7 +1698,7 @@ const PcTerminalNodeView: React.FC = () => {
       setDrafts(draftsRef.current);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     }
-  }, [images, persistDraft, runAction, selectedDraft, selectedWindow]);
+  }, [images, persistDraft, runAction, selectedDraft, selectedWindow, t]);
 
   // Saves the UI name (empty restores the window title) and asks pycore to retitle the OS window.
   const renameSelected = useCallback(async () => {
@@ -1689,6 +1749,14 @@ const PcTerminalNodeView: React.FC = () => {
     const options = takeSendOnce();
     void sendInput(undefined, options.clear, options.force);
   }, [sendInput, takeSendOnce]);
+
+  // A logged message sent again: it becomes the draft and goes through the regular send.
+  const resendLogContent = useCallback((text: string) => {
+    updateSelectedDraft(text);
+    setLogDialogOpen(false);
+    focusComposer();
+    sendDraft();
+  }, [focusComposer, sendDraft, updateSelectedDraft]);
 
   // Commands send at once; the panel's one-shot options (clear first / Ctrl+C first) apply.
   const runQuickCommand = useCallback(async (command: string) => {
@@ -1920,6 +1988,41 @@ const PcTerminalNodeView: React.FC = () => {
         rows={overlay ? 6 : 8}
         draftStatus={selectedDraftStatus}
         images={images}
+        actions={(
+          <>
+            {([
+              { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
+              { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
+            ] as const).map(({ key, icon: Icon, label, hint, tone }) => (
+              <label key={key} title={`${label}: ${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  aria-label={label}
+                  checked={sendOnce[key]}
+                  onChange={(event) => setSendOnce((current) => ({ ...current, [key]: event.target.checked }))}
+                />
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-500/20 ${tone}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+              </label>
+            ))}
+          </>
+        )}
+        sendButton={(
+          <button
+            type="button"
+            onClick={sendDraft}
+            disabled={!selectedActionable}
+            title={`${t('terminal.send')} (${t('terminal.sendShortcut')})`}
+            aria-label={t('terminal.send')}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {actionWindowId === selectedWindow?.id
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Send className="h-4 w-4" />}
+          </button>
+        )}
         session={{
           slot: overlay ? INPUT_SLOT_OVERLAY : INPUT_SLOT_PANEL,
           restore: inputRestore,
@@ -1927,41 +2030,8 @@ const PcTerminalNodeView: React.FC = () => {
           onSnapshot: handleInputSnapshot,
         }}
       />
-      {/* One compact send panel: send, one-shot options, keys, commands and choice answers. */}
+      {/* One compact panel: keys, commands and choice answers; send lives in the composer toolbar. */}
       <div className="space-y-1.5 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={sendDraft}
-            disabled={!selectedActionable}
-            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
-          >
-            {actionWindowId === selectedWindow?.id
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <Send className="h-3.5 w-3.5" />}
-            {t('terminal.send')}
-            <kbd className="ml-1 hidden rounded border border-white/30 px-1 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
-              {t('terminal.sendShortcut')}
-            </kbd>
-          </button>
-          {([
-            { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
-            { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
-          ] as const).map(({ key, icon: Icon, label, hint, tone }) => (
-            <label key={key} title={`${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={sendOnce[key]}
-                onChange={(event) => setSendOnce((current) => ({ ...current, [key]: event.target.checked }))}
-              />
-              <span className={`inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-500/20 px-2 text-[10px] font-semibold ${tone}`}>
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </span>
-            </label>
-          ))}
-        </div>
         <div
           className="grid grid-cols-6 gap-0.5 sm:grid-cols-12"
           role="toolbar"
@@ -2230,6 +2300,7 @@ const PcTerminalNodeView: React.FC = () => {
         errorTranslationKey={errorTranslationKey}
         onOpenLogs={() => setLogDialogOpen(true)}
         onReuse={reuseLogContent}
+        onResend={resendLogContent}
       />
     </div>
   );
@@ -2433,6 +2504,10 @@ const PcTerminalNodeView: React.FC = () => {
 
   return (
     <PcTerminalNavActionsProvider value={navActions}>
+    {searchSlot && createPortal(
+      <PcTerminalSentSearch nameFor={sentSearchNameFor} formatDate={formatLogDate} onPick={pickSentMessage} />,
+      searchSlot,
+    )}
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">
@@ -2903,6 +2978,7 @@ const PcTerminalNodeView: React.FC = () => {
           formatDate={formatLogDate}
           errorTranslationKey={errorTranslationKey}
           onReuse={reuseLogContent}
+          onResend={resendLogContent}
           onClose={closeLogDialog}
         />
       )}
@@ -2918,18 +2994,20 @@ const PcTerminalPage: React.FC = () => {
     setNodeUrl(url);
     updatePcUiSessionTerminalNodeUrl(url);
   }, []);
+  const [searchSlot, setSearchSlot] = useState<HTMLElement | null>(null);
 
   return (
     <>
-      <div className="flex items-start gap-2 px-3 pt-2 sm:px-6 md:px-8">
-        <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2 px-3 pt-2 sm:px-6 md:px-8">
+        <div className="min-w-0 max-w-[50%] shrink-0">
           <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
         </div>
+        <div ref={setSearchSlot} className="min-w-0 flex-1" />
         <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
         <PcTerminalWatchProvider>
-          <PcTerminalNodeView />
+          <PcTerminalNodeView searchSlot={searchSlot} />
         </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
     </>

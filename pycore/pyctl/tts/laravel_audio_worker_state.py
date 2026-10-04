@@ -375,6 +375,16 @@ class LaravelAudioWorkerStateMixin:
             current["backend_result_accepted"] = bool(accepted)
 
     @serialized_method
+    def _adjust_busy_lanes(self, delta: int) -> int:
+        """Add to the count of fan-out lanes holding a task; the new count."""
+        self._busy_lanes = max(0, self._busy_lanes + int(delta))
+        return self._busy_lanes
+
+    @serialized_method
+    def _busy_lane_count(self) -> int:
+        return self._busy_lanes
+
+    @serialized_method
     def _mark_task_finished(self, task_id: Any, attempt: Optional[int] = None) -> None:
         self._current_tasks.pop(self._current_task_key(task_id, attempt), None)
         self._processing = max(0, self._processing - 1)
@@ -394,10 +404,14 @@ class LaravelAudioWorkerStateMixin:
         return dict(self._last_cycle_summary)
 
     @serialized_method
-    def _record_task_result(self, success: bool, duration_s: float = 0.0) -> None:
-        """Update lifetime counters as soon as one task reaches a terminal state."""
+    def _record_task_result(self, success: bool, duration_s: float = 0.0, cached: bool = False) -> None:
+        """Update lifetime counters as soon as one task reaches a terminal state. A task served from
+        the local cache is no synthesis: it stays out of the synthesis time that rates the lane."""
         self._total_claimed += 1
         self._total_duration_s += max(0.0, float(duration_s or 0.0))
+        if not cached:
+            self._synth_claimed += 1
+            self._synth_duration_s += max(0.0, float(duration_s or 0.0))
         if success:
             self._total_succeeded += 1
         else:

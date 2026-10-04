@@ -521,6 +521,7 @@ function Ensure-FrankenPhpWebAccessConfiguration {
     $allowedHosts = @()
     $corsOrigins = @()
     $uiPort = Get-ServiceContractPort -Name 'nexus_dash_frontend'
+    $livePort = Get-ServiceContractPort -Name 'native_live_reload'
     $existingDocument = $null
     $groupProperty = $null
     $hostKey = ''
@@ -536,6 +537,7 @@ function Ensure-FrankenPhpWebAccessConfiguration {
         $allowedHosts = @($allowedHosts) + @($localHost)
         $corsOrigins = @($corsOrigins) + @(
             ("http://{0}:{1}" -f $localHost, $uiPort),
+            ("http://{0}:{1}" -f $localHost, $livePort),
             ("http://{0}" -f $localHost),
             ("https://{0}" -f $localHost)
         )
@@ -563,6 +565,7 @@ function Ensure-FrankenPhpWebAccessConfiguration {
                 if ($groupProperty.Name -eq 'browserAccess') {
                     $corsOrigins = @($corsOrigins) + @(
                         ("http://{0}:{1}" -f $hostValue, $uiPort),
+                        ("http://{0}:{1}" -f $hostValue, $livePort),
                         ("http://{0}" -f $hostValue),
                         ("https://{0}" -f $hostValue)
                     )

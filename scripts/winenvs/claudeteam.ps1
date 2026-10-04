@@ -79,6 +79,8 @@ $standaloneRow = $null
 $kickoff = ""
 $kickoffDisplay = ""
 $sessionEnvironment = $null
+$voiceArgs = @()
+$voiceDisplay = ""
 $exitCode = 0
 
 $scriptPath = $PSScriptRoot
@@ -263,6 +265,11 @@ try {
             }
         }
 
+        $voiceArgs = @(Get-ClaudeTeamVoiceDictationArguments -Arguments $claudeArgs)
+        if ($voiceArgs.Count -gt 0) {
+            $voiceDisplay = " $ClaudeTeamSettingsFlag <voice dictation>"
+        }
+
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host "claudeteam.ps1" -ForegroundColor Yellow
@@ -275,7 +282,10 @@ try {
             Write-Host ("[INFO] {0}=1 (session, multiple roles); teammate mode {1} (Windows default)" -f $ClaudeTeamAgentTeamsVariable, $ClaudeTeamLeadTeammateMode) -ForegroundColor Green
         }
         Write-Host ("[INFO] Session env: {0}=1 {1}" -f $ClaudeTeamSessionMarkerVariable, ((@($sessionEnvironment.Keys) | ForEach-Object { "{0}={1}" -f $_, $sessionEnvironment[$_] }) -join " ")) -ForegroundColor Green
-        Write-Host ("[INFO] Invoking: claude {0}{1}" -f ($claudeDisplayArgs -join " "), $kickoffDisplay) -ForegroundColor Green
+        Write-Host ("[INFO] Invoking: claude{0} {1}{2}" -f $voiceDisplay, ($claudeDisplayArgs -join " "), $kickoffDisplay) -ForegroundColor Green
+        if ($voiceArgs.Count -gt 0) {
+            Write-Host ("[INFO] Voice dictation: {0} {1}" -f $voiceArgs[0], $voiceArgs[1]) -ForegroundColor Green
+        }
         if ($deviceRemoteHint) {
             Write-Host $deviceRemoteHint -ForegroundColor Yellow
         }
@@ -289,7 +299,7 @@ try {
         # Project agents (.claude/agents) and CLAUDE.md resolve from the working
         # directory, so claude always starts in the core_node root.
         Set-Location -LiteralPath $projectRootPath
-        $claudeArgs = @(Get-ClaudeTeamPolicyArguments) + $claudeArgs
+        $claudeArgs = @(Get-ClaudeTeamPolicyArguments) + $voiceArgs + $claudeArgs
         & claude @claudeArgs
         $exitCode = $LASTEXITCODE
         if ($null -eq $exitCode) {

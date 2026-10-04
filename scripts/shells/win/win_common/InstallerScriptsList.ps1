@@ -44,6 +44,7 @@ $SCRIPT_STEP65_INSTALL_AI_TOOLS = "Step65_InstallAiTools.ps1"
 $SCRIPT_STEP71_INSTALL_DOTNET = "Step71_InstallDotnet.ps1"
 $SCRIPT_STEP72_INSTALL_REMOTE_CONTROL_HOST = "Step72_InstallRemoteControlHost.ps1"
 $SCRIPT_STEP73_INSTALL_NETWORK_ROUTER = "Step73_InstallNetworkRouter.ps1"
+$SCRIPT_STEP74_INSTALL_VIRTUAL_AUDIO_CABLE = "Step74_InstallVirtualAudioCable.ps1"
 $SCRIPT_STEP97_INSTALL_TAILSCALE = "Step97_InstallTailscale.ps1"
 $SCRIPT_STEP175_LARAVEL_MAIN_START = "Step175_LaravelMainStart.ps1"
 # Components the minimal initialization (InitializationManager) runs without their whole series
@@ -61,6 +62,7 @@ $InstallerScriptsMap = @{
     "FixCoreNodeProjectLocation" = $SCRIPT_STEP7_FIX_CORE_NODE_PROJECT_LOCATION
     "InstallPython" = $SCRIPT_PYTHON_DEFAULT
     "InstallNodeJS" = $SCRIPT_NODE_RUNTIME
+    "InstallVirtualAudioCable" = $SCRIPT_STEP74_INSTALL_VIRTUAL_AUDIO_CABLE
 }
 
 # DevInstaller sweep order: small essentials first, the largest downloads last. Each entry only
@@ -90,6 +92,7 @@ $InstallerScripts = @(
     # 4. Mesh VPN (headscale/tailscale) and network, then the Laravel deployment that publishes tailnet sites
     $SCRIPT_STEP97_INSTALL_TAILSCALE,
     $SCRIPT_STEP73_INSTALL_NETWORK_ROUTER,
+    $SCRIPT_STEP74_INSTALL_VIRTUAL_AUDIO_CABLE,
     $SCRIPT_STEP175_LARAVEL_MAIN_START,
     # 5. Chrome and the desktop applications (VS Code, ...), then the file associations that point at them
     $SCRIPT_STEP22_INSTALL_CHROME,
