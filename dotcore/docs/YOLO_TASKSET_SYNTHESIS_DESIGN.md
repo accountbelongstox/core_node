@@ -248,6 +248,18 @@ Multi-agent review (synthesis library, training pipeline, UI/architecture; cross
 | U11 | No bridge from recorded segments / annotated boxes / other task sets. | Segment to task set, annotated boxes to variants, copy targets. |
 | U12 | Generated datasets and runs invisible; training always regenerates. | History tab, `ForDataset` (train on an existing dataset). |
 
+Late additions (final review round, video / live scope §1.1):
+
+| ID | Sev | Defect | Fix | Owner |
+|----|-----|--------|-----|-------|
+| T16 / U17 | critical | No detection on video files (no frame stepping, FPS, per-frame results, labeled export). | `YoloVideoDetector`, "Analyze whole video" with cached detections and class timeline, export frames as labeled data. | W1, W8 |
+| T17 / U18 | critical | No live screen / window / region detection loop (navigator sleeps a fixed 1.2 s on full frames). | `YoloLiveDetector` (newest-frame worker, FPS cap, ROI/tiling, stats), region picker, snapshot hotkey. | W1, W8 |
+| T18 | major | No tracking or temporal smoothing (navigator gives up after one missed frame). | ByteTrack-style tracker with stable ids, min hits / max misses, box smoothing; navigator acts on confirmed tracks. | W1, W4 |
+| T19 / U19 | major | Inference not tuned (CPU-only, per-pixel loops, no timings) and every consumer loads its own detector. | `YoloModelHost` (one session per model, provider DirectML/CUDA/CPU fallback, threads, warm-up), buffer reuse, timings; models resolved through the registry, never "newest file". | W1, W4, W7, W8 |
+| T20 | major | Auto-labels are saved as reviewed ground truth (pseudo-labels leak into train and val). | Provenance in annotations (`source`, `reviewed`, per-box confidence), assembler option `IncludeUnreviewedPseudoLabels` (off, never in val). | W7, W4 |
+| T21 | major | = S9 (Ultralytics augmentation not aligned with the task-set profile). | see S9 | W4 |
+| U16 | major | UI for S4 / S5 / S6 / S10 (color-key cutout, placement-region editor, contamination actions, distractors tab). | see items | W6, W7 |
+
 ### 10.3 Minor
 
 S11 PNG output / no double JPEG; S12 size-aware feather and blur; S13 pixel caps, background LRU, skip failed jobs, `.partial` output dir; S14 stable hash split; S15 cross-platform OpenCvSharp runtime; S16 preview context cache + cancel; S17 header-only readability check, batch add; S18 decoded-frame reuse in the extractor; T10 synthesis warnings/stats surfaced, advisor dataset estimate in specific mode; T11 busy/outcome consistency across windows; T12 extra args must not override managed keys; T13 export options, rectangular/dynamic detector input, `BlobFromImage`; T14 class-name parsing with quotes; T15 shared weights dir; U13 i18n error mapping, validated preview; U14 MVVM extraction of `TaskSetWindow`, one shared byte-to-BitmapSource helper, shared issue formatter; U15 keyboard map, `AutomationProperties.Name`, dynamic issue brushes.
