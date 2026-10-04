@@ -38,10 +38,11 @@ $script:FrankenPhpCaddyConfigDirectory = Join-Path $script:FrankenPhpRoot 'confi
 $script:FrankenPhpCertificateDirectory = Join-Path $script:FrankenPhpRoot 'certs'
 $script:FrankenPhpLogDirectory = Join-Path $script:FrankenPhpRoot 'logs'
 $script:FrankenPhpServiceDirectory = Join-Path $script:FrankenPhpRoot 'service'
-$script:FrankenPhpCacheDirectory = Join-Path $Global:USER_CACHE_DIR 'frankenphp'
+$script:FrankenPhpCacheDirectory = Join-Path $Global:DOWNLOADS_DIR 'frankenphp'
 $script:FrankenPhpVersion = [string](Get-ServiceContractValue -ContractPath 'versions.frankenphp')
 $script:FrankenPhpArchiveName = 'frankenphp-windows-x86_64.zip'
-$script:FrankenPhpArchivePath = Join-Path $script:FrankenPhpCacheDirectory $script:FrankenPhpArchiveName
+# Versioned cache name: a version bump must not reuse the previous release's archive
+$script:FrankenPhpArchivePath = Join-Path $script:FrankenPhpCacheDirectory ('frankenphp-{0}-windows-x86_64.zip' -f $script:FrankenPhpVersion)
 $script:FrankenPhpReleaseUrl = 'https://github.com/php/frankenphp/releases/download/{0}/{1}' -f $script:FrankenPhpVersion, $script:FrankenPhpArchiveName
 $script:FrankenPhpLaravelDirectory = Join-Path (Join-Path $script:FrankenPhpRepositoryRoot 'poly_apps') 'laravel_main'
 $script:FrankenPhpLaravelPublicDirectory = Join-Path $script:FrankenPhpLaravelDirectory 'public'
@@ -169,13 +170,16 @@ function Ensure-LaravelBookSeedExtracted {
     Copy-Item -LiteralPath $archiveSource -Destination $tarArchive -Force
 
     if (Test-Path -LiteralPath $tarExe -PathType Leaf) {
+        # bsdtar delegates xz to an external filter on some Windows builds; a failure here falls through to 7z.
         & $tarExe -xJf $tarArchive -C $extractDirectory
-        if ($LASTEXITCODE -ne 0) { Write-FrankenPhpLog -Message "tar.exe failed to extract the book seed (exit $LASTEXITCODE)." -Type 'Error' }
-    } else {
+        if ($LASTEXITCODE -ne 0) { Write-FrankenPhpLog -Message "tar.exe failed to extract the book seed (exit $LASTEXITCODE); trying 7z." -Type 'Warning' }
+    }
+    if (-not ((Test-Path -LiteralPath $extractedTop -PathType Container) -and
+        @(Get-ChildItem -LiteralPath $extractedTop -Filter '*.json' -File -ErrorAction SilentlyContinue).Count -gt 0)) {
         $sevenZipCommand = Get-Command 7z -ErrorAction SilentlyContinue
         $sevenZip = if ($sevenZipCommand) { $sevenZipCommand.Source } else { Join-Path (Join-Path $env:ProgramFiles '7-Zip') '7z.exe' }
         if (-not (Test-Path -LiteralPath $sevenZip -PathType Leaf)) {
-            Write-FrankenPhpLog -Message 'Neither the Windows tar.exe nor 7z is available to extract the book seed.' -Type 'Error'
+            Write-FrankenPhpLog -Message 'Neither the Windows tar.exe nor 7z could extract the book seed.' -Type 'Error'
             return $false
         }
         & $sevenZip x -y "-o$workDirectory" $tarArchive
@@ -246,20 +250,22 @@ function Test-FrankenPhpNativePayload {
 }
 
 function Ensure-FrankenPhpArchive {
-    if (-not (Test-Path -LiteralPath $script:FrankenPhpArchivePath -PathType Leaf)) {
+    . (Join-Path $PSScriptRoot 'OfficialArchiveCommon.ps1')
+    if (-not (Test-OfficialArchiveValid -ZipPath $script:FrankenPhpArchivePath)) {
+        Remove-Item -LiteralPath $script:FrankenPhpArchivePath -Force -ErrorAction SilentlyContinue
         Write-FrankenPhpLog -Message "Downloading official Windows archive: $script:FrankenPhpReleaseUrl"
-        Invoke-WebRequest -Uri $script:FrankenPhpReleaseUrl -OutFile $script:FrankenPhpArchivePath -UseBasicParsing
+        Get-FileWithSizeCheck -localPath $script:FrankenPhpArchivePath -remoteUrl $script:FrankenPhpReleaseUrl -description "FrankenPHP $script:FrankenPhpVersion" | Out-Null
     }
     if (-not (Test-Path -LiteralPath $script:FrankenPhpArchivePath -PathType Leaf)) {
         Write-FrankenPhpLog -Message "Archive postcondition failed: $script:FrankenPhpArchivePath" -Type 'Error'
         return $false
     }
-    return ((Get-Item -LiteralPath $script:FrankenPhpArchivePath).Length -gt 0)
+    return (Test-OfficialArchiveValid -ZipPath $script:FrankenPhpArchivePath)
 }
 
 function Install-FrankenPhpArchivePayload {
-    $stagingName = 'extract-{0}' -f ([Guid]::NewGuid().ToString('N'))
-    $stagingDirectory = Join-Path $script:FrankenPhpCacheDirectory $stagingName
+    $stagingName = 'frankenphp-extract-{0}' -f ([Guid]::NewGuid().ToString('N'))
+    $stagingDirectory = Join-Path $Global:WORK_DIR $stagingName
     $sourceFiles = @()
     $relativePath = ''
     $destinationPath = ''
@@ -891,13 +897,13 @@ function Find-FrankenPhpMkcert {
 
 # Best-effort mkcert provisioning: PATH/package managers first, then the
 # official GitHub release binary, then a source clone + go build. Downloads
-# and the clone cache live under the constant-centre cache directory
-# ($Global:USER_CACHE_DIR\mkcert), never in the repo.
+# live under $Global:DOWNLOADS_DIR\mkcert and the source clone/build under
+# $Global:WORK_DIR\mkcert-src, never in the repo.
 function Ensure-FrankenPhpMkcert {
     $mkcertPath = Find-FrankenPhpMkcert
-    $downloadDir = Join-Path $Global:USER_CACHE_DIR 'mkcert'
+    $downloadDir = Join-Path $Global:DOWNLOADS_DIR 'mkcert'
     $downloadExe = Join-Path $downloadDir $script:FrankenPhpMkcertArchiveName
-    $sourceDir = Join-Path $downloadDir 'src'
+    $sourceDir = Join-Path $Global:WORK_DIR 'mkcert-src'
 
     if (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
         return $mkcertPath
@@ -920,7 +926,9 @@ function Ensure-FrankenPhpMkcert {
     if (-not (Test-Path -LiteralPath $downloadExe -PathType Leaf)) {
         Write-FrankenPhpLog -Message "Downloading mkcert: $script:FrankenPhpMkcertDownloadUrl"
         try {
-            Invoke-WebRequest -Uri $script:FrankenPhpMkcertDownloadUrl -OutFile $downloadExe -UseBasicParsing -TimeoutSec 120
+            if (-not (Get-FileWithSizeCheck -localPath $downloadExe -remoteUrl $script:FrankenPhpMkcertDownloadUrl -description "mkcert $script:FrankenPhpMkcertVersion")) {
+                throw "download failed: $script:FrankenPhpMkcertDownloadUrl"
+            }
         }
         catch {
             Write-FrankenPhpLog -Message "mkcert download failed: $($_.Exception.Message)" -Type 'Warning'

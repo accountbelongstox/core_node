@@ -2,6 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
+source "$SCRIPT_DIR/install_item_runner.sh"
 
 # Test Scripts Selector (input-based: type a number or name fragment, first match runs)
 
@@ -9,39 +10,9 @@ source "$SCRIPT_DIR/gvar_common.sh"
 TEST_SELECTOR_INPUT=""
 TEST_SELECTOR_MATCHED_SCRIPT=""
 
-# Get install_shells directory path
-get_install_shells_dir() {
-    local script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-    local shells_dir="$(dirname "$script_dir")"
-    echo "$shells_dir/debian/install_shells"
-}
-
-# Get sorted list of install_shells scripts
+# install_shells scripts in full-installation order (install_order.sh)
 get_install_scripts() {
-    local install_shells_dir=$(get_install_shells_dir)
-    local scripts=()
-    
-    if [ -d "$install_shells_dir" ]; then
-        while IFS= read -r -d $'\0' file; do
-            local filename=$(basename "$file")
-            # Extract the leading number (1_ or 100_ format)
-            if [[ $filename =~ ^([0-9]+)_ ]]; then
-                local prefix=${BASH_REMATCH[1]}
-                scripts+=("$prefix:$file")
-            fi
-        done < <(find "$install_shells_dir" -maxdepth 1 -name "*.sh" -print0)
-
-        # Sort scripts by numeric prefix
-        IFS=$'\n' sorted=($(sort -t: -k1,1n -k2,2 <<<"${scripts[*]}"))
-        unset IFS
-
-        # Extract just the file paths
-        local result=()
-        for item in "${sorted[@]}"; do
-            result+=("${item#*:}")
-        done
-        printf '%s\n' "${result[@]}"
-    fi
+    get_installation_scripts
 }
 
 show_test_scripts_context() {

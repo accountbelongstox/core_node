@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <StartupObject>DotApps.d3d4tester.Tools.RecoveryCli</StartupObject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="DNGuard_Unpacker/**/*.cs" />
+    <Compile Include="RecoveryCli.cs" />
+    <Compile Include="../../../../Services/RosbotSourceRecovery.cs" Link="RosbotSourceRecovery.cs" />
+    <Reference Include="dnlib"><HintPath>../extracted/dnlib.dll</HintPath></Reference>
+    <ProjectReference Include="../../../../../../dotcore/DotCore.Decompile/DotCore.Decompile.csproj" />
+  </ItemGroup>
+</Project>

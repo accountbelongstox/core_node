@@ -13,6 +13,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
+from pycore.pyfoundations.system_paths import get_lang_compiler_dir
 
 
 def get_windows_version():
@@ -77,7 +78,7 @@ USER_DESKTOP = USER_HOME / "Desktop"
 PUBLIC_DESKTOP = Path("C:/Users/Public/Desktop")
 
 # Development directory (based on Windows version)
-DEV_DIRECTORY = Path(f"D:/.dev_{WINDOWS_VERSION}")
+DEV_DIRECTORY = get_lang_compiler_dir()
 
 # Directory configuration with scan depth and options
 DIRECTORY_CONFIG = {
@@ -182,7 +183,7 @@ DIRECTORY_CONFIG = {
         'path': str(DEV_DIRECTORY),
         'scan_depth': 1,
         'ignore_history': True,
-        'description': f'D:\\.dev_{WINDOWS_VERSION}'
+        'description': str(DEV_DIRECTORY)
     }
 }
 

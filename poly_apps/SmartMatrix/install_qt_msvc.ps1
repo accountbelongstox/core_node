@@ -2,9 +2,14 @@
 # This script downloads and installs Qt 6.9.3 with MSVC 2022 64-bit support
 
 param(
-    [string]$QtInstallPath = "D:\.dev_win11\Qt",
+    [string]$QtInstallPath = "",
     [switch]$Force = $false
 )
+
+$globalVarsPath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "scripts\shells\win\win_common\GlobalVars.ps1"
+. $globalVarsPath
+Set-StrictMode -Off
+if (-not $QtInstallPath) { $QtInstallPath = $Global:QT_INSTALL_BASE_DIR }
 
 Write-Host "=== Qt 6.9.3 MSVC 2022 64-bit Installation Script ===" -ForegroundColor Green
 

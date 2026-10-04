@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from pycore.pyfoundations.pygvar import IS_WINDOWS, IS_LINUX, IS_MAC, SYSTEM_NAME, SYSTEM_VERSION
+from pycore.pyfoundations.pygvar import APPLICATIONS_DIR, IS_WINDOWS, IS_LINUX, IS_MAC, SYSTEM_NAME, SYSTEM_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +164,7 @@ class OSDetector:
 
         if self.os_info.is_windows10 or self.os_info.is_windows11:
             paths['dev_environments'] = [
-                r'D:\applications',
+                APPLICATIONS_DIR,
                 r'D:\lang_compiler',
                 os.path.join(os.environ.get('USERPROFILE', ''), '.config'),
                 os.path.join(os.environ.get('USERPROFILE', ''), '.ssh'),

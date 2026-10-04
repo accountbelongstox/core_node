@@ -3,7 +3,14 @@
 # Requires python with pymupdf installed (already on this system).
 # Read-only of system state; only causes ~30s of GPU work.
 
-param([string]$PythonExe = 'D:\.dev_win10\python311\python.exe')
+param([string]$PythonExe = '')
+
+$globalVarsPath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'shells\win\win_common\GlobalVars.ps1'
+$callerErrorAction = $ErrorActionPreference
+. $globalVarsPath
+$ErrorActionPreference = $callerErrorAction
+Set-StrictMode -Off
+if (-not $PythonExe) { $PythonExe = Join-Path $Global:LANG_COMPILER_DIR 'python311\python.exe' }
 
 if (-not (Test-Path $PythonExe)) {
   Write-Host "python not found at $PythonExe; pass -PythonExe <path>" -ForegroundColor Yellow

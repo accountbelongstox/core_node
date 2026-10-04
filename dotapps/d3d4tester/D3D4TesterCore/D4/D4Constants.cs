@@ -170,9 +170,6 @@ public static class D4Constants
     public const int TeamFormationRowDelayMaxMs = 200;
     public const int TypeCharDelayMinMs = 50;
     public const int TypeCharDelayMaxMs = 100;
-
-    /// <summary>Delay between clicking the D4 tab and the Play button in Battle.net (Python never wired this flow).</summary>
-    public const int BattlenetTabToPlayDelayMs = 1000;
 }
 
 /// <summary>D4 event keys (D4_EVENT_KEYS). Consumed by the D4 event manager.</summary>

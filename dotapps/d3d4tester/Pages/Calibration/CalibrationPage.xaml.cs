@@ -640,8 +640,31 @@ public partial class CalibrationPage : UserControl
             return;
         }
         AppendLog(T(I18nKeys.CoordCalYoloFlowPrepareOk) + msg);
-        var (started, trainMsg, _) = YoloTrainFlow.Flow6StartTrain(yamlPath);
+        var (started, trainMsg, process) = YoloTrainFlow.Flow6StartTrain(yamlPath);
         AppendLog((started ? T(I18nKeys.CoordCalYoloFlowTrainStarted) : T(I18nKeys.CoordCalYoloFlowTrainFailed)) + trainMsg);
+        if (started && process != null)
+            await ExportOnnxAfterTrainingAsync(process, segment);
+    }
+
+    /// <summary>Step 7: when training exits successfully, export the newest best.pt under the segment to best.onnx (town navigation model).</summary>
+    private async Task ExportOnnxAfterTrainingAsync(System.Diagnostics.Process trainProcess, string segment)
+    {
+        await trainProcess.WaitForExitAsync();
+        if (trainProcess.ExitCode != 0) return;
+        var weights = YoloTrainFlow.FindLatestFile(segment, YoloTrainFlow.TrainedWeightsFileName);
+        if (weights == null)
+        {
+            AppendLog(T(I18nKeys.CoordCalYoloFlowExportFailed) + YoloTrainFlow.TrainedWeightsFileName);
+            return;
+        }
+        var (ok, msg, export) = YoloTrainFlow.Flow7ExportOnnx(weights);
+        AppendLog((ok ? T(I18nKeys.CoordCalYoloFlowExportStarted) : T(I18nKeys.CoordCalYoloFlowExportFailed)) + msg);
+        if (!ok || export == null) return;
+        await export.WaitForExitAsync();
+        var onnx = Path.ChangeExtension(weights, ".onnx");
+        AppendLog(export.ExitCode == 0 && File.Exists(onnx)
+            ? T(I18nKeys.CoordCalYoloFlowExportDone) + onnx
+            : T(I18nKeys.CoordCalYoloFlowExportFailed) + export.ExitCode);
     }
 
     /// <summary>Record-log button: step 2 export latest segment frames. 1:1 _on_flow2_export_frames.</summary>

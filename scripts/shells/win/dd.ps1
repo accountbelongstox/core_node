@@ -740,7 +740,7 @@ function Show-InstallerSubMenu {
             Text = "Run DevInstaller";
             Values = @("default");
             CurrentValueIndex = 0;
-            Key = "INSTALL_TYPE";
+            Key = $null;
             Action = {
                 $installType = $subItems[0].Values[$subItems[0].CurrentValueIndex]
                 Write-ColorMessage -Message "Installation type set to: $installType" -Type "Info"
@@ -754,7 +754,7 @@ function Show-InstallerSubMenu {
             Text = "Run TestInstaller (select a step)";
             Values = @("default");
             CurrentValueIndex = 0;
-            Key = "SELECTED_TEST_STEP";
+            Key = $null;
             Action = {
                 & $script:LOCAL_TEST_INSTALLER_SCRIPT
             }

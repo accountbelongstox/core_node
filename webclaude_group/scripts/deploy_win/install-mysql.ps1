@@ -23,6 +23,12 @@ param(
 Set-StrictMode -Version Latest
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$CoreNodeRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptDir))
+$GlobalVarsPath = Join-Path $CoreNodeRoot "scripts\shells\win\win_common\GlobalVars.ps1"
+$WindowsPathFunctionPath = Join-Path $CoreNodeRoot "scripts\shells\win\win_common\WindowsPathFunction.ps1"
+$CallerErrorAction = $ErrorActionPreference
+. $GlobalVarsPath
+$ErrorActionPreference = $CallerErrorAction
 if (-not $RepoRoot) { $RepoRoot = $env:WEBCLAUDE_SERVICE_ROOT }
 if (-not $RepoRoot -or -not (Test-Path -LiteralPath $RepoRoot)) {
     Write-Host "  [FAIL] Pass -RepoRoot <service-repo> or set WEBCLAUDE_SERVICE_ROOT (directory with .env / .env.example)." -ForegroundColor Red
@@ -32,10 +38,10 @@ $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $MigrationsDir = Join-Path $RepoRoot "scripts\migrations"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Constants - fixed install root (D:\.dev_win10\mysql, same convention on Win10/11)
+# Constants - install root (<LANG_COMPILER_DIR>\mysql, same convention on Win10/11)
 # ═══════════════════════════════════════════════════════════════════════════════
 $MYSQL_VERSION = "8.0.45"
-$DEV_WIN_ROOT  = "D:\.dev_win10"
+$DEV_WIN_ROOT  = $Global:LANG_COMPILER_DIR
 $INSTALL_DIR   = Join-Path $DEV_WIN_ROOT "mysql"
 $DATA_DIR      = Join-Path $INSTALL_DIR "data"
 $LOGS_DIR      = Join-Path $INSTALL_DIR "logs"
@@ -251,9 +257,10 @@ function Install-Binary {
         return
     }
 
-    $tempDir = Join-Path $env:TEMP "mysql_install"
-    $zipPath = Join-Path $tempDir "mysql-${MYSQL_VERSION}-winx64.zip"
+    $tempDir = Join-Path $Global:WORK_DIR "mysql_install"
+    $zipPath = Join-Path $Global:DOWNLOADS_DIR "mysql-${MYSQL_VERSION}-winx64.zip"
     if (-not (Test-Path $tempDir)) { New-Item -ItemType Directory -Path $tempDir -Force | Out-Null }
+    if (-not (Test-Path $Global:DOWNLOADS_DIR)) { New-Item -ItemType Directory -Path $Global:DOWNLOADS_DIR -Force | Out-Null }
 
     # Download if ZIP missing or too small (partial download)
     $needDownload = $true
@@ -301,7 +308,7 @@ function Install-Binary {
     Get-ChildItem -Path $extracted.FullName | ForEach-Object {
         $dest = Join-Path $INSTALL_DIR $_.Name
         if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
-        Move-Item $_.FullName $dest
+        Copy-Item $_.FullName $dest -Recurse -Force
     }
     Remove-Item $extracted.FullName -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -775,12 +782,8 @@ CREATE TABLE IF NOT EXISTS quota_policy_subject_overrides (
 # Step 8 — PATH
 # ═══════════════════════════════════════════════════════════════════════════════
 function Add-ToPath {
-    $cur = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-    if ($cur -notlike "*$MYSQL_BIN*") {
-        [System.Environment]::SetEnvironmentVariable("Path", "$cur;$MYSQL_BIN", "Machine")
-        $env:Path = "$env:Path;$MYSQL_BIN"
-        Write-Ok "Added $MYSQL_BIN to system PATH"
-    }
+    & $WindowsPathFunctionPath add $MYSQL_BIN -SkipInit
+    Write-Ok "$MYSQL_BIN is on the system PATH"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════

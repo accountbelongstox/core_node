@@ -22,8 +22,11 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import Commander
 from pycore.pyfoundations.pybasecommon.safe_subprocess import subprocess
 from pycore.pyfoundations.pybasecommon.compute_caps import last_ort_install_ran
+from pycore.pyfoundations.program_material_dirs import program_work_env
 
 from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
+
+PIP_WORK_SUBDIR = "pip"
 
 
 def run_third_party_command(
@@ -31,6 +34,7 @@ def run_third_party_command(
     description: str = "",
     capture_output: bool = False,
     timeout: Optional[int] = None,
+    env: Optional[dict] = None,
 ) -> Optional[subprocess.CompletedProcess]:
     """
     THE SINGLE METHOD FOR ALL THIRD-PARTY SUBPROCESS EXECUTION IN THIS MODULE.
@@ -45,7 +49,7 @@ def run_third_party_command(
         else:
             ColorPrint.plain(f"Executing command: {cmd_str}")
         sys.stdout.flush()
-    return Commander.run_command(cmd, capture_output=capture_output, timeout=timeout)
+    return Commander.run_command(cmd, capture_output=capture_output, timeout=timeout, env=env)
 
 
 def build_pip_install_command(
@@ -78,7 +82,7 @@ def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> No
     Real-time output only, no ColorPrint; success/failure is entirely determined by pip.
     Every pip install (torch, deps, pip upgrade, optional packages) must call this only.
     """
-    run_third_party_command(pip_cmd)
+    run_third_party_command(pip_cmd, env=program_work_env(PIP_WORK_SUBDIR))
 
 
 def run_command_with_realtime_output(cmd: list, description: str = "") -> None:

@@ -14,6 +14,7 @@ namespace DotApps.d3d4tester.Services;
 /// <summary>
 /// Smart Echo: one trigger (log "Picking end" + lookback contains Echoing Fury) -> one F7 pause; OCR tick on TickDriver (tick % 3):
 /// activate D3, capture, crop middle 30 % / upper half, OCR; no CJK and no digit -> resume. 60 s timeout -> resume.
+/// OCR checks start after rosbot.smart_echo_wait_seconds (Python bound the setting but always used 0).
 /// Resume closes the D3-must-be-launched dialog and the No items popup (then rift switch) first; resume failure -> extension ROSBOT start.
 /// 1:1 Python d3utils/smart_echo.py.
 /// </summary>
@@ -28,6 +29,7 @@ public static class RosbotSmartEchoCoordinator
     private static bool _resumePending;
     private static bool _ocrResumeScheduled;
     private static DateTime _endUtc;
+    private static DateTime _ocrStartUtc;
 
     public static void Shutdown()
     {
@@ -76,8 +78,15 @@ public static class RosbotSmartEchoCoordinator
             return;
         }
         ColorPrinter.Green($"{LogPrefix} Smart pause ROSBOT to prevent game exit.");
-        DateTime end = DateTime.UtcNow.AddSeconds(RosbotLogConstants.SmartEchoOcrMaxSeconds);
-        lock (Sync) _endUtc = end;
+        int waitSec = Math.Max(0, ConfigOptionsProvider.GetOptions<RosbotOptions>().SmartEchoWaitSeconds);
+        DateTime start = DateTime.UtcNow.AddSeconds(waitSec);
+        DateTime end = start.AddSeconds(RosbotLogConstants.SmartEchoOcrMaxSeconds);
+        lock (Sync)
+        {
+            _ocrStartUtc = start;
+            _endUtc = end;
+        }
+        ColorPrinter.Gray($"{LogPrefix} OCR resume checks start in {waitSec}s");
         TickDriver.Instance.RegisterSmartEcho(SmartEchoTick);
         Task.Run(() => CaptureTick(end));
     }
@@ -97,11 +106,14 @@ public static class RosbotSmartEchoCoordinator
     /// <summary>OCR the game region; no CJK and no digit -> resume; timeout -> resume. 1:1 Python _smart_echo_capture_tick.</summary>
     private static void CaptureTick(DateTime endUtc)
     {
+        DateTime startUtc;
+        lock (Sync) startUtc = _ocrStartUtc;
+        if (DateTime.UtcNow < startUtc) return;
         if (DateTime.UtcNow >= endUtc)
         {
             if (TryMarkResumeScheduled())
             {
-                ColorPrinter.Yellow($"{LogPrefix} OCR tick timeout (60s), resume now.");
+                ColorPrinter.Yellow($"{LogPrefix} OCR tick timeout ({RosbotLogConstants.SmartEchoOcrMaxSeconds:0}s), resume now.");
                 ScheduleResume();
             }
             return;

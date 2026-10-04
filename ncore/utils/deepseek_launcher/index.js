@@ -166,13 +166,13 @@ class DeepSeekLauncher {
 
         const instructions = {
             windows: {
-                scriptPath: path.join(shellsDir, 'win', 'install_powershells', 'Step95_InstallDeepSeek.ps1'),
-                command: '.\\Step95_InstallDeepSeek.ps1',
+                scriptPath: path.join(shellsDir, 'win', 'install_powershells', 'Model_DeepSeek.ps1'),
+                command: '.\\Model_DeepSeek.ps1',
                 workingDirectory: path.join(shellsDir, 'win', 'install_powershells')
             },
             linux: {
-                scriptPath: path.join(shellsDir, 'linux', 'debian', 'install_shells', '95_install_deepseek.sh'),
-                command: './95_install_deepseek.sh',
+                scriptPath: path.join(shellsDir, 'linux', 'debian', 'install_shells', '105_install_deepseek.sh'),
+                command: './105_install_deepseek.sh',
                 workingDirectory: path.join(shellsDir, 'linux', 'debian', 'install_shells')
             },
             manual: {

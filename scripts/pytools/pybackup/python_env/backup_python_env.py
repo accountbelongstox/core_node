@@ -13,7 +13,7 @@ PURPOSE
 WHAT IS BACKED UP (the three source roots)
     1. python_runtime  - the ACTUAL Python install directory, i.e. the parent
                           folder of the running interpreter (Path(sys.executable)
-                          .parent, e.g. "D:\\.dev_win10\\python311"). This holds
+                          .parent, e.g. "<LANG_COMPILER_DIR>\\python311"). This holds
                           python.exe / python3, the standard library and every
                           installed site-packages distribution (faster-whisper,
                           edge-tts, sherpa-onnx, torch + CUDA libs, ...).
@@ -96,7 +96,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from pycore.pyfoundations.program_material_dirs import make_program_work_dir
 from pycore.pyfoundations.system_paths import get_system_cache_dir, get_xdg_cache_home
+
+RESTORE_STAGING_PREFIX = "restore_staging_"
 
 
 # --------------------------------------------------------------------------- #
@@ -514,10 +517,9 @@ class PythonEnvBackup:
         if not self._confirm(
                 f"\n Restore from archive '{archive}'?", default_yes=False):
             return 0
-        staging = archive.parent / f".restore_staging_{int(time.time())}"
+        staging = make_program_work_dir(RESTORE_STAGING_PREFIX)
         info(f" Extracting to staging: {staging}")
         try:
-            os.makedirs(staging, exist_ok=True)
             with tarfile.open(archive, "r:*") as tar:
                 try:
                     tar.extractall(staging, filter='data')  # safe extraction (Py 3.12+); future-proofs Py 3.14

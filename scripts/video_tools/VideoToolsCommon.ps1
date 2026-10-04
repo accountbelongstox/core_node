@@ -6,16 +6,23 @@
 $script:VIDEO_TOOLS_FFMPEG_EXE = 'ffmpeg.exe'
 $script:VIDEO_TOOLS_FFPROBE_EXE = 'ffprobe.exe'
 $script:VIDEO_TOOLS_FFMPEG_APP_DIR = 'FFmpeg'
-$script:VIDEO_TOOLS_LEGACY_APP_DIR = 'D:\applications'
+$script:VIDEO_TOOLS_GLOBAL_VARS_PS1 = Join-Path (Join-Path (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'shells') 'win') 'win_common') 'GlobalVars.ps1'
 $script:VIDEO_TOOLS_FFMPEG_FALLBACKS = @(
     (Join-Path (Join-Path $env:ProgramFiles 'ffmpeg') 'bin'),
     (Join-Path (Join-Path $env:USERPROFILE 'scoop') 'shims')
 )
 
+function Import-VideoToolsGlobalVars {
+    if (-not ((Test-Path Variable:Global:APP_INSTALL_DIR) -and $Global:APP_INSTALL_DIR)) {
+        . $script:VIDEO_TOOLS_GLOBAL_VARS_PS1
+    }
+}
+
 function Get-FfmpegInstallRoots {
+    Import-VideoToolsGlobalVars
     $appRoots = @(
-        if ((Test-Path Variable:Global:APP_INSTALL_DIR) -and $Global:APP_INSTALL_DIR) { $Global:APP_INSTALL_DIR }
-        $script:VIDEO_TOOLS_LEGACY_APP_DIR
+        $Global:APP_INSTALL_DIR
+        if (Test-Path Variable:Global:CN_LEGACY_APP_ROOT) { $Global:CN_LEGACY_APP_ROOT }
     )
     foreach ($appRoot in ($appRoots | Select-Object -Unique)) {
         $ffmpegRoot = Join-Path $appRoot $script:VIDEO_TOOLS_FFMPEG_APP_DIR

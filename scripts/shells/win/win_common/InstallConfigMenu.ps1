@@ -1,11 +1,8 @@
 # Installation configuration editor + "Confirm Configuration" screen (caller: dd.ps1 Show-InstallerSubMenu); mirrors Linux selector_common.sh.
 $INSTALL_CONFIG_MENU_DIR = Split-Path -Parent $PSCommandPath
 $INSTALL_CONFIG_AUTO_START_SECONDS = 10
-$INSTALL_CONFIG_MODE_VAR = 'INSTALL_TYPE'
 $INSTALL_CONFIG_NOT_APPLICABLE = @(
-    @{ Key = 'G'; Title = 'Install Gitea (Git Service)' },
-    @{ Key = 'T'; Title = 'Mesh VPN After Installation' },
-    @{ Key = 'C'; Title = 'Set Cloud Provider' }
+    @{ Key = 'G'; Title = 'Install Gitea (Git Service)' }
 )
 $INSTALL_CONFIG_PROMPT = 'Enter=Start full installation, 1-{0} or item key (e.g. R)=run only that item, B=Go back to edit, Q=Quit without saving'
 $INSTALL_CONFIG_NOT_APPLICABLE_TEXT = 'not applicable on Windows'
@@ -51,38 +48,24 @@ function Read-InstallConfigChoice {
     }
 }
 
-function Get-InstallConfigMode {
-    param([array]$Items)
-    $modeItem = $Items | Where-Object { $_.Var -eq $INSTALL_CONFIG_MODE_VAR } | Select-Object -First 1
-    $mode = Get-GlobalVar -key $INSTALL_CONFIG_MODE_VAR
-    if ($modeItem -and @($modeItem.Values) -notcontains $mode) { $mode = @($modeItem.Values)[0] }
-    return $mode
-}
-
-function Get-InstallItemPreset {
-    param([hashtable]$Item, [string]$Mode)
-    if ($Item.ContainsKey('Presets') -and $Item.Presets.ContainsKey($Mode)) { return $Item.Presets[$Mode] }
-    return @($Item.Values)[0]
-}
-
-function Get-InstallItemValue {
-    param([hashtable]$Item, [array]$Items)
-    $value = Get-GlobalVar -key $Item.Var
-    if (@($Item.Values) -notcontains $value) {
-        if ($Item.Var -eq $INSTALL_CONFIG_MODE_VAR) { return (Get-InstallConfigMode -Items $Items) }
-        $value = Get-InstallItemPreset -Item $Item -Mode (Get-InstallConfigMode -Items $Items)
+# An item Setter (e.g. Set-DatabaseEngine) also writes the value's mirror keys (Linux sync_database_engine)
+function Save-InstallItemValue {
+    param([hashtable]$Item, [string]$Value)
+    if ($Item.ContainsKey('Setter')) {
+        & $Item.Setter $Value | Out-Null
+        return
     }
-    return $value
+    Set-GlobalVar -key $Item.Var -value $Value | Out-Null
 }
 
 # Switching the mode resets every item that has presets to that mode's preset (Linux reset_to_mode_defaults)
 function Set-InstallConfigValue {
     param([hashtable]$Item, [string]$Value, [array]$Items)
-    Set-GlobalVar -key $Item.Var -value $Value | Out-Null
-    if ($Item.Var -ne $INSTALL_CONFIG_MODE_VAR) { return }
+    Save-InstallItemValue -Item $Item -Value $Value
+    if ($Item.Var -ne $INSTALL_ITEM_MODE_VAR) { return }
     foreach ($other in $Items) {
         if ($other.ContainsKey('Presets') -and $other.Presets.ContainsKey($Value)) {
-            Set-GlobalVar -key $other.Var -value $other.Presets[$Value] | Out-Null
+            Save-InstallItemValue -Item $other -Value $other.Presets[$Value]
         }
     }
 }
@@ -115,6 +98,14 @@ function Write-InstallConfigEditor {
     }
     foreach ($na in $INSTALL_CONFIG_NOT_APPLICABLE) {
         Write-Host ("  [{0}] {1,-36} {2}" -f $na.Key, $na.Title, $INSTALL_CONFIG_NOT_APPLICABLE_TEXT) -ForegroundColor DarkGray
+    }
+}
+
+# Persist every shown value before installing so the steps read what the menu showed (Linux save_configuration)
+function Save-InstallConfiguration {
+    param([array]$Items)
+    foreach ($item in $Items) {
+        Save-InstallItemValue -Item $item -Value (Get-InstallItemValue -Item $item -Items $Items)
     }
 }
 
@@ -154,9 +145,14 @@ function Show-InstallConfirmMenu {
         foreach ($na in $INSTALL_CONFIG_NOT_APPLICABLE) {
             Write-Host ("      [{0}] {1,-36} {2}" -f $na.Key, $na.Title, $INSTALL_CONFIG_NOT_APPLICABLE_TEXT) -ForegroundColor DarkGray
         }
+        if (Get-Command Get-CnProgramDriveStatus -ErrorAction SilentlyContinue) {
+            $programDriveStatus = Get-CnProgramDriveStatus
+            Write-Host ("      {0}" -f $programDriveStatus.Text) -ForegroundColor $programDriveStatus.Color
+        }
 
         $choice = (Read-InstallConfigChoice -TimeoutSeconds $INSTALL_CONFIG_AUTO_START_SECONDS -ItemCount $items.Count).Trim()
         if ($choice -eq '') {
+            Save-InstallConfiguration -Items $items
             Set-GlobalVar -key $INSTALL_ITEM_SELECTED_ITEM_VAR -value '' | Out-Null
             return $true
         }
@@ -174,6 +170,7 @@ function Show-InstallConfirmMenu {
             foreach ($item in $items) { if ($item.Key -ieq $choice) { $picked = $item; break } }
         }
         if ($picked) {
+            Save-InstallConfiguration -Items $items
             Set-GlobalVar -key $INSTALL_ITEM_SELECTED_ITEM_VAR -value $picked.Id | Out-Null
             return $true
         }

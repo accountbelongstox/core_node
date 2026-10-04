@@ -16,7 +16,7 @@ LLM_ENTRIES = (
         "ollama", CATEGORY_LLM, RUNTIME_SERVER,
         note="Ollama local server (managed: auto-start via `ollama serve`)",
         managed_kind="server", concurrency="server",
-        installer="Step66_InstallOllama.ps1 / 117_install_ollama.sh",
+        installer="Model_Ollama.ps1 / 117_install_ollama.sh",
     ),
     ModelEntry(
         "lmstudio", CATEGORY_LLM, RUNTIME_SERVER,

@@ -6,15 +6,18 @@ param(
     [string]$CurrentWSLVersion,
     
     [Parameter(Mandatory=$true)]
-    [string]$Step80ScriptPath
+    [string]$WslInstallScriptPath
 )
 
 # Declare all variables at the beginning
 $ErrorActionPreference = "Stop"
+# wsl.exe writes UTF-16 unless WSL_UTF8 is set; Invoke-WslText also strips the NULs older builds still emit.
+$env:WSL_UTF8 = '1'
 $script:UpgradeRequired = $false
 $script:RestartRequired = $false
 $script:StartupScriptPath = ""
 $script:StartupScriptName = "ContinueWSLInstallation.ps1"
+$script:StartupLauncherName = "ContinueWSLInstallation.cmd"
 $script:UpgradeStage = 0
 $script:MaxUpgradeStages = 5
 $script:UpgradeHistory = @()
@@ -126,6 +129,13 @@ function Enable-WSLFeature {
     }
 }
 
+function Invoke-WslText {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    # Function-scoped: wsl.exe writes informational text on stderr.
+    $ErrorActionPreference = 'Continue'
+    return (((& wsl.exe @Arguments 2>&1) | Out-String) -replace "`0", '')
+}
+
 function Get-WSLStatusValue {
     param(
         [Parameter(Mandatory = $true)][object[]]$Lines,
@@ -143,8 +153,9 @@ function Get-WSLStatusValue {
 
 function Get-WSLVersionInfo {
     try {
-        $wslStatus = & wsl --status 2>&1
-        if (-not ("$wslStatus").Contains('not installed')) {
+        $wslStatus = @((Invoke-WslText @('--status')) -split "`r?`n")
+        $wslVersionLines = @((Invoke-WslText @('--version')) -split "`r?`n")
+        if (-not ($wslStatus -join "`n").Contains('not installed')) {
             # Extract version information
             $versionInfo = @{
                 IsInstalled = $true
@@ -153,9 +164,9 @@ function Get-WSLVersionInfo {
                 WSLVersion = "Unknown"
             }
             
-            $versionInfo.DefaultVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'Default Version:'
-            $versionInfo.WSLVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'WSL version:'
-            $versionInfo.KernelVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'Default kernel version:'
+            $versionInfo.DefaultVersion = Get-WSLStatusValue -Lines $wslStatus -Label 'Default Version:'
+            $versionInfo.WSLVersion = Get-WSLStatusValue -Lines $wslVersionLines -Label 'WSL version:'
+            $versionInfo.KernelVersion = Get-WSLStatusValue -Lines $wslVersionLines -Label 'Kernel version:'
             
             return $versionInfo
         } else {
@@ -180,26 +191,15 @@ function Test-WSLUpdateAvailable {
     try {
         Write-ColorMessage -Message "[WSL Upgrade] Checking for WSL updates..." -Type "Info"
         
-        # Check if wsl --update is available and if there are updates
-        $updateCheck = & wsl --update --dry-run 2>&1
-        if ($updateCheck -match "No updates available" -or $updateCheck -match "already up to date") {
-            Write-ColorMessage -Message "[WSL Upgrade] WSL is already up to date." -Type "Success"
+        # wsl --update has no dry-run: it updates in place and is a no-op when already current.
+        $updateCheck = Invoke-WslText @('--update')
+        $wslStatusAfterUpdate = Invoke-WslText @('--status')
+        if ($wslStatusAfterUpdate -notmatch "not installed") {
+            Write-ColorMessage -Message "[WSL Upgrade] WSL update completed: $($updateCheck.Trim())" -Type "Success"
             return $false
-        } elseif ("$updateCheck" -match "update|download|install|available") {
-            Write-ColorMessage -Message "[WSL Upgrade] WSL updates are available." -Type "Warning"
-            return $true
-        } else {
-            # If --dry-run is not supported, try regular update check
-            $updateCheck = & wsl --update 2>&1
-            $wslStatusAfterUpdate = & wsl --status 2>&1
-            if ("$wslStatusAfterUpdate" -notmatch "not installed") {
-                Write-ColorMessage -Message "[WSL Upgrade] WSL update completed." -Type "Success"
-                return $false
-            } else {
-                Write-ColorMessage -Message "[WSL Upgrade] WSL update failed or not available." -Type "Warning"
-                return $true
-            }
         }
+        Write-ColorMessage -Message "[WSL Upgrade] WSL update failed or not available: $($updateCheck.Trim())" -Type "Warning"
+        return $true
     } catch {
         Write-ColorMessage -Message "[WSL Upgrade] Error checking WSL updates: $_" -Type "Warning"
         return $true
@@ -282,10 +282,10 @@ function Update-WSLKernel {
     try {
         # Try wsl --update first (preferred method for newer systems)
         Write-ColorMessage -Message "[WSL Upgrade] Running: wsl --update" -Type "Info"
-        $updateResult = & wsl --update 2>&1
-        $wslStatusAfterUpdate = & wsl --status 2>&1
+        $updateResult = Invoke-WslText @('--update')
+        $wslStatusAfterUpdate = Invoke-WslText @('--status')
 
-        if ("$wslStatusAfterUpdate" -notmatch "not installed") {
+        if ($wslStatusAfterUpdate -notmatch "not installed") {
             Write-ColorMessage -Message "[WSL Upgrade] WSL kernel updated successfully using wsl --update." -Type "Success"
             Write-ColorMessage -Message "[WSL Upgrade] Update output: $updateResult" -Type "Info"
             return $true
@@ -310,7 +310,7 @@ function Download-WSLUpdate {
             "https://github.com/microsoft/WSL/releases/latest/download/wsl_update_x64.msi"
         )
         
-        $tempDir = $env:TEMP
+        $tempDir = $Global:DOWNLOADS_DIR
         $wslUpdatePath = Join-Path $tempDir "wsl_update_x64.msi"
         
         foreach ($wslUpdateUrl in $downloadUrls) {
@@ -319,7 +319,7 @@ function Download-WSLUpdate {
                 Write-ColorMessage -Message "[WSL Upgrade] Saving to: $wslUpdatePath" -Type "Info"
                 
                 # Download WSL update
-                Invoke-WebRequest -Uri $wslUpdateUrl -OutFile $wslUpdatePath -UseBasicParsing -TimeoutSec 30
+                Get-FileWithSizeCheck -localPath $wslUpdatePath -remoteUrl $wslUpdateUrl -description "WSL update" | Out-Null
                 if (Test-Path $wslUpdatePath) {
                     $fileSize = (Get-Item $wslUpdatePath).Length
                     if ($fileSize -gt 1024) {  # Check if file is not empty
@@ -366,8 +366,8 @@ function Install-WSLUpdate {
         Write-ColorMessage -Message "[WSL Upgrade] Running: msiexec.exe $($installArgs -join ' ')" -Type "Info"
         $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $installArgs -Wait -PassThru
 
-        $wslStatusAfterMsi = & wsl --status 2>&1
-        if ("$wslStatusAfterMsi" -notmatch "not installed") {
+        $wslStatusAfterMsi = Invoke-WslText @('--status')
+        if ($wslStatusAfterMsi -notmatch "not installed") {
             Write-ColorMessage -Message "[WSL Upgrade] WSL update installed successfully." -Type "Success"
             return $true
         } else {
@@ -381,15 +381,17 @@ function Install-WSLUpdate {
 }
 
 function Create-StartupScript {
-    param([string]$Step80ScriptPath)
+    param([string]$WslInstallScriptPath)
     
     Write-ColorMessage -Message "[WSL Upgrade] Creating startup script for post-restart installation..." -Type "Info"
     
     try {
-        # Get startup directory
+        # The continuation script lives in the cache dir (where Wsl_Install.ps1 looks for it); the Startup
+        # folder gets a .cmd launcher, because Windows opens a .ps1 there in an editor instead of running it.
         $startupDir = [Environment]::GetFolderPath("Startup")
-        $script:StartupScriptPath = Join-Path $startupDir $script:StartupScriptName
-        
+        $script:StartupScriptPath = Join-Path $Global:USER_CACHE_DIR $script:StartupScriptName
+        $startupLauncherPath = Join-Path $startupDir $script:StartupLauncherName
+
         # Create startup script content
         $startupScriptContent = @"
 # Auto-generated startup script for WSL multi-stage installation continuation
@@ -421,12 +423,13 @@ Write-Host "Press Y to continue WSL installation, or any other key to skip:" -Fo
 if (`$userInput -eq "Y" -or `$userInput -eq "y") {
     Write-Host "Continuing WSL installation..." -ForegroundColor Green
     
-    # Execute Step80 script
+    # Execute the WSL install component again
     try {
-        & "$Step80ScriptPath"
-        `$wslStatusAfterStep = wsl --status 2>&1
+        & "$WslInstallScriptPath"
+        `$env:WSL_UTF8 = '1'
+        `$wslStatusAfterStep = ((wsl.exe --status 2>&1) | Out-String) -replace "``0", ''
 
-        if ("`$wslStatusAfterStep" -notmatch "not installed") {
+        if (`$wslStatusAfterStep -notmatch "not installed") {
             Write-Host "WSL installation completed successfully!" -ForegroundColor Green
             
             # Check if upgrade state should be cleared
@@ -454,14 +457,13 @@ if (`$userInput -eq "Y" -or `$userInput -eq "y") {
     Write-Host "Upgrade state preserved for manual continuation." -ForegroundColor Yellow
 }
 
-# Clean up: Remove this startup script
+# Clean up: Remove this script and its Startup launcher
 Write-Host "Cleaning up startup script..." -ForegroundColor Cyan
 try {
-    `$currentScriptPath = `$MyInvocation.MyCommand.Path
-    if (Test-Path `$currentScriptPath) {
-        Remove-Item `$currentScriptPath -Force
-        Write-Host "Startup script removed successfully." -ForegroundColor Green
+    foreach (`$cleanupPath in @(`$MyInvocation.MyCommand.Path, "$startupLauncherPath")) {
+        if (Test-Path `$cleanupPath) { Remove-Item `$cleanupPath -Force }
     }
+    Write-Host "Startup script removed successfully." -ForegroundColor Green
 } catch {
     Write-Host "Warning: Could not remove startup script: `$_" -ForegroundColor Yellow
 }
@@ -469,10 +471,12 @@ try {
 Write-Host "=== WSL Installation Continuation Complete ===" -ForegroundColor Cyan
 "@
 
-        # Write startup script
+        # Write the continuation script and its Startup launcher
+        if (-not (Test-Path $Global:USER_CACHE_DIR)) { New-Item -ItemType Directory -Path $Global:USER_CACHE_DIR -Force | Out-Null }
         Set-Content -Path $script:StartupScriptPath -Value $startupScriptContent -Encoding UTF8
-        
-        if (Test-Path $script:StartupScriptPath) {
+        Set-Content -Path $startupLauncherPath -Value ('@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $script:StartupScriptPath) -Encoding ASCII
+
+        if ((Test-Path $script:StartupScriptPath) -and (Test-Path $startupLauncherPath)) {
             Write-ColorMessage -Message "[WSL Upgrade] Startup script created: $script:StartupScriptPath" -Type "Success"
             return $true
         } else {
@@ -518,7 +522,7 @@ function Process-WSLUpgrade {
     param(
         [hashtable]$WindowsVersion,
         [string]$CurrentWSLVersion,
-        [string]$Step80ScriptPath
+        [string]$WslInstallScriptPath
     )
     
     Write-ColorMessage -Message "[WSL Upgrade] Starting multi-stage WSL upgrade process..." -Type "Info"
@@ -569,7 +573,7 @@ function Process-WSLUpgrade {
         if ($restartNeeded) {
             Write-ColorMessage -Message "[WSL Upgrade] Stage 0 completed. Restart required for feature changes." -Type "Warning"
             Set-UpgradeStage 1 "Restart for Features" "Pending"
-            Create-StartupScript -Step80ScriptPath $Step80ScriptPath
+            Create-StartupScript -WslInstallScriptPath $WslInstallScriptPath
             Request-SystemRestart
             return $true
         } else {
@@ -580,7 +584,7 @@ function Process-WSLUpgrade {
     }
     
     # Stage 1: Install or update WSL
-    if ($currentStage -eq 1) {
+    if ($script:UpgradeStage -eq 1) {
         Write-ColorMessage -Message "[WSL Upgrade] Stage 1: Install or update WSL" -Type "Info"
         
         if (-not $wslInfo.IsInstalled) {
@@ -589,8 +593,8 @@ function Process-WSLUpgrade {
             # Try wsl --install first
             try {
                 & wsl --install --no-distribution
-                $wslStatusAfterInstall = & wsl --status 2>&1
-                if ("$wslStatusAfterInstall" -notmatch "not installed") {
+                $wslStatusAfterInstall = Invoke-WslText @('--status')
+                if ($wslStatusAfterInstall -notmatch "not installed") {
                     Write-ColorMessage -Message "[WSL Upgrade] WSL installed successfully using wsl --install." -Type "Success"
                     Set-UpgradeStage 2 "Install WSL" "Success"
                 } else {
@@ -621,7 +625,7 @@ function Process-WSLUpgrade {
     }
     
     # Stage 2: Upgrade to WSL2 if needed
-    if ($currentStage -eq 2) {
+    if ($script:UpgradeStage -eq 2) {
         Write-ColorMessage -Message "[WSL Upgrade] Stage 2: Upgrade to WSL2 if needed" -Type "Info"
         
         $wslInfo = Get-WSLVersionInfo
@@ -632,16 +636,16 @@ function Process-WSLUpgrade {
             # Set WSL2 as default
             try {
                 & wsl --set-default-version 2
-                $wslStatusAfterDefault = & wsl --status 2>&1
-                if (("$wslStatusAfterDefault").Contains('Default Version: 2')) {
+                $wslStatusAfterDefault = @((Invoke-WslText @('--status')) -split "`r?`n")
+                if ((Get-WSLStatusValue -Lines $wslStatusAfterDefault -Label 'Default Version:') -eq '2') {
                     Write-ColorMessage -Message "[WSL Upgrade] WSL2 set as default version." -Type "Success"
-                    
+
                     # Convert existing distributions
-                    $distributions = & wsl -l -q
+                    $distributions = @((Invoke-WslText @('-l', '-q')) -split "`r?`n")
                     foreach ($distro in $distributions) {
                         if ($distro -and $distro.Trim()) {
-                            Write-ColorMessage -Message "[WSL Upgrade] Converting '$distro' to WSL2..." -Type "Info"
-                            & wsl --set-version $distro 2
+                            Write-ColorMessage -Message "[WSL Upgrade] Converting '$($distro.Trim())' to WSL2..." -Type "Info"
+                            & wsl --set-version $distro.Trim() 2
                         }
                     }
                     
@@ -664,7 +668,7 @@ function Process-WSLUpgrade {
     }
     
     # Stage 3: Update WSL2 kernel
-    if ($currentStage -eq 3) {
+    if ($script:UpgradeStage -eq 3) {
         Write-ColorMessage -Message "[WSL Upgrade] Stage 3: Update WSL2 kernel" -Type "Info"
         
         $wslInfo = Get-WSLVersionInfo
@@ -687,7 +691,7 @@ function Process-WSLUpgrade {
     }
     
     # Stage 4: Final verification and cleanup
-    if ($currentStage -eq 4) {
+    if ($script:UpgradeStage -eq 4) {
         Write-ColorMessage -Message "[WSL Upgrade] Stage 4: Final verification and cleanup" -Type "Info"
         
         $wslInfo = Get-WSLVersionInfo
@@ -698,7 +702,6 @@ function Process-WSLUpgrade {
             
             # Clear upgrade state
             Clear-UpgradeState
-            Set-UpgradeStage 5 "Final Verification" "Complete"
             
             return $false  # Return false to continue with normal installation
         } else {
@@ -709,13 +712,13 @@ function Process-WSLUpgrade {
     }
     
     # If we reach here, we're in an unexpected stage
-    Write-ColorMessage -Message "[WSL Upgrade] Unexpected upgrade stage: $currentStage" -Type "Error"
+    Write-ColorMessage -Message "[WSL Upgrade] Unexpected upgrade stage: $($script:UpgradeStage)" -Type "Error"
     return $false
 }
 
 # Main execution
 try {
-    Process-WSLUpgrade -WindowsVersion $WindowsVersion -CurrentWSLVersion $CurrentWSLVersion -Step80ScriptPath $Step80ScriptPath
+    Process-WSLUpgrade -WindowsVersion $WindowsVersion -CurrentWSLVersion $CurrentWSLVersion -WslInstallScriptPath $WslInstallScriptPath
 } catch {
     Write-ColorMessage -Message "[WSL Upgrade] Error during upgrade process: $_" -Type "Error"
 }

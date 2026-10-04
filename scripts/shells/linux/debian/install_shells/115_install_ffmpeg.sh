@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 SCRIPT_INDEX="115"
 # ---------------------------------------------------------------------------
-# install_ffmpeg.sh - Shared prerequisite installer for the ffmpeg/ffprobe binaries.
+# 115_install_ffmpeg.sh - Shared prerequisite installer for the ffmpeg/ffprobe binaries.
 #
 # Run by prepare_pycore_prerequisites.sh before the Pycore service launches. ffmpeg (and the ffprobe it
 # bundles) are REQUIRED at run time by every audio engine pycore can use:
 #   - openai-whisper / faster-whisper decode the input audio with ffmpeg;
 #   - the TTS engines (edge-tts playback, MeloTTS, GPT-SoVITS) use it to encode /
 #     convert audio.
-# Previously install_whisper.sh only *checked* for ffmpeg and told the user to
+# Previously 127_install_whisper.sh only *checked* for ffmpeg and told the user to
 # "install it later"; this installer actually provides it so STT/TTS work out of the
 # box. ffmpeg is a runtime (not build-time) dependency, so its order among the other
 # prerequisites does not matter - it just has to be present before the service serves.
@@ -17,7 +17,7 @@ SCRIPT_INDEX="115"
 # Cross-distro: the `ffmpeg` apt package ships ffmpeg + ffprobe on Debian 11-13,
 # Ubuntu 18.04-26.04 and Kali (all from the distro's main repo).
 #
-# Usage:  ./install_ffmpeg.sh [--python <py>]
+# Usage:  ./115_install_ffmpeg.sh [--python <py>]
 #         (--python is accepted but unused: ffmpeg is a system binary, not a pip pkg.)
 # ---------------------------------------------------------------------------
 set -uo pipefail

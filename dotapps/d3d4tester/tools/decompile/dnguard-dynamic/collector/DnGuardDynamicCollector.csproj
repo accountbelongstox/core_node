@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <StartupObject>DotApps.d3d4tester.Tools.DnGuardDynamicCollector.Program</StartupObject>
+    <Platforms>x86;x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>10</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>DnGuardDynamicCollector</AssemblyName>
+    <RootNamespace>DotApps.d3d4tester.Tools.DnGuardDynamicCollector</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../../../dotcore/DotCore.Decompile.Dynamic/DotCore.Decompile.Dynamic.csproj" />
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(JitHookPath)')">
+    <None Include="$(JitHookPath)" Link="jit_hook.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

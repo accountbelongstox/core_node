@@ -4,7 +4,7 @@
     convert it to CSV, then print a quick operation summary.
 
 .DESCRIPTION
-    Headless wrapper around Procmon (installed by Step32_InstallSecurityTools).
+    Headless wrapper around Procmon (installed by BaseTools_SecurityTools, part of Step20_InstallBaseTools).
     Pre-kills any stale Procmon, runs a fixed-duration backing-file capture,
     terminates it, converts the .pml log to .csv, and prints the top operations
     (optionally filtered to a process name). Use it to see what a suspicious
@@ -29,13 +29,11 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # --- Configuration (declared at top) ----------------------------------------
+$globalVarsPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'shells\win\win_common\GlobalVars.ps1'
+. $globalVarsPath
+Set-StrictMode -Off
 $procmonName  = 'Procmon.exe'
-$candidateDirs = @(
-    (Join-Path $env:SystemDrive '.dev_win10\Sysinternals'),
-    'D:\.dev_win10\Sysinternals',
-    'D:\.dev_win11\Sysinternals',
-    'C:\.dev_win10\Sysinternals'
-)
+$candidateDirs = @($Global:SECURITY_TOOLS_INSTALL_DIR)
 $workDir   = Join-Path $env:TEMP 'seccap'
 $pmlPath   = Join-Path $workDir 'seccap.pml'
 $csvPath   = if ($OutCsv) { $OutCsv } else { Join-Path $workDir 'seccap.csv' }
@@ -60,7 +58,7 @@ function Resolve-Procmon {
 
 $procmonExe = Resolve-Procmon
 if (-not $procmonExe) {
-    Write-Line "Procmon not found. Run the installer (Step32_InstallSecurityTools) first." 'Red'
+    Write-Line "Procmon not found. Run the installer (BaseTools_SecurityTools, part of Step20_InstallBaseTools) first." 'Red'
     exit 1
 }
 if (-not $isAdmin) {

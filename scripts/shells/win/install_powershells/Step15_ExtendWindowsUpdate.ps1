@@ -177,8 +177,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows Update settings panel has been opened." -Type "Info"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Please select 'Pause updates extend for' and choose the maximum duration." -Type "Warning"
     Write-Host ""
-    Write-ColorMessage -Message "Press any key to continue after you have completed the settings..." -Type "Info"
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    $null = Invoke-TimeoutPrompt -Message "Press Enter after you have completed the settings" -DefaultValue "Y" -TimeoutSeconds 60
 
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows Update pause extension completed." -Type "Success"
 }

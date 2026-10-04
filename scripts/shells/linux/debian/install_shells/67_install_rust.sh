@@ -34,8 +34,11 @@ command_exists() {
 
 # Function to install Rust via rustup
 install_rust() {
+    local rustup_script="$SCRIPT_TEMP_DIR/rustup-init.sh"
+
     log_message "Installing Rust via rustup..."
-    
+
+    export PATH="$HOME/.cargo/bin:$PATH"
     if command_exists rustc; then
         log_message "Rust is already installed"
         rustc --version | head -1 | tee -a "$LOG_FILE"
@@ -44,7 +47,7 @@ install_rust() {
     
     # Download and run rustup installer
     log_message "Downloading rustup installer..."
-    if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; then
+    if curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs -o "$rustup_script" && sh "$rustup_script" -y; then
         # Source the cargo environment
         source "$HOME/.cargo/env" 2>/dev/null || true
         

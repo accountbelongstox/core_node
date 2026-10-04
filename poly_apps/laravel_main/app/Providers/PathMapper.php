@@ -53,9 +53,6 @@ class PathMapper
     public const UNIFIED_MANAGER_LAUNCHER_DIR_NAME = 'temp_scripts';
     public const WINDOWS_TMP_DIR_NAME = '.tmp';
     private const LEGACY_WINDOWS_PROGRAMING_USERS_SUBPATH = 'programing\\Users';
-    /** Var-center key of the program drive the Windows center selected
-     * (SharedCacheEnv.ps1 $Global:WINDOWS_PROGRAM_DRIVE_ROOT). */
-    private const WINDOWS_PROGRAM_DRIVE_VAR = 'WINDOWS_PROGRAM_DRIVE_ROOT';
 
     private static function windowsWwwBase(): string
     {
@@ -144,13 +141,8 @@ class PathMapper
         // Path separator based on OS
         $separator = $isWindows ? '\\' : '/';
 
-        // Development-tooling location (node/python/go/...): the contract
-        // drive layout's tool root. Linux is pinned to the ext4 base of
-        // drive_layout.tool_root.linux; Windows uses the recorded program
-        // drive (else drive_layout.program_drive_fallback). Mirrors
-        // gvar_storage_common.sh get_dev_compile_base and system_paths.py.
-        [$compileBase, $devSuffix] = self::getDevCompileParts($isWindows);
-        $compileDir = $compileBase . $separator . '_' . $devSuffix;
+        // Development-tooling location (node/python/go/...). See getDevCompileDir().
+        $compileDir = self::getDevCompileDir($isWindows);
 
         // Map paths - structure is the same, only base path differs
         $mappedPath = match($pathKey) {
@@ -169,10 +161,10 @@ class PathMapper
             // Linux-only machine. NOTE: getSharedDownloadCacheDir() keeps the
             // native /var/_core_node/cache for the Linux-only case.
             'cache' => $basePath . $separator . self::CACHE_DIR_NAME,
-            // Development tooling roots (node/python/go/...). See getDevCompileParts().
+            // Development tooling roots (node/python/go/...). See getDevCompileDir().
             'compile_dir' => $compileDir,
             'dev_system' => $compileDir,
-            'applications_dir' => $compileDir . $separator . 'applications',
+            'applications_dir' => $isWindows ? self::windowsProgramDir('app_root') : $compileDir . $separator . 'applications',
             'npm_global' => $compileDir . $separator . 'npm-global',
             'laravel_data_dir' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db',
             'app_external_data' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'external_data',
@@ -706,60 +698,50 @@ class PathMapper
     }
 
     /**
-     * Compute the development-tooling base directory and its naming suffix
-     * from the contract drive layout (service_contract.json#paths.drive_layout).
-     * Mirrors gvar_storage_common.sh get_dev_compile_base() and system_paths.py.
+     * Development-tooling directory (node/python/go/...).
+     * Mirrors system_paths.py get_lang_compiler_dir / map_web_path('compile_dir').
      *
-     * Linux (WSL too): always the ext4 base of drive_layout.tool_root.linux;
+     * Linux (WSL too): <ext4 base of drive_layout.tool_root.linux>/_<os>_<ver>;
      *        never the NTFS web/data base and no free-space switch.
-     * Windows: the program drive the Windows center recorded in the var
-     *        center, else drive_layout.program_drive_fallback; the drive is
-     *        never probed here. Suffix win{ver}.
-     *
-     * @return array{0:string,1:string} [base, suffix] e.g. ['D:','win10']
+     * Windows: see windowsProgramDir('tool_root').
      */
-    private static function getDevCompileParts(bool $isWindows): array
+    private static function getDevCompileDir(bool $isWindows): string
     {
-        static $parts = [];
+        static $dirs = [];
         $cacheKey = (int) $isWindows;
-        $recordedDrive = '';
-        $release = '';
-        $suffix = '';
         $sysName = '';
         $sysVersion = '';
 
-        if (isset($parts[$cacheKey])) {
-            return $parts[$cacheKey];
+        if (isset($dirs[$cacheKey])) {
+            return $dirs[$cacheKey];
         }
 
         if ($isWindows) {
-            $release = strtolower(php_uname('r'));
-            if (str_contains($release, '11')) {
-                $suffix = 'win11';
-            } elseif (str_contains($release, '10')) {
-                $suffix = 'win10';
-            } else {
-                $suffix = 'win' . $release;
-            }
-            $recordedDrive = rtrim(self::readPersistedVar(self::WINDOWS_PROGRAM_DRIVE_VAR), '/\\');
-            $parts[$cacheKey] = [
-                self::isWindowsDriveSpec($recordedDrive) ? strtoupper($recordedDrive) : ServiceContract::windowsProgramDriveFallback(),
-                $suffix,
-            ];
-            return $parts[$cacheKey];
+            $dirs[$cacheKey] = self::windowsProgramDir('tool_root');
+            return $dirs[$cacheKey];
         }
 
         [$sysName, $sysVersion] = self::getSystemNameVersion();
-        $suffix = $sysVersion !== '' ? "{$sysName}_{$sysVersion}" : $sysName;
-        $parts[$cacheKey] = [ServiceContract::linuxToolBase(), $suffix];
+        $dirs[$cacheKey] = ServiceContract::linuxToolBase() . '/_' . ($sysVersion !== '' ? "{$sysName}_{$sysVersion}" : $sysName);
 
-        return $parts[$cacheKey];
+        return $dirs[$cacheKey];
     }
 
-    /** True for a bare drive spec such as "E:". */
-    private static function isWindowsDriveSpec(string $value): bool
+    /**
+     * Live Windows program dir ($kind 'tool_root' or 'app_root'): the value
+     * Step 1 (SharedCacheEnv.ps1, the only Windows resolver) recorded under
+     * drive_layout.windows_resolved_vars, e.g. E:\core_node_compiler\_win10_compiler;
+     * before the first record, the old D: dir drive_layout.legacy_program_dirs.
+     */
+    private static function windowsProgramDir(string $kind): string
     {
-        return strlen($value) === 2 && ctype_alpha($value[0]) && $value[1] === ':';
+        $recorded = self::readPersistedVar(ServiceContract::windowsResolvedVar($kind));
+
+        if ($recorded !== '') {
+            return $recorded;
+        }
+
+        return str_replace('<sys>', strtolower(self::osVarTag()), ServiceContract::windowsLegacyProgramDir($kind));
     }
 
     /**

@@ -16,10 +16,9 @@ function Update-ProcessPathFromRegistry {
     $env:Path = $machinePath + ";" + $userPath
 }
 
+# Only `agent` counts: `cursor` is the Cursor IDE launcher, not the agent CLI.
 function Test-AgentCommandPresent {
     Update-ProcessPathFromRegistry
-    $cursorCmd = Get-Command cursor -ErrorAction SilentlyContinue
-    if ($cursorCmd) { return $true }
     $agentCmd = Get-Command agent -ErrorAction SilentlyContinue
     if ($agentCmd) { return $true }
     return $false
@@ -41,10 +40,6 @@ function Get-AgentVersion {
     Update-ProcessPathFromRegistry
     try {
         $v = & agent --version 2>&1
-        if ($v) { return ($v | Out-String).Trim() }
-    } catch { }
-    try {
-        $v = & cursor --version 2>&1
         if ($v) { return ($v | Out-String).Trim() }
     } catch { }
     return ""
@@ -91,7 +86,7 @@ function Clear-CorruptCursorAgentDownloadState {
         } catch { }
     }
 
-    $tempRoot = $env:TEMP
+    $tempRoot = $Global:WORK_DIR
     if (-not [string]::IsNullOrWhiteSpace($tempRoot) -and (Test-Path -LiteralPath $tempRoot -PathType Container)) {
         try {
             $zipCandidates = Get-ChildItem -LiteralPath $tempRoot -Filter "*cursor*agent*.zip" -File -ErrorAction SilentlyContinue
@@ -113,6 +108,8 @@ function Install-CursorAgentCliWithRetry {
 
     $attempt = 0
     $lastError = ""
+    $previousTemp = $null
+    $previousTmp = $null
     while ($attempt -lt $MaxAttempts) {
         $attempt = $attempt + 1
         try {
@@ -120,18 +117,34 @@ function Install-CursorAgentCliWithRetry {
                 Write-Host "$LogPrefix Retrying agent CLI install (attempt $attempt/$MaxAttempts) after clearing corrupt download state..." -ForegroundColor Yellow
                 Clear-CorruptCursorAgentDownloadState -LogPrefix $LogPrefix | Out-Null
             }
+            foreach ($requiredDir in @($Global:DOWNLOADS_DIR, $Global:WORK_DIR)) {
+                if (-not (Test-Path -LiteralPath $requiredDir -PathType Container)) {
+                    New-Item -ItemType Directory -Path $requiredDir -Force | Out-Null
+                }
+            }
             # Download script to file first (more reliable than irm|iex on truncated/gzip edge cases).
             $stamp = [System.DateTime]::UtcNow.ToString("yyyyMMddHHmmssfff")
             $pidPart = [System.Diagnostics.Process]::GetCurrentProcess().Id
-            $scriptFile = Join-Path $env:TEMP ("core_node_cursor_agent_install_{0}_{1}.ps1" -f $pidPart, $stamp)
+            $scriptFile = Join-Path $Global:DOWNLOADS_DIR ("core_node_cursor_agent_install_{0}_{1}.ps1" -f $pidPart, $stamp)
             Invoke-WebRequest -Uri $script:AgentInstallUrl -OutFile $scriptFile -UseBasicParsing -TimeoutSec 180
             if (-not (Test-Path -LiteralPath $scriptFile -PathType Leaf) -or ((Get-Item -LiteralPath $scriptFile).Length -lt 32)) {
                 throw "Downloaded install script is empty or missing: $scriptFile"
             }
             # Dot-source / iex in-process so PATH updates from the installer apply to this session.
+            # The installer downloads/extracts its package under TEMP, so point TEMP/TMP at WORK_DIR meanwhile.
             $scriptText = Get-Content -LiteralPath $scriptFile -Raw -ErrorAction Stop
             Remove-Item -LiteralPath $scriptFile -Force -ErrorAction SilentlyContinue
-            Invoke-Expression $scriptText
+            $previousTemp = $env:TEMP
+            $previousTmp = $env:TMP
+            try {
+                $env:TEMP = $Global:WORK_DIR
+                $env:TMP = $Global:WORK_DIR
+                Invoke-Expression $scriptText
+            }
+            finally {
+                $env:TEMP = $previousTemp
+                $env:TMP = $previousTmp
+            }
             return $true
         } catch {
             $lastError = $_.Exception.Message

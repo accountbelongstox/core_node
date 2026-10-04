@@ -14,7 +14,7 @@ import traceback
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.desktop_icon_generator import DesktopIconGenerator
-from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.system_paths import get_lang_compiler_dir, get_system_cache_dir
 
 LINUX_APPLICATIONS_SUBDIR = ('.local', 'share', 'applications')
 LINUX_DESKTOP_SUFFIX = '.desktop'
@@ -73,12 +73,11 @@ class ShortcutManager:
         Returns:
             Path: Dev environment directory path
         """
-        # Windows places shortcut .bat files under D:\.dev_<winver>\.winenvs;
+        # Windows places shortcut .bat files under <LANG_COMPILER_DIR>\.winenvs;
         # off-Windows fall back to a home dir so we don't create a literal
         # "D:\\..." folder in the cwd (Linux treats backslashes as filename chars).
         if platform.system() == 'Windows':
-            win_version = ShortcutManager.get_windows_version()
-            dev_path = Path(f'D:\\.dev_{win_version}\\.winenvs')
+            dev_path = get_lang_compiler_dir() / '.winenvs'
         else:
             dev_path = get_system_cache_dir() / '.winenvs'
         dev_path.mkdir(parents=True, exist_ok=True)

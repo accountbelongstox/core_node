@@ -163,7 +163,7 @@ function Extract-IconsFromDirectory {
     Icon size in pixels (default: 32)
     
     .EXAMPLE
-    Extract-IconsFromDirectory -SourceDir "D:\.dev_win11\.desktopIcons" -OutputBaseDir "C:\Users\User\.icons"
+    Extract-IconsFromDirectory -SourceDir "<LANG_COMPILER_DIR>\.desktopIcons" -OutputBaseDir "C:\Users\User\.icons"
     #>
     
     param(

@@ -5,9 +5,15 @@ Write-Host "  Claude Extension - Verification"
 Write-Host "========================================"
 Write-Host ""
 
-$cliDir = "D:\.dev_win11\node\node_modules\@anthropic-ai\claude-code"
+$globalVarsPath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "win\win_common\GlobalVars.ps1"
+$callerErrorAction = $ErrorActionPreference
+. $globalVarsPath
+$ErrorActionPreference = $callerErrorAction
+Set-StrictMode -Off
+$nodeRootDir = Join-Path $Global:LANG_COMPILER_DIR "node"
+$cliDir = Join-Path $nodeRootDir "node_modules\@anthropic-ai\claude-code"
 $extDir = Join-Path $cliDir "claude-ext"
-$claudeMorePath = "D:\.dev_win11\node\claudeMore.ps1"
+$claudeMorePath = Join-Path $nodeRootDir "claudeMore.ps1"
 
 $checks = @(
     @{

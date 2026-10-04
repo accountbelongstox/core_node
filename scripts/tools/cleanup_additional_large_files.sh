@@ -5,7 +5,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BFG_JAR="$SCRIPT_DIR/bfg.jar"
+# Tool download dir: ext4 contract cache root (cache_root.linux), never the
+# repo checkout on the NTFS share; user cache when the contract is unreadable.
+TOOLS_DIR=""
+source "$PROJECT_ROOT/scripts/shells/linux/common/service_contract_common.sh"
+TOOLS_DIR="$(sc_get paths.drive_layout.cache_root.linux)"
+TOOLS_DIR="${TOOLS_DIR:-${HOME}/.cache/core_node}/tools"
+BFG_JAR="$TOOLS_DIR/bfg.jar"
 BFG_URL="https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar"
 
 RED='\033[0;31m'
@@ -44,6 +50,7 @@ fi
 
 if [ ! -f "$BFG_JAR" ]; then
     echo -e "${BLUE}Downloading BFG Repo-Cleaner...${NC}"
+    mkdir -p "$TOOLS_DIR" 2>/dev/null || { sudo mkdir -p "$TOOLS_DIR" && sudo chmod 1777 "$TOOLS_DIR"; }
     wget -O "$BFG_JAR" "$BFG_URL"
     if [ $? -ne 0 ]; then
         echo -e "${RED}Failed to download BFG${NC}"

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import Commander
+from pycore.pyfoundations.program_material_dirs import get_program_download_dir
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 from pycore.pyutils.common.ffmpeg.ffmpeg_constants import WINDOWS_INSTALL_ROOTS
 
@@ -247,7 +248,7 @@ def install_ffmpeg_windows():
     ColorPrint.blue("=" * 80)
 
     # Download archive
-    archive_path = os.path.join(FFMPEG_INSTALL_DIR, "ffmpeg-essentials.7z")
+    archive_path = str(get_program_download_dir() / "ffmpeg-essentials.7z")
 
     download_success = download_file(FFMPEG_WINDOWS_URL, archive_path)
 

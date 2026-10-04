@@ -4,7 +4,7 @@
     the third-party (non-Microsoft) ones, with signature status.
 
 .DESCRIPTION
-    Headless wrapper around autorunsc (installed by Step32_InstallSecurityTools).
+    Headless wrapper around autorunsc (installed by BaseTools_SecurityTools, part of Step20_InstallBaseTools).
     By default it hides verified Microsoft entries and verifies signatures, so the
     output focuses on the autostart hooks a PUP/malware would actually use (Run
     keys, services, scheduled tasks, image-hijacks, etc.). Use -AllEntries to
@@ -25,13 +25,11 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # --- Configuration (declared at top) ----------------------------------------
+$globalVarsPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'shells\win\win_common\GlobalVars.ps1'
+. $globalVarsPath
+Set-StrictMode -Off
 $autorunscName = 'autorunsc.exe'
-$candidateDirs = @(
-    (Join-Path $env:SystemDrive '.dev_win10\Sysinternals'),
-    'D:\.dev_win10\Sysinternals',
-    'D:\.dev_win11\Sysinternals',
-    'C:\.dev_win10\Sysinternals'
-)
+$candidateDirs = @($Global:SECURITY_TOOLS_INSTALL_DIR)
 $eulaKey      = 'HKCU:\Software\Sysinternals\Autoruns'
 $autorunscExe = $null
 $autorunArgs  = @('-accepteula', '-nobanner', '-a', '*', '-s', '-h', '-c')
@@ -53,7 +51,7 @@ function Resolve-Autorunsc {
 
 $autorunscExe = Resolve-Autorunsc
 if (-not $autorunscExe) {
-    Write-Line "autorunsc not found. Run the installer (Step32_InstallSecurityTools) first." 'Red'
+    Write-Line "autorunsc not found. Run the installer (BaseTools_SecurityTools, part of Step20_InstallBaseTools) first." 'Red'
     exit 1
 }
 

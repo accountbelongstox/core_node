@@ -67,7 +67,7 @@ Modes: `--domains-only`, `--ssl-only`, `--no-domains`, `--skip-ssh`.
 - Laravel `SystemInfoService` caches each tool-version probe for 24 h (`system_info:tool_version:<tool>`).
 
 ### 3.2 Step 197 / Step69 (frontend packages)
-- `197_install_frontend_packages.sh` (prerequisite key `frontend_packages`; Windows `Step69_InstallFrontendPackages.ps1`; `--force` → `start.sh --force-install`; 193 is the window launcher shortcut) installs the one bun workspace `poly_apps/pycore_laravel_wordnew_ui` (`callmodule_config.FRONTEND_DIR`) through the UI's own `scripts/start.sh --prepare --dev` / `start.ps1 -Prepare` (node + bun, `bun install` against `bun.lock`, vite verified, no server started).
+- `197_install_frontend_packages.sh` (prerequisite key `frontend_packages`; Windows `Node_FrontendPackages.ps1`; `--force` → `start.sh --force-install`; 193 is the window launcher shortcut) installs the one bun workspace `poly_apps/pycore_laravel_wordnew_ui` (`callmodule_config.FRONTEND_DIR`) through the UI's own `scripts/start.sh --prepare --dev` / `start.ps1 -Prepare` (node + bun, `bun install` against `bun.lock`, vite verified, no server started).
 - Linux on an NTFS checkout binds `<trees_root.linux>/<ns>/node_modules` over the in-repo mount point with `project_tree_ensure`; Windows junctions to the E: trees root through `Invoke-ProjectTreeLinks` (section 4.4).
 
 ### 3.3 Prerequisite runner

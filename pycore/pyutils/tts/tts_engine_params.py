@@ -108,7 +108,7 @@ TTS_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
         "model_managed": True,
         "model_idle_unload_s": 60,
         "long_wait": True,
-        "note": "MeloTTS offline (torch GPU→CPU auto). Weights come from Step55_InstallMelotts.ps1 / 139_install_melotts.sh.",
+        "note": "MeloTTS offline (torch GPU→CPU auto). Weights come from Model_Melotts.ps1 / 139_install_melotts.sh.",
     },
     "qwen3tts": {
         "fields": ["text", "language", "speaker", "instruct"],

@@ -86,8 +86,11 @@ public sealed class D4InterfaceData
     /// <summary>Recognized map name (map_name_utils current map); null = Unknown.</summary>
     public string? CurrentMap { get; set; }
 
-    /// <summary>Dungeon progress text; no producer yet (Python never produced it).</summary>
+    /// <summary>Dungeon progress text ("NN%") from D4DungeonProgressDetector; null outside dungeons.</summary>
     public string? DungeonProgress { get; set; }
+
+    /// <summary>Red portal bounding box in the last frame (D4RedPortalDetector); null when none.</summary>
+    public OpenCvSharp.Rect? RedPortal { get; set; }
 
     public bool IsMapNameAvailable => !string.IsNullOrEmpty(CurrentMap);
     public D4LocationType LocationType => SmallMap?.LocationType ?? D4LocationType.Unknown;
@@ -224,5 +227,6 @@ public sealed class D4InterfaceData
         TeamCheckTimestamp = null;
         CurrentMap = null;
         DungeonProgress = null;
+        RedPortal = null;
     }
 }

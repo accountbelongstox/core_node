@@ -14,7 +14,7 @@
     Purpose: Real-time desktop icon management during application installation
 
     Direct run (dd.ps1 Management & Backup menu):
-    powershell -File DesktopIconManager.ps1 -DesktopIconAction Organize|Preview|Undo [-DesktopIconUndoManifest <path>]
+    powershell -File DesktopIconManager.ps1 -DesktopIconAction Organize|Preview|Tidy|Undo [-DesktopIconUndoManifest <path>]
 #>
 param(
     [Parameter(Mandatory = $false)]
@@ -32,7 +32,10 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $script:DESKTOP_ICON_MANAGER_DIR = $SCRIPT_DIR
 $COMMON_FUNC_PATH = Join-Path $SCRIPT_DIR "CommonFunc.ps1"
 $APPLICATIONS_LIST_PATH = Join-Path $SCRIPT_DIR "ApplicationsList.ps1"
- . $COMMON_FUNC_PATH
+# CommonFunc may already be loaded (it also loads this library on demand for the per-install tidy)
+if (-not (Get-Command Create-DesktopShortcutsForPackage -ErrorAction SilentlyContinue)) {
+    . $COMMON_FUNC_PATH
+}
 if ($null -eq (Get-Variable -Name 'APPLICATIONS_PACKAGES' -Scope Global -ErrorAction SilentlyContinue)) {
     . $APPLICATIONS_LIST_PATH
 }
@@ -50,7 +53,6 @@ function Write-DesktopIconManagerDebug {
 
 # Global variables for desktop management
 $Global:DESKTOP_CLEANUP_ENABLED = $true
-$Global:DESKTOP_BACKUP_DIR = Join-Path $Global:LANG_COMPILER_DIR ".desktopIcons"
 $Global:AGGRESSIVE_CLEANUP_ENABLED = $false
 
 # Desktop organizer: what it moves, what it never moves, and where its undo state lives
@@ -58,10 +60,23 @@ $Global:DESKTOP_SHORTCUT_EXTENSIONS = @('.lnk', '.url', '.appref-ms')
 $Global:DESKTOP_ORGANIZER_STATE_DIR = Join-Path (Join-Path $env:LOCALAPPDATA 'core_node') 'desktop_icons'
 $Global:DESKTOP_ORGANIZER_MANIFEST_DIR = Join-Path $Global:DESKTOP_ORGANIZER_STATE_DIR 'manifests'
 $Global:DESKTOP_ORGANIZER_DISPLACED_DIR = Join-Path $Global:DESKTOP_ORGANIZER_STATE_DIR 'displaced'
-# Shortcuts dd.ps1 recreates on the desktop (pycore/pyutils/launcher/shortcut_check.ps1); moving them would churn
+# Per-install tidy (Invoke-DesktopIconTidy): session fingerprint of the last tidied desktops,
+# and the machine-wide lock that keeps concurrent installer processes from organizing at once
+if (-not (Test-Path Variable:Global:DESKTOP_TIDY_FINGERPRINT)) {
+    $Global:DESKTOP_TIDY_FINGERPRINT = ''
+}
+$Global:DESKTOP_TIDY_MUTEX_NAME = 'Global\core_node_desktop_icon_tidy'
+$Global:DESKTOP_TIDY_MUTEX_WAIT_SECONDS = 30
+# Shortcut names that always stay on the desktop (Window Launcher is written onto the desktop by its writers:
+# pycore/pyutils/launcher/shortcut_check.ps1 and desktop_integration.py)
 $Global:DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP = @('Window Launcher')
-# Browser shortcuts whose name has one of these tokens are copied into Browsers and stay on the desktop
-$Global:DESKTOP_ORGANIZATION_KEEP_COPY_TOKENS = @('chrome', 'edge')
+# The desktop keeps exactly one browser shortcut: the first stable Chrome found (user desktop first).
+# It is copied into Browsers and stays; every other browser shortcut is moved.
+$Global:DESKTOP_ORGANIZATION_KEEP_BROWSER_EXE = 'chrome.exe'
+$Global:DESKTOP_ORGANIZATION_KEEP_BROWSER_EXCLUDED_TOKENS = @('beta', 'dev', 'canary', 'unstable', 'sxs')
+# Real files left on the desktops are moved into the Documents known folder (folders stay: they can be app data)
+$Global:DESKTOP_ORGANIZATION_DOCUMENTS_DIR = [Environment]::GetFolderPath('MyDocuments')
+$Global:DESKTOP_ORGANIZATION_LOOSE_ITEM_EXCLUDED = @('desktop.ini', 'thumbs.db')
 # Launcher hosts whose file name says nothing about the application behind the shortcut
 $Global:DESKTOP_ORGANIZATION_GENERIC_TARGET_HOSTS = @(
     'python', 'pythonw', 'py', 'pyw', 'powershell', 'pwsh', 'cmd', 'wscript', 'cscript', 'rundll32',
@@ -249,7 +264,7 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
     @{
         DesktopCategory    = $Global:DESKTOP_CATEGORY_GAMES
         AdditionalKeywords = @(
-            "Steam", "Epic Games", "Origin", "Uplay", "Battle.net", "GOG Galaxy", "Xbox", "PlayStation",
+            "Steam", "Epic Games", "Origin", "Uplay", "Battle.net", "Blizzard", "\u66B4\u96EA\u6218\u7F51", "GOG Galaxy", "Xbox", "PlayStation",
             "Minecraft", "Roblox", "Fortnite", "League of Legends", "Dota 2", "Counter-Strike",
             "World of Warcraft", "Overwatch", "Apex Legends", "Valorant", "PUBG", "Among Us",
             "Fall Guys", "Rocket League", "Grand Theft Auto", "Call of Duty", "FIFA", "NBA 2K",
@@ -387,6 +402,11 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Perplexity", "Ollama", "LM Studio", "Cherry Studio", "Codex", "Manus",
             "\u8C46\u5305", "\u901A\u4E49\u5343\u95EE", "\u6587\u5FC3\u4E00\u8A00", "\u817E\u8BAF\u5143\u5B9D", "\u667A\u8C31\u6E05\u8A00"
         )
+    },
+    @{
+        # Fallback: desktop shortcuts no other category matches (no keywords by design)
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_OTHER_APPS
+        AdditionalKeywords = @()
     }
 )
 
@@ -1174,6 +1194,123 @@ function Get-DesktopShortcutFiles {
 
 <#
 .SYNOPSIS
+    Tests whether a shortcut is a stable Chrome launcher (the one browser shortcut kept on the desktop)
+#>
+function Test-DesktopKeptBrowserShortcut {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Info
+    )
+
+    $target = ''
+    $channelDirectory = ''
+    $tokens = @()
+
+    if ($Info.Extension -ne '.lnk' -or [string]::IsNullOrWhiteSpace($Info.TargetPath)) {
+        return $false
+    }
+    $target = [Environment]::ExpandEnvironmentVariables($Info.TargetPath)
+    if ([System.IO.Path]::GetFileName($target) -ne $Global:DESKTOP_ORGANIZATION_KEEP_BROWSER_EXE) {
+        return $false
+    }
+    # <...>\Chrome Beta\Application\chrome.exe: the channel is the folder above Application
+    $channelDirectory = Split-Path -Leaf (Split-Path -Parent (Split-Path -Parent $target))
+    $tokens = @(ConvertTo-DesktopMatchTokens -Text $Info.BaseName) + @(ConvertTo-DesktopMatchTokens -Text $channelDirectory)
+    return (@($tokens | Where-Object { $Global:DESKTOP_ORGANIZATION_KEEP_BROWSER_EXCLUDED_TOKENS -contains $_ }).Count -eq 0)
+}
+
+<#
+.SYNOPSIS
+    Returns a path in Directory for Name that does not exist yet ("name (2).ext" on collision)
+#>
+function Get-DesktopFreeDestination {
+    param(
+        [string]$Directory,
+        [string]$Name
+    )
+
+    $candidate = Join-Path $Directory $Name
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
+    $extension = [System.IO.Path]::GetExtension($Name)
+    $index = 2
+
+    while (Test-Path -LiteralPath $candidate) {
+        $candidate = Join-Path $Directory ('{0} ({1}){2}' -f $baseName, $index, $extension)
+        $index++
+    }
+    return $candidate
+}
+
+<#
+.SYNOPSIS
+    Moves real files left on the desktops into the Documents folder
+.DESCRIPTION
+    Folders, shortcuts, category folder links, hidden/system entries and desktop.ini stay. A name already
+    taken in Documents gets a " (n)" suffix. Every move is recorded for undo; nothing is deleted.
+.OUTPUTS
+    Hashtable: Moved, Messages
+#>
+function Move-DesktopLooseItemsToDocuments {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Context,
+
+        [bool]$DryRun = $false
+    )
+
+    $result = @{ Moved = 0; Messages = New-Object System.Collections.ArrayList }
+    $documentsDirectory = [string]$Global:DESKTOP_ORGANIZATION_DOCUMENTS_DIR
+    $skipAttributes = [System.IO.FileAttributes]::Hidden -bor [System.IO.FileAttributes]::System -bor [System.IO.FileAttributes]::ReparsePoint
+    $desktopPath = ''
+    $entry = $null
+    $destination = ''
+    $reservedDestinations = @{}
+
+    if ([string]::IsNullOrWhiteSpace($documentsDirectory) -or -not (Test-Path -LiteralPath $documentsDirectory -PathType Container)) {
+        [void]$result.Messages.Add(('Documents folder not found; desktop files left in place: {0}' -f $documentsDirectory))
+        return $result
+    }
+    foreach ($desktopPath in @(Get-DesktopOrganizationPaths)) {
+        foreach ($entry in @(Get-ChildItem -LiteralPath $desktopPath -Force -ErrorAction SilentlyContinue)) {
+            if ($entry.Attributes -band $skipAttributes) {
+                continue
+            }
+            if ($Global:DESKTOP_ORGANIZATION_LOOSE_ITEM_EXCLUDED -contains $entry.Name.ToLowerInvariant()) {
+                continue
+            }
+            if ($entry.PSIsContainer -or $Global:DESKTOP_SHORTCUT_EXTENSIONS -contains $entry.Extension.ToLowerInvariant()) {
+                continue
+            }
+            $destination = Get-DesktopFreeDestination -Directory $documentsDirectory -Name $entry.Name
+            while ($reservedDestinations.ContainsKey($destination.ToLowerInvariant())) {
+                $destination = Get-DesktopFreeDestination -Directory $documentsDirectory -Name ('{0}_{1}' -f $reservedDestinations.Count, $entry.Name)
+            }
+            $reservedDestinations[$destination.ToLowerInvariant()] = $true
+            if ($DryRun) {
+                [void]$result.Messages.Add(('move to Documents: {0} -> {1}' -f $entry.FullName, $destination))
+                $result.Moved++
+                continue
+            }
+            try {
+                if ($entry.PSIsContainer) {
+                    [System.IO.Directory]::Move($entry.FullName, $destination)
+                    Add-DesktopOrganizationRecord -Context $Context -Action 'move-dir' -Source $entry.FullName -Destination $destination -Category '' -Reason 'desktop folder to Documents'
+                } else {
+                    [System.IO.File]::Move($entry.FullName, $destination)
+                    Add-DesktopOrganizationRecord -Context $Context -Action 'move' -Source $entry.FullName -Destination $destination -Category '' -Reason 'desktop file to Documents'
+                }
+                [void]$result.Messages.Add(('moved to Documents: {0} -> {1}' -f $entry.FullName, $destination))
+                $result.Moved++
+            } catch {
+                [void]$result.Messages.Add(('could not move to Documents: {0}: {1}' -f $entry.FullName, $_.Exception.Message))
+            }
+        }
+    }
+    return $result
+}
+
+<#
+.SYNOPSIS
     Scans desktops and category folders and returns what the organizer would do
 .DESCRIPTION
     Desktop shortcuts that match a category are planned as a move (or a copy for browsers
@@ -1201,9 +1338,9 @@ function Get-DesktopOrganizationPlan {
     $info = $null
     $classification = $null
     $mode = ''
-    $nameTokens = @()
     $categoryName = ''
     $categoryDirectory = ''
+    $keptBrowserPath = ''
 
     foreach ($desktopPath in $plan.DesktopPaths) {
         foreach ($filePath in (Get-DesktopShortcutFiles -Directory $desktopPath)) {
@@ -1217,16 +1354,28 @@ function Get-DesktopOrganizationPlan {
                 'category-link' { }
                 'broken' { [void]$plan.Broken.Add(@{ Info = $info; Reason = $classification.Reason }) }
                 'unreadable' { [void]$plan.Broken.Add(@{ Info = $info; Reason = 'unreadable' }) }
-                'unmatched' { [void]$plan.Unmatched.Add(@{ Info = $info; Reason = '' }) }
+                'unmatched' {
+                    if ($SpecificCategories.Count -gt 0 -and $SpecificCategories -notcontains $Global:DESKTOP_CATEGORY_OTHER_APPS) {
+                        [void]$plan.Unmatched.Add(@{ Info = $info; Reason = '' })
+                        continue
+                    }
+                    [void]$plan.Items.Add(@{
+                        Info     = $info
+                        Category = $Global:DESKTOP_CATEGORY_OTHER_APPS
+                        Reason   = 'no category matched'
+                        Mode     = 'move'
+                        From     = $desktopPath
+                    })
+                }
                 'category' {
                     if ($SpecificCategories.Count -gt 0 -and $SpecificCategories -notcontains $classification.Category) {
                         continue
                     }
                     $mode = 'move'
-                    $nameTokens = @(ConvertTo-DesktopMatchTokens -Text $info.BaseName)
-                    if ($classification.Category -eq $Global:DESKTOP_CATEGORY_BROWSERS -and
-                        @($nameTokens | Where-Object { $Global:DESKTOP_ORGANIZATION_KEEP_COPY_TOKENS -contains $_ }).Count -gt 0) {
+                    if ($classification.Category -eq $Global:DESKTOP_CATEGORY_BROWSERS -and -not $keptBrowserPath -and
+                        (Test-DesktopKeptBrowserShortcut -Info $info)) {
                         $mode = 'copy'
+                        $keptBrowserPath = $info.Path
                     }
                     [void]$plan.Items.Add(@{
                         Info     = $info
@@ -1663,7 +1812,7 @@ function Test-OrganizationCategories {
                 $validationErrors += "Category '$($categoryConfig['DesktopCategory'])' is defined twice"
             }
             $seenCategories[$categoryConfig['DesktopCategory']] = $true
-            if (-not $categoryConfig.ContainsKey("AdditionalKeywords") -or -not $categoryConfig['AdditionalKeywords']) {
+            if ($categoryConfig['DesktopCategory'] -ne $Global:DESKTOP_CATEGORY_OTHER_APPS -and (-not $categoryConfig.ContainsKey("AdditionalKeywords") -or -not $categoryConfig['AdditionalKeywords'])) {
                 $validationErrors += "Category '$($categoryConfig['DesktopCategory'])' missing AdditionalKeywords"
             }
         }
@@ -1709,15 +1858,326 @@ function Save-DesktopOrganizationManifest {
 
 <#
 .SYNOPSIS
+    Old program roots and the live roots they moved to (contract migrations: D: program dirs and
+    superseded E: layouts), used to re-point shortcuts after a move
+#>
+function Get-DesktopRerootPairs {
+    $pairs = @()
+    $mapping = $null
+    $oldRoot = ''
+
+    if (-not (Get-Command Get-CnProgramDirectoryMappings -ErrorAction SilentlyContinue)) {
+        return $pairs
+    }
+    foreach ($mapping in @(Get-CnProgramDirectoryMappings)) {
+        if (-not $mapping.Target) {
+            continue
+        }
+        foreach ($oldRoot in @(@($mapping.Legacy) + @($mapping.Superseded) | Where-Object { $_ })) {
+            $pairs += [pscustomobject]@{ Old = ([string]$oldRoot).TrimEnd('\'); New = ([string]$mapping.Target).TrimEnd('\') }
+        }
+    }
+    return $pairs
+}
+
+<#
+.SYNOPSIS
+    The path re-rooted from an old program root to its live root ('' when no pair applies);
+    anything after the path (e.g. an icon index ",0") is kept
+#>
+function Get-DesktopReroutedPath {
+    param(
+        [string]$Path,
+        [array]$Pairs
+    )
+
+    $expanded = ''
+    $pair = $null
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return ''
+    }
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path)
+    foreach ($pair in $Pairs) {
+        if ($expanded -ieq $pair.Old -or $expanded.StartsWith($pair.Old + '\', [System.StringComparison]::OrdinalIgnoreCase) -or $expanded.StartsWith($pair.Old + ',', [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $pair.New + $expanded.Substring($pair.Old.Length)
+        }
+    }
+    return ''
+}
+
+<#
+.SYNOPSIS
+    Moves a directory link (or folder) out of the way into the run's displaced folder (never deletes)
+#>
+function Move-DesktopDirectoryToDisplaced {
+    param(
+        [hashtable]$Context,
+        [string]$Path,
+        [string]$Category,
+        [string]$Reason
+    )
+
+    $displacedDirectory = Join-Path $Global:DESKTOP_ORGANIZER_DISPLACED_DIR $Context.RunId
+    $displacedPath = Join-Path $displacedDirectory ('{0:D3}_{1}' -f $Context.Records.Count, [System.IO.Path]::GetFileName($Path))
+
+    if (-not (Test-Path -LiteralPath $displacedDirectory)) {
+        New-Item -ItemType Directory -Path $displacedDirectory -Force | Out-Null
+    }
+    [System.IO.Directory]::Move($Path, $displacedPath)
+    Add-DesktopOrganizationRecord -Context $Context -Action 'displace-dir' -Source $Path -Destination $displacedPath -Category $Category -Reason $Reason
+    return $displacedPath
+}
+
+<#
+.SYNOPSIS
+    True when a directory holds no file anywhere below it (links are not followed)
+#>
+function Test-DesktopFolderEmpty {
+    param(
+        [string]$Path
+    )
+
+    $child = $null
+
+    foreach ($child in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
+        if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            return $false
+        }
+        if (-not $child.PSIsContainer -or -not (Test-DesktopFolderEmpty -Path $child.FullName)) {
+            return $false
+        }
+    }
+    return $true
+}
+
+<#
+.SYNOPSIS
+    Idempotently fixes invalid desktop entries before organizing
+.DESCRIPTION
+    Broken shortcuts on the desktops and in the category folders are re-pointed when their target
+    only moved to a live program root (Get-DesktopRerootPairs; the original .lnk is kept for undo),
+    otherwise displaced. Desktop folder links whose folder is gone are re-pointed or displaced, and
+    empty category folders are removed together with their desktop link. Everything is recorded
+    in the run's undo manifest; nothing is deleted except empty folders. A second run changes nothing.
+.OUTPUTS
+    Hashtable: Retargeted, Displaced, LinksFixed, FoldersRemoved, Messages
+#>
+function Repair-DesktopInvalidEntries {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Context,
+
+        [bool]$DryRun = $false
+    )
+
+    $result = @{ Retargeted = 0; Displaced = 0; LinksFixed = 0; FoldersRemoved = 0; Messages = New-Object System.Collections.ArrayList }
+    $pairs = @(Get-DesktopRerootPairs)
+    $shortcutDirectories = @(Get-DesktopOrganizationPaths)
+    $desktopPath = ''
+    $directory = ''
+    $filePath = ''
+    $info = $null
+    $newTarget = ''
+    $backupPath = ''
+    $shortcut = $null
+    $entry = $null
+    $linkTarget = ''
+    $categoryFolder = $null
+    $desktopLinkPath = ''
+    $displacedDirectory = Join-Path $Global:DESKTOP_ORGANIZER_DISPLACED_DIR $Context.RunId
+
+    if (Test-Path -LiteralPath $Global:DESKTOP_BACKUP_DIR) {
+        $shortcutDirectories += @(Get-ChildItem -LiteralPath $Global:DESKTOP_BACKUP_DIR -Directory -Force -ErrorAction SilentlyContinue |
+            Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) } | ForEach-Object { $_.FullName })
+    }
+
+    # 1. Broken shortcuts: re-point after a program-root move, else displace.
+    foreach ($directory in $shortcutDirectories) {
+        foreach ($filePath in (Get-DesktopShortcutFiles -Directory $directory)) {
+            $info = Get-DesktopShortcutInfo -Path $filePath -Shell $Context.Shell
+            if ($info.Hidden -or $info.State -ne 'broken' -or $Global:DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP -contains $info.BaseName) {
+                continue
+            }
+            $newTarget = Get-DesktopReroutedPath -Path $info.TargetPath -Pairs $pairs
+            if ($newTarget -and (Test-Path -LiteralPath $newTarget)) {
+                [void]$result.Messages.Add(('re-pointed: {0} -> {1}' -f $info.Path, $newTarget))
+                $result.Retargeted++
+                if ($DryRun) {
+                    continue
+                }
+                if (-not (Test-Path -LiteralPath $displacedDirectory)) {
+                    New-Item -ItemType Directory -Path $displacedDirectory -Force | Out-Null
+                }
+                $backupPath = Join-Path $displacedDirectory ('{0:D3}_{1}' -f $Context.Records.Count, $info.Name)
+                [System.IO.File]::Copy($info.Path, $backupPath, $false)
+                $shortcut = $Context.Shell.CreateShortcut($info.Path)
+                $shortcut.TargetPath = $newTarget
+                if (Get-DesktopReroutedPath -Path $info.WorkingDirectory -Pairs $pairs) {
+                    $shortcut.WorkingDirectory = Get-DesktopReroutedPath -Path $info.WorkingDirectory -Pairs $pairs
+                }
+                if (Get-DesktopReroutedPath -Path $info.IconLocation -Pairs $pairs) {
+                    $shortcut.IconLocation = Get-DesktopReroutedPath -Path $info.IconLocation -Pairs $pairs
+                }
+                $shortcut.Save()
+                Add-DesktopOrganizationRecord -Context $Context -Action 'retarget' -Source $info.Path -Destination $backupPath -Category '' -Reason ('{0} -> {1}' -f $info.TargetPath, $newTarget)
+                continue
+            }
+            [void]$result.Messages.Add(('displaced (target missing): {0} -> {1}' -f $info.Path, $(if ($info.TargetPath) { $info.TargetPath } else { 'no URL' })))
+            $result.Displaced++
+            if (-not $DryRun) {
+                [void](Move-DesktopFileToDisplaced -Context $Context -Path $info.Path -Category '' -Reason ('target missing: {0}' -f $info.TargetPath))
+            }
+        }
+    }
+
+    # 2. Desktop folder links (directory symbolic links) whose folder is gone.
+    foreach ($desktopPath in @(Get-DesktopOrganizationPaths)) {
+        foreach ($entry in @(Get-ChildItem -LiteralPath $desktopPath -Directory -Force -ErrorAction SilentlyContinue |
+                Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint })) {
+            $linkTarget = [string](@($entry.Target) | Select-Object -First 1)
+            if (-not $linkTarget -or [System.IO.Directory]::Exists($linkTarget)) {
+                continue
+            }
+            $newTarget = Get-DesktopReroutedPath -Path $linkTarget -Pairs $pairs
+            if ($newTarget -and [System.IO.Directory]::Exists($newTarget)) {
+                [void]$result.Messages.Add(('folder link re-pointed: {0} -> {1}' -f $entry.FullName, $newTarget))
+                $result.LinksFixed++
+                if (-not $DryRun) {
+                    # Replace the link in place (a link to another volume cannot be moved); undo recreates the old one
+                    [System.IO.Directory]::Delete($entry.FullName, $false)
+                    New-Item -ItemType SymbolicLink -Path $entry.FullName -Target $newTarget -ErrorAction Stop | Out-Null
+                    Add-DesktopOrganizationRecord -Context $Context -Action 'relink' -Source $linkTarget -Destination $entry.FullName -Category '' -Reason ('{0} -> {1}' -f $linkTarget, $newTarget)
+                }
+                continue
+            }
+            [void]$result.Messages.Add(('folder link displaced (folder missing): {0} -> {1}' -f $entry.FullName, $linkTarget))
+            $result.Displaced++
+            if (-not $DryRun) {
+                [void](Move-DesktopDirectoryToDisplaced -Context $Context -Path $entry.FullName -Category '' -Reason ('folder missing: {0}' -f $linkTarget))
+            }
+        }
+    }
+
+    # 3. Empty category folders and their desktop link.
+    if (Test-Path -LiteralPath $Global:DESKTOP_BACKUP_DIR) {
+        foreach ($categoryFolder in @(Get-ChildItem -LiteralPath $Global:DESKTOP_BACKUP_DIR -Directory -Force -ErrorAction SilentlyContinue |
+                Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })) {
+            if (-not (Test-DesktopFolderEmpty -Path $categoryFolder.FullName)) {
+                continue
+            }
+            [void]$result.Messages.Add(('empty folder removed: {0}' -f $categoryFolder.FullName))
+            $result.FoldersRemoved++
+            if ($DryRun) {
+                continue
+            }
+            [System.IO.Directory]::Delete($categoryFolder.FullName, $true)
+            Add-DesktopOrganizationRecord -Context $Context -Action 'rmdir' -Source '' -Destination $categoryFolder.FullName -Category $categoryFolder.Name -Reason 'empty category folder'
+            foreach ($desktopPath in @(Get-DesktopOrganizationPaths)) {
+                $desktopLinkPath = Join-Path $desktopPath ('{0}.lnk' -f $categoryFolder.Name)
+                $entry = Get-Item -LiteralPath $desktopLinkPath -Force -ErrorAction SilentlyContinue
+                if ($null -eq $entry) {
+                    continue
+                }
+                if ($entry.PSIsContainer) {
+                    [void](Move-DesktopDirectoryToDisplaced -Context $Context -Path $desktopLinkPath -Category $categoryFolder.Name -Reason 'link to an empty category folder')
+                } else {
+                    [void](Move-DesktopFileToDisplaced -Context $Context -Path $desktopLinkPath -Category $categoryFolder.Name -Reason 'link to an empty category folder')
+                }
+            }
+        }
+    }
+
+    return $result
+}
+
+<#
+.SYNOPSIS
+    Fingerprint of the shortcut files on the desktops (names and write times), used by
+    Invoke-DesktopIconTidy to skip runs when nothing changed
+#>
+function Get-DesktopShortcutFingerprint {
+    $parts = New-Object System.Collections.ArrayList
+    $desktopPath = ''
+    $entry = $null
+
+    foreach ($desktopPath in @(Get-DesktopOrganizationPaths)) {
+        foreach ($entry in @(Get-ChildItem -LiteralPath $desktopPath -Force -ErrorAction SilentlyContinue)) {
+            [void]$parts.Add(('{0}|{1}' -f $entry.FullName.ToLowerInvariant(), $entry.LastWriteTimeUtc.Ticks))
+        }
+    }
+    return (($parts | Sort-Object) -join "`n")
+}
+
+<#
+.SYNOPSIS
+    Quiet, idempotent desktop tidy after an install: fixes invalid entries and files new shortcuts
+.DESCRIPTION
+    Skips instantly when the desktops have not changed since the last tidy of this session.
+    A named mutex keeps concurrent installer processes from organizing at the same time.
+    Prints one line only when something changed.
+#>
+function Invoke-DesktopIconTidy {
+    param(
+        [string]$Reason = ''
+    )
+
+    $fingerprint = ''
+    $mutex = $null
+    $acquired = $false
+    $result = $null
+    $changed = 0
+
+    if (-not $Global:DESKTOP_CLEANUP_ENABLED) {
+        return
+    }
+    $fingerprint = Get-DesktopShortcutFingerprint
+    if ($fingerprint -ceq [string]$Global:DESKTOP_TIDY_FINGERPRINT) {
+        return
+    }
+    try {
+        $mutex = New-Object System.Threading.Mutex($false, $Global:DESKTOP_TIDY_MUTEX_NAME)
+        try {
+            $acquired = $mutex.WaitOne([TimeSpan]::FromSeconds($Global:DESKTOP_TIDY_MUTEX_WAIT_SECONDS))
+        } catch [System.Threading.AbandonedMutexException] {
+            $acquired = $true
+        }
+        if (-not $acquired) {
+            Write-DesktopIconManagerDebug -Message "Desktop tidy busy in another process; skipped" -ForegroundColor Gray
+            return
+        }
+        $result = Invoke-DesktopIconOrganization -ShowSummary $false -ExtractIcons $false -Quiet $true
+        $Global:DESKTOP_TIDY_FINGERPRINT = Get-DesktopShortcutFingerprint
+        if ($null -ne $result) {
+            $changed = [int]$result.ShortcutsMoved + [int]$result.Repaired + [int]$result.DocumentsMoved
+        }
+        if ($changed -gt 0) {
+            Write-DesktopIconManagerInfo -Message ("Desktop tidied after {0}: {1} shortcut(s) filed, {2} file(s) moved to Documents, {3} invalid entr(y/ies) fixed" -f $(if ($Reason) { $Reason } else { 'install' }), $result.ShortcutsMoved, $result.DocumentsMoved, $result.Repaired) -ForegroundColor Green
+        }
+    } catch {
+        Write-DesktopIconManagerInfo -Message "Desktop tidy failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    } finally {
+        if ($acquired) {
+            $mutex.ReleaseMutex()
+        }
+        if ($null -ne $mutex) {
+            $mutex.Dispose()
+        }
+    }
+}
+
+<#
+.SYNOPSIS
     Performs comprehensive desktop icon organization by categories
 
 .DESCRIPTION
     Scans the user and Public desktops, moves every matching shortcut (.lnk/.url/.appref-ms)
     into LANG_COMPILER_DIR\.desktopIcons\<Category> and links each category folder on the
-    desktop. Chrome/Edge are copied and stay on the desktop. Shortcuts already filed in a
-    category folder that nothing supports are refiled. Real files, folders, broken shortcuts
-    and the keep-on-desktop list are never touched, nothing is deleted, and every change is
-    written to an undo manifest under DESKTOP_ORGANIZER_STATE_DIR. A second run changes nothing.
+    desktop. One stable Chrome shortcut is copied and stays on the desktop; shortcuts no category
+    matches go to OtherApps; real files move to the Documents folder (folders stay). Shortcuts
+    already filed in a category folder that nothing supports are refiled. Nothing is deleted, and
+    every change is written to an undo manifest under DESKTOP_ORGANIZER_STATE_DIR. A second run
+    changes nothing.
 
 .PARAMETER ShowSummary
     Whether to display the category folders after completion (default: true)
@@ -1749,7 +2209,11 @@ function Invoke-DesktopIconOrganization {
         [array]$SpecificCategories = @(),
 
         [Parameter(Mandatory = $false)]
-        [bool]$PreviewOnly = $false
+        [bool]$PreviewOnly = $false,
+
+        # Quiet: print only what changed (per-install tidy); no desktop/pinned/unmatched listings
+        [Parameter(Mandatory = $false)]
+        [bool]$Quiet = $false
     )
 
     if (-not $Global:DESKTOP_CLEANUP_ENABLED) {
@@ -1762,9 +2226,14 @@ function Invoke-DesktopIconOrganization {
         ShortcutsMoved      = 0
         CategoriesCreated   = 0
         UnmatchedShortcuts  = 0
+        Repaired            = 0
+        DocumentsMoved      = 0
         ManifestPath        = ''
         Errors              = @()
     }
+    $repairResult = $null
+    $repairMessage = ''
+    $looseResult = $null
     $context = @{
         RunId     = (Get-Date).ToString('yyyyMMdd_HHmmss_fff')
         Shell     = $null
@@ -1790,9 +2259,25 @@ function Invoke-DesktopIconOrganization {
             throw "Organization categories validation failed"
         }
         $context.Shell = New-Object -ComObject WScript.Shell
+        # Invalid shortcuts / folder links / empty category folders first, so re-pointed
+        # shortcuts are filed in this same run.
+        $repairResult = Repair-DesktopInvalidEntries -Context $context -DryRun $PreviewOnly
+        $organizationResults.Repaired = $repairResult.Retargeted + $repairResult.Displaced + $repairResult.LinksFixed + $repairResult.FoldersRemoved
+        foreach ($repairMessage in $repairResult.Messages) {
+            Write-DesktopIconManagerInfo -Message ('{0}{1}' -f $(if ($PreviewOnly) { '[preview] ' } else { '' }), $repairMessage) -ForegroundColor Green
+        }
+        if ($SpecificCategories.Count -eq 0) {
+            $looseResult = Move-DesktopLooseItemsToDocuments -Context $context -DryRun $PreviewOnly
+            $organizationResults.DocumentsMoved = $looseResult.Moved
+            foreach ($repairMessage in $looseResult.Messages) {
+                Write-DesktopIconManagerInfo -Message ('{0}{1}' -f $(if ($PreviewOnly) { '[preview] ' } else { '' }), $repairMessage) -ForegroundColor Green
+            }
+        }
         $plan = Get-DesktopOrganizationPlan -SpecificCategories $SpecificCategories
-        Write-DesktopIconManagerInfo -Message "Desktops: $($plan.DesktopPaths -join '; ')" -ForegroundColor Cyan
-        Write-DesktopIconManagerInfo -Message "Category folders: $($Global:DESKTOP_BACKUP_DIR)" -ForegroundColor Cyan
+        if (-not $Quiet) {
+            Write-DesktopIconManagerInfo -Message "Desktops: $($plan.DesktopPaths -join '; ')" -ForegroundColor Cyan
+            Write-DesktopIconManagerInfo -Message "Category folders: $($Global:DESKTOP_BACKUP_DIR)" -ForegroundColor Cyan
+        }
 
         foreach ($entry in $plan.Conflicts) {
             [void]$context.Conflicts.Add($entry)
@@ -1847,8 +2332,10 @@ function Invoke-DesktopIconOrganization {
                 }
                 Write-DesktopIconManagerInfo -Message ("{0}: {1} -> {2} ({3})" -f $modeLabel, $entry.Item.Info.Path, $entry.Destination, $entry.Item.Reason) -ForegroundColor Green
             }
-            foreach ($entry in $context.Conflicts) {
-                Write-DesktopIconManagerInfo -Message ("kept ({0}): {1}" -f $entry.Reason, $entry.Item.Info.Path) -ForegroundColor Yellow
+            if (-not $Quiet) {
+                foreach ($entry in $context.Conflicts) {
+                    Write-DesktopIconManagerInfo -Message ("kept ({0}): {1}" -f $entry.Reason, $entry.Item.Info.Path) -ForegroundColor Yellow
+                }
             }
             foreach ($entry in $context.Failed) {
                 Write-DesktopIconManagerInfo -Message ("failed: {0} -> {1}: {2}" -f $entry.Item.Info.Path, $entry.Destination, $entry.Error) -ForegroundColor Red
@@ -1856,22 +2343,26 @@ function Invoke-DesktopIconOrganization {
             }
             if ($context.Records.Count -gt 0) {
                 $organizationResults.ManifestPath = Save-DesktopOrganizationManifest -Context $context
-                Write-DesktopIconManagerInfo -Message "Undo manifest: $($organizationResults.ManifestPath)" -ForegroundColor Cyan
-            } else {
+                if (-not $Quiet) {
+                    Write-DesktopIconManagerInfo -Message "Undo manifest: $($organizationResults.ManifestPath)" -ForegroundColor Cyan
+                }
+            } elseif (-not $Quiet) {
                 Write-DesktopIconManagerInfo -Message "Nothing to move; the desktop is already organized." -ForegroundColor Green
             }
         }
 
-        foreach ($entry in $plan.Pinned) {
-            Write-DesktopIconManagerInfo -Message "kept on desktop ($($entry.Reason)): $($entry.Info.Path)" -ForegroundColor DarkGray
-        }
-        foreach ($entry in $plan.Broken) {
-            Write-DesktopIconManagerInfo -Message "left in place (target missing): $($entry.Info.Path) -> $($entry.Reason)" -ForegroundColor DarkYellow
-        }
         $unmatchedShortcuts = @(Get-UnmatchedShortcuts -Plan $plan)
         $organizationResults.UnmatchedShortcuts = $unmatchedShortcuts.Count
-        if ($unmatchedShortcuts.Count -gt 0) {
-            Show-UnmatchedShortcuts -UnmatchedShortcuts $unmatchedShortcuts
+        if (-not $Quiet) {
+            foreach ($entry in $plan.Pinned) {
+                Write-DesktopIconManagerInfo -Message "kept on desktop ($($entry.Reason)): $($entry.Info.Path)" -ForegroundColor DarkGray
+            }
+            foreach ($entry in $plan.Broken) {
+                Write-DesktopIconManagerInfo -Message "left in place (target missing): $($entry.Info.Path) -> $($entry.Reason)" -ForegroundColor DarkYellow
+            }
+            if ($unmatchedShortcuts.Count -gt 0) {
+                Show-UnmatchedShortcuts -UnmatchedShortcuts $unmatchedShortcuts
+            }
         }
 
         if ($ShowSummary) {
@@ -2002,6 +2493,45 @@ function Undo-DesktopIconOrganization {
                     if ((Test-Path -LiteralPath $entry.Destination) -and @(Get-ChildItem -LiteralPath $entry.Destination -Force -ErrorAction SilentlyContinue).Count -eq 0) {
                         [System.IO.Directory]::Delete($entry.Destination, $false)
                         $restoredTo = 'removed (empty folder created by the run)'
+                        $status = 'restored'
+                    }
+                }
+                'move-dir' {
+                    if ([System.IO.Directory]::Exists($entry.Destination) -and $null -eq (Get-Item -LiteralPath $entry.Source -Force -ErrorAction SilentlyContinue)) {
+                        [System.IO.Directory]::Move($entry.Destination, $entry.Source)
+                        $status = 'restored'
+                    }
+                }
+                'displace-dir' {
+                    if ($null -ne (Get-Item -LiteralPath $entry.Destination -Force -ErrorAction SilentlyContinue) -and
+                        $null -eq (Get-Item -LiteralPath $entry.Source -Force -ErrorAction SilentlyContinue)) {
+                        [System.IO.Directory]::Move($entry.Destination, $entry.Source)
+                        $status = 'restored'
+                    }
+                }
+                'retarget' {
+                    if ([System.IO.File]::Exists($entry.Destination)) {
+                        [System.IO.File]::Copy($entry.Destination, $entry.Source, $true)
+                        $restoredTo = $entry.Source
+                        $status = 'restored'
+                    }
+                }
+                'relink' {
+                    # mklink also recreates a link whose old target no longer exists
+                    $linkItem = Get-Item -LiteralPath $entry.Destination -Force -ErrorAction SilentlyContinue
+                    if ($null -ne $linkItem -and ($linkItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+                        [System.IO.Directory]::Delete($entry.Destination, $false)
+                    }
+                    if ($null -eq (Get-Item -LiteralPath $entry.Destination -Force -ErrorAction SilentlyContinue)) {
+                        & cmd.exe /d /c mklink /D "$($entry.Destination)" "$($entry.Source)" | Out-Null
+                        $restoredTo = $entry.Source
+                        $status = 'restored'
+                    }
+                }
+                'rmdir' {
+                    if (-not (Test-Path -LiteralPath $entry.Destination)) {
+                        New-Item -ItemType Directory -Path $entry.Destination -Force | Out-Null
+                        $restoredTo = $entry.Destination
                         $status = 'restored'
                     }
                 }
@@ -2610,5 +3140,6 @@ switch ($DesktopIconAction) {
     'Organize' { [void](Invoke-DesktopIconOrganization -ShowSummary $true -ExtractIcons $false) }
     'Preview' { [void](Invoke-DesktopIconOrganization -ShowSummary $false -ExtractIcons $false -PreviewOnly $true) }
     'Undo' { [void](Undo-DesktopIconOrganization -ManifestPath $DesktopIconUndoManifest) }
-    default { Write-DesktopIconManagerInfo -Message "Unknown -DesktopIconAction '$DesktopIconAction' (use Organize, Preview or Undo)" -ForegroundColor Red }
+    'Tidy' { Invoke-DesktopIconTidy -Reason 'manual run' }
+    default { Write-DesktopIconManagerInfo -Message "Unknown -DesktopIconAction '$DesktopIconAction' (use Organize, Preview, Tidy or Undo)" -ForegroundColor Red }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Utils;
 
+use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Process;
 
 final class SystemArchiveManager
@@ -10,7 +11,6 @@ final class SystemArchiveManager
     private const WINDOWS_PATHS = [
         'C:\\Program Files\\7-Zip\\7z.exe',
         'C:\\Program Files (x86)\\7-Zip\\7z.exe',
-        'D:\\applications\\7-Zip\\7z.exe',
     ];
     private static bool $resolved = false;
     private static ?string $resolvedExecutable = null;
@@ -27,7 +27,7 @@ final class SystemArchiveManager
         }
 
         $candidates = PHP_OS_FAMILY === 'Windows'
-            ? array_merge(self::WINDOWS_PATHS, self::CANDIDATES)
+            ? array_merge(self::WINDOWS_PATHS, [PathMapper::mapWebPath('applications_dir', '7-Zip/7z.exe')], self::CANDIDATES)
             : self::CANDIDATES;
 
         foreach ($candidates as $candidate) {

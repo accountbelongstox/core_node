@@ -10,8 +10,10 @@ ITEM_KEY=""
 ITEM_TITLE=""
 declare -a ITEM_STEPS=()
 
-# Print installation scripts (full paths) sorted by numeric prefix, one per line
-get_installation_scripts() {
+source "${INSTALL_ITEM_RUNNER_DIR}/install_order.sh"
+
+# Print the numbered installation scripts (full paths) sorted by numeric prefix, one per line
+get_numbered_installation_scripts() {
     local file=""
     local filename=""
 
@@ -22,6 +24,24 @@ get_installation_scripts() {
             printf '%s:%s\n' "${BASH_REMATCH[1]}" "$file"
         fi
     done < <(find "$INSTALL_SHELLS_DIR" -maxdepth 1 -name "*.sh" -print0) | sort -n -t: -k1,1 | cut -d: -f2-
+}
+
+# Print installation scripts (full paths) in INSTALL_ORDER (install_order.sh), then any numbered
+# script not listed there in numeric order, one per line
+get_installation_scripts() {
+    local name=""
+    local script=""
+    local -A listed=()
+
+    [ -d "$INSTALL_SHELLS_DIR" ] || return 0
+    for name in "${INSTALL_ORDER[@]}"; do
+        script="${INSTALL_SHELLS_DIR}/${name}.sh"
+        listed["$script"]=1
+        [ -f "$script" ] && echo "$script"
+    done
+    while IFS= read -r script; do
+        [ -n "${listed[$script]:-}" ] || echo "$script"
+    done < <(get_numbered_installation_scripts)
 }
 
 # Print the item file whose ITEM_KEY equals the given MENU_CONFIG key
@@ -65,6 +85,7 @@ run_install_script() {
 
 execute_installation_scripts() {
     local -a scripts=()
+    local -a failed=()
     local script=""
 
     mapfile -t scripts < <(resolve_item_scripts)
@@ -81,8 +102,17 @@ execute_installation_scripts() {
     echo
 
     for script in "${scripts[@]}"; do
-        run_install_script "$script"
+        if ! run_install_script "$script"; then
+            failed+=("$(basename "$script" .sh)")
+        fi
     done
+
+    if [ "${#failed[@]}" -gt 0 ]; then
+        echo
+        echo "Failed steps (${#failed[@]}): ${failed[*]}" >&2
+        return 1
+    fi
+    return 0
 }
 
 list_item_steps() {
@@ -134,6 +164,7 @@ install_item_main() {
             ;;
         "")
             export DD_AUTO_CONTINUE=true
+            export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a APT_LISTCHANGES_FRONTEND=none
             execute_installation_scripts
             rc=$?
             if [ "$rc" -eq 0 ]; then

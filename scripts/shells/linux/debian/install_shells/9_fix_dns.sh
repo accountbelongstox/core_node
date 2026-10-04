@@ -369,9 +369,9 @@ test_dns_servers() {
 test_network_download() {
     log_info "Testing actual network connectivity with file downloads..."
 
-    local temp_dir="${CORE_NODE_DATA_DIR}/tmp"
-    $USE_SUDO mkdir -p "$temp_dir" 2>/dev/null || temp_dir="/tmp"
-    $USE_SUDO chmod 777 "$temp_dir" 2>/dev/null || true
+    local temp_dir=""
+    temp_dir="$(create_script_temp_dir "9_fix_dns" 2>/dev/null)" || temp_dir=""
+    [ -n "$temp_dir" ] && [ -d "$temp_dir" ] || temp_dir="$GLOBAL_TEMP_DIR"
 
     local test_files=(
         "https://registry.npmjs.org/express/latest|npm-registry-test.json"
@@ -723,7 +723,7 @@ main() {
 
     # Step 3: Test DNS servers
     log_info "Step 3: Testing available DNS servers..."
-    test_dns_servers
+    test_dns_servers || log_warning "No public DNS server responded; continuing with the fixes"
     echo ""
 
     # Step 4: Try fixing systemd-resolved first

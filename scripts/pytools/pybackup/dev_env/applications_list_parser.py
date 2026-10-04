@@ -10,7 +10,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+DEFAULT_APPLICATIONS_DIR = str(get_windows_program_dir('app_root'))
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +118,7 @@ class ApplicationsListParser:
     def filter_applications_for_backup(
         self,
         applications: List[Dict[str, any]],
-        base_applications_dir: str = r"D:\applications"
+        base_applications_dir: str = DEFAULT_APPLICATIONS_DIR
     ) -> List[Dict[str, str]]:
         """
         Filter applications and return their backup paths.

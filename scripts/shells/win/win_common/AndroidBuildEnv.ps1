@@ -1,6 +1,6 @@
 # Central Android build environment library (single source of truth) for the
 # Capacitor/AGP toolchain. Dot-source AFTER GlobalVars.ps1. Consumers:
-#   install_powershells/Step62_InstallAndroidSdkPackages.ps1 (dd idempotent step)
+#   install_powershells/Android_SdkPackages.ps1 (dd idempotent step)
 #   poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.ps1 (build entry)
 # All detection is by BINARY EXISTENCE; all shared state lives in $Global: scope so
 # functions never depend on caller scope chains. Toolchain versions follow
@@ -16,7 +16,8 @@ $Global:ANDROID_BUILD_REQUIRED_JAVA_MAJOR = 21
 $Global:ANDROID_BUILD_API = 36
 $Global:ANDROID_BUILD_TOOLS = "36.0.0"
 $Global:ANDROID_BUILD_CMDLINE_TOOLS_URL = "https://dl.google.com/android/repository/commandlinetools-win-14742923_latest.zip"
-$Global:ANDROID_BUILD_SDK_CACHE_ROOT = Join-Path (Join-Path $Global:CORE_NODE_CACHE_DIR "pycore") "android-build\android-sdk"
+# Windows-only SDK install: tool root on the program drive (Linux twin: android_build_env.sh COMPILE_DIR/android-sdk), never the D: shared cache.
+$Global:ANDROID_BUILD_SDK_CACHE_ROOT = Join-Path $Global:LANG_COMPILER_DIR "android-sdk"
 $Global:ANDROID_BUILD_JDK_REGISTRY_KEYS = @(
     "HKLM:\SOFTWARE\Eclipse Adoptium\JDK",
     "HKLM:\SOFTWARE\JavaSoft\JDK"

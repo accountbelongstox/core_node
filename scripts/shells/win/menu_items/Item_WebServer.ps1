@@ -14,13 +14,15 @@ $item = @{
     Order = 50
     Title = 'Web Server After Installation'
     Var   = 'START_WEB_SERVER'
-    Values = @('frankenphp')
-    Presets = @{ base = 'frankenphp'; server = 'frankenphp'; full = 'frankenphp'; desktop = 'frankenphp' }
+    Values = @('frankenphp','nginx','none')
+    Setter = { param($Value) Set-WebServerPlane -Plane $Value }
+    Presets = @{ desktop = 'frankenphp'; server = 'frankenphp' }
     Steps = @(
-        'Step16_InstallPHP.ps1'
-        'Step93_InstallFrankenPHP.ps1'
-        'Step94_InstallComposer.ps1'
-        'Step96_ConfigurePHP85.ps1'
+        'Web_Php.ps1'
+        'Web_Nginx.ps1'
+        'Web_FrankenPhp.ps1'
+        'Web_Composer.ps1'
+        'Web_ConfigurePhp85.ps1'
         'Step175_LaravelMainStart.ps1'
     )
 }

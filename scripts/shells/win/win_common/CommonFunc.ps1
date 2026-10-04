@@ -21,6 +21,8 @@ $script:COLOR_INFO = "White"
 
 # Desktop icon processing debug control
 $script:DEBUG_DESKTOP_ICONS = $false
+# Write-DebugLog keeps every debug line here (under LOGS_DIR), shown on screen only in debug mode
+$script:DEBUG_LOG_FILE_NAME = "install_debug.log"
 
 # Winget log file paths
 $script:WINGET_OUTPUT_LOG = "winget_install_output.log"
@@ -55,23 +57,63 @@ function Write-DebugLog {
         $localDebugBool = [bool]$LocalDebug
     }
     
-    $shouldDebug = $shouldDebug -or $localDebugBool
-    
-    if (-not $shouldDebug) {
+    if (-not ($shouldDebug -or $localDebugBool)) {
         return
     }
-    
+
     $timestamp = Get-Date -Format "HH:mm:ss.fff"
     $debugMessage = "$($Global:DEBUG_PREFIX) [$Category] $Message"
-    Write-Host $debugMessage -ForegroundColor $Color
+    # Console only in debug mode (GlobalVars.ps1 DEBUG_MODE, CN_DEBUG=1) or when forced;
+    # every debug line is still kept in the debug log.
+    if ($Force -or $Global:DEBUG_MODE) {
+        Write-Host $debugMessage -ForegroundColor $Color
+    }
+    if ($Global:LOGS_DIR) {
+        try {
+            Add-Content -LiteralPath (Join-Path $Global:LOGS_DIR $script:DEBUG_LOG_FILE_NAME) -Value "$timestamp $debugMessage" -Encoding utf8 -ErrorAction Stop
+        }
+        catch {
+            # Logging must never break an install step.
+        }
+    }
+}
+
+# Idempotent desktop tidy after any install (DesktopIconManager.ps1 Invoke-DesktopIconTidy):
+# files new desktop shortcuts into their category folders and fixes invalid entries; skips
+# instantly when the desktops did not change. The library is imported once, globally, on
+# first use (scripts that already dot-sourced it use their copy). Never fails the install.
+function Invoke-DesktopIconTidyAfterInstall {
+    param(
+        [string]$Reason = ''
+    )
+
+    $libraryPath = Join-Path $PSScriptRoot 'DesktopIconManager.ps1'
+
+    if (-not (Get-Command Invoke-DesktopIconTidy -ErrorAction SilentlyContinue)) {
+        try {
+            New-Module -Name 'CnDesktopIconManager' -ScriptBlock {
+                param($LibraryPath)
+                . $LibraryPath
+                Export-ModuleMember -Function *
+            } -ArgumentList $libraryPath | Import-Module -Global -Force
+        }
+        catch {
+            Write-DebugLog -Message "Desktop tidy unavailable: $($_.Exception.Message)" -Category "DESKTOP" -Color "Yellow"
+            return
+        }
+    }
+    try {
+        Invoke-DesktopIconTidy -Reason $Reason
+    }
+    catch {
+        Write-DebugLog -Message "Desktop tidy failed after ${Reason}: $($_.Exception.Message)" -Category "DESKTOP" -Color "Yellow"
+    }
 }
 
 # Helper function to find uninstall processes
 function Get-UninstallProcesses {
     try {
         $processes = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { 
-                $_.ProcessName -like "*uninstall*" -or 
-                $_.MainWindowTitle -like "*uninstall*" -or
                 $_.ProcessName -like "*uninst*"
             })
         return $processes
@@ -175,7 +217,7 @@ function Wait-ForUninstallProcesses {
         try {
             Write-CategoryLog -Message "Killing process: $($proc.ProcessName) (PID: $($proc.Id))" -Category "UNINSTALL_WAIT" -Color "Red"
             $proc.Kill()
-            $proc.WaitForExit(5000) # Wait up to 5 seconds for graceful termination
+            [void]$proc.WaitForExit(5000) # Wait up to 5 seconds for graceful termination
         }
         catch {
             Write-CategoryLog -Message "Failed to kill process $($proc.ProcessName): $($_.Exception.Message)" -Category "UNINSTALL_WAIT" -Color "Yellow"
@@ -441,6 +483,32 @@ function Invoke-TimeoutPrompt {
     return $input
 }
 
+# Runs an installer/downloader with TEMP/TMP pointed at $Global:WORK_DIR, so packages it
+# downloads or unpacks under TEMP never land in the shared D: temp ($Global:TEMP_DIR).
+# Returns the script block's output; the caller's TEMP/TMP are restored afterwards.
+function Invoke-WithProgramWorkTemp {
+    param(
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$ScriptBlock
+    )
+
+    $programWorkTempPreviousTemp = $env:TEMP
+    $programWorkTempPreviousTmp = $env:TMP
+
+    if (-not (Test-Path -LiteralPath $Global:WORK_DIR -PathType Container)) {
+        New-Item -ItemType Directory -Path $Global:WORK_DIR -Force | Out-Null
+    }
+    try {
+        $env:TEMP = $Global:WORK_DIR
+        $env:TMP = $Global:WORK_DIR
+        & $ScriptBlock
+    }
+    finally {
+        $env:TEMP = $programWorkTempPreviousTemp
+        $env:TMP = $programWorkTempPreviousTmp
+    }
+}
+
 # Function to extract archive and find target directory
 function ExtractArchiveWithKeyword {
     param(
@@ -518,7 +586,7 @@ function Remove-DuplicateKeywords {
         return @()
     }
     
-    $uniqueKeywords = @{}
+    $uniqueKeywords = New-Object 'System.Collections.Generic.Dictionary[string,string]'
     
     foreach ($keyword in $Keywords) {
         if ([string]::IsNullOrEmpty($keyword)) {
@@ -567,7 +635,7 @@ function Remove-DuplicateKeywords {
         }
     }
     
-    $result = $uniqueKeywords.Values
+    $result = @($uniqueKeywords.Values)
     Write-DebugLog -Message "Deduplicated keywords: $($result -join ', ')" -Category "KEYWORD" -Color "Cyan"
     
     return $result
@@ -625,7 +693,25 @@ function Find-ExecutableByKeyword {
         $ExecutableExtensions = @()
     }
     $searchPaths += $AdditionalScanPaths
-    if ($OnlyScanDirs -and $OnlyScanDirs.Count -gt 0) { 
+    # Installed-state is decided by binary presence: always include the likely install
+    # directories - a folder named after the executable under both install bases
+    # (APP_INSTALL_DIR and LANG_COMPILER_DIR), scanned at the limited depth below.
+    $candidateDirNames = @()
+    foreach ($rawKeyword in (@($Keywords) + @($AdditionalKeywords))) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$rawKeyword)) {
+            $candidateDirNames += [System.IO.Path]::GetFileNameWithoutExtension([string]$rawKeyword)
+        }
+    }
+    foreach ($candidateDirName in @($candidateDirNames | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -Unique)) {
+        foreach ($candidateBaseDir in @($Global:APP_INSTALL_DIR, $Global:LANG_COMPILER_DIR, $env:LOCALAPPDATA, (Join-Path $env:LOCALAPPDATA 'Programs'))) {
+            if ([string]::IsNullOrWhiteSpace([string]$candidateBaseDir)) { continue }
+            $candidateInstallPath = Join-Path $candidateBaseDir $candidateDirName
+            if (Test-Path -LiteralPath $candidateInstallPath) {
+                $searchPaths += $candidateInstallPath
+            }
+        }
+    }
+    if ($OnlyScanDirs -and $OnlyScanDirs.Count -gt 0) {
         # Add install directory paths
         if (-not [string]::IsNullOrEmpty($AdditionalInstallDirName)) {
             $installPath = Join-Path $Global:APP_INSTALL_DIR $AdditionalInstallDirName
@@ -917,6 +1003,7 @@ function Set-MultipleEnvironmentVariablesForPackage {
             }
             else {
                 Write-DebugLog -Message "No ExecutableFiles or Keyword found, using provided ExecutablePath" -Category "ENV" -Color "Cyan"
+                if ($ExecutablePath) { $addExecBinaryAbsolutePathsList += $ExecutablePath }
             }
             
             Write-DebugLog -Message "Processing $($types.Count) environment variable types" -Category "ENV" -Color "Magenta"
@@ -1065,7 +1152,17 @@ function Repair-WingetInstallation {
     }
     
     Write-Host "       [REPAIR] Found location: $foundExecutablePath" -ForegroundColor Yellow
-    
+
+    # A WinGet Links shim is a symlink; repair from its target so the Links folder is never copied wholesale.
+    $foundItem = Get-Item -LiteralPath $foundExecutablePath -ErrorAction SilentlyContinue
+    if ($foundItem -and $foundItem.LinkType -and $foundItem.Target) {
+        $linkTarget = @($foundItem.Target)[0]
+        if ($linkTarget -and (Test-Path -LiteralPath $linkTarget)) {
+            Write-Host "       [REPAIR] Resolved symlink target: $linkTarget" -ForegroundColor Yellow
+            $foundExecutablePath = $linkTarget
+        }
+    }
+
     # Check if already in expected location
     if ($foundExecutablePath.StartsWith($ExpectedInstallDir)) {
         Write-Host "       [REPAIR] Executable already in expected location" -ForegroundColor Green
@@ -1080,7 +1177,7 @@ function Repair-WingetInstallation {
     
     try {
         # Create expected directory if it doesn't exist
-        New-DirectoryIfNotExists -Path $ExpectedInstallDir -Category "REPAIR"
+        $null = New-DirectoryIfNotExists -Path $ExpectedInstallDir -Category "REPAIR"
         
         # Copy the entire installation directory
         Write-Host "       [REPAIR] Copying from $foundInstallDir to $ExpectedInstallDir..." -ForegroundColor Cyan
@@ -1106,9 +1203,15 @@ function Repair-WingetInstallation {
             }
         }
         else {
-            # Standard copy for other applications
-            # Use -ErrorAction SilentlyContinue to handle broken symlinks gracefully
-            Copy-Item -Path (Join-Path $foundInstallDir "*") -Destination $ExpectedInstallDir -Recurse -Force -ErrorAction SilentlyContinue
+            # Standard copy for other applications; copy per child so one broken symlink cannot abort the repair
+            foreach ($childItem in @(Get-ChildItem -LiteralPath $foundInstallDir -Force -ErrorAction SilentlyContinue)) {
+                try {
+                    Copy-Item -LiteralPath $childItem.FullName -Destination $ExpectedInstallDir -Recurse -Force -ErrorAction Stop
+                }
+                catch {
+                    Write-Host "       [REPAIR] Skipped $($childItem.Name): $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+            }
         }
         
         # Verify the copy was successful - search for executable in the copied directory
@@ -1221,18 +1324,17 @@ function Invoke-WingetCommand {
     $isInExpectedDir = $false
     $exePath = $null
     $finalExePath = $null
+    # winget / COM exit codes (signed Int32 as Start-Process reports them)
+    $wingetNoPackageFound = -1978335212      # 0x8A150014 no installed/available package matched
+    $wingetUpdateNotApplicable = -1978335189 # 0x8A15002B already installed, no newer version
+$wingetRebootRequired = -1978334967      # 0x8A150109 installed, reboot required to finish
+    $wingetAppNotFound = -2147221003         # 0x800401F5 registered, but its uninstaller/app files are gone
+    $staleRegistration = $false
+    $forceReinstall = $false
+    $hasInstalledCheck = ($null -ne $InstalledCheck) -or -not [string]::IsNullOrEmpty($Keyword)
 
     
-    # Print parameter information for debugging
-    Write-Host "=== Invoke-WingetCommand Parameters ===" -ForegroundColor Magenta
-    Write-Host "       Id: $Id" -ForegroundColor Yellow
-    Write-Host "       InstallDir: $InstallDir" -ForegroundColor Yellow
-    Write-Host "       OnlyCheckFlag: $OnlyCheckFlag" -ForegroundColor Yellow
-    Write-Host "       AllowTryInstall: $AllowTryInstall" -ForegroundColor Yellow
-    Write-Host "       Keyword: $Keyword" -ForegroundColor Yellow
-    Write-Host "       AdditionalKeywords: $($AdditionalKeywords -join ', ')" -ForegroundColor Yellow
-    Write-Host "       ForceInstall: $ForceInstall" -ForegroundColor Yellow
-    Write-Host "       RegistrySearchKeyword: $RegistrySearchKeyword" -ForegroundColor Yellow
+    Write-DebugLog -Message ("Invoke-WingetCommand Id={0} InstallDir={1} OnlyCheckFlag={2} AllowTryInstall={3} Keyword={4} AdditionalKeywords={5} ForceInstall={6} RegistrySearchKeyword={7}" -f $Id, $InstallDir, $OnlyCheckFlag, $AllowTryInstall, $Keyword, ($AdditionalKeywords -join ', '), $ForceInstall, $RegistrySearchKeyword) -Category "WINGET" -Color "Magenta"
     
     $installSuccessFlag = Join-Path $Global:USER_CACHE_DIR "$Id.install_success.flag"
     $tryInstallFlag = Join-Path $Global:USER_CACHE_DIR "$Id.try_install_flag"
@@ -1315,10 +1417,18 @@ function Invoke-WingetCommand {
             $uninstallExitCode = $uninstallProcess.ExitCode
             $uninstallCompleted = $true
 
-            # -2147221003 = 0x800401F5 (application not found); -1978335212 = 0x8A150014 (winget: no installed package matched)
-            $uninstallNothingToDo = @(0, -2147221003, -1978335212) -contains [int]$uninstallExitCode
+            # Only "no installed package matched" means nothing to clean. 0x800401F5 means winget still has the
+            # package registered but its files are gone (moved/deleted): a stale registration that is reinstalled over.
+            $uninstallNothingToDo = ([int]$uninstallExitCode -eq $wingetNoPackageFound)
+            $staleRegistration = ([int]$uninstallExitCode -eq $wingetAppNotFound)
             if ($uninstallExitCode -eq 0) {
                 Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
+            }
+            elseif ($staleRegistration) {
+                Write-Host "       $Id is registered but its files are missing (exit code: $uninstallExitCode); reinstalling over the stale registration" -ForegroundColor Yellow
+                $uninstallCompleted = $true
+                $uninstallExitCode = 0
+                $forceReinstall = $true
             }
             elseif ($uninstallNothingToDo) {
                 Write-Host "       No existing installation of $Id to uninstall (exit code: $uninstallExitCode), skipping registry cleanup" -ForegroundColor Yellow
@@ -1335,7 +1445,7 @@ function Invoke-WingetCommand {
             $uninstallExitCode = -1
         }
         
-        if (-not $uninstallCompleted -or $uninstallExitCode -ne 0) {
+        if ($uninstallCompleted -and $uninstallExitCode -ne 0) {
             Write-Host "       Proceeding with registry cleanup..." -ForegroundColor Yellow
 
             # Call precise registry cleanup function
@@ -1460,6 +1570,11 @@ function Invoke-WingetCommand {
         $installationSuccess = $false
         
         for ($retryAttempt = 1; $retryAttempt -le $maxRetries; $retryAttempt++) {
+            # --force makes winget run the installer even though it believes the package is installed.
+            if ($forceReinstall -and $params -notmatch '(^| )--force( |$)') {
+                $params += " --force"
+                Write-Host "       Running: winget install --id $Id $params" -ForegroundColor Cyan
+            }
             if ($retryAttempt -gt 1) {
                 Write-Host "       Retry attempt $retryAttempt of $maxRetries for $Id..." -ForegroundColor Yellow
                 Write-Host "       Retrying in " -NoNewline -ForegroundColor Cyan
@@ -1473,18 +1588,51 @@ function Invoke-WingetCommand {
             }
 
             # Run installation with real-time output
-            $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru
+            $process = Invoke-WithProgramWorkTemp { Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru }
 
             if ($process.ExitCode -eq 0) {
                 Write-Host "       Successfully installed $Id" -ForegroundColor Green
                 $installationResult = $true
                 $installationSuccess = $true
                 New-Item -ItemType File -Path $installSuccessFlag -Force | Out-Null
+                # Installers often drop desktop icons: file them right away (idempotent)
+                Invoke-DesktopIconTidyAfterInstall -Reason $Id
                 break
             }
             else {
                 Write-Host "       Installation attempt $retryAttempt failed with exit code: $($process.ExitCode)" -ForegroundColor Yellow
                 Write-Host "       Please check the output above for error details" -ForegroundColor Cyan
+
+                # Deterministic answers: retrying the same command cannot change them.
+                if ([int]$process.ExitCode -eq $wingetRebootRequired) {
+                    Write-Host "       $Id installed; a reboot is required to finish" -ForegroundColor Yellow
+                    $installationResult = $true
+                    $installationSuccess = $true
+                    New-Item -ItemType File -Path $installSuccessFlag -Force | Out-Null
+                    break
+                }
+                if ([int]$process.ExitCode -eq $wingetUpdateNotApplicable) {
+                    if (-not $hasInstalledCheck -and -not $ForceInstall) {
+                        # Nothing on disk was checked: winget's "installed, no newer version" is the answer.
+                        Write-Host "       $Id is already installed and up to date" -ForegroundColor Green
+                        $installationResult = $true
+                        $installationSuccess = $true
+                        New-Item -ItemType File -Path $installSuccessFlag -Force | Out-Null
+                        break
+                    }
+                    if (-not $forceReinstall) {
+                        # winget reports it installed, yet the executable check above found nothing: stale registration.
+                        Write-Host "       winget reports $Id as installed but it was not found on disk; reinstalling with --force" -ForegroundColor Yellow
+                        $forceReinstall = $true
+                        continue
+                    }
+                    Write-Host "       $Id is still reported as installed after a forced reinstall; not retrying" -ForegroundColor Red
+                    break
+                }
+                if ([int]$process.ExitCode -eq $wingetNoPackageFound) {
+                    Write-Host "       No package matches $Id in the configured winget sources; not retrying" -ForegroundColor Red
+                    break
+                }
 
                 # Detect common error codes and apply fixes
                 $isInstallerError = ($process.ExitCode -eq 1722 -or $process.ExitCode -eq 1603)
@@ -1541,7 +1689,7 @@ function Invoke-WingetCommand {
                     }
                     
                     Start-Process -FilePath "winget" -ArgumentList "uninstall $Id" -Wait -NoNewWindow -PassThru
-                    $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru
+                    $process = Invoke-WithProgramWorkTemp { Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru }
                     if ($process.ExitCode -eq 0) {
                         Write-Host "       Successfully reinstalled $Id" -ForegroundColor Green
                         $installationResult = $true
@@ -1583,20 +1731,14 @@ function Invoke-WingetCommand {
         }
     }
     else {
-        Write-Host "       [Repair condition not met - Values: installationResult=$installationResult, Keyword='$Keyword', isInExpectedDir=$isInExpectedDir, ForceToInstallDir=$ForceToInstallDir, IncludeSystemPaths=$IncludeSystemPaths]" -ForegroundColor Cyan
+        Write-DebugLog -Message "Repair condition not met: installationResult=$installationResult, Keyword='$Keyword', isInExpectedDir=$isInExpectedDir, ForceToInstallDir=$ForceToInstallDir, IncludeSystemPaths=$IncludeSystemPaths" -Category "WINGET" -Color "Cyan"
     }
     if (-not $isRepair -and $ForceToInstallDir) {
-        Write-Host "       [WARNING] Package requires forced installation to install directory, but repair command cannot be executed due to insufficient parameters:" -ForegroundColor Yellow
-        if ([string]::IsNullOrEmpty($Keyword)) {
-            Write-Host "       [WARNING] Missing required parameter: Keyword" -ForegroundColor Yellow
+        # Only a real gap is worth a warning; otherwise no repair was simply needed.
+        $missingRepairParams = @(@{ Keyword = $Keyword; InstallDir = $InstallDir; Id = $Id }.GetEnumerator() | Where-Object { [string]::IsNullOrEmpty($_.Value) } | ForEach-Object { $_.Key })
+        if ($missingRepairParams.Count -gt 0) {
+            Write-Host ("       [WARNING] Forced install dir cannot be repaired; missing: {0}" -f ($missingRepairParams -join ', ')) -ForegroundColor Yellow
         }
-        if ([string]::IsNullOrEmpty($InstallDir)) {
-            Write-Host "       [WARNING] Missing required parameter: InstallDir" -ForegroundColor Yellow
-        }
-        if ([string]::IsNullOrEmpty($Id)) {
-            Write-Host "       [WARNING] Missing required parameter: Id" -ForegroundColor Yellow
-        }
-        Write-Host "       [WARNING] Repair command requires: Id, InstallDir, Keyword, and AdditionalKeywords parameters" -ForegroundColor Yellow
     }
     
     # If installation was successful but we don't have an executable path yet, try to find it
@@ -1672,11 +1814,10 @@ function Repair-InstallerPermissions {
         # Method 1: Clean temporary files from multiple locations
         Write-Host "       [REPAIR] Cleaning temporary files..." -ForegroundColor Cyan
         
+        # Not $env:TEMP (points at WORK_DIR) nor C:\Windows\Installer (MSI repair/uninstall cache)
         $tempLocations = @(
-            "$env:TEMP",
             (Join-Path $env:LOCALAPPDATA "Temp"),
             "C:\Windows\Temp",
-            "C:\Windows\Installer",
             (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\INetCache"),
             (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\WebCache")
         )
@@ -1720,7 +1861,6 @@ function Repair-InstallerPermissions {
         
         $wingetCachePaths = @(
             (Join-Path $env:LOCALAPPDATA "Temp\WinGet"),
-            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"),
             (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Cache")
         )
         
@@ -2081,6 +2221,33 @@ function Invoke-Command {
     }
 }
 
+# The ONE pnpm build-approval constant: pass it on every pnpm add/update so pnpm never stops at the
+# interactive approve-builds chooser (TTY) or fails with ERR_PNPM_IGNORED_BUILDS (non-TTY).
+# Verified against the repo pnpm: --allow-build takes exact names only (no wildcard) and the
+# pnpm_config_*/npm_config_* env settings are not recognized; this --config flag is.
+$Global:PNPM_ALLOW_ALL_BUILDS_ARG = '--config.dangerouslyAllowAllBuilds=true'
+
+# Runs a global pnpm install/update with every dependency build script approved, so pnpm never stops at
+# the interactive `approve-builds` prompt (pnpm reads pnpm_config_* env settings; npm_config_* for pnpm <= 10).
+# Scoped to the call: the previous values are restored afterwards. The env settings alone are NOT enough
+# on current pnpm: the caller must also pass $Global:PNPM_ALLOW_ALL_BUILDS_ARG on the command line.
+function Invoke-WithPnpmBuildsAllowed {
+    param([Parameter(Mandatory = $true)][scriptblock]$Action)
+    $names = @('pnpm_config_dangerously_allow_all_builds', 'npm_config_dangerously_allow_all_builds')
+    $previous = @{}
+    $name = ''
+    foreach ($name in $names) {
+        $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        [Environment]::SetEnvironmentVariable($name, 'true', 'Process')
+    }
+    try {
+        & $Action
+    }
+    finally {
+        foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process') }
+    }
+}
+
 function Get-FileWithSizeCheck {
     param(
         [string]$localPath,
@@ -2088,16 +2255,25 @@ function Get-FileWithSizeCheck {
         [string]$description = ""
     )
     
+    # Shared download with a Write-Progress bar (percent + MB/s). Returns $true when $localPath is
+    # current afterwards: freshly downloaded, or already present with the remote size.
     $shouldDownload = $false
     $tempFile = "$localPath.tmp"
-    
+    $localDir = Split-Path -Parent $localPath
+
+    if ($localDir -and -not (Test-Path $localDir)) {
+        New-Item -ItemType Directory -Path $localDir -Force | Out-Null
+    }
+    if (-not $description) {
+        $description = Split-Path -Leaf $localPath
+    }
     if (Test-Path $localPath) {
         $localSize = (Get-Item $localPath).Length
         try {
-            $response = Invoke-WebRequest -Uri $remoteUrl -Method Head
-            $remoteSize = [int]$response.Headers['Content-Length']
-            
-            if ($localSize -ne $remoteSize) {
+            $response = Invoke-WebRequest -Uri $remoteUrl -Method Head -UseBasicParsing
+            $remoteSize = [int64]$response.Headers['Content-Length']
+
+            if ($remoteSize -gt 0 -and $localSize -ne $remoteSize) {
                 $shouldDownload = $true
                 Write-Host "File sizes differ. Local: $localSize bytes, Remote: $remoteSize bytes" -ForegroundColor Yellow
             }
@@ -2118,8 +2294,8 @@ function Get-FileWithSizeCheck {
             
             $totalSize = 0
             try {
-                $response = Invoke-WebRequest -Uri $remoteUrl -Method Head
-                $totalSize = [int]$response.Headers['Content-Length']
+                $response = Invoke-WebRequest -Uri $remoteUrl -Method Head -UseBasicParsing
+                $totalSize = [int64]$response.Headers['Content-Length']
             }
             catch {
                 Write-Warning "Could not get file size: $_"
@@ -2179,6 +2355,8 @@ function Get-FileWithSizeCheck {
 
             if ($totalSize -gt 0 -and $finalSize -ne $totalSize) {
                 Write-Warning "Downloaded file size ($finalSize bytes) does not match expected size ($totalSize bytes)"
+                Remove-Item -Path $tempFile -Force
+                return $false
             }
 
             $averageSpeed = if ($totalTime -gt 0) { [math]::Round($finalSize / $totalTime / 1MB, 2) } else { 0 }
@@ -2205,8 +2383,9 @@ function Get-FileWithSizeCheck {
             }
         }
     }
-    
-    return $false
+
+    Write-Host "Already up to date: $localPath" -ForegroundColor Green
+    return $true
 }
 
 function Test-AndRecreateHardLink {
@@ -2249,11 +2428,15 @@ function Test-AndRecreateHardLink {
     }
     
     $parentDir = Split-Path $LinkPath -Parent
-    New-DirectoryIfNotExists -Path $parentDir -Category "SYMLINK"
+    $null = New-DirectoryIfNotExists -Path $parentDir -Category "SYMLINK"
     
     try {
         Write-Host "       Creating hard link from $LinkPath to $TargetPath" -ForegroundColor Yellow
-        cmd /c mklink /J "$LinkPath" "$TargetPath"
+        cmd /c mklink /J "$LinkPath" "$TargetPath" | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "       mklink failed (exit $LASTEXITCODE)" -ForegroundColor Red
+            return $false
+        }
         Write-Host "       Successfully created hard link" -ForegroundColor Green
         return $true
     }
@@ -2296,12 +2479,15 @@ function Ensure-GlobalVarsEncoding {
     if (Test-Path $Global:GLOBAL_VAR_DIR) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         Get-ChildItem -Path $Global:GLOBAL_VAR_DIR -File | ForEach-Object {
-            # Read content with current encoding
-            $content = Get-Content -Path $_.FullName -Raw
+            $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+            try { $content = (New-Object System.Text.UTF8Encoding($false, $true)).GetString($bytes).TrimStart([char]0xFEFF) } catch { $content = [System.Text.Encoding]::Default.GetString($bytes) }
             if ($content) {
                 # Remove any null bytes and write back with UTF-8 encoding
                 $cleanContent = $content -replace "`0", ""
-                [System.IO.File]::WriteAllText($_.FullName, $cleanContent, $utf8NoBom)
+                $cleanBytes = $utf8NoBom.GetBytes($cleanContent)
+                if ([System.Convert]::ToBase64String($cleanBytes) -ne [System.Convert]::ToBase64String($bytes)) {
+                    [System.IO.File]::WriteAllBytes($_.FullName, $cleanBytes)
+                }
             }
         }
     }
@@ -2603,7 +2789,7 @@ function Create-DesktopShortcutsForPackage {
         [array]$ScanKeywords = @()
     )
     
-    Write-Host "       [DESKTOP] Creating desktop shortcut: $ShortcutName" -ForegroundColor Cyan
+    Write-DebugLog -Message "Creating desktop shortcut: $ShortcutName" -Category "DESKTOP" -Color "Cyan"
     
     # Set default icon path to exe path if not specified
     if (-not $IconPath) {
@@ -2619,7 +2805,7 @@ function Create-DesktopShortcutsForPackage {
         Write-Host "       [DESKTOP] Created base desktop icons directory: $baseDesktopIconsDir" -ForegroundColor Green
     }
     
-    Write-Host "       [DESKTOP] CategoryName: '$CategoryName'" -ForegroundColor Green
+    Write-DebugLog -Message "CategoryName: '$CategoryName'" -Category "DESKTOP" -Color "Cyan"
 
     # Determine if this is a real category (non-empty string) or root category (empty string)
     $isRootCategory = ($CategoryName -eq "")
@@ -2668,7 +2854,7 @@ function Create-DesktopShortcutsForPackage {
         Write-DebugLog -Message "User desktop path: '$userDesktopPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
         Write-DebugLog -Message "Public desktop path: '$publicDesktopPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
         # Use keywords directly without conversion since we're using Unicode variables
-        Write-Host "       [DESKTOP] Scanning both desktops for existing shortcuts with keywords: $($ScanKeywords -join ', ')" -ForegroundColor Yellow
+        Write-DebugLog -Message "Scanning both desktops for existing shortcuts with keywords: $($ScanKeywords -join ', ')" -Category "DESKTOP" -Color "Cyan"
         
         foreach ($keyword in $ScanKeywords) {
             Write-DebugLog -Message "Processing keyword = '$keyword' (Length: $($keyword.Length))" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
@@ -2757,7 +2943,7 @@ function Create-DesktopShortcutsForPackage {
         
         # Remove existing target shortcut if it exists
         if (Test-Path $shortcutPath) {
-            Write-Host "       [DESKTOP] Removing existing target shortcut: $shortcutPath" -ForegroundColor Yellow
+            Write-DebugLog -Message "Replacing existing shortcut: $shortcutPath" -Category "DESKTOP" -Color "Cyan"
             Remove-Item $shortcutPath -Force
         }
         
@@ -2778,7 +2964,7 @@ function Create-DesktopShortcutsForPackage {
         }
         else {
             # Create new shortcut
-            Write-Host "       [DESKTOP] Creating new shortcut: $shortcutPath" -ForegroundColor Green
+            Write-DebugLog -Message "Creating new shortcut: $shortcutPath" -Category "DESKTOP" -Color "Cyan"
             
             # Create WScript.Shell object
             $WshShell = New-Object -ComObject WScript.Shell
@@ -2828,7 +3014,7 @@ function Create-DesktopShortcutsForPackage {
         return $false
     }
     
-    Write-Host "       [DESKTOP] Desktop shortcut created successfully: $ShortcutName" -ForegroundColor Green
+    Write-Host "       [DESKTOP] Shortcut ready: $ShortcutName [$CategoryName]" -ForegroundColor Green
     return $true
 }
 
@@ -3282,18 +3468,15 @@ function Remove-PreciseRegistryEntries {
                     $matchedProperties = @()
 
                     # Properties to check for keyword matches
-                    $propertiesToCheck = @(
-                        "DisplayName", "DisplayIcon", "InstallLocation", "UninstallString",
-                        "QuietUninstallString", "Publisher", "URLInfoAbout", "HelpLink",
-                        "Inno Setup: App Path", "InstallSource", "ModifyPath"
-                    )
+                    # DisplayName only: URLs, publishers and paths contain short keywords of unrelated programs
+                    $propertiesToCheck = @("DisplayName")
 
                     foreach ($propName in $propertiesToCheck) {
                         if ($properties.PSObject.Properties.Name -contains $propName -and $properties.$propName) {
                             $propValue = $properties.$propName.ToString()
 
                             foreach ($keyword in $SearchKeywords) {
-                                if ($propValue -like "*$keyword*") {
+                                if ($keyword.Trim().Length -ge 4 -and $propValue -like "*$($keyword.Trim())*") {
                                     $matchFound = $true
                                     $matchedProperties += "$propName=$propValue"
                                     break

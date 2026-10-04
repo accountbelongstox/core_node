@@ -10,4 +10,9 @@ public static partial class I18nKeys
     public const string RosbotTestDisplayRecord = "ui.rosbot.test_display_record";
     public const string RosbotTestDisplayWait = "ui.rosbot.test_display_wait";
     public const string RosbotTestDisplaySeparator = "ui.rosbot.test_display_separator";
+    public const string RosbotError = "ui.rosbot.error";
+    public const string RosbotScanDone = "ui.rosbot.scan_done";
+    public const string RosbotScanNotFoundBattlenet = "ui.rosbot.scan_not_found_battlenet";
+    public const string RosbotScanNotFoundD3 = "ui.rosbot.scan_not_found_d3";
+    public const string RosbotScanNotFoundRosbot = "ui.rosbot.scan_not_found_rosbot";
 }

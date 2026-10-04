@@ -70,40 +70,16 @@ show_install_test_menu() {
     echo "Press Q to quit"
 }
 
-# Function to find and sort installation scripts
-get_installation_scripts() {
-    local install_shells_dir="$1"
-    local scripts=()
-    
-    if [ -d "$install_shells_dir" ]; then
-        while IFS= read -r -d $'\0' file; do
-            local filename=$(basename "$file")
-            # Extract the leading number (1_ or 100_ format)
-            if [[ $filename =~ ^([0-9]+)_ ]]; then
-                local prefix=${BASH_REMATCH[1]}
-                scripts+=("$prefix:$file")
-            fi
-        done < <(find "$install_shells_dir" -maxdepth 1 -name "*.sh" -print0)
-
-        # Sort by numeric step, then filename for deterministic same-step ordering.
-        IFS=$'\n' sorted=($(sort -t: -k1,1n -k2,2 <<<"${scripts[*]}"))
-        unset IFS
-
-        # Extract just the file paths
-        local result=()
-        for item in "${sorted[@]}"; do
-            result+=("${item#*:}")
-        done
-        echo "${result[@]}"
-    else
-        echo ""
-    fi
-}
+# Full-installation order is shared with install.sh and the menu items (install_order.sh via
+# install_item_runner.sh get_installation_scripts)
+source "$SCRIPT_DIR/install_item_runner.sh"
 
 # Function to execute installation scripts
 execute_installation_scripts() {
     local install_shells_dir="$1"
-    local scripts=($(get_installation_scripts "$install_shells_dir"))
+    local -a scripts=()
+
+    mapfile -t scripts < <(get_installation_scripts)
 
     echo "INSTALL_SHELLS_DIR: $install_shells_dir"
     if [ ${#scripts[@]} -eq 0 ]; then

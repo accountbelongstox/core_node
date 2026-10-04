@@ -184,23 +184,33 @@ function Test-MeshControlServerReachable {
     param([Parameter(Mandatory = $true)][string]$Url)
     $probeUrl = $Url.TrimEnd('/')
     $response = $null
+    $content = $null
+    $attempt = 0
     $isHeadscaleUrl = ($probeUrl -ne $script:MeshTailscaleControlUrl)
 
     if ($isHeadscaleUrl) {
         $probeUrl = '{0}/health' -f $probeUrl
     }
-    try {
-        $response = Invoke-WebRequest -Uri $probeUrl -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-        if ($isHeadscaleUrl) {
-            return ([string]$response.Content).Contains('pass')
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            $response = Invoke-WebRequest -Uri $probeUrl -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+            if (-not $isHeadscaleUrl) {
+                return $true
+            }
+            # Headscale /health answers application/json without charset, so Content arrives as byte[].
+            $content = $response.Content
+            if ($content -is [byte[]]) { $content = [System.Text.Encoding]::UTF8.GetString($content) }
+            if (([string]$content).Contains('pass')) {
+                return $true
+            }
+        } catch {
+            if (-not $isHeadscaleUrl -and $null -ne $_.Exception.PSObject.Properties['Response'] -and $null -ne $_.Exception.Response) {
+                return $true
+            }
         }
-        return $true
-    } catch {
-        if (-not $isHeadscaleUrl -and $null -ne $_.Exception.PSObject.Properties['Response'] -and $null -ne $_.Exception.Response) {
-            return $true
-        }
-        return $false
+        if ($attempt -lt 3) { Start-Sleep -Seconds 3 }
     }
+    return $false
 }
 
 # Control URL the active provider wants the client to use.

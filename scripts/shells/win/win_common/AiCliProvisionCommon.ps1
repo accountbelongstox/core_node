@@ -41,6 +41,11 @@ $AiCliGlobalPackageManagers = @("pnpm", "npm")
 if (-not (Get-Command Get-AiTool -ErrorAction SilentlyContinue)) {
     . (Join-Path $PSScriptRoot "AiToolsCatalog.ps1")
 }
+# CommonFunc owns the shared pnpm build-approval pieces (Invoke-WithPnpmBuildsAllowed,
+# $Global:PNPM_ALLOW_ALL_BUILDS_ARG); it self-loads GlobalVars when needed.
+if (-not (Get-Command Invoke-WithPnpmBuildsAllowed -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot "CommonFunc.ps1")
+}
 $AiCliPackages = @{}
 $AiCliLabels = @{}
 # Missing launcher tools are installed by Step65 (Linux: 99_install_ai_tools.sh), in a child process.
@@ -123,16 +128,39 @@ function Invoke-AiCliNativeInstaller {
     $toolInfo = Get-AiTool -Key $Tool
     $installerUrl = $null
     $installerContent = $null
-    $installerFile = Join-Path ([System.IO.Path]::GetTempPath()) $AiCliNativeInstallerFileName
+    $installerDir = Get-Variable -Name 'DOWNLOADS_DIR' -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    $installerWorkDir = Get-Variable -Name 'WORK_DIR' -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    $installerFile = $null
     $powerShellExe = (Get-Process -Id $PID).Path
     $installerExitCode = 1
     $envName = ""
     $savedEnv = @{}
+    $installerEnv = @{}
+
+    # Installer scripts land in DOWNLOADS_DIR and the official installers' own TEMP
+    # downloads/extraction in WORK_DIR (GlobalVars.ps1), never the shared D: temp.
+    if ([string]::IsNullOrWhiteSpace([string]$installerDir)) {
+        $installerDir = [System.IO.Path]::GetTempPath()
+    }
+    if (-not (Test-Path -LiteralPath $installerDir -PathType Container)) {
+        New-Item -ItemType Directory -Path $installerDir -Force | Out-Null
+    }
+    $installerFile = Join-Path $installerDir $AiCliNativeInstallerFileName
+    foreach ($envName in @($toolInfo.NativeInstallerEnv.Keys)) {
+        $installerEnv[$envName] = [string]$toolInfo.NativeInstallerEnv[$envName]
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$installerWorkDir)) {
+        if (-not (Test-Path -LiteralPath $installerWorkDir -PathType Container)) {
+            New-Item -ItemType Directory -Path $installerWorkDir -Force | Out-Null
+        }
+        $installerEnv["TEMP"] = [string]$installerWorkDir
+        $installerEnv["TMP"] = [string]$installerWorkDir
+    }
 
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    foreach ($envName in @($toolInfo.NativeInstallerEnv.Keys)) {
+    foreach ($envName in @($installerEnv.Keys)) {
         $savedEnv[$envName] = [Environment]::GetEnvironmentVariable($envName, "Process")
-        [Environment]::SetEnvironmentVariable($envName, [string]$toolInfo.NativeInstallerEnv[$envName], "Process")
+        [Environment]::SetEnvironmentVariable($envName, $installerEnv[$envName], "Process")
     }
     try {
         foreach ($installerUrl in @($toolInfo.NativeInstallerUrls)) {
@@ -143,7 +171,7 @@ function Invoke-AiCliNativeInstaller {
                     throw "unexpected installer content"
                 }
                 Set-Content -LiteralPath $installerFile -Value $installerContent -Encoding UTF8
-                & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $installerFile
+                & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $installerFile | Out-Host
                 $installerExitCode = $LASTEXITCODE
                 Remove-Item -LiteralPath $installerFile -Force -ErrorAction SilentlyContinue
                 if (($installerExitCode -eq 0) -and (Test-Path -LiteralPath (Get-AiCliNativeExe -Tool $Tool))) {
@@ -316,14 +344,14 @@ function Invoke-AiCliPackageManagerInstall {
     # InstallType "pnpm" -> "pnpm add --global <package>"); npm is the fallback.
     $packageManagerCommand = Get-Command pnpm -ErrorAction SilentlyContinue
     if ($null -ne $packageManagerCommand) {
-        & $packageManagerCommand.Source add --global $packageSpecifier
+        Invoke-WithPnpmBuildsAllowed { & $packageManagerCommand.Source add --global $Global:PNPM_ALLOW_ALL_BUILDS_ARG $packageSpecifier | Out-Host }
         if ($LASTEXITCODE -eq 0) {
             return $true
         }
     }
     $packageManagerCommand = Get-Command npm -ErrorAction SilentlyContinue
     if ($null -ne $packageManagerCommand) {
-        & $packageManagerCommand.Source install --global $packageSpecifier
+        & $packageManagerCommand.Source install --global $packageSpecifier | Out-Host
         if ($LASTEXITCODE -eq 0) {
             return $true
         }
@@ -367,7 +395,7 @@ function Invoke-AiCliNativeUpgrade {
         # background updater, so it is cleared for this explicit upgrade.
         $autoUpdaterBackup = $env:DISABLE_AUTOUPDATER
         $env:DISABLE_AUTOUPDATER = $null
-        & $toolCommand.Source update
+        & $toolCommand.Source update | Out-Host
         $env:DISABLE_AUTOUPDATER = $autoUpdaterBackup
         if ($LASTEXITCODE -eq 0) {
             return $true
@@ -526,7 +554,7 @@ function Invoke-AiCliChromeMcpEnsure {
     $mcpProviderPath = Join-Path $coreNodePath "scripts\ai_ps1tools\mcp_config_provider.ps1"
     $jsonHelperPath = Join-Path $coreNodePath "scripts\ai_ps1tools\_json_sync_helper.py"
     $startScriptPath = Join-Path $coreNodePath "apps\mcp-chrome\scripts\start.ps1"
-    $claudeConfigPath = Join-Path $env:USERPROFILE ".claude.json"
+    $claudeConfigPath = if ($env:CLAUDE_CONFIG_DIR) { Join-Path $env:CLAUDE_CONFIG_DIR ".claude.json" } else { Join-Path $env:USERPROFILE ".claude.json" }
     $entriesPath = Join-Path ([System.IO.Path]::GetTempPath()) ("claude_chrome_mcp_entries_{0}.json" -f $PID)
     $mcpHost = $null
     $mcpPort = 0

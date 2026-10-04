@@ -16,6 +16,7 @@ public static partial class ConfigKeys
     public const string UiSettingsLastSelectedTab = "ui_settings.last_selected_tab";
 
     // ---------- macro_configs ----------
+    public const string MacroConfigsRoot = "macro_configs";
     public const string MacroConfigsCurrentSkillConfig = "macro_configs.current_skill_config";
     public const string MacroConfigsSkillConfigs = "macro_configs.skill_configs";
     public const string MacroConfigsAuxiliaryConfig = "macro_configs.auxiliary_config";
@@ -124,6 +125,15 @@ public static partial class ConfigKeys
 
     // ---------- d4_settings ----------
     public const string D4SettingsExpFarmingRunning = "d4_settings.exp_farming_running";
+
+    // ---------- tools (decompile tab) ----------
+    public const string ToolsRbAssistPath = "tools.rbassist_path";
+
+    // ---------- navigation (town NPC model) ----------
+    public const string NavigationNpcModelPath = "navigation.npc_model_path";
+    public const string NavigationTarget = "navigation.target";
+    public const string NavigationConfidence = "navigation.confidence";
+    public const string NavigationMaxSteps = "navigation.max_steps";
 
     // ---------- coord_calibration (YOLO / calibration panel) ----------
     public const string CoordCalibrationClientType = "coord_calibration.client_type";

@@ -73,6 +73,40 @@
       "action_install": "Not installed",
       "action_try_free": "Not owned (try free / buy)",
       "action_starting": "Game starting"
+    },
+    "tray": {
+      "rosbot_started": "ROSBOT started",
+      "rosbot_start_failed": "ROSBOT failed to start",
+      "rosbot_stopped": "ROSBOT stopped"
+    },
+    "decompile": {
+      "tab": "Decompile",
+      "tools_title": "Decompiler tools",
+      "tools_desc": "Downloaded into the program data folder: ILSpy (.NET to C#, needs the .NET SDK), de4dot-cex (.NET deobfuscation), autoit-ripper (compiled AutoIt to .au3, needs Python), UPX (unpack). Already installed tools are kept.",
+      "install": "Download / repair tools",
+      "installed": "installed",
+      "missing": "not installed",
+      "rosbot_title": "ROSBOT",
+      "rosbot_desc": "Main program (deobfuscate, then decompile) plus every plugin DLL; writes settings_fields.md with all setting names (RoS-BoT.ini keys). Method bodies protected by DNGuard HVM are decrypted only at runtime and stay as stubs.",
+      "rosbot_button": "Decompile ROSBOT",
+      "rbassist_title": "RBAssist",
+      "rbassist_desc": "Compiled AutoIt program: extracts the .au3 script and embedded files (UPX is unpacked first when needed).",
+      "rbassist_button": "Decompile RBAssist",
+      "browse": "Browse...",
+      "file_title": "Any file",
+      "file_desc": "Detects the type automatically: .NET assembly, compiled AutoIt, or native code (not supported).",
+      "file_button": "Choose file and decompile",
+      "file_filter": "Executables (*.exe;*.dll)|*.exe;*.dll|All files (*.*)|*.*",
+      "open_output": "Open output folder",
+      "log": "Log",
+      "chain": "Test decompile chain",
+      "recover_sources": "Export available sources and attempt DNGuard recovery",
+      "export_il": "Export original IL",
+      "chain_desc": "Checks that all tools run, then decompiles configured ROSBOT, plugins and RBAssist into a new folder. Saves chain_report.json. DNGuard placeholder bodies are reported as partial recovery. Select a restored assembly under Any file to inspect an external recovery result.",
+      "cancel": "Cancel",
+      "passed": "Chain passed: tools ran and all targets produced output without detected DNGuard placeholders.",
+      "incomplete": "Chain incomplete: check the log and chain_report.json for missing tools, failed targets or protected method bodies.",
+      "cancelled": "Operation cancelled or timed out."
     }
   },
   "skills": {

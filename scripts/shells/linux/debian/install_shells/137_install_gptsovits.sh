@@ -19,7 +19,7 @@ SCRIPT_INDEX="137"
 # torch when a GPU is present, else CPU (the post-install torch_cpu_guard.sh also reconciles).
 # Repo: https://github.com/RVC-Boss/GPT-SoVITS ; models: HF lj1995/GPT-SoVITS.
 #
-# Invocation (prepare_pycore_prerequisites.sh):  install_gptsovits.sh --python <py> [--full] [--force]
+# Invocation (prepare_pycore_prerequisites.sh):  137_install_gptsovits.sh --python <py> [--full] [--force]
 # Env: GPTSOVITS_SKIP=1 (skip), GPTSOVITS_INSTALL=1 (== --full), GPTSOVITS_DIR, GPTSOVITS_URL
 set -uo pipefail
 

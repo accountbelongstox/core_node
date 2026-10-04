@@ -79,7 +79,7 @@ class AppFinder:
             return self.find_aiassistant(force_refresh=force_refresh)
         if app_name == 'codex':
             return self.find_codex(force_refresh=force_refresh)
-        # Edge slot launches portable Chrome under D:\applications\Chrome.
+        # Edge slot launches portable Chrome under <APP_INSTALL_DIR>\Chrome.
         if app_name == 'edge':
             return chrome_finder.find_portable(force_refresh=force_refresh)
 

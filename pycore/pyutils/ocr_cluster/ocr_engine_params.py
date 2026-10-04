@@ -37,7 +37,7 @@ OCR_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
         "language_default": "en",
         "lang_list": ["ch_sim", "en", "ja", "ko"],
         "long_wait": True,
-        "note": "EasyOCR. GPU speeds up detection; weights come from Step46_InstallOcr.ps1 / 125_install_ocr.sh.",
+        "note": "EasyOCR. GPU speeds up detection; weights come from Model_Ocr.ps1 / 125_install_ocr.sh.",
     },
     "cnocr": {
         "fields": ["ocr_text", "lang", "model_type"],

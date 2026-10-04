@@ -134,8 +134,9 @@ for home_dir in /root /home/*; do
     # torch hub weights -> $SHARED_ROOT/torch
     copy_merge "$home_dir/.cache/torch" "$SHARED_ROOT/torch"
 
-    # pip wheel cache -> $SHARED_ROOT/pip
-    copy_merge "$home_dir/.cache/pip" "$SHARED_ROOT/pip"
+    # pip wheel cache -> the ext4 PIP_CACHE_DIR (shared_cache_env.sh); a
+    # package cache never goes into the shared model tree (NTFS on dual-boot).
+    [ -z "${PIP_CACHE_DIR:-}" ] || copy_merge "$home_dir/.cache/pip" "$PIP_CACHE_DIR"
 done
 
 # ---- legacy: the caller's own $HOME/.core_node/cache (covers non-/home homes) ----

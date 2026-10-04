@@ -123,7 +123,7 @@ if ($Native) { $env:VITE_BUILD_TARGET = 'native' } else { Remove-Item Env:VITE_B
 
 Write-Host "==> vite build (VITE_APP_FLAVOR=$App, native=$($Native.IsPresent))" -ForegroundColor Green
 $bunCommand = Get-Command bun -ErrorAction SilentlyContinue
-if (-not $bunCommand) { Write-Error "bun not found on PATH. Install node + bun via Step4_InstallNodeJS.ps1 (dd.cmd Installer Menu)." }
+if (-not $bunCommand) { Write-Error "bun not found on PATH. Install node + bun via Node_Runtime.ps1 (dd.cmd Installer Menu)." }
 & bun x vite build
 if ($LASTEXITCODE -ne 0) { Write-Error "vite build failed (exit $LASTEXITCODE)." }
 

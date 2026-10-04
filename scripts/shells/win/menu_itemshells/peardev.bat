@@ -29,7 +29,7 @@ FOR %%x IN ("D:\programing\core_node\scripts\shells\win\menu_itemshells\pear") D
 REM Check PEAR global ENV, set them if they do not exist
 IF "%PHP_PEAR_INSTALL_DIR%"=="" SET "PHP_PEAR_INSTALL_DIR=D:\programing\core_node\scripts\shells\win\menu_itemshells\pear"
 IF "%PHP_PEAR_BIN_DIR%"=="" SET "PHP_PEAR_BIN_DIR=D:\programing\core_node\scripts\shells\win\menu_itemshells"
-IF "%PHP_PEAR_PHP_BIN%"=="" SET "PHP_PEAR_PHP_BIN=D:\.dev_win10\PHP\php8.5\php.exe"
+IF "%PHP_PEAR_PHP_BIN%"=="" FOR %%x IN (php.exe) DO SET "PHP_PEAR_PHP_BIN=%%~$PATH:x"
 GOTO :INSTALLED
 
 :NOTINSTALLED

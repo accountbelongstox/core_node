@@ -13,7 +13,7 @@ SCRIPT_INDEX="133"
 #
 # Linux extras: apt ffmpeg/sox/libsndfile; git submodule init for Matcha-TTS.
 #
-# Invocation: install_cosyvoice.sh --python <py> [--full] [--force]
+# Invocation: 133_install_cosyvoice.sh --python <py> [--full] [--force]
 # Env: COSYVOICE_SKIP=1, COSYVOICE_INSTALL=1, COSYVOICE_DIR, COSYVOICE_URL
 set -uo pipefail
 

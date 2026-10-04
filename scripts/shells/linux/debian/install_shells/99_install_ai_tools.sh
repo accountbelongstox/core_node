@@ -549,17 +549,21 @@ ai99_target_is_other_user() {
 ai99_run_as_target() {
     ai99_resolve_target
     local -a env_args=(HOME="$AI99_TARGET_HOME" USER="$AI99_TARGET_USER" LOGNAME="$AI99_TARGET_USER" PATH="$AI99_TARGET_PATH")
+    # Installer downloads and package caches stay on ext4: drop the shared
+    # XDG_CACHE_HOME (the NTFS model cache on dual-boot) so installers fall
+    # back to the target user's own ~/.cache.
+    local -a env_unset=(-u XDG_CACHE_HOME)
     local shim='cd "$HOME" 2>/dev/null || cd /; exec "$@"'
     if ai99_target_is_other_user; then
         if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
-            runuser -u "$AI99_TARGET_USER" -- env "${env_args[@]}" bash -c "$shim" ai99 "$@"
+            runuser -u "$AI99_TARGET_USER" -- env "${env_unset[@]}" "${env_args[@]}" bash -c "$shim" ai99 "$@"
         elif [ -n "$USE_SUDO" ]; then
-            $USE_SUDO -u "$AI99_TARGET_USER" env "${env_args[@]}" bash -c "$shim" ai99 "$@"
+            $USE_SUDO -u "$AI99_TARGET_USER" env "${env_unset[@]}" "${env_args[@]}" bash -c "$shim" ai99 "$@"
         else
-            su -s /bin/bash "$AI99_TARGET_USER" -c "$(printf '%q ' env "${env_args[@]}" bash -c "$shim" ai99 "$@")"
+            su -s /bin/bash "$AI99_TARGET_USER" -c "$(printf '%q ' env "${env_unset[@]}" "${env_args[@]}" bash -c "$shim" ai99 "$@")"
         fi
     else
-        env "${env_args[@]}" bash -c "$shim" ai99 "$@"
+        env "${env_unset[@]}" "${env_args[@]}" bash -c "$shim" ai99 "$@"
     fi
 }
 

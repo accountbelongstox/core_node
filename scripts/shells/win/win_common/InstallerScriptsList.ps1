@@ -1,5 +1,5 @@
 # DevInstaller manifest (callers: DevInstaller.ps1, InitializationManager.ps1, TestInstaller.ps1).
-# Step scripts live under install_powershells/ and are invoked in numeric sweep order only.
+# Step scripts live under install_powershells/; the full installation runs them in $InstallerScripts order.
 
 #region Load Dependencies
 $scriptDir             = Split-Path -Parent $PSCommandPath
@@ -12,240 +12,113 @@ $pythonRuntimePath     = Join-Path $winCommonDir 'PythonRuntimeCommon.ps1'
 . $pythonRuntimePath
 #endregion
 
-# Script filename variables - each script name defined only once
+# Script filename variables - each script name defined only once. A series index step
+# (Step*_Install<Series>.ps1) orchestrates its component scripts (<Series>_<Part>.ps1) through
+# win_common/InstallSeriesCommon.ps1; components stay runnable on their own.
 $SCRIPT_STEP1_INITIALIZE_BASE_DIRECTORIES = "Step1_InitializeBaseDirectories.ps1"
 $SCRIPT_STEP2_SET_BASE_SETTINGS = "Step2_SetBaseSettings.ps1"
 $SCRIPT_STEP3_INIT_WINGET = "Step3_InitWinget.ps1"
-$SCRIPT_STEP4_INSTALL_NODEJS = "Step4_InstallNodeJS.ps1"
-$SCRIPT_STEP5_INSTALL_GIT_SSH = "Step5_InstallGitSSH.ps1"
-$SCRIPT_STEP6_INSTALL_GIT = "Step6_InstallGit.ps1"
+$SCRIPT_STEP4_INSTALL_NODE = "Step4_InstallNode.ps1"
+$SCRIPT_STEP5_INSTALL_GIT = "Step5_InstallGit.ps1"
 $SCRIPT_STEP7_FIX_CORE_NODE_PROJECT_LOCATION = "Step7_FixCoreNodeProjectLocation.ps1"
-$SCRIPT_STEP8_INSTALL_DEFAULT_PYTHON = "Step8_InstallDefaultPython.ps1"
-$SCRIPT_STEP9_INSTALL_CUDA_NVIDIA_PREREQ = "Step9_InstallCudaNvidiaPrereq.ps1"
-$SCRIPT_STEP10_INSTALL_PYTHON_PREREQ_PACKAGES = "Step10_InstallPythonPrereqPackages.ps1"
-$SCRIPT_STEP11_INSTALL_FASTER_WHISPER = "Step11_InstallFasterWhisper.ps1"
-$SCRIPT_STEP12_INSTALL_EDGE_TTS = "Step12_InstallEdgeTts.ps1"
-$SCRIPT_STEP13_INSTALL_PYTHON310 = "Step13_InstallPython310_312.ps1"
-$SCRIPT_STEP64_INSTALL_PYTHON312 = "Step64_InstallPython312.ps1"
+$SCRIPT_STEP8_INSTALL_PYTHON = "Step8_InstallPython.ps1"
 $SCRIPT_STEP14_INSTALL_SCOOP_WITH_CHINA_MIRROR = "Step14_InstallScoopWithChinaMirror.ps1"
 $SCRIPT_STEP15_EXTEND_WINDOWS_UPDATE = "Step15_ExtendWindowsUpdate.ps1"
-$SCRIPT_STEP16_INSTALL_PHP = "Step16_InstallPHP.ps1"
-$SCRIPT_STEP17_INSTALL_POSTGRESQL = "Step17_InstallPostgreSQL.ps1"
+$SCRIPT_STEP16_INSTALL_PHP_WEB = "Step16_InstallPhpWeb.ps1"
+$SCRIPT_STEP17_INSTALL_DATABASES = "Step17_InstallDatabases.ps1"
 $SCRIPT_STEP18_SET_FILE_ASSOCIATIONS = "Step18_SetFileAssociations.ps1"
 $SCRIPT_STEP19_DV = "Step19_DV.ps1"
-$SCRIPT_STEP20_INSTALL_7IP_BASE = "Step20_Install7ipBase.ps1"
+$SCRIPT_STEP20_INSTALL_BASE_TOOLS = "Step20_InstallBaseTools.ps1"
 $SCRIPT_STEP21_INSTALL_APPLICATIONS = "Step21_InstallApplications.ps1"
 $SCRIPT_STEP22_INSTALL_CHROME = "Step22_InstallChrome.ps1"
-$SCRIPT_STEP23_INSTALL_PUPPETEER_PLUGINS = "Step23_InstallPuppeteerPlugins.ps1"
-$SCRIPT_STEP24_INSTALL_SECURITY_TOOLS = "Step24_InstallSecurityTools.ps1"
-$SCRIPT_STEP25_INSTALL_APK_TOOL = "Step25_InstallApkTool.ps1"
-$SCRIPT_STEP26_INSTALL_ANDROID_STUDIO = "Step26_InstallAndroidStudio.ps1"
-$SCRIPT_STEP27_INSTALL_ANDROID_PLATFORM_TOOLS = "Step27_InstallAndroidPlatformTools.ps1"
+$SCRIPT_STEP26_INSTALL_ANDROID = "Step26_InstallAndroid.ps1"
 $SCRIPT_STEP28_INSTALL_FLUTTER = "Step28_InstallFlutter.ps1"
-$SCRIPT_STEP29_INSTALL_WSL = "Step29_InstallWSL.ps1"
-$SCRIPT_STEP30_INSTALL_WSL_DEBIAN13 = "Step30_InstallWSLDebian13.ps1"
-$SCRIPT_STEP31_SET_ROOT_LOGIN_WSL_UBUNTU_DEBIAN = "Step31_SetRootLoginWSLUbuntuDebian.ps1"
+$SCRIPT_STEP29_INSTALL_WSL_DOCKER = "Step29_InstallWslDocker.ps1"
 $SCRIPT_STEP32_INSTALL_VISUAL_STUDIO = "Step32_InstallVisualStudio.ps1"
-$SCRIPT_STEP33_INSTALL_QT_BUILD_TOOLS = "Step33_InstallQtBuildTools.ps1"
-$SCRIPT_STEP34_INSTALL_QT = "Step34_InstallQt.ps1"
-$SCRIPT_STEP35_INSTALL_QT_OFFICIAL = "Step35_InstallQtOfficial.ps1"
-$SCRIPT_STEP36_INSTALL_DEEPSEEK = "Step36_InstallDeepSeek.ps1"
-$SCRIPT_STEP37_INSTALL_DEEPSEEK_OCR = "Step37_InstallDeepSeekOCR.ps1"
-$SCRIPT_STEP38_INSTALL_QWEN25 = "Step38_InstallQwen25.ps1"
-$SCRIPT_STEP39_INSTALL_NLLB200 = "Step39_InstallNLLB200.ps1"
-$SCRIPT_STEP40_INSTALL_NSSM = "Step40_InstallNSSM.ps1"
-$SCRIPT_STEP41_INSTALL_PI_HARNESS = "Step41_InstallPiHarness.ps1"
-$SCRIPT_STEP42_INSTALL_WHISPER = "Step42_InstallWhisper.ps1"
-$SCRIPT_STEP43_INSTALL_VOSK = "Step43_InstallVosk.ps1"
+$SCRIPT_STEP33_INSTALL_QT = "Step33_InstallQt.ps1"
 $SCRIPT_STEP44_CHECK_CORE_NODE_PROJECT = "Step44_CheckCoreNodeProject.ps1"
-$SCRIPT_STEP45_INSTALL_REDIS = "Step45_InstallRedis.ps1"
-$SCRIPT_STEP46_INSTALL_OCR = "Step46_InstallOcr.ps1"
+$SCRIPT_STEP46_INSTALL_AI_MODELS = "Step46_InstallAiModels.ps1"
 $SCRIPT_STEP47_INSTALL_DOCUMENT_PARSING = "Step47_InstallDocumentParsing.ps1"
 $SCRIPT_STEP49_INSTALL_LAUNCHER = "Step49_InstallLauncher.ps1"
-$SCRIPT_STEP51_INSTALL_CHATTTS = "Step51_InstallChatTts.ps1"
-$SCRIPT_STEP52_INSTALL_COSYVOICE = "Step52_InstallCosyVoice.ps1"
-$SCRIPT_STEP53_INSTALL_F5TTS = "Step53_InstallF5Tts.ps1"
-$SCRIPT_STEP54_INSTALL_GPTSOVITS = "Step54_InstallGptsovits.ps1"
-$SCRIPT_STEP55_INSTALL_MELOTTS = "Step55_InstallMelotts.ps1"
-$SCRIPT_STEP56_INSTALL_FISHSPEECH = "Step56_InstallFishspeech.ps1"
-$SCRIPT_STEP57_INSTALL_KOKORO = "Step57_InstallKokoro.ps1"
-$SCRIPT_STEP58_INSTALL_VOXCPM2 = "Step58_InstallVoxcpm2.ps1"
-$SCRIPT_STEP59_INSTALL_BARK = "Step59_InstallBark.ps1"
-$SCRIPT_STEP60_INSTALL_PARLER = "Step60_InstallParler.ps1"
-$SCRIPT_STEP61_INSTALL_QWEN3TTS = "Step61_InstallQwen3Tts.ps1"
-$SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES = "Step62_InstallAndroidSdkPackages.ps1"
-$SCRIPT_STEP63_INSTALL_CODEX_MULTI_DEVICE = "Step63_InstallCodexMultiDevice.ps1"
 $SCRIPT_STEP65_INSTALL_AI_TOOLS = "Step65_InstallAiTools.ps1"
-$SCRIPT_STEP66_INSTALL_OLLAMA = "Step66_InstallOllama.ps1"
-$SCRIPT_STEP67_INSTALL_FFMPEG = "Step67_InstallFfmpeg.ps1"
-$SCRIPT_STEP68_INSTALL_SCRCPY = "Step68_InstallScrcpy.ps1"
-$SCRIPT_STEP69_INSTALL_FRONTEND_PACKAGES = "Step69_InstallFrontendPackages.ps1"
-$SCRIPT_STEP70_INSTALL_SHERPA = "Step70_InstallSherpa.ps1"
 $SCRIPT_STEP71_INSTALL_DOTNET = "Step71_InstallDotnet.ps1"
 $SCRIPT_STEP72_INSTALL_REMOTE_CONTROL_HOST = "Step72_InstallRemoteControlHost.ps1"
 $SCRIPT_STEP73_INSTALL_NETWORK_ROUTER = "Step73_InstallNetworkRouter.ps1"
-$SCRIPT_STEP93_INSTALL_FRANKENPHP = "Step93_InstallFrankenPHP.ps1"
-$SCRIPT_STEP94_INSTALL_COMPOSER = "Step94_InstallComposer.ps1"
-$SCRIPT_STEP96_CONFIGURE_PHP85 = "Step96_ConfigurePHP85.ps1"
+$SCRIPT_STEP97_INSTALL_TAILSCALE = "Step97_InstallTailscale.ps1"
 $SCRIPT_STEP175_LARAVEL_MAIN_START = "Step175_LaravelMainStart.ps1"
+# Components the minimal initialization (InitializationManager) runs without their whole series
+$SCRIPT_GIT_SSH_KEYS = "Git_SshKeys.ps1"
+$SCRIPT_GIT_INSTALL = "Git_Install.ps1"
+$SCRIPT_PYTHON_DEFAULT = "Python_Default.ps1"
+$SCRIPT_NODE_RUNTIME = "Node_Runtime.ps1"
 
 $InstallerScriptsMap = @{
     "InitializeBaseDirectories" = $SCRIPT_STEP1_INITIALIZE_BASE_DIRECTORIES
     "SetBaseSettings" = $SCRIPT_STEP2_SET_BASE_SETTINGS
     "InitWinget" = $SCRIPT_STEP3_INIT_WINGET
-    "InstallNodeJS" = $SCRIPT_STEP4_INSTALL_NODEJS
-    "InstallGitSSH" = $SCRIPT_STEP5_INSTALL_GIT_SSH
-    "InstallGit" = $SCRIPT_STEP6_INSTALL_GIT
+    "InstallGitSSH" = $SCRIPT_GIT_SSH_KEYS
+    "InstallGit" = $SCRIPT_GIT_INSTALL
     "FixCoreNodeProjectLocation" = $SCRIPT_STEP7_FIX_CORE_NODE_PROJECT_LOCATION
-    "InstallPython" = $SCRIPT_STEP8_INSTALL_DEFAULT_PYTHON
-    "InstallCudaNvidiaPrereq" = $SCRIPT_STEP9_INSTALL_CUDA_NVIDIA_PREREQ
-    "InstallPythonPrereqPackages" = $SCRIPT_STEP10_INSTALL_PYTHON_PREREQ_PACKAGES
-    "InstallFasterWhisper" = $SCRIPT_STEP11_INSTALL_FASTER_WHISPER
-    "InstallEdgeTts" = $SCRIPT_STEP12_INSTALL_EDGE_TTS
-    "InstallPython310" = $SCRIPT_STEP13_INSTALL_PYTHON310
-    "InstallPython312" = $SCRIPT_STEP64_INSTALL_PYTHON312
-    "InstallScoopWithChinaMirror" = $SCRIPT_STEP14_INSTALL_SCOOP_WITH_CHINA_MIRROR
-    "ExtendWindowsUpdate" = $SCRIPT_STEP15_EXTEND_WINDOWS_UPDATE
-    "InstallPHP" = $SCRIPT_STEP16_INSTALL_PHP
-    "InstallPostgreSQL" = $SCRIPT_STEP17_INSTALL_POSTGRESQL
-    "SetFileAssociations" = $SCRIPT_STEP18_SET_FILE_ASSOCIATIONS
-    "DV" = $SCRIPT_STEP19_DV
-    "Install7ipBase" = $SCRIPT_STEP20_INSTALL_7IP_BASE
-    "InstallApplications" = $SCRIPT_STEP21_INSTALL_APPLICATIONS
-    "InstallChrome" = $SCRIPT_STEP22_INSTALL_CHROME
-    "InstallPuppeteerPlugins" = $SCRIPT_STEP23_INSTALL_PUPPETEER_PLUGINS
-    "InstallSecurityTools" = $SCRIPT_STEP24_INSTALL_SECURITY_TOOLS
-    "InstallApkTool" = $SCRIPT_STEP25_INSTALL_APK_TOOL
-    "InstallAndroidStudio" = $SCRIPT_STEP26_INSTALL_ANDROID_STUDIO
-    "InstallAndroidPlatformTools" = $SCRIPT_STEP27_INSTALL_ANDROID_PLATFORM_TOOLS
-    "InstallFlutter" = $SCRIPT_STEP28_INSTALL_FLUTTER
-    "InstallWSL" = $SCRIPT_STEP29_INSTALL_WSL
-    "InstallWSLDebian13" = $SCRIPT_STEP30_INSTALL_WSL_DEBIAN13
-    "SetRootLoginWSLUbuntuDebian" = $SCRIPT_STEP31_SET_ROOT_LOGIN_WSL_UBUNTU_DEBIAN
-    "InstallVisualStudio" = $SCRIPT_STEP32_INSTALL_VISUAL_STUDIO
-    "InstallQtBuildTools" = $SCRIPT_STEP33_INSTALL_QT_BUILD_TOOLS
-    "InstallQt" = $SCRIPT_STEP34_INSTALL_QT
-    "InstallQtOfficial" = $SCRIPT_STEP35_INSTALL_QT_OFFICIAL
-    "InstallDeepSeek" = $SCRIPT_STEP36_INSTALL_DEEPSEEK
-    "InstallDeepSeekOCR" = $SCRIPT_STEP37_INSTALL_DEEPSEEK_OCR
-    "InstallQwen25" = $SCRIPT_STEP38_INSTALL_QWEN25
-    "InstallNLLB200" = $SCRIPT_STEP39_INSTALL_NLLB200
-    "InstallNSSM" = $SCRIPT_STEP40_INSTALL_NSSM
-    "InstallPiHarness" = $SCRIPT_STEP41_INSTALL_PI_HARNESS
-    "InstallWhisper" = $SCRIPT_STEP42_INSTALL_WHISPER
-    "InstallVosk" = $SCRIPT_STEP43_INSTALL_VOSK
-    "CheckCoreNodeProject" = $SCRIPT_STEP44_CHECK_CORE_NODE_PROJECT
-    "InstallRedis" = $SCRIPT_STEP45_INSTALL_REDIS
-    "InstallOcr" = $SCRIPT_STEP46_INSTALL_OCR
-    "InstallDocumentParsing" = $SCRIPT_STEP47_INSTALL_DOCUMENT_PARSING
-    "InstallLauncher" = $SCRIPT_STEP49_INSTALL_LAUNCHER
-    "InstallChatTts" = $SCRIPT_STEP51_INSTALL_CHATTTS
-    "InstallCosyVoice" = $SCRIPT_STEP52_INSTALL_COSYVOICE
-    "InstallF5Tts" = $SCRIPT_STEP53_INSTALL_F5TTS
-    "InstallGptsovits" = $SCRIPT_STEP54_INSTALL_GPTSOVITS
-    "InstallMelotts" = $SCRIPT_STEP55_INSTALL_MELOTTS
-    "InstallFishspeech" = $SCRIPT_STEP56_INSTALL_FISHSPEECH
-    "InstallKokoro" = $SCRIPT_STEP57_INSTALL_KOKORO
-    "InstallVoxcpm2" = $SCRIPT_STEP58_INSTALL_VOXCPM2
-    "InstallBark" = $SCRIPT_STEP59_INSTALL_BARK
-    "InstallParler" = $SCRIPT_STEP60_INSTALL_PARLER
-    "InstallQwen3Tts" = $SCRIPT_STEP61_INSTALL_QWEN3TTS
-    "InstallAndroidSdkPackages" = $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES
-    "InstallCodexMultiDevice" = $SCRIPT_STEP63_INSTALL_CODEX_MULTI_DEVICE
-    "InstallAiTools" = $SCRIPT_STEP65_INSTALL_AI_TOOLS
-    "InstallOllama" = $SCRIPT_STEP66_INSTALL_OLLAMA
-    "InstallFfmpeg" = $SCRIPT_STEP67_INSTALL_FFMPEG
-    "InstallScrcpy" = $SCRIPT_STEP68_INSTALL_SCRCPY
-    "InstallFrontendPackages" = $SCRIPT_STEP69_INSTALL_FRONTEND_PACKAGES
-    "InstallSherpa" = $SCRIPT_STEP70_INSTALL_SHERPA
-    "InstallDotnet" = $SCRIPT_STEP71_INSTALL_DOTNET
-    "InstallRemoteControlHost" = $SCRIPT_STEP72_INSTALL_REMOTE_CONTROL_HOST
-    "InstallNetworkRouter" = $SCRIPT_STEP73_INSTALL_NETWORK_ROUTER
-    "InstallFrankenPHP" = $SCRIPT_STEP93_INSTALL_FRANKENPHP
-    "InstallComposer" = $SCRIPT_STEP94_INSTALL_COMPOSER
-    "ConfigurePHP85" = $SCRIPT_STEP96_CONFIGURE_PHP85
-    "LaravelMainStart" = $SCRIPT_STEP175_LARAVEL_MAIN_START
+    "InstallPython" = $SCRIPT_PYTHON_DEFAULT
+    "InstallNodeJS" = $SCRIPT_NODE_RUNTIME
 }
 
-# DevInstaller sweep order (Step13 installs the isolated Python 3.10 used by TTS engine venvs).
+# DevInstaller sweep order: small essentials first, the largest downloads last. Each entry only
+# depends on entries above it (the Python series keeps CUDA before the GPU-aware packages).
 $InstallerScripts = @(
+    # 1. System base, package managers and basic libraries
     $SCRIPT_STEP1_INITIALIZE_BASE_DIRECTORIES,
     $SCRIPT_STEP2_SET_BASE_SETTINGS,
     $SCRIPT_STEP3_INIT_WINGET,
-    $SCRIPT_STEP4_INSTALL_NODEJS,
-    $SCRIPT_STEP5_INSTALL_GIT_SSH,
-    $SCRIPT_STEP6_INSTALL_GIT,
-    $SCRIPT_STEP7_FIX_CORE_NODE_PROJECT_LOCATION,
-    $SCRIPT_STEP8_INSTALL_DEFAULT_PYTHON,
-    $SCRIPT_STEP9_INSTALL_CUDA_NVIDIA_PREREQ,
-    $SCRIPT_STEP10_INSTALL_PYTHON_PREREQ_PACKAGES,
-    $SCRIPT_STEP11_INSTALL_FASTER_WHISPER,
-    $SCRIPT_STEP12_INSTALL_EDGE_TTS,
-    $SCRIPT_STEP13_INSTALL_PYTHON310,
-    $SCRIPT_STEP14_INSTALL_SCOOP_WITH_CHINA_MIRROR,
     $SCRIPT_STEP15_EXTEND_WINDOWS_UPDATE,
-    $SCRIPT_STEP16_INSTALL_PHP,
-    $SCRIPT_STEP17_INSTALL_POSTGRESQL,
-    $SCRIPT_STEP18_SET_FILE_ASSOCIATIONS,
     $SCRIPT_STEP19_DV,
-    $SCRIPT_STEP20_INSTALL_7IP_BASE,
-    $SCRIPT_STEP21_INSTALL_APPLICATIONS,
-    $SCRIPT_STEP22_INSTALL_CHROME,
-    $SCRIPT_STEP23_INSTALL_PUPPETEER_PLUGINS,
-    $SCRIPT_STEP24_INSTALL_SECURITY_TOOLS,
-    $SCRIPT_STEP25_INSTALL_APK_TOOL,
-    $SCRIPT_STEP26_INSTALL_ANDROID_STUDIO,
-    $SCRIPT_STEP27_INSTALL_ANDROID_PLATFORM_TOOLS,
-    $SCRIPT_STEP28_INSTALL_FLUTTER,
-    $SCRIPT_STEP29_INSTALL_WSL,
-    $SCRIPT_STEP30_INSTALL_WSL_DEBIAN13,
-    $SCRIPT_STEP31_SET_ROOT_LOGIN_WSL_UBUNTU_DEBIAN,
-    $SCRIPT_STEP32_INSTALL_VISUAL_STUDIO,
-    $SCRIPT_STEP33_INSTALL_QT_BUILD_TOOLS,
-    $SCRIPT_STEP34_INSTALL_QT,
-    $SCRIPT_STEP35_INSTALL_QT_OFFICIAL,
-    $SCRIPT_STEP36_INSTALL_DEEPSEEK,
-    $SCRIPT_STEP37_INSTALL_DEEPSEEK_OCR,
-    $SCRIPT_STEP38_INSTALL_QWEN25,
-    $SCRIPT_STEP39_INSTALL_NLLB200,
-    $SCRIPT_STEP40_INSTALL_NSSM,
-    $SCRIPT_STEP41_INSTALL_PI_HARNESS,
-    $SCRIPT_STEP42_INSTALL_WHISPER,
-    $SCRIPT_STEP43_INSTALL_VOSK,
+    $SCRIPT_STEP5_INSTALL_GIT,
+    $SCRIPT_STEP7_FIX_CORE_NODE_PROJECT_LOCATION,
     $SCRIPT_STEP44_CHECK_CORE_NODE_PROJECT,
-    $SCRIPT_STEP45_INSTALL_REDIS,
-    $SCRIPT_STEP46_INSTALL_OCR,
+    $SCRIPT_STEP14_INSTALL_SCOOP_WITH_CHINA_MIRROR,
+    $SCRIPT_STEP20_INSTALL_BASE_TOOLS,
+    # 2. Programming base: Python, Node, PHP/FrankenPHP/nginx, databases, .NET
+    $SCRIPT_STEP8_INSTALL_PYTHON,
     $SCRIPT_STEP47_INSTALL_DOCUMENT_PARSING,
     $SCRIPT_STEP49_INSTALL_LAUNCHER,
-    $SCRIPT_STEP51_INSTALL_CHATTTS,
-    $SCRIPT_STEP52_INSTALL_COSYVOICE,
-    $SCRIPT_STEP53_INSTALL_F5TTS,
-    $SCRIPT_STEP54_INSTALL_GPTSOVITS,
-    $SCRIPT_STEP55_INSTALL_MELOTTS,
-    $SCRIPT_STEP56_INSTALL_FISHSPEECH,
-    $SCRIPT_STEP57_INSTALL_KOKORO,
-    $SCRIPT_STEP58_INSTALL_VOXCPM2,
-    $SCRIPT_STEP59_INSTALL_BARK,
-    $SCRIPT_STEP60_INSTALL_PARLER,
-    $SCRIPT_STEP61_INSTALL_QWEN3TTS,
-    $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES,
-    $SCRIPT_STEP63_INSTALL_CODEX_MULTI_DEVICE,
+    $SCRIPT_STEP4_INSTALL_NODE,
+    $SCRIPT_STEP16_INSTALL_PHP_WEB,
+    $SCRIPT_STEP17_INSTALL_DATABASES,
+    $SCRIPT_STEP71_INSTALL_DOTNET,
+    # 3. AI tools: one step installs every AI CLI (claude/codex/gemini/..., pi/omp/bun, codex multi-device)
     $SCRIPT_STEP65_INSTALL_AI_TOOLS,
+    # 4. Mesh VPN (headscale/tailscale) and network, then the Laravel deployment that publishes tailnet sites
+    $SCRIPT_STEP97_INSTALL_TAILSCALE,
     $SCRIPT_STEP73_INSTALL_NETWORK_ROUTER,
-    $SCRIPT_STEP93_INSTALL_FRANKENPHP,
-    $SCRIPT_STEP94_INSTALL_COMPOSER,
-    $SCRIPT_STEP96_CONFIGURE_PHP85,
-    $SCRIPT_STEP175_LARAVEL_MAIN_START
+    $SCRIPT_STEP175_LARAVEL_MAIN_START,
+    # 5. Chrome and the desktop applications (VS Code, ...), then the file associations that point at them
+    $SCRIPT_STEP22_INSTALL_CHROME,
+    $SCRIPT_STEP21_INSTALL_APPLICATIONS,
+    $SCRIPT_STEP18_SET_FILE_ASSOCIATIONS,
+    # 6. Large development software, smaller first
+    $SCRIPT_STEP26_INSTALL_ANDROID,
+    $SCRIPT_STEP28_INSTALL_FLUTTER,
+    $SCRIPT_STEP33_INSTALL_QT,
+    $SCRIPT_STEP32_INSTALL_VISUAL_STUDIO,
+    # 7. WSL / Docker host
+    $SCRIPT_STEP29_INSTALL_WSL_DOCKER,
+    # 8. AI models (gated by the [A] AI model level), smallest download first
+    $SCRIPT_STEP46_INSTALL_AI_MODELS
 )
 
+# Step files in install order: the full-installation sweep first, then the steps that only run on
+# demand (or from another step, e.g. Step41/Step63 from Step65) in numeric order.
 function Get-DiscoveredInstallerStepScripts {
+    $names = @()
+    $onDemand = @()
     if (-not (Test-Path -LiteralPath $installPowerShellsDir)) {
         return @()
     }
-    $items = Get-ChildItem -LiteralPath $installPowerShellsDir -Filter 'Step*_*.ps1' -File -ErrorAction SilentlyContinue
-    return @($items | Sort-Object {
-        if ($_.Name -match '^Step(\d+)_') { [int]$Matches[1] } else { 999999 }
-    } | ForEach-Object { $_.Name })
+    $names = @(Get-ChildItem -LiteralPath $installPowerShellsDir -Filter 'Step*_*.ps1' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+    $onDemand = @($names | Where-Object { $InstallerScripts -notcontains $_ } | Sort-Object {
+        if ($_ -match '^Step(\d+)_') { [int]$Matches[1] } else { 999999 }
+    })
+    return @(@($InstallerScripts | Where-Object { $names -contains $_ }) + $onDemand)
 }
 
 function Test-InstallerScriptStringParam {
@@ -272,10 +145,11 @@ function Invoke-InstallerStepScript {
     param(
         [Parameter(Mandatory = $true)][string]$ScriptName,
         [string]$Region = '',
-        [string]$PythonExe = ''
+        [string]$PythonExe = '',
+        [string]$ScriptPath = ''
     )
 
-    $scriptPath = Get-InstallerScriptPath -ScriptName $ScriptName
+    $scriptPath = if ($ScriptPath) { $ScriptPath } else { Get-InstallerScriptPath -ScriptName $ScriptName }
     if (-not (Test-Path -LiteralPath $scriptPath)) {
         Write-Warning "Installer step not found: $scriptPath"
         return $false
@@ -296,9 +170,9 @@ function Invoke-InstallerStepScript {
     try {
         Unblock-File -Path $scriptPath -ErrorAction SilentlyContinue
         if ($invokeArgs.Count -gt 0) {
-            & $scriptPath @invokeArgs
+            & $scriptPath @invokeArgs | Out-Host
         } else {
-            & $scriptPath
+            & $scriptPath | Out-Host
         }
         # Steps are idempotent and self-report; never gate on exit code / $LASTEXITCODE.
         return $true
@@ -323,7 +197,7 @@ function Get-InstallerScriptPath {
 }
 
 function Get-InitializationScripts {
-    $initKeys = @("InitializeBaseDirectories", "SetBaseSettings", "InitWinget", "InstallNodeJS", "InstallGitSSH", "InstallGit", "FixCoreNodeProjectLocation", "InstallPython")
+    $initKeys = @("InitializeBaseDirectories", "SetBaseSettings", "InitWinget", "InstallGitSSH", "InstallGit", "FixCoreNodeProjectLocation", "InstallPython", "InstallNodeJS")
     $scripts = @()
     foreach ($key in $initKeys) {
         $scriptName = Get-InstallerScriptName $key

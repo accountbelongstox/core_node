@@ -21,12 +21,12 @@
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\capture-chrome-tamper.ps1
-    powershell -ExecutionPolicy Bypass -File .\capture-chrome-tamper.ps1 -ChromeExe 'D:\applications\Chrome\Chrome\Application\chrome.exe' -CaptureSeconds 18
+    powershell -ExecutionPolicy Bypass -File .\capture-chrome-tamper.ps1 -ChromeExe '<APP_INSTALL_DIR>\Chrome\Chrome\Application\chrome.exe' -CaptureSeconds 18
 #>
 
 [CmdletBinding()]
 param(
-    [string]$ChromeExe = 'D:\applications\Chrome\Chrome\Application\chrome.exe',
+    [string]$ChromeExe = '',
     [int]$CaptureSeconds = 18,
     [string]$Url = '',
     [string]$OutDir = ''
@@ -35,6 +35,11 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # --- Configuration (declared at top) ----------------------------------------
+$globalVarsPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'shells\win\win_common\GlobalVars.ps1'
+. $globalVarsPath
+Set-StrictMode -Off
+$appChromeRoot = Join-Path $Global:APP_INSTALL_DIR 'Chrome'
+if (-not $ChromeExe) { $ChromeExe = Join-Path $appChromeRoot 'Chrome\Application\chrome.exe' }
 $stamp        = Get-Date -Format 'yyyyMMdd-HHmmss'
 $procmonDir   = 'C:\Users\mpc\Downloads\ProcessMonitor'
 $procmon      = Join-Path $procmonDir 'Procmon64.exe'
@@ -44,7 +49,7 @@ $configFiles  = @(
     (Join-Path $userData 'Default\Preferences'),
     (Join-Path $userData 'Local State')
 )
-$chromeRoots  = @('C:\Program Files\Google\Chrome', 'D:\applications\Chrome', 'D:\applications\Chrome Beta')
+$chromeRoots  = @('C:\Program Files\Google\Chrome', $appChromeRoot, (Join-Path $Global:APP_INSTALL_DIR 'Chrome Beta'))
 $auditRule    = $null
 $preState     = @{}
 $foreignMods  = New-Object 'System.Collections.Generic.HashSet[string]'

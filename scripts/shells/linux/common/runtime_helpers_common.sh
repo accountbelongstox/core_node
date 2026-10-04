@@ -372,52 +372,73 @@ prompt_and_wait_for_download_from_common_functions() {
     local start_time=$(date +%s)
     local check_interval=2  # Auto-check every 2 seconds
     local last_check=0
+    local user_input=""
+    local found_file=""
+    local current_time=0
+    local elapsed=0
+    local unattended="false"
 
-    print_step_from_common_functions "Manual download required"
-    print_info_from_common_functions "Download URL: $download_url"
-    print_info_from_common_functions "Save the file to any /home/*/Downloads directory"
-    print_info_from_common_functions "Expected file pattern: $file_pattern"
+    # Stdout carries ONLY the resulting file path (callers capture it with $(...)); all messages go to stderr.
+    print_step_from_common_functions "Manual download required" >&2
+    print_info_from_common_functions "Download URL: $download_url" >&2
+    print_info_from_common_functions "Save the file to any /home/*/Downloads directory" >&2
+    print_info_from_common_functions "Expected file pattern: $file_pattern" >&2
+
+    if [ "${DD_AUTO_CONTINUE:-}" = "1" ] || [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ ! -t 0 ]; then
+        unattended="true"
+    fi
+    if [ "$unattended" = "true" ]; then
+        found_file=$(find_file_in_downloads_from_common_functions "$file_pattern" "newest")
+        if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
+            print_success_from_common_functions "Found already downloaded file: $found_file" >&2
+            echo "$found_file"
+            return 0
+        fi
+        print_error_from_common_functions "Manual download required but the run is unattended (no tty / auto-continue); download $download_url first" >&2
+        return 1
+    fi
 
     # Try to open URL in browser
     if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "$download_url" 2>/dev/null &
+        xdg-open "$download_url" >/dev/null 2>&1 &
     elif command -v open >/dev/null 2>&1; then
-        open "$download_url" 2>/dev/null &
+        open "$download_url" >/dev/null 2>&1 &
     fi
 
-    echo ""
+    echo "" >&2
     if [[ $timeout_seconds -gt 0 ]]; then
-        print_info_from_common_functions "Auto-scanning every ${check_interval}s (timeout: ${timeout_seconds}s)"
+        print_info_from_common_functions "Auto-scanning every ${check_interval}s (timeout: ${timeout_seconds}s)" >&2
     else
-        print_info_from_common_functions "Auto-scanning every ${check_interval}s (waiting indefinitely)"
+        print_info_from_common_functions "Auto-scanning every ${check_interval}s (waiting indefinitely)" >&2
     fi
-    print_info_from_common_functions "Type 'quit' to cancel anytime"
-    echo ""
+    print_info_from_common_functions "Type 'quit' to cancel anytime" >&2
+    echo "" >&2
 
     # Infinite while loop - only exits when file found or user cancels
     while true; do
-        local current_time=$(date +%s)
-        local elapsed=$((current_time - start_time))
+        current_time=$(date +%s)
+        elapsed=$((current_time - start_time))
+        user_input=""
 
         # Auto-check at regular intervals
         if [[ $((current_time - last_check)) -ge $check_interval ]]; then
-            local found_file=$(find_file_in_downloads_from_common_functions "$file_pattern" "newest")
+            found_file=$(find_file_in_downloads_from_common_functions "$file_pattern" "newest")
             if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
-                echo ""
-                print_success_from_common_functions "Auto-detected downloaded file: $found_file"
+                echo "" >&2
+                print_success_from_common_functions "Auto-detected downloaded file: $found_file" >&2
                 echo "$found_file"
                 return 0
             fi
             last_check=$current_time
 
             # Show progress every auto-check
-            echo "[${elapsed}s] Scanning Downloads directories for: $file_pattern"
+            echo "[${elapsed}s] Scanning Downloads directories for: $file_pattern" >&2
         fi
 
         # Check timeout (if set)
         if [[ $timeout_seconds -gt 0 ]] && [[ $elapsed -ge $timeout_seconds ]]; then
-            echo ""
-            print_error_from_common_functions "Download timeout after ${timeout_seconds}s"
+            echo "" >&2
+            print_error_from_common_functions "Download timeout after ${timeout_seconds}s" >&2
             return 1
         fi
 
@@ -427,20 +448,20 @@ prompt_and_wait_for_download_from_common_functions() {
         if [[ -n "$user_input" ]]; then
             case "${user_input,,}" in
                 quit|q|exit|cancel)
-                    echo ""
-                    print_warning_from_common_functions "Download cancelled by user"
+                    echo "" >&2
+                    print_warning_from_common_functions "Download cancelled by user" >&2
                     return 1
                     ;;
                 yes|y|check)
                     # Force immediate check
-                    local found_file=$(find_file_in_downloads_from_common_functions "$file_pattern" "newest")
+                    found_file=$(find_file_in_downloads_from_common_functions "$file_pattern" "newest")
                     if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
-                        echo ""
-                        print_success_from_common_functions "Found file: $found_file"
+                        echo "" >&2
+                        print_success_from_common_functions "Found file: $found_file" >&2
                         echo "$found_file"
                         return 0
                     else
-                        print_warning_from_common_functions "File not found yet, continuing auto-scan..."
+                        print_warning_from_common_functions "File not found yet, continuing auto-scan..." >&2
                     fi
                     ;;
             esac

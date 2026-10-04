@@ -29,8 +29,10 @@
 # run as root it resolves each user's home + Desktop dir and writes there as that user.
 #
 # Desktop organizer (Windows parity: DesktopIconManager.ps1): every regular Desktop
-# launcher that matches a category moves into <icons dir>/<Category>/ with one
-# <Category> folder link on the Desktop; each change goes into an undo manifest.
+# launcher moves into <icons dir>/<Category>/ (OtherApps when nothing matches) with one
+# <Category> folder link on the Desktop, except the first stable Google Chrome launcher,
+# which is copied into Browsers and stays; loose files (not folders) move into the
+# user's Documents folder; each change goes into an undo manifest.
 # A launcher already filed there is updated in place by create/edit/remove. A root run
 # covers every login user's Desktop, each one as that user.
 #
@@ -52,11 +54,21 @@ DSM_ORG_ENABLED="${DSM_ORG_ENABLED:-true}"
 DSM_ORG_ICONS_SUBDIR=".local/share/core_node/desktopIcons"
 DSM_ORG_STATE_SUBDIR="core_node/desktop_icons"
 DSM_ORG_MENU_PATH="dd.sh > Linux Management > Linux System Tools > Management & Backup > Organize Desktop Icons"
-# Launchers dd.sh recreates on the Desktop (193_install_window_launcher_shortcut.sh); moving them would churn.
-DSM_ORG_KEEP_ON_DESKTOP=" window-launcher "
-# Browser launchers whose Name has one of these tokens are copied into Browsers and stay on the Desktop.
-DSM_ORG_KEEP_COPY_TOKENS="chrome edge"
+# Launchers filed in a fixed category whatever their Name/Exec say (launcher id -> category).
+declare -gA DSM_ORG_FIXED_CATEGORIES=(
+    ["window-launcher"]="DevelopmentTools"
+)
+# Only the first stable Google Chrome launcher on the Desktop (Exec program in the first list, no Name
+# token of the second) is copied into Browsers and stays; every other browser launcher is moved.
+DSM_ORG_KEEP_BROWSER_TARGETS="google-chrome google-chrome-stable chrome"
+DSM_ORG_KEEP_EXCLUDED_CHANNELS="beta dev canary unstable sxs"
 DSM_ORG_BROWSERS_CATEGORY="Browsers"
+# Category for launchers no keyword matches (no keywords; refiled when a real category starts matching).
+DSM_ORG_FALLBACK_CATEGORY="OtherApps"
+# Desktop entries that are shortcuts (never moved to Documents) and the Documents folder key.
+DSM_ORG_SHORTCUT_EXTENSIONS=" desktop lnk url "
+DSM_ORG_DOCUMENTS_DIR_KEY="XDG_DOCUMENTS_DIR"
+DSM_ORG_DOCUMENTS_CATEGORY="Documents"
 # Exec hosts whose name says nothing about the application behind the launcher.
 DSM_ORG_GENERIC_EXEC_HOSTS=" env sh bash dash zsh python python3 pythonw java javaw node electron flatpak snap wine xdg-open gtk-launch gio pkexec sudo x-terminal-emulator gnome-terminal kgx ptyxis konsole xterm xfce4-terminal "
 DSM_ORG_SHORT_KEYWORD_LENGTH=3
@@ -317,9 +329,10 @@ DSM_ORG_M_DEST=()
 DSM_ORG_M_CAT=()
 DSM_ORG_M_REASON=()
 DSM_ORG_M_TIME=()
-DSM_ORG_PINNED=()
 DSM_ORG_BROKEN=()
-DSM_ORG_UNMATCHED=()
+DSM_ORG_LOOSE=()
+declare -gA DSM_ORG_CLAIMED=()
+DSM_ORG_UNIQUE=""
 DSM_ORG_CONFLICT_PATH=()
 DSM_ORG_CONFLICT_REASON=()
 DSM_ORG_DONE=()
@@ -357,18 +370,22 @@ _dsm_login_users() {
     awk -F: -v OFS="$DSM_TAB" '($3>=1000 && $3<65534) || $3==0 {print $1, $6}' /etc/passwd 2>/dev/null
 }
 
-# Resolve a user's Desktop directory: the localized XDG_DESKTOP_DIR from the user's
+# Resolve a user's XDG directory: the localized <key> from the user's
 # ~/.config/user-dirs.dirs when present (parsed literally and $HOME-substituted, NOT
-# sourced - sourcing as root would wrongly expand $HOME to /root), else ~/Desktop.
-_dsm_desktop_dir() {
-    local user="$1" home="$2" d="" v=""
-    d="$home/Desktop"
+# sourced - sourcing as root would wrongly expand $HOME to /root), else ~/<fallback>.
+_dsm_xdg_user_dir() {
+    local home="$1" key="$2" fallback="$3" d="" v=""
+    d="$home/$fallback"
     if [ -r "$home/.config/user-dirs.dirs" ]; then
-        v="$(grep -E '^[[:space:]]*XDG_DESKTOP_DIR=' "$home/.config/user-dirs.dirs" 2>/dev/null | head -1 | cut -d= -f2-)"
+        v="$(grep -E "^[[:space:]]*$key=" "$home/.config/user-dirs.dirs" 2>/dev/null | head -1 | cut -d= -f2-)"
         v="${v%\"}"; v="${v#\"}"
         [ -n "$v" ] && d="${v/\$HOME/$home}"
     fi
     printf '%s' "$d"
+}
+
+_dsm_desktop_dir() {
+    _dsm_xdg_user_dir "$2" XDG_DESKTOP_DIR Desktop
 }
 
 # Build the .desktop content.
@@ -660,6 +677,7 @@ _dsm_org_load_categories() {
         seen="$seen$category "
         DSM_ORG_CATEGORIES+=("$category")
     done
+    DSM_ORG_CATEGORIES+=("$DSM_ORG_FALLBACK_CATEGORY")
     return 0
 }
 
@@ -856,7 +874,7 @@ _dsm_org_reset_user() {
     DSM_ORG_R_CAT=(); DSM_ORG_R_REASON=(); DSM_ORG_R_SUPPORTED=(); DSM_ORG_R_KEEPCOPY=()
     DSM_ORG_I_REC=(); DSM_ORG_I_CAT=(); DSM_ORG_I_MODE=()
     DSM_ORG_M_ACTION=(); DSM_ORG_M_SOURCE=(); DSM_ORG_M_DEST=(); DSM_ORG_M_CAT=(); DSM_ORG_M_REASON=(); DSM_ORG_M_TIME=()
-    DSM_ORG_PINNED=(); DSM_ORG_BROKEN=(); DSM_ORG_UNMATCHED=()
+    DSM_ORG_BROKEN=(); DSM_ORG_LOOSE=(); DSM_ORG_CLAIMED=()
     DSM_ORG_CONFLICT_PATH=(); DSM_ORG_CONFLICT_REASON=(); DSM_ORG_DONE=(); DSM_ORG_FAILED=()
     DSM_ORG_CHANGES=0
 }
@@ -890,6 +908,25 @@ _dsm_org_scan() {
     return 0
 }
 
+# Loose real files on the Desktop: visible, no symlinks, no shortcut files. Folders stay on the
+# Desktop (they can be application data), which also keeps the icons dir and Documents in place.
+_dsm_org_scan_loose() {
+    local desktop="$1" base="$2" docs="$3" item="" name="" ext=""
+    [ "$docs" != "$desktop" ] || return 0
+    for item in "$desktop"/*; do
+        [ -e "$item" ] && [ ! -L "$item" ] || continue
+        [[ "$item" != *[[:cntrl:]]* ]] || continue
+        [ -f "$item" ] || continue
+        name="${item##*/}"
+        ext="${name##*.}"
+        if [ "$ext" != "$name" ] && [[ "$DSM_ORG_SHORTCUT_EXTENSIONS" == *" ${ext,,} "* ]]; then continue; fi
+        [ "$item" != "$base" ] && [[ "$base/" != "$item/"* ]] || continue
+        [ "$item" != "$docs" ] && [[ "$docs/" != "$item/"* ]] || continue
+        DSM_ORG_LOOSE+=("$item")
+    done
+    return 0
+}
+
 # Classify every scanned launcher in one awk pass (token matching mirrors
 # Find-DesktopCategoryMatch: camelCase and letter/digit splits, keywords of
 # DSM_ORG_SHORT_KEYWORD_LENGTH chars or fewer must start the text, non-ASCII
@@ -911,11 +948,11 @@ _dsm_org_classify() {
                 [[ "$DSM_ORG_GENERIC_EXEC_HOSTS" == *" $target "* ]] && target=""
                 printf 'R\t%s\t%s\t%s\n' "$i" "${DSM_ORG_R_NAME[i]}" "$target"
             done
-        } | LC_ALL=C awk -v shortlen="$DSM_ORG_SHORT_KEYWORD_LENGTH" -v keepcopy="$DSM_ORG_KEEP_COPY_TOKENS" '
+        } | LC_ALL=C awk -v shortlen="$DSM_ORG_SHORT_KEYWORD_LENGTH" -v keeptargets="$DSM_ORG_KEEP_BROWSER_TARGETS" -v channels="$DSM_ORG_KEEP_EXCLUDED_CHANNELS" '
             BEGIN {
                 FS = "\t"; q = sprintf("%c", 39); ncat = 0; nent = 0; nnon = 0
                 hi = sprintf("[%c-%c]", 128, 255); cont = sprintf("[%c-%c]", 128, 191)
-                nkc = split(keepcopy, kc, " ")
+                nkt = split(keeptargets, kt, " "); nch = split(channels, ch, " ")
             }
             function hexval(h,    i, v) {
                 v = 0; h = tolower(h)
@@ -1007,33 +1044,45 @@ _dsm_org_classify() {
                 if (nb) { cat = ecat[nb]; reason = "name keyword " q ekw[nb] q }
                 if ($4 != "") { tb = find($4, 0); if (!nb && tb) { cat = ecat[tb]; reason = "target keyword " q ekw[tb] q } }
                 sup = ","; for (c in seen) sup = sup c ","
-                keep = 0; n = tokenize($3)
-                for (i = 1; i <= n; i++) for (j = 1; j <= nkc; j++) if (tk[i] == kc[j]) keep = 1
+                keep = 0
+                if ($4 != "") for (j = 1; j <= nkt; j++) if (tolower($4) == kt[j]) keep = 1
+                if (keep) { n = tokenize($3); for (i = 1; i <= n; i++) for (j = 1; j <= nch; j++) if (tk[i] == ch[j]) keep = 0 }
                 print $2 "|" cat "|" reason "|" sup "|" keep
             }'
     )
     return 0
 }
 
-# Planned items: Desktop launchers (move, or copy for kept browsers) and filed launchers
-# that nothing supports in their current folder (refile).
+# Planned items: Desktop launchers (move, or copy for the one kept Chrome) and filed
+# launchers that nothing supports in their current folder (refile).
 _dsm_org_plan() {
-    local i=0 origin="" category="" mode="" stem=""
+    local i=0 origin="" category="" mode="" stem="" keeper=""
     for ((i = 0; i < ${#DSM_ORG_R_PATH[@]}; i++)); do
         origin="${DSM_ORG_R_ORIGIN[i]}"
         category="${DSM_ORG_R_CAT[i]}"
+        stem="${DSM_ORG_R_PATH[i]##*/}"
+        stem="${stem%.desktop}"
+        if [ -n "${DSM_ORG_FIXED_CATEGORIES[$stem]+x}" ]; then
+            category="${DSM_ORG_FIXED_CATEGORIES[$stem]}"
+            DSM_ORG_R_CAT[i]="$category"
+            DSM_ORG_R_REASON[i]="fixed category"
+        fi
         if [ -z "$origin" ]; then
-            stem="${DSM_ORG_R_PATH[i]##*/}"
-            stem="${stem%.desktop}"
-            if [[ "$DSM_ORG_KEEP_ON_DESKTOP" == *" $stem "* ]]; then DSM_ORG_PINNED+=("$i"); continue; fi
             if [ "${DSM_ORG_R_STATE[i]}" != "valid" ]; then DSM_ORG_BROKEN+=("$i"); continue; fi
-            if [ -z "$category" ]; then DSM_ORG_UNMATCHED+=("$i"); continue; fi
+            if [ -z "$category" ]; then
+                category="$DSM_ORG_FALLBACK_CATEGORY"
+                DSM_ORG_R_CAT[i]="$category"
+                DSM_ORG_R_REASON[i]="no category keyword matched"
+            fi
             mode="move"
-            if [ "$category" = "$DSM_ORG_BROWSERS_CATEGORY" ] && [ "${DSM_ORG_R_KEEPCOPY[i]}" = "1" ]; then mode="copy"; fi
+            if [ -z "$keeper" ] && [ "$category" = "$DSM_ORG_BROWSERS_CATEGORY" ] && [ "${DSM_ORG_R_KEEPCOPY[i]}" = "1" ]; then
+                keeper="$i"
+                mode="copy"
+            fi
         else
             [ "${DSM_ORG_R_STATE[i]}" = "valid" ] || continue
             [ -n "$category" ] && [ "$category" != "$origin" ] || continue
-            [[ "${DSM_ORG_R_SUPPORTED[i]}" == *",$origin,"* ]] && continue
+            if [ -z "${DSM_ORG_FIXED_CATEGORIES[$stem]+x}" ] && [[ "${DSM_ORG_R_SUPPORTED[i]}" == *",$origin,"* ]]; then continue; fi
             mode="refile"
         fi
         DSM_ORG_I_REC+=("$i")
@@ -1220,6 +1269,56 @@ _dsm_org_apply() {
     return 0
 }
 
+# "name (2).ext" style free name inside <dir> (also free of names claimed earlier in the run) -> DSM_ORG_UNIQUE.
+_dsm_org_unique_dest() {
+    local dir="$1" name="$2" item="$3" stem="$2" ext="" n=2 candidate=""
+    if [ -f "$item" ] && [[ "$name" == ?*.* ]]; then
+        stem="${name%.*}"
+        ext=".${name##*.}"
+    fi
+    candidate="$dir/$name"
+    while [ -e "$candidate" ] || [ -L "$candidate" ] || [ -n "${DSM_ORG_CLAIMED[$candidate]+x}" ]; do
+        candidate="$dir/$stem ($n)$ext"
+        n=$((n + 1))
+    done
+    DSM_ORG_UNIQUE="$candidate"
+    return 0
+}
+
+# Move the loose Desktop files and folders into the Documents folder (preview only prints).
+_dsm_org_apply_loose() {
+    local docs="$1" preview="$2" item="" dest="" kind=""
+    [ "${#DSM_ORG_LOOSE[@]}" -gt 0 ] || return 0
+    if [ ! -d "$docs" ]; then
+        DSM_ORG_CHANGES=$((DSM_ORG_CHANGES + 1))
+        if [ "$preview" -eq 1 ]; then
+            echo "[dsm] [preview] mkdir: $docs"
+        elif _dsm_org_mkdir "$docs"; then
+            _dsm_org_record "mkdir" "" "$docs" "$DSM_ORG_DOCUMENTS_CATEGORY" "documents folder"
+        else
+            DSM_ORG_FAILED+=("mkdir $docs")
+            return 0
+        fi
+    fi
+    for item in "${DSM_ORG_LOOSE[@]}"; do
+        kind="loose file"
+        [ -d "$item" ] && kind="loose folder"
+        _dsm_org_unique_dest "$docs" "${item##*/}" "$item"
+        dest="$DSM_ORG_UNIQUE"
+        DSM_ORG_CLAIMED[$dest]=1
+        DSM_ORG_CHANGES=$((DSM_ORG_CHANGES + 1))
+        if [ "$preview" -eq 1 ]; then
+            echo "[dsm] [preview] move: $item -> $dest ($kind)"
+        elif mv -T -- "$item" "$dest" 2>/dev/null; then
+            _dsm_org_record "move" "$item" "$dest" "$DSM_ORG_DOCUMENTS_CATEGORY" "$kind"
+            DSM_ORG_DONE+=("move: $item -> $dest ($kind)")
+        else
+            DSM_ORG_FAILED+=("$item -> $dest")
+        fi
+    done
+    return 0
+}
+
 # Write organize_<runId>.json (same fields as the Windows manifest) -> DSM_ORG_MANIFESTS.
 _dsm_org_write_manifest() {
     local user="$1" base="$2" state="$3" dir="" path="" now="" i=0 last=0 sep="," entry=""
@@ -1274,14 +1373,9 @@ _dsm_org_report() {
     elif [ "$DSM_ORG_CHANGES" -eq 0 ]; then
         echo "[dsm] Nothing to move; the desktop is already organized."
     fi
-    for i in "${DSM_ORG_PINNED[@]}"; do echo "[dsm] kept on desktop (keep-on-desktop list): ${DSM_ORG_R_PATH[i]}"; done
     for i in "${DSM_ORG_BROKEN[@]}"; do
         echo "[dsm] left in place (Exec target missing): ${DSM_ORG_R_PATH[i]} -> ${DSM_ORG_R_TARGET[i]:-<no Exec>}"
     done
-    if [ "${#DSM_ORG_UNMATCHED[@]}" -gt 0 ]; then
-        echo "[dsm] Unmatched desktop launchers (${#DSM_ORG_UNMATCHED[@]}); add keywords to DSM_ORG_CATEGORY_KEYWORDS to file them:"
-        for i in "${DSM_ORG_UNMATCHED[@]}"; do echo "[dsm]   - ${DSM_ORG_R_PATH[i]} -> ${DSM_ORG_R_TARGET[i]}"; done
-    fi
     [ "$preview" -eq 0 ] || return 0
     echo "[dsm] Category folders under $base:"
     for category in "${DSM_ORG_CATEGORIES[@]}"; do
@@ -1300,18 +1394,22 @@ _dsm_org_report() {
 }
 
 _dsm_org_user() {
-    local user="$1" home="$2" preview="$3" desktop="" base="" state=""
+    local user="$1" home="$2" preview="$3" desktop="" base="" state="" docs=""
     desktop="$(_dsm_desktop_dir "$user" "$home")"
     [ -d "$desktop" ] || return 0
     base="$(_dsm_org_base_dir "$user" "$home")"
     state="$(_dsm_org_state_dir "$user" "$home")"
+    docs="$(_dsm_xdg_user_dir "$home" "$DSM_ORG_DOCUMENTS_DIR_KEY" Documents)"
+    [ "$docs" != "$home" ] || docs="$home/Documents"
     _dsm_org_reset_user
     echo "[dsm] Desktop: $desktop (user $user)"
     echo "[dsm] Category folders: $base"
     _dsm_org_scan "$home" "$desktop" "$base"
+    _dsm_org_scan_loose "$desktop" "$base" "$docs"
     _dsm_org_classify
     _dsm_org_plan
     _dsm_org_apply "$user" "$desktop" "$base" "$state" "$preview"
+    _dsm_org_apply_loose "$docs" "$preview"
     _dsm_org_report "$user" "$desktop" "$base" "$state" "$preview"
     return 0
 }
@@ -1347,7 +1445,7 @@ _dsm_org_undo_manifest() {
         restored_to="$src"
         case "$action" in
             move|displace)
-                if [ -f "$dest" ] && [ ! -e "$src" ] && [ ! -L "$src" ]; then
+                if { [ -f "$dest" ] || [ -d "$dest" ]; } && [ ! -e "$src" ] && [ ! -L "$src" ]; then
                     status="failed"
                     _dsm_org_mkdir "${src%/*}" && mv -T -- "$dest" "$src" 2>/dev/null && status="restored"
                 fi

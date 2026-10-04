@@ -187,6 +187,56 @@ public static class YoloTrainFlow
         }
     }
 
+    public const string TrainedWeightsFileName = "best.pt";
+    public const string ExportedOnnxFileName = "best.onnx";
+    private const string ExportFormatOnnx = "onnx";
+
+    /// <summary>
+    /// Step 7 (DOT-only): `yolo export model=best.pt format=onnx imgsz=N` as an external process; writes best.onnx next to the weights
+    /// for DotCore.YoloDetect.YoloOnnxDetector.
+    /// </summary>
+    public static (bool Ok, string Message, Process? Process) Flow7ExportOnnx(string weightsPath, int imgsz = YoloDatasetBuilder.DefaultTrainImgsz, string? cliExe = null)
+    {
+        if (string.IsNullOrWhiteSpace(weightsPath) || !File.Exists(weightsPath))
+            return (false, "weights not found", null);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = string.IsNullOrWhiteSpace(cliExe) ? YoloCliExe : cliExe,
+            UseShellExecute = false,
+            CreateNoWindow = false,
+            WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(weightsPath)) ?? ""
+        };
+        foreach (var arg in new[] { "export", $"model={weightsPath}", $"format={ExportFormatOnnx}", $"imgsz={imgsz}" })
+            startInfo.ArgumentList.Add(arg);
+        try
+        {
+            var process = Process.Start(startInfo);
+            return process == null
+                ? (false, "export process not started", null)
+                : (true, $"{YoloCliExe} export model={weightsPath} format={ExportFormatOnnx} imgsz={imgsz}", process);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message, null);
+        }
+    }
+
+    /// <summary>Newest file with this name anywhere under root (training runs land in &lt;dataset&gt;/runs/detect/train*/weights), or null.</summary>
+    public static string? FindLatestFile(string root, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return null;
+        try
+        {
+            return new DirectoryInfo(root).EnumerateFiles(fileName, SearchOption.AllDirectories)
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .FirstOrDefault()?.FullName;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Per-step readiness. 1:1 flow_get_step_summary (isRecording supplied by the recorder).</summary>
     public static StepSummary FlowGetStepSummary(string? projectPath, bool hasSegment, bool hasFrames, bool isRecording) =>
         new(true, isRecording ? "recording" : "idle", !string.IsNullOrEmpty(projectPath) && hasSegment, hasFrames, false, false, false);

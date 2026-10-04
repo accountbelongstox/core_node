@@ -22,7 +22,7 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | `d3utils` generic helpers (screenshot, OCR, input, window, process, image) | dotcore (see progress doc) |
 | `controller/game_assistant_controller`, `ctl_func/blacksmith_handler`, `login_try_screenshot_controller`, `http_bridge_controller` | `Ctl/GameAssistantController`, `Core/Blacksmith/*`, `Ctl/LoginTryController` + `Ctl/D3ConnectC3Flow`, `Services/D3D4TesterHttpBridge` |
 | `controller/d4_controller`, `d4func/*`, `d4utils/*`, `threads/d4_extension_thread` | `Core/D4/*` (`D4Pipeline`, `D4Controller`, `D4Manager`, detectors, `D4EventManager`, `D4UiStatusUpdater`), `Ctl/D4TickLoop` |
-| `d4utils/d4_battlenet_operation` (no caller in Python) | DOT-only wiring: `LoginTryController.EnsureD4RunningFromBattlenet` (D4 page "Start D4") via the shared D block + `D4Pipeline.LaunchFromBattlenet` |
+| `d4utils/d4_battlenet_operation` (no caller in Python) | DOT-only wiring: `LoginTryController.EnsureD4RunningFromBattlenet` (D4 page "Start D4") via the shared D block + `Core/Battlenet/BattlenetGameLauncher` (tab + Play by `DetectGameUi`, shared with D3) |
 | `pycore/pyutils/input/tray_clicker` (`find_and_click_tray_icon` in the D block) | dotcore `DotCore.UIInspect.TrayIconClicker`, `BattlenetManager.RestoreFromTray` |
 | `threads/` (d3 extension, main function, log monitor) | `Ctl/RosbotTaskProcessor`, `Core/MainFunctionThreadRegistry`, `Ctl/CombatMacroController`, `Services/RosbotLogFileWatcher` |
 | `timers/` (window monitor, one-shot tasks) | `Services/WindowMonitorService`, `RosbotDebugService`, `BattlenetUiAnalyzeService`, `RosbotUpdateManager`, `Core/PathScanner` |

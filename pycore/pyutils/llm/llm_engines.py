@@ -43,7 +43,7 @@ from pycore.pyutils.common.model_tiers import gpu_present
 import pycore.pyutils.llm.llm_manifest  # noqa: F401
 
 # Local AI runtime facts shared with the installers (117_install_ollama.sh /
-# Step66_InstallOllama.ps1): port, model store and the provisioned model.
+# Model_Ollama.ps1): port, model store and the provisioned model.
 _LOCAL_AI_CONTRACT = service_contract_value("local_ai")
 OLLAMA_PORT = int(_LOCAL_AI_CONTRACT["ollama_port"])
 OLLAMA_TRANSLATE_MODEL = str(_LOCAL_AI_CONTRACT["translate_model"])

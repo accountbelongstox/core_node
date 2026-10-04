@@ -14,10 +14,11 @@ $item = @{
     Order = 10
     Title = 'Switch Installation Mode'
     Var   = 'INSTALL_TYPE'
-    Values = @('base', 'server', 'full', 'desktop')
+    Values = @('desktop', 'server')
     StepsProvider = {
         . (Join-Path $winCommonDir 'InstallerScriptsList.ps1')
-        return $InstallerScripts
+        $switchedOff = @(Get-InstallItemDisabledSteps)
+        return @($InstallerScripts | Where-Object { $switchedOff -notcontains $_ })
     }
 }
 

@@ -35,6 +35,16 @@ public sealed class CombatMacroController
     {
         _eventHub = eventHub ?? throw new ArgumentNullException(nameof(eventHub));
         MacroFallbackRunner.SkillConfigProvider = () => MacroConfigLoader.Instance.GetCurrentSkillConfig();
+        MacroFallbackRunner.RuntimeOptionsProvider = ReadRuntimeOptions;
+        MacroFallbackRunner.SmartStopRequested = StopMacro;
+        D3D4TesterConfigChangeHub.Notifier.Subscribe(OnConfigChanged);
+    }
+
+    /// <summary>Reload active skill bindings on any macro_configs write so a running macro picks up edits. 1:1 Python _apply_config_sync_and_rebind_hotkeys.</summary>
+    private static void OnConfigChanged(string? keyPath)
+    {
+        if (keyPath != null && keyPath.StartsWith(ConfigKeys.MacroConfigsRoot, StringComparison.Ordinal))
+            MacroConfigLoader.Instance.LoadActive();
     }
 
     /// <summary>Called after StartMacro. 1:1 Python on_macro_start.</summary>
@@ -105,6 +115,15 @@ public sealed class CombatMacroController
         StopMacroFallback();
 
         try { OnMacroStop?.Invoke(); } catch { /* ignore */ }
+    }
+
+    /// <summary>Smart pause and custom force-stand key from macro_configs.auxiliary_config (read every tick, so UI edits apply at once).</summary>
+    private static MacroRuntimeOptions ReadRuntimeOptions()
+    {
+        return new MacroRuntimeOptions(
+            ConfigBinding.GetValue(ConfigKeys.AuxiliarySmartPause, true),
+            ConfigBinding.GetValue(ConfigKeys.AuxiliaryUseCustomStandKey, false),
+            ConfigBinding.GetValue(ConfigKeys.AuxiliaryCustomStandKey, AppConstants.DefaultCustomStandKey));
     }
 
     /// <summary>Load active skill config into runtime. 1:1 Python get_macro_config_loader().load_active().</summary>

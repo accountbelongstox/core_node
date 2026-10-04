@@ -64,7 +64,7 @@ function Ensure-Winget {
 
 # Idempotent NSSM resolution: reuse an existing install, else auto-install via winget
 # (mirrors the Linux pattern of resolving a tool then invoking its canonical installer
-# on demand -- see install_powershells/Step40_InstallNSSM.ps1 for the DevInstaller-menu
+# on demand -- see install_powershells/BaseTools_Nssm.ps1 for the DevInstaller-menu
 # entry point that wraps this same function). RepoRootDir is used only to locate
 # Step3_InitWinget.ps1 when winget itself is missing.
 function Ensure-Nssm {
@@ -78,7 +78,7 @@ function Ensure-Nssm {
     }
 
     Write-Host "[NssmServiceManager] NSSM not found -> installing via winget (idempotent, live output below)..." -ForegroundColor Yellow
-    winget install --id NSSM.NSSM -e --accept-package-agreements --accept-source-agreements
+    winget install --id NSSM.NSSM -e --accept-package-agreements --accept-source-agreements | Out-Host
     Update-SessionPathFromRegistry
 
     $installed = Find-NssmExe
@@ -161,7 +161,7 @@ function Register-NssmService {
     $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if (-not $existing) {
         Write-Host "[NssmServiceManager] Installing service: $ServiceName" -ForegroundColor Cyan
-        & $NssmPath install $ServiceName $ExePath $Arguments
+        & $NssmPath install $ServiceName $ExePath $Arguments | Out-Null
         $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
         if (-not $existing) {
             Write-Host "[NssmServiceManager] nssm install failed for $ServiceName (service not registered)" -ForegroundColor Red
@@ -169,15 +169,15 @@ function Register-NssmService {
         }
     } else {
         Write-Host "[NssmServiceManager] Service $ServiceName already registered -> refreshing configuration." -ForegroundColor Yellow
-        & $NssmPath set $ServiceName Application $ExePath
-        & $NssmPath set $ServiceName AppParameters $Arguments
+        & $NssmPath set $ServiceName Application $ExePath | Out-Null
+        & $NssmPath set $ServiceName AppParameters $Arguments | Out-Null
     }
 
-    & $NssmPath set $ServiceName DisplayName $DisplayName
-    & $NssmPath set $ServiceName Description $Description
-    & $NssmPath set $ServiceName AppDirectory $WorkingDirectory
-    & $NssmPath set $ServiceName Start SERVICE_AUTO_START
-    & $NssmPath set $ServiceName AppRestartDelay 5000
+    & $NssmPath set $ServiceName DisplayName $DisplayName | Out-Null
+    & $NssmPath set $ServiceName Description $Description | Out-Null
+    & $NssmPath set $ServiceName AppDirectory $WorkingDirectory | Out-Null
+    & $NssmPath set $ServiceName Start SERVICE_AUTO_START | Out-Null
+    & $NssmPath set $ServiceName AppRestartDelay 5000 | Out-Null
     # Without these, NSSM's documented default (https://nssm.cc/usage, "Console window") is to
     # allocate a real console and connect it to the child's stdin/stdout/stderr. PHP's
     # stream_isatty(STDIN) then reports true for a service with nobody attending its console,
@@ -185,17 +185,17 @@ function Register-NssmService {
     # forever instead of skipping -- this hung laravel_main's sys:init before port 9000 ever
     # opened. AppNoConsole disables the console entirely; AppStdin NUL is a belt-and-suspenders
     # explicit redirect so a read from stdin returns immediately instead of blocking.
-    & $NssmPath set $ServiceName AppNoConsole 1
-    & $NssmPath set $ServiceName AppStdin "NUL"
+    & $NssmPath set $ServiceName AppNoConsole 1 | Out-Null
+    & $NssmPath set $ServiceName AppStdin "NUL" | Out-Null
     if ($EnvironmentExtra.Count -gt 0) {
-        & $NssmPath set $ServiceName AppEnvironmentExtra ($EnvironmentExtra -join "`r`n")
+        & $NssmPath set $ServiceName AppEnvironmentExtra ($EnvironmentExtra -join "`r`n") | Out-Null
     }
     if ($StdoutLog) {
-        & $NssmPath set $ServiceName AppStdout $StdoutLog
-        & $NssmPath set $ServiceName AppRotateFiles 1
+        & $NssmPath set $ServiceName AppStdout $StdoutLog | Out-Null
+        & $NssmPath set $ServiceName AppRotateFiles 1 | Out-Null
     }
     if ($StderrLog) {
-        & $NssmPath set $ServiceName AppStderr $StderrLog
+        & $NssmPath set $ServiceName AppStderr $StderrLog | Out-Null
     }
 
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue

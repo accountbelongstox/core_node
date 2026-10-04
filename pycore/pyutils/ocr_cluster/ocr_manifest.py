@@ -11,7 +11,7 @@ from pycore.pyutils.common.model_manifest import (
     model_manifest,
 )
 
-_OCR_INSTALLER = "Step46_InstallOcr.ps1 / 125_install_ocr.sh"
+_OCR_INSTALLER = "Model_Ocr.ps1 / 125_install_ocr.sh"
 
 OCR_ENTRIES = (
     ModelEntry(

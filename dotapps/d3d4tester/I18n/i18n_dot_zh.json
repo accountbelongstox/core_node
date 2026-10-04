@@ -73,6 +73,40 @@
       "action_install": "未安装",
       "action_try_free": "未拥有（免费试玩/购买）",
       "action_starting": "游戏启动中"
+    },
+    "tray": {
+      "rosbot_started": "ROSBOT 已启动",
+      "rosbot_start_failed": "ROSBOT 启动失败",
+      "rosbot_stopped": "ROSBOT 已停止"
+    },
+    "decompile": {
+      "tab": "反编译",
+      "tools_title": "反编译工具",
+      "tools_desc": "下载到程序数据目录：ILSpy（.NET 转 C#，需要 .NET SDK）、de4dot-cex（.NET 去混淆）、autoit-ripper（AutoIt 程序转 .au3，需要 Python）、UPX（脱壳）。已安装的工具保留不动。",
+      "install": "一键下载 / 修复工具",
+      "installed": "已安装",
+      "missing": "未安装",
+      "rosbot_title": "ROSBOT",
+      "rosbot_desc": "主程序（先去混淆再反编译）和全部插件 DLL；生成 settings_fields.md，列出所有设置项名称（即 RoS-BoT.ini 的键）。被 DNGuard HVM 保护的方法体只在运行时解密，反编译结果中为占位代码。",
+      "rosbot_button": "一键反编译 ROSBOT",
+      "rbassist_title": "RBAssist 中控",
+      "rbassist_desc": "AutoIt 编译程序：提取 .au3 脚本和内嵌文件（需要时先 UPX 脱壳）。",
+      "rbassist_button": "一键反编译 RBAssist",
+      "browse": "浏览...",
+      "file_title": "任意文件",
+      "file_desc": "自动识别类型：.NET 程序集、AutoIt 编译程序、原生代码（不支持）。",
+      "file_button": "选择文件并反编译",
+      "file_filter": "可执行文件 (*.exe;*.dll)|*.exe;*.dll|所有文件 (*.*)|*.*",
+      "open_output": "打开输出目录",
+      "log": "日志",
+      "chain": "一键链路测试",
+      "recover_sources": "导出可还原源码并尝试 DNGuard 恢复",
+      "export_il": "导出原始 IL",
+      "chain_desc": "检查所有工具能否运行，再将已配置的 ROSBOT、插件和 RBAssist 反编译到独立目录，保存 chain_report.json。DNGuard 占位方法标为部分恢复。外部工具恢复的程序集可通过“任意文件”继续检查。",
+      "cancel": "取消",
+      "passed": "链路通过：工具运行正常，全部目标生成输出，未检测到 DNGuard 占位方法。",
+      "incomplete": "链路未完整通过：请查看日志和 chain_report.json，检查缺失工具、失败目标或受保护的方法体。",
+      "cancelled": "操作已取消或超时。"
     }
   },
   "skills": {

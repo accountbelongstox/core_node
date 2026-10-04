@@ -18,9 +18,9 @@ download_with_fallback_from_common_functions() {
 
             # Try with different curl options
             local curl_options=(
-                "-L --connect-timeout 30 --max-time 600 --retry 3 --retry-delay 2"
-                "-L --connect-timeout 60 --max-time 900 --retry 2 --retry-delay 5 -k"
-                "-L --connect-timeout 120 --max-time 1200 --retry 1 -k"
+                "-fL --connect-timeout 30 --max-time 600 --retry 3 --retry-delay 2"
+                "-fL --connect-timeout 60 --max-time 900 --retry 2 --retry-delay 5 -k"
+                "-fL --connect-timeout 120 --max-time 1200 --retry 1 -k"
             )
 
             for options in "${curl_options[@]}"; do

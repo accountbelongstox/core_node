@@ -536,5 +536,5 @@ elseif ($prerequisitesReady -and -not $providerReady) {
     Write-Host "[ERROR] No reusable $volcProfileType API key was found in the local Ark profiles." -ForegroundColor Red
 }
 else {
-    Write-Host '[ERROR] Pi prerequisites are incomplete. Run Step41_InstallPiHarness first.' -ForegroundColor Red
+    Write-Host '[ERROR] Pi prerequisites are incomplete. Run AiTools_PiHarness first.' -ForegroundColor Red
 }

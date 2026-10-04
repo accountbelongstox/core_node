@@ -28,9 +28,13 @@ function Configure-MavenSettings {
         Write-Host "$LogPrefix Created Maven directory: $m2Dir" -ForegroundColor Green
     }
     
-    # Create settings.xml for Maven configuration
+    # Create settings.xml for Maven configuration; an existing (user-owned) settings.xml is kept as it is
     $settingsXmlPath = Join-Path $m2Dir "settings.xml"
-    
+    if (Test-Path -LiteralPath $settingsXmlPath) {
+        Write-Host "$LogPrefix Maven settings.xml already exists, keeping it: $settingsXmlPath" -ForegroundColor Cyan
+        return $true
+    }
+
     # Check if we should configure mirrors based on region
     $shouldConfigureMirrors = -not $Global:RegionIsGlobal
     $mirrorUrl = "https://repo1.maven.org/maven2"
@@ -115,8 +119,11 @@ function Test-JavaInstallation {
     )
     
     Write-Host "$LogPrefix Testing Java installation..." -ForegroundColor Cyan
-    
+
+    $prevErrorPreference = $ErrorActionPreference
     try {
+        # java/javac print the version banner to stderr; under 'Stop' the 2>&1 ErrorRecords would throw in PS 5.1
+        $ErrorActionPreference = 'Continue'
         # Test Java version
         $javaVersion = & $JavaPath -version 2>&1
         if (("$javaVersion").Contains('version')) {
@@ -146,6 +153,9 @@ function Test-JavaInstallation {
     catch {
         Write-Host "$LogPrefix Java installation test failed: $($_.Exception.Message)" -ForegroundColor Red
         return $false
+    }
+    finally {
+        $ErrorActionPreference = $prevErrorPreference
     }
 }
 
@@ -178,7 +188,7 @@ function Invoke-JavaPostInstallProcessor {
         }
         "full_setup" {
             Write-Host "$LogPrefix Performing Java configuration (Maven + Test)..." -ForegroundColor Yellow
-            Write-Host "$LogPrefix Note: Environment variables handled by Step12" -ForegroundColor Cyan
+            Write-Host "$LogPrefix Note: Environment variables handled by Step21_InstallApplications.ps1" -ForegroundColor Cyan
 
             # Step 1: Configure Maven
             $mavenSuccess = Configure-MavenSettings -JavaPath $ExecutablePath -InstallDir $InstallDir -JavaCallback $JavaCallback -LogPrefix $LogPrefix

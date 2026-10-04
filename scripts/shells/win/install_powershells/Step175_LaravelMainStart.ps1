@@ -6,9 +6,10 @@ $winDirectory = Split-Path -Parent $installDirectory
 $commonDirectory = Join-Path $winDirectory 'win_common'
 $managerPath = Join-Path $commonDirectory 'FrankenPhpManager.ps1'
 $certificateManagerPath = Join-Path $commonDirectory 'FrankenPhpCertificateManager.ps1'
-$step93Path = Join-Path $installDirectory 'Step93_InstallFrankenPHP.ps1'
-$step94Path = Join-Path $installDirectory 'Step94_InstallComposer.ps1'
-$step96Path = Join-Path $installDirectory 'Step96_ConfigurePHP85.ps1'
+$nginxManagerPath = Join-Path $commonDirectory 'NginxManager.ps1'
+$webFrankenPhpPath = Join-Path $installDirectory 'Web_FrankenPhp.ps1'
+$webComposerPath = Join-Path $installDirectory 'Web_Composer.ps1'
+$webConfigurePhp85Path = Join-Path $installDirectory 'Web_ConfigurePhp85.ps1'
 $laravelDirectory = $null
 $phpPath = $null
 $composerPath = $null
@@ -26,8 +27,11 @@ $interactiveSession = [Environment]::UserInteractive -and -not [Console]::IsInpu
 $step175Failed = $false
 $phpModules = @()
 $commandExit = 0
+$webServerPlane = ''
 . $managerPath
 . $certificateManagerPath
+. $nginxManagerPath
+$webServerPlane = Get-WebServerPlane
 
 function Set-Step175Failure {
     # One `ERROR: step 175: <reason>` line per failure; the script ends with a non-zero exit.
@@ -44,8 +48,12 @@ $vendorAutoloadPath = Join-Path (Join-Path $laravelDirectory 'vendor') 'autoload
 $workerPath = Join-Path (Join-Path $laravelDirectory 'public') 'frankenphp-worker.php'
 $env:PHP_INI_SCAN_DIR = Split-Path -Parent (Get-FrankenPhpPhpIniPath)
 
-Write-FrankenPhpLog -Message "Step ${STEP_NUMBER}: converging the Laravel FrankenPHP deployment."
+Write-FrankenPhpLog -Message "Step ${STEP_NUMBER}: converging the Laravel deployment (web server plane: $webServerPlane)."
 
+if ($CertificatesOnly -and $webServerPlane -ne 'frankenphp') {
+    Write-FrankenPhpLog -Message "Certificates are managed by the FrankenPHP plane only (START_WEB_SERVER=$webServerPlane)."
+    return
+}
 if ($CertificatesOnly) {
     Invoke-FrankenPhpCertificateRenewal | Out-Null
     if ((Test-FrankenPhpLanOnlyHost) -or (Test-FrankenPhpTailnetConnected)) {
@@ -72,9 +80,9 @@ if (-not (Test-Path -LiteralPath $laravelDirectory -PathType Container)) {
     exit 1
 }
 
-& $step93Path
-& $step94Path
-& $step96Path
+& $webFrankenPhpPath
+& $webComposerPath
+& $webConfigurePhp85Path
 
 if (-not (Test-Path -LiteralPath $phpPath -PathType Leaf)) {
     Set-Step175Failure -Reason "PHP is missing after its installer: $phpPath"
@@ -85,7 +93,7 @@ elseif (-not (Test-Path -LiteralPath $composerPath -PathType Leaf)) {
 else {
     $phpModules = @(& $phpPath -m)
     if ($phpModules -notcontains 'pdo_pgsql') {
-        Set-Step175Failure -Reason 'pdo_pgsql is not loaded by the configured PHP (Step96_ConfigurePHP85.ps1 must enable it)'
+        Set-Step175Failure -Reason 'pdo_pgsql is not loaded by the configured PHP (Web_ConfigurePhp85.ps1 must enable it)'
     }
 }
 
@@ -106,7 +114,7 @@ if (-not $step175Failed) {
     }
 }
 
-if (-not $step175Failed -and
+if (-not $step175Failed -and $webServerPlane -eq 'frankenphp' -and
     (Test-Path -LiteralPath $artisanPath -PathType Leaf) -and
     -not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
     Push-Location $laravelDirectory
@@ -121,7 +129,7 @@ if (-not $step175Failed -and
         Set-Step175Failure -Reason "artisan octane:install failed (exit $commandExit)"
     }
 }
-if (-not $step175Failed -and -not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
+if (-not $step175Failed -and $webServerPlane -eq 'frankenphp' -and -not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
     Set-Step175Failure -Reason "Octane worker postcondition failed: $workerPath"
 }
 
@@ -162,6 +170,27 @@ if ($codemartInit -eq 'yes' -and (Test-Path -LiteralPath $artisanPath -PathType 
     }
 }
 
+# Mesh VPN node for every plane (the FrankenPHP plane also deploys its tailnet HTTPS sites below).
+Invoke-MeshProviderConverge -SkipSite -NoInteractive | Out-Null
+# Plane mutual exclusion (Linux DESIGN_TRANSPORT_PLANE.md): only the selected plane's services run.
+if ($webServerPlane -ne 'frankenphp') { Disable-WebPlaneService -Name (Get-FrankenPhpServiceName) }
+if ($webServerPlane -ne 'nginx') {
+    Disable-WebPlaneService -Name (Get-NginxServiceName)
+    Disable-WebPlaneService -Name (Get-PhpCgiServiceName)
+}
+if ($webServerPlane -eq 'none') {
+    Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete (START_WEB_SERVER=none: no web server service)." -Type 'Success'
+    return
+}
+if ($webServerPlane -eq 'nginx') {
+    if (-not (Ensure-NginxPlane)) {
+        Set-Step175Failure -Reason "nginx plane services $(Get-NginxServiceName)/$(Get-PhpCgiServiceName) are not running after convergence"
+        exit 1
+    }
+    Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete." -Type 'Success'
+    return
+}
+
 Ensure-FrankenPhpCertificates | Out-Null
 Ensure-FrankenPhpCertificateRenewalTask | Out-Null
 # LAN/desktop hosts and every tailnet member (public servers included):
@@ -170,7 +199,6 @@ Ensure-FrankenPhpCertificateRenewalTask | Out-Null
 # Headscale) and deploy them as Caddy HTTPS sites.
 # Additive: the public domain routes are untouched. Mirrors
 # fm_domain_tailnet_site_ensure in frankenphp_domain_common.sh.
-Invoke-MeshProviderConverge -SkipSite -NoInteractive | Out-Null
 if ((Test-FrankenPhpLanOnlyHost) -or (Test-FrankenPhpTailnetConnected)) {
     Ensure-FrankenPhpLanLocalCertificates | Out-Null
 }
@@ -182,6 +210,7 @@ if ((Test-Path -LiteralPath $vendorAutoloadPath -PathType Leaf) -and
     (Test-Path -LiteralPath $workerPath -PathType Leaf) -and
     (Test-Path -LiteralPath (Get-FrankenPhpCaddyfilePath) -PathType Leaf) -and
     (Test-FrankenPhpDomainRoutesReady)) {
+    Enable-WebPlaneService -Name (Get-FrankenPhpServiceName)
     Ensure-FrankenPhpWindowsService | Out-Null
 }
 $service = Get-Service -Name (Get-FrankenPhpServiceName) -ErrorAction SilentlyContinue

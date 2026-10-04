@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Superseded entry point: forwards to Step69_InstallFrontendPackages.ps1, which owns the
+    Superseded entry point: forwards to Node_FrontendPackages.ps1, which owns the
     frontend dependency install (the UI uses bun; the legacy desktop-manager is unused).
 #>
 [CmdletBinding()]
@@ -10,5 +10,5 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$frontendStep = Join-Path $PSScriptRoot 'Step69_InstallFrontendPackages.ps1'
+$frontendStep = Join-Path $PSScriptRoot 'Node_FrontendPackages.ps1'
 & $frontendStep -Force:$Force

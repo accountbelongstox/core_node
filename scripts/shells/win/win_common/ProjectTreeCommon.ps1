@@ -179,7 +179,7 @@ function Set-ProjectTreeJunction {
     )
 
     $markerPath = Join-Path $TargetPath $script:PROJECT_TREE_MARKER_NAME
-    # The namespace root (e.g. E:\core_node_compiler) and every directory below
+    # The namespace root (e.g. E:\_win10_dev) and every directory below
     # it are created through the one shared helper (SharedCacheEnv.ps1
     # New-CnNamespaceDirectory), per DIRECTORY_NAMESPACE_RULES.md #2.
     New-CnNamespaceDirectory -Path $TargetPath

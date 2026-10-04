@@ -1,3 +1,9 @@
+$globalVarsPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'shells\win\win_common\GlobalVars.ps1'
+$callerErrorAction = $ErrorActionPreference
+. $globalVarsPath
+$ErrorActionPreference = $callerErrorAction
+Set-StrictMode -Off
+
 $params = @{
     VMName = "Win10DevWork"
     SourcePath = "D:\programing\win10iso\zh-cn_windows_10.iso"
@@ -8,7 +14,7 @@ $params = @{
     MemoryAmount = 4GB
     CPUCores = 16
     NetworkSwitch = "Default Switch"
-    VHDPath = "D:\.dev_win11\Hyper-V\VirtualHardDisks\"
+    VHDPath = Join-Path $Global:LANG_COMPILER_DIR "Hyper-V\VirtualHardDisks\"
     UnattendPath = "$PSScriptRoot"+"\autounattend.xml"
     GPUName = "AUTO"
     GPUResourceAllocationPercentage = 50

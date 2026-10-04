@@ -54,12 +54,12 @@ public sealed class MacroAuxiliaryOptions
 public sealed class AuxiliaryFeatureOptions
 {
     public static readonly string[] BloodShardTypeValues = { "weapon", "armor", "jewelry", "helmet", "gloves", "boots" };
-    public static readonly string[] KanaiReforgeModeValues = { "until_ancient", "double_crit", "double_crit_ancient" };
-    public static readonly string[] KanaiConvertMaterialValues = { "forgotten_soul", "veiled_crystal", "arcane_dust" };
+    public static readonly string[] KanaiReforgeModeValues = DotApps.d3d4tester.Core.Kanai.KanaiRecipeHelper.ReforgeModes;
+    public static readonly string[] KanaiConvertMaterialValues = DotApps.d3d4tester.Core.Kanai.KanaiRecipeHelper.ConvertMaterials;
     public static readonly string[] AutoSalvageKeepValues = { "keep_ancient_plus", "keep_primal" };
     public const string BloodShardTypeDefault = "weapon";
-    public const string KanaiReforgeModeDefault = "until_ancient";
-    public const string KanaiConvertMaterialDefault = "forgotten_soul";
+    public const string KanaiReforgeModeDefault = DotApps.d3d4tester.Core.Kanai.KanaiRecipeHelper.ModeUntilAncient;
+    public const string KanaiConvertMaterialDefault = DotApps.d3d4tester.Core.Kanai.KanaiRecipeHelper.MaterialForgottenSoul;
     public const string AutoSalvageKeepDefault = DotApps.d3d4tester.Core.Blacksmith.BlacksmithHandler.KeepAncientPlus;
 
     [ConfigurationKeyName("enabled")]

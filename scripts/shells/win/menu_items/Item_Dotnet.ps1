@@ -15,7 +15,7 @@ $item = @{
     Title = 'Install .NET SDK'
     Var   = 'START_DOTNET'
     Values = @('false','true')
-    Presets = @{ base = 'false'; server = 'false'; full = 'true'; desktop = 'true' }
+    Presets = @{ desktop = 'true'; server = 'true' }
     Steps = @(
         'Step71_InstallDotnet.ps1'
     )

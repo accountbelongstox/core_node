@@ -359,7 +359,7 @@ domain_setup_mkcert_install() {
     local dl_bin=""
     local src_dir=""
     sudo_cmd=$(lazy_sudo)
-    dl_dir="${CORE_NODE_SHARED_DOWNLOADS:-${CORE_NODE_DATA_DIR:-/www/core_node}/shared_downloads}/mkcert"
+    dl_dir="${CORE_NODE_SHARED_DOWNLOADS:-${GLOBAL_TEMP_DIR:-${TMPDIR:-/tmp}}}/mkcert"
     dl_bin="$dl_dir/mkcert"
     src_dir="$dl_dir/src"
 
@@ -407,7 +407,7 @@ domain_setup_mkcert_install() {
         fi
         if [ -d "$src_dir" ]; then
             echo "[domain] Building mkcert from source (go build)..."
-            (cd "$src_dir" && go build -o "$dl_bin" . >/dev/null 2>&1)
+            (cd "$src_dir" && GOCACHE="${GOCACHE:-$dl_dir/go-build}" go build -o "$dl_bin" . >/dev/null 2>&1)
             if [ -x "$dl_bin" ] && "$dl_bin" -version >/dev/null 2>&1; then
                 $sudo_cmd cp "$dl_bin" /usr/local/bin/mkcert 2>/dev/null \
                     && $sudo_cmd chmod +x /usr/local/bin/mkcert 2>/dev/null

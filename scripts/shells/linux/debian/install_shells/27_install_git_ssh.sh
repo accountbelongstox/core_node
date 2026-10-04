@@ -605,13 +605,13 @@ configure_git_ssh_transport() {
     return 0
 }
 
-# Main function for Step 19: Install Git SSH Keys. Every sub-step is
+# Main function for Step 27: Install Git SSH Keys. Every sub-step is
 # idempotent: keys are compared with the bundle per location and only missing
 # or differing ones are written; git transport/identity are always ensured.
 step20_install_git_ssh() {
     local ssh_location=""
 
-    print_header_from_common_functions "Step 19: Installing Git SSH Keys"
+    print_header_from_common_functions "Step 27: Installing Git SSH Keys"
 
     if ! setup_git_environment; then
         print_error_from_common_functions "Failed to setup Git environment"

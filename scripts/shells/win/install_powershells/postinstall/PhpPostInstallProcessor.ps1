@@ -7,6 +7,20 @@ $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
 . (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
 . (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
+if (-not (Get-Command Get-ServiceContractValue -ErrorAction SilentlyContinue)) {
+    . (Join-Path (Join-Path $parentDir "win_common") "ServiceContract.ps1")
+}
+# Official Windows PECL build of Swoole (downloads.php.net/~windows/pecl/releases/swoole/<version>/)
+$script:SwooleWindowsVersion = [string](Get-ServiceContractValue -ContractPath 'versions.swoole_windows')
+$script:SwooleWindowsReleaseUrl = 'https://downloads.php.net/~windows/pecl/releases/swoole'
+$script:SwooleWindowsVsTags = @('vs17', 'vs16')
+$script:SwooleDllName = 'php_swoole.dll'
+
+function Get-PhpRuntimeValue {
+    # One value straight from PHP (no output scraping): php -r "echo <expression>;"
+    param([Parameter(Mandatory = $true)][string]$PhpPath, [Parameter(Mandatory = $true)][string]$Expression)
+    return ([string](& $PhpPath -r "echo $Expression;" 2>$null)).Trim()
+}
 
 function Install-ComposerForPhp {
     param (
@@ -24,6 +38,7 @@ function Install-ComposerForPhp {
     $installerPath = Join-Path $Global:DOWNLOADS_DIR "composer-setup.php"
     $composerInstalled = (Test-Path -LiteralPath $PhpPath -PathType Leaf) -and (Test-Path -LiteralPath $composerPhar -PathType Leaf)
     $batContent = $null
+    $requiredDir = $null
 
     # Check if Composer and PHP are in the same installation directory
     if ($composerInstalled -and -not $ForceReinstall) {
@@ -37,8 +52,10 @@ function Install-ComposerForPhp {
             Write-Host "$LogPrefix Installing Composer..." -ForegroundColor Yellow
         }
 
-        if (-not (Test-Path -LiteralPath $composerDir)) {
-            New-Item -ItemType Directory -Path $composerDir -Force | Out-Null
+        foreach ($requiredDir in @($composerDir, (Split-Path -Parent $installerPath))) {
+            if (-not (Test-Path -LiteralPath $requiredDir)) {
+                New-Item -ItemType Directory -Path $requiredDir -Force | Out-Null
+            }
         }
 
         try {
@@ -82,6 +99,58 @@ php "%~dp0composer.phar" %*
     Write-Host "$LogPrefix Composer PATH repair completed: $composerDir" -ForegroundColor Green
 
     return $composerBat
+}
+
+# Converge the `php` CLI on one runtime (Linux ensure_single_php_link): <PhpExePath>'s
+# directory owns `php` on PATH, PHP_HOME follows it, and PHP_INI_SCAN_DIR is set to
+# <IniScanDir> or, when empty, removed if it still holds <StaleIniScanDir>.
+# Idempotent: only drifted values are rewritten.
+function Set-PhpCliRuntime {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PhpExePath,
+        [string]$IniScanDir = "",
+        [string]$StaleIniScanDir = "",
+        [string]$LogPrefix = "[PHP-CLI]"
+    )
+
+    $phpDir = Split-Path -Parent $PhpExePath
+    $currentHome = [Environment]::GetEnvironmentVariable("PHP_HOME", "Machine")
+    $currentScanDir = [Environment]::GetEnvironmentVariable("PHP_INI_SCAN_DIR", "Machine")
+    $resolvedPhp = $null
+    $versionLine = ""
+
+    & $windowsPathFunctionPath "add" $phpDir
+    & $windowsPathFunctionPath "unique" "php" $phpDir
+
+    if ($currentHome -ne $phpDir) {
+        & $windowsPathFunctionPath "setvar" "PHP_HOME" $phpDir
+    }
+    $env:PHP_HOME = $phpDir
+
+    if (-not [string]::IsNullOrWhiteSpace($IniScanDir)) {
+        if ($currentScanDir -ne $IniScanDir) {
+            & $windowsPathFunctionPath "setvar" "PHP_INI_SCAN_DIR" $IniScanDir
+        }
+        $env:PHP_INI_SCAN_DIR = $IniScanDir
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($StaleIniScanDir)) {
+        if ($currentScanDir -eq $StaleIniScanDir) {
+            & $windowsPathFunctionPath "removevar" "PHP_INI_SCAN_DIR"
+        }
+        if ($env:PHP_INI_SCAN_DIR -eq $StaleIniScanDir) {
+            Remove-Item -Path "Env:PHP_INI_SCAN_DIR" -ErrorAction SilentlyContinue
+        }
+    }
+
+    $resolvedPhp = Get-Command "php" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($resolvedPhp -and ($resolvedPhp.Source -eq $PhpExePath)) {
+        $versionLine = [string](& $PhpExePath -v 2>$null | Select-Object -First 1)
+        Write-Host "$LogPrefix php CLI: $versionLine ($PhpExePath)" -ForegroundColor Green
+        return $true
+    }
+    Write-Host "$LogPrefix Warning: php resolves to '$($resolvedPhp.Source)', expected $PhpExePath" -ForegroundColor Yellow
+    return $false
 }
 
 function Get-ComposerGlobalBinDirectory {
@@ -184,6 +253,10 @@ function Configure-PhpIniForPackage {
     try {
         Write-Host "$LogPrefix Running configure_php_ini.php..." -ForegroundColor Yellow
         & $PhpExePath $phpConfigScriptPath $PhpExePath $phpErrorLogPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "$LogPrefix Error: configure_php_ini.php exited with code $LASTEXITCODE" -ForegroundColor Red
+            return
+        }
         Write-Host "$LogPrefix PHP configuration completed" -ForegroundColor Green
     }
     catch {
@@ -293,7 +366,7 @@ function Install-PECL {
         # Download go-pear.phar (idempotent - will skip if already exists and valid)
         $goPearUrl = "https://pear.php.net/go-pear.phar"
         $goPearPath = Join-Path $InstallDir "go-pear.phar"
-        $goPearTempPath = Join-Path $env:TEMP "go-pear.phar"
+        $goPearTempPath = Join-Path $Global:DOWNLOADS_DIR "go-pear.phar"
         
         Write-Host "$LogPrefix Downloading go-pear.phar from $goPearUrl..." -ForegroundColor Yellow
         try {
@@ -341,12 +414,13 @@ function Install-PECL {
             }
             Push-Location -LiteralPath $InstallDir
             try {
-                # Try normal installation first; go-pear.phar uses current directory as default $prefix
-                $installOutput = & $PhpPath $goPearPath 2>&1
-                # If signature error, try with phar.require_hash=0
-                if (-not (($installOutput -match "signature|hash") -or (Test-Path $peclBatPath) -or (Test-Path $peclPhpPath))) {
+                # go-pear.phar is interactive (system/local, "Enter to continue", php.ini); empty lines take
+                # every default. It uses the current directory as the default $prefix.
+                $installOutput = ("`n" * 6) | & $PhpPath $goPearPath 2>&1
+                # On a signature/hash error (and no PECL produced), retry with phar.require_hash=0
+                if ((@($installOutput) -match "signature|hash") -and -not ((Test-Path $peclBatPath) -or (Test-Path $peclPhpPath))) {
                     Write-Host "$LogPrefix Retrying with phar.require_hash=0 flag..." -ForegroundColor Yellow
-                    $installOutput = & $PhpPath -d phar.require_hash=0 $goPearPath 2>&1
+                    $installOutput = ("`n" * 6) | & $PhpPath -d phar.require_hash=0 $goPearPath 2>&1
                 }
                 # Check if installation was successful (pecl.bat under InstallDir or InstallDir\bin)
                 if (Test-Path $peclBatPath) {
@@ -436,40 +510,17 @@ function Install-SwooleExtension {
         return $true
     }
 
-    # Get PHP architecture (x64 or x86)
-    $phpArch = "x64"
-    $phpInfoOutput = & $PhpPath -i 2>&1
-    if ($phpInfoOutput -match 'Architecture.*x86') {
-        $phpArch = "x86"
-    }
+    # Build facts straight from PHP: architecture, thread safety, major.minor, extension directory
+    $phpArch = if ((Get-PhpRuntimeValue -PhpPath $PhpPath -Expression 'PHP_INT_SIZE') -eq '4') { "x86" } else { "x64" }
     Write-Host "$LogPrefix Detected PHP architecture: $phpArch" -ForegroundColor Cyan
-
-    # Get PHP thread safety (NTS or TS)
-    $phpThreadSafety = "nts"
-    if ($phpInfoOutput -match 'Thread Safety.*enabled') {
-        $phpThreadSafety = "ts"
-    }
+    $phpThreadSafety = if ((Get-PhpRuntimeValue -PhpPath $PhpPath -Expression 'PHP_ZTS') -eq '1') { "ts" } else { "nts" }
     Write-Host "$LogPrefix Detected PHP thread safety: $phpThreadSafety" -ForegroundColor Cyan
+    $phpMinorVersion = Get-PhpRuntimeValue -PhpPath $PhpPath -Expression "PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION"
+    Write-Host "$LogPrefix Detected PHP version: $phpMinorVersion" -ForegroundColor Cyan
+    $extDir = Get-PhpRuntimeValue -PhpPath $PhpPath -Expression "ini_get('extension_dir')"
+    if ($extDir -and -not [System.IO.Path]::IsPathRooted($extDir)) { $extDir = Join-Path $InstallDir $extDir }
 
-    # Get PHP extension directory
-    $extDir = $null
-    $extDirOutput = & $PhpPath -i 2>&1 | Select-String "extension_dir"
-    if ($extDirOutput) {
-        $extDirLine = $extDirOutput.ToString()
-        # Try multiple regex patterns to extract extension directory
-        if ($extDirLine -match 'extension_dir\s*=>\s*([^\s=]+)') {
-            $extDir = $matches[1].Trim()
-        }
-        elseif ($extDirLine -match 'extension_dir.*?=>\s*([^\s=]+)') {
-            $extDir = $matches[1].Trim()
-        }
-        # Remove any trailing characters that might be part of the output format
-        if ($extDir -match '^(.+?)(?:\s*=>|$)') {
-            $extDir = $matches[1].Trim()
-        }
-    }
-    
-    # Validate extracted path - if it's not a valid path, use default
+    # Validate the path - if it is not usable, use the default
     if ([string]::IsNullOrEmpty($extDir) -or -not (Test-Path (Split-Path $extDir -Parent -ErrorAction SilentlyContinue))) {
         $extDir = Join-Path $InstallDir "ext"
         Write-Host "$LogPrefix Using default extension directory: $extDir" -ForegroundColor Yellow
@@ -511,7 +562,7 @@ function Install-SwooleExtension {
             }
             else {
                 # pecl.php - execute via php.exe
-                $peclOutput = & $PhpPath $peclPhpPath install swoole 2>&1
+                $peclOutput = & $PhpPath $peclPath install swoole 2>&1
             }
             
             $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
@@ -548,16 +599,19 @@ function Install-SwooleExtension {
     # However, windows.php.net provides Swoole 4.8.15 DLL (latest available for Windows)
     Write-Host "$LogPrefix Method 2: Attempting to download Swoole DLL..." -ForegroundColor Yellow
     
-    # Use only the latest available Swoole version for Windows (4.8.15)
-    # This is the most recent version available on windows.php.net
-    $swooleVersion = "4.8.15"
-    $dllFileName = "php_swoole-$swooleVersion-$phpThreadSafety-$phpArch.dll"
-    $dllUrl = "https://windows.php.net/downloads/pecl/releases/swoole/$swooleVersion/$dllFileName"
-    $dllPath = Join-Path $extDir $dllFileName
-    
+    # Official builds are ZIPs named php_swoole-<version>-<PHP major.minor>-<ts|nts>-<vsNN>-<arch>.zip
+    # (version from contract versions.swoole_windows); the ZIP holds php_swoole.dll.
+    $swooleVersion = $script:SwooleWindowsVersion
+    $dllPath = Join-Path $extDir $script:SwooleDllName
+    $swooleZipName = ''
+    $swooleZipUrl = ''
+    $swooleZipPath = ''
+    $swooleExtractDir = Join-Path $env:TEMP ("swoole_extract_{0}" -f $swooleVersion)
+    $vsTag = ''
+
     $swooleDllFound = $false
     $downloadedDllPath = $null
-    
+
     # Check if DLL already exists locally
     if (Test-Path $dllPath) {
         $existingSize = (Get-Item $dllPath).Length
@@ -566,43 +620,46 @@ function Install-SwooleExtension {
         $downloadedDllPath = $dllPath
     }
     else {
-        # Display detailed download information
-        Write-Host "$LogPrefix Swoole DLL not found, attempting to download..." -ForegroundColor Cyan
-        Write-Host "$LogPrefix Attempting to download Swoole DLL for PHP 8.5 ($phpThreadSafety, $phpArch)..." -ForegroundColor Cyan
-        Write-Host "$LogPrefix Extension directory: $extDir" -ForegroundColor Cyan
-        Write-Host "$LogPrefix PHP executable: $PhpPath" -ForegroundColor Cyan
-        Write-Host "$LogPrefix Downloading Swoole version: $swooleVersion" -ForegroundColor Yellow
-        Write-Host "$LogPrefix DLL URL: $dllUrl" -ForegroundColor Cyan
-        
-        # Check if file exists remotely and download
-        try {
-            $headResponse = Invoke-WebRequest -Uri $dllUrl -Method Head -UseBasicParsing -ErrorAction Stop
-            if ($headResponse.StatusCode -eq 200) {
-                $fileSize = [int]$headResponse.Headers['Content-Length']
-                Write-Host "$LogPrefix File found on server (Size: $([math]::Round($fileSize / 1MB, 2)) MB)" -ForegroundColor Green
-                
-                # Use common download method
-                $downloadDescription = "Swoole $swooleVersion DLL for PHP 8.5 ($phpThreadSafety, $phpArch)"
-                $downloaded = Get-FileWithSizeCheck -localPath $dllPath -remoteUrl $dllUrl -description $downloadDescription
-                
-                if ($downloaded -and (Test-Path $dllPath)) {
-                    $actualSize = (Get-Item $dllPath).Length
-                    Write-Host "$LogPrefix Swoole DLL downloaded successfully: $dllPath ($([math]::Round($actualSize / 1MB, 2)) MB)" -ForegroundColor Green
-                    $swooleDllFound = $true
-                    $downloadedDllPath = $dllPath
+        Write-Host "$LogPrefix Swoole DLL not found; looking for the official build for PHP $phpMinorVersion ($phpThreadSafety, $phpArch), Swoole $swooleVersion..." -ForegroundColor Cyan
+        foreach ($vsTag in $script:SwooleWindowsVsTags) {
+            $swooleZipName = "php_swoole-{0}-{1}-{2}-{3}-{4}.zip" -f $swooleVersion.ToLowerInvariant(), $phpMinorVersion, $phpThreadSafety, $vsTag, $phpArch
+            $swooleZipUrl = "{0}/{1}/{2}" -f $script:SwooleWindowsReleaseUrl, $swooleVersion, $swooleZipName
+            try {
+                Invoke-WebRequest -Uri $swooleZipUrl -Method Head -UseBasicParsing -ErrorAction Stop | Out-Null
+            }
+            catch {
+                Write-Host "$LogPrefix Not published: $swooleZipUrl" -ForegroundColor Yellow
+                $swooleZipUrl = ''
+                continue
+            }
+            break
+        }
+        if ($swooleZipUrl) {
+            $swooleZipPath = Join-Path $Global:DOWNLOADS_DIR $swooleZipName
+            if (Get-FileWithSizeCheck -localPath $swooleZipPath -remoteUrl $swooleZipUrl -description "Swoole $swooleVersion for PHP $phpMinorVersion ($phpThreadSafety, $phpArch)") {
+                try {
+                    if (Test-Path $swooleExtractDir) { Remove-Item $swooleExtractDir -Recurse -Force }
+                    Expand-Archive -Path $swooleZipPath -DestinationPath $swooleExtractDir -Force
+                    $extractedDll = Get-ChildItem -Path $swooleExtractDir -Recurse -Filter $script:SwooleDllName -File | Select-Object -First 1
+                    if ($extractedDll) {
+                        Copy-Item -LiteralPath $extractedDll.FullName -Destination $dllPath -Force
+                        $swooleDllFound = $true
+                        $downloadedDllPath = $dllPath
+                        Write-Host "$LogPrefix Swoole DLL installed: $dllPath" -ForegroundColor Green
+                    } else {
+                        Write-Host "$LogPrefix $($script:SwooleDllName) not found inside $swooleZipName" -ForegroundColor Yellow
+                    }
                 }
-                else {
-                    Write-Host "$LogPrefix Download failed or file verification failed" -ForegroundColor Yellow
+                catch {
+                    Write-Host "$LogPrefix Extracting $swooleZipName failed: $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+                finally {
+                    if (Test-Path $swooleExtractDir) { Remove-Item $swooleExtractDir -Recurse -Force -ErrorAction SilentlyContinue }
                 }
             }
         }
-        catch {
-            $statusCode = $null
-            if ($_.Exception.Response) {
-                $statusCode = [int]$_.Exception.Response.StatusCode.value__
-            }
-            Write-Host "$LogPrefix File not found (HTTP $statusCode): $dllUrl" -ForegroundColor Yellow
-            Write-Host "$LogPrefix Swoole $swooleVersion DLL is not available for PHP 8.5 ($phpThreadSafety, $phpArch)" -ForegroundColor Yellow
+        else {
+            Write-Host "$LogPrefix No official Swoole $swooleVersion build for PHP $phpMinorVersion ($phpThreadSafety, $phpArch)" -ForegroundColor Yellow
         }
     }
     
@@ -623,12 +680,8 @@ function Install-SwooleExtension {
     # If DLL downloaded successfully, enable it in php.ini
     if ($swooleDllFound -and $downloadedDllPath) {
         # Find php.ini file
-        $phpIniPath = $null
-        $phpIniOutput = & $PhpPath --ini 2>&1
-        if ($phpIniOutput -match 'Loaded Configuration File.*=> (.+)') {
-            $phpIniPath = $matches[1].Trim()
-        }
-        
+        $phpIniPath = Get-PhpRuntimeValue -PhpPath $PhpPath -Expression 'php_ini_loaded_file()'
+
         if ([string]::IsNullOrEmpty($phpIniPath) -or -not (Test-Path $phpIniPath)) {
             $phpIniPath = Join-Path $InstallDir "php.ini"
         }
@@ -642,13 +695,8 @@ function Install-SwooleExtension {
             
             # Check if extension is already enabled
             if ($phpIniContent -notmatch "extension\s*=\s*$([regex]::Escape($dllFileNameOnly))") {
-                # Add extension line (prefer after other extensions)
-                if ($phpIniContent -match ';extension=.*') {
-                    $phpIniContent = $phpIniContent -replace '(;extension=.*)', "`$1`nextension=$dllFileNameOnly"
-                }
-                elseif ($phpIniContent -notmatch "extension\s*=\s*$([regex]::Escape($dllFileNameOnly))") {
-                    $phpIniContent += "`nextension=$dllFileNameOnly`n"
-                }
+                # Append exactly one extension line
+                $phpIniContent = $phpIniContent.TrimEnd() + "`r`nextension=$dllFileNameOnly`r`n"
                 
                 Set-Content -Path $phpIniPath -Value $phpIniContent -NoNewline
                 Write-Host "$LogPrefix Added extension=$dllFileNameOnly to php.ini" -ForegroundColor Green

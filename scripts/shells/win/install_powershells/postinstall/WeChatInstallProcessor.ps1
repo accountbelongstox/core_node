@@ -1,5 +1,5 @@
 # WeChat / Weixin Windows installer (Step21 postscript).
-# Constant usage matches Step20_Install7ipBase / Step6_InstallGit:
+# Constant usage matches BaseTools_7Zip / Git_Install:
 #   GlobalVars defines $Global:WEIXIN_INSTALL_DIR and $Global:WEIXIN_EXE_PATH
 #   After `. GlobalVars.ps1`, call them as $WEIXIN_INSTALL_DIR / $WEIXIN_EXE_PATH
 #   Silent NSIS install: Start-Process ... -ArgumentList "/S", "/D=$WEIXIN_INSTALL_DIR"
@@ -100,8 +100,10 @@ function Install-WeChatFromWeb {
         Write-Host "       [$SCRIPT_INDEX] Already installed at `$WEIXIN_EXE_PATH: $WEIXIN_EXE_PATH (idempotent skip)" -ForegroundColor Green
         return $true
     }
+    # WeChat 4.x ignores /D= and always installs to Program Files\Tencent\Weixin, so an
+    # existing install anywhere counts: re-running the installer can never move it.
     $installedExe = Test-WeChatInstalled
-    if ($installedExe -and $WEIXIN_EXE_PATH -and $installedExe.Equals($WEIXIN_EXE_PATH, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ($installedExe) {
         Write-Host "       [$SCRIPT_INDEX] Already installed at: $installedExe (idempotent skip)" -ForegroundColor Green
         return $true
     }
@@ -125,10 +127,7 @@ function Install-WeChatFromWeb {
     }
 
     $downloadDir = $DOWNLOADS_DIR
-    if (-not $downloadDir -or -not (Test-Path -LiteralPath $downloadDir -ErrorAction SilentlyContinue)) {
-        $downloadDir = $env:TEMP
-    }
-    if (-not $downloadDir -or -not (Test-Path -LiteralPath $downloadDir -ErrorAction SilentlyContinue)) {
+    if (-not $downloadDir) {
         $downloadDir = Join-Path $env:USERPROFILE "Downloads"
     }
     if (-not (Test-Path -LiteralPath $downloadDir -ErrorAction SilentlyContinue)) {
@@ -146,9 +145,9 @@ function Install-WeChatFromWeb {
         return $false
     }
 
-    # Silent install into constant dir — same ArgumentList form as Step20 7-Zip:
+    # Silent install into constant dir - same ArgumentList form as BaseTools_7Zip:
     #   Start-Process ... -ArgumentList "/S", "/D=$SEVENZIP_INSTALL_DIR"
-    # NSIS: /D= must be last; path without trailing slash (D:\applications\Weixin).
+    # NSIS: /D= must be last; path without trailing slash (<APP_INSTALL_DIR>\Weixin).
     Write-Host "       [$SCRIPT_INDEX] Installing to `$WEIXIN_INSTALL_DIR via /S /D=$WEIXIN_INSTALL_DIR ..." -ForegroundColor Cyan
     try {
         Start-Process -FilePath $localPath -ArgumentList "/S", "/D=$WEIXIN_INSTALL_DIR" -Wait
@@ -157,36 +156,27 @@ function Install-WeChatFromWeb {
         return $false
     }
 
-    Start-Sleep -Seconds 3
+    # The 4.x bootstrap exits before the real installer finishes; poll instead of a fixed sleep.
+    $foundElsewhere = $null
+    for ($waitAttempt = 0; $waitAttempt -lt 30; $waitAttempt++) {
+        Start-Sleep -Seconds 3
+        if ($WEIXIN_EXE_PATH -and (Test-Path -LiteralPath $WEIXIN_EXE_PATH -PathType Leaf)) {
+            Write-Host "       [$SCRIPT_INDEX] Installed OK: $WEIXIN_EXE_PATH" -ForegroundColor Green
+            return $true
+        }
+        $foundElsewhere = Test-WeChatInstalled
+        if ($foundElsewhere) { break }
+    }
 
-    # Verify constant exe path first
-    if ($WEIXIN_EXE_PATH -and (Test-Path -LiteralPath $WEIXIN_EXE_PATH -PathType Leaf)) {
-        Write-Host "       [$SCRIPT_INDEX] Installed OK: $WEIXIN_EXE_PATH" -ForegroundColor Green
+    if ($foundElsewhere) {
+        Write-Host "       [$SCRIPT_INDEX] Installed OK (installer ignored /D=): $foundElsewhere" -ForegroundColor Green
         return $true
     }
 
-    # Fallback: installer ignored /D= — locate elsewhere then copy into constant dir
-    $foundElsewhere = Test-WeChatInstalled
-    if ($foundElsewhere -and $WEIXIN_INSTALL_DIR) {
-        Write-Host "       [$SCRIPT_INDEX] Installer landed at $foundElsewhere; copying into `$WEIXIN_INSTALL_DIR ..." -ForegroundColor Yellow
-        try {
-            $srcDir = Split-Path -Parent $foundElsewhere
-            if (-not (Test-Path -LiteralPath $WEIXIN_INSTALL_DIR -PathType Container)) {
-                New-Item -ItemType Directory -Path $WEIXIN_INSTALL_DIR -Force | Out-Null
-            }
-            Copy-Item -Path (Join-Path $srcDir "*") -Destination $WEIXIN_INSTALL_DIR -Recurse -Force -ErrorAction Stop
-            if (Test-Path -LiteralPath $WEIXIN_EXE_PATH -PathType Leaf) {
-                Write-Host "       [$SCRIPT_INDEX] Copied to constant path: $WEIXIN_EXE_PATH" -ForegroundColor Green
-                return $true
-            }
-        } catch {
-            Write-Host "       [$SCRIPT_INDEX] Copy to `$WEIXIN_INSTALL_DIR failed: $($_.Exception.Message)" -ForegroundColor Red
-        }
-    }
-
-    Write-Host "       [$SCRIPT_INDEX] Install finished but `$WEIXIN_EXE_PATH not found: $WEIXIN_EXE_PATH" -ForegroundColor Yellow
+    Write-Host "       [$SCRIPT_INDEX] Install finished but no Weixin.exe found (`$WEIXIN_EXE_PATH: $WEIXIN_EXE_PATH)" -ForegroundColor Yellow
     return $false
 }
 
 Write-Host "[$SCRIPT_INDEX] WeChat/Weixin -> `$WEIXIN_INSTALL_DIR ($WEIXIN_INSTALL_DIR)" -ForegroundColor Cyan
-$null = Install-WeChatFromWeb
+# The result is this postscript's output: Step21_InstallApplications.ps1 reads a final $true/$false.
+Install-WeChatFromWeb

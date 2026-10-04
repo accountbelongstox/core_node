@@ -423,6 +423,12 @@ reenable_disabled_entries() {
     for disabled in /usr/share/applications/*.desktop.disabled; do
         [ -e "$disabled" ] || continue
         target="${disabled%.disabled}"
+        case "$(basename "$target")" in
+            code.desktop|code-url-handler.desktop)
+                log_message "SKIP: $disabled is disabled on purpose by the VS Code installer"
+                continue
+                ;;
+        esac
         if [ -e "$target" ]; then
             log_message "SKIP: $target already exists, leaving $disabled untouched"
             continue

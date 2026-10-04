@@ -3,7 +3,7 @@
     Development Environment Backup Manager
 .DESCRIPTION
     Provides backup functionality for development environment including:
-    - D:\applications directory
+    - <APP_INSTALL_DIR> directory
     - OS-specific development environments
     - Incremental backup strategy
     - Multi-drive selection
@@ -15,6 +15,7 @@ $script:WIN_DIR = Split-Path $script:PS_CURRENT_DIR -Parent
 $script:SHELLS_DIR = Split-Path $script:WIN_DIR -Parent
 $script:SCRIPTS_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR "win_common"
+$script:GLOBAL_VARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
 $script:PYTOOLS_DIR = Join-Path $script:SCRIPTS_DIR "pytools"
 $script:PYBACKUP_DIR = Join-Path $script:PYTOOLS_DIR "pybackup"
 $script:DEV_ENV_DIR = Join-Path $script:PYBACKUP_DIR "dev_env"
@@ -53,13 +54,15 @@ function Write-ColorMessage {
 
 #region Main Function
 function Show-DevEnvBackupMenu {
+    $appInstallVar = Get-Variable -Name APP_INSTALL_DIR -Scope Global -ErrorAction SilentlyContinue
+    if (-not $appInstallVar) { . $script:GLOBAL_VARS_PS1 }
     Write-ColorMessage -Message "========================================" -Type "Info"
     Write-ColorMessage -Message "Development Environment Backup" -Type "Info"
     Write-ColorMessage -Message "========================================" -Type "Info"
     Write-ColorMessage -Message "WARNING: This backup process may take a considerable amount of time." -Type "Warning"
     Write-ColorMessage -Message "The system will:" -Type "Info"
     Write-ColorMessage -Message "  1. Scan all available drives (except C:)" -Type "Info"
-    Write-ColorMessage -Message "  2. Backup D:\applications directory" -Type "Info"
+    Write-ColorMessage -Message "  2. Backup $($Global:APP_INSTALL_DIR) directory" -Type "Info"
     Write-ColorMessage -Message "  3. Backup OS-specific development environments" -Type "Info"
     Write-ColorMessage -Message "  4. Use incremental backup strategy" -Type "Info"
     Write-ColorMessage -Message "========================================" -Type "Info"

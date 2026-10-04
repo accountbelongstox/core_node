@@ -20,7 +20,7 @@ $scriptsDir = Split-Path $videoToolsDir -Parent
 $shellsDir = Join-Path $scriptsDir 'shells'
 $winDir = Join-Path $shellsDir 'win'
 $installPowershellsDir = Join-Path $winDir 'install_powershells'
-$canonicalInstaller = Join-Path $installPowershellsDir 'Step11_InstallFasterWhisper.ps1'
+$canonicalInstaller = Join-Path $installPowershellsDir 'Model_FasterWhisper.ps1'
 $installerArgs = @('-Python', $Python)
 
 if ($Model) {

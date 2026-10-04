@@ -138,6 +138,8 @@ public partial class MainWindow : Window, IMainWindowHost
                 Dispatcher.InvokeAsync(a);
         });
         BattlenetGuardService.Initialize();
+        StartupShortcutService.Initialize();
+        RosbotPluginConfigSync.Initialize();
 
         var langList = provider.GetSupportedLanguages()
             .OrderBy(c => c, StringComparer.Ordinal)
@@ -404,6 +406,7 @@ public partial class MainWindow : Window, IMainWindowHost
         TabCalibration.Header = p.GetUiText(I18nKeys.TabsCoordinateCalibration);
         TabLog.Header = p.GetUiText(I18nKeys.TabsLog);
         TabBattlenet.Header = p.GetUiText(I18nKeys.TabsBattlenetManagement);
+        TabDecompile.Header = p.GetUiText(I18nKeys.TabsDecompile);
         BtnScanPaths.Content = p.GetUiText(_pathScanInProgress ? I18nKeys.BottomBarScanning : I18nKeys.BottomBarOneClickScan);
         BtnScanPaths.ToolTip = p.GetUiText(I18nKeys.BottomBarOneClickScanTooltip);
         GameInterfaceData.Instance.NotifyCallbacks();
@@ -417,6 +420,8 @@ public partial class MainWindow : Window, IMainWindowHost
             runLogPage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyBattlenet) is BattlenetPage battlenetPage && battlenetPage.IsLoaded)
             battlenetPage.RefreshI18n();
+        if (GetPage(AppConstants.PanelKeyDecompile) is Pages.Decompile.DecompilePage decompilePage && decompilePage.IsLoaded)
+            decompilePage.RefreshI18n();
     }
 
     private void UpdateStatusFromState(GameInterfaceStateSnapshot s)
@@ -523,6 +528,8 @@ public partial class MainWindow : Window, IMainWindowHost
         catch (Exception ex)
         {
             ColorPrinter.Red($"[PathScan] Scan failed: {ex.Message}");
+            if (!ShutdownManager.IsShutdownRequested)
+                MessageBox.Show(this, ex.Message, p.GetUiText(I18nKeys.RosbotError), MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -572,6 +579,19 @@ public partial class MainWindow : Window, IMainWindowHost
         GameInterfaceData.Instance.NotifyCallbacks();
         if (GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rosbotPage)
             rosbotPage.RefreshPathFromConfig();
+        if (result.BattlenetPath == null && result.D3Path == null && result.RosbotDirs.Count == 0)
+            ShowScanNothingFound();
+    }
+
+    /// <summary>Nothing found at all: list the missing executables. 1:1 Python _apply_scan_results messagebox.showinfo(rosbot.scan_done).</summary>
+    private void ShowScanNothingFound()
+    {
+        var p = D3D4TesterI18n.Provider;
+        string message = string.Join(Environment.NewLine,
+            p.GetUiText(I18nKeys.RosbotScanNotFoundBattlenet),
+            p.GetUiText(I18nKeys.RosbotScanNotFoundD3),
+            p.GetUiText(I18nKeys.RosbotScanNotFoundRosbot));
+        MessageBox.Show(this, message, p.GetUiText(I18nKeys.RosbotScanDone), MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void RestorePresetSize()
@@ -728,6 +748,7 @@ public partial class MainWindow : Window, IMainWindowHost
             AppConstants.PanelKeyCalibration => TabCalibration.Content,
             AppConstants.PanelKeyLog => TabLog.Content,
             AppConstants.PanelKeyBattlenet => TabBattlenet.Content,
+            AppConstants.PanelKeyDecompile => TabDecompile.Content,
             _ => null
         };
     }

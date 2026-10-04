@@ -254,9 +254,6 @@ install_python_essentials() {
 
     echo "[13] $USE_SUDO apt-get clean"
     $USE_SUDO apt-get clean
-    # Post-install cleanup: remove cached lists to free space (safe; next apt-get update will refetch)
-    echo "[13] $USE_SUDO rm -rf /var/lib/apt/lists/*"
-    $USE_SUDO rm -rf /var/lib/apt/lists/*
 
     print_success_from_common_functions "Python essentials installed successfully"
     return 0

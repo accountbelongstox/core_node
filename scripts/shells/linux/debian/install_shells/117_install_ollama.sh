@@ -60,7 +60,7 @@ ensure_archive_tools() {
     [ "${#missing[@]}" -eq 0 ] && return 0
     print_info "installing ${missing[*]} ..."
     $USE_SUDO apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive $USE_SUDO apt-get install -y -qq "${missing[@]}"
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}"
 }
 
 install_ollama_binary() {

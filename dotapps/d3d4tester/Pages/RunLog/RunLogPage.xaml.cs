@@ -36,7 +36,7 @@ public partial class RunLogPage : UserControl
         I18nKeys.AuxDebugBloodShard, I18nKeys.AuxDebugQuickPickup, I18nKeys.AuxDebugBlacksmith, I18nKeys.AuxDebugKanaiReforge,
         I18nKeys.AuxDebugKanaiUpgrade, I18nKeys.AuxDebugKanaiConvert, I18nKeys.AuxDebugAutoSalvage, I18nKeys.AuxDebugDropEquipment,
         I18nKeys.AuxDebugSoundFeedback, I18nKeys.AuxDebugSmartPause, I18nKeys.RosbotDebugBattlenetUi, I18nKeys.RosbotDebugRosbot,
-        I18nKeys.RosbotDebugGameStatus,
+        I18nKeys.RosbotDebugGameStatus, I18nKeys.RosbotTestPauseResume,
     };
     private static readonly Dictionary<string, (string Start, string Complete)> SelfTestTexts = new(StringComparer.Ordinal)
     {
@@ -65,6 +65,8 @@ public partial class RunLogPage : UserControl
             RosbotDebugService.RegisterTestAction();
             BattlenetUiAnalyzeService.RegisterTestAction();
             GameStatusDebugService.RegisterTestAction();
+            RosbotPauseResumeTestService.RegisterTestAction();
+            TownNavigationTestService.RegisterTestAction();
             Ctl.GameAssistantController.RegisterTestActions();
         }
         BuildTestButtons();

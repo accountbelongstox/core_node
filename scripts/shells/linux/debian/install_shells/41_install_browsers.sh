@@ -359,11 +359,13 @@ chrome_ensure() {
         return 0
     fi
     CHROME_INSTALL_DIR=$(map_web_path "compile_dir" "applications/chrome")
-    browser_kill_processes "Chrome" "chrome|chromium"
     browser_write_policy "$CHROME_POLICY_FILE" "$CHROME_POLICY_JSON" "Chrome Memory Saver"
-    if ! chrome_detect && ! chrome_install; then
-        browser_log "Error: failed to install Google Chrome"
-        return 1
+    if ! chrome_detect; then
+        browser_kill_processes "Chrome" "chrome|chromium"
+        if ! chrome_install; then
+            browser_log "Error: failed to install Google Chrome"
+            return 1
+        fi
     fi
     browser_ensure_symlink "$CHROME_SYMLINK" "$CHROME_BIN_PATH"
     chrome_ensure_shortcut
@@ -417,7 +419,6 @@ edge_ensure() {
         browser_log "Microsoft Edge is unavailable for architecture '$SYS_ARCH'; skipping."
         return 0
     fi
-    browser_kill_processes "Edge" "msedge|microsoft-edge"
     browser_write_policy "$EDGE_POLICY_FILE" "$EDGE_POLICY_JSON" "Edge Sleeping Tabs"
     # Edge ships NO AppArmor profile (unlike Chrome): kernels that restrict
     # unprivileged user namespaces break its sandbox.
@@ -425,9 +426,12 @@ edge_ensure() {
         browser_log "[WARN] Kernel restricts unprivileged user namespaces and Edge ships no AppArmor profile;"
         browser_log "[WARN] Edge may crash at startup. Provide an AppArmor profile for /opt/microsoft/msedge/msedge or launch with --no-sandbox."
     fi
-    if ! edge_detect && ! edge_install; then
-        browser_log "Error: failed to install Microsoft Edge"
-        return 1
+    if ! edge_detect; then
+        browser_kill_processes "Edge" "msedge|microsoft-edge"
+        if ! edge_install; then
+            browser_log "Error: failed to install Microsoft Edge"
+            return 1
+        fi
     fi
     browser_ensure_symlink "$EDGE_SYMLINK" "$EDGE_BIN_PATH"
     browser_apply_limits microsoft-edge "$EDGE_BIN_PATH"

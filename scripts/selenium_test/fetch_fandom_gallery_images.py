@@ -228,7 +228,7 @@ def main():
                     if n >= EXPECTED_IMAGES:
                         print(f"Fallback done. {n} images. Output: {out_dir}")
                         return 0
-                    print("Fallback did not get all images. Install Chrome (e.g. D:\\applications\\Chrome) or Edge.")
+                    print("Fallback did not get all images. Install Chrome (e.g. <APP_INSTALL_DIR>\\Chrome) or Edge.")
                     return 1
             else:
                 print(f"ChromeDriver failed: {e}")

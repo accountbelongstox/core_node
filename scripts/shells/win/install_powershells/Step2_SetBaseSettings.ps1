@@ -92,7 +92,7 @@ function Stop-DisableHttpIisServices {
     try {
         # Stop IIS services using iisreset
         Write-Host "[Step 2] Stopping IIS services..." -ForegroundColor Yellow
-        $iisResetResult = & iisreset /stop 2>&1
+        $iisResetResult = if (Get-Command iisreset -ErrorAction SilentlyContinue) { & { $ErrorActionPreference = "Continue"; & iisreset /stop 2>&1 } } else { "IIS not installed" }
         $w3svc = Get-Service W3SVC -ErrorAction SilentlyContinue
         if ($w3svc -and $w3svc.Status -eq 'Stopped') {
             Write-Host "[Step 2] IIS services stopped successfully." -ForegroundColor Green
@@ -102,7 +102,7 @@ function Stop-DisableHttpIisServices {
         
         # Stop HTTP service
         Write-Host "[Step 2] Stopping HTTP service..." -ForegroundColor Yellow
-        $httpStopResult = & net stop http 2>&1
+        $httpStopResult = & { $ErrorActionPreference = "Continue"; & net stop http 2>&1 }
         $httpSvc = Get-Service HTTP -ErrorAction SilentlyContinue
         if ($httpSvc -and $httpSvc.Status -eq 'Stopped') {
             Write-Host "[Step 2] HTTP service stopped successfully." -ForegroundColor Green
@@ -368,7 +368,6 @@ if (Test-Path $Global:STEP2_BASE_SETTINGS_FLAG) {
     
     Set-PluggedInPowerSettings
     Set-FileExplorerSettings
-    Set-DarkModeAndOpenSettings
     
     # Create completion flag file
     New-Item -ItemType File -Path $Global:STEP2_BASE_SETTINGS_FLAG -Force | Out-Null
@@ -456,7 +455,7 @@ function Set-Win10ContextMenuRegistry {
 }
 
 function Set-RtcUniversalTime {
-    $current = (Get-ItemProperty -Path $RTC_REG_PATH -Name $RTC_REG_NAME -ErrorAction SilentlyContinue).$RTC_REG_NAME
+    $current = (Get-Item -LiteralPath $RTC_REG_PATH).GetValue($RTC_REG_NAME, $null)
     if ($current -ne 1) {
         try {
             New-ItemProperty -Path $RTC_REG_PATH -Name $RTC_REG_NAME -Value 1 -PropertyType DWord -Force | Out-Null

@@ -105,7 +105,7 @@ cursor_install_deb() {
     $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_BIN_DIR"
     $USE_SUDO cp "$deb_file" "$CURSOR_PACKAGE_DIR/"
     $USE_SUDO dpkg -i "$deb_file" || $USE_SUDO apt-get install -f -y
-    if ! dpkg -l | grep -q "^ii.*cursor"; then
+    if ! dpkg-query -W -f='${Status}' cursor 2>/dev/null | grep -q "install ok installed"; then
         print_error_from_common_functions "Cursor package installation failed"
         $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$deb_file")" 2>/dev/null || true
         return 1
@@ -262,7 +262,7 @@ cursor_cleanup() {
     # Anchored to the app binaries: a bare "cursor" would also kill the caller
     # (the update shim / "155_install_ides.sh --only cursor" command lines).
     ide_safe_kill_processes "^($CURSOR_EXTRACTED_DIR/squashfs-root/|/usr/share/cursor/)" || true
-    if dpkg -l 2>/dev/null | grep -q "^ii.*cursor"; then
+    if dpkg-query -W -f='${Status}' cursor 2>/dev/null | grep -q "install ok installed"; then
         $USE_SUDO apt-get purge -y cursor 2>/dev/null || true
     fi
     $USE_SUDO rm -rf "$CURSOR_INSTALL_DIR"
@@ -290,7 +290,7 @@ cursor_create_desktop_entry() {
     CURSOR_BINARY=""
     CURSOR_ICON=""
 
-    if [[ -f "/usr/bin/cursor" ]] && dpkg -l | grep -q "^ii.*cursor"; then
+    if [[ -f "/usr/bin/cursor" ]] && dpkg-query -W -f='${Status}' cursor 2>/dev/null | grep -q "install ok installed"; then
         # .deb installation
         CURSOR_BINARY="/usr/bin/cursor"
         local icon_candidates=(

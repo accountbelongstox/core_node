@@ -44,14 +44,22 @@ FRANKENPHP_STATIC_BUILD_ROOT="$(sc_get paths.frankenphp_root_posix)"
 if [ -z "$FRANKENPHP_STATIC_BUILD_ROOT" ]; then
     echo "[$FM_STATIC_LOG_TAG] [FAIL] FrankenPHP root is absent from the service contract" >&2
 fi
+# Build/download work root: the source tree, spc downloads, build output,
+# prebuilt archive downloads and unpack staging are Linux-only program
+# files, so they live on ext4 under the contract cache root (CN_CACHE_ROOT,
+# shared_cache_env.sh), never under the contract root, which is on the
+# NTFS share on a dual-boot machine (LINUX_SHELL_RULES.md #2).
+[ -n "${CN_CACHE_ROOT:-}" ] || source "${FM_STATIC_CURRENT_DIR}/shared_cache_env.sh"
+FRANKENPHP_STATIC_WORK_ROOT="${CN_CACHE_ROOT}/frankenphp"
 # Build-tuple record of the last successful dist build (tag/php/
 # extensions) - the dist-reuse probe compares against it, so a changed
 # extension set or release pin forces a real rebuild.
-FRANKENPHP_STATIC_BUILD_STATE="${FRANKENPHP_STATIC_BUILD_ROOT}/build-state.env"
+FRANKENPHP_STATIC_BUILD_STATE="${FRANKENPHP_STATIC_WORK_ROOT}/build-state.env"
+FRANKENPHP_STATIC_BUILD_LOG="${FRANKENPHP_STATIC_WORK_ROOT}/build.log"
 # Canonical Go toolchain installer (single source of truth for the pin).
 FRANKENPHP_STATIC_GOLANG_SCRIPT="${FM_STATIC_CURRENT_DIR}/../debian/install_shells/91_install_golang.sh"
-FRANKENPHP_STATIC_SRC_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/src"
-FRANKENPHP_STATIC_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/candidate"
+FRANKENPHP_STATIC_SRC_DIR="${FRANKENPHP_STATIC_WORK_ROOT}/src"
+FRANKENPHP_STATIC_STAGING_DIR="${FRANKENPHP_STATIC_WORK_ROOT}/candidate"
 # Runtime binary roots separate by packaging strategy: compiled static builds
 # and released prebuilt artifacts keep their executable files in different
 # directories and share only cache/cert paths under the same root.
@@ -67,8 +75,8 @@ FRANKENPHP_PREBUILT_READY_STATE="${FRANKENPHP_PREBUILT_RUNTIME_DIR}/prepared-ver
 # Shared install-root path family (single source for the manager, the
 # prebuilt installer and the acme.sh helper): every FrankenPHP artifact
 # lives under the same persistent root so upgrades stay incremental.
-FRANKENPHP_PREBUILT_CACHE_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt"
-FRANKENPHP_PREBUILT_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt-staging"
+FRANKENPHP_PREBUILT_CACHE_DIR="${FRANKENPHP_STATIC_WORK_ROOT}/prebuilt"
+FRANKENPHP_PREBUILT_STAGING_DIR="${FRANKENPHP_STATIC_WORK_ROOT}/prebuilt-staging"
 FRANKENPHP_ACME_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/acme.sh"
 FRANKENPHP_ACME_CERT_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/certs"
 
@@ -269,7 +277,7 @@ fm_static_build() {
         return 0
     fi
 
-    mkdir -p "$FRANKENPHP_STATIC_BUILD_ROOT"
+    mkdir -p "$FRANKENPHP_STATIC_WORK_ROOT"
     if [ "$(fm_static_git_ensure "$FRANKENPHP_STATIC_REPO" "$version_tag" "$FRANKENPHP_STATIC_SRC_DIR")" != "ok" ]; then
         echo "[$FM_STATIC_LOG_TAG] [WARN] frankenphp source convergence failed" >&2
         echo ""
@@ -297,8 +305,9 @@ fm_static_build() {
         XCADDY_ARGS="$FRANKENPHP_STATIC_XCADDY_ARGS" \
         SPC_CMD_VAR_FRANKENPHP_XCADDY_MODULES="$FRANKENPHP_STATIC_XCADDY_ARGS" \
         GOPROXY="${GOPROXY:-https://proxy.golang.org,https://goproxy.cn,direct}" \
-        ./build-static.sh 2>&1 | tee "${FRANKENPHP_STATIC_BUILD_ROOT}/build.log" >&2); then
-        echo "[$FM_STATIC_LOG_TAG] [WARN] ./build-static.sh failed (source kept: ${FRANKENPHP_STATIC_SRC_DIR}, log: ${FRANKENPHP_STATIC_BUILD_ROOT}/build.log)" >&2
+        GOCACHE="${GOCACHE:-${FRANKENPHP_STATIC_WORK_ROOT}/go-build}" \
+        ./build-static.sh 2>&1 | tee "$FRANKENPHP_STATIC_BUILD_LOG" >&2); then
+        echo "[$FM_STATIC_LOG_TAG] [WARN] ./build-static.sh failed (source kept: ${FRANKENPHP_STATIC_SRC_DIR}, log: ${FRANKENPHP_STATIC_BUILD_LOG})" >&2
         echo ""
         return 0
     fi

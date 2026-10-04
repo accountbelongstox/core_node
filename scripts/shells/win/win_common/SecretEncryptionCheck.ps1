@@ -31,6 +31,8 @@ $filesNeedingEncryption = @()
 $dirs = $null
 $password = ""
 $encryptChoice = ""
+$deleteChoice = ""
+$deleteConfirm = ""
 $successCount = 0
 $failCount = 0
 $rawFilePath = ""
@@ -100,7 +102,28 @@ Write-Host ""
 $encryptChoice = Read-Host "Would you like to encrypt them into already_encrypted now? (yes/no)"
 
 if ($encryptChoice -notmatch "^[Yy](es)?$") {
-    Write-Host "Skipping encryption. You can encrypt secrets later via the menu." -ForegroundColor Yellow
+    Write-Host "Skipping encryption. Raw files stay cached in $rawDir; you can encrypt them later via the menu." -ForegroundColor Yellow
+    $deleteChoice = Read-Host "Delete all $($filesNeedingEncryption.Count) raw file(s) listed above? (yes/no)"
+    if ($deleteChoice -notmatch "^[Yy](es)?$") {
+        return
+    }
+    $deleteConfirm = Read-Host "This permanently deletes the unencrypted secrets. Type 'confirm' to delete"
+    if ($deleteConfirm -cne "confirm") {
+        Write-Host "[SECRET_ENCRYPT_CHECK] Deletion cancelled." -ForegroundColor Yellow
+        return
+    }
+    foreach ($keyName in $filesNeedingEncryption) {
+        $rawFilePath = Join-Path $rawDir $keyName
+        if (-not (Test-Path $rawFilePath)) {
+            continue
+        }
+        try {
+            Remove-Item -LiteralPath $rawFilePath -Force -ErrorAction Stop
+            Write-Host "[SECRET_ENCRYPT_CHECK]   DELETED: $keyName" -ForegroundColor Green
+        } catch {
+            Write-Host "[SECRET_ENCRYPT_CHECK]   DELETE FAILED: $keyName ($($_.Exception.Message))" -ForegroundColor Red
+        }
+    }
     return
 }
 

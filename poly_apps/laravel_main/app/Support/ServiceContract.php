@@ -163,10 +163,16 @@ final class ServiceContract
         return self::section(self::DRIVE_LAYOUT_PATH);
     }
 
-    /** Windows program drive used when no program drive is recorded (drive_layout.program_drive_fallback, e.g. D:). */
-    public static function windowsProgramDriveFallback(): string
+    /** Var-center key holding the live Windows tool_root / app_root dir that Step 1 recorded (drive_layout.windows_resolved_vars). */
+    public static function windowsResolvedVar(string $kind): string
     {
-        return self::string(self::DRIVE_LAYOUT_PATH.'.program_drive_fallback');
+        return self::string(self::DRIVE_LAYOUT_PATH.'.windows_resolved_vars.'.$kind);
+    }
+
+    /** Old D: tool_root / app_root template, used before Step 1 recorded the live dir (drive_layout.legacy_program_dirs). */
+    public static function windowsLegacyProgramDir(string $kind): string
+    {
+        return self::string(self::DRIVE_LAYOUT_PATH.'.legacy_program_dirs.'.$kind);
     }
 
     /** Parent directory of drive_layout.tool_root.linux (the ext4 base that holds every /_<os>_<ver> tool root). */

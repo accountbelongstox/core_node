@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using DotCore.Foundations;
 using DotCore.Utils;
+using DotCore.Utils.Input;
 
 namespace DotApps.d3d4tester.Core;
 
@@ -17,6 +18,51 @@ public static class MacroSkillRunner
 {
     private static readonly HashSet<string> SkippedStrategies = new(StringComparer.Ordinal) { "ignore", "disabled", "禁用", "忽略" };
     private static readonly string[] SkillOrder = { "skill1", "skill2", "skill3", "skill4", "left_click", "right_click", "potion" };
+    private const string StrategyHold = "hold";
+    private const string StrategyContinuous = "continuous";
+
+    /// <summary>Skills currently held down by the hold strategy -> release action.</summary>
+    private static readonly Dictionary<string, Action> HeldSkills = new(StringComparer.Ordinal);
+    private static readonly object HeldLock = new();
+
+    /// <summary>Release every key / mouse button held by the hold strategy (macro stop or smart pause).</summary>
+    public static void ReleaseHeld()
+    {
+        List<Action> releases;
+        lock (HeldLock)
+        {
+            releases = HeldSkills.Values.ToList();
+            HeldSkills.Clear();
+        }
+        foreach (var release in releases)
+        {
+            try { release(); } catch (Exception ex) { ColorPrinter.Yellow($"[MacroSkillRunner] Release held failed: {ex.Message}"); }
+        }
+    }
+
+    /// <summary>Hold strategy: press once (key or mouse button via SendInput) and keep it down until ReleaseHeld. Mouse only inside the D3 client area.</summary>
+    private static void EnsureHeld(string skillKey, IReadOnlyDictionary<string, string> data, bool cursorInD3)
+    {
+        lock (HeldLock)
+        {
+            if (HeldSkills.ContainsKey(skillKey)) return;
+        }
+        Action? release = null;
+        if (skillKey is "left_click" or "right_click")
+        {
+            if (!cursorInD3) return;
+            var button = skillKey == "left_click" ? MouseButton.Left : MouseButton.Right;
+            if (ClickHandler.MouseButtonDown(button)) release = () => ClickHandler.MouseButtonUp(button);
+        }
+        else
+        {
+            var vk = KeyNameToVk(data.TryGetValue("key", out var k) ? k : null);
+            if (vk is > 0 and <= ushort.MaxValue && ClickHandler.SendVirtualKey((ushort)vk.Value, down: true))
+                release = () => ClickHandler.SendVirtualKey((ushort)vk.Value, down: false);
+        }
+        if (release == null) return;
+        lock (HeldLock) HeldSkills[skillKey] = release;
+    }
 
     /// <summary>Resolve config key string to VK code. Returns null for unknown; LMB/RMB return 0 (caller uses mouse). Single char = VK of that char. 1:1 Python key_name_to_vk.</summary>
     public static uint? KeyNameToVk(string? keyName)
@@ -35,14 +81,20 @@ public static class MacroSkillRunner
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> skills,
         IReadOnlyDictionary<string, double> lastSkillTimes,
         double now,
-        (int Left, int Top, int Right, int Bottom)? cachedD3Rect)
+        (int Left, int Top, int Right, int Bottom)? cachedD3Rect,
+        ushort? standVk = null)
     {
         var nextTimes = new Dictionary<string, double>(lastSkillTimes);
         foreach (var sk in SkillOrder)
         {
             if (!skills.TryGetValue(sk, out var data) || data == null) continue;
-            var strategy = (data.TryGetValue("strategy", out var stratVal) ? stratVal : "continuous")?.Trim().ToLowerInvariant() ?? "continuous";
+            var strategy = (data.TryGetValue("strategy", out var stratVal) ? stratVal : StrategyContinuous)?.Trim().ToLowerInvariant() ?? StrategyContinuous;
             if (SkippedStrategies.Contains(strategy)) continue;
+            if (strategy == StrategyHold)
+            {
+                EnsureHeld(sk, data, IsCursorInD3(hwnd, cachedD3Rect));
+                continue;
+            }
             int intervalMs = int.TryParse(data.TryGetValue("interval", out var iv) ? iv : "100", out var i) ? Math.Max(0, i) : 100;
             int delayMs = int.TryParse(data.TryGetValue("delay", out var dv) ? dv : "0", out var d) ? Math.Max(0, d) : 0;
             int randMs = int.TryParse(data.TryGetValue("random_delay", out var rv) ? rv : "0", out var r) ? Math.Max(0, r) : 0;
@@ -54,17 +106,16 @@ public static class MacroSkillRunner
             bool sent = false;
             if (sk == "left_click")
             {
-                bool inBounds = cachedD3Rect.HasValue
-                    ? WindowInputHelper.IsCursorInRect(cachedD3Rect.Value.Left, cachedD3Rect.Value.Top, cachedD3Rect.Value.Right, cachedD3Rect.Value.Bottom)
-                    : WindowInputHelper.IsCursorInWindow(hwnd);
-                sent = inBounds && WindowInputHelper.SendMouseClickAtCursor(hwnd, true);
+                if (IsCursorInD3(hwnd, cachedD3Rect))
+                {
+                    bool stand = standVk.HasValue && ClickHandler.SendVirtualKey(standVk.Value, down: true);
+                    sent = WindowInputHelper.SendMouseClickAtCursor(hwnd, true);
+                    if (stand) ClickHandler.SendVirtualKey(standVk!.Value, down: false);
+                }
             }
             else if (sk == "right_click")
             {
-                bool inBounds = cachedD3Rect.HasValue
-                    ? WindowInputHelper.IsCursorInRect(cachedD3Rect.Value.Left, cachedD3Rect.Value.Top, cachedD3Rect.Value.Right, cachedD3Rect.Value.Bottom)
-                    : WindowInputHelper.IsCursorInWindow(hwnd);
-                sent = inBounds && WindowInputHelper.SendMouseClickAtCursor(hwnd, false);
+                sent = IsCursorInD3(hwnd, cachedD3Rect) && WindowInputHelper.SendMouseClickAtCursor(hwnd, false);
             }
             else
             {
@@ -84,10 +135,15 @@ public static class MacroSkillRunner
                 // DEBUG: uncomment to log each key sent. Feature currently works as expected.
                 // ColorPrinter.Gray($"[MacroSkill] DEBUG: Sent {sk} key={(sk == "left_click" ? "LMB" : sk == "right_click" ? "RMB" : (data.TryGetValue("key", out var kx) ? kx : sk))}");
             }
-            if (strategy != "continuous") nextTimes[sk] = now;
+            if (strategy != StrategyContinuous) nextTimes[sk] = now;
         }
         return nextTimes;
     }
+
+    private static bool IsCursorInD3(IntPtr hwnd, (int Left, int Top, int Right, int Bottom)? cachedD3Rect) =>
+        cachedD3Rect.HasValue
+            ? WindowInputHelper.IsCursorInRect(cachedD3Rect.Value.Left, cachedD3Rect.Value.Top, cachedD3Rect.Value.Right, cachedD3Rect.Value.Bottom)
+            : WindowInputHelper.IsCursorInWindow(hwnd);
 
     /// <summary>Supported keys: 0-9, A-Z, F1-F12, ESCAPE, ENTER, SPACE, TAB, UP/DOWN/LEFT/RIGHT, PAGEUP/PAGEDOWN, HOME, END, INSERT. LMB/RMB = mouse. Any single character also supported as VK. Extend KeyNameToVkMap for more names.</summary>
     private static readonly Dictionary<string, uint> KeyNameToVkMap = new(StringComparer.OrdinalIgnoreCase)

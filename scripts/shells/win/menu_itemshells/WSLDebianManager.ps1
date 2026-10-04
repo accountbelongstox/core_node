@@ -9,7 +9,7 @@
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
-$script:WSL_INSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step30_InstallWSLDebian13.ps1"
+$script:WSL_INSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Wsl_Debian13.ps1"
 $script:DEBIAN_OS_UPGRADE_MAX_ATTEMPTS = 6
 $script:DEBIAN_OS_UPGRADE_LOG_HINT = "/var/log/core_node-os-upgrade.log"
 $script:DEBIAN_OS_UPGRADE_SCRIPT = ""

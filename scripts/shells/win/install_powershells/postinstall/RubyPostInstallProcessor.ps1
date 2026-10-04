@@ -85,7 +85,7 @@ function Configure-GemSettings {
 
             # List current sources for verification
             Write-Host "$LogPrefix Current gem sources:" -ForegroundColor Cyan
-            & $gemPath sources --list
+            & $gemPath sources --list | Out-Host
         }
         
         # Configure gem to not install documentation by default (faster installs)
@@ -97,8 +97,12 @@ install: --no-document
 update: --no-document
 "@
 
-            Set-Content -Path $gemrcPath -Value $gemrcContent -Encoding UTF8 -ErrorAction Stop
-            Write-Host "$LogPrefix Created .gemrc configuration: $gemrcPath" -ForegroundColor Green
+            if (Test-Path -LiteralPath $gemrcPath) {
+                Write-Host "$LogPrefix .gemrc already exists, keeping it: $gemrcPath" -ForegroundColor Cyan
+            } else {
+                Set-Content -Path $gemrcPath -Value $gemrcContent -Encoding UTF8 -ErrorAction Stop
+                Write-Host "$LogPrefix Created .gemrc configuration: $gemrcPath" -ForegroundColor Green
+            }
         }
         catch {
             Write-Host "$LogPrefix Warning: Failed to create .gemrc: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -130,7 +134,10 @@ function Install-EssentialGems {
     if (-not (Test-Path $gemPath)) {
         $gemPath = Join-Path (Split-Path $RubyPath -Parent) "gem.cmd"
     }
-    
+    if (-not (Test-Path $gemPath)) {
+        $gemPath = Join-Path (Split-Path $RubyPath -Parent) "gem.bat"
+    }
+
     if (-not (Test-Path $gemPath)) {
         Write-Host "$LogPrefix Gem command not found, skipping gem installation" -ForegroundColor Yellow
         return $false
@@ -185,32 +192,42 @@ function Setup-BundlerConfig {
     if (-not (Test-Path $bundlerPath)) {
         $bundlerPath = Join-Path (Split-Path $RubyPath -Parent) "bundle.cmd"
     }
+    # RubyGems on Windows creates bundle.bat
+    if (-not (Test-Path $bundlerPath)) {
+        $bundlerPath = Join-Path (Split-Path $RubyPath -Parent) "bundle.bat"
+    }
     
     if (-not (Test-Path $bundlerPath)) {
         Write-Host "$LogPrefix Bundler command not found, skipping bundler configuration" -ForegroundColor Yellow
         return $false
     }
     
+    $prevErrorPreference = $ErrorActionPreference
     try {
+        # Bundler warnings go to stderr; under 'Stop' the 2>&1 ErrorRecords would throw in PS 5.1
+        $ErrorActionPreference = 'Continue'
         # Configure bundler to use parallel jobs
-        & $bundlerPath config --global jobs 4 2>&1 | Out-Null
-        $jobsConfig = & $bundlerPath config --global jobs 2>&1
+        & $bundlerPath config set --global jobs 4 2>&1 | Out-Null
+        $jobsConfig = & $bundlerPath config get jobs 2>&1
         if ("$jobsConfig" -match '4') {
             Write-Host "$LogPrefix Configured Bundler to use 4 parallel jobs" -ForegroundColor Green
         }
-        
+
         # Configure bundler to retry failed downloads
-        & $bundlerPath config --global retry 3 2>&1 | Out-Null
-        $retryConfig = & $bundlerPath config --global retry 2>&1
+        & $bundlerPath config set --global retry 3 2>&1 | Out-Null
+        $retryConfig = & $bundlerPath config get retry 2>&1
         if ("$retryConfig" -match '3') {
             Write-Host "$LogPrefix Configured Bundler to retry failed downloads 3 times" -ForegroundColor Green
         }
-        
+
         return $true
     }
     catch {
         Write-Host "$LogPrefix Failed to configure Bundler: $($_.Exception.Message)" -ForegroundColor Red
         return $false
+    }
+    finally {
+        $ErrorActionPreference = $prevErrorPreference
     }
 }
 
@@ -299,7 +316,7 @@ function Invoke-RubyPostInstallProcessor {
         }
         "full_setup" {
             Write-Host "$LogPrefix Performing Ruby configuration (Gem + Gems + Bundler + Test)..." -ForegroundColor Yellow
-            Write-Host "$LogPrefix Note: Environment variables handled by Step12" -ForegroundColor Cyan
+            Write-Host "$LogPrefix Note: Environment variables handled by Step21_InstallApplications.ps1" -ForegroundColor Cyan
 
             # Step 1: Configure Gem (CRITICAL - must succeed)
             $gemSuccess = Configure-GemSettings -RubyPath $ExecutablePath -InstallDir $InstallDir -RubyCallback $RubyCallback -LogPrefix $LogPrefix

@@ -135,12 +135,14 @@ install_via_npm() {
     fi
 
     export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
-    if "$pnpm_bin" list -g "$package_id" >/dev/null 2>&1; then
+    # pnpm exits 0 for `list -g <pkg>` even when the package is NOT installed (empty
+    # output), so the check must match the package name in the output, not the exit code.
+    if "$pnpm_bin" list -g "$package_id" 2>/dev/null | grep -qF "$package_id"; then
         echo -e "${GREEN}$SCRIPT_INDEX $app_name already installed via pnpm, skipping${NC}"
         return 0
     fi
 
-    if "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
+    if "$pnpm_bin" add -g --config.confirm-modules-purge=false ${PNPM_ALLOW_ALL_BUILDS_ARG:-} "$package_id"; then
         echo -e "${GREEN}$SCRIPT_INDEX Successfully installed $app_name via PNPM${NC}"
         if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
             find "$PNPM_GLOBAL_BIN_DIR" -type f -exec chmod +x {} \; 2>/dev/null || true

@@ -19,8 +19,6 @@ get_shared_download_dir() {
     # Use global definition from gvar_common.sh if available
     if [ -n "$CORE_NODE_SHARED_DOWNLOADS" ]; then
         local shared_dir="$CORE_NODE_SHARED_DOWNLOADS"
-    elif [ "$(uname)" = "Linux" ]; then
-        local shared_dir="${CORE_NODE_DATA_DIR}/shared_downloads"
     elif [ "$(uname)" = "MINGW"* ] || [ "$(uname)" = "CYGWIN"* ] || [ "$(uname)" = "MSYS"* ]; then
         local public_downloads="C:\\Users\\Public\\Downloads"
         if [ -d "$public_downloads" ]; then

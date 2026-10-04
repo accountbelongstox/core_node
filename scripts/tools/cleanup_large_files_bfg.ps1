@@ -3,8 +3,18 @@
 
 $ScriptDir = Split-Path -Parent $PSCommandPath
 $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\..") | Select-Object -ExpandProperty Path
-$BfgJar = Join-Path $ScriptDir "bfg.jar"
+$GlobalVarsPath = Join-Path (Join-Path (Join-Path (Join-Path (Split-Path -Parent $ScriptDir) "shells") "win") "win_common") "GlobalVars.ps1"
+$CallerErrorAction = $ErrorActionPreference
+$BfgJar = $null
 $BfgUrl = "https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar"
+
+. $GlobalVarsPath
+$ErrorActionPreference = $CallerErrorAction
+Set-StrictMode -Off
+$BfgJar = Join-Path $Global:DOWNLOADS_DIR "bfg.jar"
+if (-not (Test-Path $Global:DOWNLOADS_DIR)) {
+    New-Item -ItemType Directory -Path $Global:DOWNLOADS_DIR -Force | Out-Null
+}
 
 Write-Host "================================================================" -ForegroundColor White
 Write-Host "BFG Repo-Cleaner - Fast Git History Cleanup" -ForegroundColor White

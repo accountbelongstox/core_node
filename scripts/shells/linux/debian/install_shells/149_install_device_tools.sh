@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 SCRIPT_INDEX="149"
 # ---------------------------------------------------------------------------
-# install_device_tools.sh - Optional Android device-control tools for pycore.
+# 149_install_device_tools.sh - Optional Android device-control tools for pycore.
 #
 # Invoked sequentially by prepare_pycore_prerequisites.sh (pyservice; scripts never call siblings).
 # Installs the system binaries pycore uses to talk to / mirror Android devices:
@@ -15,7 +15,7 @@ SCRIPT_INDEX="149"
 # IDEMPOTENT: adb is skipped when on PATH; the bundle is skipped when adb, scrcpy and
 # scrcpy-server are present in the bundle dir. --force reinstalls both.
 #
-# Usage:  ./install_device_tools.sh [--python <py>] [--force]
+# Usage:  ./149_install_device_tools.sh [--python <py>] [--force]
 #         (--python is accepted but unused: these are system binaries, not pip pkgs.)
 # ---------------------------------------------------------------------------
 set -uo pipefail

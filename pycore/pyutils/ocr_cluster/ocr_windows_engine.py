@@ -122,7 +122,7 @@ class WindowsOCREngine:
         winrt_ns = get_third_package_windows_ocr() if module_present("winrt.windows.media.ocr") else None
         if winrt_ns is None:
             ColorPrint.red(
-                "[WindowsOCREngine] Windows OCR (WinRT) not installed - run Step46_InstallOcr.ps1 "
+                "[WindowsOCREngine] Windows OCR (WinRT) not installed - run Model_Ocr.ps1 "
                 "(winrt-Windows.Media.Ocr winrt-Windows.Graphics.Imaging "
                 "winrt-Windows.Storage.Streams winrt-Windows.Globalization)"
             )

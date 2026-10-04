@@ -156,13 +156,13 @@ function Invoke-NpmCommand {
     # Validate npm and node paths exist
     if (-not $npmExe -or -not (Test-Path $npmExe)) {
         Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe" -Category "NPM" -Color "Red"
-        Write-DebugLog -Message "Please run Step4_InstallNodeJS.ps1 first" -Category "NPM" -Color "Yellow"
+        Write-DebugLog -Message "Please run Node_Runtime.ps1 first" -Category "NPM" -Color "Yellow"
         return $null
     }
 
     if (-not $nodeExe -or -not (Test-Path $nodeExe)) {
         Write-DebugLog -Message "CRITICAL: node not found at: $nodeExe" -Category "NPM" -Color "Red"
-        Write-DebugLog -Message "Please run Step4_InstallNodeJS.ps1 first" -Category "NPM" -Color "Yellow"
+        Write-DebugLog -Message "Please run Node_Runtime.ps1 first" -Category "NPM" -Color "Yellow"
         return $null
     }
 
@@ -376,7 +376,17 @@ function Test-PnpmGlobalPackageInstalled {
             return $false
         }
 
-        $globalPackages = ($listOutput | Out-String) | ConvertFrom-Json -ErrorAction Stop
+        # pnpm prefixes stdout with non-JSON lines (e.g. "[WARN] Using --global skips ...");
+        # parse from the first JSON token onward or every installed-state check returns false.
+        $listText = ($listOutput | Out-String)
+        $jsonStart = $listText.IndexOfAny([char[]]@('[', '{'))
+        while ($jsonStart -ge 0 -and $listText.Substring($jsonStart).StartsWith('[WARN')) {
+            $jsonStart = $listText.IndexOfAny([char[]]@('[', '{'), $jsonStart + 1)
+        }
+        if ($jsonStart -lt 0) {
+            return $false
+        }
+        $globalPackages = $listText.Substring($jsonStart) | ConvertFrom-Json -ErrorAction Stop
         foreach ($rootEntry in $globalPackages) {
             foreach ($dependencyGroup in @("dependencies", "devDependencies", "optionalDependencies")) {
                 $groupValue = $rootEntry.$dependencyGroup
@@ -417,7 +427,7 @@ function Invoke-PnpmCommand {
     # Validate npm and pnpm paths exist
     if (-not $npmExe -or -not (Test-Path $npmExe)) {
         Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe" -Category "PNPM" -Color "Red"
-        Write-DebugLog -Message "Please run Step4_InstallNodeJS.ps1 first" -Category "PNPM" -Color "Yellow"
+        Write-DebugLog -Message "Please run Node_Runtime.ps1 first" -Category "PNPM" -Color "Yellow"
         return $null
     }
 
@@ -434,7 +444,7 @@ function Invoke-PnpmCommand {
             Write-DebugLog -Message "pnpm installed successfully at: $pnpmExe" -Category "PNPM" -Color "Green"
 
             # Run pnpm setup
-            & $pnpmExe setup
+            & $pnpmExe setup | Out-Host
             Write-DebugLog -Message "pnpm setup completed" -Category "PNPM" -Color "Green"
 
             # Ensure pnpm global bin directory is in PATH after setup
@@ -572,10 +582,10 @@ function Invoke-PnpmCommand {
 
     if ($packageInstalled -and -not $ForceInstall) {
         Write-DebugLog -Message "Package already installed via pnpm, upgrading instead of reinstalling: $PackageName" -Category "PNPM" -Color "Yellow"
-        $upgradeArgs = "update --global $PackageName"
+        $upgradeArgs = "update --global $Global:PNPM_ALLOW_ALL_BUILDS_ARG $PackageName"
         Write-DebugLog -Message "Command: $pnpmExe $upgradeArgs" -Category "PNPM" -Color "Magenta"
 
-        Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $upgradeArgs
+        Invoke-WithPnpmBuildsAllowed { Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $upgradeArgs }
 
         if (-not $executable) {
             $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
@@ -605,11 +615,11 @@ function Invoke-PnpmCommand {
             Write-DebugLog -Message "Warning: Failed to refresh process PATH: $($_.Exception.Message)" -Category "PNPM" -Color "Yellow"
         }
 
-        $installArgs = "add --global $PackageName"
+        $installArgs = "add --global $Global:PNPM_ALLOW_ALL_BUILDS_ARG $PackageName"
         Write-DebugLog -Message "Command: $pnpmExe $installArgs" -Category "PNPM" -Color "Magenta"
 
-        # Run installation directly
-        Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $installArgs
+        # Run installation directly (dependency build scripts approved: no interactive approve-builds prompt)
+        Invoke-WithPnpmBuildsAllowed { Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $installArgs }
 
         # Refresh search paths after installation
         Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PNPM" -Color "Magenta"
@@ -1293,7 +1303,7 @@ function Invoke-PipCommand {
             $startTime = Get-Date
             Write-DebugLog -Message "Starting pip installation..." -Category "PIP" -Color "Cyan"
 
-            & $pipExe $method.Args
+            & $pipExe $method.Args | Out-Host
             $endTime = Get-Date
             $duration = ($endTime - $startTime).TotalSeconds
             Write-DebugLog -Message "Installation completed in $duration seconds" -Category "PIP" -Color "Cyan"
@@ -1558,7 +1568,7 @@ function Invoke-PipxCommand {
         $Command = "pipx $($installArgs -join ' ')"
         Write-DebugLog -Message "Command: $Command" -Category "PIPX" -Color "Magenta"
         
-        & $pipxExe $installArgs
+        & $pipxExe $installArgs | Out-Host
         
         # Refresh search paths after installation
         Write-DebugLog -Message "Refreshing search paths..." -Category "PIPX" -Color "Magenta"
@@ -1590,9 +1600,9 @@ function Invoke-PipxCommand {
         # Try uninstall and reinstall for error recovery
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "PIPX" -Color "Yellow"
-            & $pipxExe uninstall $PackageName 2>$null
+            & $pipxExe uninstall $PackageName 2>$null | Out-Host
             Start-Sleep -Seconds 2
-            & $pipxExe install $PackageName --force
+            & $pipxExe install $PackageName --force | Out-Host
             $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
             return $executable
         }
@@ -1702,7 +1712,7 @@ function Invoke-UvCommand {
                 # Use absolute path to pip
                 $pipExe = $envRepair.PipExe
                 if ($pipExe) {
-                    & $pipExe install uv
+                    & $pipExe install uv | Out-Host
                     if (Test-Path $uvExePath) {
                         $uvExe = $uvExePath
                         Write-DebugLog -Message "uv installed successfully at: $uvExePath" -Category "UV" -Color "Green"
@@ -1749,7 +1759,7 @@ function Invoke-UvCommand {
     }
 
     # Use Python Scripts directory from environment repair
-    # This is the CORRECT directory (D:\.dev_win10\python313\Scripts)
+    # This is the CORRECT directory (<LANG_COMPILER_DIR>\python313\Scripts)
     if ($envRepair.ScriptsDir) {
         $searchPaths += $envRepair.ScriptsDir
         Write-DebugLog -Message "Added Python Scripts directory from envRepair: $($envRepair.ScriptsDir)" -Category "UV" -Color "Green"
@@ -1863,7 +1873,7 @@ function Invoke-UvCommand {
         
         Write-DebugLog -Message "UV tool install did not produce executable, trying pip install..." -Category "UV" -Color "Yellow"
         $pipInstallArgs = @("pip", "install", $PackageName)
-        & $uvExe $pipInstallArgs
+        & $uvExe $pipInstallArgs | Out-Host
         
         # Refresh search paths after pip install
         Write-DebugLog -Message "Refreshing search paths after pip install..." -Category "UV" -Color "Magenta"
@@ -2002,7 +2012,7 @@ function Invoke-UvxCommand {
                 # Use absolute path to pip
                 $pipExe = $envRepair.PipExe
                 if ($pipExe) {
-                    & $pipExe install uv
+                    & $pipExe install uv | Out-Host
                     if (Test-Path $uvExePath) {
                         $uvExe = $uvExePath
                         Write-DebugLog -Message "uv installed successfully at: $uvExePath" -Category "UVX" -Color "Green"
@@ -2107,7 +2117,7 @@ function Invoke-UvxCommand {
         $Command = "uv $($installArgs -join ' ')"
         Write-DebugLog -Message "Command: $Command" -Category "UVX" -Color "Magenta"
         
-        & $uvExe $installArgs
+        & $uvExe $installArgs | Out-Host
         
         # Refresh search paths after installation
         Write-DebugLog -Message "Refreshing search paths..." -Category "UVX" -Color "Magenta"
@@ -2155,9 +2165,9 @@ function Invoke-UvxCommand {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "UVX" -Color "Yellow"
             # Extract package name without version
             $packageNameOnly = $PackageName -replace '@.*$', ''
-            & $uvExe tool uninstall $packageNameOnly 2>$null
+            & $uvExe tool uninstall $packageNameOnly 2>$null | Out-Host
             Start-Sleep -Seconds 2
-            & $uvExe tool install $PackageName --force
+            & $uvExe tool install $PackageName --force | Out-Host
             $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
             return $executable
         }
@@ -2494,7 +2504,7 @@ function Invoke-ChocoCommand {
         $Command = "choco $($installArgs -join ' ')"
         Write-DebugLog -Message "Command: $Command" -Category "CHOCO" -Color "Magenta"
         
-        & choco $installArgs
+        & choco $installArgs | Out-Host
         
         # Refresh search paths after installation
         Write-DebugLog -Message "Refreshing search paths..." -Category "CHOCO" -Color "Magenta"
@@ -2529,13 +2539,13 @@ function Invoke-ChocoCommand {
         # Try uninstall and reinstall for error recovery
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "CHOCO" -Color "Yellow"
-            & choco uninstall $PackageName -y 2>$null
+            & choco uninstall $PackageName -y 2>$null | Out-Host
             Start-Sleep -Seconds 2
             $retryArgs = @("install", $PackageName, "-y", "--force")
             if ($InstallDir) {
                 $retryArgs += "--install-directory=$InstallDir"
             }
-            & choco $retryArgs
+            & choco $retryArgs | Out-Host
             $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
             return $executable
         }
@@ -3381,7 +3391,7 @@ function Invoke-GemCommand {
         $Command = "gem $($installArgs -join ' ')"
         Write-DebugLog -Message "Command: $Command" -Category "GEM" -Color "Magenta"
         
-        & gem $installArgs
+        & gem $installArgs | Out-Host
         
         # Refresh search paths after installation
         Write-DebugLog -Message "Refreshing search paths..." -Category "GEM" -Color "Magenta"
@@ -3428,9 +3438,9 @@ function Invoke-GemCommand {
         # Try uninstall and reinstall for error recovery
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "GEM" -Color "Yellow"
-            & gem uninstall $PackageName --user-install 2>$null
+            & gem uninstall $PackageName --user-install 2>$null | Out-Host
             Start-Sleep -Seconds 2
-            & gem install $PackageName --user-install --force
+            & gem install $PackageName --user-install --force | Out-Host
             $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
             return $executable
         }
@@ -3783,16 +3793,20 @@ function Invoke-WebDownloadCommand {
         
         if ($IsArchive) {
             # For archives, download to a temporary file first
-            $tempFile = Join-Path $env:TEMP "$PackageName.$ArchiveType"
+            $tempFile = Join-Path $Global:DOWNLOADS_DIR "$PackageName.$ArchiveType"
             Write-Host "       [WEB] Downloading archive to: $tempFile" -ForegroundColor Cyan
             
-            Invoke-WebRequest -Uri $DownloadUrl -OutFile $tempFile -UseBasicParsing -ErrorAction Stop
+            if (-not (Get-FileWithSizeCheck -localPath $tempFile -remoteUrl $DownloadUrl -description $PackageName)) {
+                throw "download failed: $DownloadUrl"
+            }
             $downloadedFile = $tempFile
             $fileExtension = $ArchiveType
         } else {
             # For direct executables, download directly to target
             Write-Host "       [WEB] Downloading executable to: $executablePath" -ForegroundColor Cyan
-            Invoke-WebRequest -Uri $DownloadUrl -OutFile $executablePath -UseBasicParsing -ErrorAction Stop
+            if (-not (Get-FileWithSizeCheck -localPath $executablePath -remoteUrl $DownloadUrl -description $PackageName)) {
+                throw "download failed: $DownloadUrl"
+            }
             $downloadedFile = $executablePath
             $fileExtension = "exe"
         }
@@ -3978,8 +3992,23 @@ function Invoke-PowerShellCommand {
     Write-DebugLog -Message "Installing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Yellow"
     if (-not [string]::IsNullOrWhiteSpace($PowerShellCommand)) {
         Write-Host "       [POWERSHELL] Executing PowerShell command: $PowerShellCommand" -ForegroundColor Cyan
-        Invoke-Expression $PowerShellCommand -ErrorAction SilentlyContinue
-        if (-not $?) {
+        # Installer scripts download/unpack under TEMP: point it at WORK_DIR while they run.
+        $powerShellCommandPreviousTemp = $env:TEMP
+        $powerShellCommandPreviousTmp = $env:TMP
+        if (-not (Test-Path -LiteralPath $Global:WORK_DIR -PathType Container)) {
+            New-Item -ItemType Directory -Path $Global:WORK_DIR -Force | Out-Null
+        }
+        $env:TEMP = $Global:WORK_DIR
+        $env:TMP = $Global:WORK_DIR
+        try {
+            Invoke-Expression $PowerShellCommand -ErrorAction SilentlyContinue | Out-Host
+            $powerShellCommandSucceeded = $?
+        }
+        finally {
+            $env:TEMP = $powerShellCommandPreviousTemp
+            $env:TMP = $powerShellCommandPreviousTmp
+        }
+        if (-not $powerShellCommandSucceeded) {
             $errMsg = if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { "unknown" }
             Write-DebugLog -Message "Install script reported: $errMsg" -Category "POWERSHELL" -Color "Red"
             if ($PackageName -eq "CursorAgent" -and $errMsg -match "denied|Access to the path") {

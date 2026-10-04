@@ -310,6 +310,21 @@ public sealed class ClickHandler
         return ok;
     }
 
+    /// <summary>Mouse button down at the current cursor, no pause (held until MouseButtonUp).</summary>
+    public static bool MouseButtonDown(MouseButton button) => InputNative.SendMouseButton(button, down: true);
+
+    /// <summary>Mouse button up at the current cursor, no pause.</summary>
+    public static bool MouseButtonUp(MouseButton button) => InputNative.SendMouseButton(button, down: false);
+
+    /// <summary>Current cursor position in screen coordinates.</summary>
+    public static bool TryGetCursorPos(out int x, out int y) => InputNative.TryGetCursorPos(out x, out y);
+
+    /// <summary>Move the cursor to screen (x, y) immediately, no pause.</summary>
+    public static bool MoveCursor(int x, int y) => InputNative.MoveCursor(x, y);
+
+    /// <summary>Virtual-key down or up, no pause.</summary>
+    public static bool SendVirtualKey(ushort vk, bool down) => InputNative.SendKey(vk, down);
+
     /// <summary>Press and release a key presses times (pyautogui.press).</summary>
     public bool PressKey(string key, int presses = 1, double intervalSec = 0.0)
     {

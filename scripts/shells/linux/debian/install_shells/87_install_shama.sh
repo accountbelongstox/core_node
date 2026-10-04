@@ -118,7 +118,7 @@ install_samba() {
     $USE_SUDO apt-get update
     
     # Install Samba
-    $USE_SUDO apt-get install -y samba samba-common-bin
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y samba samba-common-bin
     
     if check_samba; then
         echo "[$SCRIPT_INDEX] Samba installed successfully"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 SCRIPT_INDEX="127"
 # ---------------------------------------------------------------------------
-# install_whisper.sh - Dedicated prerequisite installer for OpenAI Whisper.
+# 127_install_whisper.sh - Dedicated prerequisite installer for OpenAI Whisper.
 #
 # Run by prepare_pycore_prerequisites.sh before the Pycore service launches. Installs `openai-whisper`
 # (import name `whisper`, mapped in pycore/pyfoundations/third_party.py as
@@ -12,9 +12,9 @@ SCRIPT_INDEX="127"
 # time - this script only checks/warns, it does not install ffmpeg.
 #
 # Usage:
-#   ./install_whisper.sh --python /usr/bin/python3
-#   ./install_whisper.sh --python python3 --model base
-#   ./install_whisper.sh --force
+#   ./127_install_whisper.sh --python /usr/bin/python3
+#   ./127_install_whisper.sh --python python3 --model base
+#   ./127_install_whisper.sh --force
 # ---------------------------------------------------------------------------
 set -uo pipefail
 

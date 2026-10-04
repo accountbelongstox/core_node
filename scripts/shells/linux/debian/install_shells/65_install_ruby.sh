@@ -22,6 +22,9 @@ LOG_FILE="$SCRIPT_TEMP_DIR/ruby_install_$(date +%Y%m%d_%H%M%S).log"
 RUBY_INSTALL_DIR=$(map_web_path "compile_dir" "applications/ruby")
 RUBY_GEM_HOME=$(map_web_path "compile_dir" "applications/ruby/gems")
 RUBY_GEM_BIN_DIR=$(map_web_path "compile_dir" "applications/ruby/gems/bin")
+# Gem spec download cache under the ext4 gem home; RubyGems otherwise uses
+# $XDG_CACHE_HOME/gem, which is the NTFS share on a dual-boot machine.
+RUBY_GEM_SPEC_CACHE="$RUBY_GEM_HOME/specs"
 
 # Logging function
 log_message() {
@@ -144,6 +147,7 @@ setup_ruby_environment() {
 
     # Set environment for current session
     export GEM_HOME="$RUBY_GEM_HOME"
+    export GEM_SPEC_CACHE="$RUBY_GEM_SPEC_CACHE"
     export PATH="$RUBY_GEM_BIN_DIR:$PATH"
 
     # Add gem paths to shell profiles

@@ -112,6 +112,7 @@ cnp_gpu_present() {
 # AND deb822 .sources, the Debian 13 default) when no candidate is visible.
 cnp_ensure_nonfree_components() {
     local comp src changed=0
+    local official_re='://[^/ ]*(debian\.org|kali\.org|kali\.download)|://mirrors?[^/ ]*/(debian|kali)(-security)?/'
     # apt-cache show can succeed on a pure referral entry with NO candidate; the
     # policy Candidate line is the authoritative "is it installable" check.
     if apt-cache policy nvidia-driver 2>/dev/null | grep -qE 'Candidate: [0-9]'; then return 0; fi
@@ -121,16 +122,20 @@ cnp_ensure_nonfree_components() {
             $USE_SUDO add-apt-repository -y "$comp" >/dev/null 2>&1 && changed=1 || true
         done
     fi
+    # Only the official Debian/Kali mirrors carry these components; third-party
+    # repositories (Docker, Chrome, NVIDIA, ...) are never touched.
     for src in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
         [ -f "$src" ] || continue
-        $USE_SUDO sed -i -E '/^[[:space:]]*deb[[:space:]]/ {
-            /(^|[[:space:]])contrib([[:space:]]|$)/! s/$/ contrib/
-            /(^|[[:space:]])non-free-firmware([[:space:]]|$)/! s/$/ non-free-firmware/
-            /(^|[[:space:]])non-free([[:space:]]|$)/! s/$/ non-free/
-        }' "$src" && changed=1
+        $USE_SUDO sed -i -E "\\#^[[:space:]]*deb[[:space:]].*(${official_re})# {
+            /(^|[[:space:]])contrib([[:space:]]|\$)/! s/\$/ contrib/
+            /(^|[[:space:]])non-free-firmware([[:space:]]|\$)/! s/\$/ non-free-firmware/
+            /(^|[[:space:]])non-free([[:space:]]|\$)/! s/\$/ non-free/
+        }" "$src" && changed=1
     done
     for src in /etc/apt/sources.list.d/*.sources; do
         [ -f "$src" ] || continue
+        grep -qE '^URIs:' "$src" || continue
+        grep -E '^URIs:' "$src" | grep -qvE "$official_re" && continue
         $USE_SUDO sed -i -E '/^Components:/ {
             /(^|[[:space:]])contrib([[:space:]]|$)/! s/$/ contrib/
             /(^|[[:space:]])non-free-firmware([[:space:]]|$)/! s/$/ non-free-firmware/
@@ -257,13 +262,13 @@ cnp_upgrade_driver_for_policy() {
     if [ -n "$installed_version" ] && [ -n "$target_driver" ] \
         && dpkg --compare-versions "$installed_version" ge "$target_driver"; then
         echo "[$SCRIPT_INDEX] Driver $installed_version already satisfies the unified policy (>= $target_driver); pending reboot to load."
-        $USE_SUDO apt-get install -y nvidia-driver-cuda \
+        $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-driver-cuda \
             || echo "[$SCRIPT_INDEX] WARN: nvidia-driver-cuda (nvidia-smi provider) install failed." >&2
         return 0
     fi
     echo "[$SCRIPT_INDEX] Active driver CUDA ($(cuda_driver_version)) is below every unified policy tier."
     echo "[$SCRIPT_INDEX] Selected driver version: $picked_version (oldest branch satisfying >= $target_driver; a REBOOT is required afterwards)."
-    $USE_SUDO apt-get install -y "nvidia-driver=$picked_version" nvidia-driver-cuda \
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "nvidia-driver=$picked_version" nvidia-driver-cuda \
         || echo "[$SCRIPT_INDEX] WARN: driver upgrade failed (continuing to toolkit)." >&2
     installed_version="$(dpkg-query -W -f='${Version}' nvidia-driver 2>/dev/null || true)"
     if [ -n "$installed_version" ] && [ -n "$target_driver" ] \
@@ -291,7 +296,7 @@ OS_ID="$(cnp_os_id)"
 # Step 2: kernel build prerequisites (idempotent; apt is no-op when present).
 if cnp_have apt-get; then
     echo "[$SCRIPT_INDEX] Ensuring kernel build prerequisites (gcc/make/headers/dkms)..."
-    $USE_SUDO apt-get install -y gcc make dkms "linux-headers-$(uname -r)" \
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y gcc make dkms "linux-headers-$(uname -r)" \
         || echo "[$SCRIPT_INDEX] WARN: some build prerequisites could not be installed (continuing)."
 fi
 
@@ -320,7 +325,7 @@ else
             echo "[$SCRIPT_INDEX] Installing NVIDIA driver from the distro repo (nvidia-detect, nvidia-driver)..."
             echo "[$SCRIPT_INDEX] NOTE: requires the 'non-free'/'non-free-firmware' apt components; a REBOOT may be needed for the driver to load."
             cnp_ensure_nonfree_components
-            $USE_SUDO apt-get install -y nvidia-detect nvidia-driver \
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-detect nvidia-driver \
                 || echo "[$SCRIPT_INDEX] WARN: nvidia-driver install failed (enable non-free repos, then re-run). Continuing to toolkit."
             ;;
         ubuntu)

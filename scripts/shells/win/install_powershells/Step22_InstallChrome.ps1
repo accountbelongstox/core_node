@@ -8,6 +8,9 @@ $STEP_NUMBER = 22
 
 # Chrome Application ID
 $CHROME_ID = "Google.Chrome"
+$CHROME_BETA_ID = "Google.Chrome.Beta"
+# Invoke-WingetCommand returns the installed executable's path (found via -Keyword), not a boolean
+$CHROME_EXE_NAME = "chrome.exe"
 
 # Post-install Chrome crash repair script (idempotent) and fallback path
 $scriptsRootDir = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
@@ -24,7 +27,8 @@ function Step22_InstallChrome {
 
     # Check if Chrome is already installed in the custom location
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking Chrome installation..." -Type "Info"
-    if (Test-DirectoryNotEmpty $chromeInstallPath) {
+    $chromeJunctionReady = $false
+    if (Test-Path -LiteralPath (Join-Path $chromeInstallPath "Chrome\Application\$CHROME_EXE_NAME") -PathType Leaf) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome is already installed at $chromeInstallPath" -Type "Success"
         $chromeInstalled = $true
     } else {
@@ -40,7 +44,11 @@ function Step22_InstallChrome {
             catch {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Error checking directory attributes: $($_.Exception.Message)" -Type "Warning"
             }
-            if (-not $isHardLink) {
+            $otherGoogleItems = @(Get-ChildItem -LiteralPath $chromeDefaultPath -Force -ErrorAction SilentlyContinue | Where-Object { @('Chrome', 'Chrome Beta', 'Update', 'CrashReports', 'Temp') -notcontains $_.Name })
+            if (-not $isHardLink -and $otherGoogleItems.Count -gt 0) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] $chromeDefaultPath also holds other Google products ($(($otherGoogleItems | ForEach-Object Name) -join ', ')); Chrome is kept in place" -Type "Warning"
+                $chromeInstalled = $true
+            } elseif (-not $isHardLink) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Removing existing Chrome installation..." -Type "Warning"
                 # Try to uninstall Chrome using winget
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Uninstalling Chrome using winget..." -Type "Warning"
@@ -50,7 +58,7 @@ function Step22_InstallChrome {
                 Remove-Item -Path $chromeDefaultPath -Recurse -Force -ErrorAction SilentlyContinue
             } else {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome directory is already a hard link" -Type "Success"
-                $chromeInstalled = $true
+                $chromeJunctionReady = $true
             }
         }
         if (-not $chromeInstalled) {
@@ -69,7 +77,11 @@ function Step22_InstallChrome {
                     New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
                 }
                 # Create hard link
-                cmd /c mklink /J "$chromeDefaultPath" "$chromeInstallPath"
+                if (-not $chromeJunctionReady) { cmd /c mklink /J "$chromeDefaultPath" "$chromeInstallPath" | Out-Host }
+                if (-not ((Test-Path -LiteralPath $chromeDefaultPath) -and ((Get-Item -LiteralPath $chromeDefaultPath -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint))) {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Junction $chromeDefaultPath was not created; Chrome install skipped (run as administrator)" -Type "Error"
+                    return
+                }
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Created hard link from $chromeDefaultPath to $chromeInstallPath" -Type "Success"
             }
             catch {
@@ -77,7 +89,7 @@ function Step22_InstallChrome {
             }
             # Install Chrome using winget
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Chrome using winget..." -Type "Info"
-            if (Invoke-WingetCommand -Id $CHROME_ID -InstallDir $chromeInstallPath) {
+            if (Invoke-WingetCommand -Id $CHROME_ID -InstallDir $chromeInstallPath -Keyword $CHROME_EXE_NAME) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully installed Chrome" -Type "Success"
             } else {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install Chrome" -Type "Error"
@@ -108,7 +120,8 @@ function Step22_InstallChromeBeta {
     $chromeBetaInstalled = $false
     # Check if Chrome Beta is already installed in the custom location
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking Chrome Beta installation..." -Type "Info"
-    if (Test-DirectoryNotEmpty $chromeBetaInstallPath) {
+    $chromeBetaJunctionReady = $false
+    if (Test-Path -LiteralPath (Join-Path $chromeBetaInstallPath "Application\$CHROME_EXE_NAME") -PathType Leaf) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome Beta is already installed at $chromeBetaInstallPath" -Type "Success"
         $chromeBetaInstalled = $true
     } else {
@@ -128,13 +141,13 @@ function Step22_InstallChromeBeta {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Removing existing Chrome Beta installation..." -Type "Warning"
                 # Try to uninstall Chrome Beta using winget
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Uninstalling Chrome Beta using winget..." -Type "Warning"
-                winget uninstall "Google.Chrome.Beta" --silent
+                winget uninstall $CHROME_BETA_ID --silent
                 # Remove the Chrome Beta directory
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Removing $chromeBetaDefaultPath..." -Type "Warning"
                 Remove-Item -Path $chromeBetaDefaultPath -Recurse -Force -ErrorAction SilentlyContinue
             } else {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome Beta directory is already a hard link" -Type "Success"
-                $chromeBetaInstalled = $true
+                $chromeBetaJunctionReady = $true
             }
         }
         if (-not $chromeBetaInstalled) {
@@ -153,7 +166,11 @@ function Step22_InstallChromeBeta {
                     New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
                 }
                 # Create hard link
-                cmd /c mklink /J "$chromeBetaDefaultPath" "$chromeBetaInstallPath"
+                if (-not $chromeBetaJunctionReady) { cmd /c mklink /J "$chromeBetaDefaultPath" "$chromeBetaInstallPath" | Out-Host }
+                if (-not ((Test-Path -LiteralPath $chromeBetaDefaultPath) -and ((Get-Item -LiteralPath $chromeBetaDefaultPath -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint))) {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Junction $chromeBetaDefaultPath was not created; Chrome Beta install skipped (run as administrator)" -Type "Error"
+                    return
+                }
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Created hard link from $chromeBetaDefaultPath to $chromeBetaInstallPath" -Type "Success"
             }
             catch {
@@ -161,7 +178,7 @@ function Step22_InstallChromeBeta {
             }
             # Install Chrome Beta using winget
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Chrome Beta using winget..." -Type "Info"
-            if (Invoke-WingetCommand -Id "Google.Chrome.Beta" -InstallDir $chromeBetaInstallPath) {
+            if (Invoke-WingetCommand -Id $CHROME_BETA_ID -InstallDir $chromeBetaInstallPath -Keyword $CHROME_EXE_NAME) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully installed Chrome Beta" -Type "Success"
             } else {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install Chrome Beta" -Type "Error"
@@ -186,8 +203,12 @@ function Step22_RepairChromeCompatShim {
     $repairScript = $chromeRepairScript
     if (-not (Test-Path $repairScript)) { $repairScript = $chromeRepairFallback }
     if (Test-Path $repairScript) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript -Quiet
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome crash repair completed" -Type "Success"
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript -Quiet | Out-Host
+        if ($LASTEXITCODE -eq 0) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome crash repair completed" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome crash repair failed (exit $LASTEXITCODE)" -Type "Warning"
+        }
     } else {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome repair script not found (skipped): $repairScript" -Type "Warning"
     }

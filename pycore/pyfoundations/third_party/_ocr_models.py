@@ -94,7 +94,7 @@ def prewarm_det_rec_for_lang(lang: str, use_gpu: bool) -> Tuple[str, Tuple[str, 
 # OCR model presence. CnSTD/CnOCR weights are installed only by the shell
 # prerequisite step CNOCR_INSTALLER; runtime code checks presence and reports.
 # ---------------------------------------------------------------------------
-CNOCR_INSTALLER = "Step46_InstallOcr.ps1 / 125_install_ocr.sh"
+CNOCR_INSTALLER = "Model_Ocr.ps1 / 125_install_ocr.sh"
 
 
 def _legacy_ocr_root(dir_name: str) -> Path:

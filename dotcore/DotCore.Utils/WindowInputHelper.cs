@@ -56,6 +56,12 @@ public static class WindowInputHelper
         return WindowInputNative.SetForegroundWindow(hwnd);
     }
 
+    /// <summary>True when hwnd is the foreground window.</summary>
+    public static bool IsForegroundWindow(IntPtr hwnd) => hwnd != IntPtr.Zero && WindowInputNative.GetForegroundWindow() == hwnd;
+
+    /// <summary>True while the key is physically down (GetAsyncKeyState high bit).</summary>
+    public static bool IsKeyDown(int vk) => (WindowInputNative.GetAsyncKeyState(vk) & 0x8000) != 0;
+
     /// <summary>True if current cursor (screen coords) is inside rect. 1:1 Python is_cursor_in_rect.</summary>
     public static bool IsCursorInRect(int left, int top, int right, int bottom)
     {
@@ -141,6 +147,12 @@ internal static class WindowInputNative
     [DllImport(User32)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport(User32)]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport(User32)]
+    public static extern short GetAsyncKeyState(int vKey);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT

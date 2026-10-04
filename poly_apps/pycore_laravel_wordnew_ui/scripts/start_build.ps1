@@ -1,11 +1,11 @@
 # Capacitor native build entry (Windows) for pycore_laravel_wordnew_ui.
 # This script IMPLEMENTS NO INSTALLATION: every prerequisite repair is delegated
 # to the idempotent DevInstaller steps referenced by FULL PATH (dd.cmd menu):
-#   Step4_InstallNodeJS.ps1              - node + bun
+#   Node_Runtime.ps1              - node + bun
 #   Step8_InstallPython.ps1              - python
 #   Step21_InstallApplications.ps1       - JDK 21 (-ExactPackageName Java -> Oracle.JDK.21,
 #                                          wires JAVA_HOME/JDK_HOME/PATH via ApplicationsList)
-#   Step62_InstallAndroidSdkPackages.ps1 - cmdline-tools + licenses + platform-tools +
+#   Android_SdkPackages.ps1 - cmdline-tools + licenses + platform-tools +
 #                                          platforms;android-36 + build-tools;36.0.0
 # (each step is per-detail idempotent: every component is gated by binary existence)
 # Flow control here uses NO exit codes and NO install functions: progress is judged
@@ -97,10 +97,10 @@ $GlobalVarsScript = Join-Path $WinCommonDir 'GlobalVars.ps1'
 $NssmServiceManagerScript = Join-Path $WinCommonDir 'NssmServiceManager.ps1'
 $AndroidBuildEnvScript = Join-Path $WinCommonDir 'AndroidBuildEnv.ps1'
 $LiveDebugScript = Join-Path $ScriptDir 'flavor\live_debug.py'
-$StepNodeJs = Join-Path $InstallStepsDir 'Step4_InstallNodeJS.ps1'
+$StepNodeJs = Join-Path $InstallStepsDir 'Node_Runtime.ps1'
 $StepPython = Join-Path $InstallStepsDir 'Step8_InstallPython.ps1'
 $StepApplications = Join-Path $InstallStepsDir 'Step21_InstallApplications.ps1'
-$StepAndroidSdk = Join-Path $InstallStepsDir 'Step62_InstallAndroidSdkPackages.ps1'
+$StepAndroidSdk = Join-Path $InstallStepsDir 'Android_SdkPackages.ps1'
 # Project-locals (env toolchain state lives in the central library's $Global: vars)
 $PythonCommand = $null
 $BuildArguments = @()
@@ -644,7 +644,7 @@ if ($AllReady -and $DeviceMode) {
             Invoke-DeviceActions
             if ($AdbActionsOk -or $BuildForInstall) { $BuildOk = $true }
         } else {
-            Write-Err "adb still missing after Step62_InstallAndroidSdkPackages.ps1 (check network/proxy: HTTPS_PROXY)."
+            Write-Err "adb still missing after Android_SdkPackages.ps1 (check network/proxy: HTTPS_PROXY)."
             $AllReady = $false
         }
     }
@@ -657,10 +657,10 @@ if ($AllReady -and $DeviceMode) {
 
 # --- Prerequisite: node + bun (binary gate: bun on PATH) ---
 if ($AllReady -and (-not $DeviceMode) -and (-not (Test-BunReady))) {
-    Write-Info "bun not found. Invoking dd idempotent step (installs node + bun): Step4_InstallNodeJS.ps1"
+    Write-Info "bun not found. Invoking dd idempotent step (installs node + bun): Node_Runtime.ps1"
     Invoke-DevStep -StepPath $StepNodeJs
     if (-not (Test-BunReady)) {
-        Write-Err "bun still missing after Step4_InstallNodeJS.ps1."
+        Write-Err "bun still missing after Node_Runtime.ps1."
         $AllReady = $false
     } else {
         Write-Success "Upgraded the frontend runtime to bun: $((Get-Command bun -ErrorAction SilentlyContinue).Source)"
@@ -709,7 +709,7 @@ if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
         Invoke-DevStep -StepPath $StepAndroidSdk
         Resolve-AndroidBuildSdkRoot
         if (-not (Test-AndroidBuildSdkReady)) {
-            Write-Err "Android SDK packages still missing after Step62_InstallAndroidSdkPackages.ps1 (check network/proxy: HTTPS_PROXY)."
+            Write-Err "Android SDK packages still missing after Android_SdkPackages.ps1 (check network/proxy: HTTPS_PROXY)."
             $AllReady = $false
         }
     }

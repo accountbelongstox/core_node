@@ -15,7 +15,7 @@ from typing import List, Optional, Sequence, Tuple
 from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
-from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.program_material_dirs import get_program_work_dir
 from pycore.pyutils.common.python_env.isolated_venv_runtime import (
     MAIN_INTERPRETER,
     _base_identity_matches,
@@ -608,7 +608,7 @@ def _install_into(
                 prefix="pycore-engine-constraints-",
                 suffix=".txt",
                 delete=False,
-                dir=str(TMP_DIR),
+                dir=str(get_program_work_dir()),
             ) as handle:
                 handle.write("\n".join(constraints) + "\n")
                 constraint_path = Path(handle.name)
@@ -707,7 +707,7 @@ def _ensure_embedded_development_files(base_python: str, venv_python: str) -> bo
     ).is_file():
         ColorPrint.yellow(
             f"[isolated-venv] Python development files missing in {base_dir}; "
-            "run Step13_InstallPython310_312.ps1 before provisioning"
+            "run Python_Isolated310.ps1 before provisioning"
         )
         return False
     for directory in ("include", "libs"):

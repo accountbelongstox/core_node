@@ -31,7 +31,7 @@ $script:GLOBALVARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
 $script:AI_TOOLS_CATALOG_PS1 = Join-Path $script:WIN_COMMON_DIR "AiToolsCatalog.ps1"
 $script:SERVICE_CONTRACT_PS1 = Join-Path $script:WIN_COMMON_DIR "ServiceContract.ps1"
 $script:STARTUP_MANAGER_PS1 = Join-Path $script:WIN_COMMON_DIR "StartupManager.ps1"
-$script:INSTALL_AI_TOOLS_PS1 = Join-Path $script:SCRIPT_DIR "install_powershells\Step65_InstallAiTools.ps1"
+$script:INSTALL_AI_TOOLS_PS1 = Join-Path (Join-Path $script:WIN_DIR "install_powershells") "Step65_InstallAiTools.ps1"
 $script:MCP_STATUS_PS1 = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools\mcp_status.ps1"
 $script:AI_ACTIONS_PS1 = Join-Path $script:PS_CURRENT_DIR "claude_assistant\AIManagementActions.ps1"
 $script:AI_ACTIONS_AVAILABLE = $false
@@ -192,28 +192,10 @@ function Invoke-ChromeMCPBuild {
     }
     Write-ColorMessage -Message "Running Chrome MCP install/setup (all output below is real-time)..." -Type "Info"
     Write-Host ""
-    # Force a fresh recompile for this install (ignore any stale MCP_SKIP_BUILD).
-    Remove-Item Env:\MCP_SKIP_BUILD -ErrorAction SilentlyContinue
-    $ddPython = Get-DDPythonExePathForChrome
-    $prevPythonExe = $env:PYTHON_EXE
-    $prevPath = $env:PATH
-    if ($ddPython -and $Global:PYTHON_DIR -and (Test-Path -LiteralPath $Global:PYTHON_DIR)) {
-        $env:PYTHON_EXE = $ddPython
-        $pythonScriptsDir = Join-Path $Global:PYTHON_DIR "Scripts"
-        if (Test-Path -LiteralPath $pythonScriptsDir) {
-            $env:PATH = "$Global:PYTHON_DIR;$pythonScriptsDir;$env:PATH"
-        }
-    }
-    $prevDir = Get-Location
-    try {
-        Set-Location (Split-Path -Parent (Split-Path -Parent $script:CHROME_MCP_START_PS1))
-        & $script:CHROME_MCP_START_PS1 -Service
-    }
-    finally {
-        Set-Location $prevDir
-        if ($null -ne $prevPythonExe) { $env:PYTHON_EXE = $prevPythonExe } else { Remove-Item -Path env:PYTHON_EXE -ErrorAction SilentlyContinue }
-        $env:PATH = $prevPath
-    }
+    [void](Get-DDPythonExePathForChrome)
+    . (Join-Path $script:WIN_COMMON_DIR "McpChromeBuildCommon.ps1")
+    # An explicit menu action always rebuilds, even after an earlier build in this session.
+    [void](Invoke-McpChromeBuild -Force)
     Write-Host ""
     Write-ColorMessage -Message "Chrome MCP install finished. Now syncing to all AI tools..." -Type "Info"
     Invoke-SyncToAllAITools
@@ -495,8 +477,8 @@ function Show-MCPMenu {
             }
             13 {
                 if ($menuItems[$selectedIndex].IsHeader -ne $true) {
-                    $result = & $menuItems[$selectedIndex].Action
-                    if ($result -eq $true) { return }
+                    if ($menuItems[$selectedIndex].Text -eq 'Back to main menu') { return }
+                    & $menuItems[$selectedIndex].Action | Out-Host
                 }
             }
         }

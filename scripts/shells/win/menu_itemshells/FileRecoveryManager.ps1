@@ -62,9 +62,9 @@ function Install-Dmde {
         return $null
     }
     $packageUrl = $script:DMDE_BASE_URL + $packageLink.href
-    $packageFile = Join-Path $env:TEMP (Split-Path $packageLink.href -Leaf)
+    $packageFile = Join-Path $Global:DOWNLOADS_DIR (Split-Path $packageLink.href -Leaf)
     if (-not (Test-Path $packageFile) -or (Get-Item $packageFile).Length -eq 0) {
-        Invoke-WebRequest -Uri $packageUrl -OutFile $packageFile -UseBasicParsing
+        Get-FileWithSizeCheck -localPath $packageFile -remoteUrl $packageUrl -description "DMDE" | Out-Null
     }
     New-Item -ItemType Directory -Path $script:DMDE_DIR -Force | Out-Null
     Expand-Archive -Path $packageFile -DestinationPath $script:DMDE_DIR -Force
@@ -94,7 +94,7 @@ function Read-RecoveryRequest {
     $requestPattern = $FilePattern
 
     if ([string]::IsNullOrWhiteSpace($requestSource)) {
-        $requestSource = ([string](Read-Host 'Folder or drive the files were deleted from (e.g. D:\applications\Games)')).Trim().Trim('"')
+        $requestSource = ([string](Read-Host 'Folder or drive the files were deleted from (e.g. D:\www\backups)')).Trim().Trim('"')
     }
     if ([string]::IsNullOrWhiteSpace($requestPattern)) {
         $requestPattern = ([string](Read-Host "File name pattern (e.g. *.zip, Enter = $script:DEFAULT_FILE_PATTERN)")).Trim()

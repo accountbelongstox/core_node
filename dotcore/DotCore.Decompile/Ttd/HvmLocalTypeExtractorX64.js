@@ -1,0 +1,107 @@
+"use strict";
+
+function initializeScript() {
+    return [new host.apiVersionSupport(1, 9)];
+}
+
+function readPointer(address) {
+    return host.memory.readMemoryValues(address, 1, 8)[0];
+}
+
+function safeReadPointer(address) {
+    try {
+        return readPointer(address);
+    } catch (_) {
+        return host.parseInt64(0);
+    }
+}
+
+function pointerText(value) {
+    return `0x${value.toString(16)}`;
+}
+
+function parsePosition(value) {
+    if (value === "Min Position") return [0, 0];
+    if (value === "Max Position") return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
+    const parts = value.split(":");
+    return [parseInt(parts[0], 16), parseInt(parts[1], 16)];
+}
+
+function comparePosition(left, right) {
+    return left[0] === right[0] ? left[1] - right[1] : left[0] - right[0];
+}
+
+function findRange(ranges, position) {
+    let best = null;
+    for (const range of ranges) {
+        if (comparePosition(range.Start, position) <= 0 && comparePosition(range.End, position) >= 0
+            && (best === null || comparePosition(range.Start, best.Start) > 0)) {
+            best = range;
+        }
+    }
+    return best;
+}
+
+function writeText(path, text) {
+    const fileSystem = host.namespace.Debugger.Utility.FileSystem;
+    const file = fileSystem.CreateFile(path);
+    const writer = fileSystem.CreateTextWriter(file, "Utf8");
+    try {
+        writer.WriteLine(text);
+    } finally {
+        file.Close();
+    }
+}
+
+function invokeScript() {
+    const outputPath = __OUTPUT_PATH__;
+    const rangeInput = __JIT_RANGES__;
+    const ranges = rangeInput.map(range => ({
+        Index: range.Index,
+        Start: parsePosition(range.StartPosition),
+        End: parsePosition(range.EndPosition),
+        LocalsSignatureInfo: ""
+    }));
+    const jitCalls = host.currentSession.TTD.Calls("clrjit!CILJit::compileMethod");
+    const argTypeCalls = host.currentSession.TTD.Calls("clr!CEEInfo::getArgType");
+    const records = [];
+    const failures = [];
+
+    for (const range of ranges) {
+        try {
+            jitCalls[range.Index].TimeStart.SeekTo();
+            range.LocalsSignatureInfo = pointerText(host.currentThread.Registers.User.r8.add(0x98));
+        } catch (error) {
+            failures.push({ JitCallIndex: range.Index, Message: error.message });
+        }
+    }
+
+    const callCount = Number(argTypeCalls.Count());
+    host.diagnostics.debugLog(`Processing ${callCount} CLR getArgType calls for ${ranges.length} HVM methods.\n`);
+    for (let index = 0; index < callCount; index++) {
+        const startText = argTypeCalls[index].TimeStart.toString();
+        const range = findRange(ranges, parsePosition(startText));
+        if (range === null) continue;
+        try {
+            argTypeCalls[index].TimeStart.SeekTo();
+            const registers = host.currentThread.Registers.User;
+            const signatureInfo = pointerText(registers.rdx);
+            if (signatureInfo !== range.LocalsSignatureInfo) continue;
+            const argumentPointer = registers.r8;
+            const typeHandlePointer = registers.r9;
+            argTypeCalls[index].TimeEnd.SeekTo();
+            records.push({
+                CallIndex: index,
+                JitCallIndex: range.Index,
+                ArgumentPointer: pointerText(argumentPointer),
+                CorInfoType: Number(host.currentThread.Registers.User.eax) >>> 0,
+                TypeHandle: pointerText(safeReadPointer(typeHandlePointer))
+            });
+        } catch (error) {
+            failures.push({ CallIndex: index, JitCallIndex: range.Index, Message: error.message });
+        }
+    }
+
+    writeText(outputPath, JSON.stringify({ Locals: records, Failures: failures }, null, 2));
+    host.diagnostics.debugLog(`Finished HVM local extraction: ${records.length} calls, ${failures.length} failures.\n`);
+}

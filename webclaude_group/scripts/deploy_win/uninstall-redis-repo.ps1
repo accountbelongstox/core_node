@@ -14,6 +14,8 @@ Set-StrictMode -Version Latest
 
 $SERVICE_NAME = "Redis"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$CoreNodeRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ScriptDir))
+$WindowsPathFunctionPath = Join-Path $CoreNodeRoot "scripts\shells\win\win_common\WindowsPathFunction.ps1"
 if (-not $RepoRoot) { $RepoRoot = $env:WEBCLAUDE_SERVICE_ROOT }
 if (-not $RepoRoot -or -not (Test-Path -LiteralPath $RepoRoot)) {
     Write-Host "  [FAIL] Pass -RepoRoot <service-repo> or set WEBCLAUDE_SERVICE_ROOT." -ForegroundColor Red
@@ -42,21 +44,7 @@ function Get-RedisServiceImagePath {
 }
 
 function Remove-RepoRedisFromMachinePath {
-    $dirNorm = [System.IO.Path]::GetFullPath($RepoRedis).TrimEnd('\')
-    $cur = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-    if ([string]::IsNullOrEmpty($cur)) { return }
-    $keep = New-Object System.Collections.Generic.List[string]
-    foreach ($seg in ($cur -split ';')) {
-        if ([string]::IsNullOrWhiteSpace($seg)) { continue }
-        try {
-            $n = [System.IO.Path]::GetFullPath($seg.Trim()).TrimEnd('\')
-            if ($n -ieq $dirNorm) { continue }
-        } catch { }
-        [void]$keep.Add($seg.Trim())
-    }
-    $newPath = [string]::Join(';', $keep)
-    [System.Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    & $WindowsPathFunctionPath remove ([System.IO.Path]::GetFullPath($RepoRedis)) -SkipInit
     Write-Info "Removed repo redis from Machine PATH (if present)."
 }
 

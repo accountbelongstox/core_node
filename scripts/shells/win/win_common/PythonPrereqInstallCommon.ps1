@@ -239,7 +239,7 @@ function Install-TorchYoloBundle {
     $failedRequirements = @()
     $isTorchInstalled = $false
     Write-Host "$LogPrefix Ensuring canonical torch build (CPU/GPU guard)..." -ForegroundColor Yellow
-    Ensure-TorchBuild -PythonCmd $PythonCmd -PipExe $PipExe
+    Ensure-TorchBuild -PythonCmd $PythonCmd -PipExe $PipExe | Out-Host
 
     $isTorchInstalled = Test-TorchBundleInstalled -PythonExe $PythonCmd
     if ($isTorchInstalled) {
@@ -249,7 +249,7 @@ function Install-TorchYoloBundle {
 
     Write-Host "$LogPrefix Installing ultralytics (YOLO) with torch bundle..." -ForegroundColor Yellow
     $torchExtra = Get-TorchExtraIndexArgs
-    & $PipExe install @torchExtra @yoloBundle
+    & $PipExe install @torchExtra @yoloBundle | Out-Host
 
     $isTorchInstalled = Test-TorchBundleInstalled -PythonExe $PythonCmd
     if ($isTorchInstalled) {
@@ -281,7 +281,7 @@ function Install-PaddleOcrBundle {
     $failedRequirements = @()
     $isPaddleInstalled = $false
     Write-Host "$LogPrefix Ensuring canonical paddle build (CPU/GPU guard)..." -ForegroundColor Yellow
-    Ensure-PaddleBuild -PythonCmd $PythonCmd -PipExe $PipExe
+    Ensure-PaddleBuild -PythonCmd $PythonCmd -PipExe $PipExe | Out-Host
 
     $isPaddleInstalled = Test-DepsBundleInstalled -PythonExe $PythonCmd
     if ($isPaddleInstalled) {
@@ -290,7 +290,7 @@ function Install-PaddleOcrBundle {
     }
 
     Write-Host "$LogPrefix Installing paddleocr + paddlex + backend deps (single resolver pass from PyPI)..." -ForegroundColor Yellow
-    & $PipExe install -i $script:PypiDefaultIndex @packages
+    & $PipExe install -i $script:PypiDefaultIndex @packages | Out-Host
 
     $isPaddleInstalled = Test-DepsBundleInstalled -PythonExe $PythonCmd
     if ($isPaddleInstalled) {
@@ -335,7 +335,7 @@ function Invoke-PythonPrereqInstall {
     $PythonCmd = Resolve-PrereqPythonExe -PreferredPath $PreferredPythonPath
     if (-not $PythonCmd) {
         Write-Host "$LogPrefix [ERROR] no Python $($Global:PYTHON_VERSION) found at $($Global:PYTHON_EXE_PATH)." -ForegroundColor Red
-        Write-Host "$LogPrefix        Run Step8_InstallDefaultPython.ps1 first." -ForegroundColor Red
+        Write-Host "$LogPrefix        Run Python_Default.ps1 first." -ForegroundColor Red
         throw 'Canonical Python interpreter is unavailable.'
     }
 
@@ -350,7 +350,7 @@ function Invoke-PythonPrereqInstall {
 
     if (-not $PipExe -or -not (Test-Path -LiteralPath $PipExe)) {
         Write-Host "$LogPrefix [ERROR] pip is not available for $PythonCmd." -ForegroundColor Red
-        Write-Host "$LogPrefix        Run Step8_InstallDefaultPython.ps1 first." -ForegroundColor Red
+        Write-Host "$LogPrefix        Run Python_Default.ps1 first." -ForegroundColor Red
         throw 'Canonical pip executable is unavailable.'
     }
 

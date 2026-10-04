@@ -15,10 +15,11 @@ $item = @{
     Title = 'Start Docker After Installation'
     Var   = 'START_DOCKER'
     Values = @('false','true')
-    Presets = @{ base = 'false'; server = 'true'; full = 'true'; desktop = 'false' }
+    Presets = @{ desktop = 'true'; server = 'true' }
     Steps = @(
-        'Step29_InstallWSL.ps1'
-        'Step30_InstallWSLDebian13.ps1'
+        'Wsl_Install.ps1'
+        'Wsl_Debian13.ps1'
+        'Wsl_RootLogin.ps1'
     )
 }
 

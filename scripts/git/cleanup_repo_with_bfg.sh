@@ -10,8 +10,13 @@ PROJECT_ROOT="$(dirname "$SCRIPTS_DIR")"
 ARROW_MENU_SCRIPT="$PROJECT_ROOT/scripts/shells/linux/common/arrow_menu.sh"
 
 USER_HOME="${HOME}"
-# Centralized per-user state dir (CORE_NODE_DATA_DIR, default /var/_core_node).
-TOOLS_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/tools"
+SERVICE_CONTRACT_SCRIPT="$PROJECT_ROOT/scripts/shells/linux/common/service_contract_common.sh"
+# Tool download dir: ext4 contract cache root (cache_root.linux), never the
+# NTFS data share; falls back to the user cache when the contract is unreadable.
+TOOLS_DIR=""
+source "$SERVICE_CONTRACT_SCRIPT"
+TOOLS_DIR="$(sc_get paths.drive_layout.cache_root.linux)"
+TOOLS_DIR="${TOOLS_DIR:-${USER_HOME}/.cache/core_node}/tools"
 BFG_JAR="${TOOLS_DIR}/bfg.jar"
 BFG_URL="https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar"
 
@@ -34,7 +39,7 @@ ensure_bfg_downloaded() {
         echo ""
         echo -e "${BLUE}Downloading BFG Repo-Cleaner to ${TOOLS_DIR}...${NC}"
 
-        mkdir -p "$TOOLS_DIR"
+        mkdir -p "$TOOLS_DIR" 2>/dev/null || { sudo mkdir -p "$TOOLS_DIR" && sudo chmod 1777 "$TOOLS_DIR"; }
 
         if command -v wget &> /dev/null; then
             wget -O "$BFG_JAR" "$BFG_URL"

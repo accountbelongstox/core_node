@@ -14,12 +14,17 @@ SCRIPT_INDEX="123"
 # --force). Never fails the sweep fatally - a download hiccup leaves pycore on
 # Google-only translation (the dictionary degrades gracefully).
 #
-# Invocation (prepare_pycore_prerequisites.sh):  install_dictionaries.sh --python <py> [--force]
+# Invocation (prepare_pycore_prerequisites.sh):  123_install_dictionaries.sh --python <py> [--force]
 # Env overrides: ECDICT_SQLITE_URL (mirror), ECDICT_DB_PATH (final db path).
 set -uo pipefail
 
 PYTHON="python3"
 FORCE=0
+# Download + extraction scratch: system temp (ext4), never next to the final
+# db, whose pycore_db dir is on the NTFS share on a dual-boot machine.
+WORK_DIR=""
+ARCHIVE=""
+TMP_EXTRACT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -54,7 +59,6 @@ DICT_DIR="$(dirname "$DB_PATH")"
 
 # skywind3000/ECDICT prebuilt SQLite release (the stardict.db).
 ECDICT_URL="${ECDICT_SQLITE_URL:-https://github.com/skywind3000/ECDICT/releases/download/1.0.28/ecdict-sqlite-28.zip}"
-ARCHIVE="$DICT_DIR/ecdict-sqlite.zip"
 
 echo "[dictionaries] target db: $DB_PATH"
 mkdir -p "$DICT_DIR"
@@ -81,7 +85,10 @@ if [[ "$FORCE" -eq 0 ]] && verify_db "$DB_PATH"; then
     echo "[dictionaries] ECDICT already installed (skip; --force to re-download)"
 else
     echo "[dictionaries] downloading ECDICT SQLite from: $ECDICT_URL"
-    rm -f "$ARCHIVE"
+    WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ecdict.XXXXXX")" || WORK_DIR=""
+    [[ -n "$WORK_DIR" ]] || { echo "[dictionaries] ERROR: cannot create a temp dir"; exit 0; }
+    ARCHIVE="$WORK_DIR/ecdict-sqlite.zip"
+    TMP_EXTRACT="$WORK_DIR/extract"
     if command -v curl >/dev/null 2>&1; then
         curl -fL --retry 3 -C - -o "$ARCHIVE" "$ECDICT_URL" || curl -fL -o "$ARCHIVE" "$ECDICT_URL" || true
     elif command -v wget >/dev/null 2>&1; then
@@ -92,8 +99,7 @@ else
 
     if [[ -f "$ARCHIVE" ]]; then
         echo "[dictionaries] extracting..."
-        TMP_EXTRACT="$DICT_DIR/.ecdict_extract"
-        rm -rf "$TMP_EXTRACT"; mkdir -p "$TMP_EXTRACT"
+        mkdir -p "$TMP_EXTRACT"
         if command -v unzip >/dev/null 2>&1; then
             unzip -o -q "$ARCHIVE" -d "$TMP_EXTRACT" || true
         else
@@ -104,8 +110,8 @@ else
         if [[ -n "$FOUND_DB" ]]; then
             mv -f "$FOUND_DB" "$DB_PATH"
         fi
-        rm -rf "$TMP_EXTRACT" "$ARCHIVE"
     fi
+    rm -rf "$WORK_DIR"
 
     if verify_db "$DB_PATH"; then
         echo "[dictionaries] ECDICT installed OK -> $DB_PATH"

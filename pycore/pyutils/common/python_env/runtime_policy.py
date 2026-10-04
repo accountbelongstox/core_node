@@ -428,7 +428,7 @@ def _registered_python_path(version: str) -> str:
     Resolution order (never the host 3.13 interpreter):
       1. PYTHON310_EXE_PATH environment variable (launcher-provided)
       2. pygvar file store key PYTHON310_EXE_PATH (written by the platform
-         installers: Step13_InstallPython310_312.ps1 / 14_install_python310.sh)
+         installers: Python_Isolated310.ps1 / 14_install_python310.sh)
     """
     runtime_name = f"python{version.replace('.', '')}"
     runtime_key = f"{runtime_name.upper()}_EXE_PATH"

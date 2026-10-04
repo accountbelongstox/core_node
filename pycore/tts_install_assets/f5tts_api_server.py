@@ -40,7 +40,7 @@ app = FastAPI()
 _f5 = None
 _device = None
 _load_error = None
-_INSTALLER = tts_server_common.installer_step("135_install_f5tts.sh", "Step53_InstallF5Tts.ps1")
+_INSTALLER = tts_server_common.installer_step("135_install_f5tts.sh", "Model_F5Tts.ps1")
 
 
 def _resolve_device():

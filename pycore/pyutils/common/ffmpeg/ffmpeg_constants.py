@@ -2,6 +2,8 @@ import os
 import re
 from pathlib import Path
 
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
+
 
 NUMBER_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
 FRACTION_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?/-?\d+(?:\.\d+)?$")
@@ -44,7 +46,7 @@ DEFAULT_PROGRESS_FILL_COLOR = "#4DA3FF"
 DEFAULT_PROGRESS_BAR_HEIGHT = 24
 LINUX_BINARY_DIRECTORIES = (Path("/usr/local/bin"), Path("/usr/bin"), Path("/bin"))
 WINDOWS_INSTALL_ROOTS = (
-    Path("D:/applications/FFmpeg"),
+    get_windows_program_dir("app_root") / "FFmpeg",
     Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "ffmpeg",
     Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "ffmpeg",
     Path.home() / "scoop" / "shims",

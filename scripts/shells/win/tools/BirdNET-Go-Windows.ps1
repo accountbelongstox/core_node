@@ -45,6 +45,7 @@ $script:NETBIRD_SETUP_KEY = @(
     'C71AEA9911A6'
 ) -join '-'
 
+$script:GLOBAL_VARS_PS1 = Join-Path (Split-Path -Parent $PSScriptRoot) 'win_common\GlobalVars.ps1'
 $script:WINDOWS_OS_FOLDER_NAME = $null
 $script:COMPILER_PROGRAMS_ROOT = $null
 $script:INSTALL_ROOT_RESOLVED = $null
@@ -76,36 +77,6 @@ function Get-WindowsOsFolderName {
         return 'win10'
     }
     return 'windows'
-}
-
-function Resolve-CompilerProgramsRootOnDriveD {
-    $osFolder = Get-WindowsOsFolderName
-    $driveRoot = 'D:\'
-    if (-not (Test-Path -LiteralPath $driveRoot)) {
-        throw 'Drive D: is not available.'
-    }
-    $preferred = Join-Path $driveRoot (".dev_$osFolder")
-    if (Test-Path -LiteralPath $preferred) {
-        return $preferred
-    }
-    $dirs = @(Get-ChildItem -LiteralPath $driveRoot -Directory -Force -ErrorAction SilentlyContinue)
-    foreach ($d in $dirs) {
-        if ($d.Name -match '^\.dev_(win10|win11|windows)$') {
-            return $d.FullName
-        }
-    }
-    foreach ($d in $dirs) {
-        if ($d.Name -match '^\.dev') {
-            return $d.FullName
-        }
-    }
-    foreach ($d in $dirs) {
-        $n = $d.Name.ToLowerInvariant()
-        if ($n -match '^(devtools|programs|tools|sdk|bin|dist|build)$') {
-            return $d.FullName
-        }
-    }
-    return $preferred
 }
 
 function Get-LatestGitHubReleaseAssetUrl {
@@ -277,21 +248,12 @@ function Invoke-NetbirdUpConfigured {
 }
 
 $script:WINDOWS_OS_FOLDER_NAME = Get-WindowsOsFolderName
-try {
-    $script:COMPILER_PROGRAMS_ROOT = Resolve-CompilerProgramsRootOnDriveD
-}
-catch {
-    Write-Host "COMPILER_PROGRAMS_ROOT: failed ($($_.Exception.Message))"
-    $script:COMPILER_PROGRAMS_ROOT = $null
-}
-
-if ($null -eq $script:COMPILER_PROGRAMS_ROOT) {
-    Add-Step 'Paths: compiler/programs root on D:' $false 'Drive D: or resolver failed'
-}
-else {
-    Ensure-Directory -Path $script:COMPILER_PROGRAMS_ROOT
-    Add-Step 'Paths: compiler/programs root on D:' $true $script:COMPILER_PROGRAMS_ROOT
-}
+. $script:GLOBAL_VARS_PS1
+if (-not (Get-Command Get-FileWithSizeCheck -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $script:GLOBAL_VARS_PS1) 'CommonFunc.ps1') }
+$ErrorActionPreference = 'Continue'
+$script:COMPILER_PROGRAMS_ROOT = $Global:LANG_COMPILER_DIR
+Ensure-Directory -Path $script:COMPILER_PROGRAMS_ROOT
+Add-Step 'Paths: compiler/programs root' $true $script:COMPILER_PROGRAMS_ROOT
 
 if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
     if ($null -eq $script:COMPILER_PROGRAMS_ROOT) {
@@ -331,11 +293,10 @@ if (-not $needDownload -and $birdnetExe) {
 elseif ($hasTar -and $hasNet) {
     try {
         $rel = Get-LatestGitHubReleaseAssetUrl -OwnerRepo 'tphakala/birdnet-go' -AssetNamePattern '^birdnet-go-windows-amd64\.tar\.gz$'
-        $gz = Join-Path $env:TEMP $rel.Name
-        if ($ForceRefresh -or -not (Test-Path -LiteralPath $gz)) {
-            Invoke-WebRequest -Uri $rel.Url -OutFile $gz -UseBasicParsing
-        }
-        $stage = Join-Path $env:TEMP ('birdnet-go-stage-' + [Guid]::NewGuid().ToString('N'))
+        $gz = Join-Path $Global:DOWNLOADS_DIR $rel.Name
+        if ($ForceRefresh -and (Test-Path -LiteralPath $gz)) { Remove-Item -LiteralPath $gz -Force }
+        Get-FileWithSizeCheck -localPath $gz -remoteUrl $rel.Url -description $rel.Name | Out-Null
+        $stage = Join-Path $Global:WORK_DIR ('birdnet-go-stage-' + [Guid]::NewGuid().ToString('N'))
         Ensure-Directory -Path $stage
         Expand-TarGz -ArchivePath $gz -Destination $stage
         $found = Find-BirdnetExe -Root $stage
@@ -378,11 +339,10 @@ else {
 if ($hasNet) {
     try {
         $tf = Get-LatestGitHubReleaseAssetUrl -OwnerRepo 'tphakala/tflite_c' -AssetNamePattern '^tflite_c_v[\d\.]+_windows_amd64\.zip$'
-        $zipPath = Join-Path $env:TEMP $tf.Name
-        if ($ForceRefresh -or -not (Test-Path -LiteralPath $zipPath)) {
-            Invoke-WebRequest -Uri $tf.Url -OutFile $zipPath -UseBasicParsing
-        }
-        $tfStage = Join-Path $env:TEMP ('tflite-stage-' + [Guid]::NewGuid().ToString('N'))
+        $zipPath = Join-Path $Global:DOWNLOADS_DIR $tf.Name
+        if ($ForceRefresh -and (Test-Path -LiteralPath $zipPath)) { Remove-Item -LiteralPath $zipPath -Force }
+        Get-FileWithSizeCheck -localPath $zipPath -remoteUrl $tf.Url -description $tf.Name | Out-Null
+        $tfStage = Join-Path $Global:WORK_DIR ('tflite-stage-' + [Guid]::NewGuid().ToString('N'))
         Ensure-Directory -Path $tfStage
         Expand-Zip -ArchivePath $zipPath -Destination $tfStage
         Copy-TfliteDlls -DllSourceDir $tfStage -TargetDir $exeDir

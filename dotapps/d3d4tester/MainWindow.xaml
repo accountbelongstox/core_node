@@ -6,6 +6,7 @@
         xmlns:d4="clr-namespace:DotApps.d3d4tester.Pages.D4"
         xmlns:calibration="clr-namespace:DotApps.d3d4tester.Pages.Calibration"
         xmlns:runlog="clr-namespace:DotApps.d3d4tester.Pages.RunLog"
+        xmlns:decompile="clr-namespace:DotApps.d3d4tester.Pages.Decompile"
         xmlns:battlenet="clr-namespace:DotApps.d3d4tester.Pages.Battlenet"
         xmlns:components="clr-namespace:DotApps.d3d4tester.Components"
         Title="D3D4Tester"
@@ -40,6 +41,9 @@
       </TabItem>
       <TabItem x:Name="TabBattlenet" Header="Battle.net">
         <battlenet:BattlenetPage/>
+      </TabItem>
+      <TabItem x:Name="TabDecompile" Header="Decompile">
+        <decompile:DecompilePage/>
       </TabItem>
       <TabItem x:Name="TabLog" Header="Log">
         <runlog:RunLogPage/>

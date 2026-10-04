@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 """Static launcher application catalog: Windows/Linux definitions, process names, Chrome paths."""
 
+import ntpath
 import sys
 from pathlib import Path
+
+from pycore.pyfoundations.core_node_dirs import get_windows_program_dir
+
+WINDOWS_APP_INSTALL_DIR = str(get_windows_program_dir('app_root'))
 
 # Linux app resolution (Debian/Ubuntu/Kali). The APP_DEFINITIONS below are all
 # Windows paths/exe names, so on Linux each app resolves through this ordered
@@ -169,7 +174,7 @@ LINUX_PROCESS_NAMES = {
 # Chrome-related constants (shared between chrome and chrome_beta)
 CHROME_EXE_NAMES = ['chrome.exe', 'GoogleChrome.exe']
 CHROME_SEARCH_PATHS = [
-    'D:\\applications',
+    WINDOWS_APP_INSTALL_DIR,
     'C:\\Users\\{username}\\AppData\\Local\\Programs',
     'C:\\Program Files\\Google\\Chrome',
     'C:\\Program Files (x86)\\Google\\Chrome'
@@ -179,7 +184,7 @@ CHROME_STANDARD_PATHS = [
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
 ]
 CHROME_PORTABLE_APPLICATION_DIR = Path(
-    r'D:\applications\Chrome\Chrome\Application')
+    ntpath.join(WINDOWS_APP_INSTALL_DIR, 'Chrome', 'Chrome', 'Application'))
 CHROME_PORTABLE_EXE = CHROME_PORTABLE_APPLICATION_DIR / 'chrome.exe'
 CHROME_BETA_KEYWORDS = ['Beta', 'beta', 'BETA']
 CHROME_CANARY_KEYWORDS = ['Canary', 'canary', 'CANARY']
@@ -208,12 +213,12 @@ APP_DEFINITIONS = {
         'version': 'beta'  # Always beta for chrome_beta
     },
     # Antigravity (Google agentic IDE) replaces the former cursor slot.
-    # Primary: D:\applications\Antigravity; fallback: recursive search of the
+    # Primary: <APP_INSTALL_DIR>\Antigravity; fallback: recursive search of the
     # C-drive default install directories (per-user Programs then Program Files).
     'antigravity': {
         'names': ['Antigravity.exe', 'antigravity.exe'],
         'search_paths': [
-            'D:\\applications\\Antigravity',
+            ntpath.join(WINDOWS_APP_INSTALL_DIR, 'Antigravity'),
             'C:\\Users\\{username}\\AppData\\Local\\Programs\\Antigravity',
             'C:\\Program Files\\Antigravity',
             'C:\\Program Files (x86)\\Antigravity'
@@ -224,7 +229,7 @@ APP_DEFINITIONS = {
     'devin': {
         'names': ['Windsurf.exe', 'windsurf.exe', 'Devin.exe', 'devin.exe'],
         'search_paths': [
-            'D:\\applications',
+            WINDOWS_APP_INSTALL_DIR,
             'C:\\Users\\{username}\\AppData\\Local\\Programs\\Windsurf',
             'C:\\Users\\{username}\\AppData\\Local\\Programs\\Devin'
         ]
@@ -232,14 +237,14 @@ APP_DEFINITIONS = {
     'edge': {
         'names': CHROME_EXE_NAMES,
         'search_paths': [
-            r'D:\applications\Chrome\Chrome\Application'
+            ntpath.join(WINDOWS_APP_INSTALL_DIR, 'Chrome', 'Chrome', 'Application')
         ]
     },
     'wechat': {
         'names': ['Weixin.exe', 'WeChat.exe', 'wechat.exe'],
         'search_paths': [
             'C:\\Program Files\\Tencent\\Weixin',
-            'D:\\applications',
+            WINDOWS_APP_INSTALL_DIR,
             'C:\\Program Files\\Tencent\\WeChat',
             'C:\\Users\\{username}\\AppData\\Roaming\\Tencent\\WeChat'
         ]
@@ -247,7 +252,7 @@ APP_DEFINITIONS = {
     'qq': {
         'names': ['QQ.exe', 'qq.exe'],
         'search_paths': [
-            'D:\\applications',
+            WINDOWS_APP_INSTALL_DIR,
             'C:\\Program Files\\Tencent\\QQ',
             'C:\\Users\\{username}\\AppData\\Roaming\\Tencent\\QQ'
         ]
@@ -255,7 +260,7 @@ APP_DEFINITIONS = {
     'notepad++': {
         'names': ['notepad++.exe', 'Notepad++.exe'],
         'search_paths': [
-            'D:\\applications',
+            WINDOWS_APP_INSTALL_DIR,
             'C:\\Program Files\\Notepad++',
             'C:\\Program Files (x86)\\Notepad++'
         ]
@@ -263,7 +268,7 @@ APP_DEFINITIONS = {
     'vscode': {
         'names': ['code.exe', 'Code.exe'],
         'search_paths': [
-            'D:\\applications',
+            WINDOWS_APP_INSTALL_DIR,
             'C:\\Users\\{username}\\AppData\\Local\\Programs\\Microsoft VS Code',
             'C:\\Program Files\\Microsoft VS Code'
         ]
@@ -273,7 +278,7 @@ APP_DEFINITIONS = {
     'cursor': {
         'names': ['Cursor.exe', 'cursor.exe'],
         'search_paths': [
-            'D:\\applications\\Cursor',
+            ntpath.join(WINDOWS_APP_INSTALL_DIR, 'Cursor'),
             'C:\\Users\\{username}\\AppData\\Local\\Programs\\cursor',
             'C:\\Program Files\\Cursor'
         ]

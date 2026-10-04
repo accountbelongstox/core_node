@@ -23,8 +23,8 @@ $script:DOCKER_BRIDGE_VHD_HEADROOM_GB = 20
 $script:DOCKER_BRIDGE_TERMINATE_SETTLE_SEC = 3
 $script:DOCKER_BRIDGE_LXSS_KEY = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss'
 $script:DOCKER_BRIDGE_LONG_PATH_PREFIX = '\\?\'
-$script:DOCKER_BRIDGE_STEP30_DIR = 'scripts\shells\win\install_powershells'
-$script:DOCKER_BRIDGE_STEP30_FILE = 'Step30_InstallWSLDebian13.ps1'
+$script:DOCKER_BRIDGE_WSL_DEBIAN_DIR = 'scripts\shells\win\install_powershells'
+$script:DOCKER_BRIDGE_WSL_DEBIAN_FILE = 'Wsl_Debian13.ps1'
 $script:DOCKER_MODEL_RUNNER_SUBPATH = @('scripts', 'shells', 'linux', 'debian', 'install_shells', 'docker_model_runner.sh')
 $script:DOCKER_MODEL_DEFINITION_DIR = 'scripts\shells\docker_compose\tts'
 $script:DOCKER_MODEL_DEFINITION_FILE = 'model.sh'
@@ -33,6 +33,7 @@ $script:DOCKER_MODEL_RESULT_TAG = '[docker-model] RESULT'
 $script:DOCKER_MODEL_RESTART_REASON = 'restart-required'
 $script:DOCKER_MODEL_PROVIDER = 'wsl_engine'
 $script:DOCKER_MODEL_DEVICE_VAR_SUFFIX = '_DEVICE'
+$script:DOCKER_MODEL_CLOUD_PROVIDER_VAR = 'CLOUD_PROVIDER'
 $script:DockerBridgeWslSucceeded = $false
 $script:DockerBridgeResultLines = @()
 $script:DockerBridgeRestartRequired = $false
@@ -200,13 +201,13 @@ function script:Stop-DockerModelWslDistro {
     Write-Host ("{0} terminated WSL distro '{1}'; host free RAM {2:N2} GB -> {3:N2} GB (freed {4:N2} GB)." -f $Prefix, $Distro, $freeBefore, $freeAfter, ($freeAfter - $freeBefore))
 }
 
-function script:Invoke-DockerBridgeStep30 {
+function script:Invoke-DockerBridgeWslDebian {
     param([string]$CoreNodeRoot, [string]$Distro, [string]$InstallDir, [string]$Prefix)
-    $step30 = Join-Path (Join-Path $CoreNodeRoot $script:DOCKER_BRIDGE_STEP30_DIR) $script:DOCKER_BRIDGE_STEP30_FILE
-    $step30Args = @{ Action = 'install'; DistroName = $Distro }
-    if ($InstallDir) { $step30Args['InstallDir'] = $InstallDir }
-    Write-Host "$Prefix dispatching $($script:DOCKER_BRIDGE_STEP30_FILE) for WSL distro '$Distro' ..." -ForegroundColor Yellow
-    & $step30 @step30Args | Where-Object { $_ -isnot [bool] } | Out-Host
+    $wslDebianScript = Join-Path (Join-Path $CoreNodeRoot $script:DOCKER_BRIDGE_WSL_DEBIAN_DIR) $script:DOCKER_BRIDGE_WSL_DEBIAN_FILE
+    $wslDebianArgs = @{ Action = 'install'; DistroName = $Distro }
+    if ($InstallDir) { $wslDebianArgs['InstallDir'] = $InstallDir }
+    Write-Host "$Prefix dispatching $($script:DOCKER_BRIDGE_WSL_DEBIAN_FILE) for WSL distro '$Distro' ..." -ForegroundColor Yellow
+    & $wslDebianScript @wslDebianArgs | Where-Object { $_ -isnot [bool] } | Out-Host
 }
 
 function Initialize-WslHostCompute {
@@ -377,7 +378,7 @@ function Initialize-DockerModelWslDistro {
 
     if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
         Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'wsl_missing_run_Step29'
-        Write-Host "$Prefix [!] wsl.exe is not available; run Step29_InstallWSL.ps1 (it needs a reboot), then re-run this step." -ForegroundColor DarkYellow
+        Write-Host "$Prefix [!] wsl.exe is not available; run Wsl_Install.ps1 (it needs a reboot), then re-run this step." -ForegroundColor DarkYellow
         return $null
     }
     if (-not (Initialize-WslHostCompute -Prefix $Prefix)) { return $null }
@@ -391,7 +392,7 @@ function Initialize-DockerModelWslDistro {
             Write-Host "$Prefix [!] WSL distro '$Distro' is not registered; run an ensure first." -ForegroundColor DarkYellow
             return $null
         }
-        Invoke-DockerBridgeStep30 -CoreNodeRoot $CoreNodeRoot -Distro $Distro -Prefix $Prefix
+        Invoke-DockerBridgeWslDebian -CoreNodeRoot $CoreNodeRoot -Distro $Distro -Prefix $Prefix
         if (@(Get-WslDistroList) -notcontains $Distro) {
             Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'wsl_distro_missing_run_Step30'
             Write-Host "$Prefix [!] WSL distro '$Distro' is still missing after Step30; resolve it, then re-run this step." -ForegroundColor DarkYellow
@@ -415,7 +416,7 @@ function Initialize-DockerModelWslDistro {
                 return $null
             }
             $sideDiskDir = Join-Path $Global:WSL_DISK_DIR $script:DOCKER_BRIDGE_SIDE_DISK_SUBDIR
-            Invoke-DockerBridgeStep30 -CoreNodeRoot $CoreNodeRoot -Distro $Distro -InstallDir $sideDiskDir -Prefix $Prefix
+            Invoke-DockerBridgeWslDebian -CoreNodeRoot $CoreNodeRoot -Distro $Distro -InstallDir $sideDiskDir -Prefix $Prefix
         }
         $versionId = Get-WslDistroVersionId -Distro $Distro
         if ($versionId -ne $script:DOCKER_BRIDGE_REQUIRED_VERSION_ID) {
@@ -470,16 +471,25 @@ function script:Invoke-DockerModelRunnerAction {
     $tagIndex = -1
     $deviceVar = ('{0}{1}' -f $Model.ToUpperInvariant(), $script:DOCKER_MODEL_DEVICE_VAR_SUFFIX)
     $previousWslEnv = $env:WSLENV
+    $previousCloudProvider = [Environment]::GetEnvironmentVariable($script:DOCKER_MODEL_CLOUD_PROVIDER_VAR, 'Process')
+    $cloudProvider = [string](Get-GlobalVar -key $script:DOCKER_MODEL_CLOUD_PROVIDER_VAR -defaultValue '')
+    $forwardedVars = @($previousWslEnv)
 
     $script:DockerBridgeRestartRequired = $false
     if (Get-Item -LiteralPath ('Env:{0}' -f $deviceVar) -ErrorAction SilentlyContinue) {
-        $env:WSLENV = (@($previousWslEnv, $deviceVar) | Where-Object { $_ }) -join ':'
+        $forwardedVars += $deviceVar
     }
+    if ($cloudProvider) {
+        [Environment]::SetEnvironmentVariable($script:DOCKER_MODEL_CLOUD_PROVIDER_VAR, $cloudProvider, 'Process')
+        $forwardedVars += $script:DOCKER_MODEL_CLOUD_PROVIDER_VAR
+    }
+    $env:WSLENV = ($forwardedVars | Where-Object { $_ }) -join ':'
     Write-Host "$Prefix dispatching: wsl.exe --distribution $Distro --user root --exec bash $RunnerPath $Action $Model $WslStaging"
     try {
         Invoke-DockerBridgeRunnerProcess -Arguments @('--distribution', $Distro, '--user', 'root', '--exec', 'bash', $RunnerPath, $Action, $Model, $WslStaging)
     } finally {
         $env:WSLENV = $previousWslEnv
+        [Environment]::SetEnvironmentVariable($script:DOCKER_MODEL_CLOUD_PROVIDER_VAR, $previousCloudProvider, 'Process')
     }
     foreach ($line in $script:DockerBridgeResultLines) {
         $tagIndex = $line.IndexOf($script:DOCKER_MODEL_RESULT_TAG)

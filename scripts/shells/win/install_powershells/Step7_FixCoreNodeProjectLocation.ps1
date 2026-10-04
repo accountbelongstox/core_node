@@ -188,7 +188,7 @@ function Main-FixProjectLocation {
         $gitExePath = $Global:GIT_EXE_PATH
         if (-not (Test-Path $gitExePath)) {
             Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Git not found at $gitExePath" -Type "Error"
-            Write-ColorMessage -Message "$SCRIPT_INDEX Please install Git first using Step6_InstallGit.ps1" -Type "Error"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Please install Git first using Git_Install.ps1" -Type "Error"
             return
         }
 

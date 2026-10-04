@@ -2,7 +2,7 @@
 SCRIPT_INDEX="187"
 
 # Android SDK build packages for Capacitor/AGP builds (headless, no Android Studio
-# required). Linux counterpart of Step62_InstallAndroidSdkPackages.ps1.
+# required). Linux counterpart of Android_SdkPackages.ps1.
 # IDEMPOTENT PER DETAIL - every component is gated by BINARY EXISTENCE and repaired
 # only when missing. Packages must be SDK-manager-recognized (package.xml present);
 # unrecognized ones (e.g. Debian apt `adb`) are replaced through sdkmanager:

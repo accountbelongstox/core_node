@@ -85,6 +85,20 @@ public sealed class D4ViewModel : BaseViewModel
             _coordsTile, _sizeTile, _switchCountTile, _switchStateTile,
         };
         _toggleExpFarmingCommand = new RelayCommand(() => _ = ToggleExpFarmingAsync(), () => !IsBusy);
+        Application.Current?.Dispatcher.BeginInvoke(() => _ = RestoreRunningAsync(), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>Resume EXP farming at startup when d4_settings.exp_farming_running was saved as on and D4 is running (Python only wrote the flag).</summary>
+    private async Task RestoreRunningAsync()
+    {
+        if (!D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.D4SettingsExpFarmingRunning, false) || D4Controller.Instance.IsExpFarmingRunning()) return;
+        if (!await Task.Run(() => D4Manager.Instance.IsRunning()))
+        {
+            ColorPrinter.Gray($"{LogPrefix} EXP farming was running last time, but D4 is not running; not restoring");
+            return;
+        }
+        ColorPrinter.Blue($"{LogPrefix} Restoring EXP farming (was running last time)");
+        await StartExpFarmingAsync();
     }
 
     public ObservableCollection<D4StatusTileViewModel> Tiles { get; }

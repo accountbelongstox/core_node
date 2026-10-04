@@ -33,6 +33,7 @@ from pycore.pyfoundations.system_info import (
 from pycore.pyfoundations.pygvar import CACHE_DIR, PROJECT_ROOT, TMP_DIR
 from pycore.pyfoundations.core_node_dirs import (
     get_core_node_data_dir as _get_core_node_data_dir,
+    get_windows_program_dir,
     www_data_root_mounted,
 )
 from pycore.pyfoundations.disk_mounts import (
@@ -235,7 +236,9 @@ def apply_shared_cache_env() -> None:
         ('HF_HUB_CACHE', str(hf_hub)),
         ('HUGGINGFACE_HUB_CACHE', str(hf_hub)),
         ('TORCH_HOME', str(shared / 'torch')),
-        ('PIP_CACHE_DIR', str(shared / 'pip')),
+        # No PIP_CACHE_DIR: pip's cache is a per-OS package cache, never the shared
+        # tree; the shells set it (Windows program drive, Linux ext4) and pip's own
+        # global.cache-dir config covers processes started elsewhere.
         ('WHISPER_CACHE_DIR', str(shared / 'whisper')),
         ('XDG_CACHE_HOME', str(xdg_home)),
     )
@@ -298,12 +301,12 @@ def get_core_node_root() -> Path:
 def get_lang_compiler_dir() -> Path:
     r"""Language/runtime install base (where pythonNNN, node-vX, etc. live).
 
-    Mirrors GlobalVars.ps1 ``$Global:LANG_COMPILER_DIR = "D:\.dev_<sys>"`` (e.g.
-    ``D:\.dev_win10``). Derived from the RUNNING interpreter (``sys.executable`` is
-    authoritative), so it stays correct across win10/win11 and any relocation
-    without hardcoding the suffix:
-        ``D:\.dev_win10\python313\python.exe`` -> ``D:\.dev_win10``
+    Windows: GlobalVars.ps1 ``$Global:LANG_COMPILER_DIR`` as recorded by Step 1
+    (see get_windows_program_dir). Elsewhere derived from the RUNNING
+    interpreter: ``<base>/python3xx/bin/python`` -> ``<base>``.
     """
+    if platform.system() == 'Windows':
+        return get_windows_program_dir('tool_root')
     return Path(sys.executable).resolve().parent.parent
 
 
@@ -319,13 +322,13 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
       stays on native ext4 via pg_mount.
 
     Windows mappings:
-    - applications -> d:\\applications
+    - applications -> get_windows_program_dir('app_root')
     - programing -> d:\\programing
     - www -> d:\\www
     - wwwroot -> d:\\www\\wwwroot
     - pycore_db -> d:\\www\\wwwroot\\pycore_db
     - laravel_db -> d:\\www\\wwwroot\\laravel_db
-    - compile_dir -> d:\\_win11 or d:\\_win10
+    - compile_dir -> get_windows_program_dir('tool_root')
 
     Linux mappings (context-aware):
     - WSL: Uses /mnt/d (or largest mounted drive)
@@ -348,17 +351,8 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         # Windows mappings
         base_d = Path('D:/')
 
-        # Detect Windows version
-        win_version = platform.release()
-        if '10' in win_version:
-            win_suffix = 'win10'
-        elif '11' in win_version:
-            win_suffix = 'win11'
-        else:
-            win_suffix = f'win{win_version}'
-
         mappings = {
-            'applications': base_d / 'applications',
+            'applications': get_windows_program_dir('app_root'),
             'programing': base_d / 'programing',
             'core_node': get_core_node_root(),
             'www': base_d / 'www',
@@ -368,7 +362,7 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             # PostgreSQL data root on the shared D: data disk (native Windows PG).
             # Mirrors gvar_common.sh + PathMapper.php "postgresql".
             'postgresql': base_d / 'www' / 'wwwroot' / 'postgresql',
-            'compile_dir': base_d / f'_{win_suffix}',
+            'compile_dir': get_windows_program_dir('tool_root'),
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (a
             # WSL-only concept; kept here for parity. Not used on Windows).
             'pg_mount': Path('/var/lib/postgresql/d'),

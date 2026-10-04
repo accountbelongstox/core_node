@@ -315,7 +315,7 @@ if ($ShowCodemartPassword) {
 }
 
 # Shared native PostgreSQL manager (single source of truth with the DevInstaller
-# Step17_InstallPostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.
+# Database_PostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.
 . $PgManagerScript
 
 # Shared NSSM helpers (service state, legacy service removal, DevInstaller steps, prompts).
@@ -537,17 +537,17 @@ try {
     $phpCmd = Get-Command php -ErrorAction SilentlyContinue
     $composerCmd = Get-Command composer -ErrorAction SilentlyContinue
     if ((-not $phpCmd) -or (-not $composerCmd)) {
-        Write-Host "PHP/Composer not found -> invoking canonical installer (idempotent): Step16_InstallPHP.ps1" -ForegroundColor Yellow
-        Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Step16_InstallPHP.ps1" | Out-Null
+        Write-Host "PHP/Composer not found -> invoking canonical installer (idempotent): Web_Php.ps1" -ForegroundColor Yellow
+        Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Web_Php.ps1" | Out-Null
         $phpCmd = Get-Command php -ErrorAction SilentlyContinue
         $composerCmd = Get-Command composer -ErrorAction SilentlyContinue
     }
     if (-not $phpCmd) {
-        Write-Host "PHP still not found after Step16_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
+        Write-Host "PHP still not found after Web_Php.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
         exit 1
     }
     if (-not $composerCmd) {
-        Write-Host "Composer still not found after Step16_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
+        Write-Host "Composer still not found after Web_Php.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
         exit 1
     }
 
@@ -647,7 +647,7 @@ try {
 
     # --- PostgreSQL: native cluster on D:, idempotent, reuse an already-serving :5432.
     Write-Host "Ensuring PostgreSQL (native Windows, idempotent, :5432 reuse)..." -ForegroundColor Yellow
-    Write-Host "  Invoking shared PG manager (same idempotent engine as Step17_InstallPostgreSQL.ps1):" -ForegroundColor DarkGray
+    Write-Host "  Invoking shared PG manager (same idempotent engine as Database_PostgreSQL.ps1):" -ForegroundColor DarkGray
     Write-Host "    $PgManagerScript" -ForegroundColor DarkGray
     $pgReady = Ensure-Postgresql
 

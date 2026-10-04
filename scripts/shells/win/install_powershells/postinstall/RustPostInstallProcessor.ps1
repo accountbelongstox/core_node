@@ -21,16 +21,20 @@ function Configure-CargoSettings {
     
     Write-Host "$LogPrefix Configuring Cargo settings..." -ForegroundColor Cyan
     
-    # Create .cargo directory if it doesn't exist
-    $cargoDir = Join-Path $env:USERPROFILE ".cargo"
+    # Cargo reads config.toml from CARGO_HOME (set by Step21_InstallApplications.ps1), else ~/.cargo
+    $cargoDir = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE ".cargo" }
     if (-not (Test-Path $cargoDir)) {
         New-Item -ItemType Directory -Path $cargoDir -Force | Out-Null
         Write-Host "$LogPrefix Created Cargo directory: $cargoDir" -ForegroundColor Green
     }
     
-    # Create config.toml for Cargo configuration
+    # Create config.toml for Cargo configuration; an existing (user-owned) config is kept as it is
     $configTomlPath = Join-Path $cargoDir "config.toml"
-    
+    if (Test-Path -LiteralPath $configTomlPath) {
+        Write-Host "$LogPrefix Cargo config.toml already exists, keeping it: $configTomlPath" -ForegroundColor Cyan
+        return $true
+    }
+
     # Check if we should configure mirrors based on region
     $shouldConfigureMirrors = -not $Global:RegionIsGlobal
     $registryUrl = "https://github.com/rust-lang/crates.io-index"
@@ -45,15 +49,6 @@ function Configure-CargoSettings {
     
     # Create config.toml content
     $configTomlContent = @"
-[build]
-# Use all available CPU cores for compilation
-jobs = 0
-
-[cargo-new]
-# Default template for new projects
-name = "Your Name"
-email = "your.email@example.com"
-
 [net]
 # Network configuration
 retry = 2
@@ -80,7 +75,6 @@ registry = "$registryUrl"
 # Development profile optimizations
 opt-level = 0
 debug = true
-split-debuginfo = "unpacked"
 
 [profile.release]
 # Release profile optimizations
@@ -233,7 +227,7 @@ function Invoke-RustPostInstallProcessor {
         }
         "full_setup" {
             Write-Host "$LogPrefix Performing Rust configuration (Cargo + Components + Test)..." -ForegroundColor Yellow
-            Write-Host "$LogPrefix Note: Environment variables handled by Step12" -ForegroundColor Cyan
+            Write-Host "$LogPrefix Note: Environment variables handled by Step21_InstallApplications.ps1" -ForegroundColor Cyan
 
             # Step 1: Configure Cargo
             $cargoSuccess = Configure-CargoSettings -RustPath $ExecutablePath -InstallDir $InstallDir -RustCallback $RustCallback -LogPrefix $LogPrefix

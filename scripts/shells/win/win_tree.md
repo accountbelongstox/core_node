@@ -12,36 +12,106 @@ win/
 │   └── enable-defender.exe.js
 ├── install_powershells/
 │   ├── postinstall/
+│   │   ├── CursorAgentPostInstallProcessor.ps1
 │   │   ├── GoPostInstallProcessor.ps1
 │   │   ├── JavaPostInstallProcessor.ps1
+│   │   ├── NodePostInstallProcessor.ps1
 │   │   ├── PhpPostInstallProcessor.ps1
 │   │   ├── RubyPostInstallProcessor.ps1
 │   │   ├── RustPostInstallProcessor.ps1
+│   │   ├── TestSwooleInstall.ps1
+│   │   ├── WeChatInstallProcessor.ps1
 │   │   └── WSLUpgradeProcessor.ps1
-│   ├── InstallerScriptsList.ps1
-│   ├── Step11_Install7ipBase.ps1
-│   ├── Step12_InstallApplications.ps1
-│   ├── Step13_CheckCoreNodeProject.ps1
+│   │   (Step*: full-installation steps and series indexes; <Series>_<Part>: series components)
 │   ├── Step1_InitializeBaseDirectories.ps1
-│   ├── Step26_InstallChrome.ps1
 │   ├── Step2_SetBaseSettings.ps1
 │   ├── Step3_InitWinget.ps1
-│   ├── Step47_InstallApkTool.ps1
-│   ├── Step4_InstallGitSSH.ps1
-│   ├── Step56_InstallAndroidStudio.ps1
-│   ├── Step57_InstallAndroidPlatformTools.ps1
+│   ├── Step4_InstallNode.ps1
 │   ├── Step5_InstallGit.ps1
-│   ├── Step66_InstallFlutter.ps1
-│   ├── Step6_InstallScoopWithChinaMirror.ps1
-│   ├── Step80_InstallWSL.ps1
-│   ├── Step81_InstallWSLUbuntu24.ps1
-│   ├── Step82_SetRootLoginWSLUbuntuDebian.ps1
-│   ├── Step83_InstallVisualStudio.ps1
-│   ├── Step84_InstallQtBuildTools.ps1
-│   ├── Step85_InstallQt.ps1
-│   ├── Step85_InstallQt.ps1.backup
-│   ├── Step8_DV.ps1
-│   └── Step9_SetFileAssociations.ps1
+│   ├── Step7_FixCoreNodeProjectLocation.ps1
+│   ├── Step8_InstallPython.ps1
+│   ├── Step14_InstallScoopWithChinaMirror.ps1
+│   ├── Step15_ExtendWindowsUpdate.ps1
+│   ├── Step16_InstallPhpWeb.ps1
+│   ├── Step17_InstallDatabases.ps1
+│   ├── Step18_SetFileAssociations.ps1
+│   ├── Step19_DV.ps1
+│   ├── Step20_InstallBaseTools.ps1
+│   ├── Step21_InstallApplications.ps1
+│   ├── Step22_InstallChrome.ps1
+│   ├── Step26_InstallAndroid.ps1
+│   ├── Step28_InstallFlutter.ps1
+│   ├── Step29_InstallWslDocker.ps1
+│   ├── Step32_InstallVisualStudio.ps1
+│   ├── Step33_InstallQt.ps1
+│   ├── Step44_CheckCoreNodeProject.ps1
+│   ├── Step46_InstallAiModels.ps1
+│   ├── Step47_InstallDocumentParsing.ps1
+│   ├── Step48_InstallDesktopManager.ps1
+│   ├── Step49_InstallLauncher.ps1
+│   ├── Step65_InstallAiTools.ps1
+│   ├── Step71_InstallDotnet.ps1
+│   ├── Step72_InstallRemoteControlHost.ps1
+│   ├── Step73_InstallNetworkRouter.ps1
+│   ├── Step97_InstallTailscale.ps1
+│   ├── Step175_LaravelMainStart.ps1
+│   ├── AiTools_CodexMultiDevice.ps1
+│   ├── AiTools_PiHarness.ps1
+│   ├── Android_ApkTool.ps1
+│   ├── Android_PlatformTools.ps1
+│   ├── Android_Scrcpy.ps1
+│   ├── Android_SdkPackages.ps1
+│   ├── Android_Studio.ps1
+│   ├── BaseTools_7Zip.ps1
+│   ├── BaseTools_Ffmpeg.ps1
+│   ├── BaseTools_Nssm.ps1
+│   ├── BaseTools_SecurityTools.ps1
+│   ├── Database_MySQL.ps1
+│   ├── Database_PostgreSQL.ps1
+│   ├── Database_Redis.ps1
+│   ├── Git_Install.ps1
+│   ├── Git_SshKeys.ps1
+│   ├── Model_Bark.ps1
+│   ├── Model_ChatTts.ps1
+│   ├── Model_CosyVoice.ps1
+│   ├── Model_DeepSeek.ps1
+│   ├── Model_DeepSeekOCR.ps1
+│   ├── Model_EdgeTts.ps1
+│   ├── Model_F5Tts.ps1
+│   ├── Model_FasterWhisper.ps1
+│   ├── Model_Fishspeech.ps1
+│   ├── Model_Gptsovits.ps1
+│   ├── Model_Kokoro.ps1
+│   ├── Model_Melotts.ps1
+│   ├── Model_NLLB200.ps1
+│   ├── Model_Ocr.ps1
+│   ├── Model_Ollama.ps1
+│   ├── Model_Parler.ps1
+│   ├── Model_Qwen25.ps1
+│   ├── Model_Qwen3Tts.ps1
+│   ├── Model_Sherpa.ps1
+│   ├── Model_Vosk.ps1
+│   ├── Model_Voxcpm2.ps1
+│   ├── Model_Whisper.ps1
+│   ├── Node_FrontendPackages.ps1
+│   ├── Node_PuppeteerPlugins.ps1
+│   ├── Node_Runtime.ps1
+│   ├── Python_CudaPrereq.ps1
+│   ├── Python_Default.ps1
+│   ├── Python_Isolated310.ps1
+│   ├── Python_Isolated312.ps1
+│   ├── Python_PrereqPackages.ps1
+│   ├── Qt_BuildTools.ps1
+│   ├── Qt_Install.ps1
+│   ├── Qt_Official.ps1
+│   ├── Web_Composer.ps1
+│   ├── Web_ConfigurePhp85.ps1
+│   ├── Web_FrankenPhp.ps1
+│   ├── Web_Nginx.ps1
+│   ├── Web_Php.ps1
+│   ├── Wsl_Debian13.ps1
+│   ├── Wsl_Install.ps1
+│   └── Wsl_RootLogin.ps1
 ├── main_powershells/
 │   ├── EnvironmentDetection.ps1
 │   └── WinScriptsInstaller.ps1
