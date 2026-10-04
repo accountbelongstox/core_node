@@ -2249,11 +2249,15 @@ function Invoke-Command {
     }
 }
 
-# The ONE pnpm build-approval constant: pass it on every pnpm add/update so pnpm never stops at the
-# interactive approve-builds chooser (TTY) or fails with ERR_PNPM_IGNORED_BUILDS (non-TTY).
-# Verified against the repo pnpm: --allow-build takes exact names only (no wildcard) and the
-# pnpm_config_*/npm_config_* env settings are not recognized; this --config flag is.
-$Global:PNPM_ALLOW_ALL_BUILDS_ARG = '--config.dangerouslyAllowAllBuilds=true'
+# The ONE pnpm build-approval setting: approved builds keep pnpm from stopping at the
+# interactive approve-builds chooser (TTY) or failing with ERR_PNPM_IGNORED_BUILDS (non-TTY).
+# Verified against the repo pnpm: --allow-build takes exact names only (no wildcard), the
+# pnpm_config_*/npm_config_* env settings are not recognized, and GLOBAL installs ignore the
+# --config CLI flag - only `pnpm config set --global` (done in Invoke-WithPnpmBuildsAllowed)
+# reaches them. The CLI arg still covers non-global installs.
+$Global:PNPM_ALLOW_ALL_BUILDS_SETTING = 'dangerouslyAllowAllBuilds'
+$Global:PNPM_ALLOW_ALL_BUILDS_ARG = "--config.$($Global:PNPM_ALLOW_ALL_BUILDS_SETTING)=true"
+if ($null -eq (Get-Variable -Name 'PnpmAllowAllBuildsConfigured' -Scope Global -ErrorAction SilentlyContinue)) { $Global:PnpmAllowAllBuildsConfigured = $false }
 
 # Runs a global pnpm install/update with every dependency build script approved, so pnpm never stops at
 # the interactive `approve-builds` prompt (pnpm reads pnpm_config_* env settings; npm_config_* for pnpm <= 10).
@@ -2264,6 +2268,23 @@ function Invoke-WithPnpmBuildsAllowed {
     $names = @('pnpm_config_dangerously_allow_all_builds', 'npm_config_dangerously_allow_all_builds')
     $previous = @{}
     $name = ''
+    $pnpmForConfig = $null
+    $pnpmCommand = $null
+
+    # Persist the approval once per process: global installs read only the global pnpm config.
+    if (-not $Global:PnpmAllowAllBuildsConfigured) {
+        $pnpmForConfig = Get-Variable -Name 'PNPM_EXE_PATH' -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+        if (-not ($pnpmForConfig -and (Test-Path -LiteralPath $pnpmForConfig))) {
+            $pnpmForConfig = ''
+            $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
+            if ($pnpmCommand) { $pnpmForConfig = $pnpmCommand.Source }
+        }
+        if ($pnpmForConfig) {
+            & $pnpmForConfig config set --global $Global:PNPM_ALLOW_ALL_BUILDS_SETTING true 2>$null | Out-Null
+            $Global:PnpmAllowAllBuildsConfigured = $true
+        }
+    }
+
     foreach ($name in $names) {
         $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
         [Environment]::SetEnvironmentVariable($name, 'true', 'Process')

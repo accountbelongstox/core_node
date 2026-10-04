@@ -301,7 +301,7 @@ function Invoke-Ai65EnsureMcpChrome {
         Write-Ai65Log "mcp-chrome build/service reported an error" "Warning"
     }
 
-    Write-Ai65Log "Syncing the chrome MCP entry to every installed AI tool (context7 stays opt-in: it is only added when a CONTEXT7_API_KEY secret is configured, so it is not part of this default flow) ..."
+    Write-Ai65Log "Syncing the chrome MCP entry to every installed AI tool ..."
     Invoke-Ai65SyncAllAiTools
     return $mcpChromeBuilt
 }

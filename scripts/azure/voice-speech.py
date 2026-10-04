@@ -4,7 +4,6 @@
 Azure Speech Services Test Script
 
 Tests Azure Cognitive Services Speech SDK for text-to-speech functionality.
-Uses Context7 service to verify if the service is working.
 
 Configuration:
 - KEY1: Azure Speech Service subscription key (leave empty if not available)

@@ -1,28 +1,10 @@
-# Package Manager Invocation Functions
+﻿# Package Manager Invocation Functions
 # This script contains all Invoke-*Command functions for various package managers
 # Excluded: Invoke-WingetCommand (remains in CommonFunc.ps1)
 
 # Import required modules
 . (Join-Path $PSScriptRoot "CommonFunc.ps1")
 . (Join-Path $PSScriptRoot "PythonRuntimeCommon.ps1")
-
-function Test-PipPackagePresentOnDisk {
-    param(
-        [string]$PipExe,
-        [string]$PythonExe,
-        [string]$PackageName,
-        [array]$SearchKeywords,
-        [array]$SearchPaths,
-        [array]$ExecutableExtensions
-    )
-
-    if (Test-PipPackageInstalled -PipExe $PipExe -PackageName $PackageName) {
-        return $true
-    }
-
-    $exe = Find-ExecutableByKeyword -Keywords $SearchKeywords -AdditionalScanPaths $SearchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $false
-    return [bool]$exe
-}
 
 # =============================================================================
 # Common Package Manager Execution Function
@@ -133,6 +115,90 @@ function Invoke-PackageManagerCommand {
     - Supports both global (-g) and local installations
     - Returns executable path for environment variable setup
 #>
+# =============================================================================
+# Managed Package Installation Engine
+# =============================================================================
+# The single detect -> skip -> install -> verify -> recover skeleton shared by
+# every package-manager wrapper below. Installed-state is decided by binary
+# presence through Find-ExecutableByKeyword (which also probes PATH); a found
+# executable with ForceInstall=$false skips the package manager entirely, so
+# repeated runs are idempotent and offline-safe.
+# GetSearchPaths is re-evaluated before every scan so post-install paths are
+# always fresh; PostInstallFallback runs only when the post-install scan still
+# finds nothing (each wrapper decides its own recovery, e.g. uninstall+reinstall).
+function Invoke-ManagedPackageInstall {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [Parameter(Mandatory = $true)]
+        [string]$Category,
+        [string]$Keyword = "",
+        [array]$AdditionalKeywords = @(),
+        [array]$FallbackKeywords = @(),
+        [array]$ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1"),
+        [bool]$IncludeSystemPaths = $false,
+        [bool]$OnlyCheckFlag = $false,
+        [bool]$ForceInstall = $false,
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$GetSearchPaths,
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$InstallAction,
+        [scriptblock]$PostInstallFallback = $null
+    )
+
+    $searchKeywords = @()
+    $executable = $null
+
+    $searchKeywords = @(@($Keyword) + @($AdditionalKeywords) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($searchKeywords.Count -eq 0) {
+        $searchKeywords = if ($FallbackKeywords -and @($FallbackKeywords).Count -gt 0) { @($FallbackKeywords) } else { @($PackageName) }
+    }
+
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths @(& $GetSearchPaths) -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $IncludeSystemPaths -Recursive $false
+
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "${PackageName}: already installed at $executable, skipping installation" -Category $Category -Color "Green"
+        return $executable
+    }
+
+    Write-DebugLog -Message "Installing package: $PackageName" -Category $Category -Color "Yellow"
+    try {
+        & $InstallAction
+    }
+    catch {
+        Write-DebugLog -Message "Installation error for ${PackageName}: $($_.Exception.Message)" -Category $Category -Color "Red"
+        return $null
+    }
+
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths @(& $GetSearchPaths) -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $IncludeSystemPaths -Recursive $false
+    if ($executable) {
+        Write-DebugLog -Message "${PackageName}: installation verified, executable: $executable" -Category $Category -Color "Green"
+        return $executable
+    }
+
+    if ($PostInstallFallback) {
+        Write-DebugLog -Message "${PackageName}: executable not found after install, running fallback" -Category $Category -Color "Yellow"
+        try {
+            & $PostInstallFallback
+        }
+        catch {
+            Write-DebugLog -Message "Fallback error for ${PackageName}: $($_.Exception.Message)" -Category $Category -Color "Red"
+            return $null
+        }
+        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths @(& $GetSearchPaths) -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $IncludeSystemPaths -Recursive $false
+        if ($executable) {
+            return $executable
+        }
+    }
+
+    Write-DebugLog -Message "${PackageName}: installation completed but executable not found" -Category $Category -Color "Yellow"
+    return $null
+}
+
 function Invoke-NpmCommand {
     param (
         [Parameter(Mandatory = $true)]
@@ -144,167 +210,53 @@ function Invoke-NpmCommand {
         [bool]$ForceInstall = $false
     )
 
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $npmExe = $Global:NPM_EXE_PATH
+    $nodeExe = $Global:NODE_EXE_PATH
+    $npmPrefix = $null
+    $userNpmPrefix = $null
+    $packageDirName = $PackageName
+    $getSearchPaths = $null
 
     Write-DebugLog -Message "Processing package: $PackageName" -Category "NPM" -Color "Cyan"
 
-    # Use absolute paths from GlobalVars instead of Repair-NodeEnvironment
-    $npmExe = $Global:NPM_EXE_PATH
-    $nodeExe = $Global:NODE_EXE_PATH
-
-    # Validate npm and node paths exist
     if (-not $npmExe -or -not (Test-Path $npmExe)) {
-        Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe" -Category "NPM" -Color "Red"
-        Write-DebugLog -Message "Please run Node_Runtime.ps1 first" -Category "NPM" -Color "Yellow"
+        Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe (run Node_Runtime.ps1 first)" -Category "NPM" -Color "Red"
         return $null
     }
-
     if (-not $nodeExe -or -not (Test-Path $nodeExe)) {
-        Write-DebugLog -Message "CRITICAL: node not found at: $nodeExe" -Category "NPM" -Color "Red"
-        Write-DebugLog -Message "Please run Node_Runtime.ps1 first" -Category "NPM" -Color "Yellow"
+        Write-DebugLog -Message "CRITICAL: node not found at: $nodeExe (run Node_Runtime.ps1 first)" -Category "NPM" -Color "Red"
         return $null
     }
 
-    Write-DebugLog -Message "Using npm absolute path: $npmExe" -Category "NPM" -Color "Green"
-    Write-DebugLog -Message "Using Node.js absolute path: $nodeExe" -Category "NPM" -Color "Green"
-
-    # Get npm global prefix (installation directory) using absolute path
     try {
         $npmPrefix = & $npmExe config get prefix
-        Write-DebugLog -Message "npm prefix: $npmPrefix" -Category "NPM" -Color "Cyan"
     }
     catch {
         Write-DebugLog -Message "Failed to get npm prefix: $($_.Exception.Message)" -Category "NPM" -Color "Red"
         return $null
     }
-    
-    # Extract package name without scope for directory paths
-    $packageDirName = $PackageName
+    $userNpmPrefix = & $npmExe config get prefix --location=user 2>$null
+
     if ($PackageName -match '^@[^/]+/(.+)$') {
         $packageDirName = $matches[1]
         Write-Host "       [NPM] Package directory name: $packageDirName" -ForegroundColor Cyan
     }
-    
-    # Define search paths for npm global packages
-    Write-DebugLog -Message "npmPrefix: '$npmPrefix'" -Category "NPM" -Color "Magenta"
-    Write-DebugLog -Message "packageDirName: '$packageDirName'" -Category "NPM" -Color "Magenta"
-    Write-DebugLog -Message "packageDirName type: $($packageDirName.GetType().Name)" -Category "NPM" -Color "Magenta"
-    
-    Write-DebugLog -Message "Creating search paths..." -Category "NPM" -Color "Magenta"
-    $searchPaths = @()
-    
-    try {
-        # Add node root directory (where npm scripts are often placed)
-        $searchPaths += $npmPrefix
-        Write-DebugLog -Message "Added node root path: $npmPrefix" -Category "NPM" -Color "Magenta"
-        
-        $searchPaths += Join-Path $npmPrefix "node_modules\.bin"
-        Write-DebugLog -Message "Added path 1: node_modules\.bin" -Category "NPM" -Color "Magenta"
-        $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\bin"
-        Write-DebugLog -Message "Added path 2: node_modules\$packageDirName\bin" -Category "NPM" -Color "Magenta"
-        $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\dist"
-        Write-DebugLog -Message "Added path 3: node_modules\$packageDirName\dist" -Category "NPM" -Color "Magenta"
-        $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName"
-        Write-DebugLog -Message "Added path 4: node_modules\$packageDirName" -Category "NPM" -Color "Magenta"
-    }
-    catch {
-        Write-DebugLog -Message "Error in Join-Path: $($_.Exception.Message)" -Category "NPM" -Color "Red"
-        Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "NPM" -Color "Red"
-        throw
-    }
-    
-    # Add user-specific npm paths
-    $userNpmPrefix = & $npmExe config get prefix --location=user 2>$null
-    if ($userNpmPrefix) {
-        Write-DebugLog -Message "Adding user-specific paths..." -Category "NPM" -Color "Magenta"
-        try {
-            # Add user npm root directory
-            $searchPaths += $userNpmPrefix
-            Write-DebugLog -Message "Added user npm root path: $userNpmPrefix" -Category "NPM" -Color "Magenta"
-            
-            $searchPaths += Join-Path $userNpmPrefix "node_modules\.bin"
-            $searchPaths += Join-Path $userNpmPrefix "node_modules\$packageDirName\bin"
-            $searchPaths += Join-Path $userNpmPrefix "node_modules\$packageDirName\dist"
-            $searchPaths += Join-Path $userNpmPrefix "node_modules\$packageDirName"
+
+    $getSearchPaths = {
+        $paths = @()
+        foreach ($prefixDir in @($npmPrefix, $userNpmPrefix)) {
+            if ([string]::IsNullOrWhiteSpace([string]$prefixDir)) { continue }
+            $paths += $prefixDir
+            $paths += Join-Path $prefixDir "node_modules\.bin"
+            $paths += Join-Path $prefixDir "node_modules\$packageDirName\bin"
+            $paths += Join-Path $prefixDir "node_modules\$packageDirName\dist"
+            $paths += Join-Path $prefixDir "node_modules\$packageDirName"
         }
-        catch {
-            Write-DebugLog -Message "Error in user-specific Join-Path: $($_.Exception.Message)" -Category "NPM" -Color "Red"
-            Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "NPM" -Color "Red"
-            throw
-        }
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all npm paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "NPM" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "NPM" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
+        $paths
     }
 
-    # Install package
-    Write-DebugLog -Message "Installing package: $PackageName" -Category "NPM" -Color "Yellow"
-    try {
-        $installArgs = "install -g $PackageName"
-        Write-DebugLog -Message "Command: $npmExe $installArgs" -Category "NPM" -Color "Magenta"
-
-        # Run installation directly
-        Invoke-PackageManagerCommand -ExecutablePath $npmExe -Arguments $installArgs
-
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "NPM" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            # Add node root directory
-            $searchPaths += $npmPrefix
-            Write-DebugLog -Message "Added refresh node root path: $npmPrefix" -Category "NPM" -Color "Magenta"
-
-            $searchPaths += Join-Path $npmPrefix "node_modules\.bin"
-            $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\bin"
-            $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\dist"
-            $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName"
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh Join-Path: $($_.Exception.Message)" -Category "NPM" -Color "Red"
-            Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "NPM" -Color "Red"
-            throw
-        }
-
-        # Find the installed executable - search in all npm paths at once
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "NPM" -Color "Magenta"
-        Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "NPM" -Color "Magenta"
-        Write-DebugLog -Message "Search paths: $($searchPaths -join ', ')" -Category "NPM" -Color "Magenta"
-
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-        Write-DebugLog -Message "Find-ExecutableByKeyword returned: '$executable'" -Category "NPM" -Color "Yellow"
-
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "NPM" -Color "Green"
-            return $executable
-        }
-        else {
-            Write-DebugLog -Message "Installation completed but executable not found" -Category "NPM" -Color "Yellow"
-            return $null
-        }
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "NPM" -Color "Red"
-        return $null
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "NPM" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
+        Invoke-PackageManagerCommand -ExecutablePath $npmExe -Arguments "install -g $PackageName"
     }
 }
 
@@ -360,50 +312,6 @@ function Invoke-NpmCommand {
     - Returns executable path for environment variable setup
     - Configuration stored in .pnpmrc (separate from npm .npmrc)
 #>
-# Checks whether a package is already present in pnpm's global installation
-# Uses pnpm's own package database instead of filesystem keyword scanning
-function Test-PnpmGlobalPackageInstalled {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$PnpmExe,
-        [Parameter(Mandatory = $true)]
-        [string]$PackageName
-    )
-
-    try {
-        $listOutput = & $PnpmExe list --global --depth=0 --json 2>$null
-        if (-not $listOutput) {
-            return $false
-        }
-
-        # pnpm prefixes stdout with non-JSON lines (e.g. "[WARN] Using --global skips ...");
-        # parse from the first JSON token onward or every installed-state check returns false.
-        $listText = ($listOutput | Out-String)
-        $jsonStart = $listText.IndexOfAny([char[]]@('[', '{'))
-        while ($jsonStart -ge 0 -and $listText.Substring($jsonStart).StartsWith('[WARN')) {
-            $jsonStart = $listText.IndexOfAny([char[]]@('[', '{'), $jsonStart + 1)
-        }
-        if ($jsonStart -lt 0) {
-            return $false
-        }
-        $globalPackages = $listText.Substring($jsonStart) | ConvertFrom-Json -ErrorAction Stop
-        foreach ($rootEntry in $globalPackages) {
-            foreach ($dependencyGroup in @("dependencies", "devDependencies", "optionalDependencies")) {
-                $groupValue = $rootEntry.$dependencyGroup
-                if ($groupValue -and ($groupValue.PSObject.Properties.Name -contains $PackageName)) {
-                    Write-DebugLog -Message "pnpm global list contains package: $PackageName" -Category "PNPM" -Color "Green"
-                    return $true
-                }
-            }
-        }
-    }
-    catch {
-        Write-DebugLog -Message "pnpm global installed check failed: $($_.Exception.Message)" -Category "PNPM" -Color "Yellow"
-    }
-
-    return $false
-}
-
 function Invoke-PnpmCommand {
     param (
         [Parameter(Mandatory = $true)]
@@ -415,19 +323,19 @@ function Invoke-PnpmCommand {
         [bool]$ForceInstall = $false
     )
 
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $pnpmExe = $Global:PNPM_EXE_PATH
+    $npmExe = $Global:NPM_EXE_PATH
+    $pnpmGlobalDir = $null
+    $pnpmGlobalBinDir = $null
+    $packageDirName = $PackageName
+    $parentDir = $null
+    $windowsPathFunctionPath = $null
+    $getSearchPaths = $null
 
     Write-DebugLog -Message "Processing package via PNPM: $PackageName" -Category "PNPM" -Color "Cyan"
 
-    # Use absolute paths from GlobalVars instead of Repair-NodeEnvironment
-    $pnpmExe = $Global:PNPM_EXE_PATH
-    $npmExe = $Global:NPM_EXE_PATH
-
-    # Validate npm and pnpm paths exist
     if (-not $npmExe -or -not (Test-Path $npmExe)) {
-        Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe" -Category "PNPM" -Color "Red"
-        Write-DebugLog -Message "Please run Node_Runtime.ps1 first" -Category "PNPM" -Color "Yellow"
+        Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe (run Node_Runtime.ps1 first)" -Category "PNPM" -Color "Red"
         return $null
     }
 
@@ -435,81 +343,37 @@ function Invoke-PnpmCommand {
     if (-not $pnpmExe -or -not (Test-Path $pnpmExe)) {
         Write-DebugLog -Message "pnpm not found, installing via npm..." -Category "PNPM" -Color "Yellow"
         Invoke-PackageManagerCommand -ExecutablePath $npmExe -Arguments "install -g pnpm"
-
         Start-Sleep -Milliseconds 500
-
-        # Re-check pnpm path
         if (Test-Path $Global:PNPM_EXE_PATH) {
             $pnpmExe = $Global:PNPM_EXE_PATH
             Write-DebugLog -Message "pnpm installed successfully at: $pnpmExe" -Category "PNPM" -Color "Green"
-
-            # Run pnpm setup
             & $pnpmExe setup | Out-Host
-            Write-DebugLog -Message "pnpm setup completed" -Category "PNPM" -Color "Green"
-
-            # Ensure pnpm global bin directory is in PATH after setup
-            try {
-                $pnpmGlobalBinDirTemp = & $pnpmExe config get global-bin-dir 2>&1 | Select-Object -First 1
-                if (-not [string]::IsNullOrEmpty($pnpmGlobalBinDirTemp) -and $pnpmGlobalBinDirTemp -ne "undefined") {
-                    if (Test-Path $pnpmGlobalBinDirTemp) {
-                        $parentDir = Split-Path $PSScriptRoot -Parent
-                        $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
-                        if (Test-Path $windowsPathFunctionPath) {
-                            . $windowsPathFunctionPath
-                            Write-DebugLog -Message "Ensuring pnpm global bin directory is in PATH after setup: $pnpmGlobalBinDirTemp" -Category "PNPM" -Color "Yellow"
-                            Add-Path -newPath $pnpmGlobalBinDirTemp
-                            Write-DebugLog -Message "pnpm global bin directory PATH check completed after setup" -Category "PNPM" -Color "Green"
-                        }
-                    }
-                }
-            } catch {
-                Write-DebugLog -Message "Warning: Failed to ensure pnpm bin in PATH after setup: $($_.Exception.Message)" -Category "PNPM" -Color "Yellow"
-            }
         } else {
             Write-DebugLog -Message "CRITICAL: pnpm installation failed" -Category "PNPM" -Color "Red"
             return $null
         }
     }
 
-    Write-DebugLog -Message "Using pnpm absolute path: $pnpmExe" -Category "PNPM" -Color "Green"
-    Write-DebugLog -Message "Using npm absolute path: $npmExe" -Category "PNPM" -Color "Green"
-
-    # Get pnpm global directory using config
+    # Resolve pnpm global directories (fallbacks keep working before first `pnpm setup`)
     try {
         $pnpmGlobalDir = & $pnpmExe config get global-dir 2>&1 | Select-Object -First 1
         $pnpmGlobalBinDir = & $pnpmExe config get global-bin-dir 2>&1 | Select-Object -First 1
-
-        # Validate results
         if ([string]::IsNullOrEmpty($pnpmGlobalDir) -or $pnpmGlobalDir -eq "undefined") {
-            # Fallback to default location
             $pnpmGlobalDir = Join-Path $Global:NODE_DIR "pnpm-global"
-            Write-DebugLog -Message "Using fallback pnpm global directory: $pnpmGlobalDir" -Category "PNPM" -Color "Yellow"
         }
-
         if ([string]::IsNullOrEmpty($pnpmGlobalBinDir) -or $pnpmGlobalBinDir -eq "undefined") {
             $pnpmGlobalBinDir = Join-Path $pnpmGlobalDir ".bin"
-            Write-DebugLog -Message "Using fallback pnpm global bin directory: $pnpmGlobalBinDir" -Category "PNPM" -Color "Yellow"
         }
-
-        Write-DebugLog -Message "pnpm global-dir: $pnpmGlobalDir" -Category "PNPM" -Color "Cyan"
-        Write-DebugLog -Message "pnpm global-bin-dir: $pnpmGlobalBinDir" -Category "PNPM" -Color "Cyan"
+        Write-DebugLog -Message "pnpm global-dir: $pnpmGlobalDir, global-bin-dir: $pnpmGlobalBinDir" -Category "PNPM" -Color "Cyan"
 
         # Always ensure pnpm global bin directory is in PATH (repair step)
-        # Add-Path function handles duplicate checking internally
         if (Test-Path $pnpmGlobalBinDir) {
             $parentDir = Split-Path $PSScriptRoot -Parent
             $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
             if (Test-Path $windowsPathFunctionPath) {
                 . $windowsPathFunctionPath
-                Write-DebugLog -Message "Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Category "PNPM" -Color "Yellow"
                 Add-Path -newPath $pnpmGlobalBinDir
-                Write-DebugLog -Message "pnpm global bin directory PATH check completed" -Category "PNPM" -Color "Green"
-            } else {
-                Write-DebugLog -Message "Warning: WindowsPathFunction.ps1 not found, cannot add pnpm bin to PATH" -Category "PNPM" -Color "Yellow"
             }
-        } else {
-            Write-DebugLog -Message "Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Category "PNPM" -Color "Yellow"
-            Write-DebugLog -Message "Will be added to PATH when directory is created" -Category "PNPM" -Color "Cyan"
         }
     }
     catch {
@@ -518,152 +382,35 @@ function Invoke-PnpmCommand {
     }
 
     # Extract package name without scope for directory paths
-    $packageDirName = $PackageName
     if ($PackageName -match '^@[^/]+/(.+)$') {
         $packageDirName = $matches[1]
         Write-Host "       [PNPM] Package directory name: $packageDirName" -ForegroundColor Cyan
     }
 
-    # Define search paths for pnpm global packages
-    Write-DebugLog -Message "pnpmGlobalDir: '$pnpmGlobalDir'" -Category "PNPM" -Color "Magenta"
-    Write-DebugLog -Message "pnpmGlobalBinDir: '$pnpmGlobalBinDir'" -Category "PNPM" -Color "Magenta"
-    Write-DebugLog -Message "packageDirName: '$packageDirName'" -Category "PNPM" -Color "Magenta"
-
-    Write-DebugLog -Message "Creating search paths..." -Category "PNPM" -Color "Magenta"
-    $searchPaths = @()
-
-    try {
-        # Add pnpm global bin directory (primary location for executables)
-        $searchPaths += $pnpmGlobalBinDir
-        Write-DebugLog -Message "Added pnpm global bin path: $pnpmGlobalBinDir" -Category "PNPM" -Color "Magenta"
-
-        # Add pnpm global directory
-        $searchPaths += $pnpmGlobalDir
-        Write-DebugLog -Message "Added pnpm global path: $pnpmGlobalDir" -Category "PNPM" -Color "Magenta"
-
-        # Add node_modules subdirectories
-        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\.bin"
-        Write-DebugLog -Message "Added pnpm node_modules\.bin path" -Category "PNPM" -Color "Magenta"
-
-        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\bin"
-        Write-DebugLog -Message "Added pnpm node_modules\$packageDirName\bin path" -Category "PNPM" -Color "Magenta"
-
-        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\dist"
-        Write-DebugLog -Message "Added pnpm node_modules\$packageDirName\dist path" -Category "PNPM" -Color "Magenta"
-
-        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName"
-        Write-DebugLog -Message "Added pnpm node_modules\$packageDirName path" -Category "PNPM" -Color "Magenta"
-    }
-    catch {
-        Write-DebugLog -Message "Error in pnpm Join-Path: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
-        Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "PNPM" -Color "Red"
-        throw
+    $getSearchPaths = {
+        @(
+            $pnpmGlobalBinDir,
+            $pnpmGlobalDir,
+            (Join-Path $pnpmGlobalDir "node_modules\.bin"),
+            (Join-Path $pnpmGlobalDir "node_modules\$packageDirName\bin"),
+            (Join-Path $pnpmGlobalDir "node_modules\$packageDirName\dist"),
+            (Join-Path $pnpmGlobalDir "node_modules\$packageDirName")
+        )
     }
 
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-
-    # Installed-state detection comes from pnpm itself; keyword scanning only
-    # resolves the executable path and never decides install vs upgrade
-    $packageInstalled = Test-PnpmGlobalPackageInstalled -PnpmExe $pnpmExe -PackageName $PackageName
-    Write-DebugLog -Message "pnpm global installed check for '$PackageName': $packageInstalled" -Category "PNPM" -Color "Cyan"
-
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-
-    if ($packageInstalled -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed via pnpm, upgrading instead of reinstalling: $PackageName" -Category "PNPM" -Color "Yellow"
-        $upgradeArgs = "update --global $Global:PNPM_ALLOW_ALL_BUILDS_ARG $PackageName"
-        Write-DebugLog -Message "Command: $pnpmExe $upgradeArgs" -Category "PNPM" -Color "Magenta"
-
-        Invoke-WithPnpmBuildsAllowed { Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $upgradeArgs }
-
-        if (-not $executable) {
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-        }
-
-        if ($executable) {
-            Write-DebugLog -Message "Upgrade completed, executable: $executable" -Category "PNPM" -Color "Green"
-            return $executable
-        }
-
-        Write-DebugLog -Message "Upgrade completed but executable not found" -Category "PNPM" -Color "Yellow"
-        return $null
-    }
-
-    # Install package using pnpm
-    Write-DebugLog -Message "Installing package via pnpm: $PackageName" -Category "PNPM" -Color "Yellow"
-    try {
-        # Ensure current process PATH is refreshed before calling pnpm
-        # This is critical because pnpm checks PATH during installation
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "PNPM" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
+        # pnpm checks PATH during installation: refresh the process PATH first
         try {
             $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
             $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
             $combinedPath = if ($userPath) { "$userPath;$machinePath" } else { $machinePath }
             [Environment]::SetEnvironmentVariable("Path", $combinedPath, "Process")
-            Write-DebugLog -Message "Refreshed current process PATH before pnpm installation" -Category "PNPM" -Color "Cyan"
         } catch {
             Write-DebugLog -Message "Warning: Failed to refresh process PATH: $($_.Exception.Message)" -Category "PNPM" -Color "Yellow"
         }
-
-        $installArgs = "add --global $Global:PNPM_ALLOW_ALL_BUILDS_ARG $PackageName"
-        Write-DebugLog -Message "Command: $pnpmExe $installArgs" -Category "PNPM" -Color "Magenta"
-
-        # Run installation directly (dependency build scripts approved: no interactive approve-builds prompt)
-        Invoke-WithPnpmBuildsAllowed { Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $installArgs }
-
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PNPM" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            # Re-add pnpm paths
-            $searchPaths += $pnpmGlobalBinDir
-            Write-DebugLog -Message "Added refresh pnpm global bin path: $pnpmGlobalBinDir" -Category "PNPM" -Color "Magenta"
-
-            $searchPaths += $pnpmGlobalDir
-            Write-DebugLog -Message "Added refresh pnpm global path: $pnpmGlobalDir" -Category "PNPM" -Color "Magenta"
-
-            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\.bin"
-            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\bin"
-            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\dist"
-            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName"
-            Write-DebugLog -Message "Added all pnpm node_modules paths after refresh" -Category "PNPM" -Color "Magenta"
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh Join-Path: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
-            Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "PNPM" -Color "Red"
-            throw
-        }
-
-        # Find the installed executable - search in all pnpm paths at once
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "PNPM" -Color "Magenta"
-        Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PNPM" -Color "Magenta"
-        Write-DebugLog -Message "Search paths: $($searchPaths -join ', ')" -Category "PNPM" -Color "Magenta"
-
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-        Write-DebugLog -Message "Find-ExecutableByKeyword returned: '$executable'" -Category "PNPM" -Color "Yellow"
-
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "PNPM" -Color "Green"
-            return $executable
-        }
-        else {
-            Write-DebugLog -Message "Installation completed but executable not found" -Category "PNPM" -Color "Yellow"
-            return $null
-        }
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
-        return $null
+        # `pnpm add --global` also repairs a present-but-unlinked package, so it covers
+        # the repair case without a separate `pnpm update` round-trip per run.
+        Invoke-WithPnpmBuildsAllowed { Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments "add --global $Global:PNPM_ALLOW_ALL_BUILDS_ARG $PackageName" }
     }
 }
 
@@ -1132,271 +879,61 @@ function Invoke-PipCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+
+    $envRepair = $null
+    $pipExe = $null
+    $pythonExe = $null
+    $pythonScriptsDir = $null
+    $getSearchPaths = $null
 
     Write-DebugLog -Message "Processing pip package: $PackageName" -Category "PIP" -Color "Cyan"
 
-    # CRITICAL: Repair Python environment before any pip operations
-    # This ensures:
-    # 1. We have valid absolute paths to python.exe and pip.exe
-    # 2. PATH environment variables are properly configured
-    # 3. Works correctly even on first-time installation (environment vars not yet effective)
+    # CRITICAL: Repair Python environment before any pip operations (valid absolute
+    # paths even when environment variables are not yet effective in this session).
     $envRepair = Repair-PythonEnvironment
-
     if (-not $envRepair.PipExe -or -not $envRepair.PythonExe) {
         Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed with pip operations" -Category "PIP" -Color "Red"
         return $null
     }
-
-    # Use absolute paths from repair (handles first-time installation)
     $pipExe = $envRepair.PipExe
     $pythonExe = $envRepair.PythonExe
     $pythonScriptsDir = $envRepair.ScriptsDir
-
-    Write-DebugLog -Message "Using pip absolute path: $pipExe" -Category "PIP" -Color "Green"
-    Write-DebugLog -Message "Using Python absolute path: $pythonExe" -Category "PIP" -Color "Green"
-    Write-DebugLog -Message "Using Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Green"
 
     if (Get-Command Ensure-PipCacheDirConfigured -ErrorAction SilentlyContinue) {
         Ensure-PipCacheDirConfigured -PipExe $pipExe
     }
 
-    # Build search paths for pip packages
-    $searchPaths = @($pythonScriptsDir)
-    Write-DebugLog -Message "Building search paths for pip package scanning..." -Category "PIP" -Color "Cyan"
-
-    try {
-        
-        # Add user-specific pip paths if available
-        Write-DebugLog -Message "Trying to find user-specific pip paths..." -Category "PIP" -Color "Gray"
+    $getSearchPaths = {
+        $paths = @()
+        $userPipShowOutput = $null
+        $userScriptsDir = $null
+        if ($pythonScriptsDir) { $paths += $pythonScriptsDir }
+        # User-install location reported by pip itself (versioned Scripts dir)
         try {
-            $prevEap = $ErrorActionPreference
-            $ErrorActionPreference = 'Continue'
-            try {
-                $userPipShowOutput = & $pipExe show pip --user 2>&1
-            } finally {
-                $ErrorActionPreference = $prevEap
+            $userPipShowOutput = & $pipExe show pip --user 2>&1
+            if ($userPipShowOutput -and ("$userPipShowOutput" -match '(?m)^Location:\s*(.+)$')) {
+                $userScriptsDir = Join-Path $matches[1].Trim() "Scripts"
+                if (Test-Path $userScriptsDir) { $paths += $userScriptsDir }
             }
-
-            if ($userPipShowOutput -and ("$userPipShowOutput" -match '(?m)^Name:\s')) {
-                $userLocationLine = $userPipShowOutput | Select-String "Location:"
-                if ($userLocationLine) {
-                    $userPipDir = $userLocationLine.ToString() -replace "^Location:\s*", ""
-                    $userScriptsDir = Join-Path $userPipDir "Scripts"
-                    Write-DebugLog -Message "Found user pip directory: $userScriptsDir" -Category "PIP" -Color "Cyan"
-
-                    if (Test-Path $userScriptsDir) {
-                        $searchPaths += $userScriptsDir
-                        Write-DebugLog -Message "SUCCESS: Added user pip Scripts path: $userScriptsDir" -Category "PIP" -Color "Green"
-                    } else {
-                        Write-DebugLog -Message "User pip Scripts directory not accessible: $userScriptsDir" -Category "PIP" -Color "Gray"
-                    }
-                } else {
-                    Write-DebugLog -Message "Location line not found in user pip show output" -Category "PIP" -Color "Gray"
-                }
-            } else {
-                Write-DebugLog -Message "pip show pip --user command not applicable (likely using system-wide installation)" -Category "PIP" -Color "Gray"
-            }
+        } catch {
+            Write-DebugLog -Message "pip show pip --user not applicable: $($_.Exception.Message)" -Category "PIP" -Color "Gray"
         }
-        catch {
-            $errorMessage = $_.Exception.Message
-            if ($errorMessage -match "WARNING: Package\(s\) not found") {
-                Write-DebugLog -Message "User-specific pip not installed (using system-wide pip)" -Category "PIP" -Color "Gray"
-            } else {
-                Write-DebugLog -Message "Exception while getting user pip location: $errorMessage" -Category "PIP" -Color "Gray"
-            }
-        }
-        
-        # Add additional common pip installation paths (only if they exist)
-        $additionalPaths = @(
+        foreach ($candidatePath in @(
             (Join-Path $env:USERPROFILE ".local\Scripts"),
             (Join-Path $env:APPDATA "Python\Scripts"),
             (Join-Path $env:LOCALAPPDATA "Programs\Python\Scripts"),
             (Join-Path $env:USERPROFILE "AppData\Local\Programs\Python\Scripts"),
             (Join-Path $env:USERPROFILE "AppData\Roaming\Python\Scripts")
-        )
+        )) {
+            if (Test-Path $candidatePath) { $paths += $candidatePath }
+        }
+        if ($paths.Count -eq 0) { $paths += Join-Path (Split-Path $pipExe -Parent) "Scripts" }
+        $paths
+    }
 
-        $foundAdditionalPaths = 0
-        foreach ($path in $additionalPaths) {
-            if (Test-Path $path) {
-                $searchPaths += $path
-                $foundAdditionalPaths++
-                Write-DebugLog -Message "Found additional pip path: $path" -Category "PIP" -Color "Green"
-            }
-        }
-
-        if ($foundAdditionalPaths -eq 0) {
-            Write-DebugLog -Message "No additional user pip paths found (using system-wide Python installation)" -Category "PIP" -Color "Gray"
-        } else {
-            Write-DebugLog -Message "Added $foundAdditionalPaths additional pip path(s)" -Category "PIP" -Color "Cyan"
-        }
-        
-        # Ensure we have at least one search path
-        Write-DebugLog -Message "Final search paths count: $($searchPaths.Count)" -Category "PIP" -Color "Cyan"
-        if ($searchPaths.Count -eq 0) {
-            Write-DebugLog -Message "WARNING: No valid pip search paths found, adding fallback path" -Category "PIP" -Color "Yellow"
-            # Add a fallback path based on pip executable location
-            $pipDir = Split-Path $pipExe -Parent
-            $fallbackPath = Join-Path $pipDir "Scripts"
-            $searchPaths += $fallbackPath
-            Write-DebugLog -Message "Added fallback pip path: $fallbackPath" -Category "PIP" -Color "Yellow"
-        }
-        
-        # Log all final search paths
-        Write-DebugLog -Message "Final search paths:" -Category "PIP" -Color "Cyan"
-        for ($i = 0; $i -lt $searchPaths.Count; $i++) {
-            Write-DebugLog -Message "  [$i] $($searchPaths[$i])" -Category "PIP" -Color "Cyan"
-        }
-    }
-    catch {
-        Write-DebugLog -Message "CRITICAL ERROR: Error building search paths: $($_.Exception.Message)" -Category "PIP" -Color "Red"
-        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
-        # Don't throw here, continue with empty search paths
-        Write-DebugLog -Message "Continuing with empty search paths" -Category "PIP" -Color "Yellow"
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all pip paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "PIP" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "PIP" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package
-    # Install package with comprehensive debugging
-    Write-DebugLog -Message "Starting pip package installation for: $PackageName" -Category "PIP" -Color "Yellow"
-    Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PIP" -Color "Cyan"
-    Write-DebugLog -Message "Search paths count: $($searchPaths.Count)" -Category "PIP" -Color "Cyan"
-    
-    try {
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "PIP" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
         # Pip owns dependency compatibility; never upgrade or force-reinstall an installed package.
-        $installMethods = @(
-            @{ Args = @("install", $PackageName); Name = "missing-package installation" }
-        )
-        
-        $installationSuccessful = $false
-        $successfulMethod = $null
-        
-        Write-DebugLog -Message "Will try $($installMethods.Count) installation methods" -Category "PIP" -Color "Cyan"
-        
-        foreach ($method in $installMethods) {
-            Write-DebugLog -Message "=== Trying $($method.Name) ===" -Category "PIP" -Color "Magenta"
-            Write-DebugLog -Message "Command: $pipExe $($method.Args -join ' ')" -Category "PIP" -Color "Magenta"
-
-            $startTime = Get-Date
-            Write-DebugLog -Message "Starting pip installation..." -Category "PIP" -Color "Cyan"
-
-            & $pipExe $method.Args | Out-Host
-            $endTime = Get-Date
-            $duration = ($endTime - $startTime).TotalSeconds
-            Write-DebugLog -Message "Installation completed in $duration seconds" -Category "PIP" -Color "Cyan"
-
-            $verifyPaths = @()
-            if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
-                $verifyPaths += $pythonScriptsDir
-            }
-            $verifyPaths += $searchPaths
-
-            if (Test-PipPackagePresentOnDisk -PipExe $pipExe -PythonExe $pythonExe -PackageName $PackageName -SearchKeywords $searchKeywords -SearchPaths $verifyPaths -ExecutableExtensions $ExecutableExtensions) {
-                Write-DebugLog -Message "SUCCESS: Package present on disk after $($method.Name)" -Category "PIP" -Color "Green"
-                $installationSuccessful = $true
-                $successfulMethod = $method.Name
-                break
-            }
-
-            Write-DebugLog -Message "Package not yet present on disk after $($method.Name); trying next method" -Category "PIP" -Color "Yellow"
-        }
-        
-        if ($installationSuccessful) {
-            Write-DebugLog -Message "Installation successful with method: $successfulMethod" -Category "PIP" -Color "Green"
-            
-            # Refresh search paths after installation
-            Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PIP" -Color "Magenta"
-            $refreshedSearchPaths = @()
-            try {
-                # Rebuild search paths with the same logic as before
-                if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
-                    $refreshedSearchPaths += $pythonScriptsDir
-                    Write-DebugLog -Message "Added refreshed path: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
-                }
-                
-                # Add additional common paths
-                $additionalPaths = @(
-                    (Join-Path $env:USERPROFILE ".local\Scripts"),
-                    (Join-Path $env:APPDATA "Python\Scripts"),
-                    (Join-Path $env:LOCALAPPDATA "Programs\Python\Scripts")
-                )
-                
-                foreach ($path in $additionalPaths) {
-                    if (Test-Path $path) {
-                        $refreshedSearchPaths += $path
-                        Write-DebugLog -Message "Added refreshed additional path: $path" -Category "PIP" -Color "Cyan"
-                    }
-                }
-                
-                # Ensure we have at least one search path
-                if ($refreshedSearchPaths.Count -eq 0) {
-                    $pipDir = Split-Path $pipExe -Parent
-                    $fallbackPath = Join-Path $pipDir "Scripts"
-                    $refreshedSearchPaths += $fallbackPath
-                    Write-DebugLog -Message "Added refreshed fallback path: $fallbackPath" -Category "PIP" -Color "Yellow"
-                }
-                
-                Write-DebugLog -Message "Refreshed search paths count: $($refreshedSearchPaths.Count)" -Category "PIP" -Color "Cyan"
-            }
-            catch {
-                Write-DebugLog -Message "ERROR: Error refreshing search paths: $($_.Exception.Message)" -Category "PIP" -Color "Yellow"
-                # Use original search paths as fallback
-                $refreshedSearchPaths = $searchPaths
-                Write-DebugLog -Message "Using original search paths as fallback" -Category "PIP" -Color "Yellow"
-            }
-            
-            # Find the installed executable
-            Write-DebugLog -Message "Searching for executable after installation..." -Category "PIP" -Color "Magenta"
-            Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PIP" -Color "Cyan"
-            Write-DebugLog -Message "Search paths: $($refreshedSearchPaths -join ', ')" -Category "PIP" -Color "Cyan"
-            
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $refreshedSearchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-            
-            if ($executable) {
-                Write-DebugLog -Message "SUCCESS: Found executable: $executable" -Category "PIP" -Color "Green"
-                return $executable
-            }
-            else {
-                Write-DebugLog -Message "WARNING: Installation completed but executable not found" -Category "PIP" -Color "Yellow"
-                Write-DebugLog -Message "This might be normal for packages that don't install executables" -Category "PIP" -Color "Yellow"
-                return $null
-            }
-        }
-        else {
-            Write-DebugLog -Message "CRITICAL ERROR: All installation methods failed" -Category "PIP" -Color "Red"
-            Write-DebugLog -Message "Package: $PackageName" -Category "PIP" -Color "Red"
-            Write-DebugLog -Message "Tried methods: $($installMethods.Name -join ', ')" -Category "PIP" -Color "Red"
-            return $null
-        }
-    }
-    catch {
-        Write-DebugLog -Message "CRITICAL ERROR: Exception during pip installation: $($_.Exception.Message)" -Category "PIP" -Color "Red"
-        Write-DebugLog -Message "Exception type: $($_.Exception.GetType().Name)" -Category "PIP" -Color "Red"
-        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
-        return $null
+        & $pipExe install $PackageName | Out-Host
     }
 }
 
@@ -1460,158 +997,70 @@ function Invoke-PipxCommand {
         [bool]$ForceInstall = $true
     )
 
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $envRepair = $null
+    $pipxExePath = $null
+    $pipxExe = $null
+    $pipxExeCmd = $null
+    $pipxEnvOutput = $null
+    $pipxHome = $null
+    $getSearchPaths = $null
 
     Write-DebugLog -Message "Processing pipx package: $PackageName" -Category "PIPX" -Color "Cyan"
 
-    # Repair Python environment to get valid paths
     $envRepair = Repair-PythonEnvironment
     if (-not $envRepair.ScriptsDir) {
         Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "PIPX" -Color "Red"
         return $null
     }
 
-    # Try to find pipx using absolute path first
     $pipxExePath = Join-Path $envRepair.ScriptsDir "pipx.exe"
-    $pipxExe = $null
-
     if (Test-Path $pipxExePath) {
         $pipxExe = $pipxExePath
-        Write-DebugLog -Message "Found pipx at absolute path: $pipxExePath" -Category "PIPX" -Color "Green"
     } else {
-        # Fallback to PATH search
         $pipxExeCmd = Get-Command "pipx" -ErrorAction SilentlyContinue
         if ($pipxExeCmd) {
             $pipxExe = $pipxExeCmd.Source
-            Write-DebugLog -Message "Found pipx in PATH: $pipxExe" -Category "PIPX" -Color "Yellow"
         } else {
             Write-DebugLog -Message "pipx not found - needs to be installed via pip first" -Category "PIPX" -Color "Red"
             return $null
         }
     }
-    
-    # Get pipx home directory using absolute path
-    # NOTE: Do NOT use try-catch because pipx's stderr (WARNING) will trigger exceptions
-    Write-DebugLog -Message "Getting pipx home directory using absolute path..." -Category "PIPX" -Color "Cyan"
-    $pipxEnvOutput = & $pipxExe environment 2>&1  # Capture both stdout and stderr
 
-    $pipxHome = $null
+    # NOTE: no try-catch here because pipx's stderr (WARNING) would trigger exceptions
+    $pipxEnvOutput = & $pipxExe environment 2>&1
     if ($pipxEnvOutput) {
-        # Filter out warnings and find PIPX_HOME
         foreach ($line in $pipxEnvOutput) {
-            $lineStr = $line.ToString()
-            if ($lineStr -match "PIPX_HOME=(.+)") {
+            if ($line.ToString() -match "PIPX_HOME=(.+)") {
                 $pipxHome = $matches[1].Trim()
                 break
             }
         }
     }
-
     if (-not $pipxHome) {
         $pipxHome = Join-Path $env:USERPROFILE ".local"
-        Write-DebugLog -Message "Using default PIPX home: $pipxHome" -Category "PIPX" -Color "Yellow"
-    } else {
-        Write-DebugLog -Message "PIPX home directory: $pipxHome" -Category "PIPX" -Color "Cyan"
+    }
+    Write-DebugLog -Message "PIPX home directory: $pipxHome" -Category "PIPX" -Color "Cyan"
+
+    $getSearchPaths = {
+        @(
+            (Join-Path $pipxHome "bin"),
+            (Join-Path $pipxHome "venvs\$PackageName\Scripts"),
+            (Join-Path $env:USERPROFILE ".local\Scripts"),
+            $envRepair.ScriptsDir
+        )
     }
 
-    # Build search paths for pipx packages
-    $searchPaths = @()
-
-    # PIPX bin directory
-    $pipxBinDir = Join-Path $pipxHome "bin"
-    $searchPaths += $pipxBinDir
-    Write-DebugLog -Message "Added PIPX bin path: $pipxBinDir" -Category "PIPX" -Color "Cyan"
-
-    # PIPX venvs directory for specific package
-    $pipxVenvsDir = Join-Path $pipxHome "venvs\$PackageName\Scripts"
-    $searchPaths += $pipxVenvsDir
-    Write-DebugLog -Message "Added PIPX venv Scripts path: $pipxVenvsDir" -Category "PIPX" -Color "Cyan"
-
-    # Alternative Windows paths
-    $windowsPipxBin = Join-Path $env:USERPROFILE ".local\Scripts"
-    $searchPaths += $windowsPipxBin
-    Write-DebugLog -Message "Added Windows PIPX Scripts path: $windowsPipxBin" -Category "PIPX" -Color "Cyan"
-
-    # Add Python Scripts directory from environment repair
-    if ($envRepair.ScriptsDir) {
-        $searchPaths += $envRepair.ScriptsDir
-        Write-DebugLog -Message "Added Python Scripts directory from envRepair: $($envRepair.ScriptsDir)" -Category "PIPX" -Color "Green"
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all pipx paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "PIPX" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "PIPX" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package
-    Write-DebugLog -Message "Installing pipx package: $PackageName" -Category "PIPX" -Color "Yellow"
-    try {
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "PIPX" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -IncludeSystemPaths $true -GetSearchPaths $getSearchPaths -InstallAction {
         $installArgs = if ($ForceInstall) { @("install", $PackageName, "--force") } else { @("install", $PackageName) }
-        $Command = "pipx $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "PIPX" -Color "Magenta"
-        
+        Write-DebugLog -Message "Command: pipx $($installArgs -join ' ')" -Category "PIPX" -Color "Magenta"
         & $pipxExe $installArgs | Out-Host
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "PIPX" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $pipxBinDir = Join-Path $pipxHome "bin"
-            $searchPaths += $pipxBinDir
-            $pipxVenvsDir = Join-Path $pipxHome "venvs\$PackageName\Scripts"
-            $searchPaths += $pipxVenvsDir
-            $windowsPipxBin = Join-Path $env:USERPROFILE ".local\Scripts"
-            $searchPaths += $windowsPipxBin
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "PIPX" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "PIPX" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "PIPX" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "PIPX" -Color "Yellow"
-        
-        # Try uninstall and reinstall for error recovery
+    } -PostInstallFallback {
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "PIPX" -Color "Yellow"
             & $pipxExe uninstall $PackageName 2>$null | Out-Host
             Start-Sleep -Seconds 2
             & $pipxExe install $PackageName --force | Out-Host
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-            return $executable
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "PIPX" -Color "Red"
-        return $null
     }
 }
 
@@ -1675,148 +1124,72 @@ function Invoke-UvCommand {
         [bool]$ForceInstall = $true
     )
 
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $envRepair = $null
+    $uvExePath = $null
+    $uvExe = $null
+    $uvExeCmd = $null
     $pipExe = $null
-    $installOutput = @()
-    $installExitCode = 0
-    $previousErrorAction = $ErrorActionPreference
+    $getSearchPaths = $null
     # uv's own message for a tool whose environment is corrupt (e.g. its python.exe is gone).
     $uvBrokenToolPattern = 'Invalid environment|malformed tool'
 
     Write-DebugLog -Message "Processing uv package: $PackageName" -Category "UV" -Color "Cyan"
 
-    # Repair Python environment to get valid paths
     $envRepair = Repair-PythonEnvironment
     if (-not $envRepair.ScriptsDir) {
         Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "UV" -Color "Red"
         return $null
     }
 
-    # Try to find uv using absolute path first
     $uvExePath = Join-Path $envRepair.ScriptsDir "uv.exe"
-    $uvExe = $null
-
     if (Test-Path $uvExePath) {
         $uvExe = $uvExePath
-        Write-DebugLog -Message "Found uv at absolute path: $uvExePath" -Category "UV" -Color "Green"
     } else {
-        # Fallback to PATH search
         $uvExeCmd = Get-Command "uv" -ErrorAction SilentlyContinue
         if ($uvExeCmd) {
             $uvExe = $uvExeCmd.Source
-            Write-DebugLog -Message "Found uv in PATH: $uvExe" -Category "UV" -Color "Yellow"
         } else {
             Write-DebugLog -Message "uv not found, attempting to install via pip..." -Category "UV" -Color "Yellow"
-            try {
-                # Use absolute path to pip
-                $pipExe = $envRepair.PipExe
-                if ($pipExe) {
-                    & $pipExe install uv | Out-Host
-                    if (Test-Path $uvExePath) {
-                        $uvExe = $uvExePath
-                        Write-DebugLog -Message "uv installed successfully at: $uvExePath" -Category "UV" -Color "Green"
-                    } else {
-                        Write-DebugLog -Message "uv installation failed - executable not found" -Category "UV" -Color "Red"
-                        return $null
-                    }
-                } else {
-                    Write-DebugLog -Message "pip not found, cannot install uv" -Category "UV" -Color "Red"
-                    return $null
-                }
+            $pipExe = $envRepair.PipExe
+            if (-not $pipExe) {
+                Write-DebugLog -Message "pip not found, cannot install uv" -Category "UV" -Color "Red"
+                return $null
             }
-            catch {
-                Write-DebugLog -Message "Error installing uv: $($_.Exception.Message)" -Category "UV" -Color "Red"
+            & $pipExe install uv | Out-Host
+            if (Test-Path $uvExePath) {
+                $uvExe = $uvExePath
+            } else {
+                Write-DebugLog -Message "uv installation failed - executable not found" -Category "UV" -Color "Red"
                 return $null
             }
         }
     }
-    
-    # Get Python Scripts directories for uv packages
-    # CRITICAL: Use absolute paths from environment repair, not PATH
-    $searchPaths = @()
 
-    # Get uv installation paths using absolute path
-    # NOTE: Do NOT use try-catch because uv's stderr (WARNING) will trigger exceptions
-    Write-DebugLog -Message "Getting uv tool directory using absolute path..." -Category "UV" -Color "Cyan"
-    $uvToolOutput = & $uvExe tool dir 2>&1  # Capture both stdout and stderr
-
-    if ($uvToolOutput) {
-        # Filter out warnings and get actual path
-        $uvToolPath = $null
-        foreach ($line in $uvToolOutput) {
+    $getSearchPaths = {
+        $paths = @()
+        $uvToolOutput = $null
+        # NOTE: no try-catch: uv's stderr (WARNING) would trigger exceptions
+        $uvToolOutput = & $uvExe tool dir 2>&1
+        foreach ($line in @($uvToolOutput)) {
             $lineStr = $line.ToString()
             if ($lineStr -notmatch "^WARNING:" -and $lineStr -notmatch "^ERROR:" -and $lineStr.Trim() -ne "") {
-                $uvToolPath = $lineStr.Trim()
+                if (Test-Path $lineStr.Trim()) { $paths += $lineStr.Trim() }
                 break
             }
         }
-
-        if ($uvToolPath -and (Test-Path $uvToolPath)) {
-            $searchPaths += $uvToolPath
-            Write-DebugLog -Message "Added uv tool directory: $uvToolPath" -Category "UV" -Color "Green"
-        }
+        if ($envRepair.ScriptsDir) { $paths += $envRepair.ScriptsDir }
+        if (Test-Path (Join-Path $env:USERPROFILE ".local\bin")) { $paths += Join-Path $env:USERPROFILE ".local\bin" }
+        if ($paths.Count -eq 0) { $paths += (Split-Path -Parent $uvExe) }
+        $paths
     }
 
-    # Use Python Scripts directory from environment repair
-    # This is the CORRECT directory (<LANG_COMPILER_DIR>\python313\Scripts)
-    if ($envRepair.ScriptsDir) {
-        $searchPaths += $envRepair.ScriptsDir
-        Write-DebugLog -Message "Added Python Scripts directory from envRepair: $($envRepair.ScriptsDir)" -Category "UV" -Color "Green"
-    }
-
-    # UV home directory for user-installed tools
-    $uvHome = Join-Path $env:USERPROFILE ".local\bin"
-    if (Test-Path $uvHome) {
-        $searchPaths += $uvHome
-        Write-DebugLog -Message "Added UV home bin path: $uvHome" -Category "UV" -Color "Cyan"
-    }
-
-    # Ensure we have at least one search path
-    if ($searchPaths.Count -eq 0) {
-        Write-DebugLog -Message "WARNING: No search paths found, using fallback" -Category "UV" -Color "Yellow"
-        $searchPaths += (Split-Path -Parent $uvExe)
-    }
-
-    Write-DebugLog -Message "Final UV search paths count: $($searchPaths.Count)" -Category "UV" -Color "Cyan"
-    for ($i = 0; $i -lt $searchPaths.Count; $i++) {
-        Write-DebugLog -Message "  [$i] $($searchPaths[$i])" -Category "UV" -Color "Cyan"
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all uv paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "UV" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "UV" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package
-    Write-DebugLog -Message "Installing uv package: $PackageName" -Category "UV" -Color "Yellow"
-    try {
-        # Try uv tool install first (for applications), fallback to uv pip install
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "UV" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -IncludeSystemPaths $true -GetSearchPaths $getSearchPaths -InstallAction {
         $installArgs = @("tool", "install", $PackageName)
-        if ($ForceInstall) {
-            $installArgs += "--force"
-        }
-        
-        $Command = "uv $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "UV" -Color "Magenta"
-        
+        $installOutput = @()
+        $installExitCode = 0
+        $previousErrorAction = $ErrorActionPreference
+        if ($ForceInstall) { $installArgs += "--force" }
+        Write-DebugLog -Message "Command: uv $($installArgs -join ' ')" -Category "UV" -Color "Magenta"
         # uv prints progress on stderr; it must not abort the caller.
         $ErrorActionPreference = "Continue"
         $installOutput = @(& $uvExe $installArgs 2>&1)
@@ -1827,98 +1200,12 @@ function Invoke-UvCommand {
             Write-DebugLog -Message "Corrupt uv tool environment for $PackageName; running uv tool uninstall and reinstalling" -Category "UV" -Color "Yellow"
             & $uvExe tool uninstall $PackageName 2>&1 | ForEach-Object { Write-Host "  $_" }
             & $uvExe $installArgs 2>&1 | ForEach-Object { Write-Host "  $_" }
-            $installExitCode = $LASTEXITCODE
         }
         $ErrorActionPreference = $previousErrorAction
-        Write-DebugLog -Message "uv tool install exit code: $installExitCode" -Category "UV" -Color "Magenta"
-        
-        # Refresh search paths after tool install
-        Write-DebugLog -Message "Refreshing search paths..." -Category "UV" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $uvTool = & $uvExe tool dir 2>$null
-            if ($uvTool) {
-                $searchPaths += $uvTool
-            }
-            
-            if ($pipExe) {
-                $pythonScriptsDir = & $pipExe show pip 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-                if ($pythonScriptsDir) {
-                    $scriptsDir = Join-Path $pythonScriptsDir "Scripts"
-                    $searchPaths += $scriptsDir
-                    $userPipDir = & $pipExe show pip --user 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-                    if ($userPipDir) {
-                        $userScriptsDir = Join-Path $userPipDir "Scripts"
-                        $searchPaths += $userScriptsDir
-                    }
-                }
-            }
-            
-            $uvHome = Join-Path $env:USERPROFILE ".local\bin"
-            $searchPaths += $uvHome
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "UV" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "UV" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "UV" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "UV tool install did not produce executable, trying pip install..." -Category "UV" -Color "Yellow"
-        $pipInstallArgs = @("pip", "install", $PackageName)
-        & $uvExe $pipInstallArgs | Out-Host
-        
-        # Refresh search paths after pip install
-        Write-DebugLog -Message "Refreshing search paths after pip install..." -Category "UV" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $uvTool = & $uvExe tool dir 2>$null
-            if ($uvTool) {
-                $searchPaths += $uvTool
-            }
-            
-            $pipExe = $envRepair.PipExe
-            if ($pipExe) {
-                $pythonScriptsDir = & $pipExe show pip 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-                if ($pythonScriptsDir) {
-                    $scriptsDir = Join-Path $pythonScriptsDir "Scripts"
-                    $searchPaths += $scriptsDir
-                    $userPipDir = & $pipExe show pip --user 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-                    if ($userPipDir) {
-                        $userScriptsDir = Join-Path $userPipDir "Scripts"
-                        $searchPaths += $userScriptsDir
-                    }
-                }
-            }
-            
-            $uvHome = Join-Path $env:USERPROFILE ".local\bin"
-            $searchPaths += $uvHome
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "UV" -Color "Red"
-            throw
-        }
-        
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "UV" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "UV" -Color "Yellow"
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "UV" -Color "Red"
-        return $null
+    } -PostInstallFallback {
+        # Not every uv package is a tool; fall back to the uv pip installer.
+        Write-DebugLog -Message "UV tool install did not produce executable, trying uv pip install..." -Category "UV" -Color "Yellow"
+        & $uvExe pip install $PackageName | Out-Host
     }
 }
 
@@ -1981,202 +1268,78 @@ function Invoke-UvxCommand {
         [bool]$ForceInstall = $true
     )
 
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $envRepair = $null
+    $uvExePath = $null
+    $uvExe = $null
+    $uvExeCmd = $null
+    $pipExe = $null
+    $packageNameOnly = $PackageName -replace '@.*$', ''
+    $getSearchPaths = $null
 
     Write-DebugLog -Message "Processing uvx package: $PackageName" -Category "UVX" -Color "Cyan"
 
-    # Repair Python environment to get valid paths
     $envRepair = Repair-PythonEnvironment
     if (-not $envRepair.ScriptsDir) {
         Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "UVX" -Color "Red"
         return $null
     }
 
-    # Try to find uv using absolute path first (uvx is part of uv)
+    # uvx is part of uv
     $uvExePath = Join-Path $envRepair.ScriptsDir "uv.exe"
-    $uvExe = $null
-
     if (Test-Path $uvExePath) {
         $uvExe = $uvExePath
-        Write-DebugLog -Message "Found uv at absolute path: $uvExePath" -Category "UVX" -Color "Green"
     } else {
-        # Fallback to PATH search
         $uvExeCmd = Get-Command "uv" -ErrorAction SilentlyContinue
         if ($uvExeCmd) {
             $uvExe = $uvExeCmd.Source
-            Write-DebugLog -Message "Found uv in PATH: $uvExe" -Category "UVX" -Color "Yellow"
         } else {
             Write-DebugLog -Message "uv not found, attempting to install via pip..." -Category "UVX" -Color "Yellow"
-            try {
-                # Use absolute path to pip
-                $pipExe = $envRepair.PipExe
-                if ($pipExe) {
-                    & $pipExe install uv | Out-Host
-                    if (Test-Path $uvExePath) {
-                        $uvExe = $uvExePath
-                        Write-DebugLog -Message "uv installed successfully at: $uvExePath" -Category "UVX" -Color "Green"
-                    } else {
-                        Write-DebugLog -Message "uv installation failed - executable not found" -Category "UVX" -Color "Red"
-                        return $null
-                    }
-                } else {
-                    Write-DebugLog -Message "pip not found, cannot install uv" -Category "UVX" -Color "Red"
-                    return $null
-                }
+            $pipExe = $envRepair.PipExe
+            if (-not $pipExe) {
+                Write-DebugLog -Message "pip not found, cannot install uv" -Category "UVX" -Color "Red"
+                return $null
             }
-            catch {
-                Write-DebugLog -Message "Error installing uv: $($_.Exception.Message)" -Category "UVX" -Color "Red"
+            & $pipExe install uv | Out-Host
+            if (Test-Path $uvExePath) {
+                $uvExe = $uvExePath
+            } else {
+                Write-DebugLog -Message "uv installation failed - executable not found" -Category "UVX" -Color "Red"
                 return $null
             }
         }
     }
-    
-    # Get uv tool directory for installed packages
-    $searchPaths = @()
 
-    # Get uv tool directory using absolute path
-    # NOTE: Do NOT use try-catch because uv's stderr (WARNING) will trigger exceptions
-    Write-DebugLog -Message "Getting uv tool directory using absolute path..." -Category "UVX" -Color "Cyan"
-    $uvToolOutput = & $uvExe tool dir 2>&1  # Capture both stdout and stderr
-
-    if ($uvToolOutput) {
-        # Filter out warnings and get actual path
-        $uvToolPath = $null
-        foreach ($line in $uvToolOutput) {
+    $getSearchPaths = {
+        $paths = @()
+        $uvToolOutput = $null
+        # NOTE: no try-catch: uv's stderr (WARNING) would trigger exceptions
+        $uvToolOutput = & $uvExe tool dir 2>&1
+        foreach ($line in @($uvToolOutput)) {
             $lineStr = $line.ToString()
             if ($lineStr -notmatch "^WARNING:" -and $lineStr -notmatch "^ERROR:" -and $lineStr.Trim() -ne "") {
-                $uvToolPath = $lineStr.Trim()
+                if (Test-Path $lineStr.Trim()) { $paths += $lineStr.Trim() }
                 break
             }
         }
-
-        if ($uvToolPath -and (Test-Path $uvToolPath)) {
-            $searchPaths += $uvToolPath
-            Write-DebugLog -Message "Added uv tool directory: $uvToolPath" -Category "UVX" -Color "Green"
-        }
+        if ($envRepair.ScriptsDir) { $paths += $envRepair.ScriptsDir }
+        if (Test-Path (Join-Path $env:USERPROFILE ".local\bin")) { $paths += Join-Path $env:USERPROFILE ".local\bin" }
+        if ($paths.Count -eq 0) { $paths += (Split-Path -Parent $uvExe) }
+        $paths
     }
 
-    # Use Python Scripts directory from environment repair
-    if ($envRepair.ScriptsDir) {
-        $searchPaths += $envRepair.ScriptsDir
-        Write-DebugLog -Message "Added Python Scripts directory from envRepair: $($envRepair.ScriptsDir)" -Category "UVX" -Color "Green"
-    }
-
-    # UV home directory for user-installed tools
-    $uvHome = Join-Path $env:USERPROFILE ".local\bin"
-    if (Test-Path $uvHome) {
-        $searchPaths += $uvHome
-        Write-DebugLog -Message "Added UV home bin path: $uvHome" -Category "UVX" -Color "Cyan"
-    }
-
-    # Ensure we have at least one search path
-    if ($searchPaths.Count -eq 0) {
-        Write-DebugLog -Message "WARNING: No search paths found, using fallback" -Category "UVX" -Color "Yellow"
-        $searchPaths += (Split-Path -Parent $uvExe)
-    }
-
-    Write-DebugLog -Message "Final UVX search paths count: $($searchPaths.Count)" -Category "UVX" -Color "Cyan"
-    for ($i = 0; $i -lt $searchPaths.Count; $i++) {
-        Write-DebugLog -Message "  [$i] $($searchPaths[$i])" -Category "UVX" -Color "Cyan"
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        # Extract package name from PackageName (remove version specifier if present)
-        $packageNameOnly = $PackageName -replace '@.*$', ''
-        $searchKeywords = @($packageNameOnly)
-    }
-    
-    # Check if already installed - search in all uv paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "UVX" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "UVX" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package using uv tool install (uvx uses uv tool install under the hood)
-    Write-DebugLog -Message "Installing uvx package: $PackageName" -Category "UVX" -Color "Yellow"
-    try {
-        # Use uv tool install for permanent installation
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "UVX" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -FallbackKeywords @($packageNameOnly) -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -IncludeSystemPaths $true -GetSearchPaths $getSearchPaths -InstallAction {
+        # uvx uses uv tool install under the hood for permanent installation
         $installArgs = @("tool", "install", $PackageName)
-        if ($ForceInstall) {
-            $installArgs += "--force"
-        }
-        
-        $Command = "uv $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "UVX" -Color "Magenta"
-        
+        if ($ForceInstall) { $installArgs += "--force" }
+        Write-DebugLog -Message "Command: uv $($installArgs -join ' ')" -Category "UVX" -Color "Magenta"
         & $uvExe $installArgs | Out-Host
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "UVX" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $uvTool = & $uvExe tool dir 2>&1
-            if ($uvTool) {
-                # Filter out warnings
-                foreach ($line in $uvTool) {
-                    $lineStr = $line.ToString()
-                    if ($lineStr -notmatch "^WARNING:" -and $lineStr -notmatch "^ERROR:" -and $lineStr.Trim() -ne "") {
-                        $searchPaths += $lineStr.Trim()
-                        break
-                    }
-                }
-            }
-            
-            if ($envRepair.ScriptsDir) {
-                $searchPaths += $envRepair.ScriptsDir
-            }
-            
-            $uvHome = Join-Path $env:USERPROFILE ".local\bin"
-            if (Test-Path $uvHome) {
-                $searchPaths += $uvHome
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "UVX" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "UVX" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "UVX" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "UVX" -Color "Yellow"
-        
-        # Try uninstall and reinstall for error recovery
+    } -PostInstallFallback {
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "UVX" -Color "Yellow"
-            # Extract package name without version
-            $packageNameOnly = $PackageName -replace '@.*$', ''
             & $uvExe tool uninstall $packageNameOnly 2>$null | Out-Host
             Start-Sleep -Seconds 2
             & $uvExe tool install $PackageName --force | Out-Host
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-            return $executable
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "UVX" -Color "Red"
-        return $null
     }
 }
 
@@ -2240,126 +1403,65 @@ function Invoke-PoetryCommand {
         [bool]$ForceInstall = $true
     )
 
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $envRepair = $null
+    $poetryExePath = $null
+    $poetryExe = $null
+    $poetryExeCmd = $null
+    $poetryConfig = $null
+    $cacheDir = $null
+    $virtualenvsPath = $null
+    $getSearchPaths = $null
+    $executable = $null
 
     Write-DebugLog -Message "Processing poetry package: $PackageName" -Category "POETRY" -Color "Cyan"
 
-    # Repair Python environment to get valid paths
     $envRepair = Repair-PythonEnvironment
     if (-not $envRepair.ScriptsDir) {
         Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "POETRY" -Color "Red"
         return $null
     }
 
-    # Try to find poetry using absolute path first
     $poetryExePath = Join-Path $envRepair.ScriptsDir "poetry.exe"
-    $poetryExe = $null
-
     if (Test-Path $poetryExePath) {
         $poetryExe = $poetryExePath
-        Write-DebugLog -Message "Found poetry at absolute path: $poetryExePath" -Category "POETRY" -Color "Green"
     } else {
-        # Fallback to PATH search
         $poetryExeCmd = Get-Command "poetry" -ErrorAction SilentlyContinue
         if ($poetryExeCmd) {
             $poetryExe = $poetryExeCmd.Source
-            Write-DebugLog -Message "Found poetry in PATH: $poetryExe" -Category "POETRY" -Color "Yellow"
         } else {
             Write-DebugLog -Message "Poetry not found - fallback to pip installation" -Category "POETRY" -Color "Yellow"
-            # Poetry doesn't exist, fallback to pip
             return Invoke-PipCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
         }
     }
-    
-    # Get Poetry configuration paths
-    $searchPaths = @()
-    try {
-        # Poetry's cache and venv directories
-        $poetryConfig = & $poetryExe config --list 2>$null
-        if ($poetryConfig) {
-            $cacheDir = $poetryConfig | Select-String "cache-dir" | ForEach-Object { $_.ToString().Split("=")[1].Trim().Trim('"') }
-            $virtualenvsPath = $poetryConfig | Select-String "virtualenvs.path" | ForEach-Object { $_.ToString().Split("=")[1].Trim().Trim('"') }
-            
-            if ($cacheDir) {
-                $searchPaths += $cacheDir
-                Write-DebugLog -Message "Added Poetry cache directory: $cacheDir" -Category "POETRY" -Color "Magenta"
-            }
-            
-            if ($virtualenvsPath) {
-                $searchPaths += $virtualenvsPath
-                Write-DebugLog -Message "Added Poetry venvs path: $virtualenvsPath" -Category "POETRY" -Color "Magenta"
-            }
-        }
-        
-        # Default Poetry paths on Windows
-        $poetryDefaultCache = Join-Path $env:LOCALAPPDATA "pypoetry"
-        $searchPaths += $poetryDefaultCache
-        Write-DebugLog -Message "Added Poetry default cache: $poetryDefaultCache" -Category "POETRY" -Color "Magenta"
-        
-        # Poetry's own installation Scripts directory
-        $poetryDataDir = Join-Path $env:APPDATA "Python\Scripts"
-        $searchPaths += $poetryDataDir
-        Write-DebugLog -Message "Added Poetry data Scripts: $poetryDataDir" -Category "POETRY" -Color "Magenta"
-        
-        # Also check standard Python paths since Poetry often uses pip underneath
-        $pipExePath = $envRepair.PipExe
-        if ($pipExePath) {
-            $pythonScriptsDir = & $pipExePath show pip 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-            if ($pythonScriptsDir) {
-                $scriptsDir = Join-Path $pythonScriptsDir "Scripts"
-                $searchPaths += $scriptsDir
-                Write-DebugLog -Message "Added Python Scripts path: $scriptsDir" -Category "POETRY" -Color "Magenta"
-            }
-        }
+
+    $poetryConfig = & $poetryExe config --list 2>$null
+    if ($poetryConfig) {
+        $cacheDir = $poetryConfig | Select-String "cache-dir" | ForEach-Object { $_.ToString().Split("=")[1].Trim().Trim('"') }
+        $virtualenvsPath = $poetryConfig | Select-String "virtualenvs.path" | ForEach-Object { $_.ToString().Split("=")[1].Trim().Trim('"') }
     }
-    catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "POETRY" -Color "Red"
-        throw
+
+    $getSearchPaths = {
+        $paths = @()
+        if ($cacheDir) { $paths += $cacheDir }
+        if ($virtualenvsPath) { $paths += $virtualenvsPath }
+        $paths += Join-Path $env:LOCALAPPDATA "pypoetry"
+        $paths += Join-Path $env:APPDATA "Python\Scripts"
+        if ($envRepair.ScriptsDir) { $paths += $envRepair.ScriptsDir }
+        $paths
     }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all poetry paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "POETRY" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "POETRY" -Color "Cyan"
-        return $executable
-    }
-    
+
+    # Detection only: Poetry has no global package install, pip handles installation.
+    $executable = Invoke-ManagedPackageInstall -PackageName $PackageName -Category "POETRY" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $true -ForceInstall $ForceInstall -IncludeSystemPaths $true -GetSearchPaths $getSearchPaths -InstallAction { }
     if ($OnlyCheckFlag) {
         return $executable
     }
-    
-    # Install package - Poetry doesn't have global package install like pip
-    # We'll use pip as fallback for global installations
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "${PackageName}: already installed at $executable, skipping installation" -Category "POETRY" -Color "Green"
+        return $executable
+    }
+
     Write-DebugLog -Message "Poetry doesn't support global package installation, using pip fallback for: $PackageName" -Category "POETRY" -Color "Yellow"
-    
-    try {
-        # Use pip for global package installation since Poetry is project-focused
-        $pipResult = Invoke-PipCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $false -ForceInstall $ForceInstall
-        
-        if ($pipResult) {
-            Write-DebugLog -Message "Poetry fallback pip installation successful: $pipResult" -Category "POETRY" -Color "Green"
-            return $pipResult
-        } else {
-            Write-DebugLog -Message "Poetry fallback pip installation failed" -Category "POETRY" -Color "Red"
-            return $null
-        }
-    }
-    catch {
-        Write-DebugLog -Message "Poetry installation error: $($_.Exception.Message)" -Category "POETRY" -Color "Red"
-        return $null
-    }
+    return Invoke-PipCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $false -ForceInstall $ForceInstall
 }
 
 <#
@@ -2420,141 +1522,49 @@ function Invoke-ChocoCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
+    $chocoExe = $null
+    $chocoInstallPath = $null
+    $getSearchPaths = $null
+
     Write-DebugLog -Message "Processing chocolatey package: $PackageName" -Category "CHOCO" -Color "Cyan"
-    
-    # Check if chocolatey is available
+
     $chocoExe = Get-Command "choco" -ErrorAction SilentlyContinue
     if (-not $chocoExe) {
         Write-DebugLog -Message "Chocolatey not found in PATH" -Category "CHOCO" -Color "Red"
         return $null
     }
-    
-    # Build search paths for chocolatey packages
-    $searchPaths = @()
-    try {
-        # Chocolatey default installation directories
-        $chocoInstallPath = $env:ChocolateyInstall
-        if (-not $chocoInstallPath) {
-            $chocoInstallPath = Join-Path $env:ProgramData "chocolatey"
-        }
-        
-        # Main chocolatey bin directory
-        $chocoBinDir = Join-Path $chocoInstallPath "bin"
-        $searchPaths += $chocoBinDir
-        Write-DebugLog -Message "Added chocolatey bin path: $chocoBinDir" -Category "CHOCO" -Color "Magenta"
-        
-        # Package-specific installation directory
-        if ($InstallDir) {
-            $searchPaths += $InstallDir
-            Write-DebugLog -Message "Added custom install directory: $InstallDir" -Category "CHOCO" -Color "Magenta"
-        }
-        
-        # Chocolatey lib directory for package-specific binaries
-        $chocoLibDir = Join-Path $chocoInstallPath "lib\$PackageName\tools"
-        $searchPaths += $chocoLibDir
-        Write-DebugLog -Message "Added chocolatey lib tools path: $chocoLibDir" -Category "CHOCO" -Color "Magenta"
-        
-        # Alternative lib path structure
-        $chocoLibBinDir = Join-Path $chocoInstallPath "lib\$PackageName\bin"
-        $searchPaths += $chocoLibBinDir
-        Write-DebugLog -Message "Added chocolatey lib bin path: $chocoLibBinDir" -Category "CHOCO" -Color "Magenta"
+
+    $chocoInstallPath = $env:ChocolateyInstall
+    if (-not $chocoInstallPath) {
+        $chocoInstallPath = Join-Path $env:ProgramData "chocolatey"
     }
-    catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "CHOCO" -Color "Red"
-        throw
+
+    $getSearchPaths = {
+        $paths = @(
+            (Join-Path $chocoInstallPath "bin"),
+            (Join-Path $chocoInstallPath "lib\$PackageName\tools"),
+            (Join-Path $chocoInstallPath "lib\$PackageName\bin")
+        )
+        if ($InstallDir) { $paths += $InstallDir }
+        $paths
     }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all chocolatey paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "CHOCO" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "CHOCO" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package
-    Write-DebugLog -Message "Installing chocolatey package: $PackageName" -Category "CHOCO" -Color "Yellow"
-    try {
+
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "CHOCO" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -IncludeSystemPaths $true -GetSearchPaths $getSearchPaths -InstallAction {
         $installArgs = @("install", $PackageName, "-y")
-        if ($InstallDir) {
-            $installArgs += "--install-directory=$InstallDir"
-        }
-        if ($ForceInstall) {
-            $installArgs += "--force"
-        }
-        
-        $Command = "choco $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "CHOCO" -Color "Magenta"
-        
+        if ($InstallDir) { $installArgs += "--install-directory=$InstallDir" }
+        if ($ForceInstall) { $installArgs += "--force" }
+        Write-DebugLog -Message "Command: choco $($installArgs -join ' ')" -Category "CHOCO" -Color "Magenta"
         & choco $installArgs | Out-Host
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "CHOCO" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $chocoBinDir = Join-Path $chocoInstallPath "bin"
-            $searchPaths += $chocoBinDir
-            if ($InstallDir) {
-                $searchPaths += $InstallDir
-            }
-            $chocoLibDir = Join-Path $chocoInstallPath "lib\$PackageName\tools"
-            $searchPaths += $chocoLibDir
-            $chocoLibBinDir = Join-Path $chocoInstallPath "lib\$PackageName\bin"
-            $searchPaths += $chocoLibBinDir
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "CHOCO" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "CHOCO" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "CHOCO" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "CHOCO" -Color "Yellow"
-        
-        # Try uninstall and reinstall for error recovery
+    } -PostInstallFallback {
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "CHOCO" -Color "Yellow"
             & choco uninstall $PackageName -y 2>$null | Out-Host
             Start-Sleep -Seconds 2
             $retryArgs = @("install", $PackageName, "-y", "--force")
-            if ($InstallDir) {
-                $retryArgs += "--install-directory=$InstallDir"
-            }
+            if ($InstallDir) { $retryArgs += "--install-directory=$InstallDir" }
             & choco $retryArgs | Out-Host
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-            return $executable
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "CHOCO" -Color "Red"
-        return $null
     }
 }
 
@@ -2617,155 +1627,54 @@ function Invoke-ScoopCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
+    $scoopExe = $null
+    $scoopInstallPath = $null
+    $globalScoopPath = $null
+    $getSearchPaths = $null
+
     Write-DebugLog -Message "Processing scoop package: $PackageName" -Category "SCOOP" -Color "Cyan"
-    
-    # Check if scoop is available
+
     $scoopExe = Get-Command "scoop" -ErrorAction SilentlyContinue
     if (-not $scoopExe) {
         Write-DebugLog -Message "Scoop not found in PATH" -Category "SCOOP" -Color "Red"
         return $null
     }
-    
-    # Get scoop installation directory
-    try {
-        $scoopInstallPath = $env:SCOOP
-        if (-not $scoopInstallPath) {
-            $scoopInstallPath = Join-Path $env:USERPROFILE "scoop"
-        }
-        Write-DebugLog -Message "Scoop installation path: $scoopInstallPath" -Category "SCOOP" -Color "Cyan"
+
+    $scoopInstallPath = $env:SCOOP
+    if (-not $scoopInstallPath) {
+        $scoopInstallPath = Join-Path $env:USERPROFILE "scoop"
     }
-    catch {
-        Write-DebugLog -Message "Failed to determine scoop installation path: $($_.Exception.Message)" -Category "SCOOP" -Color "Red"
-        return $null
+    $globalScoopPath = $env:SCOOP_GLOBAL
+    if (-not $globalScoopPath) {
+        $globalScoopPath = Join-Path $env:ProgramData "scoop"
     }
-    
-    # Build search paths for scoop packages
-    $searchPaths = @()
-    try {
-        # Scoop shims directory (primary location for executables)
-        $scoopShimsDir = Join-Path $scoopInstallPath "shims"
-        $searchPaths += $scoopShimsDir
-        Write-DebugLog -Message "Added scoop shims path: $scoopShimsDir" -Category "SCOOP" -Color "Magenta"
-        
-        # Package-specific installation directory
-        $scoopAppsDir = Join-Path $scoopInstallPath "apps\$PackageName\current"
-        $searchPaths += $scoopAppsDir
-        Write-DebugLog -Message "Added scoop app current path: $scoopAppsDir" -Category "SCOOP" -Color "Magenta"
-        
-        # Package bin directory
-        $scoopAppBinDir = Join-Path $scoopInstallPath "apps\$PackageName\current\bin"
-        $searchPaths += $scoopAppBinDir
-        Write-DebugLog -Message "Added scoop app bin path: $scoopAppBinDir" -Category "SCOOP" -Color "Magenta"
-        
-        # Global scoop installation paths
-        $globalScoopPath = $env:SCOOP_GLOBAL
-        if (-not $globalScoopPath) {
-            $globalScoopPath = Join-Path $env:ProgramData "scoop"
-        }
-        
+
+    $getSearchPaths = {
+        $paths = @(
+            (Join-Path $scoopInstallPath "shims"),
+            (Join-Path $scoopInstallPath "apps\$PackageName\current"),
+            (Join-Path $scoopInstallPath "apps\$PackageName\current\bin")
+        )
         if (Test-Path $globalScoopPath) {
-            $globalScoopShims = Join-Path $globalScoopPath "shims"
-            $searchPaths += $globalScoopShims
-            Write-DebugLog -Message "Added global scoop shims path: $globalScoopShims" -Category "SCOOP" -Color "Magenta"
-            
-            $globalScoopAppsDir = Join-Path $globalScoopPath "apps\$PackageName\current"
-            $searchPaths += $globalScoopAppsDir
-            Write-DebugLog -Message "Added global scoop app current path: $globalScoopAppsDir" -Category "SCOOP" -Color "Magenta"
+            $paths += Join-Path $globalScoopPath "shims"
+            $paths += Join-Path $globalScoopPath "apps\$PackageName\current"
         }
+        $paths
     }
-    catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "SCOOP" -Color "Red"
-        throw
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all scoop paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "SCOOP" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "SCOOP" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package
-    Write-DebugLog -Message "Installing scoop package: $PackageName" -Category "SCOOP" -Color "Yellow"
-    try {
+
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "SCOOP" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
         $installArgs = @("install", $PackageName)
-        if ($ForceInstall) {
-            $installArgs += "--force"
-        }
-        
-        $Command = "scoop $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "SCOOP" -Color "Magenta"
-        
+        if ($ForceInstall) { $installArgs += "--force" }
+        Write-DebugLog -Message "Command: scoop $($installArgs -join ' ')" -Category "SCOOP" -Color "Magenta"
         & scoop $installArgs
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "SCOOP" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $scoopShimsDir = Join-Path $scoopInstallPath "shims"
-            $searchPaths += $scoopShimsDir
-            $scoopAppsDir = Join-Path $scoopInstallPath "apps\$PackageName\current"
-            $searchPaths += $scoopAppsDir
-            $scoopAppBinDir = Join-Path $scoopInstallPath "apps\$PackageName\current\bin"
-            $searchPaths += $scoopAppBinDir
-            
-            if (Test-Path $globalScoopPath) {
-                $globalScoopShims = Join-Path $globalScoopPath "shims"
-                $searchPaths += $globalScoopShims
-                $globalScoopAppsDir = Join-Path $globalScoopPath "apps\$PackageName\current"
-                $searchPaths += $globalScoopAppsDir
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "SCOOP" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "SCOOP" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "SCOOP" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "SCOOP" -Color "Yellow"
-        
-        # Try uninstall and reinstall for error recovery
+    } -PostInstallFallback {
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "SCOOP" -Color "Yellow"
             & scoop uninstall $PackageName 2>$null
             Start-Sleep -Seconds 2
             & scoop install $PackageName --force
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-            return $executable
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "SCOOP" -Color "Red"
-        return $null
     }
 }
 
@@ -2828,144 +1737,55 @@ function Invoke-CargoCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
+    $cargoExe = $null
+    $cargoHome = $null
+    $rustupHome = $null
+    $getSearchPaths = $null
+
     Write-DebugLog -Message "Processing cargo crate: $PackageName" -Category "CARGO" -Color "Cyan"
-    
-    # Check if cargo is available
+
     $cargoExe = Get-Command "cargo" -ErrorAction SilentlyContinue
     if (-not $cargoExe) {
         Write-DebugLog -Message "Cargo not found in PATH" -Category "CARGO" -Color "Red"
         return $null
     }
-    
-    # Get cargo installation directory
-    try {
-        $cargoHome = $env:CARGO_HOME
-        if (-not $cargoHome) {
-            $cargoHome = Join-Path $env:USERPROFILE ".cargo"
-        }
-        Write-DebugLog -Message "Cargo home directory: $cargoHome" -Category "CARGO" -Color "Cyan"
+
+    $cargoHome = $env:CARGO_HOME
+    if (-not $cargoHome) {
+        $cargoHome = Join-Path $env:USERPROFILE ".cargo"
     }
-    catch {
-        Write-DebugLog -Message "Failed to determine cargo home directory: $($_.Exception.Message)" -Category "CARGO" -Color "Red"
-        return $null
+    $rustupHome = $env:RUSTUP_HOME
+    if (-not $rustupHome) {
+        $rustupHome = Join-Path $env:USERPROFILE ".rustup"
     }
-    
-    # Build search paths for cargo binaries
-    $searchPaths = @()
-    try {
-        # Cargo bin directory (primary location for installed binaries)
-        $cargoBinDir = Join-Path $cargoHome "bin"
-        $searchPaths += $cargoBinDir
-        Write-DebugLog -Message "Added cargo bin path: $cargoBinDir" -Category "CARGO" -Color "Magenta"
-        
-        # Rust toolchain bin directory
-        $rustupHome = $env:RUSTUP_HOME
-        if (-not $rustupHome) {
-            $rustupHome = Join-Path $env:USERPROFILE ".rustup"
-        }
-        
+
+    $getSearchPaths = {
+        $paths = @((Join-Path $cargoHome "bin"))
+        $activeToolchain = $null
+        $toolchainName = $null
         if (Test-Path $rustupHome) {
-            # Find active toolchain
             $activeToolchain = & rustup show active-toolchain 2>$null
             if ($activeToolchain) {
                 $toolchainName = $activeToolchain.Split()[0]
-                $toolchainBinDir = Join-Path $rustupHome "toolchains\$toolchainName\bin"
-                $searchPaths += $toolchainBinDir
-                Write-DebugLog -Message "Added toolchain bin path: $toolchainBinDir" -Category "CARGO" -Color "Magenta"
+                $paths += Join-Path $rustupHome "toolchains\$toolchainName\bin"
             }
         }
+        $paths
     }
-    catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "CARGO" -Color "Red"
-        throw
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all cargo paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Crate already installed: $executable" -Category "CARGO" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "CARGO" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install crate
-    Write-DebugLog -Message "Installing cargo crate: $PackageName" -Category "CARGO" -Color "Yellow"
-    try {
+
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "CARGO" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
         $installArgs = @("install", $PackageName)
-        if ($ForceInstall) {
-            $installArgs += "--force"
-        }
-        
-        $Command = "cargo $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "CARGO" -Color "Magenta"
-        
+        if ($ForceInstall) { $installArgs += "--force" }
+        Write-DebugLog -Message "Command: cargo $($installArgs -join ' ')" -Category "CARGO" -Color "Magenta"
         & cargo $installArgs
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "CARGO" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $cargoBinDir = Join-Path $cargoHome "bin"
-            $searchPaths += $cargoBinDir
-            
-            if (Test-Path $rustupHome) {
-                $activeToolchain = & rustup show active-toolchain 2>$null
-                if ($activeToolchain) {
-                    $toolchainName = $activeToolchain.Split()[0]
-                    $toolchainBinDir = Join-Path $rustupHome "toolchains\$toolchainName\bin"
-                    $searchPaths += $toolchainBinDir
-                }
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "CARGO" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "CARGO" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "CARGO" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "CARGO" -Color "Yellow"
-        
-        # Try uninstall and reinstall for error recovery
+    } -PostInstallFallback {
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "CARGO" -Color "Yellow"
             & cargo uninstall $PackageName 2>$null
             Start-Sleep -Seconds 2
             & cargo install $PackageName --force
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-            return $executable
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "CARGO" -Color "Red"
-        return $null
     }
 }
 
@@ -3028,106 +1848,51 @@ function Invoke-GoCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    $goVersionParts = @()
-    $goVersionToken = ''
-    $majorVersion = 0
-    $minorVersion = 0
-    
+
+    $goExe = $null
+    $goPath = $null
+    $goRoot = $null
+    $getSearchPaths = $null
+
     Write-DebugLog -Message "Processing go package: $PackageName" -Category "GO" -Color "Cyan"
-    
-    # Check if go is available
+
     $goExe = Get-Command "go" -ErrorAction SilentlyContinue
     if (-not $goExe) {
         Write-DebugLog -Message "Go not found in PATH" -Category "GO" -Color "Red"
         return $null
     }
-    
-    # Get go installation paths
-    try {
-        $goPath = $env:GOPATH
+
+    $goPath = $env:GOPATH
+    if (-not $goPath) {
+        $goPath = & go env GOPATH 2>$null
         if (-not $goPath) {
-            # Use default GOPATH if not set
-            $goPath = & go env GOPATH 2>$null
-            if (-not $goPath) {
-                $goPath = Join-Path $env:USERPROFILE "go"
-            }
+            $goPath = Join-Path $env:USERPROFILE "go"
         }
-        Write-DebugLog -Message "Go path: $goPath" -Category "GO" -Color "Cyan"
-        
-        $goRoot = $env:GOROOT
-        if (-not $goRoot) {
-            $goRoot = & go env GOROOT 2>$null
-        }
-        Write-DebugLog -Message "Go root: $goRoot" -Category "GO" -Color "Cyan"
     }
-    catch {
-        Write-DebugLog -Message "Failed to determine go paths: $($_.Exception.Message)" -Category "GO" -Color "Red"
-        return $null
+    $goRoot = $env:GOROOT
+    if (-not $goRoot) {
+        $goRoot = & go env GOROOT 2>$null
     }
-    
-    # Build search paths for go binaries
-    $searchPaths = @()
-    try {
-        # GOPATH bin directory (primary location for installed binaries)
-        if ($goPath) {
-            $goPathBinDir = Join-Path $goPath "bin"
-            $searchPaths += $goPathBinDir
-            Write-DebugLog -Message "Added go path bin directory: $goPathBinDir" -Category "GO" -Color "Magenta"
-        }
-        
-        # GOROOT bin directory
-        if ($goRoot) {
-            $goRootBinDir = Join-Path $goRoot "bin"
-            $searchPaths += $goRootBinDir
-            Write-DebugLog -Message "Added go root bin directory: $goRootBinDir" -Category "GO" -Color "Magenta"
-        }
-        
-        # Default go bin path from environment
+
+    $getSearchPaths = {
+        $paths = @()
+        $goBin = $null
+        if ($goPath) { $paths += Join-Path $goPath "bin" }
+        if ($goRoot) { $paths += Join-Path $goRoot "bin" }
         $goBin = & go env GOBIN 2>$null
-        if ($goBin) {
-            $searchPaths += $goBin
-            Write-DebugLog -Message "Added go bin directory: $goBin" -Category "GO" -Color "Magenta"
-        }
+        if ($goBin) { $paths += $goBin }
+        $paths
     }
-    catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "GO" -Color "Red"
-        throw
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        # Extract binary name from package path
-        $binaryName = $PackageName.Split("/")[-1]
-        $searchKeywords = @($binaryName)
-    }
-    
-    # Check if already installed - search in all go paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "GO" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "GO" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package
-    Write-DebugLog -Message "Installing go package: $PackageName" -Category "GO" -Color "Yellow"
-    try {
-        # Use go install for Go 1.16+ or go get for older versions
+
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "GO" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -FallbackKeywords @($PackageName.Split("/")[-1]) -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
+        # go install for Go 1.16+, go get for older versions
         $goVersion = & go version 2>$null
         $useGoInstall = $true
-        
+        $goVersionParts = @()
+        $goVersionToken = ''
+        $majorVersion = 0
+        $minorVersion = 0
+        $installArgs = @()
         $goVersionToken = (("$goVersion").Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries) | Where-Object { $_.Length -gt 2 -and $_.StartsWith('go') } | Select-Object -First 1)
         if ($goVersionToken) {
             $goVersionParts = $goVersionToken.Substring(2).Split('.')
@@ -3139,75 +1904,17 @@ function Invoke-GoCommand {
                 $useGoInstall = $false
             }
         }
-        
-        if ($useGoInstall) {
-            $installArgs = @("install", "$PackageName@latest")
-            $Command = "go $($installArgs -join ' ')"
-        }
-        else {
-            $installArgs = @("get", "-u", $PackageName)
-            $Command = "go $($installArgs -join ' ')"
-        }
-        
-        Write-DebugLog -Message "Command: $Command" -Category "GO" -Color "Magenta"
-        
+        $installArgs = if ($useGoInstall) { @("install", "$PackageName@latest") } else { @("get", "-u", $PackageName) }
+        Write-DebugLog -Message "Command: go $($installArgs -join ' ')" -Category "GO" -Color "Magenta"
         & go $installArgs
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "GO" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            if ($goPath) {
-                $goPathBinDir = Join-Path $goPath "bin"
-                $searchPaths += $goPathBinDir
-            }
-            if ($goRoot) {
-                $goRootBinDir = Join-Path $goRoot "bin"
-                $searchPaths += $goRootBinDir
-            }
-            $goBin = & go env GOBIN 2>$null
-            if ($goBin) {
-                $searchPaths += $goBin
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "GO" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "GO" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "GO" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "GO" -Color "Yellow"
-        
-        # For go, there's no uninstall command, so we try clean and reinstall
+    } -PostInstallFallback {
+        # go has no uninstall command: clean the module cache and reinstall
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting clean and reinstall..." -Category "GO" -Color "Yellow"
             & go clean -modcache 2>$null
             Start-Sleep -Seconds 2
-            
-            if ($useGoInstall) {
-                & go install "$PackageName@latest"
-            }
-            else {
-                & go get -u $PackageName
-            }
-            
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-            return $executable
+            & go install "$PackageName@latest"
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "GO" -Color "Red"
-        return $null
     }
 }
 
@@ -3270,186 +1977,62 @@ function Invoke-GemCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1", ".rb")
-    
+
+    $gemExe = $null
+    $rubyExePath = $null
+    $getSearchPaths = $null
+
     Write-DebugLog -Message "Processing ruby gem: $PackageName" -Category "GEM" -Color "Cyan"
-    
-    # Check if gem is available
+
     $gemExe = Get-Command "gem" -ErrorAction SilentlyContinue
     if (-not $gemExe) {
         Write-DebugLog -Message "RubyGems not found in PATH" -Category "GEM" -Color "Red"
         return $null
     }
-    
-    # Get ruby and gem installation paths
-    try {
-        # Get gem environment information
+    $rubyExePath = Get-Command "ruby" -ErrorAction SilentlyContinue
+
+    $getSearchPaths = {
+        $paths = @()
+        $gemEnv = $null
+        # gem environment is re-read on every scan so post-install paths stay fresh
         $gemEnv = & gem environment 2>$null
-        $rubyGemsDir = $null
-        $userGemsDir = $null
-        
-        if ($gemEnv) {
-            foreach ($line in $gemEnv) {
-                if ($line -match "INSTALLATION DIRECTORY: (.+)") {
-                    $rubyGemsDir = $matches[1].Trim()
-                }
-                elseif ($line -match "USER INSTALLATION DIRECTORY: (.+)") {
-                    $userGemsDir = $matches[1].Trim()
-                }
+        foreach ($line in @($gemEnv)) {
+            if ($line -match "INSTALLATION DIRECTORY: (.+)") {
+                $paths += Join-Path $matches[1].Trim() "bin"
+            }
+            elseif ($line -match "USER INSTALLATION DIRECTORY: (.+)") {
+                $paths += Join-Path $matches[1].Trim() "bin"
             }
         }
-        
-        Write-DebugLog -Message "Ruby gems directory: $rubyGemsDir" -Category "GEM" -Color "Cyan"
-        Write-DebugLog -Message "User gems directory: $userGemsDir" -Category "GEM" -Color "Cyan"
-    }
-    catch {
-        Write-DebugLog -Message "Failed to get gem environment: $($_.Exception.Message)" -Category "GEM" -Color "Red"
-        return $null
-    }
-    
-    # Build search paths for gem binaries
-    $searchPaths = @()
-    try {
-        # System gem bin directory
-        if ($rubyGemsDir) {
-            $systemGemBinDir = Join-Path $rubyGemsDir "bin"
-            $searchPaths += $systemGemBinDir
-            Write-DebugLog -Message "Added system gem bin path: $systemGemBinDir" -Category "GEM" -Color "Magenta"
-        }
-        
-        # User gem bin directory
-        if ($userGemsDir) {
-            $userGemBinDir = Join-Path $userGemsDir "bin"
-            $searchPaths += $userGemBinDir
-            Write-DebugLog -Message "Added user gem bin path: $userGemBinDir" -Category "GEM" -Color "Magenta"
-        }
-        
-        # Ruby bin directory (where ruby.exe typically resides)
-        $rubyExePath = Get-Command "ruby" -ErrorAction SilentlyContinue
         if ($rubyExePath) {
-            $rubyBinDir = Split-Path $rubyExePath.Source -Parent
-            $searchPaths += $rubyBinDir
-            Write-DebugLog -Message "Added ruby bin path: $rubyBinDir" -Category "GEM" -Color "Magenta"
+            $paths += Split-Path $rubyExePath.Source -Parent
         }
-        
-        # Common Windows Ruby installation paths
-        $commonRubyPaths = @(
+        foreach ($pattern in @(
             "C:\Ruby*\bin",
             (Join-Path $env:ProgramFiles "Ruby*\bin"),
             "${env:ProgramFiles(x86)}\Ruby*\bin"
-        )
-        
-        foreach ($pattern in $commonRubyPaths) {
-            $paths = Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue
-            foreach ($path in $paths) {
-                if (Test-Path $path.FullName) {
-                    $searchPaths += $path.FullName
-                    Write-DebugLog -Message "Added common ruby path: $($path.FullName)" -Category "GEM" -Color "Magenta"
-                }
+        )) {
+            foreach ($rubyPath in @(Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue)) {
+                if (Test-Path $rubyPath.FullName) { $paths += $rubyPath.FullName }
             }
         }
+        $paths
     }
-    catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "GEM" -Color "Red"
-        throw
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all gem paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Gem already installed: $executable" -Category "GEM" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "GEM" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install gem
-    Write-DebugLog -Message "Installing ruby gem: $PackageName" -Category "GEM" -Color "Yellow"
-    try {
-        $installArgs = @("install", $PackageName)
-        if ($ForceInstall) {
-            $installArgs += "--force"
-        }
+
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "GEM" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ExecutableExtensions @(".exe", ".bat", ".cmd", ".ps1", ".rb") -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -IncludeSystemPaths $true -GetSearchPaths $getSearchPaths -InstallAction {
         # Install to user directory to avoid permission issues
+        $installArgs = @("install", $PackageName)
+        if ($ForceInstall) { $installArgs += "--force" }
         $installArgs += "--user-install"
-        
-        $Command = "gem $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "GEM" -Color "Magenta"
-        
+        Write-DebugLog -Message "Command: gem $($installArgs -join ' ')" -Category "GEM" -Color "Magenta"
         & gem $installArgs | Out-Host
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "GEM" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            # Re-get gem environment after installation
-            $gemEnv = & gem environment 2>$null
-            if ($gemEnv) {
-                foreach ($line in $gemEnv) {
-                    if ($line -match "INSTALLATION DIRECTORY: (.+)") {
-                        $rubyGemsDir = $matches[1].Trim()
-                        $systemGemBinDir = Join-Path $rubyGemsDir "bin"
-                        $searchPaths += $systemGemBinDir
-                    }
-                    elseif ($line -match "USER INSTALLATION DIRECTORY: (.+)") {
-                        $userGemsDir = $matches[1].Trim()
-                        $userGemBinDir = Join-Path $userGemsDir "bin"
-                        $searchPaths += $userGemBinDir
-                    }
-                }
-            }
-            
-            if ($rubyExePath) {
-                $rubyBinDir = Split-Path $rubyExePath.Source -Parent
-                $searchPaths += $rubyBinDir
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "GEM" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "GEM" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "GEM" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "GEM" -Color "Yellow"
-        
-        # Try uninstall and reinstall for error recovery
+    } -PostInstallFallback {
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "GEM" -Color "Yellow"
             & gem uninstall $PackageName --user-install 2>$null | Out-Host
             Start-Sleep -Seconds 2
             & gem install $PackageName --user-install --force | Out-Host
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-            return $executable
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "GEM" -Color "Red"
-        return $null
     }
 }
 
@@ -3512,165 +2095,60 @@ function Invoke-BrewCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
+    $brewExe = $null
+    $brewPrefix = $null
+    $brewCellar = $null
+    $getSearchPaths = $null
+
     Write-DebugLog -Message "Processing homebrew package: $PackageName" -Category "BREW" -Color "Cyan"
-    
-    # Check if brew is available (typically through WSL or Linux subsystem on Windows)
+
+    # brew is typically available through WSL or Linux subsystem on Windows
     $brewExe = Get-Command "brew" -ErrorAction SilentlyContinue
     if (-not $brewExe) {
         Write-DebugLog -Message "Homebrew not found in PATH (not available on Windows by default)" -Category "BREW" -Color "Red"
         return $null
     }
-    
-    # Get homebrew installation paths
-    try {
-        # Get homebrew prefix (installation directory)
-        $brewPrefix = & brew --prefix 2>$null
-        if (-not $brewPrefix) {
-            Write-DebugLog -Message "Failed to get brew prefix" -Category "BREW" -Color "Red"
-            return $null
-        }
-        Write-DebugLog -Message "Homebrew prefix: $brewPrefix" -Category "BREW" -Color "Cyan"
-        
-        # Get homebrew cellar (package installation directory)
-        $brewCellar = & brew --cellar 2>$null
-        if (-not $brewCellar) {
-            $brewCellar = Join-Path $brewPrefix "Cellar"
-        }
-        Write-DebugLog -Message "Homebrew cellar: $brewCellar" -Category "BREW" -Color "Cyan"
-    }
-    catch {
-        Write-DebugLog -Message "Failed to get homebrew paths: $($_.Exception.Message)" -Category "BREW" -Color "Red"
+
+    $brewPrefix = & brew --prefix 2>$null
+    if (-not $brewPrefix) {
+        Write-DebugLog -Message "Failed to get brew prefix" -Category "BREW" -Color "Red"
         return $null
     }
-    
-    # Build search paths for homebrew binaries
-    $searchPaths = @()
-    try {
-        # Homebrew bin directory (primary location for binaries)
-        $brewBinDir = Join-Path $brewPrefix "bin"
-        $searchPaths += $brewBinDir
-        Write-DebugLog -Message "Added homebrew bin path: $brewBinDir" -Category "BREW" -Color "Magenta"
-        
-        # Homebrew sbin directory
-        $brewSbinDir = Join-Path $brewPrefix "sbin"
-        $searchPaths += $brewSbinDir
-        Write-DebugLog -Message "Added homebrew sbin path: $brewSbinDir" -Category "BREW" -Color "Magenta"
-        
-        # Package-specific cellar directory
+    $brewCellar = & brew --cellar 2>$null
+    if (-not $brewCellar) {
+        $brewCellar = Join-Path $brewPrefix "Cellar"
+    }
+
+    $getSearchPaths = {
+        $paths = @(
+            (Join-Path $brewPrefix "bin"),
+            (Join-Path $brewPrefix "sbin"),
+            (Join-Path $brewPrefix "opt\$PackageName\bin")
+        )
         $packageCellarDir = Join-Path $brewCellar $PackageName
+        $versionDirs = $null
         if (Test-Path $packageCellarDir) {
-            # Get the latest version directory
             $versionDirs = Get-ChildItem -Path $packageCellarDir -Directory | Sort-Object Name -Descending
             if ($versionDirs) {
-                $latestVersionDir = $versionDirs[0].FullName
-                $packageBinDir = Join-Path $latestVersionDir "bin"
-                $searchPaths += $packageBinDir
-                Write-DebugLog -Message "Added package-specific bin path: $packageBinDir" -Category "BREW" -Color "Magenta"
+                $paths += Join-Path $versionDirs[0].FullName "bin"
             }
         }
-        
-        # Homebrew opt directory (symlinked current versions)
-        $brewOptDir = Join-Path $brewPrefix "opt\$PackageName\bin"
-        $searchPaths += $brewOptDir
-        Write-DebugLog -Message "Added homebrew opt bin path: $brewOptDir" -Category "BREW" -Color "Magenta"
+        $paths
     }
-    catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "BREW" -Color "Red"
-        throw
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search in all homebrew paths at once
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "BREW" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "BREW" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install package
-    Write-DebugLog -Message "Installing homebrew package: $PackageName" -Category "BREW" -Color "Yellow"
-    try {
+
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "BREW" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
         $installArgs = @("install", $PackageName)
-        if ($ForceInstall) {
-            $installArgs += "--force"
-        }
-        
-        $Command = "brew $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "BREW" -Color "Magenta"
-        
+        if ($ForceInstall) { $installArgs += "--force" }
+        Write-DebugLog -Message "Command: brew $($installArgs -join ' ')" -Category "BREW" -Color "Magenta"
         & brew $installArgs
-        
-        # Refresh search paths after installation
-        Write-DebugLog -Message "Refreshing search paths..." -Category "BREW" -Color "Magenta"
-        $searchPaths = @()
-        try {
-            $brewBinDir = Join-Path $brewPrefix "bin"
-            $searchPaths += $brewBinDir
-            $brewSbinDir = Join-Path $brewPrefix "sbin"
-            $searchPaths += $brewSbinDir
-            
-            $packageCellarDir = Join-Path $brewCellar $PackageName
-            if (Test-Path $packageCellarDir) {
-                $versionDirs = Get-ChildItem -Path $packageCellarDir -Directory | Sort-Object Name -Descending
-                if ($versionDirs) {
-                    $latestVersionDir = $versionDirs[0].FullName
-                    $packageBinDir = Join-Path $latestVersionDir "bin"
-                    $searchPaths += $packageBinDir
-                }
-            }
-            
-            $brewOptDir = Join-Path $brewPrefix "opt\$PackageName\bin"
-            $searchPaths += $brewOptDir
-        }
-        catch {
-            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "BREW" -Color "Red"
-            throw
-        }
-        
-        # Find the installed executable
-        Write-DebugLog -Message "Searching for executable after installation..." -Category "BREW" -Color "Magenta"
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-        
-        if ($executable) {
-            Write-DebugLog -Message "Found executable: $executable" -Category "BREW" -Color "Green"
-            return $executable
-        }
-        
-        Write-DebugLog -Message "Installation completed but executable not found" -Category "BREW" -Color "Yellow"
-        
-        # Try uninstall and reinstall for error recovery
+    } -PostInstallFallback {
         if (-not $ForceInstall) {
             Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "BREW" -Color "Yellow"
             & brew uninstall $PackageName 2>$null
             Start-Sleep -Seconds 2
             & brew install $PackageName --force
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-            return $executable
         }
-        
-        return $null
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "BREW" -Color "Red"
-        return $null
     }
 }
 
@@ -3933,141 +2411,70 @@ function Invoke-PowerShellCommand {
         [bool]$ForceInstall = $true,
         [string]$PowerShellCommand = ""
     )
-    
-    $Recurse = $false
-    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1", ".psm1", ".psd1")
-    
-    Write-DebugLog -Message "Processing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Cyan"
-    
-    # Build search paths for PowerShell packages
-    $searchPaths = @()
-    $systemPaths = @(
-        ${env:LOCALAPPDATA},
-        ${env:APPDATA},
-        "C:\Program Files",
-        "C:\Program Files (x86)",
-        $env:USERPROFILE,
-        (Join-Path $env:USERPROFILE "bin"),
-        (Join-Path $env:USERPROFILE ".local\bin")
-    )
-    $searchPaths += $systemPaths
 
-    $psModulePaths = $env:PSModulePath -split ';'
-    foreach ($path in $psModulePaths) {
-        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
-            $searchPaths += $path
-            Write-DebugLog -Message "Added PowerShell module path: $path" -Category "POWERSHELL" -Color "Magenta"
-        }
-    }
-    
-    $userModulePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
-    if (Test-Path $userModulePath) {
-        $searchPaths += $userModulePath
-        Write-DebugLog -Message "Added user PowerShell module path: $userModulePath" -Category "POWERSHELL" -Color "Magenta"
-    }
-    
-    # Build search keywords
-    $searchKeywords = @($Keyword)
-    if ($AdditionalKeywords) {
-        $searchKeywords += $AdditionalKeywords
-    }
-    if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($PackageName)
-    }
-    
-    # Check if already installed - search for executable files
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "PowerShell package already installed: $executable" -Category "POWERSHELL" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "POWERSHELL" -Color "Cyan"
-        return $executable
-    }
-    
-    if ($OnlyCheckFlag) {
-        return $executable
-    }
-    
-    # Install the package
-    Write-DebugLog -Message "Installing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Yellow"
-    if (-not [string]::IsNullOrWhiteSpace($PowerShellCommand)) {
-        Write-Host "       [POWERSHELL] Executing PowerShell command: $PowerShellCommand" -ForegroundColor Cyan
-        # Installer scripts download/unpack under TEMP: point it at WORK_DIR while they run.
-        $powerShellCommandPreviousTemp = $env:TEMP
-        $powerShellCommandPreviousTmp = $env:TMP
-        if (-not (Test-Path -LiteralPath $Global:WORK_DIR -PathType Container)) {
-            New-Item -ItemType Directory -Path $Global:WORK_DIR -Force | Out-Null
-        }
-        $env:TEMP = $Global:WORK_DIR
-        $env:TMP = $Global:WORK_DIR
-        # $? after "| Out-Host" reflects Out-Host, not the installer; track errors instead.
-        $errorCountBeforeInstall = $Error.Count
-        $powerShellCommandSucceeded = $true
-        try {
-            Invoke-Expression $PowerShellCommand -ErrorAction SilentlyContinue | Out-Host
-            $powerShellCommandSucceeded = ($Error.Count -eq $errorCountBeforeInstall)
-        }
-        catch {
-            $powerShellCommandSucceeded = $false
-        }
-        finally {
-            $env:TEMP = $powerShellCommandPreviousTemp
-            $env:TMP = $powerShellCommandPreviousTmp
-        }
-        if (-not $powerShellCommandSucceeded) {
-            $errMsg = if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { "unknown" }
-            Write-DebugLog -Message "Install script reported: $errMsg" -Category "POWERSHELL" -Color "Red"
-            if ($PackageName -eq "CursorAgent" -and $errMsg -match "denied|Access to the path") {
-                Write-Host "       [POWERSHELL] Close Cursor/agent then run as Administrator: irm 'https://cursor.com/install?win32=true' | iex" -ForegroundColor Yellow
+    $getSearchPaths = $null
+
+    Write-DebugLog -Message "Processing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Cyan"
+
+    $getSearchPaths = {
+        $paths = @(
+            ${env:LOCALAPPDATA},
+            ${env:APPDATA},
+            "C:\Program Files",
+            "C:\Program Files (x86)",
+            $env:USERPROFILE,
+            (Join-Path $env:USERPROFILE "bin"),
+            (Join-Path $env:USERPROFILE ".local\bin")
+        )
+        foreach ($modulePath in ($env:PSModulePath -split ';')) {
+            if (-not [string]::IsNullOrWhiteSpace($modulePath) -and (Test-Path $modulePath)) {
+                $paths += $modulePath
             }
         }
-    } else {
-        Write-Host "       [POWERSHELL] No PowerShellCommand specified, attempting module installation" -ForegroundColor Yellow
-        if ($ForceInstall) {
-            Install-Module -Name $PackageName -Force -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue
+        $userModulePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+        if (Test-Path $userModulePath) { $paths += $userModulePath }
+        $paths
+    }
+
+    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "POWERSHELL" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ExecutableExtensions @(".exe", ".bat", ".cmd", ".ps1", ".psm1", ".psd1") -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -IncludeSystemPaths $true -GetSearchPaths $getSearchPaths -InstallAction {
+        if (-not [string]::IsNullOrWhiteSpace($PowerShellCommand)) {
+            Write-Host "       [POWERSHELL] Executing PowerShell command: $PowerShellCommand" -ForegroundColor Cyan
+            # Installer scripts download/unpack under TEMP: point it at WORK_DIR while they run.
+            $powerShellCommandPreviousTemp = $env:TEMP
+            $powerShellCommandPreviousTmp = $env:TMP
+            if (-not (Test-Path -LiteralPath $Global:WORK_DIR -PathType Container)) {
+                New-Item -ItemType Directory -Path $Global:WORK_DIR -Force | Out-Null
+            }
+            $env:TEMP = $Global:WORK_DIR
+            $env:TMP = $Global:WORK_DIR
+            # $? after "| Out-Host" reflects Out-Host, not the installer; track errors instead.
+            $errorCountBeforeInstall = $Error.Count
+            $powerShellCommandSucceeded = $true
+            try {
+                Invoke-Expression $PowerShellCommand -ErrorAction SilentlyContinue | Out-Host
+                $powerShellCommandSucceeded = ($Error.Count -eq $errorCountBeforeInstall)
+            }
+            catch {
+                $powerShellCommandSucceeded = $false
+            }
+            finally {
+                $env:TEMP = $powerShellCommandPreviousTemp
+                $env:TMP = $powerShellCommandPreviousTmp
+            }
+            if (-not $powerShellCommandSucceeded) {
+                $errMsg = if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { "unknown" }
+                Write-DebugLog -Message "Install script reported: $errMsg" -Category "POWERSHELL" -Color "Red"
+                if ($PackageName -eq "CursorAgent" -and $errMsg -match "denied|Access to the path") {
+                    Write-Host "       [POWERSHELL] Close Cursor/agent then run as Administrator: irm 'https://cursor.com/install?win32=true' | iex" -ForegroundColor Yellow
+                }
+            }
         } else {
-            Install-Module -Name $PackageName -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue
-        }
-        if ($?) {
-            Write-DebugLog -Message "Module installation successful" -Category "POWERSHELL" -Color "Green"
-        } else {
-            Write-DebugLog -Message "Module installation failed" -Category "POWERSHELL" -Color "Red"
-            return $null
-        }
-    }
-    
-    # Refresh search paths after installation
-    Write-DebugLog -Message "Refreshing search paths..." -Category "POWERSHELL" -Color "Magenta"
-    $searchPaths = @()
-    $systemPaths = @(
-        ${env:LOCALAPPDATA},
-        ${env:APPDATA},
-        "C:\Program Files",
-        "C:\Program Files (x86)",
-        $env:USERPROFILE,
-        (Join-Path $env:USERPROFILE "bin"),
-        (Join-Path $env:USERPROFILE ".local\bin")
-    )
-    $searchPaths += $systemPaths
-    
-    $psModulePaths = $env:PSModulePath -split ';'
-    foreach ($path in $psModulePaths) {
-        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
-            $searchPaths += $path
+            Write-Host "       [POWERSHELL] No PowerShellCommand specified, attempting module installation" -ForegroundColor Yellow
+            if ($ForceInstall) {
+                Install-Module -Name $PackageName -Force -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue
+            } else {
+                Install-Module -Name $PackageName -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue
+            }
         }
     }
-    $userModulePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
-    if (Test-Path $userModulePath) {
-        $searchPaths += $userModulePath
-    }
-    
-    # Search for installed executable
-    $installedExecutable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
-    
-    if ($installedExecutable) {
-        Write-DebugLog -Message "PowerShell package installation verified: $installedExecutable" -Category "POWERSHELL" -Color "Green"
-        return $installedExecutable
-    }
-    Write-DebugLog -Message "PowerShell package installation verification failed" -Category "POWERSHELL" -Color "Yellow"
-    return $null
 }

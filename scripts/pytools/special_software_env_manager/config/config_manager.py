@@ -480,26 +480,6 @@ class ConfigManager:
                     'Enabled': False
                 }
             },
-            'Context7': {
-                'Common': 'context7',
-                'DisplayName': 'Context7',
-                'StorageType': 'encrypted_constant',
-                'Variables': [
-                    {
-                        'Name': 'CONTEXT7_API_KEY',
-                        'DisplayName': 'Context7 API Key',
-                        'Description': 'Context7 API Key (format: ctx7sk-...)',
-                        'InputType': 'Token',
-                        'Required': True
-                    }
-                ],
-                'MCPSupport': {
-                    'Enabled': True
-                },
-                'SmartRecognition': {
-                    'Enabled': False
-                }
-            },
             'Local Test Credentials': {
                 'Common': 'local_test',
                 'DisplayName': 'Local Test Credentials',

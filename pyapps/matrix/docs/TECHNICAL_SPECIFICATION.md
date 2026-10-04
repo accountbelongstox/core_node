@@ -713,7 +713,6 @@ adb -s 192.168.31.117:5555 shell "cd /data/local/tmp && CLASSPATH=scrcpy-server 
 - `server/src/main/java/com/genymobile/scrcpy/Options.java` - 参数解析
 
 **验证工具**：
-- MCP Context7 - 官方文档查询
 - logcat - Android运行时日志
 - Wireshark - 网络包分析（可选）
 

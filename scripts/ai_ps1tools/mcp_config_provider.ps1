@@ -71,22 +71,6 @@ function New-MCPConfig {
     }
 }
 
-function Get-Context7Config {
-    $apiKey = Get-SecretKey -KeyName "CONTEXT7_API_KEY_1"
-    if (-not $apiKey) {
-        Write-Host "[ERROR] CONTEXT7_API_KEY not found in secret manager."
-        Write-Host "[HINT] Please add CONTEXT7_API_KEY_1 to: $script:MCP_SECRET_RAW_DIR"
-        return $null
-    }
-    Write-Host "[INFO] Context7 API key loaded successfully"
-    return (New-MCPConfig -Name "context7" -TransportType "http" `
-        -Url "https://mcp.context7.com/mcp" `
-        -Headers @{
-            "CONTEXT7_API_KEY" = $apiKey
-            "Accept"          = "application/json, text/event-stream"
-        })
-}
-
 function Get-ChromeMCPConfig {
     return (New-MCPConfig -Name "chrome" -TransportType "http" `
         -Url $script:MCP_CHROME_URL)
@@ -104,11 +88,6 @@ function Get-AllMCPConfigs {
     $configs = @()
     Write-Host "[INFO] Loading MCP configurations for $Target..."
     Write-Host ""
-
-    $context7Config = Get-Context7Config
-    if ($context7Config) {
-        $configs += $context7Config
-    }
 
     $chromeConfig = Get-ChromeMCPConfig
     $configs += $chromeConfig

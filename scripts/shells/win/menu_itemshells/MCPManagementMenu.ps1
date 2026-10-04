@@ -10,7 +10,7 @@
     install_powershells/Step65_InstallAiTools.ps1 or win_common/AiToolsCatalog.ps1
     (single source of truth; no duplicated logic here). The pre-existing
     "AI Management" (Claude Code Agent Teams) wizard and the extra MCP
-    install/sync entries (Context7, per-tool sync, Install-All) are kept below
+    install/sync entries (per-tool sync, Install-All) are kept below
     as Windows-only sections, since Linux keeps an analogous extra
     "API keys / env setup" section rather than dropping functionality.
     Output is streamed in real time; no exit code detection.
@@ -23,7 +23,6 @@ $script:SHELLS_DIR = Split-Path $script:WIN_DIR -Parent
 $script:SCRIPT_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:CORE_NODE_DIR = Split-Path $script:SCRIPT_DIR -Parent
 $script:CHROME_MCP_START_PS1 = Join-Path $script:CORE_NODE_DIR "apps\mcp-chrome\scripts\start.ps1"
-$script:CONTEXT7_PS1 = Join-Path $script:CORE_NODE_DIR "ncore\mcp_server\auto-context7-mcp\auto_fix_context7.ps1"
 $script:INSTALL_ALL_MCP_PS1 = Join-Path $script:PS_CURRENT_DIR "InstallAllMCPServices.ps1"
 $script:AI_PS1TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools"
 $script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR "win_common"
@@ -159,11 +158,7 @@ function Invoke-SyncToAllAITools {
         Write-Host ""
     }
     Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
-    # Context7 is included by each sync script only when a CONTEXT7_API_KEY
-    # secret is configured (mcp_config_provider.ps1 Get-Context7Config), so by
-    # default this syncs the chrome MCP entry only -- matching the Linux
-    # design's "context7 stays opt-in, not part of this default flow".
-    Write-ColorMessage -Message "Chrome MCP sync complete (context7 included only when its API key secret is configured)." -Type "Success"
+    Write-ColorMessage -Message "Chrome MCP sync complete." -Type "Success"
     Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
 }
 
@@ -201,28 +196,13 @@ function Invoke-ChromeMCPBuild {
     Invoke-SyncToAllAITools
 }
 
-function Invoke-Context7MCPInstall {
-    if (-not (Test-Path -LiteralPath $script:CONTEXT7_PS1)) {
-        Write-ColorMessage -Message "Context7 script not found: $script:CONTEXT7_PS1" -Type "Error"
-        Wait-MCPMenuKey
-        return
-    }
-    Write-ColorMessage -Message "Running Context7 MCP (may start server)..." -Type "Info"
-    Write-Host ""
-    & $script:CONTEXT7_PS1
-    Write-Host ""
-    Write-ColorMessage -Message "Context7 MCP install finished. Now syncing to all AI tools..." -Type "Info"
-    Invoke-SyncToAllAITools
-    Wait-MCPMenuKey
-}
-
 function Invoke-InstallAllMCPServices {
     if (-not (Test-Path -LiteralPath $script:INSTALL_ALL_MCP_PS1)) {
         Write-ColorMessage -Message "Install All script not found: $script:INSTALL_ALL_MCP_PS1" -Type "Error"
         Wait-MCPMenuKey
         return
     }
-    Write-ColorMessage -Message "Running Install All MCP Services (Chrome + Context7 + built-in + sync)..." -Type "Info"
+    Write-ColorMessage -Message "Running Install All MCP Services (Chrome + built-in + sync)..." -Type "Info"
     & $script:INSTALL_ALL_MCP_PS1
     Wait-MCPMenuKey
 }
@@ -421,9 +401,8 @@ function Show-MCPMenu {
         @{ Text = "  One-click Setup (guided wizard)"; Action = { Invoke-AIAction -Action { Invoke-OneClickSetupWizard } }; IsHeader = $false },
         @{ Text = "  Environment diagnostics"; Action = { Invoke-AIAction -Action { Invoke-EnvironmentDiagnostics } }; IsHeader = $false },
         @{ Text = "  Open Agent Teams docs (browser)"; Action = { Invoke-AIAction -Action { Invoke-OpenAgentTeamsDocumentation } }; IsHeader = $false },
-        @{ Text = "== MCP: extra install / sync (Context7 stays opt-in) ===="; Action = { }; IsHeader = $true },
+        @{ Text = "== MCP: extra install / sync ============================"; Action = { }; IsHeader = $true },
         @{ Text = "  Install All MCP + Sync to All AI Tools"; Action = { Invoke-InstallAllMCPServices }; IsHeader = $false },
-        @{ Text = "  Install Context7 MCP + Sync All"; Action = { Invoke-Context7MCPInstall }; IsHeader = $false },
         @{ Text = "  Sync to Claude"; Action = { Invoke-SyncToSingleTool -ToolName "claude" }; IsHeader = $false },
         @{ Text = "  Sync to Cursor (+ Cursor Agent)"; Action = { Invoke-SyncToSingleTool -ToolName "cursor" }; IsHeader = $false },
         @{ Text = "  Sync to Codex"; Action = { Invoke-SyncToSingleTool -ToolName "codex" }; IsHeader = $false },

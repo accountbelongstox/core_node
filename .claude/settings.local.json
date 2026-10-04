@@ -242,7 +242,10 @@
       "Bash(ps -o lstart= -p 165171)",
       "Bash(awk -F'|' '{split\\($3,a,\"-\"\\); print $2, a[1]}')",
       "Bash(awk '{print $2}')",
-      "Bash(timeout 240 ./dd.sh pycorerestart)"
+      "Bash(timeout 240 ./dd.sh pycorerestart)",
+      "Bash(git rm *)",
+      "Bash(git show *)",
+      "Bash(git ls-tree *)"
     ],
     "deny": [],
     "ask": []

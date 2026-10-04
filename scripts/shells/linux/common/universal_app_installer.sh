@@ -135,6 +135,10 @@ install_via_npm() {
     fi
 
     export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
+    # Global installs read only the global pnpm config (the --config CLI flag is ignored there).
+    if [ -n "${PNPM_ALLOW_ALL_BUILDS_SETTING:-}" ]; then
+        "$pnpm_bin" config set --global "$PNPM_ALLOW_ALL_BUILDS_SETTING" true 2>/dev/null || true
+    fi
     # pnpm exits 0 for `list -g <pkg>` even when the package is NOT installed (empty
     # output), so the check must match the package name in the output, not the exit code.
     if "$pnpm_bin" list -g "$package_id" 2>/dev/null | grep -qF "$package_id"; then

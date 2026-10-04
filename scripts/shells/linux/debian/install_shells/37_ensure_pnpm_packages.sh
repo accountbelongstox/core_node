@@ -205,6 +205,11 @@ echo "[$SCRIPT_INDEX] PNPM Global Package Installation Script"
 # (e.g. skip installing a single package when it is already installed). Re-running
 # repairs partial failures (e.g. previous run failed on 403 for some packages).
 
+# Global installs read only the global pnpm config (the --config CLI flag is ignored there).
+if [ -n "${PNPM_ALLOW_ALL_BUILDS_SETTING:-}" ]; then
+    run_pnpm_with_absolute_path config set --global "$PNPM_ALLOW_ALL_BUILDS_SETTING" true 2>/dev/null || true
+fi
+
 # Function to configure pnpm global directories
 configure_pnpm_global_dirs() {
     local pnpm_global_dir_target="${PNPM_GLOBAL_DIR:-}"

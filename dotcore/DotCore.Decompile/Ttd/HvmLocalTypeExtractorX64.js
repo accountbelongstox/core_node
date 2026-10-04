@@ -55,6 +55,8 @@ function writeText(path, text) {
 
 function invokeScript() {
     const outputPath = __OUTPUT_PATH__;
+    const getArgTypeAddress = __GET_ARG_TYPE_ADDRESS__;
+    const getArgClassAddress = __GET_ARG_CLASS_ADDRESS__;
     const rangeInput = __JIT_RANGES__;
     const ranges = rangeInput.map(range => ({
         Index: range.Index,
@@ -63,8 +65,10 @@ function invokeScript() {
         LocalsSignatureInfo: ""
     }));
     const jitCalls = host.currentSession.TTD.Calls("clrjit!CILJit::compileMethod");
-    const argTypeCalls = host.currentSession.TTD.Calls("clr!CEEInfo::getArgType");
+    const argTypeCalls = host.currentSession.TTD.Calls(getArgTypeAddress);
+    const argClassCalls = host.currentSession.TTD.Calls(getArgClassAddress);
     const records = [];
+    const classes = [];
     const failures = [];
 
     for (const range of ranges) {
@@ -102,6 +106,30 @@ function invokeScript() {
         }
     }
 
-    writeText(outputPath, JSON.stringify({ Locals: records, Failures: failures }, null, 2));
-    host.diagnostics.debugLog(`Finished HVM local extraction: ${records.length} calls, ${failures.length} failures.\n`);
+    const classCallCount = Number(argClassCalls.Count());
+    host.diagnostics.debugLog(`Processing ${classCallCount} CLR getArgClass calls.\n`);
+    for (let index = 0; index < classCallCount; index++) {
+        const startText = argClassCalls[index].TimeStart.toString();
+        const range = findRange(ranges, parsePosition(startText));
+        if (range === null) continue;
+        try {
+            argClassCalls[index].TimeStart.SeekTo();
+            const registers = host.currentThread.Registers.User;
+            const signatureInfo = pointerText(registers.rdx);
+            if (signatureInfo !== range.LocalsSignatureInfo) continue;
+            const argumentPointer = registers.r8;
+            argClassCalls[index].TimeEnd.SeekTo();
+            classes.push({
+                CallIndex: index,
+                JitCallIndex: range.Index,
+                ArgumentPointer: pointerText(argumentPointer),
+                TypeHandle: pointerText(host.currentThread.Registers.User.rax)
+            });
+        } catch (error) {
+            failures.push({ CallIndex: index, JitCallIndex: range.Index, Message: error.message });
+        }
+    }
+
+    writeText(outputPath, JSON.stringify({ Locals: records, Classes: classes, Failures: failures }, null, 2));
+    host.diagnostics.debugLog(`Finished HVM local extraction: ${records.length} types, ${classes.length} classes, ${failures.length} failures.\n`);
 }
