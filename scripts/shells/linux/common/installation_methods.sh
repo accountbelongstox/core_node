@@ -337,6 +337,11 @@ install_via_npm() {
     # Idempotency: under no TTY, pnpm may abort module-dir purge; auto-confirm.
     export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
 
+    # Global installs read only the global pnpm config (the --config CLI flag is ignored there).
+    if [ -n "${PNPM_ALLOW_ALL_BUILDS_SETTING:-}" ]; then
+        "$pnpm_bin" config set --global "$PNPM_ALLOW_ALL_BUILDS_SETTING" true 2>/dev/null || true
+    fi
+
     # Ensure PNPM_GLOBAL_BIN_DIR is populated so it gets included in PATH
     if [ -z "${PNPM_GLOBAL_BIN_DIR:-}" ]; then
         if command -v get_var >/dev/null 2>&1; then
