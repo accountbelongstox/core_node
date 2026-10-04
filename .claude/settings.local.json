@@ -240,7 +240,8 @@
       "Bash(awk 'NR<1983 && /^  \\(const|function\\) [a-zA-Z]+ *=? *\\(\\\\\\(|useCallback|React\\)/ {l=NR\": \"$0} END{print l}' PcTerminalPage.tsx)",
       "Bash(timeout 400 node_modules/.bin/tsc --noEmit -p .)",
       "Bash(ps -o lstart= -p 165171)",
-      "Bash(awk -F'|' '{split\\($3,a,\"-\"\\); print $2, a[1]}')"
+      "Bash(awk -F'|' '{split\\($3,a,\"-\"\\); print $2, a[1]}')",
+      "Bash(awk '{print $2}')"
     ],
     "deny": [],
     "ask": []
