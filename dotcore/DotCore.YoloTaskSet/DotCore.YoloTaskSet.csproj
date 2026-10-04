@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DotCore.YoloTaskSet</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4.Windows" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
+    <ProjectReference Include="..\DotCore.YoloTrain\DotCore.YoloTrain.csproj" />
+  </ItemGroup>
+</Project>
