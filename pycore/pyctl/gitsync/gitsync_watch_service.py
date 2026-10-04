@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Automatic `dd gitsync` every few minutes; an unresolved merge conflict is written to
+"""Automatic `dd gitsync` pipeline: each machine runs on its own wall-clock slot, takes the
+LAN turn so no two LAN pycores sync at once, announces its result to the LAN peers (which
+pull soon after a push) and to the agent bus; an unresolved merge conflict is written to
 docs_fix (alert document + first README line) and reminded on the desktop until fixed."""
 
 from __future__ import annotations
 
+import hashlib
+import itertools
 import json
 import os
+import random
 import socket
 import subprocess
 import threading
@@ -13,14 +18,18 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.pyctl.gitsync.gitsync_lan_turn import PIPELINE, gitsync_lan_turn
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
+from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.file_lock import FileLockManager
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyfoundations.service_contract import value as service_contract_value
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.windowless_subprocess import CREATE_NO_WINDOW
+from pycore.pyutils.laravel.agent_bus_client import agent_bus_client
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step11_desktop.system_notification import show_system_notification
@@ -49,7 +58,16 @@ HISTORY_DEFAULT_PAGE_SIZE = 12
 HISTORY_MAX_PAGE_SIZE = 100
 TRIGGER_SCHEDULE = "schedule"
 TRIGGER_MANUAL = "manual"
+TRIGGER_PEER = "peer"
 NOTIFICATION_DURATION_MS = 8000
+SLOT_HASH_HEX_CHARS = 8
+PEER_PULL_DELAY_MIN_SECONDS = float(PIPELINE["peer_pull_delay_min_seconds"])
+PEER_PULL_DELAY_MAX_SECONDS = float(PIPELINE["peer_pull_delay_max_seconds"])
+PEER_PULL_MIN_GAP_SECONDS = float(PIPELINE["peer_pull_min_gap_seconds"])
+NOTIFY_COMMITS_MAX = int(PIPELINE["notify_commits_max"])
+NOTIFY_FILES_MAX = int(PIPELINE["notify_files_max"])
+UPSTREAM_REF = "@{u}"
+FETCH_HEAD_NAME = "FETCH_HEAD"
 
 COMMIT_DESCRIPTION = "pycore-auto-gitsync"
 DD_ENTRY_WINDOWS = "dd.cmd"
@@ -110,6 +128,12 @@ class GitSyncWatchService:
         self._paused = False
         self._running = False
         self._run_requested = False
+        self._peer_run_due: Optional[float] = None
+        self._last_finished_monotonic = 0.0
+        self._waiting_for: Optional[str] = None
+        self._last_push: Dict[str, Any] = {}
+        self._revision_counter = itertools.count(1)
+        self._revision = 0
         self._last_run_at: Optional[float] = None
         self._last_result = ""
         self._last_output = ""
@@ -181,10 +205,21 @@ class GitSyncWatchService:
     def conflict_doc_path(self) -> Path:
         return self._docs_dir / CONFLICT_DOC_NAME
 
-    def state(self) -> Dict[str, Any]:
+    def _changed(self) -> None:
+        """Every state change bumps the revision and wakes UIs on the journal topic (they refetch only then)."""
+        self._revision = next(self._revision_counter)
+        event_journal.publish_topic(BusSignals.GITSYNC_CHANGED, {"revision": self._revision})
+
+    def state(self, known_revision: Optional[int] = None) -> Dict[str, Any]:
+        """Full state, or only the revision when the caller already holds it."""
+        if known_revision is not None and known_revision == self._revision:
+            return {"success": True, "revision": self._revision, "unchanged": True}
         doc = self.conflict_doc_path
+        conflict = doc.is_file()
         return {
             "success": True,
+            "revision": self._revision,
+            "unchanged": False,
             "paused": self._paused,
             "running": self._running,
             "scheduler_active": self._lease is not None,
@@ -193,11 +228,33 @@ class GitSyncWatchService:
             "last_run_at": self._last_run_at,
             "last_result": self._last_result,
             "run_count": self._history["total"],
-            "conflict": doc.is_file(),
+            "conflict": conflict,
             "conflict_doc": str(doc),
-            "conflict_files": self._unmerged_files() if doc.is_file() else [],
-            "ai_prompt": AI_PROMPT,
+            "conflict_files": self._unmerged_files() if conflict else [],
+            "ai_prompt": AI_PROMPT if conflict else "",
+            "waiting_for_turn": self._waiting_for is not None,
+            "turn_holder": self._waiting_for or "",
+            "last_push": self._last_push,
+            "lan": gitsync_lan_turn.snapshot()["peers"],
         }
+
+    # ---- LAN peer API (peer routes) ----
+
+    def peer_claim(self, machine: str, hostname: str, ticket: float) -> Dict[str, Any]:
+        reply = gitsync_lan_turn.decide_claim(machine, hostname, ticket)
+        if reply["granted"]:
+            self._changed()
+        return reply
+
+    def peer_release(self, machine: str, hostname: str, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """A peer finished; after it pushed, pull soon (jittered, never within the minimum gap of the last run)."""
+        gitsync_lan_turn.apply_release(machine, hostname, summary)
+        if int(summary.get("pushed") or 0) > 0 and not self._paused:
+            due = time.monotonic() + random.uniform(PEER_PULL_DELAY_MIN_SECONDS, PEER_PULL_DELAY_MAX_SECONDS)
+            due = max(due, self._last_finished_monotonic + PEER_PULL_MIN_GAP_SECONDS)
+            self._peer_run_due = due if self._peer_run_due is None else min(self._peer_run_due, due)
+        self._changed()
+        return {"success": True}
 
     def control(
         self,
@@ -221,6 +278,7 @@ class GitSyncWatchService:
                 self._write_settings()
             if run_now:
                 self._run_requested = True
+        self._changed()
         return self.state()
 
     # ---- scheduler ----

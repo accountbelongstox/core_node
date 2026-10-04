@@ -1014,6 +1014,14 @@
       "path": "ui/gitsync/history",
       "method": "POST"
     },
+    "gitsyncPeerClaim": {
+      "path": "peer/gitsync/claim",
+      "method": "POST"
+    },
+    "gitsyncPeerRelease": {
+      "path": "peer/gitsync/release",
+      "method": "POST"
+    },
     "terminalActivate": {
       "path": "ui/terminal/activate",
       "method": "POST"

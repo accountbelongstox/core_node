@@ -105,6 +105,7 @@ class BusSignals:
     AI_USAGE_CHANGED = "ai_usage.changed"
     ARTICLE_PUBLISHED = "article.published"
     CODE_SYNC_UPDATE = "code_sync_update"
+    GITSYNC_CHANGED = "gitsync.changed"
     COREBOOK_AUTOFLOW = "corebook_autoflow"
     ENGINE_LOAD_STATUS_UPDATE = "engine_load_status_update"
     ENGINE_LOAD_LOG_APPENDED = "engine_load_log_appended"
