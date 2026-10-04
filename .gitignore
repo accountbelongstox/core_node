@@ -466,3 +466,4 @@ pyapps/GameAISDK/Modules/RefineDet/weights/
 # Per-machine Claude Code session permissions: every AI session appends here, so
 # syncing it only breeds merge conflicts. Each machine keeps its own local copy.
 .claude/settings.local.json
+.claude/settings.json
