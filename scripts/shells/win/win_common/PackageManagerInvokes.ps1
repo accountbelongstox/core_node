@@ -885,6 +885,10 @@ function Invoke-PipCommand {
     $pythonExe = $null
     $pythonScriptsDir = $null
     $getSearchPaths = $null
+    $pipShowOutput = $null
+    $pipPackageInstalled = $false
+    $pipPackageLocation = ''
+    $managedResult = $null
 
     Write-DebugLog -Message "Processing pip package: $PackageName" -Category "PIP" -Color "Cyan"
 
@@ -931,10 +935,38 @@ function Invoke-PipCommand {
         $paths
     }
 
-    return Invoke-ManagedPackageInstall -PackageName $PackageName -Category "PIP" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
+    # Installed-state comes from pip itself: a library-only package (e.g. zhipuai) has no
+    # executable, so an exe search can neither prove nor disprove the install.
+    $pipShowOutput = & $pipExe show $PackageName 2>$null
+    if ($LASTEXITCODE -eq 0 -and $pipShowOutput) {
+        $pipPackageInstalled = $true
+        if (($pipShowOutput -join "`n") -match '(?m)^Location:\s*(.+)$') { $pipPackageLocation = $matches[1].Trim() }
+    }
+
+    if ($pipPackageInstalled -and -not $OnlyCheckFlag) {
+        Write-DebugLog -Message "${PackageName}: already installed per pip show, skipping pip install" -Category "PIP" -Color "Green"
+        $managedResult = Invoke-ManagedPackageInstall -PackageName $PackageName -Category "PIP" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $true -ForceInstall $false -GetSearchPaths $getSearchPaths -InstallAction { }
+        if ($managedResult) { return $managedResult }
+        if ($pipPackageLocation) { return (Join-Path $pipPackageLocation $PackageName) }
+        return $pipExe
+    }
+
+    $managedResult = Invoke-ManagedPackageInstall -PackageName $PackageName -Category "PIP" -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall -GetSearchPaths $getSearchPaths -InstallAction {
         # Pip owns dependency compatibility; never upgrade or force-reinstall an installed package.
         & $pipExe install $PackageName | Out-Host
     }
+    if ($managedResult) { return $managedResult }
+
+    # No executable found after the install: still a success when pip now knows the package.
+    $pipShowOutput = & $pipExe show $PackageName 2>$null
+    if ($LASTEXITCODE -eq 0 -and $pipShowOutput) {
+        $pipPackageLocation = ''
+        if (($pipShowOutput -join "`n") -match '(?m)^Location:\s*(.+)$') { $pipPackageLocation = $matches[1].Trim() }
+        Write-DebugLog -Message "${PackageName}: library-only package installed (pip show OK, no executable)" -Category "PIP" -Color "Green"
+        if ($pipPackageLocation) { return (Join-Path $pipPackageLocation $PackageName) }
+        return $pipExe
+    }
+    return $null
 }
 
 <#

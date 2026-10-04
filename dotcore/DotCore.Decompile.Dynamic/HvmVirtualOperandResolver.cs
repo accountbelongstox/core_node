@@ -217,7 +217,25 @@ public sealed class HvmVirtualOperandResolver
             return targetModule.GetImportedTypeReferences().FirstOrDefault(item => item.FullName == sourceType.FullName);
         string? fullName = GetFullName(sourceMember);
         if (fullName != null && (sourceMember is MethodDefinition || sourceMember is FieldDefinition))
-            return targetModule.GetImportedMemberReferences().FirstOrDefault(item => item.FullName == fullName);
+        {
+            MemberReference? exact = targetModule.GetImportedMemberReferences()
+                .FirstOrDefault(item => item.FullName == fullName);
+            if (exact != null) return exact;
+            foreach (MemberReference reference in targetModule.GetImportedMemberReferences())
+            {
+                try
+                {
+                    IMetadataMember? definition = reference.Resolve();
+                    if (definition != null && definition.MetadataToken == sourceMember.MetadataToken
+                        && string.Equals(GetModuleName(definition), sourceModule.Name,
+                            StringComparison.OrdinalIgnoreCase))
+                        return reference;
+                }
+                catch
+                {
+                }
+            }
+        }
         return null;
     }
 
@@ -226,6 +244,14 @@ public sealed class HvmVirtualOperandResolver
         if (member is TypeDefinition type) return type.FullName;
         if (member is MethodDefinition method) return method.FullName;
         if (member is FieldDefinition field) return field.FullName;
+        return null;
+    }
+
+    private static string? GetModuleName(IMetadataMember member)
+    {
+        if (member is TypeDefinition type) return type.Module?.Name;
+        if (member is MethodDefinition method) return method.Module?.Name;
+        if (member is FieldDefinition field) return field.Module?.Name;
         return null;
     }
 }

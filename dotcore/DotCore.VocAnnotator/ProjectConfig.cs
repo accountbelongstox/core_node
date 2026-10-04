@@ -12,6 +12,7 @@ public static class ProjectConfig
     public const string ConfigKeyClasses = "classes";
     public const string ConfigKeyClassColors = "class_colors";
     public const string AnnotatorConfigFileName = "annotator_config.json";
+    public const string ProjectConfigFileName = "project_config.json";
     public const string DefaultClassName = "object";
 
     public sealed class ProjectConfigData
@@ -96,9 +97,32 @@ public static class ProjectConfig
     {
         if (string.IsNullOrWhiteSpace(projectDir) || !Directory.Exists(projectDir))
             return Array.Empty<string>();
-        var p1 = Path.Combine(projectDir, "project_config.json");
-        var p2 = Path.Combine(projectDir, AnnotatorConfigFileName);
-        var data = File.Exists(p1) ? LoadProjectConfig(p1) : (File.Exists(p2) ? LoadProjectConfig(p2) : new ProjectConfigData());
+        var configPath = GetProjectConfigPath(projectDir);
+        var data = File.Exists(configPath) ? LoadProjectConfig(configPath) : new ProjectConfigData();
         return data.Classes.Count > 0 ? data.Classes : new List<string> { DefaultClassName };
+    }
+
+    /// <summary>Config file read by GetClassesFromProjectDir: project_config.json when present, else annotator_config.json.</summary>
+    public static string GetProjectConfigPath(string projectDir)
+    {
+        var projectConfig = Path.Combine(projectDir, ProjectConfigFileName);
+        return File.Exists(projectConfig) ? projectConfig : Path.Combine(projectDir, AnnotatorConfigFileName);
+    }
+
+    /// <summary>
+    /// Appends className to the project's class list (persisted) when missing, so labels typed in the annotator reach
+    /// training (VOC->YOLO drops boxes whose class is not listed). Returns the resulting class list.
+    /// </summary>
+    public static IReadOnlyList<string> EnsureClassInProjectDir(string? projectDir, string className)
+    {
+        var classes = GetClassesFromProjectDir(projectDir);
+        var name = className?.Trim() ?? "";
+        if (name.Length == 0 || string.IsNullOrWhiteSpace(projectDir) || classes.Contains(name, StringComparer.Ordinal))
+            return classes;
+        var configPath = GetProjectConfigPath(projectDir);
+        var data = LoadProjectConfig(configPath);
+        var projectName = data.ProjectName.Length > 0 ? data.ProjectName : Path.GetFileName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(projectDir)));
+        var updated = classes.Append(name).ToList();
+        return SaveProjectConfig(configPath, projectName, updated) ? updated : classes;
     }
 }
