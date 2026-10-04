@@ -104,7 +104,7 @@
       "yolo_flow_lib_not_available": "GameAISDK yolo_label_lib 不可用",
       "yolo_flow_open_label_failed": "打开标注失败",
       "yolo_flow_clean_failed": "整理未标注失败。",
-      "yolo_flow_clean_done": "整理未标注完成。",
+      "yolo_flow_clean_done": "整理未标注完成：删除 {images} 张无标注图片、{annotations} 个无图片的标注文件。",
       "yolo_data_title": "YOLO 数据",
       "yolo_data_refresh": "刷新",
       "yolo_data_export_selected": "导出选中",
@@ -164,15 +164,8 @@
       "yolo_data_root_unavailable": "YOLO_DATA_ROOT 不可用。",
       "yolo_frames_video": "视频",
       "yolo_flow_train": "训练",
-      "yolo_flow_train_started": "训练已启动：",
-      "yolo_flow_train_failed": "训练失败：",
-      "yolo_flow_prepare_failed": "准备训练数据失败：",
-      "yolo_flow_prepare_ok": "训练数据已准备：",
       "yolo_flow_clean_confirm": "删除最新片段 frames 中无标注的图片和无图片的标注？此操作不可撤销。",
-      "yolo_capture_not_available": "此版本暂不提供坐标拾取窗口。",
-      "yolo_flow_export_started": "训练完成，正在导出 ONNX：",
-      "yolo_flow_export_failed": "ONNX 导出失败：",
-      "yolo_flow_export_done": "ONNX 模型已就绪（城镇寻路使用）："
+      "yolo_capture_not_available": "此版本暂不提供坐标拾取窗口。"
     },
     "yolo_collect": {
       "window_title": "YOLO训练数据采集",
