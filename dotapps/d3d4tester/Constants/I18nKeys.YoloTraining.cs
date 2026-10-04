@@ -102,6 +102,14 @@ public static partial class I18nKeys
     public const string YoloTrainingLogFailed = Yt + "log_failed";
     public const string YoloTrainingNavigationModelSet = Yt + "navigation_model_set";
     public const string YoloTrainingConfirmCloseRunning = Yt + "confirm_close_running";
+    public const string YoloTrainingMode = Yt + "mode";
+    public const string YoloTrainingModeGeneral = Yt + "mode_general";
+    public const string YoloTrainingModeSpecific = Yt + "mode_specific";
+    public const string YoloTrainingManageTaskSets = Yt + "manage_task_sets";
+    public const string YoloTrainingTaskSetNone = Yt + "task_set_none";
+    public const string YoloTrainingTaskSetSummary = Yt + "task_set_summary";
+    public const string YoloTrainingTaskSetInvalid = Yt + "task_set_invalid";
+    public const string YoloTrainingBuildProgress = Yt + "build_progress";
 
     private static readonly Regex SnakeBoundary = new("(?<=[a-z0-9])([A-Z])", RegexOptions.Compiled);
 

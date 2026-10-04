@@ -169,6 +169,14 @@ function Get-AiCliShimTarget {
             if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
         }
     }
+    # Fallback: the general finder (candidate dirs, dot-dirs, PATH), rejecting anything
+    # inside .winenvs so a shim never points at itself or another shim layer.
+    $winenvsDir = Get-AiCliWinenvsDir
+    $found = Find-ExecutableByKeyword -Keywords $execName -AdditionalKeywords @($baseName) -IncludeSystemPaths $true -Recursive $true
+    if ($found -and -not ([string]$found).StartsWith($winenvsDir, [System.StringComparison]::OrdinalIgnoreCase) `
+        -and [System.IO.Path]::GetExtension([string]$found) -ne '.ps1') {
+        return [string]$found
+    }
     return $null
 }
 
