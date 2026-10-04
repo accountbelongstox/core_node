@@ -254,7 +254,8 @@
       "Bash(rm native/desktop/main.cjs)",
       "Bash(timeout 600 bun add -d electron)",
       "Bash(timeout 900 bun pm trust electron)",
-      "Bash(timeout 900 node node_modules/electron/install.js)"
+      "Bash(timeout 900 node node_modules/electron/install.js)",
+      "PowerShell(D:\\\\programing\\\\core_node\\\\dd.cmd gitsync -m \"AI CLI shims \\(win .winenvs + linux /usr/local/bin\\), codex/gemini voice integration, installer idempotency fixes\")"
     ],
     "deny": [],
     "ask": []
