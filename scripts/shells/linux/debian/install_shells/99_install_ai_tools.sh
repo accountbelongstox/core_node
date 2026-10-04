@@ -107,9 +107,9 @@ declare -gA AI_TOOLS_CATALOG=(
     ["gemini_name"]="Google Gemini CLI"
     ["gemini_exec"]="gemini"
     ["gemini_package_id"]="@google/gemini-cli"
-    ["gemini_install_method"]="npm"
-    ["gemini_native_bin"]=".local/bin/gemini"
-    ["gemini_install_dirs"]=".local/lib/node_modules/@google"
+    ["gemini_install_method"]="bun"
+    ["gemini_native_bin"]=".bun/bin/gemini"
+    ["gemini_install_dirs"]=".bun/install/global/node_modules/@google"
     ["gemini_link_names"]="gemini"
     ["gemini_description"]="Google Gemini CLI - Advanced AI assistant with multimodal capabilities"
     ["gemini_verify_command"]="--version"
@@ -186,9 +186,9 @@ declare -gA AI_TOOLS_CATALOG=(
     ["cline_name"]="Cline CLI"
     ["cline_exec"]="cline"
     ["cline_package_id"]="cline"
-    ["cline_install_method"]="npm"
-    ["cline_native_bin"]=".local/bin/cline"
-    ["cline_install_dirs"]=".local/lib/node_modules/cline"
+    ["cline_install_method"]="bun"
+    ["cline_native_bin"]=".bun/bin/cline"
+    ["cline_install_dirs"]=".bun/install/global/node_modules/cline"
     ["cline_link_names"]="cline"
     ["cline_description"]="Cline CLI - AI coding agent for terminal workflows"
     ["cline_verify_command"]="--version"
@@ -200,9 +200,9 @@ declare -gA AI_TOOLS_CATALOG=(
     ["arkcli_name"]="Volcano Ark CLI"
     ["arkcli_exec"]="arkcli"
     ["arkcli_package_id"]="@volcengine/ark-cli"
-    ["arkcli_install_method"]="npm"
-    ["arkcli_native_bin"]=".local/bin/arkcli"
-    ["arkcli_install_dirs"]=".local/lib/node_modules/@volcengine"
+    ["arkcli_install_method"]="bun"
+    ["arkcli_native_bin"]=".bun/bin/arkcli"
+    ["arkcli_install_dirs"]=".bun/install/global/node_modules/@volcengine"
     ["arkcli_link_names"]="arkcli"
     ["arkcli_description"]="Volcano Engine Ark CLI - Ark MaaS toolbox for agents"
     ["arkcli_verify_command"]="--version"
@@ -1065,7 +1065,7 @@ ai99_keys_need() {
     local wanted="$1" key
     for key in "${AI99_KEYS[@]}"; do
         case "$wanted" in
-            node) case "$(ai_catalog_get "$key" install_method):$key" in npm:*|*:pi|*:omp) return 0 ;; esac ;;
+            node) case "$(ai_catalog_get "$key" install_method):$key" in npm:*|bun:*|*:pi|*:omp) return 0 ;; esac ;;
             uv) [ "$(ai_catalog_get "$key" install_method)" = "uv_tool" ] && return 0 ;;
         esac
     done
@@ -1172,6 +1172,28 @@ ai99_install_npm() {
     ai99_run_as_target env "npm_config_prefix=$prefix" "$npm_bin" install -g "$pkg@latest" </dev/null
 }
 
+# bun-first install for plain-JS Node CLIs (Windows counterpart: Invoke-BunCommand).
+# bun does not run untrusted lifecycle scripts, so build-dependent tools stay on npm.
+# On success the stale npm copy is purged (migration hygiene); any bun failure falls back to npm.
+ai99_install_bun() {
+    local key="$1" pkg bun_bin
+    pkg="$(ai_catalog_get "$key" "package_id")"
+    ai99_resolve_target
+    bun_bin="$(resolve_tool_bin bun 2>/dev/null || true)"
+    if [ -z "$bun_bin" ]; then
+        ai99_log "[WARN] bun not found; falling back to npm for $key."
+        ai99_install_npm "$key"
+        return $?
+    fi
+    ai99_log "[INSTALL] bun add --global $pkg (BUN_INSTALL=$AI99_TARGET_HOME/.bun, user $AI99_TARGET_USER)"
+    if ai99_run_as_target env "BUN_INSTALL=$AI99_TARGET_HOME/.bun" "$bun_bin" add --global "$pkg@latest" </dev/null; then
+        ai99_purge_npm_package "$pkg" 0
+        return 0
+    fi
+    ai99_log "[WARN] bun install failed for $key; falling back to npm."
+    ai99_install_npm "$key"
+}
+
 ai99_install_uv_tool() {
     local key="$1" pkg uv_bin
     pkg="$(ai_catalog_get "$key" "package_id")"
@@ -1246,6 +1268,7 @@ ai99_run_install() {
     case "$method" in
         curl) ai99_install_curl "$key" || true ;;
         npm) ai99_install_npm "$key" || true ;;
+        bun) ai99_install_bun "$key" || true ;;
         uv_tool) ai99_install_uv_tool "$key" || true ;;
         *) ai99_log "[WARN] Unknown install method '$method' for $key" ;;
     esac
