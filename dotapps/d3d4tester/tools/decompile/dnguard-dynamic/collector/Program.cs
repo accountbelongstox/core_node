@@ -27,25 +27,27 @@ internal static class Program
         HvmContextDocument contextDocument;
         HvmMethodMetadataDocument metadataDocument;
         HvmJitCaptureDocument captureDocument;
+        HvmLocalTypeDocument localTypeDocument;
         IReadOnlyList<NativeHvmInstruction> instructions;
         IReadOnlyList<NativeHvmRuntimeSnapshot> snapshots;
         JavaScriptSerializer serializer;
         try
         {
-            if (args.Length == 6 && args[0] == "--resolve-hvm-operands")
+            if (args.Length == 7 && args[0] == "--resolve-hvm-operands")
             {
                 targetPath = Path.GetFullPath(args[1]);
-                outputPath = Path.GetFullPath(args[5]);
+                outputPath = Path.GetFullPath(args[6]);
                 serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
                 contextDocument = serializer.Deserialize<HvmContextDocument>(File.ReadAllText(args[2]));
                 metadataDocument = serializer.Deserialize<HvmMethodMetadataDocument>(File.ReadAllText(args[3]));
                 captureDocument = serializer.Deserialize<HvmJitCaptureDocument>(File.ReadAllText(args[4]));
+                localTypeDocument = serializer.Deserialize<HvmLocalTypeDocument>(File.ReadAllText(args[5]));
                 resolutionReport = new HvmVirtualOperandResolver().Resolve(targetPath, contextDocument.Operands,
                     metadataDocument.Methods, captureDocument.ModulesInfo.SelectMany(module => module.MethodsInfo),
-                    outputPath, Console.WriteLine);
+                    localTypeDocument, outputPath, Console.WriteLine);
                 foreach (string failure in resolutionReport.Failures)
                     Console.WriteLine("HVM OPERAND FAILURE " + failure);
-                Console.WriteLine($"HVM OPERANDS mapped={resolutionReport.MappedOperands} unresolved={resolutionReport.UnresolvedOperands} failures={resolutionReport.Failures.Count}");
+                Console.WriteLine($"HVM OPERANDS mapped={resolutionReport.MappedOperands} unresolved={resolutionReport.UnresolvedOperands} locals={resolutionReport.ResolvedLocals} failures={resolutionReport.Failures.Count}");
                 return resolutionReport.MappedOperands > 0 && resolutionReport.UnresolvedOperands == 0 ? 0 : 3;
             }
             if (args.Length >= 4 && args[0] == "--merge-hvm")
@@ -102,7 +104,7 @@ internal static class Program
             }
             if (args.Length < 2)
             {
-                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <output> | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
+                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
                 return 2;
             }
 
