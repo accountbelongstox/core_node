@@ -4000,9 +4000,15 @@ function Invoke-PowerShellCommand {
         }
         $env:TEMP = $Global:WORK_DIR
         $env:TMP = $Global:WORK_DIR
+        # $? after "| Out-Host" reflects Out-Host, not the installer; track errors instead.
+        $errorCountBeforeInstall = $Error.Count
+        $powerShellCommandSucceeded = $true
         try {
             Invoke-Expression $PowerShellCommand -ErrorAction SilentlyContinue | Out-Host
-            $powerShellCommandSucceeded = $?
+            $powerShellCommandSucceeded = ($Error.Count -eq $errorCountBeforeInstall)
+        }
+        catch {
+            $powerShellCommandSucceeded = $false
         }
         finally {
             $env:TEMP = $powerShellCommandPreviousTemp

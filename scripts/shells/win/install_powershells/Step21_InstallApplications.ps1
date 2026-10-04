@@ -228,7 +228,10 @@ function Install-SinglePackageViaManager {
             "choco" { $executable = Invoke-ChocoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "scoop" { $executable = Invoke-ScoopCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "brew" { $executable = Invoke-BrewCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
-            "powershell" { $executable = Invoke-PowerShellCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "powershell" {
+                $psCommand = if ($singlePackage -is [hashtable] -and $singlePackage.ContainsKey("PowerShellCommand")) { $singlePackage.PowerShellCommand } else { "" }
+                $executable = Invoke-PowerShellCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall -PowerShellCommand $psCommand
+            }
             default { 
                 Write-Host "$SCRIPT_INDEX Unknown installation type '$InstallType'" -ForegroundColor Red
                 return $null
