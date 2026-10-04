@@ -27,7 +27,6 @@ import { wordNewChannels } from '../compute/WordNewCompute';
 import { wordNewClipReady } from '../WordNewClipReady';
 import { wordNewPycoreNodes } from '../WordNewPycoreNodes';
 import {
-  ASSIGNMENT_LANES,
   buildAssignment,
   defaultDirectShare,
   laneOfKind,
@@ -127,11 +126,11 @@ async function readingPosition(taskId: string, plan: OrchComposePlan): Promise<n
 
 /** Languages per lane of the covered clips: the clips the plan owns decide which windows are worth posting. */
 function coveredLanguages(plan: OrchComposePlan, covered: ReadonlySet<string>): AssignmentLanguages {
-  const byLane = Object.fromEntries(ASSIGNMENT_LANES.map((lane) => [lane, new Set<string>()])) as Record<AudioLaneKey, Set<string>>;
+  const byLane: Record<AudioLaneKey, Set<string>> = { sentence_audio: new Set(), word_audio: new Set(), phrase_audio: new Set() };
   plan.resources.forEach((resource) => {
     if (covered.has(resource.key)) byLane[laneOfKind(resource.kind)].add(resource.language);
   });
-  return Object.fromEntries(ASSIGNMENT_LANES.map((lane) => [lane, [...byLane[lane]]])) as AssignmentLanguages;
+  return { sentence_audio: [...byLane.sentence_audio], word_audio: [...byLane.word_audio], phrase_audio: [...byLane.phrase_audio] };
 }
 
 function phraseClipCount(plan: OrchComposePlan): number {
