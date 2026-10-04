@@ -26,7 +26,7 @@
 # Never writes, deletes or creates anything on the NTFS share: a missing
 # in-repo directory is never created (skip only), a symlink/junction is never
 # touched (skip only), and an existing plain directory's CONTENT is never
-# quarantined/moved (unlike Windows' DirectoryWithContent handling) -- it is
+# deleted or moved (unlike Windows' DirectoryWithContent handling) -- it is
 # only ever bound over, which is a pure VFS overlay and touches no NTFS data.
 #
 # <ns> (project namespace) matches ProjectTreeCommon.ps1's
