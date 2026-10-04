@@ -251,7 +251,10 @@
       "Bash(mkdir -p native/desktop)",
       "Bash(touch native/desktop/main.cjs)",
       "Bash(git check-ignore *)",
-      "Bash(rm native/desktop/main.cjs)"
+      "Bash(rm native/desktop/main.cjs)",
+      "Bash(timeout 600 bun add -d electron)",
+      "Bash(timeout 900 bun pm trust electron)",
+      "Bash(timeout 900 node node_modules/electron/install.js)"
     ],
     "deny": [],
     "ask": []
