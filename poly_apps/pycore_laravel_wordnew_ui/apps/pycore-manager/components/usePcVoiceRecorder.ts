@@ -55,17 +55,25 @@ function recorderError(cause: unknown): PcVoiceRecorderError {
 }
 
 export function usePcVoiceRecorder(onRecorded: (file: File) => void): PcVoiceRecorder {
-  const [recording, setRecording] = useState(false);
+  const [recording, setRecording] = useState(() => capRecorder.isRecording());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<PcVoiceRecorderError | null>(null);
-  const ownsRef = useRef(false);
+  const aliveRef = useRef(true);
+  const startingRef = useRef(false);
   const onRecordedRef = useRef(onRecorded);
   onRecordedRef.current = onRecorded;
 
-  // Leaving the composer while recording discards the recording and frees the microphone.
-  useEffect(() => () => {
-    if (ownsRef.current) void capRecorder.cancel();
-    ownsRef.current = false;
+  // The recorder is a shared singleton: the UI follows its real state so a re-mounted composer still
+  // shows (and can stop) a live recording. Leaving the composer discards the recording and frees the microphone.
+  useEffect(() => {
+    aliveRef.current = true;
+    setRecording(capRecorder.isRecording());
+    const unsubscribe = capRecorder.on('statechange', (state) => setRecording(state === 'recording' || state === 'paused'));
+    return () => {
+      aliveRef.current = false;
+      unsubscribe();
+      if (capRecorder.isRecording()) void capRecorder.cancel();
+    };
   }, []);
 
   useEffect(() => {
@@ -76,31 +84,35 @@ export function usePcVoiceRecorder(onRecorded: (file: File) => void): PcVoiceRec
   }, [recording]);
 
   const start = useCallback(async () => {
-    if (ownsRef.current || capRecorder.isRecording()) return;
+    if (startingRef.current || capRecorder.isRecording()) return;
     setError(null);
     if (!canRecordInPage()) {
       setError('insecure');
       return;
     }
-    ownsRef.current = true;
+    startingRef.current = true;
     try {
       await capRecorder.start();
-      setRecording(true);
     } catch (cause) {
-      ownsRef.current = false;
-      setError(recorderError(cause));
+      if (aliveRef.current) setError(recorderError(cause));
+      return;
+    } finally {
+      startingRef.current = false;
     }
+    // The composer was left while the microphone prompt/start was pending: free the microphone.
+    if (!aliveRef.current) void capRecorder.cancel();
   }, []);
 
   const stop = useCallback(() => {
-    if (!ownsRef.current) return;
-    ownsRef.current = false;
+    if (!capRecorder.isRecording()) return;
     setRecording(false);
     void capRecorder.stop().then(
       (clip) => {
         if (clip.size > 0) onRecordedRef.current(clipFile(clip));
       },
-      () => setError('failed'),
+      () => {
+        if (aliveRef.current) setError('failed');
+      },
     );
   }, []);
 

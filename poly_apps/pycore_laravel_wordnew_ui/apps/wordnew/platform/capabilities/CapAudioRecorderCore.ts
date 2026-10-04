@@ -316,9 +316,9 @@ export class CapAudioRecorderService {
   private async webStart(): Promise<void> {
     const MR: any = (window as any).MediaRecorder;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.stream = stream;
     const mime = pickWebMime();
     const recorder: MediaRecorder = mime ? new MR(stream, { mimeType: mime }) : new MR(stream);
-    this.stream = stream;
     this.recorder = recorder;
     this.webMime = recorder.mimeType || mime || 'audio/webm';
     recorder.ondataavailable = (e: BlobEvent) => {
