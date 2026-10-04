@@ -482,12 +482,22 @@ class TerminalWindowBackend:
         if window is None:
             return blocked
         with self._input_guard():
-            if not self._select_all(window):
-                return failure("terminal_select_all_failed")
-            time.sleep(SELECT_ALL_DELAY_SECONDS)
-            if not self._copy_selection(window):
-                return failure("terminal_copy_failed")
+            try:
+                if not self._select_all(window):
+                    return failure("terminal_select_all_failed")
+                time.sleep(SELECT_ALL_DELAY_SECONDS)
+                if not self._copy_selection(window):
+                    return failure("terminal_copy_failed")
+            finally:
+                self._restore_scroll_bottom(window)
         return success(window)
+
+    def _restore_scroll_bottom(self, window: Dict[str, Any]) -> None:
+        """Select-all jumps the emulator viewport to the top of the scrollback: return it to the live bottom."""
+        bottom_keys = self._scroll_bottom_keys(window)
+        if bottom_keys:
+            time.sleep(SELECT_ALL_DELAY_SECONDS)
+            self._keys(window, bottom_keys)
 
     def capture_windows(self, regions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Return {window_id: PIL image} for the requested capture regions."""
