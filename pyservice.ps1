@@ -523,10 +523,12 @@ function Install-PycoreService {
             Write-Host ("[!] System Python 3.13 was not found at {0}; run Python_Default.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
             return 1
         }
-        Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
+        Ensure-CoreNodePythonPath -LogPrefix '[pyservice]' | Out-Host
         Push-Location -LiteralPath $PSScriptRoot
         try {
-            Invoke-PycorePrerequisites -PythonPath $python.Path
+            # Out-Host keeps installer output visible without leaking it into this
+            # function's return stream (the caller casts that stream to an exit code).
+            Invoke-PycorePrerequisites -PythonPath $python.Path | Out-Host
         } finally {
             Pop-Location
         }
@@ -689,7 +691,8 @@ function Invoke-PycoreServiceCommand {
         default     { $commandExitCode = Invoke-PycoreServiceControl -Action $ServiceCommand }
     }
     if ($ElevatedRelaunch) { Read-Host 'Press Enter to close this window' | Out-Null }
-    return [int]$commandExitCode
+    # The exit code is the LAST value: any output a handler leaked earlier must not break the cast.
+    return [int](@($commandExitCode)[-1])
 }
 
 # Interactive `run`: service absent -> offer the install (default Yes); installed ->
@@ -718,7 +721,7 @@ function Invoke-PycoreServiceOffer {
         Write-Host '[i] Running in the foreground (service not installed).' -ForegroundColor DarkYellow
         return -1
     }
-    return [int](Install-PycoreService)
+    return [int](@(Install-PycoreService)[-1])
 }
 
 # Honor a help token collected by the parameter-library walk above (Show-Usage

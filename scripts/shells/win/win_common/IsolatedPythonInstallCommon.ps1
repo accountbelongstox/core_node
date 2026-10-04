@@ -211,6 +211,7 @@ function Ensure-IsolatedPythonCommandWrappers {
 }
 
 function Install-IsolatedPythonWithArchive {
+    param([bool]$ForceOverwrite = $false)
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing from the official Python ZIP: $IsolatedPythonArchiveUrl" -Type "Info"
 
     if (-not (Test-Path -LiteralPath $Global:DOWNLOADS_DIR -PathType Container)) {
@@ -223,8 +224,21 @@ function Install-IsolatedPythonWithArchive {
     }
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($IsolatedPythonArchiveFile)
+    $archive = $null
     try {
+        try {
+            $archive = [System.IO.Compression.ZipFile]::OpenRead($IsolatedPythonArchiveFile)
+        } catch {
+            $archive = $null
+        }
+        # A cached archive that cannot open or holds no interpreter is a corrupt download:
+        # delete it so the next attempt fetches fresh instead of reusing the bad file forever.
+        if ($null -eq $archive -or -not ($archive.Entries | Where-Object { $_.FullName -ieq 'python.exe' })) {
+            if ($archive) { $archive.Dispose(); $archive = $null }
+            Write-ColorMessage -Message "$SCRIPT_INDEX Archive is corrupt or has no python.exe; deleting cached file: $IsolatedPythonArchiveFile" -Type "Warning"
+            Remove-Item -LiteralPath $IsolatedPythonArchiveFile -Force -ErrorAction SilentlyContinue
+            return $false
+        }
         foreach ($entry in $archive.Entries) {
             $entryPath = Join-Path $IsolatedPythonInstallDir $entry.FullName
             if ([string]::IsNullOrEmpty($entry.Name)) {
@@ -233,7 +247,7 @@ function Install-IsolatedPythonWithArchive {
                 }
                 continue
             }
-            if (Test-Path -LiteralPath $entryPath -PathType Leaf) {
+            if ((Test-Path -LiteralPath $entryPath -PathType Leaf) -and -not $ForceOverwrite) {
                 continue
             }
             $entryParent = Split-Path $entryPath -Parent
@@ -241,10 +255,10 @@ function Install-IsolatedPythonWithArchive {
                 New-Item -ItemType Directory -Path $entryParent -Force | Out-Null
             }
             Write-ColorMessage -Message "$SCRIPT_INDEX Extract: $($entry.FullName) -> $entryPath" -Type "Info"
-            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $entryPath, $false)
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $entryPath, $ForceOverwrite)
         }
     } finally {
-        $archive.Dispose()
+        if ($archive) { $archive.Dispose() }
     }
 
     return (Test-IsolatedPythonExe -PythonExe $IsolatedPythonExePath)
@@ -281,6 +295,16 @@ function Install-IsolatedPython {
     }
 
     $installed = Install-IsolatedPythonWithArchive
+
+    if (-not $installed) {
+        # Self-heal: a corrupt cached archive or a broken partial extraction never fixes
+        # itself with skip-existing semantics - fetch fresh and extract with overwrite once.
+        Write-ColorMessage -Message "$SCRIPT_INDEX Interpreter still missing; retrying once with a fresh download and forced extraction..." -Type "Warning"
+        if (Test-Path -LiteralPath $IsolatedPythonArchiveFile -PathType Leaf) {
+            Remove-Item -LiteralPath $IsolatedPythonArchiveFile -Force -ErrorAction SilentlyContinue
+        }
+        $installed = Install-IsolatedPythonWithArchive -ForceOverwrite $true
+    }
 
     if (-not $installed) {
         Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Python $IsolatedPythonVersion executable not found at $IsolatedPythonExePath" -Type "Error"
