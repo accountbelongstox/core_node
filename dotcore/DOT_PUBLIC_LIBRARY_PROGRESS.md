@@ -72,6 +72,7 @@ Sub-app library of d3d4tester: `dotapps/d3d4tester/D3D4TesterCore/` (namespace `
 | d3utils/yolo_dataset_from_annotations, ultralytics/dataset, ultralytics_comm yaml_io | `YoloTrain/YoloDatasetAssembler`, `YoloDatasetSplit`, `YoloDataYaml` |
 | d3utils/yolo_train_flow, train.py, ultralytics/training | `YoloTrain/YoloTrainParameters`, `YoloTrainRunner`, `YoloArtifacts` |
 | (DOT-only) training environment detection and parameter advice | `YoloTrain/YoloEnvironmentProbe`, `YoloEnvironment`, `YoloTrainAdvisor` |
+| (DOT-only) specific training mode: task sets and synthetic auto-labeled datasets | `YoloTaskSet/TaskSetStore`, `TaskSetSynthesizer`, `VariantExtractor`, `VariantAugmenter`, `VideoFrameExtractor` |
 | d3utils/yolo_record | `YoloRecord/YoloRecordService`, `YoloSegmentLayout`, `YoloRecordConfig` |
 | Ultralytics YOLO detect (DOT-only, ONNX export of best.pt) | `YoloDetect/YoloOnnxDetector`, `YoloDetection` |
 

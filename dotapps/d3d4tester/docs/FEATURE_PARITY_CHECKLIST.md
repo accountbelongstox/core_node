@@ -88,6 +88,7 @@
 - [x] 标注（全功能标注器：缩放平移、移动/调整框、撤销重做、复制上一张、快捷键、类别增删改排序/颜色并同步全项目标注、AI 预标注、可配置设置） — dotcore `DotCore.VocAnnotatorUI.AnnotatorWindow`
 - [x] YOLO 训练（DOT，Python 未接线）：环境探测（GPU / Python / torch CUDA / Ultralytics）与推荐参数、全部训练参数可配置、训练集划分（训练/验证/测试比例、种子、分层、负样本上限）与预览、实时日志与轮次进度、停止、导出 ONNX、设为寻路模型 — `Windows/YoloTrainingWindow`、`Services/YoloTrainingService`、dotcore `DotCore.YoloTrain`
 - [x] 清理未标注 / 加载工程 — `CalibrationPage`、dotcore `AnnotationCleanup`
+- [x] 特定训练（任务集，DOT）：目标 1/2/3、变体 1.x（文件导入或从大图/视频截取，矩形或智能抠图）、目标专属场景、公共图集/视频集，全局与按目标增强（拉伸/旋转/缩放/左右拉伸等），一键生成自动标注的合成训练集并训练 — `Windows/TaskSetWindow`、`Windows/VariantExtractWindow`、训练窗口“特定”模式、dotcore `DotCore.YoloTaskSet`（设计：dotcore/docs/YOLO_TASKSET_SYNTHESIS_DESIGN.md）
 
 ## 6. 日志页
 - [x] 背包识别测试（打印背包布局）/ 黄装升级（卡奈升级）/ 重铸装备（卡奈重铸） — `GameAssistantController.RegisterTestActions`

@@ -12,6 +12,7 @@ using DotApps.d3d4tester.Services;
 using DotCore.Common;
 using DotCore.VocAnnotator;
 using DotCore.YoloRecord;
+using DotCore.YoloTaskSet;
 using DotCore.YoloTrain;
 
 namespace DotApps.d3d4tester.Windows;
@@ -472,7 +473,7 @@ public partial class YoloTrainingWindow : Window
         ValCli.Text = py?.YoloCli ?? none;
         SetChip(ChipEnv, TxtEnvChip, env.CanTrain ? "StatusChipSuccessStyle" : "StatusChipDangerStyle",
             T(env.CanTrain ? I18nKeys.YoloTrainingEnvReady : I18nKeys.YoloTrainingEnvNotReady));
-        var advice = YoloTrainAdvisor.Recommend(env, GatherParameters(), _plan).Advice;
+        var advice = YoloTrainAdvisor.Recommend(env, GatherParameters(), IsSpecific ? null : _plan).Advice;
         LstAdvice.ItemsSource = advice.Select(a => new AdviceRow(
             a.IsWarning ? GlyphWarning : GlyphInfo,
             T(I18nKeys.YoloTrainingAdvice(a.Code)).Replace("{value}", a.Value),
@@ -482,7 +483,7 @@ public partial class YoloTrainingWindow : Window
     private void ApplyRecommendation()
     {
         if (_env == null) return;
-        var r = YoloTrainAdvisor.Recommend(_env, GatherParameters(), _plan).Parameters;
+        var r = YoloTrainAdvisor.Recommend(_env, GatherParameters(), IsSpecific ? null : _plan).Parameters;
         CboModel.Text = r.Model;
         ConfigBinding.SaveString(ConfigKeys.YoloTrainingModel, r.Model);
         CboDevice.Text = r.Device;
@@ -500,20 +501,44 @@ public partial class YoloTrainingWindow : Window
     private async Task StartAsync()
     {
         if (_service.IsRunning) return;
-        var split = GatherSplit();
-        if (!split.IsValid)
+        Func<YoloTrainParameters, string, bool, YoloTrainingJob>? makeJob;
+        if (IsSpecific)
         {
-            Warn(I18nKeys.YoloTrainingSplitInvalid);
-            return;
+            var set = SelectedTaskSet();
+            if (set == null)
+            {
+                Warn(I18nKeys.YoloTrainingTaskSetNone);
+                return;
+            }
+            var dir = _taskSets.GetDir(set.Id);
+            var errors = (await Task.Run(() => TaskSetSynthesizer.Validate(set, dir))).Where(i => i.IsError).ToList();
+            if (errors.Count > 0)
+            {
+                MessageBox.Show(this, T(I18nKeys.YoloTrainingTaskSetInvalid) + "\n" + string.Join("\n", errors.Select(FormatIssue)), Title,
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            makeJob = (p, cli, export) => YoloTrainingService.ForTaskSet(set, dir, p, cli, export);
         }
-        var sources = GatherSources();
-        if (sources.Count == 0)
+        else
         {
-            Warn(I18nKeys.YoloTrainingNoSegments);
-            return;
+            var split = GatherSplit();
+            if (!split.IsValid)
+            {
+                Warn(I18nKeys.YoloTrainingSplitInvalid);
+                return;
+            }
+            var sources = GatherSources();
+            if (_projectDir == null || sources.Count == 0)
+            {
+                Warn(I18nKeys.YoloTrainingNoSegments);
+                return;
+            }
+            var project = _projectDir;
+            makeJob = (p, cli, export) => YoloTrainingService.ForSegments(project, sources, ProjectConfig.GetClassesFromProjectDir(project), split, p, cli, export);
         }
         if (_env == null) await DetectAsync();
-        if (_env is not { CanTrain: true } env || env.Python?.YoloCli is not { } cli)
+        if (_env is not { CanTrain: true } env || env.Python?.YoloCli is not { } cliPath)
         {
             Warn(I18nKeys.YoloTrainingCannotTrain);
             return;
@@ -524,10 +549,21 @@ public partial class YoloTrainingWindow : Window
         BarProgress.Value = 0;
         TxtEpoch.Text = "";
         if (rejected.Count > 0) AppendLog(T(I18nKeys.YoloTrainingExtraArgsRejected).Replace("{args}", string.Join(" ", rejected)));
-        var request = new YoloTrainingRequest(_projectDir, sources, ProjectConfig.GetClassesFromProjectDir(_projectDir), split, parameters, cli,
-            ChkExportOnnx.IsChecked == true);
-        _outcome = await _service.RunAsync(request);
+        _outcome = await _service.RunAsync(makeJob(parameters, cliPath, ChkExportOnnx.IsChecked == true));
         UpdateRunState(YoloTrainingPhase.Idle);
+    }
+
+    private void OnServiceBuildProgress(int done, int total) => Dispatcher.BeginInvoke(() =>
+    {
+        BarProgress.Value = total <= 0 ? 0 : (double)done / total;
+        TxtEpoch.Text = T(I18nKeys.YoloTrainingBuildProgress).Replace("{done}", done.ToString()).Replace("{total}", total.ToString());
+    });
+
+    /// <summary>Runs dir of the active mode (null when none).</summary>
+    private string? RunsDir()
+    {
+        if (!IsSpecific) return _projectDir == null ? null : YoloDataLayout.GetRunsDir(_projectDir);
+        return CboTaskSet.SelectedItem is TaskSet s ? YoloDataLayout.GetRunsDir(_taskSets.GetDir(s.Id)) : null;
     }
 
     private void OnServiceLog(string line) => Dispatcher.BeginInvoke(() => AppendLog(line));
@@ -547,7 +583,7 @@ public partial class YoloTrainingWindow : Window
         BtnStop.IsEnabled = running;
         BtnPreview.IsEnabled = !running;
         BtnUseForNavigation.IsEnabled = !running && _outcome?.Onnx != null;
-        BtnOpenOutput.IsEnabled = Directory.Exists(_outcome?.RunDir ?? YoloDataLayout.GetRunsDir(_projectDir));
+        BtnOpenOutput.IsEnabled = (_outcome?.RunDir ?? RunsDir()) is { } runs && Directory.Exists(runs);
         var (style, key) = phase switch
         {
             YoloTrainingPhase.Building => ("StatusChipInfoStyle", I18nKeys.YoloTrainingStatusBuilding),
