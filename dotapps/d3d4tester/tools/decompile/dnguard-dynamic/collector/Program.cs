@@ -26,6 +26,8 @@ internal static class Program
         HvmOperandResolutionReport resolutionReport;
         DynamicMethodPreparationReport preparationReport;
         DynamicMethodInvocationReport invocationReport;
+        IReadOnlyList<DynamicMethodInvocationReport> invocationReports;
+        IReadOnlyList<int> methodTokens;
         HvmContextDocument contextDocument;
         HvmMethodMetadataDocument metadataDocument;
         HvmJitCaptureDocument captureDocument;
@@ -35,6 +37,20 @@ internal static class Program
         JavaScriptSerializer serializer;
         try
         {
+            if (args.Length >= 4 && args[0] == "--invoke-static-many")
+            {
+                targetPath = Path.GetFullPath(args[1]);
+                methodTokens = args.Skip(2).Select(value => int.Parse(value.Replace("0x", string.Empty),
+                    NumberStyles.HexNumber, CultureInfo.InvariantCulture)).ToArray();
+                invocationReports = new DynamicMethodInvoker().InvokeStatics(targetPath, methodTokens);
+                foreach (DynamicMethodInvocationReport item in invocationReports)
+                {
+                    Console.WriteLine($"HVM INVOKED token=0x{item.MethodToken:X8} completed={item.InvocationCompleted} method={item.MethodName}");
+                    if (!item.InvocationCompleted)
+                        Console.WriteLine($"HVM INVOCATION EXCEPTION type={item.ExceptionType} message={item.ExceptionMessage}");
+                }
+                return 0;
+            }
             if (args.Length == 3 && args[0] == "--invoke-static")
             {
                 targetPath = Path.GetFullPath(args[1]);
@@ -70,7 +86,8 @@ internal static class Program
                 foreach (string failure in resolutionReport.Failures)
                     Console.WriteLine("HVM OPERAND FAILURE " + failure);
                 Console.WriteLine($"HVM OPERANDS decoded={resolutionReport.DecodedMethods} mapped={resolutionReport.MappedOperands} unresolved={resolutionReport.UnresolvedOperands} locals={resolutionReport.ResolvedLocals} failures={resolutionReport.Failures.Count}");
-                return resolutionReport.MappedOperands > 0 && resolutionReport.UnresolvedOperands == 0 ? 0 : 3;
+                return resolutionReport.MappedOperands > 0 && resolutionReport.UnresolvedOperands == 0
+                    && resolutionReport.Failures.Count == 0 ? 0 : 3;
             }
             if (args.Length >= 4 && args[0] == "--merge-hvm")
             {
@@ -126,7 +143,7 @@ internal static class Program
             }
             if (args.Length < 2)
             {
-                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] | --prepare-only <target> <hex-token> | --invoke-static <target> <hex-token> | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
+                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] | --prepare-only <target> <hex-token> | --invoke-static <target> <hex-token> | --invoke-static-many <target> <hex-token>... | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
                 return 2;
             }
 

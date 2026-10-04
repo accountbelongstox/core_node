@@ -15,6 +15,12 @@ Binding design for the second YOLO training mode. Related: [DOT_ARCHITECTURE.md]
 
 Both modes end in the same Ultralytics dataset layout and the same training run (`YoloTrainingService` → `YoloTrainRunner` → optional ONNX export), so the result (`best.pt`, `best.onnx`) is used identically (town navigation, AI pre-label).
 
+### 1.1 Video and live recognition (补充需求)
+
+> 同加入 yolo 是否可以识别动态视频？
+
+Yes: YOLO detects per frame, so video files, camera and live screen regions are supported by running the detector on each frame; Ultralytics `predict` accepts video/stream sources and `track` adds multi-object tracking (ByteTrack / BoT-SORT). Required capability (design and implementation follow the review in §10): detection on video files and live screen regions from the C# runtime (`DotCore.YoloDetect`), stable track IDs with temporal smoothing, ROI / tiling for small objects on large screens, FPS reporting, a model test UI, and exporting detected frames as new labeled data for retraining.
+
 ## 2. Concepts
 
 - **Task set (任务集)**: self-contained folder with `taskset.json` and its imported resources. Many task sets may exist; full CRUD (create, rename, duplicate, delete, edit contents).
@@ -198,3 +204,69 @@ public static class VideoFrameExtractor { int EstimateFrames(string path, int in
 
 - Dwibedi, Misra, Hebert — *Cut, Paste and Learn: Surprisingly Easy Synthesis for Instance Detection* (ICCV 2017): random scale / rotation / position / background, Gaussian or Poisson blending to hide seams, occlusion up to IoU 0.75, truncation keeping ≥25 % of the box, distractors. https://openaccess.thecvf.com/content_ICCV_2017/papers/Dwibedi_Cut_Paste_and_ICCV_2017_paper.pdf, code https://github.com/debidatta/syndata-generation
 - Ultralytics detection dataset format (images/ and labels/ mirrors, normalized `class xc yc w h`, data.yaml): https://docs.ultralytics.com/datasets/detect ; training CLI: https://docs.ultralytics.com/modes/train
+
+## 10. Design review findings and backlog (2026-10-05)
+
+Multi-agent review (synthesis library, training pipeline, UI/architecture; cross-checked between reviewers, verified against code and the live run of task set `tray_icons`). Status: all **open**, assigned to the workstreams in §10.4.
+
+### 10.1 Critical
+
+| ID | Defect | Fix |
+|----|--------|-----|
+| S1 / T6 | No inference contract for small objects: the detector letterboxes the whole frame (a 16 px tray icon on a 3440 px screen becomes ~3 px). | §11 inference contract; `Detect(roi)`, `DetectTiled(tile, overlap)` at training scale, global NMS; record scale mode, tile size and ROI hint in the manifest and run info. |
+| S2 | Native scale mode downscales large backgrounds to `output_max_side` but pastes variants unscaled (2.7x too large on full screenshots). | Native mode cuts native-resolution windows from backgrounds instead of resizing. |
+| T1 | Navigation without a configured model loads the newest `best.onnx` anywhere under the data root, so any task-set export silently replaces the NPC model; "Use for navigation" accepts any model. | Model registry with a current model per consumer, class check (`D3TownTargets` subset of model classes), cached resolution. |
+| T2 / S8 | No evaluation on real data; synthetic val leaks (single scenes and adjacent video frames in both splits), so mAP ~0.99 is meaningless. | "Evaluate on real data" (`yolo detect val` on annotated segments), real holdout sources, split by resource / video, stable hash split (S14), surface synthesis warnings. |
+| U1 | No way to test a trained model on a screenshot, file, video or the live screen. | `ModelTestWindow` (image / video / live region, sliders, track IDs, hard-example export). |
+
+### 10.2 Major
+
+| ID | Defect | Fix |
+|----|--------|-----|
+| S3 | DPI not modelled; continuous scale makes impossible icon sizes, bilinear upscaling blurs. | `pixel_scale` per resource, discrete DPI steps, Area/Nearest resize. |
+| S4 | Opaque variants paste their source background square; GrabCut erodes small icons. | `VariantWithoutAlpha` warning, `ColorKey` (border flood-fill) cutout, border-color-matched backgrounds. |
+| S5 | Uniform placement ignores context (icons on terminal text). | Per-background placement regions, in-region probability, optional slot grid. |
+| S6 | Unlabeled targets in backgrounds are not detected. | Template-match variants over backgrounds; auto-label or mask out. |
+| S7 | IoU-based occlusion lets a small object be fully covered but keep its label. | Occupancy mask, visible fraction per earlier object. |
+| S9 | Ultralytics default augmentation (fliplr 0.5, scale 0.5, mosaic, hsv) runs on top of synthesis (the live run mirrors icons and halves 16 px icons). | Augmentation hyper-parameters in `YoloTrainParameters`; specific mode derives them from the task set. |
+| S10 | No hard negatives / distractors. | Task-set distractor images pasted unlabeled; negatives from common + scenes. |
+| T3 | Training process orphaned or killed uncleanly on app exit; no cross-instance lock. | Job object (Windows) / process group (Linux), shutdown hook, run lock file. |
+| T4 | No run metadata / registry; dataset-run link lost. | `run_info.json`, `YoloModelRegistry`, runs list with metrics, set current. |
+| T5 | No resume, cancelled runs unusable, no fine-tune from a run. | `ResumeAsync`, export best so far, start from run (class check). |
+| T7 | General-mode split leaks consecutive frames of one segment. | Group by source. |
+| T8 | Metrics (results.csv) not read. | `YoloResultsCsv`, metrics event, best row in run info. |
+| T9 | Probe may report one Python while the CLI of another runs; misses user/Store installs. | Run Ultralytics through the probed interpreter, skip the WindowsApps alias. |
+| U2 | Targets cannot be created from a folder tree. | Import folder tree (subfolder = target; `scenes/`, `common/`), dry run. |
+| U3 | Video extraction one box/frame at a time. | `VariantExtractor.Track` (CSRT/KCF, template fallback), fixed box over frames, dHash dedupe, filmstrip review. |
+| U4 | Cutouts cannot be retouched. | GrabCut with FG/BG strokes, per-crop mode, edit stored variant, checkerboard thumbnails. |
+| U5 | No per-target augmentation preview. | `RenderAugmentationGrid`, `RenderPreview(targetId)`. |
+| U6 | Window unresponsive with hundreds of resources. | Virtualization, bounded thumbnail decode, cache, incremental updates, video thumbnails. |
+| U7 | Bulk import aborts on one bad file, saves per file, no drag-and-drop. | `AddMany` (one save, per-file result), progress/cancel/summary, `AllowDrop`. |
+| U8 | Deletes are permanent; no undo. | Trash + undo; extractor undo. |
+| U9 | Pending extracted crops silently lost on reload. | Keep extractor for the same set; closing guard. |
+| U10 | Double one-click train starts two runs; generate races with extraction. | Single-instance training window; generate on a snapshot. |
+| U11 | No bridge from recorded segments / annotated boxes / other task sets. | Segment to task set, annotated boxes to variants, copy targets. |
+| U12 | Generated datasets and runs invisible; training always regenerates. | History tab, `ForDataset` (train on an existing dataset). |
+
+### 10.3 Minor
+
+S11 PNG output / no double JPEG; S12 size-aware feather and blur; S13 pixel caps, background LRU, skip failed jobs, `.partial` output dir; S14 stable hash split; S15 cross-platform OpenCvSharp runtime; S16 preview context cache + cancel; S17 header-only readability check, batch add; S18 decoded-frame reuse in the extractor; T10 synthesis warnings/stats surfaced, advisor dataset estimate in specific mode; T11 busy/outcome consistency across windows; T12 extra args must not override managed keys; T13 export options, rectangular/dynamic detector input, `BlobFromImage`; T14 class-name parsing with quotes; T15 shared weights dir; U13 i18n error mapping, validated preview; U14 MVVM extraction of `TaskSetWindow`, one shared byte-to-BitmapSource helper, shared issue formatter; U15 keyboard map, `AutomationProperties.Name`, dynamic issue brushes.
+
+### 10.4 Workstreams (file ownership, parallel)
+
+| Workstream | Items | Owns |
+|------------|-------|------|
+| W1 detect & video | S1/T6, T13, T14, video/live detection, tracker | `dotcore/DotCore.YoloDetect/*` |
+| W2 synthesis | S2, S3, S5–S8, S10–S14, S16, U5 (lib), T10 (estimate), manifest inference metadata | `TaskSetSynthesizer.cs`, `VariantAugmenter.cs`, `TaskSetImageIo.cs`, `TaskSetModel.cs` |
+| W3 store & extraction | S4, S17, S18, U2/U3/U4/U8/U11 (lib) | `TaskSetStore.cs`, `VariantExtractor.cs`, `VideoFrameExtractor.cs` (+ new files) |
+| W4 training core | T1–T5, T7–T12, T15, S9, U12 (`ForDataset`) | `dotcore/DotCore.YoloTrain/*`, `Services/YoloTrainingService.cs`, `D3TownNavigator.cs`, shutdown hook |
+| W5 training window | runs/metrics/registry/resume/evaluate UI, T11, U10 (training side) | `Windows/YoloTrainingWindow.*`, `Constants/I18nKeys.YoloTraining.cs` |
+| W6 task-set manager | U2, U5–U8, U10–U14, S3/S5/S10 editors | `Windows/TaskSetWindow.*`, `ViewModels/TaskSet*`, `Pages/Calibration/*` |
+| W7 extractor UI | U3, U4, U9, U15 (canvas key map, strokes) | `Windows/VariantExtractWindow.*`, `dotcore/DotCore.VocAnnotatorUI/*` |
+| W8 model test | U1, video/live UI | new `Windows/ModelTestWindow.*`, `Constants/I18nKeys.ModelTest.cs`, `D3D4TesterCore/Constants/ConfigKeys.YoloModelTest.cs` |
+
+## 11. Inference contract (small objects, video, live)
+
+- The run records how it was trained: `scale_mode`, the native tile size (synthesis window / background size) and an optional ROI hint (e.g. the bottom 48 px band of the primary screen for tray icons).
+- Consumers run `Detect(image, roi)` when an ROI hint exists, else `DetectTiled(image, tile = training window, overlap >= 2 x max object side)` with global NMS; never a whole-screen letterbox for native-scale models.
+- Video / live: one reused ONNX session, per-frame detection (ROI or tiles), an IoU/ByteTrack-style tracker for stable IDs, temporal smoothing (min hits, max misses), FPS reporting; frames with misses or false positives can be exported as labeled data or task-set resources (hard-example loop).
