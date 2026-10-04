@@ -137,12 +137,12 @@ const CLIENT_KEY_COMPILE_ENV = 'CORE_NODE_COMPILE_CLIENT_KEY';
 const REPO_ROOT = path.resolve(__dirname, '../..');
 
 /**
- * The shared client key (K3) for the UI signer: compiled in only by a native-app build (or its dev server)
+ * The shared client key (K3) for the UI signer: compiled in only by a native or desktop app build (or its dev server)
  * that explicitly opts in (CORE_NODE_COMPILE_CLIENT_KEY=1), read from the decrypted secret store; never
  * logged. Web builds and the web dev server never carry it and rely on the web login.
  */
 function compiledClientKey(): string {
-  if (FRONTEND_BUILD_TARGET !== 'native' || process.env[CLIENT_KEY_COMPILE_ENV] !== '1') return '';
+  if (FRONTEND_BUILD_TARGET === 'web' || process.env[CLIENT_KEY_COMPILE_ENV] !== '1') return '';
   try {
     return fs.readFileSync(path.join(REPO_ROOT, CLIENT_KEY_AUTH.secret_raw_dir, CLIENT_KEY_AUTH.secret_key_sign_name), 'utf8').trim();
   } catch {
