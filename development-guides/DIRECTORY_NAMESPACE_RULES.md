@@ -28,4 +28,5 @@ Every directory the project's scripts or programs create lives under **one names
     - Switch: re-root PATH and every environment variable (`WindowsPathFunction.ps1 moveroot`), E: text files, pip/uv launcher .exe files, shortcuts, scheduled tasks and registry (`SystemReferenceRelocation.ps1`), then `scoop reset *`.
     - Delete the D: entries file by file (locked files stay until the next run); data entries matching `keep_patterns` (models, drafts) move to `D:\www\program_data\<target dir name>`; the old dir is removed once empty. No link is left at an old path.
     - Step 1 records the live dirs in the var-center keys `LANG_COMPILER_DIR`, `APP_INSTALL_DIR` and `DOWNLOADS_DIR` (`windows_resolved_vars`); pycore and Laravel read them. Without E:, programs stay on D: and dd shows a warning.
+- Regenerable directories (`node_modules`, `vendor`, `.venv`, build caches) are never backed up, renamed aside or copied: replace them in place (delete, then reinstall or link). A backup copy escapes `.gitignore` and gets committed.
 - Everything in `LINUX_SHELL_RULES.md` still applies: NTFS holds code and shared data only, and there is no recycle bin on NTFS.
