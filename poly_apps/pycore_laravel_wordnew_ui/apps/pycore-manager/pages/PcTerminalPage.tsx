@@ -2007,19 +2007,21 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
                 </span>
               </label>
             ))}
-            <button
-              type="button"
-              onClick={sendDraft}
-              disabled={!selectedActionable}
-              title={`${t('terminal.send')} (${t('terminal.sendShortcut')})`}
-              aria-label={t('terminal.send')}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {actionWindowId === selectedWindow?.id
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Send className="h-4 w-4" />}
-            </button>
           </>
+        )}
+        sendButton={(
+          <button
+            type="button"
+            onClick={sendDraft}
+            disabled={!selectedActionable}
+            title={`${t('terminal.send')} (${t('terminal.sendShortcut')})`}
+            aria-label={t('terminal.send')}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {actionWindowId === selectedWindow?.id
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Send className="h-4 w-4" />}
+          </button>
         )}
         session={{
           slot: overlay ? INPUT_SLOT_OVERLAY : INPUT_SLOT_PANEL,

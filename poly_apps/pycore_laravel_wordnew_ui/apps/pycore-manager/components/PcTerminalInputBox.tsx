@@ -29,6 +29,8 @@ interface PcTerminalInputBoxProps {
   draftStatus: DraftStatus;
   images: PcTerminalImages;
   actions?: React.ReactNode;
+  /** Centered in the toolbar row, between the voice controls and the actions. */
+  sendButton?: React.ReactNode;
   session?: PcTerminalInputSession;
 }
 
@@ -56,7 +58,7 @@ function formatDuration(seconds: number): string {
  * recording is sent as a file path with optional images and text.
  */
 export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
-  value, onChange, onSend, hasWindow, rows, draftStatus, images, actions, session,
+  value, onChange, onSend, hasWindow, rows, draftStatus, images, actions, sendButton, session,
 }) => {
   const { t } = useTranslation('pc');
   const pickerRef = useRef<HTMLInputElement | null>(null);
@@ -228,83 +230,87 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
         className="block w-full resize-y bg-transparent px-3 pb-1 pt-1 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
       />
-      <div className="flex items-center gap-1.5 px-1.5 pb-1.5">
-        {mode === 'voice' && (
-          <>
-            <button
-              type="button"
-              onClick={record}
-              disabled={!hasWindow}
-              title={recorder.recording ? undefined : t('terminal.voice.record')}
-              aria-label={recorder.recording
-                ? t('terminal.voice.stop', { duration: formatDuration(recorder.elapsedSeconds) })
-                : t('terminal.voice.record')}
-              className={`inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold text-white disabled:opacity-50 ${
-                recorder.recording ? 'animate-pulse bg-rose-600 hover:bg-rose-500' : 'w-8 bg-indigo-600 hover:bg-indigo-500'
-              }`}
-            >
-              {recorder.recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
-              {recorder.recording && <span className="font-mono">{formatDuration(recorder.elapsedSeconds)}</span>}
-            </button>
-            {!recorder.recording && (
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 px-1.5 pb-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {mode === 'voice' && (
+            <>
               <button
                 type="button"
-                onClick={() => recorderInputRef.current?.click()}
+                onClick={record}
                 disabled={!hasWindow}
-                title={t('terminal.voice.systemRecorder')}
-                aria-label={t('terminal.voice.systemRecorder')}
-                className={iconButton}
+                title={recorder.recording ? undefined : t('terminal.voice.record')}
+                aria-label={recorder.recording
+                  ? t('terminal.voice.stop', { duration: formatDuration(recorder.elapsedSeconds) })
+                  : t('terminal.voice.record')}
+                className={`inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold text-white disabled:opacity-50 ${
+                  recorder.recording ? 'animate-pulse bg-rose-600 hover:bg-rose-500' : 'w-8 bg-indigo-600 hover:bg-indigo-500'
+                }`}
               >
-                <FileAudio className="h-4 w-4" />
+                {recorder.recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
+                {recorder.recording && <span className="font-mono">{formatDuration(recorder.elapsedSeconds)}</span>}
               </button>
-            )}
-          </>
-        )}
-        <span className="min-w-0 flex-1" />
-        <button
-          type="button"
-          onClick={toggleMode}
-          disabled={!hasWindow || recorder.recording}
-          title={t(mode === 'voice' ? 'terminal.voice.switchToText' : 'terminal.voice.switchToVoice')}
-          aria-label={t(mode === 'voice' ? 'terminal.voice.switchToText' : 'terminal.voice.switchToVoice')}
-          aria-pressed={mode === 'voice'}
-          className={iconButton}
-        >
-          {mode === 'voice' ? <Keyboard className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </button>
-        <button
-          type="button"
-          onClick={() => pickerRef.current?.click()}
-          disabled={!hasWindow}
-          title={t('terminal.images.attach')}
-          aria-label={t('terminal.images.attach')}
-          className={iconButton}
-        >
-          {images.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-        </button>
-        <input
-          ref={pickerRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(event) => {
-            images.addFiles(attachmentFiles(event.target.files));
-            event.target.value = '';
-          }}
-        />
-        <input
-          ref={recorderInputRef}
-          type="file"
-          accept="audio/*"
-          capture
-          hidden
-          onChange={(event) => {
-            images.addFiles(attachmentFiles(event.target.files));
-            event.target.value = '';
-          }}
-        />
-        {actions}
+              {!recorder.recording && (
+                <button
+                  type="button"
+                  onClick={() => recorderInputRef.current?.click()}
+                  disabled={!hasWindow}
+                  title={t('terminal.voice.systemRecorder')}
+                  aria-label={t('terminal.voice.systemRecorder')}
+                  className={iconButton}
+                >
+                  <FileAudio className="h-4 w-4" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        {sendButton ?? <span />}
+        <div className="flex min-w-0 items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={toggleMode}
+            disabled={!hasWindow || recorder.recording}
+            title={t(mode === 'voice' ? 'terminal.voice.switchToText' : 'terminal.voice.switchToVoice')}
+            aria-label={t(mode === 'voice' ? 'terminal.voice.switchToText' : 'terminal.voice.switchToVoice')}
+            aria-pressed={mode === 'voice'}
+            className={iconButton}
+          >
+            {mode === 'voice' ? <Keyboard className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => pickerRef.current?.click()}
+            disabled={!hasWindow}
+            title={t('terminal.images.attach')}
+            aria-label={t('terminal.images.attach')}
+            className={iconButton}
+          >
+            {images.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          </button>
+          <input
+            ref={pickerRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(event) => {
+              images.addFiles(attachmentFiles(event.target.files));
+              event.target.value = '';
+            }}
+          />
+          <input
+            ref={recorderInputRef}
+            type="file"
+            accept="audio/*"
+            capture
+            hidden
+            onChange={(event) => {
+              images.addFiles(attachmentFiles(event.target.files));
+              event.target.value = '';
+            }}
+          />
+          {actions}
+        </div>
       </div>
       <PcImageLightbox
         open={Boolean(previewItem)}

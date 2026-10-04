@@ -236,7 +236,9 @@
       "Bash(bash -n claudeteam.sh)",
       "Bash(bash -n ../shells/linux/common/claude_team_common.sh)",
       "Bash(timeout 400 npx tsc --noEmit -p tsconfig.json)",
-      "Bash(timeout 300 ./dd.sh pycorerestart)"
+      "Bash(timeout 300 ./dd.sh pycorerestart)",
+      "Bash(awk 'NR<1983 && /^  \\(const|function\\) [a-zA-Z]+ *=? *\\(\\\\\\(|useCallback|React\\)/ {l=NR\": \"$0} END{print l}' PcTerminalPage.tsx)",
+      "Bash(timeout 400 node_modules/.bin/tsc --noEmit -p .)"
     ],
     "deny": [],
     "ask": []
