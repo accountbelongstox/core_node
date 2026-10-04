@@ -15,6 +15,7 @@ using DotCore.Common;
 using DotCore.Foundations;
 using DotCore.Utils;
 using DotCore.VocAnnotator;
+using DotCore.VocAnnotatorUI;
 using DotCore.YoloRecord;
 
 namespace DotApps.d3d4tester.Pages.Calibration;
@@ -36,6 +37,8 @@ public partial class CalibrationPage : UserControl
     private const string PlaceholderCount = "{count}";
     private const string PlaceholderAdded = "{added}";
     private const string PlaceholderTotal = "{total}";
+    private const string PlaceholderImages = "{images}";
+    private const string PlaceholderAnnotations = "{annotations}";
     private const string ImageFilterPattern = "*.png;*.jpg;*.jpeg;*.bmp";
     private const string AllFilesPattern = "*.*";
     private const string StyleButton = "CalButton";
@@ -97,7 +100,7 @@ public partial class CalibrationPage : UserControl
         BtnYoloImportPatch.Click += (_, _) => ShowPatchMenu(BtnYoloImportPatch);
         BtnYoloImportPatchToolbar.Click += (_, _) => ShowPatchMenu(BtnYoloImportPatchToolbar);
         BtnYoloCleanUnlabeled.Click += (_, _) => OnCleanUnlabeled();
-        BtnYoloTrain.Click += async (_, _) => await OnTrainAsync();
+        BtnYoloTrain.Click += (_, _) => OnTrain();
         CboYoloProject.SelectionChanged += (_, _) => OnProjectSwitch();
         BtnYoloLoadProject.Click += (_, _) => OnProjectLoad();
         BtnYoloCreateProject.Click += (_, _) => OnProjectCreate();
@@ -468,9 +471,9 @@ public partial class CalibrationPage : UserControl
             RefreshYoloDataTable(logWhenEmpty: false);
             return;
         }
-        var win = new AnnotatorWindow(framesDir, framesDir, project) { Owner = Window.GetWindow(this) };
+        var win = new AnnotatorWindow(new AnnotatorSession(framesDir, framesDir, project)) { Owner = Window.GetWindow(this) };
+        win.Closed += (_, _) => RefreshYoloDataTable(logWhenEmpty: false);
         win.Show();
-        YoloSegmentLayout.OpenDir(framesDir);
         AppendLog(T(I18nKeys.CoordCalYoloFlowOpenLabel));
         RefreshYoloDataTable(logWhenEmpty: false);
     }
@@ -616,55 +619,32 @@ public partial class CalibrationPage : UserControl
             return;
         }
         if (!Confirm(T(I18nKeys.CoordCalYoloFlowCleanConfirm))) return;
-        var (ok, msg) = YoloTrainFlow.Flow4CleanUnlabeled(framesDir);
-        AppendLog(ok ? T(I18nKeys.CoordCalYoloFlowCleanDone) : (string.IsNullOrEmpty(msg) ? T(I18nKeys.CoordCalYoloFlowCleanFailed) : msg));
+        try
+        {
+            var result = AnnotationCleanup.RemoveUnpaired(framesDir);
+            AppendLog(T(I18nKeys.CoordCalYoloFlowCleanDone)
+                .Replace(PlaceholderImages, result.RemovedImages.ToString())
+                .Replace(PlaceholderAnnotations, result.RemovedAnnotations.ToString()));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppendLog(T(I18nKeys.CoordCalYoloFlowCleanFailed) + ex.Message);
+        }
         RefreshYoloDataTable(logWhenEmpty: false);
     }
 
-    /// <summary>Steps 5-6: prepare images/labels/data.yaml in the selected (or latest) segment and launch Ultralytics training.</summary>
-    private async Task OnTrainAsync()
+    /// <summary>Steps 5-7: training window over the project's segments (selected ones preselected).</summary>
+    private void OnTrain()
     {
         var project = CurrentProject();
-        var segment = SelectedSegmentPaths().FirstOrDefault() ?? YoloSegmentLayout.GetLatestSegmentDir(project);
-        var framesDir = segment == null ? null : Path.Combine(segment, YoloSegmentLayout.FramesSubdir);
-        if (project == null || segment == null || framesDir == null || !Directory.Exists(framesDir))
+        if (project == null)
         {
-            AppendLog(T(I18nKeys.CoordCalYoloRecordNoSegment));
+            AppendLog(T(I18nKeys.CoordCalYoloDataNoProject));
             return;
         }
-        var classes = ProjectConfig.GetClassesFromProjectDir(project);
-        var (ok, msg, yamlPath) = await Task.Run(() => YoloTrainFlow.PrepareTrainingDir(segment, framesDir, framesDir, classes));
-        if (!ok || yamlPath == null)
-        {
-            AppendLog(T(I18nKeys.CoordCalYoloFlowPrepareFailed) + msg);
-            return;
-        }
-        AppendLog(T(I18nKeys.CoordCalYoloFlowPrepareOk) + msg);
-        var (started, trainMsg, process) = YoloTrainFlow.Flow6StartTrain(yamlPath);
-        AppendLog((started ? T(I18nKeys.CoordCalYoloFlowTrainStarted) : T(I18nKeys.CoordCalYoloFlowTrainFailed)) + trainMsg);
-        if (started && process != null)
-            await ExportOnnxAfterTrainingAsync(process, segment);
-    }
-
-    /// <summary>Step 7: when training exits successfully, export the newest best.pt under the segment to best.onnx (town navigation model).</summary>
-    private async Task ExportOnnxAfterTrainingAsync(System.Diagnostics.Process trainProcess, string segment)
-    {
-        await trainProcess.WaitForExitAsync();
-        if (trainProcess.ExitCode != 0) return;
-        var weights = YoloTrainFlow.FindLatestFile(segment, YoloTrainFlow.TrainedWeightsFileName);
-        if (weights == null)
-        {
-            AppendLog(T(I18nKeys.CoordCalYoloFlowExportFailed) + YoloTrainFlow.TrainedWeightsFileName);
-            return;
-        }
-        var (ok, msg, export) = YoloTrainFlow.Flow7ExportOnnx(weights);
-        AppendLog((ok ? T(I18nKeys.CoordCalYoloFlowExportStarted) : T(I18nKeys.CoordCalYoloFlowExportFailed)) + msg);
-        if (!ok || export == null) return;
-        await export.WaitForExitAsync();
-        var onnx = Path.ChangeExtension(weights, ".onnx");
-        AppendLog(export.ExitCode == 0 && File.Exists(onnx)
-            ? T(I18nKeys.CoordCalYoloFlowExportDone) + onnx
-            : T(I18nKeys.CoordCalYoloFlowExportFailed) + export.ExitCode);
+        var all = YoloSegmentLayout.ListSegments(project).Select(s => s.SegmentPath).ToList();
+        var win = new YoloTrainingWindow(project, all, SelectedSegmentPaths()) { Owner = Window.GetWindow(this) };
+        win.Show();
     }
 
     /// <summary>Record-log button: step 2 export latest segment frames. 1:1 _on_flow2_export_frames.</summary>

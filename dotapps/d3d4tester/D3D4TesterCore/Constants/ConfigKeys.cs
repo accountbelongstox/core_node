@@ -128,16 +128,4 @@ public static partial class ConfigKeys
 
     // ---------- tools (decompile tab) ----------
     public const string ToolsRbAssistPath = "tools.rbassist_path";
-
-    // ---------- navigation (town NPC model) ----------
-    public const string NavigationNpcModelPath = "navigation.npc_model_path";
-    public const string NavigationTarget = "navigation.target";
-    public const string NavigationConfidence = "navigation.confidence";
-    public const string NavigationMaxSteps = "navigation.max_steps";
-
-    // ---------- coord_calibration (YOLO / calibration panel) ----------
-    public const string CoordCalibrationClientType = "coord_calibration.client_type";
-    public const string CoordCalibrationYoloDataRoot = "coord_calibration.yolo_data_root";
-    public const string CoordCalibrationYoloCurrentProject = "coord_calibration.yolo_current_project";
-    public const string CoordCalibrationYoloProjectList = "coord_calibration.yolo_project_list";
 }

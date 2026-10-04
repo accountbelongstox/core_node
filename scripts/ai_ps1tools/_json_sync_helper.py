@@ -30,6 +30,7 @@ import os
 import stat
 import sys
 import tempfile
+import time
 
 
 def top_level_key(target):
@@ -49,6 +50,11 @@ DEPRECATED_SERVERS = ("unified",)
 
 # Reload + re-merge attempts when the config changes between load and write.
 MAX_WRITE_ATTEMPTS = 3
+
+# Windows refuses to replace a file another process holds open (a live Claude session);
+# retry briefly before giving up.
+REPLACE_RETRIES = 8
+REPLACE_RETRY_DELAY_SECONDS = 0.5
 
 
 def build_server_cfg(entry, target):
@@ -154,6 +160,17 @@ def merge_entries(settings, entries, target, root_key):
     return settings
 
 
+def replace_with_retry(tmp_path, real_path):
+    for attempt in range(1, REPLACE_RETRIES + 1):
+        try:
+            replace_with_retry(tmp_path, real_path)
+            return
+        except PermissionError:
+            if attempt >= REPLACE_RETRIES:
+                raise
+            time.sleep(REPLACE_RETRY_DELAY_SECONDS)
+
+
 def write_json_atomic(config_path, data, st):
     """Atomically replace the symlink-resolved config_path; mode/owner set on the fd (new file: 0600, dir owner when root)."""
     real_path = os.path.realpath(config_path)
@@ -223,7 +240,11 @@ def main():
             settings, st = reloaded
             settings = merge_entries(settings, entries, target, root_key)
             continue
-        write_json_atomic(config_path, settings, st)
+        try:
+            write_json_atomic(config_path, settings, st)
+        except PermissionError as err:
+            print("[ERROR] Cannot replace {} (held open by another process?): {}; skipped. Rerun when sessions are idle.".format(config_path, err))
+            sys.exit(1)
         break
 
     print()

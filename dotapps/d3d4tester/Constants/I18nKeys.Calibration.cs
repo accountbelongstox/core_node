@@ -131,13 +131,6 @@ public static partial class I18nKeys
     public const string CoordCalYoloDataRootUnavailable = "ui.coord_calibration.yolo_data_root_unavailable";
     public const string CoordCalYoloFramesVideo = "ui.coord_calibration.yolo_frames_video";
     public const string CoordCalYoloFlowTrain = "ui.coord_calibration.yolo_flow_train";
-    public const string CoordCalYoloFlowTrainStarted = "ui.coord_calibration.yolo_flow_train_started";
-    public const string CoordCalYoloFlowTrainFailed = "ui.coord_calibration.yolo_flow_train_failed";
-    public const string CoordCalYoloFlowExportStarted = "ui.coord_calibration.yolo_flow_export_started";
-    public const string CoordCalYoloFlowExportFailed = "ui.coord_calibration.yolo_flow_export_failed";
-    public const string CoordCalYoloFlowExportDone = "ui.coord_calibration.yolo_flow_export_done";
-    public const string CoordCalYoloFlowPrepareFailed = "ui.coord_calibration.yolo_flow_prepare_failed";
-    public const string CoordCalYoloFlowPrepareOk = "ui.coord_calibration.yolo_flow_prepare_ok";
     public const string CoordCalYoloFlowCleanConfirm = "ui.coord_calibration.yolo_flow_clean_confirm";
     public const string CoordCalYoloCaptureNotAvailable = "ui.coord_calibration.yolo_capture_not_available";
 }

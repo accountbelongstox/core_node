@@ -1,0 +1,228 @@
+<Window x:Class="DotApps.d3d4tester.Windows.YoloTrainingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme"
+        Width="1180" Height="880" MinWidth="900" MinHeight="600"
+        ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
+        Style="{StaticResource DialogWindowStyle}">
+  <Window.Resources>
+    <Style x:Key="NumberBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+      <Setter Property="Width" Value="110"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+      <Setter Property="TextAlignment" Value="Right"/>
+      <Setter Property="Margin" Value="{StaticResource FieldMargin}"/>
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelTextStyle}">
+      <Setter Property="Margin" Value="0,0,12,8"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="Check" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+      <Setter Property="Margin" Value="{StaticResource FieldMargin}"/>
+    </Style>
+    <Style x:Key="EnvKey" TargetType="TextBlock" BasedOn="{StaticResource SecondaryTextStyle}">
+      <Setter Property="Margin" Value="0,0,12,4"/>
+    </Style>
+    <Style x:Key="EnvValue" TargetType="TextBlock" BasedOn="{StaticResource BodyTextStyle}">
+      <Setter Property="Margin" Value="0,0,0,4"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="Btn" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+      <Setter Property="Margin" Value="0,0,8,8"/>
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="16,4,16,16">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="12"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- Left: environment + parameters -->
+    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+          <StackPanel>
+            <DockPanel>
+              <Border x:Name="ChipEnv" DockPanel.Dock="Right" Style="{StaticResource StatusChipStyle}" VerticalAlignment="Top">
+                <TextBlock x:Name="TxtEnvChip"/>
+              </Border>
+              <TextBlock x:Name="LblEnv" Style="{StaticResource SectionHeaderTextStyle}"/>
+            </DockPanel>
+            <TextBlock x:Name="LblPython" Style="{StaticResource FieldLabelTextStyle}"/>
+            <DockPanel Margin="{StaticResource FieldMargin}">
+              <Button x:Name="BtnBrowsePython" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+              <TextBox x:Name="TxtPython"/>
+            </DockPanel>
+            <WrapPanel>
+              <Button x:Name="BtnDetect" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,8,8"/>
+              <Button x:Name="BtnApplyRecommended" Style="{StaticResource Btn}"/>
+            </WrapPanel>
+            <Grid x:Name="GridEnv">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="KeyOs" Grid.Row="0" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValOs" Grid.Row="0" Grid.Column="1" Style="{StaticResource EnvValue}"/>
+              <TextBlock x:Name="KeyCpu" Grid.Row="1" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValCpu" Grid.Row="1" Grid.Column="1" Style="{StaticResource EnvValue}"/>
+              <TextBlock x:Name="KeyRam" Grid.Row="2" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValRam" Grid.Row="2" Grid.Column="1" Style="{StaticResource EnvValue}"/>
+              <TextBlock x:Name="KeyGpu" Grid.Row="3" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValGpu" Grid.Row="3" Grid.Column="1" Style="{StaticResource EnvValue}"/>
+              <TextBlock x:Name="KeyPythonEnv" Grid.Row="4" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValPythonEnv" Grid.Row="4" Grid.Column="1" Style="{StaticResource EnvValue}"/>
+              <TextBlock x:Name="KeyTorch" Grid.Row="5" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValTorch" Grid.Row="5" Grid.Column="1" Style="{StaticResource EnvValue}"/>
+              <TextBlock x:Name="KeyUltralytics" Grid.Row="6" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValUltralytics" Grid.Row="6" Grid.Column="1" Style="{StaticResource EnvValue}"/>
+              <TextBlock x:Name="KeyCli" Grid.Row="7" Style="{StaticResource EnvKey}"/>
+              <TextBlock x:Name="ValCli" Grid.Row="7" Grid.Column="1" Style="{StaticResource EnvValue}" FontFamily="{StaticResource MonoFontFamily}"/>
+            </Grid>
+            <ItemsControl x:Name="LstAdvice" Margin="0,8,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <DockPanel Margin="0,0,0,4">
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource IconTextStyle}" FontSize="12" Margin="0,2,8,0" Text="{Binding Glyph}" Foreground="{Binding Brush}"/>
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Foreground="{Binding Brush}"/>
+                  </DockPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0">
+          <StackPanel>
+            <TextBlock x:Name="LblParams" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="190"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblModel" Grid.Row="0" Style="{StaticResource Label}"/>
+              <DockPanel Grid.Row="0" Grid.Column="1" Margin="{StaticResource FieldMargin}">
+                <Button x:Name="BtnBrowseModel" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+                <ComboBox x:Name="CboModel" IsEditable="True"/>
+              </DockPanel>
+              <TextBlock x:Name="LblEpochs" Grid.Row="1" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtEpochs" Grid.Row="1" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+              <TextBlock x:Name="LblImgsz" Grid.Row="2" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtImgsz" Grid.Row="2" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+              <TextBlock x:Name="LblBatch" Grid.Row="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtBatch" Grid.Row="3" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+              <TextBlock x:Name="LblDevice" Grid.Row="4" Style="{StaticResource Label}"/>
+              <ComboBox x:Name="CboDevice" Grid.Row="4" Grid.Column="1" IsEditable="True" Width="160" HorizontalAlignment="Left" Margin="{StaticResource FieldMargin}"/>
+              <TextBlock x:Name="LblWorkers" Grid.Row="5" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtWorkers" Grid.Row="5" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+              <TextBlock x:Name="LblPatience" Grid.Row="6" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtPatience" Grid.Row="6" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+              <TextBlock x:Name="LblCache" Grid.Row="7" Style="{StaticResource Label}"/>
+              <ComboBox x:Name="CboCache" Grid.Row="7" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="{StaticResource FieldMargin}"/>
+              <TextBlock x:Name="LblOptimizer" Grid.Row="8" Style="{StaticResource Label}"/>
+              <ComboBox x:Name="CboOptimizer" Grid.Row="8" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="{StaticResource FieldMargin}"/>
+              <TextBlock x:Name="LblLr0" Grid.Row="9" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtLr0" Grid.Row="9" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+              <TextBlock x:Name="LblSeed" Grid.Row="10" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtSeed" Grid.Row="10" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+              <TextBlock x:Name="LblCloseMosaic" Grid.Row="11" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtCloseMosaic" Grid.Row="11" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+            </Grid>
+            <CheckBox x:Name="ChkAmp" Style="{StaticResource Check}"/>
+            <TextBlock x:Name="LblExtraArgs" Style="{StaticResource FieldLabelTextStyle}"/>
+            <TextBox x:Name="TxtExtraArgs" Margin="{StaticResource FieldMargin}" FontFamily="{StaticResource MonoFontFamily}"/>
+            <CheckBox x:Name="ChkExportOnnx" Style="{StaticResource Check}" Margin="0"/>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Right: dataset + run -->
+    <Grid Grid.Column="2">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock x:Name="LblDataset" Style="{StaticResource SectionHeaderTextStyle}"/>
+          <StackPanel Orientation="Horizontal" Margin="{StaticResource FieldMargin}">
+            <RadioButton x:Name="RadioSelected" GroupName="DatasetSource" Margin="0,0,16,0"/>
+            <RadioButton x:Name="RadioAll" GroupName="DatasetSource"/>
+          </StackPanel>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="LblTrainPct" Grid.Column="0" Style="{StaticResource Label}"/>
+            <TextBox x:Name="TxtTrainPct" Grid.Column="1" Style="{StaticResource NumberBox}" Width="56" Margin="0,0,16,8"/>
+            <TextBlock x:Name="LblValPct" Grid.Column="2" Style="{StaticResource Label}"/>
+            <TextBox x:Name="TxtValPct" Grid.Column="3" Style="{StaticResource NumberBox}" Width="56" Margin="0,0,16,8"/>
+            <TextBlock x:Name="LblTestPct" Grid.Column="4" Style="{StaticResource Label}"/>
+            <TextBox x:Name="TxtTestPct" Grid.Column="5" Style="{StaticResource NumberBox}" Width="56"/>
+          </Grid>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" MinWidth="190"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblSplitSeed" Style="{StaticResource Label}"/>
+            <TextBox x:Name="TxtSplitSeed" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+            <TextBlock x:Name="LblBackgroundPct" Grid.Row="1" Style="{StaticResource Label}"/>
+            <TextBox x:Name="TxtBackgroundPct" Grid.Row="1" Grid.Column="1" Style="{StaticResource NumberBox}"/>
+          </Grid>
+          <CheckBox x:Name="ChkShuffle" Style="{StaticResource Check}"/>
+          <CheckBox x:Name="ChkStratify" Style="{StaticResource Check}"/>
+          <CheckBox x:Name="ChkBackground" Style="{StaticResource Check}"/>
+          <CheckBox x:Name="ChkSkipDifficult" Style="{StaticResource Check}"/>
+          <Button x:Name="BtnPreview" Style="{StaticResource Btn}" HorizontalAlignment="Left"/>
+          <Border Style="{StaticResource InsetBorderStyle}" Padding="8">
+            <TextBlock x:Name="TxtPreview" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" FontFamily="{StaticResource MonoFontFamily}"/>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <DockPanel>
+            <Border x:Name="ChipRun" DockPanel.Dock="Right" Style="{StaticResource StatusChipStyle}" VerticalAlignment="Top">
+              <TextBlock x:Name="TxtRunChip"/>
+            </Border>
+            <TextBlock x:Name="LblRun" Style="{StaticResource SectionHeaderTextStyle}"/>
+          </DockPanel>
+          <WrapPanel Grid.Row="1">
+            <Button x:Name="BtnStart" Style="{StaticResource SuccessButtonStyle}" Margin="0,0,8,8"/>
+            <Button x:Name="BtnStop" Style="{StaticResource DangerButtonStyle}" Margin="0,0,8,8"/>
+            <Button x:Name="BtnOpenOutput" Style="{StaticResource Btn}"/>
+            <Button x:Name="BtnUseForNavigation" Style="{StaticResource Btn}"/>
+          </WrapPanel>
+          <DockPanel Grid.Row="2" Margin="0,0,0,8">
+            <TextBlock x:Name="TxtEpoch" DockPanel.Dock="Right" Style="{StaticResource CaptionTextStyle}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            <ProgressBar x:Name="BarProgress" Height="6" Minimum="0" Maximum="1"/>
+          </DockPanel>
+          <TextBox x:Name="TxtLog" Grid.Row="3" Style="{StaticResource MonoLogTextBoxStyle}"/>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

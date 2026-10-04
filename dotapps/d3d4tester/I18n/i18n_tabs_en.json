@@ -104,7 +104,7 @@
       "yolo_flow_lib_not_available": "GameAISDK yolo_label_lib not available",
       "yolo_flow_open_label_failed": "Open label failed",
       "yolo_flow_clean_failed": "Clean unlabeled failed.",
-      "yolo_flow_clean_done": "Clean unlabeled done.",
+      "yolo_flow_clean_done": "Clean unlabeled done: removed {images} images without annotation and {annotations} annotation files without image.",
       "yolo_data_title": "YOLO data",
       "yolo_data_refresh": "Refresh",
       "yolo_data_export_selected": "Export selected",
@@ -164,15 +164,8 @@
       "yolo_data_root_unavailable": "YOLO_DATA_ROOT not available.",
       "yolo_frames_video": "video",
       "yolo_flow_train": "Train",
-      "yolo_flow_train_started": "Training started: ",
-      "yolo_flow_train_failed": "Training failed: ",
-      "yolo_flow_prepare_failed": "Prepare training data failed: ",
-      "yolo_flow_prepare_ok": "Training data prepared: ",
       "yolo_flow_clean_confirm": "Remove images without labels and labels without images in the latest segment frames? This cannot be undone.",
-      "yolo_capture_not_available": "Coordinate picker is not available in this version.",
-      "yolo_flow_export_started": "Training finished, exporting ONNX: ",
-      "yolo_flow_export_failed": "ONNX export failed: ",
-      "yolo_flow_export_done": "ONNX model ready (town navigation uses it): "
+      "yolo_capture_not_available": "Coordinate picker is not available in this version."
     },
     "yolo_collect": {
       "window_title": "YOLO Training Data Collection",
@@ -221,21 +214,6 @@
       "preview_ratio": "Split",
       "preview_last_gen": "Last generated",
       "preview_no_data": "No screenshots or annotations. Capture and annotate first."
-    },
-    "voc_annotator": {
-      "window_title": "VOC Annotator",
-      "open_images_dir": "Open images dir",
-      "set_save_dir": "Set save dir",
-      "save": "Save",
-      "images": "Images",
-      "classes": "Classes",
-      "current_class": "Current class",
-      "add_rect": "Add rectangle (drag on image)",
-      "cancel_add_rect": "Cancel (click again)",
-      "folder_selection": "Folder Selection.",
-      "save_need_image": "Select an image and set save dir first.",
-      "saved": "Saved.",
-      "save_failed": "Save failed: "
     },
     "coord_picker": {
       "window_title": "Coordinate Calibration Tool",
