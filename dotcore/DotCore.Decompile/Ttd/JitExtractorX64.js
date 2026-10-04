@@ -86,9 +86,6 @@ function invokeScript() {
             const ilSize = DebuggerApi.readUInt32(methodInfo.add(0x18));
             const maxStack = DebuggerApi.readUInt32(methodInfo.add(0x1c));
             const exceptionHandlerCount = DebuggerApi.readUInt32(methodInfo.add(0x20));
-            const localsSignatureInfo = methodInfo.add(0x98);
-            const localsSignatureAddress = DebuggerApi.readPointer(localsSignatureInfo.add(0x48));
-            const localsSignatureSize = DebuggerApi.readUInt32(localsSignatureInfo.add(0x50));
             if (ilSize <= 0 || ilSize > 0x1000000) {
                 throw new Error(`Invalid IL size ${ilSize}.`);
             }
@@ -104,8 +101,7 @@ function invokeScript() {
                 ILSize: ilSize,
                 MaxStack: maxStack,
                 ExceptionHandlerCount: exceptionHandlerCount,
-                LocalsSignatureBytes: localsSignatureSize === 0 ? "" : bytesToHex(
-                    DebuggerApi.readBytes(localsSignatureAddress, localsSignatureSize)),
+                LocalsSignatureBytes: "",
                 ExceptionHandlers: []
             });
             if (methods.length % 25 === 0) {

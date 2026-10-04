@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DotCore.VocAnnotatorUI</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="I18n\i18n_voc_annotator_*.json" LogicalName="DotCore.VocAnnotatorUI.I18n.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4.Windows" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\DotCore.Common\DotCore.Common.csproj" />
+    <ProjectReference Include="..\DotCore.UITheme\DotCore.UITheme.csproj" />
+    <ProjectReference Include="..\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
+    <ProjectReference Include="..\DotCore.YoloDetect\DotCore.YoloDetect.csproj" />
+    <ProjectReference Include="..\DotCore.YoloTrain\DotCore.YoloTrain.csproj" />
+  </ItemGroup>
+</Project>
