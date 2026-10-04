@@ -431,6 +431,7 @@ function Invoke-BunCommand {
 
     $bunExe = $null
     $bunCommand = $null
+    $bunShimDir = ''
     $bunGlobalBinDir = $Global:BUN_BIN_DIR
     $searchKeywords = @()
     $executable = $null
@@ -440,7 +441,22 @@ function Invoke-BunCommand {
     $searchKeywords = @(@($Keyword) + @($AdditionalKeywords) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
     if ($searchKeywords.Count -eq 0) { $searchKeywords = @($PackageName) }
 
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths @($bunGlobalBinDir) -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $false
+    # Installed-via-bun means the shim exists in the bun global bin dir, nothing else:
+    # the generic search falls back to PATH and would match pnpm/.winenvs copies,
+    # which must NOT stop the migration to bun.
+    $findBunExecutable = {
+        $found = $null
+        foreach ($bunKeyword in $searchKeywords) {
+            foreach ($bunExtension in $ExecutableExtensions) {
+                $bunCandidate = Join-Path $bunGlobalBinDir ([System.IO.Path]::GetFileNameWithoutExtension([string]$bunKeyword) + $bunExtension)
+                if (Test-Path -LiteralPath $bunCandidate -PathType Leaf) { $found = $bunCandidate; break }
+            }
+            if ($found) { break }
+        }
+        $found
+    }
+
+    $executable = & $findBunExecutable
     if ($OnlyCheckFlag) {
         return $executable
     }
@@ -454,6 +470,16 @@ function Invoke-BunCommand {
     } else {
         $bunCommand = Get-Command bun -ErrorAction SilentlyContinue
         if ($bunCommand) { $bunExe = $bunCommand.Source }
+        # Never call the npm-generated bun.ps1 shim (it breaks under Set-StrictMode Latest);
+        # use the real bun.exe beside it, or the cmd shim.
+        if ($bunExe -and $bunExe -match '\.ps1$') {
+            $bunShimDir = Split-Path -Parent $bunExe
+            if (Test-Path -LiteralPath (Join-Path $bunShimDir 'node_modules\bun\bin\bun.exe')) {
+                $bunExe = Join-Path $bunShimDir 'node_modules\bun\bin\bun.exe'
+            } elseif (Test-Path -LiteralPath (Join-Path $bunShimDir 'bun.cmd')) {
+                $bunExe = Join-Path $bunShimDir 'bun.cmd'
+            }
+        }
     }
     if (-not $bunExe) {
         Write-DebugLog -Message "${PackageName}: bun not available, falling back to pnpm" -Category "BUN" -Color "Yellow"
@@ -474,16 +500,14 @@ function Invoke-BunCommand {
         if ($null -ne $previousBunInstall) { $env:BUN_INSTALL = $previousBunInstall } else { Remove-Item Env:\BUN_INSTALL -ErrorAction SilentlyContinue }
     }
 
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths @($bunGlobalBinDir) -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $false
+    $executable = & $findBunExecutable
     if ($executable) {
         Write-DebugLog -Message "${PackageName}: bun install verified, executable: $executable" -Category "BUN" -Color "Green"
         # Migration hygiene: drop a stale pnpm global copy of the same package so two
-        # implementations never drift apart (best effort, mirrors the native-only ensure).
+        # implementations never drift apart (best effort; pnpm errors on a missing package are ignored).
         if ($Global:PNPM_EXE_PATH -and (Test-Path -LiteralPath $Global:PNPM_EXE_PATH)) {
-            if (Test-PnpmGlobalPackageInstalled -PnpmExe $Global:PNPM_EXE_PATH -PackageName $PackageName) {
-                Write-DebugLog -Message "${PackageName}: removing stale pnpm global copy (migrated to bun)" -Category "BUN" -Color "Yellow"
-                & $Global:PNPM_EXE_PATH remove --global $PackageName 2>$null | Out-Null
-            }
+            Write-DebugLog -Message "${PackageName}: removing any stale pnpm global copy (migrated to bun)" -Category "BUN" -Color "Yellow"
+            & $Global:PNPM_EXE_PATH remove --global $PackageName 2>$null | Out-Null
         }
         return $executable
     }

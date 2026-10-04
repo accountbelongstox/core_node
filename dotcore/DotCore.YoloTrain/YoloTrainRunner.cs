@@ -111,20 +111,24 @@ public sealed class YoloTrainRunner
         Emit(YoloTrainParameters.FormatCommand(cliPath, args));
         string? runDir = null;
         int lastEpoch = -1;
+        var handleLock = new object();
         void Handle(string? raw)
         {
             if (raw == null) return;
             var line = Ansi.Replace(raw, "").TrimEnd();
             if (line.Length == 0) return;
-            var m = EpochLine.Match(line);
-            if (m.Success && int.TryParse(m.Groups[1].Value, out var ep) && int.TryParse(m.Groups[2].Value, out var total) && total > 0)
+            lock (handleLock)
             {
-                if (ep != lastEpoch) Progress?.Invoke(new YoloTrainProgress(ep, total));
-                lastEpoch = ep;
+                var m = EpochLine.Match(line);
+                if (m.Success && int.TryParse(m.Groups[1].Value, out var ep) && int.TryParse(m.Groups[2].Value, out var total) && total > 0)
+                {
+                    if (ep != lastEpoch) Progress?.Invoke(new YoloTrainProgress(ep, total));
+                    lastEpoch = ep;
+                }
+                if (runDirFromLine(line) is { } dir) runDir = dir;
+                if (line.Contains(ProgressBarMarker, StringComparison.Ordinal) && !line.Contains(ProgressBarDone, StringComparison.Ordinal)) return;
+                Emit(line);
             }
-            if (runDirFromLine(line) is { } dir) runDir = dir;
-            if (line.Contains(ProgressBarMarker, StringComparison.Ordinal) && !line.Contains(ProgressBarDone, StringComparison.Ordinal)) return;
-            Emit(line);
         }
         using var registration = ct.Register(Cancel);
         try
