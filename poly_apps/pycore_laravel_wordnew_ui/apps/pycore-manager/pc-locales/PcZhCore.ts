@@ -343,9 +343,16 @@ gitsyncWatch: {
     historyNext: '下一页',
     historyDuration: '{{seconds}} 秒',
     historyExitCode: '退出码 {{code}}',
+    movement: '↑{{pushed}} ↓{{pulled}}',
+    waitingTurn: '等待局域网轮次（当前由 {{host}} 持有）',
+    waitingTurnUnknown: '等待局域网轮次',
+    lastPush: '上次推送：{{count}} 个提交，{{head}}，{{time}}',
+    lanTitle: '局域网机器',
+    lanRunning: '同步中',
     trigger: {
       schedule: '定时',
       manual: '手动',
+      peer: '局域网推送后',
     },
     result: {
       ok: '成功',

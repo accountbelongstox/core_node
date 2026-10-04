@@ -1,17 +1,18 @@
 /**
  * Top-bar status of pycore's automatic gitsync: run count, a merge-conflict alert (with the
- * AI prompt to copy), pause until restart, sync interval, reminder interval, run now, paged run history.
+ * AI prompt to copy), LAN turn wait, last push, LAN machines, pause until restart, sync interval,
+ * reminder interval, run now, paged run history.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, GitMerge, Loader2, Pause, Play, RefreshCw } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, GitMerge, Hourglass, Loader2, Pause, Play, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { pycoreApi } from '@/apps/pycore-manager/api';
-import type { GitSyncHistoryPage, GitSyncState } from '@/apps/pycore-manager/api';
+import type { GitSyncHistoryPage, GitSyncLanPeer } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 import { formatTimestamp } from '../../../core/utils/formatters';
+import { applyGitSyncState, useGitSyncState } from '../hooks/useGitSyncState';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-const POLL_INTERVAL_MS = 15_000;
 const MS_PER_SECOND = 1000;
 const HISTORY_PAGE_SIZE = 12;
 const BADGE_MAX_COUNT = 99;
@@ -59,6 +60,9 @@ const PcGitSyncHistory: React.FC<{ runCount: number }> = ({ runCount }) => {
                     <span className="min-w-0 flex-1 truncate text-slate-500">{formatTimestamp(run.started_at * MS_PER_SECOND)}</span>
                     <span className="text-slate-400">{t(`gitsyncWatch.trigger.${run.trigger}`)}</span>
                     <span className="text-slate-400">{t('gitsyncWatch.historyDuration', { seconds: run.duration_seconds })}</span>
+                    {(run.pushed || run.pulled) ? (
+                      <span className="text-indigo-500">{t('gitsyncWatch.movement', { pushed: run.pushed ?? 0, pulled: run.pulled ?? 0 })}</span>
+                    ) : null}
                     <span className={run.result === 'conflict' || (run.exit_code ?? 0) !== 0 ? 'text-rose-500' : 'text-emerald-500'}>
                       {run.result === 'ok' && run.exit_code !== null && run.exit_code !== 0
                         ? t('gitsyncWatch.historyExitCode', { code: run.exit_code })
@@ -100,31 +104,47 @@ const PcGitSyncHistory: React.FC<{ runCount: number }> = ({ runCount }) => {
   );
 };
 
+/** LAN pycores as announced by their gitsync turn claims and releases. */
+const PcGitSyncLanPeers: React.FC<{ peers: GitSyncLanPeer[] }> = ({ peers }) => {
+  const { t } = useTranslation('pc');
+  if (peers.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <p className="font-semibold text-slate-500">{t('gitsyncWatch.lanTitle')}</p>
+      <ul className="divide-y divide-slate-500/10 rounded-lg border border-slate-500/15">
+        {peers.map((peer) => (
+          <li key={peer.machine} className="flex items-center gap-2 px-2 py-1 font-mono text-[10px]">
+            <span className="min-w-0 flex-1 truncate text-slate-500" title={peer.machine}>{peer.hostname || peer.machine}</span>
+            {peer.running
+              ? <span className="inline-flex items-center gap-1 text-indigo-500"><Loader2 className="h-3 w-3 animate-spin" />{t('gitsyncWatch.lanRunning')}</span>
+              : (
+                <>
+                  {(peer.pushed || peer.pulled) ? (
+                    <span className="text-indigo-500">{t('gitsyncWatch.movement', { pushed: peer.pushed ?? 0, pulled: peer.pulled ?? 0 })}</span>
+                  ) : null}
+                  {peer.result && (
+                    <span className={peer.result === 'conflict' ? 'text-rose-500' : 'text-emerald-500'}>{t(`gitsyncWatch.result.${peer.result}`)}</span>
+                  )}
+                  <span className="text-slate-400">{formatTimestamp((peer.finished_at ?? peer.seen_at) * MS_PER_SECOND)}</span>
+                </>
+              )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 export const PcGitSyncStatus: React.FC = () => {
   const { t } = useTranslation('pc');
   const isMobile = useIsMobile();
-  const [state, setState] = useState<GitSyncState | null>(null);
+  const state = useGitSyncState();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [intervalText, setIntervalText] = useState('');
   const [reminderText, setReminderText] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      const result = await pycoreApi.getGitSyncState();
-      if (result?.success) setState(result);
-    } catch {
-      // An older pycore without the route keeps the indicator hidden.
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
 
   useEffect(() => {
     if (!open || !state) return;
@@ -146,8 +166,7 @@ export const PcGitSyncStatus: React.FC = () => {
   const control = async (change: Parameters<typeof pycoreApi.controlGitSync>[0]) => {
     setBusy(true);
     try {
-      const result = await pycoreApi.controlGitSync(change);
-      if (result?.success) setState(result);
+      applyGitSyncState(await pycoreApi.controlGitSync(change));
     } finally {
       setBusy(false);
     }
@@ -163,6 +182,7 @@ export const PcGitSyncStatus: React.FC = () => {
   if (!state) return null;
 
   const conflict = state.conflict;
+  const lastPush = state.last_push && 'head' in state.last_push ? state.last_push : null;
   const runCount = state.run_count ?? 0;
   const buttonLabel = `${t(conflict ? 'gitsyncWatch.conflictTitle' : 'gitsyncWatch.title')} · ${t('gitsyncWatch.runCountShort', { count: runCount })}`;
   return (
@@ -181,7 +201,9 @@ export const PcGitSyncStatus: React.FC = () => {
               : 'border-slate-200/60 bg-slate-100/40 text-emerald-500 hover:bg-slate-200/50 dark:border-white/5 dark:bg-white/[0.02]'
         }`}
       >
-        {state.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitMerge className="h-4 w-4" />}
+        {state.running
+          ? <Loader2 className="h-4 w-4 animate-spin" />
+          : state.waiting_for_turn ? <Hourglass className="h-4 w-4" /> : <GitMerge className="h-4 w-4" />}
         {runCount > 0 && (
           <span className="absolute -right-1.5 -top-1.5 min-w-[1.1rem] rounded-full bg-indigo-600 px-1 text-center text-[9px] font-bold leading-[1.1rem] text-white">
             {runCount > BADGE_MAX_COUNT ? `${BADGE_MAX_COUNT}+` : runCount}
@@ -219,6 +241,21 @@ export const PcGitSyncStatus: React.FC = () => {
               ? ` · ${t('gitsyncWatch.lastRun', { time: formatTimestamp(state.last_run_at * MS_PER_SECOND) })}`
               : ''}
           </p>
+          {state.waiting_for_turn && (
+            <p className="text-amber-500">
+              {state.turn_holder ? t('gitsyncWatch.waitingTurn', { host: state.turn_holder }) : t('gitsyncWatch.waitingTurnUnknown')}
+            </p>
+          )}
+          {lastPush && (
+            <p className="text-slate-500" title={lastPush.commits.join('\n')}>
+              {t('gitsyncWatch.lastPush', {
+                count: lastPush.pushed,
+                head: lastPush.head,
+                time: formatTimestamp(lastPush.finished_at * MS_PER_SECOND),
+              })}
+            </p>
+          )}
+          <PcGitSyncLanPeers peers={state.lan ?? []} />
           <div className="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1.5">
             <label htmlFor="gitsync-interval" className="text-slate-500">{t('gitsyncWatch.interval')}</label>
             <input
@@ -272,23 +309,8 @@ export const PcGitSyncStatus: React.FC = () => {
 /** Full-width alert under the top bar while a gitsync merge conflict is unresolved. */
 export const PcGitSyncConflictBanner: React.FC = () => {
   const { t } = useTranslation('pc');
-  const [state, setState] = useState<GitSyncState | null>(null);
+  const state = useGitSyncState();
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    const poll = () => {
-      pycoreApi.getGitSyncState()
-        .then((result) => { if (alive && result?.success) setState(result); })
-        .catch(() => undefined);
-    };
-    poll();
-    const timer = window.setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-    };
-  }, []);
 
   if (!state?.conflict) return null;
   return (

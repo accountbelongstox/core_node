@@ -343,9 +343,16 @@ gitsyncWatch: {
     historyNext: 'Next page',
     historyDuration: '{{seconds}}s',
     historyExitCode: 'exit {{code}}',
+    movement: '↑{{pushed}} ↓{{pulled}}',
+    waitingTurn: 'Waiting for the LAN turn held by {{host}}',
+    waitingTurnUnknown: 'Waiting for the LAN turn',
+    lastPush: 'Last push: {{count}} commit(s), {{head}}, {{time}}',
+    lanTitle: 'LAN machines',
+    lanRunning: 'syncing',
     trigger: {
       schedule: 'scheduled',
       manual: 'manual',
+      peer: 'after LAN push',
     },
     result: {
       ok: 'ok',

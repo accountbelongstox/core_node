@@ -99,7 +99,7 @@ final class AppQyV1PhraseExtractionService
             Log::warning('[AppQyV1PhraseExtraction] prompt row missing or disabled; run sys:init', ['prompt_key' => $this->setting('prompt_key')]);
             return ['outcome' => self::OUTCOME_IDLE, 'language' => $language];
         }
-        $leaseId = (string) Str::uuid();
+        $leaseId = str_replace('-', '', (string) Str::uuid());
         $batch = $this->claim($language, $leaseId);
         if ($batch === []) {
             return ['outcome' => self::OUTCOME_IDLE, 'language' => $language];
@@ -294,6 +294,40 @@ final class AppQyV1PhraseExtractionService
                 ->whereIn('phrase_lease_id', $leaseIds)
                 ->whereNull('phrase_status')
                 ->update(['phrase_lease_expires_at' => $expiresAt]);
+        }
+        $this->chargeFailedDelegations($taskType);
+    }
+
+    /**
+     * A phrase_extract task that ended failed or cancelled without a writeback
+     * still holds its sentences' lease: charge those sentences one attempt (the
+     * writer clears the lease, so each failed task is charged once) instead of
+     * letting them cycle back to pycore without a retry budget.
+     */
+    private function chargeFailedDelegations(string $taskType): void
+    {
+        $tasks = GlobalTask::query()
+            ->where('task_type', $taskType)
+            ->whereIn('status', [QueueCenterContract::taskStatus('failed'), QueueCenterContract::taskStatus('cancelled')])
+            ->where('updated_at', '>=', now()->subSeconds(2 * (int) $this->setting('lease_seconds')))
+            ->limit(max(1, (int) $this->setting('pycore_tasks_max_pending')) * 2)
+            ->get(['payload']);
+
+        foreach ($tasks as $task) {
+            $payload = is_array($task->payload) ? $task->payload : [];
+            $language = (string) ($payload['language'] ?? '');
+            $leaseId = (string) ($payload['lease_id'] ?? '');
+            if ($language === '' || $leaseId === '') {
+                continue;
+            }
+            $held = AppQyV1PhraseWriter::connection()->table(AppQyV1TableMaps::getSentenceTableName($language))
+                ->where('phrase_lease_id', $leaseId)
+                ->whereNull('phrase_status')
+                ->pluck('content_id')
+                ->all();
+            if ($held !== []) {
+                $this->writer->recordFailure($language, array_map('strval', $held));
+            }
         }
     }
 
