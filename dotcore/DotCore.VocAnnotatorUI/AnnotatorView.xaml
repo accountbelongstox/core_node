@@ -1,0 +1,257 @@
+<UserControl x:Class="DotCore.VocAnnotatorUI.AnnotatorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme"
+             xmlns:local="clr-namespace:DotCore.VocAnnotatorUI"
+             Focusable="True" FocusVisualStyle="{x:Null}">
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+    <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+      <Setter Property="Width" Value="32"/>
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="Margin" Value="1,0"/>
+    </Style>
+    <Style x:Key="ToolSeparator" TargetType="Border">
+      <Setter Property="Width" Value="1"/>
+      <Setter Property="Margin" Value="6,6"/>
+      <Setter Property="Background" Value="{DynamicResource DividerBrush}"/>
+    </Style>
+    <Style x:Key="SmallButton" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="Margin" Value="0,0,2,0"/>
+    </Style>
+    <Style x:Key="Swatch" TargetType="Border">
+      <Setter Property="Width" Value="12"/>
+      <Setter Property="Height" Value="12"/>
+      <Setter Property="CornerRadius" Value="2"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+  </UserControl.Resources>
+
+  <Grid Margin="12,0,12,8">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Toolbar -->
+    <Border Grid.Row="0" Style="{StaticResource ToolbarPanelStyle}">
+      <WrapPanel>
+        <Button x:Name="BtnOpenDir" Style="{StaticResource ToolButton}" Content="&#xE838;" Command="{Binding OpenImagesDirCommand}"/>
+        <Button x:Name="BtnSaveDir" Style="{StaticResource ToolButton}" Content="&#xE8DE;" Command="{Binding SetSaveDirCommand}"/>
+        <Button x:Name="BtnSave" Style="{StaticResource ToolButton}" Content="&#xE74E;" Command="{Binding SaveCommand}"/>
+        <Border Style="{StaticResource ToolSeparator}"/>
+        <Button x:Name="BtnPrev" Style="{StaticResource ToolButton}" Content="&#xE76B;" Command="{Binding PrevImageCommand}"/>
+        <Button x:Name="BtnNext" Style="{StaticResource ToolButton}" Content="&#xE76C;" Command="{Binding NextImageCommand}"/>
+        <Button x:Name="BtnNextUnlabeled" Style="{StaticResource ToolButton}" Content="&#xE893;" Command="{Binding NextUnlabeledCommand}"/>
+        <Border Style="{StaticResource ToolSeparator}"/>
+        <Button x:Name="BtnDraw" Style="{StaticResource ToolButton}" Content="&#xE70F;" Command="{Binding ToggleDrawModeCommand}"/>
+        <Button x:Name="BtnDelete" Style="{StaticResource ToolButton}" Content="&#xE74D;" Command="{Binding DeleteBoxCommand}"/>
+        <Button x:Name="BtnDuplicate" Style="{StaticResource ToolButton}" Content="&#xE8C8;" Command="{Binding DuplicateBoxCommand}"/>
+        <Button x:Name="BtnCopyPrevious" Style="{StaticResource ToolButton}" Content="&#xE77F;" Command="{Binding CopyPreviousCommand}"/>
+        <Button x:Name="BtnUndo" Style="{StaticResource ToolButton}" Content="&#xE7A7;" Command="{Binding UndoCommand}"/>
+        <Button x:Name="BtnRedo" Style="{StaticResource ToolButton}" Content="&#xE7A6;" Command="{Binding RedoCommand}"/>
+        <Button x:Name="BtnClear" Style="{StaticResource ToolButton}" Content="&#xED62;" Command="{Binding ClearBoxesCommand}"/>
+        <Button x:Name="BtnReset" Style="{StaticResource ToolButton}" Content="&#xE894;" Command="{Binding ResetAnnotationCommand}"/>
+        <Border Style="{StaticResource ToolSeparator}"/>
+        <Button x:Name="BtnAutoLabel" Style="{StaticResource ToolButton}" Content="&#xE99A;" Command="{Binding AutoLabelCommand}"/>
+        <Button x:Name="BtnAutoLabelAll" Style="{StaticResource ToolButton}" Content="&#xE8B3;" Command="{Binding AutoLabelAllCommand}"/>
+        <Button x:Name="BtnCancelTask" Style="{StaticResource ToolButton}" Content="&#xE711;" Command="{Binding CancelTaskCommand}"
+                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+        <Border Style="{StaticResource ToolSeparator}"/>
+        <Button x:Name="BtnFit" Style="{StaticResource ToolButton}" Content="&#xE9A6;" Click="BtnFit_Click"/>
+        <Button x:Name="BtnActual" Style="{StaticResource ToolButton}" Content="&#xE71E;" Click="BtnActual_Click"/>
+        <Button x:Name="BtnZoomIn" Style="{StaticResource ToolButton}" Content="&#xE8A3;" Click="BtnZoomIn_Click"/>
+        <Button x:Name="BtnZoomOut" Style="{StaticResource ToolButton}" Content="&#xE71F;" Click="BtnZoomOut_Click"/>
+        <Button x:Name="BtnLabels" Style="{StaticResource ToolButton}" Content="&#xE8EC;" Command="{Binding ToggleLabelsCommand}"/>
+        <Border Style="{StaticResource ToolSeparator}"/>
+        <Button x:Name="BtnSettings" Style="{StaticResource ToolButton}" Content="&#xE713;" Command="{Binding SettingsCommand}"/>
+        <Button x:Name="BtnHelp" Style="{StaticResource ToolButton}" Content="&#xE897;" Command="{Binding HelpCommand}"/>
+        <TextBlock Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" Margin="8,0,0,0" Text="{Binding TaskText}"/>
+      </WrapPanel>
+    </Border>
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="240" MinWidth="160"/>
+        <ColumnDefinition Width="8"/>
+        <ColumnDefinition Width="*" MinWidth="200"/>
+        <ColumnDefinition Width="8"/>
+        <ColumnDefinition Width="270" MinWidth="200"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Images -->
+      <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Margin="0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <DockPanel Grid.Row="0" Margin="0,0,0,6">
+            <TextBlock DockPanel.Dock="Right" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Text="{Binding ProgressText}"/>
+            <TextBlock x:Name="LblImages" Style="{StaticResource SectionHeaderTextStyle}" Margin="0"/>
+          </DockPanel>
+          <ComboBox x:Name="CboFilter" Grid.Row="1" Margin="0,0,0,6" SelectionChanged="CboFilter_SelectionChanged"/>
+          <TextBox x:Name="TxtSearch" Grid.Row="2" Margin="0,0,0,6" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+          <ListBox x:Name="LstImages" Grid.Row="3" ItemsSource="{Binding ImagesView}" SelectedItem="{Binding CurrentImage}"
+                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.ItemTemplate>
+              <DataTemplate DataType="{x:Type local:AnnotatorImageItem}">
+                <DockPanel>
+                  <TextBlock x:Name="Glyph" DockPanel.Dock="Left" Style="{StaticResource IconTextStyle}" FontSize="12" Margin="0,0,6,0"
+                             Text="&#xEA3A;" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center"/>
+                  <TextBlock DockPanel.Dock="Right" Style="{StaticResource CaptionTextStyle}" Margin="6,0,0,0" Text="{Binding BoxCount}"
+                             Visibility="{Binding IsLabeled, Converter={StaticResource BoolToVisibility}}"/>
+                  <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis"/>
+                </DockPanel>
+                <DataTemplate.Triggers>
+                  <DataTrigger Binding="{Binding IsLabeled}" Value="True">
+                    <Setter TargetName="Glyph" Property="Text" Value="&#xE73E;"/>
+                    <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource SuccessTextBrush}"/>
+                  </DataTrigger>
+                </DataTemplate.Triggers>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+      <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent"/>
+
+      <!-- Canvas -->
+      <Border Grid.Column="2" Style="{StaticResource InsetBorderStyle}" Padding="0">
+        <Grid>
+          <local:AnnotationCanvas x:Name="Canvas"
+                                  ImageSource="{Binding Bitmap}"
+                                  Boxes="{Binding Boxes}"
+                                  SelectedIndex="{Binding SelectedBoxIndex}"
+                                  IsDrawMode="{Binding IsDrawMode}"
+                                  CurrentLabel="{Binding CurrentLabel}"
+                                  ShowLabels="{Binding ShowLabels}"
+                                  ShowCrosshair="{Binding ShowCrosshair}"
+                                  FillOpacity="{Binding FillOpacity}"
+                                  LineWidth="{Binding LineWidth}"
+                                  MinBoxSize="{Binding MinBoxSize}"
+                                  FitOnOpen="{Binding FitOnOpen}">
+            <local:AnnotationCanvas.ContextMenu>
+              <ContextMenu x:Name="CanvasMenu" Opened="CanvasMenu_Opened">
+                <MenuItem x:Name="MiSetClass"/>
+                <MenuItem x:Name="MiDifficult" IsCheckable="True" Click="MiDifficult_Click"/>
+                <MenuItem x:Name="MiDuplicate" Command="{Binding DuplicateBoxCommand}"/>
+                <Separator/>
+                <MenuItem x:Name="MiDelete" Command="{Binding DeleteBoxCommand}"/>
+              </ContextMenu>
+            </local:AnnotationCanvas.ContextMenu>
+          </local:AnnotationCanvas>
+          <TextBlock x:Name="TxtNoImage" Style="{StaticResource MutedTextStyle}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     IsHitTestVisible="False"/>
+        </Grid>
+      </Border>
+      <GridSplitter Grid.Column="3" Width="8" HorizontalAlignment="Stretch" Background="Transparent"/>
+
+      <!-- Classes + boxes -->
+      <Grid Grid.Column="4">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="8"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Margin="0">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblClasses" Style="{StaticResource SectionHeaderTextStyle}" TextWrapping="Wrap"/>
+            <ListBox x:Name="LstClasses" Grid.Row="1" ItemsSource="{Binding Classes}" SelectedItem="{Binding SelectedClass}">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:AnnotatorClassItem}">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Left" Style="{StaticResource Swatch}" Background="{Binding Brush}"/>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Width="14" VerticalAlignment="Center" Text="{Binding Hotkey}"/>
+                    <TextBlock DockPanel.Dock="Right" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="6,0,0,0" Text="{Binding Count}"/>
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                  </DockPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <WrapPanel Grid.Row="2" Margin="0,6,0,0">
+              <Button x:Name="BtnClassAdd" Style="{StaticResource SmallButton}" Content="&#xE710;" Command="{Binding AddClassCommand}"/>
+              <Button x:Name="BtnClassRename" Style="{StaticResource SmallButton}" Content="&#xE8AC;" Command="{Binding RenameClassCommand}"/>
+              <Button x:Name="BtnClassDelete" Style="{StaticResource SmallButton}" Content="&#xE74D;" Command="{Binding DeleteClassCommand}"/>
+              <Button x:Name="BtnClassColor" Style="{StaticResource SmallButton}" Content="&#xE790;" Click="BtnClassColor_Click"/>
+              <Button x:Name="BtnClassUp" Style="{StaticResource SmallButton}" Content="&#xE74A;" Command="{Binding MoveClassUpCommand}"/>
+              <Button x:Name="BtnClassDown" Style="{StaticResource SmallButton}" Content="&#xE74B;" Command="{Binding MoveClassDownCommand}"/>
+            </WrapPanel>
+            <StackPanel Grid.Row="3" Margin="0,6,0,0">
+              <TextBlock x:Name="LblCurrentClass" Style="{StaticResource FieldLabelTextStyle}"/>
+              <ComboBox ItemsSource="{Binding Classes}" SelectedItem="{Binding SelectedClass}" DisplayMemberPath="Name"/>
+            </StackPanel>
+          </Grid>
+        </Border>
+        <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Margin="0">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblBoxes" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <ListBox x:Name="LstBoxes" Grid.Row="1" ItemsSource="{Binding BoxItems}" SelectedItem="{Binding SelectedBoxItem}">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:AnnotatorBoxItem}">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Left" Style="{StaticResource Swatch}" Background="{Binding Brush}"/>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Width="30" VerticalAlignment="Center" Text="{Binding Number}"/>
+                    <TextBlock DockPanel.Dock="Right" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="6,0,0,0" Text="{Binding SizeText}"/>
+                    <TextBlock x:Name="Difficult" DockPanel.Dock="Right" Style="{StaticResource IconTextStyle}" FontSize="11" Margin="6,0,0,0"
+                               Text="&#xE7BA;" Foreground="{DynamicResource WarningTextBrush}" Visibility="Collapsed" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                  </DockPanel>
+                  <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding Difficult}" Value="True">
+                      <Setter TargetName="Difficult" Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                  </DataTemplate.Triggers>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <Grid Grid.Row="2" Margin="0,6,0,0" IsEnabled="{Binding HasSelection}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblBoxClass" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <ComboBox Grid.Column="1" ItemsSource="{Binding ClassNames}" SelectedItem="{Binding SelectedBoxLabel}"/>
+              <Button x:Name="BtnBoxDelete" Grid.Column="2" Style="{StaticResource SmallButton}" Margin="4,0,0,0" Content="&#xE74D;" Command="{Binding DeleteBoxCommand}"/>
+              <CheckBox x:Name="ChkDifficult" Grid.Row="1" Grid.ColumnSpan="3" Margin="0,6,0,0" IsChecked="{Binding SelectedBoxDifficult}"/>
+            </Grid>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- Status bar -->
+    <DockPanel Grid.Row="2" Margin="0,6,0,0" LastChildFill="True">
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" Text="{Binding ImageIndexText}"/>
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" Text="{Binding CurrentImage.FileName}"/>
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" Text="{Binding ImageSizeText}"/>
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" Text="{Binding BoxCountText}"/>
+      <TextBlock x:Name="TxtZoom" DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0"/>
+      <TextBlock x:Name="TxtCursor" DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" FontFamily="{StaticResource MonoFontFamily}"/>
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" Foreground="{DynamicResource WarningTextBrush}" Text="{Binding DirtyText}"/>
+      <TextBlock Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis" Text="{Binding StatusMessage}"/>
+    </DockPanel>
+  </Grid>
+</UserControl>
