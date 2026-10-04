@@ -1,0 +1,8 @@
+<Window x:Class="DotCore.VocAnnotatorUI.AnnotatorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="1400" Height="860" MinWidth="900" MinHeight="560"
+        ResizeMode="CanResize" WindowStartupLocation="CenterScreen"
+        Style="{StaticResource DialogWindowStyle}">
+  <ContentControl x:Name="Host" Focusable="False"/>
+</Window>
