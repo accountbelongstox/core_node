@@ -143,13 +143,22 @@ public partial class AnnotatorWindow : Window
             ? ProjectConfig.GetClassesFromProjectDir(classesDir)
             : Array.Empty<string>();
         if (classes.Count == 0)
-            classes = new List<string> { "object" };
+            classes = new List<string> { ProjectConfig.DefaultClassName };
         foreach (var c in classes)
             LstClasses.Items.Add(c);
         if (LstClasses.Items.Count > 0)
             LstClasses.SelectedIndex = 0;
         if (string.IsNullOrEmpty(TxtCurrentClass.Text) && classes.Count > 0)
             TxtCurrentClass.Text = classes[0];
+    }
+
+    private void EnsureClassListed(string label)
+    {
+        if (LstClasses.Items.Contains(label)) return;
+        var classes = ProjectConfig.EnsureClassInProjectDir(_projectDir ?? _saveDir, label);
+        if (!classes.Contains(label)) return;
+        LstClasses.Items.Add(label);
+        LstClasses.SelectedItem = label;
     }
 
     private void LstClasses_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -305,7 +314,10 @@ public partial class AnnotatorWindow : Window
             e.Handled = true;
             return;
         }
-        var label = TxtCurrentClass.Text?.Trim() ?? "object";
+        var label = TxtCurrentClass.Text?.Trim();
+        if (string.IsNullOrEmpty(label))
+            label = ProjectConfig.DefaultClassName;
+        EnsureClassListed(label);
         var shape = new Dictionary<string, object>
         {
             ["shape_type"] = AnnotationIo.ShapeTypeRectangle,

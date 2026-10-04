@@ -1369,12 +1369,8 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         ForceToInstallDir   = $false
         VerifySuffix        = ""
         AdditionalKeywords  = @("zhipuai", "zhipu")
+        # Library-only SDK: no executable, so no shortcuts and no PATH/AddExec entries.
         DesktopShortcuts    = @()
-        EnvVars             = @(
-            @{
-                Type = @("AddExec")
-            }
-        )
     }
     Tabby = @{
         PackageId           = "Eugeny.Tabby"

@@ -253,6 +253,18 @@ function Backup-Environment {
     }
 }
 
+# Sibling-version matcher for versioned PATH entries (e.g. ...\node-v26.9.0\pnpm-global\.bin,
+# ...\ffmpeg-8.0.1-full_build\bin): returns a regex matching the SAME entry at ANY dotted
+# version, or '' when the path carries no dotted version segment (python313 stays untouched:
+# ABI-major directories coexist by design).
+function Get-VersionedPathSiblingPattern {
+    param([string]$Path)
+    $escaped = [regex]::Escape($Path)
+    $pattern = [regex]::Replace($escaped, '\d+(?:\\\.\d+)+', '[0-9]+(?:\.[0-9]+)+')
+    if ($pattern -eq $escaped) { return '' }
+    return "^$pattern$"
+}
+
 function Add-Path {
     param (
         [Alias('PathToAdd')]
@@ -285,10 +297,30 @@ function Add-Path {
     try {
         $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
         $paths = $currentPath -split ';'
-        $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+        $pathsNormalized = @($paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ })
+        $pathChanged = $false
+        $stalePaths = @()
+        $siblingPattern = Get-VersionedPathSiblingPattern -Path $newPath
+
+        # Migration: the same versioned entry at another version is stale - drop it.
+        # Without a migration nothing matches and the add stays an idempotent skip.
+        if ($siblingPattern) {
+            $stalePaths = @($pathsNormalized | Where-Object { $_ -ne $newPath -and $_ -match $siblingPattern })
+            if ($stalePaths.Count -gt 0) {
+                $pathsNormalized = @($pathsNormalized | Where-Object { $stalePaths -notcontains $_ })
+                $pathChanged = $true
+                foreach ($stalePath in $stalePaths) {
+                    Write-Log "Removing stale versioned PATH entry: $stalePath (replaced by $newPath)" -color "Yellow"
+                }
+            }
+        }
 
         if (-not ($pathsNormalized -contains $newPath)) {
             $pathsNormalized += $newPath
+            $pathChanged = $true
+        }
+
+        if ($pathChanged) {
             $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
             Backup-Environment
             Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString -ErrorAction Stop

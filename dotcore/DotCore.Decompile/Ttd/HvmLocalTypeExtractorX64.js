@@ -8,11 +8,23 @@ function readPointer(address) {
     return host.memory.readMemoryValues(address, 1, 8)[0];
 }
 
+function readUInt32(address) {
+    return Number(host.memory.readMemoryValues(address, 1, 4)[0]);
+}
+
 function safeReadPointer(address) {
     try {
         return readPointer(address);
     } catch (_) {
         return host.parseInt64(0);
+    }
+}
+
+function safeReadUInt32(address) {
+    try {
+        return readUInt32(address);
+    } catch (_) {
+        return 0;
     }
 }
 
@@ -119,11 +131,21 @@ function invokeScript() {
             if (signatureInfo !== range.LocalsSignatureInfo) continue;
             const argumentPointer = registers.r8;
             argClassCalls[index].TimeEnd.SeekTo();
+            const typeHandle = host.currentThread.Registers.User.rax;
+            const tag = Number(typeHandle) & 3;
+            const descriptor = typeHandle.subtract(tag);
+            const parameterTypeHandle = tag === 0 ? host.parseInt64(0) : safeReadPointer(descriptor.add(0x10));
+            const definitionHandle = tag === 0 ? typeHandle : parameterTypeHandle;
+            const typeRid = (safeReadUInt32(definitionHandle.add(8)) >>> 16) & 0xffff;
             classes.push({
                 CallIndex: index,
                 JitCallIndex: range.Index,
                 ArgumentPointer: pointerText(argumentPointer),
-                TypeHandle: pointerText(host.currentThread.Registers.User.rax)
+                TypeHandle: pointerText(typeHandle),
+                TypeDescriptorKind: tag === 0 ? 0 : (safeReadUInt32(descriptor) & 0xff),
+                ParameterTypeHandle: pointerText(parameterTypeHandle),
+                ModuleHandle: pointerText(safeReadPointer(definitionHandle.add(0x18))),
+                TypeDefinitionToken: typeRid === 0 ? 0 : (0x02000000 | typeRid)
             });
         } catch (error) {
             failures.push({ CallIndex: index, JitCallIndex: range.Index, Message: error.message });
