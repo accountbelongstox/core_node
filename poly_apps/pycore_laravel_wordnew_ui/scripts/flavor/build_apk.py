@@ -63,7 +63,7 @@ def load_json(path: Path) -> dict:
         fail(f"Cannot read {path}: {error}")
 
 
-def discover_android_apps(root: Path) -> tuple[list[dict], list[str]]:
+def discover_platform_apps(root: Path, platform_id: str, platform_name: str) -> tuple[list[dict], list[str]]:
     flavors_dir = root / "flavors"
     supported: list[dict] = []
     rejected: list[str] = []
@@ -78,16 +78,20 @@ def discover_android_apps(root: Path) -> tuple[list[dict], list[str]]:
         if not re.fullmatch(r"[a-z][a-z0-9-]*", app_id):
             rejected.append(f"{app_id}: invalid app id")
             continue
-        if "android" not in platforms:
-            rejected.append(f"{app_id}: Android is not enabled")
+        if platform_id not in platforms:
+            rejected.append(f"{app_id}: {platform_name} is not enabled")
             continue
         if not entry_path or root not in entry_path.parents or not entry_path.is_file():
             rejected.append(f"{app_id}: entry source is missing ({entry or 'unset'})")
             continue
         flavor["_manifest"] = str(manifest_path)
-        flavor["_native"] = (root / "native" / app_id / "android").is_dir()
+        flavor["_native"] = (root / "native" / app_id / platform_id).is_dir()
         supported.append(flavor)
     return supported, rejected
+
+
+def discover_android_apps(root: Path) -> tuple[list[dict], list[str]]:
+    return discover_platform_apps(root, "android", "Android")
 
 
 def default_app_index(apps: list[dict]) -> int:
