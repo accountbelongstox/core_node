@@ -261,7 +261,16 @@
       "Bash(node cdp.mjs evalfile login.js)",
       "Bash(node cdp.mjs shot after_login.png)",
       "Bash(node cdp.mjs eval \"location.hash='#/cache'; new Promise\\(r=>setTimeout\\(\\(\\)=>r\\(document.body.innerText.slice\\(0,1500\\)\\),3000\\)\\)\")",
-      "Bash(node cdp.mjs shot cache.png)"
+      "Bash(node cdp.mjs shot cache.png)",
+      "Bash(node click.mjs \"settings\")",
+      "Bash(node click.mjs \"cache\" 4000)",
+      "Bash(node cdp.mjs eval \"document.body.innerText.slice\\(0,2500\\)\")",
+      "Bash(node click.mjs \"^Orchestration inputs\" 800)",
+      "Bash(node cdp.mjs shot orch.png)",
+      "Bash(node cdp.mjs eval \"document.body.innerText.slice\\(0,1500\\)\")",
+      "Bash(node cdp.mjs eval \"console.error\\('desktop-log-probe'\\); 1\")",
+      "Bash(node cdp.mjs eval \"\\(document.body.innerText.match\\(/\\\\d+ clips on this device[^\\\\n]*/\\)||['']\\)[0]\")",
+      "Bash(node cdp.mjs shot play.png)"
     ],
     "deny": [],
     "ask": []
