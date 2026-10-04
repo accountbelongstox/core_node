@@ -354,6 +354,9 @@ if ($includeMcpChrome) {
 
 Invoke-Ai65PathHygiene
 
+Write-Ai65Log "Writing .winenvs shims for every AI CLI (one layer per command, stale layers removed) ..."
+try { Install-AiCliWinenvShims -LogPrefix "[$ai65LogPrefix][ai-shims]" } catch { Write-Ai65Log "AI CLI shim provisioning reported an error: $($_.Exception.Message)" "Warning" }
+
 Write-Ai65Log "Configuring shared login for shareable AI CLI config dirs ..."
 try { Initialize-AiToolSharedLogin | Out-Null } catch { Write-Ai65Log "Shared-login setup reported an error: $($_.Exception.Message)" "Warning" }
 

@@ -46,4 +46,7 @@ public static partial class ConfigKeys
     public const string YoloDatasetIncludeBackground = "yolo_dataset.include_background";
     public const string YoloDatasetBackgroundMaxPercent = "yolo_dataset.background_max_percent";
     public const string YoloDatasetSkipDifficult = "yolo_dataset.skip_difficult";
+
+    // ---------- yolo_taskset (task-set manager UI state) ----------
+    public const string YoloTaskSetLastTaskSet = "yolo_taskset.last_task_set";
 }

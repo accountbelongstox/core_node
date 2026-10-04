@@ -25,6 +25,8 @@
 #   One-click:    -OneClick [-App wordnew] (find device USB/WiFi -> build debug -> install -> live reload + logs)
 #   Device menu:  -AdbMenu | Pair: -AdbPairCode <CODE> [-AdbPair <IP[:PORT]>] (port found by mDNS/port scan; idempotent) | Connect: -AdbConnect <IP[:PORT]>
 #   LAN scan:     -AdbScan | Disconnect: -AdbDisconnect <target|all> | TCP/IP: -AdbTcpip <port>
+#   Desktop:      -Platform desktop (alias windows) [-App wordnew] [-NonInteractive] (Electron app for this PC,
+#                 built and launched by scripts/flavor/build_desktop.py; no JDK/SDK/adb needed)
 #   Install:      -AdbInstall [-AdbInstallPath <apk>] (builds first when no APK exists)
 #   Live reload:  -LiveReload [-App wordnew] (same flow as -OneClick)
 # Device discovery (USB / already connected / remembered / mDNS / LAN scan / pairing / adb tcpip
@@ -41,7 +43,7 @@ param(
     [ValidateSet('ask', 'debug', 'release')]
     [string]$BuildType = 'ask',
     [Parameter(Mandatory = $false)]
-    [ValidateSet('android', 'ios')]
+    [ValidateSet('android', 'ios', 'desktop', 'windows')]
     [string]$Platform = 'android',
     [Parameter(Mandatory = $false)]
     [switch]$SkipAssets,
@@ -86,6 +88,11 @@ $AppRoot = Split-Path -Parent $ScriptDir
 $PolyAppsDir = Split-Path -Parent $AppRoot
 $RepoRoot = Split-Path -Parent $PolyAppsDir
 $BuildApkScript = Join-Path $ScriptDir "flavor\build_apk.py"
+$BuildDesktopScript = Join-Path $ScriptDir "flavor\build_desktop.py"
+$DesktopPlatforms = @('desktop', 'windows')
+$DesktopBuild = $DesktopPlatforms -contains $Platform
+$AppBuildScript = $BuildApkScript
+if ($DesktopBuild) { $AppBuildScript = $BuildDesktopScript }
 $NodeModulesPath = Join-Path $AppRoot "node_modules"
 $ViteBinPath = Join-Path $AppRoot "node_modules\vite\bin\vite.js"
 $PackageJsonPath = Join-Path $AppRoot "package.json"
@@ -445,7 +452,7 @@ function Invoke-AdbLiveAttach {
 function Get-BuildApps {
     Confirm-PythonCommand
     $ErrorActionPreference = 'Continue'
-    foreach ($line in @(& $PythonCommand.Source $BuildApkScript --root $AppRoot --list-plain)) {
+    foreach ($line in @(& $PythonCommand.Source $AppBuildScript --root $AppRoot --list-plain)) {
         $fields = @("$line".TrimEnd() -split "`t")
         if ($fields.Count -ge 2) {
             [pscustomobject]@{ Id = $fields[0]; Name = $fields[1]; Default = (($fields.Count -ge 3) -and ($fields[2] -eq $MenuAppDefaultMark)) }
@@ -612,14 +619,14 @@ if ($PSBoundParameters.ContainsKey('AdbTcpip')) {
     if ($AdbTcpipPort -le 0) { $AdbTcpipPort = $AdbDefaultPort }
 }
 if ($LiveReloadActive) { $BuildTypeEffective = 'debug' }
-if ($AdbMenu -or $AdbDevices -or $AdbPair -or $AdbPairCode -or $AdbConnect -or $AdbDisconnectRequested -or ($AdbTcpipPort -gt 0) -or $AdbInstallRequested -or $AdbScan -or $LiveReloadActive) {
+if ((-not $DesktopBuild) -and ($AdbMenu -or $AdbDevices -or $AdbPair -or $AdbPairCode -or $AdbConnect -or $AdbDisconnectRequested -or ($AdbTcpipPort -gt 0) -or $AdbInstallRequested -or $AdbScan -or $LiveReloadActive)) {
     $DeviceMode = $true
 }
 
 # --- Interactive flow (bare run or -AdbMenu): 1) select the app, 2) action menu ---
 $IsBareRun = (-not $DeviceMode) -and (-not $NonInteractive) -and (-not $List) -and ($BuildTypeEffective -eq 'ask')
-$ShowMenu = ($AdbMenu -or $IsBareRun) -and (-not $NonInteractive) -and (-not $List) -and (Test-InteractiveConsole)
-$AskApp = ($ShowMenu -or $LiveReloadActive) -and (-not $NonInteractive) -and (-not $List) -and (Test-InteractiveConsole)
+$ShowMenu = ($AdbMenu -or $IsBareRun) -and (-not $DesktopBuild) -and (-not $NonInteractive) -and (-not $List) -and (Test-InteractiveConsole)
+$AskApp = ($ShowMenu -or $LiveReloadActive -or $DesktopBuild) -and (-not $NonInteractive) -and (-not $List) -and (Test-InteractiveConsole)
 if ($AllReady -and $AskApp -and (-not $App)) { Select-BuildApp }
 if ($AllReady -and $ShowMenu -and (-not $UserQuit)) {
     Start-ActionMenu
@@ -692,7 +699,7 @@ if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not (Test-ViteRea
 }
 
 # --- Prerequisite: JDK 21 (central detector: java.exe with major >= 21) ---
-if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
+if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not $DesktopBuild)) {
     Resolve-AndroidBuildJavaHome
     if (-not (Test-AndroidBuildJavaReady)) {
         Invoke-DevStep -StepPath $StepApplications -StepArguments @('-ExactPackageName', 'Java')
@@ -705,7 +712,7 @@ if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
 }
 
 # --- Prerequisite: Android SDK packages (central detector: sdkmanager + adb + platform + build-tools) ---
-if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
+if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not $DesktopBuild)) {
     Resolve-AndroidBuildSdkRoot
     if (-not (Test-AndroidBuildSdkReady)) {
         Invoke-DevStep -StepPath $StepAndroidSdk
@@ -718,7 +725,7 @@ if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
 }
 
 # --- Export resolved toolchain env for the build (central state) ---
-if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
+if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not $DesktopBuild)) {
     $env:JAVA_HOME = $Global:ANDROID_BUILD_JAVA_HOME
     $env:Path = "$(Join-Path $Global:ANDROID_BUILD_JAVA_HOME 'bin');$env:Path"
     $env:ANDROID_HOME = $Global:ANDROID_BUILD_SDK_ROOT
@@ -732,7 +739,7 @@ if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
 }
 
 # --- Online adb devices: offer to install the fresh APK (default yes) ---
-if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not $BuildForInstall)) {
+if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not $BuildForInstall) -and (-not $DesktopBuild)) {
     Resolve-AdbBin
     if ((Test-AdbReady) -and ((Get-AdbOnlineCount) -gt 0)) {
         Write-Info "Online adb device(s) detected:"
@@ -741,7 +748,17 @@ if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not $BuildForInst
     }
 }
 
-if ($AllReady -and (-not $DeviceMode)) {
+if ($AllReady -and (-not $DeviceMode) -and $DesktopBuild) {
+    $BuildArguments = @($BuildDesktopScript, '--root', $AppRoot)
+    if ($App) { $BuildArguments += @('--app', $App) }
+    if ($List) { $BuildArguments += @('--list') }
+    if ($NoOpenOutput) { $BuildArguments += @('--open', 'no') }
+    if ($NonInteractive) { $BuildArguments += @('--non-interactive', '--run', 'yes') }
+    Write-Info "Starting desktop build workflow (platform: $Platform)."
+    & $PythonCommand.Source @BuildArguments
+    $BuildOk = ($LASTEXITCODE -eq 0)
+    if ($BuildOk) { Write-Success "Desktop build workflow finished." } else { Write-Err "Desktop build workflow failed." }
+} elseif ($AllReady -and (-not $DeviceMode)) {
     $BuildArguments = @($BuildApkScript, '--root', $AppRoot, '--build-type', $BuildTypeEffective)
     if ($App) { $BuildArguments += @('--app', $App) }
     if ($List) { $BuildArguments += @('--list') }

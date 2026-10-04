@@ -8,7 +8,8 @@
   "entry": "apps/wordnew/WfNewApp.tsx",
   "platforms": [
     "web",
-    "android"
+    "android",
+    "desktop"
   ],
   "standalone": {
     "switcher": {
