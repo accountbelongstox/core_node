@@ -132,8 +132,9 @@ class GitSyncWatchService:
         self._last_finished_monotonic = 0.0
         self._waiting_for: Optional[str] = None
         self._last_push: Dict[str, Any] = {}
-        self._revision_counter = itertools.count(1)
-        self._revision = 0
+        # Starts at the boot time so a UI holding a revision of the previous process never matches.
+        self._revision_counter = itertools.count(int(time.time() * 1000))
+        self._revision = next(self._revision_counter)
         self._last_run_at: Optional[float] = None
         self._last_result = ""
         self._last_output = ""
@@ -314,7 +315,7 @@ class GitSyncWatchService:
         if not self._acquire_lease():
             return
         ColorPrint.green(f"[{LABEL}] started interval={self._interval_minutes}min reminder={self._reminder_seconds}s")
-        next_sync = time.monotonic() + START_DELAY_SECONDS
+        next_sync = time.monotonic() + max(START_DELAY_SECONDS, self._slot_delay())
         next_reminder = time.monotonic()
         # True also at start: a README alert left without its document is cleaned once.
         alert_may_remain = True
@@ -324,6 +325,8 @@ class GitSyncWatchService:
             now = time.monotonic()
             if self.conflict_doc_path.is_file():
                 # Unfixed conflict (also after a restart): remind, never sync on top of it.
+                if not alert_may_remain:
+                    self._changed()
                 alert_may_remain = True
                 if now >= next_reminder:
                     self._remind()
@@ -332,12 +335,31 @@ class GitSyncWatchService:
             if alert_may_remain:
                 self._remove_readme_alert()
                 alert_may_remain = False
-            if self._run_requested or (not self._paused and now >= next_sync):
-                trigger = TRIGGER_MANUAL if self._run_requested else TRIGGER_SCHEDULE
+                self._changed()
+            peer_due = self._peer_run_due is not None and now >= self._peer_run_due
+            if self._run_requested or (not self._paused and (now >= next_sync or peer_due)):
+                trigger = TRIGGER_MANUAL if self._run_requested else TRIGGER_SCHEDULE if now >= next_sync else TRIGGER_PEER
                 self._run_requested = False
+                self._peer_run_due = None
                 self._sync_once(trigger)
-                next_sync = time.monotonic() + self._interval_minutes * 60
+                next_sync = time.monotonic() + self._slot_delay()
                 next_reminder = time.monotonic()
+
+    def _slot_delay(self) -> float:
+        """Seconds to this machine's next wall-clock slot: a fixed offset (hash of the machine id) inside the
+        interval, so machines that share an interval start at different moments."""
+        period = self._interval_minutes * 60
+        digest = hashlib.sha256(gitsync_lan_turn.machine.encode("utf-8")).hexdigest()[:SLOT_HASH_HEX_CHARS]
+        offset = int(digest, 16) % period
+        now = time.time()
+        return ((now - offset) // period + 1) * period + offset - now
+
+    def _wait_turn(self, seconds: float) -> bool:
+        return bool(THREAD_BUS.wait_signal(STOP_SIGNAL, timeout=seconds)) or self._stopping()
+
+    def _on_turn_wait(self, holder: str) -> None:
+        self._waiting_for = holder
+        self._changed()
 
     def _shutdown(self) -> None:
         THREAD_BUS.signal(STOP_SIGNAL, True)
@@ -353,8 +375,26 @@ class GitSyncWatchService:
         return ["bash", str(self._root / DD_ENTRY_LINUX), GITSYNC_COMMAND, MESSAGE_FLAG, COMMIT_DESCRIPTION]
 
     def _sync_once(self, trigger: str) -> None:
+        waiting_since = time.time()
+        granted = gitsync_lan_turn.acquire(self._wait_turn, self._on_turn_wait)
+        self._waiting_for = None
+        if granted is None:
+            return
+        summary: Dict[str, Any] = {}
+        try:
+            summary = self._run_gitsync(trigger, waiting_since)
+        finally:
+            self._last_finished_monotonic = time.monotonic()
+            gitsync_lan_turn.release(granted, summary)
+            self._changed()
+        if summary.get("pushed"):
+            self._notify_agents(summary)
+
+    def _run_gitsync(self, trigger: str, waiting_since: float) -> Dict[str, Any]:
         self._running = True
+        self._changed()
         started = time.time()
+        upstream_before = self._rev_parse(UPSTREAM_REF)
         output = ""
         exit_code: Optional[int] = None
         try:
@@ -387,13 +427,88 @@ class GitSyncWatchService:
         else:
             self._last_result = "ok"
             ColorPrint.green(f"[{LABEL}] gitsync finished in {time.time() - started:.1f}s")
+        movement = self._upstream_movement(upstream_before, started)
         self._record_run({
             "started_at": started,
             "duration_seconds": round(time.time() - started, 1),
+            "waited_seconds": round(started - waiting_since, 1),
             "trigger": trigger,
             "result": self._last_result,
             "exit_code": exit_code,
             "conflict_files": len(conflicted),
+            "pushed": movement["pushed"],
+            "pulled": movement["pulled"],
+        })
+        summary = {"result": self._last_result, "finished_at": time.time(), **movement}
+        if movement["pushed"]:
+            self._last_push = {key: summary[key] for key in ("finished_at", "head", "branch", "pushed", "commits")}
+        return summary
+
+    def _rev_parse(self, ref: str) -> str:
+        return self._git("rev-parse", "--verify", "--quiet", ref).strip()
+
+    def _upstream_movement(self, upstream_before: str, started: float) -> Dict[str, Any]:
+        """Commits this run pushed (on the new upstream, not in what the pull fetched) and pulled
+        (fetched beyond the old upstream); both are 0 when the pull did not fetch in this run."""
+        upstream_after = self._rev_parse(UPSTREAM_REF)
+        movement: Dict[str, Any] = {
+            "head": upstream_after[:12],
+            "branch": self._git("rev-parse", "--abbrev-ref", UPSTREAM_REF).strip(),
+            "pushed": 0,
+            "pulled": 0,
+            "commits": [],
+            "files": [],
+        }
+        git_dir = self._git("rev-parse", "--git-dir").strip()
+        fetch_head_path = (Path(git_dir) if Path(git_dir).is_absolute() else self._root / git_dir) / FETCH_HEAD_NAME
+        try:
+            fetched_now = bool(git_dir) and fetch_head_path.stat().st_mtime >= started
+        except OSError:
+            fetched_now = False
+        fetched = self._rev_parse(FETCH_HEAD_NAME) if fetched_now else ""
+        if not fetched or not upstream_after:
+            return movement
+        if upstream_before:
+            movement["pulled"] = self._count(f"{upstream_before}..{fetched}")
+        if upstream_after != upstream_before:
+            pushed_range = f"{fetched}..{upstream_after}"
+            movement["pushed"] = self._count(pushed_range)
+            movement["commits"] = [
+                line for line in self._git("log", "--no-merges", f"-{NOTIFY_COMMITS_MAX}", "--format=%h %s", pushed_range).splitlines()
+                if line.strip()
+            ]
+            movement["files"] = [
+                line for line in self._git("diff", "--name-only", fetched, upstream_after).splitlines() if line.strip()
+            ][:NOTIFY_FILES_MAX]
+        return movement
+
+    def _count(self, revision_range: str) -> int:
+        text = self._git("rev-list", "--count", revision_range).strip()
+        return int(text) if text.isdigit() else 0
+
+    # ---- agent bus notice ----
+
+    def _notify_agents(self, summary: Dict[str, Any]) -> None:
+        """Pushed commits: overwrite this machine's agent bus note and notify the gitsync channel."""
+        hostname = gitsync_lan_turn.hostname
+        machine = gitsync_lan_turn.machine
+        values = {
+            "hostname": hostname,
+            "machine": machine,
+            "count": str(summary["pushed"]),
+            "branch": summary["branch"],
+            "head": summary["head"],
+            "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(summary["finished_at"])),
+            "commits": "\n".join(f"- {line}" for line in summary["commits"]) or "-",
+            "files": "\n".join(f"- `{path}`" for path in summary["files"]) or "-",
+        }
+        agent_bus_client.call("note_put", PIPELINE["agent_bus_agent"], {
+            "key": f"{PIPELINE['agent_bus_note_prefix']}{machine}",
+            "title": _fill(PIPELINE["agent_bus_note_title"], **values),
+            "body": _fill(PIPELINE["agent_bus_note_body"], **values),
+            "tags": PIPELINE["agent_bus_tags"],
+            "refs": [line.split(" ", 1)[0] for line in summary["commits"]],
+            "notify": f"channel:{PIPELINE['agent_bus_channel']}",
         })
 
     def _git(self, *arguments: str) -> str:

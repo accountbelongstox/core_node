@@ -151,7 +151,8 @@ class GitSyncLanTurn:
         """End the local run and hand the turn back to every LAN peer, announcing ``summary``."""
         self._finish_local()
         urls = {peer["url"] for peer in granted} | {peer["url"] for peer in lan_peers.peers()}
-        self._release([{"url": url} for url in sorted(urls)], summary)
+        compact = {key: summary[key] for key in SUMMARY_FIELDS if key in summary}
+        self._release([{"url": url} for url in sorted(urls)], compact)
 
     def _release(self, peers: List[Dict[str, Any]], summary: Dict[str, Any]) -> None:
         payload = {"machine": self.machine, "hostname": self.hostname, "summary": summary}
