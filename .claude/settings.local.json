@@ -257,7 +257,11 @@
       "Bash(timeout 900 node node_modules/electron/install.js)",
       "PowerShell($parseErrors = $null; $tokens = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\\(Resolve-Path 'poly_apps\\\\pycore_laravel_wordnew_ui\\\\scripts\\\\start_build.ps1'\\).Path, [ref]$tokens, [ref]$parseErrors\\); \"errors: $\\($parseErrors.Count\\)\")",
       "PowerShell($parseErrors = $null; $tokens = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\\(Resolve-Path 'scripts\\\\start_build.ps1'\\).Path, [ref]$tokens, [ref]$parseErrors\\); \"errors: $\\($parseErrors.Count\\)\")",
-      "PowerShell($env:CORE_NODE_DESKTOP_DEBUG_PORT = '9333'; & \\(Resolve-Path 'scripts\\\\start_build.ps1'\\).Path -Platform windows -App wordnew -NonInteractive | Select-Object -Last 40; \"exit=$LASTEXITCODE\")"
+      "PowerShell($env:CORE_NODE_DESKTOP_DEBUG_PORT = '9333'; & \\(Resolve-Path 'scripts\\\\start_build.ps1'\\).Path -Platform windows -App wordnew -NonInteractive | Select-Object -Last 40; \"exit=$LASTEXITCODE\")",
+      "Bash(node cdp.mjs evalfile login.js)",
+      "Bash(node cdp.mjs shot after_login.png)",
+      "Bash(node cdp.mjs eval \"location.hash='#/cache'; new Promise\\(r=>setTimeout\\(\\(\\)=>r\\(document.body.innerText.slice\\(0,1500\\)\\),3000\\)\\)\")",
+      "Bash(node cdp.mjs shot cache.png)"
     ],
     "deny": [],
     "ask": []
