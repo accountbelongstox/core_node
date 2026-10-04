@@ -456,6 +456,25 @@ fi
 browser_is_selected chrome && { chrome_ensure || BROWSER_FAILED="$BROWSER_FAILED chrome"; }
 browser_is_selected edge && { edge_ensure || BROWSER_FAILED="$BROWSER_FAILED edge"; }
 
+# Default browser: Chrome (Windows counterpart: Step22_SetChromeDefaultBrowser).
+# xdg-settings is idempotent and silent; skipped on headless systems without xdg.
+browser_set_chrome_default() {
+    command -v xdg-settings >/dev/null 2>&1 || { browser_log "xdg-settings not available; skipping default-browser setup."; return 0; }
+    local desktop_file="google-chrome.desktop" current=""
+    current="$(xdg-settings get default-web-browser 2>/dev/null || true)"
+    if [ "$current" = "$desktop_file" ]; then
+        browser_log "Chrome is already the default browser (idempotent skip)."
+        return 0
+    fi
+    if xdg-settings set default-web-browser "$desktop_file" 2>/dev/null; then
+        browser_log "Chrome set as the default browser."
+    else
+        browser_log "Warning: could not set Chrome as the default browser (no desktop session?)."
+    fi
+    return 0
+}
+browser_is_selected chrome && [ "$INSTALL_CHROME" != "false" ] && browser_set_chrome_default
+
 browser_log "==============================="
 browser_log "Swap (required for usable memory caps): $(swapon --show=NAME,SIZE --noheadings 2>/dev/null | tr '\n' ' ')"
 if grep -q '^ID=kali' /etc/os-release 2>/dev/null; then

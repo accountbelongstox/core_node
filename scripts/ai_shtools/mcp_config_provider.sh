@@ -92,26 +92,6 @@ load_all_mcp_configs() {
     echo "[INFO] Loading MCP configurations for ${target}..."
     echo ""
 
-    # Context7 MCP (HTTP)
-    local context7_api_key
-    context7_api_key="$(get_secret_key "CONTEXT7_API_KEY_1")"
-    if [ -z "$context7_api_key" ]; then
-        echo "[ERROR] CONTEXT7_API_KEY not found in secret manager."
-        echo "[HINT] Please add CONTEXT7_API_KEY_1 to: ${MCP_SECRET_RAW_DIR}"
-    else
-        echo "[INFO] Context7 API key loaded successfully"
-        _mcp_add_config \
-            "context7" \
-            "http" \
-            "" \
-            "" \
-            "https://mcp.context7.com/mcp" \
-            "CONTEXT7_API_KEY|Accept" \
-            "${context7_api_key}|application/json, text/event-stream" \
-            "" \
-            ""
-    fi
-
     # Chrome MCP Server (HTTP) - only for desktop environments
     _mcp_add_config \
         "chrome" \

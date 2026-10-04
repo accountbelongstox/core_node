@@ -222,21 +222,6 @@
       "preview_last_gen": "上次生成",
       "preview_no_data": "无截图或标注，请先截取并标注。"
     },
-    "voc_annotator": {
-      "window_title": "VOC 标注工具",
-      "open_images_dir": "打开图片目录",
-      "set_save_dir": "设置保存目录",
-      "save": "保存",
-      "images": "图片",
-      "classes": "类别",
-      "current_class": "当前类别",
-      "add_rect": "添加矩形（在图片上拖动）",
-      "cancel_add_rect": "取消（再次点击）",
-      "folder_selection": "选择文件夹",
-      "save_need_image": "请先选择图片并设置保存目录。",
-      "saved": "已保存。",
-      "save_failed": "保存失败："
-    },
     "coord_picker": {
       "window_title": "坐标效准工具",
       "menu_title": "拾取工具",

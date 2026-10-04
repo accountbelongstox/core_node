@@ -10,6 +10,22 @@ $nginxManagerPath = Join-Path $commonDirectory 'NginxManager.ps1'
 $webFrankenPhpPath = Join-Path $installDirectory 'Web_FrankenPhp.ps1'
 $webComposerPath = Join-Path $installDirectory 'Web_Composer.ps1'
 $webConfigurePhp85Path = Join-Path $installDirectory 'Web_ConfigurePhp85.ps1'
+$repositoryRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $winDirectory))
+$uiStartScriptPath = Join-Path (Join-Path (Join-Path (Join-Path $repositoryRoot 'poly_apps') 'pycore_laravel_wordnew_ui') 'scripts') 'start.ps1'
+$powerShellPath = Join-Path $PSHOME 'powershell.exe'
+$lanOnlyHost = $false
+# Git keeps no empty directories; package:discover needs these (Linux twin: LARAVEL_RUNTIME_DIRS).
+$laravelRuntimeSubpaths = @(
+    'bootstrap\cache',
+    'storage\framework\cache\data',
+    'storage\framework\sessions',
+    'storage\framework\views',
+    'storage\framework\testing',
+    'storage\logs',
+    'storage\app\public',
+    'storage\app\private'
+)
+$laravelRuntimeSubpath = ''
 $laravelDirectory = $null
 $phpPath = $null
 $composerPath = $null
@@ -54,9 +70,14 @@ if ($CertificatesOnly -and $webServerPlane -ne 'frankenphp') {
     Write-FrankenPhpLog -Message "Certificates are managed by the FrankenPHP plane only (START_WEB_SERVER=$webServerPlane)."
     return
 }
+$lanOnlyHost = Test-FrankenPhpLanOnlyHost
 if ($CertificatesOnly) {
-    Invoke-FrankenPhpCertificateRenewal | Out-Null
-    if ((Test-FrankenPhpLanOnlyHost) -or (Test-FrankenPhpTailnetConnected)) {
+    # Public-domain ACME (api.<prefix>.<root> and the UI hosts) only on a server;
+    # a LAN host without a public address keeps only its mesh/local certificates.
+    if (-not $lanOnlyHost) {
+        Invoke-FrankenPhpCertificateRenewal | Out-Null
+    }
+    if ($lanOnlyHost -or (Test-FrankenPhpTailnetConnected)) {
         Ensure-FrankenPhpLanLocalCertificates | Out-Null
     }
     Ensure-FrankenPhpLanLocalRoute | Out-Null
@@ -97,6 +118,17 @@ else {
     }
 }
 
+# Laravel boots (package:discover, every artisan call) only with the runtime web access
+# config; Linux twin: web_access_config_ensure before composer.
+if (-not $step175Failed -and -not (Ensure-FrankenPhpWebAccessConfiguration)) {
+    Set-Step175Failure -Reason "web access config postcondition failed: $(Get-FrankenPhpWebAccessConfigurationPath)"
+}
+foreach ($laravelRuntimeSubpath in $laravelRuntimeSubpaths) {
+    if (-not (Ensure-FrankenPhpDirectory -Path (Join-Path $laravelDirectory $laravelRuntimeSubpath))) {
+        Set-Step175Failure -Reason "Laravel runtime directory postcondition failed: $(Join-Path $laravelDirectory $laravelRuntimeSubpath)"
+    }
+}
+
 if (-not $step175Failed) {
     Push-Location $laravelDirectory
     try {
@@ -134,6 +166,22 @@ if (-not $step175Failed -and $webServerPlane -eq 'frankenphp' -and -not (Test-Pa
 }
 
 if ($step175Failed) { exit 1 }
+
+# A failed sys:init stops the run because every following database operation assumes
+# the base schema exists. This matches the Linux step 175 ordering.
+Write-FrankenPhpLog -Message 'Initializing system (php artisan sys:init).'
+Push-Location $laravelDirectory
+try {
+    & $phpPath $artisanPath sys:init --no-interaction
+    $commandExit = $LASTEXITCODE
+}
+finally {
+    Pop-Location
+}
+if ($commandExit -ne 0) {
+    Set-Step175Failure -Reason "artisan sys:init failed (exit $commandExit)"
+    exit 1
+}
 
 # Optional: force CodeMart demo data via `php artisan sys:codemartinit` (idempotent).
 # sys:init already seeds it unless the environment is production or
@@ -191,7 +239,9 @@ if ($webServerPlane -eq 'nginx') {
     return
 }
 
-Ensure-FrankenPhpCertificates | Out-Null
+if (-not $lanOnlyHost) {
+    Ensure-FrankenPhpCertificates | Out-Null
+}
 Ensure-FrankenPhpCertificateRenewalTask | Out-Null
 # LAN/desktop hosts and every tailnet member (public servers included):
 # provision the local certificates (mkcert 127.0.0.1; the mesh machine name for the
@@ -199,7 +249,7 @@ Ensure-FrankenPhpCertificateRenewalTask | Out-Null
 # Headscale) and deploy them as Caddy HTTPS sites.
 # Additive: the public domain routes are untouched. Mirrors
 # fm_domain_tailnet_site_ensure in frankenphp_domain_common.sh.
-if ((Test-FrankenPhpLanOnlyHost) -or (Test-FrankenPhpTailnetConnected)) {
+if ($lanOnlyHost -or (Test-FrankenPhpTailnetConnected)) {
     Ensure-FrankenPhpLanLocalCertificates | Out-Null
 }
 Ensure-FrankenPhpLanLocalRoute | Out-Null
@@ -218,10 +268,19 @@ if ($null -ne $service) {
     $service.Refresh()
 }
 $serviceReady = $null -ne $service -and $service.Status -eq 'Running'
-if ($serviceReady) {
-    Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete." -Type 'Success'
-}
-else {
+if (-not $serviceReady) {
     Set-Step175Failure -Reason "service $(Get-FrankenPhpServiceName) is not running after convergence"
-    exit 1
 }
+
+# LAN host: the mesh site's UI root proxies to the dashboard frontend, so its
+# service is converged here (running = no-op, stopped = start, absent = register).
+if ($lanOnlyHost) {
+    & $powerShellPath -NoProfile -ExecutionPolicy Bypass -File $uiStartScriptPath -Service -NoBackend -NonInteractive
+    $commandExit = $LASTEXITCODE
+    if ($commandExit -ne 0) {
+        Set-Step175Failure -Reason "dashboard frontend service (port $(Get-ServiceContractPort -Name 'nexus_dash_frontend')) failed (exit $commandExit): $uiStartScriptPath -Service"
+    }
+}
+
+if ($step175Failed) { exit 1 }
+Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete." -Type 'Success'

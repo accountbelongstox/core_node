@@ -16,32 +16,18 @@ PROMPT_DIR = PROJECT_ROOT / "_prompt"
 sys.path.insert(0, str(SCRIPT_DIR))
 from ai_tools_common import get_user_home_directory, write_json_atomic
 
-def get_context7_api_key() -> str:
-    """Get Context7 API key from environment or user input."""
-    api_key = os.environ.get("CONTEXT7_API_KEY")
-    if api_key:
-        print(f"[INFO] Using CONTEXT7_API_KEY from environment")
-        return api_key
-    
-    print("[WARNING] CONTEXT7_API_KEY not found in environment")
-    user_input = input("Enter CONTEXT7_API_KEY (or press Enter to skip): ").strip()
-    return user_input if user_input else "YOUR_API_KEY"
-
-def replace_placeholders_in_content(content: str, project_root: str, api_key: str = None) -> str:
+def replace_placeholders_in_content(content: str, project_root: str) -> str:
     """Replace placeholders in content."""
     content = content.replace("$PROJECT_ROOT$", project_root)
-    if api_key:
-        content = content.replace("$CONTEXT7_API_KEY$", api_key)
     return content
 
 def process_toml_template(template_path: Path, project_root: str) -> Dict[str, Any]:
     """Process TOML template and replace placeholders."""
     with open(template_path, 'r') as f:
         content = f.read()
-    
-    api_key = get_context7_api_key()
-    content = replace_placeholders_in_content(content, project_root, api_key)
-    
+
+    content = replace_placeholders_in_content(content, project_root)
+
     data = toml.loads(content)
     return data
 
@@ -49,10 +35,9 @@ def process_json_template(template_path: Path, project_root: str) -> Dict[str, A
     """Process JSON template and replace placeholders."""
     with open(template_path, 'r') as f:
         content = f.read()
-    
-    api_key = get_context7_api_key()
-    content = replace_placeholders_in_content(content, project_root, api_key)
-    
+
+    content = replace_placeholders_in_content(content, project_root)
+
     data = json.loads(content)
     return data
 
@@ -75,8 +60,7 @@ def add_mcp_from_shell_templates(project_root: str) -> None:
         with open(shell_file, 'r') as f:
             content = f.read()
         
-        api_key = get_context7_api_key() if "CONTEXT7" in shell_file.name.upper() else None
-        content = replace_placeholders_in_content(content, project_root, api_key)
+        content = replace_placeholders_in_content(content, project_root)
         
         commands = [line.strip() for line in content.split('\n') 
                    if line.strip() and not line.strip().startswith('#')]

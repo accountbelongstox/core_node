@@ -221,6 +221,13 @@ public static class InMemoryCentersCatalog
             Access: "SkillRowViewModel.StrategyOptions (ItemsSource, value + display); display updated in place by MainPage.RefreshI18n",
             ThreadingContract: "UI thread only (ObservableCollection).",
             Responsibility: "Shared strategy display list for ComboBox binding."),
+        new Center(
+            Key: "services.yolo_training",
+            TypeName: "DotApps.d3d4tester.Services.YoloTrainingService",
+            Kind: InMemoryCenterKind.State,
+            Access: "YoloTrainingService.Instance; RunAsync/Cancel; Phase; Log/Progress/PhaseChanged events",
+            ThreadingContract: "Thread-safe (internal lock); events fire on worker threads, subscribers marshal to UI.",
+            Responsibility: "Single running YOLO training job (dataset build, Ultralytics train, ONNX export)."),
     };
 
     public static void InvalidateCaches()

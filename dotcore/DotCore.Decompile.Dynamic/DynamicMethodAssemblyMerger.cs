@@ -113,7 +113,7 @@ public sealed class DynamicMethodAssemblyMerger
         {
             CilInstruction sourceInstruction = source.Instructions[index];
             result.Instructions[index].Operand = CloneOperand(sourceInstruction.Operand, source, targetMethod,
-                targetModule, instructionMap, localMap);
+                targetModule, importer, instructionMap, localMap);
         }
         foreach (CilExceptionHandler sourceHandler in source.ExceptionHandlers)
         {
@@ -136,7 +136,8 @@ public sealed class DynamicMethodAssemblyMerger
     }
 
     private static object? CloneOperand(object? operand, CilMethodBody source, MethodDefinition targetMethod,
-        ModuleDefinition targetModule, IReadOnlyDictionary<CilInstruction, CilInstruction> instructionMap,
+        ModuleDefinition targetModule, ReferenceImporter importer,
+        IReadOnlyDictionary<CilInstruction, CilInstruction> instructionMap,
         IReadOnlyDictionary<CilLocalVariable, CilLocalVariable> localMap)
     {
         if (operand is CilLocalVariable local)
@@ -150,6 +151,13 @@ public sealed class DynamicMethodAssemblyMerger
             return CloneLabel(label, instructionMap);
         if (operand is IList<ICilLabel> labels)
             return labels.Select(item => CloneLabel(item, instructionMap)!).ToArray();
+        if (operand is StandAloneSignature standAlone)
+        {
+            if (standAlone.Signature is AsmResolver.DotNet.Signatures.MethodSignature methodSignature)
+                return new StandAloneSignature(importer.ImportMethodSignature(methodSignature));
+            if (standAlone.Signature is AsmResolver.DotNet.Signatures.LocalVariablesSignature localSignature)
+                return new StandAloneSignature(importer.ImportLocalVariablesSignature(localSignature));
+        }
         if (operand is IMetadataMember metadataMember)
             return targetModule.LookupMember(metadataMember.MetadataToken);
         return operand;

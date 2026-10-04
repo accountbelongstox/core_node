@@ -604,10 +604,13 @@ COREPACK_BIN="$NODE_BIN_DIR/corepack"
 PNPM_GLOBAL_DIR="$NODE_INSTALL_DIR/$NODE_VERSION/pnpm-global"
 PNPM_GLOBAL_BIN_DIR="$PNPM_GLOBAL_DIR/bin"
 PNPM_BIN="$NODE_BIN_DIR/pnpm"
-# The ONE pnpm build-approval argument (Windows counterpart: CommonFunc.ps1
-# $Global:PNPM_ALLOW_ALL_BUILDS_ARG): pass it on every pnpm add/update so pnpm neither
-# stops at the interactive approve-builds chooser (TTY) nor fails ERR_PNPM_IGNORED_BUILDS (non-TTY).
-PNPM_ALLOW_ALL_BUILDS_ARG="--config.dangerouslyAllowAllBuilds=true"
+# The ONE pnpm build-approval setting (Windows counterpart: CommonFunc.ps1
+# $Global:PNPM_ALLOW_ALL_BUILDS_SETTING/_ARG): approved builds keep pnpm from stopping at the
+# interactive approve-builds chooser (TTY) or failing ERR_PNPM_IGNORED_BUILDS (non-TTY).
+# GLOBAL installs ignore the --config CLI flag: installers must also run
+# `pnpm config set --global $PNPM_ALLOW_ALL_BUILDS_SETTING true` (install_via_npm does).
+PNPM_ALLOW_ALL_BUILDS_SETTING="dangerouslyAllowAllBuilds"
+PNPM_ALLOW_ALL_BUILDS_ARG="--config.${PNPM_ALLOW_ALL_BUILDS_SETTING}=true"
 BUN_INSTALL_DIR="$COMPILE_DIR/bun"
 BUN_BIN_DIR="$BUN_INSTALL_DIR/bin"
 BUN_BIN="$BUN_BIN_DIR/bun"
@@ -746,6 +749,7 @@ export COREPACK_BIN
 export PNPM_GLOBAL_DIR
 export PNPM_GLOBAL_BIN_DIR
 export PNPM_BIN
+export PNPM_ALLOW_ALL_BUILDS_SETTING
 export PNPM_ALLOW_ALL_BUILDS_ARG
 export BUN_INSTALL_DIR
 export BUN_BIN_DIR

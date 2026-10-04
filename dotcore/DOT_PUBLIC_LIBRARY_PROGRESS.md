@@ -20,6 +20,7 @@ When adding or changing a DotCore.* capability, add or update its row in §2. Lo
 | app theme / tray | DotCore.UITheme |
 | pyutils/voc_annotator, ultralytics_comm | DotCore.VocAnnotator |
 | d3-check yolo_record (GameAISDK RecordSession) | DotCore.YoloRecord |
+| Ultralytics YOLO inference (Python used the Ultralytics runtime) | DotCore.YoloDetect |
 | pyadb, pydevice, pythreadpool, pygvar, pyheartbeat, callmodule | Not split in dot yet |
 
 Sub-app library of d3d4tester: `dotapps/d3d4tester/D3D4TesterCore/` (namespace `DotApps.d3d4tester.Core`); Python→C# map: [dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md](../dotapps/d3d4tester/docs/PY_DOT_PORT_MAP.md).
@@ -68,6 +69,7 @@ Sub-app library of d3d4tester: `dotapps/d3d4tester/D3D4TesterCore/` (namespace `
 | d3utils/yolo_dataset_from_annotations, ultralytics_comm | `VocAnnotator/YoloDatasetBuilder`, `DataYamlWriter` |
 | d3utils/yolo_train_flow (+ GameAISDK yolo_label_lib) | `VocAnnotator/YoloTrainFlow` |
 | d3utils/yolo_record | `YoloRecord/YoloRecordService`, `YoloSegmentLayout`, `YoloRecordConfig` |
+| Ultralytics YOLO detect (DOT-only, ONNX export of best.pt) | `YoloDetect/YoloOnnxDetector`, `YoloDetection` |
 
 Not in dotcore: Windows native OCR (Windows.Media.Ocr) — WinRT winmd cannot be referenced from these libraries (NETSDK1130); use `PaddleOcrEngine`.
 

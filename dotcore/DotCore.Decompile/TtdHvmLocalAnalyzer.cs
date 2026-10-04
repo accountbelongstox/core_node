@@ -13,7 +13,8 @@ public static class TtdHvmLocalAnalyzer
     private const string ScriptResourceName = "DotCore.Decompile.Ttd.HvmLocalTypeExtractorX64.js";
 
     public static async Task<TtdHvmLocalAnalysisReport> AnalyzeAsync(string cdbPath, string tracePath,
-        string helperReportPath, string contextReportPath, string outputPath, Action<string> log,
+        ulong getArgTypeAddress, ulong getArgClassAddress, string helperReportPath, string contextReportPath,
+        string outputPath, Action<string> log,
         CancellationToken token = default)
     {
         string fullCdbPath = Path.GetFullPath(cdbPath);
@@ -61,6 +62,8 @@ public static class TtdHvmLocalAnalyzer
         {
             script = LoadScriptTemplate()
                 .Replace("__OUTPUT_PATH__", JsonSerializer.Serialize(fullOutputPath), StringComparison.Ordinal)
+                .Replace("__GET_ARG_TYPE_ADDRESS__", JsonSerializer.Serialize($"0x{getArgTypeAddress:X}"), StringComparison.Ordinal)
+                .Replace("__GET_ARG_CLASS_ADDRESS__", JsonSerializer.Serialize($"0x{getArgClassAddress:X}"), StringComparison.Ordinal)
                 .Replace("__JIT_RANGES__", JsonSerializer.Serialize(selectedRanges), StringComparison.Ordinal);
             commands = string.Join(Environment.NewLine, "!index", "!tt 100", ".reload /f clr.dll",
                 ".reload /f clrjit.dll", $".scriptrun \"{scriptPath}\"", "q", string.Empty);

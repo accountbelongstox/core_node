@@ -66,7 +66,6 @@ What it does:
 MCP Servers in Template:
 ------------------------
 - promptx                    - PromptX MCP server
-- context7-mcp               - Upstash Context7 documentation
 - McpAlchemy                 - Database operations MCP
 - FeedbackEnhanced           - Enhanced feedback system
 - PlaceholderImageGenerator  - Image placeholder generation

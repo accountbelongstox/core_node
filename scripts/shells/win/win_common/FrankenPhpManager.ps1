@@ -888,42 +888,32 @@ function Test-FrankenPhpLanLocalRouteMaterial {
 }
 
 function Find-FrankenPhpMkcert {
+    $command = $null
+    if (Test-Path -LiteralPath $script:FrankenPhpMkcertToolPath -PathType Leaf) {
+        return $script:FrankenPhpMkcertToolPath
+    }
     $command = Get-Command mkcert -ErrorAction SilentlyContinue
     if ($null -ne $command) {
         return [string]$command.Source
     }
-    if (Test-Path -LiteralPath $script:FrankenPhpMkcertToolPath -PathType Leaf) {
-        return $script:FrankenPhpMkcertToolPath
-    }
     return ''
 }
 
-# Best-effort mkcert provisioning: PATH/package managers first, then the
-# official GitHub release binary, then a source clone + go build. Downloads
-# live under $Global:DOWNLOADS_DIR\mkcert and the source clone/build under
+# Best-effort mkcert provisioning, native first: the official GitHub release
+# binary, then a source clone + go build, and package managers (choco, scoop)
+# only when both native paths fail. Downloads live under
+# $Global:DOWNLOADS_DIR\mkcert and the source clone/build under
 # $Global:WORK_DIR\mkcert-src, never in the repo.
 function Ensure-FrankenPhpMkcert {
-    $mkcertPath = Find-FrankenPhpMkcert
+    $mkcertPath = ''
     $downloadDir = Join-Path $Global:DOWNLOADS_DIR 'mkcert'
     $downloadExe = Join-Path $downloadDir $script:FrankenPhpMkcertArchiveName
     $sourceDir = Join-Path $Global:WORK_DIR 'mkcert-src'
 
-    if (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
-        return $mkcertPath
+    if (Test-Path -LiteralPath $script:FrankenPhpMkcertToolPath -PathType Leaf) {
+        return $script:FrankenPhpMkcertToolPath
     }
-    Write-FrankenPhpLog -Message 'mkcert not found; attempting automatic installation...'
-    if ($null -ne (Get-Command choco -ErrorAction SilentlyContinue)) {
-        & choco install mkcert -y --no-progress 2>&1 | Out-Null
-    }
-    if ([string]::IsNullOrWhiteSpace((Find-FrankenPhpMkcert)) -and
-        $null -ne (Get-Command scoop -ErrorAction SilentlyContinue)) {
-        & scoop install mkcert 2>&1 | Out-Null
-    }
-    $mkcertPath = Find-FrankenPhpMkcert
-    if (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
-        Write-FrankenPhpLog -Message 'mkcert installed via the system package manager' -Type 'Success'
-        return $mkcertPath
-    }
+    Write-FrankenPhpLog -Message 'Native mkcert not found; installing the official release binary...'
 
     Ensure-FrankenPhpDirectory -Path $downloadDir | Out-Null
     if (-not (Test-Path -LiteralPath $downloadExe -PathType Leaf)) {
@@ -940,10 +930,9 @@ function Ensure-FrankenPhpMkcert {
     if (Test-Path -LiteralPath $downloadExe -PathType Leaf) {
         Copy-Item -LiteralPath $downloadExe -Destination $script:FrankenPhpMkcertToolPath -Force
     }
-    $mkcertPath = Find-FrankenPhpMkcert
-    if (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
+    if (Test-Path -LiteralPath $script:FrankenPhpMkcertToolPath -PathType Leaf) {
         Write-FrankenPhpLog -Message "mkcert installed to $script:FrankenPhpMkcertToolPath (download cache: $downloadExe)" -Type 'Success'
-        return $mkcertPath
+        return $script:FrankenPhpMkcertToolPath
     }
 
     # Last automatic path: clone the project and build from source (git + Go).
@@ -966,11 +955,30 @@ function Ensure-FrankenPhpMkcert {
                 Copy-Item -LiteralPath $downloadExe -Destination $script:FrankenPhpMkcertToolPath -Force
             }
         }
-        $mkcertPath = Find-FrankenPhpMkcert
-        if (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
+        if (Test-Path -LiteralPath $script:FrankenPhpMkcertToolPath -PathType Leaf) {
             Write-FrankenPhpLog -Message 'mkcert built from source and installed' -Type 'Success'
-            return $mkcertPath
+            return $script:FrankenPhpMkcertToolPath
         }
+    }
+
+    # Package managers only when no native binary could be obtained; an existing
+    # package-manager copy on PATH is reused before installing another.
+    $mkcertPath = Find-FrankenPhpMkcert
+    if (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
+        Write-FrankenPhpLog -Message "Native mkcert unavailable; using the existing mkcert: $mkcertPath" -Type 'Warning'
+        return $mkcertPath
+    }
+    if ($null -ne (Get-Command choco -ErrorAction SilentlyContinue)) {
+        & choco install mkcert -y --no-progress 2>&1 | Out-Null
+    }
+    if ([string]::IsNullOrWhiteSpace((Find-FrankenPhpMkcert)) -and
+        $null -ne (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        & scoop install mkcert 2>&1 | Out-Null
+    }
+    $mkcertPath = Find-FrankenPhpMkcert
+    if (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
+        Write-FrankenPhpLog -Message 'mkcert installed via the system package manager' -Type 'Success'
+        return $mkcertPath
     }
     Write-FrankenPhpLog -Message 'Automatic mkcert installation failed' -Type 'Warning'
     return ''
@@ -1095,7 +1103,7 @@ function Ensure-FrankenPhpLanLocalCertificates {
         }
     }
     else {
-        Write-FrankenPhpLog -Message '[MANUAL] mkcert unavailable; install it (choco install mkcert / scoop install mkcert / GitHub release), then run: mkcert -install; mkcert 127.0.0.1 localhost ::1' -Type 'Warning'
+        Write-FrankenPhpLog -Message '[MANUAL] mkcert unavailable; install it (GitHub release / choco install mkcert / scoop install mkcert), then run: mkcert -install; mkcert 127.0.0.1 localhost ::1' -Type 'Warning'
     }
 
     # Reuses TailscaleCommon.ps1's Find-TailscaleExecutable (documented default

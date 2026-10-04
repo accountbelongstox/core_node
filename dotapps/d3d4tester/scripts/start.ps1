@@ -46,6 +46,7 @@ $restoreStale = $true
 $dotcoreDir = $null
 $restoreInputs = $null
 $previousRun = @()
+$initialLocation = (Get-Location).Path
 
 function Write-StartLog {
     param([Parameter(Mandatory = $true)][string]$Message)
@@ -323,6 +324,9 @@ try {
 catch {
     Write-Host "$LOG_PREFIX $($_.Exception.Message)" -ForegroundColor Red
     $exitCode = 1
+}
+finally {
+    Set-Location -LiteralPath $initialLocation
 }
 
 exit $exitCode

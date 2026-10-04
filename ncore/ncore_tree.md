@@ -182,10 +182,6 @@ ncore/
 │   │   ├── role_manager.py
 │   │   ├── storage.py
 │   │   └── storage_sqlite.py
-│   ├── auto-context7-mcp/
-│   │   ├── README.md
-│   │   ├── auto_fix_context7.ps1
-│   │   └── auto_fix_context7.sh
 │   ├── codebase-scanner/
 │   │   ├── tmp_sessions/
 │   │   ├── constants.py

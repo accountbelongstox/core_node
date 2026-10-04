@@ -2,6 +2,7 @@
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Builder;
 using AsmResolver.DotNet.Code.Cil;
+using AsmResolver.DotNet.Signatures.Types;
 using AsmResolver.PE.DotNet.Cil;
 using AsmResolver.PE.DotNet.Metadata.Tables;
 
@@ -9,12 +10,35 @@ namespace DotCore.Decompile.Dynamic;
 
 public sealed class HvmContextOperand
 {
+    public int JitCallIndex { get; set; }
     public uint MethodToken { get; set; }
     public uint VirtualToken { get; set; }
     public string Kind { get; set; } = string.Empty;
     public uint DefinitionToken { get; set; }
     public string ModuleHandle { get; set; } = string.Empty;
     public string MethodHandle { get; set; } = string.Empty;
+}
+
+public sealed class HvmLocalType
+{
+    public int JitCallIndex { get; set; }
+    public string ArgumentPointer { get; set; } = string.Empty;
+    public uint CorInfoType { get; set; }
+}
+
+public sealed class HvmLocalClass
+{
+    public int JitCallIndex { get; set; }
+    public string ArgumentPointer { get; set; } = string.Empty;
+    public int TypeDescriptorKind { get; set; }
+    public string ModuleHandle { get; set; } = string.Empty;
+    public uint TypeDefinitionToken { get; set; }
+}
+
+public sealed class HvmLocalTypeDocument
+{
+    public HvmLocalType[] Locals { get; set; } = Array.Empty<HvmLocalType>();
+    public HvmLocalClass[] Classes { get; set; } = Array.Empty<HvmLocalClass>();
 }
 
 public sealed class HvmContextDocument
@@ -54,17 +78,19 @@ public sealed class HvmJitCaptureDocument
 public sealed class HvmOperandResolutionReport
 {
     public HvmOperandResolutionReport(string outputPath, int mappedOperands, int unresolvedOperands,
-        IReadOnlyList<string> failures)
+        int resolvedLocals, IReadOnlyList<string> failures)
     {
         OutputPath = outputPath;
         MappedOperands = mappedOperands;
         UnresolvedOperands = unresolvedOperands;
+        ResolvedLocals = resolvedLocals;
         Failures = failures;
     }
 
     public string OutputPath { get; }
     public int MappedOperands { get; }
     public int UnresolvedOperands { get; }
+    public int ResolvedLocals { get; }
     public IReadOnlyList<string> Failures { get; }
 }
 
@@ -72,7 +98,7 @@ public sealed class HvmVirtualOperandResolver
 {
     public HvmOperandResolutionReport Resolve(string assemblyPath, IEnumerable<HvmContextOperand> contextOperands,
         IEnumerable<HvmMethodMetadata> methodMetadata, IEnumerable<HvmJitCaptureMethod> captures,
-        string outputPath, Action<string>? log = null)
+        HvmLocalTypeDocument localTypes, string outputPath, Action<string>? log = null)
     {
         string fullAssemblyPath = Path.GetFullPath(assemblyPath);
         string fullOutputPath = Path.GetFullPath(outputPath);
@@ -96,6 +122,7 @@ public sealed class HvmVirtualOperandResolver
         List<string> failures = new();
         int mappedOperands = 0;
         int unresolvedOperands = 0;
+        int resolvedLocals;
 
         foreach (IGrouping<uint, HvmContextOperand> methodGroup in operands.GroupBy(item => item.MethodToken))
         {
@@ -130,6 +157,9 @@ public sealed class HvmVirtualOperandResolver
             }
         }
 
+        resolvedLocals = ResolveLocals(targetModule, targetMethods, operands, localTypes, modulePaths,
+            sourceModules, failures);
+
         Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath) ?? Directory.GetCurrentDirectory());
         int removedInvalidCustomAttributeCount = InvalidCustomAttributeRemover.Remove(targetModule);
         if (removedInvalidCustomAttributeCount > 0)
@@ -141,10 +171,147 @@ public sealed class HvmVirtualOperandResolver
             MethodBodySerializer = new CilMethodBodySerializer { ComputeMaxStackOnBuildOverride = false }
         };
         targetModule.Write(fullOutputPath, new ManagedPEImageBuilder(directoryFactory));
-        writeLog($"Resolved {mappedOperands} HVM operands; {unresolvedOperands} referenced operands remain unresolved.");
-        return new HvmOperandResolutionReport(fullOutputPath, mappedOperands, unresolvedOperands,
+        writeLog($"Resolved {mappedOperands} HVM operands and {resolvedLocals} local variables; {unresolvedOperands} referenced operands remain unresolved.");
+        return new HvmOperandResolutionReport(fullOutputPath, mappedOperands, unresolvedOperands, resolvedLocals,
             failures.AsReadOnly());
     }
+
+    private static int ResolveLocals(ModuleDefinition targetModule,
+        IReadOnlyDictionary<int, MethodDefinition> targetMethods, IEnumerable<HvmContextOperand> operands,
+        HvmLocalTypeDocument localTypes, IReadOnlyDictionary<string, string> modulePaths,
+        IDictionary<string, ModuleDefinition> sourceModules, ICollection<string> failures)
+    {
+        Dictionary<int, uint> methodTokens = operands.GroupBy(item => item.JitCallIndex)
+            .ToDictionary(group => group.Key, group => group.First().MethodToken);
+        Dictionary<string, HvmLocalClass> classes = localTypes.Classes
+            .GroupBy(item => LocalKey(item.JitCallIndex, item.ArgumentPointer), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        int resolvedLocals = 0;
+
+        foreach (IGrouping<int, HvmLocalType> group in localTypes.Locals.GroupBy(item => item.JitCallIndex))
+        {
+            if (!methodTokens.TryGetValue(group.Key, out uint methodToken)
+                || !targetMethods.TryGetValue(unchecked((int)methodToken), out MethodDefinition? method)
+                || method.CilMethodBody == null)
+                continue;
+            HvmLocalType[] capturedLocals = group
+                .GroupBy(item => item.ArgumentPointer, StringComparer.OrdinalIgnoreCase)
+                .Select(items => items.First())
+                .OrderBy(item => ParsePointer(item.ArgumentPointer))
+                .ToArray();
+            var replacementLocals = new List<CilLocalVariable>();
+            bool valid = true;
+            foreach (HvmLocalType capturedLocal in capturedLocals)
+            {
+                classes.TryGetValue(LocalKey(group.Key, capturedLocal.ArgumentPointer), out HvmLocalClass? capturedClass);
+                TypeSignature? signature = ResolveLocalType(targetModule, capturedLocal, capturedClass, modulePaths,
+                    sourceModules, failures);
+                if (signature == null)
+                {
+                    valid = false;
+                    break;
+                }
+                replacementLocals.Add(new CilLocalVariable(signature));
+            }
+            if (!valid) continue;
+
+            CilLocalVariable[] oldLocals = method.CilMethodBody.LocalVariables.ToArray();
+            foreach (CilInstruction instruction in method.CilMethodBody.Instructions)
+            {
+                if (instruction.Operand is not CilLocalVariable oldLocal) continue;
+                int index = Array.IndexOf(oldLocals, oldLocal);
+                if (index < 0 || index >= replacementLocals.Count)
+                {
+                    failures.Add($"Local index {index} is outside the captured signature for method 0x{methodToken:X8}.");
+                    valid = false;
+                    break;
+                }
+                instruction.Operand = replacementLocals[index];
+            }
+            if (!valid) continue;
+            method.CilMethodBody.LocalVariables.Clear();
+            foreach (CilLocalVariable local in replacementLocals)
+                method.CilMethodBody.LocalVariables.Add(local);
+            resolvedLocals += replacementLocals.Count;
+        }
+        return resolvedLocals;
+    }
+
+    private static TypeSignature? ResolveLocalType(ModuleDefinition targetModule, HvmLocalType local,
+        HvmLocalClass? capturedClass, IReadOnlyDictionary<string, string> modulePaths,
+        IDictionary<string, ModuleDefinition> sourceModules, ICollection<string> failures)
+    {
+        uint corInfoType = local.CorInfoType & 0x3f;
+        TypeSignature? result = corInfoType switch
+        {
+            2 => targetModule.CorLibTypeFactory.Boolean,
+            3 => targetModule.CorLibTypeFactory.Char,
+            4 => targetModule.CorLibTypeFactory.SByte,
+            5 => targetModule.CorLibTypeFactory.Byte,
+            6 => targetModule.CorLibTypeFactory.Int16,
+            7 => targetModule.CorLibTypeFactory.UInt16,
+            8 => targetModule.CorLibTypeFactory.Int32,
+            9 => targetModule.CorLibTypeFactory.UInt32,
+            10 => targetModule.CorLibTypeFactory.Int64,
+            11 => targetModule.CorLibTypeFactory.UInt64,
+            12 => targetModule.CorLibTypeFactory.IntPtr,
+            13 => targetModule.CorLibTypeFactory.UIntPtr,
+            14 => targetModule.CorLibTypeFactory.Single,
+            15 => targetModule.CorLibTypeFactory.Double,
+            16 => targetModule.CorLibTypeFactory.String,
+            19 or 20 => ResolveClassType(targetModule, capturedClass, corInfoType == 19, modulePaths,
+                sourceModules, failures),
+            _ => null
+        };
+        if (result == null)
+        {
+            failures.Add($"Unsupported local type 0x{local.CorInfoType:X} at JIT call {local.JitCallIndex}, argument {local.ArgumentPointer}.");
+            return null;
+        }
+        return (local.CorInfoType & 0x40) != 0 ? new PinnedTypeSignature(result) : result;
+    }
+
+    private static TypeSignature? ResolveClassType(ModuleDefinition targetModule, HvmLocalClass? capturedClass,
+        bool isValueType, IReadOnlyDictionary<string, string> modulePaths,
+        IDictionary<string, ModuleDefinition> sourceModules, ICollection<string> failures)
+    {
+        string modulePath;
+        ModuleDefinition sourceModule;
+        IMetadataMember? sourceMember;
+        IMetadataMember? equivalent;
+
+        if (capturedClass == null || capturedClass.TypeDefinitionToken == 0
+            || !modulePaths.TryGetValue(capturedClass.ModuleHandle, out modulePath!))
+            return null;
+        try
+        {
+            if (!sourceModules.TryGetValue(modulePath, out sourceModule!))
+            {
+                sourceModule = ModuleDefinition.FromFile(modulePath);
+                sourceModules.Add(modulePath, sourceModule);
+            }
+            sourceMember = sourceModule.LookupMember(new MetadataToken(capturedClass.TypeDefinitionToken));
+            equivalent = FindEquivalent(targetModule, sourceModule, sourceMember);
+            if (equivalent is not ITypeDefOrRef type)
+            {
+                failures.Add($"No target type reference matches {GetFullName(sourceMember) ?? capturedClass.TypeDefinitionToken.ToString("X8")}.");
+                return null;
+            }
+            TypeSignature result = new TypeDefOrRefSignature(type, isValueType);
+            return capturedClass.TypeDescriptorKind == 0x1d ? new SzArrayTypeSignature(result) : result;
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"Could not resolve local class 0x{capturedClass.TypeDefinitionToken:X8}: {exception.Message}");
+            return null;
+        }
+    }
+
+    private static string LocalKey(int jitCallIndex, string argumentPointer) =>
+        jitCallIndex + "|" + argumentPointer;
+
+    private static ulong ParsePointer(string value) =>
+        Convert.ToUInt64(value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value.Substring(2) : value, 16);
 
     private static bool HasMetadataOperand(CilOperandType operandType)
     {
@@ -217,7 +384,25 @@ public sealed class HvmVirtualOperandResolver
             return targetModule.GetImportedTypeReferences().FirstOrDefault(item => item.FullName == sourceType.FullName);
         string? fullName = GetFullName(sourceMember);
         if (fullName != null && (sourceMember is MethodDefinition || sourceMember is FieldDefinition))
-            return targetModule.GetImportedMemberReferences().FirstOrDefault(item => item.FullName == fullName);
+        {
+            MemberReference? exact = targetModule.GetImportedMemberReferences()
+                .FirstOrDefault(item => item.FullName == fullName);
+            if (exact != null) return exact;
+            foreach (MemberReference reference in targetModule.GetImportedMemberReferences())
+            {
+                try
+                {
+                    IMetadataMember? definition = reference.Resolve();
+                    if (definition != null && definition.MetadataToken == sourceMember.MetadataToken
+                        && string.Equals(GetModuleName(definition), sourceModule.Name,
+                            StringComparison.OrdinalIgnoreCase))
+                        return reference;
+                }
+                catch
+                {
+                }
+            }
+        }
         return null;
     }
 
@@ -226,6 +411,14 @@ public sealed class HvmVirtualOperandResolver
         if (member is TypeDefinition type) return type.FullName;
         if (member is MethodDefinition method) return method.FullName;
         if (member is FieldDefinition field) return field.FullName;
+        return null;
+    }
+
+    private static string? GetModuleName(IMetadataMember member)
+    {
+        if (member is TypeDefinition type) return type.Module?.Name;
+        if (member is MethodDefinition method) return method.Module?.Name;
+        if (member is FieldDefinition field) return field.Module?.Name;
         return null;
     }
 }

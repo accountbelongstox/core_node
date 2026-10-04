@@ -1,10 +1,14 @@
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Xml.Linq;
 
 namespace DotCore.VocAnnotator;
 
 /// <summary>
-/// Unified annotation IO: JSON shapes (rectangle, polygon, ellipse, circle) and VOC XML export.
-/// Logic 1:1 with pycore pyutils voc_annotator annotation_io.
+/// Annotation files of one image: JSON shapes (primary, labelme-style schema shared with Python), Pascal VOC XML and YOLO txt (derived).
+/// Rectangles are edited natively; polygon / ellipse / circle shapes from Python files load as their bounding box.
+/// Logic 1:1 with pycore pyutils voc_annotator annotation_io (file names, JSON keys, VOC export, YOLO line format).
 /// </summary>
 public static class AnnotationIo
 {
@@ -12,225 +16,326 @@ public static class AnnotationIo
     public const string ShapeTypePolygon = "polygon";
     public const string ShapeTypeEllipse = "ellipse";
     public const string ShapeTypeCircle = "circle";
+    public const string JsonExtension = ".json";
+    public const string XmlExtension = ".xml";
+    public const string YoloTxtExtension = ".txt";
 
-    /// <summary>Shape dict: shape_type, label, points (list of [x,y]), difficult (0/1).</summary>
-    public static (int XMin, int YMin, int XMax, int YMax)? ShapeToBbox(JsonElement shape)
-    {
-        var pts = GetPoints(shape);
-        if (pts.Count < 2) return null;
-        var st = shape.TryGetProperty("shape_type", out var typeEl) ? typeEl.GetString() : null;
-        if (st == ShapeTypeRectangle && pts.Count >= 2)
-        {
-            var x1 = pts[0].X; var y1 = pts[0].Y; var x2 = pts[1].X; var y2 = pts[1].Y;
-            return ((int)Math.Min(x1, x2), (int)Math.Min(y1, y2), (int)Math.Max(x1, x2), (int)Math.Max(y1, y2));
-        }
-        double minX = pts[0].X, minY = pts[0].Y, maxX = pts[0].X, maxY = pts[0].Y;
-        for (var i = 1; i < pts.Count; i++)
-        {
-            minX = Math.Min(minX, pts[i].X); minY = Math.Min(minY, pts[i].Y);
-            maxX = Math.Max(maxX, pts[i].X); maxY = Math.Max(maxY, pts[i].Y);
-        }
-        return ((int)minX, (int)minY, (int)maxX, (int)maxY);
-    }
+    private const string KeyImagePath = "imagePath";
+    private const string KeyImageSize = "imageSize";
+    private const string KeyShapes = "shapes";
+    private const string KeyShapeType = "shape_type";
+    private const string KeyLabel = "label";
+    private const string KeyPoints = "points";
+    private const string KeyDifficult = "difficult";
+    private const string VocRoot = "annotation";
+    private const string VocObject = "object";
+    private const string VocName = "name";
+    private const int CoordinateDecimals = 2;
 
-    private static List<(double X, double Y)> GetPoints(JsonElement shape)
-    {
-        var list = new List<(double, double)>();
-        if (!shape.TryGetProperty("points", out var pts) || pts.ValueKind != JsonValueKind.Array)
-            return list;
-        foreach (var p in pts.EnumerateArray())
-        {
-            if (p.ValueKind != JsonValueKind.Array) continue;
-            var arr = p.EnumerateArray().ToList();
-            if (arr.Count >= 2 && arr[0].TryGetDouble(out var x) && arr[1].TryGetDouble(out var y))
-                list.Add((x, y));
-        }
-        return list;
-    }
+    private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
-    public static IReadOnlyList<VocIo.VocBox> ShapesToBoxes(IReadOnlyList<JsonElement> shapes)
-    {
-        var out_ = new List<VocIo.VocBox>();
-        foreach (var s in shapes)
-        {
-            var bbox = ShapeToBbox(s);
-            if (bbox == null) continue;
-            var (xmin, ymin, xmax, ymax) = bbox.Value;
-            var label = s.TryGetProperty("label", out var l) ? l.GetString()?.Trim() ?? "" : "";
-            var difficult = s.TryGetProperty("difficult", out var d) && d.TryGetInt32(out var di) ? di : 0;
-            out_.Add(new VocIo.VocBox(label, xmin, ymin, xmax, ymax, difficult));
-        }
-        return out_;
-    }
+    public static readonly IReadOnlySet<string> ImageExtensions =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp" };
 
-    public static IReadOnlyList<Dictionary<string, object>> BoxesToShapes(IReadOnlyList<VocIo.VocBox> boxes)
-    {
-        return boxes.Select(b => new Dictionary<string, object>
-        {
-            ["shape_type"] = ShapeTypeRectangle,
-            ["label"] = b.ClassName,
-            ["points"] = new[] { new[] { b.XMin, b.YMin }, new[] { b.XMax, b.YMax } },
-            ["difficult"] = b.Difficult
-        }).ToList<Dictionary<string, object>>();
-    }
+    public static bool IsImageFile(string path) => ImageExtensions.Contains(Path.GetExtension(path));
 
-    private static string JsonPathForImage(string imagePath, string saveDir)
+    /// <summary>Image files directly under dir, ordered by file name (ordinal).</summary>
+    public static IReadOnlyList<string> ListImages(string? dir)
     {
-        var baseName = Path.GetFileNameWithoutExtension(imagePath);
-        return Path.Combine(saveDir, baseName + ".json");
-    }
-
-    private static string XmlPathForImage(string imagePath, string saveDir)
-    {
-        var baseName = Path.GetFileNameWithoutExtension(imagePath);
-        return Path.Combine(saveDir, baseName + ".xml");
-    }
-
-    /// <summary>Load shapes for one image: prefer JSON; fallback to VOC XML (rectangles only).</summary>
-    public static IReadOnlyList<Dictionary<string, object>> LoadAnnotations(string imagePath, string saveDir)
-    {
-        var jsonPath = JsonPathForImage(imagePath, saveDir);
-        if (File.Exists(jsonPath))
-        {
-            try
-            {
-                var json = File.ReadAllText(jsonPath);
-                var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("shapes", out var shapesEl) && shapesEl.ValueKind == JsonValueKind.Array)
-                {
-                    var list = new List<Dictionary<string, object>>();
-                    foreach (var s in shapesEl.EnumerateArray())
-                        list.Add(JsonElementToShapeDict(s));
-                    return list;
-                }
-            }
-            catch { /* ignore */ }
-        }
-        var boxes = VocIo.ReadBoxesFromVoc(XmlPathForImage(imagePath, saveDir));
-        return BoxesToShapes(boxes).Select(d => d).ToList();
-    }
-
-    /// <summary>Get image size from our annotation JSON when present (for batch export without loading image). Returns null if no JSON or no imageSize.</summary>
-    public static (int W, int H)? TryGetImageSizeFromAnnotationFile(string imagePath, string saveDir)
-    {
-        var jsonPath = JsonPathForImage(imagePath, saveDir);
-        if (!File.Exists(jsonPath)) return null;
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return Array.Empty<string>();
         try
         {
-            var json = File.ReadAllText(jsonPath);
-            var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("imageSize", out var arr) || arr.ValueKind != JsonValueKind.Array)
-                return null;
-            var list = arr.EnumerateArray().ToList();
-            if (list.Count >= 2 && list[0].TryGetInt32(out var w) && list[1].TryGetInt32(out var h) && w > 0 && h > 0)
-                return (w, h);
+            return Directory.EnumerateFiles(dir).Where(IsImageFile).OrderBy(Path.GetFileName, StringComparer.Ordinal).ToList();
         }
-        catch { /* ignore */ }
-        return null;
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Array.Empty<string>();
+        }
     }
 
-    private static Dictionary<string, object> JsonElementToShapeDict(JsonElement s)
+    public static string JsonPath(string imagePath, string annotationDir) =>
+        Path.Combine(annotationDir, Path.GetFileNameWithoutExtension(imagePath) + JsonExtension);
+
+    public static string XmlPath(string imagePath, string annotationDir) =>
+        Path.Combine(annotationDir, Path.GetFileNameWithoutExtension(imagePath) + XmlExtension);
+
+    public static string YoloTxtPath(string imagePath, string labelsDir) =>
+        Path.Combine(labelsDir, Path.GetFileNameWithoutExtension(imagePath) + YoloTxtExtension);
+
+    /// <summary>True for a JSON shapes document or a VOC annotation XML (not for other JSON/XML such as project config).</summary>
+    public static bool IsAnnotationFile(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {
-        var d = new Dictionary<string, object>();
-        if (s.TryGetProperty("shape_type", out var v)) d["shape_type"] = v.GetString() ?? "";
-        if (s.TryGetProperty("label", out var l)) d["label"] = l.GetString() ?? "";
-        if (s.TryGetProperty("difficult", out var df)) d["difficult"] = df.TryGetInt32(out var di) ? di : 0;
-        if (s.TryGetProperty("points", out var pts) && pts.ValueKind == JsonValueKind.Array)
-        {
-            var arr = new List<double[]>();
-            foreach (var p in pts.EnumerateArray())
-                if (p.ValueKind == JsonValueKind.Array)
-                {
-                    var xy = p.EnumerateArray().Select(e => e.GetDouble()).ToArray();
-                    if (xy.Length >= 2) arr.Add(xy);
-                }
-            d["points"] = arr;
-        }
-        return d;
+        JsonExtension => TryReadShapesDocument(path) != null,
+        XmlExtension => TryLoadVoc(path) != null,
+        _ => false,
+    };
+
+    /// <summary>True when the image has a JSON or VOC annotation (an empty one marks a reviewed image without objects).</summary>
+    public static bool HasAnnotation(string imagePath, string annotationDir) =>
+        File.Exists(JsonPath(imagePath, annotationDir)) || File.Exists(XmlPath(imagePath, annotationDir));
+
+    /// <summary>Annotation of one image: JSON first, else VOC XML; null when neither exists. Size falls back to the image header.</summary>
+    public static ImageAnnotation? Load(string imagePath, string annotationDir)
+    {
+        var json = JsonPath(imagePath, annotationDir);
+        if (File.Exists(json) && TryLoadJson(imagePath, json) is { } fromJson)
+            return fromJson;
+        var xml = XmlPath(imagePath, annotationDir);
+        if (!File.Exists(xml)) return null;
+        var size = VocIo.ReadImageSize(xml) ?? ImageHeaderReader.ReadSize(imagePath) ?? (0, 0);
+        var boxes = VocIo.ReadBoxesFromVoc(xml).Select(b => new AnnotationBox(b.ClassName, b.XMin, b.YMin, b.XMax, b.YMax, b.Difficult != 0));
+        return new ImageAnnotation(imagePath, size.Width, size.Height, boxes);
     }
 
-    /// <summary>Save shapes to JSON; if writeVoc, also write VOC XML from rectangle shapes.</summary>
-    public static void SaveAnnotations(string imagePath, string saveDir, (int W, int H) imageSize, IReadOnlyList<Dictionary<string, object>> shapes, bool writeVoc = true)
+    /// <summary>Write the JSON annotation (always) plus VOC XML and YOLO txt per options.</summary>
+    public static void Save(ImageAnnotation annotation, string annotationDir, AnnotationSaveOptions? options = null)
     {
-        var baseName = Path.GetFileNameWithoutExtension(imagePath);
-        var jsonPath = Path.Combine(saveDir, baseName + ".json");
-        var data = new Dictionary<string, object>
+        options ??= new AnnotationSaveOptions();
+        Directory.CreateDirectory(annotationDir);
+        var shapes = new JsonArray();
+        foreach (var b in annotation.Boxes)
         {
-            ["imagePath"] = Path.GetFileName(imagePath),
-            ["imageSize"] = new[] { imageSize.W, imageSize.H },
-            ["shapes"] = shapes.Select(s => s).ToList()
+            shapes.Add(new JsonObject
+            {
+                [KeyShapeType] = ShapeTypeRectangle,
+                [KeyLabel] = b.Label,
+                [KeyPoints] = new JsonArray(
+                    new JsonArray(Round(b.XMin), Round(b.YMin)),
+                    new JsonArray(Round(b.XMax), Round(b.YMax))),
+                [KeyDifficult] = b.Difficult ? 1 : 0,
+            });
+        }
+        var root = new JsonObject
+        {
+            [KeyImagePath] = Path.GetFileName(annotation.ImagePath),
+            [KeyImageSize] = new JsonArray(annotation.Width, annotation.Height),
+            [KeyShapes] = shapes,
         };
-        Directory.CreateDirectory(saveDir);
-        File.WriteAllText(jsonPath, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(JsonPath(annotation.ImagePath, annotationDir), root.ToJsonString(WriteOptions));
 
-        if (writeVoc)
+        if (options.WriteVoc)
         {
-            var boxes = new List<VocIo.VocBox>();
-            foreach (var s in shapes)
-            {
-                var bbox = ShapeDictToBbox(s);
-                if (bbox == null) continue;
-                var (xmin, ymin, xmax, ymax) = bbox.Value;
-                var label = s.TryGetValue("label", out var lv) ? lv?.ToString()?.Trim() ?? "" : "";
-                var difficult = s.TryGetValue("difficult", out var dv) && dv is int dvi ? dvi : 0;
-                boxes.Add(new VocIo.VocBox(label, xmin, ymin, xmax, ymax, difficult));
-            }
-            VocIo.WriteVocXml(Path.Combine(saveDir, baseName + ".xml"), imagePath, (imageSize.W, imageSize.H), boxes);
+            var vocBoxes = annotation.Boxes.Select(b => b.RoundToPixels())
+                .Select(b => new VocIo.VocBox(b.Label, (int)b.XMin, (int)b.YMin, (int)b.XMax, (int)b.YMax, b.Difficult ? 1 : 0))
+                .ToList();
+            VocIo.WriteVocXml(XmlPath(annotation.ImagePath, annotationDir), annotation.ImagePath, (annotation.Width, annotation.Height), vocBoxes);
+        }
+
+        if (options.WriteYoloTxt && options.Classes is { Count: > 0 } classes)
+        {
+            var labelsDir = string.IsNullOrWhiteSpace(options.YoloLabelsDir) ? annotationDir : options.YoloLabelsDir;
+            Directory.CreateDirectory(labelsDir);
+            var lines = FormatYoloLines(annotation, classes);
+            File.WriteAllText(YoloTxtPath(annotation.ImagePath, labelsDir), lines.Count == 0 ? "" : string.Join("\n", lines) + "\n");
         }
     }
 
-    /// <summary>Bbox from shape dict (points, label, difficult).</summary>
-    private static (int XMin, int YMin, int XMax, int YMax)? ShapeDictToBbox(Dictionary<string, object> shape)
+    /// <summary>Remove the JSON and VOC files of the image (back to unlabeled).</summary>
+    public static void Delete(string imagePath, string annotationDir)
     {
-        if (!shape.TryGetValue("points", out var ptsObj)) return null;
-        var pts = new List<(double X, double Y)>();
-        if (ptsObj is System.Collections.IEnumerable en)
-        {
-            foreach (var p in en)
-            {
-                if (p is double[] arr && arr.Length >= 2)
-                    pts.Add((arr[0], arr[1]));
-                else if (p is int[] iarr && iarr.Length >= 2)
-                    pts.Add((iarr[0], iarr[1]));
-            }
-        }
-        if (pts.Count < 2) return null;
-        double minX = pts[0].X, minY = pts[0].Y, maxX = pts[0].X, maxY = pts[0].Y;
-        for (var i = 1; i < pts.Count; i++)
-        {
-            minX = Math.Min(minX, pts[i].X); minY = Math.Min(minY, pts[i].Y);
-            maxX = Math.Max(maxX, pts[i].X); maxY = Math.Max(maxY, pts[i].Y);
-        }
-        return ((int)minX, (int)minY, (int)maxX, (int)maxY);
+        foreach (var path in new[] { JsonPath(imagePath, annotationDir), XmlPath(imagePath, annotationDir) })
+            if (File.Exists(path)) File.Delete(path);
     }
 
-    /// <summary>Write one YOLO detection .txt file (Ultralytics format: class x_center y_center width height normalized [0,1]). Skips difficult and label not in classes. Returns line count.</summary>
-    public static int ExportYoloDetectionTxt(string txtPath, (int W, int H) imageSize, IReadOnlyList<Dictionary<string, object>> shapes, IReadOnlyList<string> classes)
+    /// <summary>
+    /// Ultralytics detection lines: "class xc yc w h" normalized to [0,1]. Boxes whose label is not in classes are skipped,
+    /// difficult boxes too when skipDifficult.
+    /// </summary>
+    public static IReadOnlyList<string> FormatYoloLines(ImageAnnotation annotation, IReadOnlyList<string> classes, bool skipDifficult = true)
     {
-        var (w, h) = imageSize;
-        if (w <= 0 || h <= 0 || classes == null || classes.Count == 0) return 0;
         var lines = new List<string>();
-        double dw = 1.0 / w, dh = 1.0 / h;
-        foreach (var s in shapes)
+        if (annotation.Width <= 0 || annotation.Height <= 0) return lines;
+        double dw = 1.0 / annotation.Width, dh = 1.0 / annotation.Height;
+        foreach (var raw in annotation.Boxes)
         {
-            if (s.TryGetValue("difficult", out var dv) && dv is int dvi && dvi == 1) continue;
-            var label = (s.TryGetValue("label", out var lv) ? lv?.ToString() : null)?.Trim() ?? "";
-            int idx = -1;
-            for (int i = 0; i < classes.Count; i++)
-                if (string.Equals(classes[i], label, StringComparison.Ordinal)) { idx = i; break; }
+            if (skipDifficult && raw.Difficult) continue;
+            int idx = IndexOf(classes, raw.Label);
             if (idx < 0) continue;
-            var bbox = ShapeDictToBbox(s);
-            if (bbox == null) continue;
-            var (xmin, ymin, xmax, ymax) = bbox.Value;
-            double xc = (xmin + xmax) / 2.0, yc = (ymin + ymax) / 2.0;
-            double bw = xmax - xmin, bh = ymax - ymin;
-            lines.Add(FormattableString.Invariant($"{idx} {xc * dw:F6} {yc * dh:F6} {bw * dw:F6} {bh * dh:F6}"));
+            var b = raw.ClampTo(annotation.Width, annotation.Height);
+            if (b.Width <= 0 || b.Height <= 0) continue;
+            double xc = (b.XMin + b.XMax) / 2.0, yc = (b.YMin + b.YMax) / 2.0;
+            lines.Add(FormattableString.Invariant($"{idx} {xc * dw:F6} {yc * dh:F6} {b.Width * dw:F6} {b.Height * dh:F6}"));
         }
-        if (lines.Count == 0) return 0;
-        var dir = Path.GetDirectoryName(txtPath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        File.WriteAllText(txtPath, string.Join("\n", lines) + "\n");
-        return lines.Count;
+        return lines;
+    }
+
+    /// <summary>Boxes per label over every annotation under dir (JSON, or VOC when no JSON sibling).</summary>
+    public static Dictionary<string, int> CountLabels(string dir, bool recursive)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var (_, labels) in EnumerateAnnotationLabels(dir, recursive))
+            foreach (var l in labels)
+                counts[l] = counts.TryGetValue(l, out var n) ? n + 1 : 1;
+        return counts;
+    }
+
+    /// <summary>
+    /// Rename (newLabel set) or remove (newLabel null) every box with oldLabel in the JSON and VOC files under dir.
+    /// Other JSON content is preserved. Returns the number of boxes changed (JSON boxes, VOC-only files counted separately).
+    /// </summary>
+    public static int ReplaceLabel(string dir, string oldLabel, string? newLabel, bool recursive)
+    {
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return 0;
+        int changed = 0;
+        var option = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+        foreach (var json in SafeEnumerate(dir, "*" + JsonExtension, option))
+        {
+            if (TryReadShapesDocument(json) is not { } root || root[KeyShapes] is not JsonArray shapes) continue;
+            int fileChanged = 0;
+            for (int i = shapes.Count - 1; i >= 0; i--)
+            {
+                if (shapes[i] is not JsonObject shape || (string?)shape[KeyLabel] != oldLabel) continue;
+                if (newLabel == null) shapes.RemoveAt(i);
+                else shape[KeyLabel] = newLabel;
+                fileChanged++;
+            }
+            if (fileChanged == 0) continue;
+            File.WriteAllText(json, root.ToJsonString(WriteOptions));
+            changed += fileChanged;
+        }
+        foreach (var xml in SafeEnumerate(dir, "*" + XmlExtension, option))
+        {
+            var doc = TryLoadVoc(xml);
+            if (doc?.Root == null) continue;
+            var hit = doc.Root.Elements(VocObject).Where(o => o.Element(VocName)?.Value.Trim() == oldLabel).ToList();
+            if (hit.Count == 0) continue;
+            foreach (var o in hit)
+            {
+                if (newLabel == null) o.Remove();
+                else o.Element(VocName)!.Value = newLabel;
+            }
+            doc.Save(xml);
+            if (!File.Exists(Path.ChangeExtension(xml, JsonExtension))) changed += hit.Count;
+        }
+        return changed;
+    }
+
+    private static IEnumerable<(string File, IReadOnlyList<string> Labels)> EnumerateAnnotationLabels(string dir, bool recursive)
+    {
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) yield break;
+        var option = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+        foreach (var json in SafeEnumerate(dir, "*" + JsonExtension, option))
+        {
+            if (TryReadShapesDocument(json)?[KeyShapes] is not JsonArray shapes) continue;
+            yield return (json, shapes.OfType<JsonObject>().Select(s => ((string?)s[KeyLabel] ?? "").Trim()).ToList());
+        }
+        foreach (var xml in SafeEnumerate(dir, "*" + XmlExtension, option))
+        {
+            if (File.Exists(Path.ChangeExtension(xml, JsonExtension))) continue;
+            var root = TryLoadVoc(xml)?.Root;
+            if (root == null) continue;
+            yield return (xml, root.Elements(VocObject).Select(o => o.Element(VocName)?.Value.Trim() ?? "").ToList());
+        }
+    }
+
+    private static ImageAnnotation? TryLoadJson(string imagePath, string jsonPath)
+    {
+        if (TryReadShapesDocument(jsonPath) is not { } root) return null;
+        int w = 0, h = 0;
+        if (root[KeyImageSize] is JsonArray size && size.Count >= 2)
+        {
+            w = ToInt(size[0]);
+            h = ToInt(size[1]);
+        }
+        if (w <= 0 || h <= 0)
+            (w, h) = ImageHeaderReader.ReadSize(imagePath) ?? (0, 0);
+        var boxes = new List<AnnotationBox>();
+        if (root[KeyShapes] is JsonArray shapes)
+        {
+            foreach (var node in shapes.OfType<JsonObject>())
+            {
+                if (ShapeToBox(node) is { } box) boxes.Add(box);
+            }
+        }
+        return new ImageAnnotation(imagePath, w, h, boxes);
+    }
+
+    private static AnnotationBox? ShapeToBox(JsonObject shape)
+    {
+        var points = new List<(double X, double Y)>();
+        if (shape[KeyPoints] is JsonArray pts)
+        {
+            foreach (var p in pts.OfType<JsonArray>())
+                if (p.Count >= 2) points.Add((ToDouble(p[0]), ToDouble(p[1])));
+        }
+        if (points.Count < 2) return null;
+        var label = ((string?)shape[KeyLabel] ?? "").Trim();
+        var difficult = ToInt(shape[KeyDifficult]) != 0;
+        var type = (string?)shape[KeyShapeType];
+        if (type == ShapeTypeCircle)
+        {
+            var (cx, cy) = points[0];
+            var r = Math.Sqrt(Math.Pow(points[1].X - cx, 2) + Math.Pow(points[1].Y - cy, 2));
+            return new AnnotationBox(label, cx - r, cy - r, cx + r, cy + r, difficult);
+        }
+        return new AnnotationBox(label, points.Min(p => p.X), points.Min(p => p.Y), points.Max(p => p.X), points.Max(p => p.Y), difficult);
+    }
+
+    private static JsonObject? TryReadShapesDocument(string jsonPath)
+    {
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(jsonPath)) is JsonObject obj && obj[KeyShapes] is JsonArray ? obj : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static XDocument? TryLoadVoc(string xmlPath)
+    {
+        try
+        {
+            var doc = XDocument.Load(xmlPath);
+            return doc.Root?.Name.LocalName == VocRoot ? doc : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+            return null;
+        }
+    }
+
+    private static IEnumerable<string> SafeEnumerate(string dir, string pattern, SearchOption option)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(dir, pattern, option).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static int IndexOf(IReadOnlyList<string> classes, string label)
+    {
+        var trimmed = label.Trim();
+        for (int i = 0; i < classes.Count; i++)
+            if (string.Equals(classes[i], trimmed, StringComparison.Ordinal)) return i;
+        return -1;
+    }
+
+    private static double Round(double v) => Math.Round(v, CoordinateDecimals);
+
+    private static double ToDouble(JsonNode? node)
+    {
+        if (node is JsonValue v)
+        {
+            if (v.TryGetValue<double>(out var d)) return d;
+            if (v.TryGetValue<string>(out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) return d;
+        }
+        return 0;
+    }
+
+    private static int ToInt(JsonNode? node)
+    {
+        if (node is JsonValue v)
+        {
+            if (v.TryGetValue<int>(out var i)) return i;
+            if (v.TryGetValue<double>(out var d)) return (int)d;
+            if (v.TryGetValue<bool>(out var b)) return b ? 1 : 0;
+        }
+        return 0;
     }
 }

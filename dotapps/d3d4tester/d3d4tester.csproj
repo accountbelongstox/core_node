@@ -38,6 +38,8 @@
     <ProjectReference Include="..\..\dotcore\DotCore.YoloRecord\DotCore.YoloRecord.csproj" />
     <ProjectReference Include="D3D4TesterCore\D3D4TesterCore.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.VocAnnotatorUI\DotCore.VocAnnotatorUI.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.YoloTrain\DotCore.YoloTrain.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.UIInspect\DotCore.UIInspect.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.Decompile\DotCore.Decompile.csproj" />
   </ItemGroup>

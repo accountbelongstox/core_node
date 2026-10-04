@@ -5,6 +5,9 @@
     <RootNamespace>DotCore.VocAnnotator</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Config\voc_annotator_default_config.json" LogicalName="DotCore.VocAnnotator.voc_annotator_default_config.json" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
     <ProjectReference Include="..\DotCore.Common\DotCore.Common.csproj" />
   </ItemGroup>

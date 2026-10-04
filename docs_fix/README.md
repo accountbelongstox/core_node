@@ -1,6 +1,3 @@
-
-
-
 # AI Fix Documentation Guidelines
 
 If you are an AI reading this document, your assigned task is to **analyze the problem and write a detailed fix list** (including specific files and issues) for *another* AI to execute the actual code fixes.

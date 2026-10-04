@@ -33,10 +33,14 @@ internal static class RecoveryCli
                 Console.WriteLine($"JIT TTD calls={jitTraceReport.CapturedCalls} methods={jitTraceReport.UniqueMethodTokens} failures={jitTraceReport.FailureCount}");
                 return jitTraceReport.ExitCode == 0 && jitTraceReport.CapturedCalls > 0 ? 0 : 3;
             }
-            if (args.Length == 6 && args[0] == "--analyze-hvm-locals")
+            if (args.Length == 8 && args[0] == "--analyze-hvm-locals")
             {
-                localReport = await TtdHvmLocalAnalyzer.AnalyzeAsync(args[1], args[2], args[3], args[4], args[5],
-                    Console.WriteLine);
+                helperAddress = ulong.Parse(args[3].Replace("0x", string.Empty), NumberStyles.HexNumber,
+                    CultureInfo.InvariantCulture);
+                resolveTokenReturnAddress = ulong.Parse(args[4].Replace("0x", string.Empty), NumberStyles.HexNumber,
+                    CultureInfo.InvariantCulture);
+                localReport = await TtdHvmLocalAnalyzer.AnalyzeAsync(args[1], args[2], helperAddress,
+                    resolveTokenReturnAddress, args[5], args[6], args[7], Console.WriteLine);
                 Console.WriteLine($"HVM locals calls={localReport.CapturedLocals} methods={localReport.Methods} failures={localReport.Failures}");
                 return localReport.ExitCode == 0 && localReport.CapturedLocals > 0 ? 0 : 3;
             }
@@ -72,7 +76,7 @@ internal static class RecoveryCli
             }
             if (args.Length < 1)
             {
-                Console.Error.WriteLine("Usage: RosbotRecovery <RoS-BoT.exe> [data-root] [tools-root] | --analyze-jit-ttd <cdb> <trace> <target-module> <output> | --analyze-hvm-ttd <cdb> <trace> <helper-address> <output> | --analyze-hvm-locals <cdb> <trace> <helper-report> <context-report> <output> | --build-hvm-context <helper-report> <jit-report> <resolve-return-address> <output> | --analyze-hvm-metadata <cdb> <trace> <helper-report> <output>");
+                Console.Error.WriteLine("Usage: RosbotRecovery <RoS-BoT.exe> [data-root] [tools-root] | --analyze-jit-ttd <cdb> <trace> <target-module> <output> | --analyze-hvm-ttd <cdb> <trace> <helper-address> <output> | --analyze-hvm-locals <cdb> <trace> <get-arg-type-address> <get-arg-class-address> <helper-report> <context-report> <output> | --build-hvm-context <helper-report> <jit-report> <resolve-return-address> <output> | --analyze-hvm-metadata <cdb> <trace> <helper-report> <output>");
                 return 2;
             }
             singleFile = args[0] == "--file";

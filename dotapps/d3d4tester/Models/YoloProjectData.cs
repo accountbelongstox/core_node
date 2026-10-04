@@ -7,7 +7,7 @@ namespace DotApps.d3d4tester.Models;
 /// Centralized project data for coordinate calibration / YOLO workflow.
 /// Matches Python layout: project_path = {yolo_data_root}/{client_type}/{project_name},
 /// segments under project_path, project_config.json and patch_data.json at project root.
-/// Used by CalibrationPage and YoloRecordBridgeClient; extend for new fields without breaking CONFIG.
+/// Extend for new fields without breaking CONFIG.
 /// </summary>
 public class YoloProjectData
 {
