@@ -166,15 +166,18 @@ class WordNewOrchPhraseStoreService {
   }
 
   /**
-   * One cheap re-check of sentences that were pending: only those are asked (no interval wait, the caller paces it).
-   * `resolved` are the ids the server no longer reports as pending.
+   * One cheap re-check of sentences that were pending: only the first page of them (reading order; the server
+   * extracts in that order) is asked, no interval wait - the caller paces it. `resolved` are the ids the server
+   * no longer reports as pending. A resolved id starts the full reload, which asks the rest.
    */
   async refresh(language: string, pendingIds: readonly string[], signal?: AbortSignal): Promise<{ resolved: string[]; pending: string[] }> {
     const ids = [...new Set(pendingIds)];
-    const held = await this.read(language, ids);
-    await this.ask(language, ids, held, signal);
-    const resolved = ids.filter((id) => held.get(id)?.s !== 'pending' && held.has(id));
-    return { resolved, pending: ids.filter((id) => !resolved.includes(id)) };
+    const asked = ids.slice(0, PHRASES_BY_SENTENCES_MAX_IDS);
+    const held = await this.read(language, asked);
+    await this.ask(language, asked, held, signal);
+    const resolved = asked.filter((id) => held.get(id)?.s !== 'pending' && held.has(id));
+    const done = new Set(resolved);
+    return { resolved, pending: ids.filter((id) => !done.has(id)) };
   }
 
   private resolution(ids: readonly string[], held: ReadonlyMap<string, HeldSentence>, answered: boolean): OrchPhraseResolution {
