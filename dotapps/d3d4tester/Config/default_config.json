@@ -336,5 +336,36 @@
     "yolo_data_root": "",
     "yolo_current_project": "",
     "yolo_project_list": []
+  },
+  "yolo_training": {
+    "python_exe": "",
+    "model": "yolov8n.pt",
+    "epochs": 100,
+    "imgsz": 640,
+    "batch": 16,
+    "device": "cpu",
+    "workers": 4,
+    "patience": 30,
+    "cache": "false",
+    "amp": true,
+    "optimizer": "auto",
+    "lr0": 0.01,
+    "seed": 0,
+    "close_mosaic": 10,
+    "extra_args": "",
+    "export_onnx": true,
+    "detect_on_open": true
+  },
+  "yolo_dataset": {
+    "source": "selected",
+    "train_percent": 80,
+    "val_percent": 20,
+    "test_percent": 0,
+    "seed": 42,
+    "shuffle": true,
+    "stratify": true,
+    "include_background": true,
+    "background_max_percent": 10,
+    "skip_difficult": true
   }
 }

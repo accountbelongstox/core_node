@@ -214,6 +214,61 @@ function Step22_RepairChromeCompatShim {
     }
 }
 
+# Post-install: make Chrome the default browser. Windows 10 protects the UserChoice
+# association hash, so the supported path is Chrome's own registration plus the
+# Settings "Default apps" dialog; a person is present to confirm it (the flow may pop UI).
+# Idempotent: when http+https already resolve to ChromeHTML nothing runs.
+function Step22_SetChromeDefaultBrowser {
+    $urlAssocRoot = 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations'
+    $chromeExe = $null
+    $waitSeconds = 180
+    $pollSeconds = 5
+    $elapsed = 0
+
+    $isChromeDefault = {
+        $allChrome = $true
+        foreach ($proto in @('http', 'https')) {
+            $progId = (Get-ItemProperty (Join-Path (Join-Path $urlAssocRoot $proto) 'UserChoice') -ErrorAction SilentlyContinue).ProgId
+            if (-not ($progId -like 'ChromeHTML*')) { $allChrome = $false; break }
+        }
+        $allChrome
+    }
+
+    if (& $isChromeDefault) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome is already the default browser (idempotent skip)" -Type "Success"
+        return
+    }
+
+    $chromeExe = Find-ExecutableByKeyword -Keywords $CHROME_EXE_NAME -AdditionalScanPaths @(Join-Path $APP_INSTALL_DIR 'Chrome') -Recursive $true
+    if (-not $chromeExe) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome executable not found; skipping default-browser setup" -Type "Warning"
+        return
+    }
+
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting Chrome as the default browser..." -Type "Info"
+    # Chrome registers itself and asks Windows to apply the default (may show system UI).
+    & $chromeExe --make-default-browser 2>$null | Out-Null
+    Start-Sleep -Seconds 3
+    if (& $isChromeDefault) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome is now the default browser" -Type "Success"
+        return
+    }
+
+    # Open the Default apps settings page and wait for the person present to pick Chrome.
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Opening Windows 'Default apps'; please select Chrome as the Web browser (waiting up to $waitSeconds s)..." -Type "Warning"
+    Start-Process 'ms-settings:defaultapps'
+    while ($elapsed -lt $waitSeconds) {
+        Start-Sleep -Seconds $pollSeconds
+        $elapsed += $pollSeconds
+        if (& $isChromeDefault) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome confirmed as the default browser" -Type "Success"
+            return
+        }
+    }
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Default browser not switched to Chrome within $waitSeconds s; continuing (re-run this step anytime)" -Type "Warning"
+}
+
 Step22_InstallChrome
 Step22_InstallChromeBeta
 Step22_RepairChromeCompatShim
+Step22_SetChromeDefaultBrowser

@@ -87,8 +87,6 @@
       "confirm_title": "确认",
       "ok": "确定",
       "cancel": "取消",
-      "yes": "是",
-      "no": "否",
       "help_title": "快捷键",
       "help_text": "A / ←  上一张        D / →  下一张        N  下一张未标注\nW  画框模式开关        Esc  退出画框 / 取消选择\n左键拖动：画框模式下画框；选择模式下移动框或平移画面\n拖动选中框的手柄：调整大小        右键：选中框并打开菜单\n滚轮：以鼠标为中心缩放        中键或空格 + 左键拖动：平移\nF  适应窗口        Ctrl+1  原始大小        + / -  放大缩小\n1 - 9  切换类别（选中框时直接改类别）        E  困难样本\nDel  删除框        Ctrl+D  复制框        Ctrl+C / Ctrl+V  复制粘贴框\nCtrl+Shift+V  复制上一张的全部框        方向键  微调选中框（Shift 加速）\nCtrl+Z / Ctrl+Y  撤销 / 重做        Ctrl+S  保存        Ctrl+L  AI 预标注\nH  显示 / 隐藏标签        F1  本帮助",
       "settings_title": "标注设置",

@@ -24,6 +24,8 @@ internal static class Program
         NativeHvmAnalysisReport hvmReport;
         DynamicMethodAssemblyMergeReport mergeReport;
         HvmOperandResolutionReport resolutionReport;
+        DynamicMethodPreparationReport preparationReport;
+        DynamicMethodInvocationReport invocationReport;
         HvmContextDocument contextDocument;
         HvmMethodMetadataDocument metadataDocument;
         HvmJitCaptureDocument captureDocument;
@@ -33,6 +35,26 @@ internal static class Program
         JavaScriptSerializer serializer;
         try
         {
+            if (args.Length == 3 && args[0] == "--invoke-static")
+            {
+                targetPath = Path.GetFullPath(args[1]);
+                tokenText = args[2].Replace("0x", string.Empty);
+                methodToken = int.Parse(tokenText, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                invocationReport = new DynamicMethodInvoker().InvokeStatic(targetPath, methodToken.Value);
+                Console.WriteLine($"HVM INVOKED token=0x{invocationReport.MethodToken:X8} completed={invocationReport.InvocationCompleted} method={invocationReport.MethodName}");
+                if (!invocationReport.InvocationCompleted)
+                    Console.WriteLine($"HVM INVOCATION EXCEPTION type={invocationReport.ExceptionType} message={invocationReport.ExceptionMessage}");
+                return 0;
+            }
+            if (args.Length == 3 && args[0] == "--prepare-only")
+            {
+                targetPath = Path.GetFullPath(args[1]);
+                tokenText = args[2].Replace("0x", string.Empty);
+                methodToken = int.Parse(tokenText, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                preparationReport = new DynamicMethodPreparer().Prepare(targetPath, methodToken.Value);
+                Console.WriteLine($"HVM PREPARED token=0x{preparationReport.MethodToken:X8} method={preparationReport.MethodName}");
+                return 0;
+            }
             if (args.Length == 7 && args[0] == "--resolve-hvm-operands")
             {
                 targetPath = Path.GetFullPath(args[1]);
@@ -104,7 +126,7 @@ internal static class Program
             }
             if (args.Length < 2)
             {
-                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
+                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] | --prepare-only <target> <hex-token> | --invoke-static <target> <hex-token> | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
                 return 2;
             }
 
