@@ -86,25 +86,12 @@ mcp_show_status_panel() {
     done < <(mcp_registry)
 
     echo "-- Keys (for key-gated servers) --------------------------"
-    local key masked
-    key="$(mcp_get_secret CONTEXT7_API_KEY_1 || true)"
-    if [ -n "$key" ]; then
-        masked="****${key: -4}"
-        printf '  \033[32m[OK] CONTEXT7_API_KEY -> loaded (%s)  [server: context7]\033[0m\n' "$masked"
-    else
-        printf '  \033[33m[--] CONTEXT7_API_KEY -> MISSING  [server: context7]\033[0m\n'
-    fi
+    echo "  (none: no key-gated servers are configured)"
 }
 
 mcp_show_planned() {
-    local py key
+    local py
     py="$(mcp_python)" || { echo "[ERROR] python not found"; return 0; }
     echo "Planned MCP servers (dry-run, no changes written):"
-    key="$(mcp_get_secret CONTEXT7_API_KEY_1 || true)"
-    if [ -n "$key" ]; then
-        echo "  [1] context7 (http)  url=https://mcp.context7.com/mcp  header CONTEXT7_API_KEY=****${key: -4}"
-    else
-        echo "  [1] context7 (http)  SKIPPED (CONTEXT7_API_KEY_1 missing)"
-    fi
-    echo "  [2] chrome   (http)  url=$MCP_CHROME_URL"
+    echo "  [1] chrome   (http)  url=$MCP_CHROME_URL"
 }

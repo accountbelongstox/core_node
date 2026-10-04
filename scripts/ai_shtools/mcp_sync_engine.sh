@@ -14,7 +14,6 @@ MCP_JSON_HELPER="$MCP_CORE_NODE_DIR/scripts/ai_ps1tools/_json_sync_helper.py"
 MCP_SECRET_RAW_DIR="$MCP_CORE_NODE_DIR/.secret_keys/.secret_ignore"
 MCP_CODEX_CONFIG="$HOME/.codex/config.toml"
 MCP_CHROME_START_SH="$MCP_CORE_NODE_DIR/apps/mcp-chrome/scripts/start.sh"
-MCP_CONTEXT7_SH="$MCP_CORE_NODE_DIR/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.sh"
 MCP_JSON_TOOLS="claude cursor gemini droid windsurf devin vscode"
 MCP_SERVICE_CONTRACT_COMMON="$MCP_CORE_NODE_DIR/scripts/shells/linux/common/service_contract_common.sh"
 . "$MCP_SERVICE_CONTRACT_COMMON"
@@ -53,25 +52,12 @@ mcp_get_secret() {
 # Build the tool-agnostic entries JSON (helper transforms it per target). Uses
 # python json.dumps so secret values / paths are escaped safely. Echoes a temp path.
 mcp_build_entries() {
-    local py="$1" key tmp
-    key="$(mcp_get_secret CONTEXT7_API_KEY_1 || true)"
-    if [ -n "$key" ]; then
-        echo "[INFO] Context7 API key loaded successfully" >&2
-    else
-        echo "[WARNING] CONTEXT7_API_KEY_1 not found in $MCP_SECRET_RAW_DIR (context7 skipped)" >&2
-    fi
+    local py="$1" tmp
     tmp="$(mktemp "${TMPDIR:-/tmp}/mcp_entries.XXXXXX.json")"
-    MCP_CTX_KEY="$key" MCP_CHROME_URL="$MCP_CHROME_URL" MCP_PYCORE_DEV_URL="$MCP_PYCORE_DEV_URL" "$py" - "$tmp" <<'PYEOF'
+    MCP_CHROME_URL="$MCP_CHROME_URL" MCP_PYCORE_DEV_URL="$MCP_PYCORE_DEV_URL" "$py" - "$tmp" <<'PYEOF'
 import json, os, sys
 out_path = sys.argv[1]
-key = os.environ.get("MCP_CTX_KEY", "")
 entries = []
-if key:
-    entries.append({
-        "name": "context7", "transport": "http",
-        "url": "https://mcp.context7.com/mcp",
-        "headers": {"CONTEXT7_API_KEY": key, "Accept": "application/json, text/event-stream"},
-    })
 entries.append({"name": "chrome", "transport": "http", "url": os.environ["MCP_CHROME_URL"]})
 entries.append({"name": "pycore-dev", "transport": "http", "url": os.environ["MCP_PYCORE_DEV_URL"]})
 with open(out_path, "w", encoding="utf-8") as f:
@@ -129,36 +115,29 @@ mcp_codex_remove_section() {
 }
 
 mcp_codex_write_http() {
-    local name="$1" url="$2" key="$3"
+    local name="$1" url="$2"
     mkdir -p "$(dirname "$MCP_CODEX_CONFIG")"
     [ -f "$MCP_CODEX_CONFIG" ] || : > "$MCP_CODEX_CONFIG"
     mcp_codex_remove_section "$name"
     {
         printf '\n[mcp_servers.%s]\n' "$name"
         printf 'url = "%s"\n' "$url"
-        if [ -n "$key" ]; then
-            printf '\n[mcp_servers.%s.http_headers]\n' "$name"
-            printf 'CONTEXT7_API_KEY = "%s"\n' "$key"
-            printf 'Accept = "application/json, text/event-stream"\n'
-        fi
     } >> "$MCP_CODEX_CONFIG"
     echo "[OK] Wrote [mcp_servers.$name] to codex config.toml"
 }
 
 mcp_sync_codex() {
-    local py="$1" key
-    key="$(mcp_get_secret CONTEXT7_API_KEY_1 || true)"
+    local py="$1"
     echo "================================================================================"
     echo "[CODEX] Configuring MCP servers (stdio via CLI, http via config.toml)"
     echo "================================================================================"
-    if [ -n "$key" ]; then
-        mcp_codex_write_http "context7" "https://mcp.context7.com/mcp" "$key"
-    fi
-    mcp_codex_write_http "chrome" "$MCP_CHROME_URL" ""
-    # 'unified' (stdio) is retired: purge any stale entry and never re-register it.
+    mcp_codex_write_http "chrome" "$MCP_CHROME_URL"
+    # 'unified' (stdio) and 'context7' are retired: purge stale entries and never re-register them.
     mcp_codex_remove_section "unified"
+    mcp_codex_remove_section "context7"
     if command -v codex >/dev/null 2>&1; then
         codex mcp remove unified 2>/dev/null || true
+        codex mcp remove context7 2>/dev/null || true
     fi
     echo ""
 }
@@ -173,7 +152,7 @@ mcp_sync_tool() {
     rm -f "$entries"
 }
 
-# Fast idempotent claude check/merge of the chrome and pycore-dev entries only (no context7, quiet):
+# Fast idempotent claude check/merge of the chrome and pycore-dev entries only (quiet):
 # prints "ready" when ~/.claude.json already holds the correct http entries, "written"
 # after merging it through the shared helper, "failed" otherwise.
 mcp_ensure_claude_chrome() {
@@ -238,20 +217,8 @@ mcp_install_chrome() {
     export MCP_CHROME_BUILD_DONE=1
 }
 
-mcp_install_context7() {
-    if [ ! -f "$MCP_CONTEXT7_SH" ]; then
-        echo "[WARNING] context7 script not found; skipping."
-        return 0
-    fi
-    echo "================================================================================"
-    echo "[CONTEXT7] Running context7 setup (live output)"
-    echo "================================================================================"
-    bash "$MCP_CONTEXT7_SH" || true
-}
-
 mcp_install_all() {
     export MCP_CHROME_BUILD_DONE=0
     mcp_install_chrome
-    mcp_install_context7
     mcp_sync_all
 }

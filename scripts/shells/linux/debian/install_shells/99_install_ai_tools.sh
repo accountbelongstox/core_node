@@ -1351,7 +1351,7 @@ ai99_ensure_mcp_chrome() {
     export MCP_CHROME_AS_SERVICE="yes"
     export MCP_CHROME_BUILD_DONE=0
     mcp_install_chrome || ai99_log "WARNING: Chrome MCP install reported errors (continuing)."
-    ai99_log "Syncing the chrome MCP entry to every installed AI tool (context7 stays opt-in, not part of this default flow) ..."
+    ai99_log "Syncing the chrome MCP entry to every installed AI tool ..."
     mcp_sync_all || ai99_log "WARNING: MCP sync reported errors (continuing)."
 }
 

@@ -3,7 +3,7 @@
     MCP status / detection helpers for the MCP Management Menu.
 .DESCRIPTION
     Detects which AI tools are installed, reads each tool's already-configured MCP
-    servers, and reports key availability for key-requiring servers (e.g. Context7).
+    servers, and reports key availability for key-requiring servers.
     Pure display / detection logic - no return codes are relied upon, everything is
     printed in real time. Dot-source this file to use.
 #>
@@ -182,9 +182,7 @@ function Get-MCPMaskedSecret {
 function Get-MCPKeyStatuses {
     # Servers that require a secret key. Extend this list as new key-gated servers
     # are added to mcp_config_provider.ps1.
-    $defs = @(
-        @{ Server = "context7"; KeyName = "CONTEXT7_API_KEY_1"; Label = "CONTEXT7_API_KEY" }
-    )
+    $defs = @()
     $out = @()
     foreach ($d in $defs) {
         $val = Get-SecretKey -KeyName $d.KeyName
@@ -249,8 +247,7 @@ function Show-MCPStatusPanel {
 function Show-MCPPlannedServers {
     # Prints exactly what WOULD be configured: each server's resolved transport,
     # command/args/url, env and headers (secret values masked), plus whether the
-    # required key was actually read. Get-AllMCPConfigs already prints the live
-    # "[INFO] Context7 API key loaded" / "[ERROR] ... not found" line.
+    # required key was actually read.
     $configs = $null
     $idx = 0
 

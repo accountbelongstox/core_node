@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    One-shot installer for all MCP services: Chrome MCP, Context7, built-in (Wait Please), and sync to Claude/Codex/Gemini.
+    One-shot installer for all MCP services: Chrome MCP, built-in (Wait Please), and sync to Claude/Codex/Gemini.
 .DESCRIPTION
-    Orchestrates: 1) Chrome MCP (apps/mcp-chrome), 2) Context7 MCP (npx @upstash/context7-mcp),
-    3) Built-in MCP (ncore/mcp_server/wait_please), 4) Sync MCP config to Claude/Codex/Gemini via scripts/pytools/ai_tools.
+    Orchestrates: 1) Chrome MCP (apps/mcp-chrome), 2) Built-in MCP (ncore/mcp_server/wait_please),
+    3) Sync MCP config to Claude/Codex/Gemini via scripts/pytools/ai_tools.
 #>
 
 #region Variable Declarations
@@ -118,33 +118,6 @@ function Invoke-ChromeMCPStep {
     }
 }
 
-function Invoke-Context7Step {
-    # Context7 is a hosted HTTP MCP server (https://mcp.context7.com/mcp); the
-    # actual registration happens in Step 4 (sync) using CONTEXT7_API_KEY. This
-    # step only warms the optional local npx cache. npm/npx prints warnings to
-    # stderr (e.g. unknown pnpm-only config keys), which under a 'Stop' error
-    # preference would abort the whole step. Force 'Continue' and swallow stderr
-    # so a benign warning is never treated as a failure.
-    Write-ColorMessage -Message "Warming optional Context7 npx cache (non-fatal)..." -Type "Info"
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    $versionText = ""
-    try {
-        $checkOutput = & npx -y @upstash/context7-mcp --version 2>$null
-        $versionText = ($checkOutput | Out-String).Trim()
-        if ($versionText) { Write-Host $versionText }
-    } catch {
-        Write-ColorMessage -Message "npx warm-up skipped: $_" -Type "Warning"
-    } finally {
-        $ErrorActionPreference = $prevEap
-    }
-    if ($versionText) {
-        Write-ColorMessage -Message "Context7 npx package available ($versionText)." -Type "Success"
-    } else {
-        Write-ColorMessage -Message "Context7 npx package not detected; hosted HTTP server is used anyway. Will register in Step 4 if CONTEXT7_API_KEY is set." -Type "Info"
-    }
-}
-
 function Invoke-SyncToToolsStep {
     if (-not (Test-Path -LiteralPath $script:AI_PS1TOOLS_DIR)) {
         Write-ColorMessage -Message "ai_ps1tools directory not found; skipping sync." -Type "Warning"
@@ -176,9 +149,8 @@ Write-ColorMessage -Message "========================================" -Type "In
 # New install run: allow exactly one (forced) Chrome extension recompile.
 $env:MCP_CHROME_BUILD_DONE = "0"
 
-Invoke-Step -Title "Step 1/3: Chrome MCP (build + register)" -Action { Invoke-ChromeMCPStep }
-Invoke-Step -Title "Step 2/3: Context7 MCP (npx @upstash/context7-mcp)" -Action { Invoke-Context7Step }
-Invoke-Step -Title "Step 3/3: Sync MCP config to all AI tools" -Action { Invoke-SyncToToolsStep }
+Invoke-Step -Title "Step 1/2: Chrome MCP (build + register)" -Action { Invoke-ChromeMCPStep }
+Invoke-Step -Title "Step 2/2: Sync MCP config to all AI tools" -Action { Invoke-SyncToToolsStep }
 
 Write-ColorMessage -Message "Install All MCP Services finished." -Type "Success"
 #endregion

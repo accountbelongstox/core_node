@@ -8,7 +8,6 @@ This module provides a unified MCP server configuration for all AI tools
 consistency across all tools.
 
 Supported MCP Servers:
-- Context7: Context-aware code completion (HTTP transport)
 - Chrome: Chrome MCP server (HTTP transport)
 """
 
@@ -73,37 +72,6 @@ class MCPConfigProvider:
         return PROJECT_ROOT
 
     @staticmethod
-    def get_context7_config(target: str = "claude") -> Optional[MCPConfig]:
-        """
-        Get Context7 MCP configuration (HTTP transport for all tools)
-
-        Args:
-            target: Target AI tool (claude, codex, droid, gemini)
-
-        Returns:
-            MCPConfig with API key (if found) or None
-        """
-        context7_api_key = get_secret_value("CONTEXT7_API_KEY_1")
-
-        if not context7_api_key:
-            print("[ERROR] CONTEXT7_API_KEY not found in secret manager.")
-            print("[HINT] Please add CONTEXT7_API_KEY_1 via the secret manager.")
-            return None
-
-        print("[INFO] Context7 API key loaded successfully")
-
-        # All tools use HTTP transport with headers
-        return MCPConfig(
-            name="context7",
-            transport_type="http",
-            url="https://mcp.context7.com/mcp",
-            headers={
-                "CONTEXT7_API_KEY": context7_api_key,
-                "Accept": "application/json, text/event-stream"
-            }
-        )
-
-    @staticmethod
     def get_chrome_mcp_config() -> MCPConfig:
         """
         Get Chrome MCP Server configuration (HTTP transport)
@@ -145,11 +113,6 @@ class MCPConfigProvider:
         print(f"[INFO] Loading MCP configurations for {target}...")
         print()
 
-        # Context7 MCP (HTTP for Claude, stdio with npx for Codex)
-        context7_config = cls.get_context7_config(target)
-        if context7_config:
-            configs.append(context7_config)
-
         # Chrome MCP Server (HTTP transport)
         chrome_config = cls.get_chrome_mcp_config()
         configs.append(chrome_config)
@@ -178,15 +141,15 @@ class MCPConfigProvider:
         # Can be extended in the future for tool-specific configurations
         filters = {
             'claude': {
-                'include': ['context7', 'chrome', 'pycore-dev'],
+                'include': ['chrome', 'pycore-dev'],
                 'exclude': []
             },
             'codex': {
-                'include': ['context7', 'chrome', 'pycore-dev'],
+                'include': ['chrome', 'pycore-dev'],
                 'exclude': []
             },
             'droid': {
-                'include': ['context7', 'chrome', 'pycore-dev'],
+                'include': ['chrome', 'pycore-dev'],
                 'exclude': []
             }
         }

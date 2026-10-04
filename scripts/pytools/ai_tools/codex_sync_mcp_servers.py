@@ -45,8 +45,8 @@ def stream_command(cmd: List[str], description: str, cwd: Optional[Path] = None)
 def set_codex_http_headers(name: str, headers: dict) -> None:
     """Write [mcp_servers.<name>.http_headers] into ~/.codex/config.toml.
 
-    'codex mcp add --url' has no flag for custom HTTP headers, so context7's
-    CONTEXT7_API_KEY header cannot be set via the CLI. Any existing header table
+    'codex mcp add --url' has no flag for custom HTTP headers, so a server's
+    auth header cannot be set via the CLI. Any existing header table
     for the server is replaced. Uses stdlib only (no toml writer dependency).
     """
     if not headers:
