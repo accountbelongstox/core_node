@@ -39,6 +39,12 @@ $archivePath = Join-Path $workDir $ARCHIVE_NAME
 $setupPath = Join-Path $extractDir $SETUP_NAME
 
 function Test-VirtualAudioCableInstalled {
+    # The working signal is the PnP MEDIA device: modern installs keep the driver in the
+    # DriverStore, so the System32\drivers file check alone misses a healthy install.
+    $cableDevice = Get-PnpDevice -Class MEDIA -ErrorAction SilentlyContinue |
+        Where-Object { $_.FriendlyName -match 'VB-Audio Virtual Cable' -and $_.Status -eq 'OK' } |
+        Select-Object -First 1
+    if ($cableDevice) { return $true }
     foreach ($driverFile in $DRIVER_FILES) {
         if (Test-Path -LiteralPath (Join-Path $driversDir $driverFile) -PathType Leaf) { return $true }
     }

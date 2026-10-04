@@ -17,5 +17,12 @@
   "recording_warmup_ms": 1500,
   "recording_tail_ms": 1200,
   "transcript_poll_interval_ms": 1000,
-  "transcript_timeout_ms": 20000
+  "transcript_timeout_ms": 20000,
+  "codex": {
+    "description": "Codex CLI >= 0.156.0 realtime voice: enabled by default, toggled with F8; audio goes straight to the multimodal model (no transcript lands in the input box).",
+    "toggle_key": "f8",
+    "toggle_settle_ms": 1000,
+    "recording_warmup_ms": 1500,
+    "recording_tail_ms": 1200
+  }
 }

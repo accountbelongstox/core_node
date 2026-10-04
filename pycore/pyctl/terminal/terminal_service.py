@@ -7,6 +7,7 @@ import re
 import secrets
 import threading
 import time
+from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -699,8 +700,10 @@ class TerminalService:
         text: str = "",
         clear_first: bool = False,
         interrupt_first: bool = False,
+        agent: str = "",
     ) -> Dict[str, Any]:
-        """Type recordings through the agent's hold-to-talk dictation, append text, submit. ERROR_UNAVAILABLE = nothing typed."""
+        """Type recordings through the agent's hold-to-talk dictation, append text, submit. ERROR_UNAVAILABLE = nothing typed.
+        agent="codex" plays through Codex realtime voice (F8 toggle) instead: the model hears the audio directly."""
         if not window_id:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
@@ -718,6 +721,8 @@ class TerminalService:
             if not prepared.get("success"):
                 return prepared
         dictation = TerminalVoiceDictation(self._backend, lambda: self.export_text(window_id, terminal_number))
+        if agent == "codex":
+            return self._dictate_voice_realtime(dictation, window_id, terminal_number, paths, text)
         before = dictation.ready_input()
         if before is None:
             return self._failure(ERROR_UNAVAILABLE)
@@ -754,6 +759,41 @@ class TerminalService:
             success=bool(action.get("success")),
         )
         return self._complete_input(terminal_number, log_id, {**action, "transcript": transcript})
+
+    def _dictate_voice_realtime(
+        self,
+        dictation: TerminalVoiceDictation,
+        window_id: str,
+        terminal_number: int,
+        paths: List[Path],
+        text: str,
+    ) -> Dict[str, Any]:
+        """Codex realtime voice: each recording is one toggle-play-toggle round; optional text follows as a normal submission."""
+        for path in paths:
+            played = dictation.dictate_realtime(window_id, path)
+            if not played.get("success"):
+                return played
+        action: Dict[str, Any] = {"success": True}
+        if text:
+            pending_log = self._state_repository.begin_submission(terminal_number, text, "voice")
+            log_id = str((pending_log or {}).get("id") or "")
+            clipboard_backup = clipboard_manager.get_text()
+            if not clipboard_manager.set_text(text, self._backend.paste_uses_primary_selection()):
+                return self._complete_input(terminal_number, log_id, self._failure("clipboard_write_failed"))
+            try:
+                action = self._backend.append_and_submit(window_id, len(text))
+                time.sleep(CLIPBOARD_RESTORE_DELAY_SECONDS)
+            finally:
+                if clipboard_backup is not None:
+                    clipboard_manager.set_text(clipboard_backup)
+            action = self._complete_input(terminal_number, log_id, action)
+        terminal_activity_log.info(
+            "voice.realtime",
+            terminal_number=terminal_number,
+            recordings=len(paths),
+            success=bool(action.get("success")),
+        )
+        return action
 
     @serialized_method
     def run_exclusive(self, action: Callable[[], Any]) -> Any:

@@ -247,7 +247,11 @@
       "Bash(git rm *)",
       "Bash(git show *)",
       "Bash(git ls-tree *)",
-      "Bash(xargs wc -l)"
+      "Bash(xargs wc -l)",
+      "Bash(mkdir -p native/desktop)",
+      "Bash(touch native/desktop/main.cjs)",
+      "Bash(git check-ignore *)",
+      "Bash(rm native/desktop/main.cjs)"
     ],
     "deny": [],
     "ask": []

@@ -8,8 +8,10 @@
  *
  * NOTE: primarily provided for the wordnew mobile APP (native Capacitor build);
  * this browser fallback keeps the web shell working. `directory` is folded into
- * the key namespace; `getUri` returns an opaque vfs:// uri.
+ * the key namespace; `getUri` returns an opaque vfs:// uri. Inside the desktop
+ * app the same API writes real files through the desktop bridge.
  */
+import { desktopShellBridge } from '../../../../core/network/DesktopShell';
 
 export enum Directory {
   Documents = 'DOCUMENTS',
@@ -122,7 +124,7 @@ async function allKeys(): Promise<string[]> {
   });
 }
 
-export const Filesystem = {
+const browserFilesystem = {
   async writeFile(options: FileWriteOptions): Promise<{ uri: string }> {
     const k = key(options.path, options.directory);
     const isBase64 = !options.encoding; // plugin: no encoding => base64 binary
@@ -221,5 +223,7 @@ export const Filesystem = {
     return { publicStorage: 'granted' };
   },
 };
+
+export const Filesystem = (desktopShellBridge()?.fs as unknown as typeof browserFilesystem | undefined) ?? browserFilesystem;
 
 export default { Filesystem, Directory, Encoding };

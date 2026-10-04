@@ -85,12 +85,13 @@
 - [x] 模板匹配助手 — `Windows/CoordinatePicker/TemplateMatcherHelper`
 - [x] 录制配置 / 录制启停（原生 `DotCore.YoloRecord`） — `CalibrationPage`
 - [x] 工程创建/切换/打开目录、片段表、右键菜单、合并/导出/删除、补丁导入 — `CalibrationPage`
-- [x] 标注（VOC 标注窗口） — `Windows/AnnotatorWindow`
-- [x] YOLO 训练 / 清理未标注 / 加载工程（DOT，Python 未接线） — `CalibrationPage.OnTrainAsync` 等
+- [x] 标注（全功能标注器：缩放平移、移动/调整框、撤销重做、复制上一张、快捷键、类别增删改排序/颜色并同步全项目标注、AI 预标注、可配置设置） — dotcore `DotCore.VocAnnotatorUI.AnnotatorWindow`
+- [x] YOLO 训练（DOT，Python 未接线）：环境探测（GPU / Python / torch CUDA / Ultralytics）与推荐参数、全部训练参数可配置、训练集划分（训练/验证/测试比例、种子、分层、负样本上限）与预览、实时日志与轮次进度、停止、导出 ONNX、设为寻路模型 — `Windows/YoloTrainingWindow`、`Services/YoloTrainingService`、dotcore `DotCore.YoloTrain`
+- [x] 清理未标注 / 加载工程 — `CalibrationPage`、dotcore `AnnotationCleanup`
 
 ## 6. 日志页
 - [x] 背包识别测试（打印背包布局）/ 黄装升级（卡奈升级）/ 重铸装备（卡奈重铸） — `GameAssistantController.RegisterTestActions`
-- [x] 测试寻路 — YOLO NPC 模型（类别 blacksmith / kanai_cube / stash / waypoint）识别城里的铁匠、卡奈魔盒、仓库、传送点，并点击走向 `navigation.target`，直到目标够近或步数用完；再点一次按钮停止。模型取 `navigation.npc_model_path`，为空时用 YOLO 数据根目录下最新的 `best.onnx`；校准页训练结束后自动导出 ONNX — `Core/Navigation/D3TownNavigator`、`Services/TownNavigationTestService`、dotcore `DotCore.YoloDetect`。数据集待采集训练
+- [x] 测试寻路 — YOLO NPC 模型（类别 blacksmith / kanai_cube / stash / waypoint）识别城里的铁匠、卡奈魔盒、仓库、传送点，并点击走向 `navigation.target`，直到目标够近或步数用完；再点一次按钮停止。模型取 `navigation.npc_model_path`，为空时用 YOLO 数据根目录下最新的 `best.onnx`；训练窗口训练结束后自动导出 ONNX，并可一键“设为寻路模型” — `Core/Navigation/D3TownNavigator`、`Services/TownNavigationTestService`、dotcore `DotCore.YoloDetect`。数据集待采集训练
 - [x] 调试卡奈升级 / 卡奈重铸 / 自动分解（仅调试，不点击）/ 声音 — `GameAssistantController.RegisterTestActions`（截图→界面识别→背包采集→对应流程，忽略功能开关）
 - [x] 调试血岩 / 拾取 / 转换 / 丢装 / 暂停 — 只读预览（背包空格、将丢/保留件数、按品质统计、热键与前台状态），不点击
 - [x] 调试铁匠（背包悬停 + 真实分解） — `GameAssistantController.RunDebugBagHoverWithSalvage`

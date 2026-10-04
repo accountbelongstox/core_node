@@ -236,7 +236,7 @@
     "terminal_capture_retain_count": 100,
     "terminal_capture_retain_seconds": 2592000,
     "terminal_backup_interval_seconds": 60,
-    "terminal_backup_prompt_interval_seconds": 10,
+    "terminal_backup_prompt_interval_seconds": 5,
     "terminal_backup_prompt_miss_limit": 10,
     "terminal_physical_confirm_button": 1,
     "terminal_backup_resume_delay_seconds": 30,

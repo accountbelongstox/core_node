@@ -26,6 +26,9 @@ public sealed class HvmLocalType
     public int JitCallIndex { get; set; }
     public string ArgumentPointer { get; set; } = string.Empty;
     public uint CorInfoType { get; set; }
+    public int TypeDescriptorKind { get; set; }
+    public string ModuleHandle { get; set; } = string.Empty;
+    public uint TypeDefinitionToken { get; set; }
 }
 
 public sealed class HvmLocalClass
@@ -146,8 +149,8 @@ public sealed class HvmVirtualOperandResolver
                     methodMembers[mapping.VirtualToken] = member;
             }
             if (DnGuardMethodBodyClassifier.IsPlaceholder(method.CilMethodBody)
-                && TryDecodeCapturedBody(method, capture, rawBody, methodGroup.Key, methodMembers, localTypes,
-                    failures))
+                && TryDecodeCapturedBody(method, capture, rawBody, methodGroup.Key,
+                    methodGroup.First().JitCallIndex, methodMembers, localTypes, failures))
                 decodedMethods++;
             foreach (HvmContextOperand mapping in methodGroup)
             {
@@ -195,6 +198,55 @@ public sealed class HvmVirtualOperandResolver
             decodedMethods, failures.AsReadOnly());
     }
 
+    private static bool TryDecodeCapturedBody(MethodDefinition method, HvmJitCaptureMethod capture, byte[] rawBody,
+        uint methodToken, int jitCallIndex, IReadOnlyDictionary<uint, IMetadataMember> mappedMembers,
+        HvmLocalTypeDocument localTypes, ICollection<string> failures)
+    {
+        CilMethodBody originalBody = method.CilMethodBody!;
+        var candidateBody = new CilMethodBody(method)
+        {
+            InitializeLocals = originalBody.InitializeLocals,
+            MaxStack = capture.MaxStack > 0 ? capture.MaxStack : originalBody.MaxStack,
+            BuildFlags = originalBody.BuildFlags
+        };
+        int localCount = localTypes.Locals.Where(item => item.JitCallIndex == jitCallIndex)
+            .Select(item => item.ArgumentPointer)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        GCHandle codeHandle = default;
+
+        if (capture.ExceptionHandlerCount != 0)
+        {
+            failures.Add($"Captured method 0x{methodToken:X8} has {capture.ExceptionHandlerCount} exception handlers but no captured handler table.");
+            return false;
+        }
+        try
+        {
+            for (int index = 0; index < localCount; index++)
+                candidateBody.LocalVariables.Add(new CilLocalVariable(method.Module!.CorLibTypeFactory.Object));
+            candidateBody.InitializeLocals = localCount > 0 || originalBody.InitializeLocals;
+            codeHandle = GCHandle.Alloc(rawBody, GCHandleType.Pinned);
+            var source = new UnmanagedDataSource(codeHandle.AddrOfPinnedObject(), (ulong)rawBody.Length);
+            var reader = new BinaryStreamReader(source, source.BaseAddress, 0, (uint)rawBody.Length);
+            var resolver = new MappedCilOperandResolver(method.Module!, candidateBody, mappedMembers);
+            var disassembler = new CilDisassembler(in reader, resolver);
+            candidateBody.Instructions.AddRange(disassembler.ReadInstructions());
+            candidateBody.VerifyLabels();
+            method.CilMethodBody = candidateBody;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"Could not decode captured method 0x{methodToken:X8}: {exception.Message}");
+            return false;
+        }
+        finally
+        {
+            if (codeHandle.IsAllocated)
+                codeHandle.Free();
+        }
+    }
+
     private static int ResolveLocals(ModuleDefinition targetModule,
         IReadOnlyDictionary<int, MethodDefinition> targetMethods, IEnumerable<HvmContextOperand> operands,
         HvmLocalTypeDocument localTypes, IReadOnlyDictionary<string, string> modulePaths,
@@ -223,6 +275,17 @@ public sealed class HvmVirtualOperandResolver
             foreach (HvmLocalType capturedLocal in capturedLocals)
             {
                 classes.TryGetValue(LocalKey(group.Key, capturedLocal.ArgumentPointer), out HvmLocalClass? capturedClass);
+                if (capturedClass == null && capturedLocal.TypeDefinitionToken != 0)
+                {
+                    capturedClass = new HvmLocalClass
+                    {
+                        JitCallIndex = capturedLocal.JitCallIndex,
+                        ArgumentPointer = capturedLocal.ArgumentPointer,
+                        TypeDescriptorKind = capturedLocal.TypeDescriptorKind,
+                        ModuleHandle = capturedLocal.ModuleHandle,
+                        TypeDefinitionToken = capturedLocal.TypeDefinitionToken
+                    };
+                }
                 TypeSignature? signature = ResolveLocalType(targetModule, capturedLocal, capturedClass, modulePaths,
                     sourceModules, failures);
                 if (signature == null)
@@ -439,5 +502,25 @@ public sealed class HvmVirtualOperandResolver
         if (member is MethodDefinition method) return method.Module?.Name;
         if (member is FieldDefinition field) return field.Module?.Name;
         return null;
+    }
+
+    private sealed class MappedCilOperandResolver : PhysicalCilOperandResolver
+    {
+        private readonly IReadOnlyDictionary<uint, IMetadataMember> _mappedMembers;
+
+        internal MappedCilOperandResolver(ModuleDefinition module, CilMethodBody body,
+            IReadOnlyDictionary<uint, IMetadataMember> mappedMembers)
+            : base(module, body)
+        {
+            _mappedMembers = mappedMembers;
+        }
+
+        public override object ResolveMember(MetadataToken token)
+        {
+            uint rawToken = unchecked((uint)token.ToInt32());
+            return _mappedMembers.TryGetValue(rawToken, out IMetadataMember? member)
+                ? member
+                : base.ResolveMember(token)!;
+        }
     }
 }

@@ -28,8 +28,8 @@
  *   // React: const { value, save } = useJsonFile('settings/profile.json', {});
  * ========================================================================== */
 
-import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { blobToBase64 } from '../utils/blob';
 
 export { Directory, Encoding };
@@ -68,12 +68,9 @@ export interface CapFsOptions {
   logger?: (msg: string, ...args: unknown[]) => void;
 }
 
+/** Real device files: the Capacitor native app or the desktop app (its Filesystem writes to disk). */
 export function safeIsNative(): boolean {
-  try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
+  return isNativeAppShell();
 }
 
 // ---------------------------------------------------------------------------

@@ -54,6 +54,7 @@ TERMINAL_KEY_PAGE_UP = "Prior"
 TERMINAL_KEY_PAGE_DOWN = "Next"
 TERMINAL_KEY_ESCAPE = "Escape"
 TERMINAL_KEY_TAB = "Tab"
+TERMINAL_KEY_F8 = "F8"
 HISTORY_DIRECTION_KEYS = {
     "up": TERMINAL_KEY_UP,
     "down": TERMINAL_KEY_DOWN,
@@ -68,6 +69,8 @@ TERMINAL_KEY_ACTIONS = {
     "ctrl_c": (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C),
     "tab": (TERMINAL_KEY_TAB,),
     "shift_tab": (TERMINAL_KEY_SHIFT, TERMINAL_KEY_TAB),
+    # Codex CLI realtime voice toggle (voice on >= 0.156.0 by default).
+    "f8": (TERMINAL_KEY_F8,),
 }
 # Clears the input line before a paste: Ctrl+K deletes to the line end, repeated
 # Ctrl+U deletes to the line start across lines (Claude Code multiline input,
@@ -482,12 +485,22 @@ class TerminalWindowBackend:
         if window is None:
             return blocked
         with self._input_guard():
-            if not self._select_all(window):
-                return failure("terminal_select_all_failed")
-            time.sleep(SELECT_ALL_DELAY_SECONDS)
-            if not self._copy_selection(window):
-                return failure("terminal_copy_failed")
+            try:
+                if not self._select_all(window):
+                    return failure("terminal_select_all_failed")
+                time.sleep(SELECT_ALL_DELAY_SECONDS)
+                if not self._copy_selection(window):
+                    return failure("terminal_copy_failed")
+            finally:
+                self._restore_scroll_bottom(window)
         return success(window)
+
+    def _restore_scroll_bottom(self, window: Dict[str, Any]) -> None:
+        """Select-all jumps the emulator viewport to the top of the scrollback: return it to the live bottom."""
+        bottom_keys = self._scroll_bottom_keys(window)
+        if bottom_keys:
+            time.sleep(SELECT_ALL_DELAY_SECONDS)
+            self._keys(window, bottom_keys)
 
     def capture_windows(self, regions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Return {window_id: PIL image} for the requested capture regions."""

@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core';
 import {
   CapResourceAssetCache,
   Directory,
@@ -21,7 +20,7 @@ const WEB_QUOTA_SHARE = 0.5;
 const AUDIO_PRELOAD_CONCURRENCY = 4;
 
 async function resolveCacheBudget(): Promise<number> {
-  if (Capacitor.isNativePlatform()) return MAX_AUDIO_CACHE_BYTES;
+  if (isNativeAppShell()) return MAX_AUDIO_CACHE_BYTES;
   await requestPersistentStorage().catch(() => false);
   const estimate = await getStorageEstimate();
   if (estimate.quotaBytes <= 0) return WEB_FALLBACK_CACHE_BYTES;

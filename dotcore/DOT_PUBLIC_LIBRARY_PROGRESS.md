@@ -18,7 +18,8 @@ When adding or changing a DotCore.* capability, add or update its row in §2. Lo
 | database, config I/O, HTTP bridge | DotCore.Infrastructure |
 | pyutils/window/analyzer, UI automation | DotCore.UIInspect |
 | app theme / tray | DotCore.UITheme |
-| pyutils/voc_annotator, ultralytics_comm | DotCore.VocAnnotator |
+| pyutils/voc_annotator | DotCore.VocAnnotator (IO, config) + DotCore.VocAnnotatorUI (annotator window) |
+| pyutils/ultralytics, ultralytics_comm, d3-check yolo_train_flow / yolo_dataset_from_annotations | DotCore.YoloTrain |
 | d3-check yolo_record (GameAISDK RecordSession) | DotCore.YoloRecord |
 | Ultralytics YOLO inference (Python used the Ultralytics runtime) | DotCore.YoloDetect |
 | pyadb, pydevice, pythreadpool, pygvar, pyheartbeat, callmodule | Not split in dot yet |
@@ -65,9 +66,12 @@ Sub-app library of d3d4tester: `dotapps/d3d4tester/D3D4TesterCore/` (namespace `
 | pyutils/window/analyzer | `UIInspect/WindowAnalyzer` |
 | d3utils/ui_analysis_operations, ui_control_operations | `UIInspect/UiAnalysisSequence`, `UIOperations` |
 | app theme, pystray | `UITheme/ThemeManager`, `WindowChromeBehavior`, `WindowBackdrop`, `ControlAssist`, `Tray/NotifyTrayIcon`, `Themes/*.xaml` |
-| voc_annotator (voc_io, annotation_io, config, project_config, patch_data, yolo_data_layout) | `VocAnnotator/VocIo`, `AnnotationIo`, `VocAnnotatorConfig`, `ProjectConfig`, `PatchData`, `YoloDataLayout`, `VocAnnotatorLauncher` |
-| d3utils/yolo_dataset_from_annotations, ultralytics_comm | `VocAnnotator/YoloDatasetBuilder`, `DataYamlWriter` |
-| d3utils/yolo_train_flow (+ GameAISDK yolo_label_lib) | `VocAnnotator/YoloTrainFlow` |
+| voc_annotator (voc_io, annotation_io, config, project_config, patch_data, yolo_data_layout) | `VocAnnotator/VocIo`, `AnnotationIo` (+ `AnnotationBox`, `ImageAnnotation`, `ImageHeaderReader`), `VocAnnotatorConfig` (`AnnotatorSettings`), `ProjectConfig`, `PatchData`, `YoloDataLayout`, `VocAnnotatorLauncher` |
+| voc_annotator main_window (tk annotator) | `VocAnnotatorUI/AnnotatorWindow`, `AnnotatorView`, `AnnotatorViewModel`, `AnnotationCanvas`, `AutoLabelService`, `AnnotatorSettingsWindow`, `AnnotatorI18n` |
+| GameAISDK yolo_label_lib clean_unlabeled | `VocAnnotator/AnnotationCleanup` |
+| d3utils/yolo_dataset_from_annotations, ultralytics/dataset, ultralytics_comm yaml_io | `YoloTrain/YoloDatasetAssembler`, `YoloDatasetSplit`, `YoloDataYaml` |
+| d3utils/yolo_train_flow, train.py, ultralytics/training | `YoloTrain/YoloTrainParameters`, `YoloTrainRunner`, `YoloArtifacts` |
+| (DOT-only) training environment detection and parameter advice | `YoloTrain/YoloEnvironmentProbe`, `YoloEnvironment`, `YoloTrainAdvisor` |
 | d3utils/yolo_record | `YoloRecord/YoloRecordService`, `YoloSegmentLayout`, `YoloRecordConfig` |
 | Ultralytics YOLO detect (DOT-only, ONNX export of best.pt) | `YoloDetect/YoloOnnxDetector`, `YoloDetection` |
 
