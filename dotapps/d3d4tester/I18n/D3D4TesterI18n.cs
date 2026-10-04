@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json.Linq;
 using DotCore.Common;
+using DotCore.VocAnnotatorUI;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
@@ -68,7 +69,7 @@ public static class D3D4TesterI18n
                 }
                 var flat = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 Flatten(merged, "", flat);
-                foreach (var kv in I18nFallbacks.ForLanguage(lang))
+                foreach (var kv in I18nFallbacks.ForLanguage(lang).Concat(AnnotatorI18n.GetStrings(lang)))
                 {
                     if (!flat.ContainsKey(kv.Key))
                         flat[kv.Key] = kv.Value;
@@ -81,6 +82,7 @@ public static class D3D4TesterI18n
                 ["en"] = "English"
             });
             _provider.SetLanguage(defaultLang);
+            AnnotatorI18n.UseProvider(_provider);
             LoadLanguageFromConfig();
         }
     }

@@ -87,8 +87,6 @@
       "confirm_title": "Confirm",
       "ok": "OK",
       "cancel": "Cancel",
-      "yes": "Yes",
-      "no": "No",
       "help_title": "Keyboard shortcuts",
       "help_text": "A / Left  previous        D / Right  next        N  next unlabeled\nW  toggle draw mode        Esc  leave draw mode / clear selection\nLeft drag: draws in draw mode; moves a box or pans in select mode\nDrag a handle of the selected box: resize        Right click: select box and open menu\nWheel: zoom at the cursor        Middle drag or Space + left drag: pan\nF  fit        Ctrl+1  actual size        + / -  zoom\n1 - 9  pick class (changes the selected box)        E  difficult\nDel  delete box        Ctrl+D  duplicate        Ctrl+C / Ctrl+V  copy / paste boxes\nCtrl+Shift+V  copy all boxes from the previous image        Arrows  nudge selected box (Shift = faster)\nCtrl+Z / Ctrl+Y  undo / redo        Ctrl+S  save        Ctrl+L  AI pre-label\nH  show / hide labels        F1  this help",
       "settings_title": "Annotator settings",

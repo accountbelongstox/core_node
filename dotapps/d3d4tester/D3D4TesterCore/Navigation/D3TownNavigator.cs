@@ -3,6 +3,7 @@ using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
 using DotCore.VocAnnotator;
 using DotCore.YoloDetect;
+using DotCore.YoloTrain;
 using OpenCvSharp;
 
 namespace DotApps.d3d4tester.Core.Navigation;
@@ -108,7 +109,7 @@ public sealed class D3TownNavigator
     private YoloOnnxDetector? GetDetector(string? configuredPath)
     {
         string? path = !string.IsNullOrWhiteSpace(configuredPath) ? configuredPath.Trim()
-            : YoloTrainFlow.FindLatestFile(YoloDataLayout.Root, YoloTrainFlow.ExportedOnnxFileName);
+            : YoloArtifacts.FindLatestFile(YoloDataLayout.Root, YoloArtifacts.ExportedOnnxFileName);
         if (path == null || !File.Exists(path))
         {
             ColorPrinter.Yellow($"{LogTag} No NPC model: set navigation.npc_model_path or train + export best.onnx under {YoloDataLayout.Root}");
