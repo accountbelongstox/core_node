@@ -157,6 +157,21 @@
         <StackPanel>
           <TextBlock x:Name="LblDataset" Style="{StaticResource SectionHeaderTextStyle}"/>
           <StackPanel Orientation="Horizontal" Margin="{StaticResource FieldMargin}">
+            <TextBlock x:Name="LblMode" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0" VerticalAlignment="Center"/>
+            <RadioButton x:Name="RadioGeneral" GroupName="TrainingMode" Margin="0,0,16,0"/>
+            <RadioButton x:Name="RadioSpecific" GroupName="TrainingMode"/>
+          </StackPanel>
+          <StackPanel x:Name="PanelSpecific">
+            <DockPanel Margin="{StaticResource FieldMargin}">
+              <Button x:Name="BtnManageTaskSets" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+              <ComboBox x:Name="CboTaskSet" DisplayMemberPath="Name"/>
+            </DockPanel>
+            <Border Style="{StaticResource InsetBorderStyle}" Padding="8" Margin="0,0,0,8">
+              <TextBlock x:Name="TxtTaskSetSummary" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap"/>
+            </Border>
+          </StackPanel>
+          <StackPanel x:Name="PanelGeneral">
+          <StackPanel Orientation="Horizontal" Margin="{StaticResource FieldMargin}">
             <RadioButton x:Name="RadioSelected" GroupName="DatasetSource" Margin="0,0,16,0"/>
             <RadioButton x:Name="RadioAll" GroupName="DatasetSource"/>
           </StackPanel>
@@ -193,6 +208,7 @@
           <Border Style="{StaticResource InsetBorderStyle}" Padding="8">
             <TextBlock x:Name="TxtPreview" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" FontFamily="{StaticResource MonoFontFamily}"/>
           </Border>
+          </StackPanel>
         </StackPanel>
       </Border>
 

@@ -33,23 +33,36 @@ public partial class YoloTrainingWindow : Window
     private static readonly YoloDatasetSplit SplitDefaults = new();
     private static readonly string[] Devices = { YoloTrainParameters.DeviceCpu, "0", "0,1", YoloTrainParameters.DeviceMps };
 
-    private readonly string _projectDir;
+    private const string ModeGeneral = "general";
+    private const string ModeSpecific = "specific";
+
+    private readonly string? _projectDir;
     private readonly IReadOnlyList<string> _allSegments;
     private readonly IReadOnlyList<string> _selectedSegments;
     private readonly YoloTrainingService _service = YoloTrainingService.Instance;
+    private readonly TaskSetStore _taskSets = new(TaskSetStore.DefaultRoot);
+    private readonly string? _initialTaskSetId;
+    private readonly bool _autoStart;
     private YoloEnvironment? _env;
     private YoloDatasetPlan? _plan;
     private YoloTrainingOutcome? _outcome;
     private bool _detecting;
+    private int _summaryVersion;
 
-    public YoloTrainingWindow(string projectDir, IReadOnlyList<string> allSegments, IReadOnlyList<string> selectedSegments)
+    /// <summary>projectDir null = no recorded project: only the specific (task set) mode is available.</summary>
+    public YoloTrainingWindow(string? projectDir, IReadOnlyList<string> allSegments, IReadOnlyList<string> selectedSegments,
+        string? taskSetId = null, bool autoStart = false)
     {
         _projectDir = projectDir;
         _allSegments = allSegments;
         _selectedSegments = selectedSegments;
+        _initialTaskSetId = taskSetId;
+        _autoStart = autoStart;
         InitializeComponent();
         ApplyTexts();
         BindConfig();
+        BindMode();
+        BtnManageTaskSets.Click += (_, _) => OpenTaskSetManager();
         BtnDetect.Click += async (_, _) => await DetectAsync();
         BtnApplyRecommended.Click += (_, _) => ApplyRecommendation();
         BtnBrowsePython.Click += (_, _) => BrowseInto(TxtPython, T(I18nKeys.YoloTrainingEnvPython) + "|python*.exe;python3*;python", ConfigKeys.YoloTrainingPythonExe);
@@ -61,23 +74,40 @@ public partial class YoloTrainingWindow : Window
         BtnUseForNavigation.Click += (_, _) => UseForNavigation();
         _service.Log += OnServiceLog;
         _service.Progress += OnServiceProgress;
+        _service.BuildProgress += OnServiceBuildProgress;
         _service.PhaseChanged += OnServicePhase;
         D3D4TesterI18n.Provider.LanguageChanged += OnLanguageChanged;
         Closed += (_, _) =>
         {
             _service.Log -= OnServiceLog;
             _service.Progress -= OnServiceProgress;
+            _service.BuildProgress -= OnServiceBuildProgress;
             _service.PhaseChanged -= OnServicePhase;
             D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
         };
+        Activated += (_, _) => RefreshTaskSets();
         Loaded += async (_, _) =>
         {
             UpdateRunState(_service.Phase);
-            if (ConfigBinding.GetValue(ConfigKeys.YoloTrainingDetectOnOpen, true)) await DetectAsync();
+            if (_autoStart || ConfigBinding.GetValue(ConfigKeys.YoloTrainingDetectOnOpen, true)) await DetectAsync();
+            if (_autoStart) await StartAsync();
         };
     }
 
     private static string T(string key) => D3D4TesterI18n.Provider.GetUiText(key);
+
+    private bool IsSpecific => RadioSpecific.IsChecked == true;
+
+    /// <summary>Open in specific (task set) mode over the current calibration project; autoStart begins training after the environment check.</summary>
+    public static void ShowForTaskSet(Window? owner, string taskSetId, bool autoStart)
+    {
+        var project = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloCurrentProject, "");
+        project = !string.IsNullOrWhiteSpace(project) && Directory.Exists(project) ? project : null;
+        var segments = project == null ? new List<string>() : YoloSegmentLayout.ListSegments(project).Select(s => s.SegmentPath).ToList();
+        ConfigBinding.SaveString(ConfigKeys.YoloTrainingMode, ModeSpecific);
+        var win = new YoloTrainingWindow(project, segments, Array.Empty<string>(), taskSetId, autoStart) { Owner = owner };
+        win.Show();
+    }
 
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -131,6 +161,10 @@ public partial class YoloTrainingWindow : Window
         LblExtraArgs.Text = T(I18nKeys.YoloTrainingExtraArgs);
         ChkExportOnnx.Content = T(I18nKeys.YoloTrainingExportOnnx);
         LblDataset.Text = T(I18nKeys.YoloTrainingSectionDataset);
+        LblMode.Text = T(I18nKeys.YoloTrainingMode);
+        RadioGeneral.Content = T(I18nKeys.YoloTrainingModeGeneral);
+        RadioSpecific.Content = T(I18nKeys.YoloTrainingModeSpecific);
+        BtnManageTaskSets.Content = T(I18nKeys.YoloTrainingManageTaskSets);
         RadioSelected.Content = T(I18nKeys.YoloTrainingSourceSelected) + $" ({_selectedSegments.Count})";
         RadioAll.Content = T(I18nKeys.YoloTrainingSourceAll) + $" ({_allSegments.Count})";
         LblTrainPct.Text = T(I18nKeys.YoloTrainingTrainPercent);
@@ -188,6 +222,85 @@ public partial class YoloTrainingWindow : Window
         ConfigBinding.BindCheckBox(ChkBackground, ConfigKeys.YoloDatasetIncludeBackground, SplitDefaults.IncludeBackground);
         ConfigBinding.BindCheckBox(ChkSkipDifficult, ConfigKeys.YoloDatasetSkipDifficult, SplitDefaults.SkipDifficult);
         TxtPreview.Text = T(I18nKeys.YoloTrainingPreviewNone);
+    }
+
+    private void BindMode()
+    {
+        RadioGeneral.IsEnabled = _projectDir != null;
+        var mode = ConfigBinding.GetValue(ConfigKeys.YoloTrainingMode, ModeGeneral);
+        bool specific = _initialTaskSetId != null || _projectDir == null || mode == ModeSpecific;
+        (specific ? RadioSpecific : RadioGeneral).IsChecked = true;
+        RadioGeneral.Checked += (_, _) => OnModeChanged(ModeGeneral);
+        RadioSpecific.Checked += (_, _) => OnModeChanged(ModeSpecific);
+        RefreshTaskSets();
+        CboTaskSet.SelectionChanged += (_, _) =>
+        {
+            if (CboTaskSet.SelectedItem is TaskSet set) ConfigBinding.SaveString(ConfigKeys.YoloTrainingTaskSet, set.Id);
+            _ = RenderTaskSetSummaryAsync();
+        };
+        UpdateModePanels();
+    }
+
+    private void OnModeChanged(string mode)
+    {
+        ConfigBinding.SaveString(ConfigKeys.YoloTrainingMode, mode);
+        UpdateModePanels();
+        RenderEnvironment();
+    }
+
+    private void UpdateModePanels()
+    {
+        PanelSpecific.Visibility = IsSpecific ? Visibility.Visible : Visibility.Collapsed;
+        PanelGeneral.Visibility = IsSpecific ? Visibility.Collapsed : Visibility.Visible;
+        _ = RenderTaskSetSummaryAsync();
+    }
+
+    /// <summary>Reload the task set list (kept in sync with the manager window), keeping the selection.</summary>
+    private void RefreshTaskSets()
+    {
+        IReadOnlyList<TaskSet> sets;
+        try { sets = _taskSets.List(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { sets = Array.Empty<TaskSet>(); }
+        var wanted = (CboTaskSet.SelectedItem as TaskSet)?.Id ?? _initialTaskSetId ?? ConfigBinding.GetValue(ConfigKeys.YoloTrainingTaskSet, "");
+        CboTaskSet.ItemsSource = sets;
+        CboTaskSet.SelectedItem = sets.FirstOrDefault(s => s.Id == wanted) ?? sets.FirstOrDefault();
+    }
+
+    private TaskSet? SelectedTaskSet() => CboTaskSet.SelectedItem is TaskSet s ? _taskSets.Load(s.Id) : null;
+
+    private async Task RenderTaskSetSummaryAsync()
+    {
+        if (!IsSpecific) return;
+        int version = ++_summaryVersion;
+        var set = SelectedTaskSet();
+        if (set == null)
+        {
+            TxtTaskSetSummary.Text = T(I18nKeys.YoloTrainingTaskSetNone);
+            return;
+        }
+        var summary = T(I18nKeys.YoloTrainingTaskSetSummary)
+            .Replace("{targets}", set.Targets.Count.ToString())
+            .Replace("{classes}", string.Join(", ", set.ClassNames))
+            .Replace("{variants}", set.Targets.Sum(t => t.Variants.Count).ToString())
+            .Replace("{scenes}", set.Targets.Sum(t => t.Scenes.Count).ToString())
+            .Replace("{common}", set.CommonResources.Count.ToString())
+            .Replace("{per_target}", set.Synthesis.ImagesPerTarget.ToString())
+            .Replace("{val}", set.Synthesis.ValPercent.ToString());
+        TxtTaskSetSummary.Text = summary;
+        var dir = _taskSets.GetDir(set.Id);
+        var issues = await Task.Run(() => TaskSetSynthesizer.Validate(set, dir));
+        if (version != _summaryVersion) return;
+        TxtTaskSetSummary.Text = string.Join("\n", new[] { summary }.Concat(issues.Select(FormatIssue)));
+    }
+
+    private static string FormatIssue(TaskSetIssue issue) =>
+        (issue.IsError ? "✖ " : "⚠ ") + T(I18nKeys.YoloTaskSetIssue(issue.Code)).Replace("{subject}", issue.Subject);
+
+    private void OpenTaskSetManager()
+    {
+        var open = Application.Current.Windows.OfType<TaskSetWindow>().FirstOrDefault();
+        if (open != null) { open.Activate(); return; }
+        new TaskSetWindow { Owner = this }.Show();
     }
 
     private static void BindEditableCombo(ComboBox combo, IReadOnlyList<string> items, string key, string defaultValue)
