@@ -10,6 +10,10 @@ $nginxManagerPath = Join-Path $commonDirectory 'NginxManager.ps1'
 $webFrankenPhpPath = Join-Path $installDirectory 'Web_FrankenPhp.ps1'
 $webComposerPath = Join-Path $installDirectory 'Web_Composer.ps1'
 $webConfigurePhp85Path = Join-Path $installDirectory 'Web_ConfigurePhp85.ps1'
+$postgresqlManagerPath = Join-Path $commonDirectory 'PostgresqlManager.ps1'
+$databaseRedisPath = Join-Path $installDirectory 'Database_Redis.ps1'
+$redisEnabled = $true
+$redisPort = 0
 $repositoryRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $winDirectory))
 $uiStartScriptPath = Join-Path (Join-Path (Join-Path (Join-Path $repositoryRoot 'poly_apps') 'pycore_laravel_wordnew_ui') 'scripts') 'start.ps1'
 $powerShellPath = Join-Path $PSHOME 'powershell.exe'
@@ -47,13 +51,31 @@ $webServerPlane = ''
 . $managerPath
 . $certificateManagerPath
 . $nginxManagerPath
+. $postgresqlManagerPath
 $webServerPlane = Get-WebServerPlane
+$redisEnabled = ([string](Get-GlobalVar -key 'START_REDIS' -defaultValue 'true')).Trim().ToLowerInvariant() -ne 'false'
+$redisPort = Get-ServiceContractPort -Name 'redis'
 
 function Set-Step175Failure {
     # One `ERROR: step 175: <reason>` line per failure; the script ends with a non-zero exit.
     param([Parameter(Mandatory = $true)][string]$Reason)
     $script:step175Failed = $true
     [Console]::Error.WriteLine("ERROR: step ${STEP_NUMBER}: $Reason")
+}
+
+function Test-Step175LoopbackPort {
+    param([Parameter(Mandatory = $true)][int]$Port)
+    $client = New-Object System.Net.Sockets.TcpClient
+    try {
+        $connect = $client.BeginConnect((Get-ServiceContractHost -Name 'loopback'), $Port, $null, $null)
+        return ($connect.AsyncWaitHandle.WaitOne(1500, $false) -and $client.Connected)
+    }
+    catch {
+        return $false
+    }
+    finally {
+        $client.Close()
+    }
 }
 
 $laravelDirectory = Get-FrankenPhpLaravelDirectory
@@ -166,6 +188,23 @@ if (-not $step175Failed -and $webServerPlane -eq 'frankenphp' -and -not (Test-Pa
 }
 
 if ($step175Failed) { exit 1 }
+
+# Data services sys:init needs (Linux twin: redis_endpoint_ensure + the PostgreSQL
+# ensurer). PostgreSQL is always on (Laravel is PostgreSQL-only); a server already on
+# :5432 is reused. Redis follows START_REDIS (default true): a running endpoint is
+# reused, otherwise the native installer installs/repairs and starts its service.
+Resolve-PgDataDir | Out-Null
+if (-not (Ensure-Postgresql)) {
+    Set-Step175Failure -Reason "PostgreSQL is not serving on $($Global:PG_HOST):$($Global:PG_PORT) with the app databases"
+    exit 1
+}
+if ($redisEnabled -and -not (Test-Step175LoopbackPort -Port $redisPort)) {
+    & $databaseRedisPath
+    if (-not (Test-Step175LoopbackPort -Port $redisPort)) {
+        Set-Step175Failure -Reason "Redis is not serving on port $redisPort after $databaseRedisPath"
+        exit 1
+    }
+}
 
 # A failed sys:init stops the run because every following database operation assumes
 # the base schema exists. This matches the Linux step 175 ordering.

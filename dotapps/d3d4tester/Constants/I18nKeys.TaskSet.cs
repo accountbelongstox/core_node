@@ -70,7 +70,6 @@ public static partial class I18nKeys
     public const string YoloTaskSetFolderTitle = Ts + "folder_title";
     public const string YoloTaskSetAddSkipped = Ts + "add_skipped";
     public const string YoloTaskSetKindImage = Ts + "kind_image";
-    public const string YoloTaskSetKindVideo = Ts + "kind_video";
     public const string YoloTaskSetVideoFrames = Ts + "video_frames";
     public const string YoloTaskSetVideoFramesPending = Ts + "video_frames_pending";
     public const string YoloTaskSetVideoFramesFailed = Ts + "video_frames_failed";

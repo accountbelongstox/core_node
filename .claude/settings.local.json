@@ -270,7 +270,10 @@
       "Bash(node cdp.mjs eval \"document.body.innerText.slice\\(0,1500\\)\")",
       "Bash(node cdp.mjs eval \"console.error\\('desktop-log-probe'\\); 1\")",
       "Bash(node cdp.mjs eval \"\\(document.body.innerText.match\\(/\\\\d+ clips on this device[^\\\\n]*/\\)||['']\\)[0]\")",
-      "Bash(node cdp.mjs shot play.png)"
+      "Bash(node cdp.mjs shot play.png)",
+      "PowerShell(D:\\\\programing\\\\core_node\\\\dd.cmd gitsync -m \"AI CLI shims \\(win .winenvs + linux /usr/local/bin\\), codex/gemini voice integration, installer idempotency fixes\")",
+      "PowerShell(D:\\\\programing\\\\core_node\\\\dd.cmd gitsync -m \"merge: union local-session permissions with remote entries\")",
+      "Bash(git add *)"
     ],
     "deny": [],
     "ask": []
