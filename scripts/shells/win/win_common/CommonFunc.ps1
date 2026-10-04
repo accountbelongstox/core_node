@@ -710,6 +710,15 @@ function Find-ExecutableByKeyword {
                 $searchPaths += $candidateInstallPath
             }
         }
+        # Script installers (irm|iex) use home dot-dirs: ~\.<tool> and ~\.<tool>\bin
+        # (e.g. kimi.exe lands in ~\.kimi-code\bin); these are outside the depth-limited
+        # system scan, so add them explicitly.
+        $candidateDotDir = Join-Path $env:USERPROFILE ".$candidateDirName"
+        foreach ($candidateDotPath in @($candidateDotDir, (Join-Path $candidateDotDir 'bin'))) {
+            if (Test-Path -LiteralPath $candidateDotPath) {
+                $searchPaths += $candidateDotPath
+            }
+        }
     }
     if ($OnlyScanDirs -and $OnlyScanDirs.Count -gt 0) {
         # Add install directory paths
@@ -805,6 +814,25 @@ function Find-ExecutableByKeyword {
         }
     }
     
+    # Last resort: PATH lookup. CLI installers register their bin dir on PATH, which the
+    # directory scans above cannot see. WindowsApps execution aliases exist even when the
+    # app is not installed, so they are excluded.
+    foreach ($searchKeyword in $allKeywords) {
+        $pathCommandName = [System.IO.Path]::GetFileNameWithoutExtension([string]$searchKeyword)
+        if ([string]::IsNullOrWhiteSpace($pathCommandName)) { continue }
+        foreach ($pathCommand in @(Get-Command -Name $pathCommandName -CommandType Application -ErrorAction SilentlyContinue)) {
+            $pathSource = [string]$pathCommand.Source
+            if ([string]::IsNullOrWhiteSpace($pathSource)) { continue }
+            if ($pathSource -like "*\WindowsApps\*") { continue }
+            if (-not (Test-Path -LiteralPath $pathSource)) { continue }
+            $pathExtension = [System.IO.Path]::GetExtension($pathSource)
+            if ($ExecutableExtensions.Count -eq 0 -or ($ExecutableExtensions -contains $pathExtension)) {
+                Write-DebugLog -Message "Found executable on PATH for keyword '$searchKeyword': $pathSource" -Category "EXEC" -Color "Green"
+                return $pathSource
+            }
+        }
+    }
+
     # If no executable found and debug is enabled, print all searched paths
     Write-DebugLog -Message "No executable found matching keyword: $Keywords,IncludeSystemPaths: $IncludeSystemPaths" -Category "EXEC" -Color "Yellow"
     if ($searchedPaths.Count -gt 0) {
