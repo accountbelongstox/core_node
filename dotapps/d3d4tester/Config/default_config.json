@@ -354,7 +354,9 @@
     "close_mosaic": 10,
     "extra_args": "",
     "export_onnx": true,
-    "detect_on_open": true
+    "detect_on_open": true,
+    "mode": "general",
+    "task_set": ""
   },
   "yolo_dataset": {
     "source": "selected",
@@ -367,5 +369,8 @@
     "include_background": true,
     "background_max_percent": 10,
     "skip_difficult": true
+  },
+  "yolo_taskset": {
+    "last_task_set": ""
   }
 }

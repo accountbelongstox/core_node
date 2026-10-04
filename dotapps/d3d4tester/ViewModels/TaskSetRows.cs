@@ -88,4 +88,42 @@ public sealed class TaskResourceRow : BaseViewModel
     public string Info { get => _info; set => SetProperty(ref _info, value); }
 }
 
+/// <summary>Pending variant crop of the extraction window (region of one source image or video frame).</summary>
+public sealed class ExtractCropRow : BaseViewModel
+{
+    private ImageSource? _thumbnail;
+    private string _caption = "";
+    private string _info = "";
+
+    public ExtractCropRow(string sourcePath, bool isVideo, int frame, VariantRegion region)
+    {
+        SourcePath = sourcePath;
+        IsVideo = isVideo;
+        Frame = frame;
+        Region = region;
+    }
+
+    public string SourcePath { get; }
+
+    public bool IsVideo { get; }
+
+    public int Frame { get; }
+
+    public VariantRegion Region { get; set; }
+
+    /// <summary>Last cut result (BGRA PNG); null while cutting or when the cut failed.</summary>
+    public byte[]? Png { get; set; }
+
+    public bool Failed { get; set; }
+
+    /// <summary>Incremented per cut request so stale background results are dropped.</summary>
+    public int Version { get; set; }
+
+    public ImageSource? Thumbnail { get => _thumbnail; set => SetProperty(ref _thumbnail, value); }
+
+    public string Caption { get => _caption; set => SetProperty(ref _caption, value); }
+
+    public string Info { get => _info; set => SetProperty(ref _info, value); }
+}
+
 public sealed record TaskSetIssueRow(string Glyph, string Text, Brush Brush);

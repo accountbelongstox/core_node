@@ -297,12 +297,7 @@ public partial class YoloTrainingWindow : Window
     private static string FormatIssue(TaskSetIssue issue) =>
         (issue.IsError ? "✖ " : "⚠ ") + T(I18nKeys.YoloTaskSetIssue(issue.Code)).Replace("{subject}", issue.Subject);
 
-    private void OpenTaskSetManager()
-    {
-        var open = Application.Current.Windows.OfType<TaskSetWindow>().FirstOrDefault();
-        if (open != null) { open.Activate(); return; }
-        new TaskSetWindow { Owner = this }.Show();
-    }
+    private void OpenTaskSetManager() => TaskSetWindow.ShowSingle(this, (CboTaskSet.SelectedItem as TaskSet)?.Id);
 
     private static void BindEditableCombo(ComboBox combo, IReadOnlyList<string> items, string key, string defaultValue)
     {
@@ -600,8 +595,8 @@ public partial class YoloTrainingWindow : Window
 
     private void OpenOutput()
     {
-        var dir = _outcome?.RunDir ?? YoloDataLayout.GetRunsDir(_projectDir);
-        if (Directory.Exists(dir)) YoloSegmentLayout.OpenDir(dir);
+        var dir = _outcome?.RunDir ?? RunsDir();
+        if (dir != null && Directory.Exists(dir)) YoloSegmentLayout.OpenDir(dir);
     }
 
     private void UseForNavigation()

@@ -134,6 +134,43 @@ public static partial class I18nKeys
     public const string YoloTaskSetSynVideoFrameInterval = TsSyn + "video_frame_interval";
     public const string YoloTaskSetSynVideoMaxFrames = TsSyn + "video_max_frames";
 
+    private const string TsEx = Ts + "extract.";
+
+    public const string YoloTaskSetExtractOpen = TsEx + "open_button";
+    public const string YoloTaskSetExtractFromResource = TsEx + "from_resource";
+    public const string YoloTaskSetExtractWindowTitle = TsEx + "window_title";
+    public const string YoloTaskSetExtractSectionSource = TsEx + "section_source";
+    public const string YoloTaskSetExtractSectionPending = TsEx + "section_pending";
+    public const string YoloTaskSetExtractSourceLabel = TsEx + "source_label";
+    public const string YoloTaskSetExtractSourceScene = TsEx + "source_scene";
+    public const string YoloTaskSetExtractSourceCommon = TsEx + "source_common";
+    public const string YoloTaskSetExtractSourceExternal = TsEx + "source_external";
+    public const string YoloTaskSetExtractBrowse = TsEx + "browse";
+    public const string YoloTaskSetExtractTargetLabel = TsEx + "target_label";
+    public const string YoloTaskSetExtractModeLabel = TsEx + "mode_label";
+    public const string YoloTaskSetExtractModeRectangle = TsEx + "mode_rectangle";
+    public const string YoloTaskSetExtractModeGrabCut = TsEx + "mode_grabcut";
+    public const string YoloTaskSetExtractPendingImage = TsEx + "pending_image";
+    public const string YoloTaskSetExtractPendingVideo = TsEx + "pending_video";
+    public const string YoloTaskSetExtractCutting = TsEx + "cutting";
+    public const string YoloTaskSetExtractCutFailed = TsEx + "cut_failed";
+    public const string YoloTaskSetExtractClear = TsEx + "clear";
+    public const string YoloTaskSetExtractAdd = TsEx + "add";
+    public const string YoloTaskSetExtractAdded = TsEx + "added";
+    public const string YoloTaskSetExtractViewerHint = TsEx + "viewer_hint";
+    public const string YoloTaskSetExtractFit = TsEx + "fit";
+    public const string YoloTaskSetExtractFramePrev = TsEx + "frame_prev";
+    public const string YoloTaskSetExtractFrameNext = TsEx + "frame_next";
+    public const string YoloTaskSetExtractFrameBack = TsEx + "frame_back";
+    public const string YoloTaskSetExtractFrameForward = TsEx + "frame_forward";
+    public const string YoloTaskSetExtractFrameInfo = TsEx + "frame_info";
+    public const string YoloTaskSetExtractImageInfo = TsEx + "image_info";
+    public const string YoloTaskSetExtractLoading = TsEx + "loading";
+    public const string YoloTaskSetExtractLoadFailed = TsEx + "load_failed";
+    public const string YoloTaskSetExtractNoSource = TsEx + "no_source";
+    public const string YoloTaskSetExtractNoTarget = TsEx + "no_target";
+    public const string YoloTaskSetExtractNothingToAdd = TsEx + "nothing_to_add";
+
     /// <summary>ui.yolo_taskset.issue.&lt;snake_case code&gt;; text may contain {subject}.</summary>
     public static string YoloTaskSetIssue(TaskSetIssueCode code) =>
         TsIssue + Regex.Replace(code.ToString(), "(?<=[a-z0-9])([A-Z])", "_$1").ToLowerInvariant();
