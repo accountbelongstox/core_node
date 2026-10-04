@@ -11,6 +11,7 @@ from typing import Any, Dict
 from pycore.callmodule.rpc_routes.route_names import UI_QUEUE_CENTER_ACCEPT_TASK
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_phrase_audio_worker,
     laravel_sentence_audio_worker,
     laravel_word_audio_worker,
 )
@@ -19,6 +20,7 @@ from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 _WORD_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
 _SENTENCE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
+_PHRASE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["phrase_audio"]["key"]
 
 
 def _route_task(task: Dict[str, Any], base_url: str) -> Dict[str, Any]:
@@ -29,6 +31,8 @@ def _route_task(task: Dict[str, Any], base_url: str) -> Dict[str, Any]:
         return laravel_word_audio_worker.accept_task(task, base_url)
     if task_type == _SENTENCE_AUDIO_TASK_TYPE or capability == "sentence_audio":
         return laravel_sentence_audio_worker.accept_task(task, base_url)
+    if task_type == _PHRASE_AUDIO_TASK_TYPE or capability == "phrase_audio":
+        return laravel_phrase_audio_worker.accept_task(task, base_url)
     return translation_worker_service.accept_task(task, base_url)
 
 

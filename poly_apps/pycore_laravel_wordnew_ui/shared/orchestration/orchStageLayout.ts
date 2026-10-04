@@ -7,7 +7,7 @@
 import type { OrchVideoLanguages, OrchVideoLayoutSettings } from '../../core/integrations/pycore';
 import type { OrchComposeItem, OrchComposeSentence } from './orchTypes';
 
-export type OrchLineRole = 'sentence_en' | 'sentence_zh' | 'word' | 'word_meaning';
+export type OrchLineRole = 'sentence_en' | 'sentence_zh' | 'word' | 'word_meaning' | 'phrase' | 'phrase_meaning';
 export type OrchLineState = 'upcoming' | 'active' | 'companion' | 'past';
 export type OrchSpan = readonly [number, number];
 
@@ -54,6 +54,14 @@ function sentenceTexts(sentence: OrchComposeSentence | undefined, spoken: Record
   return texts;
 }
 
+/** A phrase listed on its sentence's card: when it and its meaning clip are spoken. */
+interface CardPhrase {
+  text: string;
+  spans: OrchSpan[];
+  meaning: string;
+  meaningSpans: OrchSpan[];
+}
+
 interface CardGroup {
   key: string;
   kind: 'word' | 'sentence';
@@ -62,14 +70,26 @@ interface CardGroup {
   spoken: Record<string, string>;
   spans: { en: OrchSpan[]; zh: OrchSpan[] };
   all: OrchSpan[];
+  phrases: Map<string, CardPhrase>;
 }
 
-/** Consecutive clips of one sentence (or repeats of one word) form one card. */
+/** The phrase a timeline entry belongs to (its clip or its meaning clip), '' for any other entry. */
+function entryPhrase(item: OrchComposeItem): string {
+  if (item.kind === 'phrase') return normalize(item.text);
+  return item.meaningKind === 'phrase' && item.meaningOf ? normalize(item.meaningOf) : '';
+}
+
+/**
+ * Consecutive clips of one sentence (or repeats of one word) form one card; the phrase clips of a sentence
+ * (and their meaning clips) are lines of that sentence's card. `phraseMeaningOf` gives the meaning shown for
+ * a phrase whose meaning clip is not spoken.
+ */
 export function buildStageCards(
   timeline: OrchTimelineEntry[],
   sentences: OrchComposeSentence[],
   languages: OrchVideoLanguages,
   meaningOf: (word: string) => string,
+  phraseMeaningOf: (phrase: string) => string = () => '',
 ): OrchStageCard[] {
   const bySeq = new Map(sentences.map((sentence) => [sentence.seq, sentence]));
   const groups: CardGroup[] = [];
@@ -77,16 +97,30 @@ export function buildStageCards(
     const span: OrchSpan = [entry.startMs / 1000, entry.endMs / 1000];
     const text = normalize(entry.item.text);
     const language = langOf(entry.item.language);
+    // A phrase clip and its meaning clip belong to the card of the sentence they come from.
+    const phrase = entryPhrase(entry.item);
     // A meaning clip belongs to the card of the word it explains.
-    const explains = entry.item.meaningOf ? normalize(entry.item.meaningOf) : '';
-    const isWord = entry.item.kind === 'word' || explains !== '';
+    const explains = !phrase && entry.item.meaningOf ? normalize(entry.item.meaningOf) : '';
+    const isWord = !phrase && (entry.item.kind === 'word' || explains !== '');
     const sentence = isWord ? undefined : bySeq.get(entry.item.seq);
     const wordText = explains || text;
-    const key = isWord ? `word:${wordText.toLowerCase()}` : `sentence:${sentence ? sentence.seq : text}`;
+    const key = isWord ? `word:${wordText.toLowerCase()}` : `sentence:${sentence ? sentence.seq : phrase ? entry.item.seq : text}`;
     let group = groups[groups.length - 1];
     if (!group || group.key !== key) {
-      group = { key, kind: isWord ? 'word' : 'sentence', sentence, text: wordText, spoken: {}, spans: { en: [], zh: [] }, all: [] };
+      group = { key, kind: isWord ? 'word' : 'sentence', sentence, text: wordText, spoken: {}, spans: { en: [], zh: [] }, all: [], phrases: new Map() };
       groups.push(group);
+    }
+    if (phrase) {
+      const phraseKey = phrase.toLowerCase();
+      const listed = group.phrases.get(phraseKey) ?? { text: phrase, spans: [], meaning: '', meaningSpans: [] };
+      if (entry.item.kind === 'phrase') {
+        listed.spans.push(span);
+      } else {
+        listed.meaning ||= text;
+        listed.meaningSpans.push(span);
+      }
+      group.phrases.set(phraseKey, listed);
+      continue;
     }
     group.spoken[language] ??= text;
     group.spans[language].push(span);
@@ -112,6 +146,13 @@ export function buildStageCards(
       if (lines.length === 0 && fallback) {
         lines.push({ text: texts[fallback], role: fallback === 'zh' ? 'sentence_zh' : 'sentence_en', spans: group.all });
       }
+      // As a word card: a spoken meaning clip lights the meaning line, otherwise it follows the phrase.
+      group.phrases.forEach((listed) => {
+        const spoken = listed.meaningSpans.length > 0;
+        const meaning = listed.meaning || phraseMeaningOf(listed.text.toLowerCase());
+        if (languages !== 'zh' || !meaning) lines.push({ text: listed.text, role: 'phrase', spans: listed.spans });
+        if (languages !== 'en' && meaning) lines.push({ text: meaning, role: 'phrase_meaning', spans: spoken ? listed.meaningSpans : listed.spans });
+      });
     }
     // As pycore `_geometry`: a card spans its shown lines only (a hidden language never extends it).
     const spans = lines.flatMap((line) => line.spans).filter(([start, end]) => end > start);

@@ -24,6 +24,7 @@ use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
 use App\Services\TaskProcessors\WordValidityTaskProcessor;
 use App\Services\TaskProcessors\ArticleAudioTaskProcessor;
 use App\Services\TaskProcessors\TtsSynthesizeTaskProcessor;
+use App\Services\TaskProcessors\PhraseExtractTaskProcessor;
 use App\Services\QueueCenter\DiffIdPageCatalog;
 use App\Services\QueueCenter\QueueSliceDiffService;
 use App\Services\QueueCenter\QueueWorkerPresenceService;
@@ -154,6 +155,8 @@ class TaskManagerService
             $this->processorRegistry->register(new WordValidityTaskProcessor($this));
             $this->processorRegistry->register(new ArticleAudioTaskProcessor());
             $this->processorRegistry->register(new TtsSynthesizeTaskProcessor());
+            // Phrase pipeline: pycore phrase_extract answers -> phrases + sentence links.
+            $this->processorRegistry->register(new PhraseExtractTaskProcessor());
 
             // Future processors can be registered here:
             // $this->processorRegistry->register(new ImageTaskProcessor($this));
@@ -2296,6 +2299,11 @@ class TaskManagerService
                 return $hasTranscript
                     ? null
                     : 'STT result carried no text/transcript';
+
+            case QueueCenterContract::taskTypeKey('phrase_extract'):
+                return trim((string) ($inner['text'] ?? ($inner['answer'] ?? ($result['text'] ?? '')))) !== ''
+                    ? null
+                    : 'Phrase-extract result carried no text';
         }
 
         switch ($task->execution_type) {

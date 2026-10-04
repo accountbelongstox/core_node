@@ -12,6 +12,7 @@ import { queueProgressPercent } from '../../../../core/contracts/QueueProgress';
 import type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import { useWordNewAssistStatus, type WordNewAssistLane } from '../../services/WordNewAssistStatus';
 import { useWordNewPycoreNodes } from '../../services/WordNewPycoreNodes';
+import { ASSIGNMENT_LANES, laneOfKind } from '../../services/orchestration/WordNewBookPlanAssigner';
 import type { ElementTheme } from '../../WfNewThemes';
 import { OrchPanel } from './orchPanels';
 
@@ -22,9 +23,7 @@ interface Props {
   bookPlanned?: boolean;
 }
 
-const SENTENCE_LANE = 'sentence_audio';
-const WORD_LANE = 'word_audio';
-const LANE_KEYS = [SENTENCE_LANE, WORD_LANE] as const;
+type LaneKey = (typeof ASSIGNMENT_LANES)[number];
 
 function planLanguages(session: OrchComposeSession | null): string[] {
   const languages = new Set<string>();
@@ -35,7 +34,7 @@ function planLanguages(session: OrchComposeSession | null): string[] {
 }
 
 interface BookLaneRow {
-  lane: typeof SENTENCE_LANE | typeof WORD_LANE;
+  lane: LaneKey;
   language: string;
   total: number;
   pending: number;
@@ -45,7 +44,7 @@ interface BookLaneRow {
 function bookRemaining(session: OrchComposeSession | null): BookLaneRow[] {
   const rows = new Map<string, BookLaneRow>();
   session?.plan?.resources.forEach((resource) => {
-    const lane = resource.kind === 'word' ? WORD_LANE : SENTENCE_LANE;
+    const lane = laneOfKind(resource.kind);
     const key = `${lane}|${resource.language}`;
     const row = rows.get(key) ?? { lane, language: resource.language, total: 0, pending: 0 };
     row.total += 1;
@@ -76,6 +75,9 @@ export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans,
   const assist = useWordNewAssistStatus(languages);
   const pycoreNodes = useWordNewPycoreNodes();
   const paused = assist.gate.schema === 'pending';
+  // The phrase lane is listed only for a plan that holds phrase clips.
+  const hasPhrases = useMemo(() => Boolean(plan?.resources.some((resource) => resource.kind === 'phrase')), [plan]);
+  const laneKeys = useMemo(() => ASSIGNMENT_LANES.filter((lane) => lane !== 'phrase_audio' || hasPhrases), [hasPhrases]);
   const book = useMemo(() => (bookPlanned ? bookRemaining(session) : []), [bookPlanned, session?.plan, session?.table?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   const progress = languages.map((language) => [language, assist.sentenceProgress[language]] as const).filter(([, row]) => row);
 
@@ -108,7 +110,7 @@ export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans,
           <ProgressBar done={row.done} total={row.total} tone="sky" />
         </div>
       ))}
-      {!paused && assist.nodes === 'ready' && LANE_KEYS.map((lane) => (
+      {!paused && assist.nodes === 'ready' && laneKeys.map((lane) => (
         <p key={lane} className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
           {assist.lanes[lane] && assist.lanes[lane].online.gpu > 0 ? <Zap className="h-3 w-3 text-emerald-500" aria-hidden /> : <Cpu className="h-3 w-3 text-zinc-500" aria-hidden />}
           <span className="font-bold">{trans(`orchAssist.lane.${lane}`)}</span>

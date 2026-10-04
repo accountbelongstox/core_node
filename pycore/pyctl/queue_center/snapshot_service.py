@@ -24,7 +24,7 @@ from pycore.pyctl.queue_center.task_center_sections import (
     queue_metrics,
 )
 from pycore.pyctl.tts.status_service import peek_status as peek_tts_status
-from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
+from pycore.pyctl.tts.lane_auto import phrase_audio_auto, sentence_audio_auto, word_audio_auto
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
@@ -37,6 +37,7 @@ from pycore.pyutils.laravel.mercure_client import (
 )
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
+    QUEUE_CENTER_CONTROL_NAMES,
     QUEUE_CENTER_DIFF_DELIVERY,
     QUEUE_CENTER_QUEUE_POSITION_CONTROLS,
     QUEUE_CENTER_REALTIME_EVENTS,
@@ -645,18 +646,22 @@ class _QueueCenterSnapshotService:
         snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY) or self._empty_snapshot()
         word_audio = word_audio_auto.status()
         sentence_audio = sentence_audio_auto.status()
+        phrase_audio = phrase_audio_auto.status()
         contracts = self._section_contracts(
             snapshot,
             assist_status(include_laravel=False),
             word_audio,
             sentence_audio,
+            phrase_audio,
         )
         return {
             "wordAudio": word_audio,
             "sentenceAudio": sentence_audio,
+            "phraseAudio": phrase_audio,
             "sectionContracts": {
                 "word_audio": contracts.get("word_audio"),
                 "sentence_audio": contracts.get("sentence_audio"),
+                "phrase_audio": contracts.get("phrase_audio"),
             },
         }
 
@@ -664,10 +669,12 @@ class _QueueCenterSnapshotService:
         result = dict(snapshot)
         word_audio = word_audio_auto.status()
         sentence_audio = sentence_audio_auto.status()
+        phrase_audio = phrase_audio_auto.status()
         assist = assist_status(include_laravel=False)
         tts = peek_tts_status()
         result["wordAudio"] = word_audio
         result["sentenceAudio"] = sentence_audio
+        result["phraseAudio"] = phrase_audio
         result["assist"] = assist
         result["tts"] = tts
         result["pycoreReachable"] = True
@@ -691,6 +698,7 @@ class _QueueCenterSnapshotService:
             assist,
             word_audio,
             sentence_audio,
+            phrase_audio,
         )
         return self._apply_snapshot_age(result)
 
@@ -700,19 +708,24 @@ class _QueueCenterSnapshotService:
         assist: Dict[str, Any],
         word_audio: Dict[str, Any],
         sentence_audio: Dict[str, Any],
+        phrase_audio: Dict[str, Any],
     ) -> Dict[str, Any]:
         callback_names = {
             "assist_translation": "translation_worker",
             "word_audio": "tts_queue_poller",
             "sentence_audio": "tts_sentence_worker",
+            "phrase_audio": "tts_phrase_worker",
         }
         configured = {
             "assist_translation": bool(assist.get("processor_enabled")),
             "word_audio": bool(word_audio.get("processor_enabled")),
             "sentence_audio": bool(sentence_audio.get("processor_enabled")),
+            "phrase_audio": bool(phrase_audio.get("processor_enabled")),
         }
         controls: Dict[str, Any] = {}
         for scope, callback_name in callback_names.items():
+            if scope not in QUEUE_CENTER_CONTROL_NAMES:
+                continue
             controls[scope] = {
                 **get_control_intent(scope),
                 "configured": configured[scope],
@@ -742,6 +755,13 @@ class _QueueCenterSnapshotService:
             "ok": int((sentence_audio.get("worker") or {}).get("total_succeeded") or 0),
             "fail": int((sentence_audio.get("worker") or {}).get("total_failed") or 0),
         })
+        if "phrase_audio" in contracts and "phrase_audio" in controls:
+            contracts["phrase_audio"]["worker"].update({
+                "online": bool(controls["phrase_audio"]["running"]),
+                "claimed": int((phrase_audio.get("worker") or {}).get("total_claimed") or 0),
+                "ok": int((phrase_audio.get("worker") or {}).get("total_succeeded") or 0),
+                "fail": int((phrase_audio.get("worker") or {}).get("total_failed") or 0),
+            })
         return contracts
 
     @staticmethod
@@ -817,6 +837,7 @@ class _QueueCenterSnapshotService:
             "sentenceQueue": None,
             "wordAudio": None,
             "sentenceAudio": None,
+            "phraseAudio": None,
             "assist": None,
             "tts": None,
             "recent": None,

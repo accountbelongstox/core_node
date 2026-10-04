@@ -531,6 +531,22 @@ class AppQyV1ApiInfo
                 "parameters" => ["hash", "text", "language"]
             ],
             [
+                "path" => "/api/app_qy_v1/ai_tools/tts/phrase/report",
+                "method" => "POST",
+                "feature" => "Report Phrase Audio",
+                "description" => "Node report of a generated phrase MP3 (lane phrase_audio, multipart; client key); creates an unknown phrase from its text; idempotent (already_done)",
+                "auth_required" => true,
+                "parameters" => ["content_id", "language", "text", "worker_id", "success", "provider", "audio", "audio_base64", "error"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/ai_tools/tts/phrase/audio",
+                "method" => "GET",
+                "feature" => "Resolve Phrase Audio",
+                "description" => "File-first resolution of one phrase's audio by text or content_id; 404 when missing, promoted to the phrase_audio lane head unless passive=1; stream=1 returns the MP3",
+                "auth_required" => false,
+                "parameters" => ["text", "content_id", "language", "passive", "stream"]
+            ],
+            [
                 "path" => "/api/app_qy_v1/ai_tools/tts/generate",
                 "method" => "POST",
                 "feature" => "Generate TTS",
@@ -728,6 +744,14 @@ class AppQyV1ApiInfo
                 "description" => "Retrieval hook: a passage's phrases + grammar points by segment_index or covering seq",
                 "auth_required" => false,
                 "parameters" => ["source_type", "source_key", "segment_index", "seq"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/phrases/by_sentences",
+                "method" => "POST",
+                "feature" => "Phrases By Sentences",
+                "description" => "Phrases of up to 500 sentences in request order: status pending|done|none|failed|unknown and phrases {content_id, text, meaning, has_audio, version}; pending sentences are raised in the extraction queue (Sanctum or client key)",
+                "auth_required" => true,
+                "parameters" => ["language", "content_ids"]
             ],
 
             // Cover pipeline dashboard endpoints

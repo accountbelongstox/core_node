@@ -12,10 +12,10 @@ use App\Support\TableRowEstimate;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Per-language figures of one audio gap lane (word_audio | sentence_audio)
- * for every language at once: gap, failed and live-leased rows from ONE
- * UNION ALL over the lane's gap partial indexes, sentence rows outside the
- * library from one more, and the table totals from one pg_class read.
+ * Per-language figures of one audio gap lane (word_audio | sentence_audio |
+ * phrase_audio) for every language at once: gap, failed and live-leased rows
+ * from ONE UNION ALL over the lane's gap partial indexes, rows outside the
+ * lane's work (sentences outside the library) from one more, and the table totals from one pg_class read.
  * Cached as one snapshot per lane (single-flight fill, stale served while a
  * refresh runs), so pool, node, progress and listing summaries never loop
  * languages on a request path. Tables not yet aligned (lease or gap columns
@@ -50,7 +50,7 @@ final class GapLaneSnapshot
     private static function compute(string $lane): array
     {
         $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-        $isWord = $lane === WorkLeaseLanes::WORD_AUDIO;
+        $notLivePredicate = WorkLeaseLanes::notLive($lane);
         $tables = [];
         $figures = [];
         $notLive = [];
@@ -58,15 +58,15 @@ final class GapLaneSnapshot
         foreach (WorkLeaseLanes::languages($lane) as $language) {
             $tables[$language] = WorkLeaseLanes::table($lane, $language);
         }
-        $tables = PerLanguage::requireColumns($connection, $tables, AppQyV1MediaGaps::indexedColumns($isWord));
+        $tables = PerLanguage::requireColumns($connection, $tables, WorkLeaseLanes::requiredColumns($lane));
         $populated = TableRowEstimate::populated($connection, $tables);
         $tables = array_intersect_key($tables, $populated);
         if ($tables === []) {
             return [];
         }
         $gaps = self::gapFigures($connection, $tables, $lane);
-        if (!$isWord) {
-            $notLive = PerLanguage::countByLanguage($connection, $tables, AppQyV1MediaGaps::SENTENCE_NOT_LIVE);
+        if ($notLivePredicate !== null) {
+            $notLive = PerLanguage::countByLanguage($connection, $tables, $notLivePredicate);
         }
         foreach ($populated as $language => $rows) {
             $gap = (int) ($gaps[$language]['gap'] ?? 0);

@@ -6,7 +6,7 @@
  */
 import contract from '../../../../config/audio_orchestration_contract.json';
 
-export const AUDIO_ORCH_STEP_TYPES = ['words_new', 'words_all', 'sentence_zh', 'sentence_en'] as const;
+export const AUDIO_ORCH_STEP_TYPES = ['words_new', 'words_all', 'sentence_zh', 'sentence_en', 'phrases'] as const;
 export const AUDIO_ORCH_OUTPUT_MODES = ['audio', 'video'] as const;
 export const AUDIO_ORCH_SEGMENT_MODES = ['count', 'minutes'] as const;
 export const AUDIO_ORCH_WORD_MODES = ['new_only', 'all'] as const;
@@ -19,7 +19,7 @@ export type AudioOrchWordMode = (typeof AUDIO_ORCH_WORD_MODES)[number];
 export interface AudioOrchPatternStep {
   type: AudioOrchStepType;
   times: number;
-  /** Word steps: after each word, read its short Chinese meaning. */
+  /** Word and phrase steps: after each word / phrase, read its short Chinese meaning. */
   meaning?: boolean;
 }
 
@@ -39,6 +39,29 @@ const DEFAULT_PATTERN: readonly AudioOrchPatternStep[] = contract.default_patter
   times: step.times,
   ...('meaning' in step && step.meaning ? { meaning: true } : {}),
 }));
+
+/** Phrase pipeline (contract `phrase_pipeline`, docs_fix/DESIGN_PHRASE_PIPELINE.md): identity, languages and the audio lane of phrase clips. */
+export const AUDIO_ORCH_PHRASE_PIPELINE = {
+  kind: contract.phrase_pipeline.kind,
+  /** Sentence languages that get phrases. */
+  languages: contract.phrase_pipeline.languages as readonly string[],
+  /** Language of a phrase's meaning clip (a sentence-kind clip, like word meanings). */
+  meaningLanguage: contract.phrase_pipeline.meaning_language,
+  maxPhrasesPerSentence: contract.phrase_pipeline.extraction.max_phrases_per_sentence,
+  phraseMaxWords: contract.phrase_pipeline.extraction.phrase_max_words,
+  phraseMaxChars: contract.phrase_pipeline.extraction.phrase_max_chars,
+  /** Work-lease / generate lane of phrase audio. */
+  audioLane: contract.phrase_pipeline.audio.lane,
+} as const;
+
+/** Step types whose `meaning` option reads a Chinese meaning clip after each item (contract `step_options`). */
+export const AUDIO_ORCH_MEANING_STEP_TYPES: readonly AudioOrchStepType[] = ['words_new', 'words_all', 'phrases'];
+
+/** Book plan request flags the client derives from the pattern (contract `book_plan.plan_request`). */
+export const AUDIO_ORCH_PLAN_REQUEST_FLAGS = {
+  includeWords: 'include_words',
+  includePhrases: 'include_phrases',
+} as const satisfies Record<string, keyof typeof contract.book_plan.plan_request>;
 
 export const AUDIO_ORCH_DEFAULT_OUTPUT_MODE = member(AUDIO_ORCH_OUTPUT_MODES, contract.default_output_mode, 'default_output_mode');
 export const AUDIO_ORCH_DEFAULT_SEGMENT_MODE = member(AUDIO_ORCH_SEGMENT_MODES, contract.default_segment_mode, 'default_segment_mode');

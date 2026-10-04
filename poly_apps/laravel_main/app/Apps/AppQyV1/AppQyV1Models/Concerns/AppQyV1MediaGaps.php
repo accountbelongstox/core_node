@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * The one definition of "missing audio" / "missing translation" for the
- * per-language dictionary (word) and sentence tables.
+ * per-language dictionary (word), sentence and phrase tables.
  *
  * Every scanner, lane, listing, count and claim query applies these
- * predicates; ensureWordIndexes() / ensureSentenceIndexes() build the partial
+ * predicates; ensureWordIndexes() / ensureSentenceIndexes() / ensurePhraseIndexes() build the partial
  * indexes on the SAME SQL text,
  * so the planner serves every gap query from them.
  */
@@ -53,6 +53,15 @@ final class AppQyV1MediaGaps
     /** Sentence rows outside the library (obsolete or ad-hoc playback text). */
     public const SENTENCE_NOT_LIVE = 'NOT (' . self::SENTENCE_LIVE . ')';
 
+    /** Phrase without audio (lane phrase_audio; an existing phrase with audio never re-enters the gap). */
+    public const PHRASE_AUDIO = self::NO_AUDIO;
+
+    /** Live sentence whose phrases were never extracted (phrase_status NULL = pending). */
+    public const SENTENCE_PHRASES = 'phrase_status IS NULL AND ' . self::SENTENCE_LIVE;
+
+    /** Sentence holding a phrase-extraction lease (live or expired). */
+    public const SENTENCE_PHRASE_LEASED = 'phrase_lease_id IS NOT NULL';
+
     /** A gap row whose retry budget ran out (out of the lease pool until a reset or the resurfacing sweep). */
     public const TTS_FAILED = "tts_status = 'failed'";
 
@@ -68,10 +77,14 @@ final class AppQyV1MediaGaps
     ];
     private const SENTENCE_LIVE_READS = ['obsolete_at', 'origin'];
     private const SENTENCE_AUDIO_READS = ['has_audio', 'obsolete_at', 'origin'];
+    private const SENTENCE_PHRASES_READS = ['phrase_status', 'obsolete_at', 'origin'];
+    private const PHRASE_AUDIO_READS = ['has_audio'];
 
     private const WORD_INDEX_PREFIX = 'idx_dct_';
     private const SENTENCE_INDEX_PREFIX = 'idx_sent_';
+    private const PHRASE_INDEX_PREFIX = 'idx_phr_';
     private const LEASE_EXPIRY_INDEX = '_lease_expiry';
+    private const PHRASE_AUDIO_LANE = 'phrase_audio';
 
     /** Gap key => predicate (the keys name the partial indexes). */
     public const WORD_GAPS = [
@@ -111,7 +124,74 @@ final class AppQyV1MediaGaps
      */
     public static function ensureSentenceIndexes(string $connection, string $language): void
     {
-        self::ensureIndexes($connection, AppQyV1TableMaps::getSentenceTableName($language), self::indexDefinitions(false, $language));
+        self::ensureIndexes(
+            $connection,
+            AppQyV1TableMaps::getSentenceTableName($language),
+            [...self::indexDefinitions(false, $language), ...self::sentencePhraseIndexDefinitions($language)]
+        );
+    }
+
+    /**
+     * Idempotently creates one language's phrase-table gap and lease indexes
+     * (prefix idx_phr_<lang>). Called by the sys:init phrase table alignment
+     * after it creates/aligns the table; an index whose columns the table
+     * lacks yet is skipped.
+     */
+    public static function ensurePhraseIndexes(string $connection, string $language): void
+    {
+        self::ensureIndexes($connection, AppQyV1TableMaps::getPhraseTableName($language), self::phraseIndexDefinitions($language));
+    }
+
+    /**
+     * Phrase-extraction indexes of one language's sentence table: the gap
+     * claim head idx_sent_<lang>_phrase_gap (phrase_priority DESC, id) on
+     * SENTENCE_PHRASES and the phrase-lease expiry the stale-lease sweep reads.
+     * Kept apart from indexDefinitions() so the audio lanes' column checks do
+     * not depend on the phrase columns.
+     *
+     * @return array<int,array{name:string,columns:array<int,string>,where:string,reads:array<int,string>}>
+     */
+    public static function sentencePhraseIndexDefinitions(string $language): array
+    {
+        $prefix = self::SENTENCE_INDEX_PREFIX . self::indexSuffix($language);
+
+        return [
+            ['name' => $prefix . '_phrase_gap', 'columns' => ['phrase_priority DESC', 'id'], 'where' => self::SENTENCE_PHRASES, 'reads' => ['phrase_priority', 'id', ...self::SENTENCE_PHRASES_READS]],
+            ['name' => $prefix . '_phrase' . self::LEASE_EXPIRY_INDEX, 'columns' => ['phrase_lease_expires_at'], 'where' => self::SENTENCE_PHRASE_LEASED, 'reads' => ['phrase_lease_expires_at', 'phrase_lease_id']],
+        ];
+    }
+
+    /**
+     * Every partial index of one language's phrase table: keyset gap listing
+     * (id), the work-lease claim order (contract work_leases.rank.phrase_audio)
+     * over gap rows still in the pool, the live-lease expiry the reaper reads
+     * and the failed rows the resurfacing sweep walks by id.
+     *
+     * @return array<int,array{name:string,columns:array<int,string>,where:string,reads:array<int,string>}>
+     */
+    public static function phraseIndexDefinitions(string $language): array
+    {
+        $prefix = self::PHRASE_INDEX_PREFIX . self::indexSuffix($language);
+        $rank = self::laneRank(self::PHRASE_AUDIO_LANE);
+
+        return [
+            ['name' => $prefix . '_gap_audio_id', 'columns' => ['id'], 'where' => self::PHRASE_AUDIO, 'reads' => ['id', ...self::PHRASE_AUDIO_READS]],
+            ['name' => $prefix . '_gap_audio_free_lease', 'columns' => $rank, 'where' => self::PHRASE_AUDIO . ' AND ' . self::TTS_NOT_FAILED, 'reads' => [...self::columnNames($rank), ...self::PHRASE_AUDIO_READS, 'tts_status']],
+            ['name' => $prefix . self::LEASE_EXPIRY_INDEX, 'columns' => ['tts_lease_expires_at'], 'where' => 'tts_lease_id IS NOT NULL', 'reads' => ['tts_lease_expires_at', 'tts_lease_id']],
+            ['name' => $prefix . '_tts_failed_id', 'columns' => ['id'], 'where' => self::TTS_FAILED, 'reads' => ['id', 'tts_status']],
+        ];
+    }
+
+    /** Every column phraseIndexDefinitions() reads on a phrase table. */
+    public static function phraseIndexedColumns(): array
+    {
+        return array_values(array_unique(array_merge(...array_column(self::phraseIndexDefinitions('en'), 'reads'))));
+    }
+
+    /** Name of the live-lease expiry index (the reaper's scan) on one language's phrase table. */
+    public static function phraseLeaseExpiryIndex(string $language): string
+    {
+        return self::PHRASE_INDEX_PREFIX . self::indexSuffix($language) . self::LEASE_EXPIRY_INDEX;
     }
 
     /**
@@ -199,8 +279,12 @@ final class AppQyV1MediaGaps
     /** @return array<int,string> contract work_leases.rank of the word or sentence lane */
     private static function leaseRank(bool $wordTable): array
     {
-        $lane = $wordTable ? 'word_audio' : 'sentence_audio';
+        return self::laneRank($wordTable ? 'word_audio' : 'sentence_audio');
+    }
 
+    /** @return array<int,string> contract work_leases.rank of one lane */
+    private static function laneRank(string $lane): array
+    {
         return array_map('trim', explode(',', (string) (QueueCenterContract::section('work_leases')['rank'][$lane] ?? 'id')));
     }
 

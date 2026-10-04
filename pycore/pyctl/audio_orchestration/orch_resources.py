@@ -1,17 +1,19 @@
 import hashlib
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import map_bus_tasks
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.phrase_pipeline_contract import PHRASE_AUDIO_BATCH_CHUNK_SIZE, PHRASE_AUDIO_LANE
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_SENTENCE_AUDIO, laravel_delivery_diff_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
-from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
+from pycore.pyutils.tts import phrase_audio_cache, sentence_audio_cache, word_audio_cache
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_LANES,
@@ -31,7 +33,7 @@ from pycore.pyutils.tts.engine_policy import (
     tts_engine_supports_language,
 )
 from pycore.pyutils.tts.tts_orchestrator import synthesize
-from pycore.pyctl.audio_orchestration import orch_promote
+from pycore.pyctl.audio_orchestration import orch_contract, orch_promote
 from pycore.pyctl.laravel.worker.work_leases import PROGRESS_STALL_SECONDS
 from pycore.pyctl.audio_orchestration.orch_messages import (
     ORCH_MSG_RESOURCE_CHECKING_CACHE,
@@ -39,6 +41,7 @@ from pycore.pyctl.audio_orchestration.orch_messages import (
     ORCH_MSG_RESOURCE_GENERATING,
     ORCH_MSG_RESOURCE_SCAN_PROGRESS,
     ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE,
+    ORCH_MSG_PHRASE_BATCH,
     ORCH_MSG_RESOURCE_WAITING_LANE,
     ORCH_MSG_SENTENCE_RESOLVING,
     ORCH_MSG_WORD_BATCH,
@@ -56,11 +59,36 @@ RESOLVE_CHUNK_SIZE = 40
 # worker draining the same Part1 can share the work item by item.
 WORD_BATCH_CHUNK_SIZE = 200
 WORD_BATCH_CRASHED_ERROR = "word_batch_crashed"
+PHRASE_BATCH_CRASHED_ERROR = "phrase_batch_crashed"
 LARAVEL_AUDIO_HEALTH_TTL_SECONDS = 30.0
+# Clip kinds identified by media_content_id(text); a word is identified by its lower-cased text.
+CONTENT_ID_KINDS = ("sentence", orch_contract.PHRASE_KIND)
+
+
+@dataclass(frozen=True)
+class BatchLane:
+    """A lane whose misses are generated in bounded Kokoro batches (never one by one)."""
+
+    lane: str
+    kind: str
+    chunk_size: int
+    crashed_error: str
+    activity_code: str
+    staging_dir: str
+
+
+BATCH_LANES = (
+    BatchLane("word_audio", "word", WORD_BATCH_CHUNK_SIZE, WORD_BATCH_CRASHED_ERROR, ORCH_MSG_WORD_BATCH, "word_batch"),
+    BatchLane(
+        PHRASE_AUDIO_LANE, orch_contract.PHRASE_KIND, PHRASE_AUDIO_BATCH_CHUNK_SIZE,
+        PHRASE_BATCH_CRASHED_ERROR, ORCH_MSG_PHRASE_BATCH, "phrase_batch",
+    ),
+)
+BATCH_LANE_BY_NAME = {spec.lane: spec for spec in BATCH_LANES}
 
 
 def resource_id(kind: str, language: str, text: str) -> str:
-    content = media_content_id(text) if kind == "sentence" else text.strip().lower()
+    content = media_content_id(text) if kind in CONTENT_ID_KINDS else text.strip().lower()
     return hashlib.sha256(f"{kind}:{language}:{content}".encode("utf-8")).hexdigest()
 
 
@@ -102,6 +130,40 @@ def sentence_cache_hits(texts: List[str], language: str) -> Dict[str, Path]:
     return sentence_audio_cache.lookup_many(
         texts, language, speaker, instruct, _sentence_engines(language), "mp3", model, speed,
     )
+
+
+def _by_language(resources: List[Dict[str, Any]], kind: str) -> Dict[str, List[Dict[str, Any]]]:
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for resource in resources:
+        if resource["kind"] == kind:
+            groups.setdefault(str(resource["language"]), []).append(resource)
+    return groups
+
+
+def _batch_cache_hits(
+    kind: str,
+    language: str,
+    group: List[Dict[str, Any]],
+    cancel_requested: Optional[Callable[[], bool]] = None,
+    scan_callback: Optional[Callable[[int], None]] = None,
+) -> Dict[str, Path]:
+    """``{resource_id: cached clip}`` of one language group of a batch lane kind."""
+    if kind == "word":
+        hits = word_audio_cache.find_cached_many(
+            [entry["text"] for entry in group], language,
+            cancel_requested=cancel_requested, scan_callback=scan_callback,
+        )
+        by_resource = {entry["resource_id"]: hits.get(str(entry["text"]).strip().lower()) for entry in group}
+    else:
+        hits = phrase_audio_cache.find_cached_many([entry["text"] for entry in group], language)
+        by_resource = {entry["resource_id"]: hits.get(entry["text"]) for entry in group}
+    return {resource: path for resource, path in by_resource.items() if path is not None}
+
+
+def _synthesize_batch(spec: BatchLane, texts: List[str], language: str, directory: Path) -> List[Dict[str, Any]]:
+    if spec.kind == "word":
+        return kokoro_batch.synthesize_words_to_cache(texts, language, directory)
+    return kokoro_batch.synthesize_phrases_to_cache(texts, language, directory)
 
 
 def _store_sentence_cache(text: str, language: str, data: bytes) -> Optional[Path]:
@@ -302,29 +364,26 @@ def resolve_batch(
         if activity_callback is not None:
             activity_callback(resource, {"stage": code, "params": params})
 
-    words_by_lang: Dict[str, List[Dict[str, Any]]] = {}
-    for resource in items:
-        if resource["kind"] == "word":
-            words_by_lang.setdefault(str(resource["language"]), []).append(resource)
-    for language, group in words_by_lang.items():
-        if _cancelled():
-            return results
-        _activity(group[0], ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE, language=language, count=0)
-        hits = word_audio_cache.find_cached_many(
-            [entry["text"] for entry in group], language,
-            cancel_requested=cancel_requested,
-            scan_callback=(lambda count: _activity(
-                group[0], ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE, language=language, count=count,
-            )) if activity_callback is not None else None,
-        )
-        for resource in group:
+    for spec in BATCH_LANES:
+        for language, group in _by_language(items, spec.kind).items():
             if _cancelled():
                 return results
-            path = hits.get(str(resource["text"]).strip().lower())
-            if path is not None and validate_mp3(str(path))[0]:
-                _completed(resource, {
-                    "audio_path": str(path), "source": "cache", "provider": "cache", "status": "ready",
-                })
+            if spec.kind == "word":
+                _activity(group[0], ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE, language=language, count=0)
+            hits = _batch_cache_hits(
+                spec.kind, language, group, cancel_requested,
+                (lambda count, group=group, language=language: _activity(
+                    group[0], ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE, language=language, count=count,
+                )) if activity_callback is not None and spec.kind == "word" else None,
+            )
+            for resource in group:
+                if _cancelled():
+                    return results
+                path = hits.get(resource["resource_id"])
+                if path is not None and validate_mp3(str(path))[0]:
+                    _completed(resource, {
+                        "audio_path": str(path), "source": "cache", "provider": "cache", "status": "ready",
+                    })
 
     for scan_index, resource in enumerate(items, 1):
         if _cancelled():
@@ -353,7 +412,7 @@ def resolve_batch(
     # owned by this orchestration task. Never notifies Laravel.
     orch_promote.promote_missing_to_queue_head(misses, base_url, owner)
     queue_key = {resource["resource_id"]: orch_promote.resource_queue_key(resource) for resource in misses}
-    deferred: Dict[str, List[Dict[str, Any]]] = {"word_audio": [], "sentence_audio": []}
+    deferred: Dict[str, List[Dict[str, Any]]] = {}
 
     def _claim(lane: str, chunk: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Take this owner's items; ones being generated right now (a lane
@@ -363,7 +422,7 @@ def resolve_batch(
         own: List[Dict[str, Any]] = []
         for resource in chunk:
             if queue_key[resource["resource_id"]] in inflight:
-                deferred[lane].append(resource)
+                deferred.setdefault(lane, []).append(resource)
             else:
                 own.append(resource)
         return own
@@ -378,13 +437,13 @@ def resolve_batch(
             for resource, result in pairs
         }, owner)
 
-    def _word_batch(language: str, group: List[Dict[str, Any]]) -> None:
-        """Pinned Kokoro batch for this owner's word misses (never per-word).
+    def _lane_batch(spec: BatchLane, language: str, group: List[Dict[str, Any]]) -> None:
+        """Pinned Kokoro batch for this owner's word / phrase misses (never one by one).
 
         The claimed keys are always settled: a batch that raises settles the
         whole chunk as failed before the error propagates."""
         _activity(
-            group[0], ORCH_MSG_WORD_BATCH,
+            group[0], spec.activity_code,
             engine=runtime_profile.WORD_BATCH_ENGINE, language=language, count=len(group),
         )
         pairs = [
@@ -392,13 +451,13 @@ def resolve_batch(
                 "source": "missing",
                 "status": "failed",
                 "provider": runtime_profile.WORD_BATCH_ENGINE,
-                "error": WORD_BATCH_CRASHED_ERROR,
+                "error": spec.crashed_error,
             })
             for resource in group
         ]
         try:
-            outcomes = kokoro_batch.synthesize_words_to_cache(
-                [resource["text"] for resource in group], language, staging / "word_batch" / language,
+            outcomes = _synthesize_batch(
+                spec, [resource["text"] for resource in group], language, staging / spec.staging_dir / language,
             )
             pairs = [
                 (resource, {
@@ -415,21 +474,18 @@ def resolve_batch(
                 for resource, outcome in zip(group, outcomes)
             ]
         finally:
-            _settle("word_audio", pairs)
+            _settle(spec.lane, pairs)
             for resource, result in pairs:
                 _completed(resource, result)
 
-    word_misses_by_language: Dict[str, List[Dict[str, Any]]] = {}
-    for resource in misses:
-        if resource["kind"] == "word":
-            word_misses_by_language.setdefault(str(resource["language"]), []).append(resource)
-    for language, group in word_misses_by_language.items():
-        for chunk_start in range(0, len(group), WORD_BATCH_CHUNK_SIZE):
-            if _cancelled():
-                break
-            own = _claim("word_audio", group[chunk_start:chunk_start + WORD_BATCH_CHUNK_SIZE])
-            if own:
-                _word_batch(language, own)
+    for spec in BATCH_LANES:
+        for language, group in _by_language(misses, spec.kind).items():
+            for chunk_start in range(0, len(group), spec.chunk_size):
+                if _cancelled():
+                    break
+                own = _claim(spec.lane, group[chunk_start:chunk_start + spec.chunk_size])
+                if own:
+                    _lane_batch(spec, language, own)
 
     def _engine_exclusions(resource: Dict[str, Any]) -> tuple:
         # Sentences rotate their model chain across the bounded resolver lanes.
@@ -469,9 +525,9 @@ def resolve_batch(
 
     # Items a lane worker already popped: await its outcome, then read the
     # shared cache. A lane-settled sentence was already reported to Laravel
-    # by the sentence lane (domain report); words are synchronized by us.
-    # Failed / timed-out lane words go back through the Kokoro batch, never
-    # through a per-word synthesis.
+    # by the sentence lane (domain report); words and phrases are synchronized
+    # by us. Failed / timed-out lane words and phrases go back through the
+    # Kokoro batch, never through a per-item synthesis.
     def _lane_result(entry: Dict[str, Any], lane: str, result: Dict[str, Any]) -> Dict[str, Any]:
         if entry.get("state") == TRACK_DONE and result.get("status") == "ready" and result.get("source") == "cache":
             return {
@@ -492,17 +548,15 @@ def resolve_batch(
             lambda code, params, first=waiting[0]: _activity(first, code, **params),
             owner,
         )
-        if lane == "word_audio":
-            retry_by_language: Dict[str, List[Dict[str, Any]]] = {}
-            for resource in waiting:
-                retry_by_language.setdefault(str(resource["language"]), []).append(resource)
-            for language, group in retry_by_language.items():
+        spec = BATCH_LANE_BY_NAME.get(lane)
+        if spec is not None:
+            for language, group in _by_language(waiting, spec.kind).items():
                 if _cancelled():
                     break
-                hits = word_audio_cache.find_cached_many([resource["text"] for resource in group], language)
+                hits = _batch_cache_hits(spec.kind, language, group)
                 retry: List[Dict[str, Any]] = []
                 for resource in group:
-                    path = hits.get(str(resource["text"]).strip().lower())
+                    path = hits.get(resource["resource_id"])
                     if path is None or not validate_mp3(str(path))[0]:
                         retry.append(resource)
                         continue
@@ -510,10 +564,10 @@ def resolve_batch(
                     _completed(resource, _lane_result(entry, lane, {
                         "audio_path": str(path), "source": "cache", "provider": "cache", "status": "ready",
                     }))
-                for chunk_start in range(0, len(retry), WORD_BATCH_CHUNK_SIZE):
+                for chunk_start in range(0, len(retry), spec.chunk_size):
                     if _cancelled():
                         break
-                    _word_batch(language, retry[chunk_start:chunk_start + WORD_BATCH_CHUNK_SIZE])
+                    _lane_batch(spec, language, retry[chunk_start:chunk_start + spec.chunk_size])
             continue
         for resource in waiting:
             if _cancelled():
@@ -535,7 +589,7 @@ def wake_owner(owner: str) -> None:
 
 
 def release_owner_queue(owner: str) -> None:
-    """Drop the owner's still-queued Part1 items from both lane queues."""
+    """Drop the owner's still-queued Part1 items from every lane queue."""
     if not owner:
         return
     for lane in AUDIO_QUEUE_LANES:

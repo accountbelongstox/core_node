@@ -55,6 +55,8 @@ def segment_timeline(
         }
         if item.get("seq") is not None:
             entry["seq"] = item["seq"]
+        if item.get("meaning_of"):
+            entry["meaning_of"] = item["meaning_of"]
         timeline.append(entry)
         cursor += durations[path] + (gap_seconds if index < len(files) - 1 else 0.0)
     return timeline

@@ -267,6 +267,34 @@ class AppQyV1Initializer implements AppInitializerInterface
             ];
         }
 
+        // Phrase pipeline: align phrase/link tables and indexes, re-pool failed
+        // extractions, release expired phrase leases, log the gaps (idempotent).
+        try {
+            $phrases = (new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1PhrasePipelineRepair())->run();
+            $results['phrase_pipeline'] = [
+                'status' => $phrases['errors'] > 0 ? 'error' : 'success',
+                'message' => __('app_qy_v1.messages.init_phrase_pipeline_aligned', [
+                    'tables' => count($phrases['tables']),
+                    'repooled' => $phrases['repooled'],
+                    'released' => $phrases['released'],
+                    'sentences' => array_sum(array_column($phrases['gaps'], 'sentences')),
+                    'phrases' => array_sum(array_column($phrases['gaps'], 'phrase_audio')),
+                ]),
+                'description' => 'Align phrase pipeline tables and re-pool failed phrase extraction',
+                'gaps' => $phrases['gaps'],
+            ];
+            if (PHP_SAPI === 'cli') {
+                echo "    [AppQyV1] Phrase pipeline: {$results['phrase_pipeline']['message']}\n";
+            }
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] phrase pipeline alignment error: ' . $e->getMessage());
+            $results['phrase_pipeline'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Align phrase pipeline tables and re-pool failed phrase extraction',
+            ];
+        }
+
         // SELF-HEAL: sentence audio below the quality floor (provider not an accepted engine)
         // returns to the pool; the next accepted report replaces the file.
         try {

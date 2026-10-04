@@ -17,11 +17,13 @@ from pycore.pyctl.assist.wiring import (
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
 from pycore.pyctl.tts.laravel_audio_worker import laravel_sentence_audio_worker
+from pycore.pyctl.tts.laravel_audio_worker import laravel_phrase_audio_worker
 
 _RUNTIME_CALLBACKS = (
     "translation_worker",
     "tts_queue_poller",
     "tts_sentence_worker",
+    "tts_phrase_worker",
     "subtitle_search_worker",
 )
 
@@ -37,7 +39,8 @@ def assist_status(include_laravel: bool = False) -> Dict[str, Any]:
         translation_status = translation_worker_service.get_status()
         word_status = laravel_word_audio_worker.get_status()
         sentence_status = laravel_sentence_audio_worker.get_status()
-        worker_statuses = (translation_status, word_status, sentence_status)
+        phrase_status = laravel_phrase_audio_worker.get_status()
+        worker_statuses = (translation_status, word_status, sentence_status, phrase_status)
         endpoint = resolve_selected_endpoint_for_ui(monitor_reachable=False)
         processor_enabled = bool(
             settings["enabled"] and any(settings["capabilities"].values())
@@ -135,6 +138,7 @@ def assist_cycle(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         translation_worker_service.pull_once(),
         laravel_word_audio_worker.pull_once(),
         laravel_sentence_audio_worker.pull_once(),
+        laravel_phrase_audio_worker.pull_once(),
     ]
     return {
         "ok": True,

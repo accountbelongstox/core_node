@@ -12,6 +12,7 @@ import type {
   WfNewOrchClientTaskRow,
   WfNewOrchClientTaskWrite,
 } from '../types/orchAudio';
+import { AUDIO_ORCH_PLAN_REQUEST_FLAGS } from '../../../../core/contracts/AudioOrchestrationContract';
 import { WfNewApiPaths } from '../WfNewApiPaths';
 import { authedGetFreshJSON, authedPostJSON, deleteJSON, requireAuthToken, unwrapEnvelope } from '../WfNewApiTransport';
 
@@ -180,7 +181,8 @@ export const orchClientTaskMethods = {
       source_key: request.sourceKey,
       chapter_index: request.chapterIndex,
       languages: request.languages,
-      include_words: request.includeWords,
+      [AUDIO_ORCH_PLAN_REQUEST_FLAGS.includeWords]: request.includeWords,
+      [AUDIO_ORCH_PLAN_REQUEST_FLAGS.includePhrases]: request.includePhrases,
       position: request.position,
       plan_hash: request.planHash,
     }));

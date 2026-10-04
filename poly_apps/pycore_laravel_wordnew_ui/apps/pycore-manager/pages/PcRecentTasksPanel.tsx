@@ -27,14 +27,10 @@ const RecentStatusIcon: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   return <XCircle className="w-4 h-4 text-rose-500 shrink-0" />;
 };
 
-const COMPLETED_TASK_TYPE_LABEL_KEY: Record<CanonicalCompletedTaskType, string> = {
-  word_audio: 'wordAudio',
-  sentence_audio: 'sentenceAudio',
-  article_audio: 'articleAudio',
-  translation: 'translation',
-  assist: 'assist',
-  media_image: 'mediaImage',
-};
+/** Locale key of a history bucket: its snake_case contract id in camelCase (phrase_audio -> phraseAudio). */
+const completedTypeLabelKey = (taskType: CanonicalCompletedTaskType): string => (
+  taskType.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase())
+);
 
 const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = () => {
   const { t } = useTranslation('pc');
@@ -61,7 +57,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = () => {
   );
 
   const chipLabel = useCallback((taskType: Exclude<CompletedTaskType, 'all'>) => (
-    t(`queueCenter.recent.type.${COMPLETED_TASK_TYPE_LABEL_KEY[taskType]}`)
+    t(`queueCenter.recent.type.${completedTypeLabelKey(taskType)}`)
   ), [t]);
 
   const typeEntries = useMemo(

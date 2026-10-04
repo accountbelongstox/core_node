@@ -1,9 +1,9 @@
 /**
  * One audio lane's Queue made visible: Part1 (local priority), Part2 (Laravel
  * backlog) and the whole Queue, plus the Part1 fill tracker. Used for the
- * word lane AND the sentence lane (each lane has its own Queue) in the Queue
+ * word, sentence AND phrase lanes (each lane has its own Queue) in the Queue
  * Center, and — scoped to one owner — inside an orchestration task to watch
- * that task's missing words / sentences get filled.
+ * that task's missing words / sentences / phrases get filled.
  *
  * Pure render of pycore-owned state (AudioLaneStateStore / owner views); it
  * never derives or caches lane state itself.
@@ -110,7 +110,7 @@ export function PcAudioLaneQueueView({
   compact?: boolean;
 }): ReactElement {
   const { t } = useTranslation('pc');
-  const title = lane === 'word_audio' ? t('queueCenter.audioLane.wordTitle') : t('queueCenter.audioLane.sentenceTitle');
+  const title = t(`queueCenter.audioLane.laneTitle.${lane}`);
   if (!view) {
     return (
       <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-[10px] text-slate-500 flex items-center gap-2">
@@ -131,7 +131,7 @@ export function PcAudioLaneQueueView({
 
   return (
     <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5 space-y-1.5">
-      <PcQueueProgress titleKey={lane === 'word_audio' ? 'queueCenter.progress.wordAudio' : 'queueCenter.progress.sentenceAudio'} report={report} />
+      <PcQueueProgress titleKey={`queueCenter.progress.lane.${lane}`} report={report} />
       {leases && (
         <p className="text-[10px] text-slate-500">
           {t('queueCenter.nodes.lease', { items: leases.items_leased, leases: leases.leases, seconds: Math.round(leases.claim_in_seconds) })}

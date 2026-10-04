@@ -40,6 +40,7 @@ class AppQyV1BookAudioPlanCtl extends Controller
             'languages' => ['required', 'array', 'min:1', 'max:' . self::LANGUAGES_MAX],
             'languages.*' => ['string', 'max:20'],
             'include_words' => ['nullable', 'boolean'],
+            'include_phrases' => ['nullable', 'boolean'],
             'position' => ['nullable', 'integer', 'min:0'],
             'plan_hash' => ['nullable', 'string', 'max:64'],
         ]);

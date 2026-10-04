@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Audio lane kinds of the shared Laravel delivery outbox.
 
-Each Laravel audio lane (word, sentence) registers kind ``audio_lane.<lane>``
+Each Laravel audio lane (word, sentence, phrase) registers kind ``audio_lane.<lane>``
 on ``laravel_delivery_outbox``. One row advances independently idempotent
 steps: domain report (payload, deduped per ``identity``), global task result
 (``result``), local task history (``history``).
@@ -134,7 +134,7 @@ class AudioLaneDelivery:
         provider = str(claimed.get("provider") or "")
         audio_path = str(claimed.get("payload_path") or "")
         attempts = int(claimed.get("delivery_attempts") or 1)
-        mirror = handler.LANE != "word"
+        mirror = not handler.BATCH_LANE
         handler._remember_task_types(
             [{"task_id": task_id, "task_type": str(claimed.get("task_type") or handler.QUEUE_KEY)}],
             str(claimed.get("base_url") or handler.api_url),
@@ -195,7 +195,7 @@ class AudioLaneDelivery:
                 info,
                 provider,
                 audio_path,
-                include_audio=not (domain_uploaded and str(info.get("kind") or "") in ("word", "sentence")),
+                include_audio=not (domain_uploaded and str(info.get("kind") or "") in ("word", "sentence", "phrase")),
             )
             posted = handler._post_result(
                 task_id,
@@ -273,7 +273,7 @@ class AudioLaneDelivery:
             "delivery_done",
             f"via {provider}; backend_upload={'ok' if outcome.get('domain_uploaded') else 'fallback'}; result=ok",
             info,
-            mirror=handler.LANE != "word",
+            mirror=not handler.BATCH_LANE,
         )
 
 

@@ -133,6 +133,8 @@ export async function getSentenceWordTable(
   groupId: string | null = null,
   /** API-side virtual read batch overlaid (read only) on the group read counts. */
   virtualBatch: string | null = null,
+  /** False: read counts only (no dictionary media lookup, nothing queued) for words whose media the caller holds. */
+  includeMedia = true,
 ): Promise<WordNewSentenceWordRow[]> {
   const payload = await post(WfNewApiPaths.sentenceWords, {
     sentence,
@@ -142,6 +144,7 @@ export async function getSentenceWordTable(
     max_read_count: Math.max(0, Math.min(100, Number(maxReadCount) || 0)),
     ...(groupId ? { group_id: groupId } : {}),
     ...(virtualBatch ? { virtual_batch: virtualBatch } : {}),
+    ...(includeMedia ? {} : { include_media: false }),
   });
   const rows = Array.isArray(payload?.data?.words) ? payload.data.words : [];
   const normalized = rows.map((row: WordNewSentenceWordRow) => {
@@ -156,7 +159,7 @@ export async function getSentenceWordTable(
       added_to_default_group: addedToTargetGroup,
     };
   });
-  prioritizeMissing(normalized, language, targetLanguage);
+  if (includeMedia) prioritizeMissing(normalized, language, targetLanguage);
   return normalized;
 }
 

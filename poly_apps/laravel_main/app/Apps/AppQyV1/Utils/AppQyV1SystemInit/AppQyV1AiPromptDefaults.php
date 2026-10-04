@@ -68,6 +68,44 @@ class AppQyV1AiPromptDefaults
         'required' => ['sentence_pairs', 'grammar_summary', 'liaison_notes', 'phrases'],
     ];
 
+    /** Prompt key of the phrase pipeline extraction (audio_orchestration_contract phrase_pipeline.extraction.prompt_key). */
+    public const SENTENCE_PHRASE_EXTRACTION = 'sentence_phrase_extraction';
+
+    /** Prompts run only by their own pipeline; never part of a request's default fan-out set. */
+    public const PIPELINE_PROMPT_KEYS = [self::SENTENCE_PHRASE_EXTRACTION];
+
+    /**
+     * Phrase extraction answer (docs_fix/DESIGN_PHRASE_PIPELINE.md §4): one item
+     * per input line number, each with its multi-word phrases (may be empty).
+     */
+    private const SENTENCE_PHRASE_EXTRACTION_SCHEMA = [
+        'type' => 'object',
+        'properties' => [
+            'items' => [
+                'type' => 'array',
+                'items' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'n' => ['type' => 'integer'],
+                        'phrases' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'text' => ['type' => 'string'],
+                                    'meaning' => ['type' => 'string'],
+                                ],
+                                'required' => ['text', 'meaning'],
+                            ],
+                        ],
+                    ],
+                    'required' => ['n', 'phrases'],
+                ],
+            ],
+        ],
+        'required' => ['items'],
+    ];
+
     /** The ONE canonical list of code-owned prompt defaults. */
     private const CODE_PROMPTS = [
         [
@@ -136,7 +174,50 @@ Respond with the dialogue only, formatted as alternating speaker lines (e.g. "A:
 PROMPT,
             'response_schema' => null,
         ],
+        [
+            'prompt_key' => self::SENTENCE_PHRASE_EXTRACTION,
+            'task_type' => 'phrase_extract',
+            'title' => 'Extract multi-word phrases from sentences',
+            'prompt_template' => <<<'PROMPT'
+You are a language-learning assistant. Extract the useful multi-word expressions from each {language} sentence below so a learner can study them as units.
+
+Sentences (one per line, "<n><TAB><sentence>"):
+{sentences}
+
+Respond with ONLY a single valid JSON object -- no markdown code fences, no commentary before or after -- matching EXACTLY this shape:
+{"items":[{"n":1,"phrases":[{"text":"<phrase copied from sentence n>","meaning":"<short meaning in {meaning_language}>"}]}]}
+
+Rules:
+- One entry in "items" per input line, using the same "n"; keep input order.
+- Each "text" is a multi-word expression: phrasal verb, collocation, idiom or fixed chunk (e.g. "give up", "make a decision", "in front of", "by the way").
+- Copy "text" verbatim from the sentence (same words and word order, same inflection as written); never paraphrase, translate or add words.
+- At least 2 words and at most {max_words} words per phrase; never return a single word.
+- At most {max_phrases} phrases per sentence, the most useful first; no duplicates within a sentence.
+- Skip proper names, numbers and plain word sequences that are not a fixed expression.
+- "meaning" is a short gloss of the phrase as used in the sentence, written in {meaning_language}.
+- When a sentence has no such expression, return "phrases": [] for it.
+- Output valid JSON only -- no prose before or after the JSON object.
+PROMPT,
+            'response_schema' => self::SENTENCE_PHRASE_EXTRACTION_SCHEMA,
+        ],
     ];
+
+    /**
+     * One code-owned prompt default by key (template + response_schema), or
+     * null; lets a caller run a code prompt before its row is seeded.
+     *
+     * @return array{prompt_key:string,task_type:string,title:string,prompt_template:string,response_schema:?array}|null
+     */
+    public static function codePrompt(string $promptKey): ?array
+    {
+        foreach (self::CODE_PROMPTS as $prompt) {
+            if ($prompt['prompt_key'] === $promptKey) {
+                return $prompt;
+            }
+        }
+
+        return null;
+    }
 
     /**
      * Idempotently upsert every code-owned prompt (source='code'). Never

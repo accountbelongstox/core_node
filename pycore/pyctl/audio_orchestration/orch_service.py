@@ -28,7 +28,7 @@ from pycore.pyctl.audio_orchestration.orch_queue import orch_queue
 from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
 from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
 
-_STEP_TYPES = ("sentence_en", "sentence_zh", "words_new", "words_all", "words")
+_STEP_TYPES = orch_contract.STEP_TYPES
 _WORD_MODES = ("new_only", "all")
 _SEGMENT_MODES = ("count", "minutes")
 # Defaults shared with the pycore-manager UI and the wordnew composer
@@ -95,7 +95,10 @@ def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any
             step_type = "words_new" if word_mode == "new_only" else "words_all"
         if step_type not in _STEP_TYPES:
             continue
-        steps.append({"type": step_type, "times": max(1, min(orch_contract.MAX_STEP_TIMES, int(entry.get("times") or 1)))})
+        step = {"type": step_type, "times": max(1, min(orch_contract.MAX_STEP_TIMES, int(entry.get("times") or 1)))}
+        if step_type == orch_contract.PHRASES_STEP_TYPE:
+            step["meaning"] = bool(entry.get("meaning"))
+        steps.append(step)
     return steps
 
 

@@ -35,6 +35,10 @@ ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE = "orch_resource_scanning_word_cache"
 ORCH_MSG_RESOURCE_WAITING_LANE = "orch_resource_waiting_lane"
 ORCH_MSG_RESOURCE_PREPARING = "orch_resource_preparing"
 ORCH_MSG_WORD_BATCH = "orch_word_batch"
+ORCH_MSG_PHRASE_BATCH = "orch_phrase_batch"
+ORCH_MSG_PHRASES_LOADING = "orch_phrases_loading"
+ORCH_MSG_PHRASES_FETCH_FAILED = "orch_phrases_fetch_failed"
+ORCH_MSG_PHRASES_PENDING = "orch_phrases_pending"
 ORCH_MSG_SENTENCE_RESOLVING = "orch_sentence_resolving"
 ORCH_MSG_RESOURCES_PROGRESS = "orch_resources_progress"
 ORCH_MSG_RESOURCES_READY = "orch_resources_ready"
@@ -91,6 +95,12 @@ _LOG_TEMPLATES: Dict[str, str] = {
     ORCH_MSG_RESOURCE_WAITING_LANE: "waiting for {pending} item(s) in progress on the {lane} lane",
     ORCH_MSG_RESOURCE_PREPARING: "preparing audio resource",
     ORCH_MSG_WORD_BATCH: "batch generating missing word audio with {engine} ({language}): {count} words",
+    ORCH_MSG_PHRASE_BATCH: "batch generating missing phrase audio with {engine} ({language}): {count} phrases",
+    ORCH_MSG_PHRASES_LOADING: "loading sentence phrases",
+    ORCH_MSG_PHRASES_FETCH_FAILED: "sentence phrases unavailable ({language}): {error}",
+    ORCH_MSG_PHRASES_PENDING: (
+        "{pending} of {total} sentences have no phrases yet; regenerate later to include them"
+    ),
     ORCH_MSG_SENTENCE_RESOLVING: "resolving sentence audio: {first}-{last}/{total}",
     ORCH_MSG_RESOURCES_PROGRESS: "resources: {index}/{total}",
     ORCH_MSG_RESOURCES_READY: (

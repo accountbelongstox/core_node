@@ -3,9 +3,13 @@
 namespace App\Services\WorkLeases;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangPhraseModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioBundleService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
+use App\Support\AudioOrchestrationContract;
 use App\Services\QueueCenter\DictLane\DictLaneCatalog;
 use App\Services\QueueCenter\GapLaneSnapshot;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PerLanguageMetricsModel;
@@ -23,6 +27,38 @@ final class WorkLeaseLanes
 {
     public const WORD_AUDIO = 'word_audio';
     public const SENTENCE_AUDIO = 'sentence_audio';
+    public const PHRASE_AUDIO = 'phrase_audio';
+
+    /** Gap lanes this class models, in contract order. */
+    private const KNOWN = [self::WORD_AUDIO, self::SENTENCE_AUDIO, self::PHRASE_AUDIO];
+
+    private const GAPS = [
+        self::WORD_AUDIO => AppQyV1MediaGaps::WORD_AUDIO,
+        self::SENTENCE_AUDIO => AppQyV1MediaGaps::SENTENCE_AUDIO,
+        self::PHRASE_AUDIO => AppQyV1MediaGaps::PHRASE_AUDIO,
+    ];
+
+    private const NOT_LIVE = [
+        self::SENTENCE_AUDIO => AppQyV1MediaGaps::SENTENCE_NOT_LIVE,
+    ];
+
+    private const KEY_COLUMNS = [
+        self::WORD_AUDIO => 'md5',
+        self::SENTENCE_AUDIO => 'content_id',
+        self::PHRASE_AUDIO => 'content_id',
+    ];
+
+    private const TEXT_COLUMNS = [
+        self::WORD_AUDIO => 'content',
+        self::SENTENCE_AUDIO => 'text',
+        self::PHRASE_AUDIO => 'text',
+    ];
+
+    /** Phrase columns the gap, failed and lease figures read (the rank columns are added from the contract). */
+    private const PHRASE_GAP_READS = ['id', 'has_audio', 'tts_status', 'tts_lease_id', 'tts_lease_expires_at'];
+
+    /** @var array<string,array<int,string>> lane => languages with a table (one listing per worker) */
+    private static array $tableLanguages = [];
 
     /**
      * A row is free when it carries no live lease; a failed row waits for the
@@ -50,7 +86,7 @@ final class WorkLeaseLanes
     {
         return array_values(array_intersect(
             (array) (QueueCenterContract::section('work_leases')['lanes'] ?? []),
-            [self::WORD_AUDIO, self::SENTENCE_AUDIO]
+            self::KNOWN
         ));
     }
 
@@ -59,46 +95,57 @@ final class WorkLeaseLanes
         return in_array($lane, self::lanes(), true);
     }
 
-    /** @var array<int,string>|null sentence languages with a table (one listing per worker) */
-    private static ?array $sentenceLanguages = null;
+    /** Whether $lane is one of the gap lanes this class models (contract listing aside). */
+    public static function isGapLane(string $lane): bool
+    {
+        return in_array($lane, self::KNOWN, true);
+    }
 
     /** Languages a lane can serve at all (a table exists; a word report also needs the language's report-id index). */
     public static function languages(string $lane): array
     {
         return $lane === self::WORD_AUDIO
             ? array_values(array_intersect(DictLaneCatalog::languages(), AppQyV1DictionaryTTSCoordinator::supportedLanguages()))
-            : self::sentenceLanguages();
+            : self::tableLanguages($lane);
     }
 
-    /** Sentence languages whose table exists: one information_schema read per worker (tables come from sys:init). */
-    private static function sentenceLanguages(): array
+    /** Languages whose lane table exists: one information_schema read per lane and worker (tables come from sys:init). */
+    private static function tableLanguages(string $lane): array
     {
         $tables = [];
 
-        if (self::$sentenceLanguages !== null) {
-            return self::$sentenceLanguages;
+        if (isset(self::$tableLanguages[$lane])) {
+            return self::$tableLanguages[$lane];
         }
         foreach (AppQyV1TableMaps::getSupportedLanguages() as $language) {
-            $tables[$language] = AppQyV1TableMaps::getSentenceTableName($language);
+            $tables[$language] = self::table($lane, $language);
         }
-        self::$sentenceLanguages = array_keys(AppQyV1PerLanguageMetricsModel::filterExistingTables(
+        self::$tableLanguages[$lane] = array_keys(AppQyV1PerLanguageMetricsModel::filterExistingTables(
             AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1),
             $tables
         ));
 
-        return self::$sentenceLanguages;
+        return self::$tableLanguages[$lane];
     }
 
     public static function table(string $lane, string $language): string
     {
-        return $lane === self::WORD_AUDIO
-            ? AppQyV1TableMaps::getDictionaryTableName($language)
-            : AppQyV1TableMaps::getSentenceTableName($language);
+        return match ($lane) {
+            self::WORD_AUDIO => AppQyV1TableMaps::getDictionaryTableName($language),
+            self::SENTENCE_AUDIO => AppQyV1TableMaps::getSentenceTableName($language),
+            self::PHRASE_AUDIO => AppQyV1TableMaps::getPhraseTableName($language),
+        };
     }
 
     public static function gap(string $lane): string
     {
-        return $lane === self::WORD_AUDIO ? AppQyV1MediaGaps::WORD_AUDIO : AppQyV1MediaGaps::SENTENCE_AUDIO;
+        return self::GAPS[$lane];
+    }
+
+    /** Rows of the lane table outside its work (counted neither as gap nor as done), or null when every row counts. */
+    public static function notLive(string $lane): ?string
+    {
+        return self::NOT_LIVE[$lane] ?? null;
     }
 
     /** Failed rows the resurfacing sweep returns to the pool: still in the lane's gap. */
@@ -115,12 +162,57 @@ final class WorkLeaseLanes
     /** Column holding the content key a delivery and a want entry use. */
     public static function keyColumn(string $lane): string
     {
-        return $lane === self::WORD_AUDIO ? 'md5' : 'content_id';
+        return self::KEY_COLUMNS[$lane];
     }
 
     public static function textColumn(string $lane): string
     {
-        return $lane === self::WORD_AUDIO ? 'content' : 'text';
+        return self::TEXT_COLUMNS[$lane];
+    }
+
+    /** Columns the lane snapshot reads (a table not yet aligned by sys:init is left out). */
+    public static function requiredColumns(string $lane): array
+    {
+        return match ($lane) {
+            self::WORD_AUDIO => AppQyV1MediaGaps::indexedColumns(true),
+            self::SENTENCE_AUDIO => AppQyV1MediaGaps::indexedColumns(false),
+            self::PHRASE_AUDIO => array_values(array_unique(array_merge(
+                self::PHRASE_GAP_READS,
+                array_map(static fn (string $column): string => (string) preg_split('/\s+/', trim($column), 2)[0], explode(',', self::rank($lane)))
+            ))),
+        };
+    }
+
+    /** Name of the live-lease expiry index (the reaper's scan) on one language's lane table. */
+    public static function leaseExpiryIndex(string $lane, string $language): string
+    {
+        return match ($lane) {
+            self::WORD_AUDIO => AppQyV1MediaGaps::leaseExpiryIndex(true, $language),
+            self::SENTENCE_AUDIO => AppQyV1MediaGaps::leaseExpiryIndex(false, $language),
+            self::PHRASE_AUDIO => AppQyV1MediaGaps::phraseLeaseExpiryIndex($language),
+        };
+    }
+
+    /** Clip resource kind of a lane's rows (clip.leased / clip.ready ids). */
+    public static function resourceKind(string $lane): string
+    {
+        return match ($lane) {
+            self::WORD_AUDIO => AppQyV1AudioBundleService::KIND_WORD,
+            self::SENTENCE_AUDIO => AppQyV1AudioBundleService::KIND_SENTENCE,
+            self::PHRASE_AUDIO => (string) AudioOrchestrationContract::phrasePipeline('kind'),
+        };
+    }
+
+    /** Clip resource id of one claim item: a word by its lowercased text, a sentence or phrase by its content_id. */
+    public static function resourceId(array $item): string
+    {
+        $lane = (string) $item['lane'];
+
+        return AppQyV1AudioBundleService::resourceKey(
+            self::resourceKind($lane),
+            (string) $item['language'],
+            $lane === self::WORD_AUDIO ? mb_strtolower(trim((string) $item['text'])) : (string) $item['content_id']
+        );
     }
 
     /** Gap size of one lane and language (the lane snapshot). */
@@ -149,9 +241,11 @@ final class WorkLeaseLanes
 
     public static function connection(string $lane, string $language): ConnectionInterface
     {
-        return $lane === self::WORD_AUDIO
-            ? \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel::forLanguage($language)->getConnection()
-            : AppQyV1LangSentenceModel::for($language)->getConnection();
+        return match ($lane) {
+            self::WORD_AUDIO => AppQyV1LangDictionaryModel::forLanguage($language)->getConnection(),
+            self::SENTENCE_AUDIO => AppQyV1LangSentenceModel::for($language)->getConnection(),
+            self::PHRASE_AUDIO => AppQyV1LangPhraseModel::for($language)->getConnection(),
+        };
     }
 
     private function __construct()

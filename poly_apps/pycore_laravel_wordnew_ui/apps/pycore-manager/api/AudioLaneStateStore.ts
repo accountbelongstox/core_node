@@ -1,8 +1,8 @@
 /**
  * AudioLaneStateStore — the ONE UI copy of pycore's audio lane truth.
  *
- * Both lanes (word_audio, sentence_audio) each own a Queue = Part1 + Part2 in
- * pycore. Pycore composes their state (switch, lifecycle, section contract,
+ * Every audio lane of the contract (word_audio, sentence_audio, phrase_audio)
+ * owns a Queue = Part1 + Part2 in pycore. Pycore composes their state (switch, lifecycle, section contract,
  * Part1/Part2/whole-Queue view, Part1 tracker, worker, full pull) and pushes
  * it on every change through the `queue_center.audio_lane.changed` topic.
  * This store applies:
@@ -29,6 +29,7 @@ import type {
 } from '../../../core/contracts/QueueCenterTypes';
 import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
+import { PC_AUDIO_LANES } from '../utils/pcAudioLanes';
 
 const OWNER_REFETCH_DEBOUNCE_MS = 800;
 const OWNER_ITEM_LIMIT = 30;
@@ -55,11 +56,10 @@ function laneFailureCode(payload: AudioLaneStatePayload | null | undefined): str
   return pcFailureCode(payload) || PC_REQUEST_FAILED_CODE;
 }
 
-/** Identity of both lane Queues' state: it moves on every Part1/Part2 change of either lane. */
+/** Identity of every lane Queue's state: it moves on every Part1/Part2 change of any lane. */
 export function audioLaneRevisionKey(payload: AudioLaneStatePayload | null | undefined): string {
-  const word = payload?.lanes?.word_audio?.queue?.revision ?? 0;
-  const sentence = payload?.lanes?.sentence_audio?.queue?.revision ?? 0;
-  return `${payload?.instance ?? ''}:${word}:${sentence}`;
+  const revisions = PC_AUDIO_LANES.map((lane) => payload?.lanes?.[lane]?.queue?.revision ?? 0);
+  return `${payload?.instance ?? ''}:${revisions.join(':')}`;
 }
 
 export function getAudioLaneStoreState(): AudioLaneStoreState {
@@ -109,7 +109,7 @@ const liveSource = createPycoreLiveSource({
   fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs,
 });
 
-/** Live two-lane state; mounting keeps the push subscription alive. */
+/** Live audio lane state; mounting keeps the push subscription alive. */
 export function useAudioLaneState(): AudioLaneStoreState {
   useEffect(() => {
     liveSource.retain();
@@ -125,9 +125,10 @@ export interface AudioLaneOwnerViews {
 }
 
 /**
- * One owner's (orchestration task's) Part1/Part2/Queue views of BOTH lanes:
- * its missing words in the word_audio Queue, its missing sentences in the
- * sentence_audio Queue. Re-fetched when the lane revision moves; a move that
+ * One owner's (orchestration task's) Part1/Part2/Queue views of EVERY audio
+ * lane: its missing words in the word_audio Queue, its missing sentences in
+ * the sentence_audio Queue, its missing phrases in the phrase_audio Queue.
+ * Re-fetched when the lane revision moves; a move that
  * arrives while a fetch is in flight schedules one trailing fetch, and every
  * fetch exit (also after the effect was cleaned up) ends the loading state.
  */
@@ -162,10 +163,7 @@ export function useAudioLaneOwnerViews(owner: string, active: boolean): AudioLan
             return;
           }
           setResult({
-            views: {
-              word_audio: payload.lanes.word_audio?.queue,
-              sentence_audio: payload.lanes.sentence_audio?.queue,
-            },
+            views: Object.fromEntries(PC_AUDIO_LANES.map((lane) => [lane, payload.lanes[lane]?.queue])),
             loading: false,
             error: null,
           });

@@ -15,10 +15,13 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_QUEUE_CENTER_BOOK_PLAN_HINT,
     UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD,
 )
+from pycore.pyctl.audio_orchestration import orch_contract
 from pycore.pyctl.audio_orchestration.book_plan_hint import set_plan_hint
 from pycore.pyutils.common.queue_center_contract import word_identity_md5
+from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_LANE_ERROR_UNKNOWN,
+    AUDIO_QUEUE_KIND_BY_LANE,
     AUDIO_QUEUE_LANE_BY_KIND,
     AUDIO_QUEUE_LANES,
     LOCAL_SOURCE_MANUAL,
@@ -41,6 +44,16 @@ def _resolve_lane(params: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
     if items:
         return AUDIO_QUEUE_LANE_BY_KIND.get(str(items[0].get("kind") or "").strip(), "")
     return ""
+
+
+def _phrase_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Phrase items keyed by their server-derived identity (``media_content_id``
+    of the text); a caller-supplied ``content_id`` is never trusted."""
+    return [
+        {**item, "content_id": media_content_id(str(item["text"]).strip())}
+        for item in items
+        if str(item.get("text") or "").strip()
+    ]
 
 
 def _sanitize_item_md5(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,6 +96,10 @@ def register_local_queue_head_routes(server) -> None:
         lane = _resolve_lane(params, items)
         if lane not in AUDIO_QUEUE_LANES:
             return {"success": False, "error_code": AUDIO_LANE_ERROR_UNKNOWN}
+        if AUDIO_QUEUE_KIND_BY_LANE.get(lane) == orch_contract.PHRASE_KIND:
+            items = _phrase_items(items)
+            if not items:
+                return {"success": False, "error_code": ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED}
         return audio_queue_center.promote_local_head(
             lane,
             items,

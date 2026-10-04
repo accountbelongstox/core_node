@@ -71,7 +71,8 @@ import {
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
 import { commonMessage } from '../laravel/ClientKeyFailure';
-import type { AudioLaneStatePayload } from '../../contracts/QueueCenterTypes';
+import type { AudioLaneKey, AudioLaneStatePayload } from '../../contracts/QueueCenterTypes';
+import type { OrchResourceKind } from './PycoreApiOrchestrationResources';
 
 export const pycoreApiLocal = {
 
@@ -381,7 +382,7 @@ export const pycoreApiLocal = {
       error_code?: string;
     }>,
   /**
-   * Pycore-owned state of both audio lanes (word_audio / sentence_audio, each
+   * Pycore-owned state of the audio lanes (word_audio / sentence_audio / phrase_audio, each
    * its own Part1 + Part2 Queue). Same payload as the push topic
    * `queue_center.audio_lane.changed`; `owner` scopes the Part1 tracker to one
    * orchestration task.
@@ -398,8 +399,8 @@ export const pycoreApiLocal = {
    * (Part2 path).
    */
   promoteLocalQueueHead: (payload: {
-    queue?: 'word_audio' | 'sentence_audio';
-    items: Array<{ kind?: 'word' | 'sentence'; language: string; text: string }>;
+    queue?: AudioLaneKey;
+    items: Array<{ kind?: OrchResourceKind; language: string; text: string }>;
     /** Orchestration task id: the promoted item joins that task's fill view. */
     owner?: string;
   }) =>

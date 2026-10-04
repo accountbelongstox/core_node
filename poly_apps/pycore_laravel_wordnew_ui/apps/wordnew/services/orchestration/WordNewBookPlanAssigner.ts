@@ -9,10 +9,19 @@
  */
 import { AUDIO_ORCH_BOOK_PLAN } from '../../../../core/contracts/AudioOrchestrationContract';
 import type { AudioLaneKey, WorkNode } from '../../../../core/contracts/QueueCenterTypes';
+import type { OrchResourceKind } from '../../../../core/integrations/pycore';
 import type { WfNewBookPlanWindow } from '../../api';
 import { workNodeHost } from '../WordNewPycoreNodes';
 
-const LANES: readonly AudioLaneKey[] = ['sentence_audio', 'word_audio'];
+/** Generation lanes the app-led assignment spreads (a plan without clips of a lane posts no window for it). */
+export const ASSIGNMENT_LANES: readonly AudioLaneKey[] = ['sentence_audio', 'word_audio', 'phrase_audio'];
+const LANES = ASSIGNMENT_LANES;
+const LANE_OF_KIND: Record<OrchResourceKind, AudioLaneKey> = { word: 'word_audio', sentence: 'sentence_audio', phrase: 'phrase_audio' };
+
+/** The work-lease / generate lane a clip kind belongs to (a meaning clip is a zh sentence clip: the sentence lane). */
+export function laneOfKind(kind: OrchResourceKind): AudioLaneKey {
+  return LANE_OF_KIND[kind];
+}
 const MINUTES_PER_HOUR = 60;
 
 export type AssignmentLanguages = Record<AudioLaneKey, readonly string[]>;
@@ -34,7 +43,7 @@ export interface Assignment {
 
 /** What the direct pycore takes per lane when no assignment was computed (no node to spread over). */
 export function defaultDirectShare(): Record<AudioLaneKey, number> {
-  return { sentence_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems, word_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems };
+  return { sentence_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems, word_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems, phrase_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems };
 }
 
 const rateOf = (node: WorkNode, lane: AudioLaneKey): number => Math.max(1, Number(node.lane_rates?.[lane] ?? node.done_per_hour) || 0);

@@ -54,3 +54,25 @@ and full page loads are appended to `%APPDATA%\WordNew\logs\console.log`;
    After the fix the player played 4 minutes (0:17 -> 3:59) with 7 clip requests in 10 s, all `app-file://`.
    Note: once, before the navigation log existed, the window was found on Home during playback; it did not
    recur in the 4-minute run with logging.
+
+## Edit -> preview speed (2026-10-05, this PC)
+
+Composition: a copy of "The Adventures of Tom Sawyer" named `Tom Sawyer (speed test)` (6,974 clips, ~4,700 on
+the device; test account). Timed through CDP from the save of the edit.
+
+Changes measured here: the composer publishes a preview timeline as soon as the first chain stage (the device
+store) has answered (`onSourceDone` in `resolveOrchClips`, `composeTimelines` in `orchComposer.ts`); an edition
+of another plan (an edit) is replaced at once by the new plan's preview or first ready run instead of waiting as
+an offer (`WordNewOrchEditionStore`); an edit of the word group / read state keeps the kept sentences and asks
+only read counts (`include_media: false`, 400 words per request) for words whose meaning and audio are known
+(`WordNewOrchSources`, `getSentenceWordTable`).
+
+| Edit | Before | After |
+|---|---|---|
+| Pattern (first step x1 <-> x2) | preview never changed (offer after 6.7-11.8 s run) | preview of the new plan at 1.6 s (UI: 2.1 s) |
+| Read state (real <-> virtual) | inputs 9.9 s (12 x 300-word lookups, ~2.7 s each), offer after ~19 s | inputs 0.75 s (9 count-only requests, ~0.2 s), preview at 2.5 s |
+
+The rest of the chain (pycore / Laravel transfers and generation requests for the ~2,200 missing clips) still
+runs after the preview (10-12 s here); clips it adds come as the usual "new resources are ready" offer.
+Raising the word-state concurrency from 3 to 6 did not help (the server serializes the requests: 4-6 s each).
+The preview of the edited plan played (0:00 -> 0:09 in 6 s).

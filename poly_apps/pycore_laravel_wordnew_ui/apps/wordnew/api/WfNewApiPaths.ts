@@ -162,6 +162,11 @@ export const WfNewApiPaths = {
   audioLookup: p('/ai_tools/tts/audio/lookup'),
   /** Insert or move word-audio tasks to the queue head. */
   wordAudioHead: p('/word/audio/head'),
+  /** Phrases of sentences (POST `{language, content_ids[]}`; contract `phrases_by_sentences`). */
+  phrasesBySentences: p(APPQYV1_AI_TOOLS_ROUTES.phrasesBySentences),
+  /** Phrase audio: a non-passive GET promotes a missing phrase in Laravel's phrase lane (contract `audio_phrase_audio`). */
+  phraseAudio: (text: string, language: string, passive = false): string =>
+    p(`${APPQYV1_AI_TOOLS_ROUTES.ttsPhraseAudio}?${new URLSearchParams({ text, language, ...(passive ? { passive: '1' } : {}) })}`),
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
   /** GET native + learning_languages / POST to update them. */
   learningLanguages: p('/learning/languages'),

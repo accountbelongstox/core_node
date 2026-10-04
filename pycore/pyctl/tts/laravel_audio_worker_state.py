@@ -121,7 +121,7 @@ class LaravelAudioWorkerStateMixin:
         if info:
             text = str(info.get("text") or info.get("word") or "").strip()
             if text:
-                content_label = "word" if self.LANE == "word" else "text"
+                content_label = self.LANE if self.LANE in ("word", "phrase") else "text"
                 label += f" {content_label}={text[:40]!r}"
             if self.LANE == "word":
                 backend_progress_current = int(info.get("backend_progress_current") or 0)
@@ -360,7 +360,7 @@ class LaravelAudioWorkerStateMixin:
                     f"bytes={info['upload_transferred_bytes']}/{info['upload_total_bytes']}"
                 ),
                 info,
-                mirror=self.LANE != "word",
+                mirror=not self.BATCH_LANE,
             )
 
     @serialized_method
@@ -420,7 +420,7 @@ class LaravelAudioWorkerStateMixin:
     def _local_runtime_label(self) -> str:
         """This lane's lifetime local totals + average task duration (minutes).
 
-        Word and sentence counters live on SEPARATE worker instances, so
+        Word, sentence and phrase counters live on SEPARATE worker instances, so
         each lane's log line prints only its own lane's statistics under
         lane-prefixed keys (word_* / sent_*) - interleaved console output
         stays attributable and the two lanes never mix. The counters
@@ -434,7 +434,7 @@ class LaravelAudioWorkerStateMixin:
         failed = int(getattr(self, "_total_failed", 0) or 0)
         duration_s = float(getattr(self, "_total_duration_s", 0.0) or 0.0)
         avg_m = (duration_s / claimed / 60.0) if claimed > 0 else 0.0
-        lane = "sent" if self.LANE == "sentence" else "word"
+        lane = {"sentence": "sent", "phrase": "phrase"}.get(self.LANE, "word")
         return f"{lane}_ok={succeeded} {lane}_fail={failed} {lane}_avg={avg_m:.2f}m"
 
     def _state_snapshot(self) -> Dict[str, Any]:
@@ -520,6 +520,28 @@ class LaravelAudioWorkerStateMixin:
             # liveness view of this item fresh (stall detection).
             "_dedup_key": audio_dedup_key_from_task(task, self.QUEUE_KEY),
         }
+
+        if self.LANE == "phrase":
+            text = str(payload.get("text") or payload.get("content") or "").strip()
+            content_id = str(payload.get("content_id") or "").strip()
+            info.update({
+                "kind": "phrase",
+                "text": text,
+                "content_id": content_id,
+                "accent": str(payload.get("accent") or "").strip() or None,
+                "gender": str(payload.get("gender") or "").strip() or None,
+            })
+            text_limit = task_payload_text_max_chars(self.QUEUE_KEY)
+            if not text:
+                info["error"] = "phrase_audio payload carried no text"
+            elif not content_id:
+                info["error"] = "phrase_audio payload carried no content_id"
+            elif text_limit > 0 and len(text) > text_limit:
+                info["error"] = (
+                    f"phrase_audio payload text is {len(text)} chars "
+                    f"(contract limit {text_limit})"
+                )
+            return info
 
         if self.LANE == "sentence":
             text = str(payload.get("text") or payload.get("content") or "").strip()

@@ -28,6 +28,11 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
     public const ORIGIN_CONTENT = 'content';
     public const ORIGIN_ADHOC = 'adhoc';
 
+    /** phrase_status values (NULL = pending, the AppQyV1MediaGaps::SENTENCE_PHRASES gap). */
+    public const PHRASE_DONE = 'done';
+    public const PHRASE_NONE = 'none';
+    public const PHRASE_FAILED = 'failed';
+
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
     protected function containingWord(\Illuminate\Database\Eloquent\Builder $query, string $word): \Illuminate\Database\Eloquent\Builder
     {
@@ -59,6 +64,13 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         'tts_lease_expires_at',
         'tts_requested_at',
         'tts_completed_at',
+        'phrase_status',
+        'phrase_attempts',
+        'phrase_lease_id',
+        'phrase_lease_expires_at',
+        'phrase_locked_by',
+        'phrase_priority',
+        'phrase_generated_at',
     ];
 
     protected function casts(): array
@@ -72,6 +84,10 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             'tts_locked_at' => 'datetime',
             'tts_requested_at' => 'datetime',
             'tts_completed_at' => 'datetime',
+            'phrase_attempts' => 'integer',
+            'phrase_priority' => 'integer',
+            'phrase_lease_expires_at' => 'datetime',
+            'phrase_generated_at' => 'datetime',
         ];
     }
 
@@ -303,6 +319,53 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             ->where('tts_status', $failedStatus)
             ->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
             ->update($attributes);
+    }
+
+    /** Live sentences still waiting for phrase extraction (AppQyV1MediaGaps::SENTENCE_PHRASES). */
+    public static function pendingPhraseCount(string $lang): int
+    {
+        if (!self::tableExists($lang)) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_PHRASES . ')')
+            ->count();
+    }
+
+    /** Failed phrase extractions back to the gap with a fresh attempt budget; returns rows re-pooled. */
+    public static function repoolFailedPhrases(string $lang): int
+    {
+        if (!self::tableExists($lang)) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->where('phrase_status', self::PHRASE_FAILED)
+            ->update([
+                'phrase_status' => null,
+                'phrase_attempts' => 0,
+                'phrase_lease_id' => null,
+                'phrase_lease_expires_at' => null,
+                'phrase_locked_by' => null,
+            ]);
+    }
+
+    /** Releases phrase-extraction leases whose expiry passed; returns rows released. */
+    public static function clearExpiredPhraseLeases(string $lang): int
+    {
+        if (!self::tableExists($lang)) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->whereRaw(AppQyV1MediaGaps::SENTENCE_PHRASE_LEASED)
+            ->where('phrase_lease_expires_at', '<', now())
+            ->update([
+                'phrase_lease_id' => null,
+                'phrase_lease_expires_at' => null,
+                'phrase_locked_by' => null,
+            ]);
     }
 
     public static function runForLanguageTransaction(string $lang, Closure $callback, int $attempts = 1): mixed

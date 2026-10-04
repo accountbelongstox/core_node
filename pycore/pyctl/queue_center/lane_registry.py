@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 from pycore.pyctl.laravel.compute_worker import laravel_compute_worker
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_phrase_audio_worker,
     laravel_sentence_audio_worker,
     laravel_word_audio_worker,
 )
@@ -36,6 +37,11 @@ LANE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "heartbeat_callback": "tts_sentence_worker",
         "capability": "sentence_audio",
         "worker": laravel_sentence_audio_worker,
+    },
+    "phrase_audio": {
+        "heartbeat_callback": "tts_phrase_worker",
+        "capability": "phrase_audio",
+        "worker": laravel_phrase_audio_worker,
     },
     # Laravel's former pycore calls (OCR, TTS, ...): always on while pycore runs.
     "compute": {

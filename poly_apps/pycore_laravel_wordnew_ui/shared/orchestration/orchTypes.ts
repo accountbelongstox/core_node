@@ -16,7 +16,7 @@ export type OrchComposeStatus = 'draft' | 'resolving' | 'ready' | 'partial';
 export interface OrchComposeStep {
   type: OrchComposeStepType;
   times: number;
-  /** Word steps: after each word, read its short Chinese meaning. */
+  /** Word and phrase steps: after each word / phrase, read its short Chinese meaning. */
   meaning?: boolean;
 }
 
@@ -106,8 +106,10 @@ export interface OrchComposeItem {
   /** Sentence position in the task's sentence list. */
   position: number;
   seq: number;
-  /** A meaning clip: the word it explains (shown as that word card's meaning line). */
+  /** A meaning clip: the word / phrase it explains (shown as that card's meaning line). */
   meaningOf?: string;
+  /** What `meaningOf` is: a phrase (listed on its sentence's card) or, when absent, a word (its own card). */
+  meaningKind?: 'phrase';
 }
 
 export interface OrchComposeSegment {
@@ -172,6 +174,18 @@ export interface OrchComposeSpec {
   language: string;
   config: OrchComposeConfig;
 }
+
+/** One phrase of a sentence as Laravel `phrases_by_sentences` reports it (meaning: the Chinese gloss, '' when none). */
+export interface OrchPhraseText {
+  text: string;
+  meaning: string;
+}
+
+/**
+ * Phrases per plan sentence, keyed by the sentence content id (`orchSentenceContentId`).
+ * A sentence without an entry has no phrases (yet); entry order is the reading order.
+ */
+export type OrchPhrasesBySentence = ReadonlyMap<string, readonly OrchPhraseText[]>;
 
 /** Word read state from Laravel `learning/sentence-words` (with the virtual read overlay). */
 export interface OrchWordState {

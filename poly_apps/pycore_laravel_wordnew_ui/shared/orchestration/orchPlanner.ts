@@ -6,13 +6,14 @@
  */
 import { sha256Hex } from '../../core/utils/contentHash';
 import type { OrchResourceKind } from '../../core/integrations/pycore';
-import { orchClipIdentity } from './orchClipIdentity';
+import { orchClipIdentity, orchContentId } from './orchClipIdentity';
 import {
   AUDIO_ORCH_DEFAULT_MAX_READ_COUNT,
   AUDIO_ORCH_DEFAULT_SEGMENT_MODE,
   AUDIO_ORCH_DEFAULT_SEGMENT_VALUE,
   AUDIO_ORCH_DEFAULT_VIRTUAL_BATCH,
   AUDIO_ORCH_MAX_STEP_TIMES,
+  AUDIO_ORCH_PHRASE_PIPELINE,
   audioOrchDefaultPattern,
 } from '../../core/contracts/AudioOrchestrationContract';
 import type {
@@ -25,6 +26,7 @@ import type {
   OrchComposeSource,
   OrchComposeSpec,
   OrchComposeStep,
+  OrchPhrasesBySentence,
   OrchWordState,
 } from './orchTypes';
 
@@ -81,6 +83,16 @@ export function tokenize(sentence: string): string[] {
     words.push(word);
   }
   return words;
+}
+
+/** Key of a sentence in `OrchPhrasesBySentence` (the content id Laravel `phrases_by_sentences` answers by). */
+export function orchSentenceContentId(sentence: Pick<OrchComposeSentence, 'text'>): string {
+  return orchContentId(sentence.text);
+}
+
+/** Whether the pattern reads phrases (the client then loads them and a book plan asks for phrase audio). */
+export function orchPatternHasPhrases(pattern: ReadonlyArray<OrchComposeStep>): boolean {
+  return pattern.some((step) => step.type === 'phrases');
 }
 
 /** Store key of a clip on every end: the pycore resource id (see orchClipIdentity). */
@@ -150,7 +162,7 @@ function sentenceLangText(sentence: OrchComposeSentence, lang: string): string {
   return text || (lang === sentence.language ? sentence.text.trim() : '');
 }
 
-/** The sentence language a pattern step reads (null for word steps). */
+/** The sentence language a pattern step reads (null for word and phrase steps). */
 export function orchStepSentenceLanguage(type: OrchComposeStep['type']): string | null {
   if (type === 'sentence_en') return 'en';
   if (type === 'sentence_zh') return 'zh';
@@ -197,6 +209,20 @@ function selectWords(
   return words;
 }
 
+/** The sentence's phrases in reading order, one per phrase content id (an empty phrase text is dropped). */
+function sentencePhrases(sentence: OrchComposeSentence, phrases: OrchPhrasesBySentence): Array<{ text: string; meaning: string }> {
+  const seen = new Set<string>();
+  const unique: Array<{ text: string; meaning: string }> = [];
+  for (const phrase of phrases.get(orchSentenceContentId(sentence)) ?? []) {
+    const text = phrase.text.trim();
+    const id = text ? orchContentId(text) : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    unique.push({ text, meaning: (phrase.meaning ?? '').trim() });
+  }
+  return unique;
+}
+
 function sentenceItems(
   sentence: OrchComposeSentence,
   position: number,
@@ -204,6 +230,7 @@ function sentenceItems(
   language: string,
   states: ReadonlyMap<string, OrchWordState>,
   virtualRead: Set<string>,
+  phrases: OrchPhrasesBySentence,
 ): OrchComposeItem[] {
   const items: OrchComposeItem[] = [];
   for (const step of config.pattern) {
@@ -220,6 +247,22 @@ function sentenceItems(
       }
       continue;
     }
+    if (step.type === 'phrases') {
+      const own = sentencePhrases(sentence, phrases);
+      for (let round = 0; round < times; round += 1) {
+        own.forEach((phrase) => {
+          items.push({ kind: 'phrase', language, text: phrase.text, position, seq: sentence.seq });
+          // The phrase's Chinese meaning, read right after it (a zh sentence clip, like a word meaning).
+          if (step.meaning && phrase.meaning) {
+            items.push({
+              kind: 'sentence', language: AUDIO_ORCH_PHRASE_PIPELINE.meaningLanguage, text: phrase.meaning,
+              position, seq: sentence.seq, meaningOf: phrase.text, meaningKind: 'phrase',
+            });
+          }
+        });
+      }
+      continue;
+    }
     const lang = orchStepSentenceLanguage(step.type) ?? 'zh';
     const text = sentenceLangText(sentence, lang);
     if (!text) continue;
@@ -230,11 +273,23 @@ function sentenceItems(
   return items;
 }
 
-/** The whole plan: segments with their items and the unique resource list. */
+/** The Laravel URL a plan item already has from its source (null: none known). */
+function itemLaravelUrl(item: OrchComposeItem, sentence: OrchComposeSentence, states: ReadonlyMap<string, OrchWordState>): string | null {
+  // A meaning clip is the gloss text, never the sentence's own audio.
+  if (item.meaningOf) return null;
+  if (item.kind === 'sentence') return sentence.audio[item.language] ?? null;
+  return item.kind === 'word' ? states.get(item.text)?.audioUrl ?? null : null;
+}
+
+/**
+ * The whole plan: segments with their items and the unique resource list.
+ * `phrases` feeds the `phrases` steps (a sentence without an entry yields no phrase clips).
+ */
 export function planComposition(
   { source, config, language }: OrchComposeSpec,
   sentences: OrchComposeSentence[],
   states: ReadonlyMap<string, OrchWordState>,
+  phrases: OrchPhrasesBySentence = new Map(),
 ): OrchComposePlan {
   const mode = source === 'prompt_rewrite' ? 'count' : config.segmentMode;
   const value = source === 'prompt_rewrite' ? 1 : config.segmentValue;
@@ -244,7 +299,7 @@ export function planComposition(
     const items: OrchComposeItem[] = [];
     for (let position = part.start; position <= part.end; position += 1) {
       const sentence = sentences[position];
-      for (const item of sentenceItems(sentence, position, config, language, states, virtualRead)) {
+      for (const item of sentenceItems(sentence, position, config, language, states, virtualRead, phrases)) {
         items.push(item);
         const identity = orchClipIdentity(item.kind, item.language, item.text);
         const key = identity.resourceId;
@@ -252,9 +307,7 @@ export function planComposition(
           resources.set(key, {
             ...identity,
             key,
-            laravelUrl: item.kind === 'sentence'
-              ? sentence.audio[item.language] ?? null
-              : states.get(item.text)?.audioUrl ?? null,
+            laravelUrl: itemLaravelUrl(item, sentence, states),
           });
         }
       }

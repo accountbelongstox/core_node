@@ -12,12 +12,12 @@ use Illuminate\Support\Facades\Validator;
 
 /**
  * POST /api/app_qy_v1/ai_tools/tts/audio/lookup (contract endpoint audio_lookup)
- * Body: { items: [{ kind: word|sentence, language, text }] }, the clip-bundle
+ * Body: { items: [{ kind: word|sentence|phrase, language, text }] }, the clip-bundle
  * item shape, at most the contract's bundle item limit.
  *
  * Read-only audio URL lookup: no queue write, no head move, no task. Each
  * result keeps the input order and does not echo the request item (index = id):
- * { ready, url, content_id? (sentence), md5? (word), version? }. `version` (the
+ * { ready, url, content_id? (sentence, phrase), md5? (word), version? }. `version` (the
  * content version of the file a bundle would carry, with that file's url, see
  * AppQyV1AudioBundleService::served) is only computed when the body sets
  * with_version, for clients checking held clips.
@@ -36,7 +36,7 @@ class AppQyV1AudioLookupCtl extends Controller
     {
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1|max:' . AppQyV1AudioBundleService::maxItems(),
-            'items.*.kind' => 'required|string|in:' . AppQyV1AudioBundleService::KIND_WORD . ',' . AppQyV1AudioBundleService::KIND_SENTENCE,
+            'items.*.kind' => 'required|string|in:' . implode(',', AppQyV1AudioBundleService::KINDS),
             'items.*.language' => 'required|string|max:20',
             'items.*.text' => 'required|string',
             'with_version' => 'sometimes|boolean',
@@ -44,6 +44,7 @@ class AppQyV1AudioLookupCtl extends Controller
         $items = [];
         $words = [];
         $sentences = [];
+        $phrases = [];
         $results = [];
 
         if ($validator->fails()) {
@@ -53,6 +54,8 @@ class AppQyV1AudioLookupCtl extends Controller
         foreach ($items as $index => $item) {
             if ($item['kind'] === AppQyV1AudioBundleService::KIND_WORD) {
                 $words[$index] = ['word' => $item['text'], 'language' => $item['language']];
+            } elseif ($item['kind'] === AppQyV1AudioBundleService::KIND_PHRASE) {
+                $phrases[$index] = ['text' => $item['text'], 'language' => $item['language']];
             } else {
                 $sentences[$index] = ['text' => $item['text'], 'language' => $item['language']];
             }
@@ -69,6 +72,13 @@ class AppQyV1AudioLookupCtl extends Controller
                 'content_id' => $resolved['content_id'] ?? null,
                 'ready' => (bool) ($resolved['exists'] ?? false),
                 'url' => $resolved['url'] ?? null,
+            ];
+        }
+        foreach ($phrases === [] ? [] : $this->gateway->resolvePhrasesPassive($phrases) as $index => $resolved) {
+            $results[$index] = [
+                'content_id' => $resolved['content_id'],
+                'ready' => $resolved['exists'],
+                'url' => $resolved['url'],
             ];
         }
 

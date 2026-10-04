@@ -10,7 +10,7 @@ use App\Support\AudioOrchestrationContract;
 use App\Utils\FileSystemManager;
 
 /**
- * Many word / sentence clips in one response, in the clip bundle frame shared
+ * Many word / sentence / phrase clips in one response, in the clip bundle frame shared
  * with pycore (config/audio_orchestration_contract.json transfer): per
  * request item, in order, a 4-byte big-endian header length, a UTF-8 JSON
  * header {index, key, hit, bytes, sent, meaning, version} and the clip bytes when
@@ -23,6 +23,8 @@ final class AppQyV1AudioBundleService
 {
     public const KIND_WORD = 'word';
     public const KIND_SENTENCE = 'sentence';
+    public const KIND_PHRASE = 'phrase';
+    public const KINDS = [self::KIND_WORD, self::KIND_SENTENCE, self::KIND_PHRASE];
     private const FRAME_LENGTH_FORMAT = 'N';
 
     public function __construct(private readonly AppQyV1AudioGateway $gateway = new AppQyV1AudioGateway())
@@ -127,11 +129,14 @@ final class AppQyV1AudioBundleService
     {
         $words = [];
         $sentences = [];
+        $phrases = [];
         foreach ($items as $index => $item) {
             if ($item['kind'] === self::KIND_WORD) {
                 $words[$index] = ['word' => $item['text'], 'language' => $item['language']];
             } elseif ($item['kind'] === self::KIND_SENTENCE) {
                 $sentences[$index] = ['text' => $item['text'], 'language' => $item['language']];
+            } elseif ($item['kind'] === self::KIND_PHRASE) {
+                $phrases[$index] = ['text' => $item['text'], 'language' => $item['language']];
             }
         }
 
@@ -158,6 +163,13 @@ final class AppQyV1AudioBundleService
                 }
             }
         }
+        if ($phrases !== []) {
+            foreach ($this->gateway->resolvePhrasesPassive($phrases) as $index => $resolved) {
+                if ($resolved['exists']) {
+                    $files[$index] = ['path' => (string) $resolved['path'], 'url' => (string) $resolved['url']];
+                }
+            }
+        }
 
         return $files;
     }
@@ -175,14 +187,14 @@ final class AppQyV1AudioBundleService
     /** The resource id every end uses: sha256("kind:language:content"). */
     private function resourceId(array $item): string
     {
-        $content = $item['kind'] === self::KIND_SENTENCE
+        $content = $item['kind'] === self::KIND_SENTENCE || $item['kind'] === self::KIND_PHRASE
             ? MediaIngestService::computeContentId($item['text'])
             : mb_strtolower(trim($item['text']));
 
         return self::resourceKey($item['kind'], $item['language'], $content);
     }
 
-    /** Resource id from already normalized content (sentence content id, trimmed lower-case word). */
+    /** Resource id from already normalized content (sentence / phrase content id, trimmed lower-case word). */
     public static function resourceKey(string $kind, string $language, string $content): string
     {
         return hash('sha256', $kind . ':' . $language . ':' . $content);
