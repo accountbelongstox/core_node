@@ -7,7 +7,10 @@ and orchestration manifests) is diffed against every Laravel server as W7
 ``word_audio`` / ``sentence_audio`` (presence only) and what a server lacks
 is uploaded through the W7 batch endpoint (a legacy server, or a clip the
 batch cannot carry, takes the single-clip upload). It replaces the former
-orchestration-only ``audio_orch.resource`` kind.
+orchestration-only ``audio_orch.resource`` kind. A phrase clip (kind
+``phrase``, permanent ``phrase_audio_cache`` file) has no W7 diff kind: it is
+queued for every server when it is generated and uploaded through
+``audio_phrase_report`` (a 4xx settles dead-letter, a 5xx retries).
 
 Audio lane rows keep only their server-specific steps (task result/report to
 the dispatching server, local history); they share the clip's delivered
@@ -30,6 +33,7 @@ from pycore.pyutils.common.strtools.normalization import media_content_id, word_
 from pycore.pyutils.laravel.delivery_diff import (
     BATCH_STORED_STATUSES,
     BATCH_TERMINAL_REJECTIONS,
+    DIFF_KIND_PHRASE_AUDIO,
     DIFF_KIND_SENTENCE_AUDIO,
     DIFF_KIND_WORD_AUDIO,
     laravel_delivery_diff_client,
@@ -37,6 +41,7 @@ from pycore.pyutils.laravel.delivery_diff import (
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyutils.laravel.delivery.model import (
     DeliveryKind,
+    OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
     OUTCOME_RETRY,
     OUTCOME_SOURCE_GONE,
@@ -54,6 +59,7 @@ from pycore.pyutils.tts.word_audio_cache import (
     WORD_PROVIDER_SEPARATOR,
     cache_root as word_audio_cache_root,
 )
+from pycore.pyutils.tts.phrase_audio_cache import find_cached as find_cached_phrase
 from pycore.pyctl.audio_orchestration import orch_store
 from pycore.pyctl.task_history.store import query_records
 from pycore.pyctl.tts import word_audio_service
@@ -62,7 +68,10 @@ from pycore.pyctl.tts import word_audio_service
 RESOURCE_KIND = "audio_cache.resource"
 RETIRED_RESOURCE_KINDS = ("audio_orch.resource",)
 DIFF_KINDS = {"word": DIFF_KIND_WORD_AUDIO, "sentence": DIFF_KIND_SENTENCE_AUDIO}
+ITEM_KINDS = {**DIFF_KINDS, "phrase": DIFF_KIND_PHRASE_AUDIO}
 SENTENCE_REPORT_PATH = queue_center_endpoint("audio_sentence_report")
+PHRASE_REPORT_PATH = queue_center_endpoint("audio_phrase_report")
+PHRASE_ALREADY_DONE_STATUS = "already_done"
 DELIVERY_WORKER_ID = "pycore-audio-cache"
 RESOURCE_BATCH_LIMIT = 200
 AUDIO_CLIP_DIR_NAME = "audio_clips"
@@ -139,7 +148,7 @@ class AudioResourceDelivery:
         """``{kind, item_key}`` of one clip in this kind (for lane rows)."""
         return {
             "kind": RESOURCE_KIND,
-            "item_key": make_item_key(DIFF_KINDS[ledger_row["kind"]], ledger_row["resource_key"]),
+            "item_key": make_item_key(ITEM_KINDS[ledger_row["kind"]], ledger_row["resource_key"]),
         }
 
     def _record(self, ledger_row: Dict[str, Any], group_key: str = "") -> Dict[str, Any]:
@@ -164,12 +173,24 @@ class AudioResourceDelivery:
         return kind == "sentence" and str(provider or "").strip().lower() not in SENTENCE_QUALITY_ENGINES
 
     @staticmethod
+    def cached_clip(kind: str, text: str, language: str) -> Optional[Path]:
+        """The permanent cache file of a word or phrase clip (every generated
+        clip stays there); None for any other kind."""
+        if kind == "word":
+            return find_cached_word(text, language)
+        if kind == "phrase":
+            return find_cached_phrase(text, language)
+        return None
+
+    @staticmethod
     def recovered_payload(resource: Dict[str, Any], payload: Path) -> Path:
-        """The clip file of a row whose payload went missing: a word is looked up in
-        the local word cache (every generated clip stays there); anything else stays missing."""
-        if payload.is_file() or resource.get("kind") != "word":
+        """The clip file of a row whose payload went missing: a word or phrase is looked up in
+        its local cache (every generated clip stays there); anything else stays missing."""
+        if payload.is_file():
             return payload
-        cached = find_cached_word(AudioResourceDelivery._clip_text(resource), str(resource.get("language") or ""))
+        cached = AudioResourceDelivery.cached_clip(
+            str(resource.get("kind") or ""), AudioResourceDelivery._clip_text(resource), str(resource.get("language") or ""),
+        )
         return cached if cached is not None else payload
 
     @staticmethod
@@ -177,14 +198,14 @@ class AudioResourceDelivery:
         """Path the ledger may keep for a clip. A retained payload copy is
         deleted once its delivery rows finish, so a ledger entry pointing at it
         rots into a missing file; the ledger points at the same bytes in the
-        word cache when it holds them, else they move to a content-addressed
+        word or phrase cache when it holds them, else they move to a content-addressed
         clip file first. Any other path is already a durable cache file."""
         source = Path(resolve_portable_path(str(path)))
         if not source.is_file() or not is_retained_payload(source):
             return str(path)
         content = source.read_bytes()
         digest = hashlib.sha256(content).hexdigest()
-        cached = find_cached_word(word_text(text) or text, language) if kind == "word" and text else None
+        cached = AudioResourceDelivery.cached_clip(kind, (word_text(text) or text) if kind == "word" else text, language) if text else None
         if cached is not None and cached.is_file() and hashlib.sha256(cached.read_bytes()).hexdigest() == digest:
             return str(cached)
         target = get_app_cache_dir().resolve() / AUDIO_CLIP_DIR_NAME / kind / digest[:2] / f"{digest}{source.suffix or '.mp3'}"
@@ -246,6 +267,7 @@ class AudioResourceDelivery:
     def _inventory(self) -> Iterator[Dict[str, Any]]:
         self._bootstrap()
         for ledger_row in audio_resource_ledger.entries():
+            # Phrases have no W7 diff kind: they are queued when generated, never reconciled.
             if ledger_row["kind"] not in DIFF_KINDS or self.below_quality_floor(ledger_row["kind"], ledger_row.get("provider")):
                 continue
             yield {
@@ -348,6 +370,8 @@ class AudioResourceDelivery:
         by_kind: Dict[str, List[Dict[str, Any]]] = {}
         for row in claimed:
             resource = row["resource"]
+            if str(resource["kind"]) not in DIFF_KINDS:
+                continue
             diff_kind = DIFF_KINDS[str(resource["kind"])]
             payload = AudioResourceDelivery.recovered_payload(resource, Path(str(row.get("payload_path") or "")))
             if not payload.is_file():
@@ -384,6 +408,29 @@ class AudioResourceDelivery:
         return outcomes
 
     @staticmethod
+    def _deliver_phrase(claimed: Dict[str, Any], resource: Dict[str, Any], payload: bytes) -> Dict[str, Any]:
+        """Phrase report upload (offset-v1, like the sentence report): a
+        receipt or ``already_done`` is delivered, a 4xx rejection that
+        retrying cannot resolve is dead-lettered (the cache file stays), a
+        5xx or transport failure retries."""
+        try:
+            receipt = laravel_progress_uploader.upload(
+                PHRASE_REPORT_PATH, payload,
+                base_url=claimed.get("base_url"),
+                params={"content_id": media_content_id(resource["text"]), "text": resource["text"],
+                        "language": resource["language"], "worker_id": DELIVERY_WORKER_ID,
+                        "success": "true", "provider": resource.get("provider") or "cache"},
+                reason="audio_cache_resource",
+            )
+        except RuntimeError as error:
+            if not is_terminal_delivery_rejection(detail=str(error)):
+                raise
+            return {"status": OUTCOME_DEAD_LETTER, "error": str(error)}
+        if not (receipt.get("upload_complete") or receipt.get("status") == PHRASE_ALREADY_DONE_STATUS):
+            raise RuntimeError("phrase_upload_incomplete")
+        return {"status": OUTCOME_DONE}
+
+    @staticmethod
     def _deliver_resource(claimed: Dict[str, Any], owner: str) -> Dict[str, Any]:
         """Single-clip upload (legacy server or unbatchable clip): sentence
         report (offset-v1) or word fill-missing upload, primary variant."""
@@ -397,6 +444,8 @@ class AudioResourceDelivery:
             # receives variants through its own lane tasks.
             return {"status": OUTCOME_DONE, "skipped": "variant_requires_batch"}
         payload = payload_path.read_bytes()
+        if resource["kind"] == "phrase":
+            return AudioResourceDelivery._deliver_phrase(claimed, resource, payload)
         if resource["kind"] == "sentence":
             receipt = laravel_progress_uploader.upload(
                 SENTENCE_REPORT_PATH, payload,

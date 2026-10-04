@@ -58,6 +58,7 @@ def free_text_chat(
     model: Optional[str] = None,
     source: str = "",
     context: Optional[Dict[str, Any]] = None,
+    options: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """One free-tier OpenRouter chat turn with the shared quota guard.
 
@@ -71,6 +72,7 @@ def free_text_chat(
         resolve_free_text_model(model),
         source=source,
         context=context,
+        options=options,
     ) or {}
 
 
@@ -79,6 +81,7 @@ def free_text_prompt(
     model: Optional[str] = None,
     source: str = "",
     context: Optional[Dict[str, Any]] = None,
+    options: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Single-user-message convenience wrapper over free_text_chat."""
     return free_text_chat(
@@ -86,6 +89,7 @@ def free_text_prompt(
         model=model,
         source=source,
         context=context,
+        options=options,
     )
 
 

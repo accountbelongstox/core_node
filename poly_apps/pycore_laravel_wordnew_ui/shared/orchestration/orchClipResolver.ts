@@ -86,7 +86,7 @@ export class OrchCursorBook {
 
 export interface OrchClipSourceContext {
   signal?: AbortSignal;
-  /** Meaning known from the inputs (word read states), '' otherwise. */
+  /** Meaning known from the inputs (word read states, phrase glosses), '' otherwise. */
   meaningOf: (resource: OrchComposeResource) => string;
   /** The run's state (read: plan index of a resource, its state). */
   table: OrchClipTable;
@@ -206,6 +206,8 @@ export async function resolveOrchClips(
     /** Cursors kept from an earlier run of the same plan. */
     cursors?: OrchCursorBook;
     onProgress?: (progress: OrchResolveProgress) => void;
+    /** A source finished its pass (the stages after it still run). */
+    onSourceDone?: (progress: OrchResolveProgress) => void;
   },
 ): Promise<OrchResolveProgress> {
   const table = new OrchClipTable(resources.map((resource) => resource.key));
@@ -278,6 +280,7 @@ export async function resolveOrchClips(
       const index = at(resource);
       if (table.state(index) === 'loading') table.set(index, { state: 'queued', origin: null });
     });
+    if (!context.signal?.aborted) context.onSourceDone?.(progress());
   }
   // A clip is missing only once a backend answered this run; with no answer at all (channels off,
   // requests aborted) nothing was asked, so the clips stay queued for the next run.

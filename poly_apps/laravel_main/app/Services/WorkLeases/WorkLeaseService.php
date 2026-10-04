@@ -11,13 +11,12 @@ use App\Services\QueueCenter\QueueCenterMetricsService;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Services\QueueCenter\GapLaneSnapshot;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioBundleService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookAudioPlanService;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1SentenceQualityRepair;
+use App\Services\MediaIngestService;
 use App\Support\QueueCenterContract;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
-use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -409,12 +408,7 @@ final class WorkLeaseService
             if ((int) $item['priority'] < self::WANT_PRIORITY) {
                 continue;
             }
-            $isWord = $item['lane'] === WorkLeaseLanes::WORD_AUDIO;
-            $ids[] = AppQyV1AudioBundleService::resourceKey(
-                $isWord ? AppQyV1AudioBundleService::KIND_WORD : AppQyV1AudioBundleService::KIND_SENTENCE,
-                (string) $item['language'],
-                $isWord ? mb_strtolower(trim((string) $item['text'])) : (string) $item['content_id']
-            );
+            $ids[] = WorkLeaseLanes::resourceId($item);
         }
         if ($ids !== []) {
             app(QueueCenterRealtimeService::class)->publishClipLeased($this->shortId($workerId), $ids);
@@ -451,7 +445,7 @@ final class WorkLeaseService
             foreach (WorkLeaseLanes::languages($lane) as $language) {
                 $db = WorkLeaseLanes::connection($lane, $language);
                 $table = WorkLeaseLanes::table($lane, $language);
-                $index = AppQyV1MediaGaps::leaseExpiryIndex($lane === WorkLeaseLanes::WORD_AUDIO, $language);
+                $index = WorkLeaseLanes::leaseExpiryIndex($lane, $language);
                 try {
                     if (!$this->hasIndex($db, $table, $index)) {
                         $this->warnOnce('reap:' . $lane . ':' . $language, '[WorkLease] lease reaper skipped language: index missing', ['lane' => $lane, 'language' => $language, 'index' => $index]);
@@ -610,7 +604,7 @@ final class WorkLeaseService
     }
 
     /**
-     * sys:init: cancels the pending word/sentence gap-row tickets left from the
+     * sys:init: cancels the pending gap-row tickets of every lease lane left from the
      * retired task path (their rows stay in the gap, now claimable as leases).
      */
     public function retireGapTickets(): int
@@ -860,7 +854,8 @@ final class WorkLeaseService
      * lease them first, and they are excluded from this node's own claims
      * (work_leases.exclude_*), so the node works its list locally while the
      * rest work the same list from Laravel without overlap. A sentence entry
-     * carries its content_id, a word entry its text (Laravel owns the md5).
+     * carries its content_id, a word entry its text (Laravel owns the md5), a
+     * phrase entry its content_id or its text (hashed like every media text).
      */
     private function applyWant(string $workerId, array $lanes, array $want): void
     {
@@ -892,6 +887,9 @@ final class WorkLeaseService
 
         if ($key === '' && $lane === WorkLeaseLanes::WORD_AUDIO && trim((string) ($entry['text'] ?? '')) !== '') {
             return AppQyV1LangDictionaryModel::wordMd5(trim((string) $entry['text']));
+        }
+        if ($key === '' && $lane === WorkLeaseLanes::PHRASE_AUDIO && trim((string) ($entry['text'] ?? '')) !== '') {
+            return MediaIngestService::computeContentId(trim((string) $entry['text']));
         }
 
         return $key;

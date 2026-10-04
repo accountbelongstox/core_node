@@ -11,6 +11,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
     status_snapshot_cache,
 )
 from pycore.pyutils.common.user_data_store import (
+    USER_DATA_SECTION_PHRASE_AUDIO_AUTO,
     USER_DATA_SECTION_SENTENCE_AUDIO_AUTO,
     USER_DATA_SECTION_WORD_TTS_AUTO,
     user_data_store,
@@ -26,6 +27,7 @@ from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 from pycore.pyctl.tts.audio_lane_activation import activate_audio_lane
 from pycore.pyctl.tts.laravel_audio_worker import (
     BaseLaravelAudioWorker,
+    laravel_phrase_audio_worker,
     laravel_sentence_audio_worker,
     laravel_word_audio_worker,
 )
@@ -216,10 +218,18 @@ sentence_audio_auto = LaneAutoConfig(
     on_enable=_start_sentence_engine_warm,
     extra_status=_sentence_extra_status,
 )
+phrase_audio_auto = LaneAutoConfig(
+    lane="phrase_audio",
+    capability="phrase_audio",
+    section=USER_DATA_SECTION_PHRASE_AUDIO_AUTO,
+    worker=laravel_phrase_audio_worker,
+    log_tag="PhraseAudioAuto",
+)
 
 
 __all__ = [
     "LaneAutoConfig",
+    "phrase_audio_auto",
     "sentence_audio_auto",
     "word_audio_auto",
 ]

@@ -43,7 +43,7 @@ interface ClipPaths {
 
 const PAGE_SIZE = 40;
 const CLIP_MIME = 'audio/mpeg';
-const CLIP_KINDS: readonly ClipKind[] = ['word', 'sentence'];
+const CLIP_KINDS: readonly ClipKind[] = ['word', 'sentence', 'phrase'];
 const MS_PER_SECOND = 1000;
 
 const PathRow: React.FC<{ label: string; value: string; trans: Trans }> = ({ label, value, trans }) => (
@@ -149,7 +149,7 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
       title={trans('cachePage.clipsTitle')}
       summary={stats && (
         <p className="text-[11px] font-mono text-zinc-500">
-          {trans('cachePage.clipsSummary', { words: stats.words, sentences: stats.sentences, size: formatBytes(stats.bytes) })}
+          {trans('cachePage.clipsSummary', { words: stats.words, sentences: stats.sentences, phrases: stats.phrases, size: formatBytes(stats.bytes) })}
         </p>
       )}
     >
@@ -182,7 +182,7 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
                     {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>
                   <span className="min-w-0 flex-1">
-                    <span className={`block text-xs text-zinc-700 dark:text-zinc-100 ${item.kind === 'word' ? 'font-bold' : 'line-clamp-2'}`}>{item.text}</span>
+                    <span className={`block text-xs text-zinc-700 dark:text-zinc-100 ${item.kind === 'sentence' ? 'line-clamp-2' : 'font-bold'}`}>{item.text}</span>
                     {item.meaning && <span className="block truncate text-[11px] text-zinc-500">{item.meaning}</span>}
                   </span>
                   <span className="shrink-0 text-right font-mono text-[10px] text-zinc-500">

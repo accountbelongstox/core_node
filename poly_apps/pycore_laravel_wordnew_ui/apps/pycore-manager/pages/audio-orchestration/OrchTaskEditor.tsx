@@ -1,7 +1,7 @@
 /**
  * Orchestration task editor: segment split (count / minutes), the ordered
- * per-sentence pattern (words / EN sentence / ZH sentence with times; presets
- * EN→ZH, ZH→EN, words→EN), the word selection mode (Word New Only with
+ * per-sentence pattern (words / EN sentence / ZH sentence / sentence phrases with
+ * times and the optional Chinese meaning; presets EN→ZH, ZH→EN, words→EN, EN→phrases), the word selection mode (Word New Only with
  * task-local virtual read vs all words), the output mode (Audio / Video, default
  * Video) with its video style, the automatic-generation switch and plan
  * preview. Saving is enough: pycore's queue generates the task by itself;
@@ -30,15 +30,18 @@ import {
   ORCH_DEFAULT_SEGMENT_VALUE,
   orchTaskOutputMode,
 } from './orchSources';
-import { audioOrchDefaultPattern } from '../../../../core/contracts/AudioOrchestrationContract';
+import { AUDIO_ORCH_STEP_TYPES, audioOrchDefaultPattern } from '../../../../core/contracts/AudioOrchestrationContract';
 import { ORCH_BUTTON_CLASS, ORCH_INPUT_CLASS, ORCH_PRIMARY_BUTTON_CLASS, ORCH_QUIET_BUTTON_CLASS } from './orchStyles';
 
-const STEP_TYPES: OrchPatternStepType[] = ['words_new', 'words_all', 'sentence_en', 'sentence_zh'];
+const STEP_TYPES: readonly OrchPatternStepType[] = AUDIO_ORCH_STEP_TYPES;
+/** Steps that can read the Chinese meaning of each item after it (contract step_options.meaning). */
+const MEANING_STEP_TYPES: ReadonlySet<OrchPatternStepType> = new Set<OrchPatternStepType>(['words_new', 'words_all', 'phrases']);
 const PRESETS: Array<{ label: string; steps: OrchPatternStep[] }> = [
   { get label() { return ORCH_L.presetDefault; }, steps: audioOrchDefaultPattern() },
   { get label() { return ORCH_L.presetEnZh; }, steps: [{ type: 'sentence_en', times: 1 }, { type: 'sentence_zh', times: 1 }] },
   { get label() { return ORCH_L.presetZhEn; }, steps: [{ type: 'sentence_zh', times: 1 }, { type: 'sentence_en', times: 1 }] },
   { get label() { return ORCH_L.presetWordEn; }, steps: [{ type: 'words_new', times: 1 }, { type: 'sentence_en', times: 1 }] },
+  { get label() { return ORCH_L.presetEnPhrases; }, steps: [{ type: 'sentence_en', times: 1 }, { type: 'phrases', times: 1, meaning: true }] },
 ];
 
 const OrchTaskEditor: React.FC<{
@@ -284,6 +287,16 @@ const OrchTaskEditor: React.FC<{
               className="w-16 rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1 text-sm text-slate-200"
             />
             <span className="text-[11px] text-slate-500">{ORCH_L.times}</span>
+            {MEANING_STEP_TYPES.has(step.type) && (
+              <label className="inline-flex items-center gap-1 text-[11px] text-slate-400" title={ORCH_L.stepMeaning}>
+                <input
+                  type="checkbox"
+                  checked={step.meaning === true}
+                  onChange={(e) => updateStep(index, { meaning: e.target.checked })}
+                />
+                {ORCH_L.stepMeaning}
+              </label>
+            )}
             <button type="button" onClick={() => moveStep(index, -1)} className="p-1 text-slate-400 hover:text-slate-200" title={ORCH_L.moveUp}>
               <ArrowUp className="w-3.5 h-3.5" />
             </button>

@@ -32,6 +32,8 @@ _LANG_INDEX = {
     "lo": 6, "fr": 7, "de": 8, "es": 9,
 }
 _TYPE_DIGIT_WORD = 1
+# Lanes whose domain report is keyed by content_id (not by a dictionary row).
+_CONTENT_ID_LANES = ("sentence", "phrase")
 # Per-word "backend already has the audio" probe (skip duplicate uploads when
 # the queue re-issues tasks for rows whose file already exists on Laravel).
 _WORD_MEDIA_PROBE_TIMEOUT = 15
@@ -58,8 +60,18 @@ class LaravelAudioWorkerReportingMixin:
 
     def _report_fields(self, info: Dict[str, Any], success: bool, provider: str, error: str = "") -> Dict[str, str]:
         """Exact multipart field set of this lane's report endpoint (validators:
-        AppQyV1TTSWorkerController::report / AppQyV1SentenceAudioController::report)."""
-        if self.LANE == "sentence":
+        AppQyV1TTSWorkerController::report / AppQyV1SentenceAudioController::report /
+        the phrase report)."""
+        if self.LANE == "phrase":
+            fields = {
+                "content_id": str(info.get("content_id") or ""),
+                "language": str(info.get("language") or "en"),
+                "text": str(info.get("text") or ""),
+                "worker_id": self.worker_id,
+                "success": "true" if success else "false",
+                "provider": provider or "none",
+            }
+        elif self.LANE == "sentence":
             fields = {
                 "content_id": str(info.get("content_id") or ""),
                 "language": str(info.get("language") or "en"),
@@ -191,7 +203,7 @@ class LaravelAudioWorkerReportingMixin:
         domain endpoint for this task (word without dict_row_id, article) -
         the audio then travels ONLY inside the global task result.
         """
-        if self.LANE == "sentence":
+        if self.LANE in _CONTENT_ID_LANES:
             return self._post_report(
                 info,
                 True,
@@ -255,7 +267,7 @@ class LaravelAudioWorkerReportingMixin:
                 "progress",
                 stage,
                 info,
-                mirror=self.LANE != "word",
+                mirror=not self.BATCH_LANE,
             )
         return progress
 
@@ -276,7 +288,7 @@ class LaravelAudioWorkerReportingMixin:
             result["speaker"] = self._speaker
         # Audio progress is persisted locally and finalized by the durable
         # outbox. Never hold a synthesis lane on a Laravel progress request.
-        if self.LANE in ("sentence", "word"):
+        if self.LANE in (*_CONTENT_ID_LANES, "word"):
             return True
         return self._post_result(
             task_id,
@@ -292,7 +304,7 @@ class LaravelAudioWorkerReportingMixin:
         Records carrying the same identity deliver the SAME bytes to the SAME
         domain endpoint; the outbox dedupes them durably (no time windows).
         """
-        if self.LANE == "sentence":
+        if self.LANE in _CONTENT_ID_LANES:
             content_id = str(info.get("content_id") or "").strip()
             if not content_id:
                 return ""
@@ -324,7 +336,7 @@ class LaravelAudioWorkerReportingMixin:
         instead of waiting out its lock (retired-worker behavior)."""
         if not info:
             return
-        if self.LANE != "sentence" and (info.get("kind") != "word" or not info.get("dict_row_id")):
+        if self.LANE not in _CONTENT_ID_LANES and (info.get("kind") != "word" or not info.get("dict_row_id")):
             return
         try:
             accepted, detail = self._post_report(info, False, provider, error=error)
@@ -350,6 +362,14 @@ class LaravelAudioWorkerReportingMixin:
         if include_audio:
             with open(audio_path, "rb") as fh:
                 audio_base64 = base64.b64encode(fh.read()).decode("ascii")
+
+        if self.LANE == "phrase":
+            return {
+                "audio_base64": audio_base64,
+                "domain_audio_persisted": not include_audio,
+                "mime": "audio/mpeg",
+                "provider": provider,
+            }
 
         if self.LANE == "sentence":
             result: Dict[str, Any] = {

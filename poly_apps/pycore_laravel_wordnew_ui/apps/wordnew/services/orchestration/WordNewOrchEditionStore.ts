@@ -4,9 +4,11 @@
  *
  * An edition is the whole timeline: clips still missing are placeholders the
  * player skips. The first run reaching `ready` publishes it; after that it is
- * static - opening a page or a re-run never recompiles it. A later run with
- * other clips (new or updated resources, a re-orchestrated plan) is an offer
- * that replaces the edition only when accepted. Editions are kept per user on
+ * static - opening a page or a re-run never recompiles it. A later run of the
+ * same plan with other clips (new or updated resources) is an offer that
+ * replaces the edition only when accepted. An edit (a new plan) makes the
+ * edition stale: the new plan's preview (the clips its first source pass held,
+ * published while its run still goes) or its first ready run replaces it at once. Editions are kept per user on
  * the device (`wfnew-orch/users/<user>/editions/<task>.json`), so opening a
  * player needs no run and no network. The file is compact (one bridge write
  * on the app): items and clip URLs once each, timelines as flat number rows
@@ -32,6 +34,8 @@ export interface OrchPlaybackEdition {
   sentences: OrchComposeSentence[];
   /** Meaning of every spoken word (lower case). */
   meanings: Record<string, string>;
+  /** Meaning of every spoken phrase (lower-case text); absent in editions made before phrases. */
+  phraseMeanings?: Record<string, string>;
   /** Read state of every spoken word (virtual reads of played words). */
   words: Record<string, OrchWordState>;
   newWords: string[];
@@ -150,11 +154,21 @@ function copyEdition(task: OrchComposeTask, session: OrchComposeSession): OrchPl
   const timelines = session.timelines.map((timeline) => [...timeline]);
   const seqs = new Set<number>();
   const spokenWords = new Set<string>();
+  const spokenPhrases = new Set<string>();
   timelines.forEach((timeline) => timeline.forEach((entry) => {
     seqs.add(entry.item.seq);
-    const word = (entry.item.meaningOf ?? (entry.item.kind === 'word' ? entry.item.text : '')).toLowerCase();
+    if (entry.item.kind === 'phrase') spokenPhrases.add(entry.item.text.toLowerCase());
+    // A phrase's meaning clip explains a phrase, not a word.
+    const word = (entry.item.meaningKind === 'phrase' ? '' : entry.item.meaningOf ?? (entry.item.kind === 'word' ? entry.item.text : '')).toLowerCase();
     if (word) spokenWords.add(word);
   }));
+  const phraseMeanings: Record<string, string> = {};
+  if (spokenPhrases.size > 0) {
+    session.phrasesBySentence?.forEach((phrases) => phrases.forEach((phrase) => {
+      const key = phrase.text.toLowerCase();
+      if (phrase.meaning && spokenPhrases.has(key) && !phraseMeanings[key]) phraseMeanings[key] = phrase.meaning;
+    }));
+  }
   const meanings: Record<string, string> = {};
   const words: Record<string, OrchWordState> = {};
   spokenWords.forEach((word) => {
@@ -172,6 +186,7 @@ function copyEdition(task: OrchComposeTask, session: OrchComposeSession): OrchPl
     timelines,
     sentences: plan.sentences.filter((sentence) => seqs.has(sentence.seq)),
     meanings,
+    phraseMeanings,
     words,
     newWords: orchNewWords(plan, session.wordStates, task.config.newOnlyMaxReadCount ?? 0).filter((word) => spokenWords.has(word)),
     clips,
@@ -190,6 +205,7 @@ class WordNewOrchEditionStoreService {
 
   constructor() {
     wordNewOrchComposer.subscribeReady((taskId, session) => { void this.offer(taskId, session); });
+    wordNewOrchComposer.subscribePreview((taskId, session) => { void this.preview(taskId, session); });
   }
 
   private key(taskId: string): string {
@@ -249,7 +265,7 @@ class WordNewOrchEditionStoreService {
       this.offers.delete(key);
       return;
     }
-    if (!current) {
+    if (!current || current.planHash !== session.planHash) {
       await this.publish(task, session);
       return;
     }
@@ -265,6 +281,15 @@ class WordNewOrchEditionStoreService {
     this.emit(taskId);
   }
 
+  /** Early timelines of the task's current plan: they replace an edition of another plan (or none), never one of this plan. */
+  private async preview(taskId: string, session: OrchComposeSession): Promise<void> {
+    const task = await wordNewOrchTaskStore.get(taskId);
+    if (!task || task.planHash !== session.planHash) return;
+    const current = await this.load(taskId);
+    if (current?.planHash === session.planHash) return;
+    await this.publish(task, session);
+  }
+
   /**
    * A page opens the task: its stored edition as is (no recompilation). Only
    * without one is a ready run published; a differing run stays an offer.
@@ -273,8 +298,9 @@ class WordNewOrchEditionStoreService {
     const key = this.key(task.id);
     const current = await this.load(task.id);
     const session = wordNewOrchComposer.session(task.id);
-    if (session?.phase !== 'ready' || session.planHash !== task.planHash || session.timelines.length === 0) return current;
-    if (!current) return this.publish(task, session);
+    if (session?.planHash !== task.planHash || session.timelines.length === 0) return current;
+    if (!current || current.planHash !== session.planHash) return this.publish(task, session);
+    if (session.phase !== 'ready') return current;
     const { clips, durationMs } = measure(session.timelines);
     if (signatureOf(session.planHash, clips, durationMs) !== editionSignature(current)) {
       await this.offer(task.id, session);

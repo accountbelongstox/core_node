@@ -96,6 +96,17 @@ export const lmZhUiTask = {
       open_queue: '打开队列中心',
       pycore_unreachable: 'pycore 离线 — 请启动 pyservice.ps1 以启用自动合成'
     },
+    work_lanes: {
+      title: '工作通道',
+      hint: '各通道按语言的缺失行数、已租约给 pycore 节点的数量与空闲数量，以及每种任务类型的实时队列数。',
+      nodes: '在线节点',
+      gap: '缺失',
+      leased: '已租约',
+      free: '空闲',
+      by_type: '按任务类型的队列',
+      empty: '没有通道存在缺失行。',
+      load_failed: '加载工作通道失败。'
+    },
     overview: {
       pull_result: '拉取 → 结果',
       online_busy_offline: '在线 / 忙碌 / 离线'
@@ -158,6 +169,8 @@ export const lmZhUiTask = {
       word_audio: '单词音频',
       article_audio: '文章音频',
       sentence_audio: '句子音频',
+      phrase_audio: '短语音频',
+      phrase_extract: '短语提取',
       subtitle_search: '字幕搜索',
       poster: '书籍 / 媒体封面',
       notebooklm: 'NotebookLM',
@@ -177,6 +190,8 @@ export const lmZhUiTask = {
       image: '图像',
       translate: '翻译（Chrome）',
       sentence_audio: '句子音频',
+      phrase_audio: '短语音频',
+      phrase_extract: '短语提取',
       ai_translate: 'AI 翻译（Chrome）',
       puter_translate: 'Puter 翻译',
       subtitle: '字幕',

@@ -1,6 +1,7 @@
 import { ChangeSignal } from '../../../core/events/ChangeSignal';
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import queueCenterContract from '../../../../../config/queue_center_contract.json';
+import { AUDIO_ORCH_PHRASE_PIPELINE } from '../../../core/contracts/AudioOrchestrationContract';
 import { laravelApi, LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../core/integrations/laravel';
 import type { WorkNode, WorkPoolEntry } from '../../../core/contracts/QueueCenterContract';
 import type { QueueProgress } from '../../../core/contracts/QueueProgress';
@@ -9,6 +10,7 @@ import { serverSchemaGate, type ServerSchemaSnapshot } from '../../../core/integ
 
 const SENTENCE_LANE = queueCenterContract.work_leases.lanes[1];
 const WORD_LANE = queueCenterContract.work_leases.lanes[0];
+const PHRASE_LANE = AUDIO_ORCH_PHRASE_PIPELINE.audioLane;
 const GPU_CLASS = 'gpu';
 const FALLBACK_REFRESH_MS = 60_000;
 const MIN_REFRESH_GAP_MS = queueCenterContract.work_leases.nodes_event.min_interval_seconds * 1000;
@@ -182,7 +184,7 @@ class WordNewAssistStatusStore {
   private async loadRoster(): Promise<{ state: WordNewAssistSnapshot['nodes']; lanes: Record<string, WordNewAssistLane> }> {
     try {
       const { nodes, pool } = await laravelApi.getWorkNodes();
-      const lanes = Object.fromEntries([WORD_LANE, SENTENCE_LANE].map((lane) => [lane, laneView(lane, nodes ?? [], pool ?? [], this.languages)]));
+      const lanes = Object.fromEntries([WORD_LANE, SENTENCE_LANE, PHRASE_LANE].map((lane) => [lane, laneView(lane, nodes ?? [], pool ?? [], this.languages)]));
       return { state: 'ready', lanes };
     } catch (error) {
       if (serverSchemaGate.observeError(error)) return { state: 'idle', lanes: {} };

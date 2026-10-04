@@ -41,6 +41,7 @@ return [
         'audio_subtitles' => $audioRoot.'/word_subtitles',
         'sentence_sounds' => $audioRoot.'/sentence_sounds',
         'sentence_subtitles' => $audioRoot.'/sentence_subtitles',
+        'phrase_sounds' => $audioRoot.'/phrase_sounds',
         'audio_archive' => $cacheRoot.'/audio_archive.7z',
 
         'images_directory' => $imageRoot.'/word_images',

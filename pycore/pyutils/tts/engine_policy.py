@@ -17,6 +17,7 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
+from pycore.pyutils.common.queue_center_contract import AUDIO_BATCH_LANES
 from pycore.pyutils.common.user_data_store import (
     USER_DATA_SECTION_CAPABILITY_PRIORITIES,
     USER_DATA_SECTION_SENTENCE_AUDIO_AUTO,
@@ -299,13 +300,21 @@ def tts_engine_supports_language(engine: str, language: Optional[str]) -> bool:
 
 
 _LANE_EMPTY_LOGGED_SIGNAL = "pyutils.tts.engine_policy.lane_capability_empty"
+SENTENCE_LANE_PROFILE = "sentence"
+
+
+def lane_profile(lane: str) -> str:
+    """TTS profile of one audio lane: the word and phrase lanes share the
+    word-batch chain (engine and languages), every other lane the sentence
+    profile."""
+    return WORD_BATCH_PROFILE if str(lane or "") in AUDIO_BATCH_LANES else SENTENCE_LANE_PROFILE
 
 
 def lane_capability(profile: str, available: Optional[Callable[[str], bool]] = None) -> Dict[str, list]:
     """Engines of one lane chain and the languages they can speak: what a node
     declares when it claims work for that lane. The pinned chain when the
     runtime profile is enabled; with the profile off, the lane's configured
-    chain (the word lane always batches with WORD_BATCH_ENGINE), filtered by
+    chain (the word and phrase lanes always batch with WORD_BATCH_ENGINE), filtered by
     ``available``."""
     engines = list(_pinned_chain(profile))
     if not engines:

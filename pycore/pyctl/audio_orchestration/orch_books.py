@@ -14,18 +14,20 @@ first sync and old tasks can be regenerated without re-fetching.
 """
 
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
+from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.common.background_jobs import BackgroundJobs
 
-from pycore.pyctl.audio_orchestration import orch_store
+from pycore.pyctl.audio_orchestration import orch_contract, orch_store
 
 _LARAVEL_BOOKS = queue_center_endpoint("orch_books")
+_LARAVEL_PHRASES = queue_center_endpoint("phrases_by_sentences")
 _BOOKS_PAGE_SIZE = 100
 # Small sentence pages: Laravel answers each page with bounded work (keyset
 # after_seq when supported), and a failure costs one page, not the book.
@@ -34,6 +36,11 @@ _PAGE_TIMEOUT_SECONDS = 45
 _PAGE_ATTEMPTS = 3
 _PAGE_RETRY_DELAYS_SECONDS = (2.0, 5.0)
 _RETRY_WAIT_SIGNAL = "audio_orchestration.page_retry.wait"
+# Sentences per phrases_by_sentences request (the endpoint accepts at most 500).
+_PHRASES_PAGE_SIZE = 500
+_PHRASES_SAVE_EVERY_PAGES = 10
+# A sentence in one of these states has its final phrase list and is never asked again.
+_PHRASE_STATUS_FINAL = ("done", "none")
 BOOKS_SYNC_KEY = "books"
 
 # Background fetch jobs (UI calls return immediately - relay-safe - while these
@@ -72,8 +79,20 @@ def sync_states() -> Dict[str, Any]:
     return states
 
 
-def _get_page(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """GET one Laravel page with bounded retries; returns the ``data`` dict.
+def _enveloped_data(body: Any) -> Optional[Dict[str, Any]]:
+    data = body.get("data") if isinstance(body, dict) else None
+    return data if isinstance(data, dict) else None
+
+
+def _request_page(
+    path: str,
+    params: Optional[Dict[str, Any]] = None,
+    method: str = "GET",
+    body: Optional[Dict[str, Any]] = None,
+    unwrap: Callable[[Any], Optional[Dict[str, Any]]] = _enveloped_data,
+) -> Dict[str, Any]:
+    """Request one Laravel page with bounded retries; returns what ``unwrap``
+    extracts from the answer (the ``data`` dict by default).
 
     Raises ``_PageFailure`` with a stable error code after the last attempt.
     """
@@ -82,7 +101,9 @@ def _get_page(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         if attempt:
             THREAD_BUS.wait_signal(_RETRY_WAIT_SIGNAL, timeout=_PAGE_RETRY_DELAYS_SECONDS[min(attempt, len(_PAGE_RETRY_DELAYS_SECONDS)) - 1])
         try:
-            response = laravel_client.get(path, params=params, timeout=_PAGE_TIMEOUT_SECONDS)
+            response = laravel_client.request(
+                method, path, params=params, json=body, timeout=_PAGE_TIMEOUT_SECONDS,
+            )
         except Exception as exc:  # noqa: BLE001 - classified and retried
             ColorPrint.yellow(f"[AudioOrch] page fetch failed ({path}, attempt {attempt + 1}): {exc}")
             failure = laravel_failure(exc)
@@ -92,9 +113,8 @@ def _get_page(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
             if response.status_code < 500 and response.status_code != 429:
                 break
             continue
-        body = response.json() if response.content else None
-        data = body.get("data") if isinstance(body, dict) else None
-        if isinstance(data, dict):
+        data = unwrap(response.json() if response.content else None)
+        if data is not None:
             return data
         failure = {"error_code": "LARAVEL_BAD_RESPONSE", "detail": "missing data", "status": response.status_code}
     raise _PageFailure(failure)
@@ -105,7 +125,7 @@ def _fetch_books_blocking() -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     page = 1
     while True:
-        data = _get_page(_LARAVEL_BOOKS, {"page": page, "per_page": _BOOKS_PAGE_SIZE})
+        data = _request_page(_LARAVEL_BOOKS, {"page": page, "per_page": _BOOKS_PAGE_SIZE})
         page_items = data.get("items") if isinstance(data.get("items"), list) else []
         if not page_items:
             break
@@ -221,7 +241,7 @@ def _sentence_page(source_key: str, cursor: Dict[str, Any]) -> Tuple[Dict[str, A
         params["after_id"] = int(cursor.get("after_id") or 0)
     else:
         params["page"] = int(cursor.get("page") or 1)
-    data = _get_page(queue_center_endpoint("orch_book_detail", source_key=source_key), params)
+    data = _request_page(queue_center_endpoint("orch_book_detail", source_key=source_key), params)
     page_data = data.get("sentences") if isinstance(data.get("sentences"), dict) else None
     if page_data is None:
         raise _PageFailure({"error_code": "BOOK_SENTENCE_PAGE_MISSING", "detail": "", "status": 200})
@@ -383,6 +403,141 @@ def wake_sentence_waiters(source_key: str) -> None:
     _sync_jobs.notify(str(source_key or "").strip())
 
 
+# --------------------------------------------------------------------------- #
+# sentence phrases (Laravel phrases_by_sentences)                              #
+# --------------------------------------------------------------------------- #
+def sentence_language_text(sentence: Dict[str, Any], lang: str) -> str:
+    """The text of one sentence in ``lang`` (its translation, or its own text
+    when that is the sentence language)."""
+    languages = sentence.get("languages") or {}
+    text = str(languages.get(lang) or "").strip()
+    if not text and lang == str(sentence.get("language") or ""):
+        text = str(sentence.get("text") or "").strip()
+    return text
+
+
+def sentence_content_id(sentence: Dict[str, Any], language: str) -> str:
+    """Laravel identity of a sentence (``media_content_id`` of its text), '' when it has no text."""
+    text = sentence_language_text(sentence, language)
+    return media_content_id(text) if text else ""
+
+
+def _phrase_payload(body: Any) -> Optional[Dict[str, Any]]:
+    payload = body.get("data") if isinstance(body, dict) and isinstance(body.get("data"), dict) else body
+    return payload if isinstance(payload, dict) and isinstance(payload.get("items"), list) else None
+
+
+def _phrases_of(sentence_ids: List[str], sentences: Dict[str, Any], phrases: Dict[str, Any]) -> Dict[str, List[Dict[str, str]]]:
+    """``{sentence content id: [{content_id, text, meaning}]}`` of the sentences that have phrases."""
+    found: Dict[str, List[Dict[str, str]]] = {}
+    for sentence_id in sentence_ids:
+        entry = sentences.get(sentence_id)
+        rows = [
+            {"content_id": phrase_id, "text": str(phrases[phrase_id]["text"]), "meaning": str(phrases[phrase_id].get("meaning") or "")}
+            for phrase_id in (entry.get("phrases") if isinstance(entry, dict) else None) or []
+            if isinstance(phrases.get(phrase_id), dict) and phrases[phrase_id].get("text")
+        ]
+        if rows:
+            found[sentence_id] = rows
+    return found
+
+
+def _sentence_ids(sentences: List[Dict[str, Any]], language: str) -> List[str]:
+    return list(dict.fromkeys(
+        sentence_id for sentence_id in (sentence_content_id(sentence, language) for sentence in sentences) if sentence_id
+    ))
+
+
+def cached_sentence_phrases(language: str, sentences: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, str]]]:
+    """Phrases of the sentences already fetched (no request): plan previews."""
+    if language not in orch_contract.PHRASE_LANGUAGES:
+        return {}
+    cache = orch_store.load_sentence_phrase_cache(language)
+    return _phrases_of(_sentence_ids(sentences, language), cache["sentences"], cache["phrases"])
+
+
+def phrase_meanings(language: str, texts: List[str]) -> Dict[str, str]:
+    """``{phrase text: Chinese meaning}`` of the phrases the cache knows with a meaning."""
+    phrases = orch_store.load_sentence_phrase_cache(language)["phrases"]
+    meanings: Dict[str, str] = {}
+    for text in texts:
+        entry = phrases.get(media_content_id(text))
+        if isinstance(entry, dict) and entry.get("meaning"):
+            meanings[text] = str(entry["meaning"])
+    return meanings
+
+
+def ensure_sentence_phrases(
+    language: str,
+    sentences: List[Dict[str, Any]],
+    cancel_requested: Optional[Callable[[], bool]] = None,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+) -> Dict[str, Any]:
+    """Blocking phrase lookup for GENERATION (worker thread): sentences with a
+    final status come from the local cache, the others are asked from Laravel
+    in pages of 500 (``phrases_by_sentences``); sentences whose phrases are not
+    extracted yet are not cached and are asked again on the next run. Returns
+    ``{success, phrases, pending, total}`` or ``{success: False, error}``."""
+    if language not in orch_contract.PHRASE_LANGUAGES:
+        return {"success": True, "phrases": {}, "pending": 0, "total": 0}
+    cache = orch_store.load_sentence_phrase_cache(language)
+    known_sentences: Dict[str, Any] = dict(cache["sentences"])
+    known_phrases: Dict[str, Any] = dict(cache["phrases"])
+    sentence_ids = _sentence_ids(sentences, language)
+    wanted = [sentence_id for sentence_id in sentence_ids if sentence_id not in known_sentences]
+    pending = 0
+    pages = 0
+    failure: Optional[Dict[str, Any]] = None
+    for offset in range(0, len(wanted), _PHRASES_PAGE_SIZE):
+        if cancel_requested is not None and cancel_requested():
+            return {"success": False, "error": "cancelled"}
+        if progress_callback is not None:
+            progress_callback(offset, len(wanted))
+        page_ids = wanted[offset:offset + _PHRASES_PAGE_SIZE]
+        try:
+            payload = _request_page(
+                _LARAVEL_PHRASES, method="POST", body={"language": language, "content_ids": page_ids},
+                unwrap=_phrase_payload,
+            )
+        except _PageFailure as page_failure:
+            ColorPrint.yellow(f"[AudioOrch] phrases fetch failed ({language}): {page_failure.failure}")
+            failure = page_failure.failure
+            break
+        answered = set()
+        for row in payload["items"]:
+            sentence_id = str(row.get("content_id") or "") if isinstance(row, dict) else ""
+            if sentence_id not in page_ids or sentence_id in answered:
+                continue
+            answered.add(sentence_id)
+            if str(row.get("status") or "") not in _PHRASE_STATUS_FINAL:
+                pending += 1
+                continue
+            phrase_ids: List[str] = []
+            for phrase in row.get("phrases") if isinstance(row.get("phrases"), list) else []:
+                text = str(phrase.get("text") or "").strip() if isinstance(phrase, dict) else ""
+                phrase_id = media_content_id(text) if text else ""
+                if not phrase_id:
+                    continue
+                known_phrases[phrase_id] = {"text": text, "meaning": str(phrase.get("meaning") or "").strip()}
+                if phrase_id not in phrase_ids:
+                    phrase_ids.append(phrase_id)
+            known_sentences[sentence_id] = {"status": str(row["status"]), "phrases": phrase_ids}
+        pending += len(page_ids) - len(answered)
+        pages += 1
+        if pages % _PHRASES_SAVE_EVERY_PAGES == 0:
+            orch_store.save_sentence_phrase_cache(language, known_sentences, known_phrases)
+    if pages:
+        orch_store.save_sentence_phrase_cache(language, known_sentences, known_phrases)
+    if failure is not None:
+        return {"success": False, "error": str(failure.get("error_code") or "LARAVEL_REQUEST_FAILED")}
+    return {
+        "success": True,
+        "phrases": _phrases_of(sentence_ids, known_sentences, known_phrases),
+        "pending": pending,
+        "total": len(sentence_ids),
+    }
+
+
 def estimate_sentence_seconds(sentence: Dict[str, Any]) -> float:
     """Rough spoken-duration estimate for one sentence across its languages."""
     seconds = sum(
@@ -467,6 +622,11 @@ __all__ = [
     "sync_book_sentences",
     "ensure_book_sentences",
     "wake_sentence_waiters",
+    "sentence_language_text",
+    "sentence_content_id",
+    "cached_sentence_phrases",
+    "ensure_sentence_phrases",
+    "phrase_meanings",
     "estimate_sentence_seconds",
     "partition_sentences",
 ]

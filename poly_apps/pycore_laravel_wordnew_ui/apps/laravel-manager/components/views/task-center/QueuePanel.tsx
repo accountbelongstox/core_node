@@ -64,6 +64,7 @@ import {
   type GlobalTasksSnapshot,
 } from './shared';
 import MissingSentenceAudioPanel from './MissingSentenceAudioPanel';
+import WorkLanesPanel from './WorkLanesPanel';
 import {
   GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE,
   GLOBAL_TASK_PRIORITIES,
@@ -285,6 +286,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
+      <WorkLanesPanel lang={lang} />
       <MissingSentenceAudioPanel lang={lang} refreshToken={refreshToken} />
 
       {/* Transient error / action notice banners */}

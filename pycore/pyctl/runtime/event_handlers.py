@@ -46,8 +46,9 @@ from pycore.pyctl.queue_center.lane_registry import (
     LANE_REGISTRY,
     lane_worker,
 )
-from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
+from pycore.pyctl.tts.lane_auto import phrase_audio_auto, sentence_audio_auto, word_audio_auto
 from pycore.pyctl.tts.audio_lane_activation import activate_enabled_audio_lanes
+from pycore.pyutils.tts.phrase_audio_cache import phrase_audio_cache_index
 from pycore.pyutils.tts.word_audio_cache import word_audio_cache_index
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
 from pycore.pylauncher.tray_menu import (
@@ -390,7 +391,7 @@ def _run_audio_lane_boot_chain(assist_settings: dict) -> None:
     ``apply_assist_runtime`` runs on THIS thread, after the audio-lane cache
     restore, never on the main thread in parallel with it: it drives the
     lane lifecycle (``worker.request_start`` -> an immediate remote-first
-    pull) for word_audio/sentence_audio too, and the cache-before-remote-
+    pull) for word_audio/sentence_audio/phrase_audio too, and the cache-before-remote-
     access invariant (DESIGN_AUDIO_ORCHESTRATION.md section 8)
     would otherwise depend on which thread happens to run first. The
     ``finally`` (no ``except``) keeps translation/stt starting even when the
@@ -410,7 +411,7 @@ def _run_audio_lane_boot_chain(assist_settings: dict) -> None:
 def _start_audio_lane_boot_chain() -> None:
     """Audio-lane boot chain (DESIGN_AUDIO_ORCHESTRATION.md section 8).
 
-    For every audio lane (word_audio, sentence_audio) whose persisted switch
+    For every audio lane (word_audio, sentence_audio, phrase_audio) whose persisted switch
     is ON: (a) restore the lane's whole Queue from the local cache, (b) start
     the full pull of the server backlog in the background, (c) wake the
     drain. The local word-audio cache index loads in full in the background
@@ -419,6 +420,7 @@ def _start_audio_lane_boot_chain() -> None:
     caller that runs afterward on the SAME thread never races the restore.
     """
     word_audio_cache_index.start_background_load()
+    phrase_audio_cache_index.start_background_load()
     activate_enabled_audio_lanes()
 
 
@@ -449,6 +451,7 @@ def register_runtime_workers() -> None:
     _run_runtime_step("model_boot", model_boot_service.verify_all)
     _run_runtime_step("restore_word_audio", word_audio_auto.restore_persisted_auto_start)
     _run_runtime_step("restore_sentence_audio", sentence_audio_auto.restore_persisted_auto_start)
+    _run_runtime_step("restore_phrase_audio", phrase_audio_auto.restore_persisted_auto_start)
     for callback_name, callback, interval in _QUEUE_WORKER_CALLBACKS:
         _run_runtime_step(
             f"queue_callback:{callback_name}",

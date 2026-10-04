@@ -1127,6 +1127,30 @@ class PathMapper
     }
 
     /**
+     * AppQyV1 phrase sounds directory (phrase pipeline, lane phrase_audio):
+     * files live at <dir>/<lang>/<content_id>.mp3 and are served under
+     * /static/app_qy_v1/phrase_sounds/. Mirrors getAppQyV1SentenceSoundsDir().
+     */
+    public static function getAppQyV1PhraseSoundsDir(?string $subPath = ""): string
+    {
+        $configured = config('AppQyV1.paths.phrase_sounds');
+        $relative = 'phrase_sounds';
+        $default = self::getAppQyV1AudioBaseDir($relative);
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $basePath = rtrim($basePath, '/') . '/' . ltrim($subPath, '/');
+            }
+            return $basePath;
+        }
+
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getAppQyV1AudioBaseDir($relative);
+    }
+
+    /**
      * Get AppQyV1 word-images directory (Bing-assist sample images stored as
      * local files from base64 bytes; the Bing image URLs are not server-fetchable).
      * Mirrors getAppQyV1AudioDir(): config override, else the unified
@@ -1167,6 +1191,7 @@ class PathMapper
         return [
             self::getAppQyV1AudioDir(),           // Word sounds directory (contains language namespaces)
             self::getAppQyV1SentenceSoundsDir(),  // Sentence sounds directory (contains language namespaces)
+            self::getAppQyV1PhraseSoundsDir(),    // Phrase sounds directory (contains language namespaces)
         ];
     }
 

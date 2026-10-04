@@ -18,6 +18,7 @@ import type { AudioLaneKey } from '../../../../core/contracts/QueueCenterTypes';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { pycoreApi } from '../../../../core/integrations/pycore';
 import { Backoff } from '../../../../core/tasks/Backoff';
+import { orchPatternHasPhrases } from '../../../../shared/orchestration/orchPlanner';
 import type { OrchComposePlan, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { wfNewApi, type WfNewBookPlanStatus } from '../../api';
 import { CapJsonStore, Directory } from '../../platform/capabilities';
@@ -26,8 +27,10 @@ import { wordNewChannels } from '../compute/WordNewCompute';
 import { wordNewClipReady } from '../WordNewClipReady';
 import { wordNewPycoreNodes } from '../WordNewPycoreNodes';
 import {
+  ASSIGNMENT_LANES,
   buildAssignment,
   defaultDirectShare,
+  laneOfKind,
   type Assignment,
   type AssignmentLanguages,
 } from './WordNewBookPlanAssigner';
@@ -45,6 +48,8 @@ interface StoredPlan {
   planHash: string;
   /** Reading position (sentence seq) the server last raised priorities for. */
   position: number;
+  /** Phrase clips the plan held when it was last posted (phrases that arrive later are posted again: the server derives them). */
+  phrases?: number;
   /** Settled ready cursor: every id up to it was delivered or is on the device. */
   cursor: number;
   /** Server-ready clips behind the cursor that this device's plan does not cover (counted once per cursor pass). */
@@ -122,12 +127,15 @@ async function readingPosition(taskId: string, plan: OrchComposePlan): Promise<n
 
 /** Languages per lane of the covered clips: the clips the plan owns decide which windows are worth posting. */
 function coveredLanguages(plan: OrchComposePlan, covered: ReadonlySet<string>): AssignmentLanguages {
-  const sentence = new Set<string>();
-  const word = new Set<string>();
+  const byLane = Object.fromEntries(ASSIGNMENT_LANES.map((lane) => [lane, new Set<string>()])) as Record<AudioLaneKey, Set<string>>;
   plan.resources.forEach((resource) => {
-    if (covered.has(resource.key)) (resource.kind === 'word' ? word : sentence).add(resource.language);
+    if (covered.has(resource.key)) byLane[laneOfKind(resource.kind)].add(resource.language);
   });
-  return { sentence_audio: [...sentence], word_audio: [...word] };
+  return Object.fromEntries(ASSIGNMENT_LANES.map((lane) => [lane, [...byLane[lane]]])) as AssignmentLanguages;
+}
+
+function phraseClipCount(plan: OrchComposePlan): number {
+  return plan.resources.reduce((total, resource) => total + (resource.kind === 'phrase' ? 1 : 0), 0);
 }
 
 function scopeOf(live: LivePlan): WordNewBookPlanSnapshot['scope'] {
@@ -191,7 +199,8 @@ class WordNewBookAudioPlanService {
   async ensurePlan(task: OrchComposeTask, plan: OrchComposePlan, covered: Set<string>): Promise<OrchPlanScope | null> {
     const book = task.config.book;
     const languages = planLanguages(task);
-    if (!book || languages.length === 0 || serverSchemaGate.getSnapshot().schema === 'pending') return null;
+    const includePhrases = orchPatternHasPhrases(task.config.pattern);
+    if (!book || (languages.length === 0 && !includePhrases) || serverSchemaGate.getSnapshot().schema === 'pending') return null;
     const document = await this.file.load();
     let live = this.live.get(task.id);
     if (!live) {
@@ -222,13 +231,16 @@ class WordNewBookAudioPlanService {
     live.languages = coveredLanguages(plan, covered);
     const position = await readingPosition(task.id, plan);
     const moved = Math.abs(position - live.stored.position) >= AUDIO_ORCH_BOOK_PLAN.reprioritizeMinMove;
-    if (!live.stored.planId || live.stored.planHash !== task.planHash || moved) {
+    const phrases = includePhrases ? phraseClipCount(plan) : 0;
+    const phrasesChanged = includePhrases && phrases !== (live.stored.phrases ?? 0);
+    if (!live.stored.planId || live.stored.planHash !== task.planHash || moved || phrasesChanged) {
       try {
         const posted = await wfNewApi.postBookAudioPlan({
           sourceKey: book.sourceKey,
           chapterIndex: book.chapterIndex,
           languages,
           includeWords: task.config.pattern.some((step) => WORD_STEP_TYPES.includes(step.type)),
+          includePhrases,
           position,
           planHash: task.planHash,
         });
@@ -240,7 +252,7 @@ class WordNewBookAudioPlanService {
           live.stored.foreignSettled = 0;
           live.ready.clear();
         }
-        live.stored = { ...live.stored, planId: posted.planId, planHash: task.planHash, position, status: posted };
+        live.stored = { ...live.stored, planId: posted.planId, planHash: task.planHash, position, phrases, status: posted };
         this.publish(task.id, live);
         this.persist(task.id);
         void pycoreApi.bookPlanHint(posted.planId).catch(() => undefined);

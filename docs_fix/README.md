@@ -1,5 +1,6 @@
 
 
+
 # AI Fix Documentation Guidelines
 
 If you are an AI reading this document, your assigned task is to **analyze the problem and write a detailed fix list** (including specific files and issues) for *another* AI to execute the actual code fixes.
@@ -12,6 +13,7 @@ Each topic has ONE current-state canonical document, named `DESIGN_<TOPIC>.md` (
 `DESIGN_PYCORE_CORE.md`, `DESIGN_RELAY.md`, `DESIGN_TRANSPORT_PLANE.md`, `DESIGN_QUEUE_PIPELINE.md`, `DESIGN_TTS_AI_RUNTIME.md`,
 `DESIGN_AUDIO_ORCHESTRATION.md`, `DESIGN_WORDNEW_CLIENT.md`, `DESIGN_LARAVEL_PLATFORM.md`, `DESIGN_AUTH_IDENTITY.md`,
 `DESIGN_SHELL_HOSTS.md`, `DESIGN_UI.md`, `DESIGN_AGENT_HISTORY.md`, `DESIGN_CODEMART.md`, `DESIGN_CLAUDE_TEAM.md`, `DESIGN_AGENT_BUS.md`,
+`DESIGN_PHRASE_PIPELINE.md`,
 plus `PENDING_ACTIONS.md` (cross-cutting user actions: deployment checklist, deletions awaiting approval, open user decisions),
 `CODESYNC_AI_COMMUNICATION_API.md` (frozen) and `TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md` (referenced by the wordnew guide).
 Other content in this directory is not canonical: `codemart_docs/flutter_reference/` (Flutter reference material for `DESIGN_CODEMART.md`), `bug_audit_20260927/audio-tts.md` (audit findings; open items are folded into `DESIGN_TTS_AI_RUNTIME.md` / `DESIGN_AUDIO_ORCHESTRATION.md` Open items), `linsys_doc/` (standalone router recovery runbook, outside the topic set) and `FIX_20260810_WORDNEW_QUEUE_RECEIPTS.txt` (progress note; current state in `DESIGN_WORDNEW_CLIENT.md` §10).

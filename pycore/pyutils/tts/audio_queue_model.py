@@ -4,17 +4,21 @@ the server binding of queued tasks (shared by the queue center parts)."""
 
 from typing import Any, Callable, Dict, Optional
 
-from pycore.pyutils.common.queue_center_contract import word_identity_content, word_identity_md5
+from pycore.pyutils.common.queue_center_contract import (
+    MEDIA_CONTENT_ID_AUDIO_LANES,
+    word_identity_content,
+    word_identity_md5,
+)
 from pycore.pyutils.common.strtools.normalization import media_content_id, word_text
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 # Lanes owned by the library (contract queue keys), built eagerly so the
 # shared instance is fully initialized at pycore boot.
-AUDIO_QUEUE_LANES = ("word_audio", "sentence_audio")
+AUDIO_QUEUE_LANES = ("word_audio", "sentence_audio", "phrase_audio")
 # Stable error codes for lane requests; the UI localizes them by code.
 AUDIO_LANE_ERROR_UNKNOWN = "AUDIO_LANE_UNKNOWN"
 AUDIO_LANE_ERROR_DISABLED = "AUDIO_LANE_DISABLED"
-AUDIO_QUEUE_KIND_BY_LANE = {"word_audio": "word", "sentence_audio": "sentence"}
+AUDIO_QUEUE_KIND_BY_LANE = {"word_audio": "word", "sentence_audio": "sentence", "phrase_audio": "phrase"}
 AUDIO_QUEUE_LANE_BY_KIND = {kind: lane for lane, kind in AUDIO_QUEUE_KIND_BY_LANE.items()}
 
 # THREAD_BUS signal published on every lane mutation ({lane, revision, reason}).
@@ -104,7 +108,7 @@ def build_local_task(
         text = word_text(text)
     if lane not in AUDIO_QUEUE_LANES or not language or not text:
         return None
-    if lane == "sentence_audio":
+    if lane in MEDIA_CONTENT_ID_AUDIO_LANES:
         identity = media_content_id(text)
         payload: Dict[str, Any] = {
             "text": text,

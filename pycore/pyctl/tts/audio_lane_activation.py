@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""ONE ON transition for the audio lanes (word_audio / sentence_audio).
+"""ONE ON transition for the audio lanes (word_audio / sentence_audio / phrase_audio).
 
 Every entry that turns a lane on (Queue Center control, auto-start helpers,
-pycore boot) runs the same chain, so both lanes behave identically:
+pycore boot) runs the same chain, so every lane behaves identically:
 
   1. restore the lane's local Queue items (orchestration / manual) from the
      snapshot (once per process; cache-first, Laravel may be offline);

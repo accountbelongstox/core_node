@@ -1,6 +1,6 @@
 /**
  * Content-addressed clip access of the pycore audio caches: which word /
- * sentence clips pycore already holds, and their bytes. The same central caches
+ * sentence / phrase clips pycore already holds, and their bytes. The same central caches
  * back pycore's own orchestration, so a client resolves from them first.
  *   - bundle (fastest): many clips in one framed binary response
  *     (contract transfer.pycore_bundle_frame);
@@ -32,7 +32,7 @@ const FRAME_HEADER_BYTES = 4;
 /** Status of a route this pycore build does not have. */
 const ROUTE_MISSING = 404;
 
-export type OrchResourceKind = 'word' | 'sentence';
+export type OrchResourceKind = 'word' | 'sentence' | 'phrase';
 
 export interface OrchResourceRef {
   kind: OrchResourceKind;

@@ -19,6 +19,7 @@ Laravel typed pull/accept/result contract
     article_audio:  {content, language, md5}
     sentence_audio: {text, content(alias), language, content_id, variant_key?,
                      accent?, engine_profile?, preferred_engine?}
+    phrase_audio:   {text, content(alias), language, content_id}
 
   File transport (UNCHANGED report endpoints, multipart, field ``audio``):
     word:     POST /api/app_qy_v1/ai_tools/tts/worker/report
@@ -33,6 +34,9 @@ Laravel typed pull/accept/result contract
     sentence: POST /api/app_qy_v1/ai_tools/tts/sentence/report
               {content_id, language, worker_id, success, audio|audio_base64,
                variant_key?, accent?, gender?, source?, voice_type?,
+               provider?, error?}
+    phrase:   POST /api/app_qy_v1/ai_tools/tts/phrase/report
+              {content_id, language, text, worker_id, success, audio|audio_base64,
                provider?, error?}
 
   The completed global-task result carries audio_base64 only when a domain
@@ -187,9 +191,9 @@ class BaseLaravelAudioWorker(
     LaravelAudioWorkerEngineMixin,
     BaseLaravelWorkerService,
 ):
-    """Shared word/sentence persistent Laravel audio worker.
+    """Shared word/sentence/phrase persistent Laravel audio worker.
 
-    Lane-specific config lives in class attributes; the two concrete singletons
+    Lane-specific config lives in class attributes; the concrete singletons
     at the bottom differ ONLY in those attributes. Lifecycle:
       typed pull or compatibility accept_task() -> record type/endpoint + push into
       the shared ordered heap -> start ONE background drain cycle (skipped
@@ -205,6 +209,11 @@ class BaseLaravelAudioWorker(
     CAPABILITY = "audio"
     PRIORITY_PROFILE = "word"
     REQUIRED_ENGINE: Optional[str] = None
+    # True for the lanes synthesized in batches by the word-batch engine
+    # (word, phrase; contract AUDIO_BATCH_LANES): batch drain, quiet console.
+    BATCH_LANE = True
+    # Worker label of the lane's task-history records (the lane's heartbeat callback).
+    HISTORY_WORKER = "tts_queue_poller"
     ASSIST_CAPABILITY = "tts"
     WORKER_ID_PREFIX = "pycore"
     WORKER_NAME_TAG = "word-audio"
@@ -376,11 +385,13 @@ class BaseLaravelAudioWorker(
     # -------------------- events / counters --------------------
 
     def _log_cycle_task_result(self, task: Dict[str, Any], outcome: str) -> None:
-        """Write one compact terminal line with canonical backend-table progress."""
-        if self.LANE != "word":
+        """Write one compact terminal line; the word lane adds the canonical
+        backend-table progress."""
+        if not self.BATCH_LANE:
             return
+        tracks_backend = self.LANE == "word"
         payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
-        word = str(payload.get("word") or payload.get("content") or "").strip()
+        word = str(payload.get("word") or payload.get("text") or payload.get("content") or "").strip()
         language = str(payload.get("language") or "en").strip().lower() or "en"
         if outcome == TASK_OUTCOME_SKIPPED:
             # The task was dropped before synthesis (claim rejected or
@@ -399,7 +410,7 @@ class BaseLaravelAudioWorker(
             return
         success = outcome == TASK_OUTCOME_COMPLETED
         if bool(task.get("_delivery_staged")):
-            if task.get("_local_source") and task.get("_local_source") != LOCAL_SOURCE_LEASE:
+            if tracks_backend and task.get("_local_source") and task.get("_local_source") != LOCAL_SOURCE_LEASE:
                 # A node-local clip is generated and served from the local
                 # cache already; its Laravel delivery is background outbox
                 # work and neither blocks nor counts as this task's failure.
@@ -407,7 +418,7 @@ class BaseLaravelAudioWorker(
             self._log_event(
                 "delivery_staged",
                 "audio cached; durable Laravel delivery is pending "
-                "(reason=word_audio_delivery)",
+                f"(reason={self.QUEUE_KEY}_delivery)",
                 {
                     "task_id": task.get("task_id"),
                     "stage": "uploading",
@@ -415,7 +426,6 @@ class BaseLaravelAudioWorker(
                 },
             )
             return
-        backend_progress = word_audio_backend_progress.record_result(success)
         provider = str(task.get("_terminal_provider") or "").strip()
         info: Dict[str, Any] = {
             "task_id": task.get("task_id"),
@@ -425,9 +435,11 @@ class BaseLaravelAudioWorker(
             "stage": "completed" if success else "failed",
             "progress": GLOBAL_TASK_PROGRESS_TOTAL if success else 0,
             "progress_total": GLOBAL_TASK_PROGRESS_TOTAL,
-            "backend_progress_current": int(backend_progress.get("current") or 0),
-            "backend_progress_total": int(backend_progress.get("total") or 0),
         }
+        if tracks_backend:
+            backend_progress = word_audio_backend_progress.record_result(success)
+            info["backend_progress_current"] = int(backend_progress.get("current") or 0)
+            info["backend_progress_total"] = int(backend_progress.get("total") or 0)
         if provider:
             info["current_provider"] = provider
         detail = f"via {provider}" if success and provider else (
@@ -464,7 +476,7 @@ class BaseLaravelAudioWorker(
         try:
             endpoint = (base_url or "").strip() or self.active_base_url()
             queued_task = dict(task)
-            if self.LANE == "sentence" and not str(queued_task.get("task_type") or "").strip():
+            if self.LANE != "word" and not str(queued_task.get("task_type") or "").strip():
                 queued_task["task_type"] = self.QUEUE_KEY
             if self._queue.contains(queued_task):
                 return {
@@ -542,7 +554,7 @@ class BaseLaravelAudioWorker(
         claimed = int(self._synth_claimed)
         if claimed <= 0 or self._synth_duration_s <= 0:
             return 0
-        parallel = batch_constants.group_size() if self.LANE == "word" else self._effective_concurrency()[0]
+        parallel = batch_constants.group_size() if self.BATCH_LANE else self._effective_concurrency()[0]
         return int(max(1, parallel) * 3600.0 * claimed / self._synth_duration_s)
 
     def _pop_lane_task(self) -> Optional[Dict[str, Any]]:
@@ -591,10 +603,10 @@ class BaseLaravelAudioWorker(
             if len(self._queue) == 0:
                 return
 
-            if self.LANE != "word":
+            if not self.BATCH_LANE:
                 self.refresh_engine_capacity()
             concurrency, engine = self._effective_concurrency()
-            if self.LANE == "word":
+            if self.BATCH_LANE:
                 batch_size = batch_constants.group_size()
                 while True:
                     if not self._await_engine_memory():
@@ -696,7 +708,7 @@ class BaseLaravelAudioWorker(
             self._log_event(
                 "cycle_summary",
                 f"processed={processed} ok={succeeded} fail={failed} skipped={skipped}",
-                mirror=self.LANE != "word",
+                mirror=not self.BATCH_LANE,
             )
         except Exception as e:  # noqa: BLE001 - never raise out of the cycle thread
             ColorPrint.red(f"{self._log_prefix} Cycle error: {e}")
@@ -777,18 +789,19 @@ class BaseLaravelAudioWorker(
             "usable_engines": list(self._usable_engines_cache),
             "planned_engine": (
                 runtime_profile.WORD_BATCH_ENGINE
-                if self.LANE == "word"
+                if self.BATCH_LANE
                 else self._required_engine() or self._engine_probe_cache or None
             ),
         }
-        if self.LANE == "word":
+        if self.BATCH_LANE:
             status["batch_running"] = running
             status["batch_engine"] = runtime_profile.WORD_BATCH_ENGINE
             status["batch_profile"] = runtime_profile.WORD_BATCH_PROFILE
             status["batch_device"] = runtime_profile.WORD_BATCH_DEVICE
             status["batch_size"] = batch_constants.group_size()
-            status["backend_progress"] = word_audio_backend_progress.snapshot()
             status["kokoro_live"] = kokoro_live_view()
+        if self.LANE == "word":
+            status["backend_progress"] = word_audio_backend_progress.snapshot()
         status["queue_progress"] = dict(self._queue_progress.get(self.QUEUE_KEY) or {})
         status["work_leases"] = self._leases.status()
         return status
@@ -834,6 +847,8 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     """
 
     LANE = "sentence"
+    BATCH_LANE = False
+    HISTORY_WORKER = "tts_sentence_worker"
     QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
     RESULT_TASK_TYPE = QUEUE_KEY
     CAPABILITY = "sentence_audio"
@@ -854,5 +869,33 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     CAPACITY_BUFFER_FACTOR = 2
 
 
+class LaravelPhraseAudioWorker(BaseLaravelAudioWorker):
+    """Phrase-audio lane: work leases of lane phrase_audio on remote_phrase_audio.
+
+    Word-batch lane: the same CPU Kokoro batch engine and drain as the word
+    lane, no sentence quality floor; clips are identified by the media
+    content id and delivered through the phrase report (``audio_phrase_report``)."""
+
+    LANE = "phrase"
+    BATCH_LANE = True
+    HISTORY_WORKER = "tts_phrase_worker"
+    QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["phrase_audio"]["key"]
+    RESULT_TASK_TYPE = QUEUE_KEY
+    CAPABILITY = "phrase_audio"
+    PRIORITY_PROFILE = runtime_profile.WORD_BATCH_PROFILE
+    ASSIST_CAPABILITY = "phrase_audio"
+    WORKER_ID_PREFIX = "pycore-phrase"
+    WORKER_NAME_TAG = "phrase-audio"
+    LOG_PREFIX = "[PhraseAudioWorker]"
+    STATE_OWNER_KEY = "tts.phrase_audio_worker.state"
+    STATE_OWNER_NAME = "PhraseAudioWorkerState"
+    STATE_OWNER_TIMEOUT = 180.0
+    REPORT_PATH = queue_center_endpoint("audio_phrase_report")
+    CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
+    LOG_ACCEPTED_RESULTS = False
+    PROGRESS_EVENTS_ENABLED = True
+
+
 laravel_word_audio_worker = LaravelWordAudioWorker()
 laravel_sentence_audio_worker = LaravelSentenceAudioWorker()
+laravel_phrase_audio_worker = LaravelPhraseAudioWorker()

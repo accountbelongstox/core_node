@@ -62,9 +62,9 @@ function stageCss(scope: string, settings: OrchVideoSettings): string {
     `.${scope} [data-role^="sentence"] { font-weight: ${sentence.bold ? 700 : 400}; line-height: 1.36; }`,
     `.${scope} [data-role="sentence_en"] { font-family: "${sentence.font_en}", Georgia, serif; font-size: ${sentence.size_en}px; }`,
     `.${scope} [data-role="sentence_zh"] { font-family: "${sentence.font_zh}", "Noto Serif SC", serif; font-size: ${sentence.size_zh}px; }`,
-    `.${scope} [data-role="word"] { display: inline-block; font-family: "${word.font_en}", system-ui, sans-serif; font-size: ${word.size_en}px; font-weight: ${word.bold ? 700 : 500}; line-height: 1.2; padding: ${word.box_padding * 0.6}px ${word.box_padding * 1.4}px; border-radius: ${CHIP_RADIUS}px; }`,
+    `.${scope} [data-role="word"], .${scope} [data-role="phrase"] { display: inline-block; font-family: "${word.font_en}", system-ui, sans-serif; font-size: ${word.size_en}px; font-weight: ${word.bold ? 700 : 500}; line-height: 1.2; padding: ${word.box_padding * 0.6}px ${word.box_padding * 1.4}px; border-radius: ${CHIP_RADIUS}px; }`,
     `.${scope} .orch-stage-new { display: inline-block; margin-left: 10px; padding: 2px 10px; border-radius: 999px; color: #FFFFFF; font: 700 18px/1.4 system-ui, sans-serif; letter-spacing: 0.08em; vertical-align: super; }`,
-    `.${scope} [data-role="word_meaning"] { font-family: "${word.font_zh}", system-ui, sans-serif; font-size: ${word.size_zh}px; line-height: 1.36; }`,
+    `.${scope} [data-role="word_meaning"], .${scope} [data-role="phrase_meaning"] { font-family: "${word.font_zh}", system-ui, sans-serif; font-size: ${word.size_zh}px; line-height: 1.36; }`,
   ];
   for (const state of STATES) {
     const alpha = alphaOf(state);
@@ -73,8 +73,8 @@ function stageCss(scope: string, settings: OrchVideoSettings): string {
     const outline = rgba(sentence.outline_color, alpha);
     rules.push(
       `.${scope} [data-role^="sentence"][data-state="${state}"] { color: ${sentenceColor}; text-shadow: ${outlineShadow(outline, sentence.outline)}; }`,
-      `.${scope} [data-role="word"][data-state="${state}"] { color: ${lit ? word.active : rgba(word.text, alpha)}; background-color: ${lit ? word.box_active : rgba(word.box, alpha)}; }`,
-      `.${scope} [data-role="word_meaning"][data-state="${state}"] { color: ${lit ? word.meaning_active : rgba(word.meaning, alpha)}; text-shadow: ${outlineShadow(outline, 1)}; }`,
+      `.${scope} [data-role="word"][data-state="${state}"], .${scope} [data-role="phrase"][data-state="${state}"] { color: ${lit ? word.active : rgba(word.text, alpha)}; background-color: ${lit ? word.box_active : rgba(word.box, alpha)}; }`,
+      `.${scope} [data-role="word_meaning"][data-state="${state}"], .${scope} [data-role="phrase_meaning"][data-state="${state}"] { color: ${lit ? word.meaning_active : rgba(word.meaning, alpha)}; text-shadow: ${outlineShadow(outline, 1)}; }`,
     );
   }
   return rules.join('\n');
@@ -85,7 +85,7 @@ function estimateHeight(card: OrchStageCard, settings: OrchVideoSettings): numbe
   const lines = card.lines.reduce((sum, line, index) => {
     const size = line.role === 'sentence_en' ? sentence.size_en * LINE_HEIGHT.sentence
       : line.role === 'sentence_zh' ? sentence.size_zh * LINE_HEIGHT.sentence
-        : line.role === 'word' ? word.size_en * LINE_HEIGHT.word + word.box_padding * 1.2
+        : line.role === 'word' || line.role === 'phrase' ? word.size_en * LINE_HEIGHT.word + word.box_padding * 1.2
           : word.size_zh * LINE_HEIGHT.meaning;
     return sum + size + (index > 0 ? layout.line_gap : 0);
   }, 0);

@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Compute task handlers (ocr_recognize, tts_synthesize): Laravel queues the
-work, ``laravel_compute_worker`` pulls it and runs the shared pycore service
-entries. Handler contract (``LaravelHandlerWorker``): ``handler(payload, task)
--> result``; a raised error reports the task failed."""
+"""Compute task handlers (ocr_recognize, tts_synthesize, phrase_extract): Laravel
+queues the work, ``laravel_compute_worker`` pulls it and runs the shared pycore
+service entries. Handler contract (``LaravelHandlerWorker``): ``handler(payload,
+task) -> result``; a raised error reports the task failed."""
 
 from typing import Any, Dict
 
+from pycore.pyctl.laravel.phrase_extract_handler import (
+    PHRASE_EXTRACT_TASK_TYPE,
+    phrase_extract,
+    phrase_extract_key_probe,
+)
 from pycore.pyctl.runtime.local_engine_service import recognize_ocr
 from pycore.pyctl.tts.speech_synthesis_service import synthesize_speech
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
@@ -60,7 +65,17 @@ def tts_synthesize(payload: Dict[str, Any], task: Dict[str, Any]) -> Dict[str, A
 COMPUTE_HANDLERS = {
     OCR_RECOGNIZE_TASK_TYPE: ocr_recognize,
     TTS_SYNTHESIZE_TASK_TYPE: tts_synthesize,
+    PHRASE_EXTRACT_TASK_TYPE: phrase_extract,
+}
+COMPUTE_AVAILABILITY = {
+    PHRASE_EXTRACT_TASK_TYPE: phrase_extract_key_probe.configured,
 }
 
 
-__all__ = ["COMPUTE_HANDLERS", "OCR_RECOGNIZE_TASK_TYPE", "TTS_MIN_AUDIO_BYTES", "TTS_SYNTHESIZE_TASK_TYPE"]
+__all__ = [
+    "COMPUTE_AVAILABILITY",
+    "COMPUTE_HANDLERS",
+    "OCR_RECOGNIZE_TASK_TYPE",
+    "TTS_MIN_AUDIO_BYTES",
+    "TTS_SYNTHESIZE_TASK_TYPE",
+]

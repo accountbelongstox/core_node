@@ -96,6 +96,17 @@ export const lmEnUiTask = {
       open_queue: 'Open Queue Center',
       pycore_unreachable: 'pycore offline — start pyservice.ps1 to enable auto synthesis'
     },
+    work_lanes: {
+      title: 'Work lanes',
+      hint: 'Missing rows per lane and language, how many are leased to pycore nodes and how many are free, plus the live queue count of every task type.',
+      nodes: 'nodes online',
+      gap: 'missing',
+      leased: 'leased',
+      free: 'free',
+      by_type: 'Queue by task type',
+      empty: 'No lane has missing rows.',
+      load_failed: 'Failed to load the work lanes.'
+    },
     overview: {
       pull_result: 'pull → result',
       online_busy_offline: 'online / busy / offline'
@@ -158,6 +169,8 @@ export const lmEnUiTask = {
       word_audio: 'Word Audio',
       article_audio: 'Article Audio',
       sentence_audio: 'Sentence Audio',
+      phrase_audio: 'Phrase Audio',
+      phrase_extract: 'Phrase Extraction',
       subtitle_search: 'Subtitle Search',
       poster: 'Book / Media Cover',
       notebooklm: 'NotebookLM',
@@ -177,6 +190,8 @@ export const lmEnUiTask = {
       image: 'Image',
       translate: 'Translate (Chrome)',
       sentence_audio: 'Sentence Audio',
+      phrase_audio: 'Phrase Audio',
+      phrase_extract: 'Phrase Extraction',
       ai_translate: 'AI Translate (Chrome)',
       puter_translate: 'Puter Translate',
       subtitle: 'Subtitle',

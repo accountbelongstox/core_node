@@ -16,7 +16,8 @@
         "words_new",
         "words_all",
         "sentence_zh",
-        "sentence_en"
+        "sentence_en",
+        "phrases"
     ],
     "legacy_step_types": [
         "words"
@@ -92,6 +93,7 @@
             "source_key": "book source key",
             "languages": "sentence languages the plan voices (iso codes)",
             "include_words": "bool: also the distinct words of the primary-language sentences",
+            "include_phrases": "bool: also the distinct phrases (phrase_pipeline) of the primary-language sentences; phrase rows are leased on lane phrase_audio",
             "position": "int: sentence seq the reader is at (priority is raised from there forward)",
             "plan_hash": "client plan hash (idempotence marker, at most 64 chars)"
         },
@@ -153,6 +155,43 @@
         }
     },
     "step_options": {
-        "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: open item in docs_fix/DESIGN_AUDIO_ORCHESTRATION.md)"
+        "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: open item in docs_fix/DESIGN_AUDIO_ORCHESTRATION.md); phrases steps: after each phrase, read its Chinese meaning (a zh sentence clip of the meaning text)"
+    },
+    "phrase_pipeline": {
+        "purpose": "Every live sentence gets AI-extracted phrases (idempotent); every phrase gets audio. Binding: docs_fix/DESIGN_PHRASE_PIPELINE.md.",
+        "kind": "phrase",
+        "identity": "content_id = media_content_id(phrase text) (md5 of collapse_ws(lower(strip P/S))); resource_id = sha256('phrase:<language>:<content_id>')",
+        "languages": ["en"],
+        "meaning_language": "zh",
+        "extraction": {
+            "provider": "openrouter",
+            "model": "openrouter/free",
+            "free_only": true,
+            "prompt_key": "sentence_phrase_extraction",
+            "batch_sentences": 40,
+            "batch_max_chars": 6000,
+            "max_output_tokens": 8000,
+            "temperature": 0.2,
+            "request_timeout_seconds": 120,
+            "min_interval_seconds": 3,
+            "tick_seconds": 5,
+            "lease_seconds": 600,
+            "max_attempts": 3,
+            "max_phrases_per_sentence": 6,
+            "phrase_max_words": 6,
+            "phrase_max_chars": 80,
+            "pycore_fallback_codes": ["AI_RATE_LIMITED", "AI_PROVIDER_NOT_CONFIGURED", "AI_DAILY_BUDGET_EXHAUSTED"],
+            "pycore_task_type": "phrase_extract",
+            "pycore_tasks_max_pending": 20,
+            "rule": "OpenRouter free tier (openrouter.ai/docs/api-reference/limits): 20 requests/min, 50/day without credits, 1000/day with >= 10 credits; free models have >= 32k context, so a batch is at most batch_sentences sentences and batch_max_chars input chars (about 1.5k tokens) with max_output_tokens for the JSON answer, which keeps one request well inside every free model's window while spending the daily budget on many sentences per request. Laravel claims a batch of sentences without phrases (phrase lease columns), calls the gateway itself (AI gateway rule); on a pycore_fallback_codes failure it hands the batch to pycore as one global_tasks row of pycore_task_type (at most pycore_tasks_max_pending open), and pycore answers with its own OpenRouter free key. A sentence whose answer lists no phrase is phrase_status none (done, never retried); a failure adds one attempt and after max_attempts the sentence is failed until sys:init or the resurface sweep returns it."
+        },
+        "audio": {
+            "lane": "phrase_audio",
+            "compute": "cpu_ok",
+            "engine": "kokoro",
+            "batch_chunk_size": 200,
+            "rule": "Phrase audio is a work-lease lane over the per-language phrase table (tts_* lease columns, like sentences). CPU engines are accepted (kokoro batch, like words); gpu nodes may serve it with spare capacity. A phrase already stored with audio is never regenerated; an existing phrase without audio stays in the gap."
+        },
+        "scheduling": "While a wordnew orchestration page is open and connected to an online pycore, wordnew is the primary phrase-audio scheduler (generate:pycore with kind phrase, book-plan R12 windows on lane phrase_audio), Laravel secondary (want exclusion, fallback leases). Otherwise Laravel is the primary scheduler (work leases to every node). Phrase extraction (text) is always scheduled by Laravel (Octane timer), with pycore as the fallback executor."
     }
 }

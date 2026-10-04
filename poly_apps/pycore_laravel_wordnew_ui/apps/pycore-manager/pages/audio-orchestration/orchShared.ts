@@ -43,6 +43,7 @@ export const ORCH_STEP_LABELS = {
   get words_all() { return ORCH_L.wordModeAll; },
   get sentence_en() { return ORCH_L.patternEn; },
   get sentence_zh() { return ORCH_L.patternZh; },
+  get phrases() { return ORCH_L.patternPhrases; },
 } satisfies Record<OrchPatternStepType, string>;
 
 /** Localized text of a failure (a code, a pycore answer or a thrown error); raw text never passes. */

@@ -199,6 +199,13 @@ QUEUE_CENTER_SCHEMA_VERSION = int(_CONTRACT_DOCUMENT["schema_version"])
 QUEUE_CENTER_WORD_AUDIO_BATCH: Dict[str, Any] = dict(
     _CONTRACT_DOCUMENT["word_audio_batch"]
 )
+# Audio lanes whose clips are identified by the media content id (md5 of the
+# normalized text), like sentences; the word lane is identified by the Laravel
+# word md5 (word_identity).
+MEDIA_CONTENT_ID_AUDIO_LANES: Tuple[str, ...] = ("sentence_audio", "phrase_audio")
+# Audio lanes synthesized in batches by the word-batch engine (CPU kokoro, no
+# quality floor); every other audio lane pins its own engine.
+AUDIO_BATCH_LANES: Tuple[str, ...] = ("word_audio", "phrase_audio")
 QUEUE_CENTER_REALTIME: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["realtime"])
 QUEUE_CENTER_REALTIME_EVENTS: Dict[str, str] = {
     str(key): str(value)
@@ -289,8 +296,10 @@ _SCHEMA_GATED_ENDPOINT_ROLES = (
     "worker_task_release",
     "audio_word_report",
     "audio_sentence_report",
+    "audio_phrase_report",
     "audio_word_upload",
     "audio_sentence_audio",
+    "audio_phrase_audio",
 )
 SCHEMA_GATED_PATH_PREFIXES: Tuple[str, ...] = tuple(sorted({
     template.split("{", 1)[0]
@@ -673,13 +682,13 @@ def audio_dedup_key(
     the contract ``word_identity.fallback_when_md5_absent`` key format
     ``<lang>:text:<cleaned_word>`` (Laravel resolves the row by lang +
     cleaned_word; pycore never invents a stand-in md5).
-    ``sentence_audio`` uses the media content id. ONE implementation for the
+    ``sentence_audio`` and ``phrase_audio`` use the media content id. ONE implementation for the
     audio queue heap resolver, audio orchestration, and the queue-center RPC
     controllers — never re-implemented elsewhere.
     """
     lang = str(language or "").strip().lower()
     queue_key = str(queue or "").strip()
-    if queue_key == "sentence_audio":
+    if queue_key in MEDIA_CONTENT_ID_AUDIO_LANES:
         content = str(content_id or "").strip() or media_content_id(str(text or ""))
     else:
         content = word_identity_content(md5, text)
@@ -823,6 +832,8 @@ def build_empty_queue_contract(
 
 
 __all__ = [
+    "AUDIO_BATCH_LANES",
+    "MEDIA_CONTENT_ID_AUDIO_LANES",
     "SENTENCE_LANGUAGE_FOCUS",
     "SENTENCE_QUALITY_ENGINES",
     "SENTENCE_QUALITY_REJECT_CODE",

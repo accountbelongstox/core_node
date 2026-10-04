@@ -5,7 +5,7 @@ namespace App\Services\AiGateway;
 class AiRequestFailure
 {
     private const RULES = [
-        ['local_rate_limit', ['rate limit (', 'provider cooldown'], true, false],
+        ['local_rate_limit', ['rate limit (', 'provider cooldown', 'per-key rate budget'], true, false],
         ['dns', ['could not resolve host', 'getaddrinfo failed', 'failed to resolve'], true, false],
         ['connect_timeout', ['connect timeout', 'connection timed out'], true, false],
         ['connection', ['failed to connect', 'connection refused', 'no route to host', 'network is unreachable'], true, false],

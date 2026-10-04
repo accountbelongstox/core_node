@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Ledger of every local word/sentence clip pycore holds.
+"""Ledger of every local word/sentence/phrase clip pycore holds.
 
-The word cache (``word_audio_cache``: ``{safe_word}_{provider}.mp3``) and the
+The word cache (``word_audio_cache``: ``{safe_word}_{provider}.mp3``), the
 sentence cache (``sentence_audio_cache``: content-addressed by synthesis
-inputs) cannot give back the text a clip was made from. Every producer that
+inputs) and the phrase cache (``phrase_audio_cache``: ``{content_id}@{provider}.mp3``)
+cannot give back the text a clip was made from. Every producer that
 knows it (word cache stores, audio lane staging, orchestration manifests)
 records the clip here, so the local audio cache has one inventory:
 ``(kind, resource_key)`` -> newest file + text, language, variant, provider.
 
 ``resource_key`` is the Laravel clip key: ``<lang>:<md5>`` for words (the md5
 Laravel sends with the word, queue_center_contract ``word_identity``) and
-``<lang>:<media_content_id(text)>`` for sentences, ``:<variant>`` appended
+``<lang>:<media_content_id(text)>`` for sentences and phrases, ``:<variant>`` appended
 for a non-primary variant; ``<lang>`` comes from the central
 ``text_parsing.normalize_language_code`` (codes, regional codes and names).
 A word with no Laravel md5 (X4: orchestration-tokenized words, word-cache
@@ -31,15 +32,15 @@ from pycore.pyutils.common.strtools.normalization import media_content_id, word_
 
 
 AUDIO_RESOURCE_LEDGER_FILE = APP_CONFIG_DIR / "audio_resources.sqlite3"
-CLIP_KINDS = ("word", "sentence")
+CLIP_KINDS = ("word", "sentence", "phrase")
 LEDGER_PAGE = 1000
 
 
 def resource_key(kind: str, language: Optional[str], text: str, variant: str = "", md5: str = "") -> str:
-    if kind == "sentence":
-        content = media_content_id(text)
-    else:
+    if kind == "word":
         content = word_identity_content(md5, text)
+    else:
+        content = media_content_id(text)
     key = f"{normalize_language_code(language)}:{content}"
     variant = str(variant or "").strip()
     return f"{key}:{variant}" if variant else key

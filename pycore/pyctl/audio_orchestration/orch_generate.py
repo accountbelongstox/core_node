@@ -547,6 +547,31 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         if _cancel(task, stats):
             return
 
+        phrase_index: Dict[str, List[Dict[str, str]]] = {}
+        if orch_plan.pattern_has_phrases(task):
+            phrase_language = orch_plan.task_language(task, sentences[0])
+            loaded = orch_books.ensure_sentence_phrases(
+                phrase_language, sentences,
+                cancel_requested=lambda: _generation_jobs.cancelled(task_id),
+                progress_callback=lambda index, total: _progress(
+                    task, phase="manifest", **msg.progress_fields(msg.ORCH_MSG_PHRASES_LOADING),
+                    item_index=index, item_total=total, **stats,
+                ),
+            )
+            if _cancel(task, stats):
+                return
+            if not loaded["success"]:
+                phrase_params = {"language": phrase_language, "error": str(loaded["error"])}
+                _finish(task, "failed")
+                orch_store.append_task_event(task, msg.ORCH_MSG_PHRASES_FETCH_FAILED, **phrase_params)
+                _progress(task, **msg.progress_fields(msg.ORCH_MSG_PHRASES_FETCH_FAILED, **phrase_params))
+                return
+            phrase_index = loaded["phrases"]
+            if loaded["pending"]:
+                orch_store.append_task_event(
+                    task, msg.ORCH_MSG_PHRASES_PENDING, pending=loaded["pending"], total=loaded["total"],
+                )
+
         # Phase 1: manifest - expand every segment into ordered audio items
         # (consuming the virtual-read set exactly once) and collect the unique
         # word/sentence resources the whole task needs.
@@ -565,7 +590,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                     return
                 items.extend(
                     {**item, "seq": sentences[sentence_pos].get("seq")}
-                    for item in orch_plan.build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record)
+                    for item in orch_plan.build_sentence_items(
+                        task, sentences[sentence_pos], consume=True, auth_record=auth_record, phrases=phrase_index,
+                    )
                 )
                 if sentence_pos % 100 == 0:
                     _progress(task, phase="manifest", item_index=sentence_pos + 1,

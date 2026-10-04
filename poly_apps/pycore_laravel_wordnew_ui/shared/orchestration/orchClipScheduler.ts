@@ -4,6 +4,12 @@
  * Every end (wordnew native / web, pycore-manager) builds its clip chain here;
  * an end only provides its channels' specifics and where clips are kept.
  *
+ * Clips are words, sentences (a meaning clip is a zh sentence) and phrases (kind
+ * `phrase`, docs_fix/DESIGN_PHRASE_PIPELINE.md). Every stage treats the three kinds alike
+ * and only a generate stage asks per kind (pycore lane word_audio / sentence_audio /
+ * phrase_audio, Laravel lease lanes of the same names); phrases add no stage and change
+ * no order.
+ *
  * A channel is a backend reached one way: the selected pycore directly, a
  * paired pycore through the Laravel relay, or Laravel. Each can transfer clips
  * (framed bundles, with a per-file fallback), report which clips it holds, and
@@ -78,6 +84,15 @@
  *      Laravel is the backup scheduler: once the posts stop (the app closed)
  *      its own fair-share scheduling resumes. The counters shown are the
  *      server plan's and the device store's, never a per-run recount.
+ *      A plan with `include_phrases` adds the plan's phrase clips (lane
+ *      phrase_audio) to the counters, ready cursor and windows.
+ *   R15 Phrase clips (kind `phrase`) follow R1-R14 exactly like word clips: the
+ *      same stages in the same order, generate stages ask them per kind (lane
+ *      phrase_audio), they are never flagged or dropped by the sentence
+ *      quality floor (R13 binds sentences only; phrase audio may come from CPU
+ *      engines), and a phrase meaning clip is a zh sentence clip, so it takes
+ *      the sentence path. A phrase clip already held (device, R14) is never
+ *      requested again.
  */
 import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationContract';
 import {
@@ -128,7 +143,7 @@ export interface OrchClipChannel {
 
 const refOf = ({ kind, language, text }: OrchComposeResource) => ({ kind, language, text });
 const LOOKUP_BATCH = Math.min(200, ORCH_RESOURCE_LOOKUP_MAX_ITEMS);
-const RESOURCE_KINDS: readonly ResourceKind[] = ['word', 'sentence'];
+const RESOURCE_KINDS: readonly ResourceKind[] = ['word', 'sentence', 'phrase'];
 
 /** Keys of the hits of a lookup answer (index-aligned with `batch`). */
 function lookupHits(batch: OrchComposeResource[], answer: OrchResourceLookupResponse | null): Set<string> {
