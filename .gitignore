@@ -462,3 +462,8 @@ pyapps/GameAISDK/Modules/protobuf/Windows/x64/Debug/
 # of git (BFG already stripped them from history; this completes the removal from
 # HEAD). The small tracked YOLO models under pyapps/d3-check (2-6MB) stay tracked.
 pyapps/GameAISDK/Modules/RefineDet/weights/
+
+# Per-machine Claude Code session permissions: every AI session appends here, so
+# syncing it only breeds merge conflicts. Each machine keeps its own local copy.
+.claude/settings.local.json
+.claude/settings.json
