@@ -48,8 +48,10 @@ function ensureWired(): void {
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener('focus', () => emit('appStateChange', { isActive: true }));
   window.addEventListener('blur', () => emit('appStateChange', { isActive: false }));
+  // The browser has already moved through its history (back, or a hash route change) when
+  // popstate fires: back handlers still run, but no second history step is requested.
   window.addEventListener('popstate', () => {
-    emit('backButton', { canGoBack: window.history.length > 1 });
+    emit('backButton', { canGoBack: false });
   });
 }
 
