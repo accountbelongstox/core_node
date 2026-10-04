@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import os
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -604,6 +605,23 @@ class TerminalBackupService:
         return False
 
     @staticmethod
+    def _warn_isolated_session() -> None:
+        """Windows session isolation: a Session-0 service cannot see or key the user's desktop
+        terminals, so text export and prompt confirmation silently find zero windows. Say so."""
+        if os.name != "nt":
+            return
+        import ctypes
+
+        session_id = ctypes.c_ulong()
+        kernel32 = ctypes.windll.kernel32
+        if kernel32.ProcessIdToSessionId(kernel32.GetCurrentProcessId(), ctypes.byref(session_id)) and session_id.value == 0:
+            ColorPrint.yellow(
+                f"[{LABEL}] WARNING: running in Windows session 0 (service session): desktop terminal windows are "
+                f"invisible here, so scheduled text export and prompt confirmation cannot work. Run a pycore worker "
+                f"in the logged-on user session for terminal backup."
+            )
+
+    @staticmethod
     def _stopping() -> bool:
         return THREAD_BUS.is_shutdown_requested() or bool(THREAD_BUS.get_signal(STOP_SIGNAL, False))
 
@@ -611,6 +629,7 @@ class TerminalBackupService:
         if not self._acquire_lease():
             return
         ColorPrint.green(f"[{LABEL}] scheduler started interval={BACKUP_INTERVAL_SECONDS}s")
+        self._warn_isolated_session()
         low_battery_armed = True
         now = time.monotonic()
         idle = self._idle_seconds()

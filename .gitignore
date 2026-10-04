@@ -117,6 +117,7 @@ app.*.symbols
 **/*.jks
 
 **/node_modules/
+**/*.pre_program_drive.*/
 **/vendor/
 **/packages/
 !apps/mcp-chrome/packages/

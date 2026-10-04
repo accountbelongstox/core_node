@@ -34,6 +34,8 @@ public static partial class ConfigKeys
     public const string YoloTrainingExtraArgs = "yolo_training.extra_args";
     public const string YoloTrainingExportOnnx = "yolo_training.export_onnx";
     public const string YoloTrainingDetectOnOpen = "yolo_training.detect_on_open";
+    public const string YoloTrainingMode = "yolo_training.mode";
+    public const string YoloTrainingTaskSet = "yolo_training.task_set";
 
     // ---------- yolo_dataset (train / val / test split) ----------
     public const string YoloDatasetSource = "yolo_dataset.source";
