@@ -26,6 +26,7 @@ public sealed class TaskSetStore
 
     private const int IdLength = 8;
     private const string TempSuffix = ".tmp";
+    private const string PngExtension = ".png";
 
     // OpenCV 4.10 (OpenCvSharp4.Windows) has no GIF decoder.
     public static readonly IReadOnlySet<string> ImageExtensions =
@@ -197,6 +198,20 @@ public sealed class TaskSetStore
         return resource;
     }
 
+    /// <summary>Stores an extracted variant (VariantExtractor.Cut output) as PNG; originalPath records its source, e.g. "clip.mp4#frame=120@x,y,w,h".</summary>
+    public TaskResource AddVariantFromPng(TaskSet set, TaskTarget target, byte[] png, string originalPath, string nameHint)
+    {
+        if (png == null || png.Length == 0) throw new ArgumentException("Empty PNG", nameof(png));
+        var stem = SanitizeFileName(string.IsNullOrWhiteSpace(nameHint) ? VariantsSubdir : nameHint);
+        if (IsSupportedImage(stem) || IsSupportedVideo(stem)) stem = Path.GetFileNameWithoutExtension(stem);
+        var resource = Store(set, TaskResourceKind.Image, stem + PngExtension, originalPath ?? "",
+            path => File.WriteAllBytes(path, png), TargetsSubdir, target.Id, VariantsSubdir);
+        resource.Label = NextVariantLabel(set, target);
+        target.Variants.Add(resource);
+        Save(set);
+        return resource;
+    }
+
     public TaskResource AddScene(TaskSet set, TaskTarget target, string sourcePath)
     {
         RequireImage(sourcePath);
@@ -241,17 +256,21 @@ public sealed class TaskSetStore
     {
         var source = Path.GetFullPath(sourcePath);
         if (!File.Exists(source)) throw new FileNotFoundException("Resource not found", source);
-        var relDir = string.Join("/", relativeDir);
+        return Store(set, kind, Path.GetFileName(source), source, path => File.Copy(source, path), relativeDir);
+    }
+
+    private TaskResource Store(TaskSet set, TaskResourceKind kind, string fileName, string originalPath, Action<string> write, params string[] relativeDir)
+    {
         var absDir = Path.Combine(GetDir(set.Id), Path.Combine(relativeDir));
         Directory.CreateDirectory(absDir);
-        var fileName = UniqueFileName(absDir, SanitizeFileName(Path.GetFileName(source)));
-        File.Copy(source, Path.Combine(absDir, fileName));
+        var unique = UniqueFileName(absDir, SanitizeFileName(fileName));
+        write(Path.Combine(absDir, unique));
         return new TaskResource
         {
             Id = NewUniqueId(id => AllResources(set).Any(r => r.Id.Equals(id, StringComparison.OrdinalIgnoreCase))),
             Kind = kind,
-            File = relDir + "/" + fileName,
-            OriginalPath = source,
+            File = string.Join("/", relativeDir) + "/" + unique,
+            OriginalPath = originalPath,
         };
     }
 

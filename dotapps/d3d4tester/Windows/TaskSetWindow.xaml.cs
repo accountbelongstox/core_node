@@ -24,7 +24,7 @@ using DotCore.YoloTaskSet;
 namespace DotApps.d3d4tester.Windows;
 
 /// <summary>
-/// Task-set manager for the specific YOLO training mode (YOLO_TASKSET_SYNTHESIS_DESIGN.md §6): task set CRUD, targets with
+/// Task-set manager for the specific YOLO training mode (YOLO_TASKSET_SYNTHESIS_DESIGN.md section 6): task set CRUD, targets with
 /// variants / scenes / augmentation overrides, common resources, global augmentation and synthesis settings, validation,
 /// synthetic preview, dataset generation and one-click training. Every store / synthesizer call runs off the UI thread.
 /// </summary>
@@ -35,10 +35,10 @@ public partial class TaskSetWindow : Window
     private const int MaxImagesPerTarget = 100_000;
     private const string DatasetStampFormat = "yyyyMMdd_HHmmss";
     private const string AllFilesPattern = "*.*";
-    private const string GlyphImage = "";
-    private const string GlyphVideo = "";
-    private const string GlyphError = "";
-    private const string GlyphWarning = "";
+    private const string GlyphImage = "\uE8B9";
+    private const string GlyphVideo = "\uE714";
+    private const string GlyphError = "\uEA39";
+    private const string GlyphWarning = "\uE7BA";
     private const string ChipIdle = "StatusChipStyle";
     private const string ChipInfo = "StatusChipInfoStyle";
     private const string ChipSuccess = "StatusChipSuccessStyle";
@@ -106,6 +106,7 @@ public partial class TaskSetWindow : Window
     private int _previewSeed;
     private SynthesisResult? _result;
     private CancellationTokenSource? _generateCts;
+    private VariantExtractWindow? _extract;
     private Task? _generateTask;
     private string _statusStyle = ChipIdle;
     private Func<string> _statusText = () => T(I18nKeys.YoloTaskSetStatusIdle);
@@ -236,6 +237,9 @@ public partial class TaskSetWindow : Window
         foreach (var b in new[] { BtnVariantAddFiles, BtnSceneAddFiles, BtnCommonAddFiles }) b.Content = T(I18nKeys.YoloTaskSetAddFiles);
         foreach (var b in new[] { BtnVariantAddFolder, BtnSceneAddFolder, BtnCommonAddFolder }) b.Content = T(I18nKeys.YoloTaskSetAddFolder);
         foreach (var b in new[] { BtnVariantRemove, BtnSceneRemove, BtnCommonRemove }) b.Content = T(I18nKeys.YoloTaskSetRemoveSelected);
+        BtnVariantExtract.Content = T(I18nKeys.YoloTaskSetExtractOpen);
+        MiSceneExtract.Header = T(I18nKeys.YoloTaskSetExtractFromResource);
+        MiCommonExtract.Header = T(I18nKeys.YoloTaskSetExtractFromResource);
         TabCommon.Header = T(I18nKeys.YoloTaskSetSectionCommon);
         TabGlobalAug.Header = T(I18nKeys.YoloTaskSetSectionGlobalAug);
         TabSynthesis.Header = T(I18nKeys.YoloTaskSetSectionSynthesis);
@@ -299,6 +303,9 @@ public partial class TaskSetWindow : Window
         BtnVariantRemove.Click += async (_, _) => await RemoveSelectedAsync(LstVariants);
         BtnSceneRemove.Click += async (_, _) => await RemoveSelectedAsync(LstScenes);
         BtnCommonRemove.Click += async (_, _) => await RemoveSelectedAsync(LstCommon);
+        BtnVariantExtract.Click += (_, _) => OpenExtract(null);
+        MiSceneExtract.Click += (_, _) => OpenExtract((LstScenes.SelectedItem as TaskResourceRow)?.Path);
+        MiCommonExtract.Click += (_, _) => OpenExtract((LstCommon.SelectedItem as TaskResourceRow)?.Path);
 
         BtnValidate.Click += async (_, _) =>
         {
@@ -464,6 +471,7 @@ public partial class TaskSetWindow : Window
         _previewImage = null;
         _result = null;
         _previewSeed = set?.Synthesis.Seed ?? 0;
+        _extract?.Close();
         if (set != null) ConfigBinding.SaveString(ConfigKeys.YoloTaskSetLastTaskSet, set.Id);
         _rendering = true;
         TxtDescription.Text = set?.Description ?? "";
@@ -560,7 +568,8 @@ public partial class TaskSetWindow : Window
     private void RenderTargetHeader()
     {
         int idx = _target == null || _set == null ? -1 : _set.Targets.IndexOf(_target);
-        LblTargetName.Text = idx < 0 ? T(I18nKeys.YoloTaskSetNoTargetSelected) : _targets[idx].Title;
+        LblTargetName.Text = idx >= 0 ? _targets[idx].Title
+            : T(_set == null ? I18nKeys.YoloTaskSetNoSetSelected : I18nKeys.YoloTaskSetNoTargetSelected);
     }
 
     private async Task AddTargetAsync()
@@ -602,6 +611,7 @@ public partial class TaskSetWindow : Window
 
     private void AfterStructureChange(string? selectTargetId)
     {
+        _extract?.RefreshTargets();
         _issues = null;
         RenderTargetRows(selectTargetId);
         RenderSetRows();
@@ -691,7 +701,7 @@ public partial class TaskSetWindow : Window
         }
     }
 
-    private static BitmapSource DecodeBytes(byte[] bytes, int decodeWidth)
+    internal static BitmapSource DecodeBytes(byte[] bytes, int decodeWidth)
     {
         using var ms = new MemoryStream(bytes);
         var bmp = new BitmapImage();
@@ -736,7 +746,7 @@ public partial class TaskSetWindow : Window
         }
         if (version != _commonVersion) return;
         row.Frames = frames;
-        row.FramesFailed = frames == null;
+        row.FramesFailed = frames is null or <= 0;
         DescribeCommon(row);
     }
 
@@ -817,11 +827,54 @@ public partial class TaskSetWindow : Window
 
     private void AfterResourcesChanged(Pool pool)
     {
+        _extract?.RefreshTargets();
         _issues = null;
         RenderResources(pool);
         RenderTargetRows();
         RenderSetRows();
         RenderIssues();
+    }
+
+    private void OpenExtract(string? sourcePath)
+    {
+        if (_set is not { } set) return;
+        if (set.Targets.Count == 0)
+        {
+            Warn(T(I18nKeys.YoloTaskSetExtractNoTarget));
+            return;
+        }
+        if (_extract == null)
+        {
+            var win = new VariantExtractWindow(set, _store, AddExtractedAsync) { Owner = this };
+            win.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_extract, win)) _extract = null;
+            };
+            _extract = win;
+            win.Show();
+        }
+        _extract.Open(_target ?? set.Targets[0], sourcePath);
+    }
+
+    private async Task<int> AddExtractedAsync(TaskTarget target, IReadOnlyList<ExtractedVariant> variants)
+    {
+        if (_set is not { } set || !set.Targets.Contains(target)) return 0;
+        await FlushSaveAsync();
+        int added = 0;
+        await RunAsync(() =>
+        {
+            foreach (var v in variants)
+            {
+                _store.AddVariantFromPng(set, target, v.Png, v.OriginalPath, v.NameHint);
+                added++;
+            }
+        }, busy: true);
+        _issues = null;
+        if (ReferenceEquals(target, _target)) RenderResources(Pool.Variants);
+        RenderTargetRows();
+        RenderSetRows();
+        RenderIssues();
+        return added;
     }
 
     // ---------- augmentation and synthesis editors ----------

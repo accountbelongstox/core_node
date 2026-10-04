@@ -186,7 +186,7 @@ public static class VariantAugmenter
     }
 
     /// <summary>Gaussian-softened mask edges, never above the original mask (no halo outside the object).</summary>
-    private static void Feather(Mat mask, double sigma)
+    internal static void Feather(Mat mask, double sigma)
     {
         int pad = (int)Math.Ceiling(sigma * FeatherSigmaSpan);
         using var padded = new Mat();
