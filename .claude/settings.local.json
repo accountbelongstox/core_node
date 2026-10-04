@@ -238,7 +238,8 @@
       "Bash(timeout 400 npx tsc --noEmit -p tsconfig.json)",
       "Bash(timeout 300 ./dd.sh pycorerestart)",
       "Bash(awk 'NR<1983 && /^  \\(const|function\\) [a-zA-Z]+ *=? *\\(\\\\\\(|useCallback|React\\)/ {l=NR\": \"$0} END{print l}' PcTerminalPage.tsx)",
-      "Bash(timeout 400 node_modules/.bin/tsc --noEmit -p .)"
+      "Bash(timeout 400 node_modules/.bin/tsc --noEmit -p .)",
+      "Bash(ps -o lstart= -p 165171)"
     ],
     "deny": [],
     "ask": []
