@@ -76,6 +76,7 @@
           <Button x:Name="BtnYoloImportPatch" Style="{StaticResource CalButton}"/>
           <Button x:Name="BtnYoloCleanUnlabeled" Style="{StaticResource CalButton}"/>
           <Button x:Name="BtnYoloTrain" Style="{StaticResource CalAccentButton}"/>
+          <Button x:Name="BtnYoloTaskSets" Style="{StaticResource CalButton}"/>
         </WrapPanel>
 
         <Grid Grid.Row="2" Margin="0,0,0,8">
