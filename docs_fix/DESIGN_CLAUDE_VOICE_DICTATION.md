@@ -70,7 +70,19 @@ Flow of `dictate_voice`:
    - Check the `space` keysym mapping in `press_native_key_combo`.
 5. **Unchanged:** the orchestration, route, UI and fallback are platform-neutral and need no change.
 
-## 6. Verification
+## 6. Agent voice-support survey (official docs, checked 2026-10-05)
+
+| Agent | Official voice input | Integration |
+|---|---|---|
+| Claude Code | Yes: `/voice` hold-to-talk dictation (Claude.ai login) | DONE (this design, Linux + Windows) |
+| Codex CLI | Yes since 0.156.0 (DevDay 2026): realtime multimodal voice ON BY DEFAULT, F8 toggle, `/voice` settings picker, bundled audio runtimes for Linux+Windows. The pre-0.156 removal only cleaned up the API-key WebRTC experiment. Audio goes straight to the model - no transcript lands in the input box | DONE (pycore): `dictate_voice(..., agent="codex")` plays each recording through a toggle-play-toggle round (`dictate_realtime`, config key `codex`, backend key `f8`); optional text follows as a normal submission. Caller passes `agent=codex` on the `terminalVoice` route. Requires codex >= 0.156.0 (native ensure keeps it current) |
+| Gemini CLI | Yes (experimental): `experimental.voiceMode` enables `/voice` + dictation; `experimental.voice.activationMode` = `push-to-talk` (Space) or `toggle`; `experimental.voice.backend` = `gemini-live` or `whisper` | COMPATIBLE: in push-to-talk mode the existing Claude hold pipeline applies unchanged (FramedInputRule already matches Gemini's input box). TODO: launcher-side enable (session-scoped settings injection) before dictation can be assumed |
+| Qwen Code | Yes: `/voice` dictation in CLI/Web Shell/desktop, `voiceModel` ASR (qwen3-asr-flash), push-to-talk `hold`/`tap`; microphone capture is the `@qwen-code/audio-capture` native module | TODO: same virtual-microphone + hold-key path as Claude. Prereqs: qwen must install via pnpm (NOT bun - bun skips the audio-capture build script; ApplicationsList.ps1 keeps QwenCode on pnpm for this), a configured `voiceModel` with ASR credentials, and `terminal_agent_detector` support for qwen's input box |
+| dsh / cline / arkcli / others | No official voice input found | Fallback (section 4) |
+
+The UI already covers every agent: `dictate_voice` returns `terminal_voice_dictation_unavailable` for a non-dictation agent and the UI falls back to `terminal.voice.agentNote` + text + file paths. Coverage: Claude + Codex dictation paths implemented; Gemini works over the Claude pipeline once its session enables voice; Qwen pending; everything else falls back.
+
+## 7. Verification
 
 1. Start a session with the launcher env, e.g. `claude_team_voice_dictation_spec` then `claude --permission-mode plan "${CLAUDE_TEAM_VOICE_ARGS[@]}"` in tmux with `CLAUDE_TEAM_VOICE_ENV` exported.
 2. Run `TerminalVoiceDictation` with a backend whose `hold_key` sends the key and whose export reads the pane, using a recording copied into the voice store.

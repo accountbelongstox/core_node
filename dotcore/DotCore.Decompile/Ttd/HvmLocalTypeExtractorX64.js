@@ -106,12 +106,21 @@ function invokeScript() {
             const argumentPointer = registers.r8;
             const typeHandlePointer = registers.r9;
             argTypeCalls[index].TimeEnd.SeekTo();
+            const typeHandle = safeReadPointer(typeHandlePointer);
+            const tag = Number(typeHandle) & 3;
+            const descriptor = typeHandle.subtract(tag);
+            const parameterTypeHandle = tag === 0 ? host.parseInt64(0) : safeReadPointer(descriptor.add(0x10));
+            const definitionHandle = tag === 0 ? typeHandle : parameterTypeHandle;
+            const typeRid = typeHandle.compareTo(0) === 0 ? 0 : ((safeReadUInt32(definitionHandle.add(8)) >>> 16) & 0xffff);
             records.push({
                 CallIndex: index,
                 JitCallIndex: range.Index,
                 ArgumentPointer: pointerText(argumentPointer),
                 CorInfoType: Number(host.currentThread.Registers.User.eax) >>> 0,
-                TypeHandle: pointerText(safeReadPointer(typeHandlePointer))
+                TypeHandle: pointerText(typeHandle),
+                TypeDescriptorKind: tag === 0 ? 0 : (safeReadUInt32(descriptor) & 0xff),
+                ModuleHandle: typeHandle.compareTo(0) === 0 ? "0x0" : pointerText(safeReadPointer(definitionHandle.add(0x18))),
+                TypeDefinitionToken: typeRid === 0 ? 0 : (0x02000000 | typeRid)
             });
         } catch (error) {
             failures.push({ CallIndex: index, JitCallIndex: range.Index, Message: error.message });

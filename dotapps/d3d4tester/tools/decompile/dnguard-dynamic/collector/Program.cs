@@ -69,7 +69,7 @@ internal static class Program
                     localTypeDocument, outputPath, Console.WriteLine);
                 foreach (string failure in resolutionReport.Failures)
                     Console.WriteLine("HVM OPERAND FAILURE " + failure);
-                Console.WriteLine($"HVM OPERANDS mapped={resolutionReport.MappedOperands} unresolved={resolutionReport.UnresolvedOperands} locals={resolutionReport.ResolvedLocals} failures={resolutionReport.Failures.Count}");
+                Console.WriteLine($"HVM OPERANDS decoded={resolutionReport.DecodedMethods} mapped={resolutionReport.MappedOperands} unresolved={resolutionReport.UnresolvedOperands} locals={resolutionReport.ResolvedLocals} failures={resolutionReport.Failures.Count}");
                 return resolutionReport.MappedOperands > 0 && resolutionReport.UnresolvedOperands == 0 ? 0 : 3;
             }
             if (args.Length >= 4 && args[0] == "--merge-hvm")

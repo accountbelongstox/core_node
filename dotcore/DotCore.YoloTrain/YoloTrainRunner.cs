@@ -20,13 +20,15 @@ public sealed record YoloRunResult(bool Success, int ExitCode, bool Cancelled, s
 public sealed class YoloTrainRunner
 {
     private const string LogTag = "[YoloTrainRunner]";
-    private const string ProgressBarMarker = "%|";
-    private const string ProgressBarDone = "100%|";
+    private const int ProgressDonePercent = 100;
     private const string ResultsSavedPrefix = "Results saved to ";
     private const string ExportFormatOnnx = "onnx";
 
     private static readonly Regex Ansi = new(@"\x1B\[[0-9;?]*[ -/]*[@-~]", RegexOptions.Compiled);
     private static readonly Regex EpochLine = new(@"^\s*(\d+)/(\d+)\s+\S", RegexOptions.Compiled);
+
+    /// <summary>tqdm ("42%|####") and Ultralytics 8.4+ ("42% ━━━━", downloads "42% ────") progress bars.</summary>
+    private static readonly Regex ProgressBar = new(@"(\d{1,3})%\s*[|─━█]", RegexOptions.Compiled);
 
     private readonly object _lock = new();
     private Process? _process;
@@ -41,13 +43,35 @@ public sealed class YoloTrainRunner
         get { lock (_lock) return _process != null; }
     }
 
-    public Task<YoloRunResult> TrainAsync(string cliPath, string dataYamlPath, YoloTrainParameters parameters, string projectDir, string runName, CancellationToken ct = default)
+    public async Task<YoloRunResult> TrainAsync(string cliPath, string dataYamlPath, YoloTrainParameters parameters, string projectDir, string runName, CancellationToken ct = default)
     {
         Directory.CreateDirectory(projectDir);
+        var startedUtc = DateTime.UtcNow.AddSeconds(-1);
         var args = parameters.ToTrainArguments(dataYamlPath, projectDir, runName);
-        return RunAsync(cliPath, args, projectDir, line => line.StartsWith(ResultsSavedPrefix, StringComparison.Ordinal)
+        var result = await RunAsync(cliPath, args, projectDir, line => line.StartsWith(ResultsSavedPrefix, StringComparison.Ordinal)
             ? ResolveDir(line[ResultsSavedPrefix.Length..].Trim(), projectDir)
-            : null, runDir => YoloArtifacts.WeightsPath(runDir ?? Path.Combine(projectDir, runName)), ct);
+            : null, runDir => YoloArtifacts.WeightsPath(runDir ?? FindRunDir(projectDir, runName, startedUtc) ?? Path.Combine(projectDir, runName)), ct).ConfigureAwait(false);
+        if (result.RunDir == null && result.OutputFile != null)
+            result = result with { RunDir = Path.GetDirectoryName(Path.GetDirectoryName(result.OutputFile)) };
+        return result;
+    }
+
+    /// <summary>Run dir of this run when Ultralytics did not print it: newest {runName}* dir whose best.pt was written after the start.</summary>
+    private static string? FindRunDir(string projectDir, string runName, DateTime startedUtc)
+    {
+        try
+        {
+            return new DirectoryInfo(projectDir).EnumerateDirectories(runName + "*")
+                .Select(d => (Dir: d.FullName, Weights: new FileInfo(YoloArtifacts.WeightsPath(d.FullName))))
+                .Where(x => x.Weights.Exists && x.Weights.LastWriteTimeUtc >= startedUtc)
+                .OrderByDescending(x => x.Weights.LastWriteTimeUtc)
+                .Select(x => x.Dir)
+                .FirstOrDefault();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     public Task<YoloRunResult> ExportOnnxAsync(string cliPath, string weightsPath, int imgsz, CancellationToken ct = default)
@@ -126,7 +150,8 @@ public sealed class YoloTrainRunner
                     lastEpoch = ep;
                 }
                 if (runDirFromLine(line) is { } dir) runDir = dir;
-                if (line.Contains(ProgressBarMarker, StringComparison.Ordinal) && !line.Contains(ProgressBarDone, StringComparison.Ordinal)) return;
+                var bar = ProgressBar.Match(line);
+                if (bar.Success && int.TryParse(bar.Groups[1].Value, out var pct) && pct < ProgressDonePercent) return;
                 Emit(line);
             }
         }

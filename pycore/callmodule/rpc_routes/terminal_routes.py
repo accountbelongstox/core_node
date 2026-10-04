@@ -175,6 +175,7 @@ def register_terminal_routes(server) -> None:
         recordings = [line for line in str(params.get("recordings") or "").splitlines() if line.strip()]
         clear_first = bool_param(params, "clear_first")
         interrupt_first = bool_param(params, "interrupt_first")
+        agent = str(params.get("agent") or "")
         return run_terminal_action(
             "voice",
             request_id,
@@ -185,6 +186,7 @@ def register_terminal_routes(server) -> None:
                 text,
                 clear_first=clear_first,
                 interrupt_first=interrupt_first,
+                agent=agent,
             ),
         )
 

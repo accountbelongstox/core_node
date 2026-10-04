@@ -1267,7 +1267,9 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description         = "Qwen Code - Alibaba QwenLM coding agent CLI"
         # Official: https://github.com/QwenLM/qwen-code
-        InstallType         = "bun"
+        # pnpm, not bun: /voice needs the @qwen-code/audio-capture native module, whose
+        # build script bun would skip (DESIGN_CLAUDE_VOICE_DICTATION.md agent survey).
+        InstallType         = "pnpm"
         ForceToInstallDir   = $false
         VerifySuffix        = "--version"
         AdditionalKeywords  = @("qwen", "qwen-code", "qwen.cmd")

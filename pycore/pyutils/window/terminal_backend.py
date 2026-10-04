@@ -54,6 +54,7 @@ TERMINAL_KEY_PAGE_UP = "Prior"
 TERMINAL_KEY_PAGE_DOWN = "Next"
 TERMINAL_KEY_ESCAPE = "Escape"
 TERMINAL_KEY_TAB = "Tab"
+TERMINAL_KEY_F8 = "F8"
 HISTORY_DIRECTION_KEYS = {
     "up": TERMINAL_KEY_UP,
     "down": TERMINAL_KEY_DOWN,
@@ -68,6 +69,8 @@ TERMINAL_KEY_ACTIONS = {
     "ctrl_c": (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C),
     "tab": (TERMINAL_KEY_TAB,),
     "shift_tab": (TERMINAL_KEY_SHIFT, TERMINAL_KEY_TAB),
+    # Codex CLI realtime voice toggle (voice on >= 0.156.0 by default).
+    "f8": (TERMINAL_KEY_F8,),
 }
 # Clears the input line before a paste: Ctrl+K deletes to the line end, repeated
 # Ctrl+U deletes to the line start across lines (Claude Code multiline input,

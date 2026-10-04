@@ -126,6 +126,35 @@ class TerminalVoiceDictation:
             player.wait()
         return held
 
+    def dictate_realtime(self, window_id: str, recording: Path) -> Dict[str, Any]:
+        """Codex realtime voice: toggle recording on, play into the virtual microphone, toggle off.
+        The multimodal model hears the audio directly; no transcript lands in the input box."""
+        config = self._config["codex"]
+        handle, name = tempfile.mkstemp(prefix=WORK_FILE_PREFIX, suffix=WORK_FILE_SUFFIX, dir=TMP_DIR)
+        os.close(handle)
+        wav_path = Path(name)
+        toggled_on = False
+        try:
+            if virtual_microphone.decode_to_wav(recording, wav_path) is None:
+                return {"success": False, "error_code": ERROR_AUDIO_INVALID}
+            with VirtualMicrophone(str(self._config["pipewire_source"]), str(self._config["pipewire_sink"])) as microphone:
+                time.sleep(self._config["loopback_settle_ms"] / MS_PER_SECOND)
+                pressed = self._backend.press_key(window_id, str(config["toggle_key"]))
+                if not pressed.get("success"):
+                    return pressed
+                toggled_on = True
+                time.sleep(config["toggle_settle_ms"] / MS_PER_SECOND)
+                time.sleep(config["recording_warmup_ms"] / MS_PER_SECOND)
+                player = microphone.play(wav_path)
+                player.wait()
+                time.sleep(config["recording_tail_ms"] / MS_PER_SECOND)
+                toggled_on = False
+                return self._backend.press_key(window_id, str(config["toggle_key"]))
+        finally:
+            if toggled_on:
+                self._backend.press_key(window_id, str(config["toggle_key"]))
+            wav_path.unlink(missing_ok=True)
+
     def await_transcript(self, before: str) -> Optional[str]:
         """Poll the input box until it holds new, stable text; None on timeout."""
         config = self._config
