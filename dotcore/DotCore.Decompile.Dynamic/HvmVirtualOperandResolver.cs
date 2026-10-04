@@ -3,8 +3,10 @@ using AsmResolver.DotNet;
 using AsmResolver.DotNet.Builder;
 using AsmResolver.DotNet.Code.Cil;
 using AsmResolver.DotNet.Signatures.Types;
+using AsmResolver.IO;
 using AsmResolver.PE.DotNet.Cil;
 using AsmResolver.PE.DotNet.Metadata.Tables;
+using System.Runtime.InteropServices;
 
 namespace DotCore.Decompile.Dynamic;
 
@@ -63,6 +65,8 @@ public sealed class HvmJitCaptureMethod
 {
     public uint MethodToken { get; set; }
     public string ILBytes { get; set; } = string.Empty;
+    public int MaxStack { get; set; }
+    public int ExceptionHandlerCount { get; set; }
 }
 
 public sealed class HvmJitCaptureModule
@@ -78,12 +82,13 @@ public sealed class HvmJitCaptureDocument
 public sealed class HvmOperandResolutionReport
 {
     public HvmOperandResolutionReport(string outputPath, int mappedOperands, int unresolvedOperands,
-        int resolvedLocals, IReadOnlyList<string> failures)
+        int resolvedLocals, int decodedMethods, IReadOnlyList<string> failures)
     {
         OutputPath = outputPath;
         MappedOperands = mappedOperands;
         UnresolvedOperands = unresolvedOperands;
         ResolvedLocals = resolvedLocals;
+        DecodedMethods = decodedMethods;
         Failures = failures;
     }
 
@@ -91,6 +96,7 @@ public sealed class HvmOperandResolutionReport
     public int MappedOperands { get; }
     public int UnresolvedOperands { get; }
     public int ResolvedLocals { get; }
+    public int DecodedMethods { get; }
     public IReadOnlyList<string> Failures { get; }
 }
 
@@ -116,23 +122,36 @@ public sealed class HvmVirtualOperandResolver
             .ToDictionary(group => group.Key, group => group.First().ModulePath, StringComparer.OrdinalIgnoreCase);
         Dictionary<string, ModuleDefinition> sourceModules = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, IMetadataMember?> resolvedMembers = new(StringComparer.Ordinal);
-        Dictionary<uint, byte[]> methodBodies = captures.GroupBy(item => item.MethodToken)
-            .ToDictionary(group => group.Key, group => ParseHex(group.OrderByDescending(item => item.ILBytes.Length)
-                .First().ILBytes));
+        Dictionary<uint, HvmJitCaptureMethod> capturedMethods = captures.GroupBy(item => item.MethodToken)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.ILBytes.Length).First());
         List<string> failures = new();
         int mappedOperands = 0;
         int unresolvedOperands = 0;
         int resolvedLocals;
+        int decodedMethods = 0;
 
         foreach (IGrouping<uint, HvmContextOperand> methodGroup in operands.GroupBy(item => item.MethodToken))
         {
             if (!targetMethods.TryGetValue(unchecked((int)methodGroup.Key), out MethodDefinition? method)
-                || method.CilMethodBody == null || !methodBodies.TryGetValue(methodGroup.Key, out byte[]? rawBody))
+                || method.CilMethodBody == null
+                || !capturedMethods.TryGetValue(methodGroup.Key, out HvmJitCaptureMethod? capture))
                 continue;
+            byte[] rawBody = ParseHex(capture.ILBytes);
+            Dictionary<uint, IMetadataMember> methodMembers = new();
             foreach (HvmContextOperand mapping in methodGroup)
             {
-                IMetadataMember? resolved = ResolveMember(mapping, targetModule, methodHandles, modulePaths,
+                IMetadataMember? member = ResolveMember(mapping, targetModule, methodHandles, modulePaths,
                     sourceModules, resolvedMembers, failures);
+                if (member != null)
+                    methodMembers[mapping.VirtualToken] = member;
+            }
+            if (DnGuardMethodBodyClassifier.IsPlaceholder(method.CilMethodBody)
+                && TryDecodeCapturedBody(method, capture, rawBody, methodGroup.Key, methodMembers, localTypes,
+                    failures))
+                decodedMethods++;
+            foreach (HvmContextOperand mapping in methodGroup)
+            {
+                methodMembers.TryGetValue(mapping.VirtualToken, out IMetadataMember? resolved);
                 bool found = false;
                 foreach (var instruction in method.CilMethodBody.Instructions)
                 {
@@ -171,9 +190,9 @@ public sealed class HvmVirtualOperandResolver
             MethodBodySerializer = new CilMethodBodySerializer { ComputeMaxStackOnBuildOverride = false }
         };
         targetModule.Write(fullOutputPath, new ManagedPEImageBuilder(directoryFactory));
-        writeLog($"Resolved {mappedOperands} HVM operands and {resolvedLocals} local variables; {unresolvedOperands} referenced operands remain unresolved.");
+        writeLog($"Decoded {decodedMethods} HVM methods; resolved {mappedOperands} operands and {resolvedLocals} local variables; {unresolvedOperands} referenced operands remain unresolved.");
         return new HvmOperandResolutionReport(fullOutputPath, mappedOperands, unresolvedOperands, resolvedLocals,
-            failures.AsReadOnly());
+            decodedMethods, failures.AsReadOnly());
     }
 
     private static int ResolveLocals(ModuleDefinition targetModule,
