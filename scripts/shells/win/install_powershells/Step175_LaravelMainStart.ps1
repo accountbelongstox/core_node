@@ -14,6 +14,18 @@ $repositoryRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $wi
 $uiStartScriptPath = Join-Path (Join-Path (Join-Path (Join-Path $repositoryRoot 'poly_apps') 'pycore_laravel_wordnew_ui') 'scripts') 'start.ps1'
 $powerShellPath = Join-Path $PSHOME 'powershell.exe'
 $lanOnlyHost = $false
+# Git keeps no empty directories; package:discover needs these (Linux twin: LARAVEL_RUNTIME_DIRS).
+$laravelRuntimeSubpaths = @(
+    'bootstrap\cache',
+    'storage\framework\cache\data',
+    'storage\framework\sessions',
+    'storage\framework\views',
+    'storage\framework\testing',
+    'storage\logs',
+    'storage\app\public',
+    'storage\app\private'
+)
+$laravelRuntimeSubpath = ''
 $laravelDirectory = $null
 $phpPath = $null
 $composerPath = $null
@@ -111,6 +123,11 @@ else {
 if (-not $step175Failed -and -not (Ensure-FrankenPhpWebAccessConfiguration)) {
     Set-Step175Failure -Reason "web access config postcondition failed: $(Get-FrankenPhpWebAccessConfigurationPath)"
 }
+foreach ($laravelRuntimeSubpath in $laravelRuntimeSubpaths) {
+    if (-not (Ensure-FrankenPhpDirectory -Path (Join-Path $laravelDirectory $laravelRuntimeSubpath))) {
+        Set-Step175Failure -Reason "Laravel runtime directory postcondition failed: $(Join-Path $laravelDirectory $laravelRuntimeSubpath)"
+    }
+}
 
 if (-not $step175Failed) {
     Push-Location $laravelDirectory
@@ -149,6 +166,22 @@ if (-not $step175Failed -and $webServerPlane -eq 'frankenphp' -and -not (Test-Pa
 }
 
 if ($step175Failed) { exit 1 }
+
+# A failed sys:init stops the run because every following database operation assumes
+# the base schema exists. This matches the Linux step 175 ordering.
+Write-FrankenPhpLog -Message 'Initializing system (php artisan sys:init).'
+Push-Location $laravelDirectory
+try {
+    & $phpPath $artisanPath sys:init --no-interaction
+    $commandExit = $LASTEXITCODE
+}
+finally {
+    Pop-Location
+}
+if ($commandExit -ne 0) {
+    Set-Step175Failure -Reason "artisan sys:init failed (exit $commandExit)"
+    exit 1
+}
 
 # Optional: force CodeMart demo data via `php artisan sys:codemartinit` (idempotent).
 # sys:init already seeds it unless the environment is production or

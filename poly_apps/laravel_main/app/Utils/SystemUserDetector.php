@@ -36,6 +36,12 @@ class SystemUserDetector
             }
         }
 
+        if (!function_exists('posix_getpwuid') || !function_exists('posix_geteuid')) {
+            self::$cachedUser = get_current_user();
+
+            return ['username' => self::$cachedUser, 'uid' => null, 'gid' => null];
+        }
+
         $currentUser = posix_getpwuid(posix_geteuid());
         $currentUid = $currentUser['uid'] ?? 0;
 
