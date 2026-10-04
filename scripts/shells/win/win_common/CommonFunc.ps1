@@ -282,6 +282,21 @@ function Convert-ToUTF8 {
     }
 }
 
+# A dangling symbolic link is not a real binary: the name matches but nothing can run it
+# (e.g. WinGet Links entries left pointing at a pre-migration drive layout).
+function Test-DanglingLink {
+    param([Parameter(Mandatory = $true)][object]$Item)
+    $linkTarget = ''
+    if (-not ($Item.PSObject.Properties['LinkType'] -and $Item.LinkType)) { return $false }
+    if (-not ($Item.PSObject.Properties['Target'] -and $Item.Target)) { return $false }
+    $linkTarget = [string](@($Item.Target)[0])
+    if ([string]::IsNullOrWhiteSpace($linkTarget)) { return $false }
+    if (-not [System.IO.Path]::IsPathRooted($linkTarget)) {
+        $linkTarget = Join-Path (Split-Path -Parent $Item.FullName) $linkTarget
+    }
+    return -not (Test-Path -LiteralPath $linkTarget)
+}
+
 function Find-FileWithDepth {
     param (
         [Parameter(Mandatory = $true)]
@@ -299,7 +314,7 @@ function Find-FileWithDepth {
     }
 
     $target = Get-ChildItem -Path $BasePath -Recurse -File -Depth $MaxDepth -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -ieq $FileName } |
+    Where-Object { $_.Name -ieq $FileName -and -not (Test-DanglingLink -Item $_) } |
     Select-Object -First 1
 
     if ($target) {
@@ -1188,6 +1203,10 @@ function Repair-WingetInstallation {
         if ($linkTarget -and (Test-Path -LiteralPath $linkTarget)) {
             Write-Host "       [REPAIR] Resolved symlink target: $linkTarget" -ForegroundColor Yellow
             $foundExecutablePath = $linkTarget
+        } else {
+            # Dangling link (e.g. target on a pre-migration drive): there is no real binary to repair from.
+            Write-Host "       [REPAIR] Found path is a dangling symlink ($linkTarget missing); no real installation to repair from." -ForegroundColor Yellow
+            return $null
         }
     }
 

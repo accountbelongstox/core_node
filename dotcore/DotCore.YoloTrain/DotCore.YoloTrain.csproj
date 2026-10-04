@@ -2,13 +2,13 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <RootNamespace>DotCore.VocAnnotator</RootNamespace>
+    <RootNamespace>DotCore.YoloTrain</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Config\voc_annotator_default_config.json" LogicalName="DotCore.VocAnnotator.voc_annotator_default_config.json" />
+    <EmbeddedResource Include="Scripts\yolo_env_probe.py" LogicalName="DotCore.YoloTrain.yolo_env_probe.py" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
-    <ProjectReference Include="..\DotCore.Common\DotCore.Common.csproj" />
+    <ProjectReference Include="..\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
   </ItemGroup>
 </Project>

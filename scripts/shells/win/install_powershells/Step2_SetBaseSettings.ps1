@@ -102,7 +102,8 @@ function Stop-DisableHttpIisServices {
         
         # Stop HTTP service
         Write-Host "[Step 2] Stopping HTTP service..." -ForegroundColor Yellow
-        $httpStopResult = & { $ErrorActionPreference = "Continue"; & net stop http 2>&1 }
+        # /y auto-confirms stopping dependent services; without it net.exe waits forever on a Y/N prompt.
+        $httpStopResult = & { $ErrorActionPreference = "Continue"; & net stop http /y 2>&1 }
         $httpSvc = Get-Service HTTP -ErrorAction SilentlyContinue
         if ($httpSvc -and $httpSvc.Status -eq 'Stopped') {
             Write-Host "[Step 2] HTTP service stopped successfully." -ForegroundColor Green

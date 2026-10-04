@@ -72,7 +72,8 @@ public static class YoloSegmentLayout
         try
         {
             var proj = YoloDataLayout.TrimSeparators(Path.GetFullPath(projectPath));
-            foreach (var name in Directory.EnumerateDirectories(proj).Select(Path.GetFileName).OrderByDescending(n => n, StringComparer.Ordinal))
+            foreach (var name in Directory.EnumerateDirectories(proj).Select(Path.GetFileName)
+                         .Where(n => !YoloDataLayout.IsReservedName(n)).OrderByDescending(n => n, StringComparer.Ordinal))
                 list.Add((name!, Path.Combine(proj, name!)));
         }
         catch (IOException) { }

@@ -1,0 +1,23 @@
+{
+  "zoom_percent": 100,
+  "last_images_dir": "",
+  "last_save_dir": "",
+  "auto_save": true,
+  "write_voc_xml": true,
+  "write_yolo_txt": false,
+  "show_labels": true,
+  "show_crosshair": true,
+  "fill_opacity": 0.12,
+  "line_width": 2.0,
+  "min_box_size": 4,
+  "image_sort": "name",
+  "image_filter": "all",
+  "fit_on_open": true,
+  "copy_previous_when_empty": false,
+  "auto_label_model_path": "",
+  "auto_label_confidence": 0.35,
+  "auto_label_iou": 0.45,
+  "auto_label_mode": "merge",
+  "auto_label_add_classes": true,
+  "auto_label_on_open": false
+}

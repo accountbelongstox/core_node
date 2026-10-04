@@ -174,7 +174,7 @@ function Install-SinglePackageViaManager {
         Write-Host "$SCRIPT_INDEX Installing $InstallType packages (batch): $($PackageName.Count) packages" -ForegroundColor Cyan
 
         # Try batch installation first for supported package managers
-        if ($InstallType -in @("pip", "npm", "yarn", "pnpm")) {
+        if ($InstallType -in @("pip", "npm", "yarn", "pnpm", "bun")) {
             $batchResult = Install-PackagesBatch -InstallType $InstallType -Packages $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall
             if ($batchResult) {
                 return $batchResult
@@ -217,6 +217,7 @@ function Install-SinglePackageViaManager {
         switch ($InstallType) {
             "npm" { $executable = Invoke-PnpmCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "pnpm" { $executable = Invoke-PnpmCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "bun" { $executable = Invoke-BunCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "pip" { $executable = Invoke-PipCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "cargo" { $executable = Invoke-CargoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "go" { $executable = Invoke-GoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
@@ -346,6 +347,7 @@ function Install-PackagesBatch {
             "npm" { $batchResult = Invoke-PnpmCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "yarn" { $batchResult = Invoke-YarnCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "pnpm" { $batchResult = Invoke-PnpmCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "bun" { $batchResult = Invoke-BunCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             default {
                 Write-Host "$SCRIPT_INDEX Batch installation not supported for $InstallType" -ForegroundColor Yellow
                 return $null
@@ -585,8 +587,8 @@ function Invoke-StandardPackageInstallation {
         [hashtable]$PackageMeta = @{}
     )
 
-    # Handle npm/pnpm special case - check for NpmPackageName field
-    if ($InstallType -eq "npm" -or $InstallType -eq "pnpm") {
+    # Handle npm/pnpm/bun special case - check for NpmPackageName field
+    if ($InstallType -eq "npm" -or $InstallType -eq "pnpm" -or $InstallType -eq "bun") {
         $resolvedPackageName = $PackageId
         if ($PackageMeta.ContainsKey("NpmPackageName") -and -not [string]::IsNullOrEmpty($PackageMeta.NpmPackageName)) {
             $resolvedPackageName = $PackageMeta.NpmPackageName
@@ -613,6 +615,7 @@ function Invoke-StandardPackageInstallation {
     switch ($InstallType) {
         "npm" { Write-Host "$SCRIPT_INDEX Note: PNPM (via Global:PNPM_EXE_PATH) installs packages globally" -ForegroundColor Yellow }
         "pnpm" { Write-Host "$SCRIPT_INDEX Note: PNPM (via Global:PNPM_EXE_PATH) installs packages globally" -ForegroundColor Yellow }
+        "bun" { Write-Host "$SCRIPT_INDEX Note: BUN installs packages globally into Global:BUN_INSTALL_DIR (pnpm fallback)" -ForegroundColor Yellow }
         "pip" { Write-Host "$SCRIPT_INDEX Note: PIP installs to Python environment, no custom install directory" -ForegroundColor Yellow }
         "pipx" { Write-Host "$SCRIPT_INDEX Note: PIPX installs isolated Python applications" -ForegroundColor Yellow }
         "uv" { Write-Host "$SCRIPT_INDEX Note: UV provides fast Python package management" -ForegroundColor Yellow }
@@ -712,7 +715,7 @@ function Install-BasePackage {
             $executable = Invoke-PowerShellCommand -PackageName $PackageName -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceInstall $false -PowerShellCommand $PowerShellCommand
             $installed = $null -ne $executable
         }
-        { $_ -in @("npm", "pnpm", "pip", "pipx", "uv", "uvx", "poetry", "choco", "scoop", "cargo", "go", "gem", "brew") } {
+        { $_ -in @("npm", "pnpm", "bun", "pip", "pipx", "uv", "uvx", "poetry", "choco", "scoop", "cargo", "go", "gem", "brew") } {
             $executable = Invoke-StandardPackageInstallation -InstallType $InstallType -PackageId $PACKAGE_ID -ExecName $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -Description $DESCRIPTION -PackageName $PackageName -PackageMeta $PackageMeta
             $installed = $null -ne $executable
         }

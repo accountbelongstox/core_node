@@ -1,16 +1,19 @@
 namespace DotCore.VocAnnotator;
 
 /// <summary>
-/// Canonical filesystem layout for recorded and generated YOLO data: {root}/{client_type}/{project_name}/{segment_id}/(record|frames|images|labels).
+/// Canonical filesystem layout for recorded YOLO data: {root}/{client_type}/{project_name}/{segment_id}/(record|frames|images|labels).
+/// Project subdirs starting with ReservedPrefix are not segments: _datasets (assembled train/val/test sets) and _runs (training runs).
 /// 1:1 Python pycore/pyutils/voc_annotator/yolo_data_layout.py.
 /// </summary>
 public static class YoloDataLayout
 {
     public const string RecordSubdir = "record";
     public const string FramesSubdir = "frames";
-    public const string ImagesSubdir = DataYamlWriter.ImagesSubdir;
-    public const string LabelsSubdir = DataYamlWriter.LabelsSubdir;
-    public const string GeneratedSubdir = "_generated";
+    public const string ImagesSubdir = "images";
+    public const string LabelsSubdir = "labels";
+    public const string ReservedPrefix = "_";
+    public const string DatasetsSubdir = ReservedPrefix + "datasets";
+    public const string RunsSubdir = ReservedPrefix + "runs";
     public const string RootEnvVar = "YOLO_DATA_ROOT";
     public const string DefaultRoot = @"D:\programing\yolo_data";
 
@@ -37,6 +40,13 @@ public static class YoloDataLayout
 
     public static string GetRecordDir(string clientType, string projectName, string segmentId) => Path.Combine(RootJoin(clientType, projectName, segmentId), RecordSubdir);
 
+    /// <summary>True for project subdirs that are not segments (reserved prefix).</summary>
+    public static bool IsReservedName(string? name) => !string.IsNullOrEmpty(name) && name.StartsWith(ReservedPrefix, StringComparison.Ordinal);
+
+    public static string GetDatasetsDir(string projectPath) => Path.Combine(projectPath, DatasetsSubdir);
+
+    public static string GetRunsDir(string projectPath) => Path.Combine(projectPath, RunsSubdir);
+
     /// <summary>Create record/, frames/, images/, labels/ under the segment. Returns segment path.</summary>
     public static string EnsureSegmentDirs3(string clientType, string projectName, string segmentId)
     {
@@ -58,26 +68,6 @@ public static class YoloDataLayout
         if (parts.Length < 2 || parts[0] == ".") return (null, null);
         return (parts[0], parts[1]);
     }
-
-    public static string GetDataDir(string projectName, string segmentId) => RootJoin(projectName, segmentId);
-
-    /// <summary>Create images/ and labels/ under Root/projectName/segmentId. Returns that dir.</summary>
-    public static string EnsureSegmentDirs(string projectName, string segmentId)
-    {
-        var segmentPath = RootJoin(projectName, segmentId);
-        Directory.CreateDirectory(Path.Combine(segmentPath, ImagesSubdir));
-        Directory.CreateDirectory(Path.Combine(segmentPath, LabelsSubdir));
-        return segmentPath;
-    }
-
-    public static string GetGeneratedRoot(string? clientType = null) =>
-        string.IsNullOrWhiteSpace(clientType) ? RootJoin(GeneratedSubdir) : RootJoin(GeneratedSubdir, clientType);
-
-    public static string GetGeneratedDatasetPath(string clientType, string datasetName) => RootJoin(GeneratedSubdir, clientType, datasetName);
-
-    /// <summary>Write data.yaml (train and val both = images/). Returns yaml path.</summary>
-    public static string WriteDataYaml(string datasetDir, IReadOnlyList<string> classes) =>
-        DataYamlWriter.WriteDataYaml(datasetDir, classes, ImagesSubdir, ImagesSubdir);
 
     public static bool IsUnder(string path, string root)
     {

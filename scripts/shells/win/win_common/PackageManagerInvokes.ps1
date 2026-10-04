@@ -414,6 +414,84 @@ function Invoke-PnpmCommand {
     }
 }
 
+# Bun-first installer for plain-JS Node CLIs (no lifecycle/postinstall needs): the binary in the
+# bun global bin dir decides installed-state (idempotent skip); any bun failure falls back to pnpm.
+# Packages whose install depends on build scripts (koffi, platform-binary postinstalls, puppeteer)
+# must stay InstallType "pnpm": bun does not run untrusted lifecycle scripts.
+function Invoke-BunCommand {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [string]$InstallDir = "", # Ignored for bun (API consistency)
+        [string]$Keyword = "",
+        [array]$AdditionalKeywords = @(),
+        [bool]$OnlyCheckFlag = $false,
+        [bool]$ForceInstall = $false
+    )
+
+    $bunExe = $null
+    $bunCommand = $null
+    $bunGlobalBinDir = $Global:BUN_BIN_DIR
+    $searchKeywords = @()
+    $executable = $null
+    $previousBunInstall = $env:BUN_INSTALL
+    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+
+    $searchKeywords = @(@($Keyword) + @($AdditionalKeywords) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($searchKeywords.Count -eq 0) { $searchKeywords = @($PackageName) }
+
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths @($bunGlobalBinDir) -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $false
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "${PackageName}: already installed via bun at $executable, skipping" -Category "BUN" -Color "Green"
+        return $executable
+    }
+
+    if ($Global:BUN_EXE_PATH -and (Test-Path -LiteralPath $Global:BUN_EXE_PATH)) {
+        $bunExe = $Global:BUN_EXE_PATH
+    } else {
+        $bunCommand = Get-Command bun -ErrorAction SilentlyContinue
+        if ($bunCommand) { $bunExe = $bunCommand.Source }
+    }
+    if (-not $bunExe) {
+        Write-DebugLog -Message "${PackageName}: bun not available, falling back to pnpm" -Category "BUN" -Color "Yellow"
+        return Invoke-PnpmCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
+    }
+
+    Write-DebugLog -Message "Installing package via bun: $PackageName" -Category "BUN" -Color "Yellow"
+    try {
+        # Keep bun's global installs inside the managed layout (GlobalVars BUN_INSTALL_DIR).
+        $env:BUN_INSTALL = $Global:BUN_INSTALL_DIR
+        Write-DebugLog -Message "Command: $bunExe add --global $PackageName (BUN_INSTALL=$($env:BUN_INSTALL))" -Category "BUN" -Color "Magenta"
+        & $bunExe add --global $PackageName | Out-Host
+    }
+    catch {
+        Write-DebugLog -Message "bun install error for ${PackageName}: $($_.Exception.Message)" -Category "BUN" -Color "Yellow"
+    }
+    finally {
+        if ($null -ne $previousBunInstall) { $env:BUN_INSTALL = $previousBunInstall } else { Remove-Item Env:\BUN_INSTALL -ErrorAction SilentlyContinue }
+    }
+
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths @($bunGlobalBinDir) -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $false
+    if ($executable) {
+        Write-DebugLog -Message "${PackageName}: bun install verified, executable: $executable" -Category "BUN" -Color "Green"
+        # Migration hygiene: drop a stale pnpm global copy of the same package so two
+        # implementations never drift apart (best effort, mirrors the native-only ensure).
+        if ($Global:PNPM_EXE_PATH -and (Test-Path -LiteralPath $Global:PNPM_EXE_PATH)) {
+            if (Test-PnpmGlobalPackageInstalled -PnpmExe $Global:PNPM_EXE_PATH -PackageName $PackageName) {
+                Write-DebugLog -Message "${PackageName}: removing stale pnpm global copy (migrated to bun)" -Category "BUN" -Color "Yellow"
+                & $Global:PNPM_EXE_PATH remove --global $PackageName 2>$null | Out-Null
+            }
+        }
+        return $executable
+    }
+
+    Write-DebugLog -Message "${PackageName}: bun install did not yield an executable; falling back to pnpm" -Category "BUN" -Color "Yellow"
+    return Invoke-PnpmCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
+}
+
 # Helper function for npm fallback
 function Invoke-NpmFallback {
     param (
