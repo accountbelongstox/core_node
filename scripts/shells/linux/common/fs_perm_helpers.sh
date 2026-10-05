@@ -320,7 +320,7 @@ repair_owned_tree_owner_only() {
     mismatch_list="$(mktemp)" || return 1
     "${privilege_command[@]}" find "$target_path" -xdev \( ! -user "$target_user" -o ! -group "$target_group" \) \
         -print0 > "$mismatch_list" 2>/dev/null || repair_status=$?
-    "${privilege_command[@]}" xargs -0 -r chown -h "$target_user:$target_group" -- < "$mismatch_list" || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chown -h "$target_user:$target_group" -- < "$mismatch_list" 2>/dev/null || repair_status=$?
     rm -f "$mismatch_list"
     return "$repair_status"
 }
