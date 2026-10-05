@@ -18,8 +18,13 @@
 # ExecStartPre=+ (root although User=<desktop user>), so every start runs it.
 #
 # Idempotency tiers:
-#   1. Every run: the shared owner/mode-777 policy on the bounded hot tree
-#      CORE_NODE_DATA_DIR (one find walk; only mismatched entries change).
+#   1. Every run, synchronous (one find walk each; only mismatched entries
+#      change), so the worker never meets a root-owned entry it needs:
+#      - CORE_NODE_DATA_DIR and LEGACY_CORE_NODE_DATA_DIR (model cache, scratch
+#        temp such as _tmp/work): shared owner/mode-777 policy;
+#      - the project venv ($COMPILE_DIR/python3_venv, built by root installers):
+#        owned by the user without shared write, so the worker can pip-install
+#        into it.
 #   2. Full tree: only when the per-user stamp is missing or the real user
 #      changed (force with PYSERVICE_WWW_PERM_FULL=1); runs in the background
 #      so a drifted 100GB+ NTFS tree never blocks service startup.
@@ -40,6 +45,8 @@ PWP_STAMP_FILE=""
 PWP_REAL_USER=""
 PWP_REAL_GROUP=""
 PWP_STAMP_USER=""
+PWP_LEGACY_TREE=""
+PWP_VENV_DIR=""
 
 [[ "$(uname -s 2>/dev/null)" == "Linux" ]] || exit 0
 [[ "${PYSERVICE_WWW_PERM_REPAIR:-1}" != "0" ]] || exit 0
@@ -54,6 +61,7 @@ PWP_WWW_ROOT="${CORE_NODE_WWW_BASE:-/www}"
 PWP_WWW_ROOT="$(readlink -f "$PWP_WWW_ROOT" 2>/dev/null || echo "$PWP_WWW_ROOT")"
 PWP_HOT_TREE="$(readlink -f "$CORE_NODE_DATA_DIR" 2>/dev/null || echo "$CORE_NODE_DATA_DIR")"
 PWP_STAMP_FILE="$PWP_WWW_ROOT/.pyservice_www_perm_repair.stamp"
+PWP_LEGACY_TREE="$(readlink -f "$LEGACY_CORE_NODE_DATA_DIR" 2>/dev/null || echo "$LEGACY_CORE_NODE_DATA_DIR")"
 
 if [[ -z "$PWP_WWW_ROOT" || "$PWP_WWW_ROOT" == "/" || ! -d "$PWP_WWW_ROOT" ]]; then
     exit 0
@@ -72,9 +80,25 @@ if [[ "$(id -u)" != "0" ]]; then
     exit 0
 fi
 
-# Tier 1: bounded hot tree (pycore writes here), synchronous.
+# Tier 1: bounded trees the worker writes, synchronous.
 if [[ -d "$PWP_HOT_TREE" ]]; then
     repair_owned_tree_777 "$PWP_HOT_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
+fi
+if [[ -n "$PWP_LEGACY_TREE" && "$PWP_LEGACY_TREE" != "/" && -d "$PWP_LEGACY_TREE" ]]; then
+    repair_owned_tree_777 "$PWP_LEGACY_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
+fi
+# Venv location from its single source (gvar_common.sh VENV_DIR), resolved in
+# an isolated subshell like pyservice_entry.sh resolve_python; none on hosted
+# notebooks, where the system python is the interpreter.
+PWP_VENV_DIR="$(
+    set +uo pipefail
+    source "$PWP_SCRIPT_DIR/gvar_common.sh" >/dev/null 2>&1
+    source "$PWP_SCRIPT_DIR/venv_python_common.sh" >/dev/null 2>&1
+    venv_notebook_platform_from_common && exit 0
+    printf '%s' "${VENV_DIR:-}"
+)"
+if [[ -n "$PWP_VENV_DIR" && "$PWP_VENV_DIR" == /*/* && -d "$PWP_VENV_DIR" ]]; then
+    repair_owned_tree_no_shared_write "$PWP_VENV_DIR" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
 fi
 
 # Tier 2: full mapped tree, guarded by a per-user stamp; backgrounded so a
