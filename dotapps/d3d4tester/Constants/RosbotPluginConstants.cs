@@ -26,6 +26,7 @@ public static class RosbotPluginConstants
     /// &lt;ROSBOT&gt;\plugins\CoreNodeBridge; it writes the game state to state.json there once per second.
     /// </summary>
     public const string BridgeDirName = "CoreNodeBridge";
+    public const string RosbotProcessName = "RoS-BoT";
     public const string BridgeDllName = "CoreNodeBridge.dll";
     public const string BridgeStateFileName = "state.json";
     public const string BridgeBundledDir = "tools\\rosbot-plugins\\CoreNodeBridge";

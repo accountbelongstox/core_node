@@ -99,10 +99,7 @@ public partial class RosbotBridgePanel : UserControl
         var s = RosbotBridgePluginService.ReadState();
         _state = s;
         var now = DateTime.UtcNow;
-        TxtLiveStatus.Text = s == null ? p.GetUiText(I18nKeys.RosbotBridgeNoData)
-            : s.IsStale(now) ? p.GetUiText(I18nKeys.RosbotBridgeStale)
-            : !s.InGame ? p.GetUiText(I18nKeys.RosbotBridgeNotInGame)
-            : p.GetUiText(I18nKeys.RosbotBridgeLive);
+        TxtLiveStatus.Text = p.GetUiText(LiveStatusKey(s, now));
         string[] values = s == null ? RowKeys.Select(_ => Empty).ToArray() : new[]
         {
             AreaText(s.LevelAreaSno, p),
@@ -123,6 +120,16 @@ public partial class RosbotBridgePanel : UserControl
         LstHistory.Items.Clear();
         foreach (var visit in s?.LevelAreaHistory ?? Array.Empty<RosbotBridgeAreaVisit>())
             LstHistory.Items.Add($"{visit.Utc.ToLocalTime().ToString(TimeFormat)}{Separator}{AreaText(visit.Sno, p)}");
+    }
+
+    /// <summary>Why there is (no) live data: not installed, ROSBOT not running, running without the plugin loaded, stale, live.</summary>
+    private static string LiveStatusKey(RosbotBridgeState? s, DateTime nowUtc)
+    {
+        if (!RosbotBridgePluginService.IsInstalled) return I18nKeys.RosbotBridgeNotInstalledHint;
+        bool running = RosbotBridgePluginService.IsRosbotRunning;
+        bool fresh = s != null && !s.IsStale(nowUtc);
+        if (!fresh) return running ? I18nKeys.RosbotBridgeNotLoaded : I18nKeys.RosbotBridgeRosbotStopped;
+        return s!.InGame ? I18nKeys.RosbotBridgeLive : I18nKeys.RosbotBridgeNotInGame;
     }
 
     private static string AreaText(int sno, II18nProvider p) =>

@@ -16,7 +16,9 @@ public static partial class I18nKeys
     public const string RosbotBridgeNotInstalled = "ui.rosbot_bridge.not_installed";
     public const string RosbotBridgeBundled = "ui.rosbot_bridge.bundled";
     public const string RosbotBridgeOutdated = "ui.rosbot_bridge.outdated";
-    public const string RosbotBridgeNoData = "ui.rosbot_bridge.no_data";
+    public const string RosbotBridgeNotInstalledHint = "ui.rosbot_bridge.not_installed_hint";
+    public const string RosbotBridgeRosbotStopped = "ui.rosbot_bridge.rosbot_stopped";
+    public const string RosbotBridgeNotLoaded = "ui.rosbot_bridge.not_loaded";
     public const string RosbotBridgeStale = "ui.rosbot_bridge.stale";
     public const string RosbotBridgeNotInGame = "ui.rosbot_bridge.not_in_game";
     public const string RosbotBridgeLive = "ui.rosbot_bridge.live";
