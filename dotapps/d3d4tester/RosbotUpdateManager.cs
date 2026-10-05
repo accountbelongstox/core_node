@@ -286,19 +286,7 @@ public sealed class RosbotUpdateManager
             CheckAndFixNestedRosbot(finalDir);
 
             if (!string.IsNullOrWhiteSpace(rosDirOld) && Directory.Exists(rosDirOld))
-            {
-                string oldIni = Path.Combine(rosDirOld, ShellConstants.RosbotIniFileName);
-                string newIni = Path.Combine(finalDir, ShellConstants.RosbotIniFileName);
-                if (File.Exists(oldIni))
-                {
-                    try
-                    {
-                        File.Copy(oldIni, newIni, true);
-                        ColorPrinter.Gray($"{LogTag} Copied RoS-BoT.ini");
-                    }
-                    catch (IOException) { }
-                }
-            }
+                CarryOverUserFiles(rosDirOld, finalDir);
 
             SetRosDirectoryVerified(NormalizeDir(finalDir));
             CleanupDirectorySafe(tempRoot);
@@ -493,6 +481,56 @@ public sealed class RosbotUpdateManager
             ConfigOptionsProvider.GetOptions<D3Options>().D3Path ?? "",
             finalDirNorm);
         GameInterfaceData.Instance.NotifyCallbacks();
+    }
+
+    /// <summary>
+    /// Keep the user's state from the previous version: RoS-BoT.ini, plugin folders the new package does not ship (installed
+    /// by the user or by this app) and, inside shipped plugin folders, files the new package does not contain (plugin configs).
+    /// Files the new package ships are never overwritten.
+    /// </summary>
+    private static void CarryOverUserFiles(string oldRosDir, string newRosDir)
+    {
+        string oldIni = Path.Combine(oldRosDir, ShellConstants.RosbotIniFileName);
+        if (File.Exists(oldIni))
+        {
+            try
+            {
+                File.Copy(oldIni, Path.Combine(newRosDir, ShellConstants.RosbotIniFileName), true);
+                ColorPrinter.Gray($"{LogTag} Copied RoS-BoT.ini");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                ColorPrinter.Yellow($"{LogTag} RoS-BoT.ini not copied: {ex.Message}");
+            }
+        }
+        string oldPlugins = Path.Combine(oldRosDir, RosbotPluginConstants.PluginsDirName);
+        string newPlugins = Path.Combine(newRosDir, RosbotPluginConstants.PluginsDirName);
+        if (!Directory.Exists(oldPlugins)) return;
+        try
+        {
+            foreach (var oldPlugin in Directory.EnumerateDirectories(oldPlugins))
+            {
+                string target = Path.Combine(newPlugins, Path.GetFileName(oldPlugin));
+                if (!Directory.Exists(target))
+                {
+                    if (CopyDirectorySafe(oldPlugin, target))
+                        ColorPrinter.Gray($"{LogTag} Kept plugin {Path.GetFileName(oldPlugin)}");
+                    continue;
+                }
+                foreach (var file in Directory.EnumerateFiles(oldPlugin, "*", SearchOption.AllDirectories))
+                {
+                    string dst = Path.Combine(target, Path.GetRelativePath(oldPlugin, file));
+                    if (File.Exists(dst)) continue;
+                    Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+                    File.Copy(file, dst);
+                    ColorPrinter.Gray($"{LogTag} Kept plugin file {Path.GetRelativePath(oldPlugins, file)}");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ColorPrinter.Yellow($"{LogTag} Plugin carry-over incomplete: {ex.Message}");
+        }
     }
 
     private static string GetUniqueTempDir()
