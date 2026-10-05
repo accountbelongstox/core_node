@@ -20,8 +20,10 @@
 # Idempotency tiers:
 #   1. Every run, synchronous (one find walk each; only mismatched entries
 #      change), so the worker never meets a root-owned entry it needs:
-#      - CORE_NODE_DATA_DIR and LEGACY_CORE_NODE_DATA_DIR (model cache, scratch
-#        temp such as _tmp/work): shared owner/mode-777 policy;
+#      - CORE_NODE_DATA_DIR and the scratch temp LEGACY_CORE_NODE_DATA_DIR/_tmp
+#        (e.g. _tmp/work): shared owner/mode-777 policy;
+#      - the rest of LEGACY_CORE_NODE_DATA_DIR (model caches, sticky shared
+#        dirs, private agent_history): owner only, modes untouched;
 #      - the project venv ($COMPILE_DIR/python3_venv, built by root installers):
 #        owned by the user without shared write, so the worker can pip-install
 #        into it.
@@ -85,7 +87,8 @@ if [[ -d "$PWP_HOT_TREE" ]]; then
     repair_owned_tree_777 "$PWP_HOT_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
 fi
 if [[ -n "$PWP_LEGACY_TREE" && "$PWP_LEGACY_TREE" != "/" && -d "$PWP_LEGACY_TREE" ]]; then
-    repair_owned_tree_777 "$PWP_LEGACY_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
+    repair_owned_tree_owner_only "$PWP_LEGACY_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
+    [[ -d "$PWP_LEGACY_TREE/_tmp" ]] && { repair_owned_tree_777 "$PWP_LEGACY_TREE/_tmp" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true; }
 fi
 # Venv location from its single source (gvar_common.sh VENV_DIR), resolved in
 # an isolated subshell like pyservice_entry.sh resolve_python; none on hosted
