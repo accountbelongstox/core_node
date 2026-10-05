@@ -29,6 +29,13 @@ public static class RosbotPluginConstants
     public const string RosbotProcessName = "RoS-BoT";
     public const string BridgeDllName = "CoreNodeBridge.dll";
     public const string BridgeStateFileName = "state.json";
+    public const string BridgeCommandFileName = "command.txt";
+    public const string BridgeFilterFileName = "pickup_filter.txt";
+    public const string BridgeActionMoveTo = "move_to";
+    public const string BridgeActionInteract = "interact";
+    public const string BridgeActionPickup = "pickup";
+    public const string BridgeActionPickupFilter = "pickup_filter";
+    public const string BridgeActionClickUi = "click_ui";
     public const string BridgeBundledDir = "tools\\rosbot-plugins\\CoreNodeBridge";
     public const string BridgeAreaNamesFileName = "rosbot_area_names.json";
     /// <summary>state.json older than this means the plugin is not running (disabled in ROSBOT, or ROSBOT stopped).</summary>
