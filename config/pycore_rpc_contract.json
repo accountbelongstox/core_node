@@ -970,6 +970,10 @@
       "path": "ui/task_center/set_queue_center_control",
       "method": "POST"
     },
+    "taskHistoryAppendRecord": {
+      "path": "ui/task_history/append_record",
+      "method": "POST"
+    },
     "taskHistoryCachedAudioResource": {
       "path": "ui/task_history/cached_audio_resource",
       "method": "POST"

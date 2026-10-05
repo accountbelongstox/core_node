@@ -26,6 +26,7 @@ public static class BattlenetNetHoldService
     private static Thread? _thread;
     private static volatile bool _running;
     private static volatile bool _userPaused;
+    private static int _retry;
     private static NetHoldRecord _last = new(DateTime.Now, NetHoldPhase.Idle, null, null, null, null, null, null);
 
     /// <summary>Raised on the worker thread after every pass (already recorded in NetHoldHistory) and when the hold stops.</summary>
@@ -96,6 +97,8 @@ public static class BattlenetNetHoldService
             _running = enabled;
             if (enabled)
             {
+                _retry = 0;
+                NetHoldTaskLog.BeginRun();
                 _thread = new Thread(Loop) { IsBackground = true, Name = "NetHold" };
                 _thread.Start();
             }
@@ -114,6 +117,8 @@ public static class BattlenetNetHoldService
             {
                 bool gameActive = RosbotFlowState.Instance.FlowMasterEnabled || D3Manager.Instance.GetProcessIds().Count > 0;
                 var result = BattlenetD4DownloadKeeper.RunOnce(!gameActive, InstallPath, _userPaused);
+                _retry = result.Phase is NetHoldPhase.Downloading or NetHoldPhase.InstallStarted or NetHoldPhase.UserPaused
+                    or NetHoldPhase.Completed or NetHoldPhase.NotOwned ? 0 : _retry + 1;
                 Publish(result);
                 if (result.Phase is NetHoldPhase.Completed or NetHoldPhase.NotOwned)
                 {
@@ -124,11 +129,14 @@ public static class BattlenetNetHoldService
             }
             catch (Exception ex)
             {
+                _retry++;
                 ColorPrinter.Red($"{LogTag} pass failed: {ex.Message}");
+                NetHoldTaskLog.ReportError(_last, _retry, ex.Message);
             }
             int interval = _last.Phase == NetHoldPhase.WaitingNetwork
                 ? MinIntervalSec
                 : Math.Clamp(ConfigBinding.GetValue(ConfigKeys.BattlenetNetHoldIntervalSec, ConfigKeys.BattlenetNetHoldIntervalSecDefault), MinIntervalSec, MaxIntervalSec);
+            if (_retry > 0) ColorPrinter.Yellow($"{LogTag} retry #{_retry} in {interval}s ({_last.Phase})");
             Wake.WaitOne(TimeSpan.FromSeconds(interval));
         }
     }
@@ -138,8 +146,11 @@ public static class BattlenetNetHoldService
         var record = result.Phase == NetHoldPhase.Idle
             ? new NetHoldRecord(DateTime.Now, NetHoldPhase.Idle, null, null, null, null, null, null)
             : NetHoldHistory.Add(result, DateTime.Now);
-        if (record.EtaSec is { } eta)
-            ColorPrinter.Gray($"{LogTag} {record.Percent:0.0}% remaining {TimeSpan.FromSeconds(eta):d\\.hh\\:mm}");
+        if (record.Phase != NetHoldPhase.Idle)
+        {
+            ColorPrinter.Gray($"{LogTag} {NetHoldTaskLog.Describe(record, _retry)} Battle.net pid {string.Join(", ", BattlenetManager.Instance.GetProcessIds())}");
+            NetHoldTaskLog.Report(record, _retry);
+        }
         _last = record;
         StatusChanged?.Invoke(record);
     }
