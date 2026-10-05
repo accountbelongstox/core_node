@@ -33,6 +33,7 @@ public partial class DecompilePage : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
+        BridgePanel.RefreshI18n();
         LblToolsTitle.Text = p.GetUiText(I18nKeys.DecompileToolsTitle);
         TxtToolsDesc.Text = p.GetUiText(I18nKeys.DecompileToolsDesc);
         BtnInstall.Content = p.GetUiText(I18nKeys.DecompileInstall);

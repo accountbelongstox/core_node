@@ -312,6 +312,7 @@
     "d3_path": ""
   },
   "rosbot": {
+    "bridge_plugin_auto_install": true,
     "pickup_blood_shards": false,
     "prevent_stuck": false,
     "blue_portal_priority": false,

@@ -129,6 +129,7 @@ public sealed class MonitorService
         _logRolloverStamp = RolloverStamp(RosbotLogPaths.GetLogsFilePath());
         _historyRolloverStamp = RolloverStamp(RosbotLogPaths.GetHistoryFilePath());
         CheckRosbotLogLevel();
+        lock (_lock) _flowEnabled = RosbotFlowState.Instance.FlowMasterEnabled;
         TickDriver.Instance.RegisterEveryTick(OnTick);
         ShutdownManager.RegisterShutdownHook(OnShutdown);
         TriggerEngine.Instance.Fire(MonitorEvents.AppLaunch);

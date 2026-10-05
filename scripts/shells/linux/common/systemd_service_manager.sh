@@ -404,6 +404,7 @@ create_systemd_service() {
     local hardening="${16:-no}"
     local resource_profile="${17:-$SYSTEMD_RESOURCE_PROFILE_CAPPED}"
     local exec_start_pre="${18:-}"
+    local exec_start_pre_line=""
 
     SYSTEMD_OPERATION_READY=false
     if [ -z "$service_name" ] || [ -z "$description" ] || [ -z "$exec_command" ]; then
@@ -481,10 +482,12 @@ Restart=$restart_policy
 RestartSec=$restart_sec
 EOF
 
-    if [ -n "$exec_start_pre" ]; then
-        echo "ExecStartPre=$exec_start_pre" >> "$service_file"
-        echo "[INFO] ExecStartPre: $exec_start_pre"
-    fi
+    # One ExecStartPre= line per newline-separated command.
+    while IFS= read -r exec_start_pre_line; do
+        [ -n "$exec_start_pre_line" ] || continue
+        echo "ExecStartPre=$exec_start_pre_line" >> "$service_file"
+        echo "[INFO] ExecStartPre: $exec_start_pre_line"
+    done <<< "$exec_start_pre"
 
     if [ -n "$SYSTEMD_RESTART_MAX_DELAY_SEC" ] && [ "$(systemd_version_number)" -ge "$SYSTEMD_RESTART_STEPS_MIN_VERSION" ]; then
         printf 'RestartSteps=%s\nRestartMaxDelaySec=%s\n' "$SYSTEMD_RESTART_STEPS" "$SYSTEMD_RESTART_MAX_DELAY_SEC" >> "$service_file"

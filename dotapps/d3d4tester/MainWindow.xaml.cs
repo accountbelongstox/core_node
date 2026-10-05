@@ -140,6 +140,7 @@ public partial class MainWindow : Window, IMainWindowHost
         BattlenetGuardService.Initialize();
         StartupShortcutService.Initialize();
         BattlenetNetHoldService.Initialize();
+        RosbotBridgePluginService.Initialize();
         RosbotPluginConfigSync.Initialize();
 
         var langList = provider.GetSupportedLanguages()
@@ -167,6 +168,7 @@ public partial class MainWindow : Window, IMainWindowHost
         // Single 1 s TickDriver (flow % 2, smart echo % 3, inactive refresh % 10) replaces the 100 ms poll and the 2 s BN timer. 1:1 Python rosbot_task.
         TickDriver.Instance.RegisterEveryTick(RefreshPathState);
         RosbotTaskProcessor.Instance.Install();
+        Services.Monitor.MonitorService.Instance.Install();
         LoginTryController.Initialize();
         InitializeShell();
     }
@@ -408,6 +410,7 @@ public partial class MainWindow : Window, IMainWindowHost
         TabLog.Header = p.GetUiText(I18nKeys.TabsLog);
         TabBattlenet.Header = p.GetUiText(I18nKeys.TabsBattlenetManagement);
         TabDecompile.Header = p.GetUiText(I18nKeys.TabsDecompile);
+        TabMonitor.Header = p.GetUiText(I18nKeys.TabsMonitor);
         BtnScanPaths.Content = p.GetUiText(_pathScanInProgress ? I18nKeys.BottomBarScanning : I18nKeys.BottomBarOneClickScan);
         BtnScanPaths.ToolTip = p.GetUiText(I18nKeys.BottomBarOneClickScanTooltip);
         GameInterfaceData.Instance.NotifyCallbacks();
@@ -423,6 +426,8 @@ public partial class MainWindow : Window, IMainWindowHost
             battlenetPage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyDecompile) is Pages.Decompile.DecompilePage decompilePage && decompilePage.IsLoaded)
             decompilePage.RefreshI18n();
+        if (GetPage(AppConstants.PanelKeyMonitor) is Pages.Monitor.MonitorPage monitorPage && monitorPage.IsLoaded)
+            monitorPage.RefreshI18n();
     }
 
     private void UpdateStatusFromState(GameInterfaceStateSnapshot s)
@@ -752,6 +757,7 @@ public partial class MainWindow : Window, IMainWindowHost
             AppConstants.PanelKeyLog => TabLog.Content,
             AppConstants.PanelKeyBattlenet => TabBattlenet.Content,
             AppConstants.PanelKeyDecompile => TabDecompile.Content,
+            AppConstants.PanelKeyMonitor => TabMonitor.Content,
             _ => null
         };
     }
