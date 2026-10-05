@@ -42,12 +42,15 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 
 # Bumped whenever parsed output may change; a bump re-parses every source as
 # a new baseline (no prompt-new events).
 EXTRACTOR_SCHEMA_REVISION = "2026-10-01.3"
 EXTRACT_TIMEOUT_S = 3600.0
 LIVE_SCAN_TIMEOUT_S = 600.0
+HOME_COVERAGE_TTL_S = 30.0
+HOME_COVERAGE_CACHE_KEY = "agent_history.home_coverage"
 _EXTRACT_QUEUE = 'pyctl.agent_history.extract'
 _SUMMARY_SIGNAL = 'pyctl.agent_history.summary'
 _EXTRACT_WORKER = SerializedWorkerThread(_EXTRACT_QUEUE, 'AgentHistoryExtractThread')
@@ -306,11 +309,22 @@ class AgentHistoryService:
             emit_prompt_new(work.new_prompts, generated_at)
         return summary
 
+    @staticmethod
+    def home_coverage() -> Dict[str, Any]:
+        """Unreadable homes and root-spool state, refreshed at most every HOME_COVERAGE_TTL_S."""
+        return status_snapshot_cache.get(
+            HOME_COVERAGE_CACHE_KEY,
+            lambda: {
+                "unreadable_homes": root_spool.uncovered_unreadable_homes(),
+                "root_spool": root_spool.spool_status(),
+            },
+            ttl_seconds=HOME_COVERAGE_TTL_S,
+        )
+
     def status(self) -> Dict[str, Any]:
         return {
             "last": THREAD_BUS.get_signal(_SUMMARY_SIGNAL, {}) or {},
-            "unreadable_homes": root_spool.uncovered_unreadable_homes(),
-            "root_spool": root_spool.spool_status(),
+            **self.home_coverage(),
             "supported_tools": list(source_registry.tools),
         }
 

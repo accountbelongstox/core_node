@@ -85,10 +85,10 @@ class EventJournal:
         """Start pushing matching records to ``deliver`` (called on the writer
         thread, so it must hand off and never block): first the backlog after
         ``since_seq``, then every later match."""
-        self._writer.post((_SUBSCRIBE, key, deliver, client_id, since_seq, self._topic_set(topics)))
+        self._writer.post((_SUBSCRIBE, key, deliver, client_id, since_seq, EventRecordJournal.topic_filter(topics)))
 
     def retopic(self, key: Hashable, topics: Optional[Iterable[str]]) -> None:
-        self._writer.post((_RETOPIC, key, self._topic_set(topics)))
+        self._writer.post((_RETOPIC, key, EventRecordJournal.topic_filter(topics)))
 
     def unsubscribe(self, key: Hashable) -> None:
         self._writer.post((_UNSUBSCRIBE, key))
@@ -138,10 +138,6 @@ class EventJournal:
             entry,
             event_id=f"{entry.get('instance_id')}:{entry.get('seq')}",
         )
-
-    @staticmethod
-    def _topic_set(topics: Optional[Iterable[str]]) -> Optional[frozenset]:
-        return EventRecordJournal.topic_filter(topics)
 
     def _control(self, kind: str, *arguments: Any) -> None:
         """Run one control step on the writer thread and wait for it."""

@@ -196,6 +196,7 @@ class ArticleRecordStore:
             (record_id, _columns(record), record) for record_id, record in merged.items()
         )
         repository.set_meta(_META_JSON_IMPORTED, utc_now_iso())
+        repository.checkpoint()
         ColorPrint.blue(f"[ArticleRecords] imported legacy JSON records count={len(merged)}")
 
     @serialized_method

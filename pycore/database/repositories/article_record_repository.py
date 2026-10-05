@@ -70,6 +70,9 @@ class ArticleRecordRepository:
     def revision(self) -> int:
         return int(self.meta(META_REVISION) or 0)
 
+    def checkpoint(self) -> None:
+        self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     def upsert_many(self, rows: Iterable[ArticleRow]) -> int:
         """Write ``(id, columns, body)`` rows in one transaction; returns the new revision."""
         revision = self.revision() + 1

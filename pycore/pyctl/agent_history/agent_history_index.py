@@ -84,6 +84,7 @@ class AgentHistoryIndex:
             },
         )
         repository.set_meta(META_TXT_IMPORTED, local_time_text())
+        repository.checkpoint()
         ColorPrint.blue(
             f"[AgentHistory] Store imported legacy txt sessions={len(index.get('sessions') or [])} "
             f"prompts={len(prompts)} sources={len(sources)}"
@@ -160,11 +161,15 @@ class AgentHistoryIndex:
         needle: str = "",
         tools: Sequence[str] = (),
         offset: int = 0,
-        limit: Optional[int] = None,
-        with_text: bool = True,
+        limit: int = 50,
     ) -> Dict[str, Any]:
-        total, items = self._repo().prompt_query(tool, user, lang, needle, tools, offset, limit, with_text)
-        return {"total": total, "items": items}
+        """Filtered prompts (text included) newest first, plus the match total."""
+        repository = self._repo()
+        rowids = repository.prompt_rowids(tool, user, lang, needle, tools)
+        return {
+            "total": len(rowids),
+            "items": repository.prompt_rows(rowids[offset:offset + limit], True),
+        }
 
     @serialized_method
     def prompt_id_page(
@@ -179,12 +184,11 @@ class AgentHistoryIndex:
     ) -> Dict[str, Any]:
         """One newest-first page of prompt rows without text, plus the page window."""
         repository = self._repo()
-        total, _rows = repository.prompt_query(tool, user, None, needle, tools, 0, 0, False)
-        window = page_window(total, page, page_size, cap)
+        rowids = repository.prompt_rowids(tool, user, None, needle, tools)
+        window = page_window(len(rowids), page, page_size, cap)
         offset = window.pop("offset")
-        _total, window["items"] = repository.prompt_query(
-            tool, user, None, needle, tools, offset, window.pop("page_size"), False,
-        )
+        size = window.pop("page_size")
+        window["items"] = repository.prompt_rows(rowids[offset:offset + size], False)
         return window
 
     @serialized_method

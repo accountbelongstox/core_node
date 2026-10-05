@@ -15,6 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pycore.database.adapters.sqlite_local import open_wal_connection
 from pycore.database.schema.agent_history_store_schema import (
+    AGENT_HISTORY_PROMPT_SEARCH_TABLE,
     AGENT_HISTORY_PROMPT_TABLE,
     AGENT_HISTORY_SESSION_TABLE,
     AGENT_HISTORY_SOURCE_TABLE,
@@ -28,6 +29,7 @@ _PROMPT_ORDER = "ORDER BY ts DESC, rowid ASC"
 _SESSION_ORDER = "ORDER BY started_ts DESC, rowid ASC"
 _SQLITE_VARIABLE_CHUNK = 500
 _CONTAINS_FUNCTION = "agent_history_contains"
+_TRIGRAM_MIN_CHARS = 3
 
 
 def _contains(haystack: Any, needle: Any) -> int:
@@ -78,6 +80,9 @@ class AgentHistoryStoreRepository:
 
     def revision(self) -> int:
         return int(self.meta(META_REVISION) or 0)
+
+    def checkpoint(self) -> None:
+        self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     # ------------------------------------------------------------------ #
     # extract pass                                                        #
@@ -199,19 +204,17 @@ class AgentHistoryStoreRepository:
             "langs": distinct(AGENT_HISTORY_PROMPT_TABLE, "lang"),
         }
 
-    def prompt_query(
+    def prompt_rowids(
         self,
         tool: Optional[str],
         user: Optional[str],
         lang: Optional[str],
         needle: str,
         tools: Sequence[str],
-        offset: int,
-        limit: Optional[int],
-        with_text: bool,
-    ) -> Tuple[int, List[Dict[str, Any]]]:
-        """Filtered prompts newest first: ``(total, page rows)``; ``limit``
-        None returns every match."""
+    ) -> List[int]:
+        """Rowids of the matching prompts, newest first. ``needle`` is a
+        lowercased substring; three or more characters are narrowed through
+        the trigram index first, then matched exactly."""
         clauses: List[str] = []
         params: List[Any] = []
         if tool:
@@ -227,19 +230,32 @@ class AgentHistoryStoreRepository:
             clauses.append("lang = ?")
             params.append(lang)
         if needle:
-            clauses.append("instr(lower(text), ?) > 0" if needle.isascii() else f"{_CONTAINS_FUNCTION}(text, ?)")
+            if len(needle) >= _TRIGRAM_MIN_CHARS:
+                clauses.append(
+                    f"rowid IN (SELECT rowid FROM {AGENT_HISTORY_PROMPT_SEARCH_TABLE} "
+                    f"WHERE {AGENT_HISTORY_PROMPT_SEARCH_TABLE} MATCH ?)"
+                )
+                params.append('"' + needle.replace('"', '""') + '"')
+            if needle.isascii():
+                clauses.append("instr(lower(text), ?) > 0")
+            elif needle.upper() == needle:
+                clauses.append("instr(text, ?) > 0")
+            else:
+                clauses.append(f"{_CONTAINS_FUNCTION}(text, ?)")
             params.append(needle)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        ordered = [
+        return [
             int(row[0])
             for row in self._connection.execute(
                 f"SELECT rowid FROM {AGENT_HISTORY_PROMPT_TABLE} {where} {_PROMPT_ORDER}", tuple(params),
             ).fetchall()
         ]
-        wanted = ordered if limit is None else ordered[int(offset):int(offset) + int(limit)]
+
+    def prompt_rows(self, rowids: Sequence[int], with_text: bool) -> List[Dict[str, Any]]:
+        """Prompt rows for the given rowids, in the given order."""
         fields = PROMPT_FIELDS if with_text else tuple(field for field in PROMPT_FIELDS if field != "text")
         by_rowid: Dict[int, Dict[str, Any]] = {}
-        for chunk in _chunks(wanted):
+        for chunk in _chunks(list(rowids)):
             for row in self._connection.execute(
                 f"SELECT rowid, {', '.join(fields)} FROM {AGENT_HISTORY_PROMPT_TABLE} "
                 f"WHERE rowid IN ({_placeholders(chunk)})",
@@ -248,7 +264,7 @@ class AgentHistoryStoreRepository:
                 item = dict(zip(fields, row[1:]))
                 item["edited"] = bool(item["edited"])
                 by_rowid[int(row[0])] = item
-        return len(ordered), [by_rowid[rowid] for rowid in wanted if rowid in by_rowid]
+        return [by_rowid[rowid] for rowid in rowids if rowid in by_rowid]
 
     def set_prompt_text(self, prompt_id: str, text: str) -> int:
         """Overlay one user edit; returns the new revision (unchanged when no row matched)."""
