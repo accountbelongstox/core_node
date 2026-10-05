@@ -1,18 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-Persistent task history in user_data (survives restart, keyword/date query).
+Persistent task history in ``<local data>/task_history.sqlite3`` (survives
+restart, keyword/date query). The earlier ``task_history`` section of
+user_data.json is imported once (``user_data_imported`` meta key) and then
+removed from the settings document.
 """
 
 import re
+import time
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.time_utils import utc_now_iso
+from pycore.database.repositories.task_history_repository import TaskHistoryRepository
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyutils.common.task_history_repository import TaskHistoryRepository
+from pycore.pyfoundations.system_paths import get_local_data_dir
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.common.task_type_contract import match_task_type
 from pycore.pyutils.common.task_type_contract import normalize_task_type
+from pycore.pyutils.common.user_data_store import user_data_store
 
 _MAX_ENTRIES = 2000
+_DATABASE_FILE_NAME = "task_history.sqlite3"
+_LEGACY_SECTION = "task_history"
+_META_USER_DATA_IMPORTED = "user_data_imported"
 _SEARCH_FIELDS = (
     "title",
     "content",
@@ -45,8 +55,21 @@ class _TaskHistoryState:
     """Serialize history read-modify-write operations through THREAD_BUS."""
 
     def __init__(self) -> None:
-        self._repository = TaskHistoryRepository()
+        self._repository: Optional[TaskHistoryRepository] = None
         init_serialized_owner(self, "task_history.state", "TaskHistoryState")
+
+    def _repo(self) -> TaskHistoryRepository:
+        if self._repository is None:
+            repository = TaskHistoryRepository(get_local_data_dir() / _DATABASE_FILE_NAME)
+            if not repository.meta(_META_USER_DATA_IMPORTED):
+                entries = user_data_store.get_personalized_section(_LEGACY_SECTION).get("entries") or []
+                rows = [dict(entry) for entry in reversed(entries) if isinstance(entry, dict)]
+                repository.append_many(rows, _MAX_ENTRIES, {_META_USER_DATA_IMPORTED: utc_now_iso()})
+                ColorPrint.blue(f"[TaskHistory] imported user_data task history count={len(rows)}")
+            if user_data_store.get_personalized_section(_LEGACY_SECTION):
+                user_data_store.delete(_LEGACY_SECTION)
+            self._repository = repository
+        return self._repository
 
     @serialized_method
     def append(self, record: Dict[str, Any]) -> None:
@@ -54,7 +77,8 @@ class _TaskHistoryState:
         if row.get("task_type") is not None:
             row["task_type"] = normalize_task_type(row.get("task_type"))
         row.setdefault("ts", utc_now_iso())
-        self._repository.append(row, _MAX_ENTRIES)
+        row.setdefault("at", int(time.time()))
+        self._repo().append_many([row], _MAX_ENTRIES, {})
 
     @serialized_method
     def query(
@@ -66,7 +90,7 @@ class _TaskHistoryState:
         task_type: Optional[str],
         worker: Optional[str],
     ) -> Dict[str, Any]:
-        entries: List[Dict[str, Any]] = self._repository.list_records()
+        entries: List[Dict[str, Any]] = self._repo().list_records()
         stored = len(entries)
         needle = (q or "").strip().lower()
         if needle:
@@ -99,7 +123,7 @@ class _TaskHistoryState:
 
     @serialized_method
     def clear(self) -> int:
-        return self._repository.clear()
+        return self._repo().clear()
 
 
 _task_history_state = _TaskHistoryState()

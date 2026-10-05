@@ -11,20 +11,19 @@ without either the list is empty.
 """
 
 import json
-import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import Commander
 from pycore.pyfoundations.service_contract import mesh_domain, tailnet_client_only_os
+from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 
 TAILSCALE_STATUS_COMMAND = ["tailscale", "status", "--json"]
 TAILSCALE_STATUS_TIMEOUT_SECONDS = 4
 HEADSCALE_PROVIDER = "headscale"
 HEADSCALE_NODES_COMMAND = [HEADSCALE_PROVIDER, "nodes", "list", "--output", "json"]
 HEADSCALE_NODES_TIMEOUT_SECONDS = 4
-TAILNET_DOMAIN_CACHE_SECONDS = 60
-
-_tailnet_document_cache: Dict[str, Any] = {"at": 0.0, "document": {"tailnet": "", "peers": []}}
+TAILNET_DOCUMENT_CACHE_SECONDS = 15
+TAILNET_DOCUMENT_CACHE_KEY = "tailnet.document"
 
 
 def _peer(node: Any, is_self: bool, tailnet: str) -> Optional[Dict[str, Any]]:
@@ -88,12 +87,16 @@ def read_tailnet_peers() -> Dict[str, Any]:
 
 
 def current_tailnet_document() -> Dict[str, Any]:
-    """The live tailnet document of the active mesh provider (Tailscale or Headscale); empty without one. Cached briefly."""
-    now = time.monotonic()
-    if _tailnet_document_cache["at"] and now - _tailnet_document_cache["at"] < TAILNET_DOMAIN_CACHE_SECONDS:
-        return _tailnet_document_cache["document"]
-    _tailnet_document_cache.update(at=now, document=read_tailnet_peers())
-    return _tailnet_document_cache["document"]
+    """The tailnet document of the active mesh provider (Tailscale or Headscale); empty without one.
+
+    One shared snapshot: the first read loads it (concurrent readers wait for
+    that one load), later reads return it at once and an expired one is
+    refreshed in the background, so no caller ever waits on the CLI again."""
+    return status_snapshot_cache.get(
+        TAILNET_DOCUMENT_CACHE_KEY,
+        read_tailnet_peers,
+        ttl_seconds=TAILNET_DOCUMENT_CACHE_SECONDS,
+    )
 
 
 def current_tailnet_domain() -> str:
@@ -111,4 +114,4 @@ def tailnet_server_hosts(document: Dict[str, Any]) -> List[str]:
     ]
 
 
-__all__ = ["current_tailnet_document", "current_tailnet_domain", "read_tailnet_peers", "tailnet_server_hosts"]
+__all__ = ["current_tailnet_document", "current_tailnet_domain", "tailnet_server_hosts"]

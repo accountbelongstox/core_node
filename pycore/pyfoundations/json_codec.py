@@ -28,10 +28,14 @@ class JsonCodec:
     def encode(self, value: Any, default: Optional[Callable[[Any], Any]] = None) -> bytes:
         """``default`` converts a value the codec cannot encode itself."""
         if orjson is not None:
-            return orjson.dumps(value, default=default, option=orjson.OPT_NON_STR_KEYS)
+            try:
+                return orjson.dumps(value, default=default, option=orjson.OPT_NON_STR_KEYS)
+            except orjson.JSONEncodeError:
+                pass
         return json.dumps(
             value,
             ensure_ascii=False,
+            allow_nan=False,
             separators=_COMPACT_SEPARATORS,
             default=default,
         ).encode("utf-8")

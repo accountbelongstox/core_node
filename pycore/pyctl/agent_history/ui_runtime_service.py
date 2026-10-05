@@ -24,7 +24,6 @@ from pycore.pyctl.agent_history.pipeline.config import (
 )
 from pycore.pyctl.agent_history.pipeline import audio_rebuild
 from pycore.pyctl.agent_history.pipeline.prompt_templates import prompt_defaults
-from pycore.pyctl.agent_history.root_spool import spool_status, uncovered_unreadable_homes
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
 from pycore.pyctl.agent_history.ui_requests import id_list
 from pycore.pyctl.ai.ai_rate_limits import rate_status
@@ -52,6 +51,8 @@ _AI_USAGE_RETAINED_LIMIT = 5000
 _AI_USAGE_VISIBLE_LIMIT = 400
 _QWEN_RUNTIME_CACHE_KEY = "tts.engine.qwen3tts.agent_history_runtime"
 _QWEN_RUNTIME_CACHE_SECONDS = 1.0
+_STATUS_CACHE_PREFIX = "agent_history.status."
+_STATUS_CACHE_SECONDS = 1.0
 
 
 def _decorate_ai_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -199,21 +200,30 @@ def status(params: Any, _request_id: str) -> Dict[str, Any]:
     if unknown_tools:
         return {"success": False, "error": "unknown tool"}
     tools = [item for item in SUPPORTED_TOOLS if item in set(requested_tools)]
+    data = status_snapshot_cache.get(
+        f"{_STATUS_CACHE_PREFIX}{','.join(tools)}|{tool}",
+        lambda: _build_status(tools, tool),
+        ttl_seconds=_STATUS_CACHE_SECONDS,
+    )
+    return {
+        "success": True,
+        "data": data,
+    }
+
+
+def _build_status(tools: List[str], tool: str) -> Dict[str, Any]:
+    """One status snapshot; concurrent polls of the same tool set share it."""
     data: Dict[str, Any] = {
         "tick": agent_history_tick_service.status_snapshot(),
         "store": agent_history_service.status(),
         "article": get_pipeline_status(),
     }
     if tools:
-        config = get_config()
-        histories = _tool_history_snapshot(config, tools)
+        histories = _tool_history_snapshot(data["article"]["config"], tools)
         data["tool_histories"] = histories
         if tool and len(histories) == 1:
             data["tool_history"] = histories[0]
-    return {
-        "success": True,
-        "data": data,
-    }
+    return data
 
 def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
     result = status_snapshot_cache.get_background(
@@ -271,8 +281,7 @@ def _build_runtime() -> Dict[str, Any]:
                 }
                 for tool in SUPPORTED_TOOLS
             },
-            "unreadable_homes": uncovered_unreadable_homes(),
-            "root_spool": spool_status(),
+            **agent_history_service.home_coverage(),
             "monitor": agent_history_tick_service.status_snapshot().get("monitor") or {},
             "article_prompt_defaults": {
                 **prompt_defaults(),

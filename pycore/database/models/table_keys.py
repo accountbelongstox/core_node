@@ -21,6 +21,9 @@ class TableKeys:
     TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
     TERMINAL_STATE_TERMINALS = f"{TableNamespaces.COMMON}.terminal_state_terminals"
     TERMINAL_STATE_LOGS = f"{TableNamespaces.COMMON}.terminal_state_logs"
+    # Finished task units (pyctl/task_history/store.py).
+    TASK_HISTORY = f"{TableNamespaces.COMMON}.task_history"
+    TASK_HISTORY_META = f"{TableNamespaces.COMMON}.task_history_meta"
 
     # ===== Util Speech Tables =====
     # Ledger of every local word/sentence clip (pyutils/tts/audio_resource_ledger.py).

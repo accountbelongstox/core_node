@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Dict, Iterator, List
 
-from pycore.pyfoundations.console_log_journal import CONSOLE_LOG_FILE_BACKUP_SUFFIX, CONSOLE_LOG_FILE_NAME
+from pycore.pyfoundations.console_log_file import CONSOLE_LOG_FILE_BACKUP_SUFFIX, CONSOLE_LOG_FILE_NAME
 from pycore.pyfoundations.system_paths import get_app_logs_dir
 
 LEVEL_ORDER = ("DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL")

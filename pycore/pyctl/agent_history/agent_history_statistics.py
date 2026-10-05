@@ -15,7 +15,7 @@ from pycore.pyctl.agent_history.agent_history_fragments import (
     is_fragment_pending,
     summarize_tool_fragments_many,
 )
-from pycore.pyctl.agent_history.snapshot_cache import read_index_catalog
+from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache, read_index_catalog
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 
 
@@ -248,7 +248,7 @@ class AgentHistoryStatistics:
             f"{int(normalized_cursor['lane_aware'])}"
         )
         version = hashlib.md5(version_source.encode()).hexdigest()
-        return status_snapshot_cache.get(
+        return agent_history_snapshot_cache.get(
             TOOL_FRAGMENTS_CACHE_PREFIX + key + "." + normalized_kind,
             lambda: self._build_fragment_catalog(key, normalized_kind, normalized_cursor, version),
             ttl_seconds=float("inf"),

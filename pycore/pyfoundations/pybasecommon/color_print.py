@@ -14,7 +14,7 @@ import hashlib
 import re
 import inspect
 import platform
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Tuple
 
 import ctypes
 
@@ -78,32 +78,25 @@ class ColorPrintCallback:
     """ColorPrint callback handler for multiple registrations"""
     
     def __init__(self):
-        self._callbacks: List[Callable[[str, str], None]] = []
+        self._callbacks: List[Tuple[Callable, bool]] = []
     
     def register(self, callback: Callable[[str, str], None]):
-        """Register a callback function"""
-        if callback not in self._callbacks:
-            self._callbacks.append(callback)
+        """Register a callback function; its arity is read once, here"""
+        if not any(registered == callback for registered, _wants_level in self._callbacks):
+            self._callbacks.append((callback, len(inspect.signature(callback).parameters) >= 3))
     
     def unregister(self, callback: Callable[[str, str], None]):
         """Unregister a callback function"""
-        if callback in self._callbacks:
-            self._callbacks.remove(callback)
+        self._callbacks = [item for item in self._callbacks if item[0] != callback]
     
     def clear_all(self):
         """Clear all registered callbacks"""
-        self._callbacks.clear()
+        self._callbacks = []
     
     def notify(self, message: str, color_type: str = "white", log_level: str = None):
         """Notify all registered callbacks"""
-        for callback in self._callbacks:
-            # Verify callback is callable
-            if not callable(callback):
-                continue
-
-            # Check callback signature - let errors expose naturally
-            sig = inspect.signature(callback)
-            if len(sig.parameters) >= 3:
+        for callback, wants_level in self._callbacks:
+            if wants_level:
                 callback(message, color_type, log_level)
             else:
                 callback(message, color_type)

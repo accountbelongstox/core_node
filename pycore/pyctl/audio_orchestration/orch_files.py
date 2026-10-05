@@ -163,6 +163,10 @@ def _resource_entries(requested: List[Any]) -> List[Dict[str, Any]]:
         word_hits[language] = word_audio_cache.find_cached_many(
             [text for kind, lang, text in entries if kind == "word" and lang == language], language,
         )
+    word_glosses = dictionary_service.translate_many(
+        [text for kind, lang, text in entries if kind == "word" and lang == orch_video.LANGUAGE_EN],
+        orch_video.LANGUAGE_ZH,
+    )
     # One identity / directory resolution per language, not per sentence.
     sentence_hits: Dict[str, Dict[str, Path]] = {}
     for language in {language for kind, language, _ in entries if kind == "sentence"}:
@@ -181,9 +185,7 @@ def _resource_entries(requested: List[Any]) -> List[Dict[str, Any]]:
         if kind == "word":
             path = word_hits[language].get(text.strip().lower())
             if language == orch_video.LANGUAGE_EN:
-                meaning = orch_video.short_meaning(
-                    dictionary_service.translate(text.strip().lower(), orch_video.LANGUAGE_ZH),
-                )
+                meaning = orch_video.short_meaning(word_glosses.get(text.strip().lower()))
         elif kind == "sentence":
             path = sentence_hits[language].get(text)
         elif kind == orch_contract.PHRASE_KIND:
