@@ -1,6 +1,5 @@
 // PY-REF: none (DOT-only)
 using System.Drawing;
-using System.Runtime.InteropServices;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotCore.ScreenCapture;
@@ -17,7 +16,6 @@ namespace DotApps.d3d4tester.Services.Monitor;
 /// </summary>
 public static class GameWindowActions
 {
-    private const ushort VkF6 = 0x75;
     private const uint WmKeyDown = 0x0100;
     private const uint WmKeyUp = 0x0101;
     private const int VkTownPortal = 0x54;
@@ -63,8 +61,8 @@ public static class GameWindowActions
     {
         IntPtr hwnd = FindD3Hwnd();
         if (hwnd == IntPtr.Zero) return false;
-        bool down = PostMessage(hwnd, WmKeyDown, (IntPtr)VkTownPortal, (IntPtr)TownPortalDownLParam);
-        bool up = PostMessage(hwnd, WmKeyUp, (IntPtr)VkTownPortal, unchecked((IntPtr)(int)TownPortalUpLParam));
+        bool down = WindowInputHelper.PostMessage(hwnd, WmKeyDown, (IntPtr)VkTownPortal, (IntPtr)TownPortalDownLParam);
+        bool up = WindowInputHelper.PostMessage(hwnd, WmKeyUp, (IntPtr)VkTownPortal, unchecked((IntPtr)(int)TownPortalUpLParam));
         MonitorLog.Info("Town portal key posted to D3");
         return down && up;
     }
@@ -89,7 +87,7 @@ public static class GameWindowActions
         var points = new[] { (r.Left + w / 4, r.Top + h / 2), (r.Left + w / 2, r.Top + h * 3 / 4), (r.Left + w / 2, r.Top + h / 4), (r.Left + w * 3 / 4, r.Top + h / 2) };
         var (px, py) = points[Random.Shared.Next(points.Length)];
         MonitorLog.Info("Unstuck move");
-        WindowInputHelper.SendSystemKey(VkF6);
+        WindowInputHelper.SendSystemKey(RosbotConstants.VkF6);
         Thread.Sleep(StepWaitMs);
         ClickHandler.MoveCursor(px, py);
         Thread.Sleep(StepWaitMs);
@@ -98,7 +96,7 @@ public static class GameWindowActions
         int cx = r.Left + w / 2, cy = r.Top + h / 2, radius = Math.Max(10, h / 2 - CircleRadiusInset);
         DragCircle(cx, cy, radius, counterClockwise: true);
         DragCircle(cx, cy, radius, counterClockwise: false);
-        WindowInputHelper.SendSystemKey(VkF6);
+        WindowInputHelper.SendSystemKey(RosbotConstants.VkF6);
         return true;
     }
 
@@ -144,8 +142,4 @@ public static class GameWindowActions
         }
         return IntPtr.Zero;
     }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 }

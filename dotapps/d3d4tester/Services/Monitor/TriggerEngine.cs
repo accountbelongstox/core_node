@@ -19,6 +19,7 @@ public sealed class TriggerEngine
     private readonly BlockingCollection<TriggerDefinition> _queue = new();
     private List<TriggerDefinition> _triggers = new();
     private Thread? _worker;
+    private int _periodicPending;
 
     public static TriggerEngine Instance { get; } = new();
 
@@ -89,7 +90,9 @@ public sealed class TriggerEngine
     public void Enqueue(TriggerDefinition trigger)
     {
         EnsureWorker();
-        if (trigger.Log)
+        bool periodic = trigger.Event == MonitorEvents.CombatSwitch;
+        if (periodic && Interlocked.Exchange(ref _periodicPending, 1) == 1) return;
+        if (trigger.Log && !periodic)
             MonitorLog.Info($"Triggered {trigger.Event} -> {trigger.Action}");
         _queue.Add(trigger.Clone());
     }
@@ -128,6 +131,10 @@ public sealed class TriggerEngine
         {
             try { TriggerActionRunner.Run(trigger); }
             catch (Exception ex) { MonitorLog.Warn($"Action {trigger.Action} failed: {ex.Message}"); }
+            finally
+            {
+                if (trigger.Event == MonitorEvents.CombatSwitch) Volatile.Write(ref _periodicPending, 0);
+            }
         }
     }
 }

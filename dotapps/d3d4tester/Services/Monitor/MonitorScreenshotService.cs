@@ -4,10 +4,8 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using DotApps.d3d4tester.Constants;
-using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Monitor;
 using DotCore.ScreenCapture;
-using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Services.Monitor;
 
@@ -33,22 +31,14 @@ public static class MonitorScreenshotService
     /// <summary>Capture the D3 client area into dir with label; returns the file path or null.</summary>
     public static string? Capture(string label, string dir, bool applyCustomCrop = false)
     {
-        var window = D3Manager.Instance.FindFirstWindow();
-        if (window == null)
-        {
-            MonitorLog.Warn("Screenshot skipped: D3 window not found");
-            return null;
-        }
-        var client = WindowInputHelper.GetWindowClientRectScreen(window.Hwnd);
-        if (client is not { } r || r.Right <= r.Left || r.Bottom <= r.Top)
-        {
-            MonitorLog.Warn("Screenshot skipped: D3 client area not available");
-            return null;
-        }
         try
         {
-            using Bitmap? full = ScreenCaptureService.GetScreenshotProvider().CaptureRegionBitBlt(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
-            if (full == null) return null;
+            using Bitmap? full = GameWindowActions.CaptureClient(GameWindowActions.FindD3Hwnd());
+            if (full == null)
+            {
+                MonitorLog.Warn("Screenshot skipped: D3 window not available");
+                return null;
+            }
             Rectangle? crop = applyCustomCrop ? ParseCrop(MonitorSettings.GetString(ConfigKeys.MonitorScreenshotCrop, MonitorSettings.CropDefault), full.Size) : null;
             using Bitmap image = crop is { } c ? ScreenCaptureService.CropBitmap(full, c) : (Bitmap)full.Clone();
             Directory.CreateDirectory(dir);
