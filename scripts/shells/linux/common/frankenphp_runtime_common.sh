@@ -592,6 +592,46 @@ fm_ensure_dnspod_module() {
 # HTTPS and managed domains proxy the well-known path to that same hub.
 # SYNC CONTRACT: ServerManagerV1FrankenPhpCaddyfileBuilder renders the
 # identical stanza and proxy.
+# Access-token mode of the live binary's mercure module: newer modules accept
+# the flat publisher_jwt/subscriber_jwt directives only in explicit
+# compatibility mode, older ones reject that directive. A minimal config is
+# validated without, then with "protocol_version_compatibility 8" (isolated
+# temp dir, nothing bound); the line is used only when the plain form fails and
+# the compat form passes, so binaries that accept the plain form render
+# exactly as before. FM_MERCURE_COMPAT_LINE = "" | that line.
+fm_mercure_compat_probe() {
+    local binary=""
+    local probe_dir=""
+    local probe_head=""
+
+    FM_MERCURE_COMPAT_LINE=""
+    binary="$(fm_get_binary)"
+    [ -n "$binary" ] && [ -x "$binary" ] || return 0
+    probe_dir="$(mktemp -d)" || return 0
+    probe_head=$'{\n\tadmin off\n\tauto_https off\n}\nhttp://127.0.0.1:1 {\n\tmercure {\n\t\tpublisher_jwt probe-probe-probe-probe-probe-probe-00 HS256\n\t\tsubscriber_jwt probe-probe-probe-probe-probe-probe-00 HS256\n'
+    printf '%s\t}\n}\n' "$probe_head" > "$probe_dir/plain"
+    printf '%s\t\tprotocol_version_compatibility 8\n\t}\n}\n' "$probe_head" > "$probe_dir/compat"
+    if ! (cd "$probe_dir" && HOME="$probe_dir" XDG_DATA_HOME="$probe_dir" XDG_CONFIG_HOME="$probe_dir" \
+            timeout 30 "$binary" validate --config plain --adapter caddyfile >/dev/null 2>&1) \
+        && (cd "$probe_dir" && HOME="$probe_dir" XDG_DATA_HOME="$probe_dir" XDG_CONFIG_HOME="$probe_dir" \
+            timeout 30 "$binary" validate --config compat --adapter caddyfile >/dev/null 2>&1); then
+        FM_MERCURE_COMPAT_LINE="protocol_version_compatibility 8"
+    fi
+    rm -rf "$probe_dir"
+}
+
+# Writes FM_MERCURE_COMPAT_LINE ("" or the directive) to
+# <caddyfile_dir>/<realtime.mercure_compat_file>, read by
+# ServerManagerV1FrankenPhpCaddyfileBuilder so both renderers agree.
+fm_mercure_compat_record() {
+    local compat_file=""
+
+    compat_file="$1/$(sc_require realtime.mercure_compat_file)"
+    [ -d "$1" ] || return 0
+    [ "$(cat "$compat_file" 2>/dev/null)" = "${FM_MERCURE_COMPAT_LINE:-}" ] && [ -f "$compat_file" ] && return 0
+    printf '%s\n' "${FM_MERCURE_COMPAT_LINE:-}" > "$compat_file" && chmod 644 "$compat_file"
+}
+
 fm_mercure_config() {
     local mercure_transport=""
     local publisher_key=""
@@ -600,8 +640,10 @@ fm_mercure_config() {
     local cors_origins=""
     local heartbeat=""
     local write_timeout=""
+    local compat_stanza=""
 
     FM_MERCURE_STANZA=""
+    [ -n "${FM_MERCURE_COMPAT_LINE:-}" ] && compat_stanza=$'\t\t'"$FM_MERCURE_COMPAT_LINE"$'\n'
     if [ "$(type -t runtime_config_get)" != "function" ] \
         || [ -z "${VENDOR_AUTOLOAD:-}" ] || [ ! -f "$VENDOR_AUTOLOAD" ] \
         || [ -z "${BOOTSTRAP_APP:-}" ] || [ ! -f "$BOOTSTRAP_APP" ]; then
@@ -620,8 +662,8 @@ fm_mercure_config() {
     if [ -z "$cookie_name" ] || [ -z "$mercure_transport" ] || [ -z "$cors_origins" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] Mercure service contract is incomplete"
     else
-        printf -v FM_MERCURE_STANZA '\tmercure {\n\t\ttransport %s\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t\tcors_origins %s\n\t\tcookie_name %s\n\t\theartbeat %s\n\t\twrite_timeout %s\n\t\tsubscriptions\n\t}\n\n' \
-            "$mercure_transport" "$publisher_key" "$subscriber_key" "$cors_origins" "$cookie_name" "$heartbeat" "$write_timeout"
+        printf -v FM_MERCURE_STANZA '\tmercure {\n\t\ttransport %s\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n%s\t\tcors_origins %s\n\t\tcookie_name %s\n\t\theartbeat %s\n\t\twrite_timeout %s\n\t\tsubscriptions\n\t}\n\n' \
+            "$mercure_transport" "$publisher_key" "$subscriber_key" "$compat_stanza" "$cors_origins" "$cookie_name" "$heartbeat" "$write_timeout"
     fi
 }
 
@@ -766,7 +808,10 @@ fm_caddyfile_render() {
     internal_tls_host="$(sc_require hosts.localhost)"
     bind_host="$(sc_require hosts.any)"
     backend_port="$(sc_require ports.laravel_api_backend)"
-    # One direct-backend hub owns the transport and native PHP publisher.
+    # One direct-backend hub owns the transport and native PHP publisher; its
+    # token mode is probed once per render and recorded for the PHP builder.
+    fm_mercure_compat_probe
+    fm_mercure_compat_record "$caddyfile_dir"
     fm_mercure_config
     mercure_stanza="$FM_MERCURE_STANZA"
     printf -v mercure_proxy '\troute {\n\t\t@mercure path /.well-known/mercure*\n\t\treverse_proxy @mercure http://%s:%s {\n\t\t\tstream_close_delay %s\n\t\t}\n\t\tphp_server {\n\t\t\tindex frankenphp-worker.php\n\t\t\ttry_files {path} frankenphp-worker.php\n\t\t\trequest_body_timeout %s\n\t\t\tresolve_root_symlink\n\t\t}\n\t}\n' \
