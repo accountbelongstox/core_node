@@ -192,6 +192,10 @@ Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
 Set-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -Value $true
 
+$lanBindGuardModule = 'pycore.pyutils.common.local_rpc_guard'
+$lanBindEnabledValue = 'true'
+$lanFirewallRuleName = 'ncore-pycore-rpc-lan'
+$lanFirewallRuleDisplayName = 'pycore RPC (rpcLanBind)'
 $rpcListener = $null
 $workerExitCode = $null
 # Worker exit code for a restart handoff or a yield to a newer instance
@@ -296,6 +300,35 @@ if (($Command -ieq 'run' -or $Command -ieq 'install') -and $Rest.Count -gt 0) {
 # Single system Python 3.13 (<LANG_COMPILER_DIR>\python313); no venv, no py  #
 # launcher                                                                     #
 # fallbacks to other minors.                                                   #
+# --------------------------------------------------------------------------- #
+# With rpcLanBind on the worker binds every interface: allow its port in the
+# Windows firewall (one named inbound rule, updated when the port changes).
+function Grant-PycoreLanFirewallPort {
+    param([string]$PythonPath)
+    $lanBind = & $PythonPath '-m' $lanBindGuardModule 2>$null | Select-Object -Last 1
+    if ("$lanBind" -ne $lanBindEnabledValue) { return }
+    if (-not (Test-AdminPrivileges)) {
+        Write-Host ("[!] rpcLanBind is on: run pyservice elevated once (or as the service) to allow port {0} in the Windows firewall." -f $Port) -ForegroundColor Yellow
+        return
+    }
+    try {
+        $rule = Get-NetFirewallRule -Name $lanFirewallRuleName -ErrorAction SilentlyContinue
+        if (-not $rule) {
+            New-NetFirewallRule -Name $lanFirewallRuleName -DisplayName $lanFirewallRuleDisplayName -Enabled True -Direction Inbound `
+                -Action Allow -Protocol TCP -LocalPort $Port -Profile Any | Out-Null
+            Write-Host ("[OK] Windows firewall: port {0} allowed ({1})." -f $Port, $lanFirewallRuleDisplayName) -ForegroundColor Green
+            return
+        }
+        $portFilter = $rule | Get-NetFirewallPortFilter
+        if ("$($portFilter.LocalPort)" -ne "$Port" -or "$($rule.Enabled)" -ne 'True') {
+            $rule | Set-NetFirewallRule -Enabled True -LocalPort $Port
+            Write-Host ("[OK] Windows firewall: rule {0} now allows port {1}." -f $lanFirewallRuleName, $Port) -ForegroundColor Green
+        }
+    } catch {
+        Write-Host ("[!] Could not allow port {0} in the Windows firewall: {1}" -f $Port, $_.Exception.Message) -ForegroundColor Yellow
+    }
+}
+
 # --------------------------------------------------------------------------- #
 function Resolve-Python {
     $exe = $Global:PYTHON_EXE_PATH
@@ -898,6 +931,8 @@ try {
         }
         Remove-Item Env:TTS_STARTUP_SELFCHECK -ErrorAction SilentlyContinue   # consumed by the standalone run; the worker must not re-run it
     }
+
+    Grant-PycoreLanFirewallPort -PythonPath $py.Path
 
     Write-Host ''
     Write-Host ("[>] Launching worker: {0}" -f $workerPath) -ForegroundColor Cyan
