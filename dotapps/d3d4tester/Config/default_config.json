@@ -405,5 +405,66 @@
     "execution_provider": "auto",
     "intra_op_threads": 0,
     "warm_up": true
+  },
+  "monitor": {
+    "auto_start_on_launch": false,
+    "restart_on_error_popup": false,
+    "close_teamviewer_popups": false,
+    "log_timeout_mode": "log_only",
+    "d3_memory_restart": false,
+    "d3_memory_limit_mb": 8192,
+    "restart_battlenet_on_restart": false,
+    "archive_log_rollover": false,
+    "d3_shrink_on_start": false,
+    "d3_shrink_width": 1072,
+    "d3_shrink_height": 603,
+    "force_sequence": false,
+    "force_sequence_name": "",
+    "process_tuning": {
+      "enabled": false,
+      "d3_priority": "normal",
+      "d3_cpus": "",
+      "rosbot_priority": "normal",
+      "rosbot_cpus": ""
+    },
+    "screenshots": {
+      "crop_custom": false,
+      "crop": "0,0,0,0",
+      "periodic_minutes": 1,
+      "periodic_enabled": false,
+      "periodic_dir": "",
+      "periodic_keep": 0,
+      "death_enabled": false,
+      "death_dir": "",
+      "death_keep": 0,
+      "fail_enabled": false,
+      "fail_dir": "",
+      "fail_keep": 0,
+      "error_enabled": false,
+      "error_dir": "",
+      "error_keep": 0
+    },
+    "notify": {
+      "pushplus_token": "",
+      "telegram_token": "",
+      "telegram_chat_id": "",
+      "discord_webhook": "",
+      "prowl_api_key": "",
+      "on_restart": false,
+      "restart_channel": "all"
+    },
+    "tools": {
+      "speed_bridge_path": "",
+      "tcp_reset_path": ""
+    },
+    "probes": {
+      "fight": 280,
+      "town_portal": 10,
+      "urshi": "100,6,140",
+      "finish_illusion": "100,25",
+      "find_illusion": "60,1,2",
+      "portal_keys": ""
+    },
+    "triggers": []
   }
 }

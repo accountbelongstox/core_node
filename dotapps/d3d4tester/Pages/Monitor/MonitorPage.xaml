@@ -1,0 +1,255 @@
+<UserControl x:Class="DotApps.d3d4tester.Pages.Monitor.MonitorPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- RBAssist features merged in: left = status and settings cards, right = triggers and monitor log -->
+  <Grid Margin="{StaticResource PageMargin}">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" MinWidth="420"/>
+      <ColumnDefinition Width="12"/>
+      <ColumnDefinition Width="*" MinWidth="360"/>
+    </Grid.ColumnDefinitions>
+
+    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel>
+        <!-- Status -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <StackPanel>
+            <TextBlock x:Name="LblStatusTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <WrapPanel Margin="0,0,0,6">
+              <Border x:Name="ChipMonitoring" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtMonitoring"/></Border>
+              <Border x:Name="ChipD3" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtD3"/></Border>
+              <Border x:Name="ChipRosbot" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtRosbot"/></Border>
+              <Border Style="{StaticResource StatusChipInfoStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtLogIdle" FontFamily="{StaticResource MonoFontFamily}"/></Border>
+              <Border Style="{StaticResource StatusChipInfoStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtHistoryIdle" FontFamily="{StaticResource MonoFontFamily}"/></Border>
+              <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtRestarts"/></Border>
+              <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtCounters"/></Border>
+              <Border x:Name="ChipSpeed" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,6"><TextBlock x:Name="TxtSpeed"/></Border>
+            </WrapPanel>
+            <TextBlock x:Name="TxtLastLog" Style="{StaticResource CaptionTextStyle}" FontFamily="{StaticResource MonoFontFamily}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+            <Border x:Name="ChipLogsWarning" Style="{StaticResource StatusChipWarningStyle}" Margin="0,0,0,8" Visibility="Collapsed" HorizontalAlignment="Stretch">
+              <TextBlock x:Name="TxtLogsWarning" TextWrapping="Wrap"/>
+            </Border>
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="BtnToggleMonitoring" Style="{StaticResource SuccessButtonStyle}" MinWidth="120" Margin="0,0,8,0" Click="BtnToggleMonitoring_Click"/>
+              <Button x:Name="BtnImportRbAssist" Click="BtnImportRbAssist_Click"/>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- Crash recovery -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <StackPanel>
+            <TextBlock x:Name="LblRecoveryTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <CheckBox x:Name="ChkRestartOnErrorPopup" Margin="0,0,0,8"/>
+            <CheckBox x:Name="ChkCloseTeamViewer" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+              <TextBlock x:Name="LblTimeoutMode" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+              <ComboBox x:Name="CmbTimeoutMode" MinWidth="240"/>
+            </StackPanel>
+            <TextBlock x:Name="TxtTimeoutHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <CheckBox x:Name="ChkD3Memory" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <TextBox x:Name="TxtD3MemoryMb" Width="64" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"/>
+              <TextBlock x:Name="LblMb" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center"/>
+            </StackPanel>
+            <CheckBox x:Name="ChkRestartBattlenet" Margin="0,0,0,8"/>
+            <CheckBox x:Name="ChkAutoStart" Margin="0,0,0,8"/>
+            <CheckBox x:Name="ChkArchiveRollover"/>
+          </StackPanel>
+        </Border>
+
+        <!-- D3 window and processes -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <StackPanel>
+            <TextBlock x:Name="LblWindowTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <WrapPanel Margin="0,0,0,8">
+              <CheckBox x:Name="ChkD3Shrink" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <TextBox x:Name="TxtShrinkWidth" Width="56" TextAlignment="Right" VerticalAlignment="Center"/>
+              <TextBlock Text="x" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" Margin="4,0"/>
+              <TextBox x:Name="TxtShrinkHeight" Width="56" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Button x:Name="BtnShrinkNow" Style="{StaticResource SubtleButtonStyle}" Click="BtnShrinkNow_Click"/>
+            </WrapPanel>
+            <DockPanel Margin="0,0,0,8">
+              <CheckBox x:Name="ChkForceSequence" DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <TextBox x:Name="TxtSequenceName"/>
+            </DockPanel>
+            <CheckBox x:Name="ChkTuning" Margin="0,0,0,8"/>
+            <Grid x:Name="GridTuning" Margin="0,0,0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblD3Priority" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,8" VerticalAlignment="Center"/>
+              <ComboBox x:Name="CmbD3Priority" Grid.Column="1" Margin="0,0,12,8"/>
+              <TextBlock x:Name="LblD3Cpus" Grid.Column="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,8" VerticalAlignment="Center"/>
+              <TextBox x:Name="TxtD3Cpus" Grid.Column="3" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblRosbotPriority" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+              <ComboBox x:Name="CmbRosbotPriority" Grid.Row="1" Grid.Column="1" Margin="0,0,12,0"/>
+              <TextBlock x:Name="LblRosbotCpus" Grid.Row="1" Grid.Column="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+              <TextBox x:Name="TxtRosbotCpus" Grid.Row="1" Grid.Column="3"/>
+            </Grid>
+            <DockPanel>
+              <Button x:Name="BtnApplyTuning" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}" Click="BtnApplyTuning_Click"/>
+              <TextBlock x:Name="TxtCpusHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            </DockPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- Screenshots: rows per kind are built in code (same controls for periodic / death / fail / error) -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <StackPanel>
+            <TextBlock x:Name="LblScreenshotsTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <StackPanel x:Name="PanelShots"/>
+            <WrapPanel Margin="0,4,0,0">
+              <RadioButton x:Name="RadioCropFull" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,12,0"/>
+              <RadioButton x:Name="RadioCropCustom" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <TextBox x:Name="TxtCrop" Width="120"/>
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- Notifications -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <StackPanel>
+            <TextBlock x:Name="LblNotifyTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="150"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblPushPlus" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <PasswordBox x:Name="PwdPushPlus" Grid.Column="1" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblTelegramToken" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <PasswordBox x:Name="PwdTelegramToken" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblTelegramChat" Grid.Row="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <TextBox x:Name="TxtTelegramChat" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblDiscord" Grid.Row="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <PasswordBox x:Name="PwdDiscord" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblProwl" Grid.Row="4" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <PasswordBox x:Name="PwdProwl" Grid.Row="4" Grid.Column="1" Margin="0,0,0,8"/>
+            </Grid>
+            <WrapPanel Margin="0,0,0,4">
+              <CheckBox x:Name="ChkNotifyOnRestart" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <ComboBox x:Name="CmbRestartChannel" MinWidth="140" Margin="0,0,8,0"/>
+              <Button x:Name="BtnNotifyTest" Style="{StaticResource SubtleButtonStyle}" Click="BtnNotifyTest_Click"/>
+            </WrapPanel>
+            <TextBlock x:Name="TxtSecretHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+
+        <!-- External tools and probe thresholds -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <StackPanel>
+            <TextBlock x:Name="LblToolsTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="150"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblSpeedBridge" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <TextBox x:Name="TxtSpeedBridge" Grid.Column="1" Margin="0,0,8,8"/>
+              <Button x:Name="BtnBrowseSpeedBridge" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="0,0,0,8" Click="BtnBrowseSpeedBridge_Click"/>
+              <TextBlock x:Name="LblTcpReset" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <TextBox x:Name="TxtTcpReset" Grid.Row="1" Grid.Column="1" Margin="0,0,8,8"/>
+              <Button x:Name="BtnBrowseTcpReset" Grid.Row="1" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="0,0,0,8" Click="BtnBrowseTcpReset_Click"/>
+              <TextBlock x:Name="TxtToolsHint" Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblProbeFight" Grid.Row="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <TextBox x:Name="TxtProbeFight" Grid.Row="3" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblProbeTownPortal" Grid.Row="4" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <TextBox x:Name="TxtProbeTownPortal" Grid.Row="4" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblProbeUrshi" Grid.Row="5" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <TextBox x:Name="TxtProbeUrshi" Grid.Row="5" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblProbeFinish" Grid.Row="6" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,8"/>
+              <TextBox x:Name="TxtProbeFinish" Grid.Row="6" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+              <TextBlock x:Name="LblProbeFind" Grid.Row="7" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0"/>
+              <TextBox x:Name="TxtProbeFind" Grid.Row="7" Grid.Column="1" Width="120" HorizontalAlignment="Left"/>
+            </Grid>
+            <TextBlock x:Name="LblPortalKeys" Style="{StaticResource FieldLabelTextStyle}" Margin="0,8,0,4"/>
+            <TextBox x:Name="TxtPortalKeys"/>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Grid Grid.Column="2">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="3*" MinHeight="200"/>
+        <RowDefinition Height="2*" MinHeight="140"/>
+      </Grid.RowDefinitions>
+
+      <!-- Triggers -->
+      <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBlock x:Name="LblTriggersTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+          <TextBlock x:Name="TxtTriggersInfo" Grid.Row="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+          <ListView x:Name="ListTriggers" Grid.Row="2" MouseDoubleClick="ListTriggers_MouseDoubleClick">
+            <ListView.View>
+              <GridView>
+                <GridViewColumn x:Name="ColEvent" Width="120" DisplayMemberBinding="{Binding EventName}"/>
+                <GridViewColumn x:Name="ColEventArg" Width="90" DisplayMemberBinding="{Binding EventArgs}"/>
+                <GridViewColumn x:Name="ColAction" Width="120" DisplayMemberBinding="{Binding ActionName}"/>
+                <GridViewColumn x:Name="ColActionArg" Width="110" DisplayMemberBinding="{Binding ActionArgs}"/>
+                <GridViewColumn x:Name="ColEnabled" Width="48" DisplayMemberBinding="{Binding EnabledText}"/>
+                <GridViewColumn x:Name="ColLog" Width="48" DisplayMemberBinding="{Binding LogText}"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+          <WrapPanel Grid.Row="3" Margin="0,8,0,0">
+            <Button x:Name="BtnNewTrigger" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6" Click="BtnNewTrigger_Click"/>
+            <Button x:Name="BtnEditTrigger" Margin="0,0,6,6" Click="BtnEditTrigger_Click"/>
+            <Button x:Name="BtnToggleTrigger" Margin="0,0,6,6" Click="BtnToggleTrigger_Click"/>
+            <Button x:Name="BtnRunTrigger" Margin="0,0,6,6" Click="BtnRunTrigger_Click"/>
+            <Button x:Name="BtnDeleteTrigger" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,6" Click="BtnDeleteTrigger_Click"/>
+            <Button x:Name="BtnImportTriggers" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,6" Click="BtnImportTriggers_Click"/>
+            <Button x:Name="BtnExportTriggers" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,0,6" Click="BtnExportTriggers_Click"/>
+          </WrapPanel>
+        </Grid>
+      </Border>
+
+      <!-- Monitor log -->
+      <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <DockPanel Margin="0,0,0,8">
+            <Button x:Name="BtnClearLog" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}" Click="BtnClearLog_Click"/>
+            <TextBlock x:Name="LblLogTitle" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center" Margin="0"/>
+          </DockPanel>
+          <TextBox x:Name="TxtMonitorLog" Grid.Row="1" Style="{StaticResource MonoLogTextBoxStyle}"/>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>
