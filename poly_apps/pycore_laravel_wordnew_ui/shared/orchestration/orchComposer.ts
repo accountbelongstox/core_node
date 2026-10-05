@@ -100,7 +100,10 @@ export interface OrchDurationMemory {
 export interface OrchComposeDeps {
   loadInputs: (report: (progress: OrchInputsProgress) => void) => Promise<OrchComposeInputs>;
   sources: readonly OrchClipSource[];
-  /** The plan is composed and the clips are about to resolve (an end may scope its clip chain by it; awaited). */
+  /**
+   * The plan is composed and the clips are about to resolve (an end may scope its clip chain by it). The
+   * device store does not wait for it; every later source does.
+   */
   onPlan?: (plan: OrchComposePlan) => Promise<void>;
   durations: OrchDurationMemory;
   signal?: AbortSignal;
@@ -334,8 +337,16 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     counts: shown ? { ...shown.counts() } : { ...ORCH_EMPTY_COUNTS, total: keys.length, pending: keys.length },
   });
 
-  await deps.onPlan?.(plan);
-  checkpoint();
+  // The end's plan hook (e.g. a server book plan request) gates only the sources after the device store:
+  // the device pass and its preview never wait for the network.
+  const planHook = Promise.resolve(deps.onPlan?.(plan));
+  const sources = deps.sources.map((source): OrchClipSource => (source.origin === 'device' ? source : {
+    origin: source.origin,
+    resolve: async (resources, context, found) => {
+      await planHook;
+      return source.resolve(resources, context, found);
+    },
+  }));
   // Preview: the timelines of the clips the first source pass holds (the device store on an app) are
   // published while the later stages still run - an edited plan plays again within seconds. A plan
   // that already shows timelines (a resumed run) keeps them until its run is ready.
@@ -368,7 +379,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
       stages: { ...progress.stages },
     });
   };
-  const resolved = await resolveOrchClips(plan.resources, deps.sources, {
+  const resolved = await resolveOrchClips(plan.resources, sources, {
     signal: deps.signal,
     meaningOf: (resource) => (resource.kind === 'word'
       ? inputs.wordStates.get(resource.text)?.meaning ?? ''
