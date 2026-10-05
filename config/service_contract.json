@@ -571,7 +571,7 @@
         ]
     },
     "laravel_rescue": {
-        "purpose": "Linux Laravel rescue plane: a busybox httpd (ports.laravel_rescue_httpd) whose signed CGI (client_key_auth, client shell) only writes <epoch>-<nonce>.<action>.request files into <CORE_NODE_DATA_DIR>/<requests_subpath>; the watcher unit polls every poll_seconds, deletes each file at once and runs its Laravel action.",
+        "purpose": "Linux Laravel rescue plane: a busybox httpd (ports.laravel_rescue_httpd) whose signed CGI (client_key_auth, client shell) only writes <epoch>-<nonce>.<action>.request files into <CORE_NODE_DATA_DIR>/<requests_subpath>; the watcher unit polls every poll_seconds, deletes each file at once and runs its Laravel action. The docroot index page signs the same CGI calls in the browser with CORE_NODE_CLIENT_KEY_1; with keepalive on the watcher restarts the Laravel (ports.laravel_api_backend) and UI (ports.nexus_dash_frontend) units whose port stops listening.",
         "httpd_service": "ncore-rescue-httpd",
         "watcher_service": "ncore-laravel-rescue",
         "root_subpath": "data/laravel_rescue",
@@ -579,10 +579,14 @@
         "requests_subpath": "data/laravel_rescue/requests",
         "nonces_subpath": "data/laravel_rescue/nonces",
         "status_file_subpath": "data/laravel_rescue/status.log",
+        "keepalive_flag_subpath": "data/laravel_rescue/keepalive.flag",
         "cgi_name": "laravel",
+        "index_name": "index.html",
+        "ui_service": "ncore-nexus-dash",
         "poll_seconds": 30,
-        "actions": ["start", "restart", "sys-init", "optimize-clear"],
-        "read_actions": ["status"]
+        "keepalive_cooldown_seconds": 300,
+        "actions": ["start", "restart", "sys-init", "optimize-clear", "ui-start", "ui-restart", "keepalive-on", "keepalive-off"],
+        "read_actions": ["status", "services"]
     },
     "service_manager": {
         "purpose": "Windows dd.cmd > Service Manager catalog: every service/scheduled task the installers register. kind=service (Windows service) or task (scheduled task); the first existing name wins. dynamic_service_patterns adds matching services discovered at runtime. Linux keeps its registry in scripts/shells/linux/menu_itemshells/service_manager_registry.sh.",

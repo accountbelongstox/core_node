@@ -414,6 +414,7 @@ natgw_menu_configure() {
         form_items+=("[ Save ]"); form_rows+=("save")
         form_items+=("[ Save & Apply ]  (install / upgrade / restart the service as needed)"); form_rows+=("apply")
         form_items+=("[ Discard changes ]"); form_rows+=("discard")
+        form_items+=("[ Disconnect logs (view / clear) ]  $(natgw_diag_incidents | wc -l) saved"); form_rows+=("diag")
         form_items+=("Back"); form_rows+=("back")
 
         [ "$selected" -lt "${#form_items[@]}" ] || selected=0
@@ -429,9 +430,39 @@ natgw_menu_configure() {
             save) [ "$ARROW_MENU_KEY" = "enter" ] && natgw_draft_save ;;
             apply) [ "$ARROW_MENU_KEY" = "enter" ] && natgw_draft_apply ;;
             discard) [ "$ARROW_MENU_KEY" = "enter" ] && natgw_draft_load && NATGW_DRAFT_MESSAGE="Changes discarded" ;;
+            diag) [ "$ARROW_MENU_KEY" = "enter" ] && natgw_menu_diag ;;
             back) [ "$ARROW_MENU_KEY" = "enter" ] && natgw_form_leave && return 0 ;;
             *) natgw_form_change "$row" "$arg" "$ARROW_MENU_KEY" ;;
         esac
+    done
+}
+
+# Saved disconnect incidents: Enter shows one; the last rows clear all or go back.
+natgw_menu_diag() {
+    local selected=0
+    local dir=""
+    local -a dirs=()
+    local -a diag_items=()
+    local -a confirm_items=("Delete every saved incident" "Cancel")
+    while true; do
+        mapfile -t dirs < <(natgw_diag_incidents)
+        diag_items=()
+        for dir in "${dirs[@]}"; do
+            diag_items+=("$(basename "$dir")  outage: $(sed -n 's/^outage: //p' "$dir/summary.txt" 2>/dev/null)")
+        done
+        diag_items+=("[ Clear disconnect logs ]" "Back")
+        [ "$selected" -lt "${#diag_items[@]}" ] || selected=0
+        arrow_menu_select "Disconnect logs" diag_items "$selected" "$((${#diag_items[@]} - 1))" natgw_diag_print_list
+        [ "$ARROW_MENU_CANCELLED" = "true" ] && return 0
+        selected="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected" -lt "${#dirs[@]}" ]; then
+            natgw_diag_show "${dirs[$selected]}"
+        elif [ "$selected" -eq "${#dirs[@]}" ]; then
+            arrow_menu_select "Clear disconnect logs" confirm_items 1 1
+            [ "$ARROW_MENU_SELECTED_INDEX" -eq 0 ] && natgw_diag_clear
+        else
+            return 0
+        fi
     done
 }
 
@@ -441,6 +472,8 @@ show_interactive_menu() {
         "Configure (mode, LAN ports and uplinks, address, DHCP)..."
         "Install / Upgrade / Repair background service"
         "Status (config, ports, pairs, DHCP leases)"
+        "Disconnect logs (view / clear)..."
+        "OpenWrt as Wi-Fi AP (one-line setup, admin address)"
         "Restart Service"
         "Stop Service"
         "View Logs"
@@ -457,10 +490,12 @@ show_interactive_menu() {
             0) natgw_menu_configure; continue ;;
             1) cmd_install ;;
             2) natgw_print_status ;;
-            3) cmd_service restart ;;
-            4) cmd_service stop ;;
-            5) cmd_logs ;;
-            6) cmd_uninstall ;;
+            3) natgw_menu_diag; continue ;;
+            4) cmd_openwrt ;;
+            5) cmd_service restart ;;
+            6) cmd_service stop ;;
+            7) cmd_logs ;;
+            8) cmd_uninstall ;;
             *) return 0 ;;
         esac
         natgw_menu_pause

@@ -44,6 +44,9 @@ NATGW_BRIDGE_PREFIX="ncbr"
 NATGW_BRIDGE="${NATGW_BRIDGE_PREFIX}0"
 NATGW_NFT_TABLE="ncore_natgateway"
 NATGW_SERVICE_NAME="ncore-natgateway"
+NATGW_UPGRADE_UNIT="ncore-natgateway-upgrade"
+NATGW_KEEP_LINKS_MARKER="/run/ncore-natgateway/keep-links-on-stop"
+NATGW_UPGRADE_CHECK_SECONDS=60
 NATGW_DEFAULT_ADDRESS="192.168.50.1/24"
 NATGW_DHCP_FIRST_HOST="100"
 NATGW_DHCP_LAST_HOST="200"
@@ -312,13 +315,15 @@ natgw_resolve_name() {
 natgw_resolve_uplink() {
     local wanted="$1"
     local iface=""
+    local -a ifaces=()
     if [[ "$wanted" != "$NATGW_USB_PORT_PREFIX"* ]]; then
         natgw_resolve_name "$wanted"
         return
     fi
-    while IFS= read -r iface; do
+    mapfile -t ifaces < <(natgw_physical_ifaces)
+    for iface in "${ifaces[@]}"; do
         [ "$(natgw_usb_port_of "$iface")" = "${wanted#"$NATGW_USB_PORT_PREFIX"}" ] && { echo "$iface"; return; }
-    done < <(natgw_physical_ifaces)
+    done
 }
 
 natgw_wan_ready() {
@@ -483,10 +488,12 @@ natgw_lan_map_entries() {
 natgw_lan_port_of() {
     local name="$1"
     local entry=""
+    local -a entries=()
     if [[ "$name" =~ ^${NATGW_LAN_NAME_PREFIX}[0-9]+$ ]]; then
-        while IFS= read -r entry; do
+        mapfile -t entries < <(natgw_lan_map_entries)
+        for entry in "${entries[@]}"; do
             [ "${entry%%:*}" = "$name" ] && { echo "${entry#*:}"; return; }
-        done < <(natgw_lan_map_entries)
+        done
         return
     fi
     echo "$name"
