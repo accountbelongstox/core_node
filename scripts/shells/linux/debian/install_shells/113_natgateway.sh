@@ -90,6 +90,17 @@ Usage: $NATGATEWAY_COMMAND_NAME [command]
   set-address <a.b.c.d/24>   Gateway address of the relay network (default $NATGW_DEFAULT_ADDRESS;
                              pairs: pair N uses the next N-th /24)
   set-dhcp on|off            DHCP/DNS server for relay clients
+  scopes [<scope>]           Per relay port settings and IP bindings (scope = LAN<N> or a port name)
+  set-lan-option <scope> fair-share on|off | bandwidth-down <Mbit> | bandwidth-up <Mbit> |
+                 conn-limit <n> | auto-bind on|off
+                             Settings of one relay port scope: fair share per client host (default on),
+                             shaping rates (0 = unshaped; set just below the real uplink speed so the
+                             share holds when the uplink is the bottleneck), new uplink connections
+                             per client host (default $NATGW_DEFAULT_HOST_CONN_LIMIT, 0 = off), auto-bind every DHCP
+                             client of the port to its address (default on)
+  bind <scope> <mac> <ip>    Bind a machine to an address on that relay port
+  unbind <scope> <mac>|<ip>|all
+                             Remove bindings of a relay port scope
   start | stop | restart     Control the background service
   logs                       Recent service logs
   diag [list]                Disconnect incidents saved by ncore-natgateway-diag (only the
@@ -548,6 +559,95 @@ cmd_set_dhcp() {
     natgw_config_saved
 }
 
+natgw_scope_saved() {
+    log_success "Saved for scope $1 ($(natgw_lan_scope_dir "$1"))"
+    systemctl is-active --quiet "$NATGW_SERVICE_NAME" && log_info "The running service applies it within $NATGW_POLL_SECONDS seconds."
+    return 0
+}
+
+natgw_valid_scope_arg() {
+    natgw_valid_scope_name "$1" && return 0
+    log_error "Invalid scope: '$1' (LAN<N> or a relay port name)"
+    return 1
+}
+
+natgw_on_off_value() {
+    case "$1" in
+        on) echo "yes" ;;
+        off) echo "no" ;;
+        *) return 1 ;;
+    esac
+}
+
+cmd_set_lan_option() {
+    local scope="$1"
+    local option="$2"
+    local value="$3"
+    local usage="Usage: set-lan-option <scope> fair-share on|off | bandwidth-down <Mbit> | bandwidth-up <Mbit> | conn-limit <n> | auto-bind on|off"
+    natgw_valid_scope_arg "$scope" || return 1
+    natgw_load_config
+    natgw_load_lan_scope "$scope"
+    case "$option" in
+        fair-share) LAN_FAIR_SHARE="$(natgw_on_off_value "$value")" || { log_error "$usage"; return 1; } ;;
+        auto-bind) LAN_AUTO_BIND="$(natgw_on_off_value "$value")" || { log_error "$usage"; return 1; } ;;
+        bandwidth-down|bandwidth-up)
+            if [[ ! "$value" =~ ^[0-9]{1,6}$ ]] || [ "$value" -gt "$NATGW_MAX_BANDWIDTH_MBIT" ]; then
+                log_error "Rate in Mbit: 0-$NATGW_MAX_BANDWIDTH_MBIT (0 = unshaped)"
+                return 1
+            fi
+            if [ "$option" = "bandwidth-down" ]; then
+                LAN_BANDWIDTH_DOWN="$((10#$value))"
+            else
+                LAN_BANDWIDTH_UP="$((10#$value))"
+            fi
+            ;;
+        conn-limit)
+            if [[ ! "$value" =~ ^[0-9]{1,7}$ ]] || [ "$value" -gt "$NATGW_MAX_HOST_CONN_LIMIT" ]; then
+                log_error "Connections per client host: 0-$NATGW_MAX_HOST_CONN_LIMIT (0 = off)"
+                return 1
+            fi
+            LAN_HOST_CONN_LIMIT="$((10#$value))"
+            ;;
+        *) log_error "$usage"; return 1 ;;
+    esac
+    natgw_save_lan_scope "$scope"
+    natgw_scope_saved "$scope"
+}
+
+cmd_bind() {
+    local scope="$1"
+    local mac="${2,,}"
+    local ip="$3"
+    natgw_valid_scope_arg "$scope" || return 1
+    mac="${mac//-/:}"
+    if ! natgw_valid_mac "$mac" || ! natgw_valid_ipv4 "$ip" || [ "${ip##*.}" -lt 1 ] || [ "${ip##*.}" -gt 254 ]; then
+        log_error "Usage: bind <scope> <mac aa:bb:cc:dd:ee:ff> <ip a.b.c.d> (host part 1-254)"
+        return 1
+    fi
+    natgw_load_config
+    if ! natgw_lan_bind "$scope" "$mac" "$ip" "*" "$NATGW_BIND_SOURCE_MANUAL"; then
+        log_error "Host part .${ip##*.} is already bound to another machine in scope $scope ('$NATGATEWAY_COMMAND_NAME unbind $scope <mac>' first)"
+        return 1
+    fi
+    log_info "A client holding another address gets $ip on its next DHCP renew (or reconnect)."
+    natgw_scope_saved "$scope"
+}
+
+cmd_unbind() {
+    local scope="$1"
+    local match="${2,,}"
+    natgw_valid_scope_arg "$scope" || return 1
+    [ -n "$match" ] || { log_error "Usage: unbind <scope> <mac>|<ip>|all"; return 1; }
+    natgw_load_config
+    if ! natgw_lan_unbind "$scope" "${match//-/:}"; then
+        log_error "No binding matched in scope $scope: $match"
+        return 1
+    fi
+    natgw_load_lan_scope "$scope"
+    [ "$LAN_AUTO_BIND" = "yes" ] && log_info "auto-bind is on: a connected machine is bound again to the address it holds ('set-lan-option $scope auto-bind off' to stop)."
+    natgw_scope_saved "$scope"
+}
+
 cmd_service() {
     local action="$1"
     if ! natgw_service_installed; then
@@ -619,6 +719,7 @@ main() {
         help|-h|--help) usage; return 0 ;;
         status) natgw_print_status; return 0 ;;
         ports) natgw_print_ports; return 0 ;;
+        scopes) natgw_load_config; natgw_print_lan_scopes "${2:-}"; return 0 ;;
     esac
 
     if [ "$EUID" -ne 0 ]; then
@@ -644,6 +745,9 @@ main() {
         set-lan) cmd_set_lan "${2:-}" "${3:-}" ;;
         set-address) cmd_set_address "${2:-}" ;;
         set-dhcp) cmd_set_dhcp "${2:-}" ;;
+        set-lan-option) cmd_set_lan_option "${2:-}" "${3:-}" "${4:-}" ;;
+        bind) cmd_bind "${2:-}" "${3:-}" "${4:-}" ;;
+        unbind) cmd_unbind "${2:-}" "${3:-}" ;;
         start|stop|restart) cmd_service "$command" ;;
         logs) cmd_logs ;;
         diag) cmd_diag "${2:-}" "${3:-}" ;;

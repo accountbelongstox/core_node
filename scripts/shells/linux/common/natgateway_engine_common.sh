@@ -21,6 +21,17 @@
 # Every link is NATed out of its uplink by one dedicated nftables table and
 # reconciled idempotently: only what differs from the applied state changes.
 #
+# LAN scopes: every relay port has its own settings namespace (its LAN name,
+# else its interface name) under NATGW_LAN_SCOPE_DIR/<scope>/, so several
+# ports keep separate settings. FAIR_SHARE splits the bandwidth per client
+# host (cake dual-dsthost on the port, dual-srchost nat on the uplink), so one
+# busy machine cannot stall the others; BANDWIDTH_DOWN/UP (Mbit, 0 = unshaped)
+# shape just below the real uplink speed, which makes the split effective when
+# the bottleneck is upstream. HOST_CONN_LIMIT caps new uplink connections per
+# client host. AUTO_BIND pins every DHCP client of the port to the address it
+# got (bindings file, dnsmasq dhcp-hostsfile); a binding keeps its host part
+# when the relay network address changes.
+#
 # References: nftables NAT (wiki.nftables.org "Performing Network Address
 # Translation"), Debian nftables default (wiki.debian.org/nftables), ufw route
 # rules (ufw(8)), Docker DOCKER-USER (docs.docker.com firewall-iptables),
@@ -62,6 +73,18 @@ NATGW_LOOSE_RP_FILTER=2
 NATGW_USB_PORT_PREFIX="usb@"
 NATGW_LAN_NAME_PREFIX="LAN"
 NATGW_UPLINK_GRACE_SECONDS=90
+NATGW_LAN_SCOPE_DIR="$NATGW_CONFIG_DIR/lans"
+NATGW_LAN_SETTINGS_FILE_NAME="settings.conf"
+NATGW_LAN_BINDINGS_FILE_NAME="bindings"
+NATGW_LAN_KEYS="FAIR_SHARE BANDWIDTH_DOWN BANDWIDTH_UP HOST_CONN_LIMIT AUTO_BIND"
+NATGW_DEFAULT_HOST_CONN_LIMIT=2048
+NATGW_MAX_BANDWIDTH_MBIT=100000
+NATGW_MAX_HOST_CONN_LIMIT=1000000
+NATGW_CONNLIMIT_SET_SIZE=65535
+NATGW_BIND_SOURCE_AUTO="auto"
+NATGW_BIND_SOURCE_MANUAL="manual"
+NATGW_QDISC_STATE_PREFIX="qdisc."
+NATGW_QDISC_KEYS="BRIDGE SPEC KIND"
 NATGW_CONFIG_KEYS="ROUTE_MODE WAN_SELECT LAN_MODE LAN_PORTS PAIRS LAN_MAP SYSTEM_WAN LAN_ADDRESS DHCP_ENABLED"
 NATGW_APPLIED_KEYS="SIGNATURE WAN ADDRESS UFW DOCKER ROUTED ISOLATED TABLE RPF LOST"
 
@@ -107,6 +130,18 @@ NATGW_APPLIED_ISOLATED=""
 NATGW_APPLIED_TABLE=""
 NATGW_APPLIED_RPF=""
 NATGW_APPLIED_LOST=""
+
+LAN_FAIR_SHARE="yes"
+LAN_BANDWIDTH_DOWN="0"
+LAN_BANDWIDTH_UP="0"
+LAN_HOST_CONN_LIMIT="$NATGW_DEFAULT_HOST_CONN_LIMIT"
+LAN_AUTO_BIND="yes"
+NATGW_QDISC_BRIDGE=""
+NATGW_QDISC_SPEC=""
+NATGW_QDISC_KIND=""
+NATGW_CONNLIMIT_UNSUPPORTED="false"
+# LAN map entries of the running reconcile (natgw_lan_scope_of).
+NATGW_LAN_MAP_CACHE=()
 
 natgw_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')][NATGATEWAY] $*"
@@ -939,13 +974,27 @@ natgw_clear_routing() {
 
 # One nftables table for every live link, replaced atomically (add + delete +
 # define in one nft run) and only when the generated rules change. In pairs
-# mode a bridge may only leave through its own uplink.
+# mode a bridge may only leave through its own uplink. With connlimit "yes",
+# a client host past its LAN scope HOST_CONN_LIMIT gets new uplink
+# connections rejected.
 natgw_nft_rules() {
+    local connlimit="$1"
     local index=0
     local bridge=""
     local wan=""
+    local limit=""
     local -a clamped=()
+    local -a limits=()
     echo "table ip $NATGW_NFT_TABLE {"
+    for index in "${!NATGW_LINK_BRIDGES[@]}"; do
+        limits[index]=0
+        [ "$connlimit" = "yes" ] || continue
+        limits[index]="$(natgw_link_conn_limit "$index")"
+        [ "${limits[$index]}" -gt 0 ] || continue
+        echo "    set hostconn_${NATGW_LINK_BRIDGES[$index]} {"
+        echo "        type ipv4_addr; size $NATGW_CONNLIMIT_SET_SIZE; flags dynamic;"
+        echo "    }"
+    done
     echo "    chain forward {"
     echo "        type filter hook forward priority filter; policy accept;"
     for index in "${!NATGW_LINK_BRIDGES[@]}"; do
@@ -957,6 +1006,10 @@ natgw_nft_rules() {
     for index in "${!NATGW_LINK_BRIDGES[@]}"; do
         bridge="${NATGW_LINK_BRIDGES[$index]}"
         wan="${NATGW_LINK_WANS[$index]}"
+        limit="${limits[$index]}"
+        if [ "$limit" -gt 0 ]; then
+            echo "        iifname \"$bridge\" oifname \"$wan\" ct state new add @hostconn_$bridge { ip saddr ct count over $limit } counter reject"
+        fi
         echo "        iifname \"$bridge\" oifname \"$wan\" accept"
         echo "        iifname \"$wan\" oifname \"$bridge\" ct state established,related accept"
         if [ "${NATGW_LINK_ROUTED[$index]}" = "yes" ]; then
@@ -985,12 +1038,21 @@ natgw_sync_nft() {
         rm -f "$NATGW_NFT_RULES_FILE"
         return 0
     fi
-    rules="$(natgw_nft_rules)"
+    rules="$(natgw_nft_rules "$([ "$NATGW_CONNLIMIT_UNSUPPORTED" = "true" ] && echo no || echo yes)")"
     if natgw_nft_present && [ "$rules" = "$(cat "$NATGW_NFT_RULES_FILE" 2>/dev/null)" ]; then
         return 0
     fi
-    printf 'add table ip %s\ndelete table ip %s\n%s\n' "$NATGW_NFT_TABLE" "$NATGW_NFT_TABLE" "$rules" | nft -f -
+    if ! natgw_nft_load "$rules" && [ "$NATGW_CONNLIMIT_UNSUPPORTED" != "true" ]; then
+        NATGW_CONNLIMIT_UNSUPPORTED="true"
+        natgw_log "nftables rejected the per-host connection limit: applied without it"
+        rules="$(natgw_nft_rules no)"
+        natgw_nft_load "$rules"
+    fi
     printf '%s\n' "$rules" > "$NATGW_NFT_RULES_FILE"
+}
+
+natgw_nft_load() {
+    printf 'add table ip %s\ndelete table ip %s\n%s\n' "$NATGW_NFT_TABLE" "$NATGW_NFT_TABLE" "$1" | nft -f -
 }
 
 natgw_dnsmasq_pid_file() {
@@ -999,6 +1061,10 @@ natgw_dnsmasq_pid_file() {
 
 natgw_lease_file() {
     echo "$NATGW_RUN_DIR/dnsmasq.$1.leases"
+}
+
+natgw_dhcp_hosts_file() {
+    echo "$NATGW_RUN_DIR/dnsmasq.$1.hosts"
 }
 
 natgw_dnsmasq_alive() {
@@ -1050,10 +1116,420 @@ natgw_start_dnsmasq() {
         --dhcp-option=option:router,"$NATGW_GATEWAY_IP" \
         --dhcp-option=option:dns-server,"$NATGW_GATEWAY_IP" \
         --dhcp-leasefile="$(natgw_lease_file "$bridge")" \
+        --dhcp-hostsfile="$(natgw_dhcp_hosts_file "$bridge")" \
         --pid-file="$(natgw_dnsmasq_pid_file "$bridge")" \
         --user=root \
         "${upstream_args[@]}"
     natgw_log "DHCP/DNS on $bridge: $NATGW_DHCP_START-$NATGW_DHCP_END via $NATGW_GATEWAY_IP${upstream:+ (upstream $upstream@$wan)}"
+}
+
+# ------------------------------------------------------------ lan scopes ----
+
+natgw_valid_scope_name() {
+    [[ "$1" =~ ^[A-Za-z0-9_.:-]{1,15}$ ]]
+}
+
+natgw_valid_mac() {
+    [[ "$1" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]]
+}
+
+natgw_valid_ipv4() {
+    local octet=""
+    [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] || return 1
+    for octet in "${BASH_REMATCH[@]:1}"; do
+        [ "$octet" -le 255 ] || return 1
+    done
+}
+
+natgw_lan_scope_dir() {
+    echo "$NATGW_LAN_SCOPE_DIR/$1"
+}
+
+natgw_lan_bindings_file() {
+    echo "$NATGW_LAN_SCOPE_DIR/$1/$NATGW_LAN_BINDINGS_FILE_NAME"
+}
+
+# Settings namespace of a relay port: its LAN name, else the interface name.
+natgw_lan_scope_of() {
+    local iface="$1"
+    local entry=""
+    local -a entries=("${NATGW_LAN_MAP_CACHE[@]}")
+    [ ${#entries[@]} -gt 0 ] || mapfile -t entries < <(natgw_lan_map_entries)
+    for entry in "${entries[@]}"; do
+        [ "${entry#*:}" = "$iface" ] && { echo "${entry%%:*}"; return; }
+    done
+    echo "$iface"
+}
+
+# Scopes with saved settings or bindings, plus the LAN names of this host.
+natgw_lan_scopes() {
+    local path=""
+    {
+        natgw_lan_map_entries | cut -d: -f1
+        for path in "$NATGW_LAN_SCOPE_DIR"/*/; do
+            [ -d "$path" ] && basename "$path"
+        done
+    } | awk 'NF && !seen[$0]++'
+}
+
+# LAN_FAIR_SHARE, LAN_BANDWIDTH_DOWN/UP, LAN_HOST_CONN_LIMIT and LAN_AUTO_BIND
+# of one scope (defaults for anything not saved).
+natgw_load_lan_scope() {
+    local file=""
+    file="$(natgw_lan_scope_dir "$1")/$NATGW_LAN_SETTINGS_FILE_NAME"
+    LAN_FAIR_SHARE="yes"
+    LAN_BANDWIDTH_DOWN="0"
+    LAN_BANDWIDTH_UP="0"
+    LAN_HOST_CONN_LIMIT="$NATGW_DEFAULT_HOST_CONN_LIMIT"
+    LAN_AUTO_BIND="yes"
+    [ -f "$file" ] && natgw_read_kv_file "$file" "$NATGW_LAN_KEYS" "LAN_"
+    [ "$LAN_FAIR_SHARE" = "no" ] || LAN_FAIR_SHARE="yes"
+    [ "$LAN_AUTO_BIND" = "no" ] || LAN_AUTO_BIND="yes"
+    [[ "$LAN_BANDWIDTH_DOWN" =~ ^[0-9]{1,6}$ ]] && [ "$LAN_BANDWIDTH_DOWN" -le "$NATGW_MAX_BANDWIDTH_MBIT" ] || LAN_BANDWIDTH_DOWN="0"
+    [[ "$LAN_BANDWIDTH_UP" =~ ^[0-9]{1,6}$ ]] && [ "$LAN_BANDWIDTH_UP" -le "$NATGW_MAX_BANDWIDTH_MBIT" ] || LAN_BANDWIDTH_UP="0"
+    [[ "$LAN_HOST_CONN_LIMIT" =~ ^[0-9]{1,7}$ ]] && [ "$LAN_HOST_CONN_LIMIT" -le "$NATGW_MAX_HOST_CONN_LIMIT" ] || LAN_HOST_CONN_LIMIT="$NATGW_DEFAULT_HOST_CONN_LIMIT"
+    LAN_BANDWIDTH_DOWN=$((10#$LAN_BANDWIDTH_DOWN))
+    LAN_BANDWIDTH_UP=$((10#$LAN_BANDWIDTH_UP))
+    LAN_HOST_CONN_LIMIT=$((10#$LAN_HOST_CONN_LIMIT))
+}
+
+natgw_save_lan_scope() {
+    local scope="$1"
+    local dir=""
+    local tmp_file=""
+    local key=""
+    local name=""
+    dir="$(natgw_lan_scope_dir "$scope")"
+    mkdir -p "$dir"
+    tmp_file="$(mktemp "$dir/.$NATGW_LAN_SETTINGS_FILE_NAME.XXXXXX")"
+    {
+        echo "# NAT gateway settings of relay port scope $scope (natgateway set-lan-option)"
+        for key in $NATGW_LAN_KEYS; do
+            name="LAN_$key"
+            echo "$key=\"${!name}\""
+        done
+    } > "$tmp_file"
+    chmod 644 "$tmp_file"
+    mv -f "$tmp_file" "$dir/$NATGW_LAN_SETTINGS_FILE_NAME"
+}
+
+# Valid binding lines of a scope: "<mac> <ip> <host> <bound-at> <source>".
+natgw_lan_bindings() {
+    local file=""
+    local mac=""
+    local ip=""
+    local host=""
+    local bound_at=""
+    local source=""
+    file="$(natgw_lan_bindings_file "$1")"
+    [ -f "$file" ] || return 0
+    while read -r mac ip host bound_at source _; do
+        natgw_valid_mac "$mac" && natgw_valid_ipv4 "$ip" || continue
+        echo "$mac $ip ${host:-*} ${bound_at:-0} ${source:-$NATGW_BIND_SOURCE_MANUAL}"
+    done < "$file"
+}
+
+# Replaces the binding of a MAC (or adds it) in a scope; an IP already bound
+# to another MAC of the scope fails.
+natgw_lan_bind() {
+    local scope="$1"
+    local mac="$2"
+    local ip="$3"
+    local host="${4:-*}"
+    local source="${5:-$NATGW_BIND_SOURCE_MANUAL}"
+    local file=""
+    local tmp_file=""
+    local line=""
+    local -a fields=()
+    local -a kept=()
+    file="$(natgw_lan_bindings_file "$scope")"
+    while IFS= read -r line; do
+        read -r -a fields <<< "$line"
+        [ "${fields[0]}" = "$mac" ] && continue
+        [ "${fields[1]##*.}" = "${ip##*.}" ] && return 1
+        kept+=("$line")
+    done < <(natgw_lan_bindings "$scope")
+    mkdir -p "$(dirname "$file")"
+    tmp_file="$(mktemp "$(dirname "$file")/.$NATGW_LAN_BINDINGS_FILE_NAME.XXXXXX")"
+    {
+        echo "# <mac> <ip> <host> <bound-at> <source> (natgateway bind / unbind; auto = AUTO_BIND)"
+        [ ${#kept[@]} -gt 0 ] && printf '%s\n' "${kept[@]}"
+        echo "$mac $ip ${host// /_} $(date +%s) $source"
+    } > "$tmp_file"
+    chmod 644 "$tmp_file"
+    mv -f "$tmp_file" "$file"
+}
+
+# Removes bindings of a scope matching a MAC, an IP or "all"; fails when none
+# matched.
+natgw_lan_unbind() {
+    local scope="$1"
+    local match="$2"
+    local file=""
+    local tmp_file=""
+    local line=""
+    local removed=0
+    local -a fields=()
+    local -a kept=()
+    file="$(natgw_lan_bindings_file "$scope")"
+    [ -f "$file" ] || return 1
+    while IFS= read -r line; do
+        read -r -a fields <<< "$line"
+        if [ "$match" = "all" ] || [ "${fields[0]}" = "$match" ] || [ "${fields[1]}" = "$match" ]; then
+            removed=$((removed + 1))
+            continue
+        fi
+        kept+=("$line")
+    done < <(natgw_lan_bindings "$scope")
+    [ "$removed" -gt 0 ] || return 1
+    tmp_file="$(mktemp "$(dirname "$file")/.$NATGW_LAN_BINDINGS_FILE_NAME.XXXXXX")"
+    {
+        echo "# <mac> <ip> <host> <bound-at> <source> (natgateway bind / unbind; auto = AUTO_BIND)"
+        [ ${#kept[@]} -gt 0 ] && printf '%s\n' "${kept[@]}"
+    } > "$tmp_file"
+    chmod 644 "$tmp_file"
+    mv -f "$tmp_file" "$file"
+}
+
+natgw_link_ports() {
+    local -a lans=()
+    IFS=',' read -r -a lans <<< "${NATGW_LINK_LANS[$1]}"
+    printf '%s\n' "${lans[@]}"
+}
+
+# Strictest connection limit of the link's scopes (0 = no limit).
+natgw_link_conn_limit() {
+    local port=""
+    local limit=0
+    while IFS= read -r port; do
+        [ -n "$port" ] || continue
+        natgw_load_lan_scope "$(natgw_lan_scope_of "$port")"
+        [ "$LAN_HOST_CONN_LIMIT" -gt 0 ] || continue
+        if [ "$limit" -eq 0 ] || [ "$LAN_HOST_CONN_LIMIT" -lt "$limit" ]; then
+            limit="$LAN_HOST_CONN_LIMIT"
+        fi
+    done < <(natgw_link_ports "$1")
+    echo "$limit"
+}
+
+# dnsmasq dhcp-hostsfile of a link from the bindings of its ports' scopes,
+# each keeping its host part inside the link network (first MAC / IP wins);
+# succeeds only when the file content changed.
+natgw_write_dhcp_hosts() {
+    local index="$1"
+    local bridge="${NATGW_LINK_BRIDGES[$index]}"
+    local address="${NATGW_LINK_ADDRESSES[$index]}"
+    local network="${address%.*}"
+    local gateway_host=""
+    local file=""
+    local content=""
+    local port=""
+    local line=""
+    local host_part=""
+    local -a fields=()
+    local -a macs=()
+    local -a hosts=()
+    local -a lines=()
+    gateway_host="${address%/*}"
+    gateway_host="${gateway_host##*.}"
+    file="$(natgw_dhcp_hosts_file "$bridge")"
+    while IFS= read -r port; do
+        [ -n "$port" ] || continue
+        while IFS= read -r line; do
+            read -r -a fields <<< "$line"
+            host_part="${fields[1]##*.}"
+            [ "$host_part" -ge 1 ] && [ "$host_part" -le 254 ] && [ "$host_part" != "$gateway_host" ] || continue
+            natgw_list_contains "${fields[0]}" "${macs[@]}" && continue
+            natgw_list_contains "$host_part" "${hosts[@]}" && continue
+            macs+=("${fields[0]}")
+            hosts+=("$host_part")
+            lines+=("${fields[0]},$network.$host_part")
+        done < <(natgw_lan_bindings "$(natgw_lan_scope_of "$port")")
+    done < <(natgw_link_ports "$index")
+    [ ${#lines[@]} -gt 0 ] && content="$(printf '%s\n' "${lines[@]}")"
+    [ -f "$file" ] && [ "$content" = "$(cat "$file")" ] && return 1
+    mkdir -p "$NATGW_RUN_DIR"
+    printf '%s' "$content${content:+$'\n'}" > "$file"
+    return 0
+}
+
+# Relay port a client MAC sits behind (bridge forwarding database), else the
+# link's first port.
+natgw_port_of_mac() {
+    local index="$1"
+    local mac="$2"
+    local port=""
+    port="$(bridge fdb show br "${NATGW_LINK_BRIDGES[$index]}" 2>/dev/null \
+        | awk -v mac="$mac" -v bridge="${NATGW_LINK_BRIDGES[$index]}" '$1 == mac && $2 == "dev" && $3 != bridge && !/permanent/ {print $3; exit}')"
+    [ -n "$port" ] || port="$(natgw_link_ports "$index" | head -n 1)"
+    echo "$port"
+}
+
+# AUTO_BIND: every leased client without a binding in its port's scope gets
+# one for the address it holds.
+natgw_auto_bind_link() {
+    local index="$1"
+    local bridge="${NATGW_LINK_BRIDGES[$index]}"
+    local lease_file=""
+    local expiry=""
+    local mac=""
+    local ip=""
+    local host=""
+    local scope=""
+    lease_file="$(natgw_lease_file "$bridge")"
+    [ -s "$lease_file" ] || return 0
+    while read -r expiry mac ip host _; do
+        natgw_valid_mac "$mac" && natgw_valid_ipv4 "$ip" || continue
+        scope="$(natgw_lan_scope_of "$(natgw_port_of_mac "$index" "$mac")")"
+        natgw_valid_scope_name "$scope" || continue
+        natgw_load_lan_scope "$scope"
+        [ "$LAN_AUTO_BIND" = "yes" ] || continue
+        natgw_lan_bindings "$scope" | awk -v mac="$mac" '$1 == mac {found = 1} END {exit !found}' && continue
+        if natgw_lan_bind "$scope" "$mac" "$ip" "$host" "$NATGW_BIND_SOURCE_AUTO"; then
+            natgw_log "Bound $mac ($host) to $ip in scope $scope"
+        fi
+    done < "$lease_file"
+}
+
+natgw_qdisc_state_file() {
+    echo "$NATGW_RUN_DIR/$NATGW_QDISC_STATE_PREFIX$1"
+}
+
+natgw_load_qdisc_state() {
+    NATGW_QDISC_BRIDGE=""
+    NATGW_QDISC_SPEC=""
+    NATGW_QDISC_KIND=""
+    [ -f "$(natgw_qdisc_state_file "$1")" ] || return 1
+    natgw_read_kv_file "$(natgw_qdisc_state_file "$1")" "$NATGW_QDISC_KEYS" "NATGW_QDISC_"
+}
+
+natgw_root_qdisc_kind() {
+    tc qdisc show dev "$1" root 2>/dev/null | awk '{print $2; exit}'
+}
+
+# Root qdisc "<cake args>" of a device owned by a bridge; cake missing falls
+# back to fq_codel (per-flow fairness only). Applied only when it differs.
+natgw_apply_qdisc() {
+    local dev="$1"
+    local bridge="$2"
+    local spec="$3"
+    local kind="cake"
+    [ -e "/sys/class/net/$dev" ] || return 0
+    if natgw_load_qdisc_state "$dev" && [ "$NATGW_QDISC_SPEC" = "$spec" ] && [ "$(natgw_root_qdisc_kind "$dev")" = "$NATGW_QDISC_KIND" ]; then
+        return 0
+    fi
+    # shellcheck disable=SC2086
+    if ! tc qdisc replace dev "$dev" root cake $spec 2>/dev/null; then
+        kind="fq_codel"
+        tc qdisc replace dev "$dev" root fq_codel 2>/dev/null || return 0
+        natgw_log "cake unavailable on $dev: fq_codel (per-flow fairness, no shaping)"
+    fi
+    mkdir -p "$NATGW_RUN_DIR"
+    printf 'BRIDGE="%s"\nSPEC="%s"\nKIND="%s"\n' "$bridge" "$spec" "$kind" > "$(natgw_qdisc_state_file "$dev")"
+    natgw_log "Fair share on $dev ($bridge): $kind $spec"
+}
+
+natgw_clear_qdisc() {
+    local dev="$1"
+    if [ -e "/sys/class/net/$dev" ]; then
+        tc qdisc del dev "$dev" root 2>/dev/null || true
+        natgw_log "Fair share removed from $dev"
+    fi
+    rm -f "$(natgw_qdisc_state_file "$dev")"
+}
+
+# Qdiscs this gateway owns: of one bridge, or (no bridge) every one whose
+# device is not in the remaining arguments.
+natgw_clear_qdiscs() {
+    local bridge="$1"
+    shift
+    local path=""
+    local dev=""
+    for path in "$NATGW_RUN_DIR/$NATGW_QDISC_STATE_PREFIX"*; do
+        [ -e "$path" ] || continue
+        dev="${path##*/"$NATGW_QDISC_STATE_PREFIX"}"
+        natgw_load_qdisc_state "$dev"
+        if [ -n "$bridge" ]; then
+            [ "$NATGW_QDISC_BRIDGE" = "$bridge" ] || continue
+        else
+            natgw_list_contains "$dev" "$@" && continue
+        fi
+        natgw_clear_qdisc "$dev"
+    done
+}
+
+natgw_cake_bandwidth() {
+    if [ "$1" -gt 0 ]; then
+        echo "bandwidth ${1}mbit"
+    else
+        echo "unlimited"
+    fi
+}
+
+# Download: each relay port shapes toward its clients per destination host.
+# Upload: the uplink shapes per (pre-NAT) source host at the sum of its ports'
+# upload rates (unshaped when any port has none). FAIR_SHARE off with a rate
+# still shapes, without the per-host split.
+natgw_link_qdiscs() {
+    local index="$1"
+    local bridge="${NATGW_LINK_BRIDGES[$index]}"
+    local wan="${NATGW_LINK_WANS[$index]}"
+    local port=""
+    local up_total=0
+    local up_shaped="yes"
+    local up_fair="no"
+    local isolation=""
+    while IFS= read -r port; do
+        [ -n "$port" ] || continue
+        natgw_load_lan_scope "$(natgw_lan_scope_of "$port")"
+        [ "$LAN_FAIR_SHARE" = "yes" ] && up_fair="yes"
+        if [ "$LAN_BANDWIDTH_UP" -gt 0 ]; then
+            up_total=$((up_total + LAN_BANDWIDTH_UP))
+        else
+            up_shaped="no"
+        fi
+        if [ "$LAN_FAIR_SHARE" = "yes" ]; then
+            isolation="dual-dsthost"
+        elif [ "$LAN_BANDWIDTH_DOWN" -gt 0 ]; then
+            isolation="flows"
+        else
+            continue
+        fi
+        echo "$port $(natgw_cake_bandwidth "$LAN_BANDWIDTH_DOWN") $isolation"
+    done < <(natgw_link_ports "$index")
+    [ "$up_shaped" = "yes" ] || up_total=0
+    if [ "$up_fair" = "yes" ]; then
+        echo "$wan $(natgw_cake_bandwidth "$up_total") nat dual-srchost"
+    elif [ "$up_total" -gt 0 ]; then
+        echo "$wan $(natgw_cake_bandwidth "$up_total") nat flows"
+    fi
+}
+
+# Per reconcile: auto-binding, dhcp-hostsfile (dnsmasq re-reads it on SIGHUP,
+# no client loses its lease) and the fair-share qdiscs of every live link.
+natgw_sync_lan_scopes() {
+    local index=0
+    local bridge=""
+    local line=""
+    local pid=""
+    local -a desired=()
+    mapfile -t NATGW_LAN_MAP_CACHE < <(natgw_lan_map_entries)
+    for index in "${!NATGW_LINK_BRIDGES[@]}"; do
+        bridge="${NATGW_LINK_BRIDGES[$index]}"
+        if [ "$DHCP_ENABLED" = "yes" ]; then
+            natgw_auto_bind_link "$index"
+            if natgw_write_dhcp_hosts "$index" && natgw_dnsmasq_alive "$bridge"; then
+                pid="$(cat "$(natgw_dnsmasq_pid_file "$bridge")" 2>/dev/null)"
+                [ -n "$pid" ] && kill -HUP "$pid" 2>/dev/null
+                natgw_log "DHCP bindings reloaded on $bridge"
+            fi
+        fi
+        while IFS= read -r line; do
+            desired+=("${line%% *}")
+            natgw_apply_qdisc "${line%% *}" "$bridge" "${line#* }"
+        done < <(natgw_link_qdiscs "$index")
+    done
+    natgw_clear_qdiscs "" "${desired[@]}"
 }
 
 # ----------------------------------------------------------- reconcile ------
@@ -1128,7 +1604,7 @@ natgw_link_signature() {
     if [ "${NATGW_LINK_ROUTED[$index]}" = "yes" ] && natgw_find_gateway "$wan"; then
         gateway="$NATGW_GW/$NATGW_GW_METRIC"
     fi
-    echo "$wan|${NATGW_LINK_LANS[$index]}|${NATGW_LINK_ADDRESSES[$index]}|$DHCP_ENABLED|$(natgw_ufw_active && echo ufw)|$(natgw_docker_chain_present && echo docker)|${NATGW_LINK_ROUTED[$index]}|${NATGW_LINK_ISOLATED[$index]}|$gateway|$(natgw_wan_dns "$wan")"
+    echo "$wan|${NATGW_LINK_LANS[$index]}|${NATGW_LINK_ADDRESSES[$index]}|$DHCP_ENABLED|$(natgw_ufw_active && echo ufw)|$(natgw_docker_chain_present && echo docker)|${NATGW_LINK_ROUTED[$index]}|${NATGW_LINK_ISOLATED[$index]}|$gateway|$(natgw_wan_dns "$wan")|$(natgw_dhcp_hosts_file "${NATGW_LINK_BRIDGES[$index]}")"
 }
 
 natgw_link_healthy() {
@@ -1195,6 +1671,7 @@ natgw_apply_link() {
         upstream="$(natgw_wan_dns "$wan")"
     fi
     natgw_firewall_allow "$bridge" "$wan"
+    natgw_write_dhcp_hosts "$index" || true
     natgw_start_dnsmasq "$bridge" "$address" "$upstream" "$wan"
 
     NATGW_APPLIED_SIGNATURE="$signature"
@@ -1217,6 +1694,8 @@ natgw_teardown_link() {
     local iface=""
     natgw_load_applied "$bridge"
     natgw_stop_dnsmasq "$bridge"
+    rm -f "$(natgw_dhcp_hosts_file "$bridge")"
+    natgw_clear_qdiscs "$bridge"
     natgw_firewall_revoke "$bridge" "$NATGW_APPLIED_WAN" "$NATGW_APPLIED_UFW" "$NATGW_APPLIED_DOCKER"
     natgw_clear_routing "$bridge" "$NATGW_APPLIED_WAN" "$NATGW_APPLIED_ISOLATED" "$NATGW_APPLIED_TABLE" "$NATGW_APPLIED_RPF"
     if [ -d "/sys/class/net/$bridge" ]; then
@@ -1238,6 +1717,7 @@ natgw_teardown() {
     while IFS= read -r bridge; do
         natgw_teardown_link "$bridge" "$reason"
     done < <(natgw_known_bridges)
+    natgw_clear_qdiscs ""
     nft delete table ip "$NATGW_NFT_TABLE" 2>/dev/null || true
     rm -f "$NATGW_NFT_RULES_FILE"
 }
@@ -1285,6 +1765,7 @@ natgw_reconcile() {
     local -a failed=()
 
     mkdir -p "$NATGW_RUN_DIR"
+    NATGW_LAN_MAP_CACHE=()
     natgw_load_config
     natgw_migrate_run_state
     natgw_resolve_links
@@ -1309,6 +1790,7 @@ natgw_reconcile() {
         unset 'NATGW_LINK_BRIDGES[index]' 'NATGW_LINK_WANS[index]' 'NATGW_LINK_LANS[index]' \
             'NATGW_LINK_ADDRESSES[index]' 'NATGW_LINK_ROUTED[index]' 'NATGW_LINK_ISOLATED[index]'
     done
+    natgw_sync_lan_scopes
     natgw_sync_nft
 }
 
@@ -1361,6 +1843,25 @@ natgw_print_pairs() {
     done
 }
 
+# Settings and bindings of every scope, or of one.
+natgw_print_lan_scopes() {
+    local wanted="$1"
+    local scope=""
+    local line=""
+    local port=""
+    local -a fields=()
+    while IFS= read -r scope; do
+        [ -z "$wanted" ] || [ "$scope" = "$wanted" ] || continue
+        port="$(natgw_lan_port_of "$scope")"
+        natgw_load_lan_scope "$scope"
+        echo "Scope $scope${port:+ (port $port)}: fair-share=$LAN_FAIR_SHARE bandwidth-down=$([ "$LAN_BANDWIDTH_DOWN" -gt 0 ] && echo "${LAN_BANDWIDTH_DOWN}Mbit" || echo unshaped) bandwidth-up=$([ "$LAN_BANDWIDTH_UP" -gt 0 ] && echo "${LAN_BANDWIDTH_UP}Mbit" || echo unshaped) conn-limit=$([ "$LAN_HOST_CONN_LIMIT" -gt 0 ] && echo "$LAN_HOST_CONN_LIMIT" || echo off) auto-bind=$LAN_AUTO_BIND"
+        while IFS= read -r line; do
+            read -r -a fields <<< "$line"
+            printf '  %-17s %-15s %-20s %-6s %s\n' "${fields[0]}" "${fields[1]}" "${fields[2]}" "${fields[4]}" "$(date -d "@${fields[3]}" '+%Y-%m-%d %H:%M' 2>/dev/null)"
+        done < <(natgw_lan_bindings "$scope")
+    done < <({ natgw_lan_scopes; [ -n "$wanted" ] && echo "$wanted"; } | awk 'NF && !seen[$0]++')
+}
+
 natgw_print_status() {
     local bridge=""
     local lease_file=""
@@ -1400,6 +1901,8 @@ natgw_print_status() {
         echo ""
         natgw_print_pairs
     fi
+    echo ""
+    natgw_print_lan_scopes ""
     for lease_file in "$NATGW_RUN_DIR"/dnsmasq.*.leases; do
         [ -s "$lease_file" ] || continue
         echo ""

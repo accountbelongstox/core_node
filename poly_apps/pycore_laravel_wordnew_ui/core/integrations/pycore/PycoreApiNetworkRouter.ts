@@ -53,6 +53,32 @@ export interface NetworkRouterLease {
   host: string;
 }
 
+/** Settings of one relay port scope (yes/no flags, rates in Mbit with 0 = unshaped, connection limit 0 = off). */
+export interface NetworkRouterLanSettings {
+  FAIR_SHARE: string;
+  BANDWIDTH_DOWN: string;
+  BANDWIDTH_UP: string;
+  HOST_CONN_LIMIT: string;
+  AUTO_BIND: string;
+}
+
+export interface NetworkRouterBinding {
+  mac: string;
+  ip: string;
+  host: string;
+  /** Unix seconds. */
+  bound_at: string;
+  source: 'auto' | 'manual';
+}
+
+/** Settings namespace of a relay port: its LAN name (else the port name). */
+export interface NetworkRouterLanScope {
+  scope: string;
+  port: string;
+  settings: NetworkRouterLanSettings;
+  bindings: NetworkRouterBinding[];
+}
+
 /** Router state of the pycore machine; the fields after `leases` exist only while the matching platform reports them. */
 export interface NetworkRouterStatus {
   success: boolean;
@@ -74,6 +100,7 @@ export interface NetworkRouterStatus {
   links: NetworkRouterLink[];
   interfaces: NetworkRouterInterface[];
   leases: NetworkRouterLease[];
+  lan_scopes: NetworkRouterLanScope[];
   report?: string;
   report_error_code?: string;
 }
