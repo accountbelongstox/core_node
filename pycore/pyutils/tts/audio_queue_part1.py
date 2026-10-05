@@ -9,6 +9,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import audio_dedup_key, audio_dedup_key_from_task
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_LANES,
@@ -96,6 +97,7 @@ class AudioQueuePart1Mixin:
         keys: Set[str] = set()
         tasks_by_key: Dict[str, Dict[str, Any]] = {}
         meta: Dict[str, Dict[str, Any]] = {}
+        selected = laravel_endpoint_manager.selected_server_matcher()
         for item in items:
             if not isinstance(item, dict):
                 continue
@@ -116,7 +118,7 @@ class AudioQueuePart1Mixin:
                     lane, str(item.get("language") or ""), str(item.get("text") or ""), local_source,
                     md5=str(item.get("md5") or ""),
                 )
-            if isinstance(task, dict) and task_for_selected_server(bind_task_server(task)):
+            if isinstance(task, dict) and task_for_selected_server(bind_task_server(task), selected):
                 tasks_by_key[key] = task
         if not keys:
             return {"success": False, "error": "no promotable items"}

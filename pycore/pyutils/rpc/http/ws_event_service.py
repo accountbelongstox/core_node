@@ -5,18 +5,25 @@ Frames are JSON objects keyed by ``op``. The first client frame is ``hello``
 (client_id, since_seq, topics, leases); afterwards the client may send
 ``subscribe``, ``lease``, ``ack`` and ``ping``. The server answers with
 ``state`` (replay cursor state), ``events`` (record batches), ``pong`` and
-``error``. Replay, ACK and audience rules are the journal's own.
+``error``. A session is one journal subscription: the journal pushes the
+backlog and every later matching record onto the session's loop, so a session
+costs no thread and no polling. A client that cannot keep up is closed and
+resumes from its cursor. Replay, ACK and audience rules are the journal's own.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
-from typing import Any, Dict, Iterable, List, Optional, Set
+from collections import deque
+from typing import Any, Deque, Dict, Iterable, List, Optional, Set
 
+from pycore.pyfoundations.event_journal import EventJournal
+from pycore.pyfoundations.event_records import journal_state
+from pycore.pyfoundations.json_codec import json_codec
 from pycore.pyfoundations.network_constants import (
     HTTP_WS_PATH,
+    SSE_EVENT_JOURNAL_MAX,
     WS_CLOSE_POLICY_VIOLATION,
     WS_ERROR_FRAME_INVALID,
     WS_ERROR_HELLO_REQUIRED,
@@ -35,31 +42,30 @@ from pycore.pyfoundations.network_constants import (
     WS_OP_PONG,
     WS_OP_STATE,
     WS_OP_SUBSCRIBE,
-    WS_PING_INTERVAL_SECONDS,
 )
-from pycore.pyfoundations.event_records import EventRecordJournal, journal_state, poll_journal
 from pycore.pyutils.rpc.ui_presence import ui_presence
 
 _MESSAGE_RECEIVE = "websocket.receive"
 _MESSAGE_DISCONNECT = "websocket.disconnect"
+_WS_CLOSE_TRY_AGAIN_LATER = 1013
+_WS_PENDING_EVENTS_MAX = SSE_EVENT_JOURNAL_MAX
 
 
 def _decode_frame(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    text = message.get("text")
-    if text is None:
-        raw = message.get("bytes")
-        if raw is None:
+    data = message.get("text")
+    if data is None:
+        data = message.get("bytes")
+        if data is None:
             return None
-        text = bytes(raw).decode("utf-8", "replace")
     try:
-        frame = json.loads(text)
-    except json.JSONDecodeError:
+        frame = json_codec.decode(data)
+    except json_codec.DecodeError:
         return None
     return frame if isinstance(frame, dict) else None
 
 
 def _bounded_names(raw: Any, limit: int) -> Optional[Set[str]]:
-    """``None`` keeps every topic; a list becomes a bounded name set."""
+    """``None`` keeps every topic; a list becomes a bounded name set (empty keeps none)."""
     if raw is None:
         return None
     if not isinstance(raw, list):
@@ -69,24 +75,29 @@ def _bounded_names(raw: Any, limit: int) -> Optional[Set[str]]:
 
 
 class _WsEventSession:
-    """One accepted socket: cursor, topic filter and held leases."""
+    """One accepted socket: topic filter, held leases and the pushed-frame inbox."""
 
-    def __init__(self, websocket: Any, journal: EventRecordJournal, fastapi_module: Any) -> None:
+    def __init__(self, websocket: Any, journal: EventJournal, fastapi_module: Any) -> None:
         self.websocket = websocket
         self.journal = journal
         self.connected_state = fastapi_module.websockets.WebSocketState.CONNECTED
         self.disconnect_error = fastapi_module.WebSocketDisconnect
+        self.loop = asyncio.get_running_loop()
         self.session_id = uuid.uuid4().hex
         self.client_id = ""
         self.cursor = 0
         self.topics: Optional[Set[str]] = None
         self.leases: Set[str] = set()
         self.announce_state = True
+        self.inbox: Deque[Dict[str, Any]] = deque()
+        self.inbox_events = 0
+        self.overflowed = False
+        self.waiter: Optional["asyncio.Future[None]"] = None
 
     async def send(self, frame: Dict[str, Any]) -> bool:
         if self.websocket.application_state != self.connected_state:
             return False
-        encoded = json.dumps(frame, ensure_ascii=False, separators=(",", ":"), default=str)
+        encoded = json_codec.encode(frame, default=str).decode("utf-8")
         # A peer can vanish between the state check and the write; Starlette
         # reports that single I/O race as WebSocketDisconnect.
         try:
@@ -122,54 +133,76 @@ class _WsEventSession:
             wanted.discard(normalized)
         self.set_leases(wanted)
 
+    def start(self) -> None:
+        self.journal.subscribe(self.session_id, self.push, self.client_id, self.cursor, self.topics)
+
     def close(self) -> None:
+        self.journal.unsubscribe(self.session_id)
         ui_presence.release_sockets(self.session_id, self.leases)
         self.leases = set()
 
-    def poll(self, wait_seconds: float = WS_PING_INTERVAL_SECONDS) -> "asyncio.Future[Dict[str, Any]]":
-        return asyncio.ensure_future(
-            poll_journal(
-                self.journal,
-                client_id=self.client_id,
-                since_seq=self.cursor,
-                timeout_seconds=wait_seconds,
-                topics=self.topics,
-            )
-        )
+    def push(self, frame: Dict[str, Any]) -> None:
+        """Journal writer thread: hand the frame to this session's loop."""
+        self.loop.call_soon_threadsafe(self.receive, frame)
+
+    def receive(self, frame: Dict[str, Any]) -> None:
+        if self.overflowed:
+            return
+        self.inbox_events += len(frame["events"])
+        if self.inbox_events > _WS_PENDING_EVENTS_MAX:
+            self.overflowed = True
+        else:
+            self.inbox.append(frame)
+        if self.waiter is not None and not self.waiter.done():
+            self.waiter.set_result(None)
+
+    def next_ready(self) -> "asyncio.Future[None]":
+        """A future that completes when a frame is waiting (or the inbox overflowed)."""
+        ready = self.loop.create_future()
+        if self.inbox or self.overflowed:
+            ready.set_result(None)
+        else:
+            self.waiter = ready
+        return ready
+
+    async def flush(self) -> bool:
+        """Send every queued frame; ``False`` ends the session."""
+        while self.inbox:
+            frame = self.inbox.popleft()
+            self.inbox_events -= len(frame["events"])
+            if not await self.deliver(frame):
+                return False
+        if self.overflowed:
+            await self.websocket.close(code=_WS_CLOSE_TRY_AGAIN_LATER)
+            return False
+        return True
 
     async def deliver(self, result: Dict[str, Any]) -> bool:
         if self.announce_state or result["replay_lost"] or result["cursor_ahead"]:
             self.announce_state = False
             if not await self.send({"op": WS_OP_STATE, **journal_state(result)}):
                 return False
-        if result["cursor_ahead"]:
-            self.cursor = int(result["seq"])
         records: List[Dict[str, Any]] = result["events"]
         for start in range(0, len(records), WS_EVENT_BATCH_MAX):
             if not await self.send({"op": WS_OP_EVENTS, "records": records[start:start + WS_EVENT_BATCH_MAX]}):
                 return False
-        # The snapshot saw every event up to ``seq``; filtered-out ones included.
-        self.cursor = max(self.cursor, int(result["seq"]))
         return True
 
-    async def handle(self, frame: Dict[str, Any]) -> bool:
-        """Apply one client frame; ``True`` means the poll must restart."""
+    async def handle(self, frame: Dict[str, Any]) -> None:
+        """Apply one client frame."""
         op = frame.get("op")
         if op == WS_OP_PING:
             await self.send({"op": WS_OP_PONG, "t": frame.get("t")})
-            return False
-        if op == WS_OP_ACK:
+        elif op == WS_OP_ACK:
             if self.client_id:
-                await self.journal.acknowledge_async(self.client_id, int(frame.get("seq") or 0))
-            return False
-        if op == WS_OP_LEASE:
+                self.journal.acknowledge(self.client_id, int(frame.get("seq") or 0))
+        elif op == WS_OP_LEASE:
             self.toggle_lease(str(frame.get("name") or ""), bool(frame.get("held")))
-            return False
-        if op == WS_OP_SUBSCRIBE:
+        elif op == WS_OP_SUBSCRIBE:
             self.topics = _bounded_names(frame.get("topics"), WS_MAX_TOPICS)
-            return True
-        await self.send_error(WS_ERROR_OP_UNKNOWN)
-        return False
+            self.journal.retopic(self.session_id, self.topics)
+        else:
+            await self.send_error(WS_ERROR_OP_UNKNOWN)
 
 
 class WsEventService:
@@ -180,7 +213,7 @@ class WsEventService:
         app: Any,
         *,
         fastapi_module: Any,
-        journal: EventRecordJournal,
+        journal: EventJournal,
         ws_path: str = HTTP_WS_PATH,
     ) -> None:
         self.app = app
@@ -220,33 +253,26 @@ class WsEventService:
 
     async def _serve(self, session: _WsEventSession) -> None:
         receiving = asyncio.ensure_future(session.websocket.receive())
-        # State and any backlog go out at once instead of after the first wait.
-        open_socket = await session.deliver(await session.poll(0.0))
-        polling = session.poll()
+        session.start()
+        ready = session.next_ready()
+        open_socket = True
         while open_socket:
-            done, _pending = await asyncio.wait(
-                {receiving, polling},
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+            done, _pending = await asyncio.wait({receiving, ready}, return_when=asyncio.FIRST_COMPLETED)
             if receiving in done:
                 message = receiving.result()
                 if message.get("type") == _MESSAGE_DISCONNECT:
                     open_socket = False
                     continue
                 frame = _decode_frame(message)
-                restart = False
                 if frame is None:
                     open_socket = await session.send_error(WS_ERROR_FRAME_INVALID)
                 else:
-                    restart = await session.handle(frame)
-                if restart and polling not in done:
-                    polling.cancel()
-                    polling = session.poll()
+                    await session.handle(frame)
                 receiving = asyncio.ensure_future(session.websocket.receive())
-            if polling in done and not polling.cancelled():
-                open_socket = open_socket and await session.deliver(polling.result())
-                polling = session.poll()
-        self._cancel((receiving, polling))
+            if ready in done:
+                open_socket = open_socket and await session.flush()
+                ready = session.next_ready()
+        self._cancel((receiving, ready))
         session.close()
 
     @staticmethod

@@ -173,6 +173,11 @@ def get_third_package_psutil():
     return _lazy_import('psutil', 'import psutil')
 
 
+def get_third_package_pynvml():
+    """Get pynvml (NVIDIA Management Library bindings, lazy load)."""
+    return _lazy_import('pynvml', 'import pynvml')
+
+
 def get_third_package_pydantic():
     """Get pydantic package (lazy load)."""
     return _lazy_import('pydantic', 'import pydantic')
