@@ -648,6 +648,11 @@ def get_third_package_redis():
     return _lazy_import('redis', 'import redis')
 
 
+def get_third_package_orjson():
+    """Get orjson package (lazy load)"""
+    return _lazy_import('orjson', 'import orjson')
+
+
 # Google Gemini API
 def get_third_package_google_genai():
     """Get google.genai package (lazy load)"""

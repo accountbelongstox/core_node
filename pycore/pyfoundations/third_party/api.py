@@ -171,6 +171,7 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_Context,
     get_third_package_okx,
     get_third_package_redis,
+    get_third_package_orjson,
     get_third_package_google_genai,
     get_third_package_openai,
     get_third_package_pygame,
@@ -423,6 +424,7 @@ __all__ = [
     'get_third_package_okx',
     # Redis cache
     'get_third_package_redis',
+    'get_third_package_orjson',
     # Google Gemini API
     'get_third_package_google_genai',
     # OpenAI-compatible API

@@ -227,25 +227,28 @@ class AgentHistoryStoreRepository:
             clauses.append("lang = ?")
             params.append(lang)
         if needle:
-            clauses.append(f"{_CONTAINS_FUNCTION}(text, ?)")
+            clauses.append("instr(lower(text), ?) > 0" if needle.isascii() else f"{_CONTAINS_FUNCTION}(text, ?)")
             params.append(needle)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        total = int(self._connection.execute(
-            f"SELECT COUNT(*) FROM {AGENT_HISTORY_PROMPT_TABLE} {where}", tuple(params),
-        ).fetchone()[0])
+        ordered = [
+            int(row[0])
+            for row in self._connection.execute(
+                f"SELECT rowid FROM {AGENT_HISTORY_PROMPT_TABLE} {where} {_PROMPT_ORDER}", tuple(params),
+            ).fetchall()
+        ]
+        wanted = ordered if limit is None else ordered[int(offset):int(offset) + int(limit)]
         fields = PROMPT_FIELDS if with_text else tuple(field for field in PROMPT_FIELDS if field != "text")
-        window = "" if limit is None else "LIMIT ? OFFSET ?"
-        window_params: Tuple[Any, ...] = () if limit is None else (int(limit), int(offset))
-        rows = self._connection.execute(
-            f"SELECT {', '.join(fields)} FROM {AGENT_HISTORY_PROMPT_TABLE} {where} {_PROMPT_ORDER} {window}",
-            (*params, *window_params),
-        ).fetchall()
-        items = []
-        for row in rows:
-            item = dict(zip(fields, row))
-            item["edited"] = bool(item["edited"])
-            items.append(item)
-        return total, items
+        by_rowid: Dict[int, Dict[str, Any]] = {}
+        for chunk in _chunks(wanted):
+            for row in self._connection.execute(
+                f"SELECT rowid, {', '.join(fields)} FROM {AGENT_HISTORY_PROMPT_TABLE} "
+                f"WHERE rowid IN ({_placeholders(chunk)})",
+                tuple(chunk),
+            ).fetchall():
+                item = dict(zip(fields, row[1:]))
+                item["edited"] = bool(item["edited"])
+                by_rowid[int(row[0])] = item
+        return len(ordered), [by_rowid[rowid] for rowid in wanted if rowid in by_rowid]
 
     def set_prompt_text(self, prompt_id: str, text: str) -> int:
         """Overlay one user edit; returns the new revision (unchanged when no row matched)."""

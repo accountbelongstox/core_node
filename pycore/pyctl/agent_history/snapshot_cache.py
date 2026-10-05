@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-import pycore.pyctl.agent_history.agent_history_txt as txt
+from pycore.pyctl.agent_history.agent_history_index import agent_history_index
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.status_snapshot_cache import VersionedSnapshotCache
 
 
 AGENT_HISTORY_SNAPSHOT_MAX_ENTRIES = 4096
 INDEX_CATALOG_CACHE_KEY = "agent_history.catalog.index"
-PROMPT_CATALOG_CACHE_KEY = "agent_history.catalog.prompts"
 SESSION_EVENTS_CACHE_PREFIX = "agent_history.session_events."
 SESSION_SUMMARY_FIELDS = (
     "id",
@@ -61,18 +60,28 @@ def session_summary(detail: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _build_index_catalog() -> Dict[str, Any]:
-    data = txt.read_index()
+    header = agent_history_index.header()
+    sessions = agent_history_index.sessions()
+    data = {
+        "generated_at": header.get("generated_at") or "",
+        "tools": header.get("tools") or [],
+        "users": header.get("users") or [],
+        "langs": header.get("langs") or [],
+        "counts": header.get("counts") or {},
+        "sessions_count": len(sessions),
+        "sessions": sessions,
+    }
     by_id = {
         session.get("id"): session_summary(session)
-        for session in (data.get("sessions") or [])
+        for session in sessions
         if isinstance(session, dict) and session.get("id")
     }
     return {"data": data, "by_id": by_id}
 
 
 def read_index_catalog() -> Dict[str, Any]:
-    path = txt.store_dir() / "index.txt"
-    revision = file_revision(path)
+    """Session summaries loaded once per committed store revision."""
+    revision = agent_history_index.revision()
 
     def load_catalog() -> Dict[str, Any]:
         snapshot = _build_index_catalog()
@@ -88,43 +97,12 @@ def read_index_catalog() -> Dict[str, Any]:
     )
 
 
-def _build_prompt_catalog() -> Dict[str, Any]:
-    return {"items": txt.read_prompts()}
-
-
-def read_prompt_catalog_snapshot() -> Dict[str, Any]:
-    path = txt.store_dir() / "prompts.txt"
-    revision = file_revision(path)
-
-    def load_catalog() -> Dict[str, Any]:
-        snapshot = _build_prompt_catalog()
-        snapshot["revision"] = revision
-        return snapshot
-
-    return agent_history_snapshot_cache.get(
-        PROMPT_CATALOG_CACHE_KEY,
-        load_catalog,
-        ttl_seconds=float("inf"),
-        version=revision,
-        stale_while_refresh=False,
-    )
-
-
-def read_prompt_catalog() -> List[Dict[str, Any]]:
-    snapshot = read_prompt_catalog_snapshot()
-    items = snapshot.get("items") or []
-    return items if isinstance(items, list) else []
-
-
 __all__ = [
     "AGENT_HISTORY_SNAPSHOT_MAX_ENTRIES",
     "INDEX_CATALOG_CACHE_KEY",
-    "PROMPT_CATALOG_CACHE_KEY",
     "SESSION_EVENTS_CACHE_PREFIX",
     "file_revision",
     "read_index_catalog",
-    "read_prompt_catalog",
-    "read_prompt_catalog_snapshot",
     "session_summary",
     "agent_history_snapshot_cache",
 ]

@@ -12,8 +12,8 @@ import hashlib
 import os
 from typing import Any, Dict, List
 
-import pycore.pyctl.agent_history.agent_history_txt as txt
 import pycore.pyctl.agent_history.root_spool as root_spool
+from pycore.pyctl.agent_history.agent_history_index import agent_history_index
 from pycore.pyctl.agent_history.agent_history_records import source_id
 from pycore.pyctl.agent_history.sources.source_registry import source_registry
 from pycore.pyfoundations.agent_home_scanner import scan_user_homes
@@ -97,11 +97,9 @@ def tool_descriptors(tool: str, homes: Dict[str, str], spooled: Dict[str, Dict[s
 
 def state_tool_descriptors(tool: str) -> Dict[str, str]:
     """Rebuild one tool's source descriptors from the persisted extract state."""
-    state = txt.read_state()
-    sources = state.get("sources") if isinstance(state.get("sources"), dict) else {}
     return {
         str(path): descriptor_key(info.get("mtime"), info.get("bytes"))
-        for path, info in sources.items()
+        for path, info in agent_history_index.sources().items()
         if isinstance(info, dict) and str(info.get("tool") or "") == tool
     }
 

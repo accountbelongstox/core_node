@@ -4,7 +4,6 @@ with optional multiline ``<<<TEXT`` ... ``TEXT>>>`` bodies."""
 
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List, Optional, Tuple
 
 TEXT_END = "TEXT>>>"
@@ -32,18 +31,6 @@ def escape_value(val: str) -> str:
 
 def unescape_value(val: str) -> str:
     return (val or "").replace("\\n", "\n")
-
-
-def format_kv_lines(data: Dict[str, Any]) -> str:
-    lines = ["# agent-history kv"]
-    for k, v in data.items():
-        if isinstance(v, bool):
-            lines.append(f"{k}={'true' if v else 'false'}")
-        elif isinstance(v, (list, dict)):
-            lines.append(f"{k}={json.dumps(v, ensure_ascii=False)}")
-        else:
-            lines.append(f"{k}={escape_value(str(v))}")
-    return "\n".join(lines) + "\n"
 
 
 def parse_kv_lines(text: str) -> Dict[str, Any]:
@@ -134,7 +121,6 @@ __all__ = [
     "csv_list",
     "escape_value",
     "format_block",
-    "format_kv_lines",
     "parse_blocks",
     "parse_kv_lines",
     "to_bool",

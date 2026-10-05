@@ -200,6 +200,9 @@ class TerminalStateStore:
             numbers,
         )
 
+    def data_version(self) -> int:
+        return int(self._connection.execute("PRAGMA data_version").fetchone()[0])
+
     def _schema_current(self) -> bool:
         stored = self._connection.execute("PRAGMA user_version").fetchone()[0]
         return int(stored) >= TERMINAL_STATE_SCHEMA_VERSION

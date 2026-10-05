@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
 from pycore.database.repositories.agent_history_store_repository import AgentHistoryStoreRepository
-from pycore.pyctl.agent_history.agent_history_records import local_time_text
+from pycore.pyctl.agent_history.agent_history_records import local_time_text, page_window
 from pycore.pyctl.agent_history.root_spool import SPOOL_FILE_MODE
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -29,9 +29,17 @@ META_TXT_IMPORTED = "txt_imported"
 META_GENERATED_AT = "generated_at"
 META_SIGNATURE = "signature"
 META_SCHEMA_REVISION = "extractor_schema_revision"
-META_IS_DEV_MACHINE = "is_dev_machine"
 META_COUNTS = "counts"
 _REVISION_SIGNAL = "pyctl.agent_history.store_revision"
+
+
+def _meta_counts(meta: Dict[str, str]) -> Dict[str, int]:
+    try:
+        counts = json.loads(meta.get(META_COUNTS) or "{}")
+    except ValueError as exc:
+        ColorPrint.yellow(f"[AgentHistory] Store counts meta is not JSON: {exc}")
+        return {}
+    return counts if isinstance(counts, dict) else {}
 
 
 class AgentHistoryIndex:
@@ -66,14 +74,13 @@ class AgentHistoryIndex:
         repository.commit_pass(
             [],
             [session for session in index.get("sessions") or [] if session.get("id")],
-            list(reversed(prompts)),
+            prompts,
             [],
             {str(path): info for path, info in sources.items() if isinstance(info, dict)},
             {
                 META_GENERATED_AT: str(state.get("generated_at") or index.get("generated_at") or ""),
                 META_SIGNATURE: str(state.get("signature") or ""),
                 META_SCHEMA_REVISION: str(state.get("extractor_schema_revision") or ""),
-                META_IS_DEV_MACHINE: str(state.get("is_dev_machine") or ""),
             },
         )
         repository.set_meta(META_TXT_IMPORTED, local_time_text())
@@ -97,17 +104,11 @@ class AgentHistoryIndex:
         """Extract-pass header: signature, schema revision, counts, sources."""
         repository = self._repo()
         meta = repository.meta_all()
-        try:
-            counts = json.loads(meta.get(META_COUNTS) or "{}")
-        except ValueError as exc:
-            ColorPrint.yellow(f"[AgentHistory] Store counts meta is not JSON: {exc}")
-            counts = {}
         return {
             "generated_at": meta.get(META_GENERATED_AT, ""),
             "signature": meta.get(META_SIGNATURE, ""),
             "extractor_schema_revision": meta.get(META_SCHEMA_REVISION, ""),
-            "is_dev_machine": meta.get(META_IS_DEV_MACHINE, ""),
-            "counts": counts if isinstance(counts, dict) else {},
+            "counts": _meta_counts(meta),
             "sources": repository.sources(),
         }
 
@@ -140,15 +141,9 @@ class AgentHistoryIndex:
         """Index header for readers: generated_at, tools, users, langs, counts."""
         repository = self._repo()
         meta = repository.meta_all()
-        try:
-            counts = json.loads(meta.get(META_COUNTS) or "{}")
-        except ValueError as exc:
-            ColorPrint.yellow(f"[AgentHistory] Store counts meta is not JSON: {exc}")
-            counts = {}
         return {
             "generated_at": meta.get(META_GENERATED_AT, ""),
-            "is_dev_machine": meta.get(META_IS_DEV_MACHINE, ""),
-            "counts": counts if isinstance(counts, dict) else {},
+            "counts": _meta_counts(meta),
             **repository.distinct_values(),
         }
 
@@ -170,6 +165,27 @@ class AgentHistoryIndex:
     ) -> Dict[str, Any]:
         total, items = self._repo().prompt_query(tool, user, lang, needle, tools, offset, limit, with_text)
         return {"total": total, "items": items}
+
+    @serialized_method
+    def prompt_id_page(
+        self,
+        tool: Optional[str],
+        user: Optional[str],
+        needle: str,
+        tools: Sequence[str],
+        page: int,
+        page_size: int,
+        cap: int,
+    ) -> Dict[str, Any]:
+        """One newest-first page of prompt rows without text, plus the page window."""
+        repository = self._repo()
+        total, _rows = repository.prompt_query(tool, user, None, needle, tools, 0, 0, False)
+        window = page_window(total, page, page_size, cap)
+        offset = window.pop("offset")
+        _total, window["items"] = repository.prompt_query(
+            tool, user, None, needle, tools, offset, window.pop("page_size"), False,
+        )
+        return window
 
     @serialized_method
     def set_prompt_text(self, prompt_id: str, text: str) -> None:

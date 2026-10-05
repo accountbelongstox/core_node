@@ -105,6 +105,10 @@ class TerminalBackupStore:
         self._read_cache_bytes = 0
         self._manifest_cache: Dict[str, Tuple[int, int, Dict[str, Any]]] = {}
         self._gc_pending = True
+        self._mutations = 0
+        self._newest_folder: Optional[str] = None
+        self._listing: Optional[Tuple[Tuple[int, int, int], Tuple[Tuple[str, Path, Dict[str, Any]], ...]]] = None
+        self._archive: Optional[Tuple[Tuple[int, int, int], Dict[str, int]]] = None
 
     # ---- folders and manifests -------------------------------------------------
 
@@ -142,9 +146,34 @@ class TerminalBackupStore:
         self._manifest_cache[folder.name] = (stamp[0], stamp[1], manifest)
         return manifest
 
-    def list_manifests(self) -> List[Tuple[str, Path, Dict[str, Any]]]:
-        """Newest first: (folder id, folder, manifest) of every folder that holds a readable manifest."""
+    @staticmethod
+    def _stamp(path: Path) -> int:
+        try:
+            return path.stat().st_mtime_ns
+        except OSError:
+            return 0
+
+    def _touch(self) -> None:
+        self._mutations += 1
+
+    def _revision(self) -> Tuple[int, int, int]:
+        """Changes whenever the archive changes: this process's writes, a folder added or removed (root stamp), the newest folder's manifest rewritten (follow-up passes)."""
+        newest = self._newest_folder
+        return (
+            self._mutations,
+            self._stamp(self.directory),
+            self._stamp(self.directory / newest) if newest is not None else 0,
+        )
+
+    def list_manifests(self) -> Tuple[Tuple[str, Path, Dict[str, Any]], ...]:
+        """Newest first: (folder id, folder, manifest) of every folder that holds a readable manifest; rebuilt only when the archive revision changes."""
+        revision = self._revision()
+        cached = self._listing
+        if cached is not None and cached[0] == revision:
+            return cached[1]
         names = self.folder_names()
+        self._newest_folder = names[0] if names else None
+        revision = self._revision()
         listed = []
         for name in names:
             folder = self.directory / name
@@ -154,7 +183,9 @@ class TerminalBackupStore:
         if len(self._manifest_cache) > len(names) + MANIFEST_CACHE_SLACK:
             alive = set(names)
             self._manifest_cache = {key: value for key, value in self._manifest_cache.items() if key in alive}
-        return listed
+        listing = tuple(listed)
+        self._listing = (revision, listing)
+        return listing
 
     @staticmethod
     def manifest_entries(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -355,8 +386,10 @@ class TerminalBackupStore:
                 atomic_write_json(folder / MANIFEST_NAME, manifest)
             except OSError as exc:
                 self._gc_pending = True
+                self._touch()
                 ColorPrint.yellow(f"[{LABEL}] write failed folder={folder}: {exc}")
                 return {"success": False, "error_code": ERROR_BACKUP_WRITE_FAILED}
+            self._touch()
             self.prune()
             return {
                 "success": True,
@@ -522,7 +555,15 @@ class TerminalBackupStore:
             return
 
     def archive_stats(self) -> Dict[str, int]:
-        """Physical blob usage of the archive: {blob_count, blob_bytes}."""
+        """Physical blob usage of the archive: {blob_count, blob_bytes}; recomputed only when the archive revision changes."""
+        revision = self._revision()
+        cached = self._archive
+        if cached is None or cached[0] != revision:
+            cached = (revision, self._scan_archive())
+            self._archive = cached
+        return dict(cached[1])
+
+    def _scan_archive(self) -> Dict[str, int]:
         count = 0
         total = 0
         try:
@@ -549,16 +590,19 @@ class TerminalBackupStore:
         if manifest is not None:
             removed = sum(1 for entry in self.manifest_entries(manifest) if "sha256" in entry)
         manifest_path = folder / MANIFEST_NAME
-        if manifest_path.is_symlink() or manifest_path.exists():
-            manifest_path.unlink()
-        self._manifest_cache.pop(folder.name, None)
-        for entry in os.scandir(folder):
-            if entry.is_dir(follow_symlinks=False):
-                raise OSError(f"unexpected directory {entry.path}")
-            os.unlink(entry.path)
-            if TERMINAL_FILE_PATTERN.fullmatch(entry.name) and manifest is None:
-                removed += 1
-        folder.rmdir()
+        try:
+            if manifest_path.is_symlink() or manifest_path.exists():
+                manifest_path.unlink()
+            self._manifest_cache.pop(folder.name, None)
+            for entry in os.scandir(folder):
+                if entry.is_dir(follow_symlinks=False):
+                    raise OSError(f"unexpected directory {entry.path}")
+                os.unlink(entry.path)
+                if TERMINAL_FILE_PATTERN.fullmatch(entry.name) and manifest is None:
+                    removed += 1
+            folder.rmdir()
+        finally:
+            self._touch()
         return removed
 
     def remove_folder(self, folder_id: Any) -> Dict[str, Any]:
@@ -597,8 +641,10 @@ class TerminalBackupStore:
                 updated.update(self._summary(remaining))
                 atomic_write_json(folder / MANIFEST_NAME, updated)
             except OSError as exc:
+                self._touch()
                 ColorPrint.yellow(f"[{LABEL}] delete failed folder={folder} terminal={number}: {exc}")
                 return {"success": False, "error_code": ERROR_BACKUP_DELETE_FAILED, "deleted": 0}
+            self._touch()
             self.collect_garbage()
             return {"success": True, "deleted": 1, "folder_removed": False}
 
@@ -644,6 +690,7 @@ class TerminalBackupStore:
             for number, directory in directories:
                 failed = self._collect_terminal(number, directory, referenced.get(number, set())) or failed
             self._gc_pending = failed
+            self._touch()
 
     def _collect_terminal(self, number: int, directory: Path, referenced: Set[str]) -> bool:
         index = self._load_index(number)

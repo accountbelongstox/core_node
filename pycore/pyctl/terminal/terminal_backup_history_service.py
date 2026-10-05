@@ -61,7 +61,7 @@ class TerminalBackupHistoryService:
         self._find_editor = find_editor
         self._sleep = sleep
 
-    def _folders(self) -> List[Tuple[str, Path, Dict[str, Any]]]:
+    def _folders(self) -> Sequence[Tuple[str, Path, Dict[str, Any]]]:
         return self._store.list_manifests()
 
     def _item(self, name: str, manifest: Dict[str, Any]) -> Dict[str, Any]:
@@ -147,19 +147,25 @@ class TerminalBackupHistoryService:
         page_size = _bounded(limit, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
         start = _bounded(offset, 0, MAX_LIST_OFFSET)
         budget: Dict[str, Any] = {"files": SEARCH_MAX_FILES, "bytes": SEARCH_MAX_TOTAL_BYTES, "exhausted": 0, "seen": {}}
-        items: List[Dict[str, Any]] = []
+        selected: List[Tuple[str, Dict[str, Any], Optional[List[Dict[str, Any]]]]] = []
         for name, folder, manifest in self._folders():
+            if not needle:
+                selected.append((name, manifest, None))
+                continue
+            matches = self._search_item(folder, manifest, needle, budget)
+            created_ms = self._store.created_at_ms(name, manifest)
+            if matches or needle in self._date_haystack(name, manifest, created_ms):
+                selected.append((name, manifest, matches))
+        items: List[Dict[str, Any]] = []
+        for name, manifest, matches in selected[start : start + page_size]:
             item = self._item(name, manifest)
-            if needle:
-                matches = self._search_item(folder, manifest, needle, budget)
-                if not matches and needle not in self._date_haystack(name, manifest, item["created_at"]):
-                    continue
+            if matches is not None:
                 item["matches"] = matches
             items.append(item)
         result: Dict[str, Any] = {
             "success": True,
-            "total": len(items),
-            "items": items[start : start + page_size],
+            "total": len(selected),
+            "items": items,
             "archive": self._store.archive_stats(),
         }
         if budget["exhausted"]:

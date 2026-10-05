@@ -69,6 +69,7 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "httpx": "httpx",
     "okx": "python-okx",
     "redis": "redis",
+    "orjson": "orjson",
     "google.genai": "google-genai",
     "openai": "openai",
     "pygame": "pygame",

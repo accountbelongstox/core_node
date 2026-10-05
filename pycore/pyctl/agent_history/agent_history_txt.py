@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-Agent history TXT store: paths and read/write of every store file
-(format primitives live in ``txt_format``).
+Agent history TXT store: paths and read/write of the per-session transcript
+and prompt-edit files (format primitives live in ``txt_format``).
 
 Human-readable, block-delimited text files under ``<cache>/pycore/.ai_state/agent_history/``.
-Sessions and prompts are flat txt that both humans and the parser can read
-(prompt side records live in ``prompt_records``).
+The session index, flat prompt list and extract state live in the SQLite
+store (``agent_history_index``); the ``read_legacy_*`` readers exist only for
+its one-shot import of the pre-SQLite files.
 
 Files:
-  state.txt           extraction signature + per-source mtimes (key=value lines)
-  index.txt           session summaries (@session blocks)
-  prompts.txt         flat newest-first prompt list (@prompt blocks)
   sessions/<id>.txt   full transcript (@prompt + @turn blocks)
   prompt_edits.txt    user edit overlay (key=value per line: id=...|text=...)
+  state.txt, index.txt, prompts.txt   pre-SQLite files (imported once)
 """
 
 from __future__ import annotations
@@ -23,13 +22,11 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pycore.pyctl.agent_history.agent_history_records import local_time_text
 from pycore.pyctl.agent_history.root_spool import SPOOL_DIR_MODE, SPOOL_FILE_MODE
 from pycore.pyctl.agent_history.txt_format import (
     csv_list,
     escape_value,
     format_block,
-    format_kv_lines,
     parse_blocks,
     parse_kv_lines,
     to_bool,
@@ -123,7 +120,7 @@ def _json_field(data: Dict[str, Any], key: str, default: Any) -> Any:
         return default
 
 
-def read_state() -> Dict[str, Any]:
+def read_legacy_state() -> Dict[str, Any]:
     raw = _read_text(store_dir() / "state.txt")
     if raw is None:
         return {}
@@ -133,14 +130,7 @@ def read_state() -> Dict[str, Any]:
     return data
 
 
-def write_state(data: Dict[str, Any]) -> None:
-    payload = dict(data)
-    sources = payload.pop("sources", {})
-    payload["sources_json"] = json.dumps(sources, ensure_ascii=False)
-    _atomic_write(store_dir() / "state.txt", format_kv_lines(payload))
-
-
-def read_index() -> Dict[str, Any]:
+def read_legacy_index() -> Dict[str, Any]:
     raw = _read_text(store_dir() / "index.txt")
     if raw is None:
         return {}
@@ -164,42 +154,7 @@ def read_index() -> Dict[str, Any]:
     return meta
 
 
-def write_index(data: Dict[str, Any]) -> None:
-    tools = ",".join(data.get("tools") or [])
-    users = ",".join(data.get("users") or [])
-    langs = ",".join(data.get("langs") or [])
-    header = format_kv_lines({
-        "generated_at": data.get("generated_at") or local_time_text(),
-        "is_dev_machine": bool(data.get("is_dev_machine")),
-        "tools": tools,
-        "users": users,
-        "langs": langs,
-        "sessions_count": len(data.get("sessions") or []),
-    }).rstrip() + "\n\n"
-    parts = [header]
-    for s in data.get("sessions") or []:
-        parts.append(format_block("@session", {
-            "id": s.get("id", ""),
-            "raw_id": s.get("raw_id", ""),
-            "tool": s.get("tool", ""),
-            "os_user": s.get("os_user", ""),
-            "project": s.get("project", ""),
-            "title": s.get("title", ""),
-            "started_ts": s.get("started_ts", 0),
-            "started_at": s.get("started_at", ""),
-            "ended_at": s.get("ended_at", ""),
-            "ended_ts": s.get("ended_ts", 0),
-            "prompt_count": s.get("prompt_count", 0),
-            "message_count": s.get("message_count", 0),
-            "has_subagent": bool(s.get("has_subagent")),
-            "models": ",".join(s.get("models") or []),
-            "session_file": s.get("file") or f"{safe_id(s.get('id', ''))}.txt",
-            "bytes": s.get("bytes", 0),
-        }))
-    _atomic_write(store_dir() / "index.txt", "".join(parts))
-
-
-def read_prompts() -> List[Dict[str, Any]]:
+def read_legacy_prompts() -> List[Dict[str, Any]]:
     raw = _read_text(store_dir() / "prompts.txt")
     if raw is None:
         return []
@@ -211,24 +166,6 @@ def read_prompts() -> List[Dict[str, Any]]:
         fields["edited"] = to_bool(fields.get("edited"))
         out.append(fields)
     return [p for p in out if (p.get("text") or "").strip()]
-
-
-def write_prompts(prompts: List[Dict[str, Any]]) -> None:
-    parts = ["# agent-history prompts\n\n"]
-    for p in prompts:
-        parts.append(format_block("@prompt", {
-            "id": p.get("id", ""),
-            "tool": p.get("tool", ""),
-            "os_user": p.get("os_user", ""),
-            "project": p.get("project", ""),
-            "session_id": p.get("session_id", ""),
-            "ts": p.get("ts", 0),
-            "time": p.get("time", ""),
-            "lang": p.get("lang", ""),
-            "edited": bool(p.get("edited")),
-            "text": p.get("text") or "",
-        }, body_key="text"))
-    _atomic_write(store_dir() / "prompts.txt", "".join(parts))
 
 
 def read_session(session_id: str) -> Optional[Dict[str, Any]]:
