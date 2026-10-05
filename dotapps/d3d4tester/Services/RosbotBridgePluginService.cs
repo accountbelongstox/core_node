@@ -42,8 +42,57 @@ public sealed record RosbotBridgeState(
     [property: JsonPropertyName("last_event")] string LastEvent,
     [property: JsonPropertyName("level_area_history")] IReadOnlyList<RosbotBridgeAreaVisit>? LevelAreaHistory)
 {
+    [JsonPropertyName("repair_needed")] public bool RepairNeeded { get; init; }
+    [JsonPropertyName("monsters_nearby")] public int MonstersNearby { get; init; }
+    [JsonPropertyName("elites_nearby")] public int ElitesNearby { get; init; }
+    [JsonPropertyName("picked_count")] public int PickedCount { get; init; }
+    [JsonPropertyName("item_acd_types")] public string ItemAcdTypes { get; init; } = "";
+    [JsonPropertyName("pickup_filter_auto")] public bool PickupFilterAuto { get; init; }
+    [JsonPropertyName("pickup_filter")] public string PickupFilter { get; init; } = "";
+    [JsonPropertyName("ground_items")] public IReadOnlyList<RosbotBridgeEntity> GroundItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
+    [JsonPropertyName("npcs")] public IReadOnlyList<RosbotBridgeEntity> Npcs { get; init; } = Array.Empty<RosbotBridgeEntity>();
+    [JsonPropertyName("carried_items")] public IReadOnlyList<RosbotBridgeEntity> CarriedItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
+    [JsonPropertyName("pickups")] public IReadOnlyList<RosbotBridgePickup> Pickups { get; init; } = Array.Empty<RosbotBridgePickup>();
+    [JsonPropertyName("last_command")] public RosbotBridgeCommandResult? LastCommand { get; init; }
+
     public bool IsStale(DateTime nowUtc) => (nowUtc - UpdatedUtc).TotalSeconds > RosbotPluginConstants.BridgeStaleSec;
 }
+
+/// <summary>Ground item, NPC or carried item from the plugin (Id = ROSBOT RActorId; carried items have only AcdId).</summary>
+public sealed record RosbotBridgeEntity(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("acd_id")] int AcdId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("internal_name")] string InternalName,
+    [property: JsonPropertyName("sno")] int Sno,
+    [property: JsonPropertyName("distance")] double Distance,
+    [property: JsonPropertyName("interact_distance")] double InteractDistance,
+    [property: JsonPropertyName("quality")] int Quality,
+    [property: JsonPropertyName("ancient_rank")] int AncientRank,
+    [property: JsonPropertyName("stack")] int Stack,
+    [property: JsonPropertyName("equipped")] bool Equipped,
+    [property: JsonPropertyName("durability_cur")] int DurabilityCur,
+    [property: JsonPropertyName("durability_max")] int DurabilityMax,
+    [property: JsonPropertyName("elite")] bool Elite,
+    [property: JsonPropertyName("boss")] bool Boss,
+    [property: JsonPropertyName("filter_match")] bool FilterMatch);
+
+/// <summary>Live pickup (item vanished next to the hero) or stash event.</summary>
+public sealed record RosbotBridgePickup(
+    [property: JsonPropertyName("utc")] DateTime Utc,
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("internal_name")] string InternalName,
+    [property: JsonPropertyName("sno")] int Sno,
+    [property: JsonPropertyName("quality")] int Quality,
+    [property: JsonPropertyName("ancient_rank")] int AncientRank);
+
+public sealed record RosbotBridgeCommandResult(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("action")] string Action,
+    [property: JsonPropertyName("ok")] bool Ok,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("utc")] DateTime Utc);
 
 public enum RosbotBridgeInstallResult { Installed, UpToDate, NoRosbot, NoBundle, Locked, Failed }
 
@@ -160,6 +209,77 @@ public static class RosbotBridgePluginService
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Queue a command for the plugin (command.txt, consumed on ROSBOT's next pulse; the result appears as last_command in
+    /// state.json). Returns the command id, or null when ROSBOT's plugin folder is missing. Logged in the app log.
+    /// </summary>
+    public static long? SendCommand(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null)
+    {
+        if (InstalledDir is not { } dir || !Directory.Exists(dir)) return null;
+        long id = DateTime.UtcNow.Ticks;
+        var lines = new List<string> { $"{CommandKeyId}={id}", $"{CommandKeyAction}={action}" };
+        if (!string.IsNullOrWhiteSpace(target)) lines.Add($"{CommandKeyTarget}={target.Trim()}");
+        if (mode != null) lines.Add($"{CommandKeyMode}={mode.Value}");
+        if (click != null) lines.Add($"{CommandKeyClick}={click.Value}");
+        if (!string.IsNullOrWhiteSpace(uiId)) lines.Add($"{CommandKeyUiId}={uiId.Trim()}");
+        if (!WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeCommandFileName), lines)) return null;
+        ColorPrinter.Blue($"{LogTag} command {id} {action} target='{target}' mode={mode} click={click} ui={uiId}");
+        return id;
+    }
+
+    /// <summary>Write the pickup filter for the plugin (pickup_filter.txt: auto line + one name fragment per line).</summary>
+    public static bool SavePickupFilter(bool autoAtRiftEnd, IEnumerable<string> patterns)
+    {
+        if (InstalledDir is not { } dir || !Directory.Exists(dir)) return false;
+        var lines = new List<string> { $"{FilterKeyAuto}={autoAtRiftEnd}" };
+        lines.AddRange(patterns.Select(p => p.Trim()).Where(p => p.Length > 0 && !p.Contains('=')));
+        bool ok = WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeFilterFileName), lines);
+        ColorPrinter.Blue($"{LogTag} pickup filter saved: auto={autoAtRiftEnd} patterns={string.Join(", ", lines.Skip(1))}");
+        return ok;
+    }
+
+    /// <summary>Pickup filter currently stored in ROSBOT's plugin folder: (auto, patterns).</summary>
+    public static (bool Auto, IReadOnlyList<string> Patterns) LoadPickupFilter()
+    {
+        string? path = InstalledDir is { } d ? Path.Combine(d, RosbotPluginConstants.BridgeFilterFileName) : null;
+        if (path == null || !File.Exists(path)) return (false, Array.Empty<string>());
+        try
+        {
+            var lines = File.ReadAllLines(path);
+            bool auto = lines.Any(l => l.Trim().Equals($"{FilterKeyAuto}={true}", StringComparison.OrdinalIgnoreCase));
+            return (auto, lines.Where(l => !l.Contains('=') && l.Trim().Length > 0).Select(l => l.Trim()).ToList());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (false, Array.Empty<string>());
+        }
+    }
+
+    private const string CommandKeyId = "id";
+    private const string CommandKeyAction = "action";
+    private const string CommandKeyTarget = "target";
+    private const string CommandKeyMode = "mode";
+    private const string CommandKeyClick = "click";
+    private const string CommandKeyUiId = "ui_id";
+    private const string FilterKeyAuto = "auto";
+    private const string TempSuffix = ".tmp";
+
+    private static bool WriteAtomic(string path, IEnumerable<string> lines)
+    {
+        try
+        {
+            string tmp = path + TempSuffix;
+            File.WriteAllLines(tmp, lines);
+            File.Move(tmp, path, true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ColorPrinter.Yellow($"{LogTag} write failed {path}: {ex.Message}");
+            return false;
         }
     }
 
