@@ -1,0 +1,103 @@
+<Window x:Class="DotApps.d3d4tester.Windows.TriggerEditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="520" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Style="{StaticResource DialogWindowStyle}">
+  <!-- Trigger editor (RBAssist trigger window): event + up to two arguments, action + up to two arguments, enabled / log -->
+  <Grid Margin="20,4,20,20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock x:Name="TxtHeader" Grid.Row="0" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,12"/>
+
+    <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+      <StackPanel>
+        <Grid Margin="0,0,0,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="140"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="LblEvent" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0"/>
+          <ComboBox x:Name="ComboEvent" Grid.Column="1"/>
+        </Grid>
+        <TextBlock x:Name="TxtEventDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,4,0,8"/>
+        <Grid x:Name="RowE1" Margin="0,0,0,8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="140"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="LblE1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0"/>
+          <TextBox x:Name="TxtE1" Grid.Column="1"/>
+          <ComboBox x:Name="CmbE1" Grid.Column="1"/>
+          <Button x:Name="BtnE1" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="8,0,0,0"/>
+        </Grid>
+        <Grid x:Name="RowE2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="140"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="LblE2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0"/>
+          <TextBox x:Name="TxtE2" Grid.Column="1"/>
+          <ComboBox x:Name="CmbE2" Grid.Column="1"/>
+          <Button x:Name="BtnE2" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="8,0,0,0"/>
+        </Grid>
+        <TextBlock x:Name="TxtEventNoOptions" Style="{StaticResource MutedTextStyle}"/>
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+      <StackPanel>
+        <Grid Margin="0,0,0,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="140"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="LblAction" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0"/>
+          <ComboBox x:Name="ComboAction" Grid.Column="1"/>
+        </Grid>
+        <TextBlock x:Name="TxtActionDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,4,0,8"/>
+        <Grid x:Name="RowA1" Margin="0,0,0,8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="140"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="LblA1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0"/>
+          <TextBox x:Name="TxtA1" Grid.Column="1"/>
+          <ComboBox x:Name="CmbA1" Grid.Column="1"/>
+          <Button x:Name="BtnA1" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="8,0,0,0"/>
+        </Grid>
+        <Grid x:Name="RowA2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="140"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="LblA2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,12,0"/>
+          <TextBox x:Name="TxtA2" Grid.Column="1"/>
+          <ComboBox x:Name="CmbA2" Grid.Column="1"/>
+          <Button x:Name="BtnA2" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="8,0,0,0"/>
+        </Grid>
+        <TextBlock x:Name="TxtActionNoOptions" Style="{StaticResource MutedTextStyle}"/>
+      </StackPanel>
+    </Border>
+
+    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,16">
+      <CheckBox x:Name="ChkEnabled" Margin="0,0,16,0"/>
+      <CheckBox x:Name="ChkLog"/>
+    </StackPanel>
+
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button x:Name="BtnSave" MinWidth="96" Margin="0,0,8,0" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Click="BtnSave_Click"/>
+      <Button x:Name="BtnCancel" MinWidth="96" IsCancel="True" Style="{StaticResource SecondaryButtonStyle}"/>
+    </StackPanel>
+  </Grid>
+</Window>
