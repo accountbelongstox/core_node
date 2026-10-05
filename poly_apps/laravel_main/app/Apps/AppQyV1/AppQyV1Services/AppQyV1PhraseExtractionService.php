@@ -121,7 +121,7 @@ final class AppQyV1PhraseExtractionService
             [
                 'max_tokens' => (int) $this->setting('max_output_tokens'),
                 'temperature' => (float) $this->setting('temperature'),
-            ]
+            ] + (array) $this->setting('request_options')
         );
         if (!empty($result['success'])) {
             return $this->store($language, $batch, (string) ($result['text'] ?? ''), (string) ($result['model'] ?? ''));

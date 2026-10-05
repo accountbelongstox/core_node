@@ -22,6 +22,7 @@ export const zhLocaleC: Record<string, string> = {
     'orchCompose.history.entry': '第 {segment} 段 · {time}',
     'orchCompose.history.remove': '删除',
     'orchCompose.edition.offer': '新资源已就绪：多 {clips} 个片段，时长 +{time}',
+    'orchCompose.edition.offerReplan': '编排已调整：{clips} 个片段，时长 {time}，是否替换正在播放的版本？',
     'orchCompose.edition.replace': '替换',
     'orchCompose.edition.later': '稍后',
     'orchCompose.openPlayer': '播放页',

@@ -116,6 +116,51 @@ export interface OrchComposeDeps {
     cursors?: Record<string, OrchStageCursor>;
     stages?: Record<string, OrchStageProgress>;
   } & Partial<Pick<OrchComposeSession, 'plan' | 'clips' | 'timelines' | 'wordStates' | 'phrasesBySentence'>>;
+  /** Clips another run of the task still fetches (see `resolveOrchClips`). */
+  owned?: (key: string) => boolean;
+  /** The download set, when it can shrink while this run goes on (see `resolveOrchClips`). */
+  wanted?: (key: string) => boolean;
+  /** Clips another run of the task delivered (see `resolveOrchClips`). */
+  feed?: (deliver: (key: string, clip: OrchResolvedClip) => void) => () => void;
+  /**
+   * No kept state of this plan (an edited plan): the progress of the task's previous plan, carried over by
+   * clip key (`orchCarryProgress`), is shown at once and the stages continue from its cursors.
+   */
+  carry?: (plan: OrchComposePlan) => OrchCarriedProgress | null;
+}
+
+/** Progress of one plan expressed for another plan of the same task. */
+export interface OrchCarriedProgress {
+  table: OrchClipTable;
+  cursors: Record<string, OrchStageCursor>;
+}
+
+/**
+ * The progress of `from` (a plan, its clip table and stage cursors) for `plan`: each clip keeps its state by
+ * key (in-flight ones restart queued), and a stage cursor covers the longest prefix of `plan` whose clips that
+ * stage had all asked on its endpoint - nothing below it is skipped that was not asked (R10 by key).
+ */
+export function orchCarryProgress(
+  from: { plan: OrchComposePlan; table: OrchClipTable; cursors: Record<string, OrchStageCursor> },
+  plan: OrchComposePlan,
+): OrchCarriedProgress {
+  const keys = plan.resources.map((resource) => resource.key);
+  const table = new OrchClipTable(keys);
+  keys.forEach((key, index) => {
+    const at = from.table.indexOf.get(key);
+    if (at === undefined) return;
+    const entry = from.table.entry(at);
+    table.set(index, entry.state === 'loading' ? { ...entry, state: 'queued', origin: null } : entry);
+  });
+  const fromKeys = from.plan.resources.map((resource) => resource.key);
+  const cursors: Record<string, OrchStageCursor> = {};
+  Object.entries(from.cursors).forEach(([stage, cursor]) => {
+    const asked = new Set(fromKeys.slice(0, cursor.position));
+    let position = 0;
+    while (position < keys.length && asked.has(keys[position])) position += 1;
+    if (position > 0) cursors[stage] = { ...cursor, position };
+  });
+  return { table, cursors };
 }
 
 export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycore: 0, laravel: 0, missing: 0, generating: 0, pending: 0 };
@@ -278,8 +323,10 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   }));
   const keys = plan.resources.map((resource) => resource.key);
   // The kept state of this plan is shown at once (local first); the run then reports its own.
-  const shown = session.table?.size === keys.length ? session.table
+  const kept = session.table?.size === keys.length ? session.table
     : deps.seed?.table ? OrchClipTable.fromSnapshot(keys, deps.seed.table) : null;
+  const carried = kept ? null : deps.carry?.(plan) ?? null;
+  const shown = kept ?? carried?.table ?? null;
   publish({
     phase: 'resolve',
     plan,
@@ -326,7 +373,10 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     meaningOf: (resource) => (resource.kind === 'word'
       ? inputs.wordStates.get(resource.text)?.meaning ?? ''
       : resource.kind === 'phrase' ? phraseMeanings.get(resource.contentId) ?? '' : ''),
-    cursors: new OrchCursorBook(deps.seed?.cursors),
+    cursors: new OrchCursorBook(deps.seed?.cursors ?? carried?.cursors),
+    owned: deps.owned,
+    wanted: deps.wanted,
+    feed: deps.feed,
     // The resolver reports once per clip (tens of thousands of times): a report only
     // keeps the live state, published at most once per PROGRESS_PUBLISH_MS.
     onProgress: (progress) => {

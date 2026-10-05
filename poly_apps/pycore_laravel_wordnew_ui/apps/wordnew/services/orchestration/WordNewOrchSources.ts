@@ -279,6 +279,13 @@ function checkpointWriter<T>(write: (value: T) => Promise<void>): { push: (value
 
 class WordNewOrchSourcesService {
   private readonly keep = isNativeAppShell();
+  /** The last complete inputs of each task in memory: a re-plan (an edit) reads no file and asks no API. */
+  private readonly memory = new Map<string, { sourceKey: string; inputs: OrchComposeInputs }>();
+
+  private remember(taskId: string, sourceKey: string, inputs: OrchComposeInputs): OrchComposeInputs {
+    this.memory.set(taskId, { sourceKey, inputs });
+    return inputs;
+  }
 
   /**
    * Local-first (native): Laravel serves the initial load; a complete kept copy
@@ -286,8 +293,9 @@ class WordNewOrchSourcesService {
    * checkpointed - sentences once fetched, word states after every batch - so
    * an interrupted load (app closed, page left, network lost) continues where
    * it stopped. An edit of the word group or read state keeps the kept
-   * sentences of the same book / prompt and reloads only the word states.
-   * `force` reloads from Laravel (re-resolve). `report` gets the load progress.
+   * sentences of the same book / prompt and reloads only the word states. The
+   * last complete inputs stay in memory, so re-planning the same inputs is
+   * immediate. `force` reloads from Laravel (re-resolve). `report` gets the load progress.
    */
   async load(
     task: OrchComposeTask,
@@ -300,11 +308,15 @@ class WordNewOrchSourcesService {
       Object.assign(progress, patch);
       report({ ...progress });
     };
-    const kept = this.keep ? await inputStore(task.id).load() : null;
+    const remembered = options.force ? undefined : this.memory.get(task.id);
+    if (remembered?.sourceKey === sourceKey) return remembered.inputs;
+    const kept: StoredInputs | null = remembered
+      ? { sourceKey: remembered.sourceKey, sentences: remembered.inputs.sentences, wordStates: [...remembered.inputs.wordStates.values()], complete: true }
+      : this.keep ? await inputStore(task.id).load() : null;
     const keptMatch = !options.force && kept !== null && kept.sourceKey === sourceKey && kept.sentences.length > 0;
     // A copy written before checkpoints existed has no `complete` flag: it is complete.
     if (keptMatch && kept.complete !== false) {
-      return { sentences: kept.sentences, wordStates: new Map(kept.wordStates.map((state) => [state.word, state])), fresh: true };
+      return this.remember(task.id, sourceKey, { sentences: kept.sentences, wordStates: new Map(kept.wordStates.map((state) => [state.word, state])), fresh: true });
     }
     // Sentences are kept once fetched (`complete: false` marks only the word states as unfinished).
     const keptSentences = keptMatch
@@ -331,7 +343,7 @@ class WordNewOrchSourcesService {
         await stateStore(task.id).clear();
       }
       // The API that just answered the load (requests go to the current endpoint).
-      return { sentences, wordStates: states, fresh: true, laravelUrl: wfNewEndpoints.getCurrentBaseUrl() };
+      return this.remember(task.id, sourceKey, { sentences, wordStates: states, fresh: true, laravelUrl: wfNewEndpoints.getCurrentBaseUrl() });
     }
     // Offline / failed: what is kept (an incomplete load's states included) is used as stale.
     const stored = this.keep ? await inputStore(task.id).load() : null;
@@ -354,10 +366,12 @@ class WordNewOrchSourcesService {
   }
 
   async clear(): Promise<void> {
+    this.memory.clear();
     if (this.keep) await capFs.rmdir(INPUT_DIR, Directory.Data);
   }
 
   async forget(taskId: string): Promise<void> {
+    this.memory.delete(taskId);
     if (!this.keep) return;
     await inputStore(taskId).clear();
     await stateStore(taskId).clear();

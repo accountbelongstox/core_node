@@ -22,6 +22,7 @@ export const koLocaleC: Record<string, string> = {
     'orchCompose.history.entry': '세그먼트 {segment} · {time}',
     'orchCompose.history.remove': '삭제',
     'orchCompose.edition.offer': '새 리소스가 준비되었습니다: 클립 {clips}개 증가, 길이 {time} 증가',
+    'orchCompose.edition.offerReplan': '편성이 변경되었습니다: 클립 {clips}개, 길이 {time}. 재생 중인 버전을 교체할까요?',
     'orchCompose.edition.replace': '교체',
     'orchCompose.edition.later': '나중에',
     'orchCompose.openPlayer': '플레이어',
