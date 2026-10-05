@@ -1,6 +1,7 @@
 /**
  * PcNetworkRouterPage — status and control of the pycore machine's network router (NAT gateway):
- * service state, configuration, active links, ports, DHCP clients, start/stop/restart, detailed status and logs.
+ * service state, configuration, active links, ports, per relay port scopes (fair share, IP bindings), DHCP clients,
+ * start/stop/restart, detailed status and logs.
  * Everything is read from pycore (ui/network_router/*); the shell CLI stays the only owner of the gateway logic.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,6 +20,8 @@ const MS_PER_SECOND = 1_000;
 const SYSTEM_WAN_NONE = 'none';
 const MODE_PAIRS = 'pairs';
 const DHCP_OFF = 'no';
+const SETTING_YES = 'yes';
+const UNSET_NUMBER = '0';
 const RUNNING_STATE = 'running';
 const ABSENT_STATE = 'absent';
 
@@ -128,6 +131,65 @@ const LinksSection: React.FC<{ status: NetworkRouterStatus }> = ({ status }) => 
   );
 };
 
+const LanScopesSection: React.FC<{ status: NetworkRouterStatus }> = ({ status }) => {
+  const { t } = useTranslation('pc');
+  const scopes = status.lan_scopes ?? [];
+  if (scopes.length === 0) return null;
+  const onOff = (value: string) => (value === SETTING_YES ? t('networkRouter.overview.on') : t('networkRouter.overview.off'));
+  const rate = (value: string) => (value === UNSET_NUMBER ? t('networkRouter.scopes.unshaped') : t('networkRouter.scopes.mbit', { value }));
+  return (
+    <section className="pc-glass p-4 space-y-3">
+      <div>
+        <h2 className="text-sm font-semibold">{t('networkRouter.scopes.title')}</h2>
+        <p className="text-[11px] text-slate-500">{t('networkRouter.scopes.hint')}</p>
+      </div>
+      <ul className="space-y-2">
+        {scopes.map((scope) => (
+          <li key={scope.scope} className="rounded-xl bg-slate-500/5 p-3 space-y-2 text-sm">
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <Field label={scope.scope}><span className="font-mono">{scope.port}</span></Field>
+              <Field label={t('networkRouter.scopes.fairShare')}>{onOff(scope.settings.FAIR_SHARE)}</Field>
+              <Field label={t('networkRouter.scopes.bandwidthDown')}>{rate(scope.settings.BANDWIDTH_DOWN)}</Field>
+              <Field label={t('networkRouter.scopes.bandwidthUp')}>{rate(scope.settings.BANDWIDTH_UP)}</Field>
+              <Field label={t('networkRouter.scopes.connLimit')}>
+                {scope.settings.HOST_CONN_LIMIT === UNSET_NUMBER ? t('networkRouter.overview.off') : scope.settings.HOST_CONN_LIMIT}
+              </Field>
+              <Field label={t('networkRouter.scopes.autoBind')}>{onOff(scope.settings.AUTO_BIND)}</Field>
+            </div>
+            {scope.bindings.length === 0 && <p className="text-xs text-slate-500">{t('networkRouter.scopes.noBindings')}</p>}
+            {scope.bindings.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-slate-500">
+                      <th className="py-1 pr-3">{t('networkRouter.leases.ip')}</th>
+                      <th className="py-1 pr-3">{t('networkRouter.leases.mac')}</th>
+                      <th className="py-1 pr-3">{t('networkRouter.leases.host')}</th>
+                      <th className="py-1 pr-3">{t('networkRouter.scopes.source')}</th>
+                      <th className="py-1">{t('networkRouter.scopes.boundAt')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-500/10">
+                    {scope.bindings.map((binding) => (
+                      <tr key={binding.mac}>
+                        <td className="py-1.5 pr-3 font-mono">{binding.ip}</td>
+                        <td className="py-1.5 pr-3 font-mono">{binding.mac}</td>
+                        <td className="py-1.5 pr-3">{binding.host}</td>
+                        <td className="py-1.5 pr-3">{t(`networkRouter.scopes.${binding.source}`)}</td>
+                        <td className="py-1.5">{formatTimestamp(Number(binding.bound_at) * MS_PER_SECOND)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
 const InterfacesSection: React.FC<{ status: NetworkRouterStatus }> = ({ status }) => {
   const { t } = useTranslation('pc');
   if (status.interfaces.length === 0) return null;
@@ -171,6 +233,7 @@ const InterfacesSection: React.FC<{ status: NetworkRouterStatus }> = ({ status }
 const LeasesSection: React.FC<{ status: NetworkRouterStatus }> = ({ status }) => {
   const { t } = useTranslation('pc');
   if (status.platform !== 'linux') return null;
+  const boundMacs = new Set((status.lan_scopes ?? []).flatMap((scope) => scope.bindings.map((binding) => binding.mac)));
   return (
     <section className="pc-glass p-4 space-y-3">
       <h2 className="text-sm font-semibold">{t('networkRouter.leases.title')}</h2>
@@ -184,6 +247,7 @@ const LeasesSection: React.FC<{ status: NetworkRouterStatus }> = ({ status }) =>
                 <th className="py-1 pr-3">{t('networkRouter.leases.mac')}</th>
                 <th className="py-1 pr-3">{t('networkRouter.leases.host')}</th>
                 <th className="py-1 pr-3">{t('networkRouter.leases.bridge')}</th>
+                <th className="py-1 pr-3">{t('networkRouter.leases.bound')}</th>
                 <th className="py-1">{t('networkRouter.leases.expires')}</th>
               </tr>
             </thead>
@@ -194,6 +258,7 @@ const LeasesSection: React.FC<{ status: NetworkRouterStatus }> = ({ status }) =>
                   <td className="py-1.5 pr-3 font-mono">{lease.mac}</td>
                   <td className="py-1.5 pr-3">{lease.host}</td>
                   <td className="py-1.5 pr-3 font-mono">{lease.bridge}</td>
+                  <td className="py-1.5 pr-3">{boundMacs.has(lease.mac) ? t('networkRouter.overview.yes') : t('networkRouter.overview.no')}</td>
                   <td className="py-1.5">{formatTimestamp(Number(lease.expires) * MS_PER_SECOND)}</td>
                 </tr>
               ))}
@@ -407,6 +472,7 @@ const PcNetworkRouterPage: React.FC = () => {
 
           <ConfigSection status={status} />
           {status.platform === 'linux' && <LinksSection status={status} />}
+          <LanScopesSection status={status} />
           <InterfacesSection status={status} />
           <LeasesSection status={status} />
           <LazyText showKey="networkRouter.report.show" hideKey="networkRouter.report.hide" loadingKey="networkRouter.report.loading" load={loadReport} />

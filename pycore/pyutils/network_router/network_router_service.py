@@ -95,6 +95,7 @@ class NetworkRouterService:
             "links": [],
             "interfaces": [],
             "leases": [],
+            "lan_scopes": [],
         }
         if platform == consts.PLATFORM_LINUX:
             links = self._links()
@@ -105,6 +106,7 @@ class NetworkRouterService:
                 interfaces=self._interfaces(links),
                 leases=self._leases(),
             )
+            snapshot["lan_scopes"] = self._lan_scopes(snapshot["config"] or {}, snapshot["interfaces"])
         if include_report and installed and unsupported == "":
             snapshot.update(self._report())
         return snapshot
@@ -159,6 +161,40 @@ class NetworkRouterService:
         if not path.is_file():
             return None
         return _parse_key_values(_read_text(path), consts.CONFIG_KEYS)
+
+    def _lan_map(self, config: Dict[str, str], interfaces: List[Dict[str, Any]]) -> Dict[str, str]:
+        """LAN name -> relay port: LAN_MAP, else LAN<N> = the N-th onboard wired port (as the gateway numbers them)."""
+        value = config.get(consts.CONFIG_LAN_MAP_KEY, "").replace(" ", "")
+        if value and value != consts.CONFIG_AUTO:
+            return dict(
+                entry.split(consts.LAN_MAP_PAIR_SEPARATOR, 1)
+                for entry in value.split(consts.LAN_MAP_SEPARATOR)
+                if entry.startswith(consts.LAN_NAME_PREFIX) and consts.LAN_MAP_PAIR_SEPARATOR in entry
+            )
+        onboard = [port["name"] for port in interfaces if port["kind"] == consts.KIND_ONBOARD and port["media"] == consts.MEDIA_WIRED]
+        return {f"{consts.LAN_NAME_PREFIX}{number}": name for number, name in enumerate(onboard, start=1)}
+
+    def _lan_scopes(self, config: Dict[str, str], interfaces: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Per relay port settings namespace (LAN name, else port name): settings and IP bindings."""
+        lan_map = self._lan_map(config, interfaces)
+        scope_dir = self._config_file().parent / consts.LAN_SCOPE_DIR_NAME
+        names = list(lan_map)
+        if scope_dir.is_dir():
+            names += sorted(path.name for path in scope_dir.iterdir() if path.is_dir() and path.name not in lan_map)
+        scopes: List[Dict[str, Any]] = []
+        for name in names:
+            settings = dict(consts.LAN_SETTING_DEFAULTS)
+            settings_file = scope_dir / name / consts.LAN_SETTINGS_FILE_NAME
+            if settings_file.is_file():
+                settings.update(_parse_key_values(_read_text(settings_file), consts.LAN_SETTING_KEYS))
+            bindings_file = scope_dir / name / consts.LAN_BINDINGS_FILE_NAME
+            bindings = [
+                dict(zip(consts.LAN_BINDING_FIELDS, line.split()))
+                for line in (_read_text(bindings_file).splitlines() if bindings_file.is_file() else [])
+                if line.strip() and not line.startswith(consts.COMMENT_PREFIX) and len(line.split()) >= len(consts.LAN_BINDING_FIELDS)
+            ]
+            scopes.append({"scope": name, "port": lan_map.get(name, name), "settings": settings, "bindings": bindings})
+        return scopes
 
     def _links(self) -> List[Dict[str, Any]]:
         links: List[Dict[str, Any]] = []
