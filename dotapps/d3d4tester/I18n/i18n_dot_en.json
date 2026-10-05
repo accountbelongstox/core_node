@@ -880,7 +880,6 @@
       "not_installed": "not installed",
       "bundled": "bundled",
       "outdated": "differs from the bundled build, click Install to update",
-      "no_data": "No data: plugin not installed, not enabled in ROSBOT, or ROSBOT not running",
       "stale": "Data is stale: ROSBOT stopped or the plugin is disabled",
       "not_in_game": "ROSBOT running, hero not in game",
       "live": "Live",
@@ -909,7 +908,10 @@
       "result_no_rosbot": "No valid ROSBOT folder configured",
       "result_no_bundle": "Plugin file missing next to the app; rebuild the app",
       "result_locked": "ROSBOT is using the plugin; stop ROSBOT, then install",
-      "result_failed": "Plugin install failed, see the log"
+      "result_failed": "Plugin install failed, see the log",
+      "not_installed_hint": "Plugin not installed: click Install / update plugin, or check the ROSBOT folder",
+      "rosbot_stopped": "Plugin installed, ROSBOT not running: data appears once ROSBOT runs",
+      "not_loaded": "ROSBOT is running but the plugin writes no data: enable CoreNode Bridge in ROSBOT's plugin list; restart ROSBOT after installing or updating"
     }
   },
   "skills": {

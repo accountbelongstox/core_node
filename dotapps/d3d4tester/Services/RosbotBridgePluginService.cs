@@ -74,6 +74,19 @@ public static class RosbotBridgePluginService
 
     public static string? StatePath => InstalledDir is { } d ? Path.Combine(d, RosbotPluginConstants.BridgeStateFileName) : null;
 
+    public static bool IsInstalled => InstalledDir is { } d && File.Exists(Path.Combine(d, RosbotPluginConstants.BridgeDllName));
+
+    /// <summary>True while a ROSBOT process runs (it loads plugins at its start).</summary>
+    public static bool IsRosbotRunning
+    {
+        get
+        {
+            var processes = Process.GetProcessesByName(RosbotPluginConstants.RosbotProcessName);
+            foreach (var process in processes) process.Dispose();
+            return processes.Length > 0;
+        }
+    }
+
     public static bool AutoInstall => ConfigBinding.GetValue(ConfigKeys.RosbotBridgePluginAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstallDefault);
 
     /// <summary>Auto-install now and on every ROSBOT path / switch change (call once at startup).</summary>

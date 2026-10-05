@@ -880,7 +880,6 @@
       "not_installed": "未安装",
       "bundled": "程序自带",
       "outdated": "与程序自带版本不同，点安装更新",
-      "no_data": "暂无数据：插件未安装、未在 ROSBOT 中勾选，或 ROSBOT 未运行",
       "stale": "数据已过期：ROSBOT 未运行或插件被停用",
       "not_in_game": "ROSBOT 运行中，角色不在游戏内",
       "live": "实时",
@@ -909,7 +908,10 @@
       "result_no_rosbot": "未配置有效的 ROSBOT 目录",
       "result_no_bundle": "程序目录中没有插件文件，请重新编译程序",
       "result_locked": "插件正被 ROSBOT 使用，请先停止 ROSBOT 再安装",
-      "result_failed": "插件安装失败，详见日志"
+      "result_failed": "插件安装失败，详见日志",
+      "not_installed_hint": "插件未安装：点“安装 / 更新插件”，或检查 ROSBOT 目录",
+      "rosbot_stopped": "插件已安装，ROSBOT 未运行：启动 ROSBOT 后显示数据",
+      "not_loaded": "ROSBOT 正在运行，但插件没有写数据：在 ROSBOT 插件列表勾选 CoreNode Bridge；若刚安装/更新，请重启 ROSBOT"
     }
   },
   "skills": {
