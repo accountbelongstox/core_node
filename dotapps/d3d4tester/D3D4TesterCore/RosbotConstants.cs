@@ -80,6 +80,12 @@ public static class RosbotConstants
     /// <summary>Virtual key F7 (ROSBOT pause/stop hotkey). 1:1 Python key_send VK_F7.</summary>
     public const ushort VkF7 = 0x76;
 
+    /// <summary>Virtual key F6 (ROSBOT pause toggle used around the unstuck move, RBAssist PRESSKEYANDCLICKWINDOWPOS).</summary>
+    public const ushort VkF6 = 0x75;
+
+    /// <summary>Virtual key F9 (ROSBOT hotkey, RBAssist "stop rosbot (F9)").</summary>
+    public const ushort VkF9 = 0x78;
+
     // ---------- Config keys read from Core via RosbotFlowHost (Python providor keys; app ConfigKeys aliases these) ----------
 
     // ---------- UI automation (1:1 Python rosbot_ui_automation + providor.constants.common) ----------

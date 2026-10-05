@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # DOT-REF: dotapps/d3d4tester/D3D4TesterCore/RosbotConstants.cs
-# DOT-REF: dotapps/d3d4tester/Services/SystemKeySend.cs
+# DOT-REF: dotapps/d3d4tester/D3D4TesterCore/RosbotManager.cs
 """
 System key send (e.g. F7). Used by SmartEcho and ROSBOT debug/test.
 """

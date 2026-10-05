@@ -26,8 +26,10 @@ public static class MonitorSettings
 
     public static bool GetBool(string key, bool defaultValue = false) => ConfigBinding.GetValue(key, defaultValue);
 
-    public static int GetInt(string key, int defaultValue) => ConfigBinding.ParseInt(
-        D3D4TesterConfigService.Instance.GetRawText(key)?.Trim().Trim('"'), int.MinValue, int.MaxValue, defaultValue);
+    public static int GetInt(string key, int defaultValue) => ConfigBinding.GetIntValue(key, int.MinValue, int.MaxValue, defaultValue);
+
+    /// <summary>Non-negative int from a trigger argument; invalid -> defaultValue.</summary>
+    public static int ParseArg(string? text, int defaultValue = 0) => ConfigBinding.ParseInt(text, 0, int.MaxValue, defaultValue);
 
     public static string GetString(string key, string defaultValue = "") => ConfigBinding.GetValue(key, defaultValue) ?? defaultValue;
 
