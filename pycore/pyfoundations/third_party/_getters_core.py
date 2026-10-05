@@ -649,8 +649,11 @@ def get_third_package_okx():
 
 # Redis cache
 def get_third_package_redis():
-    """Get redis package (lazy load)"""
-    return _lazy_import('redis', 'import redis')
+    """Get redis package with its asyncio client and exceptions (lazy load)"""
+    return _lazy_compose('redis', 'import redis', {
+        'asyncio': 'redis.asyncio',
+        'exceptions': 'redis.exceptions',
+    })
 
 
 def get_third_package_orjson():
