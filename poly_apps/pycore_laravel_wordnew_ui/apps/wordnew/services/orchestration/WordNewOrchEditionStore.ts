@@ -360,6 +360,3 @@ class WordNewOrchEditionStoreService {
 }
 
 export const wordNewOrchEditionStore = new WordNewOrchEditionStoreService();
-
-// TEMP-ORCH-PROBE (remove after measuring)
-if (typeof window !== 'undefined') (window as any).__orchProbe = { composer: wordNewOrchComposer, tasks: wordNewOrchTaskStore, editions: wordNewOrchEditionStore };

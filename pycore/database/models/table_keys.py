@@ -40,6 +40,16 @@ class TableKeys:
     AGENT_HISTORY_PROMPT_ARCHIVE = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_archive"
     AGENT_HISTORY_PROMPT_META = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_meta"
 
+    # ===== Util Agent History Store Tables (pyctl/agent_history/agent_history_index.py) =====
+    AGENT_HISTORY_SESSIONS = f"{TableNamespaces.UTIL_AGENT_HISTORY}.sessions"
+    AGENT_HISTORY_PROMPTS = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompts"
+    AGENT_HISTORY_SOURCES = f"{TableNamespaces.UTIL_AGENT_HISTORY}.sources"
+    AGENT_HISTORY_STORE_META = f"{TableNamespaces.UTIL_AGENT_HISTORY}.store_meta"
+
+    # ===== Util Agent History Article Tables (pyutils/agent_history/article_records.py) =====
+    AGENT_HISTORY_ARTICLE_RECORDS = f"{TableNamespaces.UTIL_AGENT_HISTORY}.article_records"
+    AGENT_HISTORY_ARTICLE_META = f"{TableNamespaces.UTIL_AGENT_HISTORY}.article_meta"
+
     @classmethod
     def get_all_table_keys(cls):
         """
