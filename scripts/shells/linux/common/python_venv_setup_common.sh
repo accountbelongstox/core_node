@@ -326,19 +326,20 @@ check_venv_needs_rebuild() {
 # writeable" and silently falls back to ~/.local, scattering packages and later
 # colliding with dpkg/system dirs. Repair the ownership here so every venv pip
 # install lands IN the venv. Same on Debian/Ubuntu/Kali.
+# The owner is SUDO_USER, else the auto-detected real user (a root login, su -
+# or the pyservice root path has no SUDO_USER); the whole tree is checked
+# (repair_owned_tree_no_shared_write: only mismatched entries change).
 ensure_venv_user_writable() {
     [ -d "$VENV_DIR" ] || return 0
-    local owner_user="${SUDO_USER:-$(id -un)}"
-    [ "$owner_user" = "root" ] && return 0   # pure-root run: root-owned venv is writable
-    local cur
-    cur="$(stat -c '%U' "$VENV_DIR" 2>/dev/null || echo "")"
-    if [ -n "$cur" ] && [ "$cur" != "$owner_user" ]; then
-        local owner_group
-        owner_group="$(id -gn "$owner_user" 2>/dev/null || echo "$owner_user")"
-        print_step_from_common_functions "Repairing venv ownership ($cur -> $owner_user) so pip installs land in the venv, not ~/.local..."
-        echo "[13] safe_chown_R $owner_user:$owner_group $VENV_DIR"
-        safe_chown_R "$owner_user:$owner_group" "$VENV_DIR"
+    local owner_user="${SUDO_USER:-}"
+    local owner_group=""
+    if [ -z "$owner_user" ] || [ "$owner_user" = "root" ]; then
+        resolve_active_permission_owner >/dev/null
+        owner_user="$ACTIVE_PERMISSION_USER"
     fi
+    [ -n "$owner_user" ] && [ "$owner_user" != "root" ] || return 0
+    owner_group="$(id -gn "$owner_user" 2>/dev/null || echo "$owner_user")"
+    repair_owned_tree_no_shared_write "$VENV_DIR" "$owner_user" "$owner_group" || true
 }
 
 # Function to create Python venv and replace system commands
@@ -465,6 +466,7 @@ create_python_venv_and_replace_system() {
     if [ -f "$VENV_PIP3" ]; then
         upgrade_pip_official "$VENV_PIP3" "$VENV_PYTHON3"
         install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" "setuptools<81" wheel
+        ensure_venv_user_writable
     fi
 
     # Verify venv executables exist

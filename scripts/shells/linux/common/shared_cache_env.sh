@@ -264,6 +264,7 @@ for __scc_d in "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" \
                "$SHARED_CACHE_DIR/whisper" "$SHARED_CACHE_DIR/nltk_data" \
                "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr"; do
     [ -d "$__scc_d" ] || fs_perm_run_privileged mkdir -p "$__scc_d" || true
+    [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d "$__scc_d" ] && { repair_owned_entry_777 "$__scc_d" >/dev/null 2>&1 || true; }
 done
 ensure_shared_dir 1777 "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR"
 

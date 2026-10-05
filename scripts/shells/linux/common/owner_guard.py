@@ -39,6 +39,7 @@ IONICE_CLASS_ARGS = ["ionice", "-c3"]
 EXCLUDED_DIR_NAMES = frozenset(["node_modules", ".gradle", "dist", "__pycache__", ".venv", "vendor"])
 EXCLUDED_CHILD_OF = {"build": "android"}
 POLICY_RELATIVE = "fs_perm_helpers.sh"
+GATEWAY_RELATIVE = "pyservice_www_permissions.sh"
 POLICY_ARRAYS = ("FS_PERM_PRIVATE_TREE_NAMES", "FS_PERM_APP_SECRET_TREE_NAMES")
 POLICY_SCALARS = ("FS_PERM_GIT_TREE_NAME",)
 REPAIR_SCRIPT = (
@@ -133,6 +134,19 @@ def run_policy(paths):
 def full_sweep(roots, reason):
     log("full sweep (%s): %s" % (reason, " ".join(roots)))
     run_policy(roots)
+    run_permission_gateway()
+
+
+def run_permission_gateway():
+    """Periodic pass of the central permission gateway: root sessions keep
+    writing into the user's HOME and tool trees between install runs."""
+    gateway = os.path.join(os.path.dirname(policy_file), GATEWAY_RELATIVE)
+    if not os.path.isfile(gateway):
+        return
+    result = subprocess.run(IONICE_CLASS_ARGS + ["bash", gateway], capture_output=True, text=True)
+    for line in result.stdout.splitlines():
+        if any(marker in line for marker in LOG_KEEP_MARKERS):
+            log(line)
 
 
 def reload_self():

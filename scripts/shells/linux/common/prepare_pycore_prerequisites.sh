@@ -211,6 +211,8 @@ for entry in "${PREREQ_ENTRIES[@]}"; do
         gpu_cache_seeded=1
     fi
 done
+# Hand everything the root installers created back to the real user.
+bash "$COMMON_DIR/pyservice_www_permissions.sh" || true
 
 GUARD_DIR="$COMMON_DIR"
 # --include runs may have filtered cuda_policy out; seed before the guard sweep so
