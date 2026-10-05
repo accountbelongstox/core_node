@@ -5,13 +5,19 @@
 # ROUTE_MODE=single: one uplink (a USB network adapter, auto, or a named
 # interface) relayed to one, a list, or all onboard wired ports joined into one
 # bridge (ncbr0).
-# ROUTE_MODE=pairs: every pair maps one USB uplink (auto or named) 1:1 to one
-# relay port, each on its own bridge (ncbr<N>), subnet, DHCP/DNS server and
-# routing table (policy rule "iif ncbr<N>"). A pair goes live when its USB
-# adapter appears and is released when it leaves. One pair USB at most
-# (SYSTEM_WAN) keeps its default route in the main table and serves this host;
-# the default route of every other pair USB is moved into its pair table, so
-# the host never uses it.
+# ROUTE_MODE=pairs: every relay port picks its USB uplink: auto (the pool of
+# all USBs, in detection order, LAN1 first), an interface, usb@<port> (the
+# physical USB port, stable while a phone renames its interface on every
+# reconnect) or a "+" pool of those (first ready wins). Relay ports are named
+# LAN1, LAN2...: LAN_MAP maps each name to a port (default: the N-th onboard
+# wired port), and PAIRS refers to those names. A USB serves one relay
+# port at most (1:1 or many:1). Each pair gets its own bridge (ncbr<N>),
+# subnet, DHCP/DNS server and routing table (policy rule "iif ncbr<N>"). A pair
+# goes live when its USB adapter appears; when it leaves, the bridge and its
+# DHCP leases are held for NATGW_UPLINK_GRACE_SECONDS so a brief USB drop does
+# not reset the clients. One pair USB at most (SYSTEM_WAN) keeps its default
+# route in the main table and serves this host; the default route of every
+# other pair USB is moved into its pair table, so the host never uses it.
 # Every link is NATed out of its uplink by one dedicated nftables table and
 # reconciled idempotently: only what differs from the applied state changes.
 #
@@ -50,14 +56,18 @@ NATGW_RULE_IIF_BASE=7300
 NATGW_RULE_OIF_BASE=7400
 NATGW_UNREACHABLE_METRIC=4294967295
 NATGW_LOOSE_RP_FILTER=2
-NATGW_CONFIG_KEYS="ROUTE_MODE WAN_SELECT LAN_MODE LAN_PORTS PAIRS SYSTEM_WAN LAN_ADDRESS DHCP_ENABLED"
-NATGW_APPLIED_KEYS="SIGNATURE WAN ADDRESS UFW DOCKER ROUTED ISOLATED TABLE RPF"
+NATGW_USB_PORT_PREFIX="usb@"
+NATGW_LAN_NAME_PREFIX="LAN"
+NATGW_UPLINK_GRACE_SECONDS=90
+NATGW_CONFIG_KEYS="ROUTE_MODE WAN_SELECT LAN_MODE LAN_PORTS PAIRS LAN_MAP SYSTEM_WAN LAN_ADDRESS DHCP_ENABLED"
+NATGW_APPLIED_KEYS="SIGNATURE WAN ADDRESS UFW DOCKER ROUTED ISOLATED TABLE RPF LOST"
 
 ROUTE_MODE="single"
 WAN_SELECT="usb"
 LAN_MODE="all"
 LAN_PORTS=""
 PAIRS=""
+LAN_MAP=""
 SYSTEM_WAN="auto"
 LAN_ADDRESS="$NATGW_DEFAULT_ADDRESS"
 DHCP_ENABLED="yes"
@@ -93,6 +103,7 @@ NATGW_APPLIED_ROUTED=""
 NATGW_APPLIED_ISOLATED=""
 NATGW_APPLIED_TABLE=""
 NATGW_APPLIED_RPF=""
+NATGW_APPLIED_LOST=""
 
 natgw_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')][NATGATEWAY] $*"
@@ -127,6 +138,7 @@ natgw_load_config() {
     LAN_MODE="all"
     LAN_PORTS=""
     PAIRS=""
+    LAN_MAP=""
     SYSTEM_WAN="auto"
     LAN_ADDRESS="$NATGW_DEFAULT_ADDRESS"
     DHCP_ENABLED="yes"
@@ -149,6 +161,8 @@ natgw_load_config() {
     [ -n "$SYSTEM_WAN" ] || SYSTEM_WAN="auto"
     PAIRS="${PAIRS// /}"
     [ "$PAIRS" = "auto" ] && PAIRS=""
+    LAN_MAP="${LAN_MAP// /}"
+    [ "$LAN_MAP" = "auto" ] && LAN_MAP=""
     natgw_address_valid "$LAN_ADDRESS" || LAN_ADDRESS="$NATGW_DEFAULT_ADDRESS"
     [ "$DHCP_ENABLED" = "no" ] || DHCP_ENABLED="yes"
     natgw_derive_address "$LAN_ADDRESS"
@@ -159,12 +173,13 @@ natgw_save_config() {
     mkdir -p "$NATGW_CONFIG_DIR"
     tmp_file="$(mktemp "$NATGW_CONFIG_DIR/.router.conf.XXXXXX")"
     {
-        echo "# NAT gateway configuration (natgateway set-mode / set-wan / set-lan / set-pairs / set-system-wan / set-address / set-dhcp)"
+        echo "# NAT gateway configuration (natgateway set-mode / set-wan / set-lan / set-pairs / set-lan-map / set-system-wan / set-address / set-dhcp)"
         echo "ROUTE_MODE=\"$ROUTE_MODE\""
         echo "WAN_SELECT=\"$WAN_SELECT\""
         echo "LAN_MODE=\"$LAN_MODE\""
         echo "LAN_PORTS=\"$LAN_PORTS\""
         echo "PAIRS=\"$PAIRS\""
+        echo "LAN_MAP=\"$LAN_MAP\""
         echo "SYSTEM_WAN=\"$SYSTEM_WAN\""
         echo "LAN_ADDRESS=\"$LAN_ADDRESS\""
         echo "DHCP_ENABLED=\"$DHCP_ENABLED\""
@@ -212,6 +227,15 @@ natgw_is_physical() {
 
 natgw_is_usb() {
     readlink -f "/sys/class/net/$1/device" 2>/dev/null | grep -q '/usb[0-9]*/'
+}
+
+# Physical USB port of an interface (e.g. 3-3 or 3-1.2).
+natgw_usb_port_of() {
+    local device=""
+    device="$(readlink -f "/sys/class/net/$1/device" 2>/dev/null)"
+    [[ "$device" == */usb[0-9]*/* ]] || return 1
+    device="$(basename "$device")"
+    echo "${device%%:*}"
 }
 
 natgw_is_wireless() {
@@ -283,6 +307,20 @@ natgw_resolve_name() {
     done < <(natgw_physical_ifaces)
 }
 
+# Uplink spec: usb@<port> resolves to the interface on that USB port,
+# anything else resolves as a name.
+natgw_resolve_uplink() {
+    local wanted="$1"
+    local iface=""
+    if [[ "$wanted" != "$NATGW_USB_PORT_PREFIX"* ]]; then
+        natgw_resolve_name "$wanted"
+        return
+    fi
+    while IFS= read -r iface; do
+        [ "$(natgw_usb_port_of "$iface")" = "${wanted#"$NATGW_USB_PORT_PREFIX"}" ] && { echo "$iface"; return; }
+    done < <(natgw_physical_ifaces)
+}
+
 natgw_wan_ready() {
     local iface="$1"
     [ -n "$iface" ] || return 1
@@ -339,7 +377,7 @@ natgw_resolve_wan() {
 
     NATGW_WAN=""
     if [ "$WAN_SELECT" != "usb" ]; then
-        iface="$(natgw_resolve_name "$WAN_SELECT")"
+        iface="$(natgw_resolve_uplink "$WAN_SELECT")"
         natgw_wan_ready "$iface" && NATGW_WAN="$iface"
         return
     fi
@@ -406,7 +444,8 @@ natgw_resolve_lan() {
     IFS=',' read -r -a wanted <<< "${LAN_PORTS// /}"
     for entry in "${wanted[@]}"; do
         [ -n "$entry" ] || continue
-        iface="$(natgw_resolve_name "$entry")"
+        iface="$(natgw_lan_port_of "$entry")"
+        [ -z "$iface" ] || iface="$(natgw_resolve_name "$iface")"
         if [ -z "$iface" ] || ! natgw_lan_eligible "$iface" "$NATGW_WAN"; then
             NATGW_LAN_SKIPPED+=("$entry(unavailable)")
             continue
@@ -418,17 +457,51 @@ natgw_resolve_lan() {
     return 0
 }
 
-# Pair specs "<usb>:<lan>" (usb = auto | interface) into NATGW_PAIR_SPECS;
-# PAIRS empty = one auto pair per onboard relay port.
+# Relay port names, one "LAN<N>:<iface>" line each: LAN_MAP, else LAN<N> = the
+# N-th onboard wired port (all of them, so the numbering never shifts).
+natgw_lan_map_entries() {
+    local entry=""
+    local iface=""
+    local number=0
+    local -a entries=()
+    if [ -n "$LAN_MAP" ]; then
+        IFS=',' read -r -a entries <<< "$LAN_MAP"
+        for entry in "${entries[@]}"; do
+            [[ "$entry" == "$NATGW_LAN_NAME_PREFIX"*:* ]] && echo "$entry"
+        done
+        return 0
+    fi
+    while IFS= read -r iface; do
+        natgw_is_usb "$iface" && continue
+        natgw_is_wireless "$iface" && continue
+        number=$((number + 1))
+        echo "$NATGW_LAN_NAME_PREFIX$number:$iface"
+    done < <(natgw_physical_ifaces)
+}
+
+# LAN<N> resolves through the LAN map; anything else is a port name already.
+natgw_lan_port_of() {
+    local name="$1"
+    local entry=""
+    if [[ "$name" =~ ^${NATGW_LAN_NAME_PREFIX}[0-9]+$ ]]; then
+        while IFS= read -r entry; do
+            [ "${entry%%:*}" = "$name" ] && { echo "${entry#*:}"; return; }
+        done < <(natgw_lan_map_entries)
+        return
+    fi
+    echo "$name"
+}
+
+# Pair specs "<usb>:<lan>" (lan = LAN<N> or an interface) into
+# NATGW_PAIR_SPECS; PAIRS empty = one auto pair per LAN name, in order.
 natgw_collect_pair_specs() {
     local entry=""
     local -a entries=()
     NATGW_PAIR_SPECS=()
     if [ -z "$PAIRS" ]; then
-        natgw_collect_onboard_ports
-        for entry in "${NATGW_ONBOARD_PORTS[@]}"; do
-            NATGW_PAIR_SPECS+=("auto:$entry")
-        done
+        while IFS= read -r entry; do
+            NATGW_PAIR_SPECS+=("auto:${entry%%:*}")
+        done < <(natgw_lan_map_entries)
     else
         IFS=',' read -r -a entries <<< "$PAIRS"
         for entry in "${entries[@]}"; do
@@ -440,7 +513,8 @@ natgw_collect_pair_specs() {
     NATGW_PAIR_SPECS=("${NATGW_PAIR_SPECS[@]:0:$NATGW_MAX_PAIRS}")
 }
 
-# USB uplinks that can serve a pair now: link, IPv4 and a default route.
+# USB uplinks that can serve a pair now (link, IPv4 and a default route), in
+# detection order (ifindex), so "first USB" means the first one plugged in.
 natgw_ready_usb_uplinks() {
     local iface=""
     while IFS= read -r iface; do
@@ -448,8 +522,8 @@ natgw_ready_usb_uplinks() {
         natgw_list_contains "$iface" "$@" && continue
         natgw_wan_ready "$iface" || continue
         natgw_find_gateway "$iface" || continue
-        echo "$iface"
-    done < <(natgw_physical_ifaces)
+        echo "$(cat "/sys/class/net/$iface/ifindex" 2>/dev/null) $iface"
+    done < <(natgw_physical_ifaces) | sort -n | awk '{print $2}'
 }
 
 natgw_add_link() {
@@ -461,57 +535,91 @@ natgw_add_link() {
     NATGW_LINK_ISOLATED+=("no")
 }
 
-# Named USBs are reserved first; an auto pair keeps the uplink it already
-# serves while that uplink stays ready, then takes the next free ready USB.
+# Ready candidates of a pair's USB spec: auto = every ready USB (a pool shared
+# by all auto pairs); otherwise "<usb>[+<usb>...]" (interfaces or usb@<port>),
+# a pool where the first ready one wins.
+natgw_pair_candidates() {
+    local spec="$1"
+    shift
+    local -a ready=("$@")
+    local -a wanted=()
+    local entry=""
+    local usb=""
+    if [ "$spec" = "auto" ]; then
+        printf '%s\n' "${ready[@]}"
+        return
+    fi
+    IFS='+' read -r -a wanted <<< "$spec"
+    for entry in "${wanted[@]}"; do
+        [ -n "$entry" ] || continue
+        usb="$(natgw_resolve_uplink "$entry")"
+        [ -n "$usb" ] && natgw_list_contains "$usb" "${ready[@]}" && echo "$usb"
+    done
+}
+
+# Every USB serves one relay port at most (1:1, or a pool many:1). Pairs with
+# named USBs/pools are served first, then auto pairs, each in config order
+# (LAN1 first): a pair keeps the uplink it already serves, else takes a free
+# candidate no later pair is using, else any free candidate, so when USBs run
+# short the earlier ports keep internet.
 natgw_resolve_pairs() {
     local -a usb_specs=()
     local -a lan_specs=()
     local -a lans=()
     local -a assigned=()
+    local -a sticky=()
     local -a ready=()
     local -a taken=()
     local -a used_lans=()
+    local -a free=()
     local index=0
-    local spec=""
+    local pass=""
+    local candidate=""
     local usb=""
     local lan=""
     local address=""
     local state=""
+    local -a default_ifaces=()
 
     natgw_collect_pair_specs
+    mapfile -t default_ifaces < <(natgw_default_route_ifaces)
     for index in "${!NATGW_PAIR_SPECS[@]}"; do
-        spec="${NATGW_PAIR_SPECS[$index]}"
-        usb_specs[index]="${spec%%:*}"
-        lan_specs[index]="${spec#*:}"
-        lans[index]="$(natgw_resolve_name "${lan_specs[$index]}")"
+        usb_specs[index]="${NATGW_PAIR_SPECS[$index]%%:*}"
+        lan_specs[index]="${NATGW_PAIR_SPECS[$index]#*:}"
+        lans[index]="$(natgw_lan_port_of "${lan_specs[$index]}")"
+        [ -z "${lans[$index]}" ] || lans[index]="$(natgw_resolve_name "${lans[$index]}")"
         assigned[index]=""
+        natgw_load_applied "$NATGW_BRIDGE_PREFIX$index"
+        sticky[index]="$NATGW_APPLIED_WAN"
     done
     mapfile -t ready < <(natgw_ready_usb_uplinks "${lans[@]}")
 
-    for index in "${!NATGW_PAIR_SPECS[@]}"; do
-        [ "${usb_specs[$index]}" = "auto" ] && continue
-        usb="$(natgw_resolve_name "${usb_specs[$index]}")"
-        if [ -n "$usb" ] && natgw_list_contains "$usb" "${ready[@]}" && ! natgw_list_contains "$usb" "${taken[@]}"; then
+    for pass in named auto; do
+        for index in "${!NATGW_PAIR_SPECS[@]}"; do
+            if [ "$pass" = "named" ]; then
+                [ "${usb_specs[$index]}" != "auto" ] || continue
+            else
+                [ "${usb_specs[$index]}" = "auto" ] || continue
+            fi
+            free=()
+            while IFS= read -r candidate; do
+                [ -n "$candidate" ] || continue
+                natgw_list_contains "$candidate" "${taken[@]}" || free+=("$candidate")
+            done < <(natgw_pair_candidates "${usb_specs[$index]}" "${ready[@]}")
+            [ ${#free[@]} -gt 0 ] || continue
+            usb=""
+            if natgw_list_contains "${sticky[$index]}" "${free[@]}"; then
+                usb="${sticky[$index]}"
+            else
+                for candidate in "${free[@]}"; do
+                    natgw_list_contains "$candidate" "${sticky[@]:$((index + 1))}" && continue
+                    usb="$candidate"
+                    break
+                done
+                [ -n "$usb" ] || usb="${free[0]}"
+            fi
             assigned[index]="$usb"
             taken+=("$usb")
-        fi
-    done
-    for index in "${!NATGW_PAIR_SPECS[@]}"; do
-        [ "${usb_specs[$index]}" = "auto" ] || continue
-        natgw_load_applied "$NATGW_BRIDGE_PREFIX$index"
-        usb="$NATGW_APPLIED_WAN"
-        if [ -n "$usb" ] && natgw_list_contains "$usb" "${ready[@]}" && ! natgw_list_contains "$usb" "${taken[@]}"; then
-            assigned[index]="$usb"
-            taken+=("$usb")
-        fi
-    done
-    for index in "${!NATGW_PAIR_SPECS[@]}"; do
-        [ "${usb_specs[$index]}" = "auto" ] && [ -z "${assigned[$index]}" ] || continue
-        for usb in "${ready[@]}"; do
-            natgw_list_contains "$usb" "${taken[@]}" && continue
-            assigned[index]="$usb"
-            taken+=("$usb")
-            break
         done
     done
 
@@ -524,12 +632,14 @@ natgw_resolve_pairs() {
             state="waiting for USB uplink"
         elif [ -z "$lan" ] || ! natgw_lan_eligible "$lan" "${taken[@]}"; then
             state="relay port unavailable"
+        elif natgw_list_contains "$lan" "${default_ifaces[@]}" && ! natgw_is_own_bridge "$(natgw_master_of "$lan")"; then
+            state="relay port carries this host's default route"
         elif natgw_list_contains "$lan" "${used_lans[@]}"; then
             state="relay port used by an earlier pair"
         elif [ -z "$address" ]; then
             state="address out of range"
         fi
-        NATGW_PAIR_REPORT+=("$NATGW_BRIDGE_PREFIX$index|${usb_specs[$index]}|${lan_specs[$index]}|${usb:--}|$state")
+        NATGW_PAIR_REPORT+=("$NATGW_BRIDGE_PREFIX$index|${usb_specs[$index]}|${lan_specs[$index]}${lan:+ ($lan)}|${usb:--}|$state")
         [ "$state" = "active" ] || continue
         used_lans+=("$lan")
         natgw_add_link "$NATGW_BRIDGE_PREFIX$index" "$usb" "$lan" "$address" "yes"
@@ -556,7 +666,7 @@ natgw_pick_system_wan() {
             [ -n "$NATGW_SYSTEM_WAN_ACTIVE" ] || NATGW_SYSTEM_WAN_ACTIVE="${NATGW_LINK_WANS[0]}"
             ;;
         *)
-            wanted="$(natgw_resolve_name "$SYSTEM_WAN")"
+            wanted="$(natgw_resolve_uplink "$SYSTEM_WAN")"
             natgw_list_contains "$wanted" "${NATGW_LINK_WANS[@]}" && NATGW_SYSTEM_WAN_ACTIVE="$wanted"
             ;;
     esac
@@ -1085,6 +1195,7 @@ natgw_apply_link() {
     NATGW_APPLIED_ADDRESS="$address"
     NATGW_APPLIED_ROUTED="$routed"
     NATGW_APPLIED_ISOLATED="$isolated"
+    NATGW_APPLIED_LOST=""
     natgw_save_applied "$bridge"
     if [ "$routed" = "yes" ]; then
         natgw_log "Active $bridge: uplink $wan ($([ "$isolated" = "yes" ] && echo "relay only" || echo "also serves this host")) -> relay ${lans//,/ } ($address)"
@@ -1141,6 +1252,24 @@ natgw_idle_reason() {
     fi
 }
 
+# A bridge whose uplink interface vanished keeps its relay ports and DHCP
+# server for NATGW_UPLINK_GRACE_SECONDS: a USB that re-enumerates (often under
+# a new name) re-applies onto the same bridge without resetting the clients.
+natgw_hold_link() {
+    local bridge="$1"
+    local now=""
+    natgw_load_applied "$bridge"
+    [ -n "$NATGW_APPLIED_WAN" ] && [ ! -e "/sys/class/net/$NATGW_APPLIED_WAN" ] || return 1
+    now="$(date +%s)"
+    if [ -z "$NATGW_APPLIED_LOST" ]; then
+        NATGW_APPLIED_LOST="$now"
+        natgw_save_applied "$bridge"
+        natgw_log "Uplink $NATGW_APPLIED_WAN left $bridge: relay ports held for ${NATGW_UPLINK_GRACE_SECONDS}s"
+        return 0
+    fi
+    [ $((now - NATGW_APPLIED_LOST)) -lt "$NATGW_UPLINK_GRACE_SECONDS" ]
+}
+
 natgw_reconcile() {
     local bridge=""
     local index=0
@@ -1155,6 +1284,7 @@ natgw_reconcile() {
 
     while IFS= read -r bridge; do
         natgw_list_contains "$bridge" "${NATGW_LINK_BRIDGES[@]}" && continue
+        natgw_hold_link "$bridge" && continue
         reason="$(natgw_idle_reason "$bridge")"
         natgw_teardown_link "$bridge" "$reason"
     done < <(natgw_known_bridges)
@@ -1188,10 +1318,10 @@ natgw_print_ports() {
     natgw_load_config
     natgw_resolve_links
     mapfile -t default_ifaces < <(natgw_default_route_ifaces)
-    printf '%-18s %-9s %-8s %-8s %-19s %-7s %s\n' "INTERFACE" "BUS" "MEDIA" "LINK" "IPV4" "DEFAULT" "ROLE"
+    printf '%-18s %-11s %-8s %-8s %-19s %-7s %s\n' "INTERFACE" "BUS" "MEDIA" "LINK" "IPV4" "DEFAULT" "ROLE"
     while IFS= read -r iface; do
         kind="onboard"
-        natgw_is_usb "$iface" && kind="usb"
+        natgw_is_usb "$iface" && kind="$NATGW_USB_PORT_PREFIX$(natgw_usb_port_of "$iface")"
         role="-"
         for index in "${!NATGW_LINK_BRIDGES[@]}"; do
             IFS=',' read -r -a lans <<< "${NATGW_LINK_LANS[$index]}"
@@ -1202,7 +1332,7 @@ natgw_print_ports() {
                 role="relay ${NATGW_LINK_BRIDGES[$index]}"
             fi
         done
-        printf '%-18s %-9s %-8s %-8s %-19s %-7s %s\n' \
+        printf '%-18s %-11s %-8s %-8s %-19s %-7s %s\n' \
             "$iface" "$kind" "$(natgw_is_wireless "$iface" && echo wifi || echo wired)" \
             "$(natgw_has_carrier "$iface" && echo up || echo down)" \
             "$(natgw_ipv4_of "$iface")" \
@@ -1217,10 +1347,10 @@ natgw_print_pairs() {
     local line=""
     local -a fields=()
     [ ${#NATGW_PAIR_REPORT[@]} -gt 0 ] || { echo "Pairs: none (no relay port)"; return 0; }
-    printf '%-8s %-18s %-18s %-18s %s\n' "BRIDGE" "USB (CONFIG)" "RELAY PORT" "USB (LIVE)" "STATE"
+    printf '%-8s %-22s %-18s %-18s %s\n' "BRIDGE" "USB (CONFIG)" "RELAY PORT" "USB (LIVE)" "STATE"
     for line in "${NATGW_PAIR_REPORT[@]}"; do
         IFS='|' read -r -a fields <<< "$line"
-        printf '%-8s %-18s %-18s %-18s %s\n' "${fields[@]}"
+        printf '%-8s %-22s %-18s %-18s %s\n' "${fields[@]}"
     done
 }
 
@@ -1231,8 +1361,9 @@ natgw_print_status() {
     natgw_load_config
     echo "Config: $NATGW_CONFIG_FILE"
     if [ "$ROUTE_MODE" = "pairs" ]; then
-        echo "  Mode:                 pairs (one USB uplink per relay port)"
-        echo "  Pairs (PAIRS):        ${PAIRS:-auto (every onboard port, USB auto)}"
+        echo "  Mode:                 pairs (each relay port picks its USB uplink)"
+        echo "  Pairs (PAIRS):        ${PAIRS:-auto (every LAN name, USBs in plug-in order)}"
+        echo "  LAN names (LAN_MAP):  $(natgw_lan_map_entries | tr '\n' ' ')$([ -n "$LAN_MAP" ] || echo "(default)")"
         echo "  Host uplink (SYSTEM_WAN): $SYSTEM_WAN"
         echo "  Gateway addresses:    $LAN_ADDRESS, next /24 per pair (DHCP: $DHCP_ENABLED)"
     else
@@ -1247,6 +1378,11 @@ natgw_print_status() {
     while IFS= read -r bridge; do
         natgw_load_applied "$bridge"
         [ -n "$NATGW_APPLIED_WAN" ] || continue
+        if [ -n "$NATGW_APPLIED_LOST" ]; then
+            echo "State: HOLD $bridge uplink=$NATGW_APPLIED_WAN gone since $(date -d "@$NATGW_APPLIED_LOST" '+%H:%M:%S') relay=[$(natgw_bridge_members "$bridge" | tr '\n' ' ')] (released after ${NATGW_UPLINK_GRACE_SECONDS}s)"
+            active=$((active + 1))
+            continue
+        fi
         echo "State: ACTIVE $bridge uplink=$NATGW_APPLIED_WAN relay=[$(natgw_bridge_members "$bridge" | tr '\n' ' ')] address=$NATGW_APPLIED_ADDRESS${NATGW_APPLIED_TABLE:+ table=$NATGW_APPLIED_TABLE host-uplink=$([ "$NATGW_APPLIED_ISOLATED" = "yes" ] && echo no || echo yes)} ufw=$NATGW_APPLIED_UFW docker=$NATGW_APPLIED_DOCKER"
         active=$((active + 1))
     done < <(natgw_known_bridges)

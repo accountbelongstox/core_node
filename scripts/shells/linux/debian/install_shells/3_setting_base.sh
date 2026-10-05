@@ -475,7 +475,7 @@ main() {
         ensure_distro_archive_keyring_from_apt_repository_manager
     fi
     if command -v repair_repositories_from_apt_repository_manager >/dev/null 2>&1; then
-        if $USE_SUDO apt-get update >/dev/null 2>&1; then
+        if $USE_SUDO apt-get update; then
             echo "apt-get update OK; skipping repository repair"
         else
             echo "=== Repository Repair and Verification ==="

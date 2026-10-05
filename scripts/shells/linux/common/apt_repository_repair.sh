@@ -128,9 +128,9 @@ _ensure_kali_archive_keyring_from_apt_repository_manager() {
 
     tmp="$(mktemp 2>/dev/null)" || tmp="/tmp/kali-archive-keyring.$$.gpg"
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$url" -o "$tmp" 2>/dev/null || { echo "[keyring] WARNING: download failed ($url)." >&2; rm -f "$tmp"; return 0; }
+        curl -fSL "$url" -o "$tmp" || { echo "[keyring] WARNING: download failed ($url)." >&2; rm -f "$tmp"; return 0; }
     else
-        wget -qO "$tmp" "$url" 2>/dev/null || { echo "[keyring] WARNING: download failed ($url)." >&2; rm -f "$tmp"; return 0; }
+        wget -O "$tmp" "$url" || { echo "[keyring] WARNING: download failed ($url)." >&2; rm -f "$tmp"; return 0; }
     fi
 
     # SECURITY: install only if the downloaded keyring really carries the exact key
@@ -173,7 +173,7 @@ _reinstall_keyring_pkg_from_apt_repository_manager() {
     fi
     if dpkg -s "$pkg" >/dev/null 2>&1; then
         echo "[keyring] $pkg keyring file missing; reinstalling $pkg ..."
-        $USE_SUDO apt-get install --reinstall -y "$pkg" >/dev/null 2>&1 || true
+        $USE_SUDO apt-get install --reinstall -y "$pkg" || true
     fi
     return 0
 }
@@ -298,12 +298,12 @@ EOF
     
     # Step 4: Fix package manager state
     echo "Step 4: Fixing package manager state..."
-    $USE_SUDO dpkg --configure -a 2>/dev/null || true
-    $USE_SUDO apt --fix-broken install -y 2>/dev/null || true
+    $USE_SUDO dpkg --configure -a || true
+    $USE_SUDO apt --fix-broken install -y || true
     
     # Step 5: Update package lists
     echo "Step 5: Updating package lists..."
-    $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || {
+    $USE_SUDO apt update --allow-unauthenticated || {
         echo "WARNING: Package list update had issues, but continuing..." >&2
     }
     
@@ -332,7 +332,7 @@ verify_repository_health_from_apt_repository_manager() {
     
     # Test 1: APT update functionality
     echo "Test 1: APT update functionality..."
-    if $USE_SUDO apt update --allow-unauthenticated >/dev/null 2>&1; then
+    if $USE_SUDO apt update --allow-unauthenticated; then
         echo "  [OK] APT update works"
         health_score=$((health_score + 1))
     else
