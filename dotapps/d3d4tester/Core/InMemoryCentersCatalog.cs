@@ -228,6 +228,27 @@ public static class InMemoryCentersCatalog
             Access: "YoloTrainingService.Instance; RunAsync/Cancel; Phase; Log/Progress/PhaseChanged events",
             ThreadingContract: "Thread-safe (internal lock); events fire on worker threads, subscribers marshal to UI.",
             Responsibility: "Single running YOLO training job (dataset build, Ultralytics train, ONNX export)."),
+        new Center(
+            Key: "services.monitor",
+            TypeName: "DotApps.d3d4tester.Services.Monitor.MonitorService",
+            Kind: InMemoryCenterKind.State,
+            Access: "MonitorService.Instance; Install/GetStatus/RequestRestart/OnLogLine",
+            ThreadingContract: "Tick and log lines on the TickDriver thread; GetStatus from the UI thread (internal lock).",
+            Responsibility: "RBAssist monitor state: last log / history lines and idle, death / fail / run counters, process edges, pylon / portal / probe states."),
+        new Center(
+            Key: "services.monitor_triggers",
+            TypeName: "DotApps.d3d4tester.Services.Monitor.TriggerEngine",
+            Kind: InMemoryCenterKind.Registry,
+            Access: "TriggerEngine.Instance; Triggers/Save/Fire/Evaluate/Enqueue",
+            ThreadingContract: "Thread-safe (internal lock); actions run one at a time on a background worker.",
+            Responsibility: "Trigger list (monitor.triggers) and the action queue."),
+        new Center(
+            Key: "core.rosbot_restart_request",
+            TypeName: "DotApps.d3d4tester.Core.Flow.RosbotRestartRequest",
+            Kind: InMemoryCenterKind.State,
+            Access: "RosbotRestartRequest.Request/TryConsume/IsPending; Executed event",
+            ThreadingContract: "Thread-safe (internal lock); Executed runs on the tick thread before F4.",
+            Responsibility: "Pending restart outside the F3 timeout, consumed by the flow master (F4 -> B2)."),
     };
 
     public static void InvalidateCaches()

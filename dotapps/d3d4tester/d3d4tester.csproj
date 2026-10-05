@@ -56,7 +56,8 @@
     <MSBuild Projects="tools\rosbot-plugin\CoreNodeBridge\CoreNodeBridge.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="RosbotBridgePluginTarget" />
     </MSBuild>
-    <Copy SourceFiles="@(RosbotBridgePluginTarget)" DestinationFolder="$(TargetDir)tools\rosbot-plugins\CoreNodeBridge" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(RosbotBridgePluginTarget)" DestinationFolder="$(TargetDir)tools\rosbot-plugins\CoreNodeBridge" SkipUnchangedFiles="true"
+          Condition="Exists('@(RosbotBridgePluginTarget)')" />
     <PropertyGroup>
       <RecoveryToolDirectory>@(RecoveryToolTarget->'%(RootDir)%(Directory)')</RecoveryToolDirectory>
       <DynamicCollectorDirectory>@(DynamicCollectorTarget->'%(RootDir)%(Directory)')</DynamicCollectorDirectory>

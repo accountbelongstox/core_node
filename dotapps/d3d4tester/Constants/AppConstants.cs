@@ -23,6 +23,7 @@ public static class AppConstants
     public const string PanelKeyLog = "log";
     public const string PanelKeyBattlenet = "battlenet";
     public const string PanelKeyDecompile = "decompile";
+    public const string PanelKeyMonitor = "monitor";
     public const int TabIndexMain = 0;
     public const int TabIndexRosbot = 1;
     public const int TabIndexD4 = 2;
@@ -30,8 +31,9 @@ public static class AppConstants
     /// <summary>Battle.net management sits before the log; the log tab is always last.</summary>
     public const int TabIndexBattlenet = 4;
     public const int TabIndexDecompile = 5;
-    public const int TabIndexLog = 6;
-    public const int TabCount = 7;
+    public const int TabIndexMonitor = 6;
+    public const int TabIndexLog = 7;
+    public const int TabCount = 8;
 
     // ---------- Popup keys (UiRegistry.RegisterPopup/GetPopup; 1:1 Python POPUP_KEY_*) ----------
     public const string PopupKeyDebugWindow = "debug_window";
