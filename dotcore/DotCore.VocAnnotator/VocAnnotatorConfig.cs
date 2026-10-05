@@ -13,6 +13,7 @@ public sealed class AnnotatorSettings
     public const string FilterAll = "all";
     public const string FilterLabeled = "labeled";
     public const string FilterUnlabeled = "unlabeled";
+    public const string FilterUnreviewed = "unreviewed";
     public const string AutoLabelMerge = "merge";
     public const string AutoLabelReplace = "replace";
     public const string AutoLabelEmptyOnly = "empty_only";
@@ -20,7 +21,7 @@ public sealed class AnnotatorSettings
     public const int MaxZoomPercent = 3200;
 
     public static readonly IReadOnlyList<string> SortModes = new[] { SortByName, SortByModified };
-    public static readonly IReadOnlyList<string> FilterModes = new[] { FilterAll, FilterLabeled, FilterUnlabeled };
+    public static readonly IReadOnlyList<string> FilterModes = new[] { FilterAll, FilterLabeled, FilterUnlabeled, FilterUnreviewed };
     public static readonly IReadOnlyList<string> AutoLabelModes = new[] { AutoLabelMerge, AutoLabelReplace, AutoLabelEmptyOnly };
 
     [JsonPropertyName("zoom_percent")] public int ZoomPercent { get; set; }

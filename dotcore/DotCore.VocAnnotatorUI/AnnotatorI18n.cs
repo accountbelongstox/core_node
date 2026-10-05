@@ -88,8 +88,10 @@ public static class AnnotatorI18nKeys
     public const string FilterAll = P + "filter_all";
     public const string FilterLabeled = P + "filter_labeled";
     public const string FilterUnlabeled = P + "filter_unlabeled";
+    public const string FilterUnreviewed = P + "filter_unreviewed";
     public const string SearchPlaceholder = P + "search_placeholder";
     public const string ProgressFormat = P + "progress_format";
+    public const string ProgressFormatUnreviewed = P + "progress_format_unreviewed";
     public const string Classes = P + "classes";
     public const string ClassAdd = P + "class_add";
     public const string ClassRename = P + "class_rename";
@@ -109,6 +111,7 @@ public static class AnnotatorI18nKeys
     public const string StatusBoxes = P + "status_boxes";
     public const string StatusDirty = P + "status_dirty";
     public const string StatusSaved = P + "status_saved";
+    public const string StatusUnreviewed = P + "status_unreviewed";
     public const string StatusClassesAdded = P + "status_classes_added";
     public const string MenuDelete = P + "menu_delete";
     public const string MenuDuplicate = P + "menu_duplicate";
@@ -133,6 +136,8 @@ public static class AnnotatorI18nKeys
     public const string NoPrevious = P + "no_previous";
     public const string CopiedPrevious = P + "copied_previous";
     public const string AutoLabelNoModel = P + "auto_label_no_model";
+    public const string AutoLabelModelMissing = P + "auto_label_model_missing";
+    public const string AutoLabelModelClasses = P + "auto_label_model_classes";
     public const string AutoLabelDone = P + "auto_label_done";
     public const string AutoLabelAllDone = P + "auto_label_all_done";
     public const string AutoLabelRunning = P + "auto_label_running";

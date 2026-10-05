@@ -36,6 +36,8 @@ public static partial class ConfigKeys
     public const string YoloTrainingDetectOnOpen = "yolo_training.detect_on_open";
     public const string YoloTrainingMode = "yolo_training.mode";
     public const string YoloTrainingTaskSet = "yolo_training.task_set";
+    public const string YoloTrainingAugmentation = "yolo_training.augmentation";
+    public const string YoloTrainingAugmentationFromTaskSet = "yolo_training.augmentation_from_task_set";
 
     // ---------- yolo_dataset (train / val / test split) ----------
     public const string YoloDatasetSource = "yolo_dataset.source";
@@ -48,7 +50,13 @@ public static partial class ConfigKeys
     public const string YoloDatasetIncludeBackground = "yolo_dataset.include_background";
     public const string YoloDatasetBackgroundMaxPercent = "yolo_dataset.background_max_percent";
     public const string YoloDatasetSkipDifficult = "yolo_dataset.skip_difficult";
+    public const string YoloDatasetIncludeUnreviewedPseudoLabels = "yolo_dataset.include_unreviewed_pseudo_labels";
 
     // ---------- yolo_taskset (task-set manager UI state) ----------
     public const string YoloTaskSetLastTaskSet = "yolo_taskset.last_task_set";
+
+    // ---------- yolo_detect (shared YoloModelHost session options) ----------
+    public const string YoloDetectExecutionProvider = "yolo_detect.execution_provider";
+    public const string YoloDetectIntraOpThreads = "yolo_detect.intra_op_threads";
+    public const string YoloDetectWarmUp = "yolo_detect.warm_up";
 }

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ann="clr-namespace:DotCore.VocAnnotatorUI;assembly=DotCore.VocAnnotatorUI"
-        Width="1280" Height="820" MinWidth="900" MinHeight="560"
+        Width="1360" Height="900" MinWidth="960" MinHeight="640"
         ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
         Style="{StaticResource DialogWindowStyle}">
   <Window.Resources>
@@ -11,17 +11,33 @@
       <Setter Property="Margin" Value="0,0,4,0"/>
       <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
+    <Style x:Key="SmallBtn" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+      <Setter Property="Margin" Value="0,0,8,8"/>
+    </Style>
+    <Style x:Key="NumberBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+      <Setter Property="Width" Value="64"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="InlineLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,0,4,0"/>
+    </Style>
+    <Style x:Key="Radio" TargetType="RadioButton" BasedOn="{StaticResource {x:Type RadioButton}}">
+      <Setter Property="Margin" Value="0,0,12,4"/>
+    </Style>
   </Window.Resources>
 
   <Grid Margin="16,4,16,16">
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="320"/>
+      <ColumnDefinition Width="340"/>
       <ColumnDefinition Width="12"/>
       <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
 
     <Grid Grid.Column="0">
       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
@@ -37,14 +53,73 @@
             <ComboBox x:Name="CboSource" DisplayMemberPath="Display"/>
           </DockPanel>
           <TextBlock x:Name="LblMode" Style="{StaticResource Label}"/>
-          <StackPanel Orientation="Horizontal">
-            <RadioButton x:Name="RadioRectangle" GroupName="Cutout" Margin="0,0,16,0" IsChecked="True"/>
-            <RadioButton x:Name="RadioGrabCut" GroupName="Cutout"/>
+          <WrapPanel>
+            <RadioButton x:Name="RadioRectangle" GroupName="Cutout" Style="{StaticResource Radio}" IsChecked="True"/>
+            <RadioButton x:Name="RadioGrabCut" GroupName="Cutout" Style="{StaticResource Radio}"/>
+            <RadioButton x:Name="RadioColorKey" GroupName="Cutout" Style="{StaticResource Radio}"/>
+          </WrapPanel>
+          <StackPanel x:Name="PanelTolerance">
+            <DockPanel>
+              <TextBlock x:Name="TxtTolerance" DockPanel.Dock="Left" Style="{StaticResource InlineLabel}" MinWidth="110"/>
+              <Slider x:Name="SldTolerance" Minimum="0" Maximum="128" SmallChange="1" LargeChange="8" IsSnapToTickEnabled="True"
+                      TickFrequency="1" VerticalAlignment="Center"/>
+            </DockPanel>
+            <CheckBox x:Name="ChkHoles" IsChecked="True" Margin="0,4,0,0"/>
           </StackPanel>
+          <TextBlock x:Name="TxtModeHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,2,0,8"/>
+          <TextBlock x:Name="LblTool" Style="{StaticResource Label}"/>
+          <WrapPanel>
+            <RadioButton x:Name="RadioToolBox" GroupName="Tool" Style="{StaticResource Radio}" IsChecked="True"/>
+            <RadioButton x:Name="RadioToolForeground" GroupName="Tool" Style="{StaticResource Radio}"/>
+            <RadioButton x:Name="RadioToolBackground" GroupName="Tool" Style="{StaticResource Radio}"/>
+            <RadioButton x:Name="RadioToolErase" GroupName="Tool" Style="{StaticResource Radio}"/>
+          </WrapPanel>
+          <DockPanel>
+            <TextBlock x:Name="TxtBrush" DockPanel.Dock="Left" Style="{StaticResource InlineLabel}" MinWidth="110"/>
+            <Slider x:Name="SldBrush" Minimum="1" Maximum="40" Value="4" SmallChange="1" LargeChange="4" IsSnapToTickEnabled="True"
+                    TickFrequency="1" VerticalAlignment="Center"/>
+          </DockPanel>
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0">
+      <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock x:Name="LblTrack" Style="{StaticResource SectionHeaderTextStyle}"/>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock x:Name="LblStep" Style="{StaticResource InlineLabel}"/>
+            <TextBox x:Name="TxtStep" Style="{StaticResource NumberBox}"/>
+            <TextBlock x:Name="LblCount" Style="{StaticResource InlineLabel}"/>
+            <TextBox x:Name="TxtCount" Style="{StaticResource NumberBox}"/>
+          </StackPanel>
+          <WrapPanel>
+            <Button x:Name="BtnTrackBackward" Style="{StaticResource SmallBtn}"/>
+            <Button x:Name="BtnTrackForward" Style="{StaticResource SmallBtn}"/>
+          </WrapPanel>
+          <WrapPanel Margin="0,0,0,8">
+            <TextBlock x:Name="LblFixedFrom" Style="{StaticResource InlineLabel}"/>
+            <TextBox x:Name="TxtFixedFrom" Style="{StaticResource NumberBox}" Margin="0"/>
+            <Button x:Name="BtnFixedFromCurrent" Style="{StaticResource IconBtn}" Content="&#xE81D;" Margin="2,0,8,0"/>
+            <TextBlock x:Name="LblFixedTo" Style="{StaticResource InlineLabel}"/>
+            <TextBox x:Name="TxtFixedTo" Style="{StaticResource NumberBox}" Margin="0"/>
+            <Button x:Name="BtnFixedToCurrent" Style="{StaticResource IconBtn}" Content="&#xE81D;" Margin="2,0,8,0"/>
+          </WrapPanel>
+          <WrapPanel>
+            <TextBlock x:Name="LblFixedEvery" Style="{StaticResource InlineLabel}"/>
+            <TextBox x:Name="TxtFixedEvery" Style="{StaticResource NumberBox}"/>
+            <Button x:Name="BtnFixedBox" Style="{StaticResource SmallBtn}"/>
+          </WrapPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <CheckBox x:Name="ChkDedupe" IsChecked="True" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox x:Name="TxtDedupe" Style="{StaticResource NumberBox}"/>
+          </StackPanel>
+          <DockPanel x:Name="PanelProgress" Visibility="Collapsed">
+            <Button x:Name="BtnCancel" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+            <ProgressBar x:Name="PrgTrack" Height="6" VerticalAlignment="Center" Minimum="0" Maximum="1"/>
+          </DockPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Margin="0">
         <DockPanel>
           <TextBlock x:Name="LblPending" DockPanel.Dock="Top" Style="{StaticResource SectionHeaderTextStyle}"/>
           <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
@@ -54,18 +129,22 @@
             </WrapPanel>
             <TextBlock x:Name="TxtStatus" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
           </StackPanel>
-          <ListBox x:Name="LstCrops" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox x:Name="LstCrops" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <DockPanel Margin="0,2">
-                  <Border DockPanel.Dock="Left" Style="{StaticResource InsetBorderStyle}" Width="72" Height="72" Padding="0" Margin="0,0,8,0">
-                    <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                  <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                  <Border DockPanel.Dock="Left" Style="{StaticResource InsetBorderStyle}" Width="64" Height="64" Padding="0" Margin="0,0,8,0">
+                    <ann:CheckerboardDecorator>
+                      <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                    </ann:CheckerboardDecorator>
                   </Border>
                   <Button DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE74D;" Tag="{Binding}"
-                          Click="RemoveCrop_Click"/>
+                          Click="RemoveCrop_Click" Loaded="RemoveCropButton_Loaded"/>
                   <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="{Binding Caption}" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding Info}" Style="{StaticResource CaptionTextStyle}"/>
+                    <TextBlock Text="{Binding Info}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
                   </StackPanel>
                 </DockPanel>
               </DataTemplate>
@@ -79,6 +158,8 @@
       <DockPanel>
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
           <Button x:Name="BtnFit" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+          <Button x:Name="BtnRedo" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE7A6;"/>
+          <Button x:Name="BtnUndo" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE7A7;"/>
           <TextBlock x:Name="TxtHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
         </DockPanel>
         <DockPanel x:Name="PanelVideo" DockPanel.Dock="Bottom" Margin="0,8,0,0">
@@ -91,8 +172,44 @@
         </DockPanel>
         <TextBlock x:Name="TxtFrameInfo" DockPanel.Dock="Bottom" Style="{StaticResource CaptionTextStyle}" Margin="0,8,0,0"
                    FontFamily="{StaticResource MonoFontFamily}"/>
+        <DockPanel x:Name="PanelFilm" DockPanel.Dock="Bottom" Margin="0,8,0,0">
+          <WrapPanel DockPanel.Dock="Top">
+            <TextBlock x:Name="TxtFilm" Style="{StaticResource InlineLabel}" Margin="0,0,12,8"/>
+            <Button x:Name="BtnCheckAll" Style="{StaticResource SmallBtn}"/>
+            <Button x:Name="BtnUncheckAll" Style="{StaticResource SmallBtn}"/>
+            <Button x:Name="BtnDedupe" Style="{StaticResource SmallBtn}"/>
+            <Button x:Name="BtnRemoveUnchecked" Style="{StaticResource SmallBtn}"/>
+          </WrapPanel>
+          <ListBox x:Name="LstFilm" Height="118" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel Orientation="Horizontal"/>
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid Width="76" Margin="0,2">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="64"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <Border Style="{StaticResource InsetBorderStyle}" Padding="0">
+                    <ann:CheckerboardDecorator>
+                      <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                    </ann:CheckerboardDecorator>
+                  </Border>
+                  <CheckBox IsChecked="{Binding IsChecked}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2"/>
+                  <TextBlock Grid.Row="1" Text="{Binding FilmText}" Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis"
+                             HorizontalAlignment="Center"/>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
         <Border Style="{StaticResource InsetBorderStyle}" Padding="0">
-          <ann:AnnotationCanvas x:Name="Canvas" IsDrawMode="True"/>
+          <ann:AnnotationCanvas x:Name="Canvas" IsDrawMode="True" AllowDrop="True"/>
         </Border>
       </DockPanel>
     </Border>

@@ -1,4 +1,4 @@
-// PY-REF: none (DOT-only)
+﻿// PY-REF: none (DOT-only)
 using System.Globalization;
 using System.Text.Json;
 using DotCore.Foundations;
@@ -6,16 +6,15 @@ using OpenCvSharp;
 
 namespace DotCore.YoloTaskSet;
 
-/// <summary>Every Nth video frame as background images (Ultralytics trains on images only), cached as JPEG.</summary>
+/// <summary>Every Nth video frame as background images (Ultralytics trains on images only), cached losslessly as PNG.</summary>
 public static class VideoFrameExtractor
 {
     public const string MarkerFileName = "_frames.json";
     private const string FrameFilePrefix = "frame_";
-    private const string FrameFileExtension = ".jpg";
+    private const string FrameFileExtension = ".png";
     private const string FrameNumberFormat = "D7";
-    private const int FrameJpegQuality = 95;
 
-    private sealed record CacheMarker(long SourceLength, long SourceTicksUtc, int Interval, int Max, List<string> Frames);
+    private sealed record CacheMarker(long SourceLength, long SourceTicksUtc, int Interval, int Max, List<string> Frames, string? Format = null);
 
     /// <summary>Frames ExtractToCache would produce (from the container frame count; 0 when unreadable).</summary>
     public static int EstimateFrames(string path, int interval, int max)
@@ -35,7 +34,7 @@ public static class VideoFrameExtractor
         }
     }
 
-    /// <summary>Frame 0, interval, 2*interval, ... (at most max) as JPEG files in cacheDir; a complete cache for the same settings is reused.</summary>
+    /// <summary>Frame 0, interval, 2*interval, ... (at most max) as PNG files in cacheDir; a complete cache for the same settings is reused.</summary>
     public static IReadOnlyList<string> ExtractToCache(string videoPath, string cacheDir, int interval, int max, CancellationToken ct)
     {
         interval = Math.Max(1, interval);
@@ -45,7 +44,7 @@ public static class VideoFrameExtractor
         var markerPath = Path.Combine(cacheDir, MarkerFileName);
         var cached = ReadMarker(markerPath);
         if (cached != null && cached.SourceLength == info.Length && cached.SourceTicksUtc == info.LastWriteTimeUtc.Ticks
-            && cached.Interval == interval && cached.Max == max)
+            && cached.Interval == interval && cached.Max == max && cached.Format == FrameFileExtension)
         {
             var paths = cached.Frames.Select(f => Path.Combine(cacheDir, f)).ToList();
             if (paths.All(File.Exists)) return paths;
@@ -72,11 +71,11 @@ public static class VideoFrameExtractor
                 }
                 if (!capture.Read(frame) || frame.Empty()) break;
                 var name = FrameFilePrefix + index.ToString(FrameNumberFormat, CultureInfo.InvariantCulture) + FrameFileExtension;
-                File.WriteAllBytes(Path.Combine(cacheDir, name), TaskSetImageIo.EncodeJpeg(frame, FrameJpegQuality));
+                File.WriteAllBytes(Path.Combine(cacheDir, name), TaskSetImageIo.EncodePng(frame));
                 frames.Add(name);
             }
         }
-        var marker = new CacheMarker(info.Length, info.LastWriteTimeUtc.Ticks, interval, max, frames);
+        var marker = new CacheMarker(info.Length, info.LastWriteTimeUtc.Ticks, interval, max, frames, FrameFileExtension);
         File.WriteAllText(markerPath, JsonSerializer.Serialize(marker, TaskSetStore.JsonOptions));
         ColorPrinter.Gray($"[YoloTaskSet] extracted {frames.Count} frames from {videoPath}");
         return frames.Select(f => Path.Combine(cacheDir, f)).ToList();

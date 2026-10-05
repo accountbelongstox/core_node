@@ -138,10 +138,63 @@
               <TextBlock x:Name="LblCloseMosaic" Grid.Row="11" Style="{StaticResource Label}"/>
               <TextBox x:Name="TxtCloseMosaic" Grid.Row="11" Grid.Column="1" Style="{StaticResource NumberBox}"/>
             </Grid>
+            <TextBlock x:Name="TxtImgszHint" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource WarningTextBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
             <CheckBox x:Name="ChkAmp" Style="{StaticResource Check}"/>
             <TextBlock x:Name="LblExtraArgs" Style="{StaticResource FieldLabelTextStyle}"/>
-            <TextBox x:Name="TxtExtraArgs" Margin="{StaticResource FieldMargin}" FontFamily="{StaticResource MonoFontFamily}"/>
+            <TextBox x:Name="TxtExtraArgs" Margin="0,0,0,4" FontFamily="{StaticResource MonoFontFamily}"/>
+            <TextBlock x:Name="TxtExtraArgsIssue" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource WarningTextBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
             <CheckBox x:Name="ChkExportOnnx" Style="{StaticResource Check}" Margin="0"/>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0,12,0,0">
+          <StackPanel>
+            <TextBlock x:Name="LblAugmentation" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <CheckBox x:Name="ChkAugFromTaskSet" Style="{StaticResource Check}"/>
+            <TextBlock x:Name="TxtAugDerived" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <Grid x:Name="GridAug">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="120"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="Auto" MinWidth="120"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblAugFliplr" Grid.Row="0" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugFliplr" Grid.Row="0" Grid.Column="1" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugFlipud" Grid.Row="0" Grid.Column="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugFlipud" Grid.Row="0" Grid.Column="4" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugScale" Grid.Row="1" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugScale" Grid.Row="1" Grid.Column="1" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugTranslate" Grid.Row="1" Grid.Column="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugTranslate" Grid.Row="1" Grid.Column="4" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugDegrees" Grid.Row="2" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugDegrees" Grid.Row="2" Grid.Column="1" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugMosaic" Grid.Row="2" Grid.Column="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugMosaic" Grid.Row="2" Grid.Column="4" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugHsvH" Grid.Row="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugHsvH" Grid.Row="3" Grid.Column="1" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugHsvS" Grid.Row="3" Grid.Column="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugHsvS" Grid.Row="3" Grid.Column="4" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugHsvV" Grid.Row="4" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugHsvV" Grid.Row="4" Grid.Column="1" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugErasing" Grid.Row="4" Grid.Column="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugErasing" Grid.Row="4" Grid.Column="4" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugShear" Grid.Row="5" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugShear" Grid.Row="5" Grid.Column="1" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugPerspective" Grid.Row="5" Grid.Column="3" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugPerspective" Grid.Row="5" Grid.Column="4" Style="{StaticResource NumberBox}" Width="80"/>
+              <TextBlock x:Name="LblAugMixup" Grid.Row="6" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtAugMixup" Grid.Row="6" Grid.Column="1" Style="{StaticResource NumberBox}" Width="80"/>
+            </Grid>
+            <Button x:Name="BtnAugReset" Style="{StaticResource Btn}" HorizontalAlignment="Left" Margin="0"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -165,6 +218,10 @@
             <DockPanel Margin="{StaticResource FieldMargin}">
               <Button x:Name="BtnManageTaskSets" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
               <ComboBox x:Name="CboTaskSet" DisplayMemberPath="Name"/>
+            </DockPanel>
+            <DockPanel x:Name="PanelExistingDataset" Margin="{StaticResource FieldMargin}" Visibility="Collapsed">
+              <Button x:Name="BtnClearDataset" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+              <TextBlock x:Name="TxtExistingDataset" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
             </DockPanel>
             <Border Style="{StaticResource InsetBorderStyle}" Padding="8" Margin="0,0,0,8">
               <TextBlock x:Name="TxtTaskSetSummary" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap"/>
@@ -204,6 +261,7 @@
           <CheckBox x:Name="ChkStratify" Style="{StaticResource Check}"/>
           <CheckBox x:Name="ChkBackground" Style="{StaticResource Check}"/>
           <CheckBox x:Name="ChkSkipDifficult" Style="{StaticResource Check}"/>
+          <CheckBox x:Name="ChkPseudoLabels" Style="{StaticResource Check}"/>
           <Button x:Name="BtnPreview" Style="{StaticResource Btn}" HorizontalAlignment="Left"/>
           <Border Style="{StaticResource InsetBorderStyle}" Padding="8">
             <TextBlock x:Name="TxtPreview" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" FontFamily="{StaticResource MonoFontFamily}"/>
@@ -213,31 +271,125 @@
       </Border>
 
       <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0">
-        <Grid>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-          </Grid.RowDefinitions>
-          <DockPanel>
-            <Border x:Name="ChipRun" DockPanel.Dock="Right" Style="{StaticResource StatusChipStyle}" VerticalAlignment="Top">
-              <TextBlock x:Name="TxtRunChip"/>
-            </Border>
-            <TextBlock x:Name="LblRun" Style="{StaticResource SectionHeaderTextStyle}"/>
-          </DockPanel>
-          <WrapPanel Grid.Row="1">
-            <Button x:Name="BtnStart" Style="{StaticResource SuccessButtonStyle}" Margin="0,0,8,8"/>
-            <Button x:Name="BtnStop" Style="{StaticResource DangerButtonStyle}" Margin="0,0,8,8"/>
-            <Button x:Name="BtnOpenOutput" Style="{StaticResource Btn}"/>
-            <Button x:Name="BtnUseForNavigation" Style="{StaticResource Btn}"/>
-          </WrapPanel>
-          <DockPanel Grid.Row="2" Margin="0,0,0,8">
-            <TextBlock x:Name="TxtEpoch" DockPanel.Dock="Right" Style="{StaticResource CaptionTextStyle}" Margin="8,0,0,0" VerticalAlignment="Center"/>
-            <ProgressBar x:Name="BarProgress" Height="6" Minimum="0" Maximum="1"/>
-          </DockPanel>
-          <TextBox x:Name="TxtLog" Grid.Row="3" Style="{StaticResource MonoLogTextBoxStyle}"/>
-        </Grid>
+        <TabControl x:Name="TabsRun">
+          <TabItem x:Name="TabRun">
+            <Grid Margin="0,8,0,0">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+              <DockPanel>
+                <Border x:Name="ChipRun" DockPanel.Dock="Right" Style="{StaticResource StatusChipStyle}" VerticalAlignment="Top">
+                  <TextBlock x:Name="TxtRunChip"/>
+                </Border>
+                <TextBlock x:Name="LblRun" Style="{StaticResource SectionHeaderTextStyle}"/>
+              </DockPanel>
+              <WrapPanel Grid.Row="1">
+                <Button x:Name="BtnStart" Style="{StaticResource SuccessButtonStyle}" Margin="0,0,8,8"/>
+                <Button x:Name="BtnStop" Style="{StaticResource DangerButtonStyle}" Margin="0,0,8,8"/>
+                <Button x:Name="BtnResume" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnExportBest" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnOpenOutput" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnUseForNavigation" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnTestModel" Style="{StaticResource Btn}"/>
+              </WrapPanel>
+              <TextBlock x:Name="TxtOutcome" Grid.Row="2" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
+              <DockPanel Grid.Row="3" Margin="0,0,0,8">
+                <TextBlock x:Name="TxtEpoch" DockPanel.Dock="Right" Style="{StaticResource CaptionTextStyle}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                <ProgressBar x:Name="BarProgress" Height="6" Minimum="0" Maximum="1"/>
+              </DockPanel>
+              <Grid Grid.Row="4" x:Name="PanelMetrics" Margin="0,0,0,8" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="12"/>
+                  <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="140"/>
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="TxtBestEpoch" Grid.ColumnSpan="3" Style="{StaticResource BodyStrongTextStyle}" Margin="0,0,0,4"/>
+                <Border Grid.Row="1" Style="{StaticResource InsetBorderStyle}" Padding="4">
+                  <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal">
+                      <Rectangle Width="10" Height="3" Fill="{DynamicResource AccentBlueBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                      <TextBlock x:Name="TxtLegendMap50" Style="{StaticResource CaptionTextStyle}" Margin="0,0,12,0"/>
+                      <Rectangle Width="10" Height="3" Fill="{DynamicResource AccentGreenBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                      <TextBlock x:Name="TxtLegendMap5095" Style="{StaticResource CaptionTextStyle}"/>
+                    </StackPanel>
+                    <Canvas x:Name="ChartMetrics" ClipToBounds="True" SizeChanged="OnChartSizeChanged">
+                      <Polyline x:Name="LineMap50" Stroke="{DynamicResource AccentBlueBrush}" StrokeThickness="1.5"/>
+                      <Polyline x:Name="LineMap5095" Stroke="{DynamicResource AccentGreenBrush}" StrokeThickness="1.5"/>
+                    </Canvas>
+                  </DockPanel>
+                </Border>
+                <DataGrid x:Name="DgMetrics" Grid.Row="1" Grid.Column="2" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" CanUserAddRows="False" SelectionMode="Single">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn x:Name="ColMEpoch" Binding="{Binding Epoch}" Width="Auto"/>
+                    <DataGridTextColumn x:Name="ColMBoxLoss" Binding="{Binding BoxLoss}" Width="*"/>
+                    <DataGridTextColumn x:Name="ColMClsLoss" Binding="{Binding ClsLoss}" Width="*"/>
+                    <DataGridTextColumn x:Name="ColMDflLoss" Binding="{Binding DflLoss}" Width="*"/>
+                    <DataGridTextColumn x:Name="ColMPrecision" Binding="{Binding Precision}" Width="*"/>
+                    <DataGridTextColumn x:Name="ColMRecall" Binding="{Binding Recall}" Width="*"/>
+                    <DataGridTextColumn x:Name="ColMMap50" Binding="{Binding Map50}" Width="*"/>
+                    <DataGridTextColumn x:Name="ColMMap5095" Binding="{Binding Map5095}" Width="*"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+              </Grid>
+              <TextBox x:Name="TxtLog" Grid.Row="5" Style="{StaticResource MonoLogTextBoxStyle}"/>
+            </Grid>
+          </TabItem>
+          <TabItem x:Name="TabRuns">
+            <Grid Margin="0,8,0,0">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <DockPanel Margin="0,0,0,8">
+                <Button x:Name="BtnRefreshRuns" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+                <TextBlock x:Name="TxtRunsScope" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+              </DockPanel>
+              <DataGrid x:Name="DgRuns" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                        CanUserAddRows="False" SelectionMode="Single" MinHeight="120">
+                <DataGrid.Columns>
+                  <DataGridTextColumn x:Name="ColRunCurrent" Binding="{Binding Current}" Width="Auto"/>
+                  <DataGridTextColumn x:Name="ColRunName" Binding="{Binding Name}" Width="*" MinWidth="120"/>
+                  <DataGridTextColumn x:Name="ColRunSource" Binding="{Binding Source}" Width="*"/>
+                  <DataGridTextColumn x:Name="ColRunDate" Binding="{Binding Date}" Width="Auto"/>
+                  <DataGridTextColumn x:Name="ColRunClasses" Binding="{Binding Classes}" Width="*"/>
+                  <DataGridTextColumn x:Name="ColRunMap50" Binding="{Binding Map50}" Width="Auto"/>
+                  <DataGridTextColumn x:Name="ColRunMap5095" Binding="{Binding Map5095}" Width="Auto"/>
+                  <DataGridTextColumn x:Name="ColRunRealMap50" Binding="{Binding RealMap50}" Width="Auto"/>
+                  <DataGridTextColumn x:Name="ColRunStatus" Binding="{Binding Status}" Width="Auto"/>
+                </DataGrid.Columns>
+              </DataGrid>
+              <WrapPanel Grid.Row="2" Margin="0,8,0,0">
+                <ComboBox x:Name="CboConsumer" Width="140" Margin="0,0,8,8" VerticalAlignment="Top"/>
+                <Button x:Name="BtnRunSetCurrent" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnRunExport" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnRunResume" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnRunFineTune" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnRunTest" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnRunOpen" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnRunDelete" Style="{StaticResource DangerButtonStyle}" Margin="0,0,8,8"/>
+              </WrapPanel>
+              <Expander x:Name="ExpRealEval" Grid.Row="3">
+                <StackPanel Margin="0,8,0,0">
+                  <TextBlock x:Name="TxtRealEvalHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                  <ListBox x:Name="LstRealSegments" SelectionMode="Multiple" MaxHeight="140" Margin="0,0,0,8"/>
+                  <Button x:Name="BtnRunEvaluate" Style="{StaticResource Btn}" HorizontalAlignment="Left"/>
+                </StackPanel>
+              </Expander>
+            </Grid>
+          </TabItem>
+        </TabControl>
       </Border>
     </Grid>
   </Grid>

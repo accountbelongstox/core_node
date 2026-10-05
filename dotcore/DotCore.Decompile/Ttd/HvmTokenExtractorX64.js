@@ -80,7 +80,12 @@ function invokeScript() {
             const typeHandle = safeReadPointer(resolvedTokenPointer.add(0x18));
             const methodHandle = safeReadPointer(resolvedTokenPointer.add(0x20));
             const fieldHandle = safeReadPointer(resolvedTokenPointer.add(0x28));
+            const typeTag = Number(typeHandle) & 3;
+            const typeDescriptor = typeHandle.subtract(typeTag);
+            const typeParameterHandle = typeTag === 0 ? host.parseInt64(0) : safeReadPointer(typeDescriptor.add(0x10));
+            const typeDefinitionHandle = typeTag === 0 ? typeHandle : typeParameterHandle;
             const typeRid = (safeReadUInt32(typeHandle.add(8)) >>> 16) & 0xffff;
+            const resolvedTypeRid = (safeReadUInt32(typeDefinitionHandle.add(8)) >>> 16) & 0xffff;
             const methodRid = safeReadUInt32(methodHandle) & 0xffff;
             const fieldRid = safeReadUInt32(fieldHandle.add(8)) & 0x0003ffff;
             records.push({
@@ -95,6 +100,9 @@ function invokeScript() {
                 TokenAfter: safeReadUInt32(resolvedTokenPointer.add(0x10)),
                 ModuleHandle: pointerText(safeReadPointer(typeHandle.add(0x18))),
                 TypeHandle: pointerText(typeHandle),
+                TypeDescriptorKind: typeTag === 0 ? 0 : (safeReadUInt32(typeDescriptor) & 0xff),
+                TypeModuleHandle: pointerText(safeReadPointer(typeDefinitionHandle.add(0x18))),
+                ResolvedTypeDefinitionToken: resolvedTypeRid === 0 ? 0 : (0x02000000 | resolvedTypeRid),
                 MethodHandle: pointerText(methodHandle),
                 FieldHandle: pointerText(fieldHandle),
                 TypeDefinitionToken: typeRid === 0 ? 0 : (0x02000000 | typeRid),

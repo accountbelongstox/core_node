@@ -40,6 +40,7 @@ public partial class App : Application
             return;
         }
         D3D4TesterI18n.EnsureInitialized();
+        YoloTrainingService.InitializeRuntime();
 
         if (bridgeOnly)
         {

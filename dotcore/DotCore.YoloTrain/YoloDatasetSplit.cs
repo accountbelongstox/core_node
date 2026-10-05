@@ -18,6 +18,18 @@ public sealed record YoloDatasetSplit
     /// <summary>Split each class group (keyed by the rarest class in the image) separately so every class reaches val.</summary>
     public bool Stratify { get; init; } = true;
 
+    /// <summary>
+    /// Assign whole sources (recorded segments: consecutive near-duplicate frames) to splits so val does not leak train frames.
+    /// Applies with at least 2 sources; sources holding a class no other source has are split per image.
+    /// </summary>
+    public bool GroupBySource { get; init; } = true;
+
+    /// <summary>
+    /// Also train on model pseudo-labels nobody has reviewed (ImageAnnotation.Reviewed false). They only ever go to train, never to
+    /// val or test (the model would grade its own predictions); unreviewed images without boxes are never used (likely misses).
+    /// </summary>
+    public bool IncludeUnreviewedPseudoLabels { get; init; }
+
     public bool IncludeBackground { get; init; } = true;
 
     /// <summary>Upper bound of background images as a share of the whole dataset.</summary>
@@ -42,7 +54,10 @@ public enum YoloSplit
 public sealed record YoloDatasetSource(string Name, string ImagesDir, string AnnotationDir);
 
 /// <summary>Planned dataset image: source image, filtered annotation (known classes only), target split.</summary>
-public sealed record YoloDatasetEntry(string ImagePath, VocAnnotator.ImageAnnotation Annotation, string SourceName, YoloSplit Split, bool IsBackground);
+public sealed record YoloDatasetEntry(string ImagePath, VocAnnotator.ImageAnnotation Annotation, string SourceName, YoloSplit Split, bool IsBackground)
+{
+    public bool IsPseudoLabel => !Annotation.Reviewed;
+}
 
 /// <summary>Images, background images and box instances per class of one split.</summary>
 public sealed record YoloSplitSummary(int Images, int Background, IReadOnlyDictionary<string, int> Instances);
