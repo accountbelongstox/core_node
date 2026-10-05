@@ -46,6 +46,7 @@ import { pycoreApiLocal } from './PycoreApiLocal';
 import { pycoreApiTerminal } from './PycoreApiTerminal';
 import { pycoreApiMachineSend } from './PycoreApiMachineSend';
 import { pycoreApiGitSync } from './PycoreApiGitSync';
+import { pycoreApiNetworkRouter } from './PycoreApiNetworkRouter';
 import { PycorePaths } from './pycoreEndpoints';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../contracts/QueueCenterContract';
 
@@ -298,6 +299,7 @@ export const pycoreApi = {
   ...pycoreApiTerminal,
   ...pycoreApiMachineSend,
   ...pycoreApiGitSync,
+  ...pycoreApiNetworkRouter,
 };
 
 export type PycoreApi = typeof pycoreApi;

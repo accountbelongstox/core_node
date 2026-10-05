@@ -25,6 +25,8 @@ OWNER_GUARD_DESC="Core Node owner guard (hands root-created repo entries to the 
 OWNER_GUARD_CPU_LIMIT="20%"
 OWNER_GUARD_MEMORY_LIMIT="256M"
 OWNER_GUARD_RESTART_SEC="10s"
+OWNER_GUARD_AI_TOOLS_INSTALLER="$OWNER_GUARD_REPO_ROOT/scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh"
+OWNER_GUARD_SHARED_LOGIN_DIRS=""
 OWNER_GUARD_PYTHON=""
 OWNER_GUARD_EXEC_START=""
 OWNER_GUARD_ACTION="${1:-install}"
@@ -39,10 +41,24 @@ fi
 
 owner_guard_log() { printf '[owner-guard-service] %s\n' "$1"; }
 
+# Shared AI CLI config dirs (CLAUDE_CONFIG_DIR, CODEX_HOME, ...) in the real user's home: a root AI CLI
+# session rewrites its login files there as root:root 0600, which locks the desktop user's own session
+# out until the next sweep. Resolved from the catalog (99_install_ai_tools.sh, library mode).
+owner_guard_shared_login_dirs() {
+    [ -f "$OWNER_GUARD_AI_TOOLS_INSTALLER" ] || return 0
+    (
+        AI99_CATALOG_ONLY=1
+        . "$OWNER_GUARD_AI_TOOLS_INSTALLER" >/dev/null 2>&1
+        ai_shared_login_existing_config_dirs 2>/dev/null | tr '\n' ' ' | sed 's/ *$//'
+    )
+}
+
 # System python3 only: the unit runs as root before any venv/user toolchain.
 owner_guard_resolve_exec() {
     OWNER_GUARD_PYTHON="$(command -v /usr/bin/python3 2>/dev/null || command -v python3 2>/dev/null)"
+    OWNER_GUARD_SHARED_LOGIN_DIRS="$(owner_guard_shared_login_dirs)"
     OWNER_GUARD_EXEC_START="$OWNER_GUARD_PYTHON $OWNER_GUARD_SCRIPT --root $OWNER_GUARD_REPO_ROOT ${CORE_NODE_DATA_DIR:-}"
+    [ -z "$OWNER_GUARD_SHARED_LOGIN_DIRS" ] || OWNER_GUARD_EXEC_START="$OWNER_GUARD_EXEC_START --owner-only $OWNER_GUARD_SHARED_LOGIN_DIRS"
 }
 
 owner_guard_service_install() {

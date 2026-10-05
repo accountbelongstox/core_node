@@ -26,6 +26,7 @@ declare -a INSTALL_ORDER=(
     "21_install_default_poetry"
     "25_install_uv"
     "119_install_launcher"
+    "193_install_window_launcher_shortcut"
     "121_install_document_parsing"
     "123_install_dictionaries"
     "17_install_node_toolchain_26"
@@ -68,7 +69,6 @@ declare -a INSTALL_ORDER=(
     "169_install_rustdesk_server_1.1.14"
     "163_setup_gnome_rdp"
     "195_install_remmina"
-    "193_install_window_launcher_shortcut"
     "154_repair_desktop_icons"
     # 6. Large development software (Android, Flutter), smaller first
     "149_install_device_tools"

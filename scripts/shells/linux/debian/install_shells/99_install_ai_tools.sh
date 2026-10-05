@@ -429,16 +429,23 @@ ai_shared_login_ensure_dir() {
     printf '%s' "$config_dir"
 }
 
-ai_shared_login_repair_ownership() {
-    local real_user real_home key config_dir
-    real_user="$(ai_shared_login_real_user)"
+ai_shared_login_existing_config_dirs() {
+    local real_home key config_dir
     real_home="$(ai_shared_login_real_home)"
-    [ -n "$real_user" ] && [ -n "$real_home" ] || return 0
+    [ -n "$real_home" ] || return 0
     while IFS= read -r key; do
         config_dir="$(ai_catalog_expand_config_dir "$key" "$real_home")"
-        [ -n "$config_dir" ] && [ -d "$config_dir" ] || continue
-        $USE_SUDO chown -R "$real_user:$real_user" "$config_dir" 2>/dev/null || true
+        [ -n "$config_dir" ] && [ -d "$config_dir" ] && printf '%s\n' "$config_dir"
     done < <(ai_shared_login_shareable_keys)
+}
+
+ai_shared_login_repair_ownership() {
+    local real_user config_dir
+    real_user="$(ai_shared_login_real_user)"
+    [ -n "$real_user" ] || return 0
+    while IFS= read -r config_dir; do
+        $USE_SUDO chown -R "$real_user:$real_user" "$config_dir" 2>/dev/null || true
+    done < <(ai_shared_login_existing_config_dirs)
 }
 
 ai_shared_login_setup() {

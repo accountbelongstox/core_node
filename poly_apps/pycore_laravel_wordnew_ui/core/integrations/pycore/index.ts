@@ -46,6 +46,10 @@ export { TERMINAL_BACKUP_DELETE_CONFIRM, TERMINAL_BACKUP_PAGE_SIZE } from './Pyc
 export { createPycoreApiTerminal, type PycoreTerminalApi } from './PycoreApiTerminal';
 export { pycoreNodeClient, pycoreNodeTerminalApi, type PycoreNodeClient } from './PycoreNodeClients';
 export type { GitSyncControl, GitSyncHistoryPage, GitSyncLanPeer, GitSyncPush, GitSyncRun, GitSyncState } from './PycoreApiGitSync';
+export type {
+  NetworkRouterAction, NetworkRouterActionResult, NetworkRouterConfig, NetworkRouterInterface, NetworkRouterLease,
+  NetworkRouterLink, NetworkRouterLogs, NetworkRouterPlatform, NetworkRouterService, NetworkRouterStatus,
+} from './PycoreApiNetworkRouter';
 export { createPycoreApiMachineSend, type PycoreMachineSendApi } from './PycoreApiMachineSend';
 export { type PycoreHttpApi } from './PycoreHttp';
 export type {

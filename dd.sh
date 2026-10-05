@@ -40,6 +40,7 @@ GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
 SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/3_setting_base.sh"
 PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/7_project_validator.sh"
 AI_KEY_HEALTH_WARNING_FILE="$COMMON_SHELLS_DIR/ai_key_health_warning.sh"
+WINDOW_LAUNCHER_SHORTCUT_FILE="$SHELLS_DIR/linux/debian/install_shells/193_install_window_launcher_shortcut.sh"
 DD_SYMLINK_PATH="/usr/local/bin/dd.sh"
 DD_TTY_SETTINGS=""
 SYSTEM_VERSION=""
@@ -335,6 +336,17 @@ dd_link_entry_points() {
     sync_linuxenvs_to_bin
 }
 
+# "Window Launcher" desktop icon: ensured on every start (Windows dd.ps1 shortcut_check parity), so it
+# never depends on the install chain reaching its step. Idempotent and non-fatal.
+dd_ensure_window_launcher_shortcut() {
+    echo -e "\033[36m[DESKTOP SHORTCUT] Ensuring the Window Launcher icon...\033[0m"
+    if [ ! -s "$WINDOW_LAUNCHER_SHORTCUT_FILE" ]; then
+        echo -e "\033[33m[DESKTOP SHORTCUT] Step not found: $WINDOW_LAUNCHER_SHORTCUT_FILE\033[0m"
+        return
+    fi
+    bash "$WINDOW_LAUNCHER_SHORTCUT_FILE" || echo -e "\033[33m[DESKTOP SHORTCUT] Step reported a failure (non-fatal)\033[0m"
+}
+
 # Startup prints every step and never stops; confirmations are queued and shown
 # once, stacked into the countdown right before the menu.
 main() {
@@ -382,6 +394,9 @@ main() {
 
     echo ""
     dd_link_entry_points
+
+    echo ""
+    dd_ensure_window_launcher_shortcut
 
     echo ""
     detect_system_version

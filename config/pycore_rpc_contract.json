@@ -1022,6 +1022,18 @@
       "path": "peer/gitsync/release",
       "method": "POST"
     },
+    "networkRouterStatus": {
+      "path": "ui/network_router/status",
+      "method": "POST"
+    },
+    "networkRouterLogs": {
+      "path": "ui/network_router/logs",
+      "method": "POST"
+    },
+    "networkRouterAction": {
+      "path": "ui/network_router/action",
+      "method": "POST"
+    },
     "terminalActivate": {
       "path": "ui/terminal/activate",
       "method": "POST"
