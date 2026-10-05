@@ -914,6 +914,9 @@ if [[ -n "$DESKTOP_USER" ]]; then
         # Root read helper: parses only the agent sessions '$DESKTOP_USER' cannot
         # read (root-owned 0600) into a root-owned spool the worker reads; it exits
         # with the worker (parent pid = this shell, replaced by sudo below).
+        # The prerequisite installers above ran as root: hand their entries
+        # back before the worker starts as the desktop user.
+        bash "$SCRIPT_DIR/scripts/shells/linux/common/pyservice_www_permissions.sh" || true
         echo "[i] Starting the agent-history root read helper for '$DESKTOP_USER'."
         "$PY" -m "$ROOT_SPOOL_MODULE" --worker-user "$DESKTOP_USER" --parent-pid "$$" &
         exec sudo -u "$DESKTOP_USER" env "${WORKER_ENV_ARGS[@]}" "$PY" "${PY_ARGS[@]}"

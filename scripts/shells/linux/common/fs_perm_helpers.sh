@@ -318,9 +318,9 @@ repair_owned_tree_owner_only() {
         privilege_command=("$privilege_prefix")
     fi
     mismatch_list="$(mktemp)" || return 1
-    "${privilege_command[@]}" find "$target_path" \( ! -user "$target_user" -o ! -group "$target_group" \) \
+    "${privilege_command[@]}" find "$target_path" -xdev \( ! -user "$target_user" -o ! -group "$target_group" \) \
         -print0 > "$mismatch_list" 2>/dev/null || repair_status=$?
-    "${privilege_command[@]}" xargs -0 -r chown -h "$target_user:$target_group" -- < "$mismatch_list" || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chown -h "$target_user:$target_group" -- < "$mismatch_list" 2>/dev/null || repair_status=$?
     rm -f "$mismatch_list"
     return "$repair_status"
 }
@@ -589,21 +589,27 @@ fs_perm_sudo_prefix() {
 }
 
 # safe_chown_R <owner[:group]> <path>
-# Idempotent recursive chown. Skips on mount-fixed-permission fs and when the
-# root entry already has the requested owner.
+# Idempotent recursive chown over the WHOLE tree: one find walk collects the
+# entries whose owner (or group, when given) differs, only those change, so a
+# root-created file inside an already user-owned directory is handed back too.
+# Skips on mount-fixed-permission fs.
 safe_chown_R() {
     local owner="$1"
     local path="$2"
-    local cur=""
+    local user="${owner%%:*}"
+    local group=""
     local prefix=""
+    local -a mismatch=()
     [ -e "$path" ] || return 0
     if fs_perm_is_fuse_mount "$path"; then
         return 0
     fi
-    cur="$(stat -c '%U:%G' "$path" 2>/dev/null)"
-    [ -n "$cur" ] && [ "$cur" = "$owner" ] && return 0
+    [[ "$owner" == *:* ]] && group="${owner#*:}"
+    mismatch=(! -user "$user")
+    [ -n "$group" ] && mismatch=(\( ! -user "$user" -o ! -group "$group" \))
     prefix="$(fs_perm_sudo_prefix)"
-    ${prefix:+$prefix }chown -R "$owner" "$path" 2>/dev/null || true
+    ${prefix:+$prefix }find "$path" -xdev "${mismatch[@]}" -print0 2>/dev/null \
+        | ${prefix:+$prefix }xargs -0 -r chown -h "$owner" -- 2>/dev/null || true
 }
 
 # safe_chmod_R <mode> <path>

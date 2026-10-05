@@ -72,15 +72,25 @@ resolve_item_scripts() {
     done
 }
 
+# Permission gateway after a root install step: hands every entry the step
+# created in user-facing paths back to the real user (no-op for non-root).
+run_install_permission_gateway() {
+    [ "${EUID:-$(id -u)}" -eq 0 ] || return 0
+    bash "$INSTALL_ITEM_RUNNER_DIR/pyservice_www_permissions.sh" || true
+}
+
 run_install_script() {
     local script="$1"
+    local status=0
 
     echo
     echo "Executing: $(basename "$script")"
     if [ ! -x "$script" ]; then
         chmod +x "$script"
     fi
-    "$script"
+    "$script" || status=$?
+    run_install_permission_gateway
+    return "$status"
 }
 
 execute_installation_scripts() {
