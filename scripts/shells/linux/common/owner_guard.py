@@ -47,6 +47,11 @@ REPAIR_SCRIPT = (
     'resolve_active_permission_owner >/dev/null; '
     'for p; do repair_owned_tree_777 "$p" "$ACTIVE_PERMISSION_USER" "$ACTIVE_PERMISSION_GROUP"; done'
 )
+OWNER_ONLY_REPAIR_SCRIPT = (
+    'source "$1" >/dev/null; shift; '
+    'resolve_active_permission_owner >/dev/null; '
+    'for p; do repair_owned_tree_owner_only "$p" "$ACTIVE_PERMISSION_USER" "$ACTIVE_PERMISSION_GROUP"; done'
+)
 LOG_KEEP_MARKERS = ("Repairing", "Refusing", "Unable", "Partially")
 
 libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
@@ -54,6 +59,7 @@ self_file = os.path.realpath(__file__)
 policy_file = os.path.join(os.path.dirname(self_file), POLICY_RELATIVE)
 protected_names = frozenset()
 watches = {}
+owner_only_roots = []
 
 
 def log(message):
@@ -131,9 +137,22 @@ def run_policy(paths):
         log("stderr: " + line)
 
 
+def run_owner_only_policy(paths):
+    command = IONICE_CLASS_ARGS + ["bash", "-c", OWNER_ONLY_REPAIR_SCRIPT, "_", policy_file] + paths
+    result = subprocess.run(command, capture_output=True, text=True)
+    for line in result.stderr.splitlines():
+        log("stderr: " + line)
+
+
+def under_owner_only_root(path):
+    return any(path == root or path.startswith(root + os.sep) for root in owner_only_roots)
+
+
 def full_sweep(roots, reason):
-    log("full sweep (%s): %s" % (reason, " ".join(roots)))
+    log("full sweep (%s): %s" % (reason, " ".join(roots + owner_only_roots)))
     run_policy(roots)
+    if owner_only_roots:
+        run_owner_only_policy(owner_only_roots)
     run_permission_gateway()
 
 
@@ -189,7 +208,7 @@ def handle_events(fd, pending):
         elif is_excluded(directory, name):
             continue
         if is_root_owned(path):
-            pending.add(guard_root_of(path))
+            pending.add(path if under_owner_only_root(path) else guard_root_of(path))
     return overflow
 
 
@@ -197,8 +216,10 @@ def main():
     global protected_names
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, nargs="+")
+    parser.add_argument("--owner-only", nargs="*", default=[])
     args = parser.parse_args()
     roots = collapse(os.path.realpath(root) for root in args.root if os.path.isdir(root))
+    owner_only_roots[:] = collapse(os.path.realpath(root) for root in args.owner_only if os.path.isdir(root))
     try:
         os.nice(NICE_LEVEL)
     except OSError:
@@ -208,7 +229,7 @@ def main():
     if fd < 0:
         log("inotify_init1 failed: " + os.strerror(ctypes.get_errno()))
         return 1
-    for root in roots:
+    for root in roots + owner_only_roots:
         log("watching %d directories under %s" % (watch_tree(fd, root), root))
     if os.path.dirname(self_file) not in watches.values():
         add_watch(fd, os.path.dirname(self_file))
@@ -238,9 +259,14 @@ def main():
             batch = collapse([p for p in pending if is_root_owned(p)])
             pending.clear()
             first_event = 0.0
+            owner_batch = [p for p in batch if under_owner_only_root(p)]
+            batch = [p for p in batch if not under_owner_only_root(p)]
             if batch:
                 log("handing back %d root-owned path(s)" % len(batch))
                 run_policy(batch)
+            if owner_batch:
+                log("handing back %d root-owned shared-login path(s)" % len(owner_batch))
+                run_owner_only_policy(owner_batch)
         if time.monotonic() - last_sweep >= FULL_SWEEP_INTERVAL_SECONDS:
             full_sweep(roots, "periodic")
             last_sweep = time.monotonic()

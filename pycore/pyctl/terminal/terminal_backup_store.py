@@ -118,7 +118,7 @@ class TerminalBackupStore:
                 (
                     entry.name
                     for entry in self.directory.iterdir()
-                    if entry.is_dir(follow_symlinks=False) and FOLDER_NAME_PATTERN.fullmatch(entry.name)
+                    if entry.is_dir() and not entry.is_symlink() and FOLDER_NAME_PATTERN.fullmatch(entry.name)
                 ),
                 reverse=True,
             )

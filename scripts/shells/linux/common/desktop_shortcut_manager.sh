@@ -9,7 +9,7 @@
 #       --id <stem> --name <Name> --exec <command> \
 #       [--icon <name|path>] [--comment <text>] [--generic <text>] \
 #       [--categories 'Network;System;'] [--keywords 'a;b;'] [--terminal] \
-#       [--no-menu] [--desktop all|all-users|<username>]
+#       [--no-menu] [--user-menu] [--desktop all|all-users|<username>]
 #   edit_desktop_shortcut_from_desktop_shortcut_manager  --id <stem> --key <K> --value <V> [--desktop <who>]
 #   remove_desktop_shortcut_from_desktop_shortcut_manager --id <stem> [--menu] [--desktop <who>]
 #   organize_desktop_icons_from_desktop_shortcut_manager organize|preview|undo [manifest]
@@ -55,9 +55,14 @@ DSM_ORG_ICONS_SUBDIR=".local/share/core_node/desktopIcons"
 DSM_ORG_STATE_SUBDIR="core_node/desktop_icons"
 DSM_ORG_MENU_PATH="dd.sh > Linux Management > Linux System Tools > Management & Backup > Organize Desktop Icons"
 # Launchers filed in a fixed category whatever their Name/Exec say (launcher id -> category).
-declare -gA DSM_ORG_FIXED_CATEGORIES=(
-    ["window-launcher"]="DevelopmentTools"
+declare -gA DSM_ORG_FIXED_CATEGORIES=()
+# Launchers that always stay on the Desktop and are never filed (Windows DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP
+# parity: "Window Launcher"). create restores the Desktop copy even when an older run filed it.
+declare -gA DSM_ORG_KEEP_ON_DESKTOP=(
+    ["window-launcher"]=1
 )
+# --user-menu: also write the entry into <home>/.local/share/applications for each target user.
+DSM_USER_MENU=0
 # Only the first stable Google Chrome launcher on the Desktop (Exec program in the first list, no Name
 # token of the second) is copied into Browsers and stays; every other browser launcher is moved.
 DSM_ORG_KEEP_BROWSER_TARGETS="google-chrome google-chrome-stable chrome"
@@ -424,17 +429,29 @@ _dsm_write_menu() {
     return 0
 }
 
-# GNOME/Nautilus 42+: mark a launcher trusted, AS the user against their session bus.
+# GNOME/Nautilus 42+: mark a launcher trusted, AS the user. With the user's session bus present
+# (logged in) gio talks to it; at install time without a login/display (server, SSH, no bus) a
+# private dbus-run-session bus lets gvfsd-metadata store the same per-user metadata.
 _dsm_trust_launcher() {
-    local user="$1" file="$2" uid=""
+    local user="$1" file="$2" uid="" home="" bus=""
     command -v gio >/dev/null 2>&1 || return 0
     uid="$(id -u "$user" 2>/dev/null)"
     [ -n "$uid" ] || return 0
+    home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+    bus="/run/user/$uid/bus"
     if [ "$EUID" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
-        runuser -u "$user" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
-            gio set "$file" metadata::trusted true 2>/dev/null || true
+        if [ -S "$bus" ]; then
+            runuser -u "$user" -- env HOME="$home" DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
+                gio set "$file" metadata::trusted true 2>/dev/null && return 0
+        fi
+        if command -v dbus-run-session >/dev/null 2>&1; then
+            runuser -u "$user" -- env -u DBUS_SESSION_BUS_ADDRESS HOME="$home" \
+                dbus-run-session -- gio set "$file" metadata::trusted true 2>/dev/null || true
+        fi
     else
-        gio set "$file" metadata::trusted true 2>/dev/null || true
+        gio set "$file" metadata::trusted true 2>/dev/null \
+            || { command -v dbus-run-session >/dev/null 2>&1 && dbus-run-session -- gio set "$file" metadata::trusted true 2>/dev/null; } \
+            || true
     fi
     return 0
 }
@@ -460,17 +477,26 @@ _dsm_user_launcher_files() {
 # Drop a desktop icon into ONE user's Desktop dir: executable + owned by the user +
 # GNOME-trusted (Nautilus only shows/launches a desktop .desktop when trusted).
 # A launcher the organizer filed into a category folder is updated there instead,
-# so installers do not bring it back onto the Desktop. Every write runs as the user.
+# so installers do not bring it back onto the Desktop - except the KEEP_ON_DESKTOP
+# launchers, which are always (re)written on the Desktop and unfiled. Every write runs as the user.
 _dsm_write_desktop_icon() {
-    local user="$1" home="$2" id="$3" content="$4" dir file target
+    local user="$1" home="$2" id="$3" content="$4" dir file target filed
     local targets=()
     [ -n "$user" ] && [ -n "$home" ] && [ -d "$home" ] || return 0
     dir="$(_dsm_desktop_dir "$user" "$home")"
     file="$dir/$id.desktop"
-    mapfile -t targets < <(_dsm_filed_launchers "$user" "$home" "$id")
-    if [ -e "$file" ] || [ "${#targets[@]}" -eq 0 ]; then
+    if [ -n "${DSM_ORG_KEEP_ON_DESKTOP[$id]+x}" ]; then
+        while IFS= read -r filed; do
+            [ -n "$filed" ] && _dsm_as_user "$user" rm -f -- "$filed" 2>/dev/null
+        done < <(_dsm_filed_launchers "$user" "$home" "$id")
         [ -d "$dir" ] || _dsm_as_user "$user" mkdir -p -- "$dir" 2>/dev/null || true
         targets+=("$file")
+    else
+        mapfile -t targets < <(_dsm_filed_launchers "$user" "$home" "$id")
+        if [ -e "$file" ] || [ "${#targets[@]}" -eq 0 ]; then
+            [ -d "$dir" ] || _dsm_as_user "$user" mkdir -p -- "$dir" 2>/dev/null || true
+            targets+=("$file")
+        fi
     fi
     for target in "${targets[@]}"; do
         printf '%s\n' "$content" | _dsm_as_user "$user" tee -- "$target" >/dev/null 2>&1 || return 1
@@ -478,6 +504,12 @@ _dsm_write_desktop_icon() {
         _dsm_as_user "$user" chmod 0755 -- "$target" 2>/dev/null || true
         _dsm_trust_launcher "$user" "$target"
     done
+    if [ "$DSM_USER_MENU" -eq 1 ]; then
+        target="$home/.local/share/applications/$id.desktop"
+        _dsm_as_user "$user" mkdir -p -- "$home/.local/share/applications" 2>/dev/null || true
+        printf '%s\n' "$content" | _dsm_as_user "$user" tee -- "$target" >/dev/null 2>&1 || return 1
+        _dsm_as_user "$user" chmod 0755 -- "$target" 2>/dev/null || true
+    fi
     return 0
 }
 
@@ -505,7 +537,7 @@ _dsm_for_desktops() {
 # Create (or idempotently update) a shortcut. See file header for options.
 create_desktop_shortcut_from_desktop_shortcut_manager() {
     local id="" name="" exec="" icon="" comment="" cats="" kw="" term="false" generic=""
-    local do_menu=1 desktop_who="" content="" extra="" el notify="false"
+    local do_menu=1 desktop_who="" content="" extra="" el notify="false" user_menu=0
     local extra_lines=()
     local NL
     NL=$'\n'
@@ -521,6 +553,7 @@ create_desktop_shortcut_from_desktop_shortcut_manager() {
             --keywords)        kw="$2"; shift 2 ;;
             --terminal)        term="true"; shift ;;
             --no-menu)         do_menu=0; shift ;;
+            --user-menu)       user_menu=1; shift ;;
             --desktop)         desktop_who="$2"; shift 2 ;;
             --startup-notify)  notify="$2"; shift 2 ;;
             --extra)           extra_lines+=("$2"); shift 2 ;;            # raw "KEY=VALUE"
@@ -548,7 +581,9 @@ create_desktop_shortcut_from_desktop_shortcut_manager() {
         _dsm_write_menu "$id" "$content" \
             && echo "[dsm] menu entry: $DSM_APPLICATIONS_DIR/$id.desktop (all desktop environments)"
     fi
+    DSM_USER_MENU="$user_menu"
     _dsm_for_desktops _dsm_write_desktop_icon "$desktop_who" "$id" "$content"
+    DSM_USER_MENU=0
     [ -n "$desktop_who" ] && [ "$desktop_who" != "none" ] && echo "[dsm] desktop icon written for: $desktop_who"
     return 0
 }
@@ -1062,6 +1097,7 @@ _dsm_org_plan() {
         category="${DSM_ORG_R_CAT[i]}"
         stem="${DSM_ORG_R_PATH[i]##*/}"
         stem="${stem%.desktop}"
+        [ -z "${DSM_ORG_KEEP_ON_DESKTOP[$stem]+x}" ] || continue
         if [ -n "${DSM_ORG_FIXED_CATEGORIES[$stem]+x}" ]; then
             category="${DSM_ORG_FIXED_CATEGORIES[$stem]}"
             DSM_ORG_R_CAT[i]="$category"
