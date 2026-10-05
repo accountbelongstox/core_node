@@ -3,9 +3,10 @@
 Local AI agent history extractor - pycore twin of Laravel DeveloperHistoryService.
 
 Incrementally parses the prompt sources declared in ``sources.tool_specs``
-(discovered by ``source_scan``) and persists sessions and prompts to the txt
-store under ``<cache>/pycore/.ai_state/agent_history/`` (reads live in
-``agent_history_store``). Every scanned prompt is archived in the prompt
+(discovered by ``source_scan``); a pass writes only the changed sessions:
+their transcripts to ``sessions/<id>.txt`` and their index rows, prompts and
+source state to the SQLite store (``agent_history_index``) in one commit
+(reads live in ``agent_history_store``). Every scanned prompt is archived in the prompt
 record store; genuinely new prompts are announced by ``prompt_events``.
 """
 
@@ -17,6 +18,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import pycore.pyctl.agent_history.agent_history_txt as txt
 import pycore.pyctl.agent_history.root_spool as root_spool
 import pycore.pyctl.agent_history.source_scan as source_scan
+from pycore.pyctl.agent_history.agent_history_index import (
+    META_GENERATED_AT,
+    META_SCHEMA_REVISION,
+    META_SIGNATURE,
+    agent_history_index,
+)
 from pycore.pyctl.agent_history.agent_history_records import (
     IS_DEV_MACHINE,
     apply_edits,
@@ -62,17 +69,13 @@ def _remove_session_file(session_id: str) -> None:
 
 
 class _ExtractPass:
-    """Mutable working set of one extract pass over the txt store."""
+    """Working set of one extract pass: only the changed sessions and sources."""
 
     def __init__(self, prev_sources: Dict[str, Any]) -> None:
-        index = txt.read_index()
         self.edits = txt.read_edits()
-        self.summaries: Dict[str, Dict[str, Any]] = {
-            s["id"]: s for s in index.get("sessions") or [] if s.get("id")
-        }
-        self.prompts = txt.read_prompts()
-        self.known_prompt_ids = {str(p.get("id") or "") for p in self.prompts if p.get("id")}
+        self.sessions: Dict[str, Dict[str, Any]] = {}
         self.new_sources = dict(prev_sources)
+        self.removed_paths: List[str] = []
         self.changed_ids: List[str] = []
         self.removed_ids: List[str] = []
         self.append_prompts: List[Dict[str, Any]] = []
@@ -82,8 +85,13 @@ class _ExtractPass:
     def drop_sessions(self, session_ids: List[str]) -> None:
         for sid in session_ids:
             _remove_session_file(sid)
-            self.summaries.pop(sid, None)
+            self.sessions.pop(sid, None)
             self.removed_ids.append(sid)
+
+    def drop_source(self, path: str, session_ids: List[str]) -> None:
+        self.drop_sessions(session_ids)
+        self.new_sources.pop(path, None)
+        self.removed_paths.append(path)
 
     def ingest(self, path: str, info: Dict[str, Any], old_ids: List[str]) -> None:
         ids: List[str] = []
@@ -113,13 +121,8 @@ class _ExtractPass:
             )
             apply_edits(detail["prompts"], self.edits)
             txt.write_session(sid, detail)
-            self.summaries[sid] = session_summary(detail)
-            for p in detail["prompts"]:
-                entry = prompt_entry(p, sess, sid)
-                self.append_prompts.append(entry)
-                if entry["id"] not in self.known_prompt_ids:
-                    self.known_prompt_ids.add(entry["id"])
-                    self.new_prompts.append(entry)
+            self.sessions[sid] = session_summary(detail)
+            self.append_prompts.extend(prompt_entry(p, sess, sid) for p in detail["prompts"])
             ids.append(sid)
             self.changed_ids.append(sid)
         self.drop_sessions(sorted(set(old_ids) - set(ids)))
@@ -134,33 +137,32 @@ class _ExtractPass:
             "session_ids": ids,
         }
 
-    def write(self, generated_at: str, signature: str) -> Dict[str, Any]:
-        drop = set(self.changed_ids + self.removed_ids)
-        prompts = [p for p in self.prompts if p.get("session_id") not in drop]
-        prompts.extend(self.append_prompts)
-        prompts.sort(key=lambda p: p.get("ts") or 0, reverse=True)
-        sessions = sorted(self.summaries.values(), key=lambda s: s.get("started_ts") or 0, reverse=True)
-        tools = sorted({s.get("tool") for s in sessions if s.get("tool")})
-        users = sorted({s.get("os_user") for s in sessions if s.get("os_user")})
-        counts = {"sessions": len(sessions), "prompts": len(prompts), "tools": len(tools), "users": len(users)}
-        txt.write_index({
-            "is_dev_machine": IS_DEV_MACHINE,
-            "generated_at": generated_at,
-            "tools": tools,
-            "users": users,
-            "langs": sorted({p.get("lang") for p in prompts if p.get("lang")}),
-            "sessions": sessions,
-        })
-        txt.write_prompts(prompts)
-        txt.write_state({
-            "is_dev_machine": IS_DEV_MACHINE,
-            "generated_at": generated_at,
-            "signature": signature,
-            "extractor_schema_revision": EXTRACTOR_SCHEMA_REVISION,
-            "sources": self.new_sources,
-            "counts": counts,
-        })
-        return counts
+    def _collect_new_prompts(self) -> None:
+        """New = ids the store has never held (checked before this commit), once per pass."""
+        known = agent_history_index.existing_prompt_ids(
+            [str(p.get("id") or "") for p in self.append_prompts if p.get("id")]
+        )
+        for entry in self.append_prompts:
+            pid = str(entry.get("id") or "")
+            if not pid or pid in known or not str(entry.get("text") or "").strip():
+                continue
+            known.add(pid)
+            self.new_prompts.append(entry)
+
+    def write(self, generated_at: str, signature: str, changed_paths: List[str]) -> Dict[str, Any]:
+        self._collect_new_prompts()
+        return agent_history_index.commit_pass(
+            self.changed_ids + self.removed_ids,
+            list(self.sessions.values()),
+            self.append_prompts,
+            self.removed_paths,
+            {path: self.new_sources[path] for path in changed_paths if path in self.new_sources},
+            {
+                META_GENERATED_AT: generated_at,
+                META_SIGNATURE: signature,
+                META_SCHEMA_REVISION: EXTRACTOR_SCHEMA_REVISION,
+            },
+        )
 
 
 def _source_changes(
@@ -267,7 +269,7 @@ class AgentHistoryService:
     def _extract_store(self, force: bool, generated_at: str) -> Dict[str, Any]:
         current = source_scan.scan_sources()
         signature = source_scan.signature(current)
-        state = txt.read_state()
+        state = agent_history_index.state()
         schema_changed = state.get("extractor_schema_revision") != EXTRACTOR_SCHEMA_REVISION
         prev_sources = state.get("sources") if isinstance(state.get("sources"), dict) else {}
 
@@ -285,11 +287,10 @@ class AgentHistoryService:
         changed_paths, removed_paths = _source_changes(current, prev_sources, force or schema_changed)
         work = _ExtractPass(prev_sources)
         for path in removed_paths:
-            work.drop_sessions(list(prev_sources.get(path, {}).get("session_ids") or []))
-            work.new_sources.pop(path, None)
+            work.drop_source(path, list(prev_sources.get(path, {}).get("session_ids") or []))
         for path in changed_paths:
             work.ingest(path, current[path], list(prev_sources.get(path, {}).get("session_ids") or []))
-        counts = work.write(generated_at, signature)
+        counts = work.write(generated_at, signature, changed_paths)
 
         summary = {"is_dev_machine": IS_DEV_MACHINE, "changed": len(changed_paths), "removed": len(removed_paths)}
         summary.update(counts)

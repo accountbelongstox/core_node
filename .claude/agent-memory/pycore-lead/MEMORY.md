@@ -20,3 +20,4 @@
 - [phrase_extract in pycore](project_phrase_extract_pycore.md) — 2026-10-05 handler rides compute worker; TaskRelease/available=; contract vocabulary gate
 - [Phrase pipeline in orchestration](project_phrase_pipeline_orch.md) — 2026-10-05 phrase step decisions; Laravel ingest validator rejects phrase timeline type; locale codes
 - [Phrase audio pycore](project_phrase_audio_pycore.md) — 2026-10-05 phrase cache/batch/delivery: no W7 diff kind, no reconcile; how to extend
+- [pycore restart Tcl crash](project_pycore_restart_tcl_crash.md) — 2026-10-05 04:21-10:41 outage: self-restart crashed in tcl86t before successor spawn; no supervisor; 175 unrelated

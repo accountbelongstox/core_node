@@ -5,31 +5,24 @@ import copy
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
+from pycore.database.repositories.terminal_state_reader import TerminalStateReader
 from pycore.database.repositories.terminal_state_store import TerminalStateStore
+from pycore.database.schema.terminal_state_schema import DEFAULT_LOG_SOURCE
 from pycore.pyctl.terminal.terminal_state_keys import (
-    DEFAULT_LOG_SOURCE,
     LIVE_IDENTITY_FIELDS,
     LIVE_VOLATILE_PERSIST_SECONDS,
-    LOG_CONTENT_KEY_SUFFIX,
-    LOG_ENTRY_FIELDS,
-    LOG_KEY_PATTERN,
     LOG_SOURCES,
-    NEXT_NUMBER_KEY,
-    SIZE_ONLY_KEY_SUFFIXES,
     SLOT_VERSION,
     TERMINAL_DATABASE_NAME,
     TERMINAL_DATA_DIR,
-    TERMINAL_KEY_PATTERN,
     active_records,
+    is_active_record,
     log_metadata,
     log_preview,
     next_slot_number,
-    parse_records,
     refresh_record_logs,
-    stored_terminal_numbers,
-    terminal_key,
 )
 from pycore.pyctl.terminal.terminal_window_views import (
     build_offline_window,
@@ -38,6 +31,7 @@ from pycore.pyctl.terminal.terminal_window_views import (
     new_record,
     window_key,
 )
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -45,28 +39,63 @@ from pycore.pyfoundations.serialized_worker import (
 from pycore.pyfoundations.time_utils import utc_now_iso
 
 
+LABEL = "TerminalStateRepository"
+
+
 def _transactional_store_method(
     method: Callable[..., Any],
 ) -> Callable[..., Any]:
     @wraps(method)
     def wrapper(owner: Any, *args: Any, **kwargs: Any) -> Any:
-        with owner._store.transaction():
-            return method(owner, *args, **kwargs)
+        owner._synchronize_records()
+        try:
+            with owner._store.transaction():
+                return method(owner, *args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 - the model is rebuilt from disk, then the failure propagates
+            ColorPrint.red(
+                f"[{LABEL}] {method.__name__} failed, reloading the stored model: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            owner._reload_records()
+            raise
     return wrapper
 
 
 class TerminalStateRepository:
     def __init__(self, data_dir: Path = TERMINAL_DATA_DIR) -> None:
-        self._store = TerminalStateStore(
-            data_dir / TERMINAL_DATABASE_NAME,
-            data_dir,
-        )
+        database_path = data_dir / TERMINAL_DATABASE_NAME
+        self._store = TerminalStateStore(database_path, data_dir)
+        self._reader = TerminalStateReader(database_path)
         self._volatile_persisted_at: Dict[int, float] = {}
+        self._data_version = 0
+        self._records: Dict[int, Dict[str, Any]] = {}
+        self._reload_records()
         init_serialized_owner(
             self,
             "terminal.state",
             "TerminalStateRepository",
         )
+
+    def _synchronize_records(self) -> None:
+        """Another process (a pycore worker on the same machine) committed to the store: rebuild the model."""
+        if self._store.data_version() != self._data_version:
+            self._reload_records()
+
+    def _reload_records(self) -> None:
+        self._data_version = self._store.data_version()
+        self._records = self._load_records()
+
+    def _load_records(self) -> Dict[int, Dict[str, Any]]:
+        records: Dict[int, Dict[str, Any]] = {}
+        for stored in self._store.load_terminals():
+            records[int(stored["terminal_number"])] = {**stored, "logs_by_id": {}}
+        for terminal_number, log_id, values in self._store.load_log_metadata():
+            record = records.get(terminal_number)
+            if record is not None:
+                record["logs_by_id"][str(log_id)] = values
+        for record in records.values():
+            refresh_record_logs(record)
+        return records
 
     @serialized_method
     @_transactional_store_method
@@ -75,14 +104,14 @@ class TerminalStateRepository:
         platform_name: str,
         windows: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        values, records, _next_number = self._scan_records()
+        records = active_records(self._records)
         records_by_window_key = {
             str(record.get("window_key") or ""): record
             for record in records.values()
             if record.get("window_key")
         }
-        reserved_terminal_numbers = stored_terminal_numbers(values)
-        claimed_terminal_numbers = set()
+        reserved_terminal_numbers: Set[int] = set(self._records)
+        claimed_terminal_numbers: Set[int] = set()
         assignments: List[Tuple[Dict[str, Any], int, str]] = []
         reconciled_windows: List[Dict[str, Any]] = []
         now = utc_now_iso()
@@ -131,41 +160,22 @@ class TerminalStateRepository:
                     now,
                 )
                 records[terminal_number] = record
+                self._records[terminal_number] = record
                 reserved_terminal_numbers.add(terminal_number)
-                self._write_record_fields(values, record)
+                self._store.insert_terminal(record)
             if (
                 source_record is not None
                 and int(source_record["terminal_number"]) != terminal_number
             ):
-                self._merge_record_state(
-                    values,
-                    record,
-                    source_record,
-                    now,
-                )
-            record["slot_version"] = SLOT_VERSION
-            self._write_value(
-                values,
-                terminal_key(terminal_number, "slot_version"),
-                SLOT_VERSION,
-            )
+                self._merge_record_state(record, source_record, now)
+            self._set_fields(record, {"slot_version": SLOT_VERSION})
             claimed_terminal_numbers.add(terminal_number)
             assignments.append((live_window, terminal_number, live_key))
 
-        self._write_value(
-            values,
-            NEXT_NUMBER_KEY,
-            str(max(reserved_terminal_numbers, default=0) + 1),
-        )
         for live_window, terminal_number, live_key in assignments:
             record = records[terminal_number]
-            record["window_key"] = live_key
-            self._write_value(
-                values,
-                terminal_key(terminal_number, "window_key"),
-                live_key,
-            )
-            self._update_live_record(values, record, live_window, now)
+            self._set_fields(record, {"window_key": live_key})
+            self._update_live_record(record, live_window, now)
             reconciled_windows.append(
                 decorate_live_window(live_window, record)
             )
@@ -188,21 +198,12 @@ class TerminalStateRepository:
     @serialized_method
     @_transactional_store_method
     def save_draft(self, terminal_number: int, text: str) -> Dict[str, Any]:
-        values, records, _next_number = self._scan_records()
-        record = records.get(terminal_number)
+        record = self._active_record(terminal_number)
         if record is None:
             return {"success": False, "error_code": "terminal_state_not_found"}
-        now = utc_now_iso()
-        self._write_value(
-            values,
-            terminal_key(terminal_number, "draft"),
-            text,
-        )
-        self._write_value(
-            values,
-            terminal_key(terminal_number, "updated_at"),
-            now,
-        )
+        self._store.write_draft(terminal_number, text)
+        record["draft"] = str(len(text.encode("utf-8")))
+        self._set_fields(record, {"updated_at": utc_now_iso()})
         return {
             "success": True,
             "terminal_number": terminal_number,
@@ -216,19 +217,15 @@ class TerminalStateRepository:
         terminal_number: int,
         expanded: bool,
     ) -> Dict[str, Any]:
-        values, records, _next_number = self._scan_records()
-        if terminal_number not in records:
+        record = self._active_record(terminal_number)
+        if record is None:
             return {"success": False, "error_code": "terminal_state_not_found"}
-        now = utc_now_iso()
-        self._write_value(
-            values,
-            terminal_key(terminal_number, "preview_expanded"),
-            "1" if expanded else "0",
-        )
-        self._write_value(
-            values,
-            terminal_key(terminal_number, "updated_at"),
-            now,
+        self._set_fields(
+            record,
+            {
+                "preview_expanded": "1" if expanded else "0",
+                "updated_at": utc_now_iso(),
+            },
         )
         return {
             "success": True,
@@ -243,11 +240,13 @@ class TerminalStateRepository:
         terminal_number: int,
         title: str,
     ) -> Dict[str, Any]:
-        values, records, _next_number = self._scan_records()
-        if terminal_number not in records:
+        record = self._active_record(terminal_number)
+        if record is None:
             return {"success": False, "error_code": "terminal_state_not_found"}
-        self._write_value(values, terminal_key(terminal_number, "custom_title"), title)
-        self._write_value(values, terminal_key(terminal_number, "updated_at"), utc_now_iso())
+        self._set_fields(
+            record,
+            {"custom_title": title, "updated_at": utc_now_iso()},
+        )
         return {
             "success": True,
             "terminal_number": terminal_number,
@@ -262,16 +261,13 @@ class TerminalStateRepository:
         text: str,
         source: str = DEFAULT_LOG_SOURCE,
     ) -> Optional[Dict[str, Any]]:
-        values, records, _next_number = self._scan_records()
-        record = records.get(terminal_number)
+        record = self._active_record(terminal_number)
         if record is None:
             return None
 
         log_id = str(time.time_ns())
         now = utc_now_iso()
-        log_prefix = f"log.{log_id}"
         log_values = {
-            "content": text,
             "date": now,
             "error_code": "",
             "preview": log_preview(text),
@@ -279,23 +275,13 @@ class TerminalStateRepository:
             "status": "pending",
             "title": str(record.get("title") or ""),
         }
-        for field, value in log_values.items():
-            self._write_value(
-                values,
-                terminal_key(terminal_number, f"{log_prefix}.{field}"),
-                value,
-            )
+        self._store.insert_log(terminal_number, int(log_id), log_values, text)
+        record["logs_by_id"][log_id] = log_values
+        refresh_record_logs(record)
         if log_values["source"] == DEFAULT_LOG_SOURCE:
-            self._write_value(
-                values,
-                terminal_key(terminal_number, "draft"),
-                text,
-            )
-        self._write_value(
-            values,
-            terminal_key(terminal_number, "updated_at"),
-            now,
-        )
+            self._store.write_draft(terminal_number, text)
+            record["draft"] = str(len(text.encode("utf-8")))
+        self._set_fields(record, {"updated_at": now})
         return log_metadata(
             terminal_number,
             log_id,
@@ -311,92 +297,78 @@ class TerminalStateRepository:
         success: bool,
         error_code: Optional[str],
     ) -> Optional[Dict[str, Any]]:
-        values, records, _next_number = self._scan_records()
-        record = records.get(terminal_number)
+        record = self._active_record(terminal_number)
         log = (record or {}).get("logs_by_id", {}).get(log_id)
         if record is None or not isinstance(log, dict):
             return None
 
         status = "sent" if success else "failed"
-        now = utc_now_iso()
-        self._write_value(
-            values,
-            terminal_key(terminal_number, f"log.{log_id}.status"),
-            status,
-        )
-        self._write_value(
-            values,
-            terminal_key(terminal_number, f"log.{log_id}.error_code"),
-            str(error_code or ""),
-        )
-        self._write_value(
-            values,
-            terminal_key(terminal_number, "updated_at"),
-            now,
-        )
-        if success and str(log.get("source") or DEFAULT_LOG_SOURCE) == DEFAULT_LOG_SOURCE:
-            self._write_value(
-                values,
-                terminal_key(terminal_number, "draft"),
-                "",
-            )
         completed_values = {
             **log,
             "status": status,
             "error_code": str(error_code or ""),
         }
+        self._store.update_log(
+            terminal_number,
+            int(log_id),
+            {"status": status, "error_code": completed_values["error_code"]},
+        )
+        record["logs_by_id"][log_id] = completed_values
+        refresh_record_logs(record)
+        if success and str(log.get("source") or DEFAULT_LOG_SOURCE) == DEFAULT_LOG_SOURCE:
+            self._store.write_draft(terminal_number, "")
+            record["draft"] = "0"
+        self._set_fields(record, {"updated_at": utc_now_iso()})
         return log_metadata(
             terminal_number,
             log_id,
             completed_values,
         )
 
-    @serialized_method
     def read_text(
         self,
         terminal_number: int,
         content_kind: str,
         log_id: str = "",
     ) -> Optional[str]:
-        values, records, _next_number = self._scan_records()
-        if terminal_number not in records:
-            return None
         if content_kind == "draft":
-            key = terminal_key(terminal_number, "draft")
-        elif content_kind == "log" and log_id.isdigit():
-            key = terminal_key(terminal_number, f"log.{log_id}.content")
-        else:
-            return None
-        content = self._store.read(key)
-        if content is not None:
-            return content
-        return "" if content_kind == "draft" else None
+            return self._reader.read_draft(terminal_number)
+        if content_kind == "log" and log_id.isdigit():
+            return self._reader.read_log_content(terminal_number, int(log_id))
+        return None
 
-    @serialized_method
+    def read_log_texts(
+        self,
+        terminal_number: int,
+        log_ids: Sequence[str],
+    ) -> Dict[str, str]:
+        return self._reader.read_log_contents(
+            terminal_number,
+            [int(log_id) for log_id in log_ids if str(log_id).isdigit()],
+        )
+
     def search_logs(self, query: str, limit: int) -> List[Dict[str, Any]]:
         """Sent messages containing query, newest first; a text sent again is listed once, at its newest send."""
         needle = query.strip()
         if not needle or limit <= 0:
             return []
-        matches: List[Tuple[int, int, str]] = []
-        for key, content in self._store.search_values(LOG_CONTENT_KEY_SUFFIX, needle):
-            terminal_match = TERMINAL_KEY_PATTERN.match(key)
-            log_match = LOG_KEY_PATTERN.match(terminal_match.group(2)) if terminal_match else None
-            if log_match and log_match.group(2) == "content":
-                matches.append((int(log_match.group(1)), int(terminal_match.group(1)), content))
-        matches.sort(reverse=True)
         results: List[Dict[str, Any]] = []
         seen_contents = set()
-        for log_id, terminal_number, content in matches:
+        for entry in self._reader.matching_logs(needle):
+            content = str(entry["content"])
             if content in seen_contents:
                 continue
             seen_contents.add(content)
-            values = {
-                field: self._store.read(terminal_key(terminal_number, f"log.{log_id}.{field}")) or ""
-                for field in LOG_ENTRY_FIELDS
-                if field != "content"
-            }
-            results.append({**log_metadata(terminal_number, str(log_id), values), "content": content})
+            results.append(
+                {
+                    **log_metadata(
+                        int(entry["terminal_number"]),
+                        str(entry["log_id"]),
+                        entry,
+                    ),
+                    "content": content,
+                }
+            )
             if len(results) >= limit:
                 break
         return results
@@ -409,33 +381,31 @@ class TerminalStateRepository:
         live_windows: List[Dict[str, Any]],
         terminal_number: int,
     ) -> Dict[str, Any]:
-        """Delete every stored key of an offline terminal and of the records merged into it
+        """Delete every stored row of an offline terminal and of the records merged into it
         (they would otherwise resurface as offline windows once their merge target is gone)."""
-        values, records, _next_number = self._scan_records()
-        if terminal_number not in records:
+        record = self._active_record(terminal_number)
+        if record is None:
             return {"success": False, "error_code": "terminal_state_not_found"}
         live_keys = {window_key(platform_name, window) for window in live_windows}
-        if str(records[terminal_number].get("window_key") or "") in live_keys:
+        if str(record.get("window_key") or "") in live_keys:
             return {"success": False, "error_code": "terminal_window_online"}
         removed_numbers = {terminal_number}
         pending = True
         while pending:
             pending = False
-            for number, record in records.items():
-                merged_into = str(record.get("merged_into") or "")
+            for number, stored in self._records.items():
+                merged_into = str(stored.get("merged_into") or "")
                 if (
                     number not in removed_numbers
                     and merged_into.isdigit()
                     and int(merged_into) in removed_numbers
-                    and str(record.get("window_key") or "") not in live_keys
+                    and str(stored.get("window_key") or "") not in live_keys
                 ):
                     removed_numbers.add(number)
                     pending = True
-        prefixes = tuple(terminal_key(number, "") for number in removed_numbers)
-        for key in [key for key in values if key.startswith(prefixes)]:
-            self._store.delete(key)
-            values.pop(key, None)
+        self._store.delete_terminals(removed_numbers)
         for number in removed_numbers:
+            self._records.pop(number, None)
             self._volatile_persisted_at.pop(number, None)
         return {
             "success": True,
@@ -443,151 +413,57 @@ class TerminalStateRepository:
             "removed_terminal_numbers": sorted(removed_numbers),
         }
 
-    @serialized_method
     def resolve_window_id(self, terminal_number: int) -> str:
-        _values, records, _next_number = self._scan_records()
-        record = records.get(terminal_number)
-        return str(record.get("window_id") or "") if record else ""
+        return self._reader.window_id(terminal_number)
+
+    def _active_record(self, terminal_number: int) -> Optional[Dict[str, Any]]:
+        record = self._records.get(terminal_number)
+        if record is None or not is_active_record(record, self._records):
+            return None
+        return record
+
+    def _set_fields(self, record: Dict[str, Any], values: Dict[str, str]) -> bool:
+        changed = {
+            field: value
+            for field, value in values.items()
+            if record.get(field) != value
+        }
+        if not changed:
+            return False
+        self._store.update_terminal(int(record["terminal_number"]), changed)
+        record.update(changed)
+        return True
 
     def _merge_record_state(
         self,
-        values: Dict[str, str],
         target: Dict[str, Any],
         source: Dict[str, Any],
         now: str,
     ) -> None:
         target_number = int(target["terminal_number"])
         source_number = int(source["terminal_number"])
-        target_draft_size = int(target.get("draft") or 0)
-        source_draft_size = int(source.get("draft") or 0)
-        target_logs = target.setdefault("logs_by_id", {})
-        source_logs = source.get("logs_by_id") or {}
+        target_logs = target["logs_by_id"]
+        missing_log_ids = [
+            log_id for log_id in source["logs_by_id"] if log_id not in target_logs
+        ]
 
-        if target_draft_size == 0 and source_draft_size > 0:
-            source_draft = self._store.read(
-                terminal_key(source_number, "draft"),
-            ) or ""
-            self._write_value(
-                values,
-                terminal_key(target_number, "draft"),
-                source_draft,
-            )
-            target["draft"] = str(len(source_draft.encode("utf-8")))
+        if int(target.get("draft") or 0) == 0 and int(source.get("draft") or 0) > 0:
+            self._store.copy_draft(source_number, target_number)
+            target["draft"] = str(source["draft"])
 
+        changes = {"updated_at": now}
         if str(source.get("preview_expanded") or "0") == "1":
-            self._write_value(
-                values,
-                terminal_key(target_number, "preview_expanded"),
-                "1",
-            )
-            target["preview_expanded"] = "1"
-
-        self._merge_nested_entries(
-            values,
-            target_number,
-            source_number,
-            "log",
-            LOG_ENTRY_FIELDS,
-            target_logs,
-            source_logs,
-        )
-        target["updated_at"] = now
-        self._write_value(
-            values,
-            terminal_key(target_number, "updated_at"),
-            now,
-        )
-        source["merged_into"] = str(target_number)
-        self._write_value(
-            values,
-            terminal_key(source_number, "merged_into"),
-            str(target_number),
-        )
-        refresh_record_logs(target)
-
-    def _merge_nested_entries(
-        self,
-        values: Dict[str, str],
-        target_number: int,
-        source_number: int,
-        entry_kind: str,
-        entry_fields: Tuple[str, ...],
-        target_entries: Dict[str, Dict[str, str]],
-        source_entries: Dict[str, Dict[str, str]],
-    ) -> None:
-        for entry_id, entry_values in source_entries.items():
-            if entry_id in target_entries:
-                continue
-            merged_entry: Dict[str, str] = {}
-            for field in entry_fields:
-                source_key = terminal_key(
-                    source_number,
-                    f"{entry_kind}.{entry_id}.{field}",
-                )
-                value = (
-                    self._store.read(source_key)
-                    if source_key.endswith(SIZE_ONLY_KEY_SUFFIXES)
-                    else entry_values.get(field)
-                )
-                if value is None:
-                    continue
-                stored_value = str(value)
-                self._write_value(
-                    values,
-                    terminal_key(
-                        target_number,
-                        f"{entry_kind}.{entry_id}.{field}",
-                    ),
-                    stored_value,
-                )
-                merged_entry[field] = (
-                    str(len(stored_value.encode("utf-8")))
-                    if source_key.endswith(SIZE_ONLY_KEY_SUFFIXES)
-                    else stored_value
-                )
-            target_entries[entry_id] = merged_entry
-
-    def _scan_records(
-        self,
-    ) -> Tuple[Dict[str, str], Dict[int, Dict[str, Any]], int]:
-        values = self._store.scan(SIZE_ONLY_KEY_SUFFIXES)
-        records, next_number = parse_records(values)
-        return values, records, next_number
-
-    def _write_record_fields(
-        self,
-        values: Dict[str, str],
-        record: Dict[str, Any],
-    ) -> None:
-        terminal_number = int(record["terminal_number"])
-        for field, value in record.items():
-            if field in {
-                "logs",
-                "logs_by_id",
-                "terminal_number",
-            }:
-                continue
-            self._write_value(
-                values,
-                terminal_key(terminal_number, field),
-                str(value),
-            )
-
-    def _write_value(
-        self,
-        values: Dict[str, str],
-        key: str,
-        value: str,
-    ) -> None:
-        if key.endswith(SIZE_ONLY_KEY_SUFFIXES):
-            self._store.write(key, value)
-            values[key] = str(len(value.encode("utf-8")))
-            return
-        self._store.write(key, value, values)
+            changes["preview_expanded"] = "1"
+        if missing_log_ids:
+            self._store.copy_missing_logs(source_number, target_number)
+            for log_id in missing_log_ids:
+                target_logs[log_id] = dict(source["logs_by_id"][log_id])
+            refresh_record_logs(target)
+        self._set_fields(target, changes)
+        self._set_fields(source, {"merged_into": str(target_number)})
 
     def _update_live_record(
         self,
-        values: Dict[str, str],
         record: Dict[str, Any],
         window: Dict[str, Any],
         now: str,
@@ -624,14 +500,7 @@ class TerminalStateRepository:
         ):
             return
         self._volatile_persisted_at[terminal_number] = monotonic_now
-        live_values["last_seen_at"] = now
-        for field, value in live_values.items():
-            record[field] = value
-            self._write_value(
-                values,
-                terminal_key(terminal_number, field),
-                value,
-            )
+        self._set_fields(record, {**live_values, "last_seen_at": now})
 
 
 terminal_state_repository = TerminalStateRepository()

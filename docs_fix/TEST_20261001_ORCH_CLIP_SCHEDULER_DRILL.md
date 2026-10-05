@@ -45,6 +45,8 @@ Last run (2026-10-05, with phrases): S1-S11 and P1 as above; randomized 300 roun
 violations=0. Cursor run (2026-10-02, before phrases; the scheduler's per-clip path is unchanged): run 1: 94 requests, snapshot
 39,204 bytes, restored identical; run 2: 0 requests.
 
+Run 2026-10-05 after R16 (edits never stop a download; resolver `owned` / `wanted` / `feed`, `orchCarryProgress`): S1-S11 and P1 unchanged; randomized 300 rounds, violations=0; cursor_perf run 2: 0 transfer requests (transfer stages `known 11832`).
+
 ## drill.ts
 
 ```ts
