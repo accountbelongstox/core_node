@@ -41,11 +41,7 @@ sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://gitee.com/accountb
 sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.sh && sudo chmod +x /usr/tmp/dd.sh && sudo bash /usr/tmp/dd.sh
 ```
 
-OpenWrt as a Wi-Fi access point behind the Network Router (run on the router as root; wire the router LAN port to the router host's relay port; `apply <ap_ip/24> <gateway>`, LAN2 uses 192.168.51.2/24 192.168.51.1; undo: `sh /tmp/ap_mode.sh restore`):
-
-```sh
-wget -qO /tmp/ap_mode.sh https://gitee.com/accountbelongstox/core_node/raw/main/apps/network_router/openwrt/ap_mode.sh && sh /tmp/ap_mode.sh apply 192.168.50.2/24 192.168.50.1
-```
+OpenWrt as a Wi-Fi access point behind the Network Router (run on the router as root; OpenWrt has no `sudo`; wire the router LAN port to the router host's relay port; `apply <ap_ip/24> <gateway>`, LAN2 uses 192.168.51.2/24 192.168.51.1; undo: `sh /tmp/ap_mode.sh restore`):
 
 ```sh
 wget -qO /tmp/ap_mode.sh https://raw.githubusercontent.com/accountbelongstox/core_node/main/apps/network_router/openwrt/ap_mode.sh && sh /tmp/ap_mode.sh apply 192.168.50.2/24 192.168.50.1

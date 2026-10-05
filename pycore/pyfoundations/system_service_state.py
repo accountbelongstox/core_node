@@ -13,7 +13,7 @@ import re
 import shutil
 import socket
 import urllib.request
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Sequence
 
 from pycore.pyfoundations.pybasecommon.commander import run_args
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -44,6 +44,7 @@ SCHTASKS_RUNNING_STATUS = 'Running'
 SUDO_COMMAND = 'sudo'
 SUDO_NON_INTERACTIVE_FLAG = '-n'
 SUDO_PROBE_COMMAND = 'true'
+SUDO_LIST_FLAG = '-l'
 SUDO_PROBE_TIMEOUT_SEC = 10
 # setsid detaches the probe from the launcher's terminal session, as the detached installers are.
 SETSID_COMMAND = 'setsid'
@@ -165,10 +166,11 @@ def is_elevated() -> bool:
     return os.geteuid() == 0
 
 
-def sudo_available() -> bool:
-    """True when sudo runs without a password from a detached (tty-less) session."""
+def sudo_available(command: Optional[Sequence[str]] = None) -> bool:
+    """True when sudo runs without a password from a detached (tty-less) session; with command, only that command is probed."""
+    probe = [SUDO_LIST_FLAG, *command] if command else [SUDO_PROBE_COMMAND]
     return run_args(
-        [SETSID_COMMAND, SETSID_WAIT_FLAG, SUDO_COMMAND, SUDO_NON_INTERACTIVE_FLAG, SUDO_PROBE_COMMAND],
+        [SETSID_COMMAND, SETSID_WAIT_FLAG, SUDO_COMMAND, SUDO_NON_INTERACTIVE_FLAG, *probe],
         input_text='',
         timeout=SUDO_PROBE_TIMEOUT_SEC,
         detach_output=True,

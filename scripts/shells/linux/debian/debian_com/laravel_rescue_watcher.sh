@@ -3,7 +3,8 @@
 # Every LR_POLL_SECONDS: each <epoch>-<nonce>.<action>.request in LR_REQUESTS_DIR is
 # deleted at once, then its Laravel action runs (one run per action per pass).
 # With LR_KEEPALIVE_FLAG present, every pass also restarts the Laravel / UI unit
-# whose port stopped listening (at most once per LR_KEEPALIVE_COOLDOWN seconds).
+# whose port stopped listening (at most once per LR_KEEPALIVE_COOLDOWN seconds,
+# never within LR_KEEPALIVE_START_GRACE seconds of the unit becoming active).
 # Environment comes from the unit rendered by laravel_rescue_common.sh.
 
 LR_STATUS_KEEP_LINES=500
@@ -52,6 +53,17 @@ lr_port_up() {
     ss -ltnH "sport = :$1" 2>/dev/null | grep -q .
 }
 
+# Type=simple units are "active" while their wrapper still converges before binding the port.
+lr_unit_in_start_grace() {
+    local since_us=""
+    local uptime_s=""
+
+    since_us="$(systemctl show -p ActiveEnterTimestampMonotonic --value "$1" 2>/dev/null)"
+    [ -n "$since_us" ] && [ "$since_us" -gt 0 ] 2>/dev/null || return 1
+    uptime_s="$(cut -d. -f1 /proc/uptime)"
+    [ $(( uptime_s - since_us / 1000000 )) -lt "${LR_KEEPALIVE_START_GRACE:-180}" ]
+}
+
 lr_ui_action() {
     if lr_ui_unit_present; then
         systemctl reset-failed "$LR_UI_SERVICE" >/dev/null 2>&1
@@ -66,7 +78,7 @@ lr_ui_action() {
 }
 
 # lr_keepalive_unit <label> <port> <unit> <last_var>: restart a registered unit
-# whose port is down; skipped while systemd is still activating it.
+# whose port is down; skipped while systemd is still activating it or within the start grace.
 lr_keepalive_unit() {
     local label="$1"
     local port="$2"
@@ -81,6 +93,7 @@ lr_keepalive_unit() {
     [ $(( now - ${!last_var} )) -ge "${LR_KEEPALIVE_COOLDOWN:-300}" ] || return 0
     state="$(systemctl is-active "$unit" 2>/dev/null)"
     [ "$state" = "activating" ] && return 0
+    [ "$state" = "active" ] && lr_unit_in_start_grace "$unit" && return 0
     printf -v "$last_var" '%s' "$now"
     lr_log "keepalive: $label port $port down (unit $state); restarting $unit"
     systemctl reset-failed "$unit" >/dev/null 2>&1

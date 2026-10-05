@@ -8,7 +8,7 @@ import { usePcDesktopHost } from './hooks/usePcDesktopHost';
 import { PcDirectOnlyNotice } from './components/PcDirectOnlyNotice';
 import {
   ListOrdered, AppWindow, FolderSync, Terminal, Network,
-  Settings, Library, Sparkles, History, BookOpen, AudioLines, type LucideIcon,
+  Settings, Library, Sparkles, History, BookOpen, AudioLines, Router, type LucideIcon,
 } from 'lucide-react';
 
 export const PcQueueCenterPage = lazy(() => import('./pages/PcQueueCenterPage'));
@@ -60,6 +60,8 @@ export const PcAudioOrchestrationPage = lazy(() => import('./pages/PcAudioOrches
 export const PcSettingsPage = lazy(() => import('./pages/PcSettingsPage'));
 // Mesh VPN (Headscale) login guide: live server facts, single-use keys, device approval.
 export const PcMeshLoginPage = lazy(() => import('./pages/PcMeshLoginPage'));
+// Network router (NAT gateway) of the pycore machine: service state, configuration, links, DHCP clients, start/stop/restart.
+export const PcNetworkRouterPage = lazy(() => import('./pages/PcNetworkRouterPage'));
 
 /** Route prefix the shell mounts this end under. */
 export const PC_BASE_PATH = '/pycore-manager';
@@ -80,6 +82,7 @@ export const PC_PAGES: PcPageDef[] = [
   { id: 'window-automation', labelKey: 'nav.windowAutomation', Icon: AppWindow, Component: PcWindowAutomationPage },
   { id: 'code-sync', labelKey: 'nav.codeSync', Icon: FolderSync, Component: PcCodeSyncPage },
   { id: 'mesh-login', labelKey: 'nav.meshLogin', Icon: Network, Component: PcMeshLoginPage },
+  { id: 'network-router', labelKey: 'nav.networkRouter', Icon: Router, Component: PcNetworkRouterPage },
   // One data-ingest tab: Subtitles / Books / Add Document / Movie Poster are
   // sub-tabs inside PcContentPage (movie-poster folded in; CoreBook is an
   // advanced section inside the Books sub-tab).
