@@ -115,8 +115,8 @@ ensure_packages_from_apt_repository_manager() {
     [ -z "$missing_packages" ] && return 0
     
     echo "Installing packages:$missing_packages" >&2
-    $USE_SUDO apt update >/dev/null 2>&1
-    $USE_SUDO apt install -y $missing_packages >/dev/null 2>&1 || {
+    $USE_SUDO apt update >&2
+    $USE_SUDO apt install -y $missing_packages >&2 || {
         echo "ERROR: Failed to install packages:$missing_packages" >&2
         return 1
     }
@@ -450,7 +450,7 @@ execute_with_repo_backup_from_apt_repository_manager() {
     
     # Update apt cache
     echo "Updating apt cache..."
-    $USE_SUDO apt update 2>/dev/null || true
+    $USE_SUDO apt update || true
     
     # Execute the command
     echo "Executing: $command_to_execute"
@@ -463,7 +463,7 @@ execute_with_repo_backup_from_apt_repository_manager() {
     
     # Update apt cache after restore
     echo "Updating apt cache after restore..."
-    $USE_SUDO apt update 2>/dev/null || true
+    $USE_SUDO apt update || true
     
     # Verify restoration was successful
     if [ ! -f "$APT_SOURCES_LIST_D/${repo_name}.list" ]; then

@@ -133,7 +133,7 @@ ensure_dependencies() {
     
     if [ -n "$missing_packages" ]; then
         echo "[INFO] Installing required packages:$missing_packages"
-        apt-get update -qq
+        apt-get update
         apt-get install -y $missing_packages || true
     fi
 

@@ -52,7 +52,7 @@ Usage: Step73_InstallNetworkRouter.ps1 [command] [value] [ports] [-Yes]
   set-lan one <adapter>      single: relay on one port
   set-lan list "<a1>,<a2>"   single: relay on the first listed port with link
   set-pairs auto             pairs: one pair per onboard port, USB auto-detected (default)
-  set-pairs "<usb>:<lan>,..." pairs: <usb> = auto or an adapter (may be absent until plugged in)
+  set-pairs "<usb>:<lan>,..." pairs: <usb> = auto, an adapter or a <usb>+<usb> pool (may be absent until plugged in)
   set-system-wan auto|none|<adapter>
                              pairs: host uplink, stored for router.conf (applied by the Linux engine)
   set-address <a.b.c.d/24>   Gateway address of the relay network (default $script:NatGwDefaultAddress)
@@ -204,7 +204,6 @@ function Set-NetworkRouterPairs {
     $entries = @()
     $normalized = @()
     $lans = @()
-    $usbs = @()
     $known = @()
     $usb = ''
     $lan = ''
@@ -219,15 +218,14 @@ function Set-NetworkRouterPairs {
         foreach ($entry in $entries) {
             $usb = $(if ($entry -like '*:*') { $entry.Split(':')[0] } else { $script:NatGwAutoUsb })
             $lan = $(if ($entry -like '*:*') { $entry.Substring($entry.IndexOf(':') + 1) } else { $entry })
-            if (-not $usb -or -not $lan -or $lans -contains $lan -or ($usb -ne $script:NatGwAutoUsb -and $usbs -contains $usb)) {
-                Write-ColorMessage "Invalid pair (each USB and relay port may appear in one pair only): $entry" -Type 'Error'
+            if (-not $usb -or -not $lan -or $lans -contains $lan) {
+                Write-ColorMessage "Invalid pair (each relay port may appear in one pair only): $entry" -Type 'Error'
                 return
             }
-            if ($usb -ne $script:NatGwAutoUsb) { $usbs += $usb }
             $lans += $lan
             $normalized += ('{0}:{1}' -f $usb, $lan)
             if ($known -notcontains $lan) { Write-ColorMessage "Not present now (used when plugged in): $lan" -Type 'Warning' }
-            if ($usb -ne $script:NatGwAutoUsb -and $known -notcontains $usb) { Write-ColorMessage "Not present now (used when plugged in): $usb" -Type 'Warning' }
+            if ($usb -ne $script:NatGwAutoUsb -and $usb -notlike '*+*' -and $usb -notlike 'usb@*' -and $known -notcontains $usb) { Write-ColorMessage "Not present now (used when plugged in): $usb" -Type 'Warning' }
         }
         if ($normalized.Count -eq 0 -or $normalized.Count -gt $script:NatGwMaxPairs) {
             Write-ColorMessage "Give 1-$script:NatGwMaxPairs pairs" -Type 'Error'
