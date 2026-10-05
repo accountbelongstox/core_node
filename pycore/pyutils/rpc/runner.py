@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Callable, Optional
 
@@ -20,6 +21,17 @@ from pycore.pyutils.rpc.server import HttpServer
 
 
 uvicorn = get_third_package_uvicorn()
+
+
+def http_event_loop() -> asyncio.AbstractEventLoop:
+    """Selector loop on every platform: the Windows proactor closes the
+    listening socket for good when one AcceptEx fails (e.g. WinError 64, a
+    client reset mid-accept), while the selector accept path logs and keeps
+    listening."""
+    return asyncio.SelectorEventLoop()
+
+
+HTTP_EVENT_LOOP_FACTORY = f"{__name__}:{http_event_loop.__name__}"
 
 
 class _CancelledErrorFilter(logging.Filter):
@@ -59,7 +71,7 @@ class HttpServerRunner:
             app=self.server.app,
             host=self.server.host,
             port=self.server.port,
-            loop="asyncio",
+            loop=HTTP_EVENT_LOOP_FACTORY,
             log_level="debug" if self.server.debug else "info",
             access_log=False,
             timeout_keep_alive=self.server.http_keep_alive_timeout,
@@ -124,4 +136,4 @@ class HttpServerRunner:
         return self.server.app
 
 
-__all__ = ["HttpServerRunner"]
+__all__ = ["HTTP_EVENT_LOOP_FACTORY", "HttpServerRunner", "http_event_loop"]
