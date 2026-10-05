@@ -1183,6 +1183,8 @@ ai99_install_npm() {
     fi
     prefix="$AI99_TARGET_HOME/.local"
     ai99_run_as_target mkdir -p "$prefix/bin" "$prefix/lib" || return 1
+    # Root npm runs leave root-owned entries in the shared cache (EACCES for the user install).
+    [ -n "${npm_config_cache:-}" ] && ensure_owned_tree_777 "$npm_config_cache" "$AI99_TARGET_USER" "$(id -gn "$AI99_TARGET_USER" 2>/dev/null)"
     ai99_log "[INSTALL] npm install -g $pkg (prefix $prefix, user $AI99_TARGET_USER)"
     ai99_run_as_target env "npm_config_prefix=$prefix" "$npm_bin" install -g "$pkg@latest" </dev/null
 }

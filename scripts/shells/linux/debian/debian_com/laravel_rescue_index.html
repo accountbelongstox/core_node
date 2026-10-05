@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laravel Rescue</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--muted:#667085;--card:#fff;--line:#d9dde5;--accent:#2563eb;--ok:#16803c;--bad:#c62828}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--fg:#e6e9ef;--muted:#98a2b3;--card:#1b2029;--line:#2c3340;--accent:#60a5fa;--ok:#4ade80;--bad:#f87171}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:24px 16px}
+h1{font-size:20px;margin:0 0 16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+h2{font-size:15px;margin:0 0 12px}
+form,.row{display:flex;flex-wrap:wrap;gap:8px}
+input{flex:1 1 240px;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+button{padding:8px 14px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+.msg{margin-top:10px;color:var(--muted);min-height:1.5em;word-break:break-word}
+.msg.bad{color:var(--bad)}
+.msg.ok{color:var(--ok)}
+table{width:100%;border-collapse:collapse}
+td{padding:6px 4px;border-bottom:1px solid var(--line)}
+.up{color:var(--ok);font-weight:600}
+.down{color:var(--bad);font-weight:600}
+pre{margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:12px/1.45 ui-monospace,Consolas,monospace;color:var(--muted)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1 data-i18n="title"></h1>
+<section id="login">
+<h2 data-i18n="loginTitle"></h2>
+<form id="loginForm" autocomplete="off">
+<input id="keyInput" type="password" autocomplete="off" spellcheck="false">
+<button class="primary" type="submit" data-i18n="unlock"></button>
+</form>
+<div id="loginMsg" class="msg"></div>
+</section>
+<div id="panel" hidden>
+<section>
+<h2 data-i18n="servicesTitle"></h2>
+<table><tbody id="servicesBody"></tbody></table>
+<div class="row" style="margin-top:12px">
+<button data-action="start" data-i18n="act_start"></button>
+<button data-action="restart" data-i18n="act_restart"></button>
+<button data-action="ui-start" data-i18n="act_ui_start"></button>
+<button data-action="ui-restart" data-i18n="act_ui_restart"></button>
+<button data-action="keepalive-on" data-i18n="act_keepalive_on"></button>
+<button data-action="keepalive-off" data-i18n="act_keepalive_off"></button>
+<button data-action="sys-init" data-i18n="act_sys_init"></button>
+<button data-action="optimize-clear" data-i18n="act_optimize_clear"></button>
+</div>
+<div id="actionMsg" class="msg"></div>
+</section>
+<section>
+<h2 data-i18n="logTitle"></h2>
+<pre id="statusLog"></pre>
+<div class="row" style="margin-top:12px">
+<button id="refreshBtn" data-i18n="refresh"></button>
+<button id="lockBtn" data-i18n="lock"></button>
+</div>
+</section>
+</div>
+</main>
+<script>
+"use strict";
+var LR_CONFIG = __LR_CONFIG__;
+var LR_I18N = {
+  en: {
+    title: "Laravel Rescue", loginTitle: "Enter {key}", unlock: "Unlock", lock: "Lock", refresh: "Refresh",
+    keyFormat: "Invalid key format (base64url expected).", keyRejected: "Key rejected: {code}",
+    netError: "Request failed: {err}", checking: "Verifying...",
+    servicesTitle: "Services", logTitle: "Rescue log",
+    svc_laravel: "Laravel", svc_ui: "UI", svc_keepalive: "Keepalive",
+    queued: "{action} queued; the watcher runs it within {s}s.", failed: "{action} failed: {code}",
+    act_start: "Start Laravel", act_restart: "Restart Laravel", act_ui_start: "Start UI", act_ui_restart: "Restart UI",
+    act_keepalive_on: "Keepalive on", act_keepalive_off: "Keepalive off", act_sys_init: "sys:init", act_optimize_clear: "optimize:clear"
+  },
+  zh: {
+    title: "Laravel 救援", loginTitle: "输入 {key}", unlock: "解锁", lock: "锁定", refresh: "刷新",
+    keyFormat: "密钥格式无效（需要 base64url）。", keyRejected: "密钥被拒绝：{code}",
+    netError: "请求失败：{err}", checking: "验证中...",
+    servicesTitle: "服务", logTitle: "救援日志",
+    svc_laravel: "Laravel", svc_ui: "UI", svc_keepalive: "保活",
+    queued: "{action} 已排队；守护进程将在 {s} 秒内执行。", failed: "{action} 失败：{code}",
+    act_start: "启动 Laravel", act_restart: "重启 Laravel", act_ui_start: "启动 UI", act_ui_restart: "重启 UI",
+    act_keepalive_on: "开启保活", act_keepalive_off: "关闭保活", act_sys_init: "sys:init", act_optimize_clear: "optimize:clear"
+  }
+};
+var LR_LANG = /^zh/i.test(navigator.language || "") ? "zh" : "en";
+var LR_KEY_STORE = "lr_rescue_key";
+var LR_MACHINE_STORE = "lr_rescue_machine_id";
+var LR_REFRESH_MS = 10000;
+var LR_EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+var lrKey = null;
+var lrKeyId = "";
+var lrTimer = 0;
+
+function t(name, vars) {
+  var s = (LR_I18N[LR_LANG][name] || LR_I18N.en[name] || name);
+  Object.keys(vars || {}).forEach(function (k) { s = s.split("{" + k + "}").join(vars[k]); });
+  return s;
+}
+function storeGet(store, name) { try { return store.getItem(name); } catch (e) { return null; } }
+function storeSet(store, name, value) { try { if (value === null) store.removeItem(name); else store.setItem(name, value); } catch (e) {} }
+function $(id) { return document.getElementById(id); }
+
+var SHA_K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256(bytes) {
+  var len = bytes.length, total = ((len + 9 + 63) >> 6) << 6, m = new Uint8Array(total), w = new Uint32Array(64);
+  var h = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  m.set(bytes); m[len] = 0x80;
+  var bits = len * 8, i, j;
+  for (i = 0; i < 4; i++) m[total - 1 - i] = (bits >>> (8 * i)) & 0xff;
+  m[total - 5] = Math.floor(len / 0x20000000) & 0xff;
+  for (var off = 0; off < total; off += 64) {
+    for (i = 0; i < 16; i++) w[i] = (m[off + 4 * i] << 24) | (m[off + 4 * i + 1] << 16) | (m[off + 4 * i + 2] << 8) | m[off + 4 * i + 3];
+    for (i = 16; i < 64; i++) {
+      var a0 = w[i - 15], a1 = w[i - 2];
+      var s0 = ((a0 >>> 7) | (a0 << 25)) ^ ((a0 >>> 18) | (a0 << 14)) ^ (a0 >>> 3);
+      var s1 = ((a1 >>> 17) | (a1 << 15)) ^ ((a1 >>> 19) | (a1 << 13)) ^ (a1 >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    var a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], k = h[7];
+    for (j = 0; j < 64; j++) {
+      var S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      var t1 = (k + S1 + ((e & f) ^ (~e & g)) + SHA_K[j] + w[j]) | 0;
+      var S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      var t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      k = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    h[0] = (h[0] + a) | 0; h[1] = (h[1] + b) | 0; h[2] = (h[2] + c) | 0; h[3] = (h[3] + d) | 0;
+    h[4] = (h[4] + e) | 0; h[5] = (h[5] + f) | 0; h[6] = (h[6] + g) | 0; h[7] = (h[7] + k) | 0;
+  }
+  var out = new Uint8Array(32);
+  for (i = 0; i < 8; i++) { out[4 * i] = h[i] >>> 24; out[4 * i + 1] = (h[i] >>> 16) & 0xff; out[4 * i + 2] = (h[i] >>> 8) & 0xff; out[4 * i + 3] = h[i] & 0xff; }
+  return out;
+}
+function concatBytes(a, b) { var r = new Uint8Array(a.length + b.length); r.set(a); r.set(b, a.length); return r; }
+function hmacSha256(key, msg) {
+  if (key.length > 64) key = sha256(key);
+  var ipad = new Uint8Array(64), opad = new Uint8Array(64);
+  for (var i = 0; i < 64; i++) { var kb = i < key.length ? key[i] : 0; ipad[i] = kb ^ 0x36; opad[i] = kb ^ 0x5c; }
+  return sha256(concatBytes(opad, sha256(concatBytes(ipad, msg))));
+}
+function hex(bytes) { var s = ""; for (var i = 0; i < bytes.length; i++) s += (bytes[i] < 16 ? "0" : "") + bytes[i].toString(16); return s; }
+function utf8(s) { return new TextEncoder().encode(s); }
+function b64url(bytes) { var s = ""; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function decodeKey(text) {
+  text = (text || "").replace(/\s+/g, "");
+  if (!/^[A-Za-z0-9_-]+$/.test(text) || text.length % 4 === 1) return null;
+  var b = text.replace(/-/g, "+").replace(/_/g, "/");
+  while (b.length % 4) b += "=";
+  try { var raw = atob(b), out = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i); return out.length ? out : null; } catch (e) { return null; }
+}
+function randomToken(bytes) { var r = new Uint8Array(bytes); crypto.getRandomValues(r); return b64url(r); }
+function machineId() {
+  var id = storeGet(localStorage, LR_MACHINE_STORE);
+  if (!id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(id)) { id = "web" + hex(sha256(utf8(randomToken(16)))).slice(0, 13); storeSet(localStorage, LR_MACHINE_STORE, id); }
+  return id;
+}
+
+function useKey(text) {
+  lrKey = decodeKey(text);
+  lrKeyId = lrKey ? hex(sha256(lrKey)).slice(0, LR_CONFIG.keyIdLength) : "";
+  return !!lrKey;
+}
+function signedCall(action) {
+  var method = "POST", path = LR_CONFIG.cgiPath, query = "action=" + action;
+  var mid = machineId(), ts = String(Math.floor(Date.now() / 1000)), nonce = randomToken(24);
+  var canonical = [LR_CONFIG.canonicalVersion, LR_CONFIG.protocol, method, path, query, LR_CONFIG.client, mid, lrKeyId, ts, nonce, LR_EMPTY_SHA256].join("\n");
+  return fetch(path + "?" + query, {
+    method: method, cache: "no-store", body: "",
+    headers: {
+      "X-Core-Node-Protocol": LR_CONFIG.protocol, "X-Core-Node-Client": LR_CONFIG.client,
+      "X-Core-Node-Machine-ID": mid, "X-Core-Node-Key-ID": lrKeyId, "X-Core-Node-Timestamp": ts,
+      "X-Core-Node-Nonce": nonce, "X-Core-Node-Content-SHA256": LR_EMPTY_SHA256,
+      "X-Core-Node-Signature": b64url(hmacSha256(lrKey, utf8(canonical)))
+    }
+  }).then(function (res) {
+    return res.text().then(function (body) {
+      var code = "";
+      try { code = JSON.parse(body).code || ""; } catch (e) {}
+      return { ok: res.ok, status: res.status, body: body, code: code || String(res.status) };
+    });
+  });
+}
+function setMsg(id, text, cls) { var el = $(id); el.textContent = text; el.className = "msg" + (cls ? " " + cls : ""); }
+function parseKv(text) { var r = {}; text.split("\n").forEach(function (l) { var i = l.indexOf("="); if (i > 0) r[l.slice(0, i)] = l.slice(i + 1); }); return r; }
+function stateCell(state) { var td = document.createElement("td"); td.textContent = state || "-"; td.className = state === "up" || state === "on" ? "up" : (state === "down" || state === "off" ? "down" : ""); return td; }
+function renderServices(kv) {
+  var body = $("servicesBody");
+  body.textContent = "";
+  [["svc_laravel", ":" + (kv.laravel_port || ""), kv.laravel_state], ["svc_ui", ":" + (kv.ui_port || "") + (kv.ui_unit ? " (" + kv.ui_unit + ")" : ""), kv.ui_state], ["svc_keepalive", "", kv.keepalive]].forEach(function (row) {
+    var tr = document.createElement("tr"), a = document.createElement("td"), b = document.createElement("td");
+    a.textContent = t(row[0]); b.textContent = row[1];
+    tr.appendChild(a); tr.appendChild(b); tr.appendChild(stateCell(row[2])); body.appendChild(tr);
+  });
+}
+function refresh() {
+  if (!lrKey) return Promise.resolve();
+  return signedCall("services").then(function (r) {
+    if (!r.ok) { if (r.status === 401) lock(t("keyRejected", { code: r.code })); return; }
+    renderServices(parseKv(r.body));
+    return signedCall("status").then(function (s) { if (s.ok) $("statusLog").textContent = s.body; });
+  }).catch(function (err) { setMsg("actionMsg", t("netError", { err: err.message || err }), "bad"); });
+}
+function unlock() {
+  $("login").hidden = true; $("panel").hidden = false;
+  clearInterval(lrTimer); lrTimer = setInterval(refresh, LR_REFRESH_MS);
+}
+function lock(message) {
+  lrKey = null; lrKeyId = ""; clearInterval(lrTimer);
+  storeSet(sessionStorage, LR_KEY_STORE, null);
+  $("panel").hidden = true; $("login").hidden = false; $("keyInput").value = "";
+  setMsg("loginMsg", message || "", message ? "bad" : "");
+}
+function tryKey(text) {
+  if (!useKey(text)) { setMsg("loginMsg", t("keyFormat"), "bad"); return; }
+  setMsg("loginMsg", t("checking"));
+  signedCall("services").then(function (r) {
+    if (!r.ok) { lock(t("keyRejected", { code: r.code })); return; }
+    storeSet(sessionStorage, LR_KEY_STORE, text);
+    setMsg("loginMsg", "");
+    renderServices(parseKv(r.body));
+    unlock();
+    refresh();
+  }).catch(function (err) { setMsg("loginMsg", t("netError", { err: err.message || err }), "bad"); });
+}
+
+document.querySelectorAll("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+document.title = t("title");
+document.documentElement.lang = LR_LANG;
+$("keyInput").placeholder = LR_CONFIG.keyName;
+$("login").querySelector("h2").textContent = t("loginTitle", { key: LR_CONFIG.keyName });
+document.querySelectorAll("[data-action]").forEach(function (btn) {
+  var action = btn.getAttribute("data-action");
+  if (LR_CONFIG.actions.indexOf(action) < 0) { btn.hidden = true; return; }
+  btn.addEventListener("click", function () {
+    btn.disabled = true;
+    signedCall(action).then(function (r) {
+      if (r.ok) setMsg("actionMsg", t("queued", { action: action, s: LR_CONFIG.pollSeconds }), "ok");
+      else if (r.status === 401) lock(t("keyRejected", { code: r.code }));
+      else setMsg("actionMsg", t("failed", { action: action, code: r.code }), "bad");
+    }).catch(function (err) { setMsg("actionMsg", t("netError", { err: err.message || err }), "bad"); })
+      .then(function () { btn.disabled = false; });
+  });
+});
+$("loginForm").addEventListener("submit", function (ev) { ev.preventDefault(); tryKey($("keyInput").value); });
+$("refreshBtn").addEventListener("click", refresh);
+$("lockBtn").addEventListener("click", function () { lock(""); });
+(function () { var saved = storeGet(sessionStorage, LR_KEY_STORE); if (saved) tryKey(saved); })();
+</script>
+</body>
+</html>

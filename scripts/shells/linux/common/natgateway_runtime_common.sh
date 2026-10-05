@@ -1,7 +1,7 @@
 #!/bin/bash
 # NAT gateway install/runtime helpers for 113_natgateway.sh.
 
-NATGW_REQUIRED_COMMANDS="ip:iproute2 nft:nftables dnsmasq:dnsmasq-base sysctl:procps"
+NATGW_REQUIRED_COMMANDS="ip:iproute2 nft:nftables dnsmasq:dnsmasq-base sysctl:procps adb:adb conntrack:conntrack"
 
 log_info() {
     echo -e "${BLUE}[NATGATEWAY][INFO]${NC} $1"
