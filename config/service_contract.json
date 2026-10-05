@@ -586,6 +586,7 @@
         "ui_service": "ncore-nexus-dash",
         "poll_seconds": 30,
         "keepalive_cooldown_seconds": 300,
+        "keepalive_start_grace_seconds": 180,
         "actions": ["start", "restart", "sys-init", "optimize-clear", "ui-start", "ui-restart", "keepalive-on", "keepalive-off"],
         "read_actions": ["status", "services"]
     },

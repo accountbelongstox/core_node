@@ -246,7 +246,7 @@ class NetworkRouterService:
             script = consts.LINUX_SCRIPT
             launcher = [consts.BASH_COMMAND]
             if privileged and not is_elevated():
-                if not sudo_available():
+                if not sudo_available([*launcher, str(script), command]):
                     return _failure(consts.ERROR_PRIVILEGE_REQUIRED)
                 prefix = [SUDO_COMMAND, SUDO_NON_INTERACTIVE_FLAG]
         elif platform == consts.PLATFORM_WINDOWS:
