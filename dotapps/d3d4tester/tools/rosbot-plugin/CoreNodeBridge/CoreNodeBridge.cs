@@ -1,43 +1,51 @@
 // PY-REF: none (DOT-only)
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
+using Rcdw32.Ws.Models;
 using Rcdw32.Ws.Plugins;
 
 namespace CoreNodeBridge;
 
 /// <summary>
-/// ROSBOT plugin that publishes the bot's game state for d3d4tester: current map (level area / scene / world SNO), town and
-/// rift flags, greater rift level, paragon, health, current sequence and the recent level areas. Written once per second
-/// (atomic replace) to state.json next to this DLL; the app reads it from &lt;ROSBOT&gt;\plugins\CoreNodeBridge\state.json.
-/// Every API read is guarded: outside the game ROSBOT's getters may throw.
+/// ROSBOT plugin that publishes the bot's game state for d3d4tester and runs its commands. Every ScanIntervalMs it scans the
+/// world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to this DLL (atomic replace):
+/// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monster counts, carried
+/// items, the live pickup / stash record and the last command result. Commands and the pickup filter: see BridgeCommands.
+/// Everything noteworthy also goes to ROSBOT's log (Context.Log). API reads are guarded: outside the game getters may throw.
 /// </summary>
 public sealed class CoreNodeBridge : IPlugin
 {
     private const string StateFileName = "state.json";
     private const string TempSuffix = ".tmp";
+    private const int ScanIntervalMs = 250;
     private const int WriteIntervalMs = 1000;
-    private const int MaxHistory = 20;
+    private const int FilterReloadMs = 2000;
+    private const int MaxAreaHistory = 20;
     private const string LogTag = "[CoreNodeBridge] ";
-    private const string TimeFormat = "o";
 
     private readonly List<KeyValuePair<int, DateTime>> _areaHistory = new();
+    private readonly PickupTracker _pickups = new();
+    private BridgeCommands _commands;
+    private DateTime _lastScanUtc = DateTime.MinValue;
     private DateTime _lastWriteUtc = DateTime.MinValue;
+    private DateTime _lastFilterUtc = DateTime.MinValue;
     private bool _enabled;
     private int _lastArea = -1;
     private DateTime _areaSinceUtc = DateTime.UtcNow;
     private int _greaterRiftLevel;
     private string _lastEvent = "";
     private DateTime _lastEventUtc = DateTime.MinValue;
-    private string _statePath = "";
+    private string _dir = ".";
+    private List<EntityInfo> _ground = new();
 
     public string Author => "core_node";
-    public Version Version => new(1, 0, 0);
+    public Version Version => new(1, 1, 0);
     public string Name => "CoreNode Bridge";
-    public string Description => "Publishes the current map and player state to d3d4tester (state.json).";
+    public string Description => "Publishes map, items, NPCs and pickups to d3d4tester (state.json) and runs its commands.";
     public bool CanSettings => false;
 
     public bool Equals(IPlugin other) => other != null && other.Name == Name;
@@ -50,8 +58,10 @@ public sealed class CoreNodeBridge : IPlugin
 
     public void OnInitialize()
     {
-        _statePath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".", StateFileName);
-        Log("initialized, state file " + _statePath);
+        _dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+        _commands = new BridgeCommands(_dir, Log);
+        _commands.ReloadFilter();
+        Log("initialized v" + Version + ", folder " + _dir);
     }
 
     public void OnEnabled()
@@ -61,7 +71,9 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnOpenRift += OnOpenRift;
         PluginsEvents.OnTakeTownPortal += OnTakeTownPortal;
         PluginsEvents.OnOpenGreateRift += OnOpenGreaterRift;
-        Write(true);
+        PluginsEvents.OnGemUpdateFinish += OnRiftEnd;
+        PluginsEvents.OnItemStash += OnItemStash;
+        WriteState(DateTime.UtcNow);
         Log("enabled");
     }
 
@@ -72,19 +84,34 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnOpenRift -= OnOpenRift;
         PluginsEvents.OnTakeTownPortal -= OnTakeTownPortal;
         PluginsEvents.OnOpenGreateRift -= OnOpenGreaterRift;
-        Write(true);
+        PluginsEvents.OnGemUpdateFinish -= OnRiftEnd;
+        PluginsEvents.OnItemStash -= OnItemStash;
+        WriteState(DateTime.UtcNow);
         Log("disabled");
     }
 
     public void OnPulse()
     {
-        if (_enabled) Write(false);
+        if (!_enabled) return;
+        var now = DateTime.UtcNow;
+        if ((now - _lastFilterUtc).TotalMilliseconds >= FilterReloadMs)
+        {
+            _lastFilterUtc = now;
+            _commands.ReloadFilter();
+        }
+        _commands.Poll();
+        if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
+        {
+            _lastScanUtc = now;
+            Scan(now);
+        }
+        if ((now - _lastWriteUtc).TotalMilliseconds >= WriteIntervalMs) WriteState(now);
     }
 
     public void OnShutdown()
     {
         _enabled = false;
-        Write(true);
+        WriteState(DateTime.UtcNow);
     }
 
     private void OnInTown(object sender, EventArgs e) => Event("in_town");
@@ -99,81 +126,131 @@ public sealed class CoreNodeBridge : IPlugin
         Event("open_greater_rift");
     }
 
+    private void OnRiftEnd(object sender, EventArgs e)
+    {
+        Event("rift_end");
+        if (!_commands.AutoPickup || _commands.Patterns.Count == 0) return;
+        var (picked, matched) = _commands.PickupMatching();
+        Log($"auto pickup at rift end: picked {picked} of {matched} matching");
+    }
+
+    private void OnItemStash(object sender, ItemStat e)
+    {
+        var record = _pickups.AddStash(WorldScanner.Safe(() => e.Desc, ""), DateTime.UtcNow);
+        Log("stash: " + record.Name);
+    }
+
     private void Event(string name)
     {
         _lastEvent = name;
         _lastEventUtc = DateTime.UtcNow;
-        Write(true);
+        WriteState(_lastEventUtc);
     }
 
-    private void Write(bool force)
+    private void Scan(DateTime now)
     {
-        var now = DateTime.UtcNow;
-        if (!force && (now - _lastWriteUtc).TotalMilliseconds < WriteIntervalMs) return;
+        var actors = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()) ?? Array.Empty<IActor>();
+        _ground = WorldScanner.GroundItems(actors);
+        int world = WorldScanner.Safe(() => LocalPlayer.MeWorldId, 0);
+        bool alive = WorldScanner.Safe(() => LocalPlayer.IsValid && !LocalPlayer.IsDead, false);
+        foreach (var r in _pickups.Update(_ground, world, alive, now))
+            Log($"picked: {r.Name} [{r.InternalName}] quality={r.Quality} ancient={r.AncientRank}");
+    }
+
+    private void WriteState(DateTime now)
+    {
         _lastWriteUtc = now;
-        if (string.IsNullOrEmpty(_statePath)) return;
         try
         {
-            int area = Read(() => LocalPlayer.SnoLevelArea, 0);
-            if (area != _lastArea)
-            {
-                _lastArea = area;
-                _areaSinceUtc = now;
-                if (area != 0)
-                {
-                    _areaHistory.Insert(0, new KeyValuePair<int, DateTime>(area, now));
-                    if (_areaHistory.Count > MaxHistory) _areaHistory.RemoveAt(_areaHistory.Count - 1);
-                }
-            }
-            var json = new JsonWriter();
-            json.Add("updated_utc", now.ToString(TimeFormat, CultureInfo.InvariantCulture));
-            json.Add("plugin_version", Version.ToString());
-            json.Add("enabled", _enabled);
-            json.Add("valid", Read(() => LocalPlayer.IsValid, false));
-            json.Add("in_game", Read(() => LocalPlayer.IsInGame, false));
-            json.Add("level_area_sno", area);
-            json.Add("level_area_since_utc", _areaSinceUtc.ToString(TimeFormat, CultureInfo.InvariantCulture));
-            json.Add("scene_sno", Read(() => LocalPlayer.SnoScene, 0));
-            json.Add("global_world_id", Read(() => LocalPlayer.GlobalWorldId, 0));
-            json.Add("world_id", Read(() => LocalPlayer.MeWorldId, 0));
-            json.Add("in_town", Read(() => LocalPlayer.IsInTown, false));
-            json.Add("in_rift", Read(() => LocalPlayer.IsInRift, false));
-            json.Add("greater_rift", Read(() => LocalPlayer.IsGreaterRift, false));
-            json.Add("nephalem_rift", Read(() => LocalPlayer.IsNephalemRift, false));
-            json.Add("greater_rift_level", _greaterRiftLevel);
-            json.Add("rift_keys", Read(() => LocalPlayer.RiftKey, 0));
-            json.Add("blood_shards", Read(() => LocalPlayer.Shards, 0));
-            json.Add("paragon", Read(() => LocalPlayer.ParagonLevel, 0));
-            json.Add("actor_class", Read(() => LocalPlayer.ActorClass, 0));
-            json.Add("health_pct", Read(() => LocalPlayer.CurrentHealthPct, 0d));
-            json.Add("dead", Read(() => LocalPlayer.IsDead, false));
-            json.Add("in_combat", Read(() => LocalPlayer.IsInCombat, false));
-            json.Add("inventory_full", Read(() => Context.InventoryFull, false));
-            json.Add("sequence", Read(() => Context.SequenceName, ""));
-            json.Add("last_event", _lastEvent);
-            json.Add("last_event_utc", _lastEventUtc == DateTime.MinValue ? "" : _lastEventUtc.ToString(TimeFormat, CultureInfo.InvariantCulture));
-            json.AddAreaHistory("level_area_history", _areaHistory);
-            string tmp = _statePath + TempSuffix;
+            var actors = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()) ?? Array.Empty<IActor>();
+            var acds = WorldScanner.Safe(() => Context.Acds, Array.Empty<IAcd>()) ?? Array.Empty<IAcd>();
+            int area = WorldScanner.Safe(() => LocalPlayer.SnoLevelArea, 0);
+            TrackArea(area, now);
+            var (monsters, elites) = WorldScanner.MonsterCounts(actors);
+            var json = new JsonWriter().BeginObject()
+                .Prop("updated_utc", now)
+                .Prop("plugin_version", Version.ToString())
+                .Prop("enabled", _enabled)
+                .Prop("valid", WorldScanner.Safe(() => LocalPlayer.IsValid, false))
+                .Prop("in_game", WorldScanner.Safe(() => LocalPlayer.IsInGame, false))
+                .Prop("level_area_sno", area)
+                .Prop("level_area_since_utc", _areaSinceUtc)
+                .Prop("scene_sno", WorldScanner.Safe(() => LocalPlayer.SnoScene, 0))
+                .Prop("global_world_id", WorldScanner.Safe(() => LocalPlayer.GlobalWorldId, 0))
+                .Prop("world_id", WorldScanner.Safe(() => LocalPlayer.MeWorldId, 0))
+                .Prop("in_town", WorldScanner.Safe(() => LocalPlayer.IsInTown, false))
+                .Prop("in_rift", WorldScanner.Safe(() => LocalPlayer.IsInRift, false))
+                .Prop("greater_rift", WorldScanner.Safe(() => LocalPlayer.IsGreaterRift, false))
+                .Prop("nephalem_rift", WorldScanner.Safe(() => LocalPlayer.IsNephalemRift, false))
+                .Prop("greater_rift_level", _greaterRiftLevel)
+                .Prop("rift_keys", WorldScanner.Safe(() => LocalPlayer.RiftKey, 0))
+                .Prop("blood_shards", WorldScanner.Safe(() => LocalPlayer.Shards, 0))
+                .Prop("paragon", WorldScanner.Safe(() => LocalPlayer.ParagonLevel, 0))
+                .Prop("actor_class", WorldScanner.Safe(() => LocalPlayer.ActorClass, 0))
+                .Prop("health_pct", WorldScanner.Safe(() => LocalPlayer.CurrentHealthPct, 0d))
+                .Prop("dead", WorldScanner.Safe(() => LocalPlayer.IsDead, false))
+                .Prop("in_combat", WorldScanner.Safe(() => LocalPlayer.IsInCombat, false))
+                .Prop("inventory_full", WorldScanner.Safe(() => Context.InventoryFull, false))
+                .Prop("repair_needed", WorldScanner.Safe(() => Context.RepairNeeded, false))
+                .Prop("sequence", WorldScanner.Safe(() => Context.SequenceName, "") ?? "")
+                .Prop("last_event", _lastEvent)
+                .Prop("last_event_utc", _lastEventUtc)
+                .Prop("monsters_nearby", monsters)
+                .Prop("elites_nearby", elites)
+                .Prop("picked_count", _pickups.PickedCount)
+                .Prop("item_acd_types", WorldScanner.ItemAcdTypesText)
+                .Prop("pickup_filter_auto", _commands.AutoPickup)
+                .Prop("pickup_filter", string.Join(", ", _commands.Patterns));
+            json.BeginArray("level_area_history");
+            foreach (var v in _areaHistory) json.BeginObject().Prop("sno", v.Key).Prop("utc", v.Value).EndObject();
+            json.EndArray();
+            WriteEntities(json, "ground_items", _ground);
+            WriteEntities(json, "npcs", WorldScanner.Npcs(actors));
+            WriteEntities(json, "carried_items", WorldScanner.CarriedItems(acds, _ground));
+            json.BeginArray("pickups");
+            foreach (var r in _pickups.Records)
+                json.BeginObject().Prop("utc", r.Utc).Prop("kind", r.Kind).Prop("name", r.Name).Prop("internal_name", r.InternalName)
+                    .Prop("sno", r.Sno).Prop("quality", r.Quality).Prop("ancient_rank", r.AncientRank).EndObject();
+            json.EndArray();
+            if (_commands.Last is { } c)
+                json.BeginObject("last_command").Prop("id", c.Id).Prop("action", c.Action).Prop("ok", c.Ok).Prop("message", c.Message).Prop("utc", c.Utc).EndObject();
+            json.EndObject();
+
+            string path = Path.Combine(_dir, StateFileName);
+            string tmp = path + TempSuffix;
             File.WriteAllText(tmp, json.ToString(), new UTF8Encoding(false));
-            if (File.Exists(_statePath)) File.Replace(tmp, _statePath, null);
-            else File.Move(tmp, _statePath);
+            if (File.Exists(path)) File.Replace(tmp, path, null);
+            else File.Move(tmp, path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // the app may be reading the file; the next pulse writes again
+            // the app may be reading the file; the next write retries
         }
     }
 
-    private static T Read<T>(Func<T> getter, T fallback)
+    private void WriteEntities(JsonWriter json, string key, IEnumerable<EntityInfo> items)
     {
-        try
+        json.BeginArray(key);
+        foreach (var e in items)
         {
-            return getter();
+            json.BeginObject().Prop("id", e.Id).Prop("acd_id", e.AcdId).Prop("name", e.Name).Prop("internal_name", e.InternalName)
+                .Prop("sno", e.Sno).Prop("distance", e.Distance).Prop("interact_distance", e.InteractDistance)
+                .Prop("quality", e.Quality).Prop("ancient_rank", e.AncientRank).Prop("stack", e.Stack).Prop("equipped", e.Equipped)
+                .Prop("durability_cur", e.DurabilityCur).Prop("durability_max", e.DurabilityMax)
+                .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e))
+                .EndObject();
         }
-        catch
-        {
-            return fallback;
-        }
+        json.EndArray();
+    }
+
+    private void TrackArea(int area, DateTime now)
+    {
+        if (area == _lastArea) return;
+        _lastArea = area;
+        _areaSinceUtc = now;
+        if (area == 0) return;
+        _areaHistory.Insert(0, new KeyValuePair<int, DateTime>(area, now));
+        if (_areaHistory.Count > MaxAreaHistory) _areaHistory.RemoveAt(_areaHistory.Count - 1);
     }
 
     private static void Log(string message)
@@ -185,61 +262,6 @@ public sealed class CoreNodeBridge : IPlugin
         catch
         {
             // logging must never break the plugin
-        }
-    }
-
-    /// <summary>Flat JSON object writer (net48 has no System.Text.Json).</summary>
-    private sealed class JsonWriter
-    {
-        private readonly StringBuilder _sb = new("{");
-
-        public void Add(string key, string value) => Key(key).Append('"').Append(Escape(value)).Append('"');
-
-        public void Add(string key, bool value) => Key(key).Append(value ? "true" : "false");
-
-        public void Add(string key, int value) => Key(key).Append(value.ToString(CultureInfo.InvariantCulture));
-
-        public void Add(string key, double value) => Key(key).Append(value.ToString("0.###", CultureInfo.InvariantCulture));
-
-        public void AddAreaHistory(string key, List<KeyValuePair<int, DateTime>> items)
-        {
-            Key(key).Append('[');
-            for (int i = 0; i < items.Count; i++)
-            {
-                if (i > 0) _sb.Append(',');
-                _sb.Append("{\"sno\":").Append(items[i].Key.ToString(CultureInfo.InvariantCulture))
-                    .Append(",\"utc\":\"").Append(items[i].Value.ToString(TimeFormat, CultureInfo.InvariantCulture)).Append("\"}");
-            }
-            _sb.Append(']');
-        }
-
-        public override string ToString() => _sb.ToString() + "}";
-
-        private StringBuilder Key(string key)
-        {
-            if (_sb.Length > 1) _sb.Append(',');
-            return _sb.Append('"').Append(key).Append("\":");
-        }
-
-        private static string Escape(string s)
-        {
-            var sb = new StringBuilder(s.Length);
-            foreach (char c in s)
-            {
-                switch (c)
-                {
-                    case '"': sb.Append("\\\""); break;
-                    case '\\': sb.Append("\\\\"); break;
-                    case '\n': sb.Append("\\n"); break;
-                    case '\r': sb.Append("\\r"); break;
-                    case '\t': sb.Append("\\t"); break;
-                    default:
-                        if (c < ' ') sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
-                        else sb.Append(c);
-                        break;
-                }
-            }
-            return sb.ToString();
         }
     }
 }

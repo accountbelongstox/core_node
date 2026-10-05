@@ -295,11 +295,7 @@ public partial class MonitorPage : UserControl
 
     private void BtnToggleMonitoring_Click(object sender, RoutedEventArgs e)
     {
-        var processor = RosbotTaskProcessor.Instance;
-        if (GameInterfaceData.Instance.GetStateSnapshot().RosbotFlowMasterEnabled)
-            processor.RequestStopFlow();
-        else
-            processor.RequestStartFlow();
+        RosbotTaskProcessor.Instance.ToggleFlow();
         UpdateStatus();
     }
 

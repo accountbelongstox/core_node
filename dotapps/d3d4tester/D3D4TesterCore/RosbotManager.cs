@@ -1,6 +1,7 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_manager.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_operation.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_ui_automation.py
+// PY-REF: pyapps/d3-check/d3utils/key_send.py
 using System.IO;
 using DotApps.d3d4tester.Core.Flow;
 using DotCore.Foundations;

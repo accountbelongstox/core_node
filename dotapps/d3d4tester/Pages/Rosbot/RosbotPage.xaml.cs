@@ -248,11 +248,7 @@ public partial class RosbotPage : UserControl
     /// <summary>Start/Stop toggle: only flips the flow-master flag; the 1 s tick drives the flow. 1:1 Python _toggle_rosbot.</summary>
     private void BtnStartRosbot_Click(object sender, RoutedEventArgs e)
     {
-        var processor = RosbotTaskProcessor.Instance;
-        if (GameInterfaceData.Instance.GetStateSnapshot().RosbotFlowMasterEnabled)
-            processor.RequestStopFlow();
-        else
-            processor.RequestStartFlow();
+        RosbotTaskProcessor.Instance.ToggleFlow();
         UpdateRosbotControlFromState();
     }
 
