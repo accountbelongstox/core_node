@@ -214,6 +214,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t\ttransport ".ServiceContract::string('realtime.mercure_transport')."\n"
             . "\t\tpublisher_jwt {$publisherKey} HS256\n"
             . "\t\tsubscriber_jwt {$subscriberKey} HS256\n"
+            . self::mercureCompatStanza()
             . "\t\tcors_origins ".implode(' ', $corsOrigins)."\n"
             . "\t\tcookie_name ".ServiceContract::string('realtime.mercure_cookie')."\n"
             . "\t\theartbeat ".ServiceContract::string('realtime.mercure_heartbeat')."\n"
@@ -221,6 +222,20 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t\tsubscriptions\n"
             . "\t}\n"
             . "\n";
+    }
+
+    /**
+     * Token-mode line probed by the shell renderer (fm_mercure_compat_probe)
+     * and recorded next to the Caddyfile: empty for mercure modules that
+     * accept the flat JWT directives, "protocol_version_compatibility N" for
+     * those that need the explicit opt-in.
+     */
+    private static function mercureCompatStanza(): string
+    {
+        $path = dirname(self::caddyfilePath()).'/'.ServiceContract::string('realtime.mercure_compat_file');
+        $line = is_file($path) ? trim((string) file_get_contents($path)) : '';
+
+        return preg_match('/^protocol_version_compatibility \d+$/', $line) === 1 ? "\t\t{$line}\n" : '';
     }
 
     private static function octaneHttpsStanza(int $backendPort): string

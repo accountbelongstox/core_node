@@ -74,7 +74,8 @@
         "mercure_transport": "local",
         "mercure_heartbeat": "20s",
         "mercure_write_timeout": "0s",
-        "mercure_proxy_close_delay": "5m"
+        "mercure_proxy_close_delay": "5m",
+        "mercure_compat_file": "mercure_protocol_compat"
     },
     "access": {
         "default_api_region_prefix": "si",
