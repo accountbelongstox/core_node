@@ -17,7 +17,10 @@ class TableKeys:
     """
 
     # ===== Common Tables =====
+    # Key/value table read (and dropped) only by the terminal state migration.
     TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
+    TERMINAL_STATE_TERMINALS = f"{TableNamespaces.COMMON}.terminal_state_terminals"
+    TERMINAL_STATE_LOGS = f"{TableNamespaces.COMMON}.terminal_state_logs"
 
     # ===== Util Speech Tables =====
     # Ledger of every local word/sentence clip (pyutils/tts/audio_resource_ledger.py).
