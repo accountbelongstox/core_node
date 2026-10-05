@@ -59,6 +59,12 @@ def _set_future_exception(future: "asyncio.Future[Any]", error: BaseException) -
         future.set_exception(error)
 
 
+def _bounce_to_loop(loop: Any, setter: Any, future: "asyncio.Future[Any]", value: Any) -> None:
+    """Complete ``future`` from a worker thread; a loop that already ended (timed-out relay call) drops it."""
+    if not loop.is_closed():
+        loop.call_soon_threadsafe(setter, future, value)
+
+
 class RpcExecutionKernel:
     """One route table and execution pipeline shared by HTTP and Relay."""
 
@@ -75,9 +81,9 @@ class RpcExecutionKernel:
             try:
                 result = handler(*arguments)
             except Exception as exc:  # bounce the exception onto the loop thread
-                loop.call_soon_threadsafe(_set_future_exception, future, exc)
+                _bounce_to_loop(loop, _set_future_exception, future, exc)
                 return
-            loop.call_soon_threadsafe(_set_future_result, future, result)
+            _bounce_to_loop(loop, _set_future_result, future, result)
 
         self._route_workers.submit(job)
         return await future

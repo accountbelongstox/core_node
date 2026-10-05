@@ -54,7 +54,9 @@ public partial class App : Application
             return;
         }
 
+        LogonFontReadiness.WaitUntilReady();
         ThemeService.Instance.ApplySaved();
+        LogonFontReadiness.DropUnusableThemeFonts();
         var main = new MainWindow();
         MainWindow = main;
         main.Show();
