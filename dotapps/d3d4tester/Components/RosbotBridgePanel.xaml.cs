@@ -8,6 +8,7 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
 using DotCore.Common;
+using DotCore.Foundations;
 using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Components;
@@ -23,6 +24,10 @@ public partial class RosbotBridgePanel : UserControl
     private const string TimeFormat = "HH:mm:ss";
     private const string Separator = " · ";
     private const string Empty = "-";
+    private const string LogTag = "[RosbotBridge]";
+    private const string PickupKindStash = "stash";
+    private DateTime _lastLoggedPickupUtc = DateTime.UtcNow;
+    private long _lastLoggedCommandId;
     private readonly DispatcherTimer _timer = new() { Interval = PollInterval };
     private readonly List<(string LabelKey, TextBlock Label, TextBlock Value)> _rows = new();
     private RosbotBridgeState? _state;
@@ -46,6 +51,9 @@ public partial class RosbotBridgePanel : UserControl
             {
                 _bound = true;
                 ConfigBinding.BindCheckBox(ChkAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstallDefault);
+                var (auto, patterns) = RosbotBridgePluginService.LoadPickupFilter();
+                ChkFilterAuto.IsChecked = auto;
+                TxtFilter.Text = string.Join(Environment.NewLine, patterns);
             }
             RefreshI18n();
             _timer.Start();
@@ -63,6 +71,26 @@ public partial class RosbotBridgePanel : UserControl
         BtnOpenDir.Content = p.GetUiText(I18nKeys.RosbotBridgeOpenDir);
         BtnSaveAreaName.Content = p.GetUiText(I18nKeys.RosbotBridgeSaveAreaName);
         LblHistory.Text = p.GetUiText(I18nKeys.RosbotBridgeHistory);
+        TabGround.Header = p.GetUiText(I18nKeys.RosbotBridgeTabGround);
+        TabNpc.Header = p.GetUiText(I18nKeys.RosbotBridgeTabNpc);
+        TabCarried.Header = p.GetUiText(I18nKeys.RosbotBridgeTabCarried);
+        TabPickups.Header = p.GetUiText(I18nKeys.RosbotBridgeTabPickups);
+        TabAdvanced.Header = p.GetUiText(I18nKeys.RosbotBridgeTabAdvanced);
+        BtnGroundMoveTo.Content = p.GetUiText(I18nKeys.RosbotBridgeMoveTo);
+        BtnGroundPickup.Content = p.GetUiText(I18nKeys.RosbotBridgePickup);
+        BtnPickupMatching.Content = p.GetUiText(I18nKeys.RosbotBridgePickupMatching);
+        LblFilter.Text = p.GetUiText(I18nKeys.RosbotBridgeFilter);
+        ChkFilterAuto.Content = p.GetUiText(I18nKeys.RosbotBridgeFilterAuto);
+        BtnSaveFilter.Content = p.GetUiText(I18nKeys.RosbotBridgeSaveFilter);
+        BtnNpcFind.Content = p.GetUiText(I18nKeys.RosbotBridgeNpcFind);
+        BtnNpcOpen.Content = p.GetUiText(I18nKeys.RosbotBridgeNpcOpen);
+        ChkInteractMode.Content = p.GetUiText(I18nKeys.RosbotBridgeInteractMode);
+        ChkInteractClick.Content = p.GetUiText(I18nKeys.RosbotBridgeInteractClick);
+        TxtNpcTarget.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeNpcTargetHint);
+        TxtCarriedNote.Text = p.GetUiText(I18nKeys.RosbotBridgeCarriedNote);
+        BtnClickUi.Content = p.GetUiText(I18nKeys.RosbotBridgeClickUi);
+        TxtUiId.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeUiIdHint);
+        TxtCapabilities.Text = p.GetUiText(I18nKeys.RosbotBridgeCapabilities);
         foreach (var (key, label, _) in _rows) label.Text = p.GetUiText(key);
         RefreshInstallInfo();
         RefreshLive();
@@ -120,6 +148,139 @@ public partial class RosbotBridgePanel : UserControl
         LstHistory.Items.Clear();
         foreach (var visit in s?.LevelAreaHistory ?? Array.Empty<RosbotBridgeAreaVisit>())
             LstHistory.Items.Add($"{visit.Utc.ToLocalTime().ToString(TimeFormat)}{Separator}{AreaText(visit.Sno, p)}");
+
+        Fill(LstGround, s?.GroundItems, e => GroundText(e, p));
+        Fill(LstNpcs, s?.Npcs, e => NpcText(e, p));
+        Fill(LstCarried, s?.CarriedItems, e => CarriedText(e, p));
+        LstPickups.Items.Clear();
+        foreach (var r in s?.Pickups ?? Array.Empty<RosbotBridgePickup>()) LstPickups.Items.Add(PickupText(r, p));
+        if (s?.LastCommand is { } c)
+            TxtCommandResult.Text = string.Format(p.GetUiText(c.Ok ? I18nKeys.RosbotBridgeCommandOk : I18nKeys.RosbotBridgeCommandFailed),
+                c.Action, c.Message, c.Utc.ToLocalTime().ToString(TimeFormat));
+        LogNewEvents(s);
+    }
+
+    /// <summary>Write new pickups and command results to the app log once each.</summary>
+    private void LogNewEvents(RosbotBridgeState? s)
+    {
+        if (s == null) return;
+        foreach (var r in s.Pickups.Where(r => r.Utc > _lastLoggedPickupUtc).OrderBy(r => r.Utc))
+            ColorPrinter.Green($"{LogTag} {r.Kind}: {r.Name} [{r.InternalName}] quality={r.Quality} ancient={r.AncientRank}");
+        if (s.Pickups.Count > 0) _lastLoggedPickupUtc = s.Pickups.Max(r => r.Utc);
+        if (s.LastCommand is { } c && c.Id != _lastLoggedCommandId)
+        {
+            _lastLoggedCommandId = c.Id;
+            ColorPrinter.Blue($"{LogTag} command {c.Id} {c.Action}: {(c.Ok ? "ok" : "failed")} {c.Message}");
+        }
+    }
+
+    /// <summary>Refill a list with entities, keeping the selected entity (by actor id, else ACD id) selected.</summary>
+    private static void Fill(ListBox list, IReadOnlyList<RosbotBridgeEntity>? items, Func<RosbotBridgeEntity, string> text)
+    {
+        var selected = (list.SelectedItem as ListBoxItem)?.Tag as RosbotBridgeEntity;
+        list.Items.Clear();
+        foreach (var e in items ?? Array.Empty<RosbotBridgeEntity>())
+        {
+            var item = new ListBoxItem { Content = text(e), Tag = e };
+            list.Items.Add(item);
+            if (selected != null && (e.Id != 0 ? e.Id == selected.Id : e.AcdId == selected.AcdId)) list.SelectedItem = item;
+        }
+    }
+
+    private static string GroundText(RosbotBridgeEntity e, II18nProvider p) => Join(
+        e.FilterMatch ? p.GetUiText(I18nKeys.RosbotBridgeFilterMark) + e.Name : e.Name,
+        $"[{e.InternalName}]", QualityText(e, p), string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance));
+
+    private static string NpcText(RosbotBridgeEntity e, II18nProvider p) => Join(
+        e.Name, $"[{e.InternalName}]", string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance),
+        string.Format(p.GetUiText(I18nKeys.RosbotBridgeInteractDistance), e.InteractDistance));
+
+    private static string CarriedText(RosbotBridgeEntity e, II18nProvider p) => Join(
+        e.Equipped ? p.GetUiText(I18nKeys.RosbotBridgeEquipped) + e.Name : e.Name,
+        QualityText(e, p),
+        e.Stack > 1 ? $"×{e.Stack}" : "",
+        e.DurabilityMax > 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeDurability), e.DurabilityCur, e.DurabilityMax) : "");
+
+    private static string PickupText(RosbotBridgePickup r, II18nProvider p) => Join(
+        r.Utc.ToLocalTime().ToString(TimeFormat),
+        p.GetUiText(r.Kind == PickupKindStash ? I18nKeys.RosbotBridgeKindStash : I18nKeys.RosbotBridgeKindPickup),
+        r.Name, string.IsNullOrEmpty(r.InternalName) ? "" : $"[{r.InternalName}]",
+        QualityText(r.Quality, r.AncientRank, p));
+
+    private static string QualityText(RosbotBridgeEntity e, II18nProvider p) => QualityText(e.Quality, e.AncientRank, p);
+
+    /// <summary>D3 Item_Quality_Level: 0-2 normal, 3-5 magic, 6-8 rare, 9+ legendary; Ancient_Rank 1 ancient, 2 primal.</summary>
+    private static string QualityText(int quality, int ancientRank, II18nProvider p)
+    {
+        string q = quality switch
+        {
+            < 0 => "",
+            <= 2 => p.GetUiText(I18nKeys.RosbotBridgeQualityNormal),
+            <= 5 => p.GetUiText(I18nKeys.RosbotBridgeQualityMagic),
+            <= 8 => p.GetUiText(I18nKeys.RosbotBridgeQualityRare),
+            _ => p.GetUiText(I18nKeys.RosbotBridgeQualityLegendary),
+        };
+        string a = ancientRank switch
+        {
+            1 => p.GetUiText(I18nKeys.RosbotBridgeAncient),
+            >= 2 => p.GetUiText(I18nKeys.RosbotBridgePrimal),
+            _ => "",
+        };
+        return string.Join(" ", new[] { a, q }.Where(x => x.Length > 0));
+    }
+
+    private static string Join(params string[] parts) => string.Join(Separator, parts.Where(x => !string.IsNullOrEmpty(x)));
+
+    private static RosbotBridgeEntity? Selected(ListBox list) => (list.SelectedItem as ListBoxItem)?.Tag as RosbotBridgeEntity;
+
+    /// <summary>Queue a plugin command and show that it was sent (the plugin's result follows in the next state).</summary>
+    private void Send(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null)
+    {
+        var p = D3D4TesterI18n.Provider;
+        if (action != RosbotPluginConstants.BridgeActionPickupFilter && action != RosbotPluginConstants.BridgeActionClickUi && string.IsNullOrWhiteSpace(target))
+        {
+            TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeSelectTarget);
+            return;
+        }
+        long? id = RosbotBridgePluginService.SendCommand(action, target, mode, click, uiId);
+        TxtCommandResult.Text = id == null ? p.GetUiText(I18nKeys.RosbotBridgeCommandNotSent) : string.Format(p.GetUiText(I18nKeys.RosbotBridgeCommandSent), action);
+    }
+
+    private void BtnGroundMoveTo_Click(object sender, RoutedEventArgs e) => Send(RosbotPluginConstants.BridgeActionMoveTo, Selected(LstGround)?.Id.ToString());
+
+    private void BtnGroundPickup_Click(object sender, RoutedEventArgs e) => Send(RosbotPluginConstants.BridgeActionPickup, Selected(LstGround)?.Id.ToString());
+
+    private void BtnPickupMatching_Click(object sender, RoutedEventArgs e)
+    {
+        SaveFilter();
+        Send(RosbotPluginConstants.BridgeActionPickupFilter);
+    }
+
+    private void BtnSaveFilter_Click(object sender, RoutedEventArgs e) => SaveFilter();
+
+    private void SaveFilter()
+    {
+        var p = D3D4TesterI18n.Provider;
+        var patterns = TxtFilter.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        bool ok = RosbotBridgePluginService.SavePickupFilter(ChkFilterAuto.IsChecked == true, patterns);
+        TxtCommandResult.Text = p.GetUiText(ok ? I18nKeys.RosbotBridgeFilterSaved : I18nKeys.RosbotBridgeCommandNotSent);
+    }
+
+    private string? NpcTarget() => Selected(LstNpcs)?.Id.ToString() is { } id && id != "0" ? id : TxtNpcTarget.Text;
+
+    private void BtnNpcFind_Click(object sender, RoutedEventArgs e) => Send(RosbotPluginConstants.BridgeActionMoveTo, NpcTarget());
+
+    private void BtnNpcOpen_Click(object sender, RoutedEventArgs e) =>
+        Send(RosbotPluginConstants.BridgeActionInteract, NpcTarget(), ChkInteractMode.IsChecked == true, ChkInteractClick.IsChecked == true);
+
+    private void BtnClickUi_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(TxtUiId.Text))
+        {
+            TxtCommandResult.Text = D3D4TesterI18n.Provider.GetUiText(I18nKeys.RosbotBridgeSelectTarget);
+            return;
+        }
+        Send(RosbotPluginConstants.BridgeActionClickUi, uiId: TxtUiId.Text);
     }
 
     /// <summary>Why there is (no) live data: not installed, ROSBOT not running, running without the plugin loaded, stale, live.</summary>
