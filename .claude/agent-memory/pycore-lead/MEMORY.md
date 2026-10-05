@@ -22,3 +22,4 @@
 - [Phrase audio pycore](project_phrase_audio_pycore.md) — 2026-10-05 phrase cache/batch/delivery: no W7 diff kind, no reconcile; how to extend
 - [pycore restart Tcl crash](project_pycore_restart_tcl_crash.md) — 2026-10-05 04:21-10:41 outage: self-restart crashed in tcl86t before successor spawn; no supervisor; 175 unrelated
 - [Terminal state normalized](project_terminal_state_normalized.md) — 2026-10-05 schema/migration/reader owner; import checks migrate the LIVE db unless env redirected
+- [Network router manager](project_network_router_manager.md) — 2026-10-06 pycore router lib + pycore-manager page; delegates to 113_natgateway.sh; relay policy; Windows untested
