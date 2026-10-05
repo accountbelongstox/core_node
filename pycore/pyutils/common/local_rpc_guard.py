@@ -280,3 +280,8 @@ __all__ = [
     "lan_bind_enabled",
     "resolve_bind_host",
 ]
+
+
+if __name__ == "__main__":
+    # Launchers (pyservice) read the LAN bind setting before opening the RPC port in the firewall.
+    print("true" if lan_bind_enabled() else "false")

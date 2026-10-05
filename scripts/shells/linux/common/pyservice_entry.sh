@@ -115,6 +115,9 @@ FS_PERM_HELPERS_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/fs_perm_helpers.
 CLIENT_KEY_COMMON_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/client_key_common.sh"
 NOTEBOOK_RUNTIME_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/notebook_runtime.sh"
 AI_KEY_HEALTH_WARNING_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/ai_key_health_warning.sh"
+FIREWALL_MANAGER_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/firewall_manager.sh"
+LAN_BIND_GUARD_MODULE="pycore.pyutils.common.local_rpc_guard"
+LAN_BIND_ENABLED_VALUE="true"
 NOTEBOOK_PLATFORM=""
 NOTEBOOK_EXPORT_IDENTITY=0
 
@@ -752,6 +755,19 @@ fi
 # binds to 59000, not 13054 (the Vite UI port that was temporarily exported).
 export PORT="${RPC_PORT:-59000}"
 export PYCORE_RPC_PORT="$PORT"
+
+# --- LAN bind: open the RPC port first ----------------------------------- #
+# With rpcLanBind on the worker binds every interface; firewall_manager.sh
+# allows the port in the firewall present (UFW/firewalld/iptables) before the
+# worker starts. Non-root runs use non-interactive sudo, so a service start
+# never blocks on a password prompt.
+if [[ "$(cd "$SCRIPT_DIR" && "$PY" -m "$LAN_BIND_GUARD_MODULE" 2>/dev/null | tail -n 1)" == "$LAN_BIND_ENABLED_VALUE" ]]; then
+    (
+        [[ "$(id -u)" == "0" ]] && USE_SUDO="" || USE_SUDO="sudo -n"
+        source "$FIREWALL_MANAGER_SCRIPT"
+        firewall_allow_port "$PORT" tcp "pycore RPC (rpcLanBind)"
+    ) || echo "[!] Could not open port $PORT in the firewall; LAN devices may not reach pycore."
+fi
 
 # Ensure DISPLAY is set on Linux desktop so the tray (AppIndicator/pystray) can
 # connect to the X11/Wayland session. Also forward DBUS_SESSION_BUS_ADDRESS which
