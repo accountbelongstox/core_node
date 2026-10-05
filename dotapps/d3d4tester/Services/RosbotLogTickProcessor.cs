@@ -19,6 +19,7 @@ public static class RosbotLogTickProcessor
                 ColorPrinter.Info("[ROSBOT] " + line);
                 if (RosbotLogAnalyzer.AnalyzeLine(line))
                     any = true;
+                Monitor.MonitorService.Instance.OnLogLine(line);
             }
         }
         if (any)

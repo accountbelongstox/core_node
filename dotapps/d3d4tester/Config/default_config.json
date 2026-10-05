@@ -290,7 +290,11 @@
     "abnormal_timeout_sec": 120,
     "login_restart_enabled": true,
     "login_timeout_sec": 300,
-    "region_switch_prompt": true
+    "region_switch_prompt": true,
+    "net_hold_enabled": false,
+    "net_hold_on_boot": false,
+    "net_hold_interval_sec": 60,
+    "d4_install_path": ""
   },
   "battlenet_asia_credentials": {
     "email": "",

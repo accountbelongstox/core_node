@@ -89,6 +89,14 @@ public static partial class ConfigKeys
     public const string BattlenetAbnormalTimeoutSec = "battlenet.abnormal_timeout_sec";
     public const string BattlenetLoginRestartEnabled = "battlenet.login_restart_enabled";
     public const string BattlenetLoginTimeoutSec = "battlenet.login_timeout_sec";
+    /// <summary>Hold the network with the D4 download (BattlenetNetHoldService): ensure the client, start / resume D4, D3 tab when done.</summary>
+    public const string BattlenetNetHoldEnabled = "battlenet.net_hold_enabled";
+    /// <summary>Start the app at logon (Startup shortcut) so the network hold resumes after a reboot; needs net_hold_enabled.</summary>
+    public const string BattlenetNetHoldOnBoot = "battlenet.net_hold_on_boot";
+    public const string BattlenetNetHoldIntervalSec = "battlenet.net_hold_interval_sec";
+    public const int BattlenetNetHoldIntervalSecDefault = 60;
+    /// <summary>Folder D4 is installed into (the install dialog is pointed there); empty = keep Battle.net's suggestion.</summary>
+    public const string BattlenetD4InstallPath = "battlenet.d4_install_path";
     /// <summary>Ask before restarting Battle.net when the global region changes.</summary>
     public const string BattlenetRegionSwitchPrompt = "battlenet.region_switch_prompt";
     /// <summary>Saved accounts per region: battlenet_accounts.cn / .asia = [{label, email, password (encrypted)}].</summary>

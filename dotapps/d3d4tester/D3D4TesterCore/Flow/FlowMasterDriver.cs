@@ -86,6 +86,12 @@ public static class FlowMasterDriver
             return;
         var game = GameInterfaceData.Instance;
 
+        if (RosbotRestartRequest.TryConsume(out string restartReason, out string restartDetail, out bool restartBattlenet))
+        {
+            RestartOnRequest(restartReason, restartDetail, restartBattlenet);
+            return;
+        }
+
         if (IsF3OnlyMode())
         {
             RunF3OnlyMode(statusPrefix);
@@ -113,7 +119,7 @@ public static class FlowMasterDriver
                 if (step == F3Step.F4)
                 {
                     ColorPrinter.Gray($"{LogTag} F3: timeout detected after ROSBOT gone -> F4 -> B2_HasWin");
-                    RunF4AndEnterB2();
+                    RunF4AndEnterB2(RosbotRestartRequest.ReasonLogTimeout);
                     return;
                 }
             }
@@ -258,7 +264,7 @@ public static class FlowMasterDriver
         if (step == F3Step.F4)
         {
             ColorPrinter.Gray($"{LogTag} F3: timeout -> F4 -> B2_HasWin");
-            RunF4AndEnterB2();
+            RunF4AndEnterB2(RosbotRestartRequest.ReasonLogTimeout);
         }
     }
 
@@ -287,7 +293,7 @@ public static class FlowMasterDriver
         if (RunF3(verbose: true) == F3Step.F4)
         {
             ColorPrinter.Gray($"{LogTag} F3: timeout -> F4 -> B2_HasWin");
-            RunF4AndEnterB2();
+            RunF4AndEnterB2(RosbotRestartRequest.ReasonLogTimeout);
         }
     }
 
@@ -302,12 +308,23 @@ public static class FlowMasterDriver
     {
         ColorPrinter.Yellow($"{LogTag} ROSBOT disconnect detected -> F4 -> B2_HasWin");
         RosbotExitState.IncrementTotalRestartCount();
-        RunF4AndEnterB2();
+        RunF4AndEnterB2(RosbotRestartRequest.ReasonLogDisconnect);
+    }
+
+    /// <summary>Restart queued by <see cref="RosbotRestartRequest"/>: the same F4 -> B2 path as a log disconnect, Battle.net closed first when asked.</summary>
+    private static void RestartOnRequest(string reasonId, string detail, bool restartBattlenet)
+    {
+        ColorPrinter.Yellow($"{LogTag} Restart requested ({reasonId}: {detail}) restart_battlenet={restartBattlenet} -> F4 -> B2_HasWin");
+        RosbotExitState.IncrementTotalRestartCount();
+        RunF4AndEnterB2(reasonId, detail, restartBattlenet);
     }
 
     /// <summary>F4, then refresh so the next tick's gate sees D3/ROSBOT gone (no duplicate F3 50 %), then enter B2.</summary>
-    private static void RunF4AndEnterB2()
+    private static void RunF4AndEnterB2(string reasonId, string detail = "", bool closeBattlenet = false)
     {
+        RosbotRestartRequest.NotifyExecuted(reasonId, detail);
+        if (closeBattlenet)
+            Battlenet.BattlenetManager.Instance.Close();
         F4CloseD3SendF7.Run();
         bool d3Changed = RefreshD3(skipDynamic: true);
         bool rosbotChanged = RefreshRosbot();
