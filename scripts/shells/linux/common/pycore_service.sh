@@ -19,6 +19,7 @@
 # The unit it creates:
 #   [Service]
 #   ExecStartPre=+/bin/bash <common>/pyservice_www_permissions.sh (as root)
+#   ExecStartPre=+/bin/bash <common>/pyservice_lan_firewall.sh <user> (as root)
 #   ExecStart=[session env] /bin/bash <REPO_ROOT>/pyservice.sh run --no-ui --no-install
 #   (backend hot reload on: dev_reload.py re-execs the worker on a saved .py)
 # plus the root companion unit core-node-owner-guard (owner_guard_service.sh).
@@ -46,7 +47,8 @@ PYCORE_SVC_EXEC_START="$PYCORE_SVC_RUN_COMMAND"
 PYCORE_SVC_NO_TRAY_ENV="PYCORE_NO_TRAY=1"
 # "+" runs the idempotent data-root ownership repair as root although the unit
 # runs as User=<desktop user>, so every (re)start hands root remnants back.
-PYCORE_SVC_EXEC_START_PRE="+/bin/bash $PYCORE_SVC_SCRIPT_DIR/pyservice_www_permissions.sh"
+PYCORE_SVC_PERMISSIONS_PRE="+/bin/bash $PYCORE_SVC_SCRIPT_DIR/pyservice_www_permissions.sh"
+PYCORE_SVC_EXEC_START_PRE="$PYCORE_SVC_PERMISSIONS_PRE"
 # "+" also allows the RPC port in the firewall as root when rpcLanBind is on.
 PYCORE_SVC_LAN_FIREWALL_SCRIPT="$PYCORE_SVC_SCRIPT_DIR/pyservice_lan_firewall.sh"
 PYCORE_SVC_USER=""
@@ -124,8 +126,7 @@ pycore_build_exec_start() {
         prefix="CORE_NODE_DATA_OWNER=$PYCORE_SVC_USER${prefix:+ $prefix}"
     fi
     PYCORE_SVC_EXEC_START="${prefix:+$prefix }$PYCORE_SVC_RUN_COMMAND"
-    PYCORE_SVC_EXEC_START_PRE="$PYCORE_SVC_EXEC_START_PRE"$'
-'"+/bin/bash $PYCORE_SVC_LAN_FIREWALL_SCRIPT $PYCORE_SVC_USER"
+    PYCORE_SVC_EXEC_START_PRE="$PYCORE_SVC_PERMISSIONS_PRE"$'\n'"+/bin/bash $PYCORE_SVC_LAN_FIREWALL_SCRIPT $PYCORE_SVC_USER"
 }
 
 # --- Print the unit we would create (verifiable on non-systemd boxes) ----- #
@@ -143,10 +144,7 @@ pycore_print_unit() {
     echo "Type=simple"
     echo "User=$PYCORE_SVC_USER"
     echo "WorkingDirectory=$PYCORE_REPO_ROOT"
-    printf 'ExecStartPre=%s
-' "${PYCORE_SVC_EXEC_START_PRE%%$'
-'*}" "${PYCORE_SVC_EXEC_START_PRE#*$'
-'}"
+    printf '%s\n' "$PYCORE_SVC_EXEC_START_PRE" | sed 's/^/ExecStartPre=/'
     echo "ExecStart=$PYCORE_SVC_EXEC_START"
     echo "Restart=always"
     systemd_interactive_resource_lines
