@@ -194,6 +194,8 @@ Set-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -Value $true
 
 $lanBindGuardModule = 'pycore.pyutils.common.local_rpc_guard'
 $lanBindEnabledValue = 'true'
+$lanBindSettingKey = 'rpcLanBind'
+$lanBindAnyHost = '0.0.0.0'
 $lanFirewallRuleName = 'ncore-pycore-rpc-lan'
 $lanFirewallRuleDisplayName = 'pycore RPC (rpcLanBind)'
 $rpcListener = $null
@@ -327,6 +329,32 @@ function Grant-PycoreLanFirewallPort {
     } catch {
         Write-Host ("[!] Could not allow port {0} in the Windows firewall: {1}" -f $Port, $_.Exception.Message) -ForegroundColor Yellow
     }
+}
+
+# The background service listens on every interface: turn rpcLanBind on and
+# open its port. Returns $true when the setting was just switched on.
+function Enable-PycoreLanBind {
+    param([string]$PythonPath)
+    $lanBind = $null
+    $changed = $false
+    Push-Location -LiteralPath $PSScriptRoot
+    try {
+        $lanBind = & $PythonPath '-m' $lanBindGuardModule 2>$null | Select-Object -Last 1
+        if ("$lanBind" -ne $lanBindEnabledValue) {
+            & $PythonPath '-m' 'pycore.pyservice_cli' 'config' 'system' 'set' '--key' $lanBindSettingKey '--value' $lanBindEnabledValue | Out-Host
+            $lanBind = & $PythonPath '-m' $lanBindGuardModule 2>$null | Select-Object -Last 1
+            $changed = ("$lanBind" -eq $lanBindEnabledValue)
+            if (-not $changed) {
+                Write-Host ("[!] Could not enable {0}; pycore stays on loopback." -f $lanBindSettingKey) -ForegroundColor Yellow
+            } else {
+                Write-Host ("[OK] {0} enabled: pycore listens on {1}:{2}." -f $lanBindSettingKey, $lanBindAnyHost, $Port) -ForegroundColor Green
+            }
+        }
+        Grant-PycoreLanFirewallPort -PythonPath $PythonPath
+    } finally {
+        Pop-Location
+    }
+    return $changed
 }
 
 # --------------------------------------------------------------------------- #
@@ -548,14 +576,15 @@ function Install-PycoreService {
     $drift = @()
     $registerResult = @()
     $registered = $false
+    $lanBindChanged = $false
     if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand 'install') }
 
+    $python = Resolve-Python
+    if (-not $python) {
+        Write-Host ("[!] System Python 3.13 was not found at {0}; run Python_Default.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
+        return 1
+    }
     if (-not $NoInstall) {
-        $python = Resolve-Python
-        if (-not $python) {
-            Write-Host ("[!] System Python 3.13 was not found at {0}; run Python_Default.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
-            return 1
-        }
         Ensure-CoreNodePythonPath -LogPrefix '[pyservice]' | Out-Host
         Push-Location -LiteralPath $PSScriptRoot
         try {
@@ -568,6 +597,7 @@ function Install-PycoreService {
     } else {
         Write-Host '[i] Skipping all PowerShell prerequisite installers (-NoInstall).' -ForegroundColor DarkYellow
     }
+    $lanBindChanged = [bool](Enable-PycoreLanBind -PythonPath $python.Path | Select-Object -Last 1)
 
     $nssmPath = Ensure-Nssm -RepoRootDir $PSScriptRoot
     if (-not $nssmPath) {
@@ -597,7 +627,7 @@ function Install-PycoreService {
         -ExePath $powerShellExe -Arguments $pycoreServiceArguments -WorkingDirectory $PSScriptRoot `
         -EnvironmentExtra $pycoreServiceEnvironment `
         -StdoutLog $pycoreServiceStdoutLog -StderrLog $pycoreServiceStderrLog `
-        -NoRestart:([bool]($existingService -and ($drift.Count -eq 0))))
+        -NoRestart:([bool]($existingService -and ($drift.Count -eq 0) -and (-not $lanBindChanged))))
     $registered = ($registerResult.Count -gt 0) -and ($registerResult[$registerResult.Count - 1] -eq $true)
     if (-not $registered) {
         Write-Host ("[!] Service {0} registration failed." -f $pycoreServiceName) -ForegroundColor Red

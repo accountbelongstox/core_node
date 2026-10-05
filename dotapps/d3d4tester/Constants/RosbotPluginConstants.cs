@@ -20,4 +20,16 @@ public static class RosbotPluginConstants
     public const string FastExitDirName = "BlackWhiteGay";
     public const string FastExitConfigFileName = "rsttcp.cfg";
     public const string FastExitEnableBlueKey = "enableBlue";
+
+    /// <summary>
+    /// CoreNodeBridge (tools/rosbot-plugin): this app's own ROSBOT plugin, bundled under tools\rosbot-plugins and installed to
+    /// &lt;ROSBOT&gt;\plugins\CoreNodeBridge; it writes the game state to state.json there once per second.
+    /// </summary>
+    public const string BridgeDirName = "CoreNodeBridge";
+    public const string BridgeDllName = "CoreNodeBridge.dll";
+    public const string BridgeStateFileName = "state.json";
+    public const string BridgeBundledDir = "tools\\rosbot-plugins\\CoreNodeBridge";
+    public const string BridgeAreaNamesFileName = "rosbot_area_names.json";
+    /// <summary>state.json older than this means the plugin is not running (disabled in ROSBOT, or ROSBOT stopped).</summary>
+    public const int BridgeStaleSec = 5;
 }

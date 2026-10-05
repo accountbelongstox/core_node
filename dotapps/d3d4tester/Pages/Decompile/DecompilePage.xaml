@@ -1,7 +1,8 @@
 <UserControl x:Class="DotApps.d3d4tester.Pages.Decompile.DecompilePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Decompile tools: toolchain install (ILSpy, de4dot-cex, autoit-ripper, UPX), one-click ROSBOT / RBAssist / any file, output folder, log -->
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:components="clr-namespace:DotApps.d3d4tester.Components">
+  <!-- Test tab: CoreNodeBridge ROSBOT plugin (live game state), decompile tools (ILSpy, de4dot-cex, autoit-ripper, UPX), one-click ROSBOT / RBAssist / any file, output folder, log -->
   <Grid Margin="8,6,8,4">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*"/>
@@ -11,6 +12,10 @@
 
     <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
       <StackPanel>
+        <Border Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,6">
+          <components:RosbotBridgePanel x:Name="BridgePanel"/>
+        </Border>
+
         <Border Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,6">
           <StackPanel>
             <TextBlock x:Name="LblToolsTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>

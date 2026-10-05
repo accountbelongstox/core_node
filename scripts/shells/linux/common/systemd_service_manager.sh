@@ -481,10 +481,12 @@ Restart=$restart_policy
 RestartSec=$restart_sec
 EOF
 
-    if [ -n "$exec_start_pre" ]; then
-        echo "ExecStartPre=$exec_start_pre" >> "$service_file"
-        echo "[INFO] ExecStartPre: $exec_start_pre"
-    fi
+    # One ExecStartPre= line per newline-separated command.
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        echo "ExecStartPre=$line" >> "$service_file"
+        echo "[INFO] ExecStartPre: $line"
+    done <<< "$exec_start_pre"
 
     if [ -n "$SYSTEMD_RESTART_MAX_DELAY_SEC" ] && [ "$(systemd_version_number)" -ge "$SYSTEMD_RESTART_STEPS_MIN_VERSION" ]; then
         printf 'RestartSteps=%s\nRestartMaxDelaySec=%s\n' "$SYSTEMD_RESTART_STEPS" "$SYSTEMD_RESTART_MAX_DELAY_SEC" >> "$service_file"
