@@ -6,6 +6,7 @@ from io import BytesIO
 from typing import Any, Callable, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.desktop_session import DesktopSession, current_desktop_session
+from pycore.pyfoundations.pybasecommon.commander import run_args
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 from pycore.pyutils.common.gnome_shell_dbus import (
     BRIDGE_STATE_ACTIVE,
@@ -50,6 +51,13 @@ X11_WINDOW_PREFIX = "x11:"
 GNOME_WINDOW_PREFIX = "gnome:"
 INTROSPECT_WINDOW_PREFIX = "introspect:"
 ACTIVATION_ATTEMPTS = 2
+GNOME_TERMINAL_APP_PREFIX = "gnome-terminal"
+GSETTINGS_COMMAND = "gsettings"
+GNOME_TERMINAL_KEYBINDINGS_SCHEMA = "org.gnome.Terminal.Legacy.Keybindings:/org/gnome/terminal/legacy/keybindings/"
+GNOME_TERMINAL_SELECT_ALL_KEY = "select-all"
+GNOME_TERMINAL_SELECT_ALL_BINDING = "<Control><Shift>a"
+GNOME_TERMINAL_KEYBINDING_DISABLED = "'disabled'"
+GSETTINGS_TIMEOUT_SECONDS = 5
 INTEGRATION_ACTIONS = frozenset({
     "status",
     "install_bridge",
@@ -249,6 +257,31 @@ class LinuxTerminalBackend(TerminalWindowBackend):
                 return False
             x11_display.activate(native_id)
             time.sleep(FOCUS_DELAY_SECONDS)
+
+    def _select_all(self, window: Dict[str, Any]) -> bool:
+        if str(window.get("app") or "").startswith(GNOME_TERMINAL_APP_PREFIX):
+            self._ensure_gnome_terminal_select_all()
+        return super()._select_all(window)
+
+    def _ensure_gnome_terminal_select_all(self) -> None:
+        """GNOME Terminal ships Select All unbound on some releases: bind the Ctrl+Shift+A that copy_all sends."""
+        if getattr(self, "_gnome_select_all_checked", False):
+            return
+        current = run_args(
+            [GSETTINGS_COMMAND, "get", GNOME_TERMINAL_KEYBINDINGS_SCHEMA, GNOME_TERMINAL_SELECT_ALL_KEY],
+            input_text="",
+            timeout=GSETTINGS_TIMEOUT_SECONDS,
+        )
+        if not current.success:
+            return
+        self._gnome_select_all_checked = True
+        if current.stdout.strip() != GNOME_TERMINAL_KEYBINDING_DISABLED:
+            return
+        run_args(
+            [GSETTINGS_COMMAND, "set", GNOME_TERMINAL_KEYBINDINGS_SCHEMA, GNOME_TERMINAL_SELECT_ALL_KEY, GNOME_TERMINAL_SELECT_ALL_BINDING],
+            input_text="",
+            timeout=GSETTINGS_TIMEOUT_SECONDS,
+        )
 
     def _input_guard(self) -> ContextManager[None]:
         return input_method_bypassed()
