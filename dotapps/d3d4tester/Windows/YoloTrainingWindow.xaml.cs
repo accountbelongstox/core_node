@@ -9,6 +9,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
+using DotApps.d3d4tester.ViewModels;
 using DotCore.Common;
 using DotCore.VocAnnotator;
 using DotCore.YoloRecord;
@@ -46,7 +47,9 @@ public partial class YoloTrainingWindow : Window
     private readonly bool _autoStart;
     private YoloEnvironment? _env;
     private YoloDatasetPlan? _plan;
-    private YoloTrainingOutcome? _outcome;
+    private IYoloDatasetStats? _taskSetStats;
+    private string? _datasetYaml;
+    private string? _datasetTaskSetId;
     private bool _detecting;
     private int _summaryVersion;
 
@@ -64,6 +67,7 @@ public partial class YoloTrainingWindow : Window
         BindConfig();
         BindMode();
         BtnManageTaskSets.Click += (_, _) => OpenTaskSetManager();
+        BtnClearDataset.Click += (_, _) => SetExistingDataset(null, null);
         BtnDetect.Click += async (_, _) => await DetectAsync();
         BtnApplyRecommended.Click += (_, _) => ApplyRecommendation();
         BtnBrowsePython.Click += (_, _) => BrowseInto(TxtPython, T(I18nKeys.YoloTrainingEnvPython) + "|python*.exe;python3*;python", ConfigKeys.YoloTrainingPythonExe);
@@ -73,10 +77,28 @@ public partial class YoloTrainingWindow : Window
         BtnStop.Click += (_, _) => _service.Cancel();
         BtnOpenOutput.Click += (_, _) => OpenOutput();
         BtnUseForNavigation.Click += (_, _) => UseForNavigation();
+        BtnTestModel.Click += (_, _) => TestModel(OnnxOf(Outcome, LastRunEntry()));
+        BtnResume.Click += async (_, _) => await ResumeAsync(LastRunEntry());
+        BtnExportBest.Click += async (_, _) => await ExportAsync(LastRunEntry());
+        BtnRefreshRuns.Click += (_, _) => RefreshRuns();
+        BtnRunSetCurrent.Click += (_, _) => SetCurrentModel(SelectedRun());
+        BtnRunExport.Click += async (_, _) => await ExportAsync(SelectedRun());
+        BtnRunResume.Click += async (_, _) => await ResumeAsync(SelectedRun());
+        BtnRunFineTune.Click += (_, _) => FineTuneFrom(SelectedRun());
+        BtnRunTest.Click += (_, _) => TestModel(SelectedRun()?.Onnx);
+        BtnRunOpen.Click += (_, _) => { if (SelectedRun() is { } r) YoloSegmentLayout.OpenDir(r.RunDir); };
+        BtnRunDelete.Click += (_, _) => DeleteRun(SelectedRun());
+        BtnRunEvaluate.Click += async (_, _) => await EvaluateAsync(SelectedRun());
+        BtnAugReset.Click += (_, _) => ResetAugmentation();
+        DgRuns.SelectionChanged += (_, _) => UpdateRunActions();
+        TabsRun.SelectionChanged += (_, e) => { if (e.Source == TabsRun && TabsRun.SelectedItem == TabRuns) RefreshRuns(); };
+        TxtExtraArgs.TextChanged += (_, _) => RenderExtraArgsIssue();
         _service.Log += OnServiceLog;
         _service.Progress += OnServiceProgress;
         _service.BuildProgress += OnServiceBuildProgress;
         _service.PhaseChanged += OnServicePhase;
+        _service.Metrics += OnServiceMetrics;
+        _service.OutcomeChanged += OnServiceOutcome;
         D3D4TesterI18n.Provider.LanguageChanged += OnLanguageChanged;
         Closed += (_, _) =>
         {
@@ -84,11 +106,14 @@ public partial class YoloTrainingWindow : Window
             _service.Progress -= OnServiceProgress;
             _service.BuildProgress -= OnServiceBuildProgress;
             _service.PhaseChanged -= OnServicePhase;
+            _service.Metrics -= OnServiceMetrics;
+            _service.OutcomeChanged -= OnServiceOutcome;
             D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
         };
         Activated += (_, _) => RefreshTaskSets();
         Loaded += async (_, _) =>
         {
+            if (Outcome?.RunDir is { } lastRun) RenderMetrics(YoloResultsCsv.Read(lastRun), lastRun);
             UpdateRunState(_service.Phase);
             if (_autoStart || ConfigBinding.GetValue(ConfigKeys.YoloTrainingDetectOnOpen, true)) await DetectAsync();
             if (_autoStart) await StartAsync();
@@ -99,15 +124,94 @@ public partial class YoloTrainingWindow : Window
 
     private bool IsSpecific => RadioSpecific.IsChecked == true;
 
+    /// <summary>Last train / resume / export outcome of the service (shared by every window).</summary>
+    private YoloTrainingOutcome? Outcome => _service.LastOutcome;
+
     /// <summary>Open in specific (task set) mode over the current calibration project; autoStart begins training after the environment check.</summary>
-    public static void ShowForTaskSet(Window? owner, string taskSetId, bool autoStart)
+    public static YoloTrainingWindow ShowForTaskSet(Window? owner, string taskSetId, bool autoStart)
     {
         var project = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloCurrentProject, "");
         project = !string.IsNullOrWhiteSpace(project) && Directory.Exists(project) ? project : null;
         var segments = project == null ? new List<string>() : YoloSegmentLayout.ListSegments(project).Select(s => s.SegmentPath).ToList();
         ConfigBinding.SaveString(ConfigKeys.YoloTrainingMode, ModeSpecific);
-        var win = new YoloTrainingWindow(project, segments, Array.Empty<string>(), taskSetId, autoStart) { Owner = owner };
-        win.Show();
+        return ShowSingle(owner, project, segments, Array.Empty<string>(), taskSetId, autoStart);
+    }
+
+    /// <summary>
+    /// Like ShowForTaskSet, but trains on an already generated dataset of the task set without regenerating; datasetDir is
+    /// {task_set}/_datasets/{stamp} or its data.yaml.
+    /// </summary>
+    public static YoloTrainingWindow ShowForDataset(Window? owner, string taskSetId, string datasetDir, bool autoStart)
+    {
+        var project = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloCurrentProject, "");
+        project = !string.IsNullOrWhiteSpace(project) && Directory.Exists(project) ? project : null;
+        var segments = project == null ? new List<string>() : YoloSegmentLayout.ListSegments(project).Select(s => s.SegmentPath).ToList();
+        ConfigBinding.SaveString(ConfigKeys.YoloTrainingMode, ModeSpecific);
+        return ShowSingle(owner, project, segments, Array.Empty<string>(), taskSetId, autoStart, datasetDir);
+    }
+
+    /// <summary>
+    /// Show the single training window. An open window is reused (activated, task set selected) unless it belongs to another project
+    /// or segment selection and nothing runs, in which case it is replaced. A second autostart while training runs is refused with a busy notice.
+    /// datasetDir (specific mode) trains on that existing dataset instead of regenerating one.
+    /// </summary>
+    public static YoloTrainingWindow ShowSingle(Window? owner, string? projectDir, IReadOnlyList<string> allSegments,
+        IReadOnlyList<string> selectedSegments, string? taskSetId = null, bool autoStart = false, string? datasetDir = null)
+    {
+        var win = Application.Current.Windows.OfType<YoloTrainingWindow>().FirstOrDefault();
+        var service = YoloTrainingService.Instance;
+        if (win != null && !service.IsRunning && (!SamePath(win._projectDir, projectDir)
+                || selectedSegments.Count > 0 && !selectedSegments.SequenceEqual(win._selectedSegments, StringComparer.OrdinalIgnoreCase)))
+        {
+            win.Close();
+            win = Application.Current.Windows.OfType<YoloTrainingWindow>().FirstOrDefault();
+        }
+        if (win == null)
+        {
+            win = new YoloTrainingWindow(projectDir, allSegments, selectedSegments, taskSetId, autoStart) { Owner = owner };
+            win.SetExistingDataset(taskSetId, datasetDir);
+            win.Show();
+            return win;
+        }
+        if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal;
+        win.Activate();
+        if (service.IsRunning)
+        {
+            if (autoStart) win.Warn(I18nKeys.YoloTrainingBusy);
+            return win;
+        }
+        if (taskSetId != null) win.SelectTaskSet(taskSetId);
+        win.SetExistingDataset(taskSetId, datasetDir);
+        if (autoStart) _ = win.StartAsync();
+        return win;
+    }
+
+    /// <summary>Pins (or with datasetDir null clears) an existing dataset of the task set for the next specific-mode training.</summary>
+    private void SetExistingDataset(string? taskSetId, string? datasetDir)
+    {
+        var full = datasetDir == null ? null : Path.GetFullPath(datasetDir);
+        _datasetYaml = taskSetId == null || full == null ? null : File.Exists(full) ? full : Path.Combine(full, YoloDataYaml.FileName);
+        _datasetTaskSetId = _datasetYaml == null ? null : taskSetId;
+        RenderExistingDataset();
+    }
+
+    private void RenderExistingDataset()
+    {
+        PanelExistingDataset.Visibility = _datasetYaml != null && IsSpecific ? Visibility.Visible : Visibility.Collapsed;
+        TxtExistingDataset.Text = _datasetYaml == null ? ""
+            : T(I18nKeys.YoloTrainingExistingDataset).Replace("{dir}", Path.GetDirectoryName(_datasetYaml) ?? _datasetYaml);
+    }
+
+    private static bool SamePath(string? a, string? b) =>
+        string.Equals(a == null ? null : Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar),
+            b == null ? null : Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+
+    private void SelectTaskSet(string taskSetId)
+    {
+        RadioSpecific.IsChecked = true;
+        RefreshTaskSets();
+        if (CboTaskSet.ItemsSource is IEnumerable<TaskSet> sets && sets.FirstOrDefault(s => s.Id == taskSetId) is { } set)
+            CboTaskSet.SelectedItem = set;
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -125,7 +229,12 @@ public partial class YoloTrainingWindow : Window
         ApplyTexts();
         RenderEnvironment();
         RenderPreview();
+        RenderAugmentation();
+        RenderExtraArgsIssue();
+        RenderMetrics(_metrics, _metricsRunDir);
         UpdateRunState(_service.Phase);
+        if (TabsRun.SelectedItem == TabRuns) RefreshRuns();
+        _ = RenderTaskSetSummaryAsync();
     });
 
     private void ApplyTexts()
@@ -166,6 +275,8 @@ public partial class YoloTrainingWindow : Window
         RadioGeneral.Content = T(I18nKeys.YoloTrainingModeGeneral);
         RadioSpecific.Content = T(I18nKeys.YoloTrainingModeSpecific);
         BtnManageTaskSets.Content = T(I18nKeys.YoloTrainingManageTaskSets);
+        BtnClearDataset.Content = T(I18nKeys.YoloTrainingExistingDatasetClear);
+        RenderExistingDataset();
         RadioSelected.Content = T(I18nKeys.YoloTrainingSourceSelected) + $" ({_selectedSegments.Count})";
         RadioAll.Content = T(I18nKeys.YoloTrainingSourceAll) + $" ({_allSegments.Count})";
         LblTrainPct.Text = T(I18nKeys.YoloTrainingTrainPercent);
@@ -177,12 +288,18 @@ public partial class YoloTrainingWindow : Window
         ChkStratify.Content = T(I18nKeys.YoloTrainingStratify);
         ChkBackground.Content = T(I18nKeys.YoloTrainingIncludeBackground);
         ChkSkipDifficult.Content = T(I18nKeys.YoloTrainingSkipDifficult);
+        ChkPseudoLabels.Content = T(I18nKeys.YoloTrainingIncludePseudoLabels);
         BtnPreview.Content = T(I18nKeys.YoloTrainingPreview);
         LblRun.Text = T(I18nKeys.YoloTrainingSectionRun);
         BtnStart.Content = T(I18nKeys.YoloTrainingStart);
         BtnStop.Content = T(I18nKeys.YoloTrainingStop);
         BtnOpenOutput.Content = T(I18nKeys.YoloTrainingOpenOutput);
         BtnUseForNavigation.Content = T(I18nKeys.YoloTrainingUseForNavigation);
+        BtnResume.Content = T(I18nKeys.YoloTrainingResume);
+        BtnExportBest.Content = T(I18nKeys.YoloTrainingExportBest);
+        BtnTestModel.Content = T(I18nKeys.ModelTestOpenButton);
+        ApplyAugmentationTexts();
+        ApplyRunsTexts();
         int cacheIdx = CboCache.SelectedIndex;
         CboCache.ItemsSource = new[] { T(I18nKeys.YoloTrainingCacheOff), T(I18nKeys.YoloTrainingCacheRam), T(I18nKeys.YoloTrainingCacheDisk) };
         CboCache.SelectedIndex = cacheIdx;
@@ -195,6 +312,7 @@ public partial class YoloTrainingWindow : Window
         BindEditableCombo(CboDevice, Devices, ConfigKeys.YoloTrainingDevice, Defaults.Device);
         ConfigBinding.BindIntTextBox(TxtEpochs, ConfigKeys.YoloTrainingEpochs, 1, 10000, Defaults.Epochs);
         ConfigBinding.BindIntTextBox(TxtImgsz, ConfigKeys.YoloTrainingImgsz, YoloTrainParameters.MinImgsz, YoloTrainParameters.MaxImgsz, Defaults.Imgsz);
+        TxtImgsz.LostFocus += (_, _) => RenderImgszHint();
         ConfigBinding.BindIntTextBox(TxtBatch, ConfigKeys.YoloTrainingBatch, YoloTrainParameters.AutoBatch, 1024, Defaults.Batch);
         ConfigBinding.BindIntTextBox(TxtWorkers, ConfigKeys.YoloTrainingWorkers, 0, 64, Defaults.Workers);
         ConfigBinding.BindIntTextBox(TxtPatience, ConfigKeys.YoloTrainingPatience, 0, 10000, Defaults.Patience);
@@ -222,7 +340,10 @@ public partial class YoloTrainingWindow : Window
         ConfigBinding.BindCheckBox(ChkStratify, ConfigKeys.YoloDatasetStratify, SplitDefaults.Stratify);
         ConfigBinding.BindCheckBox(ChkBackground, ConfigKeys.YoloDatasetIncludeBackground, SplitDefaults.IncludeBackground);
         ConfigBinding.BindCheckBox(ChkSkipDifficult, ConfigKeys.YoloDatasetSkipDifficult, SplitDefaults.SkipDifficult);
+        ConfigBinding.BindCheckBox(ChkPseudoLabels, ConfigKeys.YoloDatasetIncludeUnreviewedPseudoLabels, SplitDefaults.IncludeUnreviewedPseudoLabels);
         TxtPreview.Text = T(I18nKeys.YoloTrainingPreviewNone);
+        BindAugmentation();
+        RenderExtraArgsIssue();
     }
 
     private void BindMode()
@@ -237,6 +358,7 @@ public partial class YoloTrainingWindow : Window
         CboTaskSet.SelectionChanged += (_, _) =>
         {
             if (CboTaskSet.SelectedItem is TaskSet set) ConfigBinding.SaveString(ConfigKeys.YoloTrainingTaskSet, set.Id);
+            if (_datasetYaml != null && (CboTaskSet.SelectedItem as TaskSet)?.Id != _datasetTaskSetId) SetExistingDataset(null, null);
             _ = RenderTaskSetSummaryAsync();
         };
         UpdateModePanels();
@@ -247,12 +369,15 @@ public partial class YoloTrainingWindow : Window
         ConfigBinding.SaveString(ConfigKeys.YoloTrainingMode, mode);
         UpdateModePanels();
         RenderEnvironment();
+        RenderAugmentation();
     }
 
     private void UpdateModePanels()
     {
         PanelSpecific.Visibility = IsSpecific ? Visibility.Visible : Visibility.Collapsed;
         PanelGeneral.Visibility = IsSpecific ? Visibility.Collapsed : Visibility.Visible;
+        RenderExistingDataset();
+        RenderImgszHint();
         _ = RenderTaskSetSummaryAsync();
     }
 
@@ -274,9 +399,13 @@ public partial class YoloTrainingWindow : Window
         if (!IsSpecific) return;
         int version = ++_summaryVersion;
         var set = SelectedTaskSet();
+        _taskSetStats = null;
+        RenderImgszHint();
+        RenderAugmentation();
         if (set == null)
         {
             TxtTaskSetSummary.Text = T(I18nKeys.YoloTrainingTaskSetNone);
+            RenderEnvironment();
             return;
         }
         var summary = T(I18nKeys.YoloTrainingTaskSetSummary)
@@ -289,13 +418,38 @@ public partial class YoloTrainingWindow : Window
             .Replace("{val}", set.Synthesis.ValPercent.ToString());
         TxtTaskSetSummary.Text = summary;
         var dir = _taskSets.GetDir(set.Id);
-        var issues = await Task.Run(() => TaskSetSynthesizer.Validate(set, dir));
+        var (issues, stats) = await Task.Run(() =>
+        {
+            var found = TaskSetSynthesizer.Validate(set, dir);
+            IYoloDatasetStats? estimate = null;
+            try { estimate = YoloTrainingService.EstimateStats(set, dir); }
+            catch (Exception ex) when (TaskSetUiErrors.IsHandled(ex)) { }
+            return (found, estimate);
+        });
         if (version != _summaryVersion) return;
-        TxtTaskSetSummary.Text = string.Join("\n", new[] { summary }.Concat(issues.Select(FormatIssue)));
+        TxtTaskSetSummary.Text = string.Join("\n", new[] { summary }.Concat(TaskSetIssueFormatter.Ordered(issues).Select(FormatIssue)));
+        _taskSetStats = stats;
+        RenderEnvironment();
+        RenderImgszHint();
     }
 
-    private static string FormatIssue(TaskSetIssue issue) =>
-        (issue.IsError ? "✖ " : "⚠ ") + T(I18nKeys.YoloTaskSetIssue(issue.Code)).Replace("{subject}", issue.Subject);
+    /// <summary>Imgsz the task set requires (native scale: the synthesis window), null when free.</summary>
+    private int? RequiredImgsz => IsSpecific && _taskSetStats is { RequiredImgsz: > 0 } s ? YoloTrainParameters.NormalizeImgsz(s.RequiredImgsz) : null;
+
+    /// <summary>
+    /// Native-scale task sets: the synthesis window is the training image, and tiled inference does not resize tiles, so imgsz
+    /// must equal the window; another imgsz makes Ultralytics rescale every training image and object sizes stop matching.
+    /// </summary>
+    private void RenderImgszHint()
+    {
+        int current = YoloTrainParameters.NormalizeImgsz(ConfigBinding.ParseInt(TxtImgsz.Text, YoloTrainParameters.MinImgsz, YoloTrainParameters.MaxImgsz, Defaults.Imgsz));
+        var required = RequiredImgsz;
+        bool show = required is { } n && n != current;
+        TxtImgszHint.Text = show ? T(I18nKeys.YoloTrainingImgszNativeMismatch).Replace("{native}", required.ToString()).Replace("{current}", current.ToString()) : "";
+        TxtImgszHint.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static string FormatIssue(TaskSetIssue issue) => TaskSetIssueFormatter.Line(issue);
 
     private void OpenTaskSetManager() => TaskSetWindow.ShowSingle(this, (CboTaskSet.SelectedItem as TaskSet)?.Id);
 
@@ -341,11 +495,14 @@ public partial class YoloTrainingWindow : Window
         IncludeBackground = ChkBackground.IsChecked == true,
         BackgroundMaxPercent = ConfigBinding.ParseInt(TxtBackgroundPct.Text, 0, 99, SplitDefaults.BackgroundMaxPercent),
         SkipDifficult = ChkSkipDifficult.IsChecked == true,
+        IncludeUnreviewedPseudoLabels = ChkPseudoLabels.IsChecked == true,
     };
 
-    private List<YoloDatasetSource> GatherSources()
+    private List<YoloDatasetSource> GatherSources() => SourcesOf(RadioSelected.IsChecked == true ? _selectedSegments : _allSegments);
+
+    /// <summary>Annotated frame folders of recorded segments (segments without frames are skipped).</summary>
+    private static List<YoloDatasetSource> SourcesOf(IEnumerable<string> segments)
     {
-        var segments = RadioSelected.IsChecked == true ? _selectedSegments : _allSegments;
         return segments
             .Select(s => (Name: Path.GetFileName(Path.TrimEndingDirectorySeparator(s)), Frames: Path.Combine(s, YoloDataLayout.FramesSubdir)))
             .Where(s => Directory.Exists(s.Frames))
@@ -424,6 +581,9 @@ public partial class YoloTrainingWindow : Window
             lines.Add(T(I18nKeys.YoloTrainingPreviewUnknown).Replace("{labels}", string.Join(", ", p.UnknownLabels.Select(kv => $"{kv.Key} ({kv.Value})"))));
         if (p.DifficultSkipped > 0)
             lines.Add(T(I18nKeys.YoloTrainingPreviewDifficult).Replace("{count}", p.DifficultSkipped.ToString()));
+        if (p.PseudoLabeledImages > 0 || p.UnreviewedSkipped > 0)
+            lines.Add(T(I18nKeys.YoloTrainingPreviewPseudoLabels).Replace("{included}", p.PseudoLabeledImages.ToString())
+                .Replace("{skipped}", p.UnreviewedSkipped.ToString()));
         TxtPreview.Text = string.Join("\n", lines);
     }
 
@@ -465,10 +625,10 @@ public partial class YoloTrainingWindow : Window
         ValTorch.Text = py?.TorchVersion == null ? none
             : py.TorchVersion + "  " + (py.CudaAvailable ? T(I18nKeys.YoloTrainingCudaYes).Replace("{version}", py.CudaVersion ?? "") : T(I18nKeys.YoloTrainingCudaNo));
         ValUltralytics.Text = py?.UltralyticsVersion ?? none;
-        ValCli.Text = py?.YoloCli ?? none;
+        ValCli.Text = py?.Launcher?.Format(Array.Empty<string>()) ?? py?.YoloCli ?? none;
         SetChip(ChipEnv, TxtEnvChip, env.CanTrain ? "StatusChipSuccessStyle" : "StatusChipDangerStyle",
             T(env.CanTrain ? I18nKeys.YoloTrainingEnvReady : I18nKeys.YoloTrainingEnvNotReady));
-        var advice = YoloTrainAdvisor.Recommend(env, GatherParameters(), IsSpecific ? null : _plan).Advice;
+        var advice = YoloTrainAdvisor.Recommend(env, GatherParameters(), AdvisorDataset).Advice;
         LstAdvice.ItemsSource = advice.Select(a => new AdviceRow(
             a.IsWarning ? GlyphWarning : GlyphInfo,
             T(I18nKeys.YoloTrainingAdvice(a.Code)).Replace("{value}", a.Value),
@@ -478,7 +638,7 @@ public partial class YoloTrainingWindow : Window
     private void ApplyRecommendation()
     {
         if (_env == null) return;
-        var r = YoloTrainAdvisor.Recommend(_env, GatherParameters(), IsSpecific ? null : _plan).Parameters;
+        var r = YoloTrainAdvisor.Recommend(_env, GatherParameters(), AdvisorDataset).Parameters;
         CboModel.Text = r.Model;
         ConfigBinding.SaveString(ConfigKeys.YoloTrainingModel, r.Model);
         CboDevice.Text = r.Device;
@@ -491,12 +651,20 @@ public partial class YoloTrainingWindow : Window
         ConfigBinding.SetValue(ConfigKeys.YoloTrainingCache, r.Cache);
         ConfigBinding.SetValue(ConfigKeys.YoloTrainingAmp, r.Amp);
         RenderEnvironment();
+        RenderImgszHint();
     }
+
+    private IYoloDatasetStats? AdvisorDataset => IsSpecific ? _taskSetStats : _plan;
 
     private async Task StartAsync()
     {
-        if (_service.IsRunning) return;
-        Func<YoloTrainParameters, string, bool, YoloTrainingJob>? makeJob;
+        if (_service.IsRunning)
+        {
+            Warn(I18nKeys.YoloTrainingBusy);
+            return;
+        }
+        Func<YoloTrainParameters, YoloLauncher, bool, YoloTrainingJob>? makeJob;
+        var parameters = GatherParameters();
         if (IsSpecific)
         {
             var set = SelectedTaskSet();
@@ -506,14 +674,23 @@ public partial class YoloTrainingWindow : Window
                 return;
             }
             var dir = _taskSets.GetDir(set.Id);
-            var errors = (await Task.Run(() => TaskSetSynthesizer.Validate(set, dir))).Where(i => i.IsError).ToList();
-            if (errors.Count > 0)
+            parameters = parameters with { Augmentation = UseDerivedAugmentation ? YoloTrainingService.AugmentationForTaskSet(set) : CustomAugmentation() };
+            if (_datasetYaml is { } yaml && _datasetTaskSetId == set.Id)
             {
-                MessageBox.Show(this, T(I18nKeys.YoloTrainingTaskSetInvalid) + "\n" + string.Join("\n", errors.Select(FormatIssue)), Title,
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                var source = new YoloRunSource(YoloRunSource.KindTaskSet, set.Id, set.Name);
+                makeJob = (p, launcher, export) => YoloTrainingService.ForDataset(yaml, YoloDataLayout.GetRunsDir(dir), p, launcher, export, source);
             }
-            makeJob = (p, cli, export) => YoloTrainingService.ForTaskSet(set, dir, p, cli, export);
+            else
+            {
+                var errors = (await Task.Run(() => TaskSetSynthesizer.Validate(set, dir))).Where(i => i.IsError).ToList();
+                if (errors.Count > 0)
+                {
+                    MessageBox.Show(this, T(I18nKeys.YoloTrainingTaskSetInvalid) + "\n" + string.Join("\n", errors.Select(FormatIssue)), Title,
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                makeJob = (p, launcher, export) => YoloTrainingService.ForTaskSet(set, dir, p, launcher, export);
+            }
         }
         else
         {
@@ -530,22 +707,39 @@ public partial class YoloTrainingWindow : Window
                 return;
             }
             var project = _projectDir;
-            makeJob = (p, cli, export) => YoloTrainingService.ForSegments(project, sources, ProjectConfig.GetClassesFromProjectDir(project), split, p, cli, export);
+            parameters = parameters with { Augmentation = CustomAugmentation() };
+            makeJob = (p, launcher, export) => YoloTrainingService.ForSegments(project, sources, ProjectConfig.GetClassesFromProjectDir(project), split, p, launcher, export);
         }
+        if (await LauncherAsync() is not { } launcher) return;
+        BeginJobView();
+        ShowResult(await _service.RunAsync(makeJob(parameters, launcher, ChkExportOnnx.IsChecked == true)));
+    }
+
+    /// <summary>Launcher of the probed environment (probes once when needed); warns and returns null when training is impossible.</summary>
+    private async Task<YoloLauncher?> LauncherAsync()
+    {
         if (_env == null) await DetectAsync();
-        if (_env is not { CanTrain: true } env || env.Python?.YoloCli is not { } cliPath)
-        {
-            Warn(I18nKeys.YoloTrainingCannotTrain);
-            return;
-        }
-        var parameters = GatherParameters();
-        var (_, rejected) = parameters.ParseExtraArguments();
+        if (_env is { CanTrain: true, Python.Launcher: { } launcher }) return launcher;
+        Warn(I18nKeys.YoloTrainingCannotTrain);
+        return null;
+    }
+
+    /// <summary>Clears log, progress and metrics and shows the Run tab before a job starts.</summary>
+    private void BeginJobView()
+    {
+        TabsRun.SelectedItem = TabRun;
         TxtLog.Clear();
         BarProgress.Value = 0;
         TxtEpoch.Text = "";
-        if (rejected.Count > 0) AppendLog(T(I18nKeys.YoloTrainingExtraArgsRejected).Replace("{args}", string.Join(" ", rejected)));
-        _outcome = await _service.RunAsync(makeJob(parameters, cliPath, ChkExportOnnx.IsChecked == true));
-        UpdateRunState(YoloTrainingPhase.Idle);
+        RenderMetrics(Array.Empty<YoloEpochMetrics>(), null);
+    }
+
+    /// <summary>A busy answer is not published by the service, so only this window reports it.</summary>
+    private void ShowResult(YoloTrainingOutcome outcome)
+    {
+        if (!ReferenceEquals(outcome, Outcome) && outcome.Error is { Length: > 0 } error)
+            MessageBox.Show(this, error, Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+        UpdateRunState(_service.Phase);
     }
 
     private void OnServiceBuildProgress(int done, int total) => Dispatcher.BeginInvoke(() =>
@@ -571,39 +765,72 @@ public partial class YoloTrainingWindow : Window
 
     private void OnServicePhase(YoloTrainingPhase phase) => Dispatcher.BeginInvoke(() => UpdateRunState(phase));
 
+    private void OnServiceMetrics(YoloTrainMetrics metrics) => Dispatcher.BeginInvoke(() => RenderMetrics(metrics.Rows, metrics.RunDir));
+
+    private void OnServiceOutcome(YoloTrainingOutcome outcome) => Dispatcher.BeginInvoke(() =>
+    {
+        if (outcome.RunDir is { } dir) RenderMetrics(YoloResultsCsv.Read(dir), dir);
+        UpdateRunState(_service.Phase);
+        if (TabsRun.SelectedItem == TabRuns) RefreshRuns();
+    });
+
     private void UpdateRunState(YoloTrainingPhase phase)
     {
         bool running = phase != YoloTrainingPhase.Idle;
+        var outcome = Outcome;
+        var last = running ? null : LastRunEntry();
         BtnStart.IsEnabled = !running;
         BtnStop.IsEnabled = running;
         BtnPreview.IsEnabled = !running;
-        BtnUseForNavigation.IsEnabled = !running && _outcome?.Onnx != null;
-        BtnOpenOutput.IsEnabled = (_outcome?.RunDir ?? RunsDir()) is { } runs && Directory.Exists(runs);
+        BtnResume.IsEnabled = last?.CanResume == true;
+        BtnExportBest.IsEnabled = last is { Weights: not null, Onnx: null };
+        BtnUseForNavigation.IsEnabled = !running && OnnxOf(outcome, last) != null;
+        BtnTestModel.IsEnabled = OnnxOf(outcome, last) != null;
+        BtnOpenOutput.IsEnabled = (outcome?.RunDir ?? RunsDir()) is { } runs && Directory.Exists(runs);
         var (style, key) = phase switch
         {
             YoloTrainingPhase.Building => ("StatusChipInfoStyle", I18nKeys.YoloTrainingStatusBuilding),
             YoloTrainingPhase.Training => ("StatusChipInfoStyle", I18nKeys.YoloTrainingStatusTraining),
             YoloTrainingPhase.Exporting => ("StatusChipInfoStyle", I18nKeys.YoloTrainingStatusExporting),
-            _ when _outcome == null => ("StatusChipStyle", I18nKeys.YoloTrainingStatusIdle),
-            _ when _outcome.Success => ("StatusChipSuccessStyle", I18nKeys.YoloTrainingStatusDone),
-            _ when _outcome.Cancelled => ("StatusChipWarningStyle", I18nKeys.YoloTrainingStatusCancelled),
+            YoloTrainingPhase.Evaluating => ("StatusChipInfoStyle", I18nKeys.YoloTrainingStatusEvaluating),
+            _ when outcome == null => ("StatusChipStyle", I18nKeys.YoloTrainingStatusIdle),
+            _ when outcome.Success => ("StatusChipSuccessStyle", I18nKeys.YoloTrainingStatusDone),
+            _ when outcome.Cancelled => ("StatusChipWarningStyle", I18nKeys.YoloTrainingStatusCancelled),
             _ => ("StatusChipDangerStyle", I18nKeys.YoloTrainingStatusFailed),
         };
         SetChip(ChipRun, TxtRunChip, style, T(key));
-        if (_outcome?.Success == true) BarProgress.Value = 1;
+        if (!running && outcome?.Success == true) BarProgress.Value = 1;
+        RenderOutcome(outcome, running);
+        UpdateRunActions();
     }
+
+    /// <summary>Outcome line under the run buttons: run dir, best-so-far hint after a cancel, or the error (e.g. task-set validation issues).</summary>
+    private void RenderOutcome(YoloTrainingOutcome? outcome, bool running)
+    {
+        string? text = running || outcome == null ? null
+            : outcome.Success ? T(I18nKeys.YoloTrainingOutcomeDone).Replace("{run}", outcome.RunDir ?? "")
+            : outcome.Cancelled ? T(outcome.Weights != null || LastRunEntry()?.Weights != null ? I18nKeys.YoloTrainingOutcomeCancelledBest : I18nKeys.YoloTrainingOutcomeCancelled)
+                .Replace("{run}", outcome.RunDir ?? "")
+            : T(I18nKeys.YoloTrainingOutcomeFailed).Replace("{error}", outcome.Error ?? "");
+        TxtOutcome.Text = text ?? "";
+        TxtOutcome.Visibility = text == null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>Registry entry of the last outcome's run (fresh from disk), or null.</summary>
+    private YoloRunEntry? LastRunEntry() => Outcome?.RunDir is { } dir && Directory.Exists(dir) ? YoloModelRegistry.ReadRun(dir) : null;
+
+    private static string? OnnxOf(YoloTrainingOutcome? outcome, YoloRunEntry? entry) =>
+        outcome?.Onnx is { } onnx && File.Exists(onnx) ? onnx : entry?.Onnx;
 
     private void OpenOutput()
     {
-        var dir = _outcome?.RunDir ?? RunsDir();
+        var dir = Outcome?.RunDir ?? RunsDir();
         if (dir != null && Directory.Exists(dir)) YoloSegmentLayout.OpenDir(dir);
     }
 
     private void UseForNavigation()
     {
-        if (_outcome?.Onnx is not { } onnx || !File.Exists(onnx)) return;
-        ConfigBinding.SaveString(ConfigKeys.NavigationNpcModelPath, onnx);
-        AppendLog(T(I18nKeys.YoloTrainingNavigationModelSet).Replace("{path}", onnx));
+        if (OnnxOf(Outcome, LastRunEntry()) is { } onnx) SetCurrentModel(onnx, ConsumerOption.Navigation);
     }
 
     private void BrowseModel()

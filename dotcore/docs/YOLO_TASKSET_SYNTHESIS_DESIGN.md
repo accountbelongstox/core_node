@@ -91,22 +91,27 @@ Resources are **copied** into the task set on add (portable, survives deleted so
 
 ## 4. Generation algorithm (`TaskSetSynthesizer.Generate`)
 
-Deterministic for a given task set + seed.
+Deterministic for a given task set + seed (each job has its own seed; jobs render in parallel, `ProcessorCount − 1`).
 
-1. **Validate** (`Validate`): at least one target; every target has ≥1 readable variant; every target has ≥1 background (own scenes or common resources); unique non-empty target names; unreadable files are reported. Errors block generation; warnings (e.g. no common resources, very few backgrounds) are returned.
-2. **Backgrounds**: target scenes (per target) and common images; common videos → frames every `video_frame_interval` frames up to `video_max_frames` (cached under `_cache/frames`). Backgrounds larger than `output_max_side` are downscaled (aspect kept).
-3. **Split backgrounds** into train / val by `val_percent` (seeded, per pool) so val images never reuse a train background. Pools with one background go to train and val both (warning).
-4. **Per target** `n = target.images_per_target ?? synthesis.images_per_target` images, split `val_percent`. Each image:
-   - background: from the target's scenes ∪ common pool (uniform over the union; split-specific);
-   - object count k ∈ [min_objects, max_objects]; first object = this target; each further object is this target, or with `cross_target_probability` another target (variants of that target, its own resolved augmentation);
-   - for each object: random variant → resolved augmentation (target override ∪ global) → transformed BGRA + mask;
-   - size: `scale_mode = native` keeps the variant's pixel size × scale (game assets at the capture resolution); `relative` sets the longest side to `background short side × U(relative_min, relative_max)` × scale;
-   - placement: random position; the visible part must keep ≥ `min_visible_fraction` of the object box inside the image (truncation); IoU with already placed objects ≤ `max_overlap_iou` (occlusion; later objects drawn on top); up to 50 attempts, else the object is skipped;
-   - compositing: alpha blend with the (feathered) mask; label box = tight bounds of the mask after clipping to the image, dropped when smaller than 4 px;
-   - image-level photometric jitter is part of the object augmentation only (backgrounds stay real).
-5. **Negatives**: `negative_percent` of the total image count are backgrounds without pasted objects (empty label files), drawn from common resources (target scenes only when no common resource exists, warning).
-6. **Write** the Ultralytics layout via `YoloDataYaml` (`images/{train,val}`, `labels/{train,val}`, `data.yaml`, names = targets in order) plus `synthesis_manifest.json` (task set id, seed, counts per split and class, resolved augmentation per target, background usage) and a few `previews/*.jpg` with drawn boxes for inspection.
-7. **Progress / cancel**: `IProgress<SynthesisProgress>` per image, `CancellationToken` checked per image.
+1. **Validate** (`Validate` / `ValidateDetailed`). Errors (block): `NoTargets`, `EmptyTargetName`, `DuplicateTargetName`, `NoVariants`, `NoBackgrounds`. Warnings: `UnreadableResource`, `ResourceTooLarge` (> `max_resource_pixels`, skipped), `NoCommonResources`, `FewBackgrounds` (< 5), `NoValBackground`, `NativeScaleJitterLarge` (native size jitter > ±10 %), `UnknownBoxLabel`, `InvalidRegion`, `VariantWithoutAlpha`, `HoldoutUnreadable`. With `contamination_check` (no errors): every variant is template-matched (≥ `contamination_threshold`) over scenes, common images and `contamination_video_frames` sampled frames per video → `BackgroundContainsTarget` + `ContaminationHit` (cache `_cache/contamination.json`). Sizes come from file headers.
+2. **Backgrounds**: target scenes, common images, common videos → frames every `video_frame_interval` up to `video_max_frames` (cache `_cache/frames/{id}`). Split group = resource id (all frames of a video share it). Decoded through an LRU cache (`background_cache_size`); relative mode downscales to `output_max_side`, native mode keeps full resolution.
+3. **Split** (stable hash, S14): a group goes to val when FNV(seed | group) < `val_percent`; adding a group never moves others. A single-group pool stays train-only; with ≥ 2 groups both splits get one. Targets without any val background generate their val jobs as train (`NoValBackground`, manifest `val_jobs_moved_to_train`). Variants with `val_only` serve val only.
+4. **Jobs**: per target `n = images_per_target` (target override or global), val = round(n · val %) clamped to [1, n − 1]; negatives = positives · neg % / (100 − neg %), drawn from common ∪ all scenes.
+5. **Render** one job:
+   - background: random from the job's split pool (target: own scenes ∪ common); unreadable ones are skipped;
+   - native: a `native_window_width × native_window_height` window cut at full resolution (S2); with placement regions the window always contains a region point; relative: the whole (downscaled) background;
+   - resource boxes: a target label ≥ `min_visible_fraction` inside → real positive plus occupancy; `mask` or unknown label → inpainted (Telea);
+   - objects k ∈ [min, max]; first = job target, each further one another target with `cross_target_probability`;
+   - size: relative = background short side × U(`relative_min`, `relative_max`) × profile scale; native = background `pixel_scale` / variant `pixel_scale` × profile scale; with `dpi_steps` = ratio × random step × U(1 ± `scale_jitter`) (profile scale ignored); objects larger than the image are fitted to 95 % (Area);
+   - augmentation (`VariantAugmenter`, premultiplied float BGRA): flip, scale × stretch (Nearest upscale for icons ≤ 64 px), one-sided perspective, expanded rotation, crop to alpha, contrast / brightness, blur (skipped below 24 px short side), feather min(`edge_feather`, 4 % of short side; none for soft-alpha variants);
+   - placement: with regions, `in_region_probability` → the first 25 attempts inside a region (snapped to the region's pitch grid), else uniform; truncation keeps ≥ `min_visible_fraction` of the mask pixels; label IoU with placed labels ≤ `max_overlap_iou`; occlusion (S7): every earlier labeled object keeps ≥ `min_visible_fraction` of its mask pixels (occupancy masks), occluded labels are re-tightened; 50 attempts, else skipped;
+   - label = tight bounds of mask pixels ≥ 25 % opacity, clipped; dropped below 4 px;
+   - distractors (S10): with `distractor_probability`, 1..`max_distractors_per_image` unlabeled pastes (global profile, same occlusion rules);
+   - a positive job without a placeable object is written as a negative.
+6. **Holdout**: annotated real images of `holdout_sources` are copied as `real_*` into val, or test with `holdout_split = test` (data.yaml then lists test).
+7. **Write** into `{out}.partial`, renamed on success (a non-empty output dir is rejected): PNG (default) or JPEG (quality U[`jpeg_quality_min`, `jpeg_quality`]); failed jobs are skipped and counted; `data.yaml`; `synthesis_manifest.json` (settings, `inference`, resolved augmentation per target, counts per split / class, planned negatives, moved val jobs, failed stems, holdout, distractors, background splits / uses, warnings); 6 `previews/*.jpg`.
+8. **Inference info** (§11): `SynthesisInferenceInfo` (scale mode, window = largest written image, background min / max side, min / max object side, `tile_overlap` = 2 × max object side, `roi_hint`) → manifest `inference` and `SynthesisResult.Inference`.
+9. **Progress / cancel**: `IProgress<SynthesisProgress>` and `CancellationToken` per image (preview: per extracted video).
 
 ### Augmentation definitions (per object)
 
@@ -119,8 +124,8 @@ Deterministic for a given task set + seed.
 | `right_stretch_max` | same on the right edge |
 | `flip_horizontal` | 50 % mirror |
 | `brightness_max`/`contrast_max` | ±value jitter |
-| `blur_probability`/`blur_max_kernel` | Gaussian blur (odd kernel ≤ max) |
-| `edge_feather` | mask edge blur radius in px (Gaussian blending, hides paste seams) |
+| `blur_probability`/`blur_max_kernel` | Gaussian blur (odd kernel ≤ max; skipped below 24 px short side) |
+| `edge_feather` | mask edge blur sigma in px, capped at 4 % of the short side; 0 for soft-alpha variants |
 
 Override resolution: `AugmentationProfile.Resolve(AugmentationOverride?)` — each null field takes the global value.
 
@@ -142,63 +147,152 @@ Override resolution: `AugmentationProfile.Resolve(AugmentationOverride?)` — ea
 
 ## 7. Library placement and API contract
 
-`dotcore/DotCore.YoloTaskSet` (net8.0-windows: OpenCvSharp4.Windows for compositing and video decode). Depends on Foundations, VocAnnotator, YoloTrain. Namespace `DotCore.YoloTaskSet`.
+`dotcore/DotCore.YoloTaskSet` (net8.0-windows, OpenCvSharp4.Windows; depends on Foundations, VocAnnotator, YoloTrain), `dotcore/DotCore.YoloDetect` (ONNX Runtime + OpenCvSharp), `dotcore/DotCore.YoloTrain` (net8.0, Ultralytics process driver). App glue: d3d4tester `Services/YoloTrainingService.cs`.
+
+### 7.1 DotCore.YoloTaskSet
 
 ```csharp
-public enum TaskResourceKind { Image, Video }
-public sealed class TaskResource { string Id; TaskResourceKind Kind; string File; string OriginalPath; string Label; }
-public sealed class AugmentationProfile { double ScaleMin, ScaleMax, StretchMin, StretchMax, RotationMaxDegrees, LeftStretchMax, RightStretchMax;
-    bool FlipHorizontal; double BrightnessMax, ContrastMax, BlurProbability; int BlurMaxKernel; double EdgeFeather;
-    AugmentationProfile Resolve(AugmentationOverride? o); AugmentationProfile Normalized(); }
-public sealed class AugmentationOverride { same fields, all nullable; bool IsEmpty; }
-public sealed class SynthesisSettings { int ImagesPerTarget, ValPercent, Seed, MinObjectsPerImage, MaxObjectsPerImage; double CrossTargetProbability;
-    int NegativePercent; double MaxOverlapIou, MinVisibleFraction; string ScaleMode; double RelativeMin, RelativeMax;
-    int OutputMaxSide, JpegQuality, VideoFrameInterval, VideoMaxFrames; SynthesisSettings Normalized(); }
-public sealed class TaskTarget { string Id; string Name; List<TaskResource> Variants; List<TaskResource> Scenes; AugmentationOverride? Augmentation; int? ImagesPerTarget; }
-public sealed class TaskSet { string Id; string Name; string Description; DateTime CreatedUtc, UpdatedUtc;
-    List<TaskTarget> Targets; List<TaskResource> CommonResources; AugmentationProfile Augmentation; SynthesisSettings Synthesis;
-    IReadOnlyList<string> ClassNames; }
+// Model (taskset.json, snake_case)
+enum TaskResourceKind { Image, Video }
+class TaskResource { Id; Kind; File; OriginalPath; Label; double PixelScale /*DPI factor*/; bool ValOnly /*variant: val only*/;
+    List<PlacementRegion>? Regions /*background*/; List<ResourceBox>? Boxes /*background objects*/; double EffectivePixelScale; }
+class PixelRect { X, Y, Width, Height; bool IsEmpty; PixelRect? ClampTo(int w, int h); }
+class PlacementRegion : PixelRect { int SnapPitchX, SnapPitchY; }          // slot grid from the region origin
+class ResourceBox : PixelRect { string Label; bool Mask; }                 // real positive, or inpainted when Mask / unknown label
+class HoldoutSource { ImagesDir; AnnotationDir; }                          // real annotated eval images
+class InferenceRoiHint { Anchor bottom|top|left|right|rect; BandPixels = 48; PixelRect? Rect; PixelRect? Resolve(int w, int h); }
+class AugmentationProfile { ScaleMin/Max, StretchMin/Max, RotationMaxDegrees, LeftStretchMax, RightStretchMax, FlipHorizontal,
+    BrightnessMax, ContrastMax, BlurProbability, BlurMaxKernel, EdgeFeather; Clone(); Resolve(AugmentationOverride?); Normalized(); }
+class AugmentationOverride { same fields nullable; bool IsEmpty; }
+class SynthesisSettings { §3 fields + NativeWindowWidth/Height (640), DpiSteps, ScaleJitter, InRegionProbability, DistractorProbability,
+    MaxDistractorsPerImage, OutputFormat png|jpg, JpegQualityMin, MaxResourcePixels, BackgroundCacheSize, ContaminationCheck,
+    ContaminationThreshold, ContaminationVideoFrames, HoldoutSplit val|test; IsNative; UsesDpiSteps; Clone(); Normalized(); }
+class TaskTarget { Id; Name; Variants; Scenes; AugmentationOverride? Augmentation; int? ImagesPerTarget; }
+class TaskSet { Id; Name; Description; CreatedUtc; UpdatedUtc; Targets; CommonResources; Distractors; HoldoutSources;
+    InferenceRoiHint? InferenceRoiHint; AugmentationProfile Augmentation; SynthesisSettings Synthesis; ClassNames; }
+enum TaskSetIssueCode { NoTargets, EmptyTargetName, DuplicateTargetName, NoVariants, NoBackgrounds, UnreadableResource, NoCommonResources,
+    FewBackgrounds, SingleBackgroundShared /*legacy*/, NoValBackground, BackgroundContainsTarget, ResourceTooLarge, NativeScaleJitterLarge,
+    UnknownBoxLabel, HoldoutUnreadable, InvalidRegion, VariantWithoutAlpha }
+record TaskSetIssue(Code, Subject, IsError); record TaskSetValidation(Issues, Hits); record SynthesisProgress(Done, Total);
+record SynthesisInferenceInfo(ScaleMode, WindowWidth, WindowHeight, BackgroundMinSide, BackgroundMaxSide, MaxObjectSide, MinObjectSide, TileOverlap, RoiHint);
+record SynthesisResult(DatasetDir, DataYamlPath, Classes, TrainImages, ValImages, NegativeImages, Instances, Warnings, Inference, HoldoutImages, FailedJobs);
+record TaskSetEstimate(Classes, TrainImages, ValImages, NegativeImages, HoldoutImages, ImageWidth, ImageHeight, MaxImageSide, MaxObjectSide, ScaleMode);
+record ContaminationHit(ResourceId, ResourceFile, Frame, TargetId, TargetName, VariantId, X, Y, Width, Height, Score);
+record PreviewBox(Label, XMin, YMin, XMax, YMax); record PreviewResult(byte[] Png, IReadOnlyList<PreviewBox> Boxes);
 
-public sealed class TaskSetStore {
-    static string DefaultRoot; TaskSetStore(string rootDir); string RootDir;
-    IReadOnlyList<TaskSet> List(); TaskSet? Load(string id); TaskSet Create(string name); void Save(TaskSet set);
-    void Delete(string id); TaskSet Duplicate(string id, string newName); string GetDir(string id);
-    string ResourcePath(TaskSet set, TaskResource r);
-    TaskTarget AddTarget(TaskSet set, string name); void RemoveTarget(TaskSet set, string targetId);
-    void MoveTarget(TaskSet set, string targetId, int delta);
-    TaskResource AddVariant(TaskSet set, TaskTarget target, string sourcePath);
-    TaskResource AddScene(TaskSet set, TaskTarget target, string sourcePath);
-    TaskResource AddCommon(TaskSet set, string sourcePath);
-    void RemoveResource(TaskSet set, TaskResource resource);   // all mutators save
-    static bool IsSupportedImage(string path); static bool IsSupportedVideo(string path);
+// Store (every mutator saves once)
+sealed partial class TaskSetStore {
+    static DefaultRoot; RootDir; List(); Load(id); Create(name); Save(set); Delete(id); Duplicate(id, newName); static Clone(set) /*snapshot*/;
+    GetDir(id); ResourcePath(set, r); static ResolveResourcePath(dir, r); static FrameCacheDir(dir, resourceId);
+    AddTarget; MoveTarget(set, targetId, delta); AddVariant; AddVariantFromPng(set, target, png, originalPath, nameHint); AddScene; AddCommon;
+    AddDistractor; AddDistractorFromPng; static IsSupportedImage/IsSupportedVideo/IsSupportedFor(pool, path)/PoolNeedsTarget(pool)/IsReadableImage (header only);
+    AddMany(set, target?, pool, paths, progress, ct) → ImportFileResult[]          // bulk add, per-file outcome, one save
+    PlanFolderTree(set, root) / ImportFolderTree(set, root, dryRun, ...)        // subfolder = target, scenes/, common/, distractors/
+    CopyTargets(fromSet, targetIds, toSet)                                        // merge by name
+    AddVariantsFromAnnotations(set, imagesDir, annotationDir, classFilter, cutout, cutOptions, ...)   // annotated boxes → variants
+    string? RemoveTarget / RemoveResource / RemoveResources → undo token;  bool Restore(set, token);  ListTrash(set);  PurgeTrash(set, keepLatest);  // _trash/
 }
+enum TaskResourcePool { Variants, Scenes, Common, Distractors }
 
-public enum TaskSetIssueCode { NoTargets, EmptyTargetName, DuplicateTargetName, NoVariants, NoBackgrounds, UnreadableResource, NoCommonResources, FewBackgrounds, SingleBackgroundShared }
-public sealed record TaskSetIssue(TaskSetIssueCode Code, string Subject, bool IsError);
-public sealed record SynthesisProgress(int Done, int Total);
-public sealed record SynthesisResult(string DatasetDir, string DataYamlPath, IReadOnlyList<string> Classes,
-    int TrainImages, int ValImages, int NegativeImages, IReadOnlyDictionary<string, int> Instances, IReadOnlyList<TaskSetIssue> Warnings);
-public sealed record PreviewResult(byte[] Png, IReadOnlyList<(string Label, double XMin, double YMin, double XMax, double YMax)> Boxes);
-
-public static class TaskSetSynthesizer {
-    IReadOnlyList<TaskSetIssue> Validate(TaskSet set, string taskSetDir);
-    SynthesisResult Generate(TaskSet set, string taskSetDir, string outputDir, IProgress<SynthesisProgress>? progress, CancellationToken ct);
-    PreviewResult RenderPreview(TaskSet set, string taskSetDir, int seed);
+// Synthesis
+static partial class TaskSetSynthesizer {
+    Validate(set, dir[, progress, ct]); ValidateDetailed(set, dir, progress, ct) → TaskSetValidation;
+    FindContamination(set, dir, progress, ct); ToIssue(ContaminationHit);
+    Generate(set, dir, outputDir, progress, ct) → SynthesisResult;
+    RenderPreview(set, dir, seed[, targetId, progress, ct]);                     // cached context until set / files change
+    RenderAugmentationGrid(set, dir, targetId, count, seed) → PNG;               // per-target augmentation on checkerboard
+    Estimate(set, dir?) → TaskSetEstimate;                                        // planned counts / sizes, no rendering
+    ReadInferenceInfo(datasetDir) → SynthesisInferenceInfo?;                     // manifest "inference"
 }
-public static class VariantAugmenter { (Mat Bgra, Mat Mask) Apply(Mat bgra, AugmentationProfile p, double extraScale, Random rng); }
-public readonly record struct VariantRegion(int X, int Y, int Width, int Height);
-public enum VariantCutout { Rectangle, GrabCut }
-public sealed record VideoInfo(int FrameCount, double Fps, int Width, int Height);
-public static class VariantExtractor { bool IsVideo(string path); VideoInfo? GetVideoInfo(string videoPath);
-    byte[]? LoadFramePng(string sourcePath, int frameIndex); byte[]? Cut(string sourcePath, int frameIndex, VariantRegion region, VariantCutout mode); }
-// TaskSetStore: TaskResource AddVariantFromPng(TaskSet set, TaskTarget target, byte[] png, string originalPath, string nameHint);
-public static class VideoFrameExtractor { int EstimateFrames(string path, int interval, int max); IReadOnlyList<string> ExtractToCache(string videoPath, string cacheDir, int interval, int max, CancellationToken ct); }
+static class VariantAugmenter { (Mat Bgra, Mat Mask) Apply(bgra, profile, extraScale, rng[, fixedScale]); }
+
+// Extraction
+record struct VariantRegion(X, Y, Width, Height); enum VariantCutout { Rectangle, GrabCut, ColorKey };
+record VariantCutOptions(ColorKeyTolerance = 24, VariantMaskHints? Hints, ColorKeyHoles = true);
+record VariantMaskHints(Strokes, Mat? Mask); record VariantStroke(Kind fg|bg, Points, Thickness);   // GrabCut retouch
+record VideoInfo(FrameCount, Fps, Width, Height); record VariantAlphaInfo(HasTransparency, UniformBorder, BorderB/G/R); record WorkProgress(Done, Total, Item);
+static partial class VariantExtractor {
+    IsVideo; GetVideoInfo; LoadFramePng; Cut(path|Mat, frame, region, mode, options) → PNG; CutMat;
+    FormatSourceRef / TryParseSourceRef("path[#frame=N]@x,y,w,h"); HasTransparency; InspectAlpha(Mat|path);
+    Track(path|reader, startFrame, region, step, maxCount, direction, ct, progress, tracker Auto|Csrt|Kcf|Template, minConfidence) → TrackResult;
+    FixedBox(region, first, last, every) ; PerceptualHash(Mat|bytes); HashDistance; Dedupe(hashes, minDistance);   // dHash dedupe
+}
+record TrackedRegion(FrameIndex, Region, Confidence); record TrackResult(Regions, Tracker, Lost, Recoveries);
+sealed class VideoFrameReader : IDisposable { (path, cacheCapacity = 8); IsVideo; Info; ReadBgr/ReadBgra/ReadPng(frame); }   // one open decoder, LRU frames
+static class VideoFrameExtractor { EstimateFrames(path, interval, max); ExtractToCache(path, cacheDir, interval, max, ct); }   // marker _frames.json
+```
+
+### 7.2 DotCore.YoloDetect
+
+```csharp
+record YoloDetection(ClassId, ClassName, Confidence, Rect Box) { Center; BottomCenter; }
+record struct YoloDetectTiming(PreMs, InferMs, PostMs, Passes); record YoloDetectionResult(Detections, Timing);
+enum YoloScaleMode { Relative, Native }; enum YoloExecutionProvider { Cpu, Auto, Cuda, DirectML }
+record YoloDetectorOptions(Provider = Cpu, IntraOpThreads = 0, WarmUp = true, DeviceId = 0) { static ParseProvider(string); }
+record YoloInferenceProfile(ScaleMode, TileWidth, TileHeight, TileOverlap = -1, Rect? Roi, Confidence = 0.35, Iou = 0.45) {
+    static FromInference(JsonObject?); static ParseScaleMode; ResolveRoi(w, h); static ResolveRegion(roi, w, h); }   // §11
+sealed class YoloOnnxDetector : IDisposable {        // thread-safe; [1,4+C,N], transposed or end2end [1,N,6]; names / imgsz from metadata
+    (modelPath, options); ModelPath; ClassNames; InputWidth; InputHeight; ExecutionProvider; Options; ClassName(id);
+    Detect(image[, roi], conf, iou); DetectTiled(image, tileW, tileH, overlap, roi, conf, iou); Detect(image, profile); DetectTimed(image, profile);
+    static Annotate(image, detections | tracks); }
+sealed class YoloModelHost : IDisposable {           // one session per (path, write time, options); never picks a model
+    static Shared; DefaultOptions; MaxIdle = 1; Changed; Loaded; Acquire(path, options) → YoloModelLease; TryAcquire(resolver, options); Trim(); }
+sealed class YoloModelLease : IDisposable { Detector; ModelPath; ModelWriteUtc; IsStale /*file re-exported*/; }
+record YoloTrackerOptions(MatchIou = 0.3, MinHits = 3, MaxMisses = 15, HighConfidence = 0.5, LowConfidence = 0.1, PerClass = true, Smoothing = 0.6, MaxCenterShift = 1.0);
+record YoloTrack(TrackId, ClassId, ClassName, Confidence, Box, Hits, Misses, Age);
+sealed class YoloFrameTracker { Options; Tracks; Reset(); Update(detections) → confirmed tracks; }   // ByteTrack-lite, constant velocity
+record YoloVideoOptions(FrameStep = 1, StartFrame, EndFrame = -1, Profile, Track = true, Tracker);
+record YoloVideoFrame(FrameIndex, Timestamp, Image, Detections, Tracks, InferenceMs, Timing);
+sealed class YoloVideoDetector { (detector); IEnumerable<YoloVideoFrame> Run(path, options, ct); }   // lazy, one session
+record YoloLiveOptions(TargetFps = 10, Profile, Track = true, Tracker);
+record LiveDetectionFrame(Sequence, TimestampUtc, Image, Detections, Tracks, Fps, LatencyMs, CaptureMs, InferenceMs, Timing);
+sealed class YoloLiveDetector : IDisposable { (detector, Func<Mat?> frameProvider, options); Options; IsRunning; FrameProcessed; Faulted; Start(); Stop(); ResetTracks(); }
+```
+
+### 7.3 DotCore.YoloTrain
+
+```csharp
+record YoloTrainParameters { Model, Epochs, Imgsz, Batch, Device, Workers, Patience, Cache, Amp, Optimizer, Lr0, Seed, CloseMosaic, ExtraArguments,
+    YoloAugmentation Augmentation; static ManagedKeys /*extra args cannot override*/; NormalizeImgsz; ResolveModelPath(model, weightsDir);
+    ParseExtraArguments(); ToTrainArguments(yaml, project, name, weightsDir); }
+record YoloAugmentation { Fliplr, Flipud, Degrees, Translate, Scale, Shear, Perspective, Mosaic, Mixup, HsvH, HsvS, HsvV, Erasing (null = Ultralytics default);
+    static UltralyticsDefaults; IsDefault; ToArguments(); FromValues; Parse; }
+static class YoloTrainAdvisor { Recommend(env, current, IYoloDatasetStats?) → TrainRecommendation; }   // RequiredImgsz > 0 forces imgsz (advice ImgszNativeWindow)
+interface IYoloDatasetStats { …; int RequiredImgsz /*native window, 0 = free*/; }  record YoloDatasetStats(…) { RequiredImgsz; }
+record YoloDatasetSplit { Train/Val/TestPercent, Seed, Shuffle, Stratify, GroupBySource = true, IncludeUnreviewedPseudoLabels = false, IncludeBackground, BackgroundMaxPercent, SkipDifficult; }
+static class YoloDatasetAssembler { Plan(sources, classes, split, ct); PlanEvaluation(sources, classes, ct); Build(plan, dir, progress, ct); }   // pseudo-labels train-only
+sealed class YoloTrainRunner { WeightsDir; Output; Progress; Metrics; TrainAsync; ResumeAsync(launcher, last.pt); ExportOnnxAsync(launcher, weights, imgsz | YoloExportOptions);
+    ValAsync(launcher, weights, yaml, imgsz, project, name, device, ct) → YoloValResult; Cancel(); WaitForIdle(timeout); }   // child in a job object (ChildProcessJob)
+record YoloLauncher(FileName, PrefixArguments, IsPython) { static ForPython(exe) /*probed interpreter*/; static ForCli(exe); Arguments(tokens); Format(tokens); }
+record YoloRunInfo { Status Running|Completed|Cancelled|Failed; Source; DatasetDir; DataYaml; Classes; Parameters; Imgsz; BaseModel; StartFromRun; UltralyticsVersion;
+    Python; Resumes; EpochsCompleted; BestEpoch; FinalEpoch; Onnx; Export; RealEvals; JsonObject? Inference; Error; Load; Save; WithResults(runDir); }   // run_info.json
+record YoloExportOptions { Imgsz, Half, Dynamic, Simplify, Opset; }  record YoloRealEval(CreatedUtc, Sources, DatasetDir, Imgsz, Metrics);
+static class YoloResultsCsv { Read; Parse; Best; }   record YoloEpochMetrics(Epoch, Values) { Precision, Recall, MAP50, MAP50To95, losses, Fitness; }
+sealed class YoloModelRegistry { (root); static Default; ConsumerNavigation / ConsumerAutoLabel; RunsDirs(); ListRuns(); static ListRunsIn / ReadRun;
+    static ClassesForModel / ReadDataYamlNames; GetAllCurrent(); GetCurrent(consumer); SetCurrent(consumer, model); Resolve(consumer, requiredClasses);
+    static Check(model, requiredClasses) → YoloModelResolution(Ok|NotSet|FileMissing|MissingClasses); }   // {root}/_models.json
+sealed class YoloRunLock : IDisposable { static TryAcquire(runsDir, description, out owner); static ReadOwner(runsDir); }   // {runs}/.lock across instances
+```
+
+### 7.4 d3d4tester `YoloTrainingService`
+
+```csharp
+record YoloTrainingJob(RunsDir, BuildDataset, Parameters, Launcher, ExportOnnx) { Stamp; Source; }
+record YoloDatasetBuild(DatasetDir, DataYamlPath, Train, Val, Test) { Classes; SynthesisResult? Synthesis; JsonObject? Inference; }
+sealed class YoloTrainingService {   // single owner of the running job; phases Idle|Building|Training|Exporting|Evaluating
+    static Instance; Log; Progress; BuildProgress; PhaseChanged; Metrics; OutcomeChanged; Phase; IsRunning; LastOutcome;
+    static NewStamp(); static UniqueStamp(dirs);   static InitializeRuntime();   // model host options from config, shutdown hooks
+    static ForSegments(...); static ForTaskSet(set, dir, parameters, launcher, export); static ForDataset(yaml, runsDir, ...);
+    static AugmentationForTaskSet(set);   // geometry off, fliplr from flip_horizontal, scale 0.1 native / 0.25 relative, hsv from brightness/contrast
+    static EstimateStats(set, dir) → IYoloDatasetStats (RequiredImgsz = native window);
+    RunAsync(job); ResumeAsync(runDir, launcher, export); ExportAsync(runDir, launcher, options); EvaluateOnRealDataAsync(runDir, sources, launcher); Cancel(); }
 ```
 
 ## 8. Verification
 
 - Library: generate from a synthetic task set (two targets with alpha and non-alpha variants, scenes, one common video) → label boxes match the pasted masks, splits use disjoint backgrounds, counts match settings, deterministic for the same seed.
 - End to end: short CPU training on the generated dataset + ONNX export; `YoloOnnxDetector` loads the model with the target names.
+- **Measured** (task set `tray_icons_v2`: 2 targets wechat / bluetooth, ColorKey variants, taskbar placement band, 18 distractors incl. 10 taskbar app icons as hard negatives): 25-epoch CPU train early-stopped at 21 (val mAP50 0.995, mAP50-95 0.93), then an 8-epoch hard-negative fine-tune. Fresh 3440x1440 screenshot: both icons IoU 1.00, 0 px offset, conf 0.96 / 0.97, 0 false positives (3 on taskbar app icons before the fine-tune); a naive full-frame letterbox finds neither. Live 10 s screen loop: 2.8 FPS on CPU (6 tiles of the bottom band), 29/29 frames, one track id per icon. Earlier v1 (opaque crops, Ultralytics default fliplr / scale) missed bluetooth (conf 0.047).
 
 ## 9. References
 
@@ -207,7 +301,7 @@ public static class VideoFrameExtractor { int EstimateFrames(string path, int in
 
 ## 10. Design review findings and backlog (2026-10-05)
 
-Multi-agent review (synthesis library, training pipeline, UI/architecture; cross-checked between reviewers, verified against code and the live run of task set `tray_icons`). Status: all **open**, assigned to the workstreams in §10.4.
+Multi-agent review (synthesis library, training pipeline, UI/architecture; cross-checked between reviewers, verified against code and the live run of task set `tray_icons`). Status per item: §10.5.
 
 ### 10.1 Critical
 
@@ -277,8 +371,40 @@ S11 PNG output / no double JPEG; S12 size-aware feather and blur; S13 pixel caps
 | W7 extractor UI | U3, U4, U9, U15 (canvas key map, strokes) | `Windows/VariantExtractWindow.*`, `dotcore/DotCore.VocAnnotatorUI/*` |
 | W8 model test | U1, video/live UI | new `Windows/ModelTestWindow.*`, `Constants/I18nKeys.ModelTest.cs`, `D3D4TesterCore/Constants/ConfigKeys.YoloModelTest.cs` |
 
+### 10.5 Status (verified against code, 2026-10-05)
+
+**Done** (where):
+
+| IDs | Implementation |
+|-----|----------------|
+| S1/T6, T13, T14 | `YoloInferenceProfile`, `Detect(roi)`, `DetectTiled`, `Detect(profile)`; rectangular input, pooled buffers, quoted-name parsing; `YoloExportOptions` |
+| S2, S3, S5, S7, S8, S10–S14, S16, U5, T10 | `TaskSetSynthesizer` (native window, `pixel_scale` / `dpi_steps`, regions + slot grid, occupancy, group hash split, distractors, PNG / JPEG range, size-aware feather, `.partial`, LRU, preview cache, `RenderAugmentationGrid`, `Estimate`) |
+| S4, S6, S17, S18 | `VariantCutout.ColorKey`, `VariantWithoutAlpha`, `FindContamination`, header-only checks, `VideoFrameReader` |
+| S9 / T21 | `YoloAugmentation`, `AugmentationForTaskSet` |
+| T1, T4, T8, T15, T19 | `YoloModelRegistry` (consumer current, class check), `YoloRunInfo`, `YoloResultsCsv`, shared weights dir, `YoloModelHost` |
+| T2, T3, T5, T7, T9, T11, T12 | holdout + `EvaluateOnRealDataAsync`, `ChildProcessJob` + shutdown hook + `YoloRunLock`, `ResumeAsync` / export best / start from run, `GroupBySource`, `YoloLauncher.ForPython`, service-wide phase / outcome, `ManagedKeys` |
+| T16–T18, T20, U1, U17–U19 | `YoloVideoDetector`, `YoloLiveDetector`, `YoloFrameTracker` (navigator acts on matched tracks), `Reviewed = false` pseudo-labels (train only); `ModelTestWindow` (image / video timeline / live, tracks, hard-example export, snapshot hotkey) |
+| U2–U4, U6–U16 | folder-tree import, track / fixed box / dHash + filmstrip, strokes + per-crop mode, virtualized thumbnails, `AddMany` + drag-and-drop, trash + undo, extractor closing guard, single training window + generate on snapshot, annotations → variants / copy targets / segment → task set, `ForDataset` + history, issue formatter, `TaskSetManagerViewModel`, `AutomationProperties.Name`, region / contamination / distractor editors |
+
+**Open**:
+
+- S15: `DotCore.YoloTaskSet` / `DotCore.YoloDetect` reference `OpenCvSharp4.Windows` only (no Linux runtime).
+- Placement-region snap pitch is set per resource in the editor (model supports per region).
+- Undo is session-only; the trash keeps the 20 newest entries.
+- Video auto-label applies a box to every frame of the video (`ResourceBox` on a video).
+- ModelTest region picking is in-canvas only; monitor enumeration lives in `ModelTestScreens` (belongs in `DotCore.ScreenCapture`).
+- Annotated MP4 export and a click-through overlay are not built.
+- Stamp race: two jobs created in the same second, before either folder exists, get the same stamp.
+- Group-by-source split may exceed the val share to cover every class.
+- WPF binding-trace noise in two windows; some English captions are clipped.
+
 ## 11. Inference contract (small objects, video, live)
 
-- The run records how it was trained: `scale_mode`, the native tile size (synthesis window / background size) and an optional ROI hint (e.g. the bottom 48 px band of the primary screen for tray icons).
-- Consumers run `Detect(image, roi)` when an ROI hint exists, else `DetectTiled(image, tile = training window, overlap >= 2 x max object side)` with global NMS; never a whole-screen letterbox for native-scale models.
-- Video / live: one reused ONNX session, per-frame detection (ROI or tiles), an IoU/ByteTrack-style tracker for stable IDs, temporal smoothing (min hits, max misses), FPS reporting; frames with misses or false positives can be exported as labeled data or task-set resources (hard-example loop).
+- **Record**: synthesis writes `SynthesisInferenceInfo` to the manifest `inference` block (`scale_mode`, `window_width/height`, background and object side ranges, `tile_overlap` = 2 × max object side, `roi_hint` from `TaskSet.InferenceRoiHint`: `anchor` bottom|top|left|right + `band_pixels`, or `rect`). `YoloTrainingService` copies it into `run_info.json` (`YoloRunInfo.Inference`); `ForDataset` reads it via `TaskSetSynthesizer.ReadInferenceInfo`.
+- **Train**: native task sets require `imgsz` = max(native window) (`IYoloDatasetStats.RequiredImgsz` → advisor `ImgszNativeWindow`; the training window shows a mismatch hint) so tiles reach the model unscaled.
+- **Profile**: `YoloInferenceProfile.FromInference(run_info.inference)` (thresholds set by the caller); a bottom band becomes `Roi = (0, −band, 0, band)` (negative X / Y = offset from the right / bottom edge, size ≤ 0 = to the edge).
+- **Detect(image, profile)**: Relative → one letterbox of the ROI (or full frame). Native → region = ROI or full frame; a region within one tile is detected in one pass without upscaling; otherwise `DetectTiled` (tile = window, 0 = model input; overlap = `tile_overlap`, default a quarter of the smaller tile side), each tile letterboxed without upscaling, global class-wise NMS dropping boxes cut by an inner tile edge when a whole copy exists. Never a whole-screen letterbox for native models.
+- **Sessions**: `YoloModelHost.Shared` owns one ONNX session per (path, write time, options), handed out as leases (`IsStale` after re-export, `MaxIdle` idle sessions kept); provider CPU / Auto / CUDA / DirectML with CPU fallback, intra-op threads and warm-up from config. Models come from `YoloModelRegistry` (current model per consumer `navigation` / `auto_label`, class check), never "newest file".
+- **Video / live**: `YoloVideoDetector.Run` (lazy, frame step / range, per-frame timing) and `YoloLiveDetector` (provider thread, `TargetFps`, newest frame, `FrameProcessed` with FPS / latency / capture / inference times, `Faulted`, `ResetTracks`), both on `Detect(image, profile)`.
+- **Tracking**: `YoloFrameTracker` (ByteTrack-lite: high / low confidence two-stage matching, constant-velocity prediction, center-shift fallback for small fast objects, `MinHits` 3, `MaxMisses` 15, box smoothing 0.6); the navigator acts only on tracks matched this frame (`Misses == 0`).
+- **Hard examples**: the model tester exports frames as annotations with `Reviewed = false` and a `source`; `YoloDatasetAssembler` skips them unless `IncludeUnreviewedPseudoLabels`, and then only in train.

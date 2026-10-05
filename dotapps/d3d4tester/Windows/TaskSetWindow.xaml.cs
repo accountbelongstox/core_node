@@ -1,15 +1,12 @@
 // PY-REF: none (DOT-only)
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using DotApps.d3d4tester.Config;
@@ -17,6 +14,7 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.ViewModels;
 using DotCore.Common;
+using DotCore.VocAnnotator;
 using DotCore.VocAnnotatorUI;
 using DotCore.YoloRecord;
 using DotCore.YoloTaskSet;
@@ -24,130 +22,90 @@ using DotCore.YoloTaskSet;
 namespace DotApps.d3d4tester.Windows;
 
 /// <summary>
-/// Task-set manager for the specific YOLO training mode (YOLO_TASKSET_SYNTHESIS_DESIGN.md section 6): task set CRUD, targets with
-/// variants / scenes / augmentation overrides, common resources, global augmentation and synthesis settings, validation,
-/// synthetic preview, dataset generation and one-click training. Every store / synthesizer call runs off the UI thread.
+/// View of the task-set manager for the specific YOLO training mode (YOLO_TASKSET_SYNTHESIS_DESIGN.md section 6). State and
+/// store / synthesizer work live in <see cref="TaskSetManagerViewModel"/>; this class prompts, renders and wires input.
 /// </summary>
 public partial class TaskSetWindow : Window
 {
-    private const int ThumbDecodeWidth = 96;
-    private const int SaveDebounceMs = 400;
-    private const int MaxImagesPerTarget = 100_000;
-    private const string DatasetStampFormat = "yyyyMMdd_HHmmss";
     private const string AllFilesPattern = "*.*";
-    private const string GlyphImage = "\uE8B9";
-    private const string GlyphVideo = "\uE714";
-    private const string GlyphError = "\uEA39";
-    private const string GlyphWarning = "\uE7BA";
-    private const string ChipIdle = "StatusChipStyle";
-    private const string ChipInfo = "StatusChipInfoStyle";
-    private const string ChipSuccess = "StatusChipSuccessStyle";
-    private const string ChipWarning = "StatusChipWarningStyle";
-    private const string ChipDanger = "StatusChipDangerStyle";
+    private const string LinePrefix = "  ";
+    private const int ImportSummaryMaxLines = 20;
+    private const string IssueActionShow = "show";
+    private const string IssueActionLabel = "label";
+    private const string IssueActionMask = "mask";
+    private const int AugPreviewDebounceMs = 350;
+    private const int AugPreviewSeed = 1;
+    private const double AugPreviewMaxHeight = 360;
 
     private static readonly string ImagePatterns = Patterns(TaskSetStore.ImageExtensions);
     private static readonly string VideoPatterns = Patterns(TaskSetStore.VideoExtensions);
 
-    private static readonly IReadOnlyList<AugField> AugFields = new AugField[]
-    {
-        new(I18nKeys.YoloTaskSetAugScaleMin, FieldKind.Double, p => p.ScaleMin, (p, v) => p.ScaleMin = (double)v, o => o.ScaleMin, (o, v) => o.ScaleMin = (double?)v),
-        new(I18nKeys.YoloTaskSetAugScaleMax, FieldKind.Double, p => p.ScaleMax, (p, v) => p.ScaleMax = (double)v, o => o.ScaleMax, (o, v) => o.ScaleMax = (double?)v),
-        new(I18nKeys.YoloTaskSetAugStretchMin, FieldKind.Double, p => p.StretchMin, (p, v) => p.StretchMin = (double)v, o => o.StretchMin, (o, v) => o.StretchMin = (double?)v),
-        new(I18nKeys.YoloTaskSetAugStretchMax, FieldKind.Double, p => p.StretchMax, (p, v) => p.StretchMax = (double)v, o => o.StretchMax, (o, v) => o.StretchMax = (double?)v),
-        new(I18nKeys.YoloTaskSetAugRotationMaxDegrees, FieldKind.Double, p => p.RotationMaxDegrees, (p, v) => p.RotationMaxDegrees = (double)v, o => o.RotationMaxDegrees, (o, v) => o.RotationMaxDegrees = (double?)v),
-        new(I18nKeys.YoloTaskSetAugLeftStretchMax, FieldKind.Double, p => p.LeftStretchMax, (p, v) => p.LeftStretchMax = (double)v, o => o.LeftStretchMax, (o, v) => o.LeftStretchMax = (double?)v),
-        new(I18nKeys.YoloTaskSetAugRightStretchMax, FieldKind.Double, p => p.RightStretchMax, (p, v) => p.RightStretchMax = (double)v, o => o.RightStretchMax, (o, v) => o.RightStretchMax = (double?)v),
-        new(I18nKeys.YoloTaskSetAugFlipHorizontal, FieldKind.Bool, p => p.FlipHorizontal, (p, v) => p.FlipHorizontal = (bool)v, o => o.FlipHorizontal, (o, v) => o.FlipHorizontal = (bool?)v),
-        new(I18nKeys.YoloTaskSetAugBrightnessMax, FieldKind.Double, p => p.BrightnessMax, (p, v) => p.BrightnessMax = (double)v, o => o.BrightnessMax, (o, v) => o.BrightnessMax = (double?)v),
-        new(I18nKeys.YoloTaskSetAugContrastMax, FieldKind.Double, p => p.ContrastMax, (p, v) => p.ContrastMax = (double)v, o => o.ContrastMax, (o, v) => o.ContrastMax = (double?)v),
-        new(I18nKeys.YoloTaskSetAugBlurProbability, FieldKind.Double, p => p.BlurProbability, (p, v) => p.BlurProbability = (double)v, o => o.BlurProbability, (o, v) => o.BlurProbability = (double?)v),
-        new(I18nKeys.YoloTaskSetAugBlurMaxKernel, FieldKind.Int, p => p.BlurMaxKernel, (p, v) => p.BlurMaxKernel = (int)v, o => o.BlurMaxKernel, (o, v) => o.BlurMaxKernel = (int?)v),
-        new(I18nKeys.YoloTaskSetAugEdgeFeather, FieldKind.Double, p => p.EdgeFeather, (p, v) => p.EdgeFeather = (double)v, o => o.EdgeFeather, (o, v) => o.EdgeFeather = (double?)v),
-    };
-
-    private static readonly IReadOnlyList<SynField> SynFields = new SynField[]
-    {
-        new(I18nKeys.YoloTaskSetSynImagesPerTarget, FieldKind.Int, s => s.ImagesPerTarget, (s, v) => s.ImagesPerTarget = (int)v),
-        new(I18nKeys.YoloTaskSetSynValPercent, FieldKind.Int, s => s.ValPercent, (s, v) => s.ValPercent = (int)v),
-        new(I18nKeys.YoloTaskSetSynSeed, FieldKind.Int, s => s.Seed, (s, v) => s.Seed = (int)v),
-        new(I18nKeys.YoloTaskSetSynMinObjects, FieldKind.Int, s => s.MinObjectsPerImage, (s, v) => s.MinObjectsPerImage = (int)v),
-        new(I18nKeys.YoloTaskSetSynMaxObjects, FieldKind.Int, s => s.MaxObjectsPerImage, (s, v) => s.MaxObjectsPerImage = (int)v),
-        new(I18nKeys.YoloTaskSetSynCrossTargetProbability, FieldKind.Double, s => s.CrossTargetProbability, (s, v) => s.CrossTargetProbability = (double)v),
-        new(I18nKeys.YoloTaskSetSynNegativePercent, FieldKind.Int, s => s.NegativePercent, (s, v) => s.NegativePercent = (int)v),
-        new(I18nKeys.YoloTaskSetSynMaxOverlapIou, FieldKind.Double, s => s.MaxOverlapIou, (s, v) => s.MaxOverlapIou = (double)v),
-        new(I18nKeys.YoloTaskSetSynMinVisibleFraction, FieldKind.Double, s => s.MinVisibleFraction, (s, v) => s.MinVisibleFraction = (double)v),
-        new(I18nKeys.YoloTaskSetSynScaleMode, FieldKind.ScaleMode, s => s.ScaleMode, (s, v) => s.ScaleMode = (string)v),
-        new(I18nKeys.YoloTaskSetSynRelativeMin, FieldKind.Double, s => s.RelativeMin, (s, v) => s.RelativeMin = (double)v),
-        new(I18nKeys.YoloTaskSetSynRelativeMax, FieldKind.Double, s => s.RelativeMax, (s, v) => s.RelativeMax = (double)v),
-        new(I18nKeys.YoloTaskSetSynOutputMaxSide, FieldKind.Int, s => s.OutputMaxSide, (s, v) => s.OutputMaxSide = (int)v),
-        new(I18nKeys.YoloTaskSetSynJpegQuality, FieldKind.Int, s => s.JpegQuality, (s, v) => s.JpegQuality = (int)v),
-        new(I18nKeys.YoloTaskSetSynVideoFrameInterval, FieldKind.Int, s => s.VideoFrameInterval, (s, v) => s.VideoFrameInterval = (int)v),
-        new(I18nKeys.YoloTaskSetSynVideoMaxFrames, FieldKind.Int, s => s.VideoMaxFrames, (s, v) => s.VideoMaxFrames = (int)v),
-    };
-
-    private readonly TaskSetStore _store = new(TaskSetStore.DefaultRoot);
-    private readonly SemaphoreSlim _storeGate = new(1, 1);
-    private readonly DispatcherTimer _saveTimer;
-    private readonly ObservableCollection<TaskSetRow> _sets = new();
-    private readonly ObservableCollection<TaskTargetRow> _targets = new();
-    private readonly ObservableCollection<TaskResourceRow> _variants = new();
-    private readonly ObservableCollection<TaskResourceRow> _scenes = new();
-    private readonly ObservableCollection<TaskResourceRow> _common = new();
+    private readonly TaskSetManagerViewModel _vm = new();
     private readonly List<(TextBlock Text, string Key)> _fieldLabels = new();
     private readonly List<Control> _globalAugEditors = new();
     private readonly List<OverrideRow> _overrideRows = new();
     private readonly List<Control> _synEditors = new();
-    private TaskSet? _set;
-    private TaskTarget? _target;
     private string? _pendingSelectId;
-    private IReadOnlyList<TaskSetIssue>? _issues;
-    private PreviewResult? _preview;
-    private BitmapSource? _previewImage;
-    private int _previewSeed;
-    private SynthesisResult? _result;
-    private CancellationTokenSource? _generateCts;
     private VariantExtractWindow? _extract;
-    private Task? _generateTask;
-    private string _statusStyle = ChipIdle;
-    private Func<string> _statusText = () => T(I18nKeys.YoloTaskSetStatusIdle);
-    private int _commonVersion;
-    private bool _busy;
-    private bool _loading;
+    private TaskSet? _extractSet;
+    private readonly DispatcherTimer _augTimer = new() { Interval = TimeSpan.FromMilliseconds(AugPreviewDebounceMs) };
+    private readonly AugPreview _targetAug = new();
+    private readonly AugPreview _globalAug = new();
+    private int _augSeed = AugPreviewSeed;
+    private int _augVersion;
+    private bool _syncingSelection;
     private bool _rendering;
     private bool _closeReady;
 
     public TaskSetWindow()
     {
         InitializeComponent();
-        _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(SaveDebounceMs) };
-        _saveTimer.Tick += async (_, _) => await FlushSaveAsync();
-        LstSets.ItemsSource = _sets;
-        LstTargets.ItemsSource = _targets;
-        LstVariants.ItemsSource = _variants;
-        LstScenes.ItemsSource = _scenes;
-        LstCommon.ItemsSource = _common;
+        LstSets.ItemsSource = _vm.Sets;
+        LstTargets.ItemsSource = _vm.Targets;
+        LstVariants.ItemsSource = _vm.Variants;
+        LstScenes.ItemsSource = _vm.Scenes;
+        LstCommon.ItemsSource = _vm.Common;
+        LstDistractors.ItemsSource = _vm.Distractors;
+        LstIssues.ItemsSource = _vm.IssueRows;
+        LstDatasets.ItemsSource = _vm.Datasets;
+        LstRuns.ItemsSource = _vm.Runs;
+        LstHoldouts.ItemsSource = _vm.Holdouts;
         BuildGlobalAugEditor();
         BuildOverrideEditor();
         BuildSynthesisEditor();
+        BuildRoiEditor();
+        BuildAugPreviews();
         ApplyTexts();
         BindEvents();
+        BindShortcuts();
+        _vm.PropertyChanged += OnViewModelChanged;
+        _vm.StateChanged += UpdateEnabled;
+        _vm.StructureChanged += () =>
+        {
+            _extract?.RefreshTargets();
+            ScheduleAugPreview();
+        };
+        _vm.ErrorRaised += message => MessageBox.Show(this, message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
         D3D4TesterI18n.Provider.LanguageChanged += OnLanguageChanged;
-        Closed += (_, _) => D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
-        Loaded += async (_, _) => await ReloadSetsAsync(_pendingSelectId ?? ConfigBinding.GetValue(ConfigKeys.YoloTaskSetLastTaskSet, ""));
+        Closed += (_, _) =>
+        {
+            D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
+            _augTimer.Stop();
+        };
+        Loaded += async (_, _) => await _vm.ReloadSetsAsync(_pendingSelectId ?? ConfigBinding.GetValue(ConfigKeys.YoloTaskSetLastTaskSet, ""));
+        RenderAll();
     }
 
-    private enum FieldKind { Double, Int, Bool, ScaleMode }
-
-    private enum Pool { Variants, Scenes, Common }
-
     private static string T(string key) => D3D4TesterI18n.Provider.GetUiText(key);
+
+    private static string N(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     private static string Patterns(IEnumerable<string> extensions) => string.Join(";", extensions.Select(e => "*" + e));
 
     /// <summary>Show the single manager window (reused when open), optionally selecting a task set.</summary>
     public static TaskSetWindow ShowSingle(Window? owner, string? taskSetId = null)
     {
-        var win = Application.Current.Windows.OfType<TaskSetWindow>().FirstOrDefault();
+        var win = Current;
         if (win == null)
         {
             win = new TaskSetWindow { Owner = owner, _pendingSelectId = taskSetId };
@@ -156,32 +114,39 @@ public partial class TaskSetWindow : Window
         }
         if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal;
         win.Activate();
-        if (taskSetId != null && win.IsLoaded) _ = win.ReloadSetsAsync(taskSetId);
+        if (taskSetId != null && win.IsLoaded && win._vm.Set?.Id != taskSetId && win.ReleaseExtractorFor(taskSetId)) _ = win._vm.ReloadSetsAsync(taskSetId);
         return win;
+    }
+
+    private static TaskSetWindow? Current => Application.Current.Windows.OfType<TaskSetWindow>().FirstOrDefault();
+
+    /// <summary>Another window is about to write this task set on disk: persist pending manager edits first (UI thread).</summary>
+    public static Task FlushPendingAsync(string taskSetId) =>
+        Current is { } win && win._vm.Set?.Id == taskSetId ? win._vm.FlushSaveAsync() : Task.CompletedTask;
+
+    /// <summary>Another window changed this task set on disk: reload it when it is the selected one (UI thread).</summary>
+    public static void NotifyExternalChange(string taskSetId)
+    {
+        if (Current is { IsLoaded: true } win && win._vm.Set?.Id == taskSetId) _ = win._vm.ReloadCurrentAsync();
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
         if (e.Cancel || _closeReady) return;
-        if (_generateCts != null)
+        if (_vm.IsGenerating && !Confirm(T(I18nKeys.YoloTaskSetConfirmCloseBusy)))
         {
-            if (MessageBox.Show(this, T(I18nKeys.YoloTaskSetConfirmCloseBusy), Title, MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
-            {
-                e.Cancel = true;
-                return;
-            }
-            _generateCts.Cancel();
+            e.Cancel = true;
+            return;
         }
-        if (!_saveTimer.IsEnabled && _generateTask == null) return;
+        if (!_vm.HasPendingWork && !_vm.CanCancel) return;
         e.Cancel = true;
         _ = CloseAfterPendingAsync();
     }
 
     private async Task CloseAfterPendingAsync()
     {
-        if (_generateTask is { } running) await running;
-        await FlushSaveAsync();
+        await _vm.CompletePendingAsync();
         _closeReady = true;
         Close();
     }
@@ -191,21 +156,23 @@ public partial class TaskSetWindow : Window
     private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e) => Dispatcher.InvokeAsync(() =>
     {
         ApplyTexts();
-        RenderSetRows();
-        RenderTargetRows();
-        foreach (var row in _common) DescribeCommon(row);
-        RenderGlobalAug();
-        RenderOverride();
-        RenderSynthesis();
-        RenderIssues();
-        RenderPreviewInfo();
-        RenderResult();
-        RenderStatus();
+        _vm.RefreshTexts();
+        RenderAll();
     });
+
+    private static void Tip(Control control, string key)
+    {
+        var text = T(key);
+        control.ToolTip = text;
+        AutomationProperties.SetName(control, text);
+    }
 
     private void ApplyTexts()
     {
         Title = T(I18nKeys.YoloTaskSetWindowTitle);
+        Resources["IssueActionShow"] = T(I18nKeys.YoloTaskSetHitShow);
+        Resources["IssueActionLabel"] = T(I18nKeys.YoloTaskSetHitLabel);
+        Resources["IssueActionMask"] = T(I18nKeys.YoloTaskSetHitMask);
         BtnValidate.Content = T(I18nKeys.YoloTaskSetValidate);
         BtnPreview.Content = T(I18nKeys.YoloTaskSetPreview);
         BtnNextSample.Content = T(I18nKeys.YoloTaskSetNextSample);
@@ -213,18 +180,21 @@ public partial class TaskSetWindow : Window
         BtnCancel.Content = T(I18nKeys.YoloTaskSetCancel);
         BtnOpenDataset.Content = T(I18nKeys.YoloTaskSetOpenDataset);
         BtnTrain.Content = T(I18nKeys.YoloTaskSetTrain);
+        Tip(BtnUndo, I18nKeys.YoloTaskSetUndo);
         LblSets.Text = T(I18nKeys.YoloTaskSetSectionSets);
-        BtnSetNew.ToolTip = T(I18nKeys.YoloTaskSetSetNew);
-        BtnSetRename.ToolTip = T(I18nKeys.YoloTaskSetSetRename);
-        BtnSetDuplicate.ToolTip = T(I18nKeys.YoloTaskSetSetDuplicate);
-        BtnSetDelete.ToolTip = T(I18nKeys.YoloTaskSetSetDelete);
+        Tip(BtnSetNew, I18nKeys.YoloTaskSetSetNew);
+        Tip(BtnSetRename, I18nKeys.YoloTaskSetSetRename);
+        Tip(BtnSetDuplicate, I18nKeys.YoloTaskSetSetDuplicate);
+        Tip(BtnSetDelete, I18nKeys.YoloTaskSetSetDelete);
         LblDescription.Text = T(I18nKeys.YoloTaskSetSetDescription);
         LblTargets.Text = T(I18nKeys.YoloTaskSetSectionTargets);
-        BtnTargetAdd.ToolTip = T(I18nKeys.YoloTaskSetTargetAdd);
-        BtnTargetRename.ToolTip = T(I18nKeys.YoloTaskSetTargetRename);
-        BtnTargetUp.ToolTip = T(I18nKeys.YoloTaskSetTargetUp);
-        BtnTargetDown.ToolTip = T(I18nKeys.YoloTaskSetTargetDown);
-        BtnTargetDelete.ToolTip = T(I18nKeys.YoloTaskSetTargetDelete);
+        Tip(BtnTargetAdd, I18nKeys.YoloTaskSetTargetAdd);
+        Tip(BtnTargetRename, I18nKeys.YoloTaskSetTargetRename);
+        Tip(BtnTargetUp, I18nKeys.YoloTaskSetTargetUp);
+        Tip(BtnTargetDown, I18nKeys.YoloTaskSetTargetDown);
+        Tip(BtnTargetDelete, I18nKeys.YoloTaskSetTargetDelete);
+        Tip(BtnTargetImportTree, I18nKeys.YoloTaskSetImportTree);
+        Tip(BtnTargetImportSet, I18nKeys.YoloTaskSetImportFromSet);
         LblImagesPerTarget.Text = T(I18nKeys.YoloTaskSetImagesPerTarget);
         ChkIptInherit.Content = T(I18nKeys.YoloTaskSetInheritGlobal);
         TabVariants.Header = T(I18nKeys.YoloTaskSetTabVariants);
@@ -234,33 +204,101 @@ public partial class TaskSetWindow : Window
         TxtScenesHint.Text = T(I18nKeys.YoloTaskSetScenesHint);
         TxtCommonHint.Text = T(I18nKeys.YoloTaskSetCommonHint);
         TxtOverrideHint.Text = T(I18nKeys.YoloTaskSetOverrideHint);
-        foreach (var b in new[] { BtnVariantAddFiles, BtnSceneAddFiles, BtnCommonAddFiles }) b.Content = T(I18nKeys.YoloTaskSetAddFiles);
-        foreach (var b in new[] { BtnVariantAddFolder, BtnSceneAddFolder, BtnCommonAddFolder }) b.Content = T(I18nKeys.YoloTaskSetAddFolder);
-        foreach (var b in new[] { BtnVariantRemove, BtnSceneRemove, BtnCommonRemove }) b.Content = T(I18nKeys.YoloTaskSetRemoveSelected);
+        foreach (var b in new[] { BtnVariantAddFiles, BtnSceneAddFiles, BtnCommonAddFiles, BtnDistractorAddFiles }) b.Content = T(I18nKeys.YoloTaskSetAddFiles);
+        foreach (var b in new[] { BtnVariantAddFolder, BtnSceneAddFolder, BtnCommonAddFolder, BtnDistractorAddFolder }) b.Content = T(I18nKeys.YoloTaskSetAddFolder);
+        foreach (var b in new[] { BtnVariantRemove, BtnSceneRemove, BtnCommonRemove, BtnDistractorRemove }) b.Content = T(I18nKeys.YoloTaskSetRemoveSelected);
         BtnVariantExtract.Content = T(I18nKeys.YoloTaskSetExtractOpen);
-        MiSceneExtract.Header = T(I18nKeys.YoloTaskSetExtractFromResource);
-        MiCommonExtract.Header = T(I18nKeys.YoloTaskSetExtractFromResource);
+        BtnDistractorExtract.Content = T(I18nKeys.YoloTaskSetExtractOpen);
         TabCommon.Header = T(I18nKeys.YoloTaskSetSectionCommon);
+        TabDistractors.Header = T(I18nKeys.YoloTaskSetSectionDistractors);
+        TxtDistractorsHint.Text = T(I18nKeys.YoloTaskSetDistractorsHint);
+        LblRoi.Text = T(I18nKeys.YoloTaskSetRoiTitle);
+        LblRoiAnchor.Text = T(I18nKeys.YoloTaskSetRoiAnchor);
+        LblRoiBand.Text = T(I18nKeys.YoloTaskSetRoiBand);
+        LblRoiRect.Text = T(I18nKeys.YoloTaskSetRoiRect);
+        LblHoldout.Text = T(I18nKeys.YoloTaskSetHoldoutTitle);
+        TxtHoldoutHint.Text = T(I18nKeys.YoloTaskSetHoldoutHint);
+        BtnHoldoutAdd.Content = T(I18nKeys.YoloTaskSetAddFolder);
+        BtnHoldoutRemove.Content = T(I18nKeys.YoloTaskSetRemoveSelected);
+        AutomationProperties.SetName(LstHoldouts, LblHoldout.Text);
+        AutomationProperties.SetName(CboRoiAnchor, LblRoiAnchor.Text);
+        AutomationProperties.SetName(TxtRoiBand, LblRoiBand.Text);
+        AutomationProperties.SetName(TxtRoiRect, LblRoiRect.Text);
+        SetChoiceTexts(CboRoiAnchor, TaskSetFields.RoiAnchors.Select(a => a.TextKey));
+        _targetAug.ApplyTexts();
+        _globalAug.ApplyTexts();
         TabGlobalAug.Header = T(I18nKeys.YoloTaskSetSectionGlobalAug);
         TabSynthesis.Header = T(I18nKeys.YoloTaskSetSectionSynthesis);
         TabValidation.Header = T(I18nKeys.YoloTaskSetSectionValidation);
         TabPreview.Header = T(I18nKeys.YoloTaskSetSectionPreview);
         TabGenerate.Header = T(I18nKeys.YoloTaskSetSectionGenerate);
+        TabHistory.Header = T(I18nKeys.YoloTaskSetSectionHistory);
+        LblHistoryDatasets.Text = T(I18nKeys.YoloTaskSetHistoryDatasets);
+        LblHistoryRuns.Text = T(I18nKeys.YoloTaskSetHistoryRuns);
+        Tip(BtnHistoryRefresh, I18nKeys.YoloTaskSetHistoryRefresh);
+        BtnDatasetOpen.Content = T(I18nKeys.YoloTaskSetHistoryOpen);
+        BtnDatasetTrain.Content = T(I18nKeys.YoloTaskSetHistoryTrainDataset);
+        BtnDatasetDelete.Content = T(I18nKeys.YoloTaskSetHistoryDelete);
+        BtnRunOpen.Content = T(I18nKeys.YoloTaskSetHistoryOpen);
+        BtnRunTest.Content = T(I18nKeys.YoloTaskSetHistoryTestModel);
+        BtnRunDelete.Content = T(I18nKeys.YoloTaskSetHistoryDelete);
         foreach (var (text, key) in _fieldLabels) text.Text = T(key);
         foreach (var row in _overrideRows) row.Inherit.Content = T(I18nKeys.YoloTaskSetInheritGlobal);
-        foreach (var combo in _synEditors.OfType<ComboBox>())
+        BuildContextMenus();
+        for (int i = 0; i < TaskSetFields.Synthesis.Count; i++)
+            if (_synEditors[i] is ComboBox combo && TaskSetFields.Synthesis[i].Choices is { } choices) SetChoiceTexts(combo, choices.Select(c => c.TextKey));
+    }
+
+    /// <summary>Localized combo items, keeping the selected index and suppressing commits.</summary>
+    private void SetChoiceTexts(ComboBox combo, IEnumerable<string> keys)
+    {
+        bool was = _rendering;
+        _rendering = true;
+        int idx = combo.SelectedIndex;
+        combo.ItemsSource = keys.Select(T).ToArray();
+        combo.SelectedIndex = idx;
+        _rendering = was;
+    }
+
+    private void BuildContextMenus()
+    {
+        MenuVariants.Items.Clear();
+        MenuScenes.Items.Clear();
+        MenuCommon.Items.Clear();
+        MenuDistractors.Items.Clear();
+        AddMenuItem(MenuVariants, I18nKeys.YoloTaskSetMenuEditVariant, EditSelectedVariant);
+        AddMenuItem(MenuScenes, I18nKeys.YoloTaskSetExtractFromResource, () => OpenExtract(SelectedRow(LstScenes)?.Path));
+        AddMenuItem(MenuCommon, I18nKeys.YoloTaskSetExtractFromResource, () => OpenExtract(SelectedRow(LstCommon)?.Path));
+        AddMenuItem(MenuScenes, I18nKeys.YoloTaskSetExtractDistractors, () => OpenExtractDistractors(SelectedRow(LstScenes)?.Path));
+        AddMenuItem(MenuCommon, I18nKeys.YoloTaskSetExtractDistractors, () => OpenExtractDistractors(SelectedRow(LstCommon)?.Path));
+        AddMenuItem(MenuVariants, I18nKeys.YoloTaskSetMenuValOnly, () => _vm.SetValOnly(SelectedResources(LstVariants), true));
+        AddMenuItem(MenuVariants, I18nKeys.YoloTaskSetMenuTrainAndVal, () => _vm.SetValOnly(SelectedResources(LstVariants), false));
+        foreach (var (menu, list) in new[] { (MenuScenes, LstScenes), (MenuCommon, LstCommon) })
         {
-            bool was = _rendering;
-            _rendering = true;
-            int idx = combo.SelectedIndex;
-            combo.ItemsSource = ScaleModeTexts();
-            combo.SelectedIndex = idx;
-            _rendering = was;
+            AddMenuItem(menu, I18nKeys.YoloTaskSetMenuRegions, () => _ = EditRegionsAsync(list));
+            AddMenuItem(menu, I18nKeys.YoloTaskSetMenuMasks, () =>
+            {
+                if (SelectedRow(list)?.Resource is { } r) _ = EditMasksAsync(r);
+            });
+        }
+        foreach (var (menu, list) in new[] { (MenuVariants, LstVariants), (MenuScenes, LstScenes), (MenuCommon, LstCommon), (MenuDistractors, LstDistractors) })
+        {
+            AddMenuItem(menu, I18nKeys.YoloTaskSetMenuPixelScale, () => SetPixelScale(list));
+            menu.Items.Add(new Separator());
+            AddMenuItem(menu, I18nKeys.YoloTaskSetRemoveSelected, () => _ = RemoveSelectedAsync(list), "Del");
         }
     }
 
-    private static string[] ScaleModeTexts() =>
-        SynthesisSettings.ScaleModes.Select(m => T(m == SynthesisSettings.ScaleModeRelative ? I18nKeys.YoloTaskSetScaleModeRelative : I18nKeys.YoloTaskSetScaleModeNative)).ToArray();
+    private static void AddMenuItem(ContextMenu menu, string key, Action click, string? gesture = null)
+    {
+        var item = new MenuItem { Header = T(key), InputGestureText = gesture ?? "" };
+        item.Click += (_, _) => click();
+        menu.Items.Add(item);
+    }
+
+    private static TaskResourceRow? SelectedRow(ListBox list) => list.SelectedItem as TaskResourceRow;
+
+    // ---------- wiring ----------
 
     private void BindEvents()
     {
@@ -270,159 +308,269 @@ public partial class TaskSetWindow : Window
         BtnSetDelete.Click += async (_, _) => await DeleteSetAsync();
         LstSets.SelectionChanged += async (_, _) =>
         {
-            if (!_loading) await SelectSetAsync((LstSets.SelectedItem as TaskSetRow)?.Set);
+            if (!_syncingSelection && LstSets.SelectedItem is TaskSetRow row) await SelectSetAsync(row.Set);
         };
         TxtDescription.LostFocus += (_, _) =>
         {
-            if (_set == null || _set.Description == TxtDescription.Text) return;
-            _set.Description = TxtDescription.Text;
-            ScheduleSave();
+            if (!_rendering) _vm.SetDescription(TxtDescription.Text);
         };
 
         BtnTargetAdd.Click += async (_, _) => await AddTargetAsync();
         BtnTargetRename.Click += async (_, _) => await RenameTargetAsync();
         BtnTargetDelete.Click += async (_, _) => await DeleteTargetAsync();
-        BtnTargetUp.Click += async (_, _) => await MoveTargetAsync(-1);
-        BtnTargetDown.Click += async (_, _) => await MoveTargetAsync(1);
+        BtnTargetUp.Click += async (_, _) => await _vm.MoveTargetAsync(-1);
+        BtnTargetDown.Click += async (_, _) => await _vm.MoveTargetAsync(1);
         LstTargets.SelectionChanged += (_, _) =>
         {
-            if (_loading) return;
-            _target = (LstTargets.SelectedItem as TaskTargetRow)?.Target;
-            RenderTarget();
+            if (!_syncingSelection) _vm.SelectTarget((LstTargets.SelectedItem as TaskTargetRow)?.Target);
         };
         ChkIptInherit.Checked += (_, _) => SetIptInherit(true);
         ChkIptInherit.Unchecked += (_, _) => SetIptInherit(false);
         OnCommit(TxtIpt, CommitIpt);
 
-        BtnVariantAddFiles.Click += async (_, _) => await AddFilesAsync(Pool.Variants);
-        BtnSceneAddFiles.Click += async (_, _) => await AddFilesAsync(Pool.Scenes);
-        BtnCommonAddFiles.Click += async (_, _) => await AddFilesAsync(Pool.Common);
-        BtnVariantAddFolder.Click += async (_, _) => await AddFolderAsync(Pool.Variants);
-        BtnSceneAddFolder.Click += async (_, _) => await AddFolderAsync(Pool.Scenes);
-        BtnCommonAddFolder.Click += async (_, _) => await AddFolderAsync(Pool.Common);
+        BtnVariantAddFiles.Click += async (_, _) => await AddFilesAsync(TaskResourcePool.Variants);
+        BtnSceneAddFiles.Click += async (_, _) => await AddFilesAsync(TaskResourcePool.Scenes);
+        BtnCommonAddFiles.Click += async (_, _) => await AddFilesAsync(TaskResourcePool.Common);
+        BtnVariantAddFolder.Click += async (_, _) => await AddFolderAsync(TaskResourcePool.Variants);
+        BtnSceneAddFolder.Click += async (_, _) => await AddFolderAsync(TaskResourcePool.Scenes);
+        BtnCommonAddFolder.Click += async (_, _) => await AddFolderAsync(TaskResourcePool.Common);
         BtnVariantRemove.Click += async (_, _) => await RemoveSelectedAsync(LstVariants);
         BtnSceneRemove.Click += async (_, _) => await RemoveSelectedAsync(LstScenes);
         BtnCommonRemove.Click += async (_, _) => await RemoveSelectedAsync(LstCommon);
         BtnVariantExtract.Click += (_, _) => OpenExtract(null);
-        MiSceneExtract.Click += (_, _) => OpenExtract((LstScenes.SelectedItem as TaskResourceRow)?.Path);
-        MiCommonExtract.Click += (_, _) => OpenExtract((LstCommon.SelectedItem as TaskResourceRow)?.Path);
+        BtnDistractorAddFiles.Click += async (_, _) => await AddFilesAsync(TaskResourcePool.Distractors);
+        BtnDistractorAddFolder.Click += async (_, _) => await AddFolderAsync(TaskResourcePool.Distractors);
+        BtnDistractorRemove.Click += async (_, _) => await RemoveSelectedAsync(LstDistractors);
+        BtnDistractorExtract.Click += (_, _) => OpenExtractDistractors(null);
+        TabsTarget.SelectionChanged += (_, e) =>
+        {
+            if (ReferenceEquals(e.OriginalSource, TabsTarget)) ScheduleAugPreview();
+        };
+        TabsRight.SelectionChanged += (_, e) =>
+        {
+            if (ReferenceEquals(e.OriginalSource, TabsRight)) ScheduleAugPreview();
+        };
+        _augTimer.Tick += async (_, _) => await RenderAugPreviewsAsync();
+        foreach (var (list, pool) in new[]
+                 {
+                     (LstVariants, TaskResourcePool.Variants), (LstScenes, TaskResourcePool.Scenes), (LstCommon, TaskResourcePool.Common),
+                     (LstDistractors, TaskResourcePool.Distractors),
+                 })
+        {
+            list.DragOver += (_, e) => AcceptFileDrag(e);
+            list.Drop += async (_, e) => await DropFilesAsync(pool, e);
+        }
+        LstTargets.DragOver += (_, e) => AcceptFileDrag(e);
+        LstTargets.Drop += async (_, e) => await DropOnTargetsAsync(e);
+        BtnTargetImportTree.Click += async (_, _) => await ImportTreeAsync();
+        BtnTargetImportSet.Click += async (_, _) => await ImportFromSetAsync();
+        BtnUndo.Click += async (_, _) => await UndoAsync();
+        BtnHoldoutAdd.Click += (_, _) => AddHoldout();
+        BtnHoldoutRemove.Click += (_, _) => RemoveHoldouts();
+        LstHoldouts.SelectionChanged += (_, _) => UpdateEnabled();
 
         BtnValidate.Click += async (_, _) =>
         {
-            await ValidateAsync();
+            await _vm.ValidateAsync();
             TabsRight.SelectedItem = TabValidation;
         };
         BtnPreview.Click += async (_, _) => await PreviewAsync(reset: true);
         BtnNextSample.Click += async (_, _) => await PreviewAsync(reset: false);
         BtnGenerate.Click += async (_, _) => await GenerateAsync();
-        BtnCancel.Click += (_, _) => _generateCts?.Cancel();
+        BtnCancel.Click += (_, _) => _vm.CancelJob();
         BtnOpenDataset.Click += (_, _) =>
         {
-            if (_result != null) YoloSegmentLayout.OpenDir(_result.DatasetDir);
+            if (_vm.Result != null) YoloSegmentLayout.OpenDir(_vm.Result.DatasetDir);
         };
         BtnTrain.Click += async (_, _) => await TrainAsync();
-    }
 
-    // ---------- store helpers ----------
-
-    private static bool IsHandled(Exception ex) =>
-        ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or NotSupportedException or JsonException;
-
-    /// <summary>Serialized background store / synthesizer call; handled failures show an i18n error and yield default.</summary>
-    private async Task<TResult?> RunAsync<TResult>(Func<TResult> work, bool busy = false)
-    {
-        await _storeGate.WaitAsync();
-        if (busy) SetBusy(true);
-        try
+        LstIssues.AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, new RoutedEventHandler(async (_, e) => await OnIssueActionAsync(e)));
+        BtnHistoryRefresh.Click += async (_, _) => await _vm.RefreshHistoryAsync();
+        LstDatasets.SelectionChanged += (_, _) => UpdateEnabled();
+        LstRuns.SelectionChanged += (_, _) => UpdateEnabled();
+        BtnDatasetOpen.Click += (_, _) =>
         {
-            return await Task.Run(work);
-        }
-        catch (Exception ex) when (IsHandled(ex))
+            if (LstDatasets.SelectedItem is TaskSetDatasetRow row) YoloSegmentLayout.OpenDir(row.Dir);
+        };
+        BtnRunOpen.Click += (_, _) =>
         {
-            ShowError(ex);
-            return default;
-        }
-        finally
+            if (LstRuns.SelectedItem is TaskSetRunRow row) YoloSegmentLayout.OpenDir(row.Dir);
+        };
+        BtnDatasetDelete.Click += async (_, _) =>
         {
-            if (busy) SetBusy(false);
-            _storeGate.Release();
+            if (LstDatasets.SelectedItem is TaskSetDatasetRow row && Confirm(T(I18nKeys.YoloTaskSetHistoryDeleteConfirm).Replace("{name}", row.Name)))
+                await DeleteHistoryAsync(row.Dir);
+        };
+        BtnDatasetTrain.Click += async (_, _) =>
+        {
+            if (LstDatasets.SelectedItem is not TaskSetDatasetRow { DataYamlPath: not null } row || _vm.Set is not { } set) return;
+            await _vm.FlushSaveAsync();
+            YoloTrainingWindow.ShowForDataset(this, set.Id, row.Dir, autoStart: true);
+        };
+        BtnRunTest.Click += (_, _) =>
+        {
+            if (LstRuns.SelectedItem is TaskSetRunRow row) ModelTestWindow.ShowSingle(this, row.OnnxPath ?? row.WeightsPath ?? row.Dir);
+        };
+        BtnRunDelete.Click += async (_, _) =>
+        {
+            if (LstRuns.SelectedItem is TaskSetRunRow row && Confirm(T(I18nKeys.YoloTaskSetHistoryDeleteConfirm).Replace("{name}", row.Name)))
+                await DeleteHistoryAsync(row.Dir);
+        };
+    }
+
+    private async Task DeleteHistoryAsync(string dir)
+    {
+        if (!await _vm.DeleteHistoryDirAsync(dir)) Warn(T(I18nKeys.YoloTaskSetHistoryLocked));
+    }
+
+    private void BindShortcuts()
+    {
+        AddShortcut(Key.Delete, ModifierKeys.None, () => _ = DeleteFocusedAsync(), allowInTextBox: false);
+        AddShortcut(Key.F2, ModifierKeys.None, () => _ = RenameFocusedAsync());
+        AddShortcut(Key.N, ModifierKeys.Control, () => _ = AddTargetAsync());
+        AddShortcut(Key.N, ModifierKeys.Control | ModifierKeys.Shift, () => _ = CreateSetAsync());
+        AddShortcut(Key.F5, ModifierKeys.None, () => _ = PreviewAsync(reset: false));
+        AddShortcut(Key.Z, ModifierKeys.Control, () => _ = UndoAsync(), allowInTextBox: false);
+    }
+
+    private void AddShortcut(Key key, ModifierKeys modifiers, Action action, bool allowInTextBox = true)
+    {
+        var command = new RoutedCommand();
+        CommandBindings.Add(new CommandBinding(command, (_, _) => action(), (_, e) =>
+            e.CanExecute = _vm.IsIdle && (allowInTextBox || Keyboard.FocusedElement is not TextBox)));
+        InputBindings.Add(new KeyBinding(command, key, modifiers));
+    }
+
+    private bool IsFocusWithin(UIElement element) => element.IsKeyboardFocusWithin;
+
+    private async Task DeleteFocusedAsync()
+    {
+        if (IsFocusWithin(LstVariants)) await RemoveSelectedAsync(LstVariants);
+        else if (IsFocusWithin(LstScenes)) await RemoveSelectedAsync(LstScenes);
+        else if (IsFocusWithin(LstCommon)) await RemoveSelectedAsync(LstCommon);
+        else if (IsFocusWithin(LstDistractors)) await RemoveSelectedAsync(LstDistractors);
+        else if (IsFocusWithin(LstTargets)) await DeleteTargetAsync();
+        else if (IsFocusWithin(LstSets)) await DeleteSetAsync();
+    }
+
+    private async Task RenameFocusedAsync()
+    {
+        if (IsFocusWithin(LstSets)) await RenameSetAsync();
+        else await RenameTargetAsync();
+    }
+
+    // ---------- view model -> view ----------
+
+    private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(TaskSetManagerViewModel.Set):
+                SyncSetSelection();
+                SyncExtractorSet();
+                _rendering = true;
+                TxtDescription.Text = _vm.Set?.Description ?? "";
+                _rendering = false;
+                RenderGlobalAug();
+                RenderSynthesis();
+                RenderResult();
+                break;
+            case nameof(TaskSetManagerViewModel.Target):
+                SyncTargetSelection();
+                RenderTargetHeader();
+                RenderOverride();
+                ScheduleAugPreview();
+                break;
+            case nameof(TaskSetManagerViewModel.Issues):
+                RenderIssuesState();
+                break;
+            case nameof(TaskSetManagerViewModel.Preview):
+                RenderPreview();
+                break;
+            case nameof(TaskSetManagerViewModel.Result):
+                RenderResult();
+                break;
+            case nameof(TaskSetManagerViewModel.Progress):
+                BarProgress.Value = _vm.Progress;
+                break;
+            case nameof(TaskSetManagerViewModel.StatusText):
+                RenderStatus();
+                break;
         }
     }
 
-    private Task<bool> RunAsync(Action work, bool busy = false) => RunAsync(() =>
+    private void SyncSetSelection()
     {
-        work();
-        return true;
-    }, busy);
-
-    private void ScheduleSave()
-    {
-        if (_set == null) return;
-        _saveTimer.Stop();
-        _saveTimer.Start();
+        _syncingSelection = true;
+        LstSets.SelectedItem = _vm.Sets.FirstOrDefault(r => ReferenceEquals(r.Set, _vm.Set));
+        _syncingSelection = false;
     }
 
-    private async Task FlushSaveAsync()
+    private void SyncTargetSelection()
     {
-        if (!_saveTimer.IsEnabled) return;
-        _saveTimer.Stop();
-        if (_set is not { } set) return;
-        await RunAsync(() => _store.Save(set));
-        RenderSetRows();
+        _syncingSelection = true;
+        LstTargets.SelectedItem = _vm.Targets.FirstOrDefault(r => ReferenceEquals(r.Target, _vm.Target));
+        _syncingSelection = false;
     }
 
-    private void SetBusy(bool busy)
+    private void RenderAll()
     {
-        _busy = busy;
-        if (busy) SetStatus(ChipInfo, () => T(I18nKeys.YoloTaskSetStatusBusy));
-        else if (_statusStyle == ChipInfo && _generateCts == null) SetStatus(ChipIdle, () => T(I18nKeys.YoloTaskSetStatusIdle));
+        RenderTargetHeader();
+        RenderGlobalAug();
+        RenderOverride();
+        RenderSynthesis();
+        RenderIssuesState();
+        RenderPreview();
+        RenderResult();
+        RenderStatus();
         UpdateEnabled();
+    }
+
+    private void RenderStatus()
+    {
+        ChipStatus.SetResourceReference(StyleProperty, _vm.StatusStyle);
+        TxtStatusChip.Text = _vm.StatusText;
     }
 
     private void UpdateEnabled()
     {
-        bool hasSet = _set != null;
-        bool idle = !_busy && _generateCts == null;
+        bool hasSet = _vm.Set != null;
+        bool idle = _vm.IsIdle;
         MainArea.IsEnabled = idle;
         BtnValidate.IsEnabled = hasSet && idle;
         BtnPreview.IsEnabled = hasSet && idle;
-        BtnNextSample.IsEnabled = hasSet && idle && _preview != null;
+        BtnNextSample.IsEnabled = hasSet && idle && _vm.Preview != null;
         BtnGenerate.IsEnabled = hasSet && idle;
         BtnTrain.IsEnabled = hasSet && idle;
-        BtnCancel.IsEnabled = _generateCts != null;
-        BtnOpenDataset.IsEnabled = _result != null && Directory.Exists(_result.DatasetDir);
+        BtnCancel.IsEnabled = _vm.CanCancel;
+        _extract?.SetAddBlocked(_vm.IsGenerating);
+        BtnOpenDataset.IsEnabled = _vm.Result != null && Directory.Exists(_vm.Result.DatasetDir);
+        BtnUndo.IsEnabled = idle && _vm.CanUndo;
         BtnSetRename.IsEnabled = hasSet;
         BtnSetDuplicate.IsEnabled = hasSet;
         BtnSetDelete.IsEnabled = hasSet;
         TxtDescription.IsEnabled = hasSet;
         CardTargets.IsEnabled = hasSet;
         CardRight.IsEnabled = hasSet;
-        CardTarget.IsEnabled = _target != null;
-        int idx = _target == null || _set == null ? -1 : _set.Targets.IndexOf(_target);
+        CardTarget.IsEnabled = _vm.Target != null;
+        int idx = _vm.TargetIndex;
         BtnTargetRename.IsEnabled = idx >= 0;
         BtnTargetDelete.IsEnabled = idx >= 0;
         BtnTargetUp.IsEnabled = idx > 0;
-        BtnTargetDown.IsEnabled = idx >= 0 && idx < _set!.Targets.Count - 1;
+        BtnTargetDown.IsEnabled = idx >= 0 && idx < _vm.Targets.Count - 1;
+        BtnTargetImportTree.IsEnabled = hasSet;
+        BtnTargetImportSet.IsEnabled = hasSet && _vm.Sets.Count > 1;
+        BtnDatasetOpen.IsEnabled = LstDatasets.SelectedItem != null;
+        BtnDatasetDelete.IsEnabled = LstDatasets.SelectedItem != null;
+        BtnDatasetTrain.IsEnabled = LstDatasets.SelectedItem is TaskSetDatasetRow { DataYamlPath: not null };
+        BtnRunOpen.IsEnabled = LstRuns.SelectedItem != null;
+        BtnRunDelete.IsEnabled = LstRuns.SelectedItem != null;
+        BtnRunTest.IsEnabled = LstRuns.SelectedItem != null;
+        BtnHoldoutRemove.IsEnabled = LstHoldouts.SelectedItem != null;
+        CommandManager.InvalidateRequerySuggested();
     }
 
-    private void SetStatus(string style, Func<string> text)
-    {
-        _statusStyle = style;
-        _statusText = text;
-        RenderStatus();
-    }
-
-    private void RenderStatus()
-    {
-        ChipStatus.SetResourceReference(StyleProperty, _statusStyle);
-        TxtStatusChip.Text = _statusText();
-    }
-
-    private void ShowError(Exception ex)
-    {
-        SetStatus(ChipDanger, () => T(I18nKeys.YoloTaskSetStatusFailed));
-        MessageBox.Show(this, T(I18nKeys.YoloTaskSetErrorIo).Replace("{message}", ex.Message), Title, MessageBoxButton.OK, MessageBoxImage.Error);
-    }
+    // ---------- dialogs ----------
 
     private void Warn(string text) => MessageBox.Show(this, text, Title, MessageBoxButton.OK, MessageBoxImage.Warning);
 
@@ -437,752 +585,164 @@ public partial class TaskSetWindow : Window
 
     // ---------- task sets ----------
 
-    private async Task ReloadSetsAsync(string? selectId)
+    private async Task SelectSetAsync(TaskSet set)
     {
-        await FlushSaveAsync();
-        var list = await RunAsync(() => _store.List()) ?? Array.Empty<TaskSet>();
-        _loading = true;
-        _sets.Clear();
-        foreach (var s in list.OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase)) _sets.Add(new TaskSetRow(s));
-        RenderSetRows();
-        var row = _sets.FirstOrDefault(r => r.Set.Id == selectId) ?? _sets.FirstOrDefault();
-        LstSets.SelectedItem = row;
-        _loading = false;
-        await SelectSetAsync(row?.Set);
-    }
-
-    private void RenderSetRows()
-    {
-        foreach (var row in _sets)
+        if (ReferenceEquals(set, _vm.Set)) return;
+        if (!ReleaseExtractorFor(set.Id))
         {
-            row.Name = row.Set.Name;
-            row.Detail = T(I18nKeys.YoloTaskSetSetRowDetail)
-                .Replace("{targets}", row.Set.Targets.Count.ToString(CultureInfo.InvariantCulture))
-                .Replace("{common}", row.Set.CommonResources.Count.ToString(CultureInfo.InvariantCulture));
+            SyncSetSelection();
+            return;
         }
+        await _vm.SelectSetAsync(set);
     }
 
-    private async Task SelectSetAsync(TaskSet? set)
+    /// <summary>Before switching to another task set: close the extractor through its pending-crop guard; false = the user kept it.</summary>
+    private bool ReleaseExtractorFor(string? setId) => _extract == null || _extractSet?.Id == setId || _extract.RequestClose();
+
+    /// <summary>A reloaded instance of the same set keeps the extractor and its pending crops; another set closes it.</summary>
+    private void SyncExtractorSet()
     {
-        await FlushSaveAsync();
-        _set = set;
-        _issues = null;
-        _preview = null;
-        _previewImage = null;
-        _result = null;
-        _previewSeed = set?.Synthesis.Seed ?? 0;
-        _extract?.Close();
-        if (set != null) ConfigBinding.SaveString(ConfigKeys.YoloTaskSetLastTaskSet, set.Id);
-        _rendering = true;
-        TxtDescription.Text = set?.Description ?? "";
-        _rendering = false;
-        RenderTargetRows();
-        RenderCommon();
-        RenderGlobalAug();
-        RenderSynthesis();
-        RenderIssues();
-        RenderPreview();
-        RenderResult();
-        SetStatus(ChipIdle, () => T(I18nKeys.YoloTaskSetStatusIdle));
-        UpdateEnabled();
+        if (_extract == null || ReferenceEquals(_extractSet, _vm.Set)) return;
+        if (_vm.Set is { } set && set.Id == _extractSet?.Id)
+        {
+            _extract.Rebind(set);
+            _extractSet = set;
+        }
+        else
+        {
+            _extract.Close();
+        }
     }
 
     private async Task CreateSetAsync()
     {
-        if (AskName(I18nKeys.YoloTaskSetSetNew, I18nKeys.YoloTaskSetSetNamePrompt, T(I18nKeys.YoloTaskSetSetDefaultName)) is not { } name) return;
-        var created = await RunAsync(() => _store.Create(name));
-        if (created != null) await ReloadSetsAsync(created.Id);
+        if (AskName(I18nKeys.YoloTaskSetSetNew, I18nKeys.YoloTaskSetSetNamePrompt, T(I18nKeys.YoloTaskSetSetDefaultName)) is not { } name || !ReleaseExtractorFor(null)) return;
+        await _vm.CreateSetAsync(name);
     }
 
     private async Task RenameSetAsync()
     {
-        if (_set is not { } set) return;
-        if (AskName(I18nKeys.YoloTaskSetSetRename, I18nKeys.YoloTaskSetSetNamePrompt, set.Name) is not { } name || name == set.Name) return;
-        set.Name = name;
-        _saveTimer.Stop();
-        await RunAsync(() => _store.Save(set));
-        RenderSetRows();
+        if (_vm.Set is not { } set) return;
+        if (AskName(I18nKeys.YoloTaskSetSetRename, I18nKeys.YoloTaskSetSetNamePrompt, set.Name) is not { } name) return;
+        await _vm.RenameSetAsync(name);
     }
 
     private async Task DuplicateSetAsync()
     {
-        if (_set is not { } set) return;
+        if (_vm.Set is not { } set) return;
         var initial = T(I18nKeys.YoloTaskSetSetDuplicateName).Replace("{name}", set.Name);
-        if (AskName(I18nKeys.YoloTaskSetSetDuplicate, I18nKeys.YoloTaskSetSetNamePrompt, initial) is not { } name) return;
-        await FlushSaveAsync();
-        var copy = await RunAsync(() => _store.Duplicate(set.Id, name), busy: true);
-        if (copy != null) await ReloadSetsAsync(copy.Id);
+        if (AskName(I18nKeys.YoloTaskSetSetDuplicate, I18nKeys.YoloTaskSetSetNamePrompt, initial) is not { } name || !ReleaseExtractorFor(null)) return;
+        await _vm.DuplicateSetAsync(name);
     }
 
     private async Task DeleteSetAsync()
     {
-        if (_set is not { } set) return;
-        if (!Confirm(T(I18nKeys.YoloTaskSetSetDeleteConfirm).Replace("{name}", set.Name))) return;
-        _saveTimer.Stop();
-        if (await RunAsync(() => _store.Delete(set.Id), busy: true)) await ReloadSetsAsync(null);
+        if (_vm.Set is not { } set) return;
+        if (!Confirm(T(I18nKeys.YoloTaskSetSetDeleteConfirm).Replace("{name}", set.Name)) || !ReleaseExtractorFor(null)) return;
+        await _vm.DeleteSetAsync();
     }
 
     // ---------- targets ----------
 
-    private void RenderTargetRows(string? selectId = null)
-    {
-        selectId ??= _target?.Id;
-        _loading = true;
-        _targets.Clear();
-        if (_set != null)
-            foreach (var t in _set.Targets) _targets.Add(new TaskTargetRow(t));
-        for (int i = 0; i < _targets.Count; i++)
-        {
-            var t = _targets[i].Target;
-            _targets[i].Title = T(I18nKeys.YoloTaskSetTargetRow)
-                .Replace("{number}", (i + 1).ToString(CultureInfo.InvariantCulture))
-                .Replace("{name}", t.Name);
-            _targets[i].Detail = T(I18nKeys.YoloTaskSetTargetRowDetail)
-                .Replace("{index}", i.ToString(CultureInfo.InvariantCulture))
-                .Replace("{variants}", t.Variants.Count.ToString(CultureInfo.InvariantCulture))
-                .Replace("{scenes}", t.Scenes.Count.ToString(CultureInfo.InvariantCulture));
-        }
-        var row = _targets.FirstOrDefault(r => r.Target.Id == selectId) ?? _targets.FirstOrDefault();
-        LstTargets.SelectedItem = row;
-        _loading = false;
-        if (!ReferenceEquals(_target, row?.Target) || row == null)
-        {
-            _target = row?.Target;
-            RenderTarget();
-        }
-        else
-        {
-            RenderTargetHeader();
-        }
-    }
-
-    private void RenderTarget()
-    {
-        RenderTargetHeader();
-        RenderResources(Pool.Variants);
-        RenderResources(Pool.Scenes);
-        RenderOverride();
-        UpdateEnabled();
-    }
-
     private void RenderTargetHeader()
     {
-        int idx = _target == null || _set == null ? -1 : _set.Targets.IndexOf(_target);
-        LblTargetName.Text = idx >= 0 ? _targets[idx].Title
-            : T(_set == null ? I18nKeys.YoloTaskSetNoSetSelected : I18nKeys.YoloTaskSetNoTargetSelected);
+        LblTargetName.Text = _vm.TargetTitle(_vm.Target);
+        RenderIpt();
     }
 
     private async Task AddTargetAsync()
     {
-        if (_set is not { } set) return;
-        var initial = T(I18nKeys.YoloTaskSetTargetDefaultName).Replace("{number}", (set.Targets.Count + 1).ToString(CultureInfo.InvariantCulture));
+        if (_vm.Set is not { } set) return;
+        var initial = T(I18nKeys.YoloTaskSetTargetDefaultName).Replace("{number}", N(set.Targets.Count + 1));
         if (AskName(I18nKeys.YoloTaskSetTargetAdd, I18nKeys.YoloTaskSetTargetNamePrompt, initial) is not { } name) return;
-        var added = await RunAsync(() => _store.AddTarget(set, name));
-        AfterStructureChange(added?.Id);
+        await _vm.AddTargetAsync(name);
     }
 
     private async Task RenameTargetAsync()
     {
-        if (_set is not { } set || _target is not { } target) return;
-        if (AskName(I18nKeys.YoloTaskSetTargetRename, I18nKeys.YoloTaskSetTargetNamePrompt, target.Name) is not { } name || name == target.Name) return;
-        target.Name = name;
-        _saveTimer.Stop();
-        await RunAsync(() => _store.Save(set));
-        AfterStructureChange(target.Id);
+        if (_vm.Target is not { } target) return;
+        if (AskName(I18nKeys.YoloTaskSetTargetRename, I18nKeys.YoloTaskSetTargetNamePrompt, target.Name) is not { } name) return;
+        await _vm.RenameTargetAsync(name);
+        RenderTargetHeader();
     }
 
     private async Task DeleteTargetAsync()
     {
-        if (_set is not { } set || _target is not { } target) return;
+        if (_vm.Target is not { } target) return;
         if (!Confirm(T(I18nKeys.YoloTaskSetTargetDeleteConfirm).Replace("{name}", target.Name))) return;
-        int idx = set.Targets.IndexOf(target);
-        await RunAsync(() => _store.RemoveTarget(set, target.Id));
-        var next = set.Targets.Count == 0 ? null : set.Targets[Math.Clamp(idx, 0, set.Targets.Count - 1)].Id;
-        _target = null;
-        AfterStructureChange(next);
-    }
-
-    private async Task MoveTargetAsync(int delta)
-    {
-        if (_set is not { } set || _target is not { } target) return;
-        await RunAsync(() => _store.MoveTarget(set, target.Id, delta));
-        AfterStructureChange(target.Id);
-    }
-
-    private void AfterStructureChange(string? selectTargetId)
-    {
-        _extract?.RefreshTargets();
-        _issues = null;
-        RenderTargetRows(selectTargetId);
-        RenderSetRows();
-        RenderIssues();
-        UpdateEnabled();
+        await _vm.DeleteTargetAsync();
     }
 
     private void SetIptInherit(bool inherit)
     {
-        if (_rendering || _target == null || _set == null) return;
-        _target.ImagesPerTarget = inherit ? null : _set.Synthesis.ImagesPerTarget;
-        ScheduleSave();
+        if (_rendering || _vm.Target == null || _vm.Set == null) return;
+        _vm.SetImagesPerTarget(inherit ? null : _vm.Set.Synthesis.ImagesPerTarget);
         RenderIpt();
     }
 
     private void CommitIpt()
     {
-        if (_target?.ImagesPerTarget == null) return;
-        if (int.TryParse(TxtIpt.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
-        {
-            _target.ImagesPerTarget = Math.Clamp(v, 1, MaxImagesPerTarget);
-            ScheduleSave();
-        }
+        if (_vm.Target?.ImagesPerTarget == null) return;
+        if (TaskSetFields.Parse(TaskSetFieldKind.Int, TxtIpt.Text) is int v) _vm.SetImagesPerTarget(v);
         RenderIpt();
     }
 
     private void RenderIpt()
     {
         _rendering = true;
-        bool inherit = _target?.ImagesPerTarget == null;
+        bool inherit = _vm.Target?.ImagesPerTarget == null;
         ChkIptInherit.IsChecked = inherit;
         TxtIpt.IsEnabled = !inherit;
-        int global = _set?.Synthesis.ImagesPerTarget ?? 0;
-        TxtIpt.Text = (_target?.ImagesPerTarget ?? global).ToString(CultureInfo.InvariantCulture);
-        TxtIptGlobal.Text = T(I18nKeys.YoloTaskSetGlobalValue).Replace("{value}", global.ToString(CultureInfo.InvariantCulture));
+        int global = _vm.Set?.Synthesis.ImagesPerTarget ?? 0;
+        TxtIpt.Text = N(_vm.Target?.ImagesPerTarget ?? global);
+        TxtIptGlobal.Text = T(I18nKeys.YoloTaskSetGlobalValue).Replace("{value}", N(global));
         _rendering = false;
     }
-
-    // ---------- resources ----------
-
-    private ObservableCollection<TaskResourceRow> RowsOf(Pool pool) => pool switch
-    {
-        Pool.Variants => _variants,
-        Pool.Scenes => _scenes,
-        _ => _common,
-    };
-
-    private void RenderCommon() => RenderResources(Pool.Common);
-
-    private void RenderResources(Pool pool)
-    {
-        var rows = RowsOf(pool);
-        rows.Clear();
-        if (_set is not { } set) return;
-        IEnumerable<TaskResource> resources = pool switch
-        {
-            Pool.Variants => _target?.Variants ?? Enumerable.Empty<TaskResource>(),
-            Pool.Scenes => _target?.Scenes ?? Enumerable.Empty<TaskResource>(),
-            _ => set.CommonResources,
-        };
-        Action? labelChanged = pool == Pool.Variants ? ScheduleSave : null;
-        foreach (var r in resources)
-        {
-            var row = new TaskResourceRow(r, _store.ResourcePath(set, r), r.Kind == TaskResourceKind.Video ? GlyphVideo : GlyphImage, labelChanged);
-            rows.Add(row);
-            if (!row.IsVideo) _ = LoadThumbnailAsync(row);
-        }
-        if (pool == Pool.Common) RefreshVideoEstimates();
-    }
-
-    private static async Task LoadThumbnailAsync(TaskResourceRow row)
-    {
-        var path = row.Path;
-        row.Thumbnail = await Task.Run(() => DecodeImage(path, ThumbDecodeWidth));
-    }
-
-    /// <summary>Decode fully into memory (OnLoad from a byte stream) so the source file is never locked.</summary>
-    private static BitmapSource? DecodeImage(string path, int decodeWidth)
-    {
-        try
-        {
-            return DecodeBytes(File.ReadAllBytes(path), decodeWidth);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or InvalidOperationException or FormatException)
-        {
-            return null;
-        }
-    }
-
-    internal static BitmapSource DecodeBytes(byte[] bytes, int decodeWidth)
-    {
-        using var ms = new MemoryStream(bytes);
-        var bmp = new BitmapImage();
-        bmp.BeginInit();
-        bmp.CacheOption = BitmapCacheOption.OnLoad;
-        if (decodeWidth > 0) bmp.DecodePixelWidth = decodeWidth;
-        bmp.StreamSource = ms;
-        bmp.EndInit();
-        bmp.Freeze();
-        return bmp;
-    }
-
-    private void RefreshVideoEstimates()
-    {
-        if (_set is not { } set) return;
-        int version = ++_commonVersion;
-        int interval = set.Synthesis.VideoFrameInterval;
-        int max = set.Synthesis.VideoMaxFrames;
-        foreach (var row in _common)
-        {
-            if (row.IsVideo)
-            {
-                row.Frames = null;
-                row.FramesFailed = false;
-                _ = EstimateFramesAsync(row, interval, max, version);
-            }
-            DescribeCommon(row);
-        }
-    }
-
-    private async Task EstimateFramesAsync(TaskResourceRow row, int interval, int max, int version)
-    {
-        var path = row.Path;
-        int? frames;
-        try
-        {
-            frames = await Task.Run(() => VideoFrameExtractor.EstimateFrames(path, interval, max));
-        }
-        catch (Exception ex) when (IsHandled(ex))
-        {
-            frames = null;
-        }
-        if (version != _commonVersion) return;
-        row.Frames = frames;
-        row.FramesFailed = frames is null or <= 0;
-        DescribeCommon(row);
-    }
-
-    private static void DescribeCommon(TaskResourceRow row)
-    {
-        if (!row.IsVideo)
-        {
-            row.Info = T(I18nKeys.YoloTaskSetKindImage);
-            return;
-        }
-        row.Info = row.FramesFailed ? T(I18nKeys.YoloTaskSetVideoFramesFailed)
-            : row.Frames is { } n ? T(I18nKeys.YoloTaskSetVideoFrames).Replace("{count}", n.ToString(CultureInfo.InvariantCulture))
-            : T(I18nKeys.YoloTaskSetVideoFramesPending);
-    }
-
-    private static bool Accepts(Pool pool, string path) =>
-        TaskSetStore.IsSupportedImage(path) || (pool == Pool.Common && TaskSetStore.IsSupportedVideo(path));
-
-    private async Task AddFilesAsync(Pool pool)
-    {
-        var filter = pool == Pool.Common
-            ? $"{T(I18nKeys.YoloTaskSetMediaFilter)}|{ImagePatterns};{VideoPatterns}|{T(I18nKeys.YoloTaskSetImageFilter)}|{ImagePatterns}|{AllFilesPattern}|{AllFilesPattern}"
-            : $"{T(I18nKeys.YoloTaskSetImageFilter)}|{ImagePatterns}|{AllFilesPattern}|{AllFilesPattern}";
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = filter, Multiselect = true };
-        if (dlg.ShowDialog(this) != true || dlg.FileNames.Length == 0) return;
-        var files = dlg.FileNames;
-        await AddPathsAsync(pool, () => files);
-    }
-
-    private async Task AddFolderAsync(Pool pool)
-    {
-        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = T(I18nKeys.YoloTaskSetFolderTitle) };
-        if (dlg.ShowDialog(this) != true) return;
-        var folder = dlg.FolderName;
-        await AddPathsAsync(pool, () => Directory.EnumerateFiles(folder).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList());
-    }
-
-    /// <summary>Import files into the pool in the background; unsupported files are counted and reported.</summary>
-    private async Task AddPathsAsync(Pool pool, Func<IReadOnlyList<string>> listFiles)
-    {
-        if (_set is not { } set) return;
-        var target = _target;
-        if (pool != Pool.Common && target == null) return;
-        int skipped = 0;
-        await RunAsync(() =>
-        {
-            foreach (var path in listFiles())
-            {
-                if (!Accepts(pool, path))
-                {
-                    skipped++;
-                    continue;
-                }
-                _ = pool switch
-                {
-                    Pool.Variants => _store.AddVariant(set, target!, path),
-                    Pool.Scenes => _store.AddScene(set, target!, path),
-                    _ => _store.AddCommon(set, path),
-                };
-            }
-        }, busy: true);
-        AfterResourcesChanged(pool);
-        if (skipped > 0) Warn(T(I18nKeys.YoloTaskSetAddSkipped).Replace("{count}", skipped.ToString(CultureInfo.InvariantCulture)));
-    }
-
-    private async Task RemoveSelectedAsync(ListBox list)
-    {
-        if (_set is not { } set) return;
-        var selected = list.SelectedItems.OfType<TaskResourceRow>().Select(r => r.Resource).ToList();
-        if (selected.Count == 0) return;
-        if (!Confirm(T(I18nKeys.YoloTaskSetRemoveConfirm).Replace("{count}", selected.Count.ToString(CultureInfo.InvariantCulture)))) return;
-        await RunAsync(() =>
-        {
-            foreach (var r in selected) _store.RemoveResource(set, r);
-        }, busy: true);
-        AfterResourcesChanged(ReferenceEquals(list, LstVariants) ? Pool.Variants : ReferenceEquals(list, LstScenes) ? Pool.Scenes : Pool.Common);
-    }
-
-    private void AfterResourcesChanged(Pool pool)
-    {
-        _extract?.RefreshTargets();
-        _issues = null;
-        RenderResources(pool);
-        RenderTargetRows();
-        RenderSetRows();
-        RenderIssues();
-    }
-
-    private void OpenExtract(string? sourcePath)
-    {
-        if (_set is not { } set) return;
-        if (set.Targets.Count == 0)
-        {
-            Warn(T(I18nKeys.YoloTaskSetExtractNoTarget));
-            return;
-        }
-        if (_extract == null)
-        {
-            var win = new VariantExtractWindow(set, _store, AddExtractedAsync) { Owner = this };
-            win.Closed += (_, _) =>
-            {
-                if (ReferenceEquals(_extract, win)) _extract = null;
-            };
-            _extract = win;
-            win.Show();
-        }
-        _extract.Open(_target ?? set.Targets[0], sourcePath);
-    }
-
-    private async Task<int> AddExtractedAsync(TaskTarget target, IReadOnlyList<ExtractedVariant> variants)
-    {
-        if (_set is not { } set || !set.Targets.Contains(target)) return 0;
-        await FlushSaveAsync();
-        int added = 0;
-        await RunAsync(() =>
-        {
-            foreach (var v in variants)
-            {
-                _store.AddVariantFromPng(set, target, v.Png, v.OriginalPath, v.NameHint);
-                added++;
-            }
-        }, busy: true);
-        _issues = null;
-        if (ReferenceEquals(target, _target)) RenderResources(Pool.Variants);
-        RenderTargetRows();
-        RenderSetRows();
-        RenderIssues();
-        return added;
-    }
-
-    // ---------- augmentation and synthesis editors ----------
-
-    private TextBlock AddLabel(Grid grid, int row, string key)
-    {
-        var label = new TextBlock { Style = (Style)FindResource("Label") };
-        Grid.SetRow(label, row);
-        grid.Children.Add(label);
-        _fieldLabels.Add((label, key));
-        return label;
-    }
-
-    private TextBox NewNumberBox() => new() { Style = (Style)FindResource("NumberBox") };
-
-    private CheckBox NewCheck() => new() { Style = (Style)FindResource("Check") };
-
-    private static void Place(Grid grid, UIElement element, int row, int column)
-    {
-        Grid.SetRow(element, row);
-        Grid.SetColumn(element, column);
-        grid.Children.Add(element);
-    }
-
-    private static void OnCommit(TextBox box, Action commit)
-    {
-        box.LostFocus += (_, _) => commit();
-        box.KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter) commit();
-        };
-    }
-
-    private void BuildGlobalAugEditor()
-    {
-        for (int i = 0; i < AugFields.Count; i++)
-        {
-            var field = AugFields[i];
-            GridGlobalAug.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            AddLabel(GridGlobalAug, i, field.LabelKey);
-            Control editor;
-            if (field.Kind == FieldKind.Bool)
-            {
-                var check = NewCheck();
-                check.Checked += (_, _) => CommitGlobalAug(field, true);
-                check.Unchecked += (_, _) => CommitGlobalAug(field, false);
-                editor = check;
-            }
-            else
-            {
-                var box = NewNumberBox();
-                OnCommit(box, () => CommitGlobalAug(field, ParseValue(field.Kind, box.Text)));
-                editor = box;
-            }
-            Place(GridGlobalAug, editor, i, 1);
-            _globalAugEditors.Add(editor);
-        }
-    }
-
-    private void CommitGlobalAug(AugField field, object? value)
-    {
-        if (_rendering || _set is not { } set) return;
-        if (value != null)
-        {
-            var p = set.Augmentation.Clone();
-            field.Set(p, value);
-            set.Augmentation = p.Normalized();
-            ScheduleSave();
-        }
-        RenderGlobalAug();
-        RenderOverride();
-    }
-
-    private void RenderGlobalAug()
-    {
-        _rendering = true;
-        var p = _set?.Augmentation ?? new AugmentationProfile();
-        for (int i = 0; i < AugFields.Count; i++)
-            SetEditorValue(_globalAugEditors[i], AugFields[i].Get(p));
-        _rendering = false;
-    }
-
-    private void BuildOverrideEditor()
-    {
-        for (int i = 0; i < AugFields.Count; i++)
-        {
-            var field = AugFields[i];
-            GridOverride.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            AddLabel(GridOverride, i, field.LabelKey);
-            var inherit = NewCheck();
-            Control editor = field.Kind == FieldKind.Bool ? NewCheck() : NewNumberBox();
-            var global = new TextBlock { Style = (Style)FindResource("Hint") };
-            var row = new OverrideRow(field, inherit, editor, global);
-            inherit.Checked += (_, _) => SetOverrideInherit(row, true);
-            inherit.Unchecked += (_, _) => SetOverrideInherit(row, false);
-            if (editor is CheckBox check)
-            {
-                check.Checked += (_, _) => CommitOverride(row, true);
-                check.Unchecked += (_, _) => CommitOverride(row, false);
-            }
-            else if (editor is TextBox box)
-            {
-                OnCommit(box, () => CommitOverride(row, ParseValue(field.Kind, box.Text)));
-            }
-            Place(GridOverride, inherit, i, 1);
-            Place(GridOverride, editor, i, 2);
-            Place(GridOverride, global, i, 3);
-            _overrideRows.Add(row);
-        }
-    }
-
-    private void SetOverrideInherit(OverrideRow row, bool inherit)
-    {
-        if (_rendering || _set is not { } set || _target is not { } target) return;
-        var o = target.Augmentation ?? new AugmentationOverride();
-        row.Field.SetOverride(o, inherit ? null : row.Field.Get(set.Augmentation));
-        target.Augmentation = o.IsEmpty ? null : o;
-        ScheduleSave();
-        RenderOverride();
-    }
-
-    private void CommitOverride(OverrideRow row, object? value)
-    {
-        if (_rendering || _set is not { } set || _target is not { } target) return;
-        if (value != null)
-        {
-            var probe = set.Augmentation.Clone();
-            row.Field.Set(probe, value);
-            var o = target.Augmentation ?? new AugmentationOverride();
-            row.Field.SetOverride(o, row.Field.Get(probe.Normalized()));
-            target.Augmentation = o.IsEmpty ? null : o;
-            ScheduleSave();
-        }
-        RenderOverride();
-    }
-
-    private void RenderOverride()
-    {
-        _rendering = true;
-        var global = _set?.Augmentation ?? new AugmentationProfile();
-        var o = _target?.Augmentation;
-        foreach (var row in _overrideRows)
-        {
-            var own = o == null ? null : row.Field.GetOverride(o);
-            var globalValue = row.Field.Get(global);
-            row.Inherit.Content = T(I18nKeys.YoloTaskSetInheritGlobal);
-            row.Inherit.IsChecked = own == null;
-            row.Editor.IsEnabled = own != null;
-            SetEditorValue(row.Editor, own ?? globalValue);
-            row.Global.Text = T(I18nKeys.YoloTaskSetGlobalValue).Replace("{value}", FormatValue(globalValue));
-        }
-        _rendering = false;
-        RenderIpt();
-    }
-
-    private void BuildSynthesisEditor()
-    {
-        for (int i = 0; i < SynFields.Count; i++)
-        {
-            var field = SynFields[i];
-            GridSynthesis.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            AddLabel(GridSynthesis, i, field.LabelKey);
-            Control editor;
-            if (field.Kind == FieldKind.ScaleMode)
-            {
-                var combo = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 12, 8) };
-                combo.SelectionChanged += (_, _) =>
-                {
-                    int idx = combo.SelectedIndex;
-                    if (idx >= 0 && idx < SynthesisSettings.ScaleModes.Count) CommitSynthesis(field, SynthesisSettings.ScaleModes[idx]);
-                };
-                editor = combo;
-            }
-            else
-            {
-                var box = NewNumberBox();
-                OnCommit(box, () => CommitSynthesis(field, ParseValue(field.Kind, box.Text)));
-                editor = box;
-            }
-            Place(GridSynthesis, editor, i, 1);
-            _synEditors.Add(editor);
-        }
-    }
-
-    private void CommitSynthesis(SynField field, object? value)
-    {
-        if (_rendering || _set is not { } set) return;
-        if (value != null && !Equals(field.Get(set.Synthesis), value))
-        {
-            var s = set.Synthesis.Clone();
-            field.Set(s, value);
-            set.Synthesis = s.Normalized();
-            ScheduleSave();
-            if (field.LabelKey is I18nKeys.YoloTaskSetSynVideoFrameInterval or I18nKeys.YoloTaskSetSynVideoMaxFrames) RefreshVideoEstimates();
-        }
-        RenderSynthesis();
-        RenderIpt();
-    }
-
-    private void RenderSynthesis()
-    {
-        _rendering = true;
-        var s = _set?.Synthesis ?? new SynthesisSettings();
-        for (int i = 0; i < SynFields.Count; i++)
-        {
-            var value = SynFields[i].Get(s);
-            if (_synEditors[i] is ComboBox combo)
-            {
-                if (combo.ItemsSource == null) combo.ItemsSource = ScaleModeTexts();
-                combo.SelectedIndex = Math.Max(0, SynthesisSettings.ScaleModes.ToList().IndexOf((string)value));
-            }
-            else
-            {
-                SetEditorValue(_synEditors[i], value);
-            }
-        }
-        _rendering = false;
-    }
-
-    private static void SetEditorValue(Control editor, object value)
-    {
-        switch (editor)
-        {
-            case CheckBox check:
-                check.IsChecked = value is true;
-                break;
-            case TextBox box:
-                box.Text = FormatValue(value);
-                break;
-        }
-    }
-
-    private static object? ParseValue(FieldKind kind, string? text)
-    {
-        var s = (text ?? "").Trim();
-        return kind switch
-        {
-            FieldKind.Double => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && double.IsFinite(d) ? d : null,
-            FieldKind.Int => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : null,
-            _ => null,
-        };
-    }
-
-    private static string FormatValue(object value) => value switch
-    {
-        double d => d.ToString("0.####", CultureInfo.InvariantCulture),
-        int i => i.ToString(CultureInfo.InvariantCulture),
-        bool b => T(b ? I18nKeys.YoloTaskSetValueOn : I18nKeys.YoloTaskSetValueOff),
-        _ => value.ToString() ?? "",
-    };
 
     // ---------- validate, preview, generate, train ----------
 
-    private async Task<IReadOnlyList<TaskSetIssue>?> ValidateAsync()
+    private async Task OnIssueActionAsync(RoutedEventArgs e)
     {
-        if (_set is not { } set) return null;
-        await FlushSaveAsync();
-        var dir = _store.GetDir(set.Id);
-        var issues = await RunAsync(() => TaskSetSynthesizer.Validate(set, dir), busy: true);
-        if (issues == null) return null;
-        _issues = issues;
-        RenderIssues();
-        SetStatus(issues.Any(i => i.IsError) ? ChipDanger : issues.Count > 0 ? ChipWarning : ChipSuccess, () => T(I18nKeys.YoloTaskSetStatusIdle));
-        return issues;
-    }
-
-    private void RenderIssues()
-    {
-        if (_issues == null)
+        if (e.OriginalSource is not Button { DataContext: TaskSetIssueRow { Hit: { } hit } row, Tag: string action }) return;
+        e.Handled = true;
+        switch (action)
         {
-            TxtValidationState.Text = T(I18nKeys.YoloTaskSetValidationNone);
-            LstIssues.ItemsSource = null;
-            return;
+            case IssueActionLabel:
+                _vm.ResolveHit(row, mask: false);
+                break;
+            case IssueActionMask:
+                _vm.ResolveHit(row, mask: true);
+                break;
+            case IssueActionShow:
+                var path = _vm.HitImagePath(hit);
+                var image = await Task.Run(() => BitmapDecode.TryFromFile(path));
+                if (image == null)
+                {
+                    Warn(T(I18nKeys.YoloTaskSetImageUnreadable).Replace("{name}", System.IO.Path.GetFileName(path)));
+                    return;
+                }
+                TaskSetRegionEditor.View(this, row.Text, T(I18nKeys.YoloTaskSetHitHint), image,
+                    new[] { new AnnotationBox(hit.TargetName, hit.X, hit.Y, hit.X + hit.Width, hit.Y + hit.Height) });
+                break;
         }
-        TxtValidationState.Text = _issues.Count == 0 ? T(I18nKeys.YoloTaskSetValidationOk) : "";
-        LstIssues.ItemsSource = _issues
-            .OrderByDescending(i => i.IsError)
-            .Select(i => new TaskSetIssueRow(i.IsError ? GlyphError : GlyphWarning, IssueText(i),
-                (Brush)FindResource(i.IsError ? "DangerTextBrush" : "WarningTextBrush")))
-            .ToList();
     }
 
-    private static string IssueText(TaskSetIssue issue) => T(I18nKeys.YoloTaskSetIssue(issue.Code)).Replace("{subject}", issue.Subject);
+    private void RenderIssuesState() =>
+        TxtValidationState.Text = _vm.Issues == null ? T(I18nKeys.YoloTaskSetValidationNone)
+            : _vm.Issues.Count == 0 ? T(I18nKeys.YoloTaskSetValidationOk) : "";
 
     private async Task PreviewAsync(bool reset)
     {
-        if (_set is not { } set) return;
-        await FlushSaveAsync();
-        _previewSeed = reset ? set.Synthesis.Seed : _previewSeed + 1;
-        int seed = _previewSeed;
-        var dir = _store.GetDir(set.Id);
-        var rendered = await RunAsync(() =>
-        {
-            var r = TaskSetSynthesizer.RenderPreview(set, dir, seed);
-            return (Result: r, Image: DecodeBytes(r.Png, 0));
-        }, busy: true);
-        TabsRight.SelectedItem = TabPreview;
-        if (rendered.Result == null) return;
-        _preview = rendered.Result;
-        _previewImage = rendered.Image;
-        RenderPreview();
-        UpdateEnabled();
+        if (!_vm.IsIdle) return;
+        bool ok = await _vm.PreviewAsync(reset);
+        TabsRight.SelectedItem = ok ? TabPreview : TabValidation;
+        if (!ok) Warn(T(I18nKeys.YoloTaskSetPreviewBlocked));
     }
 
     private void RenderPreview()
     {
         CanvasBoxes.Children.Clear();
-        if (_preview is not { } preview || _previewImage is not { } image)
+        if (_vm.Preview is not { } preview || _vm.PreviewImage is not { } image)
         {
             ImgPreview.Source = null;
             ImgPreview.Width = CanvasBoxes.Width = 0;
@@ -1214,85 +774,42 @@ public partial class TaskSetWindow : Window
     }
 
     private void RenderPreviewInfo() =>
-        TxtPreviewInfo.Text = _preview == null ? T(I18nKeys.YoloTaskSetPreviewNone)
+        TxtPreviewInfo.Text = _vm.Preview == null ? T(I18nKeys.YoloTaskSetPreviewNone)
             : T(I18nKeys.YoloTaskSetPreviewInfo)
-                .Replace("{seed}", _previewSeed.ToString(CultureInfo.InvariantCulture))
-                .Replace("{boxes}", _preview.Boxes.Count.ToString(CultureInfo.InvariantCulture));
+                .Replace("{seed}", N(_vm.PreviewSeed))
+                .Replace("{boxes}", N(_vm.Preview.Boxes.Count));
 
     private async Task GenerateAsync()
     {
-        if (_set is not { } set) return;
-        var issues = await ValidateAsync();
-        if (issues == null) return;
-        if (issues.Any(i => i.IsError))
+        if (!_vm.IsIdle || _vm.Set == null) return;
+        TabsRight.SelectedItem = TabGenerate;
+        if (!await _vm.GenerateAsync())
         {
             TabsRight.SelectedItem = TabValidation;
             Warn(T(I18nKeys.YoloTaskSetGenerateBlocked));
-            return;
         }
-        var dir = _store.GetDir(set.Id);
-        var outDir = System.IO.Path.Combine(dir, TaskSetStore.DatasetsSubdir, DateTime.Now.ToString(DatasetStampFormat, CultureInfo.InvariantCulture));
-        var cts = new CancellationTokenSource();
-        _generateCts = cts;
-        _result = null;
-        BarProgress.Value = 0;
-        RenderResult();
-        TabsRight.SelectedItem = TabGenerate;
-        var progress = new Progress<SynthesisProgress>(p =>
-        {
-            BarProgress.Value = p.Total <= 0 ? 0 : (double)p.Done / p.Total;
-            SetStatus(ChipInfo, () => T(I18nKeys.YoloTaskSetStatusGenerating)
-                .Replace("{done}", p.Done.ToString(CultureInfo.InvariantCulture))
-                .Replace("{total}", p.Total.ToString(CultureInfo.InvariantCulture)));
-        });
-        SetStatus(ChipInfo, () => T(I18nKeys.YoloTaskSetStatusBusy));
-        UpdateEnabled();
-        var task = Task.Run(() => TaskSetSynthesizer.Generate(set, dir, outDir, progress, cts.Token));
-        _generateTask = task;
-        try
-        {
-            _result = await task;
-            BarProgress.Value = 1;
-            SetStatus(ChipSuccess, () => T(I18nKeys.YoloTaskSetStatusDone));
-        }
-        catch (OperationCanceledException)
-        {
-            SetStatus(ChipWarning, () => T(I18nKeys.YoloTaskSetStatusCancelled));
-        }
-        catch (Exception ex) when (IsHandled(ex))
-        {
-            ShowError(ex);
-        }
-        finally
-        {
-            _generateTask = null;
-            _generateCts = null;
-            cts.Dispose();
-            UpdateEnabled();
-        }
-        RenderResult();
     }
 
     private void RenderResult()
     {
-        if (_result is not { } r)
+        if (_vm.Result is not { } r)
         {
             TxtResult.Text = T(I18nKeys.YoloTaskSetGenerateNone);
             return;
         }
         var sb = new StringBuilder();
         sb.AppendLine(T(I18nKeys.YoloTaskSetResultSummary)
-            .Replace("{train}", r.TrainImages.ToString(CultureInfo.InvariantCulture))
-            .Replace("{val}", r.ValImages.ToString(CultureInfo.InvariantCulture))
-            .Replace("{negative}", r.NegativeImages.ToString(CultureInfo.InvariantCulture)));
+            .Replace("{train}", N(r.TrainImages))
+            .Replace("{val}", N(r.ValImages))
+            .Replace("{negative}", N(r.NegativeImages)));
         foreach (var cls in r.Classes)
             sb.AppendLine(T(I18nKeys.YoloTaskSetResultInstances)
                 .Replace("{name}", cls)
-                .Replace("{count}", (r.Instances.TryGetValue(cls, out var n) ? n : 0).ToString(CultureInfo.InvariantCulture)));
+                .Replace("{count}", N(r.Instances.TryGetValue(cls, out var n) ? n : 0)));
         if (r.Warnings.Count > 0)
         {
             sb.AppendLine(T(I18nKeys.YoloTaskSetResultWarnings));
-            foreach (var w in r.Warnings) sb.AppendLine("  " + IssueText(w));
+            foreach (var w in r.Warnings) sb.AppendLine(LinePrefix + TaskSetIssueFormatter.Text(w));
         }
         sb.Append(T(I18nKeys.YoloTaskSetResultDir).Replace("{path}", r.DatasetDir));
         TxtResult.Text = sb.ToString();
@@ -1300,8 +817,8 @@ public partial class TaskSetWindow : Window
 
     private async Task TrainAsync()
     {
-        if (_set is not { } set) return;
-        var issues = await ValidateAsync();
+        if (_vm.Set is not { } set || !_vm.IsIdle) return;
+        var issues = await _vm.ValidateAsync();
         if (issues == null) return;
         if (issues.Any(i => i.IsError))
         {
@@ -1309,18 +826,7 @@ public partial class TaskSetWindow : Window
             Warn(T(I18nKeys.YoloTaskSetTrainBlocked));
             return;
         }
+        await _vm.FlushSaveAsync();
         YoloTrainingWindow.ShowForTaskSet(this, set.Id, autoStart: true);
     }
-
-    private sealed record AugField(
-        string LabelKey,
-        FieldKind Kind,
-        Func<AugmentationProfile, object> Get,
-        Action<AugmentationProfile, object> Set,
-        Func<AugmentationOverride, object?> GetOverride,
-        Action<AugmentationOverride, object?> SetOverride);
-
-    private sealed record SynField(string LabelKey, FieldKind Kind, Func<SynthesisSettings, object> Get, Action<SynthesisSettings, object> Set);
-
-    private sealed record OverrideRow(AugField Field, CheckBox Inherit, Control Editor, TextBlock Global);
 }

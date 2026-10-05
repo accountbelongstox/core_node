@@ -356,7 +356,9 @@
     "export_onnx": true,
     "detect_on_open": true,
     "mode": "general",
-    "task_set": ""
+    "task_set": "",
+    "augmentation": "",
+    "augmentation_from_task_set": true
   },
   "yolo_dataset": {
     "source": "selected",
@@ -368,9 +370,36 @@
     "stratify": true,
     "include_background": true,
     "background_max_percent": 10,
-    "skip_difficult": true
+    "skip_difficult": true,
+    "include_unreviewed_pseudo_labels": false
+  },
+  "yolo_model_test": {
+    "last_model": "",
+    "confidence": 0.35,
+    "iou": 0.45,
+    "mode": "auto",
+    "tile_size": 0,
+    "tile_overlap": -1,
+    "roi": "",
+    "track": true,
+    "live_fps": 10,
+    "live_source": "region",
+    "screen_region": "",
+    "export_dir": "",
+    "task_set": "",
+    "provider": "",
+    "analysis_step": 1,
+    "export_filter": "every_n",
+    "export_every": 10,
+    "export_low_confidence": 0.5,
+    "snapshot_hotkey": "ctrl+alt+s"
   },
   "yolo_taskset": {
     "last_task_set": ""
+  },
+  "yolo_detect": {
+    "execution_provider": "auto",
+    "intra_op_threads": 0,
+    "warm_up": true
   }
 }

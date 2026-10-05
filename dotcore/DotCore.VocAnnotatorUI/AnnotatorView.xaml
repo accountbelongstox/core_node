@@ -114,6 +114,14 @@
                     <Setter TargetName="Glyph" Property="Text" Value="&#xE73E;"/>
                     <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource SuccessTextBrush}"/>
                   </DataTrigger>
+                  <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                      <Condition Binding="{Binding IsLabeled}" Value="True"/>
+                      <Condition Binding="{Binding IsReviewed}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter TargetName="Glyph" Property="Text" Value="&#xE7BA;"/>
+                    <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource WarningTextBrush}"/>
+                  </MultiDataTrigger>
                 </DataTemplate.Triggers>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -251,6 +259,7 @@
       <TextBlock x:Name="TxtZoom" DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0"/>
       <TextBlock x:Name="TxtCursor" DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" FontFamily="{StaticResource MonoFontFamily}"/>
       <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" Foreground="{DynamicResource WarningTextBrush}" Text="{Binding DirtyText}"/>
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource CaptionTextStyle}" Margin="0,0,16,0" Foreground="{DynamicResource WarningTextBrush}" Text="{Binding ReviewText}"/>
       <TextBlock Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis" Text="{Binding StatusMessage}"/>
     </DockPanel>
   </Grid>

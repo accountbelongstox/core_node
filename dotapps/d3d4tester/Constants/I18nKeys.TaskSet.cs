@@ -11,6 +11,7 @@ public static partial class I18nKeys
     private const string TsIssue = Ts + "issue.";
     private const string TsAug = Ts + "aug.";
     private const string TsSyn = Ts + "syn.";
+    private const string TsImportFailure = Ts + "import_failure.";
 
     public const string YoloTaskSetOpenButton = Ts + "open_button";
     public const string YoloTaskSetWindowTitle = Ts + "window_title";
@@ -68,7 +69,6 @@ public static partial class I18nKeys
     public const string YoloTaskSetImageFilter = Ts + "image_filter";
     public const string YoloTaskSetMediaFilter = Ts + "media_filter";
     public const string YoloTaskSetFolderTitle = Ts + "folder_title";
-    public const string YoloTaskSetAddSkipped = Ts + "add_skipped";
     public const string YoloTaskSetKindImage = Ts + "kind_image";
     public const string YoloTaskSetVideoFrames = Ts + "video_frames";
     public const string YoloTaskSetVideoFramesPending = Ts + "video_frames_pending";
@@ -102,6 +102,129 @@ public static partial class I18nKeys
     public const string YoloTaskSetGenerateBlocked = Ts + "generate_blocked";
     public const string YoloTaskSetErrorIo = Ts + "error_io";
     public const string YoloTaskSetConfirmCloseBusy = Ts + "confirm_close_busy";
+    public const string YoloTaskSetPreviewBlocked = Ts + "preview_blocked";
+    public const string YoloTaskSetStatusImporting = Ts + "status_importing";
+    public const string YoloTaskSetImportSummary = Ts + "import_summary";
+    public const string YoloTaskSetUndo = Ts + "undo";
+    public const string YoloTaskSetImportTree = Ts + "import_tree";
+    public const string YoloTaskSetImportFromSet = Ts + "import_from_set";
+    public const string YoloTaskSetIssueErrorPrefix = Ts + "issue_error_prefix";
+    public const string YoloTaskSetIssueWarningPrefix = Ts + "issue_warning_prefix";
+
+    public const string YoloTaskSetErrorNotFound = Ts + "error_not_found";
+    public const string YoloTaskSetErrorAccessDenied = Ts + "error_access_denied";
+    public const string YoloTaskSetErrorInvalidData = Ts + "error_invalid_data";
+    public const string YoloTaskSetErrorDecode = Ts + "error_decode";
+    public const string YoloTaskSetErrorUnsupported = Ts + "error_unsupported";
+    public const string YoloTaskSetErrorFile = Ts + "error_file";
+    public const string YoloTaskSetErrorOperation = Ts + "error_operation";
+
+    public const string YoloTaskSetStatusValidating = Ts + "status_validating";
+    public const string YoloTaskSetStatusPreparingPreview = Ts + "status_preparing_preview";
+    public const string YoloTaskSetInfoPixelScale = Ts + "info_pixel_scale";
+    public const string YoloTaskSetInfoValOnly = Ts + "info_val_only";
+    public const string YoloTaskSetInfoRegions = Ts + "info_regions";
+    public const string YoloTaskSetInfoBoxes = Ts + "info_boxes";
+    public const string YoloTaskSetInfoSeparator = Ts + "info_separator";
+    public const string YoloTaskSetImportUnsupported = Ts + "import_unsupported";
+    public const string YoloTaskSetImportCancelled = Ts + "import_cancelled";
+    public const string YoloTaskSetImportTargetsCreated = Ts + "import_targets_created";
+    public const string YoloTaskSetUndoFailed = Ts + "undo_failed";
+    public const string YoloTaskSetTreeTitle = Ts + "tree_title";
+    public const string YoloTaskSetTreePlan = Ts + "tree_plan";
+    public const string YoloTaskSetTreePlanTarget = Ts + "tree_plan_target";
+    public const string YoloTaskSetTreePlanTargetExists = Ts + "tree_plan_target_exists";
+    public const string YoloTaskSetTreePlanEmpty = Ts + "tree_plan_empty";
+    public const string YoloTaskSetFromSetPrompt = Ts + "from_set_prompt";
+    public const string YoloTaskSetFromSetNone = Ts + "from_set_none";
+    public const string YoloTaskSetMenuPixelScale = Ts + "menu_pixel_scale";
+    public const string YoloTaskSetMenuEditVariant = Ts + "menu_edit_variant";
+    public const string YoloTaskSetExtractDistractors = Ts + "extract_distractors";
+    public const string YoloTaskSetPixelScalePrompt = Ts + "pixel_scale_prompt";
+    public const string YoloTaskSetPixelScaleInvalid = Ts + "pixel_scale_invalid";
+    public const string YoloTaskSetMenuValOnly = Ts + "menu_val_only";
+    public const string YoloTaskSetMenuTrainAndVal = Ts + "menu_train_and_val";
+    public const string YoloTaskSetMenuRegions = Ts + "menu_regions";
+    public const string YoloTaskSetRegionsTitle = Ts + "regions_title";
+    public const string YoloTaskSetRegionsHint = Ts + "regions_hint";
+    public const string YoloTaskSetRegionLabel = Ts + "region_label";
+    public const string YoloTaskSetMenuMasks = Ts + "menu_masks";
+    public const string YoloTaskSetMasksTitle = Ts + "masks_title";
+    public const string YoloTaskSetMasksHint = Ts + "masks_hint";
+    public const string YoloTaskSetMaskLabel = Ts + "mask_label";
+    public const string YoloTaskSetImageUnreadable = Ts + "image_unreadable";
+    public const string YoloTaskSetAugPreviewTitle = Ts + "aug_preview_title";
+    public const string YoloTaskSetAugPreviewTarget = Ts + "aug_preview_target";
+    public const string YoloTaskSetAugPreviewNone = Ts + "aug_preview_none";
+    public const string YoloTaskSetAugPreviewShuffle = Ts + "aug_preview_shuffle";
+    public const string YoloTaskSetSectionDistractors = Ts + "section_distractors";
+    public const string YoloTaskSetDistractorsHint = Ts + "distractors_hint";
+    public const string YoloTaskSetRoiTitle = Ts + "roi_title";
+    public const string YoloTaskSetRoiAnchor = Ts + "roi_anchor";
+    public const string YoloTaskSetRoiBand = Ts + "roi_band";
+    public const string YoloTaskSetRoiRect = Ts + "roi_rect";
+    public const string YoloTaskSetRoiNone = Ts + "roi.none";
+    public const string YoloTaskSetRoiBottom = Ts + "roi.bottom";
+    public const string YoloTaskSetRoiTop = Ts + "roi.top";
+    public const string YoloTaskSetRoiLeft = Ts + "roi.left";
+    public const string YoloTaskSetRoiRight = Ts + "roi.right";
+    public const string YoloTaskSetRoiRectAnchor = Ts + "roi.rect";
+    public const string YoloTaskSetOutputPng = Ts + "output_png";
+    public const string YoloTaskSetOutputJpg = Ts + "output_jpg";
+    public const string YoloTaskSetHoldoutVal = Ts + "holdout_val";
+    public const string YoloTaskSetHoldoutTest = Ts + "holdout_test";
+
+    public const string YoloTaskSetSegmentToCommon = Ts + "segment_to_common";
+    public const string YoloTaskSetSegmentToScenes = Ts + "segment_to_scenes";
+    public const string YoloTaskSetSegmentToVariants = Ts + "segment_to_variants";
+    public const string YoloTaskSetSegmentPickTitle = Ts + "segment_pick_title";
+    public const string YoloTaskSetSegmentCommonPrompt = Ts + "segment_common_prompt";
+    public const string YoloTaskSetSegmentScenesPrompt = Ts + "segment_scenes_prompt";
+    public const string YoloTaskSetSegmentVariantsPrompt = Ts + "segment_variants_prompt";
+    public const string YoloTaskSetSegmentCutout = Ts + "segment_cutout";
+    public const string YoloTaskSetSegmentNoSets = Ts + "segment_no_sets";
+    public const string YoloTaskSetSegmentNoFrames = Ts + "segment_no_frames";
+    public const string YoloTaskSetSegmentNotLabeled = Ts + "segment_not_labeled";
+    public const string YoloTaskSetSegmentExtracting = Ts + "segment_extracting";
+    public const string YoloTaskSetSegmentAdded = Ts + "segment_added";
+    public const string YoloTaskSetSegmentVariantsAdded = Ts + "segment_variants_added";
+
+    public const string YoloTaskSetHitShow = Ts + "hit_show";
+    public const string YoloTaskSetHitLabel = Ts + "hit_label";
+    public const string YoloTaskSetHitMask = Ts + "hit_mask";
+    public const string YoloTaskSetHitHint = Ts + "hit_hint";
+
+    public const string YoloTaskSetRegionsPitchX = Ts + "regions_pitch_x";
+    public const string YoloTaskSetRegionsPitchY = Ts + "regions_pitch_y";
+    public const string YoloTaskSetHoldoutTitle = Ts + "holdout_title";
+    public const string YoloTaskSetHoldoutHint = Ts + "holdout_hint";
+    public const string YoloTaskSetHoldoutFolderTitle = Ts + "holdout_folder_title";
+    public const string YoloTaskSetHoldoutCounting = Ts + "holdout_counting";
+    public const string YoloTaskSetHoldoutCount = Ts + "holdout_count";
+    public const string YoloTaskSetHoldoutEmpty = Ts + "holdout_empty";
+
+    public const string YoloTaskSetDialogOk = Ts + "dialog_ok";
+    public const string YoloTaskSetDialogSet = Ts + "dialog_set";
+    public const string YoloTaskSetDialogTarget = Ts + "dialog_target";
+    public const string YoloTaskSetDialogTargets = Ts + "dialog_targets";
+    public const string YoloTaskSetRegionsDeleteSelected = Ts + "regions_delete_selected";
+    public const string YoloTaskSetRegionsClear = Ts + "regions_clear";
+
+    private const string TsHistory = Ts + "history.";
+
+    public const string YoloTaskSetSectionHistory = TsHistory + "section";
+    public const string YoloTaskSetHistoryDatasets = TsHistory + "datasets";
+    public const string YoloTaskSetHistoryRuns = TsHistory + "runs";
+    public const string YoloTaskSetHistoryRefresh = TsHistory + "refresh";
+    public const string YoloTaskSetHistoryOpen = TsHistory + "open";
+    public const string YoloTaskSetHistoryDelete = TsHistory + "delete";
+    public const string YoloTaskSetHistoryDeleteConfirm = TsHistory + "delete_confirm";
+    public const string YoloTaskSetHistoryTrainDataset = TsHistory + "train_dataset";
+    public const string YoloTaskSetHistoryTestModel = TsHistory + "test_model";
+    public const string YoloTaskSetHistoryDatasetDetail = TsHistory + "dataset_detail";
+    public const string YoloTaskSetHistoryRunDetail = TsHistory + "run_detail";
+    public const string YoloTaskSetHistorySizePending = TsHistory + "size_pending";
+    public const string YoloTaskSetHistoryLocked = TsHistory + "locked";
 
     public const string YoloTaskSetAugScaleMin = TsAug + "scale_min";
     public const string YoloTaskSetAugScaleMax = TsAug + "scale_max";
@@ -133,6 +256,21 @@ public static partial class I18nKeys
     public const string YoloTaskSetSynJpegQuality = TsSyn + "jpeg_quality";
     public const string YoloTaskSetSynVideoFrameInterval = TsSyn + "video_frame_interval";
     public const string YoloTaskSetSynVideoMaxFrames = TsSyn + "video_max_frames";
+    public const string YoloTaskSetSynNativeWindowWidth = TsSyn + "native_window_width";
+    public const string YoloTaskSetSynNativeWindowHeight = TsSyn + "native_window_height";
+    public const string YoloTaskSetSynDpiSteps = TsSyn + "dpi_steps";
+    public const string YoloTaskSetSynScaleJitter = TsSyn + "scale_jitter";
+    public const string YoloTaskSetSynInRegionProbability = TsSyn + "in_region_probability";
+    public const string YoloTaskSetSynDistractorProbability = TsSyn + "distractor_probability";
+    public const string YoloTaskSetSynMaxDistractors = TsSyn + "max_distractors_per_image";
+    public const string YoloTaskSetSynOutputFormat = TsSyn + "output_format";
+    public const string YoloTaskSetSynJpegQualityMin = TsSyn + "jpeg_quality_min";
+    public const string YoloTaskSetSynMaxResourceMegapixels = TsSyn + "max_resource_megapixels";
+    public const string YoloTaskSetSynBackgroundCacheSize = TsSyn + "background_cache_size";
+    public const string YoloTaskSetSynContaminationCheck = TsSyn + "contamination_check";
+    public const string YoloTaskSetSynContaminationThreshold = TsSyn + "contamination_threshold";
+    public const string YoloTaskSetSynContaminationVideoFrames = TsSyn + "contamination_video_frames";
+    public const string YoloTaskSetSynHoldoutSplit = TsSyn + "holdout_split";
 
     private const string TsEx = Ts + "extract.";
 
@@ -157,7 +295,6 @@ public static partial class I18nKeys
     public const string YoloTaskSetExtractClear = TsEx + "clear";
     public const string YoloTaskSetExtractAdd = TsEx + "add";
     public const string YoloTaskSetExtractAdded = TsEx + "added";
-    public const string YoloTaskSetExtractViewerHint = TsEx + "viewer_hint";
     public const string YoloTaskSetExtractFit = TsEx + "fit";
     public const string YoloTaskSetExtractFramePrev = TsEx + "frame_prev";
     public const string YoloTaskSetExtractFrameNext = TsEx + "frame_next";
@@ -172,6 +309,10 @@ public static partial class I18nKeys
     public const string YoloTaskSetExtractNothingToAdd = TsEx + "nothing_to_add";
 
     /// <summary>ui.yolo_taskset.issue.&lt;snake_case code&gt;; text may contain {subject}.</summary>
-    public static string YoloTaskSetIssue(TaskSetIssueCode code) =>
-        TsIssue + Regex.Replace(code.ToString(), "(?<=[a-z0-9])([A-Z])", "_$1").ToLowerInvariant();
+    public static string YoloTaskSetIssue(TaskSetIssueCode code) => TsIssue + SnakeCase(code.ToString());
+
+    /// <summary>ui.yolo_taskset.import_failure.&lt;snake_case reason&gt;.</summary>
+    public static string YoloTaskSetImportFailureReason(ImportFailure failure) => TsImportFailure + SnakeCase(failure.ToString());
+
+    private static string SnakeCase(string name) => Regex.Replace(name, "(?<=[a-z0-9])([A-Z])", "_$1").ToLowerInvariant();
 }

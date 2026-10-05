@@ -15,8 +15,8 @@ class OpenAiCompatClient
 {
     /** Gateway sampling when the caller passes none (unchanged gateway behaviour). */
     public const DEFAULT_SAMPLING = ['temperature' => 0.7, 'max_tokens' => 2048];
-    /** Request fields a caller may set; response_format / reasoning are opt-in (only callers that pass them send them). */
-    public const SAMPLING_KEYS = ['temperature', 'top_p', 'max_tokens', 'response_format', 'reasoning'];
+    /** Request fields a caller may set; response_format / reasoning / models (OpenRouter fallback list) are opt-in (only callers that pass them send them). */
+    public const SAMPLING_KEYS = ['temperature', 'top_p', 'max_tokens', 'response_format', 'reasoning', 'models'];
     /** Bound only the connect; the timeout bounds the wait for the (non-streamed) reply. */
     private const CONNECT_TIMEOUT_SECONDS = 15;
 

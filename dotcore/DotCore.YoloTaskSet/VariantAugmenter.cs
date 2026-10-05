@@ -15,16 +15,28 @@ public static class VariantAugmenter
     private const double ContrastPivot = 128.0;
     private const double ByteMax = 255.0;
     private const double FeatherSigmaSpan = 3.0;
+    // Pixel-exact UI icons up to this side are upscaled with Nearest (Linear blurs them).
+    private const int SmallIconSide = 64;
+    // Paste feather sigma at most this fraction of the object's short side; blur is skipped below MinBlurObjectSide.
+    private const double FeatherPerSide = 0.04;
+    private const int MinBlurObjectSide = 24;
+    // A variant whose partially transparent pixels exceed this share of its visible pixels already has soft edges.
+    private const double SoftAlphaShare = 0.05;
 
     /// <summary>
     /// Returns the augmented object cropped to its tight mask bounds: 8-bit BGRA (alpha = feathered mask) and the 8-bit mask.
     /// extraScale multiplies the random scale (e.g. relative sizing). The caller disposes both Mats.
     /// </summary>
-    public static (Mat Bgra, Mat Mask) Apply(Mat bgra, AugmentationProfile p, double extraScale, Random rng)
+    public static (Mat Bgra, Mat Mask) Apply(Mat bgra, AugmentationProfile p, double extraScale, Random rng) =>
+        Apply(bgra, p, extraScale, rng, fixedScale: false);
+
+    /// <summary>fixedScale: extraScale is the final size factor and the profile scale range is ignored (DPI steps).</summary>
+    public static (Mat Bgra, Mat Mask) Apply(Mat bgra, AugmentationProfile p, double extraScale, Random rng, bool fixedScale)
     {
         p = p.Normalized();
         bool flip = p.FlipHorizontal && rng.NextDouble() < 0.5;
-        double scale = Uniform(rng, p.ScaleMin, p.ScaleMax) * (extraScale > 0 ? extraScale : 1);
+        double profileScale = Uniform(rng, p.ScaleMin, p.ScaleMax);
+        double scale = (fixedScale ? 1 : profileScale) * (extraScale > 0 ? extraScale : 1);
         double stretch = Uniform(rng, p.StretchMin, p.StretchMax);
         double left = 1 + rng.NextDouble() * p.LeftStretchMax;
         double right = 1 + rng.NextDouble() * p.RightStretchMax;
@@ -35,15 +47,20 @@ public static class VariantAugmenter
         if (p.BlurMaxKernel >= MinBlurKernel && rng.NextDouble() < p.BlurProbability)
             blurKernel = MinBlurKernel + 2 * rng.Next((p.BlurMaxKernel - MinBlurKernel) / 2 + 1);
 
+        bool nearestUpscale = Math.Max(bgra.Width, bgra.Height) <= SmallIconSide;
+        bool softAlpha = HasSoftAlpha(bgra);
         var current = ToPremultipliedFloat(bgra);
         try
         {
             if (flip) Cv2.Flip(current, current, FlipMode.Y);
-            Replace(ref current, Resize(current, scale * stretch, scale));
+            Replace(ref current, Resize(current, scale * stretch, scale, nearestUpscale));
             if (left > 1 || right > 1) Replace(ref current, OneSidedPerspective(current, left, right));
             if (angle != 0) Replace(ref current, RotateExpanded(current, angle));
             Replace(ref current, CropToAlpha(current));
-            return ToStraightBgra(current, contrast, brightness, blurKernel, p.EdgeFeather);
+            int shortSide = Math.Min(current.Width, current.Height);
+            if (shortSide < MinBlurObjectSide) blurKernel = 0;
+            double feather = softAlpha ? 0 : Math.Min(p.EdgeFeather, FeatherPerSide * shortSide);
+            return ToStraightBgra(current, contrast, brightness, blurKernel, feather);
         }
         finally
         {
@@ -83,12 +100,28 @@ public static class VariantAugmenter
         }
     }
 
-    private static Mat Resize(Mat src, double fx, double fy)
+    /// <summary>True when partially transparent pixels make up a noticeable share of the visible ones (cutout already feathered).</summary>
+    internal static bool HasSoftAlpha(Mat bgra)
+    {
+        if (bgra.Channels() != 4) return false;
+        using var alpha = new Mat();
+        Cv2.ExtractChannel(bgra, alpha, 3);
+        using var visible = new Mat();
+        using var opaque = new Mat();
+        Cv2.Threshold(alpha, visible, 0, byte.MaxValue, ThresholdTypes.Binary);
+        Cv2.Threshold(alpha, opaque, byte.MaxValue - 1, byte.MaxValue, ThresholdTypes.Binary);
+        int nVisible = Cv2.CountNonZero(visible);
+        int nPartial = nVisible - Cv2.CountNonZero(opaque);
+        return nVisible > 0 && nPartial > SoftAlphaShare * nVisible;
+    }
+
+    private static Mat Resize(Mat src, double fx, double fy, bool nearestUpscale)
     {
         var size = new Size(Math.Max(1, (int)Math.Round(src.Width * fx)), Math.Max(1, (int)Math.Round(src.Height * fy)));
         if (size == src.Size()) return src;
         var dst = new Mat();
-        var interpolation = (long)size.Width * size.Height < (long)src.Width * src.Height ? InterpolationFlags.Area : InterpolationFlags.Linear;
+        var interpolation = (long)size.Width * size.Height < (long)src.Width * src.Height ? InterpolationFlags.Area
+            : nearestUpscale ? InterpolationFlags.Nearest : InterpolationFlags.Linear;
         Cv2.Resize(src, dst, size, 0, 0, interpolation);
         return dst;
     }

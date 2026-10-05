@@ -10,7 +10,7 @@
         "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
         "projectName": "DotCore.Foundations",
         "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
-        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
         "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
@@ -20,7 +20,7 @@
         "configFilePaths": [
           "D:\\programing\\core_node\\dotcore\\NuGet.Config",
           "D:\\programing\\core_node\\NuGet.Config",
-          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\accou\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -53,7 +53,10 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "centralPackageVersions": {
+            "AsmResolver.DotNet": "4.11.2",
             "FlaUI.UIA3": "5.0.0",
+            "Iced": "1.21.0",
+            "Microsoft.ML.OnnxRuntime": "1.20.1",
             "OpenCvSharp4.Extensions": "4.10.0.20240616",
             "OpenCvSharp4.Windows": "4.10.0.20240616",
             "PaddleOCRSharp": "6.1.0",
@@ -75,7 +78,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.318/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

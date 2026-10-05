@@ -22,11 +22,24 @@ public sealed class BoxEditedEventArgs : EventArgs
     public AnnotationBox Box { get; }
 }
 
+/// <summary>Brush stroke kind; strokes apply in order (later strokes overwrite earlier ones, Erase clears them).</summary>
+public enum CanvasStrokeKind
+{
+    Foreground,
+    Background,
+    Erase,
+}
+
+/// <summary>Brush stroke in image pixels: a polyline painted with a round brush of Radius.</summary>
+public sealed record CanvasStroke(CanvasStrokeKind Kind, double Radius, IReadOnlyList<Point> Points);
+
 /// <summary>
 /// Image + box editor surface rendered in one pass. Image pixel space is mapped to the control by zoom and offset.
 /// Draw mode: left drag draws a box. Select mode: left drag moves the box under the cursor or pans empty space.
 /// Handles of the selected box resize it in both modes; wheel zooms at the cursor; middle drag or pan key + left drag pans.
 /// Edits are raised as events and applied by the owner (undo lives there); the canvas never mutates Boxes.
+/// Optional stroke layer: with StrokeTool set, left drag paints a brush stroke (StrokeDrawn); Strokes are rendered as
+/// foreground / background overlays composed in order. The canvas never mutates Strokes either.
 /// </summary>
 public sealed class AnnotationCanvas : FrameworkElement
 {
@@ -39,6 +52,11 @@ public sealed class AnnotationCanvas : FrameworkElement
     private const double NearestNeighborZoom = 2.0;
     private const string BackgroundBrushKey = "InsetBackgroundBrush";
     private const string FontFamilyKey = "UiFontFamily";
+    private const string StrokeForegroundBrushKey = "SuccessBrush";
+    private const string StrokeBackgroundBrushKey = "DangerBrush";
+    private const string StrokeCursorBrushKey = "TextPrimaryBrush";
+    private const double StrokeOpacity = 0.45;
+    private const double StrokeMinStepPixels = 0.5;
 
     public static readonly DependencyProperty ImageSourceProperty = Dp(nameof(ImageSource), typeof(BitmapSource), null, (d, _) => ((AnnotationCanvas)d).OnImageChanged());
     public static readonly DependencyProperty BoxesProperty = Dp(nameof(Boxes), typeof(IList<AnnotationBox>), null, (d, e) => ((AnnotationCanvas)d).OnBoxesChanged(e));
@@ -52,6 +70,10 @@ public sealed class AnnotationCanvas : FrameworkElement
     public static readonly DependencyProperty LineWidthProperty = Dp(nameof(LineWidth), typeof(double), 2.0, null);
     public static readonly DependencyProperty MinBoxSizeProperty = Dp(nameof(MinBoxSize), typeof(double), 4.0, null);
     public static readonly DependencyProperty FitOnOpenProperty = Dp(nameof(FitOnOpen), typeof(bool), true, null);
+    public static readonly DependencyProperty StrokesProperty = Dp(nameof(Strokes), typeof(IList<CanvasStroke>), null, (d, e) => ((AnnotationCanvas)d).OnStrokesChanged(e));
+    public static readonly DependencyProperty StrokeToolProperty = Dp(nameof(StrokeTool), typeof(CanvasStrokeKind?), null, (d, _) => ((AnnotationCanvas)d).UpdateCursor(null));
+    public static readonly DependencyProperty BrushRadiusProperty = Dp(nameof(BrushRadius), typeof(double), 4.0, null);
+    public static readonly DependencyProperty IsReadOnlyProperty = Dp(nameof(IsReadOnly), typeof(bool), false, (d, _) => ((AnnotationCanvas)d).UpdateCursor(null));
 
     private double _zoom = 1;
     private Vector _offset;
@@ -67,6 +89,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     private AnnotationBox? _dragOriginal;
     private AnnotationBox? _preview;
     private INotifyCollectionChanged? _observedBoxes;
+    private INotifyCollectionChanged? _observedStrokes;
+    private List<Point>? _strokePoints;
+    private (Geometry Foreground, Geometry Background)? _strokeGeometry;
 
     public AnnotationCanvas()
     {
@@ -76,7 +101,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         SnapsToDevicePixels = true;
     }
 
-    private enum DragKind { None, Draw, Move, Resize, Pan }
+    private enum DragKind { None, Draw, Move, Resize, Pan, Stroke }
 
     [Flags]
     private enum Handle { None = 0, Left = 1, Top = 2, Right = 4, Bottom = 8 }
@@ -84,6 +109,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     public event EventHandler<AnnotationBox>? BoxDrawn;
 
     public event EventHandler<BoxEditedEventArgs>? BoxEdited;
+
+    /// <summary>Brush stroke finished (StrokeTool mode).</summary>
+    public event EventHandler<CanvasStroke>? StrokeDrawn;
 
     /// <summary>Zoom or offset changed.</summary>
     public event EventHandler? ViewChanged;
@@ -102,6 +130,16 @@ public sealed class AnnotationCanvas : FrameworkElement
     public double LineWidth { get => (double)GetValue(LineWidthProperty); set => SetValue(LineWidthProperty, value); }
     public double MinBoxSize { get => (double)GetValue(MinBoxSizeProperty); set => SetValue(MinBoxSizeProperty, value); }
     public bool FitOnOpen { get => (bool)GetValue(FitOnOpenProperty); set => SetValue(FitOnOpenProperty, value); }
+    public IList<CanvasStroke>? Strokes { get => (IList<CanvasStroke>?)GetValue(StrokesProperty); set => SetValue(StrokesProperty, value); }
+
+    /// <summary>Brush tool for left drag; null = box editing.</summary>
+    public CanvasStrokeKind? StrokeTool { get => (CanvasStrokeKind?)GetValue(StrokeToolProperty); set => SetValue(StrokeToolProperty, value); }
+
+    /// <summary>Existing boxes cannot be moved or resized (selection, pan and draw mode still work).</summary>
+    public bool IsReadOnly { get => (bool)GetValue(IsReadOnlyProperty); set => SetValue(IsReadOnlyProperty, value); }
+
+    /// <summary>Brush radius in image pixels.</summary>
+    public double BrushRadius { get => (double)GetValue(BrushRadiusProperty); set => SetValue(BrushRadiusProperty, value); }
 
     /// <summary>Color of a class label; set by the owner, call Refresh after colors change.</summary>
     public Func<string, Color>? LabelColor { get; set; }
@@ -164,6 +202,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         dc.DrawRectangle(TryFindResource(BackgroundBrushKey) as Brush ?? Brushes.Black, null, new Rect(RenderSize));
         if (ImageSource is not { } img) return;
         dc.DrawImage(img, new Rect(_offset.X, _offset.Y, img.PixelWidth * _zoom, img.PixelHeight * _zoom));
+        DrawStrokes(dc);
 
         var boxes = Boxes;
         int selected = SelectedIndex;
@@ -177,7 +216,13 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
         if (_drag == DragKind.Draw && _preview != null)
             DrawBox(dc, _preview, selected: false, preview: true);
-        if (ShowCrosshair && _pointer is { } p && _drag != DragKind.Pan)
+        if (StrokeTool != null && _pointer is { } brushAt && _drag != DragKind.Pan)
+        {
+            var pen = ClassPalette.Freeze(new Pen(TryFindResource(StrokeCursorBrushKey) as Brush ?? Brushes.White, 1));
+            double r = Math.Max(1, BrushRadius * _zoom);
+            dc.DrawEllipse(null, pen, ToScreen(brushAt), r, r);
+        }
+        else if (ShowCrosshair && _pointer is { } p && _drag != DragKind.Pan)
         {
             var s = ToScreen(p);
             var pen = ClassPalette.Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xA0, 0xFF, 0xFF, 0xFF)), 1) { DashStyle = DashStyles.Dash });
@@ -207,8 +252,15 @@ public sealed class AnnotationCanvas : FrameworkElement
             return;
         }
         if (e.ChangedButton != MouseButton.Left) return;
+        if (StrokeTool != null)
+        {
+            _strokePoints = new List<Point> { image };
+            Begin(DragKind.Stroke, screen, image);
+            e.Handled = true;
+            return;
+        }
         var boxes = Boxes;
-        var handle = boxes != null && SelectedIndex >= 0 && SelectedIndex < boxes.Count ? HitHandle(boxes[SelectedIndex], screen) : Handle.None;
+        var handle = !IsReadOnly && boxes != null && SelectedIndex >= 0 && SelectedIndex < boxes.Count ? HitHandle(boxes[SelectedIndex], screen) : Handle.None;
         if (boxes != null && handle != Handle.None)
         {
             _dragIndex = SelectedIndex;
@@ -224,7 +276,12 @@ public sealed class AnnotationCanvas : FrameworkElement
         else
         {
             int hit = HitBox(screen);
-            if (hit >= 0 && boxes != null)
+            if (hit >= 0 && boxes != null && IsReadOnly)
+            {
+                SelectedIndex = hit;
+                Begin(DragKind.Pan, screen, image);
+            }
+            else if (hit >= 0 && boxes != null)
             {
                 SelectedIndex = hit;
                 _dragIndex = hit;
@@ -249,7 +306,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (_drag == DragKind.None)
         {
             UpdateCursor(screen);
-            if (ShowCrosshair) InvalidateVisual();
+            if (ShowCrosshair || StrokeTool != null) InvalidateVisual();
             return;
         }
         var img = ImageSource!;
@@ -259,6 +316,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             case DragKind.Pan:
                 SetView(_zoom, _panStartOffset + (screen - _dragStartScreen));
                 return;
+            case DragKind.Stroke when _strokePoints != null:
+                if ((image - _strokePoints[^1]).Length >= StrokeMinStepPixels) _strokePoints.Add(image);
+                break;
             case DragKind.Draw:
                 _preview = AnnotationBox.FromCorners(CurrentLabel, _dragStartImage.X, _dragStartImage.Y, image.X, image.Y).ClampTo(w, h);
                 break;
@@ -283,8 +343,12 @@ public sealed class AnnotationCanvas : FrameworkElement
         var preview = _preview?.RoundToPixels();
         int index = _dragIndex;
         var original = _dragOriginal;
+        var strokePoints = _strokePoints;
+        var strokeTool = StrokeTool;
         EndDrag();
-        if (preview != null)
+        if (kind == DragKind.Stroke && strokePoints != null && strokeTool is { } tool)
+            StrokeDrawn?.Invoke(this, new CanvasStroke(tool, Math.Max(StrokeMinStepPixels, BrushRadius), strokePoints));
+        else if (preview != null)
         {
             if (kind == DragKind.Draw && preview.IsValid(MinBoxSize))
                 BoxDrawn?.Invoke(this, preview);
@@ -341,6 +405,95 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private void OnBoxesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => InvalidateVisual();
 
+    private void OnStrokesChanged(DependencyPropertyChangedEventArgs e)
+    {
+        if (_observedStrokes != null) _observedStrokes.CollectionChanged -= OnStrokesCollectionChanged;
+        _observedStrokes = e.NewValue as INotifyCollectionChanged;
+        if (_observedStrokes != null) _observedStrokes.CollectionChanged += OnStrokesCollectionChanged;
+        _strokeGeometry = null;
+    }
+
+    private void OnStrokesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        _strokeGeometry = null;
+        InvalidateVisual();
+    }
+
+    private void DrawStrokes(DrawingContext dc)
+    {
+        bool painting = _drag == DragKind.Stroke && _strokePoints != null && StrokeTool != null;
+        if (Strokes is not { Count: > 0 } && !painting) return;
+        _strokeGeometry ??= ComposeStrokes(Strokes ?? Array.Empty<CanvasStroke>());
+        var (fg, bg) = _strokeGeometry.Value;
+        dc.PushTransform(new MatrixTransform(_zoom, 0, 0, _zoom, _offset.X, _offset.Y));
+        dc.PushOpacity(StrokeOpacity);
+        if (!fg.IsEmpty()) dc.DrawGeometry(TryFindResource(StrokeForegroundBrushKey) as Brush ?? Brushes.Lime, null, fg);
+        if (!bg.IsEmpty()) dc.DrawGeometry(TryFindResource(StrokeBackgroundBrushKey) as Brush ?? Brushes.Red, null, bg);
+        if (painting)
+        {
+            var current = StrokeGeometry(new CanvasStroke(StrokeTool!.Value, BrushRadius, _strokePoints!));
+            var key = StrokeTool switch
+            {
+                CanvasStrokeKind.Foreground => StrokeForegroundBrushKey,
+                CanvasStrokeKind.Background => StrokeBackgroundBrushKey,
+                _ => StrokeCursorBrushKey,
+            };
+            dc.DrawGeometry(TryFindResource(key) as Brush ?? Brushes.White, null, current);
+        }
+        dc.Pop();
+        dc.Pop();
+    }
+
+    /// <summary>Foreground and background areas after applying the strokes in order.</summary>
+    private static (Geometry Foreground, Geometry Background) ComposeStrokes(IEnumerable<CanvasStroke> strokes)
+    {
+        Geometry fg = Geometry.Empty, bg = Geometry.Empty;
+        foreach (var stroke in strokes)
+        {
+            var area = StrokeGeometry(stroke);
+            switch (stroke.Kind)
+            {
+                case CanvasStrokeKind.Foreground:
+                    fg = Geometry.Combine(fg, area, GeometryCombineMode.Union, null);
+                    bg = Geometry.Combine(bg, area, GeometryCombineMode.Exclude, null);
+                    break;
+                case CanvasStrokeKind.Background:
+                    bg = Geometry.Combine(bg, area, GeometryCombineMode.Union, null);
+                    fg = Geometry.Combine(fg, area, GeometryCombineMode.Exclude, null);
+                    break;
+                default:
+                    fg = Geometry.Combine(fg, area, GeometryCombineMode.Exclude, null);
+                    bg = Geometry.Combine(bg, area, GeometryCombineMode.Exclude, null);
+                    break;
+            }
+        }
+        fg.Freeze();
+        bg.Freeze();
+        return (fg, bg);
+    }
+
+    private static Geometry StrokeGeometry(CanvasStroke stroke)
+    {
+        var points = stroke.Points;
+        if (points.Count == 0) return Geometry.Empty;
+        if (points.Count == 1) return new EllipseGeometry(points[0], stroke.Radius, stroke.Radius);
+        var line = new StreamGeometry();
+        using (var ctx = line.Open())
+        {
+            ctx.BeginFigure(points[0], isFilled: false, isClosed: false);
+            ctx.PolyLineTo(points.Skip(1).ToList(), isStroked: true, isSmoothJoin: true);
+        }
+        var pen = new Pen(Brushes.Black, stroke.Radius * 2)
+        {
+            StartLineCap = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
+            LineJoin = PenLineJoin.Round,
+        };
+        var widened = line.GetWidenedPathGeometry(pen);
+        widened.FillRule = FillRule.Nonzero;
+        return widened;
+    }
+
     private void Begin(DragKind kind, Point screen, Point image)
     {
         _drag = kind;
@@ -358,6 +511,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         _dragIndex = -1;
         _dragOriginal = null;
         _dragHandle = Handle.None;
+        _strokePoints = null;
         if (IsMouseCaptured) ReleaseMouseCapture();
     }
 
@@ -389,7 +543,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (box.Difficult || preview) pen.DashStyle = DashStyles.Dash;
         pen.Freeze();
         dc.DrawRectangle(fill, pen, rect);
-        if (selected && !preview)
+        if (selected && !preview && !IsReadOnly)
         {
             var handleFill = ClassPalette.Freeze(new SolidColorBrush(Colors.White));
             foreach (var p in HandlePoints(rect))
@@ -471,8 +625,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     private void UpdateCursor(Point? screen)
     {
         if (_panKeyDown || _drag == DragKind.Pan) { Cursor = Cursors.SizeAll; return; }
+        if (StrokeTool != null) { Cursor = Cursors.Cross; return; }
         var boxes = Boxes;
-        if (screen is { } s && boxes != null && SelectedIndex >= 0 && SelectedIndex < boxes.Count)
+        if (screen is { } s && !IsReadOnly && boxes != null && SelectedIndex >= 0 && SelectedIndex < boxes.Count)
         {
             var h = HitHandle(boxes[SelectedIndex], s);
             if (h != Handle.None)

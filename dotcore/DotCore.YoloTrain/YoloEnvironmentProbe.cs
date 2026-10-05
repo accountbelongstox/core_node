@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using DotCore.Foundations;
+using DotCore.VocAnnotator;
 
 namespace DotCore.YoloTrain;
 
@@ -70,15 +71,22 @@ public static class YoloEnvironmentProbe
         if (ProcessCapture.FindOnPath("yolo") is { } yolo && PythonBesideCli(yolo) is { } owner) list.Add((owner, none));
         if (OperatingSystem.IsWindows())
         {
-            if (ProcessCapture.FindOnPath("python") is { } py) list.Add((py, none));
-            if (ProcessCapture.FindOnPath("py") is { } launcher) list.Add((launcher, new[] { "-3" }));
+            foreach (var py in ProcessCapture.FindAllOnPath("python").Where(p => !IsWindowsAppsAlias(p))) list.Add((py, none));
+            if (ProcessCapture.FindOnPath("py") is { } launcher && !IsWindowsAppsAlias(launcher)) list.Add((launcher, new[] { "-3" }));
         }
         else
         {
             foreach (var name in new[] { "python3", "python" })
-                if (ProcessCapture.FindOnPath(name) is { } p) list.Add((p, none));
+                foreach (var p in ProcessCapture.FindAllOnPath(name)) list.Add((p, none));
         }
         return list;
+    }
+
+    /// <summary>%LOCALAPPDATA%\Microsoft\WindowsApps app-execution alias (Store stub that opens the Store or a sandboxed install).</summary>
+    private static bool IsWindowsAppsAlias(string path)
+    {
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return local.Length > 0 && YoloDataLayout.IsUnder(path, Path.Combine(local, "Microsoft", "WindowsApps"));
     }
 
     /// <summary>Interpreter of the environment that installed a yolo entry script (Scripts\yolo.exe or bin/yolo).</summary>
@@ -129,7 +137,7 @@ public static class YoloEnvironmentProbe
                 Bool(r, "mps"),
                 Str(r, "ultralytics"),
                 Str(r, "yolo_cli"),
-                error.Length == 0 ? null : error);
+                error.Length == 0 ? null : error) { HasEntrypoint = Bool(r, "entrypoint") };
         }
         catch (JsonException ex)
         {

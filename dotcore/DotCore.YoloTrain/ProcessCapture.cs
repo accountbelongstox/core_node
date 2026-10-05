@@ -53,9 +53,13 @@ internal static class ProcessCapture
     }
 
     /// <summary>Full path of an executable found on PATH (Windows also tries PATHEXT), or null.</summary>
-    public static string? FindOnPath(string name)
+    public static string? FindOnPath(string name) => FindAllOnPath(name).FirstOrDefault();
+
+    /// <summary>Every distinct PATH hit of an executable, in PATH order.</summary>
+    public static IReadOnlyList<string> FindAllOnPath(string name)
     {
-        if (Path.IsPathRooted(name)) return File.Exists(name) ? name : null;
+        if (Path.IsPathRooted(name)) return File.Exists(name) ? new[] { name } : Array.Empty<string>();
+        var hits = new List<string>();
         var exts = OperatingSystem.IsWindows()
             ? (Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT").Split(';', StringSplitOptions.RemoveEmptyEntries).Prepend("")
             : new[] { "" };
@@ -66,11 +70,16 @@ internal static class ProcessCapture
                 try
                 {
                     var candidate = Path.Combine(dir.Trim(), name + ext.ToLowerInvariant());
-                    if (File.Exists(candidate)) return Path.GetFullPath(candidate);
+                    if (File.Exists(candidate))
+                    {
+                        var full = Path.GetFullPath(candidate);
+                        if (!hits.Contains(full, OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)) hits.Add(full);
+                        break;
+                    }
                 }
                 catch (ArgumentException) { }
             }
         }
-        return null;
+        return hits;
     }
 }

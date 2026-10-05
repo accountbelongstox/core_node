@@ -1,0 +1,236 @@
+<Window x:Class="DotApps.d3d4tester.Windows.ModelTestWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ann="clr-namespace:DotCore.VocAnnotatorUI;assembly=DotCore.VocAnnotatorUI"
+        Width="1440" Height="900" MinWidth="1000" MinHeight="620"
+        ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
+        Style="{StaticResource DialogWindowStyle}">
+  <Window.Resources>
+    <Style x:Key="Label" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelTextStyle}"/>
+    <Style x:Key="IconBtn" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+      <Setter Property="Margin" Value="0,0,4,0"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="ActionBtn" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+      <Setter Property="Margin" Value="0,0,8,8"/>
+    </Style>
+    <Style x:Key="Card" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
+      <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="16,4,16,16">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="340"/>
+      <ColumnDefinition Width="12"/>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="12"/>
+      <ColumnDefinition Width="280"/>
+    </Grid.ColumnDefinitions>
+
+    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel>
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <TextBlock x:Name="LblModel" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <DockPanel Margin="{StaticResource FieldMargin}">
+              <Button x:Name="BtnRefreshModels" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE72C;" Margin="4,0,0,0"/>
+              <Button x:Name="BtnBrowseModel" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+              <ComboBox x:Name="CboModel" DisplayMemberPath="Display"/>
+            </DockPanel>
+            <TextBlock x:Name="LblProvider" Style="{StaticResource Label}"/>
+            <ComboBox x:Name="CboProvider" DisplayMemberPath="Display" Margin="{StaticResource FieldMargin}"/>
+            <TextBlock x:Name="TxtModelInfo" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <TextBlock x:Name="LblSource" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <WrapPanel Margin="0,0,0,8">
+              <RadioButton x:Name="RadioImage" GroupName="Source" Margin="0,0,12,4" IsChecked="True"/>
+              <RadioButton x:Name="RadioScreen" GroupName="Source" Margin="0,0,12,4"/>
+              <RadioButton x:Name="RadioVideo" GroupName="Source" Margin="0,0,12,4"/>
+              <RadioButton x:Name="RadioLive" GroupName="Source" Margin="0,0,12,4"/>
+            </WrapPanel>
+
+            <StackPanel x:Name="PanelImage">
+              <Button x:Name="BtnOpenImage" Style="{StaticResource ActionBtn}" HorizontalAlignment="Left"/>
+            </StackPanel>
+
+            <StackPanel x:Name="PanelVideoSource">
+              <Button x:Name="BtnOpenVideo" Style="{StaticResource ActionBtn}" HorizontalAlignment="Left"/>
+              <TextBlock x:Name="LblAnalysisStep" Style="{StaticResource Label}"/>
+              <DockPanel Margin="{StaticResource FieldMargin}">
+                <Button x:Name="BtnAnalyze" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+                <TextBox x:Name="TxtAnalysisStep"/>
+              </DockPanel>
+              <TextBlock x:Name="TxtAnalysis" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel x:Name="PanelCapture">
+              <TextBlock x:Name="LblLiveSource" Style="{StaticResource Label}"/>
+              <ComboBox x:Name="CboLiveSource" DisplayMemberPath="Display" Margin="{StaticResource FieldMargin}"/>
+              <TextBlock x:Name="TxtRegion" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+              <WrapPanel>
+                <Button x:Name="BtnPickRegion" Style="{StaticResource ActionBtn}"/>
+                <Button x:Name="BtnCaptureScreen" Style="{StaticResource ActionBtn}"/>
+              </WrapPanel>
+            </StackPanel>
+
+            <StackPanel x:Name="PanelLive">
+              <TextBlock x:Name="LblLiveFps" Style="{StaticResource Label}"/>
+              <TextBox x:Name="TxtLiveFps" Margin="{StaticResource FieldMargin}"/>
+              <WrapPanel>
+                <Button x:Name="BtnLiveStart" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,8,8"/>
+                <Button x:Name="BtnLiveStop" Style="{StaticResource ActionBtn}"/>
+              </WrapPanel>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <TextBlock x:Name="LblDetect" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <TextBlock x:Name="LblMode" Style="{StaticResource Label}"/>
+            <ComboBox x:Name="CboMode" DisplayMemberPath="Display" Margin="{StaticResource FieldMargin}"/>
+            <Grid Margin="{StaticResource FieldMargin}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0">
+                <TextBlock x:Name="LblTileSize" Style="{StaticResource Label}"/>
+                <TextBox x:Name="TxtTileSize"/>
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock x:Name="LblTileOverlap" Style="{StaticResource Label}"/>
+                <TextBox x:Name="TxtTileOverlap"/>
+              </StackPanel>
+            </Grid>
+            <TextBlock x:Name="LblRoi" Style="{StaticResource Label}"/>
+            <TextBox x:Name="TxtRoi" Margin="{StaticResource FieldMargin}"/>
+            <TextBlock x:Name="LblConfidence" Style="{StaticResource Label}"/>
+            <Slider x:Name="SldConfidence" Minimum="0.01" Maximum="0.99" SmallChange="0.01" LargeChange="0.05" Margin="{StaticResource FieldMargin}"/>
+            <TextBlock x:Name="LblIou" Style="{StaticResource Label}"/>
+            <Slider x:Name="SldIou" Minimum="0.05" Maximum="0.95" SmallChange="0.01" LargeChange="0.05" Margin="{StaticResource FieldMargin}"/>
+            <CheckBox x:Name="ChkTrack" Style="{StaticResource ToggleSwitchStyle}"/>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}" Margin="0">
+          <StackPanel>
+            <TextBlock x:Name="LblHard" Style="{StaticResource SectionHeaderTextStyle}"/>
+            <TextBlock x:Name="LblExportDir" Style="{StaticResource Label}"/>
+            <DockPanel Margin="{StaticResource FieldMargin}">
+              <Button x:Name="BtnExportDir" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+              <TextBlock x:Name="TxtExportDir" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            </DockPanel>
+            <Button x:Name="BtnSaveLabeled" Style="{StaticResource ActionBtn}" HorizontalAlignment="Left"/>
+            <TextBlock x:Name="LblTaskSet" Style="{StaticResource Label}"/>
+            <ComboBox x:Name="CboTaskSet" DisplayMemberPath="Display" Margin="{StaticResource FieldMargin}"/>
+            <TextBlock x:Name="LblTarget" Style="{StaticResource Label}"/>
+            <ComboBox x:Name="CboTarget" DisplayMemberPath="Display" Margin="{StaticResource FieldMargin}"/>
+            <WrapPanel>
+              <ToggleButton x:Name="TglMarkMissed" Margin="0,0,8,8"/>
+              <Button x:Name="BtnNegative" Style="{StaticResource ActionBtn}"/>
+            </WrapPanel>
+            <TextBlock x:Name="TxtHardStatus" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+            <StackPanel x:Name="PanelExport" Margin="0,12,0,0">
+              <TextBlock x:Name="LblExport" Style="{StaticResource BodyStrongTextStyle}" Margin="0,0,0,4"/>
+              <ComboBox x:Name="CboExportFilter" DisplayMemberPath="Display" Margin="{StaticResource FieldMargin}"/>
+              <Grid Margin="{StaticResource FieldMargin}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="8"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                  <TextBlock x:Name="LblExportEvery" Style="{StaticResource Label}"/>
+                  <TextBox x:Name="TxtExportEvery"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock x:Name="LblExportLow" Style="{StaticResource Label}"/>
+                  <TextBox x:Name="TxtExportLow"/>
+                </StackPanel>
+              </Grid>
+              <TextBlock x:Name="LblExportClass" Style="{StaticResource Label}"/>
+              <ComboBox x:Name="CboExportClass" Margin="{StaticResource FieldMargin}"/>
+              <Button x:Name="BtnExportFrames" Style="{StaticResource ActionBtn}" HorizontalAlignment="Left"/>
+              <TextBlock x:Name="TxtExportStatus" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Margin="0">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+          <Button x:Name="BtnFit" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+          <Border x:Name="ChipStatus" DockPanel.Dock="Left" Style="{StaticResource StatusChipStyle}" Margin="0,0,8,0" VerticalAlignment="Center">
+            <TextBlock x:Name="TxtStatus"/>
+          </Border>
+          <TextBlock x:Name="TxtHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        </DockPanel>
+        <Border x:Name="BorderTimeline" DockPanel.Dock="Bottom" Style="{StaticResource InsetBorderStyle}" Padding="0" Margin="0,4,0,0">
+          <Image x:Name="ImgTimeline" Stretch="Fill" Height="24" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+        </Border>
+        <DockPanel x:Name="PanelPlayback" DockPanel.Dock="Bottom" Margin="0,8,0,0">
+          <Button x:Name="BtnPlay" DockPanel.Dock="Left" Style="{StaticResource IconBtn}" Content="&#xE768;"/>
+          <Button x:Name="BtnFrameBack" DockPanel.Dock="Left" Style="{StaticResource IconBtn}" Content="&#xE892;"/>
+          <Button x:Name="BtnFramePrev" DockPanel.Dock="Left" Style="{StaticResource IconBtn}" Content="&#xE76B;"/>
+          <ComboBox x:Name="CboSpeed" DockPanel.Dock="Right" DisplayMemberPath="Display" Width="80" Margin="8,0,0,0" VerticalAlignment="Center"/>
+          <Button x:Name="BtnFrameForward" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE893;"/>
+          <Button x:Name="BtnFrameNext" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE76C;"/>
+          <Slider x:Name="SldFrame" Minimum="0" SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True" VerticalAlignment="Center" Margin="4,0"/>
+        </DockPanel>
+        <TextBlock x:Name="TxtFrameInfo" DockPanel.Dock="Bottom" Style="{StaticResource CaptionTextStyle}" Margin="0,8,0,0"
+                   FontFamily="{StaticResource MonoFontFamily}"/>
+        <Border Style="{StaticResource InsetBorderStyle}" Padding="0">
+          <ann:AnnotationCanvas x:Name="Canvas" ShowCrosshair="False" IsReadOnly="True"/>
+        </Border>
+      </DockPanel>
+    </Border>
+
+    <Grid Grid.Column="4">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="12"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+      <Border Grid.Row="0" Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock x:Name="LblStats" Style="{StaticResource SectionHeaderTextStyle}"/>
+          <TextBlock x:Name="TxtStats" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" FontFamily="{StaticResource MonoFontFamily}"/>
+        </StackPanel>
+      </Border>
+      <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0">
+        <DockPanel>
+          <TextBlock x:Name="LblCounts" DockPanel.Dock="Top" Style="{StaticResource SectionHeaderTextStyle}"/>
+          <ListBox x:Name="LstCounts" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+      <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Margin="0">
+        <DockPanel>
+          <TextBlock x:Name="LblTracks" DockPanel.Dock="Top" Style="{StaticResource SectionHeaderTextStyle}"/>
+          <ListBox x:Name="LstTracks" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="{StaticResource MonoFontFamily}"/>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

@@ -24,6 +24,7 @@ public enum TrainAdviceCode
     UnknownLabels,
     NoValidation,
     ImgszSmallObjects,
+    ImgszNativeWindow,
 }
 
 public sealed record TrainAdvice(TrainAdviceCode Code, string Value, bool IsWarning);
@@ -54,7 +55,8 @@ public static class YoloTrainAdvisor
         ['n'] = 0.16, ['s'] = 0.26, ['m'] = 0.45, ['l'] = 0.68, ['x'] = 1.0,
     };
 
-    public static TrainRecommendation Recommend(YoloEnvironment env, YoloTrainParameters current, YoloDatasetPlan? dataset = null)
+    /// <summary>dataset: a YoloDatasetPlan, a task-set synthesis estimate or YoloDatasetStats; null = environment only.</summary>
+    public static TrainRecommendation Recommend(YoloEnvironment env, YoloTrainParameters current, IYoloDatasetStats? dataset = null)
     {
         var advice = new List<TrainAdvice>();
         var py = env.Python;
@@ -90,10 +92,15 @@ public static class YoloTrainAdvisor
         var model = YoloTrainParameters.WithScale(current.Model, scale);
         if (model != current.Model || YoloTrainParameters.Models.Contains(Path.GetFileName(current.Model)))
             advice.Add(Info(TrainAdviceCode.ModelScale, Path.GetFileName(model)));
-        char modelScale = YoloTrainParameters.ModelScale(model);
+        char modelScale = ModelScaleOf(model);
 
         int imgsz = YoloTrainParameters.NormalizeImgsz(current.Imgsz);
-        if (dataset != null && Math.Max(dataset.MaxWidth, dataset.MaxHeight) >= SmallObjectMinImageSide && gpu && gpuGib >= 8 && imgsz < SmallObjectImgsz)
+        if (dataset?.RequiredImgsz > 0)
+        {
+            imgsz = YoloTrainParameters.NormalizeImgsz(dataset.RequiredImgsz);
+            advice.Add(Info(TrainAdviceCode.ImgszNativeWindow, imgsz.ToString()));
+        }
+        else if (dataset != null && Math.Max(dataset.MaxWidth, dataset.MaxHeight) >= SmallObjectMinImageSide && gpu && gpuGib >= 8 && imgsz < SmallObjectImgsz)
         {
             imgsz = SmallObjectImgsz;
             advice.Add(Info(TrainAdviceCode.ImgszSmallObjects, imgsz.ToString()));
@@ -109,8 +116,8 @@ public static class YoloTrainAdvisor
         }
         else
         {
-            batch = EvenClamp(ramGib < 8 ? 4 : ramGib < 16 ? 8 : 16);
-            advice.Add(Info(TrainAdviceCode.BatchFromSystemMemory, $"{ramGib:0.#} GiB -> {batch}"));
+            batch = EvenClamp(freeRamGib < 8 ? 4 : freeRamGib < 16 ? 8 : 16);
+            advice.Add(Info(TrainAdviceCode.BatchFromSystemMemory, $"{freeRamGib:0.#} / {ramGib:0.#} GiB -> {batch}"));
         }
 
         int workers = OperatingSystem.IsWindows() ? env.LogicalCores / 2 : env.LogicalCores - 1;
@@ -119,9 +126,9 @@ public static class YoloTrainAdvisor
         advice.Add(Info(TrainAdviceCode.Workers, $"{env.LogicalCores} -> {workers}"));
 
         string cache = YoloTrainParameters.CacheOff;
-        if (dataset != null && dataset.Entries.Count > 0)
+        if (dataset != null && dataset.TotalImages > 0)
         {
-            double cacheGib = dataset.Entries.Count * (double)imgsz * imgsz * 3 / Gib;
+            double cacheGib = dataset.TotalImages * (double)imgsz * imgsz * 3 / Gib;
             if (freeRamGib - CacheRamHeadroomGib > cacheGib * 2)
             {
                 cache = YoloTrainParameters.CacheRam;
@@ -148,7 +155,7 @@ public static class YoloTrainAdvisor
                 advice.Add(Warn(TrainAdviceCode.RareClass, $"{cls}: {n}"));
             if (dataset.UnknownLabels.Count > 0)
                 advice.Add(Warn(TrainAdviceCode.UnknownLabels, string.Join(", ", dataset.UnknownLabels.Select(kv => $"{kv.Key} ({kv.Value})"))));
-            if (dataset.Summary(YoloSplit.Val).Images == 0)
+            if (dataset.ValImages == 0)
                 advice.Add(Warn(TrainAdviceCode.NoValidation, "0"));
         }
 
@@ -165,6 +172,17 @@ public static class YoloTrainAdvisor
             Patience = patience,
         };
         return new TrainRecommendation(parameters, advice);
+    }
+
+    /// <summary>Scale letter of a stock checkpoint, or of the stock model a run's weights were trained from (run_info chain).</summary>
+    public static char ModelScaleOf(string model)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var current = model;
+        while (!YoloTrainParameters.IsStockModel(Path.GetFileName(current)) && YoloArtifacts.RunDirOfModel(current) is { } runDir && seen.Add(runDir)
+               && YoloRunInfo.Load(runDir) is { } info && !string.IsNullOrEmpty(info.BaseModel ?? info.Parameters?.Model))
+            current = info.BaseModel ?? info.Parameters!.Model;
+        return YoloTrainParameters.ModelScale(current);
     }
 
     private static int EvenClamp(int batch)

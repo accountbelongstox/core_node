@@ -28,6 +28,7 @@ internal static class Program
         DynamicMethodInvocationReport invocationReport;
         IReadOnlyList<DynamicMethodInvocationReport> invocationReports;
         IReadOnlyList<int> methodTokens;
+        ISet<uint> selectedMethodTokens;
         HvmContextDocument contextDocument;
         HvmMethodMetadataDocument metadataDocument;
         HvmJitCaptureDocument captureDocument;
@@ -45,7 +46,7 @@ internal static class Program
                 invocationReports = new DynamicMethodInvoker().InvokeStatics(targetPath, methodTokens);
                 foreach (DynamicMethodInvocationReport item in invocationReports)
                 {
-                    Console.WriteLine($"HVM INVOKED token=0x{item.MethodToken:X8} completed={item.InvocationCompleted} method={item.MethodName}");
+                    Console.WriteLine($"HVM INVOKED token=0x{item.MethodToken:X8} completed={item.InvocationCompleted} timedOut={item.TimedOut} method={item.MethodName}");
                     if (!item.InvocationCompleted)
                         Console.WriteLine($"HVM INVOCATION EXCEPTION type={item.ExceptionType} message={item.ExceptionMessage}");
                 }
@@ -57,7 +58,7 @@ internal static class Program
                 tokenText = args[2].Replace("0x", string.Empty);
                 methodToken = int.Parse(tokenText, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                 invocationReport = new DynamicMethodInvoker().InvokeStatic(targetPath, methodToken.Value);
-                Console.WriteLine($"HVM INVOKED token=0x{invocationReport.MethodToken:X8} completed={invocationReport.InvocationCompleted} method={invocationReport.MethodName}");
+                Console.WriteLine($"HVM INVOKED token=0x{invocationReport.MethodToken:X8} completed={invocationReport.InvocationCompleted} timedOut={invocationReport.TimedOut} method={invocationReport.MethodName}");
                 if (!invocationReport.InvocationCompleted)
                     Console.WriteLine($"HVM INVOCATION EXCEPTION type={invocationReport.ExceptionType} message={invocationReport.ExceptionMessage}");
                 return 0;
@@ -71,7 +72,7 @@ internal static class Program
                 Console.WriteLine($"HVM PREPARED token=0x{preparationReport.MethodToken:X8} method={preparationReport.MethodName}");
                 return 0;
             }
-            if (args.Length == 7 && args[0] == "--resolve-hvm-operands")
+            if (args.Length >= 7 && args[0] == "--resolve-hvm-operands")
             {
                 targetPath = Path.GetFullPath(args[1]);
                 outputPath = Path.GetFullPath(args[6]);
@@ -80,12 +81,15 @@ internal static class Program
                 metadataDocument = serializer.Deserialize<HvmMethodMetadataDocument>(File.ReadAllText(args[3]));
                 captureDocument = serializer.Deserialize<HvmJitCaptureDocument>(File.ReadAllText(args[4]));
                 localTypeDocument = serializer.Deserialize<HvmLocalTypeDocument>(File.ReadAllText(args[5]));
+                selectedMethodTokens = args.Skip(7).Select(value => uint.Parse(value.Replace("0x", string.Empty),
+                    NumberStyles.HexNumber, CultureInfo.InvariantCulture)).ToHashSet();
                 resolutionReport = new HvmVirtualOperandResolver().Resolve(targetPath, contextDocument.Operands,
                     metadataDocument.Methods, captureDocument.ModulesInfo.SelectMany(module => module.MethodsInfo),
-                    localTypeDocument, outputPath, Console.WriteLine);
+                    localTypeDocument, outputPath, Console.WriteLine,
+                    selectedMethodTokens.Count == 0 ? null : selectedMethodTokens);
                 foreach (string failure in resolutionReport.Failures)
                     Console.WriteLine("HVM OPERAND FAILURE " + failure);
-                Console.WriteLine($"HVM OPERANDS decoded={resolutionReport.DecodedMethods} mapped={resolutionReport.MappedOperands} unresolved={resolutionReport.UnresolvedOperands} locals={resolutionReport.ResolvedLocals} failures={resolutionReport.Failures.Count}");
+                Console.WriteLine($"HVM OPERANDS decoded={resolutionReport.DecodedMethods} mapped={resolutionReport.MappedOperands} unresolved={resolutionReport.UnresolvedOperands} locals={resolutionReport.ResolvedLocals} rejected={resolutionReport.RejectedMethods} rejectedOperands={resolutionReport.RejectedOperands} failures={resolutionReport.Failures.Count}");
                 return resolutionReport.MappedOperands > 0 && resolutionReport.UnresolvedOperands == 0
                     && resolutionReport.Failures.Count == 0 ? 0 : 3;
             }
