@@ -2,18 +2,25 @@
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// ROSBOT update convention &lt;GameTools&gt;\{Asia|CN}_{version}\RosBot on any drive: the GameTools folder is taken from the
-/// current ROSBOT path when it follows the convention, else the default D3PathConstants.RosbotGameToolsBase.
+/// ROSBOT update convention &lt;GameTools&gt;\{Asia|CN}_{version}\RosBot on any drive. The GameTools folder follows the ROSBOT the
+/// path scan found (ros_settings.ros_directory); the default D3PathConstants.RosbotGameToolsBase only applies when none is set.
 /// </summary>
 public static class RosbotGameToolsLayout
 {
     private static readonly string[] NamespaceSeparators = { "_", " " };
 
-    /// <summary>GameTools folder holding the current ROSBOT (grandparent of a convention path), else the default base.</summary>
-    public static string GetBase(string? currentRosDirectory) =>
-        !string.IsNullOrWhiteSpace(currentRosDirectory) && IsConventionPath(currentRosDirectory)
-            ? Path.GetDirectoryName(Path.GetDirectoryName(Normalize(currentRosDirectory)))!
-            : D3PathConstants.RosbotGameToolsBase;
+    /// <summary>
+    /// GameTools folder for new versions: the grandparent of a convention path, the parent folder of any other existing ROSBOT
+    /// folder (new versions go next to it), else the default base.
+    /// </summary>
+    public static string GetBase(string? currentRosDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(currentRosDirectory)) return D3PathConstants.RosbotGameToolsBase;
+        if (IsConventionPath(currentRosDirectory)) return Path.GetDirectoryName(Path.GetDirectoryName(Normalize(currentRosDirectory)))!;
+        string dir = Normalize(currentRosDirectory);
+        if (File.Exists(dir)) dir = Path.GetDirectoryName(dir)!;
+        return Directory.Exists(dir) && Path.GetDirectoryName(dir) is { } parent ? parent : D3PathConstants.RosbotGameToolsBase;
+    }
 
     /// <summary>True when the path ends with {Asia|CN}_{version}\RosBot (or "Asia 36.0129\RosBot").</summary>
     public static bool IsConventionPath(string dirPath)
