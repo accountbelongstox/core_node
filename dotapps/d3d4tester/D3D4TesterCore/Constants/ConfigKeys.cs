@@ -115,6 +115,9 @@ public static partial class ConfigKeys
     public const string RosbotSmartEcho = "rosbot.smart_echo";
     public const string RosbotSmartEchoWaitSeconds = "rosbot.smart_echo_wait_seconds";
     public const string RosbotStartup = "rosbot.startup";
+    /// <summary>Install / refresh this app's CoreNodeBridge plugin in the current ROSBOT automatically. Default on.</summary>
+    public const string RosbotBridgePluginAutoInstall = "rosbot.bridge_plugin_auto_install";
+    public const bool RosbotBridgePluginAutoInstallDefault = true;
     public const string RosbotFirstbornBlueGateReuse = "rosbot.firstborn_blue_gate_reuse";
     public const string RosbotTestMode = "rosbot.test_mode";
     public const string RosbotTestTimeoutMinutes = "rosbot.test_timeout_minutes";
