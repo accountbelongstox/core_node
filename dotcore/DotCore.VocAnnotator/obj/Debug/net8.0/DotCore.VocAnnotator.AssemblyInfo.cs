@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.VocAnnotator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0d786e9191456f3f406a46c6586f213a317088df")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+effb3bd9897adc2e4710832d5fede5542a2d03ec")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.VocAnnotator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.VocAnnotator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -11,6 +11,7 @@ public sealed class AnnotatorImageItem : ObservableObject
 {
     private bool _isLabeled;
     private int _boxCount;
+    private bool _isReviewed = true;
 
     public AnnotatorImageItem(string path, DateTime modifiedUtc)
     {
@@ -29,6 +30,9 @@ public sealed class AnnotatorImageItem : ObservableObject
     public bool IsLabeled { get => _isLabeled; set => Set(ref _isLabeled, value); }
 
     public int BoxCount { get => _boxCount; set => Set(ref _boxCount, value); }
+
+    /// <summary>False for model pseudo-labels nobody confirmed yet.</summary>
+    public bool IsReviewed { get => _isReviewed; set => Set(ref _isReviewed, value); }
 }
 
 /// <summary>Class list entry; Index is the YOLO class id and the 1-9 hotkey (Index + 1).</summary>
@@ -115,11 +119,16 @@ public static class ClassPalette
 }
 
 /// <summary>Per-image undo / redo of the box list (snapshots).</summary>
-public sealed class UndoHistory
+public sealed class UndoHistory : UndoHistory<AnnotationBox>
+{
+}
+
+/// <summary>Undo / redo of a list state as snapshots of its items (items must be immutable or snapshot copies).</summary>
+public class UndoHistory<T>
 {
     private const int MaxDepth = 200;
-    private readonly LinkedList<List<AnnotationBox>> _undo = new();
-    private readonly Stack<List<AnnotationBox>> _redo = new();
+    private readonly LinkedList<List<T>> _undo = new();
+    private readonly Stack<List<T>> _redo = new();
 
     public bool CanUndo => _undo.Count > 0;
 
@@ -132,14 +141,14 @@ public sealed class UndoHistory
     }
 
     /// <summary>Record the state before an edit.</summary>
-    public void Push(IEnumerable<AnnotationBox> before)
+    public void Push(IEnumerable<T> before)
     {
         _undo.AddLast(before.ToList());
         if (_undo.Count > MaxDepth) _undo.RemoveFirst();
         _redo.Clear();
     }
 
-    public List<AnnotationBox>? Undo(IEnumerable<AnnotationBox> current)
+    public List<T>? Undo(IEnumerable<T> current)
     {
         if (_undo.Last is not { } last) return null;
         _undo.RemoveLast();
@@ -147,7 +156,7 @@ public sealed class UndoHistory
         return last.Value;
     }
 
-    public List<AnnotationBox>? Redo(IEnumerable<AnnotationBox> current)
+    public List<T>? Redo(IEnumerable<T> current)
     {
         if (_redo.Count == 0) return null;
         _undo.AddLast(current.ToList());

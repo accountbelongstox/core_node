@@ -115,3 +115,13 @@ The accepted artifacts are under `C:\Users\accou\.core_node\.d3check\decompiled\
 Dynamic capture can recover only methods that the process actually compiles. Further progress on the movement methods requires a controlled run that exercises those application paths; merely extending idle trace duration will not load them. Diagnostic candidate assemblies remain non-executable and are never accepted as recovered output.
 
 Status: baseline local acquisition is complete. The existing traces, inventories and rejected candidates are retained pending a user-controlled test that exercises the required application paths.
+
+## HVM operand reconstruction checkpoint
+
+The local TTD invocation trace captured 210 target JIT calls covering 124 unique methods and 649 HVM token-helper calls. Context matching associated all 440 relevant token resolutions with 86 HVM methods. The reusable resolver reconstructed raw CIL, metadata operands and local signatures transactionally; a method is restored to its original placeholder if any referenced operand remains unresolved.
+
+The first validated passes recovered 116 HVM methods. One additional constructor was initially rejected because DNGuard returned a tagged `SZARRAY` type handle rather than a direct type definition. The token extractor now records the descriptor kind, element module and element type token, and the resolver emits the corresponding `TypeSpec`. Replaying the existing trace then decoded all 85 methods in that pass, resolved 422 operands and 86 local variables, and rejected no methods. The cumulative inventory is 2,017 static IL methods, 41,529 protected placeholders and 612 methods without bodies: 117 HVM methods have been recovered relative to the original 1,900-static-IL baseline.
+
+The accepted assembly is `C:\Users\accou\.core_node\.d3check\decompiled\dynamic-acquisition\20261004-034641\hvm-analysis\RoS-BoT-HvmResolved-v6.exe`. Its inventory and full C# export are in `inventory-resolved-v6` and `decompiled-resolved-v6`. The v6 export introduced no additional ILSpy warning locations compared with v5. The newly recovered constructor initializes four array fields and its `Me` field instead of throwing the DNGuard runtime placeholder exception.
+
+Full source recovery is still incomplete. In particular, the public `CanWalk`, `CanRayCast`, `RealDistance`, `CoreMoveTo`, `MoveTo` and `Interact` entry points remain protected placeholders. Additional progress requires controlled execution that reaches new application paths, followed by the same capture, operand reconstruction and validation pipeline.

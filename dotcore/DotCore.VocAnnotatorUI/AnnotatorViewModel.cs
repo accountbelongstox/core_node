@@ -41,6 +41,9 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
     private string _currentLabel = ProjectConfig.DefaultClassName;
     private bool _isDrawMode;
     private bool _isDirty;
+    private int _scanVersion;
+    private string _currentSource = AnnotationSources.Manual;
+    private bool _currentReviewed = true;
     private bool _isBusy;
     private string _filter = AnnotatorSettings.FilterAll;
     private string _searchText = "";
@@ -73,7 +76,7 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         CopyPreviousCommand = new AnnotatorCommand(() => CopyFromPrevious(showMessage: true), () => HasImage);
         UndoCommand = new AnnotatorCommand(Undo, () => _history.CanUndo);
         RedoCommand = new AnnotatorCommand(Redo, () => _history.CanRedo);
-        SaveCommand = new AnnotatorCommand(() => Save(), () => HasImage);
+        SaveCommand = new AnnotatorCommand(() => Save(confirm: true), () => HasImage);
         ClearBoxesCommand = new AnnotatorCommand(ClearBoxes, () => Boxes.Count > 0);
         ResetAnnotationCommand = new AnnotatorCommand(ResetAnnotation, () => CurrentImage?.IsLabeled == true);
         ToggleDifficultCommand = new AnnotatorCommand(ToggleDifficult, () => HasSelection);
@@ -252,9 +255,20 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string ProgressText => T(K.ProgressFormat)
-        .Replace("{labeled}", Images.Count(i => i.IsLabeled).ToString())
-        .Replace("{total}", Images.Count.ToString());
+    public string ProgressText
+    {
+        get
+        {
+            int unreviewed = Images.Count(i => i.IsLabeled && !i.IsReviewed);
+            return T(unreviewed > 0 ? K.ProgressFormatUnreviewed : K.ProgressFormat)
+                .Replace("{labeled}", Images.Count(i => i.IsLabeled).ToString())
+                .Replace("{total}", Images.Count.ToString())
+                .Replace("{unreviewed}", unreviewed.ToString());
+        }
+    }
+
+    /// <summary>Hint shown while the current image holds unconfirmed model pseudo-labels.</summary>
+    public string ReviewText => HasImage && !_currentReviewed ? T(K.StatusUnreviewed) : "";
 
     public string ImageIndexText
     {
@@ -304,10 +318,10 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
     public bool TryLeaveCurrentImage()
     {
         if (!_isDirty || _currentImage == null) return true;
-        if (Settings.AutoSave) return Save();
+        if (Settings.AutoSave) return Save(confirm: false);
         var answer = _dialogs.ConfirmSave(T(K.ConfirmUnsaved));
         if (answer == null) return false;
-        if (answer == true) return Save();
+        if (answer == true) return Save(confirm: false);
         IsDirty = false;
         return true;
     }
@@ -408,6 +422,7 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         Bitmap = null;
         Boxes.Clear();
         _history.Reset();
+        _scanVersion++;
         _labelsByImage.Clear();
         Images.Clear();
         ImagesDir = dir;
@@ -433,20 +448,26 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         _ = ScanAnnotationsAsync(annotationDir);
     }
 
+    /// <summary>
+    /// Read every annotation in the background; only the newest scan applies (a project-wide rename / delete or a folder change
+    /// starts a new one), so labels of a superseded snapshot never re-add a removed class.
+    /// </summary>
     private async Task ScanAnnotationsAsync(string annotationDir)
     {
+        int version = ++_scanVersion;
         StatusMessage = T(K.Scanning);
         var snapshot = Images.Select(i => i.Path).ToList();
         var result = await Task.Run(() => snapshot.ToDictionary(p => p, p =>
         {
             var ann = AnnotationIo.Load(p, annotationDir);
-            return ann?.Boxes.GroupBy(b => b.Label).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+            return (Labels: ann?.Boxes.GroupBy(b => b.Label).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal), Reviewed: ann?.Reviewed ?? true);
         }, StringComparer.OrdinalIgnoreCase));
-        if (annotationDir != AnnotationDir) return;
+        if (version != _scanVersion || annotationDir != AnnotationDir) return;
         foreach (var item in Images)
         {
-            if (!result.TryGetValue(item.Path, out var labels) || labels == null) continue;
+            if (!result.TryGetValue(item.Path, out var scanned) || scanned.Labels is not { } labels) continue;
             if (ReferenceEquals(item, _currentImage) && _isDirty) continue;
+            item.IsReviewed = scanned.Reviewed;
             _labelsByImage[item.Path] = labels;
             item.BoxCount = labels.Values.Sum();
         }
@@ -480,16 +501,9 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         }
         try
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            bmp.UriSource = new Uri(item.Path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            Bitmap = bmp;
+            Bitmap = BitmapDecode.FromBytes(File.ReadAllBytes(item.Path));
         }
-        catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or FormatException)
         {
             StatusMessage = T(K.LoadFailed) + ex.Message;
             RefreshStatus();
@@ -497,12 +511,14 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         }
         var ann = AnnotationDir == null ? null : AnnotationIo.Load(item.Path, AnnotationDir);
         foreach (var b in ann?.Boxes ?? new List<AnnotationBox>()) Boxes.Add(b);
+        SetProvenance(ann?.Source ?? AnnotationSources.Manual, ann?.Reviewed ?? true);
         if (ann == null && Settings.CopyPreviousWhenEmpty) CopyFromPrevious(showMessage: false);
         RefreshStatus();
         if (ann == null && Settings.AutoLabelOnOpen && !IsBusy) _ = AutoLabelCurrentAsync();
     }
 
-    private bool Save()
+    /// <summary>Write the current image; confirm (explicit save) marks pseudo-labels as reviewed.</summary>
+    private bool Save(bool confirm)
     {
         if (_currentImage is not { } item || _bitmap == null) return true;
         if (AnnotationDir == null)
@@ -512,9 +528,11 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         }
         var boxes = Boxes.Select(b => b.ClampTo(_bitmap.PixelWidth, _bitmap.PixelHeight)).Where(b => b.IsValid(1)).ToList();
         foreach (var label in boxes.Select(b => b.Label).Distinct()) EnsureClass(label);
+        bool reviewed = confirm || _currentReviewed;
+        var source = boxes.Any(b => b.Confidence != null) ? _currentSource : AnnotationSources.Manual;
         try
         {
-            AnnotationIo.Save(new ImageAnnotation(item.Path, _bitmap.PixelWidth, _bitmap.PixelHeight, boxes), AnnotationDir,
+            AnnotationIo.Save(new ImageAnnotation(item.Path, _bitmap.PixelWidth, _bitmap.PixelHeight, boxes) { Source = source, Reviewed = reviewed }, AnnotationDir,
                 new AnnotationSaveOptions(Settings.WriteVocXml, Settings.WriteYoloTxt, _project.Classes));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -524,6 +542,8 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         }
         item.IsLabeled = true;
         item.BoxCount = boxes.Count;
+        item.IsReviewed = reviewed;
+        SetProvenance(source, reviewed);
         _labelsByImage[item.Path] = boxes.GroupBy(b => b.Label).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
         IsDirty = false;
         StatusMessage = T(K.StatusSaved).Replace("{file}", item.FileName);
@@ -532,10 +552,12 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         return true;
     }
 
-    private void Edit(Action change)
+    /// <summary>Apply a box edit with undo; a manual edit counts as reviewing the image.</summary>
+    private void Edit(Action change, bool manual = true)
     {
         _history.Push(Boxes);
         change();
+        if (manual) SetProvenance(_currentSource, true);
         IsDirty = true;
         RefreshStatus();
     }
@@ -546,7 +568,15 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         foreach (var b in boxes) Boxes.Add(b);
         SelectedBoxIndex = -1;
         IsDirty = true;
+        SetProvenance(_currentSource, true);
         RefreshStatus();
+    }
+
+    private void SetProvenance(string source, bool reviewed)
+    {
+        _currentSource = source;
+        _currentReviewed = reviewed;
+        OnPropertyChanged(nameof(ReviewText));
     }
 
     private void Undo()
@@ -614,6 +644,7 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         AnnotationIo.Delete(item.Path, AnnotationDir);
         item.IsLabeled = false;
         item.BoxCount = 0;
+        item.IsReviewed = true;
         _labelsByImage.Remove(item.Path);
         UpdateClassCounts();
         LoadCurrentImage();
@@ -657,10 +688,10 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
     private async Task AutoLabelCurrentAsync()
     {
         if (_currentImage is not { } item || _bitmap == null) return;
-        var model = AutoLabelService.ResolveModel(Settings.AutoLabelModelPath, ProjectDir);
-        if (model == null)
+        var choice = AutoLabelService.ResolveModel(Settings.AutoLabelModelPath, _project.Classes, Settings.AutoLabelAddClasses);
+        if (choice.ModelPath is not { } model)
         {
-            _dialogs.ShowMessage(T(K.AutoLabelNoModel), true);
+            _dialogs.ShowMessage(AutoLabelService.Describe(choice), true);
             return;
         }
         IsBusy = true;
@@ -676,7 +707,8 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
             {
                 Boxes.Clear();
                 foreach (var b in merged) Boxes.Add(b);
-            });
+            }, manual: false);
+            if (added > 0) SetProvenance(AutoLabelService.SourceOf(model, Settings.AutoLabelConfidence), false);
             StatusMessage = T(K.AutoLabelDone).Replace("{count}", added.ToString())
                 + (dropped > 0 ? " " + T(K.AutoLabelDropped).Replace("{count}", dropped.ToString()) : "");
         }
@@ -695,13 +727,14 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
     {
         var annotationDir = AnnotationDir;
         if (annotationDir == null || !TryLeaveCurrentImage()) return;
-        var model = AutoLabelService.ResolveModel(Settings.AutoLabelModelPath, ProjectDir);
-        if (model == null)
+        var choice = AutoLabelService.ResolveModel(Settings.AutoLabelModelPath, _project.Classes, Settings.AutoLabelAddClasses);
+        if (choice.ModelPath is not { } model)
         {
-            _dialogs.ShowMessage(T(K.AutoLabelNoModel), true);
+            _dialogs.ShowMessage(AutoLabelService.Describe(choice), true);
             return;
         }
         var targets = Images.Where(i => !i.IsLabeled).ToList();
+        var source = AutoLabelService.SourceOf(model, Settings.AutoLabelConfidence);
         _taskCts = new CancellationTokenSource();
         var ct = _taskCts.Token;
         IsBusy = true;
@@ -720,10 +753,11 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
                 if (mapped.Count == 0 || size == null) continue;
                 var (w, h) = size.Value;
                 var boxes = mapped.Select(b => b.ClampTo(w, h)).Where(b => b.IsValid(1)).ToList();
-                AnnotationIo.Save(new ImageAnnotation(item.Path, w, h, boxes), annotationDir,
+                AnnotationIo.Save(new ImageAnnotation(item.Path, w, h, boxes) { Source = source, Reviewed = false }, annotationDir,
                     new AnnotationSaveOptions(Settings.WriteVocXml, Settings.WriteYoloTxt, _project.Classes));
                 item.IsLabeled = true;
                 item.BoxCount = boxes.Count;
+                item.IsReviewed = false;
                 _labelsByImage[item.Path] = boxes.GroupBy(b => b.Label).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
                 boxesTotal += boxes.Count;
             }
@@ -823,6 +857,8 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
             return;
         }
         ColorPrinter.Blue($"{LogTag} {messageKey} count={count}");
+        _scanVersion++;
+        _labelsByImage.Clear();
         StatusMessage = T(messageKey).Replace("{count}", count.ToString());
         ReloadClasses();
         if (select != null) SelectedClass = Classes.FirstOrDefault(c => c.Name == select);
@@ -926,6 +962,7 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         {
             AnnotatorSettings.FilterLabeled => item.IsLabeled,
             AnnotatorSettings.FilterUnlabeled => !item.IsLabeled || ReferenceEquals(item, _currentImage),
+            AnnotatorSettings.FilterUnreviewed => (item.IsLabeled && !item.IsReviewed) || ReferenceEquals(item, _currentImage),
             _ => true,
         };
     }
@@ -938,6 +975,7 @@ public sealed class AnnotatorViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ImageSizeText));
         OnPropertyChanged(nameof(BoxCountText));
         OnPropertyChanged(nameof(ProgressText));
+        OnPropertyChanged(nameof(ReviewText));
         OnPropertyChanged(nameof(HasImage));
         CommandManager.InvalidateRequerySuggested();
     }

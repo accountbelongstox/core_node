@@ -27,6 +27,10 @@ public static class AnnotationIo
     private const string KeyLabel = "label";
     private const string KeyPoints = "points";
     private const string KeyDifficult = "difficult";
+    private const string KeyConfidence = "confidence";
+    private const string KeySource = "source";
+    private const string KeyReviewed = "reviewed";
+    private const int ConfidenceDecimals = 4;
     private const string VocRoot = "annotation";
     private const string VocObject = "object";
     private const string VocName = "name";
@@ -95,7 +99,7 @@ public static class AnnotationIo
         var shapes = new JsonArray();
         foreach (var b in annotation.Boxes)
         {
-            shapes.Add(new JsonObject
+            var shape = new JsonObject
             {
                 [KeyShapeType] = ShapeTypeRectangle,
                 [KeyLabel] = b.Label,
@@ -103,13 +107,17 @@ public static class AnnotationIo
                     new JsonArray(Round(b.XMin), Round(b.YMin)),
                     new JsonArray(Round(b.XMax), Round(b.YMax))),
                 [KeyDifficult] = b.Difficult ? 1 : 0,
-            });
+            };
+            if (b.Confidence is { } confidence) shape[KeyConfidence] = Math.Round(confidence, ConfidenceDecimals);
+            shapes.Add(shape);
         }
         var root = new JsonObject
         {
             [KeyImagePath] = Path.GetFileName(annotation.ImagePath),
             [KeyImageSize] = new JsonArray(annotation.Width, annotation.Height),
             [KeyShapes] = shapes,
+            [KeySource] = annotation.Source,
+            [KeyReviewed] = annotation.Reviewed,
         };
         File.WriteAllText(JsonPath(annotation.ImagePath, annotationDir), root.ToJsonString(WriteOptions));
 
@@ -247,7 +255,17 @@ public static class AnnotationIo
                 if (ShapeToBox(node) is { } box) boxes.Add(box);
             }
         }
-        return new ImageAnnotation(imagePath, w, h, boxes);
+        var source = root[KeySource] is JsonValue sv && sv.TryGetValue<string>(out var s) && s.Length > 0 ? s : AnnotationSources.Manual;
+        bool reviewed = root[KeyReviewed] is not JsonValue rv || !rv.TryGetValue<bool>(out var r) || r;
+        return new ImageAnnotation(imagePath, w, h, boxes) { Source = source, Reviewed = reviewed };
+    }
+
+    /// <summary>False only for an unconfirmed model pseudo-label JSON; images without JSON (VOC only / none) count as reviewed.</summary>
+    public static bool IsReviewed(string imagePath, string annotationDir)
+    {
+        var json = JsonPath(imagePath, annotationDir);
+        return !File.Exists(json) || TryReadShapesDocument(json) is not { } root
+            || root[KeyReviewed] is not JsonValue rv || !rv.TryGetValue<bool>(out var r) || r;
     }
 
     private static AnnotationBox? ShapeToBox(JsonObject shape)
@@ -261,14 +279,15 @@ public static class AnnotationIo
         if (points.Count < 2) return null;
         var label = ((string?)shape[KeyLabel] ?? "").Trim();
         var difficult = ToInt(shape[KeyDifficult]) != 0;
+        double? confidence = shape[KeyConfidence] is JsonValue ? ToDouble(shape[KeyConfidence]) : null;
         var type = (string?)shape[KeyShapeType];
         if (type == ShapeTypeCircle)
         {
             var (cx, cy) = points[0];
             var r = Math.Sqrt(Math.Pow(points[1].X - cx, 2) + Math.Pow(points[1].Y - cy, 2));
-            return new AnnotationBox(label, cx - r, cy - r, cx + r, cy + r, difficult);
+            return new AnnotationBox(label, cx - r, cy - r, cx + r, cy + r, difficult, confidence);
         }
-        return new AnnotationBox(label, points.Min(p => p.X), points.Min(p => p.Y), points.Max(p => p.X), points.Max(p => p.Y), difficult);
+        return new AnnotationBox(label, points.Min(p => p.X), points.Min(p => p.Y), points.Max(p => p.X), points.Max(p => p.Y), difficult, confidence);
     }
 
     private static JsonObject? TryReadShapesDocument(string jsonPath)
