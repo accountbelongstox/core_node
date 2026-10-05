@@ -139,6 +139,7 @@ public partial class MainWindow : Window, IMainWindowHost
         });
         BattlenetGuardService.Initialize();
         StartupShortcutService.Initialize();
+        BattlenetNetHoldService.Initialize();
         RosbotPluginConfigSync.Initialize();
 
         var langList = provider.GetSupportedLanguages()
@@ -736,6 +737,8 @@ public partial class MainWindow : Window, IMainWindowHost
         [BattlenetGameAction.Install] = ("\uE896", WarningBrushKeyGameUi, I18nKeys.GameUiActionInstall),
         [BattlenetGameAction.TryFree] = ("\uE719", ErrorBrushKeyGameUi, I18nKeys.GameUiActionTryFree),
         [BattlenetGameAction.Starting] = ("\uE916", GameUiFoundBrushKey, I18nKeys.GameUiActionStarting),
+        [BattlenetGameAction.Downloading] = ("\uE896", GameUiFoundBrushKey, I18nKeys.GameUiActionDownloading),
+        [BattlenetGameAction.DownloadPaused] = ("\uE769", WarningBrushKeyGameUi, I18nKeys.GameUiActionDownloadPaused),
     };
 
     public object? GetPage(string key)

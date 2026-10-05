@@ -17,4 +17,6 @@ public static partial class I18nKeys
     public const string GameUiActionInstall = "ui.game_ui.action_install";
     public const string GameUiActionTryFree = "ui.game_ui.action_try_free";
     public const string GameUiActionStarting = "ui.game_ui.action_starting";
+    public const string GameUiActionDownloading = "ui.game_ui.action_downloading";
+    public const string GameUiActionDownloadPaused = "ui.game_ui.action_download_paused";
 }

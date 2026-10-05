@@ -257,6 +257,52 @@ public static class RosbotUiAutomation
         return ok;
     }
 
+    /// <summary>Sequence name selected before the resume sequence presses Start (null or empty = keep the current one). Set by the app.</summary>
+    public static Func<string?>? ForcedSequenceProvider { get; set; }
+
+    /// <summary>cmbSequence expand -> first ListItem whose name contains sequenceName. True when the item was operated.</summary>
+    public static bool SelectSequence(AutomationElement? windowControl, string sequenceName)
+    {
+        if (windowControl == null || string.IsNullOrWhiteSpace(sequenceName)) return false;
+        var cmb = UiAnalysisSequence.FindControlInWindow(windowControl, CmbSequence, RosbotConstants.SequenceFindMaxDepth);
+        if (cmb == null)
+        {
+            ColorPrinter.Yellow($"{LogTag} Sequence combo not found");
+            return false;
+        }
+        if (TryExpandCombo(cmb)) Thread.Sleep(RosbotConstants.ComboExpandWaitMs);
+        var selector = new UiSelector { Type = ListItemControlType, NameContains = new[] { sequenceName.Trim() } };
+        var item = UiAnalysisSequence.FindControlInWindow(windowControl, selector, RosbotConstants.RiftItemFindMaxDepth);
+        if (item == null)
+        {
+            ColorPrinter.Yellow($"{LogTag} Sequence '{sequenceName}' not found");
+            return false;
+        }
+        bool ok = UIOperations.OperateTabItem(item, RosbotClick);
+        Thread.Sleep(RosbotConstants.RiftItemSelectWaitMs);
+        ColorPrinter.Blue($"{LogTag} Sequence '{sequenceName}' selected={ok}");
+        return ok;
+    }
+
+    /// <summary>Select sequenceName in the current ROSBOT window (trigger action "set sequence").</summary>
+    public static bool SelectSequenceInRosbotWindow(string sequenceName)
+    {
+        var w = RosbotManager.Instance.GetRosbotWindow();
+        if (w == null)
+        {
+            ColorPrinter.Yellow($"{LogTag} select sequence: no ROSBOT window");
+            return false;
+        }
+        return UIOperations.RunWithWindowRoot(w.Hwnd, root => SelectSequence(root, sequenceName));
+    }
+
+    private static void SelectForcedSequence(AutomationElement root)
+    {
+        string? name = ForcedSequenceProvider?.Invoke();
+        if (!string.IsNullOrWhiteSpace(name))
+            SelectSequence(root, name);
+    }
+
     /// <summary>After the No-items OK: switch the ROSBOT window to rift mode and press Start. 1:1 Python do_after_no_items_close_switch_rift_and_start.</summary>
     public static bool DoAfterNoItemsCloseSwitchRiftAndStart()
     {
@@ -349,6 +395,8 @@ public static class RosbotUiAutomation
                 DebugPrintOperableElements(root);
                 ok = true;
             }
+            if (doStartBotting)
+                SelectForcedSequence(root);
             if (doTab || doStartBotting)
                 ok = RunResumeSequence(root) || ok;
             return ok;

@@ -32,7 +32,10 @@ public enum BattlenetClientState
     Normal,
 }
 
-/// <summary>Main action button of a game page: Play, Update, Install (not installed), Try For Free / Buy (not owned), Starting.</summary>
+/// <summary>
+/// Main action of a game page: Play, Update, Install (not installed), Try For Free / Buy (not owned), Starting, or a running
+/// download (Downloading = Pause shown) / a stopped one (DownloadPaused = Resume shown, also "Queued").
+/// </summary>
 public enum BattlenetGameAction
 {
     None,
@@ -41,6 +44,8 @@ public enum BattlenetGameAction
     Install,
     TryFree,
     Starting,
+    Downloading,
+    DownloadPaused,
 }
 
 /// <summary>Game entry points on the main UI: D3 / D4 nav tab and the action button of that game's page (seen while its page is open).</summary>
@@ -87,19 +92,23 @@ public sealed record BattlenetClientStatus(BattlenetClientState State, string? U
 /// </summary>
 public static class BattlenetClientStateDetector
 {
-    public static BattlenetClientStatus Detect()
+    public static BattlenetClientStatus Detect() => DetectWithControls().Status;
+
+    /// <summary>Status plus the walked controls of every visible Battle.net window (empty when no window).</summary>
+    public static (BattlenetClientStatus Status, IReadOnlyList<BattlenetControl> Controls) DetectWithControls()
     {
         var bn = BattlenetManager.Instance;
         var windows = bn.FindWindows();
         if (windows.Count == 0)
-            return new BattlenetClientStatus(bn.IsProcessRunning() ? BattlenetClientState.TrayHidden : BattlenetClientState.NotRunning, null, null);
+            return (new BattlenetClientStatus(bn.IsProcessRunning() ? BattlenetClientState.TrayHidden : BattlenetClientState.NotRunning, null, null),
+                Array.Empty<BattlenetControl>());
 
         var controls = new List<BattlenetControl>();
         foreach (var w in windows)
             controls.AddRange(T.EnumerateLightForWindow(w.Hwnd));
         string? uiRegion = UiRegion(controls);
         var status = BattlenetOperationFactory.GetOperation(uiRegion).ClassifyClientState(controls);
-        return status with { UiRegion = uiRegion };
+        return (status with { UiRegion = uiRegion }, controls);
     }
 
     /// <summary>Region the UI itself shows: exact CN-only / Asia-only automation ids (substring matching would read D3CN as D3).</summary>

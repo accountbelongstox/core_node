@@ -35,6 +35,49 @@
         </StackPanel>
       </Border>
 
+      <Border Style="{StaticResource CardBorderStyle}" Padding="10,8" Margin="0,0,0,6">
+        <StackPanel>
+          <TextBlock x:Name="LblNetHoldTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>
+          <CheckBox x:Name="ChkNetHold" Margin="0,0,0,4"/>
+          <CheckBox x:Name="ChkNetHoldOnBoot" Margin="0,0,0,4"/>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+            <TextBlock x:Name="LblNetHoldInterval" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox x:Name="TxtNetHoldInterval" Width="64" TextAlignment="Right" Margin="0,0,6,0"/>
+            <TextBlock x:Name="LblNetHoldSec" VerticalAlignment="Center"/>
+          </StackPanel>
+          <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" MinWidth="80"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="LblNetHoldStatus" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,0"/>
+            <TextBlock x:Name="TxtNetHoldStatus" Grid.Column="1" Style="{StaticResource BodyStrongTextStyle}" TextWrapping="Wrap"/>
+          </Grid>
+          <ProgressBar x:Name="PrgNetHold" Height="8" Minimum="0" Maximum="100" Margin="0,0,0,4"/>
+          <TextBlock x:Name="TxtNetHoldProgress" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <TextBlock x:Name="LblNetHoldHistory" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+          <ListBox x:Name="LstNetHoldHistory" Height="110" Margin="0,0,0,6"/>
+          <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" MinWidth="80"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="LblD4InstallPath" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox x:Name="TxtD4InstallPath" Grid.Column="1" Margin="0,0,6,0"/>
+            <Button x:Name="BtnD4InstallPathBrowse" Grid.Column="2" Style="{StaticResource SecondaryButtonStyle}" Click="BtnD4InstallPathBrowse_Click"/>
+          </Grid>
+          <WrapPanel>
+            <Button x:Name="BtnEnsureClient" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,4" Click="BtnEnsureClient_Click"/>
+            <Button x:Name="BtnNetHoldNow" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnNetHoldNow_Click"/>
+            <Button x:Name="BtnOpenD4Page" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnOpenD4Page_Click"/>
+            <Button x:Name="BtnPauseDownload" Style="{StaticResource WarningButtonStyle}" Margin="0,0,6,4" Click="BtnPauseDownload_Click"/>
+            <Button x:Name="BtnResumeDownload" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,4" Click="BtnResumeDownload_Click"/>
+          </WrapPanel>
+          <TextBlock x:Name="TxtNetHoldDesc" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+        </StackPanel>
+      </Border>
+
       <Border Style="{StaticResource CardBorderStyle}" Padding="10,8">
         <StackPanel>
           <TextBlock x:Name="LblStateTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>

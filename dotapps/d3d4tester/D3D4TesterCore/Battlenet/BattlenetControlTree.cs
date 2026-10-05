@@ -183,6 +183,15 @@ public static class BattlenetControlTree
         });
     }
 
+    /// <summary>UIA Invoke of the live control without activating the window or moving the mouse; false when it cannot be invoked.</summary>
+    public static bool InvokeControl(BattlenetControl control)
+    {
+        var raw = FindRawMatching(control);
+        bool ok = raw != null && UIOperations.OperateButton(raw, _ => false, preferInvoke: true);
+        if (ok) InvalidateLightCache();
+        return ok;
+    }
+
     /// <summary>Activate, Invoke the live control, else mouse click at rect centre. 1:1 Python click_control.</summary>
     public static bool ClickControl(BattlenetControl control, bool requireClickable = false)
     {

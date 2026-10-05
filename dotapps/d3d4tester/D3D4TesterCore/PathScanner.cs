@@ -228,30 +228,6 @@ public static class PathScanner
 
     private static string NormalizePath(string path) => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-    /// <summary>True if path is under GameTools and matches {Asia|CN}_{version}\RosBot (update convention). 1:1 Python _is_rosbot_update_convention_path.</summary>
-    private static bool IsRosbotUpdateConventionPath(string dirPath)
-    {
-        try
-        {
-            string norm = Path.GetFullPath(dirPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string baseNorm = Path.GetFullPath(D3PathConstants.RosbotGameToolsBase).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (string.IsNullOrEmpty(baseNorm) || !norm.StartsWith(baseNorm, StringComparison.OrdinalIgnoreCase) || norm.Length <= baseNorm.Length)
-                return false;
-            string rest = norm.Substring(baseNorm.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string[] parts = rest.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (parts.Length < 2) return false;
-            string parentName = parts[^2];
-            string lastPart = parts[^1];
-            if (!string.Equals(lastPart, D3PathConstants.RosbotFinalDirName, StringComparison.OrdinalIgnoreCase))
-                return false;
-            return parentName.StartsWith(D3PathConstants.RosbotDirNamespaceAsia + "_", StringComparison.OrdinalIgnoreCase)
-                || parentName.StartsWith(D3PathConstants.RosbotDirNamespaceAsia + " ", StringComparison.OrdinalIgnoreCase)
-                || parentName.StartsWith(D3PathConstants.RosbotDirNamespaceCn + "_", StringComparison.OrdinalIgnoreCase)
-                || parentName.StartsWith(D3PathConstants.RosbotDirNamespaceCn + " ", StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    /// <summary>True if path matches {Asia|CN}_{version}\RosBot under any GameTools folder (update convention). 1:1 Python _is_rosbot_update_convention_path.</summary>
+    private static bool IsRosbotUpdateConventionPath(string dirPath) => RosbotGameToolsLayout.IsConventionPath(dirPath);
 }

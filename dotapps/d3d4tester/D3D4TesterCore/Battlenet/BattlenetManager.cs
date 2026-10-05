@@ -58,7 +58,21 @@ public sealed class BattlenetManager
         }
         if (HasWindow())
             return true;
+        if (!WaitForNetwork()) return false;
         return Launch(path, GetConfiguredRegion());
+    }
+
+    /// <summary>
+    /// Battle.net is only (re)started with a working internet connection: started offline it drops the login. False (logged)
+    /// when offline; the callers' loops retry on their next tick.
+    /// </summary>
+    public static bool IsNetworkReady() => NetworkProbe.IsInternetAvailable();
+
+    private static bool WaitForNetwork()
+    {
+        if (IsNetworkReady()) return true;
+        ColorPrinter.Yellow($"{LogPrefix} No internet connection, not starting Battle.net (retry on the next check) caller: {DescribeCaller()}");
+        return false;
     }
 
     /// <summary>
@@ -73,6 +87,7 @@ public sealed class BattlenetManager
             ColorPrinter.Red($"{LogPrefix} Battle.net path not configured");
             return false;
         }
+        if (!WaitForNetwork()) return false;
         ColorPrinter.Blue($"{LogPrefix} Restart Battle.net in region {region}");
         if (!Close(force)) return false;
         if (waitAfterSec > 0) Thread.Sleep((int)(waitAfterSec * 1000));
@@ -141,6 +156,7 @@ public sealed class BattlenetManager
             ColorPrinter.Yellow($"{LogPrefix} Not closing Battle.net: client is healthy ({status.State}) caller: {DescribeCaller()}");
             return false;
         }
+        if (!WaitForNetwork()) return false;
         return Close();
     }
 
@@ -153,6 +169,7 @@ public sealed class BattlenetManager
         string? path = exePath ?? GetPath();
         if (string.IsNullOrWhiteSpace(path))
             return false;
+        if (!WaitForNetwork()) return false;
         if (!Close(force)) return false;
         if (waitAfterSec > 0)
             Thread.Sleep((int)(waitAfterSec * 1000));
