@@ -5,7 +5,7 @@ namespace DotApps.d3d4tester.Core.Flow;
 
 /// <summary>
 /// Restarts outside the F3 timeout: a pending request (error popup, D3 memory limit, trigger action) is consumed by the flow master on
-/// its next tick and runs the same F4 -> B2 restart as a log disconnect (restartBattlenet closes Battle.net first). Every F4 -> B2
+/// its next tick and runs the same F4 -> B2 restart as a log disconnect (restartBattlenet is passed to the handler). Every F4 -> B2
 /// restart, including F3 timeouts and log disconnects, raises <see cref="Executed"/> synchronously before D3 is closed.
 /// </summary>
 public static class RosbotRestartRequest
@@ -18,8 +18,8 @@ public static class RosbotRestartRequest
     private static string _detail = "";
     private static bool _restartBattlenet;
 
-    /// <summary>(reasonId, detail) of a restart that is about to run (D3 still open). Handlers run on the tick thread.</summary>
-    public static event Action<string, string>? Executed;
+    /// <summary>(reasonId, detail, restartBattlenet requested) of a restart that is about to run (D3 still open). Handlers run on the tick thread.</summary>
+    public static event Action<string, string, bool>? Executed;
 
     public static bool IsPending
     {
@@ -66,9 +66,9 @@ public static class RosbotRestartRequest
     }
 
     /// <summary>Called by the flow master right before F4.</summary>
-    public static void NotifyExecuted(string reasonId, string detail)
+    public static void NotifyExecuted(string reasonId, string detail, bool restartBattlenet)
     {
-        try { Executed?.Invoke(reasonId, detail); }
+        try { Executed?.Invoke(reasonId, detail, restartBattlenet); }
         catch (Exception ex) { ColorPrinter.Red($"[RestartRequest] Executed handler: {ex.Message}"); }
     }
 }

@@ -320,11 +320,9 @@ public static class FlowMasterDriver
     }
 
     /// <summary>F4, then refresh so the next tick's gate sees D3/ROSBOT gone (no duplicate F3 50 %), then enter B2.</summary>
-    private static void RunF4AndEnterB2(string reasonId, string detail = "", bool closeBattlenet = false)
+    private static void RunF4AndEnterB2(string reasonId, string detail = "", bool restartBattlenet = false)
     {
-        RosbotRestartRequest.NotifyExecuted(reasonId, detail);
-        if (closeBattlenet)
-            Battlenet.BattlenetManager.Instance.Close();
+        RosbotRestartRequest.NotifyExecuted(reasonId, detail, restartBattlenet);
         F4CloseD3SendF7.Run();
         bool d3Changed = RefreshD3(skipDynamic: true);
         bool rosbotChanged = RefreshRosbot();
