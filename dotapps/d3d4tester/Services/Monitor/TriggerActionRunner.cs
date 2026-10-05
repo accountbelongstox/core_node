@@ -1,6 +1,5 @@
 // PY-REF: none (DOT-only)
 using System.Diagnostics;
-using System.Globalization;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Monitor;
@@ -16,8 +15,6 @@ namespace DotApps.d3d4tester.Services.Monitor;
 /// </summary>
 public static class TriggerActionRunner
 {
-    private const ushort VkF7 = 0x76;
-    private const ushort VkF9 = 0x78;
     private const int CloseBotGapMs = 5000;
     private const int UnstuckCooldownDefaultMs = 3000;
 
@@ -37,15 +34,15 @@ public static class TriggerActionRunner
                 RosbotTaskProcessor.Instance.RequestStopFlow();
                 break;
             case MonitorActions.StopBotF7:
-                GameWindowActions.SendKeyToD3(VkF7);
+                GameWindowActions.SendKeyToD3(RosbotConstants.VkF7);
                 break;
             case MonitorActions.StopBotF9:
-                GameWindowActions.SendKeyToD3(VkF9);
+                GameWindowActions.SendKeyToD3(RosbotConstants.VkF9);
                 break;
             case MonitorActions.CloseBot:
-                GameWindowActions.SendKeyToD3(VkF7);
+                GameWindowActions.SendKeyToD3(RosbotConstants.VkF7);
                 Thread.Sleep(CloseBotGapMs);
-                GameWindowActions.SendKeyToD3(VkF7);
+                GameWindowActions.SendKeyToD3(RosbotConstants.VkF7);
                 break;
             case MonitorActions.RestartBot:
             case MonitorActions.RestartBotWithBattlenet:
@@ -58,13 +55,13 @@ public static class TriggerActionRunner
                 monitor.ApplyGameSpeed(a1, a2);
                 break;
             case MonitorActions.TownPortal:
-                monitor.ScheduleTownPortal(ParseInt(a1, 0));
+                monitor.ScheduleTownPortal(MonitorSettings.ParseArg(a1));
                 break;
             case MonitorActions.QuickQuit:
                 ExternalGameTools.QuickQuit(a1);
                 break;
             case MonitorActions.UnstuckMove:
-                GameWindowActions.UnstuckMove(a1, ParseInt(a2, UnstuckCooldownDefaultMs));
+                GameWindowActions.UnstuckMove(a1, MonitorSettings.ParseArg(a2, UnstuckCooldownDefaultMs));
                 break;
             case MonitorActions.ExecuteCommand:
                 StartCommand(a1, a2);
@@ -87,9 +84,6 @@ public static class TriggerActionRunner
     private static string Expand(string value, MonitorService monitor) => value
         .Replace(MonitorPlaceholders.LastLogLine, monitor.LastLogLine, StringComparison.Ordinal)
         .Replace(MonitorPlaceholders.LastHistoryLine, monitor.LastHistoryLine, StringComparison.Ordinal);
-
-    private static int ParseInt(string text, int defaultValue) =>
-        int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) ? Math.Max(0, v) : defaultValue;
 
     private static void StartCommand(string command, string arguments)
     {

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Services.Monitor;
 
@@ -19,7 +20,7 @@ public static class ExternalGameTools
     private const string InjectCommand = "inject {0}";
     private const string ChangeCommand = "change {0}";
     private const string ExitCommand = "exit";
-    private const string DelayArgument = "-d {0}";
+    private const string DelayFlag = "-d";
     private const int CommandGapMs = 50;
     private const int ExitWaitMs = 100;
     private static readonly object Lock = new();
@@ -70,18 +71,11 @@ public static class ExternalGameTools
     {
         string exe = MonitorSettings.GetString(ConfigKeys.MonitorToolsTcpResetPath).Trim();
         if (!CheckTool(exe, TcpResetDependencies)) return false;
-        string args = string.IsNullOrWhiteSpace(delay) ? "" : string.Format(CultureInfo.InvariantCulture, DelayArgument, delay.Trim());
-        try
-        {
-            Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) ?? "" })?.Dispose();
-            MonitorLog.Info($"Quick quit started {args}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            MonitorLog.Warn($"Quick quit failed: {ex.Message}");
-            return false;
-        }
+        string[] args = string.IsNullOrWhiteSpace(delay) ? Array.Empty<string>() : new[] { DelayFlag, delay.Trim() };
+        bool ok = ShellOpen.StartProgram(exe, args);
+        if (ok) MonitorLog.Info($"Quick quit started {string.Join(" ", args)}");
+        else MonitorLog.Warn($"Quick quit failed to start {exe}");
+        return ok;
     }
 
     /// <summary>Close the bridge (app exit).</summary>

@@ -27,6 +27,57 @@
       <Button x:Name="BtnSaveAreaName" Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}" Click="BtnSaveAreaName_Click"/>
     </Grid>
     <TextBlock x:Name="LblHistory" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
-    <ListBox x:Name="LstHistory" Height="110"/>
+    <ListBox x:Name="LstHistory" Height="90" Margin="0,0,0,6"/>
+    <TextBlock x:Name="TxtCommandResult" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+    <TabControl x:Name="TabsData" MinHeight="320">
+      <TabItem x:Name="TabGround">
+        <DockPanel Margin="4">
+          <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+            <Button x:Name="BtnGroundMoveTo" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnGroundMoveTo_Click"/>
+            <Button x:Name="BtnGroundPickup" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,4" Click="BtnGroundPickup_Click"/>
+            <Button x:Name="BtnPickupMatching" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,4" Click="BtnPickupMatching_Click"/>
+          </WrapPanel>
+          <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+            <TextBlock x:Name="LblFilter" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+            <TextBox x:Name="TxtFilter" Height="60" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"/>
+            <WrapPanel>
+              <CheckBox x:Name="ChkFilterAuto" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Button x:Name="BtnSaveFilter" Style="{StaticResource SecondaryButtonStyle}" Click="BtnSaveFilter_Click"/>
+            </WrapPanel>
+          </StackPanel>
+          <ListBox x:Name="LstGround" MinHeight="120"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem x:Name="TabNpc">
+        <DockPanel Margin="4">
+          <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+            <TextBox x:Name="TxtNpcTarget" Width="140" Margin="0,0,6,4" VerticalAlignment="Center"/>
+            <Button x:Name="BtnNpcFind" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnNpcFind_Click"/>
+            <Button x:Name="BtnNpcOpen" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,4" Click="BtnNpcOpen_Click"/>
+            <CheckBox x:Name="ChkInteractMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,8,4"/>
+            <CheckBox x:Name="ChkInteractClick" IsChecked="True" VerticalAlignment="Center" Margin="0,0,0,4"/>
+          </WrapPanel>
+          <ListBox x:Name="LstNpcs" MinHeight="120"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem x:Name="TabCarried">
+        <DockPanel Margin="4">
+          <TextBlock x:Name="TxtCarriedNote" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <ListBox x:Name="LstCarried" MinHeight="120"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem x:Name="TabPickups">
+        <ListBox x:Name="LstPickups" Margin="4" MinHeight="120"/>
+      </TabItem>
+      <TabItem x:Name="TabAdvanced">
+        <StackPanel Margin="4">
+          <WrapPanel Margin="0,0,0,6">
+            <TextBox x:Name="TxtUiId" Width="200" Margin="0,0,6,0" VerticalAlignment="Center"/>
+            <Button x:Name="BtnClickUi" Style="{StaticResource SecondaryButtonStyle}" Click="BtnClickUi_Click"/>
+          </WrapPanel>
+          <TextBlock x:Name="TxtCapabilities" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </TabItem>
+    </TabControl>
   </StackPanel>
 </UserControl>

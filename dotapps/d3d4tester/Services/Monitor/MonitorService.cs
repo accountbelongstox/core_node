@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
@@ -35,7 +36,6 @@ public sealed class MonitorService
     private const string StatePrefixUrshi = "urshi";
     private const string StatePrefixTownPortal = "tp";
     private const string StatePrefixTownPortal2 = "tp2";
-    private const int TownPortalV2Threshold = 10;
     private const double IllusionSettleSec = 5;
     private const int PopupScanEveryTicks = 2;
     private const int RolloverEveryTicks = 2;
@@ -119,6 +119,10 @@ public sealed class MonitorService
         if (_installed) return;
         _installed = true;
         TriggerEngine.Instance.Load();
+        D3D4TesterConfigChangeHub.Notifier.Subscribe(key =>
+        {
+            if (key == null || key == ConfigKeys.MonitorTriggers) TriggerEngine.Instance.Load();
+        });
         _historyWatcher = new RosbotLogFileWatcher(line => _historyQueue.Enqueue(line));
         _historyWatcher.Start(RosbotLogPaths.GetHistoryFilePath());
         F3LogTimeout.HistoryLastModifiedProvider = () => _historyWatcher?.LastModifiedUtc;
@@ -165,9 +169,8 @@ public sealed class MonitorService
             MonitorLog.Warn($"Restart ({reasonId}) ignored: monitoring is off");
             return;
         }
-        bool bn = restartBattlenet || MonitorSettings.GetBool(ConfigKeys.MonitorRestartBattlenetOnRestart);
         MonitorLog.Warn($"Restart requested: {reasonId} {detail}");
-        RosbotRestartRequest.Request(reasonId, detail, bn);
+        RosbotRestartRequest.Request(reasonId, detail, restartBattlenet);
     }
 
     /// <summary>Game speed action: combat when the ROSBOT overlay shows enough combat-cursor pixels, then the matching factor.</summary>
@@ -482,11 +485,9 @@ public sealed class MonitorService
         }
         if (!tp && !tp2) return;
         int tpPixels = D3PixelProbes.CountTownPortalPixels(bmp);
+        int threshold = MonitorSettings.GetInt(ConfigKeys.MonitorProbeTownPortal, MonitorSettings.TownPortalThresholdDefault);
         if (tp)
-        {
-            int threshold = MonitorSettings.GetInt(ConfigKeys.MonitorProbeTownPortal, MonitorSettings.TownPortalThresholdDefault);
             engine.Evaluate(MonitorEvents.TownPortal, (i, _) => Rising(StatePrefixTownPortal, i, tpPixels > threshold));
-        }
         if (!tp2) return;
         if (!_illusionFound && D3PixelProbes.IsIllusionFound(bmp, D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeFindIllusion, MonitorSettings.FindIllusionDefault), 60, 1, 2)))
         {
@@ -496,7 +497,7 @@ public sealed class MonitorService
         var finishThresholds = D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeFinishIllusion, MonitorSettings.FinishIllusionDefault), 100, 25);
         engine.Evaluate(MonitorEvents.TownPortalAfterIllusion, (i, _) =>
         {
-            if (!Rising(StatePrefixTownPortal2, i, tpPixels > TownPortalV2Threshold)) return false;
+            if (!Rising(StatePrefixTownPortal2, i, tpPixels > threshold)) return false;
             if (_illusionFound && (DateTime.UtcNow - _illusionFoundUtc).TotalSeconds > IllusionSettleSec && !D3PixelProbes.IsIllusionFinished(bmp, finishThresholds))
                 return false;
             _illusionFound = false;
@@ -647,15 +648,15 @@ public sealed class MonitorService
         if (disabled) MonitorLog.Warn("ROSBOT logs are disabled (DebugLevel = NoLogs): log timeout and log triggers will not work");
     }
 
-    private void OnRestartExecuted(string reasonId, string detail)
+    /// <summary>Single place for every restart: error trigger (timeouts), error screenshot, Battle.net close (requested or configured), notification.</summary>
+    private void OnRestartExecuted(string reasonId, string detail, bool restartBattlenet)
     {
         MonitorLog.Warn($"Restarting D3 + ROSBOT: {reasonId} {detail}");
         if (reasonId == RosbotRestartRequest.ReasonLogTimeout)
             TriggerEngine.Instance.Fire(MonitorEvents.ErrorDetected);
         if (reasonId != ReasonMemory)
             MonitorScreenshotService.CaptureKind(MonitorScreenshotKinds.Error);
-        if ((reasonId == RosbotRestartRequest.ReasonLogTimeout || reasonId == RosbotRestartRequest.ReasonLogDisconnect)
-            && MonitorSettings.GetBool(ConfigKeys.MonitorRestartBattlenetOnRestart))
+        if (restartBattlenet || MonitorSettings.GetBool(ConfigKeys.MonitorRestartBattlenetOnRestart))
             BattlenetManager.Instance.Close();
         NotificationService.NotifyRestart(reasonId, detail, RosbotExitState.GetTotalRestartCount());
     }
@@ -675,8 +676,7 @@ public sealed class MonitorService
         _historyWatcher = null;
     }
 
-    private static int ParseArg(string text) =>
-        int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) ? Math.Max(0, v) : 0;
+    private static int ParseArg(string text) => MonitorSettings.ParseArg(text);
 
     private static bool ContainsAny(string line, IEnumerable<string> markers) => markers.Any(m => line.Contains(m, StringComparison.Ordinal));
 

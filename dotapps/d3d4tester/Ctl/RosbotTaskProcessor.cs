@@ -175,6 +175,13 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         EventCenter.TriggerExtensionRosbotStop();
     }
 
+    /// <summary>Start / stop button (ROSBOT tab, Monitor tab): stop when the flow master is on, else start.</summary>
+    public void ToggleFlow()
+    {
+        if (RosbotFlowState.Instance.FlowMasterEnabled) RequestStopFlow();
+        else RequestStartFlow();
+    }
+
     /// <summary>"Ensure Battle.net" button: flips the persisted guard switch; BattlenetGuardService applies it. 1:1 Python _ensure_battlenet_only.</summary>
     public void ToggleEnsureBattlenetOnly() =>
         ConfigBinding.SetValue(ConfigKeys.BattlenetEnsureNormal, !RosbotFlowState.Instance.BnOnlyEnabled);
