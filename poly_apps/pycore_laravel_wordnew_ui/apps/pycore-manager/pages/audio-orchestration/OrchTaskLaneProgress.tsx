@@ -1,19 +1,20 @@
 /**
  * Live Part1 / Part2 / Queue view of ONE orchestration task: its missing words
- * in the word_audio Queue and its missing sentences in the sentence_audio
- * Queue (each lane its own Queue), with every item's fill state
+ * in the word_audio Queue, its missing sentences in the sentence_audio Queue
+ * and its missing phrases in the phrase_audio Queue (each lane its own Queue), with every item's fill state
  * (queued -> generating -> filled / failed). Pycore-owned data via the owner
  * lane views; re-fetched when the lane revision moves (state-driven).
  */
 import React from 'react';
 import { useAudioLaneOwnerViews } from '@/apps/pycore-manager/api';
+import type { AudioLaneKey } from '@/apps/pycore-manager/api';
 import { PcAudioLaneQueueView } from '../../components/PcAudioLaneQueueView';
 
 const OrchTaskLaneProgress: React.FC<{
   taskId: string;
   active: boolean;
   compact?: boolean;
-  lanes: Array<'word_audio' | 'sentence_audio'>;
+  lanes: AudioLaneKey[];
 }> = ({ taskId, active, compact = true, lanes }) => {
   const owner = useAudioLaneOwnerViews(taskId, active);
   if (!active || lanes.length === 0) return null;

@@ -15,10 +15,14 @@ import type {
 } from '../../integrations/pycore';
 import {
   GLOBAL_TASK_PRIORITIES,
+  QUEUE_CENTER_ENDPOINTS,
   isGlobalTaskQueuePositionOrdered,
 } from '../../integrations/pycore';
+import type { WorkNodesResponse } from '../../../../core/contracts/QueueCenterTypes';
 
 /** systemctl start/stop/restart can wait on unit timeouts well past the module default. */
+/** The transport base already carries this prefix; contract endpoints are absolute. */
+const API_PATH_PREFIX = '/api';
 const SERVICE_CONTROL_TIMEOUT_MS = 3 * 60 * 1000;
 
 // ==================== Global Task / Worker substrate types ====================
@@ -435,6 +439,14 @@ export class ServerManagerAPI extends LmBaseAPI {
    */
   async getTaskCenterOverview(): Promise<APIResponse<TaskCenterOverview>> {
     return this.get('/task-center/overview');
+  }
+
+  /**
+   * Work-lease roster and the pool per lane and language (contract endpoint
+   * `work_nodes`; every gap lane, phrase_audio included, comes from the answer).
+   */
+  async getWorkNodes(): Promise<APIResponse<WorkNodesResponse>> {
+    return this.get(QUEUE_CENTER_ENDPOINTS.work_nodes.replace(API_PATH_PREFIX, ''));
   }
 
   // ==================== Assist requests (CoreBook §6) ====================

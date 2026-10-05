@@ -5,7 +5,7 @@ from typing import Any, List
 
 from pycore.pyctl.queue_center.lane_registry import LANE_REGISTRY
 
-_ASSIST_LANES = ("word_audio", "sentence_audio", "assist_translation", "compute")
+_ASSIST_LANES = ("word_audio", "sentence_audio", "phrase_audio", "assist_translation", "compute")
 
 
 def _workers() -> List[Any]:

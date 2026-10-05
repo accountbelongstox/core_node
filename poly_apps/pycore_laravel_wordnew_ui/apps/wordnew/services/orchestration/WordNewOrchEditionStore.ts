@@ -4,9 +4,12 @@
  *
  * An edition is the whole timeline: clips still missing are placeholders the
  * player skips. The first run reaching `ready` publishes it; after that it is
- * static - opening a page or a re-run never recompiles it. A later run with
- * other clips (new or updated resources, a re-orchestrated plan) is an offer
- * that replaces the edition only when accepted. Editions are kept per user on
+ * static - opening a page or a re-run never recompiles it. A later run of the
+ * same plan with other clips (new or updated resources) is an offer that
+ * replaces the edition only when accepted. An edit (a new plan - other order,
+ * steps or words) is offered the same way, as soon as its preview is composed
+ * (the clips its first source pass held, while its run still goes): the
+ * edition may be playing, so it is never swapped without the reader's answer. Editions are kept per user on
  * the device (`wfnew-orch/users/<user>/editions/<task>.json`), so opening a
  * player needs no run and no network. The file is compact (one bridge write
  * on the app): items and clip URLs once each, timelines as flat number rows
@@ -32,6 +35,8 @@ export interface OrchPlaybackEdition {
   sentences: OrchComposeSentence[];
   /** Meaning of every spoken word (lower case). */
   meanings: Record<string, string>;
+  /** Meaning of every spoken phrase (lower-case text); absent in editions made before phrases. */
+  phraseMeanings?: Record<string, string>;
   /** Read state of every spoken word (virtual reads of played words). */
   words: Record<string, OrchWordState>;
   newWords: string[];
@@ -46,6 +51,8 @@ export interface OrchEditionOffer {
   durationMs: number;
   addedClips: number;
   addedMs: number;
+  /** The offer is another plan (an edit), not new clips of the playing one. */
+  replan: boolean;
 }
 
 /** Stored form: `segments[s]` = flat `[item, url, startMs, endMs, ...]` indices into `items` / `urls` (after `urlPrefix`). */
@@ -150,11 +157,21 @@ function copyEdition(task: OrchComposeTask, session: OrchComposeSession): OrchPl
   const timelines = session.timelines.map((timeline) => [...timeline]);
   const seqs = new Set<number>();
   const spokenWords = new Set<string>();
+  const spokenPhrases = new Set<string>();
   timelines.forEach((timeline) => timeline.forEach((entry) => {
     seqs.add(entry.item.seq);
-    const word = (entry.item.meaningOf ?? (entry.item.kind === 'word' ? entry.item.text : '')).toLowerCase();
+    if (entry.item.kind === 'phrase') spokenPhrases.add(entry.item.text.toLowerCase());
+    // A phrase's meaning clip explains a phrase, not a word.
+    const word = (entry.item.meaningKind === 'phrase' ? '' : entry.item.meaningOf ?? (entry.item.kind === 'word' ? entry.item.text : '')).toLowerCase();
     if (word) spokenWords.add(word);
   }));
+  const phraseMeanings: Record<string, string> = {};
+  if (spokenPhrases.size > 0) {
+    session.phrasesBySentence?.forEach((phrases) => phrases.forEach((phrase) => {
+      const key = phrase.text.toLowerCase();
+      if (phrase.meaning && spokenPhrases.has(key) && !phraseMeanings[key]) phraseMeanings[key] = phrase.meaning;
+    }));
+  }
   const meanings: Record<string, string> = {};
   const words: Record<string, OrchWordState> = {};
   spokenWords.forEach((word) => {
@@ -172,6 +189,7 @@ function copyEdition(task: OrchComposeTask, session: OrchComposeSession): OrchPl
     timelines,
     sentences: plan.sentences.filter((sentence) => seqs.has(sentence.seq)),
     meanings,
+    phraseMeanings,
     words,
     newWords: orchNewWords(plan, session.wordStates, task.config.newOnlyMaxReadCount ?? 0).filter((word) => spokenWords.has(word)),
     clips,
@@ -190,6 +208,7 @@ class WordNewOrchEditionStoreService {
 
   constructor() {
     wordNewOrchComposer.subscribeReady((taskId, session) => { void this.offer(taskId, session); });
+    wordNewOrchComposer.subscribePreview((taskId, session) => { void this.preview(taskId, session); });
   }
 
   private key(taskId: string): string {
@@ -235,7 +254,7 @@ class WordNewOrchEditionStoreService {
     return edition;
   }
 
-  /** A run reached `ready`: the first one becomes the edition, a later one with other clips waits as an offer. */
+  /** A run reached `ready` (or an edited plan's preview): the first one becomes the edition, a later different one waits as an offer. */
   private async offer(taskId: string, session: OrchComposeSession): Promise<void> {
     if (this.seen.has(session.timelines) || session.timelines.length === 0) return;
     this.seen.add(session.timelines);
@@ -261,8 +280,16 @@ class WordNewOrchEditionStoreService {
       durationMs,
       addedClips: clips - current.clips,
       addedMs: durationMs - current.durationMs,
+      replan: current.planHash !== session.planHash,
     });
     this.emit(taskId);
+  }
+
+  /** Early timelines of the task's current plan: offered against an edition of another plan (or published when there is none). */
+  private async preview(taskId: string, session: OrchComposeSession): Promise<void> {
+    const current = await this.load(taskId);
+    if (current?.planHash === session.planHash) return;
+    await this.offer(taskId, session);
   }
 
   /**
@@ -273,8 +300,13 @@ class WordNewOrchEditionStoreService {
     const key = this.key(task.id);
     const current = await this.load(task.id);
     const session = wordNewOrchComposer.session(task.id);
-    if (session?.phase !== 'ready' || session.planHash !== task.planHash || session.timelines.length === 0) return current;
+    if (session?.planHash !== task.planHash || session.timelines.length === 0) return current;
     if (!current) return this.publish(task, session);
+    if (current.planHash !== session.planHash) {
+      await this.offer(task.id, session);
+      return current;
+    }
+    if (session.phase !== 'ready') return current;
     const { clips, durationMs } = measure(session.timelines);
     if (signatureOf(session.planHash, clips, durationMs) !== editionSignature(current)) {
       await this.offer(task.id, session);
@@ -298,7 +330,7 @@ class WordNewOrchEditionStoreService {
     const key = this.key(taskId);
     const offer = this.offers.get(key);
     if (!offer || this.dismissed.get(key) === offer.signature) return null;
-    return { clips: offer.clips, durationMs: offer.durationMs, addedClips: offer.addedClips, addedMs: offer.addedMs };
+    return { clips: offer.clips, durationMs: offer.durationMs, addedClips: offer.addedClips, addedMs: offer.addedMs, replan: offer.replan };
   }
 
   /** Copy the waiting offer into the playing edition. */
@@ -328,3 +360,6 @@ class WordNewOrchEditionStoreService {
 }
 
 export const wordNewOrchEditionStore = new WordNewOrchEditionStoreService();
+
+// TEMP-ORCH-PROBE (remove after measuring)
+if (typeof window !== 'undefined') (window as any).__orchProbe = { composer: wordNewOrchComposer, tasks: wordNewOrchTaskStore, editions: wordNewOrchEditionStore };

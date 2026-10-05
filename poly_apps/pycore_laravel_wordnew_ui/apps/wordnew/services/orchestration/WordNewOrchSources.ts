@@ -26,6 +26,8 @@ import { getSentenceWordTable, sentenceWordTranslations } from '../WordNewSenten
 
 const VERSE_PAGE_SIZE = 500;
 const WORD_STATE_BATCH = 300;
+/** Words per read-count-only request (the server tokenizes at most 400 words per request). */
+const WORD_COUNT_BATCH = 400;
 const MAX_MEANING_CHARS = 24;
 const INPUT_DIR = 'wfnew-orch/inputs';
 const STATES_SUFFIX = '.states.json';
@@ -53,11 +55,23 @@ function stateStore(taskId: string): CapJsonStore<WordStateCheckpoint> {
   return new CapJsonStore<WordStateCheckpoint>(`${INPUT_DIR}/${taskId}${STATES_SUFFIX}`, EMPTY_CHECKPOINT, Directory.Data);
 }
 
+const SOURCE_KEY_SEPARATOR = '|';
+
+/** Identity of the sentences a task needs (book chapter or prompt result). */
+function originKeyOf(task: OrchComposeTask): string {
+  const { book, prompt } = task.config;
+  return book ? `book:${book.sourceKey}:${book.chapterIndex ?? 'all'}` : `prompt:${prompt?.taskKey ?? ''}`;
+}
+
 /** Identity of the inputs a task needs (a kept copy of other inputs is not used). */
 function sourceKeyOf(task: OrchComposeTask): string {
-  const { book, prompt, wordGroupId, virtualBatch, readState } = task.config;
-  const origin = book ? `book:${book.sourceKey}:${book.chapterIndex ?? 'all'}` : `prompt:${prompt?.taskKey ?? ''}`;
-  return `${origin}|group:${wordGroupId ?? ''}|reads:${readState}:${readState === 'real' ? '' : virtualBatch}`;
+  const { wordGroupId, virtualBatch, readState } = task.config;
+  return [originKeyOf(task), `group:${wordGroupId ?? ''}`, `reads:${readState}:${readState === 'real' ? '' : virtualBatch}`].join(SOURCE_KEY_SEPARATOR);
+}
+
+/** The sentence identity inside a kept copy's input identity. */
+function originKeyOfSourceKey(sourceKey: string): string {
+  return sourceKey.split(SOURCE_KEY_SEPARATOR)[0] ?? '';
 }
 
 function verseToSentence(verse: WfNewBookVerse, position: number): OrchComposeSentence {
@@ -159,10 +173,24 @@ interface WordStateCheckpoint {
 
 const EMPTY_CHECKPOINT: WordStateCheckpoint = { sourceKey: '', batches: 0, done: [], wordStates: [] };
 
+/** One word-state request: its words, and whether their dictionary media is asked too. */
+interface WordStateBatch {
+  words: string[];
+  media: boolean;
+}
+
+function chunk(words: string[], size: number, media: boolean): WordStateBatch[] {
+  return Array.from({ length: Math.ceil(words.length / size) }, (_, index) => ({ words: words.slice(index * size, (index + 1) * size), media }));
+}
+
 /**
  * Read states of every word of the sentences, in batches (WORD_STATE_CONCURRENCY
- * at a time). Batches a checkpoint already holds are skipped; `onBatch` gets
- * the checkpoint after every batch (the caller keeps it).
+ * at a time). `known` holds states of the same words under other read settings
+ * (an edit of the word group or read state): their meaning, word id and audio
+ * do not depend on the settings, so only their read counts are asked (no
+ * dictionary lookup on the server); words without a known state or audio get
+ * the full lookup. Batches a checkpoint already holds are skipped; `onBatch`
+ * gets the checkpoint after every batch (the caller keeps it).
  */
 async function wordStates(
   sentences: OrchComposeSentence[],
@@ -171,43 +199,53 @@ async function wordStates(
   checkpoint: WordStateCheckpoint,
   report: (done: number, total: number) => void,
   onBatch: (checkpoint: () => WordStateCheckpoint) => void,
+  known: ReadonlyMap<string, OrchWordState> = new Map(),
 ): Promise<Map<string, OrchWordState>> {
   const words = [...new Set(sentences.flatMap((sentence) => tokenize(sentence.text)))];
   const target = task.config.book?.targetLanguage || 'zh';
-  const batches = Math.ceil(words.length / WORD_STATE_BATCH);
+  const countsOnly = words.filter((word) => known.get(word)?.audioUrl);
+  const plan = [
+    ...chunk(words.filter((word) => !known.get(word)?.audioUrl), WORD_STATE_BATCH, true),
+    ...chunk(countsOnly, WORD_COUNT_BATCH, false),
+  ];
+  const batches = plan.length;
   // A checkpoint of other words (other sentences) is not used.
   const resumed = checkpoint.sourceKey === sourceKey && checkpoint.batches === batches ? checkpoint : EMPTY_CHECKPOINT;
   const states = new Map<string, OrchWordState>(resumed.wordStates.map((state) => [state.word, state]));
   const done = new Set(resumed.done);
   const todo = Array.from({ length: batches }, (_, index) => index).filter((index) => !done.has(index));
-  const wordsDone = (): number => Math.min(words.length, done.size * WORD_STATE_BATCH);
-  report(wordsDone(), words.length);
+  let wordsDone = [...done].reduce((total, index) => total + (plan[index]?.words.length ?? 0), 0);
+  report(wordsDone, words.length);
   await orchPool(todo, async (index) => {
+    const batch = plan[index];
     const rows = await getSentenceWordTable(
-      words.slice(index * WORD_STATE_BATCH, (index + 1) * WORD_STATE_BATCH).join(' '),
+      batch.words.join(' '),
       task.language,
       target,
       task.config.newOnlyMaxReadCount,
       task.config.wordGroupId,
       task.config.readState === 'real' ? null : task.config.virtualBatch || null,
+      batch.media,
     );
     rows.forEach((row) => {
       const word = row.word.trim().toLowerCase();
       if (!word) return;
       const readCount = Number(row.play_count) || 0;
       const virtualReadCount = Number(row.virtual_read_count) || 0;
+      const kept = batch.media ? undefined : known.get(word);
       states.set(word, {
         word,
         readCount,
         groupReadCount: row.group_read_count != null ? Number(row.group_read_count) || 0 : Math.max(0, readCount - virtualReadCount),
         virtualReadCount,
-        wordId: Number(row.dictionary_word_id) || 0,
-        audioUrl: row.audio_url && row.audio_status !== 'pending' ? row.audio_url : null,
-        meaning: shortMeaning(sentenceWordTranslations(row)),
+        wordId: Number(row.dictionary_word_id) || kept?.wordId || 0,
+        audioUrl: kept ? kept.audioUrl : row.audio_url && row.audio_status !== 'pending' ? row.audio_url : null,
+        meaning: kept ? kept.meaning : shortMeaning(sentenceWordTranslations(row)),
       });
     });
     done.add(index);
-    report(wordsDone(), words.length);
+    wordsDone += batch.words.length;
+    report(wordsDone, words.length);
     // The checkpoint is built when it is written (throttled), not per batch.
     onBatch(() => ({ sourceKey, batches, done: [...done], wordStates: [...states.values()] }));
   }, undefined, WORD_STATE_CONCURRENCY);
@@ -241,14 +279,23 @@ function checkpointWriter<T>(write: (value: T) => Promise<void>): { push: (value
 
 class WordNewOrchSourcesService {
   private readonly keep = isNativeAppShell();
+  /** The last complete inputs of each task in memory: a re-plan (an edit) reads no file and asks no API. */
+  private readonly memory = new Map<string, { sourceKey: string; inputs: OrchComposeInputs }>();
+
+  private remember(taskId: string, sourceKey: string, inputs: OrchComposeInputs): OrchComposeInputs {
+    this.memory.set(taskId, { sourceKey, inputs });
+    return inputs;
+  }
 
   /**
    * Local-first (native): Laravel serves the initial load; a complete kept copy
    * of the same inputs is used without network. The initial load is
    * checkpointed - sentences once fetched, word states after every batch - so
    * an interrupted load (app closed, page left, network lost) continues where
-   * it stopped. `force` reloads from Laravel (re-resolve). `report` gets the
-   * load progress.
+   * it stopped. An edit of the word group or read state keeps the kept
+   * sentences of the same book / prompt and reloads only the word states. The
+   * last complete inputs stay in memory, so re-planning the same inputs is
+   * immediate. `force` reloads from Laravel (re-resolve). `report` gets the load progress.
    */
   async load(
     task: OrchComposeTask,
@@ -261,24 +308,33 @@ class WordNewOrchSourcesService {
       Object.assign(progress, patch);
       report({ ...progress });
     };
-    const kept = this.keep ? await inputStore(task.id).load() : null;
+    const remembered = options.force ? undefined : this.memory.get(task.id);
+    if (remembered?.sourceKey === sourceKey) return remembered.inputs;
+    const kept: StoredInputs | null = remembered
+      ? { sourceKey: remembered.sourceKey, sentences: remembered.inputs.sentences, wordStates: [...remembered.inputs.wordStates.values()], complete: true }
+      : this.keep ? await inputStore(task.id).load() : null;
     const keptMatch = !options.force && kept !== null && kept.sourceKey === sourceKey && kept.sentences.length > 0;
     // A copy written before checkpoints existed has no `complete` flag: it is complete.
     if (keptMatch && kept.complete !== false) {
-      return { sentences: kept.sentences, wordStates: new Map(kept.wordStates.map((state) => [state.word, state])), fresh: true };
+      return this.remember(task.id, sourceKey, { sentences: kept.sentences, wordStates: new Map(kept.wordStates.map((state) => [state.word, state])), fresh: true });
     }
-    const sentences = keptMatch ? kept.sentences
+    // Sentences are kept once fetched (`complete: false` marks only the word states as unfinished).
+    const keptSentences = keptMatch
+      || (!options.force && kept !== null && kept.sentences.length > 0 && originKeyOfSourceKey(kept.sourceKey) === originKeyOf(task));
+    const sentences = keptSentences && kept ? kept.sentences
       : await (task.config.book ? bookSentences : promptSentences)(task, (loaded, total) => publish({ sentences: loaded, sentencesTotal: total })).catch(() => null);
     if (sentences) {
       publish({ sentences: sentences.length, sentencesTotal: sentences.length });
       if (this.keep && !keptMatch) await inputStore(task.id).save({ sourceKey, sentences, wordStates: [], complete: false });
     }
     const checkpoint = this.keep && !options.force ? await stateStore(task.id).load() : EMPTY_CHECKPOINT;
+    // Kept states of the same sentences under other read settings: only their read counts are asked again.
+    const knownStates = new Map(keptSentences && !keptMatch && kept ? kept.wordStates.map((state) => [state.word, state]) : []);
     const writer = checkpointWriter<WordStateCheckpoint>((value) => (this.keep ? stateStore(task.id).save(value) : Promise.resolve()));
     // Read states are per user: logged out, every word counts as unread (not a failure).
     const states = !sentences ? null
       : wfNewApi.isAuthenticated()
-        ? await wordStates(sentences, task, sourceKey, checkpoint, (done, total) => publish({ words: done, wordsTotal: total }), writer.push).catch(() => null)
+        ? await wordStates(sentences, task, sourceKey, checkpoint, (done, total) => publish({ words: done, wordsTotal: total }), writer.push, knownStates).catch(() => null)
         : new Map<string, OrchWordState>();
     await writer.flush();
     if (sentences && states) {
@@ -287,7 +343,7 @@ class WordNewOrchSourcesService {
         await stateStore(task.id).clear();
       }
       // The API that just answered the load (requests go to the current endpoint).
-      return { sentences, wordStates: states, fresh: true, laravelUrl: wfNewEndpoints.getCurrentBaseUrl() };
+      return this.remember(task.id, sourceKey, { sentences, wordStates: states, fresh: true, laravelUrl: wfNewEndpoints.getCurrentBaseUrl() });
     }
     // Offline / failed: what is kept (an incomplete load's states included) is used as stale.
     const stored = this.keep ? await inputStore(task.id).load() : null;
@@ -310,10 +366,12 @@ class WordNewOrchSourcesService {
   }
 
   async clear(): Promise<void> {
+    this.memory.clear();
     if (this.keep) await capFs.rmdir(INPUT_DIR, Directory.Data);
   }
 
   async forget(taskId: string): Promise<void> {
+    this.memory.delete(taskId);
     if (!this.keep) return;
     await inputStore(taskId).clear();
     await stateStore(taskId).clear();

@@ -24,13 +24,14 @@ from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY, SENTENCE_QUALITY_ENGINES, SENTENCE_QUALITY_REJECT_CODE
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
-from pycore.pyutils.tts import runtime_profile, word_audio_cache
+from pycore.pyutils.tts import phrase_audio_cache, runtime_profile, word_audio_cache
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path
 
 ENGINE_HINT_UNAVAILABLE_CODE = "NO_CAPABLE_NODE"
 _SENTENCE_HISTORY_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
+_BATCH_CLIP_KINDS = ("word", "phrase")
 
 
 class LaravelAudioWorkerExecutionMixin:
@@ -48,7 +49,7 @@ class LaravelAudioWorkerExecutionMixin:
         language = info["language"]
         accent = info.get("accent") or None
 
-        if kind == "word" and info.get("_batch_audio_error"):
+        if kind in _BATCH_CLIP_KINDS and info.get("_batch_audio_error"):
             return (
                 False,
                 "",
@@ -56,7 +57,7 @@ class LaravelAudioWorkerExecutionMixin:
                 str(info["_batch_audio_error"]),
                 False,
             )
-        if kind == "word" and info.get("_batch_audio_path"):
+        if kind in _BATCH_CLIP_KINDS and info.get("_batch_audio_path"):
             batch_path = str(info["_batch_audio_path"])
             valid, detail = validate_mp3(batch_path)
             if valid:
@@ -150,6 +151,21 @@ class LaravelAudioWorkerExecutionMixin:
             info["_cache_hit"] = bool(result.get("cached"))
             return True, out_path, provider, "", False
 
+        if kind == "phrase":
+            # Permanent phrase cache (any provider's clip is reused); a miss
+            # must have been prepared by the Kokoro batch entry.
+            cached_path = phrase_audio_cache.find_cached(info["text"], language)
+            if cached_path is not None and validate_mp3(str(cached_path))[0]:
+                info["_cache_hit"] = True
+                return True, str(cached_path), runtime_profile.WORD_BATCH_ENGINE, "", False
+            return (
+                False,
+                "",
+                runtime_profile.WORD_BATCH_ENGINE,
+                "phrase audio requires Kokoro batch preparation",
+                False,
+            )
+
         # Word cache hits remain reusable regardless of their historical
         # provider. A cache miss must have been prepared by the Kokoro batch
         # entry above; there is deliberately no per-word synthesis fallback.
@@ -208,28 +224,42 @@ class LaravelAudioWorkerExecutionMixin:
     # -------------------- per-task processing --------------------
 
 
-    def _prepare_word_batch(self, tasks: List[Dict[str, Any]]) -> None:
-        """Generate every uncached word through the pinned Kokoro batch path."""
-        groups: Dict[str, List[Tuple[Dict[str, Any], Dict[str, Any]]]] = {}
+    def _prepare_batch(self, tasks: List[Dict[str, Any]]) -> None:
+        """Generate every uncached word and phrase through the pinned Kokoro
+        batch path (words into the word cache, phrases into the permanent
+        phrase cache)."""
+        groups: Dict[Tuple[str, str], List[Tuple[Dict[str, Any], Dict[str, Any]]]] = {}
         for task in tasks:
             info = self._normalize(task)
-            if info.get("error") or info.get("kind") != "word":
+            kind = info.get("kind")
+            if info.get("error") or kind not in _BATCH_CLIP_KINDS:
                 continue
-            cached_path = find_cached(info["word"], info["language"])
+            cached_path = (
+                find_cached(info["word"], info["language"])
+                if kind == "word"
+                else phrase_audio_cache.find_cached(info["text"], info["language"])
+            )
             if cached_path is not None and validate_mp3(str(cached_path))[0]:
                 continue
-            groups.setdefault(info["language"], []).append((task, info))
+            groups.setdefault((kind, info["language"]), []).append((task, info))
 
-        for language, entries in groups.items():
+        for (kind, language), entries in groups.items():
             output_dir = Path(self._tmp_dir) / (
-                f"word-batch-{language}-{time.time_ns()}"
+                f"{kind}-batch-{language}-{time.time_ns()}"
             )
-            outcomes = kokoro_batch.synthesize_words_to_cache(
-                [info["word"] for _task, info in entries],
-                language,
-                output_dir,
-                [str(info.get("md5") or "") for _task, info in entries],
-            )
+            if kind == "word":
+                outcomes = kokoro_batch.synthesize_words_to_cache(
+                    [info["word"] for _task, info in entries],
+                    language,
+                    output_dir,
+                    [str(info.get("md5") or "") for _task, info in entries],
+                )
+            else:
+                outcomes = kokoro_batch.synthesize_phrases_to_cache(
+                    [info["text"] for _task, info in entries],
+                    language,
+                    output_dir,
+                )
             for (task, _info), outcome in zip(entries, outcomes):
                 if not outcome["ok"]:
                     task["_batch_audio_error"] = outcome["error"]
@@ -238,17 +268,28 @@ class LaravelAudioWorkerExecutionMixin:
                 task["_batch_audio_cleanup"] = outcome["scratch"]
 
     def _keep_scratch_audio(self, info: Dict[str, Any], audio_path: str, provider: str) -> None:
-        """A generated clip is never discarded: the scratch file is removed only once the word cache
-        holds a valid copy; otherwise it stays where it is."""
-        word = str(info.get("word") or "")
+        """A generated clip is never discarded: the scratch file is removed only once the word or
+        phrase cache holds a valid copy; otherwise it stays where it is."""
+        phrase = info.get("kind") == "phrase"
+        text = str((info.get("text") if phrase else info.get("word")) or "")
         language = str(info.get("language") or "")
-        if word and language and provider and os.path.isfile(audio_path):
+        if text and language and provider and os.path.isfile(audio_path):
             try:
-                word_audio_cache.save_to_cache(word, language, provider, audio_path, str(info.get("md5") or ""))
+                if phrase:
+                    phrase_audio_cache.store(text, language, provider, audio_path)
+                else:
+                    word_audio_cache.save_to_cache(text, language, provider, audio_path, str(info.get("md5") or ""))
             except OSError as exc:
-                ColorPrint.yellow(f"{self._log_prefix} word cache save failed; keeping {audio_path}: {exc}")
-        cache_path = word_audio_cache.get_cache_path(word, language, provider) if word and language and provider else ""
-        if cache_path and os.path.abspath(cache_path) != os.path.abspath(audio_path)                 and os.path.isfile(cache_path) and validate_mp3(cache_path)[0]:
+                ColorPrint.yellow(f"{self._log_prefix} cache save failed; keeping {audio_path}: {exc}")
+        cache_path = ""
+        if text and language and provider:
+            cache_path = (phrase_audio_cache if phrase else word_audio_cache).get_cache_path(text, language, provider)
+        if (
+            cache_path
+            and os.path.abspath(cache_path) != os.path.abspath(audio_path)
+            and os.path.isfile(cache_path)
+            and validate_mp3(cache_path)[0]
+        ):
             try:
                 os.remove(audio_path)
             except OSError:
@@ -268,7 +309,7 @@ class LaravelAudioWorkerExecutionMixin:
 
         try:
             try:
-                self._prepare_word_batch([task for task, _started in claimed])
+                self._prepare_batch([task for task, _started in claimed])
             except Exception as exc:  # noqa: BLE001 - fail the whole atomic batch
                 detail = str(exc)[:200]
                 ColorPrint.yellow(f"{self._log_prefix} Kokoro batch of {len(claimed)} failed: {detail}")
@@ -318,7 +359,7 @@ class LaravelAudioWorkerExecutionMixin:
         local_id: Optional[str] = None
         started = False
         try:
-            if self.LANE == "sentence" and not str(task.get("task_type") or "").strip():
+            if self.LANE != "word" and not str(task.get("task_type") or "").strip():
                 task["task_type"] = self.QUEUE_KEY
             # The UI may dispatch a backlog larger than the bounded registry.
             # Re-register at execution time from the queued task itself so all
@@ -522,6 +563,10 @@ class LaravelAudioWorkerExecutionMixin:
         history_audio_path = audio_path
         if info.get("kind") == "word":
             cache_path = get_cache_path(info.get("word") or "", info.get("language") or "en", provider)
+            if os.path.exists(cache_path):
+                history_audio_path = cache_path
+        elif info.get("kind") == "phrase":
+            cache_path = phrase_audio_cache.get_cache_path(info.get("text") or "", info.get("language") or "en", provider)
             if os.path.exists(cache_path):
                 history_audio_path = cache_path
         audio_bytes = (

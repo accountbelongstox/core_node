@@ -26,6 +26,7 @@ import { ORCH_L, ORCH_PHASE_LABELS, orchCodedMessage, orchErrorMessage } from '.
 import { orchSourcePresentation, orchTaskOutputMode, orchTaskSource, orchTaskUsesBook } from './orchSources';
 import { ORCH_QUIET_BUTTON_CLASS, ORCH_SMALL_BUTTON_CLASS } from './orchStyles';
 import { orchFileIsVideo } from './orchTaskFileCache';
+import { PC_AUDIO_LANES } from '../../utils/pcAudioLanes';
 
 /** The file a quick Play starts: the first segment of the task's own output kind, else the other kind. */
 function firstPlayableFile(files: OrchTaskFile[], wantsVideo: boolean): OrchTaskFile | null {
@@ -65,7 +66,7 @@ const OrchTaskRow: React.FC<{
   const source = orchSourcePresentation(orchTaskSource(task));
   const usesBook = orchTaskUsesBook(task);
   const canRenderVideos = orchTaskOutputMode(task) === 'video' && task.status === 'done' && !task.running;
-  const fillLanes = (['word_audio', 'sentence_audio'] as const).filter(
+  const fillLanes = PC_AUDIO_LANES.filter(
     (lane) => (progress.lanes?.[lane]?.total || 0) > 0,
   );
 

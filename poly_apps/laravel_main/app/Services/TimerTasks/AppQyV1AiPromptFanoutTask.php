@@ -6,6 +6,7 @@ use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptModel as AppQyV1AiPrompt;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptRequestModel as AppQyV1AiPromptRequest;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptRequestTaskModel as AppQyV1AiPromptRequestTask;
+use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AiPromptDefaults;
 use App\Support\QueueCenterContract;
 
 /**
@@ -72,7 +73,7 @@ class AppQyV1AiPromptFanoutTask extends TaskManagerTimerTaskAbstract
     {
         $requestedKeys = is_array($request->prompt_keys) && !empty($request->prompt_keys)
             ? $request->prompt_keys
-            : $enabledPrompts->keys()->all();
+            : $enabledPrompts->keys()->reject(fn ($key) => in_array($key, AppQyV1AiPromptDefaults::PIPELINE_PROMPT_KEYS, true))->values()->all();
 
         $prompts = collect($requestedKeys)
             ->map(fn ($key) => $enabledPrompts->get($key))

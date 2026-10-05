@@ -40,6 +40,7 @@ import type {
   GlobalTaskTypeDefinition,
   GlobalTaskOrderingRecord,
   QueueCenterSectionContract,
+  AudioLaneKey,
 } from './QueueCenterTypes';
 
 export type * from './QueueCenterTypes';
@@ -85,6 +86,10 @@ interface ContractDocument {
     consumed_ttl_seconds: number;
   };
   endpoints: Record<string, string>;
+  work_leases: {
+    lanes: AudioLaneKey[];
+    rank: Record<AudioLaneKey, string>;
+  };
   delivery_receipt: {
     stages: Record<string, QueueDeliveryStage>;
     worker_kinds: string[];
@@ -193,6 +198,8 @@ export const QUEUE_CENTER_WORD_AUDIO_BATCH = QUEUE_CENTER_CONTRACT.word_audio_ba
 export const QUEUE_CENTER_HTTP_TRANSFER = QUEUE_CENTER_CONTRACT.http_transfer;
 export const QUEUE_CENTER_SCHEMA_GATE = QUEUE_CENTER_CONTRACT.schema_gate;
 export const QUEUE_CENTER_ENDPOINTS = QUEUE_CENTER_CONTRACT.endpoints;
+/** Gap lanes Laravel leases to nodes (word, sentence and phrase audio). */
+export const QUEUE_CENTER_WORK_LEASE_LANES: readonly AudioLaneKey[] = QUEUE_CENTER_CONTRACT.work_leases.lanes;
 export type QueueCenterEndpointRole = keyof typeof contractDocument.endpoints;
 
 /**

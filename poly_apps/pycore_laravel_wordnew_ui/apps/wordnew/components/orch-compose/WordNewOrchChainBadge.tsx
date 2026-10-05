@@ -98,11 +98,22 @@ function stages(session: OrchComposeSession | null, channels: ChannelView): Stag
   ];
 }
 
+/** Plan indices of the phrase clips (they ride the same stages as every clip; this only tells how far they are). */
+function phraseIndices(session: OrchComposeSession | null): number[] {
+  const resources = session?.plan?.resources;
+  if (!resources || resources.length !== session?.table?.size) return [];
+  return resources.flatMap((resource, index) => (resource.kind === 'phrase' ? [index] : []));
+}
+
 export const WordNewOrchChainBadge: React.FC<{ session: OrchComposeSession | null; theme: ElementTheme; trans: Trans }> = ({ session, theme, trans }) => {
   const channels = useSyncExternalStore(wordNewChannels.subscribe, readChannels, readChannels);
   const tableVersion = session?.table?.version ?? -1;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the table version and counts, not the session object
   const views = useMemo(() => stages(session, channels), [tableVersion, session?.counts, channels]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the plan's resources and the table, not the session object
+  const phrases = useMemo(() => phraseIndices(session), [session?.plan?.resources, session?.table]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the table version
+  const phrasesDone = useMemo(() => phrases.filter((index) => session?.table?.state(index) === 'done').length, [phrases, tableVersion]);
 
   return (
     <StatPopover
@@ -126,6 +137,7 @@ export const WordNewOrchChainBadge: React.FC<{ session: OrchComposeSession | nul
       )}
     >
       <p className="text-xs font-extrabold">{trans('orchChain.title')}</p>
+      {phrases.length > 0 && <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{trans('orchChain.phrases', { done: phrasesDone, total: phrases.length })}</p>}
       <ol className="space-y-1">
         {views.map((stage, index) => {
           const { icon: Icon, tone } = ORCH_BACKEND_VIEW[STAGE_BACKEND[stage.id]];

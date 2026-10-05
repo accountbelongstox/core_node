@@ -29,13 +29,15 @@ import type {
   WfNewOrchClientTaskWrite,
 } from './orchAudio';
 import type { WfNewVirtualReadBatchList } from './learning';
+import type { WfNewSentencePhrases } from './phrases';
+import type { OrchResourceKind } from '../../../../core/integrations/pycore';
 
 /**
  * Every data access the /wordnew app needs, in one interface. Both
  * WfNewApiMock and WfNewApiHttp implement THIS — keep them in lock-step.
  */
 export interface WfNewAudioLookupItem {
-  kind: 'word' | 'sentence';
+  kind: OrchResourceKind;
   language: string;
   text: string;
 }
@@ -267,6 +269,10 @@ export interface WfNewApi {
   postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[]): Promise<WfNewBookPlanAssignments>;
   /** Ready resource ids after `cursor` (ready sequence order). */
   getBookAudioPlanReady(planId: string, cursor: number, limit: number): Promise<WfNewBookPlanReadyPage>;
+  /** Phrases of sentences (by sentence content id, at most 500 per call), in request order. */
+  getPhrasesBySentences(language: string, contentIds: string[]): Promise<WfNewSentencePhrases[]>;
+  /** A non-passive phrase audio request: the server promotes the phrase in its phrase lane. True when accepted. */
+  requestPhraseAudio(text: string, language: string): Promise<boolean>;
   /** The user's virtual read batches (max 20; Laravel prunes unreferenced, then stale ones). */
   getVirtualReadBatches(): Promise<WfNewVirtualReadBatchList>;
   /** Record reads of played words (dictionary ids) into a batch; idempotent per request key. */

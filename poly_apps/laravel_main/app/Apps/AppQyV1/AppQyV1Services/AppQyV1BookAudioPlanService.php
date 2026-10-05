@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Log;
  * Server-owned audio plan of one book (audio_orchestration_contract
  * book_plan). The app posts the plan once; Laravel derives the clips from
  * its own book data (source_sentences correspondence slots plus the distinct
- * words of the primary language), raises their gap rows from the reading
+ * words and, with include_phrases, the distinct extracted phrases of the
+ * primary language), raises their gap rows from the reading
  * position forward, and answers the app's cursor reads: status counters
  * and the ready ids after a cursor. Generation itself is the work leases'.
  */
@@ -42,10 +43,12 @@ final class AppQyV1BookAudioPlanService
     private const SYNC_SECONDS = 300;
     private const DIRTY_KEY = 'book_plan:dirty:';
     private const DIRTY_SECONDS = 86400;
+    private const PHRASE_SYNC_KEY = 'book_plan:phrase_sync:';
+    private const PHRASE_SETTLED_KEY = 'book_plan:phrase_settled:';
     private const WORD_PATTERN = "/[\\p{L}]+(?:['\\x{2019}][\\p{L}]+)*/u";
     private const CJK_PATTERN = '/[\x{3040}-\x{30ff}\x{3400}-\x{4dbf}\x{4e00}-\x{9fff}\x{ac00}-\x{d7af}\x{f900}-\x{faff}]/u';
     private const INSERT_CHUNK = 1000;
-    private const PLAN_LANES = [WorkLeaseLanes::SENTENCE_AUDIO, WorkLeaseLanes::WORD_AUDIO];
+    private const PLAN_LANES = [WorkLeaseLanes::SENTENCE_AUDIO, WorkLeaseLanes::WORD_AUDIO, WorkLeaseLanes::PHRASE_AUDIO];
 
     private ConnectionInterface $db;
     private string $plans;
@@ -79,10 +82,10 @@ final class AppQyV1BookAudioPlanService
 
     /**
      * POST book_plans: creates the plan once (identity = book, chapter, languages,
-     * words; the client plan hash is kept as a marker) and applies the reading
+     * words, phrases; the client plan hash is kept as a marker) and applies the reading
      * position. Null when the book does not exist.
      *
-     * @param array{source_key:string,chapter_index?:?int,languages:array,include_words?:bool,position?:int,plan_hash?:?string} $request
+     * @param array{source_key:string,chapter_index?:?int,languages:array,include_words?:bool,include_phrases?:bool,position?:int,plan_hash?:?string} $request
      */
     public function ensure(array $request): ?array
     {
@@ -100,8 +103,14 @@ final class AppQyV1BookAudioPlanService
         sort($languages);
         $chapter = isset($request['chapter_index']) ? (int) $request['chapter_index'] : null;
         $words = (bool) ($request['include_words'] ?? false);
+        $phrases = (bool) ($request['include_phrases'] ?? false);
         $position = max(0, (int) ($request['position'] ?? 0));
-        $planId = sha1(implode('|', [$sourceKey, $chapter ?? 'all', implode(',', $languages), $words ? 'words' : 'sentences']));
+        $identity = [$sourceKey, $chapter ?? 'all', implode(',', $languages), $words ? 'words' : 'sentences'];
+        if ($phrases) {
+            $identity[] = 'phrases';
+        }
+        $planId = sha1(implode('|', $identity));
+        $primary = AppQyV1TableMaps::normalizeLangCode((string) ($book->language ?? '')) ?: ($languages[0] ?? '');
         $now = now();
         $created = $this->db->table($this->unquoted($this->plans))->insertOrIgnore([
             'plan_id' => $planId,
@@ -109,6 +118,7 @@ final class AppQyV1BookAudioPlanService
             'chapter_index' => $chapter,
             'languages' => json_encode($languages),
             'include_words' => $words,
+            'include_phrases' => $phrases,
             'plan_hash' => isset($request['plan_hash']) ? mb_substr((string) $request['plan_hash'], 0, 64) : null,
             'position' => $position,
             'state' => 'building',
@@ -119,6 +129,9 @@ final class AppQyV1BookAudioPlanService
 
         if ($created) {
             $this->buildSentences($plan, $languages, $sourceKey, $chapter);
+            if ($phrases) {
+                $this->buildPhrases($plan, $primary);
+            }
             if (!$words) {
                 $this->setState($plan->id, 'ready');
             }
@@ -129,7 +142,7 @@ final class AppQyV1BookAudioPlanService
             );
         }
         if ($words && $plan->state === 'building') {
-            $this->startWords($planId, AppQyV1TableMaps::normalizeLangCode((string) ($book->language ?? '')) ?: ($languages[0] ?? ''));
+            $this->startWords($planId, $primary);
         }
         $this->movePosition($planId, $position);
 
@@ -310,6 +323,8 @@ final class AppQyV1BookAudioPlanService
             $language = (string) $row->language;
             if ($row->lane === WorkLeaseLanes::SENTENCE_AUDIO) {
                 $ids[] = AppQyV1AudioBundleService::resourceKey(AppQyV1AudioBundleService::KIND_SENTENCE, $language, (string) $row->content_key);
+            } elseif ($row->lane === WorkLeaseLanes::PHRASE_AUDIO) {
+                $ids[] = AppQyV1AudioBundleService::resourceKey(AppQyV1AudioBundleService::KIND_PHRASE, $language, (string) $row->content_key);
             } elseif (isset($contents[$language][$row->content_key])) {
                 $ids[] = AppQyV1AudioBundleService::resourceKey(
                     AppQyV1AudioBundleService::KIND_WORD,
@@ -501,8 +516,102 @@ final class AppQyV1BookAudioPlanService
                 $synced++;
             }
         }
+        foreach ($synced < $limit ? $this->db->select("SELECT * FROM {$this->plans} WHERE include_phrases ORDER BY id") : [] as $plan) {
+            if ($synced >= $limit) {
+                break;
+            }
+            if ($this->syncPhrases($plan) !== null) {
+                $synced++;
+            }
+        }
 
         return $synced;
+    }
+
+    /**
+     * Phrase membership of a phrase plan while its sentences are still being extracted:
+     * phrases extracted since the last pass join the plan (raised from the reading
+     * position). Once a pass started with no pending sentence the plan is settled
+     * (new sentences unsettle it through the membership sync). At most every
+     * SYNC_SECONDS per plan; null while throttled, settled or failed.
+     */
+    private function syncPhrases(object $plan): ?int
+    {
+        $cache = QueueCenterCacheStore::get();
+
+        if ($cache->has(self::PHRASE_SETTLED_KEY . $plan->plan_id) || !$cache->add(self::PHRASE_SYNC_KEY . $plan->plan_id, 1, self::SYNC_SECONDS)) {
+            return null;
+        }
+        try {
+            $language = $this->primaryLanguage($plan);
+            $pending = $this->extractionPending($plan, $language);
+            $added = $this->buildPhrases($plan, $language);
+            if (!$pending) {
+                $cache->put(self::PHRASE_SETTLED_KEY . $plan->plan_id, 1, self::DIRTY_SECONDS);
+            }
+            if ($added > 0) {
+                $this->db->update("UPDATE {$this->plans} SET raised_position = NULL WHERE id = ?", [$plan->id]);
+                $this->raise($this->plan((string) $plan->plan_id));
+                Log::info('[BookAudioPlan] phrase membership synced', ['plan' => $plan->plan_id, 'added' => $added]);
+            }
+
+            return $added;
+        } catch (\Throwable $exception) {
+            Log::warning('[BookAudioPlan] phrase membership sync failed', ['plan' => $plan->plan_id, 'error' => $exception->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /** Whether a primary-language sentence of the plan still waits for phrase extraction. */
+    private function extractionPending(object $plan, string $language): bool
+    {
+        if (!$this->phrasesAvailable($language)) {
+            return false;
+        }
+        $sentences = '"' . WorkLeaseLanes::table(WorkLeaseLanes::SENTENCE_AUDIO, $language) . '"';
+
+        return $this->db->selectOne(
+            "SELECT 1 AS pending FROM {$this->clips} pc JOIN {$sentences} t ON t.content_id = pc.content_key"
+            . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND ' . AppQyV1MediaGaps::SENTENCE_PHRASES . ' LIMIT 1',
+            [$plan->id, WorkLeaseLanes::SENTENCE_AUDIO, $language]
+        ) !== null;
+    }
+
+    /**
+     * Phrase membership: the distinct phrases linked to the plan's primary-language
+     * sentences, each at the position of its first sentence. Idempotent; returns the clips added.
+     */
+    private function buildPhrases(object $plan, string $language): int
+    {
+        if (!$this->phrasesAvailable($language)) {
+            return 0;
+        }
+        $links = '"' . AppQyV1TableMaps::getSentencePhraseTableName($language) . '"';
+        $phrases = '"' . WorkLeaseLanes::table(WorkLeaseLanes::PHRASE_AUDIO, $language) . '"';
+
+        return $this->db->affectingStatement(
+            "INSERT INTO {$this->clips} (plan_pk, lane, language, content_key, position)"
+            . ' SELECT pc.plan_pk, CAST(' . $this->literal(WorkLeaseLanes::PHRASE_AUDIO) . ' AS varchar), pc.language, sp.phrase_content_id, MIN(pc.position)'
+            . " FROM {$this->clips} pc JOIN {$links} sp ON sp.sentence_content_id = pc.content_key JOIN {$phrases} p ON p.content_id = sp.phrase_content_id"
+            . ' WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ?'
+            . ' GROUP BY pc.plan_pk, pc.language, sp.phrase_content_id ON CONFLICT DO NOTHING',
+            [$plan->id, WorkLeaseLanes::SENTENCE_AUDIO, $language]
+        );
+    }
+
+    /** Phrase tables of the language exist (sys:init created them with the sentence phrase columns). */
+    private function phrasesAvailable(string $language): bool
+    {
+        return $language !== '' && in_array($language, WorkLeaseLanes::languages(WorkLeaseLanes::PHRASE_AUDIO), true);
+    }
+
+    /** The book's language (words and phrases are taken from it), else the plan's first language. */
+    private function primaryLanguage(object $plan): string
+    {
+        $language = AppQyV1TableMaps::normalizeLangCode((string) AppQyV1BookModel::query()->where('source_key', $plan->source_key)->value('language'));
+
+        return $language !== '' ? $language : (string) (array_values(array_filter((array) json_decode((string) $plan->languages, true), 'is_string'))[0] ?? '');
     }
 
     /** Membership sync of a plan (status read or timer); new sentences bring their words into a word plan. Null while throttled or failed. */
@@ -510,6 +619,13 @@ final class AppQyV1BookAudioPlanService
     {
         try {
             $added = $this->syncMembership($plan);
+            if (($added ?? 0) > 0 && (bool) ($plan->include_phrases ?? false)) {
+                QueueCenterCacheStore::get()->forget(self::PHRASE_SETTLED_KEY . $plan->plan_id);
+                if ($this->buildPhrases($plan, $this->primaryLanguage($plan)) > 0) {
+                    $this->db->update("UPDATE {$this->plans} SET raised_position = NULL WHERE id = ?", [$plan->id]);
+                    $this->raise($this->plan((string) $plan->plan_id));
+                }
+            }
             if (($added ?? 0) > 0 && (bool) $plan->include_words && $plan->state === 'ready'
                 && QueueCenterCacheStore::get()->add(self::BUILD_KEY . $plan->plan_id, 1, self::BUILD_LOCK_SECONDS)) {
                 $language = AppQyV1TableMaps::normalizeLangCode((string) AppQyV1BookModel::query()->where('source_key', $plan->source_key)->value('language'));
@@ -663,8 +779,43 @@ final class AppQyV1BookAudioPlanService
                 array_merge([$body], $scope, [$from, $to, $head])
             );
         }
+        if ((bool) ($plan->include_phrases ?? false)) {
+            $this->raiseExtraction($plan, $from, $to, $head, $body);
+        }
         $this->db->update("UPDATE {$this->plans} SET raised_position = ?, updated_at = ? WHERE id = ?", [$from, $now, $plan->id]);
         QueueCenterCacheStore::get()->forget(self::STATUS_KEY . $plan->plan_id);
+    }
+
+    /**
+     * Phrase plans: the primary-language sentences still waiting for phrase extraction
+     * get the same head/body priority in the extraction queue (phrase_priority), so
+     * their phrases join the plan (next phrase sync) in reading order. Never lowers
+     * a higher priority; an earlier head window left behind drops to the body.
+     */
+    private function raiseExtraction(object $plan, int $from, int $to, int $head, int $body): void
+    {
+        $language = $this->primaryLanguage($plan);
+
+        if (!$this->phrasesAvailable($language)) {
+            return;
+        }
+        $table = '"' . WorkLeaseLanes::table(WorkLeaseLanes::SENTENCE_AUDIO, $language) . '"';
+        $join = "FROM {$this->clips} pc WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.content_key = {$table}.content_id AND "
+            . AppQyV1MediaGaps::SENTENCE_PHRASES;
+        $scope = [$plan->id, WorkLeaseLanes::SENTENCE_AUDIO, $language];
+
+        $this->db->update(
+            "UPDATE {$table} SET phrase_priority = ? {$join} AND pc.position >= ? AND pc.position < ? AND {$table}.phrase_priority < ?",
+            array_merge([$head], $scope, [$from, $to, $head])
+        );
+        $this->db->update(
+            "UPDATE {$table} SET phrase_priority = ? {$join} AND (pc.position < ? OR pc.position >= ?) AND {$table}.phrase_priority < ?",
+            array_merge([$body], $scope, [$from, $to, $body])
+        );
+        $this->db->update(
+            "UPDATE {$table} SET phrase_priority = ? {$join} AND (pc.position < ? OR pc.position >= ?) AND {$table}.phrase_priority = ?",
+            array_merge([$body], $scope, [$from, $to, $head])
+        );
     }
 
     /**

@@ -17,7 +17,7 @@ export function orchSpecFromPycoreTask(task: OrchTask, languages: OrchComposeSpe
   const pattern = (task.pattern ?? [])
     .map((step): OrchComposeStep | null => {
       const type = stepType(step, task.word_mode);
-      return type ? { type, times: Math.max(1, Number(step.times) || 1) } : null;
+      return type ? { type, times: Math.max(1, Number(step.times) || 1), ...(step.meaning ? { meaning: true } : {}) } : null;
     })
     .filter((step): step is OrchComposeStep => step !== null);
   return {

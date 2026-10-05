@@ -59,6 +59,7 @@ class AppQyV1ExternalStorageManager
                 $this->audioPath . '/word_subtitles',
                 $this->audioPath . '/sentence_sounds',
                 $this->audioPath . '/sentence_subtitles',
+                \App\Providers\PathMapper::getAppQyV1PhraseSoundsDir(),
                 $this->imagesPath . '/word_images',
                 // Canonical word-images location is now the unified static tree
                 // (laravel_db/static/app_qy_v1/word_images) so laravel_db copies

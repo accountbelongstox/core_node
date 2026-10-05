@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Audio-orchestration Part1 fill (LOCAL ONLY) for words AND sentences.
+"""Audio-orchestration Part1 fill (LOCAL ONLY) for words, sentences AND phrases.
 
 A manifest's local-cache misses are exactly what this machine still needs.
 Each miss enters Part1 of its OWN lane queue - missing words into the
-word_audio Queue, missing sentences into the sentence_audio Queue - as a
+word_audio Queue, missing sentences into the sentence_audio Queue, missing
+phrases into the phrase_audio Queue - as a
 pycore-local task owned by the orchestration task (the tracker owner), so
 the fill is visible per lane (Part1 / Part2 / whole Queue) and per task.
 

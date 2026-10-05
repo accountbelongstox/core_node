@@ -381,7 +381,7 @@ export interface QueueCenterControlResponse {
 }
 
 /** Audio lane queue key: each lane owns its own Queue = Part1 + Part2. */
-export type AudioLaneKey = 'word_audio' | 'sentence_audio';
+export type AudioLaneKey = 'word_audio' | 'sentence_audio' | 'phrase_audio';
 export type AudioLaneTrackState = 'queued' | 'processing' | 'done' | 'failed';
 
 export interface AudioLaneQueueRow {

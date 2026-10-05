@@ -16,6 +16,8 @@ export interface OrchPlaybackSource {
   timelines: OrchTimelineEntry[][];
   sentences: OrchComposeSentence[];
   meaningOf: (word: string) => string;
+  /** The meaning shown for a phrase (lower-case text) whose meaning clip is not spoken. */
+  phraseMeaningOf: (phrase: string) => string;
   newWords: ReadonlySet<string>;
   wordStates: ReadonlyMap<string, OrchWordState>;
 }
@@ -71,6 +73,7 @@ export function useEditionPlaybackSource(edition: OrchPlaybackEdition | null): O
     timelines: edition.timelines,
     sentences: edition.sentences,
     meaningOf: (word: string) => edition.meanings[word] ?? '',
+    phraseMeaningOf: (phrase: string) => edition.phraseMeanings?.[phrase] ?? '',
     newWords: new Set(edition.newWords),
     wordStates: new Map(Object.entries(edition.words)),
   } : null), [edition]);
@@ -97,7 +100,7 @@ export function useWordNewOrchComposePlayback(
   const timeline = useMemo(() => timelines?.[segment] ?? [], [timelines, segment]);
   const cards = useMemo(() => {
     if (!source || !settings) return [];
-    return buildStageCards(timeline, source.sentences, settings.languages, source.meaningOf);
+    return buildStageCards(timeline, source.sentences, settings.languages, source.meaningOf, source.phraseMeaningOf);
   }, [source, settings, timeline]);
   const newWords = useMemo(() => source?.newWords ?? new Set<string>(), [source]);
 

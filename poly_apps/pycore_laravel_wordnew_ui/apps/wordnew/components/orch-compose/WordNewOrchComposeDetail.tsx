@@ -8,6 +8,7 @@ import { WordNewPanelBoundary } from './WordNewPanelBoundary';
 import { WordNewOrchResolveProgress } from './WordNewOrchResolveProgress';
 import { WordNewOrchNewWords } from './WordNewOrchNewWords';
 import { WordNewOrchMissingLanguageNotice } from './WordNewOrchMissingLanguageNotice';
+import { WordNewOrchPhrasePendingNotice } from './WordNewOrchPhrasePendingNotice';
 import { WordNewOrchReadStateField } from './WordNewOrchReadStateField';
 import { WfNewOrchSection } from './WfNewOrchSection';
 import { orchTaskVirtualBatch } from '../../../../shared/orchestration/orchPlanner';
@@ -63,6 +64,7 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
       )}
 
       {!editing && <WordNewOrchMissingLanguageNotice skipped={session?.plan?.skippedLanguages} trans={trans} />}
+      {!editing && <WordNewOrchPhrasePendingNotice taskId={task.id} trans={trans} />}
 
       <WordNewPanelBoundary key={task.id} name="WordNewOrchBookPlanProgress"><WordNewOrchBookPlanProgress taskId={task.id} theme={theme} trans={trans} /></WordNewPanelBoundary>
       <WordNewOrchResolveProgress session={session} theme={theme} trans={trans} bookPlanned={Boolean(task?.config.book)} onOpenStorage={() => navigateToWordNewTab('cache')} />

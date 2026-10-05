@@ -8,13 +8,16 @@ final class AppQyV1AudioGateway
 {
     private ?AppQyV1WordAudioGateway $wordGateway;
     private ?AppQyV1SentenceAudioService $sentenceGateway;
+    private ?AppQyV1PhraseClipLocator $phraseLocator;
 
     public function __construct(
         ?AppQyV1WordAudioGateway $wordGateway = null,
-        ?AppQyV1SentenceAudioService $sentenceGateway = null
+        ?AppQyV1SentenceAudioService $sentenceGateway = null,
+        ?AppQyV1PhraseClipLocator $phraseLocator = null
     ) {
         $this->wordGateway = $wordGateway;
         $this->sentenceGateway = $sentenceGateway;
+        $this->phraseLocator = $phraseLocator;
     }
 
     public function requestWord(
@@ -66,6 +69,12 @@ final class AppQyV1AudioGateway
     public function resolveSentencesPassive(array $items): array
     {
         return $this->sentenceGateway()->resolvePassiveBatch($items);
+    }
+
+    /** @param array<int|string,array{text:string,language:string}> $items */
+    public function resolvePhrasesPassive(array $items): array
+    {
+        return ($this->phraseLocator ??= new AppQyV1PhraseClipLocator())->resolvePassiveBatch($items);
     }
 
     public function requestSentenceBatch(array $items): array

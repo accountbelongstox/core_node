@@ -31,6 +31,16 @@ use Illuminate\Support\Facades\Route;
 Route::get('/static/app_qy_v1/sentence_sounds/{language}/{filename}', [AppQyV1SentenceAudioController::class, 'serve'])
     ->name('static.appqyv1.sentence_sounds');
 
+// Phrase audio (phrase pipeline) is stored at PathMapper::getAppQyV1PhraseSoundsDir()
+// (laravel_db static tree app_qy_v1/audio/phrase_sounds) and published as
+// /static/app_qy_v1/phrase_sounds/{language}/{filename}. Registered BEFORE the catch-all.
+Route::get('/static/app_qy_v1/phrase_sounds/{language}/{filename}', function (\Illuminate\Http\Request $request, string $language, string $filename) {
+    return app(StaticFileController::class)->serveLaravelStatic($request, 'app_qy_v1/audio/phrase_sounds/' . $language . '/' . $filename);
+})
+    ->where('language', '[A-Za-z][A-Za-z0-9_-]*')
+    ->where('filename', '[A-Za-z0-9._-]+\.mp3')
+    ->name('static.appqyv1.phrase_sounds');
+
 // SMART word-image serve ("request by word, not filename"):
 //   GET /static/app_qy_v1/word_images/{lang}/{word}
 // {word} is a single no-slash segment, so this 2-segment pattern never shadows

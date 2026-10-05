@@ -13,6 +13,7 @@ from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DELIVERY
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_phrase_audio_worker,
     laravel_sentence_audio_worker,
     laravel_word_audio_worker,
 )
@@ -63,10 +64,11 @@ def register_local_task_center_routes(server) -> None:
         workers = {
             "word": laravel_word_audio_worker,
             "sentence": laravel_sentence_audio_worker,
+            "phrase": laravel_phrase_audio_worker,
         }
         worker = workers.get(lane)
         if worker is None:
-            return {"success": False, "error": "lane must be word or sentence"}
+            return {"success": False, "error": f"lane must be one of {', '.join(workers)}"}
         return {"success": True, **worker.get_event_page(*keyset_request(request))}
 
     def delivery_status_handler(_params, _request_id, _context):

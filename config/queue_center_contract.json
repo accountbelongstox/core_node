@@ -145,7 +145,8 @@
   },
   "consumer_batch_limits": {
    "word_audio": 100,
-   "sentence_audio": 100
+   "sentence_audio": 100,
+   "phrase_audio": 100
   },
   "consumer_task_timeout_seconds": {
    "word_audio": 300,
@@ -194,6 +195,9 @@
   "audio_word_report": "/api/app_qy_v1/ai_tools/tts/worker/report",
   "audio_sentence_report": "/api/app_qy_v1/ai_tools/tts/sentence/report",
   "audio_sentence_audio": "/api/app_qy_v1/ai_tools/tts/sentence/audio",
+  "audio_phrase_report": "/api/app_qy_v1/ai_tools/tts/phrase/report",
+  "audio_phrase_audio": "/api/app_qy_v1/ai_tools/tts/phrase/audio",
+  "phrases_by_sentences": "/api/app_qy_v1/phrases/by_sentences",
   "audio_queue_stats": "/api/app_qy_v1/ai_tools/tts/queue/stats",
   "audio_word_upload": "/api/app_qy_v1/word/audio/upload",
   "audio_word_media": "/api/app_qy_v1/word/{lang}/{word}/media",
@@ -227,11 +231,13 @@
   "description": "Multi-node work distribution for the gap lanes. Laravel is the single scheduler: a node claims a WORK LEASE (a disjoint batch of gap rows, atomic UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) on the row itself: tts_locked_by, tts_lease_id, tts_lease_expires_at), renews it while it works and delivers each item by content. No node mirrors the backlog: it holds its leased batch plus a prefetch. An expired lease returns its rows to the pool (claim treats expired rows as free). Binding: docs_fix/DESIGN_QUEUE_PIPELINE.md.",
   "lanes": [
    "word_audio",
-   "sentence_audio"
+   "sentence_audio",
+   "phrase_audio"
   ],
   "rank": {
    "word_audio": "tts_priority DESC, query_count DESC, id ASC",
-   "sentence_audio": "tts_priority DESC, id ASC"
+   "sentence_audio": "tts_priority DESC, id ASC",
+   "phrase_audio": "tts_priority DESC, sentence_count DESC, id ASC"
   },
   "priority_source": "tts_priority is raised by wordnew promotion (generate:laravel, queue head) and by a claim's want list; it replaces the retired {queue}_head tickets and global_tasks rows of these lanes.",
   "routing": {
@@ -518,7 +524,7 @@
  },
  "lane_state": {
   "description": "pycore lane state pushed on SSE topic queue_center.audio_lane.changed (lanes.<lane>) and returned by RPC ui/queue_center/audio_lane_state. progress = progress_template exactly as Laravel sent it for the lane's task type. assist = the node's compute state for the lane (device and engine null unless running; reason_code, one of assist_reason_codes, only when state is blocked: RESULT_CIRCUIT_OPEN = result posts kept failing with 5xx so intake paused, LANE_HALTED = lane stopped immediately, ENGINE_MEMORY_PAUSED = the lane engine waits for host memory). leases = the audio lane's work-lease state (audio lanes only, see audio_lane_state.leases). skipped = the last intake cycle's released and skipped rows aggregated by reason code.",
-  "lanes": ["word_audio", "sentence_audio", "translation"],
+  "lanes": ["word_audio", "sentence_audio", "phrase_audio", "translation"],
   "fields": ["progress", "assist", "skipped", "leases"],
   "assist_fields": ["device", "engine", "state", "reason_code"],
   "assist_devices": ["gpu", "cpu"],
@@ -537,7 +543,8 @@
  "control_names": [
   "assist_translation",
   "word_audio",
-  "sentence_audio"
+  "sentence_audio",
+  "phrase_audio"
  ],
  "callback_queue_roles": {
   "translation_worker": "consumer",
@@ -595,6 +602,12 @@
   "sentence_audio": [
    "pycore"
   ],
+  "phrase_audio": [
+   "pycore"
+  ],
+  "phrase_extract": [
+   "pycore"
+  ],
   "subtitle": [
    "pycore"
   ],
@@ -621,6 +634,13 @@
    "category": "word_audio",
    "category_keys": [
     "word_audio"
+   ],
+   "queue_metrics": true
+  },
+  "phrase_audio": {
+   "category": "phrase_audio",
+   "category_keys": [
+    "phrase_audio"
    ],
    "queue_metrics": true
   },
@@ -726,6 +746,8 @@
    "remote_subtitle": "remote_subtitle",
    "remote_poster": "remote_poster",
    "remote_sentence_audio": "remote_sentence_audio",
+   "remote_phrase_audio": "remote_phrase_audio",
+   "remote_phrase_extract": "remote_phrase_extract",
    "remote_stt": "remote_stt",
    "remote_chatgpt": "remote_chatgpt"
   },
@@ -760,6 +782,8 @@
    "image": "Image",
    "translate": "Translate (Chrome)",
    "sentence_audio": "Sentence Audio",
+   "phrase_audio": "Phrase Audio",
+   "phrase_extract": "Phrase Extraction",
    "ai_translate": "AI Translate (Chrome)",
    "puter_translate": "Puter Translate",
    "subtitle": "Subtitle",
@@ -773,6 +797,8 @@
    "subtitle": "remote_subtitle",
    "poster": "remote_poster",
    "sentence_audio": "remote_sentence_audio",
+   "phrase_audio": "remote_phrase_audio",
+   "phrase_extract": "remote_phrase_extract",
    "stt": "remote_stt"
   },
   "fast_lane_capabilities": [
@@ -1149,6 +1175,61 @@
     ]
    },
    {
+    "key": "phrase_audio",
+    "label": "Phrase Audio",
+    "execution_type": "remote_phrase_audio",
+    "capability": "phrase_audio",
+    "claimants": [
+     "pycore"
+    ],
+    "aliases": [
+     "phrase"
+    ],
+    "ordering": "queue_position",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
+    "direct_api_capable": true,
+    "direct_api_kinds": ["tts"],
+    "interactive": true,
+    "fast_promotable": false,
+    "pycore_local_label": "remote_phrase_audio",
+    "payload_limits": {
+     "text_max_chars": 200
+    },
+    "ui": {
+     "icon": "🗣️",
+     "badge": "PHRASE",
+     "summary_label": "待短语音频",
+     "color": "#a3e635"
+    },
+    "language_priority": [
+     "en"
+    ]
+   },
+   {
+    "key": "phrase_extract",
+    "label": "Phrase Extraction",
+    "execution_type": "remote_phrase_extract",
+    "capability": "phrase_extract",
+    "claimants": [
+     "pycore"
+    ],
+    "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
+    "direct_api_capable": false,
+    "direct_api_kinds": [],
+    "interactive": false,
+    "fast_promotable": false,
+    "pycore_local_label": "remote_phrase_extract",
+    "ui": {
+     "icon": "🧩",
+     "badge": "PHRASE AI",
+     "summary_label": "待短语提取",
+     "color": "#facc15"
+    }
+   },
+   {
     "key": "subtitle_search",
     "label": "Subtitle Search",
     "execution_type": "remote_subtitle",
@@ -1422,6 +1503,7 @@
    "all": [
     "word_audio",
     "sentence_audio",
+    "phrase_audio",
     "article_audio",
     "translation",
     "assist",
@@ -1443,6 +1525,16 @@
      "bucket": "word_audio",
      "all": [
       "word"
+     ],
+     "any": [
+      "tts",
+      "audio"
+     ]
+    },
+    {
+     "bucket": "phrase_audio",
+     "all": [
+      "phrase"
      ],
      "any": [
       "tts",
@@ -1532,6 +1624,22 @@
    "laravel_task_type": "sentence_audio",
    "summary_task_type": "sentence_audio",
    "capability": "sentence_audio",
+   "primary_handler": "pycore"
+  },
+  {
+   "key": "phrase_audio",
+   "label": "Phrase Audio",
+   "laravel_task_type": "phrase_audio",
+   "summary_task_type": "phrase_audio",
+   "capability": "phrase_audio",
+   "primary_handler": "pycore"
+  },
+  {
+   "key": "phrase_extract",
+   "label": "Phrase Extraction",
+   "laravel_task_type": "phrase_extract",
+   "summary_task_type": "phrase_extract",
+   "capability": "phrase_extract",
    "primary_handler": "pycore"
   },
   {

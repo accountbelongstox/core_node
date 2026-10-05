@@ -217,6 +217,8 @@ export interface WfNewBookPlanRequest {
   chapterIndex: number | null;
   languages: string[];
   includeWords: boolean;
+  /** Also the distinct phrases of the primary-language sentences (pattern with a `phrases` step). */
+  includePhrases: boolean;
   position: number;
   planHash: string;
 }

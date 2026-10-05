@@ -10,12 +10,12 @@
  *   audio — the device media cache (WfNewAudioCache: every preloaded word
  *     audio clip; up to 20 GB on the Capacitor APP build).
  *   serverResources — exact local-first API response resources.
- *   orchInputs — kept orchestration inputs (sentences + word states per task;
- *     native only, the web reads the API directly).
+ *   orchInputs — kept orchestration inputs (sentences + word states per task,
+ *     and the phrases of their sentences; native only, the web reads the API directly).
  *   orchProgress — kept resolve progress per orchestration task (cleared with
  *     orchInputs / orchClips too: the next open reloads the resources).
  *   orchClips — the permanent orchestration clip store (WordNewOrchClipStore:
- *     word / sentence audio read from pycore and Laravel; never evicted).
+ *     word / sentence / phrase audio read from pycore and Laravel; never evicted).
  * NOT cleared (by design): auth token, the PersistedStore settings stores, and
  * in-memory maps (reset on reload). Add any NEW persistent data cache as an item
  * HERE so the manager covers it.
@@ -30,6 +30,7 @@ import {
 import { audioCacheStats, clearAudioCache } from './WfNewAudioCache';
 import { clearServerMirror, serverResourceStats } from './WfNewServerMirror';
 import { wordNewOrchClipStore } from '../services/orchestration/WordNewOrchClipStore';
+import { wordNewOrchPhraseStore } from '../services/orchestration/WordNewOrchPhraseStore';
 import { wordNewOrchSources } from '../services/orchestration/WordNewOrchSources';
 import { wordNewOrchProgressStore } from '../services/orchestration/WordNewOrchProgressStore';
 
@@ -77,8 +78,9 @@ const ITEM_CLEAR: Record<WfNewCacheItemId, () => Promise<string[]>> = {
   },
   orchInputs: async () => {
     await wordNewOrchSources.clear();
+    await wordNewOrchPhraseStore.clear();
     await wordNewOrchProgressStore.clear();
-    return ['orch-inputs', 'orch-progress'];
+    return ['orch-inputs', 'orch-phrases', 'orch-progress'];
   },
   orchProgress: async () => {
     await wordNewOrchProgressStore.clear();

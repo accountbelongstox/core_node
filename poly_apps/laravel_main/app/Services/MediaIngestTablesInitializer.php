@@ -7,6 +7,7 @@ use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\SafeMigrationHelper;
 use App\Support\SchemaGate;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1PhraseTableSchema;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
@@ -148,7 +149,7 @@ class MediaIngestTablesInitializer
                 'origin' => ['type' => 'string', 'length' => 20, 'nullable' => true, 'comment' => 'content | adhoc (playback text, outside the library gap); null = legacy, classified at sys:init'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],
                 'updated_at' => ['type' => 'timestamp', 'nullable' => true],
-            ],
+            ] + AppQyV1PhraseTableSchema::SENTENCE_PHRASE_COLUMNS,
             'indexes' => [
                 ['columns' => ['content_id'], 'unique' => true, 'name' => 'uniq_sent_cid_' . $idxHash],
                 ['columns' => ['sentence_id']],

@@ -24,7 +24,7 @@ final class AppQyV1OrchIngestValidator
     private const STATUS_MAX = 32;
     private const ERROR_LIMIT = 100;
     private const SHA256_PATTERN = '/^[a-fA-F0-9]{64}$/';
-    private const RESOURCE_KINDS = ['word', 'sentence'];
+    private const RESOURCE_KINDS = ['word', 'sentence', 'phrase'];
 
     /**
      * @param array<string,mixed> $task

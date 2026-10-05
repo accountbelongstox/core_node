@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewApi, type WfNewBookChapter } from '../../api';
-import { AUDIO_ORCH_STEP_TYPES, audioOrchDefaultPattern } from '../../../../core/contracts/AudioOrchestrationContract';
+import { AUDIO_ORCH_MEANING_STEP_TYPES, AUDIO_ORCH_STEP_TYPES, audioOrchDefaultPattern } from '../../../../core/contracts/AudioOrchestrationContract';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchPresetStore, type OrchPresetDocument } from '../../services/orchestration/WordNewOrchPresetStore';
 import {
@@ -66,7 +66,7 @@ type SectionId = 'source' | 'pattern' | 'words' | 'output';
 const LANGUAGES: OrchComposeLanguages[] = ['both', 'en', 'zh'];
 const MAX_SEGMENT_VALUE = 120;
 const MAX_READ_COUNT = 100;
-const WORD_STEPS: ReadonlySet<OrchComposeStepType> = new Set(['words_new', 'words_all']);
+const MEANING_STEPS: ReadonlySet<OrchComposeStepType> = new Set(AUDIO_ORCH_MEANING_STEP_TYPES);
 
 function clampInt(value: string, min: number, max: number): number {
   const parsed = Math.trunc(Number(value));
@@ -200,7 +200,7 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
                 value={step.type}
                 onChange={(event) => {
                   const type = event.target.value as OrchComposeStepType;
-                  setStep(index, { type, meaning: WORD_STEPS.has(type) ? step.meaning : undefined });
+                  setStep(index, { type, meaning: MEANING_STEPS.has(type) ? step.meaning : undefined });
                 }}
                 className={`${styles.select} !w-auto flex-1`}
                 aria-label={trans('orchCompose.field.pattern')}
@@ -218,7 +218,7 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
                 onChange={(event) => setStep(index, { times: clampInt(event.target.value, 1, ORCH_MAX_STEP_TIMES) })}
                 className={styles.number}
               />
-              {WORD_STEPS.has(step.type) && (
+              {MEANING_STEPS.has(step.type) && (
                 <label className={`inline-flex items-center gap-1 text-[11px] ${theme.textSecondaryClass}`}>
                   <input type="checkbox" checked={step.meaning === true} onChange={(event) => setStep(index, { meaning: event.target.checked || undefined })} className="accent-indigo-500" />
                   {trans('orchCompose.step.meaning')}

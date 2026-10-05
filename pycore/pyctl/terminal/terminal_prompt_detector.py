@@ -98,11 +98,9 @@ def confirmation_prompt(text: str) -> Optional[str]:
 
 
 def default_yes_prompt(text: str) -> bool:
-    """Only send Enter when a detected prompt has Yes as the default selection."""
+    """A detected Yes prompt whose selection may sit anywhere: the handler moves it back to the first Yes before Enter."""
     lines = prompt_lines(text)
     if not lines or not confirmation_prompt(text):
-        return False
-    if any(SELECTED_OTHER_PATTERN.match(line) for line in lines):
         return False
     return bool(
         OPTION_YES_PATTERN.match(lines[-1])
@@ -152,11 +150,6 @@ def second_yes_prompt(text: str) -> bool:
         return False
     options = lines[yes_positions[-1] + 1:]
     if not any(SECOND_YES_DONT_ASK_PATTERN.match(line) for line in options):
-        return False
-    if any(
-        SELECTED_OTHER_PATTERN.match(line) and not SECOND_YES_DONT_ASK_PATTERN.match(line)
-        for line in options
-    ):
         return False
     if not (
         OPTION_YES_PATTERN.match(lines[-1])

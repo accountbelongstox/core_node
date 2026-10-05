@@ -10,6 +10,8 @@ import queueCenterContract from '../../../../config/queue_center_contract.json';
 
 export const APPQYV1_API_BASE = '/api/app_qy_v1';
 
+const routeSuffix = (endpoint: string): string => endpoint.slice(APPQYV1_API_BASE.length);
+
 export const APPQYV1_AI_TOOLS_ROUTES = {
   translationTranslate: '/ai_tools/translation/translate',
   translationLanguages: '/ai_tools/translation/languages',
@@ -19,7 +21,16 @@ export const APPQYV1_AI_TOOLS_ROUTES = {
   ttsQueueStats: '/ai_tools/tts/queue/stats',
   ttsSentenceAudio: '/ai_tools/tts/sentence/audio',
   ttsQueueItems: '/tts/queue/items',
+  /** Phrase audio (contract endpoint `audio_phrase_audio`; `passive=1` is read-only). */
+  ttsPhraseAudio: routeSuffix(queueCenterContract.endpoints.audio_phrase_audio),
+  /** Phrase audio report (contract endpoint `audio_phrase_report`). */
+  ttsPhraseReport: routeSuffix(queueCenterContract.endpoints.audio_phrase_report),
+  /** Phrases of sentences (contract endpoint `phrases_by_sentences`). */
+  phrasesBySentences: routeSuffix(queueCenterContract.endpoints.phrases_by_sentences),
 } as const;
+
+/** Sentences per `phrases_by_sentences` request (DESIGN_PHRASE_PIPELINE.md section 5). */
+export const APPQYV1_PHRASES_BY_SENTENCES_MAX_IDS = 500;
 
 /** Word media routes (file-first resolve; `passive=1` is read-only). */
 export const APPQYV1_WORD_MEDIA_ROUTES = {

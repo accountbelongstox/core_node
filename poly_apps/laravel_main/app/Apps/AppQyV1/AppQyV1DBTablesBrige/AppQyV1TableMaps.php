@@ -521,6 +521,28 @@ class AppQyV1TableMaps extends TableMaps
     }
 
     /**
+     * Per-language phrase store (phrase pipeline, docs_fix/DESIGN_PHRASE_PIPELINE.md §3):
+     * {prefix}_phrases_{lang}, deduped on content_id. Created by sys:init only.
+     */
+    public static function getPhraseTableName(string $langCode): string
+    {
+        $prefix = self::getTablePrefix();
+        $langCode = strtolower($langCode);
+        return "{$prefix}_phrases_{$langCode}";
+    }
+
+    /**
+     * Per-language sentence -> phrase link table: {prefix}_sentence_phrases_{lang},
+     * unique on (sentence_content_id, phrase_content_id). Created by sys:init only.
+     */
+    public static function getSentencePhraseTableName(string $langCode): string
+    {
+        $prefix = self::getTablePrefix();
+        $langCode = strtolower($langCode);
+        return "{$prefix}_sentence_phrases_{$langCode}";
+    }
+
+    /**
      * Per-language chapter store (Books v3.1 unified model — see
      * BOOKS_FEATURE_SPECIFICATION.md §3.2).
      *

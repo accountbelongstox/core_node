@@ -100,6 +100,7 @@ export interface OrchClipStats {
   clips: number;
   words: number;
   sentences: number;
+  phrases: number;
   bytes: number;
 }
 
@@ -704,6 +705,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       clips: values.length,
       words: values.filter((entry) => entry.kind === 'word').length,
       sentences: values.filter((entry) => entry.kind === 'sentence').length,
+      phrases: values.filter((entry) => entry.kind === 'phrase').length,
       bytes: values.reduce((total, entry) => total + entry.bytes, 0),
     };
   }

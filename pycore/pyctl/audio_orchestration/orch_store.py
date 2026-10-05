@@ -8,6 +8,7 @@ user data directory - resolved via system_paths, never hardcoded):
     auth.json                    qy-app login session (username, token, user id)
     books_cache.json             Laravel media/books list snapshot
     book_sentences/<key>.json    per-book ordered sentence cache
+    phrase_cache/<lang>.json     phrases of finished sentences (Laravel phrases_by_sentences)
     sync_state.json              background fetch progress (books + sentences)
     system_status.json           cached ffmpeg/system probe (TTL-refreshed)
     tasks/<task_id>.json         one orchestration task record per file
@@ -43,7 +44,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -61,6 +62,7 @@ _SYSTEM_STATUS_FILE = "system_status.json"
 _TASKS_DIR = "tasks"
 _BOOK_SENTENCES_DIR = "book_sentences"
 _BOOK_SENTENCES_PARTIAL_DIR = "book_sentences_partial"
+_PHRASE_CACHE_DIR = "phrase_cache"
 _OUTPUT_DIR = "output"
 _VIDEO_PRESETS_FILE = "video_presets.json"
 _VIDEO_BACKGROUNDS_DIR = "video_backgrounds"
@@ -224,6 +226,51 @@ def delete_book_sentences_partial(source_key: str) -> bool:
     if path is None or not path.is_file():
         return True
     return _delete_json(path)
+
+
+# --------------------------------------------------------------------------- #
+# sentence phrase cache (one file per language)                                #
+# --------------------------------------------------------------------------- #
+# {language: (file mtime ns, record)}: lookups of clip routes reuse the parsed
+# file until it changes on disk.
+_phrase_cache_memo: Dict[str, Tuple[int, Dict[str, Any]]] = {}
+
+
+def _phrase_cache_path(language: str) -> Optional[Path]:
+    safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", str(language or ""))
+    return base_dir() / _PHRASE_CACHE_DIR / f"{safe}.json" if safe else None
+
+
+def load_sentence_phrase_cache(language: str) -> Dict[str, Any]:
+    """``{sentences: {sentence_content_id: {status, phrases: [phrase_content_id]}},
+    phrases: {phrase_content_id: {text, meaning}}}`` of one language; readers
+    must not mutate it."""
+    path = _phrase_cache_path(language)
+    if path is None or not path.is_file():
+        return {"sentences": {}, "phrases": {}}
+    stamp = path.stat().st_mtime_ns
+    memo = _phrase_cache_memo.get(str(language))
+    if memo is not None and memo[0] == stamp:
+        return memo[1]
+    record = _read_json(path)
+    record = record if isinstance(record, dict) else {}
+    loaded = {
+        "sentences": record["sentences"] if isinstance(record.get("sentences"), dict) else {},
+        "phrases": record["phrases"] if isinstance(record.get("phrases"), dict) else {},
+    }
+    _phrase_cache_memo[str(language)] = (stamp, loaded)
+    return loaded
+
+
+def save_sentence_phrase_cache(language: str, sentences: Dict[str, Any], phrases: Dict[str, Any]) -> bool:
+    path = _phrase_cache_path(language)
+    if path is None:
+        return False
+    record = {"language": str(language), "saved_at": int(time.time()), "sentences": sentences, "phrases": phrases}
+    if not _write_json(path, record):
+        return False
+    _phrase_cache_memo[str(language)] = (path.stat().st_mtime_ns, {"sentences": sentences, "phrases": phrases})
+    return True
 
 
 def cached_book_keys() -> List[str]:

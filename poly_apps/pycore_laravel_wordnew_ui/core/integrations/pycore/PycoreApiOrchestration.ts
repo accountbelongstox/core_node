@@ -9,6 +9,7 @@ import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { orchAccountSession } from './OrchAccountSession';
 import type { QyWordGroup } from '../laravel/LaravelQyAccountAPI';
 import type { AudioLaneKey, AudioLaneTrackCounts, AudioLaneTrackState } from '../../contracts/QueueCenterTypes';
+import type { OrchResourceKind } from './PycoreApiOrchestrationResources';
 import type { LaravelDeliveryOwnerCounts } from './PycoreQueueTypes';
 
 export interface OrchBookItem {
@@ -84,8 +85,8 @@ export interface OrchAuthStatus {
   word_group_id?: string;
 }
 
-export type OrchPatternStepType = 'sentence_en' | 'sentence_zh' | 'words_new' | 'words_all' | 'words';
-export interface OrchPatternStep { type: OrchPatternStepType; times: number }
+export type OrchPatternStepType = 'sentence_en' | 'sentence_zh' | 'words_new' | 'words_all' | 'words' | 'phrases';
+export interface OrchPatternStep { type: OrchPatternStepType; times: number; /** Word and phrase steps: read the Chinese meaning after each item. */ meaning?: boolean }
 
 export interface OrchTaskPayload {
   name?: string;
@@ -117,7 +118,7 @@ export interface OrchSegment {
   finished_at?: number | null;
   /** Assembled mp3 length and per-clip offsets (absent on segments assembled before 2026-09-27). */
   duration_ms?: number | null;
-  timeline?: Array<{ seq?: number; type: 'word' | 'sentence'; start_ms: number; end_ms: number }>;
+  timeline?: Array<{ seq?: number; type: OrchResourceKind; start_ms: number; end_ms: number }>;
   video_status?: OrchVideoStatus | null;
   video_output?: string | null;
   /** Stable code of a failed / skipped video render (localized by the UI). */
