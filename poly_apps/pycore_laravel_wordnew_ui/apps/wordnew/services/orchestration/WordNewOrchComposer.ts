@@ -26,16 +26,25 @@
  * resumed run keeps its plan, timelines and clips on screen and fetches only
  * what is still missing. Repeated "reload" presses within FORCE_DEBOUNCE_MS
  * start one run.
+ *
+ * An edit never stops a download: the run of the previous plan keeps going in
+ * the background (superseded - it no longer shows, it hands every clip it gets
+ * to the task's current run, and it stops asking for clips the current plan no
+ * longer has), while the edited plan runs at once from the inputs in memory,
+ * the progress of the previous plan carried over by clip key, and the device
+ * store; its network stages leave to the background run what that run still
+ * fetches. When a background run ends, the current plan continues with what it left.
  */
 import {
   isOrchComposeAborted,
   ORCH_EMPTY_COUNTS,
+  orchCarryProgress,
   runComposition,
   totalDurationMs,
   type OrchComposeSession,
 } from '../../../../shared/orchestration/orchComposer';
-import type { OrchComposePlan, OrchComposeResource, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
-import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
+import type { OrchComposePlan, OrchComposeResource, OrchComposeSentence, OrchComposeTask, OrchResolvedClip } from '../../../../shared/orchestration/orchTypes';
+import { orchPatternHasPhrases, orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
 import type { OrchStageCursor } from '../../../../shared/orchestration/orchClipResolver';
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { Backoff } from '../../../../core/tasks/Backoff';
@@ -99,7 +108,24 @@ interface ActiveRun {
   planHash: string;
   controller: AbortController;
   forcedAt: number;
+  /** The clip keys of its plan (null until the plan is composed). */
+  keys: Set<string> | null;
+  /** The clips it delivered so far. */
+  clips: ReadonlyMap<string, OrchResolvedClip>;
+  /** An edit replaced its plan: it keeps fetching in the background for the current run. */
+  superseded: boolean;
+  /** Clips already handed to the current run. */
+  handed: Set<string>;
 }
+
+/** The phrases a run loaded for a set of sentences (an edit reuses them; the sentences array is the identity). */
+interface PhraseMemory {
+  sentences: readonly OrchComposeSentence[];
+  withPhrases: boolean;
+  phrases: OrchPhraseInputs;
+}
+
+type ClipFeed = (key: string, clip: OrchResolvedClip) => void;
 
 /** Sentences whose phrases the server is still extracting: the pending re-check of one task. */
 interface PhraseWatch {
@@ -115,6 +141,11 @@ type ReadyListener = (taskId: string, session: OrchComposeSession) => void;
 class WordNewOrchComposerService {
   private readonly sessions = new Map<string, OrchComposeSession>();
   private readonly runs = new Map<string, ActiveRun>();
+  /** Runs of earlier plans still fetching after an edit (per task). */
+  private readonly background = new Map<string, Set<ActiveRun>>();
+  /** The current run's intake of clips the background runs deliver (per task). */
+  private readonly feeds = new Map<string, Set<ClipFeed>>();
+  private readonly phraseMemory = new Map<string, PhraseMemory>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly anyListeners = new Set<Listener>();
   private readonly readyListeners = new Set<ReadyListener>();
@@ -389,8 +420,54 @@ class WordNewOrchComposerService {
       if (active?.planHash === task.planHash && !options.interrupt) return;
       if (session?.planHash === task.planHash && !options.phrases && !this.needsResume(task.id, session, options.resume === true)) return;
     }
-    active?.controller.abort();
-    void this.run(task, options.force === true);
+    // Another plan (an edit) never stops a download: a run already fetching goes on in the background.
+    if (active && active.planHash !== task.planHash && active.keys) this.supersede(task.id, active);
+    else active?.controller.abort();
+    void this.run(task, options.force === true, options.phrases === true);
+  }
+
+  private supersede(taskId: string, run: ActiveRun): void {
+    run.superseded = true;
+    if (this.runs.get(taskId)?.id === run.id) this.runs.delete(taskId);
+    const set = this.background.get(taskId) ?? new Set<ActiveRun>();
+    set.add(run);
+    this.background.set(taskId, set);
+  }
+
+  /** A background run still fetches this clip (the current run leaves it to that run). */
+  private ownedByBackground(taskId: string, key: string): boolean {
+    for (const run of this.background.get(taskId) ?? []) {
+      if (run.keys?.has(key) && !run.clips.has(key)) return true;
+    }
+    return false;
+  }
+
+  /** The current plan still has this clip (a background run fetches nothing else). */
+  private wantedNow(taskId: string, key: string): boolean {
+    const keys = this.runs.get(taskId)?.keys;
+    return !keys || keys.has(key);
+  }
+
+  /** Hand a background run's new clips to the task's current run. */
+  private handOver(taskId: string, run: ActiveRun): void {
+    const feeds = this.feeds.get(taskId);
+    run.clips.forEach((clip, key) => {
+      if (run.handed.has(key)) return;
+      run.handed.add(key);
+      feeds?.forEach((feed) => feed(key, clip));
+    });
+  }
+
+  /** A background run ended: the current plan continues with what it left (the device store answers what it got). */
+  private async backgroundEnded(taskId: string, run: ActiveRun): Promise<void> {
+    this.handOver(taskId, run);
+    this.background.get(taskId)?.delete(run);
+    if (this.runs.has(taskId)) {
+      this.resumeAfterRun.add(taskId);
+      return;
+    }
+    const task = await wordNewOrchTaskStore.get(taskId);
+    if (task && !this.runs.has(taskId)) this.ensure(task, { resume: true });
   }
 
   /** The server book plan has ready clips this device lacks: the task continues (after the run in progress, if any). */
@@ -436,6 +513,10 @@ class WordNewOrchComposerService {
     resetOrchCountsFloor();
     this.runs.forEach((run) => run.controller.abort());
     this.runs.clear();
+    this.background.forEach((runs) => runs.forEach((run) => run.controller.abort()));
+    this.background.clear();
+    this.feeds.clear();
+    this.phraseMemory.clear();
     this.resumeAfterRun.clear();
     this.reruns.forEach((entry) => { if (entry.timer) clearTimeout(entry.timer); });
     this.reruns.clear();
@@ -466,14 +547,24 @@ class WordNewOrchComposerService {
     return (await wordNewOrchTaskStore.get(task.id))?.planHash === task.planHash;
   }
 
-  private async run(task: OrchComposeTask, force: boolean): Promise<void> {
-    const run: ActiveRun = { id: Symbol(task.id), planHash: task.planHash, controller: new AbortController(), forcedAt: force ? Date.now() : 0 };
+  private async run(task: OrchComposeTask, force: boolean, reloadPhrases = false): Promise<void> {
+    const run: ActiveRun = {
+      id: Symbol(task.id),
+      planHash: task.planHash,
+      controller: new AbortController(),
+      forcedAt: force ? Date.now() : 0,
+      keys: null,
+      clips: new Map(),
+      superseded: false,
+      handed: new Set(),
+    };
     const { signal } = run.controller;
     this.runs.set(task.id, run);
     const kept = force ? null : await wordNewOrchProgressStore.get(task.id, task.planHash);
-    // A resumed run keeps what the last run of this plan showed.
+    // A resumed run keeps what the last run of this plan showed; an edited plan carries the previous plan's progress.
     const previous = force ? null : this.sessions.get(task.id);
     const shown = previous?.planHash === task.planHash ? previous : null;
+    const carryFrom = previous && !shown && previous.plan && previous.table ? previous : null;
     await wordNewOrchTaskStore.update(task.id, { status: 'resolving' });
     let last: OrchComposeSession | null = null;
     const lease = acquireForegroundSync();
@@ -484,7 +575,13 @@ class WordNewOrchComposerService {
     const publish = (next: OrchComposeSession): void => {
       const before = last;
       last = next;
-      if (signal.aborted || this.runs.get(task.id)?.id !== run.id) return;
+      if (signal.aborted) return;
+      run.clips = next.clips;
+      if (run.superseded) {
+        this.handOver(task.id, run);
+        return;
+      }
+      if (this.runs.get(task.id)?.id !== run.id) return;
       this.sessions.set(task.id, next);
       lease.update(this.leaseText(next));
       this.emit(task.id);
@@ -497,13 +594,33 @@ class WordNewOrchComposerService {
       const session = await runComposition(task, task.planHash, {
         loadInputs: async (report) => {
           const inputs = await wordNewOrchSources.load(task, { force }, report);
-          phrases = await loadOrchPhraseInputs(task, inputs.sentences, signal);
+          // The same sentences (an edit) reuse their phrases unless the phrases are asked again.
+          const withPhrases = orchPatternHasPhrases(task.config.pattern);
+          const memory = this.phraseMemory.get(task.id);
+          const reuse = !force && !reloadPhrases && memory?.sentences === inputs.sentences && (memory.withPhrases || !withPhrases);
+          phrases = reuse && memory ? { ...memory.phrases, changed: false } : await loadOrchPhraseInputs(task, inputs.sentences, signal);
+          if (!reuse) this.phraseMemory.set(task.id, { sentences: inputs.sentences, withPhrases, phrases });
           // Stage cursors are plan positions: phrases that joined the plan since the last run shifted them.
           if (phrases.changed && seedCursors) Object.keys(seedCursors).forEach((stage) => { delete seedCursors[stage]; });
           return { ...inputs, phrasesBySentence: phrases.bySentence };
         },
         sources: scopeOrchClipSources(planScope),
+        owned: (key) => this.ownedByBackground(task.id, key),
+        wanted: (key) => !run.superseded || this.wantedNow(task.id, key),
+        feed: (deliver) => {
+          const feeds = this.feeds.get(task.id) ?? new Set<ClipFeed>();
+          feeds.add(deliver);
+          this.feeds.set(task.id, feeds);
+          // What the background runs already got lands at once.
+          this.background.get(task.id)?.forEach((other) => other.clips.forEach((clip, key) => deliver(key, clip)));
+          return () => { feeds.delete(deliver); };
+        },
+        carry: carryFrom?.plan && carryFrom.table ? (plan) => {
+          const carried = orchCarryProgress({ plan: carryFrom.plan!, table: carryFrom.table!, cursors: carryFrom.cursors }, plan);
+          return task.config.book ? { ...carried, cursors: withoutTransferCursors(carried.cursors) ?? {} } : carried;
+        } : undefined,
         onPlan: async (plan) => {
+          run.keys = new Set(plan.resources.map((resource) => resource.key));
           if (!task.config.book) return;
           planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, planCoveredKeys(plan)).catch((error: unknown) => {
             console.warn('[BookPlan] ensurePlan failed', error);
@@ -574,7 +691,9 @@ class WordNewOrchComposerService {
       await wordNewOrchTaskStore.update(task.id, { status: 'resolving' });
     } finally {
       lease.release();
-      if (this.runs.get(task.id)?.id === run.id) {
+      if (run.superseded) {
+        void this.backgroundEnded(task.id, run);
+      } else if (this.runs.get(task.id)?.id === run.id) {
         this.finishedAt.set(task.id, Date.now());
         this.runs.delete(task.id);
         this.emit(task.id);

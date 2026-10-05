@@ -22,6 +22,7 @@ export const jaLocaleC: Record<string, string> = {
     'orchCompose.history.entry': 'セグメント {segment} · {time}',
     'orchCompose.history.remove': '削除',
     'orchCompose.edition.offer': '新しいリソースの準備ができました：クリップが {clips} 個増え、長さが {time} 延びます',
+    'orchCompose.edition.offerReplan': '編成が変更されました：クリップ {clips} 個、長さ {time}。再生中のものと置き換えますか？',
     'orchCompose.edition.replace': '置き換える',
     'orchCompose.edition.later': 'あとで',
     'orchCompose.openPlayer': 'プレーヤー',

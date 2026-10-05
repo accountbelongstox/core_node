@@ -208,6 +208,15 @@ export async function resolveOrchClips(
     onProgress?: (progress: OrchResolveProgress) => void;
     /** A source finished its pass (the stages after it still run). */
     onSourceDone?: (progress: OrchResolveProgress) => void;
+    /**
+     * Keys another run of the same task is still fetching: only the device source looks them up here, the
+     * other sources leave them to that run, and they stay queued (not missing) when this run ends.
+     */
+    owned?: (key: string) => boolean;
+    /** Keys still wanted (the download set can shrink while a run goes on): a source pass skips the others. */
+    wanted?: (key: string) => boolean;
+    /** Clips another run of the same task delivered: they land here as if a source found them. Returns the unsubscribe. */
+    feed?: (deliver: (key: string, clip: OrchResolvedClip) => void) => () => void;
   },
 ): Promise<OrchResolveProgress> {
   const table = new OrchClipTable(resources.map((resource) => resource.key));
@@ -263,28 +272,42 @@ export async function resolveOrchClips(
       report();
     },
   };
+  const deliver = (resource: OrchComposeResource, clip: OrchResolvedClip): void => {
+    const index = at(resource);
+    if (index < 0 || clips.has(resource.key)) return;
+    clips.set(resource.key, clip);
+    if (clip.bytes) count(index, clip.bytes);
+    table.set(index, { state: 'done', origin: clip.origin, via: clip.via ?? null, generating: null });
+    report();
+  };
+  const unfeed = context.feed?.((key, clip) => {
+    const index = table.indexOf.get(key);
+    if (index !== undefined) deliver(resources[index], clip);
+  });
+  const askable = (resource: OrchComposeResource): boolean => context.wanted?.(resource.key) !== false && !context.owned?.(resource.key);
   let remaining = resources;
-  for (const source of sources) {
-    if (remaining.length === 0 || context.signal?.aborted) break;
-    await source.resolve(remaining, sourceContext, (resource, clip) => {
-      const index = at(resource);
-      if (index < 0 || clips.has(resource.key)) return;
-      clips.set(resource.key, clip);
-      if (clip.bytes) count(index, clip.bytes);
-      table.set(index, { state: 'done', origin: clip.origin, via: clip.via ?? null, generating: null });
-      report();
-    });
-    remaining = remaining.filter((resource) => !clips.has(resource.key));
-    // A source that gave up on an item hands it back to the queue for the next one.
-    remaining.forEach((resource) => {
-      const index = at(resource);
-      if (table.state(index) === 'loading') table.set(index, { state: 'queued', origin: null });
-    });
-    if (!context.signal?.aborted) context.onSourceDone?.(progress());
+  try {
+    for (const source of sources) {
+      if (remaining.length === 0 || context.signal?.aborted) break;
+      const asked = remaining.filter((resource) => (source.origin === 'device' ? context.wanted?.(resource.key) !== false : askable(resource)));
+      if (asked.length > 0) await source.resolve(asked, sourceContext, deliver);
+      remaining = remaining.filter((resource) => !clips.has(resource.key));
+      // A source that gave up on an item hands it back to the queue for the next one.
+      remaining.forEach((resource) => {
+        const index = at(resource);
+        if (table.state(index) === 'loading') table.set(index, { state: 'queued', origin: null });
+      });
+      if (!context.signal?.aborted) context.onSourceDone?.(progress());
+    }
+  } finally {
+    unfeed?.();
   }
   // A clip is missing only once a backend answered this run; with no answer at all (channels off,
-  // requests aborted) nothing was asked, so the clips stay queued for the next run.
-  if (Object.keys(endpoints).length > 0) remaining.forEach((resource) => table.set(at(resource), { state: 'missing', origin: null }));
+  // requests aborted) nothing was asked, so the clips stay queued for the next run - like the clips
+  // another run of the task still fetches and the clips no longer wanted.
+  if (Object.keys(endpoints).length > 0) {
+    remaining.filter(askable).forEach((resource) => table.set(at(resource), { state: 'missing', origin: null }));
+  }
   report();
   return progress();
 }

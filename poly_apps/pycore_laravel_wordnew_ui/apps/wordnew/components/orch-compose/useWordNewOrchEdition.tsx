@@ -62,7 +62,9 @@ export const WordNewOrchEditionOffer: React.FC<OfferProps> = ({ taskId, offer, p
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px]" role="status">
       <Sparkles className={`h-3.5 w-3.5 shrink-0 ${TONE_TEXT.emerald}`} aria-hidden />
       <span className="min-w-0 flex-1 text-emerald-700 dark:text-emerald-200">
-        {trans('orchCompose.edition.offer', { clips: Math.max(0, offer.addedClips), time: formatClockTime(Math.max(0, offer.addedMs) / 1000) })}
+        {offer.replan
+          ? trans('orchCompose.edition.offerReplan', { clips: offer.clips, time: formatClockTime(offer.durationMs / 1000) })
+          : trans('orchCompose.edition.offer', { clips: Math.max(0, offer.addedClips), time: formatClockTime(Math.max(0, offer.addedMs) / 1000) })}
       </span>
       <button type="button" onClick={() => { void accept(); }} className={`rounded-lg border px-2.5 py-1 font-bold ${theme.accentBg}`}>
         {trans('orchCompose.edition.replace')}
