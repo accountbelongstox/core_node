@@ -1,6 +1,7 @@
 <UserControl x:Class="DotApps.d3d4tester.Pages.Rosbot.RosbotPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
   <!-- Layout 1:1 Python rosbot_extension_panel: row 0 = config (paths + bot settings) | control panel, row 1 = ROSBOT log -->
   <Grid Margin="{StaticResource PageMargin}">
     <Grid.RowDefinitions>
@@ -64,7 +65,10 @@
             </StackPanel>
 
             <CheckBox x:Name="ChkPreventStuck" Margin="0,0,12,0"/>
-            <CheckBox x:Name="ChkStartup" Margin="0,0,12,0"/>
+            <StackPanel Margin="0,0,12,0">
+              <CheckBox x:Name="ChkStartup"/>
+              <comp:StartupShortcutPathLabel/>
+            </StackPanel>
             <DockPanel LastChildFill="False">
               <CheckBox x:Name="ChkTimeoutRestart" VerticalAlignment="Center" Margin="0,0,8,0">
                 <CheckBox.Content>

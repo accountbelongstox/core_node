@@ -59,6 +59,8 @@ public static partial class I18nKeys
     public const string RosbotMinutes = "ui.rosbot.minutes";
     public const string RosbotPreventStuck = "ui.rosbot.prevent_stuck";
     public const string RosbotStartup = "ui.rosbot.startup";
+    public const string StartupShortcutPath = "ui.startup.shortcut_path";
+    public const string StartupShortcutPathMissing = "ui.startup.shortcut_path_missing";
     public const string RosbotTimeoutRestart = "ui.rosbot.timeout_restart";
     public const string RosbotControlPanel = "ui.rosbot.control_panel";
     public const string RosbotStartRosbot = "ui.rosbot.start_rosbot";
