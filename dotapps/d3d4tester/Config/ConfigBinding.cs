@@ -63,6 +63,9 @@ public static class ConfigBinding
         return v;
     }
 
+    /// <summary>Int at key whether stored as JSON number or string; invalid -> defaultValue, then clamped to [min, max].</summary>
+    public static int GetIntValue(string keyPath, int min, int max, int defaultValue) => ParseInt(GetRawScalar(keyPath), min, max, defaultValue);
+
     public static int ParseInt(string? text, int min, int max, int defaultValue)
     {
         var s = (text ?? "").Trim();
