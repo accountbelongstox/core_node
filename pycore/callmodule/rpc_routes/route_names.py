@@ -249,6 +249,7 @@ UI_TASK_HISTORY_CACHED_AUDIO_RESOURCE = rpc_route_contract.path("taskHistoryCach
 UI_TASK_HISTORY_GET_RECENT_LOCAL_TASKS = rpc_route_contract.path("taskHistoryGetRecentLocalTasks")
 UI_TASK_HISTORY_SEARCH_TASKS = rpc_route_contract.path("taskHistorySearchTasks")
 UI_TASK_HISTORY_CLEAR_RECENT_TASKS = rpc_route_contract.path("taskHistoryClearRecentTasks")
+UI_TASK_HISTORY_APPEND_RECORD = rpc_route_contract.path("taskHistoryAppendRecord")
 UI_TASK_SETTINGS_CHAINS = rpc_route_contract.path("taskSettingsChains")
 UI_TASK_SETTINGS_UPDATE_CHAIN = rpc_route_contract.path("taskSettingsUpdateChain")
 UI_TTS_STATUS_TEST = rpc_route_contract.path("ttsStatusTest")

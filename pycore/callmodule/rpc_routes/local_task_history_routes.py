@@ -9,7 +9,8 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_HISTORY_CACHED_AUDIO_RESOURCE,
     UI_TASK_HISTORY_GET_RECENT_LOCAL_TASKS,
     UI_TASK_HISTORY_SEARCH_TASKS,
-    UI_TASK_HISTORY_CLEAR_RECENT_TASKS
+    UI_TASK_HISTORY_CLEAR_RECENT_TASKS,
+    UI_TASK_HISTORY_APPEND_RECORD,
 )
 
 from pycore.pyutils.common.keyset_cursor import keyset_request
@@ -20,6 +21,7 @@ from pycore.pyctl.task_history.service import (
     get_recent_tasks,
     search_tasks,
     clear_recent_tasks,
+    append_task_record,
 )
 
 def register_local_task_history_routes(server):
@@ -84,3 +86,8 @@ def register_local_task_history_routes(server):
     server.post(path=UI_TASK_HISTORY_SEARCH_TASKS, handler=search_tasks_handler)
 
     server.post(path=UI_TASK_HISTORY_CLEAR_RECENT_TASKS, handler=clear_recent_tasks)
+
+    def append_record_handler(params, request_id, context):
+        return append_task_record(params.get("record"))
+
+    server.post(path=UI_TASK_HISTORY_APPEND_RECORD, handler=append_record_handler)

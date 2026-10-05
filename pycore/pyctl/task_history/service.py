@@ -14,6 +14,7 @@ from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyctl.task_history.archive import completed_task_archive
 from pycore.pyctl.task_history.store import (
+    append_record,
     clear_records,
     query_records,
 )
@@ -24,6 +25,8 @@ _RING_MAX = 100
 # Rows each source (live TaskManager, persisted history) contributes to the
 # merged recent list that the keyset pages over.
 _RECENT_SOURCE_LIMIT = 1000
+_APPEND_TEXT_MAX = 2000
+_APPEND_TEXT_FIELDS = ("task_id", "content", "worker", "language", "error", "ts")
 
 
 def _recent_key(record: Dict[str, Any]) -> Tuple[str, str]:
@@ -289,6 +292,28 @@ def search_tasks(
         worker=worker,
     )
     return {"success": True, **data}
+
+
+def append_task_record(record: Any) -> Dict[str, Any]:
+    """Persist one task-log record reported by a local client (e.g. a dotapp)."""
+    if not isinstance(record, dict):
+        return {"success": False, "error": "record must be an object"}
+    title = str(record.get("title") or "").strip()
+    if not title:
+        return {"success": False, "error": "title is required"}
+    row: Dict[str, Any] = {
+        field: str(record.get(field))[:_APPEND_TEXT_MAX]
+        for field in _APPEND_TEXT_FIELDS
+        if record.get(field) not in (None, "")
+    }
+    row["title"] = title[:_APPEND_TEXT_MAX]
+    row["task_type"] = str(record.get("task_type") or "")
+    row["success"] = bool(record.get("success", True))
+    detail = record.get("detail")
+    if isinstance(detail, dict):
+        row["detail"] = detail
+    append_record(row)
+    return {"success": True}
 
 
 def clear_recent_tasks() -> Dict[str, Any]:
