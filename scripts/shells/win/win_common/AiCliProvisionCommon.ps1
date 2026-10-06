@@ -497,6 +497,7 @@ function Get-AiCliPublishedVersion {
     $packageManagerCommand = $null
     $publishedOutput = $null
     $publishedVersion = $null
+    $previousPreference = $ErrorActionPreference
 
     if ($Tool -eq "claude") {
         try {
@@ -507,17 +508,24 @@ function Get-AiCliPublishedVersion {
             return $null
         }
     }
-    $packageManagerCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-    if ($null -ne $packageManagerCommand) {
-        $publishedOutput = (& $packageManagerCommand.Source view $Package version 2>$null | Out-String).Trim()
-        $publishedVersion = Get-AiCliVersion -VersionText $publishedOutput
-    }
-    if ($null -eq $publishedVersion) {
-        $packageManagerCommand = Get-Command npm -ErrorAction SilentlyContinue
+    # Package managers print notices on stderr; they must not abort the caller.
+    $ErrorActionPreference = "Continue"
+    try {
+        $packageManagerCommand = Get-Command pnpm -ErrorAction SilentlyContinue
         if ($null -ne $packageManagerCommand) {
             $publishedOutput = (& $packageManagerCommand.Source view $Package version 2>$null | Out-String).Trim()
             $publishedVersion = Get-AiCliVersion -VersionText $publishedOutput
         }
+        if ($null -eq $publishedVersion) {
+            $packageManagerCommand = Get-Command npm -ErrorAction SilentlyContinue
+            if ($null -ne $packageManagerCommand) {
+                $publishedOutput = (& $packageManagerCommand.Source view $Package version 2>$null | Out-String).Trim()
+                $publishedVersion = Get-AiCliVersion -VersionText $publishedOutput
+            }
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
     }
     return $publishedVersion
 }
@@ -710,6 +718,7 @@ function Invoke-AiCliUpgradePrompt {
     $installedVersion = $null
     $publishedVersion = $null
     $upgradeChoice = ""
+    $previousPreference = $ErrorActionPreference
 
     if (-not $AiCliPackages.ContainsKey($Tool)) {
         return
@@ -721,7 +730,14 @@ function Invoke-AiCliUpgradePrompt {
 
     $toolPackage = $AiCliPackages[$Tool]
     $toolLabel = $AiCliLabels[$Tool]
-    $installedOutput = (& $toolCommand.Source --version 2>$null | Out-String).Trim()
+    # Shims print notices on stderr; they must not abort the caller.
+    $ErrorActionPreference = "Continue"
+    try {
+        $installedOutput = (& $toolCommand.Source --version 2>$null | Out-String).Trim()
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
     $installedVersion = Get-AiCliVersion -VersionText $installedOutput
     # Native-only tools publish the same version as their registry package.
     $publishedVersion = Get-AiCliPublishedVersion -Tool $Tool -Package $(if ([string]::IsNullOrWhiteSpace($toolPackage)) { [string](Get-AiToolField -Key $Tool -Field "NonNativePackage") } else { $toolPackage })
