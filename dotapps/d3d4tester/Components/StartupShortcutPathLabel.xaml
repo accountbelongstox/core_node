@@ -1,0 +1,6 @@
+<UserControl x:Class="DotApps.d3d4tester.Components.StartupShortcutPathLabel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <TextBox x:Name="TxtPath" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap"
+           Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4"/>
+</UserControl>

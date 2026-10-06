@@ -54,6 +54,7 @@ public partial class App : Application
             return;
         }
 
+        LogonFontReadiness.WaitUntilReady();
         ThemeService.Instance.ApplySaved();
         var main = new MainWindow();
         MainWindow = main;
