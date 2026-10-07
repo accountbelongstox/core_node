@@ -216,6 +216,12 @@ $pycoreServiceCommands = @('install', 'uninstall', 'start', 'stop', 'restart', '
 $pycoreServiceNssmScript = Join-Path $winCommonDir 'NssmServiceManager.ps1'
 $pycoreStartupManagerModule = 'pycore.pylauncher.platform.startup_manager'
 $pycoreListenerReleaseSeconds = 30
+$pycoreMaxRelaunches = 5
+$pycoreRelaunchDelaySeconds = 5
+$pycoreRelaunchResetSeconds = 300
+$workerRelaunchCount = 0
+$workerStartedAt = $null
+$successorProcess = $null
 $pycoreServiceScriptPath = Join-Path $PSScriptRoot 'pyservice.ps1'
 $pycoreServiceExitCode = 0
 $preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
@@ -502,6 +508,25 @@ function Wait-PycoreRpcListener {
         if (($currentPid -ne 0) -and ($currentPid -ne $PreviousPid)) { return $true }
     }
     return $false
+}
+
+# The process now serving the RPC port after a handoff (handle opened so its exit code stays readable), or $null.
+function Wait-PycoreSuccessorProcess {
+    $deadline = (Get-Date).AddSeconds($pycoreRestartWaitSeconds)
+    $listenerPid = 0
+    $process = $null
+    while ((Get-Date) -lt $deadline) {
+        $listenerPid = Get-PycoreRpcListenerPid
+        if ($listenerPid -ne 0) {
+            $process = Get-Process -Id $listenerPid -ErrorAction SilentlyContinue
+            if ($process) {
+                $null = $process.Handle
+                return $process
+            }
+        }
+        Start-Sleep -Seconds 1
+    }
+    return $null
 }
 
 function Wait-PycoreRpcListenerGone {
@@ -877,8 +902,30 @@ try {
     Write-Host ("[>] Launching worker: {0}" -f $workerPath) -ForegroundColor Cyan
     Write-Host ''
     $env:PORT = "$Port"
-    & $py.Path @pyArgs
-    $workerExitCode = $LASTEXITCODE
+    while ($true) {
+        $workerStartedAt = Get-Date
+        & $py.Path @pyArgs
+        $workerExitCode = $LASTEXITCODE
+        # A restart handoff / yield leaves a detached successor: follow it (and its own handoffs) so the
+        # logon task instance stays running and MultipleInstances=IgnoreNew keeps blocking a second worker.
+        while ($workerExitCode -eq $workerHandoffExitCode) {
+            $successorProcess = Wait-PycoreSuccessorProcess
+            if (-not $successorProcess) { break }
+            $successorProcess.WaitForExit()
+            $workerExitCode = $successorProcess.ExitCode
+        }
+        # 0 = deliberate quit; another live listener = someone else serves. Anything else is a crash
+        # (e.g. tcl86t.dll during teardown, or a failed re-exec): relaunch, capped for fast crash loops.
+        if (($workerExitCode -eq 0) -or ($workerExitCode -eq $workerHandoffExitCode) -or ((Get-PycoreRpcListenerPid) -ne 0)) { break }
+        if (((Get-Date) - $workerStartedAt).TotalSeconds -ge $pycoreRelaunchResetSeconds) { $workerRelaunchCount = 0 }
+        $workerRelaunchCount++
+        if ($workerRelaunchCount -gt $pycoreMaxRelaunches) {
+            Write-Host ("[!] Worker crashed {0} times in a row (last exit code {1}); giving up." -f $pycoreMaxRelaunches, $workerExitCode) -ForegroundColor Red
+            break
+        }
+        Write-Host ("[!] Worker exited with code {0}; relaunching ({1}/{2}) in {3}s ..." -f $workerExitCode, $workerRelaunchCount, $pycoreMaxRelaunches, $pycoreRelaunchDelaySeconds) -ForegroundColor Yellow
+        Start-Sleep -Seconds $pycoreRelaunchDelaySeconds
+    }
 }
 finally {
     # Tear down the UI server (npm spawns a node child; /T kills the whole tree).

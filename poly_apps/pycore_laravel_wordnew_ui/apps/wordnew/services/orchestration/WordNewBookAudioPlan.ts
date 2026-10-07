@@ -121,7 +121,10 @@ function planLanguages(task: OrchComposeTask): string[] {
 async function readingPosition(taskId: string, plan: OrchComposePlan): Promise<number> {
   const resume = (await wordNewOrchPlaybackStore.ready(taskId))?.resume;
   const start = resume ? plan.segments[resume.segment]?.start : undefined;
-  return start === undefined ? 0 : plan.sentences[start]?.seq ?? 0;
+  const at = start === undefined ? undefined : plan.sentences[start];
+  if (!at) return 0;
+  // A short-passage entry is outside the book: reading one counts as the end of the book.
+  return at.passage ? plan.sentences.reduce((last, sentence) => (sentence.passage ? last : Math.max(last, sentence.seq)), 0) : at.seq;
 }
 
 /** Languages per lane of the covered clips: the clips the plan owns decide which windows are worth posting. */

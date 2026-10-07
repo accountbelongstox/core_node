@@ -60,6 +60,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
 // Phrases of sentences (phrase pipeline, contract endpoint phrases_by_sentences): Sanctum user or client key.
 Route::prefix($apiVersionPrefix)->middleware(['client.key_or_dashboard:user', 'schema.gate'])->group(function () {
     Route::post('/phrases/by_sentences', [AppQyV1PhrasesBySentencesCtl::class, 'bySentences']);
+    Route::get('/phrases/extraction_status', [AppQyV1PhrasesBySentencesCtl::class, 'extractionStatus']);
 });
 
 // Public recommendation route.

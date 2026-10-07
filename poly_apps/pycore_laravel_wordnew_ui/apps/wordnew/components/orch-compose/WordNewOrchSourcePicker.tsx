@@ -33,7 +33,7 @@ const TABS: Array<{ source: OrchComposeSource; labelKey: string; icon: typeof Bo
   { source: 'prompt_rewrite', labelKey: 'orchCompose.source.prompts', icon: Sparkles },
 ];
 
-function matches(query: string, ...texts: Array<string | undefined>): boolean {
+export function matches(query: string, ...texts: Array<string | undefined>): boolean {
   const needle = query.toLowerCase();
   return !needle || texts.some((text) => text?.toLowerCase().includes(needle));
 }
@@ -63,7 +63,7 @@ function bookAdapter(trans: Props['trans']): OrchSourceAdapter<WfNewContentGroup
   };
 }
 
-function promptAdapter(trans: Props['trans']): OrchSourceAdapter<WfNewOrchAudioItem> {
+export function promptAdapter(trans: Props['trans']): OrchSourceAdapter<WfNewOrchAudioItem> {
   return {
     pageSize: PROMPT_PAGE_SIZE,
     emptyKey: wfNewApi.isAuthenticated() ? 'orchCompose.source.noPrompts' : 'orchAudio.loginRequired',

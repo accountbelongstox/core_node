@@ -29,6 +29,7 @@ ERROR_UNKNOWN_PROVIDER = "Unknown provider: {provider!r}"
 ERROR_NO_MESSAGE = "No message provided"
 ERROR_BLOCKED = "Provider blocked: {reason}"
 ERROR_NO_KEY = "No API key configured"
+CHAT_DETAIL_FIELDS = ("served_model", "finish_reason", "reasoning_only")
 
 
 def _normalize_messages(messages: Optional[List[Dict[str, Any]]]) -> List[Dict[str, str]]:
@@ -89,6 +90,9 @@ def _chat_compat(provider: str, messages, model, key, out, options=None):
     out["success"] = res["success"]
     out["error"] = res["error"]
     out["provider_reached"] = res["provider_reached"]
+    for field in CHAT_DETAIL_FIELDS:
+        if field in res:
+            out[field] = res[field]
     return out
 
 

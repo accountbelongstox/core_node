@@ -44,7 +44,7 @@ import {
   type OrchComposeSession,
 } from '../../../../shared/orchestration/orchComposer';
 import type { OrchComposePlan, OrchComposeResource, OrchComposeSentence, OrchComposeTask, OrchResolvedClip } from '../../../../shared/orchestration/orchTypes';
-import { orchPatternHasPhrases, orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
+import { orchBookCoveredKeys, orchPatternHasPhrases } from '../../../../shared/orchestration/orchPlanner';
 import type { OrchStageCursor } from '../../../../shared/orchestration/orchClipResolver';
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { Backoff } from '../../../../core/tasks/Backoff';
@@ -82,17 +82,6 @@ const RETRY_MISSING_MS = 30_000;
 /** A forced run of the same plan started this recently absorbs another force. */
 const FORCE_DEBOUNCE_MS = 2_000;
 const TRANSFER_STAGE_PREFIX = 'transfer:';
-
-/** Keys of the plan's resources the server book plan owns: everything but the word meaning clips (they are not book content). */
-function planCoveredKeys(plan: OrchComposePlan): Set<string> {
-  const meanings = new Set<string>();
-  plan.segments.forEach((segment) => segment.items.forEach((item) => {
-    if (item.meaningOf) meanings.add(orchResourceKey(item.kind, item.language, item.text));
-  }));
-  const covered = new Set<string>();
-  plan.resources.forEach((resource) => { if (!meanings.has(resource.key)) covered.add(resource.key); });
-  return covered;
-}
 
 /** A book task's transfer cursors are not kept: the server plan names what to ask (a cursor past unready clips would skip them later). */
 function withoutTransferCursors(cursors: Record<string, OrchStageCursor> | undefined): Record<string, OrchStageCursor> | undefined {
@@ -622,7 +611,7 @@ class WordNewOrchComposerService {
         onPlan: async (plan) => {
           run.keys = new Set(plan.resources.map((resource) => resource.key));
           if (!task.config.book) return;
-          planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, planCoveredKeys(plan)).catch((error: unknown) => {
+          planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, orchBookCoveredKeys(plan)).catch((error: unknown) => {
             console.warn('[BookPlan] ensurePlan failed', error);
             return null;
           });

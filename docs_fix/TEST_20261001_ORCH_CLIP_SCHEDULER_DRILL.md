@@ -5,7 +5,7 @@ Runs the real `shared/orchestration` scheduler (`buildOrchClipSchedule`), resolv
 clip table and transfer limiter with fake channels (no network, no device), plus the phrase planner step, identity and stage layout.
 Run with bun from `poly_apps/pycore_laravel_wordnew_ui`: save a script below as `<scratch>/drill.ts` and run
 `WORDNEW_UI_ROOT=<abs path of poly_apps/pycore_laravel_wordnew_ui> bun run <scratch>/drill.ts` (default root: the Linux server checkout).
-Any change to R1-R15 updates this script in the same step; S1-S11, P1 and the randomized rounds must report 0 violations
+Any change to R1-R15 updates this script in the same step; S1-S11, P1, P2 and the randomized rounds must report 0 violations
 (the script exits 1 otherwise).
 
 Pass criteria:
@@ -30,6 +30,15 @@ Pass criteria:
   (a duplicate phrase text is dropped, a sentence without phrases yields none), a meaning clip never takes the sentence audio
   URL, and `buildStageCards` puts the phrase and phrase_meaning lines on the sentence card (`sentence_en+sentence_zh+phrase+
   phrase_meaning+...`) lit once per repeat.
+- P2 short-passage entries (WORDNEW_GUIDE 1.3; no rule changes, passage sentences are ordinary `sentence` clips): an `article` entry is cut
+  by the shared segmenter and pairs en / zh line by line when the counts match, otherwise the Chinese reference follows as zh-only
+  sentences; entries are numbered after the source (`orchNextSeq`) and tagged with their key; the source keeps its segment settings and
+  every entry is one segment of its own (an entry-only composition: one segment per entry); a passage sentence has the resource id
+  sha256(`sentence:en:<content id>`) and goes through `buildOrchClipSchedule` unchanged (the R1 order is asserted frozen above); the plan
+  hash of a composition without entries equals the pre-passages hash (stored progress is kept) and changes with entries and their text;
+  `orchBookCoveredKeys` (R11): book clips are covered by the server plan, clips only an entry uses are not (normal chain), a clip the book
+  also uses stays covered; `buildStageCards` shows each passage sentence as a card (`sentence_en+sentence_zh`, zh-only sentences one zh line);
+  an entry is added once and the count is bounded.
 - Randomized (300 rounds of random availability, holdings, device store present or not, mid-run switches, aborts):
   violations=0. Items are words, sentences and phrases mixed. Invariants: relay only while no direct pycore and the relay is
   usable; Laravel generation only without any pycore and with Laravel usable; pycore generation only while pycore is usable;
@@ -47,6 +56,8 @@ violations=0. Cursor run (2026-10-02, before phrases; the scheduler's per-clip p
 
 Run 2026-10-05 after R16 (edits never stop a download; resolver `owned` / `wanted` / `feed`, `orchCarryProgress`): S1-S11 and P1 unchanged; randomized 300 rounds, violations=0; cursor_perf run 2: 0 transfer requests (transfer stages `known 11832`).
 
+Run 2026-10-08 with short passages (P2 added; the scheduler, resolver and stage order are untouched): S1-S11, P1 and P2 report 0 violations; randomized 300 rounds, violations=0.
+
 ## drill.ts
 
 ```ts
@@ -57,7 +68,8 @@ const orch = `${ROOT}/shared/orchestration`;
 const { buildOrchClipSchedule, ORCH_CLIP_STAGE_ORDER } = await import(`${orch}/orchClipScheduler.ts`);
 const { resolveOrchClips } = await import(`${orch}/orchClipResolver.ts`);
 const { orchClipIdentity, orchClipIdentityOfUrl, orchClipLocations, orchContentId } = await import(`${orch}/orchClipIdentity.ts`);
-const { planComposition, orchSentenceContentId } = await import(`${orch}/orchPlanner.ts`);
+const { planComposition, orchSentenceContentId, orchPlanHash, orchBookCoveredKeys } = await import(`${orch}/orchPlanner.ts`);
+const { orchArticleSentences, orchTagPassage, orchNextSeq, orchPassageKey, orchPassageFits, ORCH_PASSAGE_MAX_ENTRIES } = await import(`${orch}/orchPassages.ts`);
 const { buildStageCards, buildTimeline } = await import(`${orch}/orchStageLayout.ts`);
 const { createHash } = await import('node:crypto');
 type OrchClipChannel = { id: string; available: () => Promise<boolean>; bundle: any; generate?: (kind: string, resources: any[]) => Promise<boolean>; holds?: (resources: any[]) => Promise<Set<string>> };
@@ -183,6 +195,67 @@ expect(!s11.calls.some((c) => c.startsWith('laravel:generate')), 'S11 Laravel ge
   expect(roles[0] === 'sentence_en+sentence_zh+phrase+phrase_meaning+phrase+phrase_meaning', `card lines: ${roles[0]}`);
   expect(cards[0].lines.filter((l: any) => l.role === 'phrase').every((l: any) => l.spans.length === 2), 'each phrase line lights twice (times 2)');
   console.log(`\n## P1 planner / identity / layout\n  items: ${kinds}\n  card0 lines: ${roles[0]}\n  resources: ${plan.resources.length}`);
+}
+
+// ---- P2 short-passage entries: sentences / numbering / segments / identity / hash / book-plan scope / layout ----
+{
+  const article = { store: 'article', id: 'a1', title: 'Garden', language: 'en', text: 'He tended the garden. Spring was near!', textZh: '他照料花园。春天快到了！' };
+  const pairs = orchArticleSentences(article);
+  expect(pairs.length === 2 && pairs[0].languages.zh === '他照料花园。' && pairs[1].languages.en === 'Spring was near!' && pairs[1].languages.zh === '春天快到了！', `paired passage sentences (${pairs.length})`);
+  const unpaired = orchArticleSentences({ ...article, textZh: '他照料花园。春天快到了！春天来了。' });
+  expect(unpaired.length === 5 && unpaired.slice(0, 2).every((s: any) => s.language === 'en' && !s.languages.zh) && unpaired.slice(2).every((s: any) => s.language === 'zh' && !s.languages.en), `unpaired reference follows as zh-only sentences (${unpaired.length})`);
+
+  const bookSentence = (seq: number, en: string, zh: string) => ({ seq, text: en, language: 'en', languages: { en, zh }, audio: {} });
+  const book = [bookSentence(10, 'Book one.', '书一。'), bookSentence(11, 'Book two.', '书二。')];
+  const tagged = orchTagPassage(pairs, orchPassageKey(article), orchNextSeq(book));
+  expect(tagged.map((s: any) => s.seq).join() === '12,13' && tagged.every((s: any) => s.passage === 'article:a1'), 'entry numbered after the source, tagged with its key');
+  const all = [...book, ...tagged];
+  const config: any = { pattern: [{ type: 'sentence_zh', times: 1 }, { type: 'sentence_en', times: 2 }], segmentMode: 'count', segmentValue: 1, newOnlyMaxReadCount: 0, languages: 'both', presetId: '', book: null, prompt: null, passages: [article], wordGroupId: null, readState: 'real', virtualBatch: '' };
+  const plan = planComposition({ source: 'vocab_book', language: 'en', config } as any, all as any, new Map());
+  const bounds = plan.segments.map((s: any) => `${s.start}-${s.end}`).join();
+  expect(bounds === '0-1,2-3', `source is one segment, the entry its own: ${bounds}`);
+  // R1 / identity: a passage sentence is an ordinary sentence clip, no new kind or stage.
+  expect(plan.segments[1].items.length === 6 && plan.segments[1].items.every((i: any) => i.kind === 'sentence'), 'entry items are sentence clips (zh, en, en per sentence)');
+  const clip = plan.resources.find((r: any) => r.text === 'He tended the garden.');
+  expect(clip?.kind === 'sentence' && clip.resourceId === createHash('sha256').update(`sentence:en:${orchContentId('He tended the garden.')}`).digest('hex'), 'passage sentence resource id = sha256("sentence:en:<content id>")');
+  const only = planComposition({ source: 'passages', language: 'en', config } as any, tagged as any, new Map());
+  expect(only.segments.length === 1 && only.segments[0].start === 0 && only.segments[0].end === 1, 'entry-only composition: the entry is the one segment');
+  const twoEntries = planComposition({ source: 'passages', language: 'en', config } as any, [...tagged, ...orchTagPassage(pairs, 'article:a2', orchNextSeq(tagged))] as any, new Map());
+  expect(twoEntries.segments.length === 2 && twoEntries.sentences.map((s: any) => s.seq).join() === '12,13,14,15' && twoEntries.resources.length === only.resources.length, 'two entries: two segments, unique numbers, equal sentences share clips');
+
+  // plan hash: unchanged without entries (a stored task keeps its progress), changes with entries and with their text.
+  const legacy = { source: 'vocab_book', language: 'en', pattern: config.pattern, segmentMode: 'count', segmentValue: 1, newOnlyMaxReadCount: 0, book: null, prompt: null, wordGroupId: null, readState: 'real', virtualBatch: '' };
+  const legacyHash = createHash('sha256').update(JSON.stringify(legacy)).digest('hex');
+  const spec = (passages: any) => ({ source: 'vocab_book', language: 'en', config: { ...config, passages } });
+  expect(orchPlanHash(spec([]) as any) === legacyHash && orchPlanHash(spec(undefined) as any) === legacyHash, 'plan hash without entries equals the pre-passages hash');
+  expect(orchPlanHash(spec([article]) as any) !== legacyHash && orchPlanHash(spec([article]) as any) !== orchPlanHash(spec([{ ...article, text: 'Other.' }]) as any), 'plan hash changes with entries and their text');
+
+  // R11: a book plan owns the book's clips only; a clip only an entry uses takes the normal chain.
+  const covered = orchBookCoveredKeys(plan);
+  const bookTexts = new Set(['Book one.', 'Book two.', '书一。', '书二。']);
+  const bookKeys = plan.resources.filter((r: any) => bookTexts.has(r.text)).map((r: any) => r.key);
+  expect(bookKeys.length > 0 && bookKeys.every((k: string) => covered.has(k)), 'book clips are covered by the server plan');
+  expect(plan.resources.filter((r: any) => !bookTexts.has(r.text)).every((r: any) => !covered.has(r.key)), 'passage-only clips are not covered (normal chain)');
+  const shared = planComposition({ source: 'vocab_book', language: 'en', config } as any, [...book, ...orchTagPassage([bookSentence(0, 'Book one.', '书一。')], 'article:a3', 12)] as any, new Map());
+  expect(shared.resources.every((r: any) => orchBookCoveredKeys(shared).has(r.key)), 'a clip the book also uses stays covered');
+  const noEntries = planComposition({ source: 'vocab_book', language: 'en', config: { ...config, passages: [] } } as any, book as any, new Map());
+  expect(orchBookCoveredKeys(noEntries).size === noEntries.resources.length, 'without entries every clip is covered (unchanged)');
+
+  // layout: the entry's sentences are cards like any other; zh-only sentences show one zh line.
+  const timeline = buildTimeline(plan.segments[1].items, () => ({ url: 'file://x', durationMs: 1000 }), 600);
+  const cards = buildStageCards(timeline, all as any, 'both', () => '');
+  const roles = cards.map((c: any) => c.lines.map((l: any) => l.role).join('+'));
+  expect(cards.length === 2 && roles.every((r: string) => r === 'sentence_en+sentence_zh'), `entry cards: ${roles.join(' | ')}`);
+  expect(cards[0].lines.find((l: any) => l.role === 'sentence_en').spans.length === 2, 'en line lights twice (times 2)');
+  const zhOnly = orchTagPassage(unpaired, 'article:a1', 0);
+  const zhPlan = planComposition({ source: 'passages', language: 'en', config } as any, zhOnly as any, new Map());
+  const zhCards = buildStageCards(buildTimeline(zhPlan.segments[0].items, () => ({ url: 'file://x', durationMs: 1000 }), 600), zhOnly as any, 'both', () => '');
+  expect(zhCards.length === 5 && zhCards.slice(2).every((c: any) => c.lines.length === 1 && c.lines[0].role === 'sentence_zh'), `unpaired reference cards (${zhCards.length})`);
+
+  // limits
+  const many = Array.from({ length: ORCH_PASSAGE_MAX_ENTRIES }, (_, i) => ({ ...article, id: `m${i}` }));
+  expect(!orchPassageFits([article], article) && orchPassageFits([article], { ...article, id: 'a9' }) && !orchPassageFits(many, { ...article, id: 'x' }), 'an entry is added once and the count is bounded');
+  console.log(`\n## P2 short passages\n  paired: ${pairs.length} sentences; unpaired: ${unpaired.length}; segments: ${bounds}; entry cards: ${roles.join(' | ')}\n  covered book clips: ${covered.size} of ${plan.resources.length}`);
 }
 
 // ---- randomized drill: availability flips, holdings, mid-run switches, aborts (words, sentences and phrases) ----

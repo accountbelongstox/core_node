@@ -31,9 +31,10 @@ final class AppQyV1PhraseWriter
     /**
      * @param array<int, array{n:int, content_id:string, text:string}> $sentences the batch
      * @param array<int, array<int, array{content_id:string, text:string, meaning:?string}>> $items parser items keyed by n
+     * @param bool $chargeMissing false when the answer was cut off: the sentences it did not reach go back to the pool without an attempt
      * @return array{done:int, none:int, missing:int, phrases:int, links:int}
      */
-    public function store(string $language, array $sentences, array $items, ?string $sourceModel): array
+    public function store(string $language, array $sentences, array $items, ?string $sourceModel, bool $chargeMissing = true): array
     {
         $language = strtolower($language);
         $now = now();
@@ -88,7 +89,11 @@ final class AppQyV1PhraseWriter
             $this->finishSentences($connection, $language, $done, self::STATUS_DONE, $now);
             $this->finishSentences($connection, $language, $none, self::STATUS_NONE, $now);
         });
-        $this->recordFailure($language, $missing);
+        if ($chargeMissing) {
+            $this->recordFailure($language, $missing);
+        } else {
+            $this->releaseLease($language, $missing);
+        }
 
         return [
             'done' => count($done),
@@ -150,6 +155,29 @@ final class AppQyV1PhraseWriter
             'phrase_lease_expires_at' => null,
             'phrase_locked_by' => null,
         ]);
+    }
+
+    /**
+     * Sentence counts by phrase_status (pending = NULL) and the phrase total of one language.
+     *
+     * @return array{pending:int, done:int, none:int, failed:int, leased:int, phrases:int}
+     */
+    public function statusCounts(string $language): array
+    {
+        $connection = self::connection();
+        $table = AppQyV1TableMaps::getSentenceTableName($language);
+        $counts = ['pending' => 0, 'done' => 0, 'none' => 0, 'failed' => 0, 'leased' => 0, 'phrases' => 0];
+
+        foreach ($connection->table($table)->selectRaw('phrase_status, COUNT(*) AS total')->groupBy('phrase_status')->get() as $row) {
+            $key = $row->phrase_status === null ? 'pending' : (string) $row->phrase_status;
+            if (isset($counts[$key])) {
+                $counts[$key] = (int) $row->total;
+            }
+        }
+        $counts['leased'] = (int) $connection->table($table)->whereNull('phrase_status')->where('phrase_lease_expires_at', '>', now())->count();
+        $counts['phrases'] = (int) $connection->table(AppQyV1TableMaps::getPhraseTableName($language))->count();
+
+        return $counts;
     }
 
     public static function connection(): ConnectionInterface

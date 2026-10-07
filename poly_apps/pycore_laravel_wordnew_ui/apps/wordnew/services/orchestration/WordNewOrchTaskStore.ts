@@ -91,7 +91,7 @@ function progressFromRow(raw: Record<string, unknown> | null): OrchTaskProgressS
 }
 
 function fromRow(row: WfNewOrchClientTaskRow): OrchComposeTask {
-  const source: OrchComposeSource = row.source === 'prompt_rewrite' ? 'prompt_rewrite' : 'vocab_book';
+  const source: OrchComposeSource = row.source === 'prompt_rewrite' || row.source === 'passages' ? row.source : 'vocab_book';
   const config = { ...defaultOrchConfig(source), ...(row.config as Partial<OrchComposeConfig> | null) };
   const status = (['draft', 'resolving', 'ready', 'partial'] as OrchComposeStatus[]).includes(row.status as OrchComposeStatus)
     ? row.status as OrchComposeStatus
