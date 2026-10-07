@@ -30,6 +30,7 @@ public partial class MonitorPage : UserControl
 {
     private const string StyleSuccessButton = "SuccessButtonStyle";
     private const string StyleDangerButton = "DangerButtonStyle";
+    private const string StyleWarningButton = "WarningButtonStyle";
     private const string StyleChip = "StatusChipStyle";
     private const string StyleChipSuccess = "StatusChipSuccessStyle";
     private const string StyleChipWarning = "StatusChipWarningStyle";
@@ -298,8 +299,9 @@ public partial class MonitorPage : UserControl
     {
         var st = MonitorService.Instance.GetStatus();
         bool flow = GameInterfaceData.Instance.GetStateSnapshot().RosbotFlowMasterEnabled;
-        TxtMonitoring.Text = T(flow ? I18nKeys.MonitorMonitoringOn : I18nKeys.MonitorMonitoringOff);
-        ChipMonitoring.SetResourceReference(StyleProperty, flow ? StyleChipSuccess : StyleChip);
+        bool paused = flow && GameInterfaceData.Instance.RosbotFlowPaused;
+        TxtMonitoring.Text = T(paused ? I18nKeys.MonitorMonitoringPaused : flow ? I18nKeys.MonitorMonitoringOn : I18nKeys.MonitorMonitoringOff);
+        ChipMonitoring.SetResourceReference(StyleProperty, paused ? StyleChipWarning : flow ? StyleChipSuccess : StyleChip);
         TxtD3.Text = T(st.D3Running ? I18nKeys.MonitorD3Running : I18nKeys.MonitorD3NotRunning);
         ChipD3.SetResourceReference(StyleProperty, st.D3Running ? StyleChipSuccess : StyleChip);
         TxtRosbot.Text = T(st.RosbotOnline ? I18nKeys.MonitorRosbotRunning : I18nKeys.MonitorRosbotNotRunning);
@@ -316,6 +318,9 @@ public partial class MonitorPage : UserControl
         ChipLogsWarning.Visibility = st.LogsDisabled ? Visibility.Visible : Visibility.Collapsed;
         BtnToggleMonitoring.Content = T(flow ? I18nKeys.MonitorStopMonitoring : I18nKeys.MonitorStartMonitoring);
         BtnToggleMonitoring.SetResourceReference(StyleProperty, flow ? StyleDangerButton : StyleSuccessButton);
+        BtnPauseMonitoring.Visibility = flow ? Visibility.Visible : Visibility.Collapsed;
+        BtnPauseMonitoring.Content = T(paused ? I18nKeys.MonitorResumeMonitoring : I18nKeys.MonitorPauseMonitoring);
+        BtnPauseMonitoring.SetResourceReference(StyleProperty, paused ? StyleSuccessButton : StyleWarningButton);
     }
 
     private static string FormatIdle(double sec) => sec < 0 ? IdleUnknown : sec.ToString("0", CultureInfo.InvariantCulture);
@@ -334,6 +339,12 @@ public partial class MonitorPage : UserControl
     private void BtnToggleMonitoring_Click(object sender, RoutedEventArgs e)
     {
         RosbotTaskProcessor.Instance.ToggleFlow();
+        UpdateStatus();
+    }
+
+    private void BtnPauseMonitoring_Click(object sender, RoutedEventArgs e)
+    {
+        RosbotTaskProcessor.Instance.TogglePause();
         UpdateStatus();
     }
 

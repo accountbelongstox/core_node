@@ -4,6 +4,8 @@ using System.IO;
 using System.Text.Json;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Bridge;
 using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.Core.Monitor;
 using DotApps.d3d4tester.Core.Planner;
@@ -20,17 +22,18 @@ public sealed record PlannerAlert(string Title, string Message, PlannerMatch Mat
 public sealed record PlannerSlotStatus(PlannerItem Planned, PlannerMatch? Match, bool Carried);
 
 /// <summary>
-/// maxroll d3planner build matched against the game. Load(url) reads the build (MaxrollD3PlannerClient), caches it in the user data
-/// folder and writes the bridge plugin's item watch (the build's GBIDs, item ids and checkable affix attributes). Every CheckEveryTicks
-/// seconds (TickDriver) it reads the plugin state: a ground item of the build not seen before raises a "dropped" alert, a new pickup of
-/// one a "picked up" alert (Monitor log, Alert event for the tray, optional push). Status() pairs every planned item with the best
-/// carried (else ground) copy for the Build tab.
+/// maxroll d3planner builds matched against the game. LoadAsync(url) adds a build (or refreshes the one with the same id), keeps the
+/// list in the user data folder and writes the bridge plugin's item watch (GBIDs, item ids and checkable affix attributes of every
+/// gear set of every build). Every CheckEveryTicks seconds (TickDriver) it reads the plugin state: a ground item of any build not seen
+/// before raises a "dropped" alert, a new pickup of one a "picked up" alert (Monitor log, Alert event for the tray, optional push).
+/// The selected build / gear set drive the Build tab: Status() pairs its planned items with the best carried (else ground) copy.
 /// </summary>
 public static class D3PlannerService
 {
     private const string LogTag = "[D3Planner]";
     private const string CacheDirName = "d3planner";
-    private const string BuildFileName = "build.json";
+    private const string LegacyBuildFileName = "build.json";
+    private const string BuildsFileName = "builds.json";
     private const int CheckEveryTicks = 2;
     private const string WatchGbid = "g|{0}";
     private const string WatchName = "n|{0}";
@@ -40,11 +43,12 @@ public static class D3PlannerService
     private const string PickupKind = "pickup";
     private const string LanguageZhPrefix = "zh";
     private const char UnknownSeparator = ',';
+    private const string TitleSeparator = " · ";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private static readonly object Lock = new();
     private static readonly HashSet<string> SeenGround = new(StringComparer.Ordinal);
-    private static PlannerBuild? _build;
+    private static List<PlannerBuild> _builds = new();
     private static RosbotBridgeState? _state;
     private static IReadOnlySet<string> _uncheckable = new HashSet<string>();
     private static DateTime _lastPickupUtc = DateTime.MinValue;
@@ -61,12 +65,17 @@ public static class D3PlannerService
 
     public static string CacheDir => Path.Combine(ConfigPaths.CurrentUserDataPath, CacheDirName);
 
-    public static PlannerBuild? Build => _build;
+    public static IReadOnlyList<PlannerBuild> Builds => _builds;
+
+    public static int BuildIndex =>
+        _builds.Count == 0 ? -1 : Math.Clamp(ConfigBinding.GetValue(ConfigKeys.D3PlannerBuildIndex, 0), 0, _builds.Count - 1);
+
+    public static PlannerBuild? Build => BuildIndex is var i and >= 0 ? _builds[i] : null;
 
     public static int ProfileIndex =>
-        _build is { Profiles.Count: > 0 } b ? Math.Clamp(ConfigBinding.GetValue(ConfigKeys.D3PlannerProfileIndex, b.ActiveProfile), 0, b.Profiles.Count - 1) : -1;
+        Build is { Profiles.Count: > 0 } b ? Math.Clamp(ConfigBinding.GetValue(ConfigKeys.D3PlannerProfileIndex, b.ActiveProfile), 0, b.Profiles.Count - 1) : -1;
 
-    public static PlannerProfile? Profile => ProfileIndex is var i and >= 0 ? _build!.Profiles[i] : null;
+    public static PlannerProfile? Profile => ProfileIndex is var i and >= 0 ? Build!.Profiles[i] : null;
 
     public static bool UseChineseNames =>
         D3D4TesterI18n.Provider.GetCurrentLanguage().StartsWith(LanguageZhPrefix, StringComparison.OrdinalIgnoreCase);
@@ -76,8 +85,9 @@ public static class D3PlannerService
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
         try
         {
-            string path = Path.Combine(CacheDir, BuildFileName);
-            if (File.Exists(path)) _build = JsonSerializer.Deserialize<PlannerBuild>(File.ReadAllText(path), JsonOptions);
+            string path = Path.Combine(CacheDir, BuildsFileName), legacy = Path.Combine(CacheDir, LegacyBuildFileName);
+            if (File.Exists(path)) _builds = JsonSerializer.Deserialize<List<PlannerBuild>>(File.ReadAllText(path), JsonOptions) ?? new();
+            else if (File.Exists(legacy) && JsonSerializer.Deserialize<PlannerBuild>(File.ReadAllText(legacy), JsonOptions) is { } old) _builds = new() { old };
         }
         catch (Exception ex) when (ex is IOException or JsonException or NotSupportedException)
         {
@@ -86,32 +96,73 @@ public static class D3PlannerService
         TickDriver.Instance.RegisterEveryTick(OnTick);
     }
 
-    /// <summary>Read the build behind a maxroll d3planner URL (or id), keep it and watch its items. Throws when the build cannot be read.</summary>
+    /// <summary>Add the build behind a maxroll d3planner URL (or id), or refresh it when already listed, select it and watch it. Throws when unreadable.</summary>
     public static async Task<PlannerBuild> LoadAsync(string url)
     {
         var build = await MaxrollD3PlannerClient.LoadAsync(url, CacheDir).ConfigureAwait(false);
-        Directory.CreateDirectory(CacheDir);
-        await File.WriteAllTextAsync(Path.Combine(CacheDir, BuildFileName), JsonSerializer.Serialize(build, JsonOptions)).ConfigureAwait(false);
+        int index;
         lock (Lock)
         {
-            _build = build;
+            var builds = _builds.ToList();
+            index = builds.FindIndex(b => b.Id == build.Id);
+            if (index >= 0) builds[index] = build;
+            else
+            {
+                builds.Add(build);
+                index = builds.Count - 1;
+            }
+            _builds = builds;
             SeenGround.Clear();
             _watchWritten = false;
         }
+        await SaveAsync().ConfigureAwait(false);
         ConfigBinding.SetValue(ConfigKeys.D3PlannerUrl, url.Trim());
+        ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, index);
         ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, build.ActiveProfile);
-        MonitorLog.Info($"{LogTag} build {build.Id} '{build.Name}' ({build.Class}) loaded: {build.Profiles.Count} gear set(s)");
+        MonitorLog.Info($"{LogTag} build {build.Id} '{build.Name}' ({build.Class}) loaded: {build.Profiles.Count} gear set(s), {_builds.Count} build(s) watched");
         WriteWatch();
         BuildChanged?.Invoke();
         return build;
     }
 
+    public static void SelectBuild(int index)
+    {
+        if (index < 0 || index >= _builds.Count || index == BuildIndex) return;
+        ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, index);
+        ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, _builds[index].ActiveProfile);
+        BuildChanged?.Invoke();
+    }
+
+    /// <summary>Drop a build from the list (and from the item watch).</summary>
+    public static void RemoveBuild(int index)
+    {
+        if (index < 0 || index >= _builds.Count) return;
+        string name = _builds[index].Name;
+        lock (Lock)
+        {
+            var builds = _builds.ToList();
+            builds.RemoveAt(index);
+            _builds = builds;
+            SeenGround.Clear();
+        }
+        _ = SaveAsync();
+        ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, Math.Max(0, Math.Min(index, _builds.Count - 1)));
+        if (Build is { } b) ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, b.ActiveProfile);
+        MonitorLog.Info($"{LogTag} build '{name}' removed, {_builds.Count} left");
+        WriteWatch();
+        BuildChanged?.Invoke();
+    }
+
+    private static async Task SaveAsync()
+    {
+        Directory.CreateDirectory(CacheDir);
+        await File.WriteAllTextAsync(Path.Combine(CacheDir, BuildsFileName), JsonSerializer.Serialize(_builds, JsonOptions)).ConfigureAwait(false);
+    }
+
     public static void SelectProfile(int index)
     {
-        if (_build == null || index < 0 || index >= _build.Profiles.Count || index == ProfileIndex) return;
+        if (Build is not { } build || index < 0 || index >= build.Profiles.Count || index == ProfileIndex) return;
         ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, index);
-        lock (Lock) SeenGround.Clear();
-        WriteWatch();
         BuildChanged?.Invoke();
     }
 
@@ -139,6 +190,10 @@ public static class D3PlannerService
         return UseChineseNames && n.Zh.Length > 0 ? n.Zh : n.En;
     }
 
+    /// <summary>Name to show for an item seen in game: maxroll name by GBID, else the plugin's name, else the GBID.</summary>
+    public static string DisplayName(int gbid, string pluginName) =>
+        ItemNameByGbid(gbid) ?? (pluginName.Length > 0 ? pluginName : $"gbid {gbid}");
+
     public static string ItemName(PlannerItem item) => UseChineseNames && item.NameZh.Length > 0 ? item.NameZh : item.NameEn;
 
     public static string StatName(PlannerStat stat) => UseChineseNames && stat.NameZh.Length > 0 ? stat.NameZh : stat.NameEn;
@@ -146,6 +201,9 @@ public static class D3PlannerService
     public static string SlotName(PlannerItem item) => UseChineseNames && item.SlotNameZh.Length > 0 ? item.SlotNameZh : item.SlotNameEn;
 
     private static IReadOnlyList<PlannerItem> AllItems(PlannerProfile profile) => profile.Items.Concat(profile.Kanai).ToList();
+
+    /// <summary>Every item of every gear set of a build (watch and alerts cover all of them).</summary>
+    private static IReadOnlyList<PlannerItem> AllItems(PlannerBuild build) => build.Profiles.SelectMany(AllItems).ToList();
 
     /// <summary>Every planned item with its best copy in game (carried first, then ground; most affixes ok).</summary>
     public static IReadOnlyList<PlannerSlotStatus> Status()
@@ -161,6 +219,17 @@ public static class D3PlannerService
         }).ToList();
     }
 
+    /// <summary>Items the hero wears, by planner slot key (bridge plugin InventorySlot -> D3PaperDollLayout).</summary>
+    public static IReadOnlyDictionary<string, ObservedItem> EquippedBySlot()
+    {
+        var equipped = new Dictionary<string, ObservedItem>(StringComparer.Ordinal);
+        foreach (var e in _state?.CarriedItems ?? Array.Empty<RosbotBridgeEntity>())
+            if (D3PaperDollLayout.FromInventorySlot.TryGetValue(e.Slot, out var slot)) equipped[slot] = Observe(e);
+        return equipped;
+    }
+
+    public static IReadOnlySet<string> Uncheckable => _uncheckable;
+
     private static PlannerMatch? Best(PlannerItem item, IEnumerable<ObservedItem> observed) =>
         observed.Where(o => D3PlannerMatcher.IsSameItem(item, o))
             .Select(o => D3PlannerMatcher.Evaluate(item, o, _uncheckable))
@@ -175,9 +244,9 @@ public static class D3PlannerService
     private static void WriteWatch()
     {
         var lines = new List<string>();
-        if (Profile is { } profile)
+        var items = _builds.SelectMany(AllItems).ToList();
+        if (items.Count > 0)
         {
-            var items = AllItems(profile);
             foreach (int gbid in items.SelectMany(i => i.Gbids).Distinct()) lines.Add(string.Format(CultureInfo.InvariantCulture, WatchGbid, gbid));
             foreach (string id in items.SelectMany(i => i.ItemIds).Distinct(StringComparer.OrdinalIgnoreCase)) lines.Add(string.Format(CultureInfo.InvariantCulture, WatchName, id));
             foreach (var stat in items.SelectMany(i => i.Stats).Where(s => s.WatchKey != null).GroupBy(s => s.WatchKey).Select(g => g.First()))
@@ -189,15 +258,25 @@ public static class D3PlannerService
 
     private static void OnTick(IFlowTick tick)
     {
-        if (tick.GlobalTick % CheckEveryTicks != 0 || _build == null) return;
-        if (!_watchWritten) WriteWatch();
-        var state = RosbotBridgePluginService.ReadState();
-        if (state == null || state.IsStale(DateTime.UtcNow)) return;
+        if (tick.GlobalTick % CheckEveryTicks != 0) return;
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        if (snapshot.RosbotBridge is not { } state || !snapshot.RosbotBridgeFresh) return;
         _state = state;
+        var builds = _builds;
+        if (builds.Count == 0) return;
+        if (!_watchWritten) WriteWatch();
         _uncheckable = state.ItemWatchUnknown.Split(UnknownSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
-        if (Profile is not { } profile) return;
-        var items = AllItems(profile);
-        var alerts = new List<(PlannerMatch Match, string EventKey)>();
+        var watched = builds.Select(b => (Build: b, Items: AllItems(b))).ToList();
+        var alerts = new List<(PlannerMatch Match, string EventKey, string BuildName)>();
+        void Check(ObservedItem observed, string eventKey)
+        {
+            foreach (var (build, items) in watched)
+                if (D3PlannerMatcher.Match(items, observed, _uncheckable) is { } m)
+                {
+                    alerts.Add((m, eventKey, build.Name));
+                    return;
+                }
+        }
         lock (Lock)
         {
             if (state.WorldId != _lastWorld)
@@ -208,24 +287,25 @@ public static class D3PlannerService
             foreach (var g in state.GroundItems)
             {
                 if (!SeenGround.Add($"{state.WorldId}:{g.AcdId}:{g.Gbid}")) continue;
-                if (D3PlannerMatcher.Match(items, Observe(g), _uncheckable) is { } m) alerts.Add((m, I18nKeys.RosbotBridgeBuildEventDrop));
+                Check(Observe(g), I18nKeys.RosbotBridgeBuildEventDrop);
             }
             var pickups = state.Pickups.Where(p => p.Kind == PickupKind).ToList();
             if (_pickupsPrimed)
             {
                 foreach (var p in pickups.Where(p => p.Utc > _lastPickupUtc).OrderBy(p => p.Utc))
-                    if (D3PlannerMatcher.Match(items, Observe(p), _uncheckable) is { } m) alerts.Add((m, I18nKeys.RosbotBridgeBuildEventPickup));
+                    Check(Observe(p), I18nKeys.RosbotBridgeBuildEventPickup);
             }
             if (pickups.Count > 0) _lastPickupUtc = pickups.Max(p => p.Utc);
             _pickupsPrimed = true;
         }
-        foreach (var (match, eventKey) in alerts) Raise(match, eventKey);
+        foreach (var (match, eventKey, buildName) in alerts) Raise(match, eventKey, buildName);
     }
 
-    private static void Raise(PlannerMatch match, string eventKey)
+    private static void Raise(PlannerMatch match, string eventKey, string buildName)
     {
         var p = D3D4TesterI18n.Provider;
-        string title = string.Format(CultureInfo.InvariantCulture, p.GetUiText(I18nKeys.RosbotBridgeBuildNotifyTitle), p.GetUiText(eventKey));
+        string title = string.Format(CultureInfo.InvariantCulture, p.GetUiText(I18nKeys.RosbotBridgeBuildNotifyTitle), p.GetUiText(eventKey))
+            + TitleSeparator + buildName;
         string rank = match.AncientOk || match.Planned.AncientRank == 0 ? "" : " (" + string.Format(CultureInfo.InvariantCulture,
             p.GetUiText(I18nKeys.RosbotBridgeBuildRankMissing), RankName(match.Planned.AncientRank)) + ")";
         string message = string.Format(CultureInfo.InvariantCulture, p.GetUiText(I18nKeys.RosbotBridgeBuildNotifyMessage),

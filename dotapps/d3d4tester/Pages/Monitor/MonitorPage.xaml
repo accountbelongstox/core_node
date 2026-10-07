@@ -32,6 +32,7 @@
         </Border>
         <WrapPanel>
           <Button x:Name="BtnToggleMonitoring" Style="{StaticResource SuccessButtonStyle}" MinWidth="110" Margin="0,0,6,0" Click="BtnToggleMonitoring_Click"/>
+          <Button x:Name="BtnPauseMonitoring" Style="{StaticResource WarningButtonStyle}" MinWidth="110" Margin="0,0,6,0" Visibility="Collapsed" Click="BtnPauseMonitoring_Click"/>
           <Button x:Name="BtnImportRbAssist" Margin="0,0,6,0" Click="BtnImportRbAssist_Click"/>
           <comp:RosbotControlBlock x:Name="RosbotControl"/>
         </WrapPanel>

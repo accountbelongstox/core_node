@@ -13,9 +13,10 @@ using DotApps.d3d4tester.Services;
 namespace DotApps.d3d4tester.Components;
 
 /// <summary>
-/// Build sub-tab of the bridge panel: load a maxroll d3planner build by URL, pick its gear set, switch drop / pickup alerts, and see
-/// every planned item (slot, name, required ancient rank, affixes) next to its best copy in game (carried or on the ground, affixes
-/// ok / checked). Refreshed every RefreshInterval while visible; data comes from D3PlannerService.
+/// Build sub-tab of the bridge panel: load a maxroll d3planner build by URL, pick its gear set, switch drop / pickup alerts, two
+/// paper dolls in D3 character-screen layout (left = what the hero wears, from the bridge plugin; right = the maxroll gear set; same
+/// item = match, different / missing = mismatch), and every planned item (slot, name, required ancient rank, affixes) next to its best
+/// copy in game (carried or on the ground, affixes ok / checked). Refreshed every RefreshInterval while visible (D3PlannerService).
 /// </summary>
 public partial class D3PlannerBuildBlock : UserControl
 {
@@ -64,9 +65,13 @@ public partial class D3PlannerBuildBlock : UserControl
     {
         BtnLoad.Content = T(I18nKeys.RosbotBridgeBuildLoad);
         TxtUrl.ToolTip = T(I18nKeys.RosbotBridgeBuildUrl);
+        LblBuild.Text = T(I18nKeys.RosbotBridgeBuildSelect);
+        BtnRemove.Content = T(I18nKeys.RosbotBridgeBuildRemove);
         LblProfile.Text = T(I18nKeys.RosbotBridgeBuildProfile);
         ChkNotify.Content = T(I18nKeys.RosbotBridgeBuildNotify);
         ChkNotifyPush.Content = T(I18nKeys.RosbotBridgeBuildNotifyPush);
+        LblDollGame.Text = T(I18nKeys.RosbotBridgeDollGame);
+        LblDollPlan.Text = T(I18nKeys.RosbotBridgeDollPlan);
         ColSlot.Header = T(I18nKeys.RosbotBridgeBuildColSlot);
         ColItem.Header = T(I18nKeys.RosbotBridgeBuildColItem);
         ColHave.Header = T(I18nKeys.RosbotBridgeBuildColHave);
@@ -92,6 +97,9 @@ public partial class D3PlannerBuildBlock : UserControl
             ? T(I18nKeys.RosbotBridgeBuildNone)
             : string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildLoaded), build.Name, build.Class, D3PlannerService.Profile?.Items.Count ?? 0);
         _loadingProfiles = true;
+        CmbBuild.ItemsSource = D3PlannerService.Builds.Select(b => b.Name).ToList();
+        CmbBuild.SelectedIndex = D3PlannerService.BuildIndex;
+        BtnRemove.IsEnabled = build != null;
         CmbProfile.ItemsSource = build?.Profiles.Select(p => p.Name).ToList();
         CmbProfile.SelectedIndex = D3PlannerService.ProfileIndex;
         _loadingProfiles = false;
@@ -102,6 +110,50 @@ public partial class D3PlannerBuildBlock : UserControl
     {
         if (!IsVisible) return;
         LstItems.ItemsSource = D3PlannerService.Status().Select(ToRow).ToList();
+        RefreshDolls();
+    }
+
+    /// <summary>Left doll = worn items (bridge plugin), right doll = planned gear set; cells compare the same slot on both sides.</summary>
+    private void RefreshDolls()
+    {
+        var equipped = D3PlannerService.EquippedBySlot();
+        var planned = D3PlannerService.Profile is { } profile
+            ? profile.Items.Concat(profile.Kanai).GroupBy(i => i.Slot).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal)
+            : new Dictionary<string, PlannerItem>(StringComparer.Ordinal);
+        var game = new Dictionary<string, DollCell>(StringComparer.Ordinal);
+        var plan = new Dictionary<string, DollCell>(StringComparer.Ordinal);
+        foreach (var slot in D3PaperDollLayout.Cells.Keys)
+        {
+            equipped.TryGetValue(slot, out var worn);
+            planned.TryGetValue(slot, out var item);
+            var match = worn != null && item != null && D3PlannerMatcher.IsSameItem(item, worn)
+                ? D3PlannerMatcher.Evaluate(item, worn, D3PlannerService.Uncheckable) : null;
+            var state = match != null ? DollCellState.Match : worn != null && item != null ? DollCellState.Mismatch : DollCellState.Neutral;
+            string label = SlotLabel(slot);
+            if (worn != null)
+                game[slot] = new DollCell(label, WornText(worn), match != null ? AffixDetail(item!, match) : WornText(worn), state);
+            if (item != null)
+                plan[slot] = new DollCell(label, PlannedText(item), AffixDetail(item, match), worn == null ? DollCellState.Mismatch : state);
+        }
+        DollGame.Show(game, SlotLabel);
+        DollPlan.Show(plan, SlotLabel);
+    }
+
+    private static string SlotLabel(string slot) => T(I18nKeys.RosbotBridgeSlotPrefix + slot.Replace('.', '_'));
+
+    private static string WornText(ObservedItem worn) =>
+        (D3PlannerService.ItemNameByGbid(worn.Gbid) ?? (worn.Name.Length > 0 ? worn.Name : worn.InternalName))
+        + (worn.AncientRank > 0 ? $" ({D3PlannerService.RankName(worn.AncientRank)})" : "");
+
+    private static string PlannedText(PlannerItem item) =>
+        D3PlannerService.ItemName(item) + (item.AncientRank > 0 ? $" ({D3PlannerService.RankName(item.AncientRank)})" : "");
+
+    private static string AffixDetail(PlannerItem item, PlannerMatch? match)
+    {
+        var results = match?.Stats.ToDictionary(r => r.Stat, r => r) ?? new Dictionary<PlannerStat, PlannerStatResult>();
+        return string.Join(LineSeparator, new[] { PlannedText(item) }.Concat(item.Stats.Select(st =>
+            (results.TryGetValue(st, out var r) ? r.Ok switch { true => MarkOk, false => MarkMissing, _ => MarkUnchecked } : "")
+            + $"{D3PlannerService.StatName(st)} {st.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)}{(st.Percent ? PercentSuffix : "")}")));
     }
 
     private static BuildRow ToRow(PlannerSlotStatus s)
@@ -155,6 +207,13 @@ public partial class D3PlannerBuildBlock : UserControl
     {
         if (e.Key == Key.Enter) BtnLoad_Click(sender, e);
     }
+
+    private void CmbBuild_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loadingProfiles && CmbBuild.SelectedIndex >= 0) D3PlannerService.SelectBuild(CmbBuild.SelectedIndex);
+    }
+
+    private void BtnRemove_Click(object sender, RoutedEventArgs e) => D3PlannerService.RemoveBuild(D3PlannerService.BuildIndex);
 
     private void CmbProfile_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

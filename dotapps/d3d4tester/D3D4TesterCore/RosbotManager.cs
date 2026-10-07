@@ -456,6 +456,9 @@ public sealed class RosbotManager
     /// <summary>Global F7 key press (ROSBOT pause/stop). 1:1 Python key_send.send_f7_to_system.</summary>
     public static bool SendF7ToSystem() => WindowInputHelper.SendSystemKey(RosbotConstants.VkF7);
 
+    /// <summary>Global F6 key press: ROSBOT's pause toggle hotkey (pause when botting, resume when paused).</summary>
+    public static bool SendPauseToggleToSystem() => WindowInputHelper.SendSystemKey(RosbotConstants.VkF6);
+
     /// <summary>Kill all same-dir other exe processes, optionally F7 to each window first. 1:1 Python cleanup_old_other_exe_processes.</summary>
     public bool CleanupOldOtherExeProcesses(bool sendF7BeforeKill = false)
     {

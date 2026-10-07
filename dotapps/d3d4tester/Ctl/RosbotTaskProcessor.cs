@@ -147,6 +147,23 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         RequestStatusRefresh();
     }
 
+    /// <summary>Pause monitoring: flow halted, ROSBOT paused with its pause key when botting.</summary>
+    public void RequestPauseFlow() => RosbotFlowRunner.Pause();
+
+    /// <summary>Resume monitoring: ROSBOT resumed with its pause key when the pause stopped it, flow continues from F1.</summary>
+    public void RequestResumeFlow()
+    {
+        RosbotFlowRunner.Resume();
+        RequestStatusRefresh();
+    }
+
+    /// <summary>Pause / resume button (Monitor tab).</summary>
+    public void TogglePause()
+    {
+        if (RosbotFlowRunner.IsPaused) RequestResumeFlow();
+        else RequestPauseFlow();
+    }
+
     /// <summary>Start / stop button (ROSBOT tab, Monitor tab): stop when monitoring, else start.</summary>
     public void ToggleFlow()
     {

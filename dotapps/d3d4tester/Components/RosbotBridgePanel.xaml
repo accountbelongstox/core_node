@@ -26,7 +26,8 @@
       <CheckBox x:Name="ChkAutoInstall" Grid.Row="1" Margin="0,0,0,4"/>
       <WrapPanel Grid.Row="2" Margin="0,0,0,4">
         <Button x:Name="BtnInstall" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,4" Click="BtnInstall_Click"/>
-        <Button x:Name="BtnOpenDir" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,0,4" Click="BtnOpenDir_Click"/>
+        <Button x:Name="BtnOpenDir" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,4" Click="BtnOpenDir_Click"/>
+        <Button x:Name="BtnHold" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,4" Click="BtnHold_Click"/>
       </WrapPanel>
       <TextBlock x:Name="TxtLiveStatus" Grid.Row="3" Style="{StaticResource BodyStrongTextStyle}" TextWrapping="Wrap" Margin="0,0,0,2"/>
       <Grid x:Name="GridLive" Grid.Row="4" Margin="0,0,0,4">

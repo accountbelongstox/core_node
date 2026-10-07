@@ -36,6 +36,8 @@ public static class MaxrollD3PlannerClient
     private const string SkillStatPrefix = "skill_";
     private const char CodeSeparator = '_';
     private const double PercentDivisor = 100.0;
+    private const string GemTierFormat = "00";
+    private static readonly string[] ItemListNames = { "items", "potions", "extraItems" };
 
     /// <summary>maxroll attribute ids that ROSBOT's AttributeId enum names differently.</summary>
     private static readonly Dictionary<string, string> AttributeAliases = new(StringComparer.Ordinal)
@@ -71,7 +73,10 @@ public static class MaxrollD3PlannerClient
         return Parse(id, urlOrId.Trim(), JsonNode.Parse(profileTask.Result)!, data, zh);
     }
 
-    /// <summary>English / Chinese item names by GameBalanceId (every maxroll item id, alternate ids included) from the cached game data.</summary>
+    /// <summary>
+    /// English / Chinese names by GameBalanceId from the cached game data: equipment (alternate ids included), potions, materials and
+    /// keys (extraItems), legendary gems, and normal gems per tier (gem id = color id + two-digit tier, tier names from gemQualities).
+    /// </summary>
     public static async Task<IReadOnlyDictionary<int, (string En, string Zh)>> LoadItemNamesAsync(string cacheDir, CancellationToken ct = default)
     {
         var names = new Dictionary<int, (string En, string Zh)>();
@@ -79,16 +84,35 @@ public static class MaxrollD3PlannerClient
         string? zhPath = await HttpFileCache.GetCachedAsync(AssetsBase + LocaleZhFileName, Path.Combine(cacheDir, LocaleZhCacheName), GameDataMaxAge, ct).ConfigureAwait(false);
         if (dataPath == null) return names;
         var data = JsonNode.Parse(await File.ReadAllTextAsync(dataPath, ct).ConfigureAwait(false));
-        var zh = zhPath != null ? JsonNode.Parse(await File.ReadAllTextAsync(zhPath, ct).ConfigureAwait(false))?["patch"]?["itemById"] : null;
-        foreach (var item in data?["items"]?.AsArray() ?? new JsonArray())
+        var zhPatch = zhPath != null ? JsonNode.Parse(await File.ReadAllTextAsync(zhPath, ct).ConfigureAwait(false))?["patch"] : null;
+        var zh = zhPatch?["itemById"];
+        foreach (var listName in ItemListNames)
         {
-            if (item?["id"]?.GetValue<string>() is not { Length: > 0 } id) continue;
-            var entry = (Text(item["name"]), Text(zh?[id]?["name"]));
-            var ids = new List<string> { id };
-            foreach (var alt in item["ids"]?.AsArray() ?? new JsonArray())
-                if (alt is JsonValue av && av.TryGetValue(out string? s) && s.Length > 0) ids.Add(s);
-            if (item["realid"] is JsonValue rv && rv.TryGetValue(out string? real) && real.Length > 0) ids.Add(real);
-            foreach (var i in ids) names[D3Gbid.Of(i)] = entry;
+            foreach (var item in data?[listName]?.AsArray() ?? new JsonArray())
+            {
+                if (item?["id"]?.GetValue<string>() is not { Length: > 0 } id) continue;
+                var entry = (Text(item["name"]), Text(zh?[id]?["name"]));
+                var ids = new List<string> { id };
+                foreach (var alt in item["ids"]?.AsArray() ?? new JsonArray())
+                    if (alt is JsonValue av && av.TryGetValue(out string? s) && s.Length > 0) ids.Add(s);
+                if (item["realid"] is JsonValue rv && rv.TryGetValue(out string? real) && real.Length > 0) ids.Add(real);
+                foreach (var i in ids) names.TryAdd(D3Gbid.Of(i), entry);
+            }
+        }
+        foreach (var (key, gem) in data?["legendaryGems"]?.AsObject() ?? new JsonObject())
+            if (Text(gem?["id"]) is { Length: > 0 } gemId)
+                names.TryAdd(D3Gbid.Of(gemId), (Text(gem!["name"]), Text(zhPatch?["legendaryGems"]?[key]?["name"])));
+        var tiers = data?["gemQualities"]?.AsArray() ?? new JsonArray();
+        foreach (var (color, def) in data?["gemColors"]?.AsObject() ?? new JsonObject())
+        {
+            var zhNames = zhPatch?["gemColors"]?[color]?["names"]?.AsArray();
+            for (int t = 0; t < tiers.Count; t++)
+            {
+                var entry = ($"{Text(tiers[t])} {Text(def?["name"])}", zhNames != null && t < zhNames.Count ? Text(zhNames[t]) : "");
+                string tier = (t + 1).ToString(GemTierFormat, CultureInfo.InvariantCulture);
+                foreach (var prefix in new[] { Text(def?["id"]), Text(def?["oldid"]) })
+                    if (prefix.Length > 0) names.TryAdd(D3Gbid.Of(prefix + tier), entry);
+            }
         }
         return names;
     }

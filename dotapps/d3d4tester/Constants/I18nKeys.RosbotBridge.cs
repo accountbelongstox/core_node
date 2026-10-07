@@ -53,6 +53,12 @@ public static partial class I18nKeys
     public const string RosbotBridgeTabCarried = "ui.rosbot_bridge.tab_carried";
     public const string RosbotBridgeTabPickups = "ui.rosbot_bridge.tab_pickups";
     public const string RosbotBridgeTabAdvanced = "ui.rosbot_bridge.tab_advanced";
+    // taking control from monitoring for panel commands
+    public const string RosbotBridgeHoldPause = "ui.rosbot_bridge.hold_pause";
+    public const string RosbotBridgeHoldResume = "ui.rosbot_bridge.hold_resume";
+    public const string RosbotBridgeHoldTip = "ui.rosbot_bridge.hold_tip";
+    public const string RosbotBridgeHoldTaken = "ui.rosbot_bridge.hold_taken";
+
     // town NPC shortcuts and test buttons
     public const string RosbotBridgeNpcBlacksmith = "ui.rosbot_bridge.npc_blacksmith";
     public const string RosbotBridgeNpcJeweler = "ui.rosbot_bridge.npc_jeweler";
@@ -72,7 +78,15 @@ public static partial class I18nKeys
     public const string RosbotBridgeSlotBackpack = "ui.rosbot_bridge.slot_backpack";
     public const string RosbotBridgeSlotStash = "ui.rosbot_bridge.slot_stash";
 
+    // paper dolls (Build sub-tab); slot labels are SlotPrefix + maxroll slot key ("." -> "_")
+    public const string RosbotBridgeDollGame = "ui.rosbot_bridge.doll_game";
+    public const string RosbotBridgeDollPlan = "ui.rosbot_bridge.doll_plan";
+    public const string RosbotBridgeSlotPrefix = "ui.rosbot_bridge.slot_";
+    public const string RosbotBridgeSlotPotion = "ui.rosbot_bridge.slot_potion";
+
     // d3planner build matching (Build sub-tab)
+    public const string RosbotBridgeBuildSelect = "ui.rosbot_bridge.build_select";
+    public const string RosbotBridgeBuildRemove = "ui.rosbot_bridge.build_remove";
     public const string RosbotBridgeTabBuild = "ui.rosbot_bridge.tab_build";
     public const string RosbotBridgeBuildUrl = "ui.rosbot_bridge.build_url";
     public const string RosbotBridgeBuildLoad = "ui.rosbot_bridge.build_load";

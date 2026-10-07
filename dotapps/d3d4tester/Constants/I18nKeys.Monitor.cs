@@ -11,6 +11,9 @@ public static partial class I18nKeys
     public const string MonitorMonitoringOff = "ui.monitor.monitoring_off";
     public const string MonitorStartMonitoring = "ui.monitor.start_monitoring";
     public const string MonitorStopMonitoring = "ui.monitor.stop_monitoring";
+    public const string MonitorPauseMonitoring = "ui.monitor.pause_monitoring";
+    public const string MonitorResumeMonitoring = "ui.monitor.resume_monitoring";
+    public const string MonitorMonitoringPaused = "ui.monitor.monitoring_paused";
     public const string MonitorD3Running = "ui.monitor.d3_running";
     public const string MonitorD3NotRunning = "ui.monitor.d3_not_running";
     public const string MonitorRosbotRunning = "ui.monitor.rosbot_running";

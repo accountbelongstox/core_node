@@ -33,6 +33,12 @@ public static class TriggerActionRunner
             case MonitorActions.StopMonitoring:
                 RosbotTaskProcessor.Instance.RequestStopFlow();
                 break;
+            case MonitorActions.PauseMonitoring:
+                RosbotTaskProcessor.Instance.RequestPauseFlow();
+                break;
+            case MonitorActions.ResumeMonitoring:
+                RosbotTaskProcessor.Instance.RequestResumeFlow();
+                break;
             case MonitorActions.StopBotF7:
                 GameWindowActions.SendKeyToD3(RosbotConstants.VkF7);
                 break;
