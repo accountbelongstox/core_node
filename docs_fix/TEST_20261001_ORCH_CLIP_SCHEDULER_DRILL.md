@@ -57,6 +57,8 @@ violations=0. Cursor run (2026-10-02, before phrases; the scheduler's per-clip p
 
 Run 2026-10-05 after R16 (edits never stop a download; resolver `owned` / `wanted` / `feed`, `orchCarryProgress`): S1-S11 and P1 unchanged; randomized 300 rounds, violations=0; cursor_perf run 2: 0 transfer requests (transfer stages `known 11832`).
 
+Run 2026-10-08 (short passages P2; R8 with cursors S12: a re-run inside the cursor window used to leave the still-missing clips `queued` without a generation watch until the cursors expired): S1-S12, P1, P2; randomized 300 rounds, violations=0; cursor_perf run 2: 0 transfer requests.
+
 Run 2026-10-08 with short passages (P2 added; the scheduler, resolver and stage order are untouched): S1-S11, P1 and P2 report 0 violations; randomized 300 rounds, violations=0.
 
 ## drill.ts
