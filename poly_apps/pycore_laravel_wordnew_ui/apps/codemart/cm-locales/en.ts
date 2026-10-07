@@ -211,7 +211,7 @@ export const cmEn = {
     roles: {
       eyebrow: 'WHO DOES WHAT',
       title: 'Four delivery roles in one workspace',
-      lead: 'One account can hold several roles. Each role unlocks only after its own requirements are met.',
+      lead: 'One account can hold several roles. Each role becomes active only after its own requirements are met.',
       client: {
         title: 'Client',
         body: 'Writes the brief, accepts the proposal, funds escrow, and approves deliverables. Active immediately after registration.',
@@ -419,7 +419,7 @@ export const cmEn = {
     notificationsTitle: 'Recent notifications',
     viewAll: 'View all',
     noWorkTitle: 'Nothing to work on yet',
-    noWorkBody: 'Request a client or developer role and finish verification to unlock projects and tasks.',
+    noWorkBody: 'Request a client or developer role and finish verification to start using projects and tasks.',
     stepTitles: {
       account: 'Complete your account',
       role_request: 'Request a role',
@@ -859,7 +859,7 @@ export const cmEn = {
       swift_code: 'SWIFT code',
       currency: 'Currency',
       reference: 'Reference',
-      notConfigured: 'Bank transfer details are not configured on this server yet. Contact the administrators through the contact form and give them the reference above; the deposit stays pending until it is confirmed.',
+      notConfigured: 'Bank transfer details are not configured yet. Contact the administrators through the contact form and give them the reference above; the deposit stays pending until it is confirmed.',
       show: 'Transfer instructions',
       loadFailed: 'Bank transfer instructions could not be loaded.',
     },
@@ -890,7 +890,7 @@ export const cmEn = {
     allDepositsPaid: 'All required deposits are paid. Nothing to pay right now.',
   },
   analysis: {
-    budgetFallbackHint: 'AI analysis is switched off on this server. You can go straight to funding with your own budget of {{amount}}; you can still edit the project before confirming.',
+    budgetFallbackHint: 'AI analysis is switched off. You can go straight to funding with your own budget of {{amount}}; you can still edit the project before confirming.',
     confirmBudget: 'Continue with my budget',
     budgetConfirmed: 'Budget confirmed. Fund the escrow to open the project to developers.',
     confirmBudgetFailed: 'The budget could not be confirmed.',
@@ -910,7 +910,7 @@ export const cmEn = {
       failed: 'Failed',
     },
     waiting: 'The analysis is running; this panel updates automatically.',
-    notProcessed: 'This analysis was not processed because AI analysis is switched off on this server. You can continue with your own budget below.',
+    notProcessed: 'This analysis was not processed because AI analysis is switched off. You can continue with your own budget below.',
     failedHint: 'The analysis failed. Run it again; if it keeps failing, shorten or clarify the description.',
     retry: 'Run AI analysis again',
     revisionLabel: 'Revision {{revision}}',
@@ -1081,7 +1081,7 @@ export const cmEn = {
     complete: 'Onboarding is complete.',
     optionalStep: 'Optional',
     notAvailable: 'Not available',
-    phoneUnavailable: 'Phone verification is not available on this server yet. The step is optional, so you can continue with the other steps.',
+    phoneUnavailable: 'Phone verification is not available yet. The step is optional, so you can continue with the other steps.',
     statusTitle: 'Verification status',
     email: 'Email',
     phone: 'Phone',
@@ -1269,7 +1269,7 @@ export const cmEn = {
     },
     policy: {
       title: 'Platform policy',
-      readOnly: 'Read-only values configured on the server.',
+      readOnly: 'Read-only values set by the platform.',
       deposits: 'Deposits and commission',
       architectAdditional: 'Architect additional deposit',
       commission: 'Platform commission rate',
@@ -2696,7 +2696,7 @@ export const cmEn = {
           items: {
             funding: 'Funding moves the accepted amount from the client wallet into escrow before work starts.',
             release: 'Client approval of a submission releases the task amount from escrow to the developer.',
-            commission: 'The platform commission, set by server policy, is deducted from each release.',
+            commission: 'The platform commission is deducted from each release.',
           },
         },
         refunds: {
