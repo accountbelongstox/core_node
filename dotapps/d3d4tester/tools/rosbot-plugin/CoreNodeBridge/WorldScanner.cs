@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Rcdw32.Ws.Models;
 using Rcdw32.Ws.Plugins;
 
@@ -22,6 +23,8 @@ internal sealed class EntityInfo
     public int AncientRank = -1;
     public int Stack;
     public bool Equipped;
+    /// <summary>ROSBOT InventorySlot name (Backpack, Stash, Head, ...), "" when unknown.</summary>
+    public string Slot = "";
     public int DurabilityCur;
     public int DurabilityMax;
     public bool Elite;
@@ -31,9 +34,10 @@ internal sealed class EntityInfo
 }
 
 /// <summary>
-/// Reads ROSBOT's actor and ACD lists: items on the ground, NPCs and nearby monsters, and the items the hero carries.
-/// ROSBOT exposes no inventory slot, so carried items are the ACDs of the item ACD types (learned from ground items, D3 default
-/// 2) that are not lying on the ground: backpack, stash and equipped together; Item_Equipped marks the worn ones.
+/// Reads ROSBOT's actor and ACD lists: items on the ground, NPCs and nearby monsters, and the items the hero has. Item ACDs are
+/// those of ROSBOT's ActorType.Item (D3 value 8); their location comes from the InventorySlot-typed property of ROSBOT's ACD class
+/// (read by reflection: the plugin API does not expose it, the member name is obfuscated but its enum type name is not), so equipped,
+/// backpack and stash items are told apart; without it Item_Equipped marks the worn ones and the rest count as carried.
 /// Attributes are looked up by name in ROSBOT's own AttributeId enum, names of ACD-only items from its ActorId enum. Every item
 /// carries its GameBalanceId; items selected by the ItemWatch also carry the watched affix values.
 /// </summary>
@@ -44,9 +48,15 @@ internal static class WorldScanner
     public const int MaxGroundItems = 60;
     public const int MaxNpcs = 40;
     public const int MaxCarriedItems = 400;
-    private const int DefaultItemAcdType = 2;
+    private const int DefaultItemActorType = 8;
+    private const string ActorTypeEnumName = "ActorType";
+    private const string ActorTypeItem = "Item";
+    private const string InventorySlotEnumName = "InventorySlot";
+    private const string SlotUnknown = "Unknown";
+    private const string SlotMerchant = "Merchant";
 
-    private static readonly HashSet<int> ItemAcdTypes = new() { DefaultItemAcdType };
+    private static readonly int ItemActorType = ResolveItemActorType();
+    private static readonly Dictionary<Type, PropertyInfo> SlotProperties = new();
     private static readonly Dictionary<string, int> AttributeIds = new(StringComparer.Ordinal);
 
     /// <summary>Set by the plugin: items whose affixes are read.</summary>
@@ -60,11 +70,7 @@ internal static class WorldScanner
             {
                 var info = FromActor(a);
                 var acd = Safe(() => a.CommData, null);
-                if (acd != null)
-                {
-                    LearnItemType(acd);
-                    FillItemAttributes(info, acd);
-                }
+                if (acd != null) FillItemAttributes(info, acd);
                 return info;
             })
             .ToList();
@@ -95,23 +101,55 @@ internal static class WorldScanner
         foreach (var acd in acds)
         {
             if (result.Count >= MaxCarriedItems) break;
-            if (!Safe(() => acd.IsValid, false) || !ItemAcdTypes.Contains(Safe(() => acd.Type, -1))) continue;
+            if (!Safe(() => acd.IsValid, false) || Safe(() => acd.Type, -1) != ItemActorType) continue;
             int acdId = Safe(() => acd.AcdId, 0);
             if (onGround.Contains(acdId)) continue;
+            string slot = InventorySlotName(acd);
+            if (slot == SlotUnknown || slot == SlotMerchant) continue;
             int sno = Safe(() => acd.SnoId, 0);
             string name = ActorName(sno);
-            if (string.IsNullOrEmpty(name)) continue;
-            var info = new EntityInfo { AcdId = acdId, Sno = sno, Name = name, InternalName = name };
+            var info = new EntityInfo { AcdId = acdId, Sno = sno, Name = name, InternalName = name, Slot = slot };
             FillItemAttributes(info, acd);
             result.Add(info);
         }
         return result;
     }
 
+    /// <summary>True once ROSBOT's ACD class exposed an InventorySlot property (equipped / backpack / stash are then exact).</summary>
+    public static bool SlotSupported { get; private set; }
+
+    /// <summary>ROSBOT InventorySlot name of the item ACD, "" when ROSBOT's ACD class has no such property.</summary>
+    private static string InventorySlotName(IAcd acd)
+    {
+        var type = acd.GetType();
+        if (!SlotProperties.TryGetValue(type, out var prop))
+        {
+            prop = type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .FirstOrDefault(p => p.PropertyType.IsEnum && p.PropertyType.Name == InventorySlotEnumName && p.GetIndexParameters().Length == 0);
+            SlotProperties[type] = prop;
+            SlotSupported |= prop != null;
+        }
+        return prop == null ? "" : Safe(() => prop.GetValue(acd)?.ToString(), "") ?? "";
+    }
+
+    /// <summary>ROSBOT's ActorType.Item value (found by enum name in ROSBOT's assembly), else the D3 value 8.</summary>
+    private static int ResolveItemActorType()
+    {
+        try
+        {
+            var enumType = typeof(IActor).Assembly.GetTypes().FirstOrDefault(t => t.IsEnum && t.Name == ActorTypeEnumName && Enum.IsDefined(t, ActorTypeItem));
+            return enumType == null ? DefaultItemActorType : Convert.ToInt32(Enum.Parse(enumType, ActorTypeItem));
+        }
+        catch (Exception ex) when (ex is ReflectionTypeLoadException or ArgumentException or InvalidCastException)
+        {
+            return DefaultItemActorType;
+        }
+    }
+
     /// <summary>ROSBOT's ActorId enum name for an actor SNO id (its values are the SNO ids), or "".</summary>
     public static string ActorName(int sno) => Safe(() => Enum.GetName(typeof(ActorId), sno), null) ?? "";
 
-    public static string ItemAcdTypesText => string.Join(",", ItemAcdTypes);
+    public static string ItemAcdTypesText => ItemActorType.ToString();
 
     private static EntityInfo FromActor(IActor a) => new()
     {
@@ -126,12 +164,6 @@ internal static class WorldScanner
         Boss = Safe(() => a.IsBoss, false),
     };
 
-    private static void LearnItemType(IAcd acd)
-    {
-        int type = Safe(() => acd.Type, -1);
-        if (type >= 0) ItemAcdTypes.Add(type);
-    }
-
     private static void FillItemAttributes(EntityInfo info, IAcd acd)
     {
         info.Quality = Attribute(acd, "Item_Quality_Level", -1);
@@ -141,6 +173,7 @@ internal static class WorldScanner
         info.DurabilityCur = Attribute(acd, "Durability_Cur", 0);
         info.DurabilityMax = Attribute(acd, "Durability_Max", 0);
         info.Gbid = Safe(() => acd.Gball, 0);
+        if (info.Slot.Length > 0) info.Equipped |= info.Slot != "Backpack" && info.Slot != "Stash";
         if (Watch != null && Watch.IsWatched(info.Gbid, info.InternalName)) info.Attrs = Watch.Read(acd);
     }
 

@@ -194,6 +194,6 @@ public static class RosbotSmartEchoCoordinator
         {
             ColorPrinter.Yellow($"{LogPrefix} Resume: " + ex.Message);
         }
-        RosbotFlowHost.Current?.TriggerExtensionRosbotStart();
+        F3MonitorProcess.RequestRosbotRestart();
     }
 }

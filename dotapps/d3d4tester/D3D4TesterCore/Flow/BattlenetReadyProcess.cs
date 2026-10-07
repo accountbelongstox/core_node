@@ -167,10 +167,14 @@ public static class BattlenetReadyProcess
             bool waitingForUser = status.IsWaitingForUser;
             abnormalSince = !waitingForUser && AbnormalStates.Contains(state) ? abnormalSince ?? now : null;
             loginSince = !waitingForUser && LoginStates.Contains(state) ? loginSince ?? now : null;
+            bool stuck = state is BattlenetClientState.Sleeping or BattlenetClientState.LoadingAccount;
+            double abnormalTimeoutSec = stuck
+                ? C.StuckCleanupDelaySec
+                : RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalTimeoutSec, C.AbnormalTimeoutSecDefault);
             if (abnormalSince is { } a && RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalRestartEnabled, true)
-                && (now - a).TotalSeconds >= RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalTimeoutSec, C.AbnormalTimeoutSecDefault))
+                && (now - a).TotalSeconds >= abnormalTimeoutSec)
             {
-                Restart(ctx, $"{state} for {(int)(now - a).TotalSeconds}s (abnormal timeout)", clearCache: state is BattlenetClientState.Sleeping or BattlenetClientState.LoadingAccount);
+                Restart(ctx, $"{state} for {(int)(now - a).TotalSeconds}s (abnormal timeout)", clearCache: stuck);
                 abnormalSince = loginSince = null;
                 continue;
             }

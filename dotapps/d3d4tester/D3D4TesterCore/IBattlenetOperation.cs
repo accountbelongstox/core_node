@@ -44,9 +44,6 @@ public interface IBattlenetOperation
     /// <summary>Current UI state: on_login, disconnected, normal_available (logged-in main UI by avatar presence), play_button_name, connecting, region. 1:1 Python get_dynamic_state().</summary>
     BattlenetDynamicState GetDynamicState();
 
-    /// <summary>If in-UI popup or reconnect banner is present, find and click to close. 1:1 Python try_close_popup.</summary>
-    bool TryClosePopup();
-
     /// <summary>True when login failed screen (Continue Offline / Cancel); requires primary and secondary keywords; false when browser-wait. 1:1 Python is_login_failed_screen.</summary>
     bool IsLoginFailedScreen();
 
@@ -67,9 +64,6 @@ public interface IBattlenetOperation
 
     /// <summary>Asia only: true when the two-step Asia login screen (email / password) is shown. 1:1 Python is_on_asia_login_screen.</summary>
     bool IsOnAsiaLoginScreen() => false;
-
-    /// <summary>Dump the current UI elements to a debug JSON file; returns its path or null. 1:1 Python save_ui_elements_snapshot(node_name, reason).</summary>
-    string? SaveUiElementsSnapshot(string nodeName, string reason) => null;
 
     /// <summary>Asia only: fill email and continue (step 1). 1:1 Python perform_asia_email_step.</summary>
     bool PerformAsiaEmailStep(string email) => false;

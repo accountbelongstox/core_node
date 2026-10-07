@@ -99,7 +99,6 @@ public static class ShutdownManager
 
         ColorPrinter.ClearAllCallbacks();
 
-        EventCenter.TriggerExtensionShutdown();
         RunStep("[0/5] Stopping workers", _shutdownRunner);
         RunStep("[1/5] Stopping hotkey listener", _stopHotkeys);
 

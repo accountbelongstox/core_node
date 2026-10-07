@@ -228,11 +228,6 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         controls.Any(c => (c.Type == C.LoadingIndicatorControlType || c.Type == C.LoadingIndicatorControlTypeShort)
                           && BattlenetRegionJudge.ContainsAny(c.Name, keywords));
 
-    /// <summary>1:1 Python try_close_popup (full enumeration, ButtonControl only).</summary>
-    public bool TryClosePopup() => BattlenetPopupDismiss.TryClosePopup(T.Enumerate());
-
-    public string? SaveUiElementsSnapshot(string nodeName, string reason) => T.SaveUiElementsSnapshot(nodeName, reason);
-
     /// <summary>TextControl whose name contains a loading substring. 1:1 Python is_loading_ui_visible.</summary>
     public bool IsLoadingUiVisible()
     {

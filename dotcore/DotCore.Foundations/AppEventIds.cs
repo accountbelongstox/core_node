@@ -15,10 +15,7 @@ public static class AppEventIds
     public const string WindowMaximize = "window_maximize";
     public const string ExtensionMainStartMacro = "extension_main_start_macro";
     public const string ExtensionMainStopMacro = "extension_main_stop_macro";
-    public const string ExtensionRosbotStart = "extension_rosbot_start";
-    public const string ExtensionRosbotStop = "extension_rosbot_stop";
-    public const string ExtensionShutdown = "extension_shutdown";
-    /// <summary>Payload: (success, error, ranEBlock) from the D3 extension login check.</summary>
+    /// <summary>Payload: (success, error, ranEBlock) from the flow's ROSBOT start (F2 / E block).</summary>
     public const string ExtensionRosbotStarted = "extension_rosbot_started";
     public const string ExtensionRosbotStopped = "extension_rosbot_stopped";
     /// <summary>Payload: one new log line (string).</summary>
