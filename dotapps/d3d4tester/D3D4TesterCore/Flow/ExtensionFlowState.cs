@@ -41,7 +41,6 @@ public sealed class ExtensionFlowState
     private ExtensionPhase _phase = ExtensionPhase.Idle;
     private DateTime? _lastTeleportSuccessUtc;
     private bool _d3JustEnteredFromD13;
-    private bool _requestDBlockFromB7;
 
     public static ExtensionFlowState Instance { get; } = new();
 
@@ -92,7 +91,7 @@ public sealed class ExtensionFlowState
         lock (_lock) _lastTeleportSuccessUtc = DateTime.UtcNow;
     }
 
-    /// <summary>Set when D13 found the D3 window with for_f2_only; the next C1 tick enters with d3_just_entered. 1:1 Python game_interface_data.set_d3_just_entered_from_d13.</summary>
+    /// <summary>Set when the D block found the D3 window (D13); the next C1 tick enters with d3_just_entered. 1:1 Python game_interface_data.set_d3_just_entered_from_d13.</summary>
     public void SetD3JustEnteredFromD13(bool value)
     {
         lock (_lock) _d3JustEnteredFromD13 = value;
@@ -120,29 +119,6 @@ public sealed class ExtensionFlowState
     public IReadOnlyList<string> GetTitlesOrDefault() =>
         Titles is { Count: > 0 } t ? t : D3WindowConstants.DiabloIIIWindowTitles;
 
-    /// <summary>Set by B7 when no operable elements for N ticks; the controller then runs the D block once. 1:1 Python set_request_d_block_from_b7.</summary>
-    public void SetRequestDBlockFromB7()
-    {
-        lock (_lock) _requestDBlockFromB7 = true;
-    }
-
-    /// <summary>Peek without clearing. 1:1 Python get_request_d_block_from_b7.</summary>
-    public bool GetRequestDBlockFromB7()
-    {
-        lock (_lock) return _requestDBlockFromB7;
-    }
-
-    /// <summary>Return and clear. 1:1 Python get_and_clear_request_d_block_from_b7.</summary>
-    public bool GetAndClearRequestDBlockFromB7()
-    {
-        lock (_lock)
-        {
-            bool v = _requestDBlockFromB7;
-            _requestDBlockFromB7 = false;
-            return v;
-        }
-    }
-
     /// <summary>Clear all extension flow state (idle). Does not clear the last teleport success time.</summary>
     public void Reset()
     {
@@ -162,27 +138,16 @@ public sealed class ExtensionFlowState
     /// <summary>Idle = phase Idle and not within the post-teleport cooldown (avoid C7b loop).</summary>
     public bool IsIdle => Phase == ExtensionPhase.Idle && !IsInTeleportCooldown();
 
-    public bool IsRunning => Phase != ExtensionPhase.Idle;
-
     /// <summary>When in an action group, flow master runs only the extension step (one step per tick), no refresh.</summary>
     public bool IsInActionGroup => Phase == ExtensionPhase.CActionGroup;
 
-    public bool IsInC7bClickEventGroup => Phase == ExtensionPhase.CC7bMinimize;
-
     /// <summary>
-    /// Start from the C branch (D3 running, BN confirmed). d3JustEntered: entered from D13 so game_tool skips C6/C10.
+    /// Start the C branch (D3 running: reused as is, or just launched by the D block). d3JustEntered: entered from D13 so game_tool skips C6/C10.
     /// 1:1 Python start_extension_flow_c_branch.
     /// </summary>
     public void StartCBranch(bool d3JustEntered = false)
     {
         if (d3JustEntered) D3JustEntered = true;
-        Phase = ExtensionPhase.CEntry;
-    }
-
-    /// <summary>Start from D13 (just entered game). 1:1 Python start_extension_flow_from_d13.</summary>
-    public void StartFromD13()
-    {
-        D3JustEntered = true;
         Phase = ExtensionPhase.CEntry;
     }
 }

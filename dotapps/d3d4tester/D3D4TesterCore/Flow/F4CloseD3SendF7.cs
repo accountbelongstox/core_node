@@ -11,7 +11,7 @@ public static class F4CloseD3SendF7
 {
     public static void Run()
     {
-        RosbotFlowHost.Current?.KillD3IfRunning();
+        D3Manager.Instance.KillIfRunning();
         ColorPrinter.Blue("[F4] D3 process ended");
         if (RosbotManager.SendF7ToSystem())
         {

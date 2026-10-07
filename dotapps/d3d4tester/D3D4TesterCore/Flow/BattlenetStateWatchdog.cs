@@ -13,6 +13,7 @@ namespace DotApps.d3d4tester.Core.Flow;
 /// 3) login timeout — any login screen, browser wait or logging in longer than the configured time -> restart.
 /// Logging in / security check / e-mail wait / code entry wait for the user and are never restarted (BattlenetManager.Close also refuses).
 /// Each rule can be switched off in config (battlenet.*). A restart resets the B blocks so the guard starts over from login.
+/// While D3 runs, or a flow job (D / E block) drives the clients, Battle.net is reused as is and no rule restarts it.
 /// </summary>
 public static class BattlenetStateWatchdog
 {
@@ -45,6 +46,12 @@ public static class BattlenetStateWatchdog
             _loginSinceUtc = null;
             if (s.BattlenetClientState == BattlenetClientState.SecurityCheck)
                 BrowserLoginAutomation.RunOnePoll();
+            return;
+        }
+        if (s.D3Running || RosbotFlowHost.Current?.IsFlowJobBusy == true)
+        {
+            _abnormalSinceUtc = null;
+            _loginSinceUtc = null;
             return;
         }
         if (s.BattlenetClientState == BattlenetClientState.Popup)
@@ -98,6 +105,5 @@ public static class BattlenetStateWatchdog
         _loginSinceUtc = null;
         BnBlockState.Reset(forBnOnly: true);
         BnBlockState.Reset(forBnOnly: false);
-        BnOnlyFlow.ResetState();
     }
 }

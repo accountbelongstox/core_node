@@ -1,7 +1,6 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow/extension_flow_tick_step.py
 using DotApps.d3d4tester.Core.Flow.ActionGroups;
 using DotCore.Foundations;
-using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Core.Flow;
 
@@ -18,41 +17,24 @@ public enum ExtensionStepResult
 /// C-branch extension flow tick machine: one step per flow tick, no sleeps; all timing by flow tick count.
 /// C_ENTRY -> C2 resize -> C3 loop (deadline C3DeadlineTicks) with disconnect double-confirm -> C4 branch;
 /// start -> kill ROSBOT + Start Game click -> C5w; game_tool -> C10 M-similarity (skipped when just entered or after a
-/// recent teleport) -> C7a M + bounty verify (2 rounds) -> map_teleport action group -> D3 status, ROSBOT (re)start, F3 baseline.
+/// recent teleport) -> C7a M + bounty verify (2 rounds) -> map_teleport action group -> Success (A8: the flow master starts the E block).
 /// Failure paths end D3 (C12). 1:1 Python d3utils/rosbot_flow/extension_flow_tick_step.py.
 /// </summary>
 public static class ExtensionFlowTickStep
 {
     private const string LogPrefix = "[ExtensionFlow]";
-    
 
     private static ExtensionFlowState S => ExtensionFlowState.Instance;
 
-    /// <summary>Result of the last <see cref="Step"/> call.</summary>
-    public static ExtensionStepResult LastResult { get; private set; } = ExtensionStepResult.Idle;
-
-    /// <summary>Run one step on the flow tick; true when the C branch is active (the step consumed this tick).</summary>
-    public static bool Tick(IFlowTick tick, RosbotFlowState state)
-    {
-        var result = Step(tick.FlowTick, () => RosbotFlowHost.Current?.StartRosbotTask());
-        return result != ExtensionStepResult.Idle;
-    }
-
-    /// <summary>One step of the extension flow state machine. 1:1 Python extension_flow_tick_step(current_tick, start_rosbot_task_fn).</summary>
-    public static ExtensionStepResult Step(int currentTick, Action startRosbotTask)
-    {
-        LastResult = StepCore(currentTick, startRosbotTask);
-        return LastResult;
-    }
-
-    private static ExtensionStepResult StepCore(int currentTick, Action startRosbotTask)
+    /// <summary>One step of the extension flow state machine. 1:1 Python extension_flow_tick_step(current_tick).</summary>
+    public static ExtensionStepResult Step(int currentTick)
     {
         var phase = S.Phase;
         if (phase == ExtensionPhase.Idle)
             return ExtensionStepResult.Idle;
 
         if (phase == ExtensionPhase.CActionGroup)
-            return StepActionGroup(startRosbotTask);
+            return StepActionGroup();
 
         if (phase is ExtensionPhase.CC3Wait or ExtensionPhase.CC3Disconfirm or ExtensionPhase.CC10Wait or ExtensionPhase.CC7aWait)
         {
@@ -89,8 +71,6 @@ public static class ExtensionFlowTickStep
         switch (phase)
         {
             case ExtensionPhase.CEntry:
-                if (!FlowCD3Direct.RunC1Entry(true, true))
-                    return ResetAndFallthrough(endD3: false);
                 ColorPrinter.Gray($"{LogPrefix} [C1] entry -> [C2] Resize -> [C3] loop (tick-driven)");
                 FlowCD3Direct.RunC2Resize();
                 S.Phase = ExtensionPhase.CC3Loop;
@@ -147,7 +127,7 @@ public static class ExtensionFlowTickStep
         return ExtensionStepResult.Running;
     }
 
-    private static ExtensionStepResult StepActionGroup(Action startRosbotTask)
+    private static ExtensionStepResult StepActionGroup()
     {
         var groupId = S.ActionGroupId;
         int stepIndex = S.ActionGroupStepIndex;
@@ -162,12 +142,6 @@ public static class ExtensionFlowTickStep
             if (groupId == MapTeleportGroup.GroupId)
             {
                 GameInterfaceData.Instance.SetD3Status(true);
-                RosbotManager.Instance.KillIfRunning();
-                if (RosbotFlowHost.GetConfig(ConfigKeys.RosSettingsAutoStartRosbot, true) && RosbotManager.Instance.Start())
-                {
-                    F3LogTimeout.SetRosbotStartedAt();
-                    startRosbotTask();
-                }
                 S.SetLastTeleportSuccessNow();
             }
             S.Reset();
