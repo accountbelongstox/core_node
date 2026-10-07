@@ -270,7 +270,7 @@ class CodeMartV1ArchitectCtl extends Controller
 
         CodeMartV1DomainEventService::emit(
             $userId,
-            'role',
+            CodeMartV1Constants::RESOURCE_ROLE,
             $userId,
             'architect_activated',
             CodeMartV1Constants::ROLE_STATUS_PENDING,

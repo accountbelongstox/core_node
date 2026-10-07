@@ -1564,7 +1564,7 @@ class CodeMartV1DemoSeeder
             if (!$replayed) {
                 CodeMartV1DomainEventService::emit(
                     $payerId,
-                    'payment',
+                    CodeMartV1Constants::RESOURCE_PAYMENT,
                     (int) $payment->id,
                     'payment_created',
                     null,
@@ -1619,7 +1619,7 @@ class CodeMartV1DemoSeeder
             if ($refund && !$replayed) {
                 CodeMartV1DomainEventService::emit(
                     $payerId,
-                    'refund',
+                    CodeMartV1Constants::RESOURCE_REFUND,
                     (int) $refund->id,
                     'refund_requested',
                     null,
@@ -1703,7 +1703,7 @@ class CodeMartV1DemoSeeder
                 );
 
                 if (!$replayed) {
-                    CodeMartV1DomainEventService::emit($userId, 'withdrawal', (int) $withdrawal->id, 'withdrawal_requested', null, CodeMartV1Constants::WITHDRAWAL_STATUS_PENDING, [], null, null, null, ['amount' => (string) $withdrawal->amount, 'method' => $withdrawal->method]);
+                    CodeMartV1DomainEventService::emit($userId, CodeMartV1Constants::RESOURCE_WITHDRAWAL, (int) $withdrawal->id, 'withdrawal_requested', null, CodeMartV1Constants::WITHDRAWAL_STATUS_PENDING, [], null, null, null, ['amount' => (string) $withdrawal->amount, 'method' => $withdrawal->method]);
                 }
 
                 $target = $definition['target'];

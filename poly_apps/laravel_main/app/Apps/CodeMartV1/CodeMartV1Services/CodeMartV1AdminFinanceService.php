@@ -86,7 +86,7 @@ class CodeMartV1AdminFinanceService
         if (!$result['replayed']) {
             CodeMartV1DomainEventService::emit(
                 $adminId,
-                'project',
+                CodeMartV1Constants::RESOURCE_PROJECT,
                 (int) $result['escrow']->project_id,
                 'escrow_refunded',
                 null,
@@ -225,7 +225,7 @@ class CodeMartV1AdminFinanceService
         $payment = CodeMartV1PaymentModel::findById((int) $refund->payment_id);
         CodeMartV1DomainEventService::emit(
             $adminId,
-            'refund',
+            CodeMartV1Constants::RESOURCE_REFUND,
             (int) $refund->id,
             $action,
             $fromState,
@@ -301,7 +301,7 @@ class CodeMartV1AdminFinanceService
         $payment = $result['payment'];
         CodeMartV1DomainEventService::emit(
             $adminId,
-            'payment',
+            CodeMartV1Constants::RESOURCE_PAYMENT,
             (int) $payment->id,
             'dispute_resolved',
             CodeMartV1Constants::PAYMENT_STATUS_DISPUTED,
@@ -345,7 +345,7 @@ class CodeMartV1AdminFinanceService
 
         CodeMartV1DomainEventService::emit(
             $adminId,
-            'deposit',
+            CodeMartV1Constants::RESOURCE_DEPOSIT,
             (int) $deposit->id,
             'deposit_rejected',
             CodeMartV1Constants::DEPOSIT_STATUS_PENDING,
@@ -409,7 +409,7 @@ class CodeMartV1AdminFinanceService
         $deposit = $result['deposit'];
         CodeMartV1DomainEventService::emit(
             $adminId,
-            'deposit',
+            CodeMartV1Constants::RESOURCE_DEPOSIT,
             (int) $deposit->id,
             'deposit_refunded',
             CodeMartV1Constants::DEPOSIT_STATUS_PAID,
@@ -423,7 +423,7 @@ class CodeMartV1AdminFinanceService
         foreach ($result['suspended_roles'] as $roleType) {
             CodeMartV1DomainEventService::emit(
                 $adminId,
-                'role',
+                CodeMartV1Constants::RESOURCE_ROLE,
                 (int) $deposit->user_id,
                 'role_suspended',
                 CodeMartV1Constants::ROLE_STATUS_ACTIVE,
@@ -558,7 +558,7 @@ class CodeMartV1AdminFinanceService
     {
         CodeMartV1DomainEventService::emit(
             $adminId,
-            'withdrawal',
+            CodeMartV1Constants::RESOURCE_WITHDRAWAL,
             (int) $withdrawal->id,
             $action,
             $fromState,

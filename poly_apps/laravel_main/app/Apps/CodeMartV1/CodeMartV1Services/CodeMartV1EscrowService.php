@@ -109,7 +109,7 @@ class CodeMartV1EscrowService
             $project = CodeMartV1ProjectModel::findById($projectId);
             CodeMartV1DomainEventService::emit(
                 $clientId,
-                'project',
+                CodeMartV1Constants::RESOURCE_PROJECT,
                 $projectId,
                 'project_funded',
                 $result['from_state'],
@@ -208,7 +208,7 @@ class CodeMartV1EscrowService
         if ($result['refunded_escrows'] > 0) {
             CodeMartV1DomainEventService::emit(
                 $actorId,
-                'project',
+                CodeMartV1Constants::RESOURCE_PROJECT,
                 $projectId,
                 'escrow_refunded',
                 null,
@@ -347,7 +347,7 @@ class CodeMartV1EscrowService
         if (!$result['replayed']) {
             CodeMartV1DomainEventService::emit(
                 $approverId,
-                'task',
+                CodeMartV1Constants::RESOURCE_TASK,
                 (int) $task->id,
                 'escrow_released',
                 null,

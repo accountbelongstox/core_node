@@ -23,8 +23,6 @@ import {
   useCmAdminParam,
 } from './CmAdminShared';
 import {
-  CM_ADMIN_ACTIVITY_ACTIONS,
-  CM_ADMIN_ACTIVITY_RESOURCES,
   type CmAdminContactMessageRow,
   type CmAdminReviewerApplicationRow,
   type CmAdminTestimonialRow,
