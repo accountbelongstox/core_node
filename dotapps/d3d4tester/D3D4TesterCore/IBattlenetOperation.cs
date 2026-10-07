@@ -56,9 +56,6 @@ public interface IBattlenetOperation
     /// <summary>CN: legalAcceptance or ntes present. Always false for Asia. 1:1 Python is_login_screen_ready.</summary>
     bool IsLoginScreenReady();
 
-    /// <summary>If Play button is visible, click it and return true. 1:1 Python click_play_button_if_visible.</summary>
-    bool ClickPlayButtonIfVisible(bool forceRefresh = true);
-
     /// <summary>True when the Play button shows the game is starting (Launching / In game). 1:1 Python is_game_starting.</summary>
     bool IsGameStarting() => false;
 

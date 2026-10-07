@@ -79,9 +79,6 @@ public sealed class BattlenetOperationAsia : BattlenetOperationBase
         return false;
     }
 
-    public override bool ClickPlayButtonIfVisible(bool forceRefresh = true)
-        => ClickPlayIfVisible(C.StartGameAutomationIdsAsia, C.StartGameNameKeywordsFallbackAsia, forceRefresh);
-
     /// <summary>1:1 Python is_game_starting.</summary>
     public override bool IsGameStarting()
     {

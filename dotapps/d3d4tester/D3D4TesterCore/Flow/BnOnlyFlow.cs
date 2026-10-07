@@ -1,6 +1,5 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_bn_only.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_bn_only_state.py
-using DotApps.d3d4tester.Core.Battlenet;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Flow;
@@ -20,8 +19,9 @@ public static class BnOnlyFlow
     {
         try
         {
-            if (BattlenetFlowHooks.RefreshBattlenetStatus?.Invoke() ?? false)
-                BattlenetFlowHooks.NotifyStateSync?.Invoke();
+            var host = RosbotFlowHost.Current;
+            if (host?.RefreshBattlenetStatus() == true)
+                host.NotifyStateSync();
         }
         catch (Exception ex)
         {

@@ -15,7 +15,6 @@
       <CheckBox x:Name="ChkNotifyPush" VerticalAlignment="Center" Margin="0,0,0,4"/>
     </WrapPanel>
     <TextBlock x:Name="TxtStatus" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
-    <TextBlock x:Name="TxtHint" DockPanel.Dock="Bottom" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
     <ListView x:Name="LstItems" MinHeight="60">
       <ListView.ItemContainerStyle>
         <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">

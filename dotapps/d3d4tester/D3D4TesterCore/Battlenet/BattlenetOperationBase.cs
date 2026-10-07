@@ -31,7 +31,6 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     public abstract bool ClickD3Tab();
     public abstract bool ClickStartGame();
     public abstract bool IsLoginScreenReady();
-    public abstract bool ClickPlayButtonIfVisible(bool forceRefresh = true);
     public abstract bool IsGameStarting();
     public abstract bool IsOnAsiaLoginScreen();
     public abstract bool PerformAsiaEmailStep(string email);
@@ -332,13 +331,5 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
             if (ctrl != null) return ctrl;
         }
         return T.FindByName(controls, names);
-    }
-
-    protected static bool ClickPlayIfVisible(string[] aids, string[] names, bool forceRefresh)
-    {
-        var ctrl = FindPlay(T.EnumerateLight(forceRefresh), aids, names);
-        if (ctrl == null) return false;
-        ColorPrinter.Gray("[BattlenetOperation] Play button visible, click");
-        return T.ClickControl(ctrl);
     }
 }

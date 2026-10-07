@@ -22,10 +22,8 @@
 
         <Border Grid.Column="0" Style="{StaticResource CompactCardStyle}" VerticalAlignment="Top">
           <StackPanel>
-            <TextBlock x:Name="TxtToolsDesc" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
             <TextBlock x:Name="TxtToolsStatus" Style="{StaticResource MonoTextStyle}" Margin="0,0,0,4"/>
             <Button x:Name="BtnInstall" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" Click="BtnInstall_Click"/>
-            <TextBlock x:Name="TxtChainDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,6,0,4"/>
             <StackPanel Orientation="Horizontal">
               <Button x:Name="BtnChain" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Click="BtnChain_Click"/>
               <Button x:Name="BtnCancel" Style="{StaticResource SecondaryButtonStyle}" Click="BtnCancel_Click"/>
@@ -38,7 +36,6 @@
           <Border Style="{StaticResource CompactCardStyle}" Margin="0,0,0,6">
             <StackPanel>
               <TextBlock x:Name="LblRosbotTitle" Style="{StaticResource CompactHeaderStyle}"/>
-              <TextBlock x:Name="TxtRosbotDesc" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,2"/>
               <TextBlock x:Name="TxtRosbotDir" Style="{StaticResource MonoTextStyle}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
               <WrapPanel>
                 <Button x:Name="BtnRosbot" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Click="BtnRosbot_Click"/>
@@ -50,7 +47,6 @@
           <Border Style="{StaticResource CompactCardStyle}" Margin="0,0,0,6">
             <StackPanel>
               <TextBlock x:Name="LblRbAssistTitle" Style="{StaticResource CompactHeaderStyle}"/>
-              <TextBlock x:Name="TxtRbAssistDesc" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,2"/>
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*"/>
@@ -67,7 +63,6 @@
           <Border Style="{StaticResource CompactCardStyle}">
             <StackPanel>
               <TextBlock x:Name="LblFileTitle" Style="{StaticResource CompactHeaderStyle}"/>
-              <TextBlock x:Name="TxtFileDesc" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
               <WrapPanel>
                 <Button x:Name="BtnFile" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Click="BtnFile_Click"/>
                 <Button x:Name="BtnExportIl" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Click="BtnExportIl_Click"/>

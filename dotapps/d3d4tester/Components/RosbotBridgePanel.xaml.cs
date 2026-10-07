@@ -64,7 +64,7 @@ public partial class RosbotBridgePanel : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        TxtDesc.Text = p.GetUiText(I18nKeys.RosbotBridgeDesc);
+        BtnInstall.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeDesc);
         ChkAutoInstall.Content = p.GetUiText(I18nKeys.RosbotBridgeAutoInstall);
         BtnInstall.Content = p.GetUiText(I18nKeys.RosbotBridgeInstall);
         BtnOpenDir.Content = p.GetUiText(I18nKeys.RosbotBridgeOpenDir);
@@ -88,7 +88,7 @@ public partial class RosbotBridgePanel : UserControl
         ChkInteractMode.Content = p.GetUiText(I18nKeys.RosbotBridgeInteractMode);
         ChkInteractClick.Content = p.GetUiText(I18nKeys.RosbotBridgeInteractClick);
         TxtNpcTarget.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeNpcTargetHint);
-        TxtCarriedNote.Text = p.GetUiText(I18nKeys.RosbotBridgeCarriedNote);
+        TabCarried.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeCarriedNote);
         BtnClickUi.Content = p.GetUiText(I18nKeys.RosbotBridgeClickUi);
         TxtUiId.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeUiIdHint);
         TxtCapabilities.Text = p.GetUiText(I18nKeys.RosbotBridgeCapabilities);
