@@ -28,6 +28,8 @@ namespace Rcdw32.Ws.Models
         string InternalName { get; }
         int ActorSnoId { get; }
         bool IsItem { get; }
+        bool IsMe { get; }
+        bool IsPlayer { get; }
         bool IsGizmo { get; }
         bool IsMonster { get; }
         bool IsDead { get; }

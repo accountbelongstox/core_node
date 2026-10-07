@@ -45,6 +45,12 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("item_watch_unknown")] public string ItemWatchUnknown { get; init; } = "";
     [JsonPropertyName("inventory_slot_supported")] public bool InventorySlotSupported { get; init; }
     [JsonPropertyName("inventory_cell_supported")] public bool InventoryCellSupported { get; init; }
+    [JsonPropertyName("follow_enabled")] public bool FollowEnabled { get; init; }
+    [JsonPropertyName("follow_state")] public string FollowState { get; init; } = "";
+    [JsonPropertyName("follow_pickup")] public bool FollowPickup { get; init; }
+    [JsonPropertyName("follow_leader")] public string FollowLeader { get; init; } = "";
+    [JsonPropertyName("follow_distance")] public double FollowDistance { get; init; } = -1;
+    [JsonPropertyName("players")] public IReadOnlyList<RosbotBridgeEntity> Players { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("ui_vendor_open")] public bool UiVendorOpen { get; init; }
     [JsonPropertyName("ui_salvage_open")] public bool UiSalvageOpen { get; init; }
     [JsonPropertyName("ui_inventory_open")] public bool UiInventoryOpen { get; init; }

@@ -91,6 +91,7 @@ public static class BattlenetReadyProcess
         DateTime? abnormalSince = null;
         DateTime? loginSince = null;
         DateTime lastLoginActionUtc = DateTime.MinValue;
+        DateTime lastStartUtc = DateTime.MinValue;
         BattlenetClientState? lastState = null;
         while (true)
         {
@@ -120,17 +121,23 @@ public static class BattlenetReadyProcess
             {
                 case BattlenetClientState.NotRunning:
                     ColorPrinter.Blue($"{LogTag} Battle.net not running -> start");
-                    bn.Start();
+                    if (bn.Start()) lastStartUtc = now;
                     ctx.Wait(C.AfterStartSec);
                     continue;
+                case BattlenetClientState.TrayHidden when !activate:
+                    ColorPrinter.Gray($"{LogTag} Battle.net runs in the tray -> left as is (guard does not bring it up)");
+                    return BattlenetReadyResult.Ready;
+                case BattlenetClientState.TrayHidden when (now - lastStartUtc).TotalSeconds < C.StartupGraceSec:
+                    break;
                 case BattlenetClientState.TrayHidden:
                     ColorPrinter.Blue($"{LogTag} Battle.net hidden in the tray -> show it (kept running, login kept)");
-                    bn.ShowHiddenClient();
+                    if (bn.ShowHiddenClient()) lastStartUtc = now;
                     ctx.Wait(C.AfterStartSec);
                     continue;
                 case BattlenetClientState.LoginFailed:
                 case BattlenetClientState.Disconnected:
                     Restart(ctx, $"{state}");
+                    lastStartUtc = DateTime.UtcNow;
                     abnormalSince = loginSince = null;
                     continue;
                 case BattlenetClientState.Popup:
@@ -175,6 +182,7 @@ public static class BattlenetReadyProcess
                 && (now - a).TotalSeconds >= abnormalTimeoutSec)
             {
                 Restart(ctx, $"{state} for {(int)(now - a).TotalSeconds}s (abnormal timeout)", clearCache: stuck);
+                lastStartUtc = DateTime.UtcNow;
                 abnormalSince = loginSince = null;
                 continue;
             }
@@ -182,6 +190,7 @@ public static class BattlenetReadyProcess
                 && (now - l).TotalSeconds >= RosbotFlowHost.GetConfig(ConfigKeys.BattlenetLoginTimeoutSec, C.LoginTimeoutSecDefault))
             {
                 Restart(ctx, $"login not finished for {(int)(now - l).TotalSeconds}s ({state}, login timeout)");
+                lastStartUtc = DateTime.UtcNow;
                 abnormalSince = loginSince = null;
                 continue;
             }

@@ -7,6 +7,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Core.Bridge;
 using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.Core.Monitor;
 using DotApps.d3d4tester.Ctl;
@@ -26,7 +27,8 @@ public sealed record MonitorStatus(
 /// (RosbotLogTickProcessor), history.txt has its own tail. Restarts go through <see cref="RosbotRestartRequest"/> (flow F4 -> B2);
 /// every restart, including the existing F3 timeout and log disconnect, gets the error screenshot, error trigger and notification here.
 /// Differences from RBAssist: log / history timer triggers fire once per idle period instead of every 200 ms; the special portal timer
-/// repeats every N s instead of every N ms.
+/// repeats every N s instead of every N ms. While the CoreNodeBridge plugin state is live it also drives death (with the log, one
+/// death per <see cref="DeathDedupSec"/>), inventory full, repair needed and item pickup events, and the forced-sequence check.
 /// </summary>
 public sealed class MonitorService
 {
@@ -53,6 +55,7 @@ public sealed class MonitorService
     private const string PnLogsSubDir = "Logs";
     private const string PnHistorySubDir = "History";
     private const double BytesPerMb = 1024.0 * 1024.0;
+    private const double DeathDedupSec = 15;
 
     private readonly object _lock = new();
     private readonly ConcurrentQueue<string> _historyQueue = new();
@@ -96,6 +99,12 @@ public sealed class MonitorService
     private DateTime? _logRolloverStamp;
     private DateTime? _historyRolloverStamp;
     private int _townPortalPending;
+    private DateTime _lastDeathUtc = DateTime.MinValue;
+    private DateTime _lastPickupUtc = DateTime.UtcNow;
+    private bool? _bridgeDead;
+    private bool? _bridgeInventoryFull;
+    private bool? _bridgeRepairNeeded;
+    private string? _warnedSequence;
 
     public static MonitorService Instance { get; } = new();
 
@@ -244,9 +253,7 @@ public sealed class MonitorService
         if (ContainsAny(line, RosbotLogMarkers.Death) && stamp != _lastDeathStamp)
         {
             _lastDeathStamp = stamp;
-            lock (_lock) _deaths++;
-            engine.Fire(MonitorEvents.DeathDetected);
-            MonitorScreenshotService.CaptureKind(MonitorScreenshotKinds.Death);
+            RegisterDeath();
         }
         if (ContainsAny(line, RosbotLogMarkers.Fail) && stamp != _lastFailStamp)
         {
@@ -287,6 +294,7 @@ public sealed class MonitorService
         EvaluatePortalTimer(now);
         EvaluateShrineTimers(now);
         EvaluatePixelProbes(s);
+        TrackBridge(s);
         if (!_blockCombatSwitch) engine.Fire(MonitorEvents.CombatSwitch);
         if (_tick % PopupScanEveryTicks == 0) ScanPopups(now);
         if (_deferredRestart is { } d && now >= d.DueUtc)
@@ -323,6 +331,7 @@ public sealed class MonitorService
                 _rosbotOnline = null;
             }
             _lastPeriodicShotUtc = DateTime.UtcNow;
+            _lastPickupUtc = DateTime.UtcNow;
             CheckRosbotLogLevel();
             MonitorLog.Info("Monitoring started");
             TriggerEngine.Instance.Fire(MonitorEvents.MonitoringStart);
@@ -333,6 +342,63 @@ public sealed class MonitorService
             MonitorLog.Info("Monitoring stopped");
             TriggerEngine.Instance.Fire(MonitorEvents.MonitoringStop);
         }
+    }
+
+    /// <summary>One death from the log or the plugin: counter, trigger, screenshot; a second report within DeathDedupSec is the same death.</summary>
+    private void RegisterDeath()
+    {
+        var now = DateTime.UtcNow;
+        lock (_lock)
+        {
+            if ((now - _lastDeathUtc).TotalSeconds < DeathDedupSec) return;
+            _lastDeathUtc = now;
+            _deaths++;
+        }
+        TriggerEngine.Instance.Fire(MonitorEvents.DeathDetected);
+        MonitorScreenshotService.CaptureKind(MonitorScreenshotKinds.Death);
+    }
+
+    /// <summary>Plugin state while live and in game: death / inventory full / repair needed on their rising edge, new pickups, sequence check.</summary>
+    private void TrackBridge(GameInterfaceStateSnapshot s)
+    {
+        if (!s.RosbotBridgeFresh || s.RosbotBridge is not { InGame: true } b)
+        {
+            _bridgeDead = _bridgeInventoryFull = _bridgeRepairNeeded = null;
+            return;
+        }
+        var engine = TriggerEngine.Instance;
+        if (RisingEdge(ref _bridgeDead, b.Dead)) RegisterDeath();
+        if (RisingEdge(ref _bridgeInventoryFull, b.InventoryFull)) engine.Fire(MonitorEvents.InventoryFull);
+        if (RisingEdge(ref _bridgeRepairNeeded, b.RepairNeeded)) engine.Fire(MonitorEvents.RepairNeeded);
+        foreach (var pickup in b.Pickups.Where(p => p.Utc > _lastPickupUtc).OrderBy(p => p.Utc))
+        {
+            _lastPickupUtc = pickup.Utc;
+            if (pickup.Kind != RosbotPluginConstants.BridgePickupKindStash)
+                engine.Fire(MonitorEvents.ItemPickup, $"{pickup.Name} [{pickup.InternalName}]");
+        }
+        CheckForcedSequence(b);
+    }
+
+    private static bool RisingEdge(ref bool? last, bool now)
+    {
+        bool rose = last == false && now;
+        last = now;
+        return rose;
+    }
+
+    /// <summary>Warn once per sequence when ROSBOT runs another sequence than the forced one (monitor.force_sequence).</summary>
+    private void CheckForcedSequence(RosbotBridgeState b)
+    {
+        string wanted = MonitorSettings.GetBool(ConfigKeys.MonitorForceSequence) ? MonitorSettings.GetString(ConfigKeys.MonitorForceSequenceName).Trim() : "";
+        if (wanted.Length == 0 || b.Sequence.Length == 0
+            || b.Sequence.Contains(wanted, StringComparison.OrdinalIgnoreCase) || wanted.Contains(b.Sequence, StringComparison.OrdinalIgnoreCase))
+        {
+            _warnedSequence = null;
+            return;
+        }
+        if (_warnedSequence == b.Sequence) return;
+        _warnedSequence = b.Sequence;
+        MonitorLog.Warn($"ROSBOT runs sequence '{b.Sequence}', forced sequence is '{wanted}'");
     }
 
     private void HandleProcessEdges(GameInterfaceStateSnapshot s)

@@ -273,6 +273,8 @@ public static class BattlenetConstants
     public const double ReadyPollSec = 2.0;
     /// <summary>Wait after a start / reopen / restart command before the next probe.</summary>
     public const double AfterStartSec = 5.0;
+    /// <summary>After a start / show / restart command the client may run without a window for this long (no second start meanwhile).</summary>
+    public const double StartupGraceSec = 30.0;
     /// <summary>Minimum gap between two automatic login actions (agree + NetEase, Asia fill + submit) on the same screen.</summary>
     public const double LoginActionCooldownSec = 15.0;
     /// <summary>Minimum gap between two region switches.</summary>

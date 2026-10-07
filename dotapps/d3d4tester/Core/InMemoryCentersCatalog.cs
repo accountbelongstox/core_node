@@ -132,7 +132,7 @@ public static class InMemoryCentersCatalog
             Kind: InMemoryCenterKind.State,
             Access: "GameInterfaceData.Instance.GetStateSnapshot().RosbotBridge / RosbotBridgeFresh; text via Services.RosbotBridgeText",
             ThreadingContract: "RosbotBridgePluginService reads state.json once per TickDriver tick and notifies on change; readers only use the snapshot.",
-            Responsibility: "CoreNodeBridge plugin game state (area, town / rift, dead, sequence, items) shared by the bottom status bar, the bridge panel and the planner."),
+            Responsibility: "CoreNodeBridge plugin game state shared by the bottom status bar (D3 / map / stage, inventory full, repair), the bridge panel, the planner, the C step (in game -> no screenshot / M check), game speed combat state and monitor events (death, inventory full, repair needed, item pickup, forced-sequence check)."),
         new Center(
             Key: "flow.battlenet_guard",
             TypeName: "DotApps.d3d4tester.Services.BattlenetGuardService + Core.Flow.BattlenetGuardRunner",

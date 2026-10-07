@@ -2,6 +2,7 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f0_entry.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f1_d3_online.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f4_close_d3_send_f7.py
+using DotApps.d3d4tester.Constants;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Flow;
@@ -65,6 +66,7 @@ public static class RosbotFlowRunner
         {
             lock (PauseLock)
             {
+                if (!state.Paused) return;
                 Refresh();
                 if (State.RosbotExtendedStatus != RosbotDetection.StatusRunning) return;
                 _rosbotPausedByFlow = RosbotManager.SendPauseToggleToSystem();
@@ -90,6 +92,7 @@ public static class RosbotFlowRunner
                     ColorPrinter.Blue($"{LogTag} ROSBOT resume key {(sent ? "sent" : "send failed")}");
                 }
                 _rosbotPausedByFlow = false;
+                RosbotRestartRequest.Clear();
                 F3LogTimeout.SetRosbotStartedAt();
                 state.SetPaused(false);
                 ColorPrinter.Green($"{LogTag} monitoring resumed");
@@ -125,15 +128,23 @@ public static class RosbotFlowRunner
 
         if (!RosbotDetection.IsOnline(State.RosbotExtendedStatus))
         {
+            if (!RosbotFlowHost.GetConfig(ConfigKeys.RosSettingsAutoStartRosbot, true))
+            {
+                ColorPrinter.Gray($"{LogTag} [F2] ROSBOT offline and auto_start_rosbot is off -> wait (no teleport, no start)");
+                ctx.Wait(FlowTimings.RosbotStartRetrySec);
+                return;
+            }
             bool justEntered = _d3JustEntered;
             _d3JustEntered = false;
-            if (D3DirectProcess.Run(ctx, justEntered) != D3DirectResult.Ready)
-                return;
-            if (!StartRosbot(ctx))
+            if (D3DirectProcess.IsInTeleportCooldown())
+                ColorPrinter.Gray($"{LogTag} [C] teleported recently -> skip C, start ROSBOT");
+            else if (D3DirectProcess.Run(ctx, justEntered) != D3DirectResult.Ready)
                 return;
         }
         else
             ColorPrinter.Blue($"{LogTag} [F2] ROSBOT online -> reuse it");
+        if (!StartRosbot(ctx))
+            return;
 
         while (true)
         {
