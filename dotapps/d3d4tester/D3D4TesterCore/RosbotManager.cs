@@ -379,19 +379,6 @@ public sealed class RosbotManager
         return ok;
     }
 
-    /// <summary>Close every ROSBOT process gracefully (it saves its settings), killing what is still running after timeoutMs.</summary>
-    public bool CloseGracefully(int timeoutMs)
-    {
-        bool ok = true;
-        foreach (int pid in CollectRosbotPids())
-        {
-            ColorPrinter.Blue($"{RosbotConstants.ManagerLogPrefix} Closing ROSBOT (PID: {pid})...");
-            if (!ProcessUtil.CloseOrKill(pid, timeoutMs, RosbotConstants.ManagerLogPrefix)) ok = false;
-        }
-        InvalidateLookupCache();
-        return ok;
-    }
-
     /// <summary>1:1 Python start_executable (system_launcher.start_program).</summary>
     public bool StartExecutable(string exePath)
     {

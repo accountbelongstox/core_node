@@ -8,7 +8,7 @@ using DotCore.Foundations;
 namespace DotCore.Utils;
 
 /// <summary>
-/// Process helpers: PID from window, exe path, exact exe-name lookup, graceful close, kill by PID / exe / directory, waits.
+/// Process helpers: PID from window, exe path, exact exe-name lookup, kill by PID / exe / directory, waits.
 /// 1:1 Python pyapps/d3-check/d3utils/process_helper.py (get_pid_from_hwnd, kill_process_by_pid, kill_process_by_exe)
 /// plus the generic part of rosbot_manager.py find_process_by_exe_name / kill_if_running / wait_for_process.
 /// </summary>
@@ -202,29 +202,6 @@ public static class ProcessUtil
             if (!KillProcessByPid(m.Pid, timeoutSec, logPrefix)) ok = false;
         }
         return ok;
-    }
-
-    /// <summary>Ask the process to close its main window (lets it save state) and wait timeoutMs; kill it when it is still running.</summary>
-    public static bool CloseOrKill(int pid, int timeoutMs, string logPrefix = DefaultLogPrefix)
-    {
-        try
-        {
-            using var p = Process.GetProcessById(pid);
-            if (p.CloseMainWindow() && p.WaitForExit(timeoutMs))
-            {
-                ColorPrinter.Green($"{logPrefix} Process PID {pid} closed");
-                return true;
-            }
-        }
-        catch (ArgumentException)
-        {
-            return true;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            if (!IsRunning(pid)) return true;
-        }
-        return KillProcessByPid(pid, logPrefix: logPrefix);
     }
 
     /// <summary>True once the process has exited (or never existed) within timeoutMs.</summary>
