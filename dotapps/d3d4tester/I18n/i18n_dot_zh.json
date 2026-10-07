@@ -83,7 +83,10 @@
       "browse": "浏览…",
       "open_d4_page": "打开 D4 页",
       "pause_download": "暂停下载",
-      "resume_download": "继续下载"
+      "resume_download": "继续下载",
+      "d4_build_cn": "国服版本",
+      "d4_build_global": "国际服版本",
+      "d4_branch_ask": "{0} 中的暗黑破坏神4 是{1}（分支 \"{2}\"）。切换到{3}后，战网会在这个共用目录里修复或重新下载部分游戏文件。\n\n是：继续切换\n否：继续切换并打开 D4 页面\n取消：不切换"
     },
     "resource_monitor": {
       "title": "系统资源（每秒刷新）",

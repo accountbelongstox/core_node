@@ -21,6 +21,9 @@ public static partial class I18nKeys
     public const string BnPanelSeconds = "ui.battlenet_panel.seconds";
     public const string BnPanelRegionPrompt = "ui.battlenet_panel.region_prompt";
     public const string BnPanelRegionRestartAsk = "ui.battlenet_panel.region_restart_ask";
+    public const string BnPanelD4BranchAsk = "ui.battlenet_panel.d4_branch_ask";
+    public const string BnPanelD4BuildCn = "ui.battlenet_panel.d4_build_cn";
+    public const string BnPanelD4BuildGlobal = "ui.battlenet_panel.d4_build_global";
     public const string BnPanelAccounts = "ui.battlenet_panel.accounts";
     public const string BnPanelAccountLabel = "ui.battlenet_panel.account_label";
     public const string BnPanelSaveAccount = "ui.battlenet_panel.save_account";

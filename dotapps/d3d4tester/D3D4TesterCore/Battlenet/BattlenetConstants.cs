@@ -289,4 +289,13 @@ public static class BattlenetConstants
 
     public const string RegionAsia = "asia";
     public const string RegionCn = "cn";
+
+    /// <summary>Battle.net agent product database (protobuf) and the D4 install entry / build info inside the game folder.</summary>
+    public const string AgentDirName = "Battle.net";
+    public const string AgentSubDirName = "Agent";
+    public const string ProductDbFileName = "product.db";
+    public const string D4ProductCode = "fenris";
+    public const string BuildInfoFileName = ".build.info";
+    /// <summary>.build.info Branch of the China (NetEase) build; every other branch is an international build.</summary>
+    public const string D4BranchCn = "cn";
 }
