@@ -90,6 +90,27 @@ $Global:DESKTOP_ORGANIZATION_URL_SCHEME_CATEGORIES = @{
     'origin2'                = $Global:DESKTOP_CATEGORY_GAMES
     'battlenet'              = $Global:DESKTOP_CATEGORY_GAMES
 }
+# Last-resort rule: target folder fragments (game libraries, vendor suites) when no name/target keyword matches
+$Global:DESKTOP_ORGANIZATION_TARGET_PATH_CATEGORIES = @(
+    @{ Fragment = '\steamapps\common\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\Epic Games\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\WeGameApps\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\Riot Games\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\GOG Galaxy\Games\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\EA Games\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\Ubisoft Game Launcher\games\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\XboxGames\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\HoYoPlay\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\miHoYo\'; Category = $Global:DESKTOP_CATEGORY_GAMES },
+    @{ Fragment = '\JetBrains\'; Category = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS },
+    @{ Fragment = '\Microsoft Visual Studio\'; Category = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS },
+    @{ Fragment = '\Android\Sdk\'; Category = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS },
+    @{ Fragment = '\Microsoft Office\'; Category = $Global:DESKTOP_CATEGORY_OFFICE_TOOLS },
+    @{ Fragment = '\Kingsoft\WPS Office\'; Category = $Global:DESKTOP_CATEGORY_OFFICE_TOOLS },
+    @{ Fragment = '\Adobe\'; Category = $Global:DESKTOP_CATEGORY_MEDIA_TOOLS },
+    @{ Fragment = '\Sysinternals\'; Category = $Global:DESKTOP_CATEGORY_SYSTEM_TOOLS },
+    @{ Fragment = '\NirSoft\'; Category = $Global:DESKTOP_CATEGORY_SYSTEM_TOOLS }
+)
 # ApplicationsList.ps1 groups whose DesktopCategory rank above the keyword lists below
 $Global:DESKTOP_ORGANIZATION_PACKAGE_GROUPS = @('BasePackages', 'APPLICATIONS_PACKAGES', 'DEV_SOFTWARE_PACKAGES', 'COMMON_SOFTWARE_PACKAGES')
 # Category folders whose content is generated elsewhere and never refiled
@@ -114,32 +135,41 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u817E\u8BAF\u624B\u6E38\u52A0\u901F\u5668", "\u7F51\u6613\u624B\u6E38\u52A0\u901F\u5668",
             "\u9C9C\u725B", "XianNiu", "\u52A0\u901F\u5668", "Watt Toolkit",
             "Clash for Windows", "Clash Verge", "Clash Nyanpasu", "Clash Meta", "Mihomo", "FlClash",
-            "v2rayN", "V2Ray", "Qv2ray", "Nekoray", "Hiddify", "sing-box", "Shadowsocks", "ShadowsocksR"
+            "v2rayN", "V2Ray", "Qv2ray", "Nekoray", "Hiddify", "sing-box", "Shadowsocks", "ShadowsocksR",
+            "Cloudflare WARP", "Lantern", "Psiphon", "Mullvad", "Astrill", "Outline Client", "ClashX", "Clash",
+            "Karing", "GUI.for.Clash", "GUI.for.SingBox", "Throne", "Trojan", "Xray", "Hysteria", "LeiGod",
+            "GearUP", "ExitLag", "Mudfish", "\u96F7\u795E", "\u5947\u6E38", "biubiu", "\u8FC5\u6E38"
         )
     },
     @{
         DesktopCategory    = $Global:DESKTOP_CATEGORY_API_TOOLS
         AdditionalKeywords = @(
             "Postman", "Insomnia", "HTTPie", "Swagger", "SoapUI", "Hoppscotch", "Bruno", "Apifox",
-            "Apipost", "Paw", "RapidAPI", "JMeter"
+            "Apipost", "Paw", "RapidAPI", "JMeter",
+            "Yaak", "Requestly", "Reqable", "Proxyman", "Whistle", "Eolink", "YApi", "Hurl",
+            "Kreya", "BloomRPC", "Postwoman"
         )
     },
     @{
         DesktopCategory    = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
         AdditionalKeywords = @(
             "Visual Studio", "IntelliJ", "Eclipse", "Android Studio", "Xcode", "Git", "Docker",
-            "PyCharm", "WebStorm", "PhpStorm", "CLion", "DataGrip", "GoLand", "RubyMine",
+            "PyCharm", "WebStorm", "PhpStorm", "CLion", "GoLand", "RubyMine",
             "Rider", "AppCode", "Fleet", "Code", "VSCode", "Windsurf", "Devin", "Cursor", "VSCodium", "Sublime Text", "Atom", "Brackets",
             "NetBeans", "BlueJ", "Dev-C++", "Code::Blocks", "Qt Creator", "Delphi", "Lazarus",
             "Unity", "Unreal Engine", "Godot", "GameMaker", "Construct", "RPG Maker",
-            "Fiddler", "Charles", "Wireshark",
             "GitHub Desktop", "GitKraken", "SourceTree", "TortoiseGit", "SmartGit", "Fork",
             "Docker Desktop", "Kubernetes", "Vagrant", "VirtualBox", "VMware", "Hyper-V",
             "Node.js", "npm", "yarn", "pnpm", "Python", "Java", "Go", "Rust", "Ruby", "PHP",
-            "MySQL Workbench", "pgAdmin", "MongoDB Compass", "Redis Desktop Manager", "DBeaver",
-            "HeidiSQL", "Navicat", "DataGrip", "TablePlus", "Sequel Pro", "phpMyAdmin",
             "\u5FAE\u4FE1\u5F00\u53D1\u8005\u5DE5\u5177", "\u652F\u4ED8\u5B9D\u5F00\u653E\u5E73\u53F0",
-            "\u817E\u8BAF\u4E91", "\u963F\u91CC\u4E91", "\u767E\u5EA6\u4E91", "\u534E\u4E3A\u4E91"
+            "\u817E\u8BAF\u4E91", "\u963F\u91CC\u4E91", "\u767E\u5EA6\u4E91", "\u534E\u4E3A\u4E91",
+            "Visual Studio Code", "Zed", "Warp", "HBuilderX", "HBuilder", "DevEco Studio", "CodeArts", "Anaconda", "Anaconda Navigator",
+            "Jupyter", "Spyder", "Arduino", "Keil", "STM32CubeIDE", "STM32CubeMX", "PlatformIO", "Git Bash",
+            "Git GUI", "Git CMD", "Cmder", "ConEmu", "Alacritty", "WezTerm", "Beyond Compare", "WinMerge",
+            "Meld", "Genymotion", "Android SDK", "Flutter", "Dart", "Laragon", "XAMPP", "WampServer",
+            "phpStudy", "Podman Desktop", "Rancher Desktop", "OrbStack", "Gitee", "HxD", "x64dbg", "IDA",
+            "Ghidra", "dnSpy", "ILSpy", "Cheat Engine", "Dependency Walker", "Process Hacker", "System Informer", "\u5C0F\u76AE\u9762\u677F",
+            "\u5B9D\u5854"
         )
     },
     @{
@@ -151,7 +181,11 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Joplin", "Standard Notes", "Bear", "Ulysses", "iA Writer", "Drafts", "Day One",
             "\u8BB0\u4E8B\u672C", "\u6709\u9053\u4E91\u7B14\u8BB0", "\u5370\u8C61\u7B14\u8BB0",
             "\u4E3A\u77E5\u7B14\u8BB0", "\u8BED\u96C0", "\u77F3\u58A8\u6587\u6863", "\u817E\u8BAF\u6587\u6863",
-            "\u91D1\u5C71\u6587\u6863"
+            "\u91D1\u5C71\u6587\u6863",
+            "Logseq", "SiYuan", "AppFlowy", "Anytype", "Heynote", "Kate", "Geany", "Notepad3",
+            "Notepad4", "Notepads", "Notepad--", "flomo", "Trilium", "Capacities", "Typst", "MarkText",
+            "Ghostwriter", "Lightpad", "\u601D\u6E90\u7B14\u8BB0", "\u5E55\u5E03", "Wolai", "\u6211\u6765", "FlowUs", "\u606F\u6D41",
+            "\u98DE\u4E66\u6587\u6863"
         )
     },
     @{
@@ -159,14 +193,18 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
         AdditionalKeywords = @(
             "Figma", "Sketch", "Canva", "Affinity", "Affinity Designer", "Inkscape", "Draw.io", "DrawIO",
             "diagrams.net", "Lucidchart", "Creately", "Excalidraw", "XMind", "Axure", "Balsamiq", "Penpot",
-            "Pixso", "MasterGo", "Lunacy", "ProcessOn", "\u5373\u65F6\u8BBE\u8BA1", "\u58A8\u5200"
+            "Pixso", "MasterGo", "Lunacy", "ProcessOn", "\u5373\u65F6\u8BBE\u8BA1", "\u58A8\u5200",
+            "Affinity Photo", "Affinity Publisher", "FigJam", "Framer", "Spline", "Eagle", "PureRef", "Gravit",
+            "Vectornator", "Linearity", "Mockplus", "Justinmind", "Miro", "Whimsical", "Mermaid", "PlantUML",
+            "yEd", "Visual Paradigm", "StarUML", "ColorPicker", "Pixcall", "\u7A3F\u5B9A\u8BBE\u8BA1", "\u521B\u5BA2\u8D34", "\u6479\u5BA2",
+            "Motiff", "\u4EBF\u56FE", "EdrawMax", "EdrawMind", "MindManager", "iThoughts", "SimpleMind"
         )
     },
     @{
         DesktopCategory    = $Global:DESKTOP_CATEGORY_MEDIA_TOOLS
         AdditionalKeywords = @(
             "Photoshop", "GIMP", "VLC", "Media Player", "Audacity", "OBS", "Adobe", "Premiere",
-            "After Effects", "Illustrator", "InDesign", "Lightroom", "Acrobat", "Animate", "Audition",
+            "After Effects", "Illustrator", "InDesign", "Lightroom", "Animate", "Audition",
             "Adobe Creative Cloud", "Adobe CC", "Adobe Bridge", "Adobe Camera Raw", "Adobe Dimension",
             "Adobe Dreamweaver", "Adobe Fresco", "Adobe XD", "Adobe Spark", "Adobe Stock", "Adobe Fonts",
             "Adobe Character Animator", "Adobe Media Encoder", "Adobe Prelude", "Adobe Rush", "Adobe Captivate",
@@ -183,7 +221,17 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u7F51\u6613\u4E91\u97F3\u4E50", "QQ\u97F3\u4E50", "\u9177\u72D7\u97F3\u4E50", "\u5343\u5343\u97F3\u4E50",
             "\u5168\u6C11K\u6B4C", "\u5531\u5427", "K\u6B4C\u8FBE\u4EBA", "\u9177\u6211\u97F3\u4E50",
             "\u7F8E\u56FE\u79C0\u79C0", "\u5149\u5F71\u9B54\u672F\u624B", "\u4F1A\u58F0\u4F1A\u5F71",
-            "\u5267\u5F71\u5927\u5168", "\u8FC5\u96F7\u5F71\u97F3", "PotPlayer", "KMPlayer", "GOM Player"
+            "\u5267\u5F71\u5927\u5168", "\u8FC5\u96F7\u5F71\u97F3", "PotPlayer", "KMPlayer", "GOM Player",
+            "Shotcut", "Kdenlive", "OpenShot", "LosslessCut", "Avidemux", "MPV", "mpv.net", "MPC-HC",
+            "MPC-BE", "SMPlayer", "Daum PotPlayer", "QuickTime", "Windows Media Player", "Musicolet", "Dopamine", "LX Music",
+            "Format Factory", "Shutter Encoder", "XMedia Recode", "ScreenToGif", "ShareX", "Snipaste", "PixPin", "Greenshot",
+            "Lightshot", "FastStone", "XnView", "IrfanView", "ImageGlass", "Honeyview", "Bandiview", "Voicemeeter",
+            "Equalizer APO", "Reaper", "FL Studio", "Ableton", "Cubase", "Studio One", "Pro Tools", "Topaz",
+            "Upscayl", "Waifu2x", "Real-ESRGAN", "Natron", "Clipchamp", "Filmora", "Wondershare", "PowerDirector",
+            "iMovie", "Movavi", "EV Recorder", "Ocam", "\u526A\u6620", "\u5FC5\u526A", "\u6D1B\u96EA\u97F3\u4E50", "\u6C7D\u6C34\u97F3\u4E50",
+            "\u559C\u9A6C\u62C9\u96C5", "\u8354\u679D", "\u873B\u8713FM", "\u683C\u5F0F\u5DE5\u5382", "\u5FEB\u526A\u8F91", "\u7231\u526A\u8F91", "\u4E07\u5174\u55B5\u5F71", "\u8FC5\u6377",
+            "\u55E8\u683C\u5F0F", "\u8292\u679CTV", "\u54AA\u5495", "\u9177\u72D7", "\u9177\u6211", "\u622A\u56FE", "\u5F55\u5C4F", "\u770B\u56FE",
+            "\u64AD\u653E\u5668"
         )
     },
     @{
@@ -197,13 +245,28 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Slack", "Discord", "Zoom", "Skype", "WebEx", "GoToMeeting", "BlueJeans",
             "Trello", "Asana", "Monday.com", "Basecamp", "Jira", "Confluence", "Notion",
             "Evernote", "OneNote", "Bear", "Simplenote", "Google Keep", "Apple Notes",
-            "PDF Creator", "PDFtk", "Foxit", "Nitro", "Bluebeam", "PDF-XChange",
             "\u91D1\u5C71\u529E\u516C", "\u6C38\u4E2D\u96C6\u6210Office", "\u4E2D\u6807\u666E\u534E",
             "\u817E\u8BAF\u4F1A\u8BAE", "\u9489\u9489", "\u4F01\u4E1A\u5FAE\u4FE1", "\u98DE\u4E66",
             "\u77F3\u58A8\u6587\u6863", "\u817E\u8BAF\u6587\u6863", "\u91D1\u5C71\u6587\u6863", "\u8BED\u96C0",
             "\u5370\u8C61\u7B14\u8BB0", "\u6709\u9053\u4E91\u7B14\u8BB0", "\u4E3A\u77E5\u7B14\u8BB0",
             "\u767E\u5EA6\u7F51\u76D8", "\u963F\u91CC\u4E91\u76D8", "\u817E\u8BAF\u5FAE\u4E91",
-            "\u5929\u7FFC\u4E91\u76D8", "\u548C\u5F69\u4E91", "115\u7F51\u76D8", "\u8FC5\u96F7\u4E91\u76D8", "123\u4E91\u76D8", "123pan"
+            "\u5929\u7FFC\u4E91\u76D8", "\u548C\u5F69\u4E91", "115\u7F51\u76D8", "\u8FC5\u96F7\u4E91\u76D8", "123\u4E91\u76D8", "123pan",
+            "Microsoft 365", "WeChat Work", "Thunderbird", "Foxmail", "Mailspring", "eM Client", "Spark Mail", "Betterbird", "Lark",
+            "Feishu", "DingTalk", "WeCom", "WXWork", "Quark Drive", "Nutstore", "MEGAsync", "Synology Drive",
+            "Seafile", "Nextcloud", "ownCloud", "Resilio Sync", "Syncthing", "FreeFileSync", "GoodSync", "Todoist",
+            "TickTick", "Microsoft To Do", "ClickUp", "Teambition", "Worktile", "PingCode", "\u5938\u514B\u7F51\u76D8", "\u575A\u679C\u4E91",
+            "\u84DD\u594F\u4E91", "\u57CE\u901A\u7F51\u76D8", "\u7F51\u6613\u90AE\u7BB1\u5927\u5E08", "QQ\u90AE\u7BB1", "\u6EF4\u7B54\u6E05\u5355", "\u6C38\u4E2DOffice"
+        )
+    },
+    @{
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_DOCUMENT_TOOLS
+        AdditionalKeywords = @(
+            "PDF", "Acrobat Reader", "Adobe Acrobat", "Adobe Reader", "Foxit", "Foxit PDF", "SumatraPDF", "PDF24",
+            "PDFgear", "PDF Expert", "PDF-XChange", "PDF Creator", "PDFtk", "Nitro", "Bluebeam", "Xodo",
+            "Okular", "Calibre", "Kindle", "Koodo Reader", "Neat Reader", "Readest", "Zotero", "Mendeley",
+            "EndNote", "NoteExpress", "CAJViewer", "CNKI", "ABBYY FineReader", "Umi-OCR", "OCR", "Pandoc",
+            "\u798F\u6615", "\u6781\u5149PDF", "\u4E07\u5174PDF", "\u91D1\u5C71PDF", "\u77E5\u7F51", "\u638C\u9605", "\u5FAE\u4FE1\u8BFB\u4E66", "\u9605\u8BFB\u5668",
+            "\u6587\u6863\u626B\u63CF"
         )
     },
     @{
@@ -220,7 +283,10 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u4ECA\u65E5\u5934\u6761", "\u8D23\u4EFB\u7F16\u8F91", "\u4E00\u70B9\u8D44\u8BAF", "\u641C\u72D0\u65B0\u95FB",
             "\u7F51\u6613\u65B0\u95FB", "\u817E\u8BAF\u65B0\u95FB", "\u65B0\u6D6A\u5FAE\u535A", "\u65B0\u6D6A\u65B0\u95FB",
             "YY\u8BED\u97F3", "\u5343\u5343\u97F3\u4E50", "\u5168\u6C11K\u6B4C", "\u5531\u5427",
-            "\u6620\u5BA2", "\u5168\u6C11\u5C0F\u89C6\u9891", "\u897F\u74DC\u89C6\u9891", "\u706B\u5C71\u5C0F\u89C6\u9891"
+            "\u6620\u5BA2", "\u5168\u6C11\u5C0F\u89C6\u9891", "\u897F\u74DC\u89C6\u9891", "\u706B\u5C71\u5C0F\u89C6\u9891",
+            "Zalo", "Messenger", "TIM", "KOOK", "TeamSpeak", "Mumble", "Weibo", "Douyin",
+            "Kuaishou", "Xiaohongshu", "Zhihu", "Twitch", "Lark Messenger", "Rocket.Chat", "Mattermost", "\u5F00\u9ED1\u5566",
+            "QQ\u9891\u9053", "\u5FAE\u4FE1\u8F93\u5165\u6CD5"
         )
     },
     @{
@@ -230,7 +296,8 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "360\u538B\u7F29", "\u597D\u538B", "\u5FEB\u538B", "2345\u597D\u538B", "\u9177\u538B",
             "PowerArchiver", "Ashampoo ZIP", "Express Zip", "Universal Extractor", "Zipware",
             "jZip", "Hamster ZIP", "TUGZip", "FreeArc", "KGB Archiver", "UltimateZip",
-            "\u538B\u7F29\u5305", "\u89E3\u538B\u7F29", "\u6587\u4EF6\u538B\u7F29", "\u6587\u4EF6\u89E3\u538B"
+            "\u538B\u7F29\u5305", "\u89E3\u538B\u7F29", "\u6587\u4EF6\u538B\u7F29", "\u6587\u4EF6\u89E3\u538B",
+            "NanaZip", "7zFM", "Explzh", "ExtractNow", "Keka", "B1 Free Archiver", "ZArchiver"
         )
     },
     @{
@@ -242,7 +309,10 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Studio 3T", "Oracle SQL Developer", "SQL Server Management Studio", "SSMS",
             "Azure Data Studio", "DbVisualizer", "SQuirreL SQL", "Toad", "ERwin", "PowerDesigner",
             "Visual Paradigm", "Enterprise Architect",
-            "\u6570\u636E\u5E93", "\u6570\u636E\u5E93\u7BA1\u7406", "SQL\u5DE5\u5177", "\u6570\u636E\u5EFA\u6A21"
+            "\u6570\u636E\u5E93", "\u6570\u636E\u5E93\u7BA1\u7406", "SQL\u5DE5\u5177", "\u6570\u636E\u5EFA\u6A21",
+            "Redis Insight", "RedisInsight", "Another Redis Desktop Manager", "RESP.app", "Medis", "Beekeeper Studio", "SQLyog", "DB Browser for SQLite",
+            "SQLiteStudio", "Neo4j", "ClickHouse", "Elasticvue", "Kibana", "dbForge", "Chat2DB", "NoSQLBooster",
+            "DbGate", "Postico", "Antares SQL", "Valentina Studio"
         )
     },
     @{
@@ -258,7 +328,10 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u767E\u5EA6\u6D4F\u89C8\u5668", "UC\u6D4F\u89C8\u5668", "\u9177\u72D7\u6D4F\u89C8\u5668", "\u4E16\u754C\u4E4B\u7A97",
             "\u7EFF\u8272\u6D4F\u89C8\u5668", "\u795E\u7BAD\u624B", "\u5F69\u8679\u6D4F\u89C8\u5668", "\u5FC5\u5E94\u6D4F\u89C8\u5668",
             "\u6C34\u72D0\u6D4F\u89C8\u5668", "\u7231\u597D\u8005\u6D4F\u89C8\u5668", "\u5C0F\u767D\u6D4F\u89C8\u5668", "\u5343\u5F71\u6D4F\u89C8\u5668",
-            "\u65D7\u9C7C\u6D4F\u89C8\u5668", "\u661F\u613F\u6D4F\u89C8\u5668", "\u95EA\u6E38\u6D4F\u89C8\u5668", "\u6D77\u8C5A\u6D4F\u89C8\u5668"
+            "\u65D7\u9C7C\u6D4F\u89C8\u5668", "\u661F\u613F\u6D4F\u89C8\u5668", "\u95EA\u6E38\u6D4F\u89C8\u5668", "\u6D77\u8C5A\u6D4F\u89C8\u5668",
+            "AdsPower", "BitBrowser", "Hubstudio", "Multilogin", "Dolphin Anty", "GoLogin", "Incogniton", "Sidekick",
+            "Ungoogled Chromium", "Supermium", "Catsxp", "Ghost Browser", "Mullvad Browser", "Quark Browser", "\u6BD4\u7279\u6D4F\u89C8\u5668", "\u7D2B\u9E1F\u6D4F\u89C8\u5668",
+            "\u5019\u9E1F\u6D4F\u89C8\u5668", "\u5938\u514B\u6D4F\u89C8\u5668", "\u53CC\u6838\u6D4F\u89C8\u5668", "\u6D4F\u89C8\u5668", "Arc Browser"
         )
     },
     @{
@@ -274,9 +347,19 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u5B88\u671B\u5148\u950B", "\u7089\u77F3\u4F20\u8BF4", "\u9B54\u517D\u4E16\u754C", "\u5251\u7075",
             "\u68A6\u5E7B\u897F\u6E38", "\u5927\u8BDD\u897F\u6E38", "\u5929\u9F99\u516B\u90E8", "\u4ED9\u5251\u5947\u4FA0\u4F20",
             "\u4E09\u56FD\u6740", "\u6597\u5730\u4E3B", "\u9EBB\u5C06", "\u8C61\u68CB", "\u56F4\u68CB",
-            "\u6E38\u620F\u5E73\u53F0", "\u6E38\u620F\u542F\u52A8\u5668", "\u6E38\u620F\u52A0\u901F\u5668", "\u6E38\u620F\u5DE5\u5177",
+            "\u6E38\u620F\u5E73\u53F0", "\u6E38\u620F\u542F\u52A8\u5668", "\u6E38\u620F\u5DE5\u5177",
             "WeGame", "\u817E\u8BAF\u6E38\u620F\u5E73\u53F0", "\u7F51\u6613\u6E38\u620F", "\u5B8C\u7F8E\u4E16\u754C",
-            "\u5DE8\u4EBA\u7F51\u7EDC", "\u76DB\u5927\u6E38\u620F", "\u897F\u5C71\u5C45\u6E38\u620F", "\u4E5D\u57CE\u6E38\u620F"
+            "\u5DE8\u4EBA\u7F51\u7EDC", "\u76DB\u5927\u6E38\u620F", "\u897F\u5C71\u5C45\u6E38\u620F", "\u4E5D\u57CE\u6E38\u620F",
+            "Riot Client", "Riot Games", "EA app", "EA Desktop", "Ubisoft Connect", "Rockstar Games Launcher", "Genshin Impact", "Honkai",
+            "Star Rail", "Zenless Zone Zero", "Wuthering Waves", "HoYoPlay", "miHoYo", "TapTap", "4399", "Minecraft Launcher",
+            "HMCL", "PCL", "MultiMC", "Prism Launcher", "BlueStacks", "MuMu", "LDPlayer", "MEmu",
+            "NoxPlayer", "Ryujinx", "RetroArch", "Dolphin", "PCSX2", "RPCS3", "Cemu", "PPSSPP",
+            "DuckStation", "Playnite", "Elden Ring", "Cyberpunk", "Baldur", "Hollow Knight", "Terraria", "Stardew",
+            "Black Myth", "Naraka", "CS2", "Warframe", "Path of Exile", "Lost Ark", "Final Fantasy", "Monster Hunter",
+            "Palworld", "Delta Force", "CrossFire", "DNF", "Wallpaper Engine", "Game", "Games", "\u539F\u795E",
+            "\u5D29\u574F", "\u661F\u7A79\u94C1\u9053", "\u7EDD\u533A\u96F6", "\u9E23\u6F6E", "\u7C73\u54C8\u6E38", "\u96F7\u7535\u6A21\u62DF\u5668", "\u591C\u795E\u6A21\u62DF\u5668", "\u900D\u9065\u6A21\u62DF\u5668",
+            "\u6A21\u62DF\u5668", "\u9ED1\u795E\u8BDD", "\u6C38\u52AB\u65E0\u95F4", "\u9006\u6C34\u5BD2", "\u6D41\u653E\u4E4B\u8DEF", "\u602A\u7269\u730E\u4EBA", "\u5E7B\u517D\u5E15\u9C81", "\u4E09\u89D2\u6D32\u884C\u52A8",
+            "\u7A7F\u8D8A\u706B\u7EBF", "QQ\u98DE\u8F66", "\u5730\u4E0B\u57CE\u4E0E\u52C7\u58EB", "\u7F51\u6613\u5927\u795E", "\u6E38\u620F"
         )
     },
     @{
@@ -289,7 +372,10 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u5B89\u5168\u536B\u58EB", "\u6740\u6BD2\u8F6F\u4EF6", "\u9632\u706B\u5899", "\u7CFB\u7EDF\u4FEE\u590D",
             "VPN", "Proxy", "Tor", "Firewall", "Password Manager", "1Password", "LastPass",
             "Bitwarden", "Dashlane", "KeePass", "RoboForm", "Sticky Password", "True Key",
-            "\u5BC6\u7801\u7BA1\u7406", "\u52A0\u5BC6\u8F6F\u4EF6", "\u9690\u79C1\u4FDD\u62A4", "\u6570\u636E\u52A0\u5BC6"
+            "\u5BC6\u7801\u7BA1\u7406", "\u52A0\u5BC6\u8F6F\u4EF6", "\u9690\u79C1\u4FDD\u62A4", "\u6570\u636E\u52A0\u5BC6",
+            "Microsoft Defender", "Comodo", "Emsisoft", "HitmanPro", "AdwCleaner", "Spybot", "ZoneAlarm", "GlassWire",
+            "simplewall", "VeraCrypt", "Cryptomator", "Gpg4win", "Kleopatra", "Authy", "Proton Pass", "KeePassXC",
+            "Enpass", "NordPass", "Huorong", "\u7535\u8111\u7BA1\u5BB6", "\u5B89\u5168\u4E2D\u5FC3"
         )
     },
     @{
@@ -304,7 +390,19 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u6CE8\u518C\u8868\u6E05\u7406", "\u7CFB\u7EDF\u76D1\u63A7", "\u786C\u4EF6\u68C0\u6D4B", "\u6E29\u5EA6\u76D1\u63A7",
             "Wise Care 365", "IObit Uninstaller", "Revo Uninstaller", "Geek Uninstaller",
             "TreeSize", "WinDirStat", "SpaceSniffer", "Disk Usage Analyzer", "Everything",
-            "PowerToys", "Sysinternals Suite", "Windows Terminal", "Command Prompt", "PowerShell"
+            "PowerToys", "Sysinternals Suite", "Windows Terminal", "Command Prompt", "PowerShell",
+            "Ditto", "CopyQ", "Listary", "Wox", "Flow Launcher", "uTools", "Quicker", "AutoHotkey",
+            "Keypirinha", "Rainmeter", "TranslucentTB", "StartAllBack", "Open-Shell", "ExplorerPatcher", "Fences", "DisplayFusion",
+            "Dism++", "BleachBit", "Recuva", "DiskGenius", "AOMEI", "Rufus", "Ventoy", "balenaEtcher",
+            "Etcher", "UltraISO", "Macrium", "Acronis", "EaseUS", "Process Lasso", "HWMonitor", "AIDA64",
+            "OCCT", "CrystalDiskMark", "HD Tune", "ThrottleStop", "Bulk Rename Utility", "Advanced Renamer", "Total Commander", "Directory Opus",
+            "XYplorer", "OneCommander", "Q-Dir", "FreeCommander", "Double Commander", "Mem Reduct", "Twinkle Tray", "Monitorian",
+            "f.lux", "EarTrumpet", "Snappy Driver", "GeForce Experience", "NVIDIA", "AMD Software", "Radeon", "Intel Driver",
+            "Logitech G HUB", "Razer Synapse", "Armoury Crate", "MSI Center", "Dragon Center", "Lenovo Vantage", "HP Support Assistant", "Acer Care Center",
+            "Acer Quick Access", "NitroSense", "PredatorSense", "Realtek Audio", "Dolby", "Control Panel", "Device Manager", "Registry Editor",
+            "Regedit", "Resource Monitor", "Event Viewer", "Recycle Bin", "This PC", "\u5206\u533A\u52A9\u624B", "\u8F6F\u789F\u901A", "\u63A7\u5236\u9762\u677F",
+            "\u8BBE\u5907\u7BA1\u7406\u5668", "\u6CE8\u518C\u8868", "\u4EFB\u52A1\u7BA1\u7406\u5668", "\u56DE\u6536\u7AD9", "\u6B64\u7535\u8111", "\u6211\u7684\u7535\u8111", "\u9F20\u6807", "\u952E\u76D8",
+            "\u9A71\u52A8", "Partition Assistant"
         )
     },
     @{
@@ -318,7 +416,9 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Aria2", "Wget", "Curl", "DownThemAll", "Video DownloadHelper", "4K Video Downloader",
             "YouTube-dl", "yt-dlp", "ClipGrab", "Freemake Video Downloader", "Any Video Converter",
             "\u4E0B\u8F7D\u5DE5\u5177", "\u4E0B\u8F7D\u5668", "\u4E0B\u8F7D\u52A0\u901F", "\u79CD\u5B50\u4E0B\u8F7D",
-            "\u78C1\u529B\u94FE\u63A5", "BT\u4E0B\u8F7D", "\u7F51\u76D8\u4E0B\u8F7D", "\u89C6\u9891\u4E0B\u8F7D"
+            "\u78C1\u529B\u94FE\u63A5", "BT\u4E0B\u8F7D", "\u7F51\u76D8\u4E0B\u8F7D", "\u89C6\u9891\u4E0B\u8F7D",
+            "Motrix", "AB Download Manager", "Neat Download Manager", "NDM", "Xtreme Download Manager", "XDM", "Persepolis", "PikPak",
+            "Tixati", "BiglyBT", "Gopeed", "Hitomi Downloader", "N_m3u8DL", "Downloader", "\u4E0B\u8F7D"
         )
     },
     @{
@@ -334,7 +434,10 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u4E0D\u80CC\u5355\u8BCD", "\u6D41\u5229\u8BF4", "\u82F1\u8BED\u6D41\u5229\u8BF4", "\u53EF\u53EF\u82F1\u8BED",
             "Mathematica", "MATLAB", "R Studio", "SPSS", "SAS", "Stata", "Origin", "GraphPad Prism",
             "ChemDraw", "AutoCAD", "SolidWorks", "CATIA", "Inventor", "Fusion 360", "SketchUp",
-            "\u5B66\u4E60\u8F6F\u4EF6", "\u6559\u80B2\u5E73\u53F0", "\u5728\u7EBF\u5B66\u4E60", "\u8BED\u8A00\u5B66\u4E60"
+            "\u5B66\u4E60\u8F6F\u4EF6", "\u6559\u80B2\u5E73\u53F0", "\u5728\u7EBF\u5B66\u4E60", "\u8BED\u8A00\u5B66\u4E60",
+            "Youdao", "Eudic", "GoldenDict", "DeepL", "Google Translate", "Translator", "GeoGebra", "Desmos",
+            "MathType", "Wolfram", "Stellarium", "Moodle", "Rain Classroom", "\u6709\u9053\u8BCD\u5178", "\u7F51\u6613\u6709\u9053", "\u6B27\u8DEF\u8BCD\u5178",
+            "\u7FFB\u8BD1", "\u96E8\u8BFE\u5802", "\u9489\u9489\u8BFE\u5802", "\u4E2D\u56FD\u5927\u5B66MOOC", "\u5B66\u5802\u5728\u7EBF", "\u733F\u8F85\u5BFC", "\u7C89\u7B14"
         )
     },
     @{
@@ -349,7 +452,11 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u96EA\u7403", "\u5BCC\u9014", "\u5929\u5929\u57FA\u91D1", "\u8682\u8681\u8D22\u5BCC",
             "\u4EAC\u4E1C\u91D1\u878D", "\u5EA6\u5C0F\u6EE1", "\u62CD\u62CD\u8D37", "\u501F\u5457",
             "Bitcoin", "Ethereum", "Coinbase", "Binance", "Kraken", "Robinhood", "E*TRADE",
-            "\u8D22\u52A1\u8F6F\u4EF6", "\u8BB0\u8D26\u8F6F\u4EF6", "\u6295\u8D44\u7406\u8D22", "\u94F6\u884C\u5BA2\u6237\u7AEF"
+            "\u8D22\u52A1\u8F6F\u4EF6", "\u8BB0\u8D26\u8F6F\u4EF6", "\u6295\u8D44\u7406\u8D22", "\u94F6\u884C\u5BA2\u6237\u7AEF",
+            "TradingView", "MetaTrader", "MT4", "MT5", "Interactive Brokers", "IBKR", "Trader Workstation", "Futu",
+            "moomoo", "Tiger Brokers", "OKX", "Bybit", "Bitget", "Gate.io", "MetaMask", "Exodus",
+            "Electrum", "Ledger Live", "Trezor", "\u5BCC\u9014\u725B\u725B", "\u8001\u864E\u8BC1\u5238", "\u534E\u6CF0\u8BC1\u5238", "\u6DA8\u4E50\u8D22\u5BCC\u901A", "\u56FD\u6CF0\u541B\u5B89",
+            "\u62DB\u5546\u8BC1\u5238", "\u5E73\u5B89\u8BC1\u5238", "\u8BC1\u5238", "\u94F6\u884C", "\u57FA\u91D1", "\u80A1\u7968"
         )
     },
     @{
@@ -362,7 +469,9 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "\u7F8E\u56E2", "\u997F\u4E86\u4E48", "\u53E3\u7891", "\u5927\u4F17\u70B9\u8BC4", "\u7F8E\u56E2\u5916\u5356",
             "\u95F2\u9C7C", "\u8F6C\u8F6C", "\u7231\u56DE\u6536", "\u591A\u6297\u7C73", "\u5C0F\u9E7F\u8336",
             "Shopify", "WooCommerce", "Magento", "BigCommerce", "Squarespace", "Wix", "Etsy",
-            "\u8D2D\u7269\u8F6F\u4EF6", "\u7535\u5546\u5E73\u53F0", "\u5728\u7EBF\u8D2D\u7269", "\u624B\u673A\u8D2D\u7269"
+            "\u8D2D\u7269\u8F6F\u4EF6", "\u7535\u5546\u5E73\u53F0", "\u5728\u7EBF\u8D2D\u7269", "\u624B\u673A\u8D2D\u7269",
+            "Temu", "SHEIN", "AliExpress", "Taobao", "JD.com", "Pinduoduo", "\u5343\u725B", "\u4EAC\u9EA6",
+            "\u963F\u91CC\u65FA\u65FA", "1688", "\u901F\u5356\u901A", "\u6296\u5E97", "\u62FC\u591A\u591A\u5546\u5BB6"
         )
     },
     @{
@@ -380,7 +489,12 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Ping", "Traceroute", "Netstat", "Ipconfig", "Nslookup", "Dig",
             "\u8FDC\u7A0B\u63A7\u5236", "\u8FDC\u7A0B\u8BBF\u95EE", "\u7F51\u7EDC\u5DE5\u5177",
             "\u7F51\u7EDC\u68C0\u6D4B", "\u7F51\u7EDC\u76D1\u63A7", "\u7F51\u7EDC\u5206\u6790",
-            "\u7F51\u7EDC\u5B89\u5168", "\u7F51\u7EDC\u4F18\u5316", "\u7F51\u7EDC\u7BA1\u7406"
+            "\u7F51\u7EDC\u5B89\u5168", "\u7F51\u7EDC\u4F18\u5316", "\u7F51\u7EDC\u7BA1\u7406",
+            "WinBox", "Tftpd", "Advanced IP Scanner", "Angry IP Scanner", "IP Scanner", "NetSetMan", "Npcap", "Cyberduck",
+            "WindTerm", "FinalShell", "electerm", "Royal TS", "Remmina", "NoMachine", "Splashtop", "Chrome Remote Desktop",
+            "RealVNC", "TightVNC", "UltraVNC", "TigerVNC", "Moonlight", "Sunshine", "AweSun", "Oray",
+            "Nmap", "Zenmap", "iPerf", "Rclone", "Cloudflared", "ngrok", "Wi-Fi", "WiFi",
+            "\u84B2\u516C\u82F1", "\u82B1\u751F\u58F3", "UU\u8FDC\u7A0B", "\u7F51\u6613UU\u8FDC\u7A0B", "\u8FDC\u7A0B"
         )
     },
     @{
@@ -402,7 +516,14 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "AI Testing", "AI Debugging", "AI Monitoring", "AI Analytics", "AI Reporting",
             "Claude", "ChatGPT", "OpenAI", "Gemini", "Copilot", "DeepSeek", "Kimi", "Qwen", "Doubao", "Grok",
             "Perplexity", "Ollama", "LM Studio", "Cherry Studio", "Codex", "Manus",
-            "\u8C46\u5305", "\u901A\u4E49\u5343\u95EE", "\u6587\u5FC3\u4E00\u8A00", "\u817E\u8BAF\u5143\u5B9D", "\u667A\u8C31\u6E05\u8A00"
+            "\u8C46\u5305", "\u901A\u4E49\u5343\u95EE", "\u6587\u5FC3\u4E00\u8A00", "\u817E\u8BAF\u5143\u5B9D", "\u667A\u8C31\u6E05\u8A00",
+            "Monica", "GPT4All", "AnythingLLM", "Msty", "Chatbox", "LobeChat", "NextChat", "ComfyUI",
+            "Stable Diffusion", "Fooocus", "InvokeAI", "Open WebUI", "Dify", "Coze", "Hunyuan", "Kling",
+            "Hailuo", "Jimeng", "Zhipu", "ChatGLM", "Baichuan", "MiniMax", "StepFun", "Ernie",
+            "Tongyi", "Lingma", "MarsCode", "Comate", "Cline", "Roo Code", "Kilo Code", "Aider",
+            "OpenCode", "Augment", "Tabnine", "Codeium", "Qoder", "\u5373\u68A6", "\u53EF\u7075", "\u6D77\u87BA",
+            "\u5929\u5DE5", "\u79D8\u5854", "\u7EB3\u7C73AI", "\u901A\u4E49\u7075\u7801", "\u6587\u5FC3\u5FEB\u7801", "\u667A\u8C31", "\u8BAF\u98DE\u661F\u706B", "\u661F\u706B",
+            "\u6263\u5B50", "\u5143\u5B9D", "AI\u52A9\u624B"
         )
     },
     @{
@@ -1090,6 +1211,8 @@ function Get-DesktopShortcutClassification {
     $targetName = ''
     $scheme = ''
     $categoryKey = ''
+    $targetFullPath = ''
+    $pathRule = $null
     $baseDirectoryPrefix = Join-Path $Global:DESKTOP_BACKUP_DIR ''
 
     if ($Global:DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP -contains $Info.BaseName) {
@@ -1145,6 +1268,20 @@ function Get-DesktopShortcutClassification {
         $classification.Kind = 'category'
         $classification.Category = $targetMatch.Best.Category
         $classification.Reason = "target keyword '$($targetMatch.Best.Keyword)'"
+        return $classification
+    }
+
+    if ($Info.TargetPath) {
+        $targetFullPath = [Environment]::ExpandEnvironmentVariables($Info.TargetPath)
+        foreach ($pathRule in $Global:DESKTOP_ORGANIZATION_TARGET_PATH_CATEGORIES) {
+            if ($targetFullPath.IndexOf($pathRule.Fragment, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $classification.Kind = 'category'
+                $classification.Category = $pathRule.Category
+                $classification.Reason = "target folder '$($pathRule.Fragment)'"
+                $classification.SupportedCategories[$pathRule.Category] = $true
+                break
+            }
+        }
     }
 
     return $classification
