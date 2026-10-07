@@ -88,6 +88,7 @@
       "secret_hint": "Tokens, webhooks and API keys are stored encrypted in the user config. Never share them.",
       "reason_log_timeout": "ROSBOT log timeout",
       "reason_log_disconnect": "ROSBOT disconnected",
+      "reason_log_system_error": "ROSBOT system error in log",
       "reason_error_popup": "error popup ({0})",
       "reason_memory": "D3 memory {0} MB over the limit",
       "reason_trigger": "trigger ({0})",

@@ -12,6 +12,7 @@ public static class RosbotRestartRequest
 {
     public const string ReasonLogTimeout = "log_timeout";
     public const string ReasonLogDisconnect = "log_disconnect";
+    public const string ReasonLogSystemError = "log_system_error";
 
     private static readonly object Lock = new();
     private static string? _reasonId;

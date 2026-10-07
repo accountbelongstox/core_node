@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.Utils.ImagePreprocess")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dde3d349921e2e43e08f30f181498db5e3bc057f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a70f70453ae4a7be889df0b8aca9191177abd4f8")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.Utils.ImagePreprocess")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.Utils.ImagePreprocess")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

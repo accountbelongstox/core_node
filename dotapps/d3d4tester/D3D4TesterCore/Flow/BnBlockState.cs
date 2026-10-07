@@ -45,8 +45,6 @@ public sealed class BnBlockState
     public double BrowserFallbackDeadline { get; set; }
     /// <summary>B11 timeout by flow tick (current tick &gt;= this -> timeout).</summary>
     public int B11DeadlineTick { get; set; }
-    public bool BattlenetTickConfirmed { get; set; }
-    public bool BnFlowEverConfirmed { get; set; }
     public int B7SkipCount { get; set; }
     public double B7LastTriggerTime { get; set; }
 
@@ -55,20 +53,6 @@ public sealed class BnBlockState
     /// <summary>Context for one flow: true = BN-only, false = Flow-master. 1:1 Python get_bn_block_ctx.</summary>
     public static BnBlockState Get(bool forBnOnly) => forBnOnly ? BnOnly : FlowMaster;
 
-    public static BnStep GetCurrentStep(bool forBnOnly) => Get(forBnOnly).CurrentStep;
-
-    public static bool GetEverConfirmed(bool forBnOnly) => Get(forBnOnly).BnFlowEverConfirmed;
-
-    /// <summary>1:1 Python set_battlenet_tick_confirmed(for_bn_only) (flow master after B confirmed).</summary>
-    public static void SetTickConfirmed(bool forBnOnly) => Get(forBnOnly).BattlenetTickConfirmed = true;
-
-    /// <summary>Read and clear tick-confirmed. 1:1 Python get_and_clear_battlenet_tick_confirmed(for_bn_only).</summary>
-    public bool GetAndClearTickConfirmed()
-    {
-        bool v = BattlenetTickConfirmed;
-        BattlenetTickConfirmed = false;
-        return v;
-    }
 
     /// <summary>Reset one flow's block to entry. 1:1 Python reset_bn_block_state.</summary>
     public static void Reset(bool forBnOnly)
@@ -82,8 +66,6 @@ public sealed class BnBlockState
         b.OauthWaitUntil = 0;
         b.BrowserFallbackDeadline = 0;
         b.B11DeadlineTick = 0;
-        b.BattlenetTickConfirmed = false;
-        b.BnFlowEverConfirmed = false;
         b.B7SkipCount = 0;
         b.B7LastTriggerTime = 0;
     }

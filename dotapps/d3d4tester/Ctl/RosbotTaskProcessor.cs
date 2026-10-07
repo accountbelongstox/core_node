@@ -24,7 +24,8 @@ namespace DotApps.d3d4tester.Ctl;
 /// ROSBOT task processor: the single 1 s tick entry (TickDriver) and the flow host for Core. Every tick drains the ROSBOT log
 /// queue and refreshes the test-mode display and total restart count; on even ticks (flow step) runs "Ensure Battle.net only"
 /// (BnOnlyFlow) and the flow master (FlowMasterDriver), skipped while the credentials dialog is pending. Owns the D3 extension
-/// worker (ExtensionRosbotStart: login check, F2 gate, E1-E6; ExtensionRosbotStop) and the main-thread start/stop completion.
+/// worker that runs one blocking flow job at a time (D block: launch D3; E block: F2 gate, E1-E6; later requests are ignored
+/// while one is queued or running) plus ExtensionRosbotStop, and the main-thread start/stop completion.
 /// UI buttons only toggle flags here. 1:1 Python d3utils/rosbot_task_processor.py + threads/d3_extension_thread.py +
 /// rosbot_extension_panel _start_rosbot/_stop_rosbot/_ensure_battlenet_only/_on_login_check_done/_on_rosbot_stop_done.
 /// </summary>
@@ -35,6 +36,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
     private const string FlowTickTag = "[A2/A3]";
     private const string CmdStartRosbot = "start_rosbot";
     private const string CmdStopRosbot = "stop_rosbot";
+    private const string CmdLaunchD3 = "launch_d3";
     private const string ExtensionThreadName = "D3ExtensionThread";
     private const int ExtensionPriority = 50;
 
@@ -46,6 +48,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
     private bool _installed;
     private bool _initialized;
     private int _flowTickCount;
+    private int _flowJobBusy;
     private DateTime? _flowLastRunUtc;
     private DateTime? _bnStuckSinceUtc;
 
@@ -75,7 +78,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         WindowMonitorService.Instance.SetFullStatusRefresh(RunFullStatusRefresh);
         StartExtensionWorker();
         var hub = EventCenter.Hub;
-        hub.Subscribe(AppEventIds.ExtensionRosbotStart, _ => _extensionQueue.Add(CmdStartRosbot), ExtensionPriority);
+        hub.Subscribe(AppEventIds.ExtensionRosbotStart, _ => EnqueueFlowJob(CmdStartRosbot), ExtensionPriority);
         hub.Subscribe(AppEventIds.ExtensionRosbotStop, _ => _extensionQueue.Add(CmdStopRosbot), ExtensionPriority);
         hub.Subscribe(AppEventIds.ExtensionShutdown, _ => StopExtensionWorker(), ExtensionPriority);
         hub.Subscribe(AppEventIds.ExtensionRosbotStarted, OnRosbotStarted, ExtensionPriority);
@@ -199,7 +202,6 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         }
         BattlenetReadyFlow.ResetFlowMasterBnBlock();
         BnBlockState.Reset(forBnOnly: true);
-        BnOnlyFlow.ResetState();
     }
 
     /// <summary>One-shot full refresh off the UI thread. 1:1 Python _request_status_refresh (submit do_window_monitor_initial_check).</summary>
@@ -255,19 +257,12 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         DateTime now = DateTime.UtcNow;
         double sincePrevious = _flowLastRunUtc is { } last ? (now - last).TotalSeconds : 0.0;
         _flowLastRunUtc = now;
-        bool bnOnly = state.BnOnlyEnabled;
-        bool flowMaster = state.FlowMasterEnabled;
         string dt = sincePrevious.ToString("0.00", CultureInfo.InvariantCulture);
-        string statusPrefix = $"{FlowTickTag} Tick #{flowTick} dt={dt}s | ";
-        if (!flowMaster)
-            ColorPrinter.Gray($"{FlowTickTag} Tick #{flowTick} (2s step) flow_master={flowMaster} bn_only={bnOnly} | time since previous: {dt} s");
-        bnOnly = state.BnOnlyEnabled;
-        flowMaster = state.FlowMasterEnabled;
-        if (!flowMaster && !bnOnly) return;
-        if (bnOnly)
+        if (!state.FlowMasterEnabled)
+            ColorPrinter.Gray($"{FlowTickTag} Tick #{flowTick} (2s step) bn_only={state.BnOnlyEnabled} | time since previous: {dt} s");
+        if (state.BnOnlyEnabled)
             BnOnlyFlow.Tick();
-        if (flowMaster)
-            FlowMasterDriver.Tick(flowTick, StartRosbotTask, statusPrefix);
+        FlowMasterDriver.Tick(flowTick, $"{FlowTickTag} Tick #{flowTick} dt={dt}s | ");
         CheckBattlenetStuck();
         BattlenetStateWatchdog.Tick();
     }
@@ -347,6 +342,20 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         }
     }
 
+    /// <summary>True while a D or E block job is queued or running on the extension worker.</summary>
+    public bool IsFlowJobBusy => Volatile.Read(ref _flowJobBusy) == 1;
+
+    /// <summary>Queue one blocking flow job; ignored while another one is queued or running (no stacked restarts of D3 / ROSBOT).</summary>
+    private void EnqueueFlowJob(string cmd)
+    {
+        if (Interlocked.CompareExchange(ref _flowJobBusy, 1, 0) != 0)
+        {
+            ColorPrinter.Gray($"{ExtensionLogTag} {cmd} ignored: a flow job is already queued or running");
+            return;
+        }
+        _extensionQueue.Add(cmd);
+    }
+
     /// <summary>1:1 Python D3ExtensionThread.run (one command at a time).</summary>
     private void RunExtensionWorker(CancellationToken token)
     {
@@ -358,11 +367,16 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
                 try
                 {
                     if (cmd == CmdStartRosbot) DoStartRosbot();
+                    else if (cmd == CmdLaunchD3) DoLaunchD3();
                     else if (cmd == CmdStopRosbot) DoStopRosbot();
                 }
                 catch (Exception ex)
                 {
                     ColorPrinter.Red($"{ExtensionLogTag} Error handling command: {ex.Message}");
+                }
+                finally
+                {
+                    if (cmd != CmdStopRosbot) Volatile.Write(ref _flowJobBusy, 0);
                 }
             }
         }
@@ -372,38 +386,44 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         ColorPrinter.Yellow($"{ExtensionLogTag} Stopped");
     }
 
-    /// <summary>Login check (D/C branch), then F2: ROSBOT not online -> E1..E6. 1:1 Python D3ExtensionThread._do_start_rosbot.</summary>
+    /// <summary>[A8] -> [F2] ROSBOT online -> nothing to start; else E1..E6. Needs a running D3 (the flow master routes F1 -> B -> D otherwise).</summary>
     private void DoStartRosbot()
     {
-        var state = RosbotFlowState.Instance;
-        if (!state.FlowMasterEnabled)
+        if (!RosbotFlowState.Instance.FlowMasterEnabled)
         {
             EventCenter.TriggerExtensionRosbotStarted(false, null, false);
             return;
         }
-        bool result = false;
+        bool success = false;
         Exception? error = null;
         bool ranEBlock = false;
         try
         {
-            result = LoginTryController.EnsureBattlenetStartedAndLoginCheck(forF2Only: true);
-            if (!state.FlowMasterEnabled)
-            {
-                EventCenter.TriggerExtensionRosbotStarted(false, null, false);
-                return;
-            }
-            if (result && !RosbotRunFlow.RunF2RosbotOnline())
+            if (!D3Manager.Instance.IsRunning())
+                ColorPrinter.Yellow($"{ExtensionLogTag} F2: D3 not running, skip E block (flow master routes F1 -> B -> D)");
+            else if (RosbotRunFlow.RunF2RosbotOnline())
+                success = true;
+            else
             {
                 ColorPrinter.Gray($"{ExtensionLogTag} F2: ROSBOT not online -> E1-E6 (Start ROSBOT)");
                 RosbotRunFlow.RunEBlock(StartRosbotTask);
                 ranEBlock = true;
+                success = true;
             }
         }
         catch (Exception ex)
         {
             error = ex;
         }
-        EventCenter.TriggerExtensionRosbotStarted(result, error, ranEBlock);
+        EventCenter.TriggerExtensionRosbotStarted(success, error, ranEBlock);
+    }
+
+    /// <summary>[D] launch D3 from the confirmed Battle.net; [D13] window found -> mark "just entered" for the next C1 tick.</summary>
+    private static void DoLaunchD3()
+    {
+        if (!RosbotFlowState.Instance.FlowMasterEnabled) return;
+        if (LoginTryController.LaunchD3FromBattlenet())
+            ExtensionFlowState.Instance.SetD3JustEnteredFromD13(true);
     }
 
     /// <summary>1:1 Python D3ExtensionThread._do_stop_rosbot.</summary>
@@ -484,10 +504,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
 
     public void NotifyStateSync() => GameInterfaceData.Instance.NotifyCallbacks();
 
-    public void KillD3IfRunning() => D3Manager.Instance.KillIfRunning();
-
     public void TriggerExtensionRosbotStart() => EventCenter.TriggerExtensionRosbotStart();
 
-    public void TriggerExtensionRosbotStarted(bool success, bool ranEBlock) =>
-        EventCenter.TriggerExtensionRosbotStarted(success, null, ranEBlock);
+    public void TriggerD3Launch() => EnqueueFlowJob(CmdLaunchD3);
 }

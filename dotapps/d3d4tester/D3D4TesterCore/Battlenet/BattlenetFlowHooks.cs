@@ -9,7 +9,7 @@ namespace DotApps.d3d4tester.Core.Battlenet;
 /// <summary>
 /// App-provided callbacks for the Battle.net flow (Core cannot reference the app: config, credentials dialog, OAuth bridge, event hub).
 /// 1:1 Python imports of rosbot_flow_battlenet / flow_bn_only / battlenet_operation (share.asia_credentials, share.oauth_callback,
-/// event_center.trigger_extension_rosbot_start, battlenet_status_provider, ros_settings.battlenet_region_cache).
+/// battlenet_status_provider, ros_settings.battlenet_region_cache).
 /// </summary>
 public static class BattlenetFlowHooks
 {
@@ -36,9 +36,6 @@ public static class BattlenetFlowHooks
 
     /// <summary>1:1 share.oauth_callback.notify_oauth_done.</summary>
     public static Action? NotifyOauthDone { get; set; }
-
-    /// <summary>1:1 event_center.trigger_extension_rosbot_start.</summary>
-    public static Action? TriggerExtensionRosbotStart { get; set; }
 
     /// <summary>Refresh Battle.net window + dynamic state into GameInterfaceData; returns state_changed. 1:1 _refresh_battlenet_status_internal.</summary>
     public static Func<bool>? RefreshBattlenetStatus { get; set; }

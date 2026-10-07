@@ -41,14 +41,14 @@ public interface IRosbotFlowHost
     /// <summary>1:1 Python game_interface_data.notify_state_sync.</summary>
     void NotifyStateSync();
 
-    /// <summary>1:1 Python get_d3_manager().kill_if_running.</summary>
-    void KillD3IfRunning();
+    /// <summary>True while a blocking flow job (D block or E block) is queued or running on the extension worker.</summary>
+    bool IsFlowJobBusy { get; }
 
-    /// <summary>1:1 Python event_center.trigger_extension_rosbot_start (F2 gate then E block on the extension worker).</summary>
+    /// <summary>Queue the E block (F2 gate, then E1-E6) on the extension worker; ignored while a flow job is busy. 1:1 Python event_center.trigger_extension_rosbot_start.</summary>
     void TriggerExtensionRosbotStart();
 
-    /// <summary>1:1 Python event_signals.trigger_extension_rosbot_started(success, ran_e_block).</summary>
-    void TriggerExtensionRosbotStarted(bool success, bool ranEBlock);
+    /// <summary>Queue the D block (launch D3 from the confirmed Battle.net, D13 marks "just entered") on the extension worker; ignored while a flow job is busy.</summary>
+    void TriggerD3Launch();
 }
 
 /// <summary>Holder for the app-provided <see cref="IRosbotFlowHost"/>.</summary>

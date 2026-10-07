@@ -28,19 +28,8 @@ public static class BattlenetReadyFlow
     /// <summary>Reset Flow-master's B block (flow master turned off / shutdown hook). 1:1 Python reset_flow_master_bn_block.</summary>
     public static void ResetFlowMasterBnBlock() => BnBlockState.Reset(false);
 
-    /// <summary>Current node of one flow (debug). 1:1 Python get_battlenet_flow_node.</summary>
-    public static BnStep GetBattlenetFlowNode(bool forBnOnly = false) => BnBlockState.GetCurrentStep(forBnOnly);
-
     /// <summary>True if either flow is on a login step. 1:1 Python is_bn_flow_in_login_phase().</summary>
     public static bool IsBnFlowInLoginPhase() => BnBlockState.IsInLoginPhase(true) || BnBlockState.IsInLoginPhase(false);
-
-    /// <summary>Clear both flows' tick-confirmed; true if either was set. 1:1 Python get_and_clear_battlenet_tick_confirmed().</summary>
-    public static bool GetAndClearBattlenetTickConfirmed()
-    {
-        bool bnOnly = BnBlockState.Get(true).GetAndClearTickConfirmed();
-        bool flowMaster = BnBlockState.Get(false).GetAndClearTickConfirmed();
-        return bnOnly || flowMaster;
-    }
 
     /// <summary>
     /// Run one tick of the Battle.net ready flow. Returns (Done, Result); Done=true when the flow exits or is confirmed.
@@ -150,11 +139,11 @@ public static class BattlenetReadyFlow
                         return (false, ResultWait);
                     }
                     ctx.B7SkipCount++;
-                    if (ctx.B7SkipCount >= C.B7TriggerDAfterSkips && (now - ctx.B7LastTriggerTime) >= C.B7TriggerDCooldownSec)
+                    if (!noActivate && ctx.B7SkipCount >= C.B7RestoreWindowAfterSkips && (now - ctx.B7LastTriggerTime) >= C.B7RestoreWindowCooldownSec)
                     {
-                        ColorPrinter.Blue($"{LogTag} flow B7: no operable elements for {ctx.B7SkipCount} ticks -> trigger D block (D3 tab, Play, region)");
-                        ExtensionFlowState.Instance.SetRequestDBlockFromB7();
-                        BattlenetFlowHooks.TriggerExtensionRosbotStart?.Invoke();
+                        ColorPrinter.Blue($"{LogTag} flow B7: no operable elements for {ctx.B7SkipCount} ticks -> restore Battle.net from tray and activate");
+                        BattlenetManager.Instance.RestoreFromTray();
+                        BattlenetManager.Instance.ActivateWindow();
                         ctx.B7SkipCount = 0;
                         ctx.B7LastTriggerTime = now;
                     }
@@ -517,7 +506,6 @@ public static class BattlenetReadyFlow
     private static (bool Done, string Result) Confirm(BnBlockState ctx)
     {
         ctx.CurrentStep = BnStep.BN_Confirmed;
-        ctx.BnFlowEverConfirmed = true;
         // A confirmed main UI restarts the "no elements" timers; otherwise B13 would time out (and exit) while logged in.
         ctx.B13PollDeadline = 0;
         ctx.B7PollDeadline = 0;

@@ -26,17 +26,6 @@ public static class D3InterfaceConstants
     public static readonly (int X, int Y) D3TeleportClick2 = (713, 611);
 
     public const double C7bTeleportClickIntervalSec = 0.5;
-    public const double C7bWaitAfterClickSec = 2.0;
-    public const double C7bAfterBountyStableSec = 0.5;
-    public const double D3GameToolAfterMDelaySec = 2.0;
-    public const double D3StartGameWaitIntervalSec = 2.0;
-    public const int D3StartGameMaxAttempts = 10;
-    public const int D3GameToolMaxAttempts = 10;
-    public const int D3Fragment1WaitGameToolAttempts = 5;
-    public const int D3Fragment2DisappearAttempts = 5;
-
-    /// <summary>C3/C3w overall timeout (3 minutes) for the blocking C3 loop.</summary>
-    public const double C3C3wTimeoutSec = 180.0;
 
     /// <summary>Extension flow deadline in flow ticks (2 s per flow tick): 90 * 2 s = 180 s.</summary>
     public const int C3DeadlineTicks = 90;

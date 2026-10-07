@@ -30,7 +30,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private string _rosbotExtendedStatus = "not_found";
     private bool _rosbotRunning;
     private bool _rosbotDisconnectedFromLog;
-    private bool _d3JustEnteredFromD13;
     private bool _rosbotFlowMasterEnabled;
     private bool _ensureBattlenetOnlyEnabled;
     private bool _d3Running;
@@ -274,23 +273,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
         {
             bool v = _rosbotDisconnectedFromLog;
             _rosbotDisconnectedFromLog = false;
-            return v;
-        }
-    }
-
-    /// <summary>Set when D13 just entered the game (C7a map teleport without C10). 1:1 Python set_d3_just_entered_from_d13.</summary>
-    public void SetD3JustEnteredFromD13(bool value)
-    {
-        lock (_lock) _d3JustEnteredFromD13 = value;
-    }
-
-    /// <summary>Read and clear the D13 just-entered flag. 1:1 Python get_and_clear_d3_just_entered_from_d13.</summary>
-    public bool GetAndClearD3JustEnteredFromD13()
-    {
-        lock (_lock)
-        {
-            bool v = _d3JustEnteredFromD13;
-            _d3JustEnteredFromD13 = false;
             return v;
         }
     }

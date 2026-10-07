@@ -14,7 +14,7 @@ namespace DotApps.d3d4tester.Core;
 /// <summary>
 /// D3 start game and teleport (ROSBOT_FLOW_MERMAID C branch): C3 state detection (one capture, all templates),
 /// C5 Start Game click, C10 M-key similarity online check, C7a M + bounty verify, C7b minimize / teleport clicks
-/// (unified scaled coordinates, click debug images) and the blocking fragment helpers used by the login-try controller.
+/// (unified scaled coordinates, click debug images); all steps are tick-driven by ExtensionFlowTickStep.
 /// 1:1 Python d3utils/d3_start_game_and_teleport_waiter.py.
 /// </summary>
 public static class D3StartGameAndTeleport
@@ -63,13 +63,6 @@ public static class D3StartGameAndTeleport
         SleepSec(D3InterfaceConstants.C7bTeleportClickIntervalSec);
         ColorPrinter.Green($"{LogPrefix}[C7b] Teleport done, starting ROSBOT flow");
         return true;
-    }
-
-    /// <summary>[C7b] Minimize then teleport in one call (legacy/blocking path). 1:1 Python _do_c7b_teleport.</summary>
-    private static bool DoC7bTeleport()
-    {
-        if (!StepC7bMinimizeOnly()) return false;
-        return StepC7bTeleportOnly();
     }
 
     private static void ClickStandardPoint((int X, int Y) standard, string label, string filePrefix, string logStep)
@@ -214,14 +207,6 @@ public static class D3StartGameAndTeleport
         return true;
     }
 
-    /// <summary>[C10] Blocking: capture, M, wait, capture, compare. 1:1 Python check_d3_online_by_m_similarity.</summary>
-    public static bool CheckD3OnlineByMSimilarity()
-    {
-        if (!StepC10SendM()) return false;
-        SleepSec(D3InterfaceConstants.D3GameToolAfterMDelaySec);
-        return StepC10Compare() == true;
-    }
-
     // ---------- C7a ----------
 
     /// <summary>[C7a] One tick: send M (toggle map). 1:1 Python step_c7a_send_m.</summary>
@@ -229,97 +214,6 @@ public static class D3StartGameAndTeleport
 
     /// <summary>[C7a verify] True when bounty progress UI is visible (map open). 1:1 Python step_c7a_verify_bounty_progress.</summary>
     public static bool StepC7aVerifyBountyProgress() => CaptureAndMatchBountyProgress().Found;
-
-    private static void SendMOnceThenWaitForCapture()
-    {
-        if (!D3.SendKeyToWindow(D3InterfaceConstants.VkM)) return;
-        SleepSec(D3InterfaceConstants.D3GameToolAfterMDelaySec);
-    }
-
-    /// <summary>
-    /// [C7] Blocking: pre-check bounty, else up to two rounds of M + bounty check; then C7b. Never kills D3 for missing bounty.
-    /// 1:1 Python _ensure_map_open_then_c7b_teleport.
-    /// </summary>
-    private static bool EnsureMapOpenThenC7bTeleport()
-    {
-        var (sd0, bounty0) = CaptureAndMatchBountyProgress();
-        if (bounty0)
-        {
-            ColorPrinter.Green($"{LogPrefix}[C7] Pre-check found bounty, map open -> wait {D3InterfaceConstants.C7bAfterBountyStableSec}s stable then zoom+teleport");
-            if (sd0 == null) return false;
-            SleepSec(D3InterfaceConstants.C7bAfterBountyStableSec);
-            return DoC7bTeleport();
-        }
-        bool haveCapture = sd0 != null;
-        for (int roundNo = 1; roundNo <= 2; roundNo++)
-        {
-            ColorPrinter.Gray($"{LogPrefix}[C7] Round {roundNo}: map not confirmed open -> press M, wait, check bounty");
-            SendMOnceThenWaitForCapture();
-            var (sd, found) = CaptureAndMatchBountyProgress();
-            if (sd != null) haveCapture = true;
-            if (found)
-            {
-                ColorPrinter.Green($"{LogPrefix}[C7] Round {roundNo} found bounty, map open -> wait {D3InterfaceConstants.C7bAfterBountyStableSec}s stable then zoom+teleport");
-                if (sd == null) return false;
-                SleepSec(D3InterfaceConstants.C7bAfterBountyStableSec);
-                return DoC7bTeleport();
-            }
-            ColorPrinter.Gray($"{LogPrefix}[C7] Round {roundNo} no bounty" + (roundNo == 1 ? ", try second M" : ", still run C7b"));
-        }
-        ColorPrinter.Yellow($"{LogPrefix}[C7] No bounty after two M rounds; per doc do not kill D3, still run C7b");
-        if (!haveCapture && D3.CaptureGameWindow() == null) return false;
-        return DoC7bTeleport();
-    }
-
-    /// <summary>After fragment 1 (game_tool appeared): C10 similarity check then C7a/C7w/C7b. 1:1 Python send_m_then_teleport_three_clicks.</summary>
-    public static bool SendMThenTeleportThreeClicks()
-    {
-        if (!CheckD3OnlineByMSimilarity()) return false;
-        return EnsureMapOpenThenC7bTeleport();
-    }
-
-    /// <summary>
-    /// [C5] Fragment 1: if d3_start_game_button found, click; then [C5w] poll states until game_tool / disconnect / timeout.
-    /// Returns true = game_tool appeared; false = timeout or disconnect (caller C12); null = no start button (try fragment 2).
-    /// 1:1 Python try_fragment1_click_start_game_wait_game_tool.
-    /// </summary>
-    public static bool? TryFragment1ClickStartGameWaitGameTool(
-        double intervalSec = D3InterfaceConstants.D3StartGameWaitIntervalSec,
-        int maxWaitGameToolAttempts = D3InterfaceConstants.D3Fragment1WaitGameToolAttempts)
-    {
-        var (sd, center) = CaptureAndMatchStartGameButton();
-        if (center == null) return null;
-        var (cx, cy) = center.Value;
-        var (ox, oy) = sd?.WindowOffset ?? (0, 0);
-        ColorPrinter.Green($"{LogPrefix}[Fragment1] Found d3_start_game_button at ({cx},{cy}); clicking then waiting {maxWaitGameToolAttempts}x{intervalSec}s for d3_game_tool");
-        ClickAt(ox + cx, oy + cy);
-        var deadline = DateTime.UtcNow.AddSeconds(maxWaitGameToolAttempts * intervalSec);
-        while (DateTime.UtcNow < deadline)
-        {
-            SleepSec(intervalSec);
-            var state = DetectD3AlreadyRunningState();
-            if (state == StateGameTool)
-            {
-                ColorPrinter.Green($"{LogPrefix}[Fragment1] d3_game_tool appeared after Start Game click");
-                return true;
-            }
-            if (state == StateDisconnect)
-            {
-                ColorPrinter.Yellow($"{LogPrefix}[Fragment1] d3_disconnected during C5w -> caller F1d/C12");
-                return false;
-            }
-        }
-        ColorPrinter.Yellow($"{LogPrefix}[Fragment1] C5w timeout -> C12");
-        return false;
-    }
-
-    /// <summary>[C6] game_tool path: C7 ensure map open (pre-check + two M rounds) then C7b. 1:1 Python try_fragment2_game_tool_press_m_then_clicks.</summary>
-    public static bool TryFragment2GameToolPressMThenClicks()
-    {
-        if (DetectD3AlreadyRunningState() != StateGameTool) return false;
-        ColorPrinter.Green($"{LogPrefix}[Fragment2] d3_game_tool visible; C7 ensure map open (precheck+two M rounds+bounty) then C7b teleport");
-        return EnsureMapOpenThenC7bTeleport();
-    }
 
     // ---------- Matcher / click / debug helpers ----------
 
