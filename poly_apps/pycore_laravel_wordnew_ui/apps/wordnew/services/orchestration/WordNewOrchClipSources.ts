@@ -36,6 +36,7 @@ import { wordNewQueueCenter } from '../WordNewQueueCenter';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import type { OrchPlanScope } from './WordNewBookAudioPlan';
+import { laneOfKind } from './WordNewBookPlanAssigner';
 
 const PROGRESS_SCALE = 100;
 
@@ -122,6 +123,19 @@ function serverPause(): OrchChannelPaused {
 }
 
 /**
+ * Phrase audio has no head-move batch: a non-passive read of a missing phrase promotes it in Laravel's phrase lane.
+ * Every request holds a Laravel transfer slot; true when the server accepted all of them.
+ */
+async function requestPhraseHeads(phrases: OrchComposeResource[]): Promise<boolean> {
+  let accepted = true;
+  await orchPool(phrases, async (phrase) => {
+    const done = await orchRetry(() => transferLimiter.run('laravel', async () => ((await wfNewApi.requestPhraseAudio(phrase.text, phrase.language)) ? true : null)));
+    if (!done) accepted = false;
+  }, undefined, AUDIO_ORCH_TRANSFER.parallelDefaults.laravel);
+  return accepted;
+}
+
+/**
  * Generation request (R4: only `generate:laravel`) through the one queue command owner
  * (WordNewQueueCenter: single-flight, receipts): the clips go to the head of Laravel's generation
  * lanes (sentences; words per language). Resolves true only when the server accepted every batch;
@@ -141,6 +155,8 @@ async function requestLaravelGeneration(resources: OrchComposeResource[]): Promi
         if (!accepted(await wordNewQueueCenter.moveWordsToHead(batch, language))) return false;
       }
     }
+    const phrases = resources.filter((resource) => resource.kind === 'phrase');
+    if (phrases.length > 0 && !(await requestPhraseHeads(phrases))) return false;
     return true;
   } catch (error) {
     if (serverSchemaGate.observeError(error) || serverSchemaGate.getSnapshot().schema === 'pending') throw serverPause();
@@ -278,10 +294,10 @@ export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly Orch
           return source.resolve(resources.filter((resource) => !scope.covered.has(resource.key) || scope.ready.has(resource.key)), context, found);
         }
         const share = scope.direct();
-        const headLeft = { sentence: share.sentence_audio, word: share.word_audio };
+        const headLeft = { ...share };
         const own = resources.filter((resource) => {
           if (!scope.covered.has(resource.key)) return true;
-          const lane = resource.kind === 'word' ? 'word' : 'sentence';
+          const lane = laneOfKind(resource.kind);
           if (stage === 'generate:pycore' && headLeft[lane] > 0) {
             headLeft[lane] -= 1;
             return true;

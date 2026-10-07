@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pycore.pyctl.audio_orchestration import orch_store, orch_video_presets as presets
+from pycore.pyctl.audio_orchestration import orch_contract, orch_store, orch_video_presets as presets
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.ffmpeg.ffmpeg_command import (
     BACKGROUND_KIND_COLOR,
@@ -195,8 +195,9 @@ def build_cards(
     languages: str,
 ) -> List[ScrollCard]:
     """Group consecutive clips of the same sentence (or repeats of the same
-    word) into one bilingual card; each line keeps the playback spans of the
-    clips that speak it."""
+    word or phrase) into one bilingual card; each line keeps the playback spans
+    of the clips that speak it. A phrase card is a word-style chip with its
+    spoken Chinese meaning (a clip carrying ``meaning_of``) underneath."""
     index = _sentence_index(sentences)
     by_seq = {str(sentence.get("seq")): sentence for sentence in sentences if sentence.get("seq") is not None}
     meanings: Dict[str, str] = {}
@@ -205,8 +206,16 @@ def build_cards(
         span = (float(entry.get("start_ms") or 0) / 1000.0, float(entry.get("end_ms") or 0) / 1000.0)
         text = _normalize(item.get("text"))
         language = LANGUAGE_ZH if str(item.get("language") or "").lower().startswith(LANGUAGE_ZH) else LANGUAGE_EN
+        meaning_of = _normalize(item.get("meaning_of"))
+        if meaning_of and groups and groups[-1]["text"].lower() == meaning_of.lower():
+            groups[-1]["meaning"] = text
+            groups[-1]["all"].append(span)
+            continue
         if item.get("kind") == "word":
             key: Tuple[str, str] = ("word", text.lower())
+            sentence = None
+        elif item.get("kind") == orch_contract.PHRASE_KIND:
+            key = (orch_contract.PHRASE_KIND, text.lower())
             sentence = None
         else:
             # The clip's own sentence: by the sentence seq the manifest stamped
@@ -216,7 +225,7 @@ def build_cards(
         if groups and groups[-1]["key"] == key:
             group = groups[-1]
         else:
-            group = {"key": key, "kind": str(item.get("kind") or ""), "sentence": sentence, "text": text,
+            group = {"key": key, "kind": key[0], "sentence": sentence, "text": text, "meaning": "",
                      "spoken": {}, "spans": {LANGUAGE_EN: [], LANGUAGE_ZH: []}, "all": []}
             groups.append(group)
         group["spoken"].setdefault(language, text)
@@ -234,6 +243,12 @@ def build_cards(
                 lines.append(ScrollLine(word, ROLE_WORD, tuple(group["all"])))
             if languages != presets.LANGUAGES_EN and meanings[word]:
                 lines.append(ScrollLine(meanings[word], ROLE_WORD_MEANING, tuple(group["all"])))
+        elif group["kind"] == orch_contract.PHRASE_KIND:
+            meaning = group["meaning"]
+            if languages != presets.LANGUAGES_ZH or not meaning:
+                lines.append(ScrollLine(group["text"], ROLE_WORD, tuple(group["all"])))
+            if languages != presets.LANGUAGES_EN and meaning:
+                lines.append(ScrollLine(meaning, ROLE_WORD_MEANING, tuple(group["all"])))
         else:
             texts = _sentence_texts(group["sentence"], group["spoken"])
             for language, role in ((LANGUAGE_EN, ROLE_SENTENCE_EN), (LANGUAGE_ZH, ROLE_SENTENCE_ZH)):

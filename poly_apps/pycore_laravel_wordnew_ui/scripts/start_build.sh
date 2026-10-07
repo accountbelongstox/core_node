@@ -28,6 +28,8 @@
 #   LAN auto-scan:     ./start_build.sh --adb-scan   (mDNS + subnet probe, connect + authorize)
 #   Build + install:   ./start_build.sh --adb-install (builds an APK first when none exists)
 #   Live reload:       ./start_build.sh --live-reload [--app wordnew] (same flow as --one-click)
+#   Desktop:           ./start_build.sh --platform desktop [--app wordnew] [--non-interactive] (Electron app for
+#                      this PC, built and launched by scripts/flavor/build_desktop.py; no JDK/SDK/adb needed)
 # ADB wireless device debugging follows the official Android adb docs
 # (developer.android.com/tools/adb): pair ONCE with `adb pair` (pairing code from
 # Wireless debugging -> Pair using pairing code), then `adb connect`; legacy
@@ -45,6 +47,7 @@ APP_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 POLY_APPS_DIR="$(cd "${APP_ROOT}/.." && pwd)"
 REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
 BUILD_APK_SCRIPT="${SCRIPT_DIR}/flavor/build_apk.py"
+BUILD_DESKTOP_SCRIPT="${SCRIPT_DIR}/flavor/build_desktop.py"
 # dd idempotent steps + central library (FULL PATHS from the dd directory layout)
 LINUX_SHELLS_DIR="${REPO_ROOT}/scripts/shells/linux"
 STEP_NODE="${LINUX_SHELLS_DIR}/debian/install_shells/17_install_node_toolchain_26.sh"
@@ -59,6 +62,8 @@ NODE_MODULES="${APP_ROOT}/node_modules"
 VITE_BIN="${APP_ROOT}/node_modules/vite/bin/vite.js"
 # Args / state
 PLATFORM="android"
+DESKTOP_BUILD=""
+APP_BUILD_SCRIPT="$BUILD_APK_SCRIPT"
 APK_APP=""
 APK_BUILD_TYPE="ask"
 LIST_APPS=""
@@ -322,7 +327,7 @@ select_build_app() {
         ids+=("$id")
         names+=("$name")
         if [ "$mark" = "*" ]; then default_number="${#ids[@]}"; fi
-    done < <("$PYTHON_BIN" "$BUILD_APK_SCRIPT" --root "$APP_ROOT" --list-plain)
+    done < <("$PYTHON_BIN" "$APP_BUILD_SCRIPT" --root "$APP_ROOT" --list-plain)
     if [ "${#ids[@]}" -eq 0 ]; then return; fi
     picked="$default_number"
     if [ "${#ids[@]}" -gt 1 ]; then
@@ -511,23 +516,28 @@ if [ "$PLATFORM" = "ios" ]; then
         err "iOS packaging is not wired in build_apk.py yet (android only)."
         READY=0
     fi
+elif [ "$PLATFORM" = "desktop" ] || [ "$PLATFORM" = "windows" ]; then
+    DESKTOP_BUILD=1
+    APP_BUILD_SCRIPT="$BUILD_DESKTOP_SCRIPT"
 elif [ "$PLATFORM" != "android" ]; then
-    err "Unsupported platform: $PLATFORM (android only)."
+    err "Unsupported platform: $PLATFORM (android or desktop)."
     READY=0
 fi
 
 # --- Device debugging mode: ADB wireless connect menu/actions (no build) ---
+if [ -z "$DESKTOP_BUILD" ]; then
 if [ -n "$ADB_MENU" ] || [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_PAIR_CODE" ] || [ -n "$ADB_CONNECT_TARGET" ] || \
    [ -n "$ADB_DISCONNECT_TARGET" ] || [ -n "$ADB_TCPIP_PORT" ] || [ -n "$ADB_INSTALL" ] || \
    [ -n "$ADB_SCAN" ] || [ -n "$ADB_LIST" ] || [ -n "$LIVE_RELOAD" ]; then
     DEVICE_MODE=1
 fi
+fi
 
 # --- Interactive flow (bare run or --adb-menu): 1) select the app, 2) action menu ---
 if [ -z "$NON_INTERACTIVE" ] && [ -t 0 ]; then IS_INTERACTIVE=1; fi
 if [ "$READY" -eq 1 ] && [ -n "$IS_INTERACTIVE" ] && [ -z "$LIST_APPS" ]; then
-    if [ -n "$ADB_MENU" ] || { [ -z "$DEVICE_MODE" ] && [ "$APK_BUILD_TYPE" = "ask" ]; }; then SHOW_MENU=1; fi
-    if { [ -n "$SHOW_MENU" ] || [ -n "$LIVE_RELOAD" ]; } && [ -z "$APK_APP" ]; then select_build_app; fi
+    if [ -z "$DESKTOP_BUILD" ] && { [ -n "$ADB_MENU" ] || { [ -z "$DEVICE_MODE" ] && [ "$APK_BUILD_TYPE" = "ask" ]; }; }; then SHOW_MENU=1; fi
+    if { [ -n "$SHOW_MENU" ] || [ -n "$LIVE_RELOAD" ] || [ -n "$DESKTOP_BUILD" ]; } && [ -z "$APK_APP" ]; then select_build_app; fi
 fi
 if [ "$READY" -eq 1 ] && [ -n "$SHOW_MENU" ] && [ -z "$USER_QUIT" ]; then
     run_action_menu
@@ -602,7 +612,7 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && ! test_
 fi
 
 # --- Prerequisite: JDK 21 (central detector: java with major >= 21) ---
-if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && [ -z "$DESKTOP_BUILD" ]; then
     android_build_resolve_java_home
     if ! android_build_java_ready; then
         invoke_step "$STEP_JAVA"
@@ -615,7 +625,7 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
 fi
 
 # --- Prerequisite: Android SDK packages (central detector: sdkmanager + adb + platform + build-tools) ---
-if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && [ -z "$DESKTOP_BUILD" ]; then
     android_build_resolve_sdk_root
     if ! android_build_test_sdk_ready; then
         invoke_step "$STEP_ANDROID_SDK"
@@ -628,7 +638,7 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
 fi
 
 # --- Export resolved toolchain env for the build (central state) ---
-if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && [ -z "$DESKTOP_BUILD" ]; then
     export JAVA_HOME="$ANDROID_BUILD_JAVA_HOME"
     export PATH="${JAVA_HOME}/bin:${PATH}"
     export ANDROID_HOME="$ANDROID_BUILD_SDK_ROOT"
@@ -642,7 +652,7 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
 fi
 
 # --- Online adb devices: offer to install the fresh APK (default yes) ---
-if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && [ -z "$BUILD_FOR_INSTALL" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && [ -z "$BUILD_FOR_INSTALL" ] && [ -z "$DESKTOP_BUILD" ]; then
     resolve_adb_bin
     if adb_binary_ready && [ "$(adb_online_count)" -gt 0 ]; then
         log "Online adb device(s) detected:"
@@ -652,7 +662,20 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && [ -z "$
     fi
 fi
 
-if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -n "$DESKTOP_BUILD" ]; then
+    BUILD_ARGS=("$BUILD_DESKTOP_SCRIPT" --root "$APP_ROOT")
+    [ -n "$APK_APP" ] && BUILD_ARGS+=(--app "$APK_APP")
+    [ -n "$LIST_APPS" ] && BUILD_ARGS+=(--list)
+    [ -n "$OPEN_OUTPUT" ] && BUILD_ARGS+=(--open no)
+    [ -n "$NON_INTERACTIVE" ] && BUILD_ARGS+=(--non-interactive --run yes)
+    log "Starting desktop build workflow (platform: ${PLATFORM})."
+    "$PYTHON_BIN" "${BUILD_ARGS[@]}" && BUILD_OK=1
+    if [ "$BUILD_OK" -eq 1 ]; then
+        log "Desktop build workflow finished."
+    else
+        err "Desktop build workflow failed."
+    fi
+elif [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
     BUILD_ARGS=("$BUILD_APK_SCRIPT" --root "$APP_ROOT" --build-type "$APK_BUILD_TYPE")
     [ -n "$APK_APP" ] && BUILD_ARGS+=(--app "$APK_APP")
     [ -n "$LIST_APPS" ] && BUILD_ARGS+=(--list)

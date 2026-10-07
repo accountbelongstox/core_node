@@ -5,6 +5,7 @@ namespace App\Services\QueueCenter;
 use App\Support\QueueProgress;
 use App\Models\GlobalTask;
 use App\Support\QueueCenterContract;
+use App\Services\WorkLeases\WorkLeaseLanes;
 
 final class QueueCenterMetricsService
 {
@@ -73,14 +74,15 @@ final class QueueCenterMetricsService
 
     /**
      * Per-language gap counts of a gap lane (word_audio: dictionary rows;
-     * sentence_audio: live sentence rows), only languages holding rows; null
+     * sentence_audio: live sentence rows; phrase_audio: phrase rows), only
+     * languages holding rows; null
      * for a task queue.
      *
      * @return array<string, array{done: int, failed: int, pending: int}>|null
      */
     private function gapLanguages(string $taskType): ?array
     {
-        if (!in_array($taskType, [QueueCenterService::QUEUE_WORD_AUDIO, QueueCenterService::QUEUE_SENTENCE_AUDIO], true)) {
+        if (!WorkLeaseLanes::isGapLane($taskType)) {
             return null;
         }
 
@@ -131,7 +133,8 @@ final class QueueCenterMetricsService
     public function liveQueue(string $taskType): array
     {
         $snapshot = $this->snapshot($taskType);
-        if ($taskType === QueueCenterService::QUEUE_WORD_AUDIO) {
+        // Lanes without a task path count their backlog from the gap itself.
+        if ($taskType === QueueCenterService::QUEUE_WORD_AUDIO || $taskType === WorkLeaseLanes::PHRASE_AUDIO) {
             $backlog = array_sum(array_column(GapLaneSnapshot::lane($taskType), 'gap'));
             $assigned = min($backlog, (int) ($snapshot['assigned'] ?? 0));
             $processing = min(

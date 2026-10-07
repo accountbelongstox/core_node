@@ -2,8 +2,8 @@
 """State-driven audio lanes for the Queue Center and audio orchestration.
 
 Binding: docs_fix/DESIGN_AUDIO_ORCHESTRATION.md section 8.
-pycore owns the ONE truth of both audio lanes (word_audio / sentence_audio -
-each lane its own Queue = Part1 + Part2). This module composes it:
+pycore owns the ONE truth of every audio lane (word_audio / sentence_audio /
+phrase_audio - each lane its own Queue = Part1 + Part2). This module composes it:
 
   * switch      persisted lane capability + heartbeat callback running
   * queue       whole / Part1 / Part2 view + Part1 tracker (audio_queue_center)
@@ -16,7 +16,7 @@ each lane its own Queue = Part1 + Part2). This module composes it:
 and pushes it to the UI on every change: ``AudioLaneStatePublisherThread``
 waits on the queue library's change signal (every lane mutation, switch,
 lease batch, activation), coalesces bursts, and publishes the SSE topic
-``queue_center.audio_lane.changed`` with the full two-lane payload. The RPC
+``queue_center.audio_lane.changed`` with the full all-lane payload. The RPC
 ``ui/queue_center/audio_lane_state`` answers the same payload (optionally
 scoped to one orchestration owner) for mount, reconnect, and relay polling.
 """
@@ -52,6 +52,12 @@ TRANSLATION_LANE = "translation"
 TRANSLATION_LANE_CONTROL = "assist_translation"
 TRANSLATION_PROGRESS_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["prompt_translation"]["key"]
 _PUBLISHER_STOP_SIGNAL = "queue_center.audio_lane.publisher_stop"
+# Key of one lane's local status in the shared local snapshot.
+LOCAL_STATUS_KEY_BY_LANE = {
+    "word_audio": "wordAudio",
+    "sentence_audio": "sentenceAudio",
+    "phrase_audio": "phraseAudio",
+}
 # Coalescing window for bursts (drain pops, lease batches).
 _COALESCE_SECONDS = 0.4
 # Idle heartbeat: republish only while a lane is actively working.
@@ -62,7 +68,7 @@ ASSIST_SUMMARY_INTERVAL_SECONDS = float(QUEUE_CENTER_LANE_STATE["assist_summary_
 
 
 class AudioLaneState:
-    """Compose and publish the two-lane audio state (pycore-owned truth)."""
+    """Compose and publish the audio lane state (pycore-owned truth)."""
 
     def __init__(self) -> None:
         self._instance = uuid.uuid4().hex[:12]
@@ -83,7 +89,7 @@ class AudioLaneState:
         item_limit: int = _QUEUE_ITEM_LIMIT,
     ) -> Dict[str, Any]:
         """One lane's state from the shared local snapshot (``local``)."""
-        status = local["wordAudio"] if lane == "word_audio" else local["sentenceAudio"]
+        status = local[LOCAL_STATUS_KEY_BY_LANE[lane]]
         worker = status.get("worker") if isinstance(status.get("worker"), dict) else {}
         state: Dict[str, Any] = {
             "lane": lane,
@@ -150,10 +156,11 @@ class AudioLaneState:
             },
             "wordAudio": local["wordAudio"],
             "sentenceAudio": local["sentenceAudio"],
+            "phraseAudio": local["phraseAudio"],
         }
 
     def publish(self) -> None:
-        """Push the current two-lane state to every UI event stream."""
+        """Push the current audio lane state to every UI event stream."""
         event_journal.publish_topic(
             AUDIO_LANE_STATE_TOPIC,
             self.snapshot(advance=True),
@@ -162,7 +169,7 @@ class AudioLaneState:
     def lanes_active(self) -> bool:
         """True while any lane works (drain cycle in flight)."""
         local = queue_center_snapshot_service.local_audio_state()
-        for key in ("wordAudio", "sentenceAudio"):
+        for key in LOCAL_STATUS_KEY_BY_LANE.values():
             worker = (local.get(key) or {}).get("worker") or {}
             if worker.get("cycle_running") or int(worker.get("processing") or 0) > 0:
                 return True

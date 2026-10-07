@@ -49,6 +49,7 @@ import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePyco
 import { StorageManager } from '../../../core/persistence';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 import { PC_REQUEST_FAILED_CODE, PcLocalizedError, pcCaughtErrorMessage, pcFailureMessage } from '../utils/pcErrorCodes';
+import { PC_AUDIO_LANES } from '../utils/pcAudioLanes';
 
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
 
@@ -62,22 +63,22 @@ const EMPTY_LARAVEL_SLICE: QueueCenterLaravelSlice = {
 
 /**
  * Pycore-owned audio lane truth -> hub fields. The pushed payload carries the
- * SAME section contracts and word/sentence status the exchange snapshot
+ * SAME section contracts (every audio lane) and word/sentence status the exchange snapshot
  * builds, so applying it can never disagree with a later poll.
  */
 function laneStatePatch(
   payload: AudioLaneStatePayload,
   current: QcSectionContracts,
 ): Partial<Pick<QueueCenterHubData, 'sectionContracts' | 'voiceWord' | 'voiceSentence'>> {
-  const pushed = normalizeQueueCenterSections({
-    word_audio: payload.lanes.word_audio?.section_contract,
-    sentence_audio: payload.lanes.sentence_audio?.section_contract,
-  }, null);
+  const pushedLanes = PC_AUDIO_LANES.filter((lane) => payload.lanes[lane]?.section_contract);
+  const pushed = normalizeQueueCenterSections(
+    Object.fromEntries(pushedLanes.map((lane) => [lane, payload.lanes[lane]?.section_contract])),
+    null,
+  );
   const patch: Partial<Pick<QueueCenterHubData, 'sectionContracts' | 'voiceWord' | 'voiceSentence'>> = {
     sectionContracts: {
       ...current,
-      word_audio: payload.lanes.word_audio?.section_contract ? pushed.word_audio : current.word_audio,
-      sentence_audio: payload.lanes.sentence_audio?.section_contract ? pushed.sentence_audio : current.sentence_audio,
+      ...Object.fromEntries(pushedLanes.map((lane) => [lane, pushed[lane]])),
     },
   };
   if (payload.wordAudio) patch.voiceWord = payload.wordAudio as WordTtsAutoStatus;
@@ -365,7 +366,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   const refreshHub = useCallback(async () => { await poll(false, true); }, [poll]);
 
   // State-driven audio lanes: every pycore push (switch, lifecycle, queue,
-  // full pull, worker) lands in the Word/Sentence Audio sections at once.
+  // full pull, worker) lands in the Word/Sentence/Phrase Audio sections at once.
   useEffect(() => {
     const payload = laneStore.payload;
     if (!payload) return;

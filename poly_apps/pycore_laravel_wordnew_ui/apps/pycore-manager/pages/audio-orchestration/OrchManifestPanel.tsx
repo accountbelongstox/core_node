@@ -19,12 +19,14 @@ import {
   useAudioLaneState,
   type OrchManifestCategory,
   type OrchManifestItem,
+  type OrchResourceKind,
 } from '@/apps/pycore-manager/api';
 import PcFloatingPanel from '../../components/PcFloatingPanel';
 import PcPager from '../agent-history/PcPager';
 import { humanInt } from '../vocabulary/vocabShared';
 import { ORCH_L, orchErrorMessage } from './orchShared';
 import { absoluteTime } from '../../utils/pcFormat';
+import { pcAudioLaneOfKind } from '../../utils/pcAudioLanes';
 
 const PAGE_SIZE = 50;
 /** Lane pushes arrive in bursts: one manifest reload per quiet period. */
@@ -115,9 +117,10 @@ const OrchManifestPanel: React.FC<{
     if (promotingId) return;
     setPromotingId(item.resource_id);
     try {
-      const kind = item.kind === 'word' ? 'word' : 'sentence';
+      const lane = pcAudioLaneOfKind(item.kind);
+      const kind = item.kind as OrchResourceKind;
       const response = await pycoreApi.promoteLocalQueueHead({
-        queue: kind === 'word' ? 'word_audio' : 'sentence_audio',
+        queue: lane,
         items: [{ kind, language: item.language, text: item.text }],
         owner: taskId,
       });

@@ -78,13 +78,13 @@ def _result(provider: str, model: str) -> Dict[str, Any]:
     }
 
 
-def _chat_compat(provider: str, messages, model, key, out):
+def _chat_compat(provider: str, messages, model, key, out, options=None):
     client = compat_client(provider, key)
     if not model:
         listed, _error = client.list_models(AUTO_PICK_TIMEOUT_S) if client.profile.free_first else ([], None)
         model = listed[0] if listed else default_model(provider)
     out["model"] = model
-    res = client.chat(messages, model)
+    res = client.chat(messages, model, options)
     out["text"] = res["text"]
     out["success"] = res["success"]
     out["error"] = res["error"]
@@ -92,7 +92,7 @@ def _chat_compat(provider: str, messages, model, key, out):
     return out
 
 
-def _chat_gemini(provider: str, messages, model, key, out):
+def _chat_gemini(provider: str, messages, model, key, out, options=None):
     model = model or default_model(provider)
     out["model"] = model
     try:
@@ -109,7 +109,7 @@ def _chat_gemini(provider: str, messages, model, key, out):
     return out
 
 
-def _chat_anthropic(provider: str, messages, model, key, out):
+def _chat_anthropic(provider: str, messages, model, key, out, options=None):
     model = model or default_model(provider)
     out["model"] = model
     system = "\n".join(m["content"] for m in messages if m["role"] == "system") or None
@@ -132,7 +132,8 @@ _DISPATCH: Dict[str, Callable[..., Dict[str, Any]]] = {
 
 
 def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str] = None,
-              source: str = "", context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+              source: str = "", context: Optional[Dict[str, Any]] = None,
+              options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Send one chat turn to ``provider`` and return the unified contract.
 
@@ -141,6 +142,8 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
         messages: list of {role, content} dicts (system/user/assistant).
         model:    optional model id; falls back to the provider default.
         source:   task label recorded in the shared usage log ("chat", "compose"...).
+        options:  OpenAI-compatible request overrides (temperature, max_tokens);
+                  only the openai_compat providers apply them.
     """
     provider = (provider or "").strip().lower()
     # Pass the caller's model through as-is (None = let the handler resolve a
@@ -191,7 +194,7 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
         "runtime": "pycore",
     })
     try:
-        handler(provider, msgs, requested_model, key, out)
+        handler(provider, msgs, requested_model, key, out, options)
     except Exception as e:  # noqa: BLE001 - provider SDK boundary: surface any failure to the UI
         out["error"] = str(e)
         ColorPrint.yellow(f"[ai_chat] {provider} chat failed: {e}")

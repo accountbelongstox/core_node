@@ -63,4 +63,19 @@ final class AudioOrchestrationContract
 
         return $value;
     }
+
+    /** One value of the `phrase_pipeline` section (dot path, e.g. extraction.batch_sentences). */
+    public static function phrasePipeline(string $path): mixed
+    {
+        $value = self::document()['phrase_pipeline'] ?? null;
+
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                throw new RuntimeException("Unknown audio orchestration phrase_pipeline value: {$path}");
+            }
+            $value = $value[$segment];
+        }
+
+        return $value;
+    }
 }

@@ -274,7 +274,10 @@
       "Bash(awk '{print $1,$2,$3,$4,$5,$6,$7,$8,$9}')",
       "PowerShell($d = Resolve-Path 'D:\\\\programing\\\\core_node\\\\poly_apps\\\\pycore_laravel_wordnew_ui\\\\node_modules.pre_program_drive.20261005022715'; $links = @\\(Get-ChildItem -LiteralPath $d -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue\\); \"reparse points: $\\($links.Count\\)\"; $links | Select-Object -First 10 FullName, LinkType, Target | Format-Table -AutoSize | Out-String; \"files: $\\(@\\(Get-ChildItem -LiteralPath $d -Recurse -Force -File -ErrorAction SilentlyContinue\\).Count\\)\"; $live = Resolve-Path 'D:\\\\programing\\\\core_node\\\\poly_apps\\\\pycore_laravel_wordnew_ui\\\\node_modules'; \"live node_modules: $\\(\\(Get-Item -LiteralPath $live -Force\\).LinkType\\) -> $\\(\\(Get-Item -LiteralPath $live -Force\\).Target\\)\")",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(awk '{print $3}')",
+      "Bash(python3 -m pycore.pyfoundations.console_log_reader --summary --minutes 60 --grep \"terminal/text\" --limit 20)",
+      "Bash(rm *)"
     ],
     "deny": [],
     "ask": []

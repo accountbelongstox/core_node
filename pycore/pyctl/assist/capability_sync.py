@@ -45,7 +45,7 @@ def _apply_lane_lifecycle(callback_name: str, want: bool, graceful_stop: bool) -
 
     request_start() wakes one immediate remote-first pull so an enable action
     processes the first bounded batch without waiting for the poll interval.
-    An audio lane (word_audio / sentence_audio) defers that start to a
+    An audio lane (word_audio / sentence_audio / phrase_audio) defers that start to a
     background task that waits for the lane's own cache-first restore first,
     so this settings-sync call never blocks on a snapshot load and the
     remote pull never races it (R6/section 5.4). request_stop() closes the
@@ -108,6 +108,7 @@ def apply_assist_runtime(
     states = assist_callback_states(config)
     want_word_audio = states.get("tts_queue_poller", False)
     want_sentence_audio = states.get("tts_sentence_worker", False)
+    want_phrase_audio = states.get("tts_phrase_worker", False)
     want_translation = enabled and bool(caps.get("translation", True))
     want_stt = enabled and bool(caps.get("stt", False))
 
@@ -119,6 +120,6 @@ def apply_assist_runtime(
     ColorPrint.blue(
         f"[AssistSync] runtime applied master={enabled} "
         f"translation={want_translation} word_audio={want_word_audio} "
-        f"sentence_audio={want_sentence_audio} stt={want_stt}"
+        f"sentence_audio={want_sentence_audio} phrase_audio={want_phrase_audio} stt={want_stt}"
     )
     return {"ok": not errors, "errors": errors}

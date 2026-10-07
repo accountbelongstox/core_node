@@ -155,6 +155,9 @@ function createWindow() {
     log(`[console:${level}] ${event.message ?? legacyMessage} (${event.sourceId ?? legacySource}:${event.lineNumber ?? legacyLine})`);
   });
   window.webContents.on('render-process-gone', (_event, details) => log(`[desktop] renderer gone: ${details.reason}`));
+  window.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) log(`[desktop] page load: ${details.url}`);
+  });
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(APP_ORIGIN)) void shell.openExternal(url);
     return { action: 'deny' };

@@ -5,7 +5,7 @@ Assist-Laravel settings (unified user-data store, section ``assist_laravel``).
 Holds the per-capability gates that form the single Queue Center control plane:
 
     { enabled: bool (default False),
-      capabilities: { translation, tts, sentence_audio, subtitle, stt } }
+      capabilities: { translation, tts, sentence_audio, phrase_audio, subtitle, stt } }
 
 Effective value per key, lowest layer first: config/user.settings.json
 defaults, the notebook default (contract ``notebook_defaults`` while its env
@@ -25,9 +25,13 @@ CAPABILITY_KEYS = (
     "translation",
     "tts",
     "sentence_audio",
+    "phrase_audio",
     "subtitle",
     "stt",
 )
+# A capability with no explicit value in any settings layer follows its leader:
+# the phrase lane is a CPU word-batch lane, ON wherever the word lane is ON.
+CAPABILITY_FOLLOWS = {"phrase_audio": "tts"}
 
 
 # ============================================================
@@ -42,7 +46,10 @@ def _merge_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     caps = {
         key: bool(caps_raw.get(key))
         for key in CAPABILITY_KEYS
+        if key not in CAPABILITY_FOLLOWS
     }
+    for key, leader in CAPABILITY_FOLLOWS.items():
+        caps[key] = bool(caps_raw[key]) if key in caps_raw else caps[leader]
     return {
         "enabled": bool(raw.get("enabled")),
         "capabilities": caps,
@@ -137,6 +144,7 @@ def assist_callback_states(
     translation = enabled and bool(capabilities.get("translation"))
     word_audio = enabled and bool(capabilities.get("tts"))
     sentence_audio = enabled and bool(capabilities.get("sentence_audio"))
+    phrase_audio = enabled and bool(capabilities.get("phrase_audio"))
     subtitle = enabled and bool(capabilities.get("subtitle"))
     stt = enabled and bool(capabilities.get("stt"))
     translation_worker = translation or subtitle or stt
@@ -144,6 +152,7 @@ def assist_callback_states(
         "translation_worker": translation_worker,
         "tts_queue_poller": word_audio,
         "tts_sentence_worker": sentence_audio,
+        "tts_phrase_worker": phrase_audio,
         "subtitle_search_worker": subtitle,
         # Laravel depends on pycore for compute tasks; the lane is not a user toggle.
         "compute_worker": True,

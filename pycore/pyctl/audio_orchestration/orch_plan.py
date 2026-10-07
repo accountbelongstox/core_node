@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
-from pycore.pyctl.audio_orchestration import orch_books, orch_store, orch_words
+from pycore.pyctl.audio_orchestration import orch_books, orch_contract, orch_store, orch_words
 
 # Part of the plan signature: a manifest planned before sentences were cut at
 # their verse markers never resumes.
@@ -100,12 +100,12 @@ def speakable_pieces(text: str) -> List[str]:
     return [row["text"] for row in sentence_segmenter.split_verses(text) if row["text"]]
 
 
-def _sentence_lang_text(sentence: Dict[str, Any], lang: str) -> str:
-    languages = sentence.get("languages") or {}
-    text = str(languages.get(lang) or "").strip()
-    if not text and lang == str(sentence.get("language") or ""):
-        text = str(sentence.get("text") or "").strip()
-    return text
+def task_language(task: Dict[str, Any], sentence: Dict[str, Any]) -> str:
+    return str((task.get("book") or {}).get("language") or sentence.get("language") or "en")
+
+
+def pattern_has_phrases(task: Dict[str, Any]) -> bool:
+    return any(step.get("type") == orch_contract.PHRASES_STEP_TYPE for step in task.get("pattern") or [])
 
 
 def build_sentence_items(
@@ -114,10 +114,14 @@ def build_sentence_items(
     consume: bool,
     use_backend: bool = True,
     auth_record: Optional[Dict[str, Any]] = None,
+    phrases: Optional[Dict[str, List[Dict[str, str]]]] = None,
 ) -> List[Dict[str, Any]]:
     """Expand the task pattern for one sentence into audio items.
-    Item: {kind: word|sentence, language, text}."""
-    language = str((task.get("book") or {}).get("language") or sentence.get("language") or "en")
+    Item: {kind: word|sentence|phrase, language, text, meaning_of?}; ``phrases``
+    maps a sentence content id to its phrases (``orch_books``): a ``phrases``
+    step emits them, and with ``meaning`` each phrase's Chinese meaning as a
+    sentence clip that carries ``meaning_of`` (the phrase text)."""
+    language = task_language(task, sentence)
     target_language = str((task.get("book") or {}).get("target_language") or "zh")
     items: List[Dict[str, Any]] = []
     for step in task.get("pattern") or []:
@@ -143,10 +147,23 @@ def build_sentence_items(
                     for word in selected["words"]
                 )
             continue
+        if step_type == orch_contract.PHRASES_STEP_TYPE:
+            sentence_phrases = (phrases or {}).get(orch_books.sentence_content_id(sentence, language)) or []
+            for _ in range(times):
+                for phrase in sentence_phrases:
+                    items.append({"kind": orch_contract.PHRASE_KIND, "language": language, "text": phrase["text"]})
+                    if step.get("meaning") and phrase["meaning"]:
+                        items.append({
+                            "kind": "sentence",
+                            "language": orch_contract.PHRASE_MEANING_LANGUAGE,
+                            "text": phrase["meaning"],
+                            "meaning_of": phrase["text"],
+                        })
+            continue
         lang = {"sentence_en": "en", "sentence_zh": "zh"}.get(step_type)
         if lang is None:
             continue
-        pieces = speakable_pieces(_sentence_lang_text(sentence, lang))
+        pieces = speakable_pieces(orch_books.sentence_language_text(sentence, lang))
         for _ in range(times):
             items.extend({"kind": "sentence", "language": lang, "text": piece} for piece in pieces)
     return items
@@ -163,6 +180,10 @@ def plan_task(task: Dict[str, Any], sentences: List[Dict[str, Any]]) -> Dict[str
     simulated = dict(task)
     simulated["virtual_read"] = []
     simulated_auth = {"virtual_read": set()}
+    phrase_index = (
+        orch_books.cached_sentence_phrases(task_language(task, sentences[0]), sentences)
+        if sentences and pattern_has_phrases(task) else {}
+    )
     for segment in orch_books.partition_sentences(sentences, mode, value):
         item_count = 0
         word_count = 0
@@ -170,7 +191,10 @@ def plan_task(task: Dict[str, Any], sentences: List[Dict[str, Any]]) -> Dict[str
             # Relay-safe preview: local tokenization only - the per-sentence
             # backend read-state queries run later, inside background
             # generation where no relay deadline applies.
-            items = build_sentence_items(simulated, sentences[index], consume=True, use_backend=False, auth_record=simulated_auth)
+            items = build_sentence_items(
+                simulated, sentences[index], consume=True, use_backend=False, auth_record=simulated_auth,
+                phrases=phrase_index,
+            )
             item_count += len(items)
             word_count += sum(1 for item in items if item["kind"] == "word")
         segments.append({**segment, "item_count": item_count, "word_count": word_count})
@@ -180,8 +204,10 @@ def plan_task(task: Dict[str, Any], sentences: List[Dict[str, Any]]) -> Dict[str
 __all__ = [
     "build_sentence_items",
     "load_resume_state",
+    "pattern_has_phrases",
     "plan_signature",
     "speakable_pieces",
+    "task_language",
     "plan_task",
     "save_manifest_state",
 ]

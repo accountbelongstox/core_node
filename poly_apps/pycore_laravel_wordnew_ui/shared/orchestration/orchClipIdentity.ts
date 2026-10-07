@@ -2,10 +2,10 @@
  * One identity for an orchestration clip on every end, and the path forms it
  * has there. The identities are the ones pycore and Laravel already compute:
  *
- *   contentId  = md5(collapse_ws(lower(strip P/S categories)))       sentences
+ *   contentId  = md5(collapse_ws(lower(strip P/S categories)))       sentences, phrases
  *                (pycore `media_content_id`, Laravel `MediaIngestService`)
  *   resourceId = sha256("<kind>:<language>:<content>")                 pycore `resource_id`
- *                content = contentId (sentence) | trimmed lower-case word
+ *                content = contentId (sentence, phrase) | trimmed lower-case word
  *
  * The device store names a clip by its resourceId, so a clip copied between
  * pycore, Laravel and a phone keeps one name, and the same composition code
@@ -24,6 +24,10 @@ const PUNCTUATION_RE = /[\p{P}\p{S}]/gu;
 const WHITESPACE_RE = /\s+/g;
 /** Laravel's public sentence file `<language>/<content id>.mp3` (the default voice; a `_variant` file is another audio). */
 const SENTENCE_FILE_RE = /\/static\/app_qy_v1\/sentence_sounds\/([A-Za-z0-9-]+)\/([0-9a-f]{32})\.mp3$/i;
+/** Laravel's public phrase file `<language>/<content id>.mp3`. */
+const PHRASE_FILE_RE = /\/static\/app_qy_v1\/phrase_sounds\/([A-Za-z0-9-]+)\/([0-9a-f]{32})\.mp3$/i;
+/** Kinds whose content is the md5 content id of their text. */
+const HASHED_KINDS: readonly OrchResourceKind[] = ['sentence', 'phrase'];
 
 /** Directory of the clip store inside any storage root (same on every end). */
 export const ORCH_CLIP_DIR = 'orch-clips';
@@ -33,7 +37,7 @@ export interface OrchClipIdentity {
   kind: OrchResourceKind;
   language: string;
   text: string;
-  /** md5 content id (sentences); the normalized word for words. */
+  /** md5 content id (sentences, phrases); the normalized word for words. */
   contentId: string;
   /** pycore resource id: the store key on every end. */
   resourceId: string;
@@ -45,21 +49,25 @@ export function orchContentId(text: string): string {
 }
 
 export function orchClipIdentity(kind: OrchResourceKind, language: string, text: string): OrchClipIdentity {
-  const contentId = kind === 'sentence' ? orchContentId(text) : text.trim().toLowerCase();
+  const contentId = HASHED_KINDS.includes(kind) ? orchContentId(text) : text.trim().toLowerCase();
   return { kind, language, text, contentId, resourceId: sha256Hex(`${kind}:${language}:${contentId}`) };
 }
 
 /**
- * The identity a clip URL proves by itself: a Laravel sentence file URL names its language and content id, so
- * the resource id follows without the text (the identity text stays empty). Word file URLs carry a voice hash,
+ * The identity a clip URL proves by itself: a Laravel sentence / phrase file URL names its language and content id,
+ * so the resource id follows without the text (the identity text stays empty). Word file URLs carry a voice hash,
  * not the word, and accent / quality variants are other audio than the orchestration clip: those give null.
  */
 export function orchClipIdentityOfUrl(url: string): OrchClipIdentity | null {
-  const match = SENTENCE_FILE_RE.exec(url.split(/[?#]/, 1)[0]);
+  const path = url.split(/[?#]/, 1)[0];
+  const sentence = SENTENCE_FILE_RE.exec(path);
+  const phrase = sentence ? null : PHRASE_FILE_RE.exec(path);
+  const match = sentence ?? phrase;
   if (!match) return null;
+  const kind: OrchResourceKind = sentence ? 'sentence' : 'phrase';
   const language = match[1].toLowerCase();
   const contentId = match[2].toLowerCase();
-  return { kind: 'sentence', language, text: '', contentId, resourceId: sha256Hex(`sentence:${language}:${contentId}`) };
+  return { kind, language, text: '', contentId, resourceId: sha256Hex(`${kind}:${language}:${contentId}`) };
 }
 
 export interface OrchClipLocations {
@@ -74,8 +82,9 @@ export interface OrchClipLocations {
 /** Every path form of one clip; a caller joins them with its own origin / root. */
 export function orchClipLocations(identity: OrchClipIdentity): OrchClipLocations {
   const { kind, language, text } = identity;
-  const laravelPath = kind === 'sentence'
-    ? `${APPQYV1_API_BASE}${APPQYV1_AI_TOOLS_ROUTES.ttsSentenceAudio}?${new URLSearchParams({ text, language, passive: '1' })}`
+  const textRoute = kind === 'sentence' ? APPQYV1_AI_TOOLS_ROUTES.ttsSentenceAudio : kind === 'phrase' ? APPQYV1_AI_TOOLS_ROUTES.ttsPhraseAudio : null;
+  const laravelPath = textRoute
+    ? `${APPQYV1_API_BASE}${textRoute}?${new URLSearchParams({ text, language, passive: '1' })}`
     : `${APPQYV1_API_BASE}${APPQYV1_WORD_MEDIA_ROUTES.wordAudio(language, identity.contentId)}?passive=1`;
   return {
     pycore: {

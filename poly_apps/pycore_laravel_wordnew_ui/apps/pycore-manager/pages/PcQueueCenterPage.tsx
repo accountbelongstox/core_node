@@ -25,6 +25,7 @@ import {
 } from '@/apps/pycore-manager/api';
 import PcSentenceQueuePanel from './PcSentenceQueuePanel';
 import { PcWordAudioPanel } from '../components/PcWordAudioPanel';
+import { PcPhraseAudioPanel } from '../components/PcPhraseAudioPanel';
 import PcQueueOverviewPanel from './PcQueueOverviewPanel';
 import PcRecentTasksPanel from './PcRecentTasksPanel';
 import PcAgentHistoryQueuePanel from './PcAgentHistoryQueuePanel';
@@ -74,7 +75,7 @@ interface QcToggleModel {
   title: string;
 }
 
-/** The lane switch with its lifecycle label (word, sentence and translation lanes share it). */
+/** The lane switch with its lifecycle label (every audio lane and the translation lane share it). */
 const QcSectionToggle: React.FC<{ toggle: QcToggleModel }> = ({ toggle }) => {
   const { t } = useTranslation('pc');
   const stateLabel = (() => {
@@ -182,6 +183,7 @@ const QueueCenterBody: React.FC = () => {
   );
   const wordPending = sectionContracts.word_audio.queue.pending;
   const sentenceCount = sectionContracts.sentence_audio.queue.pending;
+  const phraseCount = sectionContracts.phrase_audio.queue.pending;
   const agentHistoryPending = Number(agentHistoryRuntime.articleSummary?.total_pending || 0);
 
   // Legacy ?tab= links → scroll to the section anchor + a brief highlight.
@@ -216,13 +218,18 @@ const QueueCenterBody: React.FC = () => {
 
   const sentenceContract = sectionContracts.sentence_audio;
   const wordAudioContract = sectionContracts.word_audio;
+  const phraseContract = sectionContracts.phrase_audio;
 
   const sentenceOn = sentenceContract.toggle.enabled;
+  const phraseOn = phraseContract.toggle.enabled;
   const wordAudioOn = wordAudioContract.toggle.enabled;
 
   const toggleSentence = useCallback(
     () => runToggle('sentence_audio', 'queueCenter.sections.sentence', () => hub.setControl('sentence_audio', !sentenceOn)),
     [runToggle, sentenceOn]);
+  const togglePhrase = useCallback(
+    () => runToggle('phrase_audio', 'queueCenter.sections.phrase', () => hub.setControl('phrase_audio', !phraseOn)),
+    [runToggle, phraseOn]);
   const toggleWordAudio = useCallback(
     () => runToggle('word_audio', 'queueCenter.sections.wordAudio', () => hub.setControl('word_audio', !wordAudioOn)),
     [runToggle, wordAudioOn]);
@@ -379,6 +386,22 @@ const QueueCenterBody: React.FC = () => {
           title: sentenceContract.toggle.enabled ? t('queueCenter.sectionsToggle.sentenceOff') : t('queueCenter.sectionsToggle.sentenceOn'),
         }}>
         <PcSentenceQueuePanel />
+      </QcSectionCard>
+
+      <QcSectionCard
+        section="phrase"
+        count={phraseCount}
+        highlight={highlight === 'phrase'}
+        toggle={{
+          enabled: phraseContract.toggle.enabled,
+          lifecycle: phraseContract.lifecycle,
+          pausedByUser: phraseContract.toggle.paused_by_user ?? false,
+          gracefulStop: phraseContract.toggle.graceful_stop,
+          busy: busyScope.phrase_audio === true,
+          onToggle: togglePhrase,
+          title: phraseContract.toggle.enabled ? t('queueCenter.sectionsToggle.phraseOff') : t('queueCenter.sectionsToggle.phraseOn'),
+        }}>
+        <PcPhraseAudioPanel />
       </QcSectionCard>
 
       <QcSectionCard

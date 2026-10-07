@@ -116,7 +116,7 @@ class LaravelAudioWorkerEngineMixin:
 
     def _pinned_lane_engine(self) -> Optional[str]:
         """The one engine this lane synthesizes with (word batch or pin)."""
-        if self.LANE == "word":
+        if self.BATCH_LANE:
             return runtime_profile.WORD_BATCH_ENGINE
         return self._required_engine()
 

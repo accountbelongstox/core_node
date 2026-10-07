@@ -17,3 +17,6 @@
 - [Colab GPU sentence routing](project_colab_gpu_sentence_routing.md) — 2026-10-04 declaration-based zh/en routing, T4 fp16, stale-boot fix, regpu, hung-tab trap
 - [Google translate transport](project_google_translate_transport.md) — 2026-10-04 TLS stack decides, not googletrans version; clients5 batch endpoint; NIV zh backfill driver
 - [lane_rates / cache hits / Colab log](project_lane_rates_cache_hits_colab_log.md) — 2026-10-04 completed != synthesized; zh flap fix; hung Colab tab; T4 batch cap
+- [phrase_extract in pycore](project_phrase_extract_pycore.md) — 2026-10-05 handler rides compute worker; TaskRelease/available=; contract vocabulary gate
+- [Phrase pipeline in orchestration](project_phrase_pipeline_orch.md) — 2026-10-05 phrase step decisions; Laravel ingest validator rejects phrase timeline type; locale codes
+- [Phrase audio pycore](project_phrase_audio_pycore.md) — 2026-10-05 phrase cache/batch/delivery: no W7 diff kind, no reconcile; how to extend

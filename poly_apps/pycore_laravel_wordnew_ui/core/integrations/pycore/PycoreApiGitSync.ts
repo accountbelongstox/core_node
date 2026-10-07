@@ -1,10 +1,35 @@
 import { PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { primaryPycoreHttp, type PycoreHttpApi } from './PycoreHttp';
 
+/** One LAN pycore as announced by its gitsync turn claim/release (pushed to this pycore, never polled). */
+export interface GitSyncLanPeer {
+  machine: string;
+  hostname: string;
+  running: boolean;
+  seen_at: number;
+  result?: '' | 'ok' | 'conflict';
+  finished_at?: number;
+  head?: string;
+  branch?: string;
+  pushed?: number;
+  pulled?: number;
+}
+
+export interface GitSyncPush {
+  finished_at: number;
+  head: string;
+  branch: string;
+  pushed: number;
+  commits: string[];
+}
+
 /** Automatic gitsync of the pycore machine and its unresolved-merge-conflict alert. */
 export interface GitSyncState {
   success: boolean;
   error_code?: string | null;
+  /** Bumped on every change; sent back as known_revision, an unchanged state replies with the revision only. */
+  revision: number;
+  unchanged?: boolean;
   /** Paused until pycore restarts. */
   paused: boolean;
   running: boolean;
@@ -18,16 +43,25 @@ export interface GitSyncState {
   conflict: boolean;
   conflict_doc: string;
   conflict_files: string[];
+  /** Filled only while a conflict is open. */
   ai_prompt: string;
+  /** Waiting for the LAN turn; turn_holder is the LAN machine holding it ('' = unknown). */
+  waiting_for_turn: boolean;
+  turn_holder: string;
+  last_push: GitSyncPush | Record<string, never>;
+  lan: GitSyncLanPeer[];
 }
 
 export interface GitSyncRun {
   started_at: number;
   duration_seconds: number;
-  trigger: 'schedule' | 'manual';
+  waited_seconds?: number;
+  trigger: 'schedule' | 'manual' | 'peer';
   result: 'ok' | 'conflict';
   exit_code: number | null;
   conflict_files: number;
+  pushed?: number;
+  pulled?: number;
 }
 
 /** One page of the recorded runs, newest first; `recorded` is how many are kept, `total` how many ever ran. */
@@ -52,7 +86,9 @@ export interface GitSyncControl {
 export function createPycoreApiGitSync(http: PycoreHttpApi) {
   const { requestPycoreHttp } = http;
   return {
-    getGitSyncState: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncState, {}) as Promise<GitSyncState>,
+    getGitSyncState: (knownRevision?: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncState, {
+      known_revision: knownRevision,
+    }) as Promise<GitSyncState>,
     getGitSyncHistory: (offset: number, limit: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncHistory, {
       offset,
       limit,

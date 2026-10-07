@@ -14,12 +14,14 @@ import {
   type OrchStageProgress,
 } from './orchClipResolver';
 import { OrchClipTable } from './orchClipTable';
+import { orchContentId } from './orchClipIdentity';
 import { ORCH_CLIP_GAP_MS, planComposition } from './orchPlanner';
 import { buildTimeline, orchPlaceholderMs, type OrchTimelineEntry } from './orchStageLayout';
 import type {
   OrchComposePlan,
   OrchComposeSentence,
   OrchComposeSpec,
+  OrchPhrasesBySentence,
   OrchResolveCounts,
   OrchResolvedClip,
   OrchWordState,
@@ -37,6 +39,11 @@ export function isOrchComposeAborted(error: unknown): boolean {
 export interface OrchComposeInputs {
   sentences: OrchComposeSentence[];
   wordStates: Map<string, OrchWordState>;
+  /**
+   * Phrases of the plan sentences by `orchSentenceContentId` (the `phrases` steps read them; absent: none known).
+   * A sentence Laravel still reports `pending` is left out, so a resumed run (R9) asks again.
+   */
+  phrasesBySentence?: OrchPhrasesBySentence;
   /** False when the live source was unreachable and a kept copy was used. */
   fresh: boolean;
   /** Base URL of the Laravel API the inputs were just loaded from ('' for a kept copy). */
@@ -57,6 +64,8 @@ export interface OrchComposeSession {
   inputsFresh: boolean;
   plan: OrchComposePlan | null;
   wordStates: ReadonlyMap<string, OrchWordState>;
+  /** Phrases the plan was composed from (a phrase's meaning for the stage when its meaning clip is not spoken); absent: none. */
+  phrasesBySentence?: OrchPhrasesBySentence;
   clips: ReadonlyMap<string, OrchResolvedClip>;
   counts: OrchResolveCounts;
   /**
@@ -106,7 +115,7 @@ export interface OrchComposeDeps {
     table?: string;
     cursors?: Record<string, OrchStageCursor>;
     stages?: Record<string, OrchStageProgress>;
-  } & Partial<Pick<OrchComposeSession, 'plan' | 'clips' | 'timelines' | 'wordStates'>>;
+  } & Partial<Pick<OrchComposeSession, 'plan' | 'clips' | 'timelines' | 'wordStates' | 'phrasesBySentence'>>;
 }
 
 export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycore: 0, laravel: 0, missing: 0, generating: 0, pending: 0 };
@@ -169,6 +178,24 @@ async function measure(
   return durations;
 }
 
+/** Per segment (plan order): the timeline of the clips held (a clip not held is a placeholder). */
+async function composeTimelines(
+  plan: OrchComposePlan,
+  clips: ReadonlyMap<string, OrchResolvedClip>,
+  memory: OrchDurationMemory,
+  report: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<OrchTimelineEntry[][]> {
+  const ordered = plan.resources.map((resource) => clips.get(resource.key)).filter((clip): clip is OrchResolvedClip => Boolean(clip));
+  const durations = await measure(ordered, memory, report, signal);
+  const byKey = new Map(plan.resources.map((resource) => [`${resource.kind}\u0000${resource.language}\u0000${resource.text}`, resource.key]));
+  return plan.segments.map((segment) => buildTimeline(segment.items, (item) => {
+    const key = byKey.get(`${item.kind}\u0000${item.language}\u0000${item.text}`) ?? '';
+    const clip = clips.get(key);
+    return clip ? { url: clip.url, durationMs: durations.get(key) ?? 0 } : null;
+  }, ORCH_CLIP_GAP_MS, orchPlaceholderMs));
+}
+
 export function totalDurationMs(timelines: OrchTimelineEntry[][]): number {
   return timelines.reduce((total, timeline) => total + (timeline[timeline.length - 1]?.endMs ?? 0), 0);
 }
@@ -180,6 +207,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     inputsFresh: false,
     plan: deps.seed?.plan ?? null,
     wordStates: deps.seed?.wordStates ?? new Map(),
+    phrasesBySentence: deps.seed?.phrasesBySentence ?? new Map(),
     clips: deps.seed?.clips ?? new Map(),
     counts: deps.seed?.counts ?? ORCH_EMPTY_COUNTS,
     table: deps.seed?.plan && deps.seed.table
@@ -237,10 +265,17 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     phase: 'plan',
     inputsFresh: inputs.fresh,
     wordStates: inputs.wordStates,
+    phrasesBySentence: inputs.phrasesBySentence ?? new Map(),
     endpoints: inputs.laravelUrl ? { laravel: inputs.laravelUrl } : {},
   });
 
-  const plan = planComposition(spec, inputs.sentences, inputs.wordStates);
+  const phrasesBySentence = inputs.phrasesBySentence ?? new Map();
+  const plan = planComposition(spec, inputs.sentences, inputs.wordStates, phrasesBySentence);
+  // The gloss kept with a phrase clip, by phrase content id.
+  const phraseMeanings = new Map<string, string>();
+  phrasesBySentence.forEach((phrases) => phrases.forEach((phrase) => {
+    if (phrase.meaning) phraseMeanings.set(orchContentId(phrase.text), phrase.meaning);
+  }));
   const keys = plan.resources.map((resource) => resource.key);
   // The kept state of this plan is shown at once (local first); the run then reports its own.
   const shown = session.table?.size === keys.length ? session.table
@@ -254,6 +289,19 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
 
   await deps.onPlan?.(plan);
   checkpoint();
+  // Preview: the timelines of the clips the first source pass holds (the device store on an app) are
+  // published while the later stages still run - an edited plan plays again within seconds. A plan
+  // that already shows timelines (a resumed run) keeps them until its run is ready.
+  let previewed = session.timelines.length > 0;
+  let finished = false;
+  const preview = (progress: OrchResolveProgress): void => {
+    if (previewed || progress.clips.size === 0) return;
+    previewed = true;
+    const held = new Map(progress.clips);
+    void composeTimelines(plan, held, deps.durations, () => undefined, deps.signal).then((timelines) => {
+      if (!finished && !deps.signal?.aborted) publish({ timelines });
+    }, () => undefined);
+  };
   let latestProgress: OrchResolveProgress | null = null;
   let progressTimer: ReturnType<typeof setTimeout> | null = null;
   const flushProgress = (): void => {
@@ -275,7 +323,9 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   };
   const resolved = await resolveOrchClips(plan.resources, deps.sources, {
     signal: deps.signal,
-    meaningOf: (resource) => (resource.kind === 'word' ? inputs.wordStates.get(resource.text)?.meaning ?? '' : ''),
+    meaningOf: (resource) => (resource.kind === 'word'
+      ? inputs.wordStates.get(resource.text)?.meaning ?? ''
+      : resource.kind === 'phrase' ? phraseMeanings.get(resource.contentId) ?? '' : ''),
     cursors: new OrchCursorBook(deps.seed?.cursors),
     // The resolver reports once per clip (tens of thousands of times): a report only
     // keeps the live state, published at most once per PROGRESS_PUBLISH_MS.
@@ -284,6 +334,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
       latestProgress = progress;
       progressTimer ??= setTimeout(flushProgress, PROGRESS_PUBLISH_MS);
     },
+    onSourceDone: preview,
   });
   if (progressTimer) clearTimeout(progressTimer);
   progressTimer = null;
@@ -300,17 +351,11 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     stages: { ...resolved.stages },
   });
 
-  const ordered = plan.resources.map((resource) => resolved.clips.get(resource.key)).filter((clip): clip is OrchResolvedClip => Boolean(clip));
-  const durations = await measure(ordered, deps.durations, (done, total) => {
+  const timelines = await composeTimelines(plan, resolved.clips, deps.durations, (done, total) => {
     if (!deps.signal?.aborted) publishThrottled({ measureProgress: { done, total } });
   }, deps.signal);
+  finished = true;
   flushThrottled();
   checkpoint();
-  const byKey = new Map(plan.resources.map((resource) => [`${resource.kind}\u0000${resource.language}\u0000${resource.text}`, resource.key]));
-  const timelines = plan.segments.map((segment) => buildTimeline(segment.items, (item) => {
-    const key = byKey.get(`${item.kind}\u0000${item.language}\u0000${item.text}`) ?? '';
-    const clip = resolved.clips.get(key);
-    return clip ? { url: clip.url, durationMs: durations.get(key) ?? 0 } : null;
-  }, ORCH_CLIP_GAP_MS, orchPlaceholderMs));
   return publish({ phase: 'ready', timelines });
 }

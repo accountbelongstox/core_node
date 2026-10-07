@@ -15,11 +15,12 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.core_node_dirs import portable_path
 from pycore.pyfoundations.system_launcher import open_path
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
-from pycore.pyutils.tts import word_audio_cache
+from pycore.pyutils.tts import phrase_audio_cache, word_audio_cache
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.translator.dictionary import dictionary_service
 
 from pycore.pyctl.audio_orchestration import (
+    orch_books,
     orch_contract,
     orch_resources,
     orch_store,
@@ -143,6 +144,8 @@ def _resource_hit_path(kind: str, language: str, text: str) -> Optional[Path]:
         path = word_audio_cache.find_cached_many([text], language).get(text.strip().lower())
     elif kind == "sentence":
         path = orch_resources.sentence_cache_hit(text, language)
+    elif kind == orch_contract.PHRASE_KIND:
+        path = phrase_audio_cache.find_cached_many([text], language).get(text)
     else:
         return None
     return path if path is not None and validate_mp3(str(path))[0] else None
@@ -150,7 +153,7 @@ def _resource_hit_path(kind: str, language: str, text: str) -> Optional[Path]:
 
 def _resource_entries(requested: List[Any]) -> List[Dict[str, Any]]:
     """Central-cache state of request items, in order: key, hit path, size and
-    the gloss of an English word (word hits are looked up once per language)."""
+    the gloss of an English word or a known phrase (hits are looked up once per language)."""
     entries = [
         (str(item.get("kind") or ""), str(item.get("language") or ""), str(item.get("text") or ""))
         for item in requested if isinstance(item, dict)
@@ -166,23 +169,34 @@ def _resource_entries(requested: List[Any]) -> List[Dict[str, Any]]:
         sentence_hits[language] = orch_resources.sentence_cache_hits(
             [text for kind, lang, text in entries if kind == "sentence" and lang == language], language,
         )
+    phrase_hits: Dict[str, Dict[str, Path]] = {}
+    phrase_meanings: Dict[str, Dict[str, str]] = {}
+    for language in {language for kind, language, _ in entries if kind == orch_contract.PHRASE_KIND}:
+        phrase_texts = [text for kind, lang, text in entries if kind == orch_contract.PHRASE_KIND and lang == language]
+        phrase_hits[language] = phrase_audio_cache.find_cached_many(phrase_texts, language)
+        phrase_meanings[language] = orch_books.phrase_meanings(language, phrase_texts)
     answers = []
     for kind, language, text in entries:
+        meaning = ""
         if kind == "word":
             path = word_hits[language].get(text.strip().lower())
+            if language == orch_video.LANGUAGE_EN:
+                meaning = orch_video.short_meaning(
+                    dictionary_service.translate(text.strip().lower(), orch_video.LANGUAGE_ZH),
+                )
         elif kind == "sentence":
             path = sentence_hits[language].get(text)
+        elif kind == orch_contract.PHRASE_KIND:
+            path = phrase_hits[language].get(text)
+            meaning = phrase_meanings[language].get(text, "")
         else:
             path = None
         path = path if path is not None and validate_mp3(str(path))[0] else None
-        english_word = kind == "word" and language == orch_video.LANGUAGE_EN
         answers.append({
             "key": orch_resources.resource_id(kind, language, text),
             "file": path,
             "bytes": path.stat().st_size if path is not None else 0,
-            "meaning": orch_video.short_meaning(
-                dictionary_service.translate(text.strip().lower(), orch_video.LANGUAGE_ZH),
-            ) if english_word else "",
+            "meaning": meaning,
         })
     return answers
 
@@ -249,7 +263,7 @@ def resource_bundle(items: Any) -> Optional[bytes]:
 
 
 def resource_chunk(kind: str, language: str, text: str, offset: Any = 0, length: Any = FILE_CHUNK_BYTES) -> Dict[str, Any]:
-    """One chunk of a cached word / sentence clip; the path is always
+    """One chunk of a cached word / sentence / phrase clip; the path is always
     re-resolved from the central cache, never taken from the client."""
     path = _resource_hit_path(str(kind or ""), str(language or ""), str(text or ""))
     if path is None:

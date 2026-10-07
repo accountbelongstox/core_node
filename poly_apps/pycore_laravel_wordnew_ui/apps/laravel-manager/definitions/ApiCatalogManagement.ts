@@ -432,7 +432,7 @@ export const API_MANAGEMENT_ENDPOINTS: ApiCatalogEndpoint[] = [
             { name: 'task_type', type: 'string', required: true },
             { name: 'payload', type: 'string', required: true, description: 'JSON object' },
             { name: 'interactive', type: 'boolean', required: false, description: 'User-initiated fast lane' },
-            { name: 'capability', type: 'string', required: false, options: ['audio', 'image', 'translate', 'sentence_audio'] }
+            { name: 'capability', type: 'string', required: false, options: ['audio', 'image', 'translate', 'sentence_audio', 'phrase_audio', 'phrase_extract'] }
         ]
     },
 {

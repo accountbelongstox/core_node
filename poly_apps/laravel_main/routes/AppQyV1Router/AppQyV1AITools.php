@@ -10,6 +10,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerControlle
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AudioBundleCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AudioLookupCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1PhraseAudioCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TtsVariantSpecController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleManagementCtl;
@@ -107,6 +108,9 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report'])->middleware(['client.key', 'schema.gate']);
         Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio'])->middleware('schema.gate');
         Route::post('/sentence/audio/head', [AppQyV1SentenceAudioController::class, 'moveAudioToHead'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        // Phrase audio (lane phrase_audio): node reports (client key) and the file-first resolve.
+        Route::post('/phrase/report', [AppQyV1PhraseAudioCtl::class, 'report'])->middleware(['client.key', 'schema.gate']);
+        Route::get('/phrase/audio', [AppQyV1PhraseAudioCtl::class, 'audio'])->middleware('schema.gate');
         // Many word / sentence clips in one framed response (clip bundle, shared with pycore).
         Route::post('/audio/bundle', [AppQyV1AudioBundleCtl::class, 'bundle']);
         // Read-only word / sentence audio URL lookup (no queue write, no head move).

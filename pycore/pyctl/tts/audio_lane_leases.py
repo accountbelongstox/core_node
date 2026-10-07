@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Work-lease intake of one audio lane (word_audio / sentence_audio).
+"""Work-lease intake of one audio lane (word_audio / sentence_audio / phrase_audio).
 
 The lane holds only its leased batch plus a prefetch: it claims when its
 open items fall to the prefetch level, declares the languages its pinned
@@ -14,7 +14,11 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.http_client import redacted_http_error
-from pycore.pyutils.common.queue_center_contract import SENTENCE_QUALITY_ENGINES, audio_dedup_key_from_task
+from pycore.pyutils.common.queue_center_contract import (
+    MEDIA_CONTENT_ID_AUDIO_LANES,
+    SENTENCE_QUALITY_ENGINES,
+    audio_dedup_key_from_task,
+)
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyctl.tts.audio_lane_language_focus import SENTENCE_LANE, SentenceLanguageFocus
 from pycore.pyutils.tts.audio_queue_model import (
@@ -25,9 +29,8 @@ from pycore.pyutils.tts.audio_queue_model import (
 )
 from pycore.pyctl.audio_orchestration.book_plan_hint import current_plan_hint
 from pycore.pyctl.audio_orchestration.orch_contract import FAST_PASS_ENABLED, FAST_PASS_ENGINE
-from pycore.pyutils.tts.engine_policy import lane_capability, tts_engine_languages
+from pycore.pyutils.tts.engine_policy import lane_capability, lane_profile, tts_engine_languages
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
-from pycore.pyutils.tts.runtime_profile import WORD_BATCH_PROFILE
 from pycore.pyctl.laravel.worker.work_leases import (
     BATCH_MAX,
     EMPTY_RETRY_AFTER_SECONDS,
@@ -63,9 +66,10 @@ class AudioLaneLeases:
     def capability(self) -> Dict[str, List[str]]:
         """Engines and languages this node declares for the lane. The sentence
         lane declares only the quality-floor engines (work_leases.sentence_quality):
-        a node without one declares nothing and claims no sentence row."""
+        a node without one declares nothing and claims no sentence row. The
+        phrase lane declares the word-batch engine and its languages."""
         capability = lane_capability(
-            WORD_BATCH_PROFILE if self._lane == "word_audio" else "sentence",
+            lane_profile(self._lane),
             available=tts_engine_registry.available,
         )
         if self._lane == "sentence_audio":
@@ -242,6 +246,9 @@ class AudioLaneLeases:
                 if item.get(field):
                     extra[field] = str(item[field])
             task = build_local_task(self._lane, language, text, LOCAL_SOURCE_LEASE, base_url, extra_payload=extra or None)
+        elif self._lane == "phrase_audio":
+            extra = {"content_id": str(item.get("content_id") or "")} if item.get("content_id") else None
+            task = build_local_task(self._lane, language, text, LOCAL_SOURCE_LEASE, base_url, extra_payload=extra)
         else:
             task = build_local_task(
                 self._lane, language, text, LOCAL_SOURCE_LEASE, base_url,
@@ -264,7 +271,7 @@ class AudioLaneLeases:
                 continue
             payload = task.get("payload") or {}
             language = str(payload.get("language") or "")
-            if self._lane == "sentence_audio":
+            if self._lane in MEDIA_CONTENT_ID_AUDIO_LANES:
                 content_key = str(payload.get("content_id") or "")
                 entry = {"content_key": content_key} if content_key else {}
             else:

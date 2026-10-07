@@ -15,7 +15,7 @@ from pycore.pyctl.queue_center.control_service import (
 from pycore.pyctl.queue_center.audio_lane_state import audio_lane_state
 from pycore.pyctl.queue_center.lane_registry import lane_capability
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
-from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
+from pycore.pyctl.tts.lane_auto import phrase_audio_auto, sentence_audio_auto, word_audio_auto
 from pycore.pyctl.tts.audio_lane_activation import activate_audio_lane
 from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
@@ -97,6 +97,9 @@ def set_queue_center_control(
         if enabled:
             sentence_audio_auto.warm_engine_after_enable()
         status = sentence_audio_auto.status()
+        result = {"ok": not bool(status.get("error")), "status": status}
+    elif canonical_name == "phrase_audio":
+        status = phrase_audio_auto.status()
         result = {"ok": not bool(status.get("error")), "status": status}
     if isinstance(result.get("status"), dict) and result["status"].get("error"):
         errors.append(str(result["status"]["error"]))

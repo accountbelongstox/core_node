@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Validator;
 
 /**
  * POST /api/app_qy_v1/ai_tools/tts/audio/bundle
- * Body: { items: [{ kind: word|sentence, language, text }] } (at most the
+ * Body: { items: [{ kind: word|sentence|phrase, language, text }] } (at most the
  * contract's laravel_bundle_max_items)
  *
  * Many clips in one binary response (clip bundle frame, see
@@ -31,7 +31,7 @@ class AppQyV1AudioBundleCtl extends Controller
     {
         return Validator::make($request->all(), [
             'items' => 'required|array|min:1|max:' . AppQyV1AudioBundleService::maxItems(),
-            'items.*.kind' => 'required|string|in:' . AppQyV1AudioBundleService::KIND_WORD . ',' . AppQyV1AudioBundleService::KIND_SENTENCE,
+            'items.*.kind' => 'required|string|in:' . implode(',', AppQyV1AudioBundleService::KINDS),
             'items.*.language' => 'required|string|max:20',
             'items.*.text' => 'required|string',
         ]);
