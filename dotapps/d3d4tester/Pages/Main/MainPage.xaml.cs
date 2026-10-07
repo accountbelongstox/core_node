@@ -13,7 +13,7 @@ using DotCore.Utils;
 namespace DotApps.d3d4tester.Pages.Main;
 
 /// <summary>
-/// Main tab: skill config selection + skill table, auxiliary options, hotkeys and bottom options, ROSBOT paths and bot settings.
+/// Main tab, two sub-tabs: skill config selection + skill table, auxiliary options, hotkeys and bottom options; ROSBOT paths and bot settings.
 /// 1:1 Python ui/panels/main_functions_panel.py (animation speed / game language rows are removed there, so not shown here).
 /// </summary>
 public partial class MainPage : UserControl
@@ -66,6 +66,8 @@ public partial class MainPage : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
+        TabSkills.Header = p.GetUiText(I18nKeys.SkillConfigTitle);
+        TabRosbot.Header = p.GetUiText(I18nKeys.TabsRosbotExtension);
         LblSkillConfigTitle.Text = p.GetUiText(I18nKeys.SkillConfigTitle);
         LblCurrentConfig.Text = p.GetUiText(I18nKeys.MainFunctionsPanelCurrentConfig);
         LblSkill.Text = p.GetUiText(I18nKeys.SkillConfigSkill);
