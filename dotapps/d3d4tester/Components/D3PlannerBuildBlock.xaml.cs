@@ -70,8 +70,7 @@ public partial class D3PlannerBuildBlock : UserControl
         ColSlot.Header = T(I18nKeys.RosbotBridgeBuildColSlot);
         ColItem.Header = T(I18nKeys.RosbotBridgeBuildColItem);
         ColHave.Header = T(I18nKeys.RosbotBridgeBuildColHave);
-        ColAffixes.Header = T(I18nKeys.RosbotBridgeBuildColAffixes);
-        TxtHint.Text = T(I18nKeys.RosbotBridgeBuildHint);
+        ColAffixes.Header = new TextBlock { Text = T(I18nKeys.RosbotBridgeBuildColAffixes), ToolTip = T(I18nKeys.RosbotBridgeBuildHint) };
         RefreshBuild();
     }
 

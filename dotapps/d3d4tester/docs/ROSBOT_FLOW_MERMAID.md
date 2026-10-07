@@ -1,6 +1,6 @@
 # ROSBOT 启动流程（DOT 版）
 
-**Flow 驱动方式**：本图为准一流程图，DOT 与 Python 共用。DOT 实现为**事件驱动、一次执行**（A1e 入口一次跑完 F→B→D→E，内部用轮询/等待）；Python 实现为**周期 tick 驱动**（每 tick 执行一步）。语义等价，详见 `DOT_ROSBOT_FLOW_DEVELOPMENT.md` §7.2。
+**Flow 驱动方式**：本图为准一流程图，DOT 与 Python 共用。DOT 由 `FlowMasterDriver` 每 2s tick 路由 F→B→C（单步），D 块与 E 块为阻塞任务，在扩展线程上同一时刻只跑一个（忙时 tick 只等待）；D3 运行中直接复用进入 C1，战网已登录直接复用；Python 为周期 tick 驱动。
 
 ```mermaid
 %%{init: {'themeVariables': {'fontSize': '45px', 'primaryFontSize': '45px', 'secondaryFontSize': '45px', 'tertiaryFontSize': '45px', 'fontFamily': 'arial'}}}%%

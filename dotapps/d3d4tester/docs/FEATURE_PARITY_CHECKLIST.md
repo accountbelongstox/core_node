@@ -133,7 +133,7 @@
 - [x] 登录中 / 安全验证 / 邮件与验证码页期间绝不关闭或重启战网 — `BattlenetManager.Close`（现场探测后拒绝）、`BattlenetReadyFlow` B5 改为继续等待、看门狗豁免
 - [x] 密码输入改为键盘逐字输入（网页表单不接受 ValuePattern 直接赋值） — `BrowserLoginAutomation.Fill`、`BattlenetAsiaOps.FillField`
 - [x] 多账号（DOT，国服/亚服分开、加密、头像菜单退出切换） — `Config/BattlenetAccountService`、`Pages/Battlenet`
-- [x] D 块（启动 D3/D4）、C 分支（C1–C12）、E 块（启动 ROSBOT）、F0–F4、日志掉线重启、系统错误、无物品弹窗、智能回响、“必须启动 D3”弹窗 — `Ctl/LoginTryController`、`Ctl/D3ConnectC3Flow`、`Ctl/RosbotRunFlow`、`Core/Flow/*`、`Services/RosbotLog*`
+- [x] D 块（启动 D3/D4）、C 分支（C1–C12）、E 块（启动 ROSBOT）、F0–F4、日志掉线重启、系统错误、无物品弹窗、智能回响、“必须启动 D3”弹窗 — `Ctl/LoginTryController`、`Ctl/RosbotRunFlow`、`Core/Flow/*`、`Services/RosbotLog*`
 
 ## 13. D3 检测
 - [x] D3 窗口查找、掉线/菜单/游戏中、界面类型、背包与品质、Kanai 页状态、D3 状态截图 — `D3WindowFinder`、`Ctl/D3StatusProvider`、`D3InterfaceDetection`、`Core/Bag/*`、`D3StartGameAndTeleport`
