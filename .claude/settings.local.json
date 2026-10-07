@@ -277,7 +277,8 @@
       "Bash(git commit *)",
       "Bash(awk '{print $3}')",
       "Bash(python3 -m pycore.pyfoundations.console_log_reader --summary --minutes 60 --grep \"terminal/text\" --limit 20)",
-      "Bash(rm *)"
+      "Bash(rm *)",
+      "Bash(timeout 550 dd.sh gitsync -m \"resolve merge conflict: gitsync status keeps shared store/LAN/paged history plus per-node API\")"
     ],
     "deny": [],
     "ask": []
