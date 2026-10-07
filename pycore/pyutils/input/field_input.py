@@ -15,7 +15,7 @@ from typing import Optional, Tuple, Callable
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_pyautogui
-from pycore.pyutils.common.clipboard_text import get_clipboard_text, set_clipboard_text
+from pycore.pyutils.common.clipboard_text import restore_clipboard, set_clipboard_text, snapshot_clipboard
 from pycore.pyutils.input.ime_switch import save_and_switch_ime_to_english, restore_ime
 
 # Clear mode: replace = clear then type; append = type at end; none = type only (no clear)
@@ -37,8 +37,8 @@ def _is_ascii_only(text: str) -> bool:
 
 def _paste_via_clipboard(text: str) -> bool:
     """Set clipboard to text, send Ctrl+V, then restore previous clipboard."""
-    backup = get_clipboard_text()
-    if not set_clipboard_text(text):
+    backup = snapshot_clipboard()
+    if not set_clipboard_text(text, transient=True):
         return False
     time.sleep(0.05)
     pag = _pyautogui()
@@ -50,7 +50,7 @@ def _paste_via_clipboard(text: str) -> bool:
     finally:
         time.sleep(0.05)
         if backup is not None:
-            set_clipboard_text(backup)
+            restore_clipboard(backup)
     return True
 
 

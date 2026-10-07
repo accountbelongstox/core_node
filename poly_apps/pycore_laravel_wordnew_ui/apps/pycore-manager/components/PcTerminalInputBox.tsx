@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Square, X } from 'lucide-react';
+import { ClipboardPaste, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
@@ -8,10 +8,18 @@ import { isTerminalAttachmentFile, type PcTerminalImages } from './usePcTerminal
 import { usePcVoiceRecorder, type PcVoiceRecorderError } from './usePcVoiceRecorder';
 import { usePcTextInputSession } from '../persistence/PcUiSessionDom';
 import { PcImageLightbox } from './PcAiShared';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { isNativeAppShell } from '../../../core/network/NativeShell';
+import { readPcClipboard } from '../utils/pcClipboardRead';
 import type { PcUiSessionInput } from '../persistence/PcUiSessionStore';
+
+const IME_PROCESS_KEY_CODE = 229;
 
 type DraftStatus = 'saved' | 'saving' | 'error';
 type ComposerMode = 'text' | 'voice';
+type PullHint = '' | 'empty' | 'permission' | 'unsupported';
+
+const PULL_HINT_MS = 4000;
 
 export interface PcTerminalInputSession {
   slot: string;
@@ -29,6 +37,8 @@ interface PcTerminalInputBoxProps {
   draftStatus: DraftStatus;
   images: PcTerminalImages;
   actions?: React.ReactNode;
+  /** Start of the toolbar row, before the voice controls. */
+  leading?: React.ReactNode;
   /** Centered in the toolbar row, between the voice controls and the actions. */
   sendButton?: React.ReactNode;
   session?: PcTerminalInputSession;
@@ -58,7 +68,7 @@ function formatDuration(seconds: number): string {
  * recording is sent as a file path with optional images and text.
  */
 export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
-  value, onChange, onSend, hasWindow, rows, draftStatus, images, actions, sendButton, session,
+  value, onChange, onSend, hasWindow, rows, draftStatus, images, actions, leading, sendButton, session,
 }) => {
   const { t } = useTranslation('pc');
   const pickerRef = useRef<HTMLInputElement | null>(null);
@@ -66,6 +76,10 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const [dragging, setDragging] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [mode, setMode] = useState<ComposerMode>(readComposerMode);
+  const [pullHint, setPullHint] = useState<PullHint>('');
+  const [pulling, setPulling] = useState(false);
+  const pullHintTimer = useRef<number | undefined>(undefined);
+  const isMobile = useIsMobile();
   const toggleMode = () => {
     const next: ComposerMode = mode === 'voice' ? 'text' : 'voice';
     setMode(next);
@@ -79,6 +93,23 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const record = () => {
     if (recorder.recording) recorder.stop();
     else void recorder.start();
+  };
+  const showPullHint = (hint: PullHint) => {
+    window.clearTimeout(pullHintTimer.current);
+    setPullHint(hint);
+    if (hint) pullHintTimer.current = window.setTimeout(() => setPullHint(''), PULL_HINT_MS);
+  };
+  const pullImages = async () => {
+    showPullHint('');
+    setPulling(true);
+    const read = await readPcClipboard();
+    setPulling(false);
+    if (read.status === 'ok' && read.images.length) {
+      images.addFiles(read.images.filter(isTerminalAttachmentFile));
+      return;
+    }
+    if (isMobile || isNativeAppShell()) pickerRef.current?.click();
+    else showPullHint(read.status === 'ok' ? 'empty' : read.status);
   };
   const { elementRef, cancelRestore } = usePcTextInputSession({
     slot: session?.slot ?? '',
@@ -156,7 +187,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         )}
         <p
           className={`ml-auto min-w-0 max-w-[60%] shrink truncate pt-0.5 text-right text-[10px] ${
-            recorder.error || draftStatus === 'error'
+            recorder.error || pullHint || draftStatus === 'error'
               ? 'text-rose-500'
               : draftStatus === 'saving' ? 'text-amber-500' : 'text-emerald-500'
           }`}
@@ -164,7 +195,9 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         >
           {recorder.error
             ? t(VOICE_ERROR_KEYS[recorder.error])
-            : hasWindow
+            : pullHint
+              ? t(`terminal.images.pull.${pullHint}`)
+              : hasWindow
               ? t(draftStatus === 'error' ? 'terminal.draftSaveFailed' : draftStatus === 'saving' ? 'terminal.draftSaving' : 'terminal.draftSaved')
               : ''}
         </p>
@@ -214,10 +247,12 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         onPointerDown={cancelRestore}
         onKeyDown={(event) => {
           cancelRestore();
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            event.preventDefault();
-            onSend();
-          }
+          if (event.key !== 'Enter') return;
+          const composing = event.nativeEvent.isComposing || event.keyCode === IME_PROCESS_KEY_CODE;
+          const plainEnter = !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
+          if (composing || (!(event.ctrlKey || event.metaKey) && !(plainEnter && !isMobile))) return;
+          event.preventDefault();
+          onSend();
         }}
         onPaste={(event) => {
           const files = attachmentFiles(event.clipboardData.files);
@@ -232,6 +267,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
       />
       <div className="grid grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)] items-center gap-1.5 px-1.5 pb-1.5">
         <div className="flex min-w-0 items-center gap-1.5">
+          {leading}
           {mode === 'voice' && (
             <>
               <button
@@ -286,6 +322,16 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             className={iconButton}
           >
             {images.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => { void pullImages(); }}
+            disabled={!hasWindow || pulling}
+            title={t('terminal.images.pull.action')}
+            aria-label={t('terminal.images.pull.action')}
+            className={iconButton}
+          >
+            {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardPaste className="h-4 w-4" />}
           </button>
           <input
             ref={pickerRef}

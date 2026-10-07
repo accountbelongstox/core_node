@@ -1,4 +1,5 @@
-import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
+import { PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
+import { primaryPycoreHttp, type PycoreHttpApi } from './PycoreHttp';
 
 /** One LAN pycore as announced by its gitsync turn claim/release (pushed to this pycore, never polled). */
 export interface GitSyncLanPeer {
@@ -81,18 +82,26 @@ export interface GitSyncControl {
   run_now?: boolean;
 }
 
-export const pycoreApiGitSync = {
-  getGitSyncState: (knownRevision?: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncState, {
-    known_revision: knownRevision,
-  }) as Promise<GitSyncState>,
-  getGitSyncHistory: (offset: number, limit: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncHistory, {
-    offset,
-    limit,
-  }) as Promise<GitSyncHistoryPage>,
-  controlGitSync: (control: GitSyncControl) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncControl, {
-    paused: control.paused === undefined ? undefined : (control.paused ? '1' : '0'),
-    interval_minutes: control.interval_minutes,
-    reminder_seconds: control.reminder_seconds,
-    run_now: control.run_now ? '1' : undefined,
-  }) as Promise<GitSyncState>,
-};
+/** Gitsync of one pycore node; the node tabs pick which machine the top-bar status shows. */
+export function createPycoreApiGitSync(http: PycoreHttpApi) {
+  const { requestPycoreHttp } = http;
+  return {
+    getGitSyncState: (knownRevision?: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncState, {
+      known_revision: knownRevision,
+    }) as Promise<GitSyncState>,
+    getGitSyncHistory: (offset: number, limit: number) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncHistory, {
+      offset,
+      limit,
+    }) as Promise<GitSyncHistoryPage>,
+    controlGitSync: (control: GitSyncControl) => requestPycoreHttp(PYCORE_HTTP_ROUTES.gitsyncControl, {
+      paused: control.paused === undefined ? undefined : (control.paused ? '1' : '0'),
+      interval_minutes: control.interval_minutes,
+      reminder_seconds: control.reminder_seconds,
+      run_now: control.run_now ? '1' : undefined,
+    }) as Promise<GitSyncState>,
+  };
+}
+
+export type PycoreGitSyncApi = ReturnType<typeof createPycoreApiGitSync>;
+
+export const pycoreApiGitSync = createPycoreApiGitSync(primaryPycoreHttp);

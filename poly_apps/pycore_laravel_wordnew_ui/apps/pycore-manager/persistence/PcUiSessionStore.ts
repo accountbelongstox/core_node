@@ -208,9 +208,17 @@ export function updatePcUiSessionPageScroll(pageId: string, scrollTop: number): 
   scheduleFlush();
 }
 
+const terminalNodeUrlListeners = new Set<() => void>();
+
 export function updatePcUiSessionTerminalNodeUrl(nodeUrl: string | null): void {
   liveSession.terminalNodeUrl = nodeUrl;
   scheduleFlush();
+  terminalNodeUrlListeners.forEach((listener) => listener());
+}
+
+export function subscribePcUiSessionTerminalNodeUrl(listener: () => void): () => void {
+  terminalNodeUrlListeners.add(listener);
+  return () => { terminalNodeUrlListeners.delete(listener); };
 }
 
 export function readPcUiSessionTerminalNodeUrl(): string | null {
