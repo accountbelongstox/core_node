@@ -347,7 +347,7 @@ export const CmAdminUsersPage: React.FC = () => {
           optionLabel={(option) => t(`states.role.${option}`)}
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noUsers" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noUsers" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.nav.users')}>
           <thead>
             <tr>
@@ -519,7 +519,7 @@ export const CmAdminKycPage: React.FC = () => {
           allKey="admin.allTypes"
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noKyc" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noKyc" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <section className="cm-card-list">
           {list.items.map((item) => (
             <article key={item.id} className="cm-record-card cm-admin-record">

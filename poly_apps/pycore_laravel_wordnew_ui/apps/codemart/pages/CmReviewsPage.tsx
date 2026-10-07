@@ -299,7 +299,7 @@ export const CmReviewsPage: React.FC = () => {
         list.loading ? (
           <CmLoadingState />
         ) : list.error ? (
-          <CmErrorState message={list.error} onRetry={() => void list.reload()} />
+          <CmErrorState message={list.error} onRetry={list.retryable ? () => void list.reload() : undefined} />
         ) : list.items.length === 0 ? (
           <CmEmptyState title={t('reviews.emptyTitle')} body={t('reviews.emptyBody')} />
         ) : (

@@ -160,7 +160,7 @@ export const CmMarketplacePage: React.FC = () => {
       {list.loading ? (
         <CmLoadingState />
       ) : list.error ? (
-        <CmErrorState message={list.error} onRetry={() => void list.reload()} />
+        <CmErrorState message={list.error} onRetry={list.retryable ? () => void list.reload() : undefined} />
       ) : visibleTasks.length === 0 ? (
         <CmEmptyState
           title={filtersActive ? t('marketplace.noMatchTitle') : t('marketplace.emptyTitle')}
