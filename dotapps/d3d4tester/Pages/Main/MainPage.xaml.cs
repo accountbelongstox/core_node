@@ -13,7 +13,7 @@ using DotCore.Utils;
 namespace DotApps.d3d4tester.Pages.Main;
 
 /// <summary>
-/// Main tab: skill config selection + skill table, auxiliary options, hotkeys and bottom options.
+/// Main tab: skill config selection + skill table, auxiliary options, hotkeys and bottom options, ROSBOT paths and bot settings.
 /// 1:1 Python ui/panels/main_functions_panel.py (animation speed / game language rows are removed there, so not shown here).
 /// </summary>
 public partial class MainPage : UserControl
@@ -102,8 +102,12 @@ public partial class MainPage : UserControl
         TxtCurrentConfig.Text = ConfigDisplayName(ViewModel.CurrentConfigName);
 
         AuxOptions.RefreshI18n();
+        RosbotSettings.RefreshI18n();
         foreach (var box in new[] { TxtMacroStartHotkey, TxtAssistantHotkey, TxtQuickSwitch }) box.RefreshI18n();
     }
+
+    /// <summary>Reload the ROSBOT path fields after a path scan or update wrote the config directly.</summary>
+    public void RefreshRosbotPaths() => RosbotSettings.RefreshPathFromConfig();
 
     private static string ConfigDisplayName(string configKey) =>
         D3D4TesterI18n.Provider.GetUiText(I18nKeys.ConfigTabsPrefix + configKey, configKey);

@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:DotApps.d3d4tester.ViewModels"
              xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
-  <!-- Compact, no scrolling: left = skill table + hotkeys/options, right = auxiliary options (Python main_functions_panel content) -->
+  <!-- Compact: left = skill table + hotkeys/options, right = auxiliary options (Python main_functions_panel content); below = ROSBOT paths and bot settings -->
   <UserControl.Resources>
     <Style x:Key="CompactCardStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
       <Setter Property="Padding" Value="10,8"/>
@@ -23,7 +23,13 @@
       <Setter Property="Padding" Value="6,2,24,2"/>
     </Style>
   </UserControl.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
   <Grid Margin="8,6,8,4">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="6"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="3*" MinWidth="380"/>
       <ColumnDefinition Width="8"/>
@@ -147,5 +153,11 @@
     <Border Grid.Column="2" Style="{StaticResource CompactCardStyle}" VerticalAlignment="Top">
       <comp:AuxiliaryOptionsBlock x:Name="AuxOptions"/>
     </Border>
+
+    <!-- ROSBOT paths + bot settings (from the former ROSBOT tab) -->
+    <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource CompactCardStyle}">
+      <comp:RosbotSettingsBlock x:Name="RosbotSettings"/>
+    </Border>
   </Grid>
+  </ScrollViewer>
 </UserControl>

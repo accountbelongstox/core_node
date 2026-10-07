@@ -2,6 +2,7 @@
 using System.Text.RegularExpressions;
 using DotCore.Foundations;
 using DotCore.UIInspect;
+using DotCore.Utils;
 using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
 using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 
@@ -34,7 +35,7 @@ public sealed record NetHoldResult(NetHoldPhase Phase, string? Size = null, stri
 
 /// <summary>
 /// Network hold with the D4 download, one idempotent pass per call: nothing while offline (Battle.net started offline drops
-/// its login), start Battle.net when it is not running, finish an open install dialog (install folder = installPath, then
+/// its login; offline because airplane mode was turned on -> switch the WiFi radio back on), start Battle.net when it is not running, finish an open install dialog (install folder = installPath, then
 /// Continue / Start Install), wait for the logged-in main UI (the guard logs in), open the D4 page, then by its action:
 /// download running -> nothing; Resume shown (paused / queued, e.g. after a network drop) -> resume unless the user paused it;
 /// Install / Update -> start it; Play -> D4 is complete, open the D3 tab.
@@ -52,6 +53,11 @@ public static class BattlenetD4DownloadKeeper
         var bn = BattlenetManager.Instance;
         if (!BattlenetManager.IsNetworkReady())
         {
+            if (WifiRadio.IsAirplaneModeOn())
+            {
+                ColorPrinter.Yellow($"{LogTag} airplane mode is on while holding the D4 download, switching WiFi back on");
+                if (WifiRadio.EnsureWifiOn()) return new NetHoldResult(NetHoldPhase.WaitingNetwork);
+            }
             ColorPrinter.Yellow($"{LogTag} no internet connection, waiting (Battle.net is not started or resumed offline)");
             return new NetHoldResult(NetHoldPhase.WaitingNetwork);
         }

@@ -10,7 +10,6 @@ public static partial class I18nKeys
     public const string MainWindowTitle = "ui.main_window.title";
 
     public const string TabsMainFunctions = "ui.tabs.main_functions";
-    public const string TabsRosbotExtension = "ui.tabs.rosbot_extension";
     public const string TabsD4Functions = "ui.tabs.d4_functions";
     public const string TabsCoordinateCalibration = "ui.tabs.coordinate_calibration";
     public const string TabsLog = "ui.tabs.log";
