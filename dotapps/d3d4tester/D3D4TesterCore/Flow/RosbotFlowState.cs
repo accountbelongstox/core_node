@@ -7,6 +7,9 @@ namespace DotApps.d3d4tester.Core.Flow;
 /// </summary>
 public sealed class RosbotFlowState
 {
+    /// <summary>Stop predicate for long flow steps: true once the flow master (Start / Stop monitoring) is off.</summary>
+    public static bool FlowStopped() => !Instance.FlowMasterEnabled;
+
     public static RosbotFlowState Instance { get; } = new();
 
     private RosbotFlowState()

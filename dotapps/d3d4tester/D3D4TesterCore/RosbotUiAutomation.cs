@@ -181,6 +181,68 @@ public static class RosbotUiAutomation
         return false;
     }
 
+    private static readonly HashSet<IntPtr> FilledKeyDialogs = new();
+    private static readonly Dictionary<string, int> KeyFillCounts = new(StringComparer.Ordinal);
+    private static readonly object KeyDialogLock = new();
+
+    /// <summary>
+    /// ROSBOT KEY dialog ("Error" window with "Please, enter a key", WinForms EDIT + OK): put the configured key (RosbotManager key
+    /// provider) into the edit box by WM_SETTEXT and press OK by BM_CLICK, so no keyboard input is used and global hotkeys cannot
+    /// swallow characters. Each dialog window is filled once; after KeyDialogMaxFills dialogs with one key it counts as rejected.
+    /// </summary>
+    public static bool TryFillKeyDialog()
+    {
+        var mgr = RosbotManager.Instance;
+        if (mgr.GetKey() is not { } key) return false;
+        foreach (int pid in mgr.CollectRosbotPids())
+        {
+            foreach (var w in mgr.FindWindowsByPid(pid, visibleOnly: false))
+            {
+                if (w.Title.Trim() != RosbotConstants.KeyDialogWindowTitleDefault) continue;
+                var children = WindowFinder.GetChildWindows(w.Hwnd);
+                if (!children.Any(c => c.Text.Contains(RosbotConstants.KeyDialogPromptSubstring, StringComparison.OrdinalIgnoreCase))) continue;
+                var edit = children.FirstOrDefault(c => c.ClassName.Contains(RosbotConstants.KeyDialogEditClassToken, StringComparison.OrdinalIgnoreCase));
+                var ok = children.FirstOrDefault(c => c.ClassName.Contains(RosbotConstants.KeyDialogButtonClassToken, StringComparison.OrdinalIgnoreCase)
+                                                      && NameMatchesOkKeywords(c.Text));
+                if (edit == null || ok == null) continue;
+                lock (KeyDialogLock)
+                {
+                    if (!FilledKeyDialogs.Add(w.Hwnd)) return false;
+                    int fills = KeyFillCounts.GetValueOrDefault(key) + 1;
+                    if (fills > RosbotConstants.KeyDialogMaxFills)
+                    {
+                        ColorPrinter.Red($"{LogTag} KEY dialog: ROSBOT asked {fills} times for the configured key, not filling again (key rejected?)");
+                        return false;
+                    }
+                    KeyFillCounts[key] = fills;
+                }
+                WindowInputHelper.SetControlText(edit.Hwnd, key);
+                Thread.Sleep(RosbotConstants.KeyDialogSettleMs);
+                if (WindowFinder.GetControlText(edit.Hwnd) != key)
+                {
+                    ColorPrinter.Yellow($"{LogTag} KEY dialog: key text not accepted by the edit box (pid={pid})");
+                    return false;
+                }
+                WindowInputHelper.ClickButton(ok.Hwnd);
+                ColorPrinter.Green($"{LogTag} KEY dialog: key entered and OK pressed (pid={pid}, attempt {KeyFillCounts[key]})");
+                mgr.InvalidateLookupCache();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Sleep up to ms in short steps; false when shouldStop turned true (the caller aborts).</summary>
+    private static bool WaitUnlessStopped(int ms, Func<bool>? shouldStop)
+    {
+        for (int waited = 0; waited < ms; waited += RosbotConstants.StoppableWaitStepMs)
+        {
+            if (shouldStop?.Invoke() == true) return false;
+            Thread.Sleep(Math.Min(RosbotConstants.StoppableWaitStepMs, ms - waited));
+        }
+        return shouldStop?.Invoke() != true;
+    }
+
     private static bool WindowHasNoItemsMessage(AutomationElement root) =>
         FindInTree(root, e =>
         {
@@ -321,10 +383,11 @@ public static class RosbotUiAutomation
 
     /// <summary>
     /// After ROSBOT process start: close must-launch dialog / No-items popup (then rift + Start), poll window every 1 s, restore +
-    /// 1 s, server wait, poll main tab (timeout still attempts tab/start), re-get window, debug dump + resume sequence.
+    /// 1 s, server wait, poll main tab (timeout still attempts tab/start), re-get window, debug dump + resume sequence. The KEY
+    /// dialog is filled while waiting; every wait ends early (returns false) once shouldStop is true (monitoring stopped).
     /// True if at least one step succeeded. 1:1 Python run_after_rosbot_start.
     /// </summary>
-    public static bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true)
+    public static bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true, Func<bool>? shouldStop = null)
     {
         TryCloseD3MustBeLaunchedDialog();
         if (TryCloseNoItemsPopup())
@@ -337,9 +400,10 @@ public static class RosbotUiAutomation
         RosbotWindowInfo? winfo = null;
         for (int i = 0; i < Math.Max(1, waitSec); i++)
         {
+            TryFillKeyDialog();
             winfo = mgr.GetRosbotWindow();
             if (winfo != null) break;
-            Thread.Sleep(RosbotConstants.WindowPollIntervalMs);
+            if (!WaitUnlessStopped(RosbotConstants.WindowPollIntervalMs, shouldStop)) return StoppedByUser();
         }
         if (winfo == null)
         {
@@ -354,13 +418,16 @@ public static class RosbotUiAutomation
         if (NativeWindowHelper.ActivateWindow(hwnd))
             Thread.Sleep(RosbotConstants.RestoreAfterActivateMs);
 
+        TryFillKeyDialog();
         ColorPrinter.Blue($"{LogTag} Waiting {RosbotConstants.ServerWaitSeconds}s for server connection (original SERVER_WAIT)...");
-        Thread.Sleep(RosbotConstants.ServerWaitSeconds * 1000);
+        if (!WaitUnlessStopped(RosbotConstants.ServerWaitSeconds * 1000, shouldStop)) return StoppedByUser();
 
         int pollCount = RosbotConstants.MainUiPollTimeoutSeconds / RosbotConstants.MainUiPollIntervalSeconds;
         bool mainTabSeen = false;
         for (int i = 0; i < pollCount; i++)
         {
+            TryFillKeyDialog();
+            if (mgr.GetRosbotWindow() is { } current) hwnd = current.Hwnd;
             bool seen = UIOperations.RunWithWindowRoot(hwnd, root =>
                 root != null && UIOperations.FindFirstTabItemByNameContainsAny(root, RosbotConstants.TabMainProfileNames, RosbotConstants.ControlSearchMaxDepth) != null);
             if (seen)
@@ -369,8 +436,9 @@ public static class RosbotUiAutomation
                 mainTabSeen = true;
                 break;
             }
-            Thread.Sleep(RosbotConstants.MainUiPollIntervalSeconds * 1000);
+            if (!WaitUnlessStopped(RosbotConstants.MainUiPollIntervalSeconds * 1000, shouldStop)) return StoppedByUser();
         }
+        if (shouldStop?.Invoke() == true) return StoppedByUser();
         if (!mainTabSeen)
             ColorPrinter.Yellow($"{LogTag} Main profile tab not seen within timeout, attempting tab/start anyway (E5a->E6->F3 on skip)");
 
@@ -406,6 +474,12 @@ public static class RosbotUiAutomation
         if (!mainTabSeen && !didClick)
             ColorPrinter.Gray($"{LogTag} E5a: timeout path, UI controls not available; completing E5a without click -> E6 -> F3 only");
         return didClick;
+    }
+
+    private static bool StoppedByUser()
+    {
+        ColorPrinter.Yellow($"{LogTag} after-start automation stopped (monitoring stopped)");
+        return false;
     }
 
     /// <summary>Resume a paused ROSBOT: activate, wait, run the resume sequence. 1:1 Python resume_rosbot_ui.</summary>

@@ -27,6 +27,7 @@ public sealed class RosbotManager
     private Func<IntPtr, bool>? _mainWindowContentValidator;
     private string? _lastLoggedFindRosbotExe;
     private Action<string>? _beforeStart;
+    private Func<string?>? _keyProvider;
 
     private static readonly RosbotDetectionResult NotFound = new() { Status = RosbotDetection.StatusNotFound };
 
@@ -403,6 +404,11 @@ public sealed class RosbotManager
         ColorPrinter.Red($"{RosbotConstants.ManagerLogPrefix} Start failed");
         return false;
     }
+
+    /// <summary>Set by app at startup: the ROSBOT key to type into ROSBOT's KEY dialog, or null when none is configured / enabled.</summary>
+    public void SetKeyProvider(Func<string?>? provider) => _keyProvider = provider;
+
+    public string? GetKey() => _keyProvider?.Invoke() is { Length: > 0 } key ? key : null;
 
     /// <summary>Set by app at startup: runs with the exe path right before every Start launches ROSBOT (e.g. write RoS-BoT.ini).</summary>
     public void SetBeforeStartHook(Action<string>? hook) => _beforeStart = hook;
