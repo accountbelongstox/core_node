@@ -72,7 +72,7 @@ from pycore.pyutils.laravel.identity import (
     laravel_server_namespace,
     parse_laravel_server_identity,
 )
-from pycore.pyutils.common.client_key_auth import client_key_headers
+from pycore.pyutils.common.client_key_auth import client_key_headers, client_key_server_clock
 from pycore.pyutils.common.http_client import HTTP_TRANSPORT_NAME, http_client, redacted_http_error
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 
@@ -212,6 +212,7 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         result["error"] = "empty url"
         return result
     started = time.monotonic()
+    sent_at = time.time()
     http_version = ""
     try:
         resp = http_client.get(
@@ -219,6 +220,7 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
             headers=client_key_headers("GET", url + HEALTH_PATH),
             timeout=timeout,
         )
+        client_key_server_clock.observe(url, resp.headers.get("Date"), sent_at, time.time())
         content_type = (resp.headers.get("Content-Type") or "").lower()
         body = resp.json() if "application/json" in content_type else {}
     except (OSError, ValueError) as exc:
