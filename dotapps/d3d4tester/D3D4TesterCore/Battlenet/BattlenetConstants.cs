@@ -281,7 +281,6 @@ public static class BattlenetConstants
     public const double FlowPollTimeoutSec = 120.0;
     public const double FlowOauthWaitSec = 120.0;
     public const double FlowExitWaitSec = 2.0;
-    public const double FlowWaitPlaySec = 8.0;
     public const int B7RestoreWindowAfterSkips = 6;
     public const double B7RestoreWindowCooldownSec = 30.0;
     public const double B11TickIntervalSec = 2.0;

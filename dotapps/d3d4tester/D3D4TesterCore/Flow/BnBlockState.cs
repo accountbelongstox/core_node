@@ -16,7 +16,6 @@ public enum BnStep
     BN_First,
     BN_B4p_BrowserWait,
     BN_Act,
-    BN_WaitPlay,
     BN_Poll,
     BN_Exit,
     BN_ExitWait,

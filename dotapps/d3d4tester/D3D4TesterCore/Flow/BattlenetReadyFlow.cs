@@ -336,38 +336,16 @@ public static class BattlenetReadyFlow
                 }
 
                 case BnStep.BN_Act:
-                    op.SaveUiElementsSnapshot("B6", "B6_to_WaitPlay_or_B13");
+                    op.SaveUiElementsSnapshot("B6", "B6_to_B13");
                     if (!noActivate)
                     {
                         BattlenetManager.Instance.ActivateWindow();
-                        if (op.ClickD3Tab())
-                        {
-                            ColorPrinter.Blue($"{LogTag} flow B6→BN_WaitPlay | reason: clicked D3 tab, wait Play only (skip full UI traverse)");
-                            ctx.B13PollDeadline = now + C.FlowWaitPlaySec;
-                            ctx.CurrentStep = BnStep.BN_WaitPlay;
-                            continue;
-                        }
-                        ColorPrinter.Blue($"{LogTag} flow B6→B13 | reason: D3 tab not found or already selected, enter B13 poll");
+                        ColorPrinter.Blue($"{LogTag} flow B6→B13 | reason: activated Battle.net, enter B13 poll (Play belongs to the D block)");
                     }
                     else
                         ColorPrinter.Blue($"{LogTag} flow B6→B13 | reason: UI poll only (no activate), enter B13 poll state");
                     ctx.CurrentStep = BnStep.BN_Poll;
                     continue;
-
-                case BnStep.BN_WaitPlay:
-                    if (op.ClickPlayButtonIfVisible(forceRefresh: true))
-                    {
-                        ColorPrinter.Green($"{LogTag} flow BN_WaitPlay→BN_Confirmed | reason: Play visible, clicked (skip full traverse)");
-                        return Confirm(ctx);
-                    }
-                    if (now >= ctx.B13PollDeadline)
-                    {
-                        ColorPrinter.Blue($"{LogTag} flow BN_WaitPlay→B13 | reason: wait Play timeout, full poll");
-                        ctx.B13PollDeadline = now + C.FlowPollTimeoutSec;
-                        ctx.CurrentStep = BnStep.BN_Poll;
-                        continue;
-                    }
-                    return (false, ResultWait);
 
                 case BnStep.BN_Poll:
                 {
