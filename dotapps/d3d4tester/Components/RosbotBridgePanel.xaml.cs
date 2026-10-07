@@ -75,6 +75,8 @@ public partial class RosbotBridgePanel : UserControl
         TabCarried.Header = p.GetUiText(I18nKeys.RosbotBridgeTabCarried);
         TabPickups.Header = p.GetUiText(I18nKeys.RosbotBridgeTabPickups);
         TabAdvanced.Header = p.GetUiText(I18nKeys.RosbotBridgeTabAdvanced);
+        TabBuild.Header = p.GetUiText(I18nKeys.RosbotBridgeTabBuild);
+        BuildBlock.RefreshI18n();
         BtnGroundMoveTo.Content = p.GetUiText(I18nKeys.RosbotBridgeMoveTo);
         BtnGroundPickup.Content = p.GetUiText(I18nKeys.RosbotBridgePickup);
         BtnPickupMatching.Content = p.GetUiText(I18nKeys.RosbotBridgePickupMatching);

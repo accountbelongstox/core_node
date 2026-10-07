@@ -1,6 +1,7 @@
 <UserControl x:Class="DotApps.d3d4tester.Components.RosbotBridgePanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
   <!-- CoreNodeBridge ROSBOT plugin, two columns: left = install state, auto-install switch, map history, command result;
        right = live game state (current map) from state.json and the data sub-tabs -->
   <Grid>
@@ -91,6 +92,9 @@
       </TabItem>
       <TabItem x:Name="TabPickups">
         <ListBox x:Name="LstPickups" Margin="4" MinHeight="60"/>
+      </TabItem>
+      <TabItem x:Name="TabBuild">
+        <comp:D3PlannerBuildBlock x:Name="BuildBlock"/>
       </TabItem>
       <TabItem x:Name="TabAdvanced">
         <StackPanel Margin="4">

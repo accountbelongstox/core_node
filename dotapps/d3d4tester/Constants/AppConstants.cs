@@ -79,24 +79,4 @@ public static class AppConstants
 
     // ---------- OAuth script ping (1:1 Python OAUTH_SCRIPT_PING_TIMEOUT_SEC) ----------
     public const double OauthScriptPingTimeoutSec = 30.0;
-
-    // ---------- Battle.net window wait (flow / login: poll until BN window appears) ----------
-    public const int WaitForBnWindowMs = 500;
-    public const int WaitForBnWindowMaxAttempts = 30;
-
-    // ---------- B block (ROSBOT_FLOW_MERMAID): B3w wait after start, B7 poll interval, B11 browser OCR timeout, B5w after exit ----------
-    /// <summary>B3w: wait ms after starting Battle.net before polling UI.</summary>
-    public const int B3wWaitAfterStartMs = 3000;
-    /// <summary>B7/B11: poll interval ms when waiting for UI or browser OAuth.</summary>
-    public const int B7B11PollIntervalMs = 2000;
-    /// <summary>B11: max ms to wait for browser OAuth / BN main UI after B10 (NetEase click).</summary>
-    public const int B11BrowserWaitTimeoutMs = 30000;
-    /// <summary>B5w: wait ms after killing Battle.net before re-entering B1.</summary>
-    public const int B5wExitWaitMs = 2000;
-    /// <summary>B7: max ms to wait for operable UI after B3w (no elements yet). 1:1 Python BN_FLOW_POLL_TIMEOUT_SEC = 120.</summary>
-    public const int B7WaitForUiTimeoutMs = 120 * 1000;
-    /// <summary>B7: after this many skips (no operable elements), trigger D block (D3 tab + Play). 1:1 Python B7_TRIGGER_D_AFTER_SKIPS = 6.</summary>
-    public const int B7TriggerDAfterSkips = 6;
-    /// <summary>B7: min seconds between two D-block triggers. 1:1 Python B7_TRIGGER_D_COOLDOWN_SEC = 30.</summary>
-    public const double B7TriggerDCooldownSec = 30.0;
 }

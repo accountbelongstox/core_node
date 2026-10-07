@@ -1,0 +1,35 @@
+<UserControl x:Class="DotApps.d3d4tester.Components.D3PlannerBuildBlock"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme">
+  <!-- maxroll d3planner build: URL + load, gear set, notify switches, planned items with their best copy in game -->
+  <DockPanel Margin="4">
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+      <Button x:Name="BtnLoad" DockPanel.Dock="Right" Style="{StaticResource PrimaryButtonStyle}" Margin="6,0,0,0" Click="BtnLoad_Click"/>
+      <TextBox x:Name="TxtUrl" VerticalAlignment="Center" theme:ControlAssist.Placeholder="https://maxroll.gg/d3/d3planner/..." KeyDown="TxtUrl_KeyDown"/>
+    </DockPanel>
+    <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+      <TextBlock x:Name="LblProfile" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+      <ComboBox x:Name="CmbProfile" MinWidth="180" Margin="0,0,10,4" SelectionChanged="CmbProfile_SelectionChanged"/>
+      <CheckBox x:Name="ChkNotify" VerticalAlignment="Center" Margin="0,0,10,4"/>
+      <CheckBox x:Name="ChkNotifyPush" VerticalAlignment="Center" Margin="0,0,0,4"/>
+    </WrapPanel>
+    <TextBlock x:Name="TxtStatus" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+    <TextBlock x:Name="TxtHint" DockPanel.Dock="Bottom" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+    <ListView x:Name="LstItems" MinHeight="60">
+      <ListView.ItemContainerStyle>
+        <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+          <Setter Property="ToolTip" Value="{Binding Detail}"/>
+        </Style>
+      </ListView.ItemContainerStyle>
+      <ListView.View>
+        <GridView>
+          <GridViewColumn x:Name="ColSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
+          <GridViewColumn x:Name="ColItem" Width="130" DisplayMemberBinding="{Binding Item}"/>
+          <GridViewColumn x:Name="ColHave" Width="120" DisplayMemberBinding="{Binding Have}"/>
+          <GridViewColumn x:Name="ColAffixes" Width="260" DisplayMemberBinding="{Binding Affixes}"/>
+        </GridView>
+      </ListView.View>
+    </ListView>
+  </DockPanel>
+</UserControl>

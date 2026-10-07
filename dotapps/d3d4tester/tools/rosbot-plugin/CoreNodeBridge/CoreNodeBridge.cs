@@ -206,7 +206,8 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("picked_count", _pickups.PickedCount)
                 .Prop("item_acd_types", WorldScanner.ItemAcdTypesText)
                 .Prop("pickup_filter_auto", _commands.AutoPickup)
-                .Prop("pickup_filter", string.Join(", ", _commands.Patterns));
+                .Prop("pickup_filter", string.Join(", ", _commands.Patterns))
+                .Prop("item_watch_unknown", string.Join(",", _watch.UnknownKeys));
             json.BeginArray("level_area_history");
             foreach (var v in _areaHistory) json.BeginObject().Prop("sno", v.Key).Prop("utc", v.Value).EndObject();
             json.EndArray();

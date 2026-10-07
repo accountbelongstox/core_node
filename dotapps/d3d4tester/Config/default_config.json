@@ -311,6 +311,12 @@
   "d3": {
     "d3_path": ""
   },
+  "d3planner": {
+    "url": "",
+    "profile_index": 0,
+    "notify": true,
+    "notify_push": false
+  },
   "rosbot": {
     "bridge_plugin_auto_install": true,
     "pickup_blood_shards": false,
