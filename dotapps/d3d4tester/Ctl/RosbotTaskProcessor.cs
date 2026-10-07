@@ -433,6 +433,11 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
             return;
         }
         if (!data.Success) return;
+        if (!RosbotFlowState.Instance.FlowMasterEnabled)
+        {
+            ColorPrinter.Gray("[RosbotPanel] start finished after Stop monitoring, result ignored");
+            return;
+        }
         Initialize();
         if (!data.RanEBlock)
             StartRosbotTask();

@@ -130,7 +130,7 @@ public static class D3ConnectC3Flow
         {
             if (ExtensionFlowState.Instance.IsInTeleportCooldown())
             {
-                RosbotUiAutomation.RunAfterRosbotStart(doDebug: true, doTab: true, doStartBotting: true);
+                RosbotUiAutomation.RunAfterRosbotStart(doDebug: true, doTab: true, doStartBotting: true, shouldStop: RosbotFlowState.FlowStopped);
                 return C3LoopResult.Success;
             }
             if (D3StartGameAndTeleport.TryFragment2GameToolPressMThenClicks())
@@ -161,7 +161,7 @@ public static class D3ConnectC3Flow
         {
             F3LogTimeout.SetRosbotStartedAt();
             RosbotFlowHost.Current?.StartRosbotTask();
-            RosbotUiAutomation.RunAfterRosbotStart(doDebug: true, doTab: true, doStartBotting: true);
+            RosbotUiAutomation.RunAfterRosbotStart(doDebug: true, doTab: true, doStartBotting: true, shouldStop: RosbotFlowState.FlowStopped);
         }
     }
 

@@ -9,10 +9,10 @@ namespace DotApps.d3d4tester.Services.Monitor;
 
 /// <summary>
 /// ROSBOT license keys added on the Monitor tab (stored encrypted, one active). Before every ROSBOT start (RosbotManager before-start
-/// hook) the active key is written to RoS-BoT.ini next to the exe as the ROSBOT settings field "Key": an existing Key line is
-/// replaced in place; otherwise it is added to the section holding ROSBOT's other global fields. When RoS-BoT.ini is missing or has
-/// no such section yet (ROSBOT never ran there), ROSBOT is started once so it creates the file, closed gracefully (it saves its
-/// settings on exit), the key is written, and the normal start follows; once per ini per app session, so an unknown format never loops.
+/// hook) the active key is written to an existing RoS-BoT.ini next to the exe as the ROSBOT settings field "Key": an existing Key
+/// line is replaced in place, otherwise it is added to the section holding ROSBOT's other global fields. Without RoS-BoT.ini ROSBOT
+/// shows its KEY dialog ("Please, enter a key"; it saves the ini only after a key is accepted): whenever the state center reports
+/// that dialog, RosbotUiAutomation.TryFillKeyDialog types the active key (key provider) and presses OK.
 /// </summary>
 public static class RosbotKeyService
 {
@@ -21,15 +21,11 @@ public static class RosbotKeyService
     private const char KeySeparator = '\n';
     private const int MaskVisibleChars = 4;
     private const string MaskFill = "****";
-    private const int FirstRunIniWaitMs = 60000;
-    private const int FirstRunPollMs = 2000;
-    private const int FirstRunSettleMs = 3000;
-    private const int FirstRunCloseTimeoutMs = 15000;
     /// <summary>ROSBOT [SettingsField] names without a Category, declared next to "Key" (same ini section).</summary>
     private static readonly string[] IniAnchorKeys = { "KeyEx", "TosAccepted", "LastScriptUsed", "LastLaunchWasLocal", "SceneVersion", "Seasons", "Exts", "LocalPickit", "LocalSkill", "DontPickit", "SeasonItems" };
 
     private static int _installed;
-    private static readonly HashSet<string> FirstRunDone = new(StringComparer.OrdinalIgnoreCase);
+    private static int _fillRunning;
 
     /// <summary>Result and time of the last write (before-start or Apply now); null before the first one.</summary>
     public static (IniSetResult Result, DateTime At)? LastApply { get; private set; }
@@ -40,6 +36,25 @@ public static class RosbotKeyService
     {
         if (Interlocked.Exchange(ref _installed, 1) == 1) return;
         RosbotManager.Instance.SetBeforeStartHook(OnBeforeStart);
+        RosbotManager.Instance.SetKeyProvider(() => WriteBeforeStart ? ActiveKey : null);
+        GameInterfaceData.Instance.RegisterCallback(OnState);
+    }
+
+    /// <summary>KEY dialog reported by the status refresh: fill it off the calling thread (one fill at a time).</summary>
+    private static void OnState(GameInterfaceStateSnapshot s)
+    {
+        if (!s.RosbotNeedKeyInput || Interlocked.Exchange(ref _fillRunning, 1) == 1) return;
+        Task.Run(() =>
+        {
+            try
+            {
+                if (RosbotUiAutomation.TryFillKeyDialog()) MonitorLog.Info($"{LogTag} ROSBOT KEY dialog filled with {Mask(ActiveKey ?? "")}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _fillRunning, 0);
+            }
+        });
     }
 
     public static bool WriteBeforeStart => MonitorSettings.GetBool(ConfigKeys.MonitorRosbotKeyWriteBeforeStart, true);
@@ -98,23 +113,7 @@ public static class RosbotKeyService
     private static void OnBeforeStart(string exePath)
     {
         if (!WriteBeforeStart || ActiveKey == null || Path.GetDirectoryName(exePath) is not { Length: > 0 } dir) return;
-        string iniPath = Path.Combine(dir, ShellConstants.RosbotIniFileName);
-        if (Apply(iniPath) is IniSetResult.FileMissing or IniSetResult.NoAnchor && FirstRunDone.Add(iniPath))
-            FirstRunThenApply(exePath, iniPath);
-    }
-
-    /// <summary>Start ROSBOT once so it creates RoS-BoT.ini, close it gracefully, then write the key (the caller starts it again).</summary>
-    private static void FirstRunThenApply(string exePath, string iniPath)
-    {
-        var rosbot = RosbotManager.Instance;
-        MonitorLog.Info($"{LogTag} no Key slot in {iniPath}: starting ROSBOT once so it writes its settings");
-        if (!rosbot.StartExecutable(exePath)) return;
-        var deadline = DateTime.UtcNow.AddMilliseconds(FirstRunIniWaitMs);
-        while (!File.Exists(iniPath) && DateTime.UtcNow < deadline) Thread.Sleep(FirstRunPollMs);
-        Thread.Sleep(FirstRunSettleMs);
-        rosbot.CloseGracefully(FirstRunCloseTimeoutMs);
-        MonitorLog.Info($"{LogTag} first ROSBOT run closed, writing the key and restarting ROSBOT");
-        Apply(iniPath);
+        Apply(Path.Combine(dir, ShellConstants.RosbotIniFileName));
     }
 
     private static IniSetResult? Apply(string iniPath)
@@ -131,7 +130,7 @@ public static class RosbotKeyService
             return null;
         }
         string line = $"{LogTag} {IniKeyName}={Mask(key)} -> {iniPath}: {result}";
-        if (result is IniSetResult.FileMissing or IniSetResult.NoAnchor) MonitorLog.Warn(line);
+        if (result == IniSetResult.NoAnchor) MonitorLog.Warn(line);
         else MonitorLog.Info(line);
         LastApply = (result, DateTime.Now);
         Applied?.Invoke();

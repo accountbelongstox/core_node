@@ -11,7 +11,8 @@ namespace DotApps.d3d4tester.Ctl;
 /// <summary>
 /// E block: ROSBOT run flow E1 kill -> E2 sleep 1 s -> E3 optional zip update (E3a-E3f) + auto_start_rosbot check -> E4 start
 /// (F3 baseline) -> E5 task init -> E5a wait window / server / poll UI / main profile + Start botting -> E6. Runs on the
-/// extension worker (blocking). 1:1 Python d3utils/rosbot_flow/flow_e_rosbot_run.py + rosbot_flow_f2_rosbot_online.py.
+/// extension worker (blocking); Stop monitoring aborts it between steps and inside the E5a waits.
+/// 1:1 Python d3utils/rosbot_flow/flow_e_rosbot_run.py + rosbot_flow_f2_rosbot_online.py.
 /// </summary>
 public static class RosbotRunFlow
 {
@@ -76,20 +77,29 @@ public static class RosbotRunFlow
         return ok;
     }
 
-    /// <summary>[E5a1-E5a5] Wait window, wait server, poll UI, click main profile, click Start botting.</summary>
+    /// <summary>[E5a1-E5a5] Wait window (KEY dialog filled), wait server, poll UI, click main profile, click Start botting.</summary>
     public static bool RunE5aWaitWinSrvPollClick() =>
-        RosbotStatusProvider.GetRosbotOperation().RunAfterRosbotStart(waitSec: E5aWaitSec, doDebug: true, doTab: true, doStartBotting: true);
+        RosbotStatusProvider.GetRosbotOperation().RunAfterRosbotStart(waitSec: E5aWaitSec, doDebug: true, doTab: true, doStartBotting: true,
+            shouldStop: RosbotFlowState.FlowStopped);
+
+    /// <summary>True (logged) when monitoring was stopped while the E block ran: the remaining steps are skipped.</summary>
+    private static bool Aborted(string step)
+    {
+        if (!RosbotFlowState.FlowStopped()) return false;
+        ColorPrinter.Yellow($"[E] monitoring stopped, E block aborted before {step}");
+        return true;
+    }
 
     /// <summary>E1..E6 in order (E4/E5 only when E3 says proceed). startRosbotTask = [E5] task init.</summary>
     public static void RunEBlock(Action? startRosbotTask, Func<string, string, string, bool>? askConfirm = null)
     {
         RunE1Kill();
         RunE2Sleep();
+        if (Aborted("E3")) return;
         var (proceed, _) = RunE3UpdateFlow(askConfirm);
-        if (proceed && RunE4Start())
-        {
-            startRosbotTask?.Invoke();
-            RunE5aWaitWinSrvPollClick();
-        }
+        if (!proceed || Aborted("E4") || !RunE4Start()) return;
+        if (Aborted("E5")) return;
+        startRosbotTask?.Invoke();
+        RunE5aWaitWinSrvPollClick();
     }
 }

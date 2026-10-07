@@ -258,7 +258,7 @@
       },
       "rosbot_key": {
         "tab": "ROSBOT 钥匙",
-        "write_before_start": "启动 ROSBOT 前把使用中的钥匙写入 RoS-BoT.ini",
+        "write_before_start": "把使用中的钥匙交给 ROSBOT（启动前写入 RoS-BoT.ini，ROSBOT 要求输入时自动填入钥匙窗口）",
         "keys": "钥匙列表",
         "new_key": "新钥匙",
         "add": "添加",
@@ -269,12 +269,12 @@
         "ini_path": "ini：{0}",
         "no_ros_dir": "未设置 ROSBOT 目录",
         "add_failed": "钥匙为空或已在列表中。",
-        "hint": "钥匙加密保存。每次启动 ROSBOT 前，使用中的钥匙会替换 ROSBOT 程序旁 RoS-BoT.ini 里的 Key=。若该文件还不存在，会先启动一次 ROSBOT 生成它，关闭后写入钥匙，再重新启动 ROSBOT。",
+        "hint": "钥匙加密保存。ROSBOT 弹出 \"Please, enter a key\" 时，会直接填入使用中的钥匙并按确定（不经过键盘），ROSBOT 随后自己保存到 RoS-BoT.ini。每次启动前，若 RoS-BoT.ini 已存在，会把 Key= 改为使用中的钥匙。",
         "last_apply": "上次写入 {0}：{1}",
         "result_unchanged": "已是最新",
         "result_replaced": "钥匙已更新",
         "result_inserted": "钥匙已添加",
-        "result_file_missing": "未找到 RoS-BoT.ini（请先启动一次 ROSBOT）",
+        "result_file_missing": "RoS-BoT.ini 尚未生成（ROSBOT 接受钥匙后会自己保存）",
         "result_no_anchor": "RoS-BoT.ini 中未找到 ROSBOT 设置段",
         "result_not_written": "未写入（见监控日志）"
       }
