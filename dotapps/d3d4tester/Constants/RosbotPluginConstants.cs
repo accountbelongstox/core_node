@@ -38,6 +38,24 @@ public static class RosbotPluginConstants
     public const string BridgeActionPickup = "pickup";
     public const string BridgeActionPickupFilter = "pickup_filter";
     public const string BridgeActionClickUi = "click_ui";
+    public const string BridgeActionGoNpc = "go_npc";
+    public const string BridgeActionSalvageAll = "salvage_all";
+    public const string BridgeSalvageNormal = "normal";
+    public const string BridgeSalvageMagic = "magic";
+    public const string BridgeSalvageRare = "rare";
+    /// <summary>Plugin InventorySlot names of the non-equipped item locations.</summary>
+    public const string BridgeSlotBackpack = "Backpack";
+    public const string BridgeSlotStash = "Stash";
+
+    /// <summary>Town NPCs reachable from the NPC tab: exact actor name (shortcut actors such as PT_Blacksmith_RepairShortcut excluded) and label key.</summary>
+    public static readonly (string ActorName, string LabelKey)[] BridgeTownNpcs =
+    {
+        ("PT_Blacksmith", I18nKeys.RosbotBridgeNpcBlacksmith),
+        ("PT_Jeweler", I18nKeys.RosbotBridgeNpcJeweler),
+        ("PT_Mystic", I18nKeys.RosbotBridgeNpcMystic),
+        ("X1_RandomItemNPC", I18nKeys.RosbotBridgeNpcKadala),
+        ("KanaiCube_Stand", I18nKeys.RosbotBridgeNpcKanai),
+    };
     public const string BridgeBundledDir = "tools\\rosbot-plugins\\CoreNodeBridge";
     public const string BridgeAreaNamesFileName = "rosbot_area_names.json";
     /// <summary>state.json older than this means the plugin is not running (disabled in ROSBOT, or ROSBOT stopped).</summary>

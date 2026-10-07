@@ -43,6 +43,7 @@ public static class F3MonitorProcess
         DateTime nextRefresh = DateTime.MinValue;
         DateTime? rosbotGoneSince = null;
         Interlocked.Exchange(ref _rosbotRestartRequested, 0);
+        game.GetAndClearRosbotDisconnectedFromLog();
         ColorPrinter.Blue($"{LogTag} D3 + ROSBOT running -> monitor (log timeout, disconnect, restart requests)");
         while (true)
         {
