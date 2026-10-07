@@ -93,3 +93,32 @@ fast; (3) an edit never stops the background download (the download set may chan
 
 Observation (not caused by edits): Chromium reports some Laravel `audio/bundle` requests as `canceled` in every run
 (9-11 per run with no edit and no `AbortController.abort()` call at all); the edit runs showed the same.
+
+## Run 2026-10-08 (this PC, rebuilt bundle; GPU pycore on this PC + Colab T4 node)
+
+Cases 1-7 pass (6: 25,399 clips before and after a restart, nothing downloaded again; 7: a passage composition
+plays, clips from `app-file://.../orch-clips`).
+
+Fixed during the run:
+- This PC's clock is ~593 s fast (Windows Time stopped); every client-key-signed call got 401
+  `client_key_timestamp_invalid`, so the GPU pycore never registered or leased ("no pycore node online").
+  The signers (pycore `client_key_auth.py` + `laravel/client.py`, ncore `client_key_auth.js`) now learn the
+  server clock per origin from the `Date` header and re-sign once; loopback / LAN peers keep the local clock.
+  After the fix: registered at once, leases claimed, roster `DESKTOP-1L-gpu-31a9`.
+- A refused worker register was retried on every tick (~2/s per worker); now every 10 s.
+- `colab_cli logs` on a freshly opened notebook tab read the model before it loaded.
+- Agent-history articles lost every Chinese punctuation mark (`sanitize_fragment_text`), so `reference_cn` had
+  no sentence boundaries (one clip per article, no en/zh pairing for passages). New articles keep it.
+- R8 with cursors (drill S12): a resumed run inside the cursor window left the still-missing clips `queued`
+  without a generation watch.
+
+Short passages: a composition of 1 prompt + 2 articles (source `passages`, 3 segments, 221 clips) resolved
+to 221/221 (143 device, 78 pycore after GPU generation), synced to Laravel (`synced: true`). Existing articles
+have no Chinese punctuation, so their reference follows as one Chinese-only sentence each.
+
+Generation / storage: NIV-Bible led by the app (R12): transfer over LAN (`192.168.1.151:59000`, up to 2.7 MB/s),
+qwen3tts on the RTX 4060 (GPU 100 %), sentence and phrase clips reported to Laravel with no dead letters;
+Colab node `colab-45ffdb` (gpu) took plan windows and its clips reached the device through Laravel.
+Observations: bundles took 13-85 s per 256 clips while the GPU was saturated; Next / Previous in the player
+switch the segment and stop playback; the Colab notebook tab hung once (flooded output), and the extension
+then timed out on it (runtime unaffected).
