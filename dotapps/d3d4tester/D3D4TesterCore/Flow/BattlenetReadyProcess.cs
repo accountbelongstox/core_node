@@ -43,6 +43,10 @@ public static class BattlenetReadyProcess
     };
 
     private static DateTime _lastRegionSwitchUtc = DateTime.MinValue;
+    private static volatile bool _running;
+
+    /// <summary>True while a run probes the client itself (other probes stand aside).</summary>
+    public static bool IsRunning => _running;
 
     /// <summary>
     /// Run until Battle.net is ready. activate=false (Battle.net guard) never brings windows to front except where a login step must.
@@ -50,16 +54,18 @@ public static class BattlenetReadyProcess
     /// </summary>
     public static BattlenetReadyResult Run(FlowContext ctx, bool activate)
     {
-        while (!Monitor.TryEnter(Gate, 250))
+        while (!System.Threading.Monitor.TryEnter(Gate, 250))
             ctx.ThrowIfStopped();
         try
         {
+            _running = true;
             return RunLocked(ctx, activate);
         }
         finally
         {
+            _running = false;
             GameInterfaceData.Instance.SetBattlenetWakingUp(false);
-            Monitor.Exit(Gate);
+            System.Threading.Monitor.Exit(Gate);
         }
     }
 
