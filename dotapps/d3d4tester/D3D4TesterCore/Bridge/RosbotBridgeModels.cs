@@ -44,6 +44,10 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("pickup_filter")] public string PickupFilter { get; init; } = "";
     [JsonPropertyName("item_watch_unknown")] public string ItemWatchUnknown { get; init; } = "";
     [JsonPropertyName("inventory_slot_supported")] public bool InventorySlotSupported { get; init; }
+    [JsonPropertyName("inventory_cell_supported")] public bool InventoryCellSupported { get; init; }
+    [JsonPropertyName("ui_vendor_open")] public bool UiVendorOpen { get; init; }
+    [JsonPropertyName("ui_salvage_open")] public bool UiSalvageOpen { get; init; }
+    [JsonPropertyName("ui_inventory_open")] public bool UiInventoryOpen { get; init; }
     [JsonPropertyName("ground_items")] public IReadOnlyList<RosbotBridgeEntity> GroundItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("npcs")] public IReadOnlyList<RosbotBridgeEntity> Npcs { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("carried_items")] public IReadOnlyList<RosbotBridgeEntity> CarriedItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
@@ -76,6 +80,9 @@ public sealed record RosbotBridgeEntity(
     [property: JsonPropertyName("filter_match")] bool FilterMatch)
 {
     [JsonPropertyName("slot")] public string Slot { get; init; } = "";
+    /// <summary>Backpack / stash grid cell (column, row), -1 when the plugin cannot read it.</summary>
+    [JsonPropertyName("inv_x")] public int InvX { get; init; } = -1;
+    [JsonPropertyName("inv_y")] public int InvY { get; init; } = -1;
     [JsonPropertyName("gbid")] public int Gbid { get; init; }
     [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
 }

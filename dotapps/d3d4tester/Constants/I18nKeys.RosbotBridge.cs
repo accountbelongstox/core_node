@@ -59,7 +59,11 @@ public static partial class I18nKeys
     public const string RosbotBridgeHoldTip = "ui.rosbot_bridge.hold_tip";
     public const string RosbotBridgeHoldTaken = "ui.rosbot_bridge.hold_taken";
 
-    // town NPC shortcuts and test buttons
+    // town NPC shortcuts and test buttons; NPC display names are NpcNamePrefix + lowercase internal actor name
+    public const string RosbotBridgeNpcNamePrefix = "ui.rosbot_bridge.npc_name.";
+    public const string RosbotBridgeTestSalvageKeepAncient = "ui.rosbot_bridge.test_salvage_keep_ancient";
+    public const string RosbotBridgeTestSalvageKeepPrimal = "ui.rosbot_bridge.test_salvage_keep_primal";
+    public const string RosbotBridgeTestSalvageLegendaryTip = "ui.rosbot_bridge.test_salvage_legendary_tip";
     public const string RosbotBridgeNpcBlacksmith = "ui.rosbot_bridge.npc_blacksmith";
     public const string RosbotBridgeNpcJeweler = "ui.rosbot_bridge.npc_jeweler";
     public const string RosbotBridgeNpcMystic = "ui.rosbot_bridge.npc_mystic";

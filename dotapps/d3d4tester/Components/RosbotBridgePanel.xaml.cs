@@ -128,6 +128,9 @@ public partial class RosbotBridgePanel : UserControl
         BtnSalvageMagic.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageMagic);
         BtnSalvageRare.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageRare);
         BtnSalvageNormal.ToolTip = BtnSalvageMagic.ToolTip = BtnSalvageRare.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageTip);
+        BtnSalvageKeepAncient.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageKeepAncient);
+        BtnSalvageKeepPrimal.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageKeepPrimal);
+        BtnSalvageKeepAncient.ToolTip = BtnSalvageKeepPrimal.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageLegendaryTip);
         BtnSalvageRule.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageRule);
         BtnSalvageRule.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageRuleTip);
         BtnDropRule.Content = p.GetUiText(I18nKeys.RosbotBridgeTestDropRule);
@@ -235,8 +238,10 @@ public partial class RosbotBridgePanel : UserControl
         (e.FilterMatch ? p.GetUiText(I18nKeys.RosbotBridgeFilterMark) : "") + D3PlannerService.DisplayName(e.Gbid, e.Name),
         QualityText(e, p), string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance));
 
+    /// <summary>Localized NPC name (i18n table by internal actor name), the internal name and the SNO id, distances.</summary>
     private static string NpcText(RosbotBridgeEntity e, II18nProvider p) => Join(
-        e.Name, $"[{e.InternalName}]", string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance),
+        NpcName(e, p), $"[{(e.InternalName.Length > 0 ? e.InternalName : e.Name)} #{e.Sno}]",
+        string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance),
         string.Format(p.GetUiText(I18nKeys.RosbotBridgeInteractDistance), e.InteractDistance));
 
     /// <summary>Equipped first, then backpack, then stash.</summary>
@@ -281,6 +286,12 @@ public partial class RosbotBridgePanel : UserControl
             _ => "",
         };
         return string.Join(" ", new[] { a, q }.Where(x => x.Length > 0));
+    }
+
+    private static string NpcName(RosbotBridgeEntity e, II18nProvider p)
+    {
+        string actor = e.InternalName.Length > 0 ? e.InternalName : e.Name;
+        return p.GetUiText(I18nKeys.RosbotBridgeNpcNamePrefix + actor.ToLowerInvariant(), actor);
     }
 
     private static string Join(params string[] parts) => string.Join(Separator, parts.Where(x => !string.IsNullOrEmpty(x)));
@@ -360,6 +371,10 @@ public partial class RosbotBridgePanel : UserControl
 
     private void BtnSalvageRare_Click(object sender, RoutedEventArgs e) =>
         Send(RosbotPluginConstants.BridgeActionSalvageAll, value: RosbotPluginConstants.BridgeSalvageRare);
+
+    private void BtnSalvageKeepAncient_Click(object sender, RoutedEventArgs e) => TestActionRegistry.TryInvoke(I18nKeys.RosbotBridgeTestSalvageKeepAncient);
+
+    private void BtnSalvageKeepPrimal_Click(object sender, RoutedEventArgs e) => TestActionRegistry.TryInvoke(I18nKeys.RosbotBridgeTestSalvageKeepPrimal);
 
     private void BtnSalvageRule_Click(object sender, RoutedEventArgs e) => TestActionRegistry.TryInvoke(I18nKeys.RosbotBridgeTestSalvageRule);
 

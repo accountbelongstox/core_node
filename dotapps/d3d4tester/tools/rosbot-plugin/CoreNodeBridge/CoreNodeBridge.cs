@@ -52,7 +52,7 @@ public sealed class CoreNodeBridge : IPlugin
     private List<EntityInfo> _ground = new();
 
     public string Author => "core_node";
-    public Version Version => new(1, 4, 0);
+    public Version Version => new(1, 5, 0);
     public string Name => "CoreNode Bridge";
     public string Description => "Publishes map, items, NPCs and pickups to d3d4tester (state.json) and runs its commands.";
     public bool CanSettings => false;
@@ -244,7 +244,11 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("pickup_filter_auto", _commands.AutoPickup)
                 .Prop("pickup_filter", string.Join(", ", _commands.Patterns))
                 .Prop("item_watch_unknown", string.Join(",", _watch.UnknownKeys))
-                .Prop("inventory_slot_supported", WorldScanner.SlotSupported);
+                .Prop("inventory_slot_supported", WorldScanner.SlotSupported)
+                .Prop("inventory_cell_supported", WorldScanner.CellSupported)
+                .Prop("ui_vendor_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.VendorDialog)), false))
+                .Prop("ui_salvage_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.SalvageDialog)), false))
+                .Prop("ui_inventory_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.InventoryDialog)), false));
             json.BeginArray("level_area_history");
             foreach (var v in _areaHistory) json.BeginObject().Prop("sno", v.Key).Prop("utc", v.Value).EndObject();
             json.EndArray();
@@ -286,7 +290,7 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("quality", e.Quality).Prop("ancient_rank", e.AncientRank).Prop("stack", e.Stack).Prop("equipped", e.Equipped)
                 .Prop("durability_cur", e.DurabilityCur).Prop("durability_max", e.DurabilityMax)
                 .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e)).Prop("gbid", e.Gbid)
-                .Prop("slot", e.Slot);
+                .Prop("slot", e.Slot).Prop("inv_x", e.InvX).Prop("inv_y", e.InvY);
             WriteAttrs(json, e.Attrs);
             json.EndObject();
         }
