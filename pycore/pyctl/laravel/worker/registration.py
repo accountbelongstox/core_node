@@ -130,7 +130,9 @@ class RegistrationState:
         elapsed = time.monotonic() - self._registered_at
         if not force and self._registered and elapsed < WORKER_REGISTER_REFRESH_SECONDS:
             return True
-        if force and elapsed < WORKER_REGISTER_RETRY_SECONDS:
+        # A refused register (`_registered_at` marks the attempt) is retried no sooner than the retry period.
+        attempted = self._registered_at > 0
+        if (force or attempted) and elapsed < WORKER_REGISTER_RETRY_SECONDS:
             return self._registered
         return None
 

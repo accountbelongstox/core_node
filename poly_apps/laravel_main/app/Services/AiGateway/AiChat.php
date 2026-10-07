@@ -206,6 +206,11 @@ class AiChat
         }
         $out['error_code'] = $res['error_code'] ?? null;
         $out['provider_reached'] = !empty($res['provider_reached']);
+        foreach (['served_model', 'finish_reason', 'reasoning_only'] as $field) {
+            if (array_key_exists($field, $res)) {
+                $out[$field] = $res[$field];
+            }
+        }
     }
 
     private static function chatGemini(string $provider, array $messages, ?string $model, string $key, int $timeout, array &$out): void

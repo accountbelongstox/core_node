@@ -21,7 +21,7 @@ final class OpenRouterFreeOnly
     public const FREE_ROUTER = 'openrouter/free';
     private const FREE_SUFFIX = ':free';
     private const IMAGE_MODALITY = 'image';
-    private const CATALOG_CACHE_PREFIX = 'openrouter_free_catalog:v2:';
+    private const CATALOG_CACHE_PREFIX = 'openrouter_free_catalog:v3:';
     private const CATALOG_LOCK_PREFIX = 'openrouter_free_catalog:fetch:';
     private const CATALOG_CACHE_SECONDS = 3600;
     /** A failed or empty fetch is cached this long (config services.openrouter.catalog_failure_cache_seconds). */
@@ -53,7 +53,8 @@ final class OpenRouterFreeOnly
     }
 
     /**
-     * Free catalog entries {id, name, free, context_length, pricing} per output
+     * Free catalog entries {id, name, free, context_length, pricing,
+     * supported_parameters, output_modalities} per output
      * modality (null = text). Every fetch result is cached: a non-empty one an
      * hour, a failed or empty one CATALOG_FAILURE_CACHE_SECONDS (a failure keeps
      * serving the last good catalog). Past expiry one caller refetches under a
@@ -207,6 +208,8 @@ final class OpenRouterFreeOnly
                     'free' => true,
                     'context_length' => (int) ($model['context_length'] ?? 0),
                     'pricing' => $model['pricing'] ?? null,
+                    'supported_parameters' => array_values(array_map('strval', (array) ($model['supported_parameters'] ?? []))),
+                    'output_modalities' => array_values(array_map('strval', (array) ($model['architecture']['output_modalities'] ?? []))),
                 ];
             }
         }

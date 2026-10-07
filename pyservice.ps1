@@ -15,14 +15,13 @@
         2. LAUNCH: starts pycore\pycore_module_caller.py (the real worker, which
            now lives inside the pycore package, not at the repo root).
 
-        3. BACKGROUND SERVICE (same meaning as `./pyservice.sh install`):
-           `install` runs the idempotent prerequisites, then installs + enables +
-           starts the Windows service `pycore` (NSSM, automatic start, headless:
-           `pyservice.ps1 run -NoUi -NoInstall -NoServicePrompt`, no tray).
-           `uninstall|start|stop|restart|status` manage it; admin rights are
-           requested through a UAC self-elevation. An interactive `run` offers
-           the install when the service is absent and otherwise ensures the
-           installed service is running instead of starting a second worker.
+        3. BOOT START: Windows runs pycore ONLY from the logon task
+           `PyCore_RPC_Server` in the user session (terminal windows, tray,
+           desktop input). `install` runs the idempotent prerequisites, then
+           registers + starts the task; `uninstall|start|restart|status` manage
+           it; admin rights are requested through a UAC self-elevation. Every
+           entry retires a leftover NSSM service `pycore` (session 0); its own
+           body disables itself and hands over to the task.
 
     Prerequisites and the worker are invoked through absolute paths resolved from
     this script's own folder, so the repo can live anywhere.
@@ -65,11 +64,10 @@
 
 .PARAMETER NoInstall
     Skip all PowerShell prerequisite installers and launch the service directly
-    (with `install`: register the background service without provisioning first).
+    (with `install`: register the logon task without provisioning first).
 
 .PARAMETER NoServicePrompt
-    Do not offer the background-service install [Y/n] on an interactive `run`
-    (also --no-service-prompt). The service's own command always passes it.
+    Accepted for compatibility (also --no-service-prompt); nothing is offered.
 
 .PARAMETER TtsSelfcheck
     Run the TTS batch self-check as a STANDALONE step before the worker starts:
@@ -213,17 +211,12 @@ $pycoreLoginTaskName = 'PyCore_RPC_Server'
 $pycoreRpcContractPath = Join-Path $PSScriptRoot 'config\pycore_rpc_contract.json'
 $pycoreRestartRouteName = 'controlRestart'
 $pycoreRestartWaitSeconds = 90
-$pycoreServiceDisplayName = 'Pycore Module Caller'
-$pycoreServiceDescription = 'Pycore Module Caller (headless)'
-$pycoreServiceCommands = @('install', 'uninstall', 'start', 'stop', 'restart', 'status')
+$pycoreRetireCommand = 'retire-service'
+$pycoreServiceCommands = @('install', 'uninstall', 'start', 'stop', 'restart', 'status', $pycoreRetireCommand)
 $pycoreServiceNssmScript = Join-Path $winCommonDir 'NssmServiceManager.ps1'
-$pycoreServiceLogDir = Join-Path (Join-Path $Global:CORE_NODE_CACHE_DIR 'pycore') 'logs'
-$pycoreServiceStdoutLog = Join-Path $pycoreServiceLogDir 'pycore.service.out.log'
-$pycoreServiceStderrLog = Join-Path $pycoreServiceLogDir 'pycore.service.err.log'
-$pycoreServiceRegistryKey = Join-Path 'HKLM:\SYSTEM\CurrentControlSet\Services' $pycoreServiceName
-$pycoreServiceEnvironment = @('PYCORE_NO_TRAY=1', 'PYCORE_SERVICE_RUN=1')
+$pycoreStartupManagerModule = 'pycore.pylauncher.platform.startup_manager'
+$pycoreListenerReleaseSeconds = 30
 $pycoreServiceScriptPath = Join-Path $PSScriptRoot 'pyservice.ps1'
-$pycoreServiceArguments = ('-NoProfile -ExecutionPolicy Bypass -File "{0}" run -NoUi -NoInstall -NoServicePrompt' -f $pycoreServiceScriptPath)
 $pycoreServiceExitCode = 0
 $preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
 $secretManagerPath = Join-Path $winCommonDir 'SecretManager.ps1'
@@ -399,14 +392,14 @@ function Show-Usage {
     Write-Host '  run          Idempotent prerequisites, then launch (default)'
     Write-Host '  config       Edit/show headless config via the cross-platform Python CLI'
     Write-Host '               (forwards args to: python -m pycore.pyservice_cli config)'
-    Write-Host '  install      Install + enable + start the pycore Windows service (NSSM, automatic'
-    Write-Host '               start, headless, no tray). Runs the idempotent prerequisites first'
-    Write-Host '               (-NoInstall skips them); re-running repairs and starts the service'
-    Write-Host '  start        Start the pycore Windows service'
-    Write-Host '  stop         Stop the pycore Windows service'
-    Write-Host '  restart      Restart the pycore Windows service'
-    Write-Host '  status       Show the pycore Windows service status'
-    Write-Host '  uninstall    Stop + remove the pycore Windows service'
+    Write-Host '  install      Register + start the logon task PyCore_RPC_Server (user session) and'
+    Write-Host '               retire any NSSM pycore service. Runs the idempotent prerequisites first'
+    Write-Host '               (-NoInstall skips them); re-running repairs and starts it'
+    Write-Host '  start        Start pycore through the logon task'
+    Write-Host '  stop         Not supported for the logon task (quit from the tray)'
+    Write-Host '  restart      Restart pycore (self-restart route, or fire the logon task)'
+    Write-Host '  status       Show the logon task and RPC listener status'
+    Write-Host '  uninstall    Remove the logon task and any NSSM pycore service'
     Write-Host '  colab        Google Colab VM Relay agent; Linux-only via pyservice.sh (notice on Windows)'
     Write-Host '  kaggle       Kaggle notebook VM Relay agent; Linux-only via pyservice.sh (notice on Windows)'
     Write-Host '  help         Show this help (also -h / --help)'
@@ -416,10 +409,8 @@ function Show-Usage {
     Write-Host '  -Port PORT        Port the RPC server binds to (default: 59000)'
     Write-Host '  -DebugMode        Enable the worker''s debug mode'
     Write-Host '  -NoReload         Accepted and ignored: hot reload is off; restart pycore after code changes'
-    Write-Host '  -NoServicePrompt  Do not offer the background-service install [Y/n] (interactive run'
-    Write-Host '                    offers it when the service is absent; an installed service is'
-    Write-Host '                    ensured running and reported instead of a second foreground worker)'
-    Write-Host '  -Only             Run ONLY the prerequisite step, then exit (no service install)'
+    Write-Host '  -NoServicePrompt  Accepted for compatibility; nothing is offered'
+    Write-Host '  -Only             Run ONLY the prerequisite step, then exit (no logon task change)'
     Write-Host '  -NoUi             Do not launch the dashboard UI; use legacy /web/subtitle'
     Write-Host '  -UiBuild          Build the dashboard UI and serve it (vite preview)'
     Write-Host '  -UiPort PORT      Port the UI server listens on (default: 13054)'
@@ -449,7 +440,7 @@ function Show-Usage {
 }
 
 # --------------------------------------------------------------------------- #
-# Idempotent prerequisite installers (shared by run and the service install). #
+# Idempotent prerequisite installers (shared by run and install).             #
 # --------------------------------------------------------------------------- #
 function Invoke-PycorePrerequisites {
     param([Parameter(Mandatory = $true)][string]$PythonPath)
@@ -469,16 +460,10 @@ function Invoke-PycorePrerequisites {
 }
 
 # --------------------------------------------------------------------------- #
-# Background service `pycore` (NSSM-backed Windows service; Windows twin of   #
-# the systemd unit `pycore`). Headless, no tray: the service command passes   #
-# -NoUi -NoInstall -NoServicePrompt and PYCORE_NO_TRAY=1.                     #
+# Windows boot start = the logon task PyCore_RPC_Server ONLY (user session:   #
+# terminal windows, tray, desktop input). Idempotent: every entry retires a    #
+# leftover NSSM `pycore` service (session 0 cannot see the desktop).           #
 # --------------------------------------------------------------------------- #
-function Test-PycoreInteractiveSession {
-    if ($env:PYCORE_SERVICE_RUN -eq '1') { return $false }
-    if (-not [Environment]::UserInteractive) { return $false }
-    return (-not [Console]::IsInputRedirected)
-}
-
 function Invoke-PycoreServiceElevated {
     param([Parameter(Mandatory = $true)][string]$ServiceCommand)
     $powerShellExe = (Get-Process -Id $PID).Path
@@ -501,161 +486,6 @@ function Invoke-PycoreServiceElevated {
     return [int]$elevatedProcess.ExitCode
 }
 
-function Get-PycoreServiceExePath {
-    $powerShellCommand = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
-    if (-not $powerShellCommand) { $powerShellCommand = Get-Command -Name 'pwsh.exe' -ErrorAction SilentlyContinue }
-    if (-not $powerShellCommand) { return $null }
-    return [string]$powerShellCommand.Source
-}
-
-function Get-PycoreServiceDrift {
-    param([Parameter(Mandatory = $true)][string]$ExePath)
-    $drift = @()
-    $parametersKey = Join-Path $pycoreServiceRegistryKey 'Parameters'
-    $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter ("Name='{0}'" -f $pycoreServiceName) -ErrorAction SilentlyContinue
-    $parameterItem = $null
-    $expectedPairs = @(@('Application', $ExePath), @('AppParameters', $pycoreServiceArguments))
-    $pair = $null
-    $currentProperty = $null
-    $environmentValues = @()
-    $environmentLine = $null
-    if ($serviceInfo -and ([string]$serviceInfo.StartMode -ne 'Auto')) { $drift += 'start type' }
-    if (-not (Test-Path -LiteralPath $parametersKey)) { return @($drift + 'parameters') }
-    $parameterItem = Get-ItemProperty -LiteralPath $parametersKey
-    foreach ($pair in $expectedPairs) {
-        $currentProperty = $parameterItem.PSObject.Properties[$pair[0]]
-        if ((-not $currentProperty) -or ([string]$currentProperty.Value -ne $pair[1])) { $drift += $pair[0] }
-    }
-    $currentProperty = $parameterItem.PSObject.Properties['AppEnvironmentExtra']
-    if ($currentProperty) { $environmentValues = @($currentProperty.Value) }
-    foreach ($environmentLine in $pycoreServiceEnvironment) {
-        if ($environmentValues -notcontains $environmentLine) { $drift += 'environment'; break }
-    }
-    return @($drift)
-}
-
-function Show-PycoreServiceStatus {
-    $service = Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue
-    $serviceInfo = $null
-    $rpcListener = $null
-    if (-not $service) {
-        Write-Host ("[i] Service '{0}' is not installed. Install it with: .\pyservice.ps1 install" -f $pycoreServiceName) -ForegroundColor Yellow
-        return 1
-    }
-    $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter ("Name='{0}'" -f $pycoreServiceName) -ErrorAction SilentlyContinue
-    $rpcListener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    Write-Host ("[i] Service : {0} ({1})" -f $pycoreServiceName, $pycoreServiceDisplayName) -ForegroundColor Cyan
-    Write-Host ("    State   : {0}" -f $service.Status)
-    if ($serviceInfo) {
-        Write-Host ("    Start   : {0}" -f $serviceInfo.StartMode)
-        Write-Host ("    PID     : {0}" -f $serviceInfo.ProcessId)
-    }
-    Write-Host ("    RPC     : port {0} {1}" -f $Port, $(if ($rpcListener) { 'listening' } else { 'not listening' }))
-    Write-Host ("    Logs    : Get-Content -LiteralPath '{0}' -Wait -Tail 50" -f $pycoreServiceStdoutLog)
-    if ([string]$service.Status -eq 'Running') { return 0 }
-    return 1
-}
-
-function Wait-PycoreServiceStatus {
-    param([Parameter(Mandatory = $true)][string]$DesiredStatus)
-    $service = Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue
-    if (-not $service) { return ($DesiredStatus -eq 'Stopped') }
-    try {
-        $service.WaitForStatus($DesiredStatus, [TimeSpan]::FromSeconds(30))
-    } catch {
-        return $false
-    }
-    return $true
-}
-
-function Install-PycoreService {
-    $python = $null
-    $nssmPath = $null
-    $powerShellExe = $null
-    $existingService = $null
-    $drift = @()
-    $registerResult = @()
-    $registered = $false
-    $lanBindChanged = $false
-    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand 'install') }
-
-    $python = Resolve-Python
-    if (-not $python) {
-        Write-Host ("[!] System Python 3.13 was not found at {0}; run Python_Default.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
-        return 1
-    }
-    if (-not $NoInstall) {
-        Ensure-CoreNodePythonPath -LogPrefix '[pyservice]' | Out-Host
-        Push-Location -LiteralPath $PSScriptRoot
-        try {
-            # Out-Host keeps installer output visible without leaking it into this
-            # function's return stream (the caller casts that stream to an exit code).
-            Invoke-PycorePrerequisites -PythonPath $python.Path | Out-Host
-        } finally {
-            Pop-Location
-        }
-    } else {
-        Write-Host '[i] Skipping all PowerShell prerequisite installers (-NoInstall).' -ForegroundColor DarkYellow
-    }
-    $lanBindChanged = [bool](Enable-PycoreLanBind -PythonPath $python.Path | Select-Object -Last 1)
-
-    $nssmPath = Ensure-Nssm -RepoRootDir $PSScriptRoot
-    if (-not $nssmPath) {
-        Write-Host '[!] NSSM unavailable and auto-install (winget) failed -> cannot register the pycore service.' -ForegroundColor Red
-        Write-Host "    Install it manually ('winget install NSSM.NSSM' or https://nssm.cc/), then re-run: .\pyservice.ps1 install" -ForegroundColor DarkYellow
-        return 1
-    }
-    $powerShellExe = Get-PycoreServiceExePath
-    if (-not $powerShellExe) {
-        Write-Host '[!] powershell.exe was not found; cannot build the service command.' -ForegroundColor Red
-        return 1
-    }
-    if (-not (Test-Path -LiteralPath $pycoreServiceLogDir)) { New-Item -ItemType Directory -Force -Path $pycoreServiceLogDir | Out-Null }
-
-    $existingService = Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue
-    if ($existingService) {
-        $drift = @(Get-PycoreServiceDrift -ExePath $powerShellExe)
-        if ($drift.Count -gt 0) {
-            Write-Host ("[i] Service {0} drifted ({1}); repairing ..." -f $pycoreServiceName, ($drift -join ', ')) -ForegroundColor Yellow
-        } else {
-            Write-Host ("[i] Service {0} already installed; ensuring it is automatic and running." -f $pycoreServiceName) -ForegroundColor Cyan
-        }
-    }
-    # A healthy installed service keeps running (configuration refresh only); a new or drifted one is (re)started.
-    $registerResult = @(Register-NssmService -NssmPath $nssmPath -ServiceName $pycoreServiceName `
-        -DisplayName $pycoreServiceDisplayName -Description $pycoreServiceDescription `
-        -ExePath $powerShellExe -Arguments $pycoreServiceArguments -WorkingDirectory $PSScriptRoot `
-        -EnvironmentExtra $pycoreServiceEnvironment `
-        -StdoutLog $pycoreServiceStdoutLog -StderrLog $pycoreServiceStderrLog `
-        -NoRestart:([bool]($existingService -and ($drift.Count -eq 0) -and (-not $lanBindChanged))))
-    $registered = ($registerResult.Count -gt 0) -and ($registerResult[$registerResult.Count - 1] -eq $true)
-    if (-not $registered) {
-        Write-Host ("[!] Service {0} registration failed." -f $pycoreServiceName) -ForegroundColor Red
-        return 1
-    }
-    if ((Get-ServiceRunState -ServiceName $pycoreServiceName) -ne 'running') {
-        try { Start-Service -Name $pycoreServiceName } catch { Write-Host ("[!] Start failed: {0}" -f $_.Exception.Message) -ForegroundColor Red }
-    }
-    if (-not (Wait-PycoreServiceStatus -DesiredStatus 'Running')) {
-        Show-PycoreServiceStatus | Out-Null
-        Write-Host ("[!] Service {0} did not reach Running." -f $pycoreServiceName) -ForegroundColor Red
-        return 1
-    }
-    Write-Host ("[OK] Service {0} installed (automatic start) and running." -f $pycoreServiceName) -ForegroundColor Green
-    Show-PycoreServiceStatus | Out-Null
-    return 0
-}
-
-function Uninstall-PycoreService {
-    if (-not (Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue)) {
-        Write-Host ("[i] Service {0} is not installed; nothing to remove." -f $pycoreServiceName) -ForegroundColor Yellow
-        return 0
-    }
-    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand 'uninstall') }
-    if (Remove-NssmService -ServiceName $pycoreServiceName) { return 0 }
-    return 1
-}
-
 function Get-PycoreRpcListenerPid {
     $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $listener) { return 0 }
@@ -674,18 +504,46 @@ function Wait-PycoreRpcListener {
     return $false
 }
 
-# Hosts without the NSSM service run pycore from the logon task (PyCore_RPC_Server): restart goes through
-# the worker's own loopback self-restart route (same path as the tray), start fires the task.
+function Wait-PycoreRpcListenerGone {
+    param([int]$ListenerPid)
+    $deadline = (Get-Date).AddSeconds($pycoreListenerReleaseSeconds)
+    while (((Get-PycoreRpcListenerPid) -eq $ListenerPid) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Seconds 1 }
+}
+
+# Removes the NSSM `pycore` service when present (UAC once when not elevated). Returns $true when it is gone.
+function Remove-PycoreLegacyService {
+    $servicePid = 0
+    if (-not (Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue)) { return $true }
+    Write-Host ("[i] Retiring the NSSM service {0}: on Windows pycore runs only from the logon task {1} (user session)." -f $pycoreServiceName, $pycoreLoginTaskName) -ForegroundColor Yellow
+    if (-not (Test-AdminPrivileges)) {
+        $null = Invoke-PycoreServiceElevated -ServiceCommand $pycoreRetireCommand
+        return (-not (Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue))
+    }
+    $servicePid = Get-PycoreRpcListenerPid
+    if (-not (Remove-NssmService -ServiceName $pycoreServiceName)) { return $false }
+    if ($servicePid -ne 0) { Wait-PycoreRpcListenerGone -ListenerPid $servicePid }
+    return $true
+}
+
+# Registers (or refreshes) the logon task through the shared Python startup manager. Returns $true when the task exists.
+function Register-PycoreLoginTask {
+    param([Parameter(Mandatory = $true)][string]$PythonPath)
+    Push-Location -LiteralPath $PSScriptRoot
+    try {
+        & $PythonPath '-m' $pycoreStartupManagerModule 'enable' | Out-Host
+    } finally {
+        Pop-Location
+    }
+    return [bool](Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue)
+}
+
+# Restart goes through the worker's own loopback self-restart route (same path as the tray); start fires the task.
 function Invoke-PycoreLoginTaskControl {
-    param([Parameter(Mandatory = $true)][ValidateSet('start', 'stop', 'restart')][string]$Action)
-    $task = Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue
+    param([Parameter(Mandatory = $true)][ValidateSet('start', 'restart')][string]$Action)
     $previousPid = Get-PycoreRpcListenerPid
     $rpcContract = Get-Content -LiteralPath $pycoreRpcContractPath -Raw | ConvertFrom-Json
     $restartUri = ('http://127.0.0.1:{0}{1}/{2}' -f $Port, $rpcContract.api_prefix, $rpcContract.routes.$pycoreRestartRouteName.path)
     $restartResult = $null
-    if (-not $task) { return -1 }
-    if ($Action -eq 'stop') { return -1 }
-    Write-Host ("[i] Service {0} is not installed; managing pycore through the logon task {1}." -f $pycoreServiceName, $pycoreLoginTaskName) -ForegroundColor Yellow
     if (($Action -eq 'start') -and ($previousPid -ne 0)) {
         Write-Host ("[OK] pycore is already running (pid {0}, port {1})." -f $previousPid, $Port) -ForegroundColor Green
         return 0
@@ -708,40 +566,103 @@ function Invoke-PycoreLoginTaskControl {
         Write-Host ("[!] pycore did not start listening on port {0} within {1}s." -f $Port, $pycoreRestartWaitSeconds) -ForegroundColor Red
         return 1
     }
-    Write-Host ("[OK] pycore {0} done through the logon task (pid {1}, port {2})." -f $Action, (Get-PycoreRpcListenerPid), $Port) -ForegroundColor Green
+    Write-Host ("[OK] pycore {0} done through the logon task {1} (pid {2}, port {3})." -f $Action, $pycoreLoginTaskName, (Get-PycoreRpcListenerPid), $Port) -ForegroundColor Green
+    return 0
+}
+
+function Show-PycoreServiceStatus {
+    $task = Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue
+    $taskInfo = $null
+    $listenerPid = Get-PycoreRpcListenerPid
+    $listenerProcess = $null
+    Write-Host ("[i] Logon task : {0}" -f $pycoreLoginTaskName) -ForegroundColor Cyan
+    if (-not $task) {
+        Write-Host '    State   : not registered (.\pyservice.ps1 install)' -ForegroundColor Yellow
+    } else {
+        $taskInfo = Get-ScheduledTaskInfo -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue
+        Write-Host ("    State   : {0}" -f $task.State)
+        if ($taskInfo) { Write-Host ("    LastRun : {0} (result {1})" -f $taskInfo.LastRunTime, $taskInfo.LastTaskResult) }
+    }
+    if ($listenerPid -ne 0) {
+        $listenerProcess = Get-CimInstance -ClassName Win32_Process -Filter ("ProcessId={0}" -f $listenerPid) -ErrorAction SilentlyContinue
+        Write-Host ("    RPC     : port {0} listening (pid {1}, session {2})" -f $Port, $listenerPid, $(if ($listenerProcess) { $listenerProcess.SessionId } else { '?' }))
+    } else {
+        Write-Host ("    RPC     : port {0} not listening" -f $Port)
+    }
+    if (Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue) {
+        Write-Host ("[!] NSSM service {0} is still installed; any pyservice command retires it." -f $pycoreServiceName) -ForegroundColor Yellow
+    }
+    if ($task -and ($listenerPid -ne 0)) { return 0 }
+    return 1
+}
+
+function Install-PycoreService {
+    $python = $null
+    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand 'install') }
+
+    $python = Resolve-Python
+    if (-not $python) {
+        Write-Host ("[!] System Python 3.13 was not found at {0}; run Python_Default.ps1." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
+        return 1
+    }
+    if (-not $NoInstall) {
+        Ensure-CoreNodePythonPath -LogPrefix '[pyservice]' | Out-Host
+        Push-Location -LiteralPath $PSScriptRoot
+        try {
+            # Out-Host keeps installer output visible without leaking it into this
+            # function's return stream (the caller casts that stream to an exit code).
+            Invoke-PycorePrerequisites -PythonPath $python.Path | Out-Host
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Host '[i] Skipping all PowerShell prerequisite installers (-NoInstall).' -ForegroundColor DarkYellow
+    }
+    $null = Enable-PycoreLanBind -PythonPath $python.Path
+    if (-not (Remove-PycoreLegacyService)) {
+        Write-Host ("[!] NSSM service {0} could not be removed." -f $pycoreServiceName) -ForegroundColor Red
+        return 1
+    }
+    if (-not (Register-PycoreLoginTask -PythonPath $python.Path)) {
+        Write-Host ("[!] Logon task {0} registration failed." -f $pycoreLoginTaskName) -ForegroundColor Red
+        return 1
+    }
+    return [int](@(Invoke-PycoreLoginTaskControl -Action 'start')[-1])
+}
+
+function Uninstall-PycoreService {
+    $python = $null
+    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand 'uninstall') }
+    if (-not (Remove-PycoreLegacyService)) { return 1 }
+    $python = Resolve-Python
+    if ($python) {
+        Push-Location -LiteralPath $PSScriptRoot
+        try {
+            & $python.Path '-m' $pycoreStartupManagerModule 'disable' | Out-Host
+        } finally {
+            Pop-Location
+        }
+    }
+    if (Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue) { return 1 }
     return 0
 }
 
 function Invoke-PycoreServiceControl {
     param([Parameter(Mandatory = $true)][ValidateSet('start', 'stop', 'restart')][string]$Action)
-    $runState = Get-ServiceRunState -ServiceName $pycoreServiceName
-    $desiredStatus = if ($Action -eq 'stop') { 'Stopped' } else { 'Running' }
-    $taskExitCode = -1
-    if ($runState -eq 'absent') {
-        $taskExitCode = Invoke-PycoreLoginTaskControl -Action $Action
-        if ($taskExitCode -ge 0) { return $taskExitCode }
-        Write-Host ("[!] Service {0} is not installed. Install it with: .\pyservice.ps1 install" -f $pycoreServiceName) -ForegroundColor Red
+    $python = $null
+    if (-not (Remove-PycoreLegacyService)) { return 1 }
+    if ($Action -eq 'stop') {
+        Write-Host ("[i] The logon task {0} has no stop; quit pycore from the tray or pycore-manager." -f $pycoreLoginTaskName) -ForegroundColor Yellow
         return 1
     }
-    if (-not (Test-AdminPrivileges)) { return (Invoke-PycoreServiceElevated -ServiceCommand $Action) }
-    try {
-        switch ($Action) {
-            'start'   { if ($runState -eq 'running') { Write-Host ("[OK] Service {0} is already running." -f $pycoreServiceName) -ForegroundColor Green } else { Start-Service -Name $pycoreServiceName } }
-            'stop'    { if ($runState -eq 'stopped') { Write-Host ("[OK] Service {0} is already stopped." -f $pycoreServiceName) -ForegroundColor Green } else { Stop-Service -Name $pycoreServiceName -Force } }
-            'restart' { Restart-Service -Name $pycoreServiceName -Force }
+    if (-not (Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue)) {
+        $python = Resolve-Python
+        if ((-not $python) -or (-not (Register-PycoreLoginTask -PythonPath $python.Path))) {
+            Write-Host ("[!] Logon task {0} is not registered. Register it with: .\pyservice.ps1 install" -f $pycoreLoginTaskName) -ForegroundColor Red
+            return 1
         }
-    } catch {
-        Write-Host ("[!] {0} failed: {1}" -f $Action, $_.Exception.Message) -ForegroundColor Red
-        return 1
     }
-    if (-not (Wait-PycoreServiceStatus -DesiredStatus $desiredStatus)) {
-        Write-Host ("[!] Service {0} did not reach {1}." -f $pycoreServiceName, $desiredStatus) -ForegroundColor Red
-        Show-PycoreServiceStatus | Out-Null
-        return 1
-    }
-    Write-Host ("[OK] Service {0}: {1} done." -f $pycoreServiceName, $Action) -ForegroundColor Green
-    if ($Action -ne 'stop') { Show-PycoreServiceStatus | Out-Null }
-    return 0
+    return [int](@(Invoke-PycoreLoginTaskControl -Action $Action)[-1])
 }
 
 function Invoke-PycoreServiceCommand {
@@ -751,6 +672,7 @@ function Invoke-PycoreServiceCommand {
         'install'   { $commandExitCode = Install-PycoreService }
         'uninstall' { $commandExitCode = Uninstall-PycoreService }
         'status'    { $commandExitCode = Show-PycoreServiceStatus }
+        { $_ -eq $pycoreRetireCommand } { $commandExitCode = $(if (Remove-PycoreLegacyService) { 0 } else { 1 }) }
         default     { $commandExitCode = Invoke-PycoreServiceControl -Action $ServiceCommand }
     }
     if ($ElevatedRelaunch) { Read-Host 'Press Enter to close this window' | Out-Null }
@@ -758,33 +680,20 @@ function Invoke-PycoreServiceCommand {
     return [int](@($commandExitCode)[-1])
 }
 
-# Interactive `run`: service absent -> offer the install (default Yes); installed ->
-# ensure it is running and report instead of starting a second worker on the same
-# port. Returns the process exit code when `run` was fully handled, -1 to continue
-# with the foreground worker. Skipped for the service's own run, non-interactive
-# sessions, -NoServicePrompt, -Only and relay mode.
+# Runs before any worker starts. Inside the NSSM service body (session 0): disable the
+# service, hand pycore to the logon task and return 0 (handled). Elsewhere: retire a
+# leftover service, then return -1 to continue with the foreground worker.
 function Invoke-PycoreServiceOffer {
-    $runState = ''
-    $offerExitCode = 0
-    if ($NoServicePrompt -or $Only -or ($ServiceMode -ne '1')) { return -1 }
-    if (-not (Test-PycoreInteractiveSession)) { return -1 }
-    $runState = Get-ServiceRunState -ServiceName $pycoreServiceName
-    if ($runState -ne 'absent') {
-        if ($runState -eq 'running') {
-            Write-Host '[OK] pycore service is already running (.\pyservice.ps1 status).' -ForegroundColor Green
-            Show-PycoreServiceStatus | Out-Null
-        } else {
-            Write-Host '[..] pycore service is installed but not running; starting it ...' -ForegroundColor Yellow
-            $offerExitCode = Invoke-PycoreServiceControl -Action 'start'
-        }
-        Write-Host '[i] Not starting a second foreground worker. Stop it first: .\pyservice.ps1 stop (or use -NoServicePrompt).' -ForegroundColor DarkYellow
-        return [int]$offerExitCode
+    if ($env:PYCORE_SERVICE_RUN -eq '1') {
+        Write-Host ("[i] Session-0 NSSM run: disabling service {0} and starting the logon task {1}." -f $pycoreServiceName, $pycoreLoginTaskName) -ForegroundColor Yellow
+        $null = Disable-NssmService -ServiceName $pycoreServiceName
+        if (Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskName $pycoreLoginTaskName }
+        return 0
     }
-    if (-not (Read-YesNoDefaultYes -Message '[?] Install pycore as a background service?')) {
-        Write-Host '[i] Running in the foreground (service not installed).' -ForegroundColor DarkYellow
-        return -1
-    }
-    return [int](@(Install-PycoreService)[-1])
+    if ($Only -or ($ServiceMode -ne '1')) { return -1 }
+    if (-not (Get-Service -Name $pycoreServiceName -ErrorAction SilentlyContinue)) { return -1 }
+    if (-not (Remove-PycoreLegacyService)) { return 1 }
+    return -1
 }
 
 # Honor a help token collected by the parameter-library walk above (Show-Usage
