@@ -216,6 +216,7 @@ $pycoreServiceCommands = @('install', 'uninstall', 'start', 'stop', 'restart', '
 $pycoreServiceNssmScript = Join-Path $winCommonDir 'NssmServiceManager.ps1'
 $pycoreStartupManagerModule = 'pycore.pylauncher.platform.startup_manager'
 $pycoreListenerReleaseSeconds = 30
+$pycoreHandoffPollSeconds = 5
 $pycoreServiceScriptPath = Join-Path $PSScriptRoot 'pyservice.ps1'
 $pycoreServiceExitCode = 0
 $preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
@@ -879,6 +880,11 @@ try {
     $env:PORT = "$Port"
     & $py.Path @pyArgs
     $workerExitCode = $LASTEXITCODE
+    # After a restart handoff the successor runs detached: stay alive while it serves so the logon
+    # task instance keeps running and MultipleInstances=IgnoreNew still blocks a second worker.
+    if ($workerExitCode -eq $workerHandoffExitCode) {
+        while ((Get-PycoreRpcListenerPid) -ne 0) { Start-Sleep -Seconds $pycoreHandoffPollSeconds }
+    }
 }
 finally {
     # Tear down the UI server (npm spawns a node child; /T kills the whole tree).
