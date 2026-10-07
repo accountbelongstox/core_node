@@ -9,7 +9,7 @@ import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
-import { cmNotificationLink, cmNotificationParams } from '../components/workspace/cmNotificationFormat';
+import { cmNotificationBodyKey, cmNotificationLink, cmNotificationParams } from '../components/workspace/cmNotificationFormat';
 import { cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList } from '../components/workspace/useCmPagedList';
 
@@ -115,7 +115,7 @@ export const CmNotificationsPage: React.FC = () => {
                     {t(notification.title_key, { ...params, defaultValue: t('notifications.fallbackTitle') })}
                     {!read && <span className="cm-visually-hidden">{t('notifications.unreadLabel')}</span>}
                   </h2>
-                  {notification.body_key && <p>{t(notification.body_key, { ...params, defaultValue: '' })}</p>}
+                  {notification.body_key && <p>{t(cmNotificationBodyKey(notification.body_key, params) ?? '', { ...params, defaultValue: '' })}</p>}
                   {NOTE_PARAM_KEYS.map((key) => (
                     typeof params[key] === 'string' && params[key] !== '' && (
                       <p key={key} className="cm-notification__note">{t(`notifications.${key}Line`, { value: params[key] })}</p>
