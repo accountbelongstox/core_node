@@ -12,7 +12,13 @@ import platform
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.clipboard_text import get_clipboard_text, set_clipboard_text
+from pycore.pyutils.common.clipboard_text import (
+    ClipboardSnapshot,
+    get_clipboard_text,
+    restore_clipboard,
+    set_clipboard_text,
+    snapshot_clipboard,
+)
 
 
 class ClipboardManager:
@@ -24,7 +30,7 @@ class ClipboardManager:
 
     def __init__(self):
         self.platform = platform.system()
-        self._backup_content: Optional[str] = None
+        self._backup_content: Optional[ClipboardSnapshot] = None
 
     def get_text(self, primary: bool = False) -> Optional[str]:
         """
@@ -41,20 +47,47 @@ class ClipboardManager:
             ColorPrint.yellow("[Clipboard] Failed to read clipboard content via available backends.")
         return content
 
-    def set_text(self, text: str, include_primary: bool = False) -> bool:
+    def set_text(self, text: str, include_primary: bool = False, transient: bool = False) -> bool:
         """
         Set clipboard text content.
 
         Args:
             text: Text to copy to clipboard.
             include_primary: Also own the Linux PRIMARY selection (Shift+Insert paste).
+            transient: Keep the item out of the Windows clipboard history (temporary paste content).
 
         Returns:
             True if successful, False otherwise.
         """
-        if set_clipboard_text(text, include_primary):
+        if set_clipboard_text(text, include_primary, transient):
             return True
         ColorPrint.red("[Clipboard] Failed to set clipboard content via available backends.")
+        return False
+
+    def snapshot(self) -> Optional[ClipboardSnapshot]:
+        """
+        Capture the clipboard in every restorable format (text, screenshots, copied files).
+
+        Returns:
+            The snapshot, or None if the clipboard could not be read.
+        """
+        snapshot = snapshot_clipboard()
+        if snapshot is None:
+            ColorPrint.yellow("[Clipboard] Failed to snapshot clipboard content; it will be left as is.")
+        return snapshot
+
+    def restore_snapshot(self, snapshot: Optional[ClipboardSnapshot]) -> bool:
+        """
+        Put a snapshot back; a missing snapshot (unreadable clipboard) is a no-op success.
+
+        Returns:
+            True if restored (or nothing to restore), False otherwise.
+        """
+        if snapshot is None:
+            return True
+        if restore_clipboard(snapshot):
+            return True
+        ColorPrint.red(f"[Clipboard] Failed to restore clipboard content kind={snapshot.kind}.")
         return False
 
     def backup(self) -> bool:
@@ -64,9 +97,9 @@ class ClipboardManager:
         Returns:
             True if backup successful, False otherwise
         """
-        self._backup_content = self.get_text()
+        self._backup_content = self.snapshot()
         if self._backup_content is not None:
-            ColorPrint.blue(f"[Clipboard] Backed up: {len(self._backup_content)} chars")
+            ColorPrint.blue(f"[Clipboard] Backed up: {self._backup_content.kind}")
             return True
         return False
 
@@ -78,9 +111,9 @@ class ClipboardManager:
             True if restore successful, False otherwise
         """
         if self._backup_content is not None:
-            success = self.set_text(self._backup_content)
+            success = self.restore_snapshot(self._backup_content)
             if success:
-                ColorPrint.blue(f"[Clipboard] Restored: {len(self._backup_content)} chars")
+                ColorPrint.blue(f"[Clipboard] Restored: {self._backup_content.kind}")
             return success
         return False
 
@@ -98,7 +131,7 @@ class ClipboardManager:
         self.backup()
 
         # Set new content
-        return self.set_text(text)
+        return self.set_text(text, transient=True)
 
 
 # Singleton instance

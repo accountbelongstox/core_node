@@ -379,6 +379,32 @@ class Commander:
         stderr = completed.stderr or ""
         return CommandResult(completed.returncode, stdout, stderr, stdout + stderr)
 
+    @staticmethod
+    def run_args_bytes(
+        command: List[str],
+        input_bytes: Optional[bytes] = None,
+        timeout: float = 10,
+        detach_output: bool = False,
+    ) -> Tuple[bool, bytes]:
+        """Binary variant of run_args: feed raw stdin, return (success, raw stdout)."""
+        executable = shutil.which(command[0]) if command else None
+        if executable is None:
+            return False, b""
+        output_target = subprocess.DEVNULL if detach_output else subprocess.PIPE
+        try:
+            completed = subprocess.run(
+                [executable, *command[1:]],
+                input=input_bytes,
+                stdout=output_target,
+                stderr=subprocess.DEVNULL,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            ColorPrint.yellow(f"[Commander] timeout after {timeout}s: {command[0]}")
+            return False, b""
+        return completed.returncode == 0, completed.stdout or b""
+
 
 # Global instance for convenience
 commander = Commander()
@@ -418,6 +444,16 @@ def run_args(
 ) -> CommandResult:
     """Run an argv list without a shell; see Commander.run_args."""
     return Commander.run_args(command, input_text, timeout, detach_output)
+
+
+def run_args_bytes(
+    command: List[str],
+    input_bytes: Optional[bytes] = None,
+    timeout: float = 10,
+    detach_output: bool = False,
+) -> Tuple[bool, bytes]:
+    """Run an argv list with binary stdin/stdout; see Commander.run_args_bytes."""
+    return Commander.run_args_bytes(command, input_bytes, timeout, detach_output)
 
 
 def exec_check(command: Union[str, List], cwd: Optional[str] = None) -> str:

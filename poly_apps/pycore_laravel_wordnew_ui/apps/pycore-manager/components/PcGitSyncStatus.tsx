@@ -1,16 +1,15 @@
 /**
- * Top-bar status of pycore's automatic gitsync: run count, a merge-conflict alert (with the
+ * Top-bar status of pycore's automatic gitsync on the machine selected in the terminal node tabs: run count, a merge-conflict alert (with the
  * AI prompt to copy), LAN turn wait, last push, LAN machines, pause until restart, sync interval,
  * reminder interval, run now, paged run history.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, GitMerge, Hourglass, Loader2, Pause, Play, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreApi } from '@/apps/pycore-manager/api';
-import type { GitSyncHistoryPage, GitSyncLanPeer } from '@/apps/pycore-manager/api';
+import type { GitSyncHistoryPage, GitSyncLanPeer, PycoreGitSyncApi } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 import { formatTimestamp } from '../../../core/utils/formatters';
-import { applyGitSyncState, useGitSyncState } from '../hooks/useGitSyncState';
+import { applyGitSyncState, useGitSyncState, useSelectedGitSyncNode, type GitSyncNode } from '../hooks/useGitSyncState';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 const MS_PER_SECOND = 1000;
@@ -18,7 +17,7 @@ const HISTORY_PAGE_SIZE = 12;
 const BADGE_MAX_COUNT = 99;
 
 /** Paged run history, loaded only while expanded; reloads when a new run is counted. */
-const PcGitSyncHistory: React.FC<{ runCount: number }> = ({ runCount }) => {
+const PcGitSyncHistory: React.FC<{ api: PycoreGitSyncApi; runCount: number }> = ({ api, runCount }) => {
   const { t } = useTranslation('pc');
   const [expanded, setExpanded] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
@@ -29,12 +28,12 @@ const PcGitSyncHistory: React.FC<{ runCount: number }> = ({ runCount }) => {
     if (!expanded) return undefined;
     let alive = true;
     setLoading(true);
-    pycoreApi.getGitSyncHistory(pageIndex * HISTORY_PAGE_SIZE, HISTORY_PAGE_SIZE)
+    api.getGitSyncHistory(pageIndex * HISTORY_PAGE_SIZE, HISTORY_PAGE_SIZE)
       .then((result) => { if (alive && result?.success) setPage(result); })
       .catch(() => undefined)
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [expanded, pageIndex, runCount]);
+  }, [api, expanded, pageIndex, runCount]);
 
   const pages = Math.max(1, Math.ceil((page?.recorded ?? 0) / HISTORY_PAGE_SIZE));
   return (
@@ -136,9 +135,14 @@ const PcGitSyncLanPeers: React.FC<{ peers: GitSyncLanPeer[] }> = ({ peers }) => 
 };
 
 export const PcGitSyncStatus: React.FC = () => {
+  const node = useSelectedGitSyncNode();
+  return <PcGitSyncNodeStatus key={node.key} node={node} />;
+};
+
+const PcGitSyncNodeStatus: React.FC<{ node: GitSyncNode }> = ({ node }) => {
   const { t } = useTranslation('pc');
   const isMobile = useIsMobile();
-  const state = useGitSyncState();
+  const state = useGitSyncState(node);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -163,10 +167,10 @@ export const PcGitSyncStatus: React.FC = () => {
     return () => document.removeEventListener('pointerdown', onDown);
   }, [open]);
 
-  const control = async (change: Parameters<typeof pycoreApi.controlGitSync>[0]) => {
+  const control = async (change: Parameters<PycoreGitSyncApi['controlGitSync']>[0]) => {
     setBusy(true);
     try {
-      applyGitSyncState(await pycoreApi.controlGitSync(change));
+      applyGitSyncState(node.key, await node.api.controlGitSync(change));
     } finally {
       setBusy(false);
     }
@@ -299,7 +303,7 @@ export const PcGitSyncStatus: React.FC = () => {
               {t('gitsyncWatch.runNow')}
             </button>
           </div>
-          <PcGitSyncHistory runCount={runCount} />
+          <PcGitSyncHistory api={node.api} runCount={runCount} />
         </div>
       )}
     </div>
@@ -308,8 +312,13 @@ export const PcGitSyncStatus: React.FC = () => {
 
 /** Full-width alert under the top bar while a gitsync merge conflict is unresolved. */
 export const PcGitSyncConflictBanner: React.FC = () => {
+  const node = useSelectedGitSyncNode();
+  return <PcGitSyncNodeConflictBanner key={node.key} node={node} />;
+};
+
+const PcGitSyncNodeConflictBanner: React.FC<{ node: GitSyncNode }> = ({ node }) => {
   const { t } = useTranslation('pc');
-  const state = useGitSyncState();
+  const state = useGitSyncState(node);
   const [copied, setCopied] = useState(false);
 
   if (!state?.conflict) return null;

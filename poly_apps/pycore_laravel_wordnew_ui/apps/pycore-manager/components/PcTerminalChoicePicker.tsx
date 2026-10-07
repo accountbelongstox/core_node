@@ -5,6 +5,7 @@ import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 const OPTION_COUNT = 6;
+const VISIBLE_OPTION_COUNT = 3;
 const LETTER_CODE_A = 65;
 type OptionLabelMode = 'number' | 'letter';
 
@@ -46,8 +47,8 @@ export const PcTerminalChoicePicker: React.FC<PcTerminalChoicePickerProps> = ({ 
     <div className="space-y-1">
       <div className="flex items-center gap-1">
         <ListChecks className="h-3.5 w-3.5 shrink-0 text-fuchsia-500" aria-label={t('terminal.choice.title')} />
-        <div className="grid flex-1 grid-cols-6 gap-0.5">
-          {Array.from({ length: OPTION_COUNT }, (_, offset) => offset + 1).map((position) => (
+        <div className="grid flex-1 grid-cols-4 gap-0.5">
+          {Array.from({ length: VISIBLE_OPTION_COUNT }, (_, offset) => offset + 1).map((position) => (
             <button
               key={position}
               type="button"
@@ -60,6 +61,24 @@ export const PcTerminalChoicePicker: React.FC<PcTerminalChoicePickerProps> = ({ 
               {optionLabel(position, mode)}
             </button>
           ))}
+          <select
+            value=""
+            onChange={(event) => {
+              const position = Number(event.target.value);
+              if (position) void choose(position);
+            }}
+            disabled={disabled || busy}
+            title={t('terminal.choice.more')}
+            aria-label={t('terminal.choice.more')}
+            className="h-7 min-w-0 cursor-pointer rounded-md border border-fuchsia-500/20 bg-transparent px-0.5 text-center font-mono text-xs font-bold text-fuchsia-600 hover:bg-fuchsia-500/10 focus:outline-none disabled:opacity-40 dark:text-fuchsia-400"
+          >
+            <option value="" disabled hidden>⋯</option>
+            {Array.from({ length: OPTION_COUNT - VISIBLE_OPTION_COUNT }, (_, offset) => offset + VISIBLE_OPTION_COUNT + 1).map((position) => (
+              <option key={position} value={position} className="text-slate-800">
+                {optionLabel(position, mode)}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           type="button"

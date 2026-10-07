@@ -10,7 +10,8 @@ use App\Support\AudioOrchestrationContract;
  * (docs_fix/DESIGN_PHRASE_PIPELINE.md §4). Shared by the Laravel gateway path
  * and the pycore phrase_extract result writeback.
  *
- * Output: ['ok' => bool, 'error' => ?string, 'items' => [n => [['content_id', 'text', 'meaning'], ...]]].
+ * Output: ['ok' => bool, 'error' => ?string, 'salvaged' => bool, 'items' => [n => [['content_id', 'text', 'meaning'], ...]]].
+ * `salvaged` = the answer was cut off (token limit) and only its complete items were read.
  * `items` holds only the sentence numbers the answer listed; a listed sentence
  * whose phrases all failed validation maps to an empty list.
  */
@@ -31,20 +32,25 @@ final class AppQyV1PhraseResponseParser
         $decoded = null;
         $items = [];
         $out = [];
+        $salvaged = false;
 
         foreach ($sentences as $sentence) {
             $byNumber[(int) $sentence['n']] = (string) $sentence['text'];
         }
         if (trim($raw) === '') {
-            return ['ok' => false, 'error' => self::ERROR_EMPTY, 'items' => []];
+            return ['ok' => false, 'error' => self::ERROR_EMPTY, 'items' => [], 'salvaged' => false];
         }
         $decoded = $this->decode($raw);
         if ($decoded === null) {
-            return ['ok' => false, 'error' => self::ERROR_NO_JSON, 'items' => []];
+            $decoded = $this->salvage($raw);
+            $salvaged = $decoded !== null;
+        }
+        if ($decoded === null) {
+            return ['ok' => false, 'error' => self::ERROR_NO_JSON, 'items' => [], 'salvaged' => false];
         }
         $items = $this->itemList($decoded);
         if ($items === null) {
-            return ['ok' => false, 'error' => self::ERROR_NO_ITEMS, 'items' => []];
+            return ['ok' => false, 'error' => self::ERROR_NO_ITEMS, 'items' => [], 'salvaged' => false];
         }
 
         foreach (array_values($items) as $position => $item) {
@@ -60,7 +66,7 @@ final class AppQyV1PhraseResponseParser
             $out[$n] = $this->capPerSentence($out[$n]);
         }
 
-        return ['ok' => true, 'error' => null, 'items' => $out];
+        return ['ok' => true, 'error' => null, 'items' => $out, 'salvaged' => $salvaged];
     }
 
     /** JSON object/array from a raw answer that may carry code fences or prose around it. */
@@ -88,6 +94,47 @@ final class AppQyV1PhraseResponseParser
         }
 
         return null;
+    }
+
+    /**
+     * Complete item objects (those carrying a `phrases` list) of an answer that
+     * is not valid JSON as a whole, typically cut off by the token limit.
+     * Returns {"items": [...]} or null when no complete item was found.
+     */
+    private function salvage(string $raw): ?array
+    {
+        $length = strlen($raw);
+        $stack = [];
+        $items = [];
+        $inString = false;
+        $escaped = false;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $raw[$i];
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($char === "\\") {
+                    $escaped = true;
+                } elseif ($char === '"') {
+                    $inString = false;
+                }
+                continue;
+            }
+            if ($char === '"') {
+                $inString = true;
+            } elseif ($char === '{') {
+                $stack[] = $i;
+            } elseif ($char === '}' && $stack !== []) {
+                $start = array_pop($stack);
+                $object = json_decode(substr($raw, $start, $i - $start + 1), true);
+                if (is_array($object) && isset($object['phrases']) && is_array($object['phrases'])) {
+                    $items[] = $object;
+                }
+            }
+        }
+
+        return $items === [] ? null : ['items' => $items];
     }
 
     /** The item list of a decoded answer: {"items":[...]}, a bare list, or one item object. */

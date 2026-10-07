@@ -20,6 +20,8 @@ export interface PycoreProbeResult {
   /** `windows` / `linux` as the backend reports it; empty for older backends. */
   platform: string;
   instanceId: string;
+  /** Stable per-machine code; one machine reached through several URLs reports the same value. */
+  machineId: string;
   checkedAt: number;
 }
 
@@ -46,6 +48,7 @@ function outcome(state: PycoreProbeState, ms: number | null, httpStatus = 0, pay
     hostname: String(payload?.hostname || ''),
     platform: String(payload?.platform || ''),
     instanceId: String(payload?.instance_id || ''),
+    machineId: String(payload?.machine_id || ''),
     checkedAt: Date.now(),
   };
 }

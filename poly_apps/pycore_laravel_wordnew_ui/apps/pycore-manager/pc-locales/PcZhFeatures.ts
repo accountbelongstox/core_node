@@ -409,6 +409,12 @@ terminal: {
       uploadFailed: '图片上传失败。',
       uploadStalled: '图片上传长时间没有进展。',
       sendBlocked: '部分图片未上传成功。请重试或移除后再发送。',
+      pull: {
+        action: '立即从剪贴板拉取图片（手机端剪贴板无图片时打开相册）',
+        empty: '剪贴板中没有图片。',
+        permission: '浏览器拒绝了剪贴板访问。',
+        unsupported: '此浏览器无法读取剪贴板。',
+      },
       errors: {
         missing: '没有收到图片。',
         tooLarge: '图片超过 {{max}} MiB。',
@@ -432,6 +438,22 @@ terminal: {
     scrolledBottom: '已激活终端并滚动到底部。',
     send: '粘贴并回车',
     sendShortcut: 'Ctrl+Enter',
+    sendShortcutDesktop: 'Enter',
+    dispatch: {
+      toggle: '发送给空闲的智能体',
+      hint: '开启后，每条消息会发送到所选类型的空闲智能体终端，而不是当前选中的终端。',
+      agentLabel: '目标智能体',
+      agentHint: '接收消息的空闲智能体类型。',
+      agents: {
+        claude: 'claude',
+        gemini: 'gemini',
+        kimi: 'kimi',
+        codex: 'codex',
+        any: '任意智能体',
+      },
+      sent: '消息已发送到空闲的智能体终端 #{{number}}。',
+      noIdle: '没有空闲的 {{agent}} 智能体，消息未发送。',
+    },
     capture: {
       title: '终端完整输出',
       hint: '从回滚缓冲区最顶端到最底端全选并复制，在主机上保存为 .txt 文件，并恢复原剪贴板。',
@@ -503,6 +525,7 @@ terminal: {
     choice: {
       title: '回答 AI 选择题',
       pick: '选择第 {{option}} 项',
+      more: '更多选项',
       mode: {
         number: '选项编号显示为 1、2、3…',
         letter: '选项编号显示为 A、B、C…',

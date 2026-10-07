@@ -7,3 +7,4 @@
 - [Relay and Queue UI architecture](relay-and-queue-ui-architecture.md) — schema gate, hub slices, relay error text, relay health, read coalescing
 - [RPC contract JSON is shared](rpc-contract-json-shared.md) — UI must not add route entries alone; key naming rule; drift check fails pycore startup
 - [Laravel auth sessions](laravel-auth-sessions.md) — per-API session store in core/auth, shared login in shared/auth, token scoped by request target
+- [Terminal workbench UI](terminal-workbench-ui.md) — tile grid + idle-agent dispatch modules, kind inference limits, scoped tsc on Linux
