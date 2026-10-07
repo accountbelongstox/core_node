@@ -32,6 +32,8 @@ public partial class BattlenetPage : UserControl
     private const string HistoryTimeFormat = "MM-dd HH:mm";
     private const string FinishTimeFormat = "MM-dd HH:mm";
     private const string RateSuffix = "/s";
+    private const int OpenD4PageWaitSec = 180;
+    private const int OpenD4PagePollMs = 5000;
     private string? _boundRegion;
     private bool _loaded;
 
@@ -239,14 +241,55 @@ public partial class BattlenetPage : UserControl
         string region = SelectedRegion;
         RefreshAccounts();
         if (region == _boundRegion) return;
+        string? previous = _boundRegion;
         _boundRegion = region;
-        if (!ConfigBinding.GetValue(ConfigKeys.BattlenetRegionSwitchPrompt, true)) return;
         var p = D3D4TesterI18n.Provider;
-        string regionName = p.GetUiText(region == C.RegionCn ? I18nKeys.StatusServerCn : I18nKeys.StatusServerAsia);
-        var answer = MessageBox.Show(Window.GetWindow(this), string.Format(p.GetUiText(I18nKeys.BnPanelRegionRestartAsk), regionName),
-            p.GetUiText(I18nKeys.BnPanelRegionTitle), MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (answer == MessageBoxResult.Yes)
-            _ = Task.Run(() => BattlenetManager.Instance.RestartWithRegion(region, force: true));
+        string regionName = RegionName(region);
+        var d4 = AskD4Build(region, regionName);
+        if (d4 == MessageBoxResult.Cancel && previous != null)
+        {
+            _boundRegion = previous;
+            Dispatcher.BeginInvoke(() => CmbRegion.SelectedIndex = Array.IndexOf(RegionValues, previous));
+            return;
+        }
+        bool restart = false;
+        if (ConfigBinding.GetValue(ConfigKeys.BattlenetRegionSwitchPrompt, true))
+        {
+            var answer = MessageBox.Show(Window.GetWindow(this), string.Format(p.GetUiText(I18nKeys.BnPanelRegionRestartAsk), regionName),
+                p.GetUiText(I18nKeys.BnPanelRegionTitle), MessageBoxButton.YesNo, MessageBoxImage.Question);
+            restart = answer == MessageBoxResult.Yes;
+        }
+        bool openD4 = d4 == MessageBoxResult.No;
+        if (restart || openD4)
+            _ = Task.Run(() =>
+            {
+                if (restart) BattlenetManager.Instance.RestartWithRegion(region, force: true);
+                if (openD4) OpenD4PageWhenReady();
+            });
+    }
+
+    private static string RegionName(string region) =>
+        D3D4TesterI18n.Provider.GetUiText(region == C.RegionCn ? I18nKeys.StatusServerCn : I18nKeys.StatusServerAsia);
+
+    /// <summary>
+    /// CN and international D4 share one folder but not one build: when the installed build (.build.info branch) does not belong to
+    /// the new region, ask Yes = switch, No = switch and open the D4 page, Cancel = keep the old region. OK when D4 matches or is unknown.
+    /// </summary>
+    private MessageBoxResult AskD4Build(string region, string regionName)
+    {
+        if (D4BuildInfo.Read(BattlenetNetHoldService.InstallPath) is not { } build || build.MatchesRegion(region)) return MessageBoxResult.OK;
+        var p = D3D4TesterI18n.Provider;
+        string buildName = p.GetUiText(build.IsCnBuild ? I18nKeys.BnPanelD4BuildCn : I18nKeys.BnPanelD4BuildGlobal);
+        ColorPrinter.Yellow($"[BattlenetPage] D4 in {build.InstallDir} is branch '{build.Branch}', region switch to {region} needs a repair / download");
+        return MessageBox.Show(Window.GetWindow(this), string.Format(p.GetUiText(I18nKeys.BnPanelD4BranchAsk), build.InstallDir, buildName, build.Branch, regionName),
+            p.GetUiText(I18nKeys.BnPanelRegionTitle), MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+    }
+
+    /// <summary>Open the D4 page once Battle.net is up and logged in again after the switch (best effort, bounded wait).</summary>
+    private static void OpenD4PageWhenReady()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(OpenD4PageWaitSec);
+        while (DateTime.UtcNow < deadline && !BattlenetNetHoldService.OpenD4Page()) Thread.Sleep(OpenD4PagePollMs);
     }
 
     private void RefreshAccounts()

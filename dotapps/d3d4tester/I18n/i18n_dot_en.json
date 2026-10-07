@@ -83,7 +83,10 @@
       "browse": "Browse…",
       "open_d4_page": "Open D4 page",
       "pause_download": "Pause download",
-      "resume_download": "Resume download"
+      "resume_download": "Resume download",
+      "d4_build_cn": "China build",
+      "d4_build_global": "international build",
+      "d4_branch_ask": "Diablo IV in {0} is the {1} (branch \"{2}\"). After switching to {3}, Battle.net will repair or re-download part of the game in this shared folder.\n\nYes: switch\nNo: switch and open the D4 page\nCancel: do not switch"
     },
     "resource_monitor": {
       "title": "System resources (1 s)",
