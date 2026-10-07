@@ -13,6 +13,7 @@ public static partial class I18nKeys
     public const string TabsD4Functions = "ui.tabs.d4_functions";
     public const string TabsCoordinateCalibration = "ui.tabs.coordinate_calibration";
     public const string TabsLog = "ui.tabs.log";
+    public const string TabsRosbotExtension = "ui.tabs.rosbot_extension";
 
     public const string OptionsPlaySoundOnSwitch = "ui.options.play_sound_on_switch";
     public const string OptionsSmartPause = "ui.options.smart_pause";

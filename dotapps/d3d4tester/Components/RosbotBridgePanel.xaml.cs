@@ -64,7 +64,6 @@ public partial class RosbotBridgePanel : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        LblTitle.Text = p.GetUiText(I18nKeys.RosbotBridgeTitle);
         TxtDesc.Text = p.GetUiText(I18nKeys.RosbotBridgeDesc);
         ChkAutoInstall.Content = p.GetUiText(I18nKeys.RosbotBridgeAutoInstall);
         BtnInstall.Content = p.GetUiText(I18nKeys.RosbotBridgeInstall);

@@ -12,7 +12,10 @@ using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Pages.Decompile;
 
-/// <summary>Decompile tab: install the toolchain into the data dir, decompile ROSBOT (exe + plugins + settings report), RBAssist or any file.</summary>
+/// <summary>
+/// Decompile tab (sub-tabs: ROSBOT bridge, tools, log): install the toolchain into the data dir, decompile ROSBOT (exe + plugins +
+/// settings report), RBAssist or any file; the log sub-tab is selected when an operation starts.
+/// </summary>
 public partial class DecompilePage : UserControl
 {
     private const string LogTag = "[Decompile]";
@@ -34,7 +37,9 @@ public partial class DecompilePage : UserControl
     {
         var p = D3D4TesterI18n.Provider;
         BridgePanel.RefreshI18n();
-        LblToolsTitle.Text = p.GetUiText(I18nKeys.DecompileToolsTitle);
+        TabBridge.Header = p.GetUiText(I18nKeys.RosbotBridgeTitle);
+        TabTools.Header = p.GetUiText(I18nKeys.DecompileToolsTitle);
+        TabLog.Header = p.GetUiText(I18nKeys.DecompileLog);
         TxtToolsDesc.Text = p.GetUiText(I18nKeys.DecompileToolsDesc);
         BtnInstall.Content = p.GetUiText(I18nKeys.DecompileInstall);
         LblRosbotTitle.Text = p.GetUiText(I18nKeys.DecompileRosbotTitle);
@@ -50,7 +55,6 @@ public partial class DecompilePage : UserControl
         BtnFile.Content = p.GetUiText(I18nKeys.DecompileFileButton);
         BtnExportIl.Content = p.GetUiText(I18nKeys.DecompileExportIl);
         BtnOpenOutput.Content = p.GetUiText(I18nKeys.DecompileOpenOutput);
-        LblLog.Text = p.GetUiText(I18nKeys.DecompileLog);
         BtnChain.Content = p.GetUiText(I18nKeys.DecompileChain);
         TxtChainDesc.Text = p.GetUiText(I18nKeys.DecompileChainDesc);
         BtnCancel.Content = p.GetUiText(I18nKeys.DecompileCancel);
@@ -146,6 +150,7 @@ public partial class DecompilePage : UserControl
         if (_busy) return;
         _busy = true;
         _operation = new CancellationTokenSource();
+        TabsDecompile.SelectedItem = TabLog;
         RefreshState();
         void Log(string line)
         {

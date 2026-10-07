@@ -188,13 +188,13 @@ public partial class BattlenetPage : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        LblGuardTitle.Text = p.GetUiText(I18nKeys.BnPanelGuardTitle);
+        TabGuard.Header = p.GetUiText(I18nKeys.BnPanelGuardTitle);
         ChkEnsureNormal.Content = p.GetUiText(I18nKeys.BnPanelEnsureNormal);
         ChkAbnormalRestart.Content = p.GetUiText(I18nKeys.BnPanelAbnormalRestart);
         ChkLoginRestart.Content = p.GetUiText(I18nKeys.BnPanelLoginRestart);
         LblAbnormalSec.Text = LblLoginSec.Text = p.GetUiText(I18nKeys.BnPanelSeconds);
         TxtGuardDesc.Text = p.GetUiText(I18nKeys.BnPanelGuardDesc);
-        LblRegionTitle.Text = p.GetUiText(I18nKeys.BnPanelRegionTitle);
+        TabRegion.Header = p.GetUiText(I18nKeys.BnPanelRegionTitle);
         LblRegion.Text = p.GetUiText(I18nKeys.BnPanelRegion);
         ItemRegionCn.Content = p.GetUiText(I18nKeys.StatusServerCn);
         ItemRegionAsia.Content = p.GetUiText(I18nKeys.StatusServerAsia);
@@ -213,7 +213,7 @@ public partial class BattlenetPage : UserControl
         LblStateDetail.Text = p.GetUiText(I18nKeys.BnPanelStateDetail);
         BtnProbe.Content = p.GetUiText(I18nKeys.BnPanelProbe);
         BtnRestart.Content = p.GetUiText(I18nKeys.BnPanelRestart);
-        LblNetHoldTitle.Text = p.GetUiText(I18nKeys.BnPanelNetHoldTitle);
+        TabNetHold.Header = p.GetUiText(I18nKeys.BnPanelNetHoldTitle);
         ChkNetHold.Content = p.GetUiText(I18nKeys.BnPanelNetHoldEnabled);
         ChkNetHoldOnBoot.Content = p.GetUiText(I18nKeys.BnPanelNetHoldOnBoot);
         LblNetHoldInterval.Text = p.GetUiText(I18nKeys.BnPanelNetHoldInterval);

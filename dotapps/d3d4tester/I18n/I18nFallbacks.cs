@@ -20,6 +20,7 @@ internal static class I18nFallbacks
     {
         [I18nKeys.MainWindowTitle] = "D3 Macro Assistant",
         [I18nKeys.TabsMainFunctions] = "Main",
+        [I18nKeys.TabsRosbotExtension] = "Rosbot",
         [I18nKeys.TabsD4Functions] = "D4",
         [I18nKeys.TabsCoordinateCalibration] = "Calibration",
         [I18nKeys.TabsLog] = "Log",
@@ -179,6 +180,7 @@ internal static class I18nFallbacks
     {
         [I18nKeys.MainWindowTitle] = "D3/D4 Game Tester",
         [I18nKeys.TabsMainFunctions] = "D3 主要功能",
+        [I18nKeys.TabsRosbotExtension] = "D3 Rosbot扩展",
         [I18nKeys.TabsD4Functions] = "D4功能",
         [I18nKeys.TabsCoordinateCalibration] = "坐标校准",
         [I18nKeys.TabsLog] = "日志",

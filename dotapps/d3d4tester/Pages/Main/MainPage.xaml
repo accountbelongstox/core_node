@@ -3,33 +3,21 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:DotApps.d3d4tester.ViewModels"
              xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
-  <!-- Compact: left = skill table + hotkeys/options, right = auxiliary options (Python main_functions_panel content); below = ROSBOT paths and bot settings -->
+  <!-- No scrolling, two sub-tabs: skills (skill table + hotkeys/options | auxiliary options, Python main_functions_panel) and ROSBOT (paths + bot settings) -->
   <UserControl.Resources>
-    <Style x:Key="CompactCardStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
-      <Setter Property="Padding" Value="10,8"/>
-    </Style>
-    <Style x:Key="CompactHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionHeaderTextStyle}">
-      <Setter Property="Margin" Value="0,0,0,4"/>
-    </Style>
-    <!-- Compact inputs so the page fits 800x600 without scrolling -->
-    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-      <Setter Property="Padding" Value="4,2"/>
-    </Style>
-    <Style TargetType="comp:HotkeyInputBox" BasedOn="{StaticResource {x:Type TextBox}}">
-      <Setter Property="Padding" Value="4,2"/>
-      <Setter Property="MinWidth" Value="56"/>
-    </Style>
-    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-      <Setter Property="Padding" Value="6,2,24,2"/>
-    </Style>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/d3d4tester;component/Assets/Styles/CompactPage.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+      <Style TargetType="comp:HotkeyInputBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="Padding" Value="4,2"/>
+        <Setter Property="MinWidth" Value="56"/>
+      </Style>
+    </ResourceDictionary>
   </UserControl.Resources>
-  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-  <Grid Margin="8,6,8,4">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="6"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
+  <TabControl x:Name="TabsMain" Margin="8,4,8,4">
+  <TabItem x:Name="TabSkills">
+  <Grid Margin="0,6,0,0">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="3*" MinWidth="380"/>
       <ColumnDefinition Width="8"/>
@@ -154,10 +142,14 @@
       <comp:AuxiliaryOptionsBlock x:Name="AuxOptions"/>
     </Border>
 
-    <!-- ROSBOT paths + bot settings (from the former ROSBOT tab) -->
-    <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource CompactCardStyle}">
+  </Grid>
+  </TabItem>
+
+  <!-- ROSBOT paths + bot settings (from the former ROSBOT tab) -->
+  <TabItem x:Name="TabRosbot">
+    <Border Style="{StaticResource CompactCardStyle}" Margin="0,6,0,0" VerticalAlignment="Top">
       <comp:RosbotSettingsBlock x:Name="RosbotSettings"/>
     </Border>
-  </Grid>
-  </ScrollViewer>
+  </TabItem>
+  </TabControl>
 </UserControl>
