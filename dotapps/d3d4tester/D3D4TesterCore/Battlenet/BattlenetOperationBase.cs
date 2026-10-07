@@ -31,7 +31,6 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     public abstract bool ClickD3Tab();
     public abstract bool ClickStartGame();
     public abstract bool IsLoginScreenReady();
-    public abstract bool ClickPlayButtonIfVisible(bool forceRefresh = true);
     public abstract bool IsGameStarting();
     public abstract bool IsOnAsiaLoginScreen();
     public abstract bool PerformAsiaEmailStep(string email);
@@ -77,6 +76,8 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     /// <summary>Main action button of the open game page and its kind; (null, None) on pages without one (HOME / SHOP).</summary>
     public static (BattlenetControl? Button, BattlenetGameAction Action) FindGameAction(IReadOnlyList<BattlenetControl> controls)
     {
+        if (FindDownloadButton(controls) is { } download)
+            return (download, StartsWithAny(download.Name.Trim(), C.DownloadPauseNames) ? BattlenetGameAction.Downloading : BattlenetGameAction.DownloadPaused);
         if (FindMainPlayButton(controls) is { } play)
             return (play, PlayButtonIndicatesStarting(play) ? BattlenetGameAction.Starting : BattlenetGameAction.Play);
         foreach (var c in controls)
@@ -89,6 +90,12 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         }
         return (null, BattlenetGameAction.None);
     }
+
+    /// <summary>Pause / Resume button of the open game page's download (same automation id suffix for both), or null.</summary>
+    public static BattlenetControl? FindDownloadButton(IReadOnlyList<BattlenetControl> controls) =>
+        controls.FirstOrDefault(c => c.Type == C.ButtonControlType && c.IsOffscreen != true && c.Level <= C.GameActionMaxLevel
+                                     && (c.AutomationId.EndsWith(C.DownloadButtonAutomationIdSuffix, StringComparison.Ordinal)
+                                         || StartsWithAny(c.Name.Trim(), C.DownloadResumeNames) || StartsWithAny(c.Name.Trim(), C.DownloadPauseNames)));
 
     private static bool StartsWithAny(string text, IEnumerable<string> prefixes) =>
         prefixes.Any(p => text.StartsWith(p, StringComparison.OrdinalIgnoreCase));
@@ -115,7 +122,7 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         if (judge.HasDisconnect()) return new(BattlenetClientState.Disconnected, Region, null);
         if (judge.HasConnecting()) return new(BattlenetClientState.Connecting, Region, null);
         var play = FindMainPlayButton(controls);
-        if (play != null && PlayButtonIndicatesStarting(play)) return new(BattlenetClientState.GameStarting, Region, play.Name);
+        if (play != null && PlayButtonIndicatesStarting(play) && FindDownloadButton(controls) == null) return new(BattlenetClientState.GameStarting, Region, play.Name);
         if (HasText(controls, C.AccountLoadingKeywords)) return new(BattlenetClientState.LoadingAccount, Region, null);
         // Main UI health comes from the top-right avatar presence: Offline / Connecting / Reconnecting = not connected yet;
         // Online / Away / Busy / Appear Offline = normal (HOME / SHOP pages have no Play button, so Play is detail only).
@@ -221,11 +228,6 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         controls.Any(c => (c.Type == C.LoadingIndicatorControlType || c.Type == C.LoadingIndicatorControlTypeShort)
                           && BattlenetRegionJudge.ContainsAny(c.Name, keywords));
 
-    /// <summary>1:1 Python try_close_popup (full enumeration, ButtonControl only).</summary>
-    public bool TryClosePopup() => BattlenetPopupDismiss.TryClosePopup(T.Enumerate());
-
-    public string? SaveUiElementsSnapshot(string nodeName, string reason) => T.SaveUiElementsSnapshot(nodeName, reason);
-
     /// <summary>TextControl whose name contains a loading substring. 1:1 Python is_loading_ui_visible.</summary>
     public bool IsLoadingUiVisible()
     {
@@ -324,13 +326,5 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
             if (ctrl != null) return ctrl;
         }
         return T.FindByName(controls, names);
-    }
-
-    protected static bool ClickPlayIfVisible(string[] aids, string[] names, bool forceRefresh)
-    {
-        var ctrl = FindPlay(T.EnumerateLight(forceRefresh), aids, names);
-        if (ctrl == null) return false;
-        ColorPrinter.Gray("[BattlenetOperation] Play button visible, click");
-        return T.ClickControl(ctrl);
     }
 }

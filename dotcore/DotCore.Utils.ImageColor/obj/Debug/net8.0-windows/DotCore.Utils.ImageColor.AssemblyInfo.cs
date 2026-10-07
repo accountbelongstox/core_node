@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.Utils.ImageColor")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dde3d349921e2e43e08f30f181498db5e3bc057f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0c0e78e1cc8d2218a7ddf146471cb94aa6735316")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.Utils.ImageColor")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.Utils.ImageColor")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

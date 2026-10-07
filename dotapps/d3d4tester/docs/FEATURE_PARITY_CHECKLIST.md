@@ -121,19 +121,19 @@
 - [x] 1 秒 TickDriver（流程 %2、回响 %3、10 秒探测）、窗口监视、ROSBOT 日志跟踪、路径扫描、D4 3 秒循环 — `Core/Flow/TickDriver`、`Services/WindowMonitorService`、`Ctl/D4TickLoop`
 
 ## 12. 战网 / ROSBOT 流程
-- [x] B 块（启动、托盘恢复、国服/亚服登录、网页登录自动化、弹窗关闭、确认） — `Core/Flow/BattlenetReadyFlow`、`Core/Battlenet/BrowserLoginAutomation`
-- [x] 仅确保战网流程 + 全局守护（DOT：默认开） — `BnOnlyFlow`、`BattlenetGuardService`
-- [x] 守护规则（DOT）：先确保区服（`--setregion`）、异常超时重启、登录超时重启；安全验证/验证码期间不重启 — `Core/Flow/BattlenetStateWatchdog`
+- [x] B 块（启动、托盘恢复、国服/亚服登录、网页登录自动化、弹窗关闭、确认） — `Core/Flow/BattlenetReadyProcess`、`Core/Battlenet/BrowserLoginAutomation`
+- [x] 仅确保战网流程 + 全局守护（DOT：默认开） — `Core/Flow/BattlenetGuardRunner`、`BattlenetGuardService`
+- [x] 守护规则（DOT）：先确保区服（`--setregion`）、异常超时重启、登录超时重启；安全验证/验证码期间不重启 — `Core/Flow/BattlenetReadyProcess`
 - [x] 战网客户端状态探测（DOT，含安全验证、等待验证码、登录中、载入账户等） — `BattlenetClientStateDetector` + `IBattlenetOperation.ClassifyClientState`
 - [x] B/D 块的界面判断（`GetDynamicState`）与状态中心共用同一个分类器（首页无开始按钮也算已登录，不再超时误杀） — `BattlenetOperationBase.GetDynamicState`
 - [x] 程序日志按天落盘，战网的每次启动/关闭都记录状态与调用来源 — `ColorPrinter.EnableFileLog`、`~/.core_node/.d3check/logs/`
-- [x] 安全验证页自动点 Continue（id `submit`，60 秒内只点一次，发送验证码邮件） — `BrowserLoginAutomation.SubmitSecurityCheck`，由 `BattlenetStateWatchdog` 在守护运行时调用
+- [x] 安全验证页自动点 Continue（id `submit`，60 秒内只点一次，发送验证码邮件） — `BrowserLoginAutomation.SubmitSecurityCheck`，由 `BattlenetReadyProcess` 在安全验证状态时调用
 - [~] 验证码输入页（"Please enter the security code sent to: …"，Resend code / Submit / Go Back）— 已识别并等待人工输入；验证码只在邮箱里，程序不能自动填写
-- [x] 流程的“退出重启”（B5）只关闭不正常的战网：正常 / 弹窗 / 游戏启动中一律保留；B13 确认已登录后重置超时 — `BattlenetManager.CloseIfUnhealthy`、`BattlenetReadyFlow.Confirm`
-- [x] 登录中 / 安全验证 / 邮件与验证码页期间绝不关闭或重启战网 — `BattlenetManager.Close`（现场探测后拒绝）、`BattlenetReadyFlow` B5 改为继续等待、看门狗豁免
+- [x] 战网只在断线 / 登录失败 / 超时时重启：正常 / 弹窗 / 游戏启动中一律复用，托盘隐藏只恢复显示 — `BattlenetReadyProcess`、`BattlenetManager.ShowHiddenClient`
+- [x] 登录中 / 安全验证 / 邮件与验证码页期间绝不关闭或重启战网 — `BattlenetManager.Close`（现场探测后拒绝）、`BattlenetReadyProcess` 等待用户状态不计超时
 - [x] 密码输入改为键盘逐字输入（网页表单不接受 ValuePattern 直接赋值） — `BrowserLoginAutomation.Fill`、`BattlenetAsiaOps.FillField`
 - [x] 多账号（DOT，国服/亚服分开、加密、头像菜单退出切换） — `Config/BattlenetAccountService`、`Pages/Battlenet`
-- [x] D 块（启动 D3/D4）、C 分支（C1–C12）、E 块（启动 ROSBOT）、F0–F4、日志掉线重启、系统错误、无物品弹窗、智能回响、“必须启动 D3”弹窗 — `Ctl/LoginTryController`、`Ctl/D3ConnectC3Flow`、`Ctl/RosbotRunFlow`、`Core/Flow/*`、`Services/RosbotLog*`
+- [x] D 块（启动 D3/D4）、C 分支（C1–C12）、E 块（启动 ROSBOT）、F0–F4、日志掉线重启、系统错误、无物品弹窗、智能回响、“必须启动 D3”弹窗 — `Core/Flow/RosbotFlowRunner`（流程驱动）、`Core/Flow/*Process`、`Ctl/RosbotRunFlow`、`Ctl/LoginTryController`（手动）、`Services/RosbotLog*`
 
 ## 13. D3 检测
 - [x] D3 窗口查找、掉线/菜单/游戏中、界面类型、背包与品质、Kanai 页状态、D3 状态截图 — `D3WindowFinder`、`Ctl/D3StatusProvider`、`D3InterfaceDetection`、`Core/Bag/*`、`D3StartGameAndTeleport`

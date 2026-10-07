@@ -432,6 +432,7 @@ create_grid_shortcut() {
         --icon "$icon_arg" \
         --categories "System;Utility;TerminalEmulator;Development;" \
         --keywords "terminal;grid;launcher;pycore;workspace;window;${GRID_COLUMNS}x${GRID_ROWS};" \
+        --user-menu \
         --desktop all
 }
 

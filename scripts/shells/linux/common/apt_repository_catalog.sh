@@ -338,7 +338,7 @@ add_php_repository_permanent_from_apt_repository_manager() {
     fi
 
     echo "Updating apt cache..."
-    $USE_SUDO apt update 2>/dev/null || true
+    $USE_SUDO apt update || true
 
     # Bridge SONAME/library gaps on rolling derivatives before the PHP install runs.
     # Package set = php8.5-* named in the install command plus the project's declared
@@ -755,8 +755,8 @@ cleanup_all_custom_repositories_from_apt_repository_manager() {
     
     # Clean apt cache
     echo "Cleaning APT cache..."
-    $USE_SUDO apt clean 2>/dev/null || true
-    $USE_SUDO apt autoclean 2>/dev/null || true
+    $USE_SUDO apt clean || true
+    $USE_SUDO apt autoclean || true
     
     echo "Custom repositories cleanup completed"
     echo "Backup saved at: $APT_BACKUP_BASE_DIR/$cleanup_backup_id"
@@ -777,7 +777,7 @@ restore_to_original_from_apt_repository_manager() {
     
     if [ $? -eq 0 ]; then
         echo "Successfully restored to original state"
-        $USE_SUDO apt update 2>/dev/null || true
+        $USE_SUDO apt update || true
         return 0
     else
         echo "ERROR: Failed to restore to original state" >&2

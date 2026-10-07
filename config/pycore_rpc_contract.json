@@ -970,6 +970,10 @@
       "path": "ui/task_center/set_queue_center_control",
       "method": "POST"
     },
+    "taskHistoryAppendRecord": {
+      "path": "ui/task_history/append_record",
+      "method": "POST"
+    },
     "taskHistoryCachedAudioResource": {
       "path": "ui/task_history/cached_audio_resource",
       "method": "POST"
@@ -1020,6 +1024,18 @@
     },
     "gitsyncPeerRelease": {
       "path": "peer/gitsync/release",
+      "method": "POST"
+    },
+    "networkRouterStatus": {
+      "path": "ui/network_router/status",
+      "method": "POST"
+    },
+    "networkRouterLogs": {
+      "path": "ui/network_router/logs",
+      "method": "POST"
+    },
+    "networkRouterAction": {
+      "path": "ui/network_router/action",
       "method": "POST"
     },
     "terminalActivate": {

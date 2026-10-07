@@ -5,6 +5,7 @@ import { pcZhFeatures } from './PcZhFeatures';
 import { pcZhPages } from './PcZhPages';
 import { aiHubZh } from './PcAiHubLocales';
 import { meshLoginZh } from './PcMeshLoginLocales';
+import { networkRouterZh } from './PcNetworkRouterLocales';
 
 export const pcZh: PcTranslationDict = {
   ...pcZhCore,
@@ -12,4 +13,5 @@ export const pcZh: PcTranslationDict = {
   ...pcZhPages,
   aiHub: aiHubZh,
   meshLogin: meshLoginZh,
+  networkRouter: networkRouterZh,
 };

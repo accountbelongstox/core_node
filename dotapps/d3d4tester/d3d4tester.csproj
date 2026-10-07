@@ -24,6 +24,8 @@
     <ProjectReference Include="tools\decompile\dnguard-static\compatibility\RosbotRecovery.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="tools\decompile\dnguard-dynamic\collector\DnGuardDynamicCollector.csproj"
                       ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="tools\rosbot-plugin\CoreNodeBridge\CoreNodeBridge.csproj"
+                      ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
@@ -51,6 +53,11 @@
     <MSBuild Projects="tools\decompile\dnguard-dynamic\collector\DnGuardDynamicCollector.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=x64">
       <Output TaskParameter="TargetOutputs" ItemName="DynamicCollectorTarget" />
     </MSBuild>
+    <MSBuild Projects="tools\rosbot-plugin\CoreNodeBridge\CoreNodeBridge.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="RosbotBridgePluginTarget" />
+    </MSBuild>
+    <Copy SourceFiles="@(RosbotBridgePluginTarget)" DestinationFolder="$(TargetDir)tools\rosbot-plugins\CoreNodeBridge" SkipUnchangedFiles="true"
+          Condition="Exists('@(RosbotBridgePluginTarget)')" />
     <PropertyGroup>
       <RecoveryToolDirectory>@(RecoveryToolTarget->'%(RootDir)%(Directory)')</RecoveryToolDirectory>
       <DynamicCollectorDirectory>@(DynamicCollectorTarget->'%(RootDir)%(Directory)')</DynamicCollectorDirectory>

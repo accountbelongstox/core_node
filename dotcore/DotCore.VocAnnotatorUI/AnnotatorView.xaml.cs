@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -15,10 +14,10 @@ namespace DotCore.VocAnnotatorUI;
 /// <summary>Full annotator UI hosted by AnnotatorWindow (or any window). Keyboard shortcuts are listed in ui.voc_annotator.help_text.</summary>
 public partial class AnnotatorView : UserControl, IAnnotatorDialogs
 {
-    private const double ZoomStep = 1.25;
     private const double SwatchSize = 14;
 
     private readonly AnnotatorSession _session;
+    private readonly AnnotationCanvasKeys _canvasKeys;
     private bool _loaded;
 
     public AnnotatorView(AnnotatorSession session)
@@ -28,6 +27,13 @@ public partial class AnnotatorView : UserControl, IAnnotatorDialogs
         ViewModel = new AnnotatorViewModel(this);
         DataContext = ViewModel;
         Canvas.LabelColor = ViewModel.ColorOf;
+        _canvasKeys = new AnnotationCanvasKeys(Canvas)
+        {
+            Delete = ViewModel.DeleteBoxCommand,
+            Undo = ViewModel.UndoCommand,
+            Redo = ViewModel.RedoCommand,
+            Escape = new AnnotatorCommand(ViewModel.ClearSelection),
+        };
         Canvas.BoxDrawn += (_, box) => ViewModel.AddBox(box);
         Canvas.BoxEdited += (_, e) => ViewModel.ReplaceBox(e.Index, e.Box);
         Canvas.ViewChanged += (_, _) => TxtZoom.Text = T(K.StatusZoom).Replace("{zoom}", Math.Round(Canvas.Zoom * 100).ToString(CultureInfo.InvariantCulture));
@@ -46,7 +52,7 @@ public partial class AnnotatorView : UserControl, IAnnotatorDialogs
             if (e.PropertyName is nameof(AnnotatorViewModel.CurrentImage) && LstImages.SelectedItem != null) LstImages.ScrollIntoView(LstImages.SelectedItem);
         };
         PreviewKeyDown += OnPreviewKeyDown;
-        PreviewKeyUp += OnPreviewKeyUp;
+        PreviewKeyUp += (_, e) => _canvasKeys.HandleKeyUp(e);
         Loaded += OnLoaded;
         Unloaded += (_, _) => Provider.LanguageChanged -= OnLanguageChanged;
     }
@@ -159,7 +165,7 @@ public partial class AnnotatorView : UserControl, IAnnotatorDialogs
         MiDifficult.Header = T(K.MenuDifficult);
         MiDuplicate.Header = T(K.MenuDuplicate);
         MiDelete.Header = T(K.MenuDelete);
-        var filters = new[] { K.FilterAll, K.FilterLabeled, K.FilterUnlabeled };
+        var filters = new[] { K.FilterAll, K.FilterLabeled, K.FilterUnlabeled, K.FilterUnreviewed };
         int selected = Math.Max(0, AnnotatorSettings.FilterModes.ToList().IndexOf(ViewModel.Filter));
         CboFilter.ItemsSource = filters.Select(T).ToList();
         CboFilter.SelectedIndex = selected;
@@ -178,9 +184,9 @@ public partial class AnnotatorView : UserControl, IAnnotatorDialogs
 
     private void BtnActual_Click(object sender, RoutedEventArgs e) => Canvas.SetZoom(1);
 
-    private void BtnZoomIn_Click(object sender, RoutedEventArgs e) => Canvas.ZoomBy(ZoomStep);
+    private void BtnZoomIn_Click(object sender, RoutedEventArgs e) => Canvas.ZoomBy(AnnotationCanvasKeys.ZoomStep);
 
-    private void BtnZoomOut_Click(object sender, RoutedEventArgs e) => Canvas.ZoomBy(1 / ZoomStep);
+    private void BtnZoomOut_Click(object sender, RoutedEventArgs e) => Canvas.ZoomBy(1 / AnnotationCanvasKeys.ZoomStep);
 
     private void BtnClassColor_Click(object sender, RoutedEventArgs e)
     {
@@ -223,30 +229,20 @@ public partial class AnnotatorView : UserControl, IAnnotatorDialogs
 
     private void MiDifficult_Click(object sender, RoutedEventArgs e) => ViewModel.ToggleDifficultCommand.Execute(null);
 
-    private void OnPreviewKeyUp(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Space) Canvas.PanKeyDown = false;
-    }
-
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         var mods = Keyboard.Modifiers;
         bool ctrl = (mods & ModifierKeys.Control) != 0, shift = (mods & ModifierKeys.Shift) != 0;
         if (ctrl && e.Key == Key.S) { Run(ViewModel.SaveCommand, e); return; }
-        if (Keyboard.FocusedElement is TextBox) return;
+        if (_canvasKeys.TryHandleKeyDown(e) || Keyboard.FocusedElement is TextBox) return;
         var vm = ViewModel;
         switch (e.Key)
         {
-            case Key.Z when ctrl && shift:
-            case Key.Y when ctrl: Run(vm.RedoCommand, e); return;
-            case Key.Z when ctrl: Run(vm.UndoCommand, e); return;
             case Key.V when ctrl && shift: Run(vm.CopyPreviousCommand, e); return;
             case Key.V when ctrl: Run(vm.PasteBoxesCommand, e); return;
             case Key.C when ctrl: Run(vm.CopyBoxesCommand, e); return;
             case Key.D when ctrl: Run(vm.DuplicateBoxCommand, e); return;
             case Key.L when ctrl: Run(vm.AutoLabelCommand, e); return;
-            case Key.D1 when ctrl:
-            case Key.NumPad1 when ctrl: Canvas.SetZoom(1); e.Handled = true; return;
         }
         if (ctrl) return;
         switch (e.Key)
@@ -257,20 +253,7 @@ public partial class AnnotatorView : UserControl, IAnnotatorDialogs
             case Key.W: Run(vm.ToggleDrawModeCommand, e); return;
             case Key.E: Run(vm.ToggleDifficultCommand, e); return;
             case Key.H: Run(vm.ToggleLabelsCommand, e); return;
-            case Key.F: Canvas.FitToView(); e.Handled = true; return;
             case Key.F1: Run(vm.HelpCommand, e); return;
-            case Key.Delete:
-            case Key.Back: Run(vm.DeleteBoxCommand, e); return;
-            case Key.Escape: vm.ClearSelection(); e.Handled = true; return;
-            case Key.OemPlus:
-            case Key.Add: Canvas.ZoomBy(ZoomStep); e.Handled = true; return;
-            case Key.OemMinus:
-            case Key.Subtract: Canvas.ZoomBy(1 / ZoomStep); e.Handled = true; return;
-            case Key.Space:
-                if (Keyboard.FocusedElement is ButtonBase or ListBoxItem or ComboBox or CheckBox) return;
-                Canvas.PanKeyDown = true;
-                e.Handled = true;
-                return;
             case Key.Left: Arrow(-1, 0, vm.PrevImageCommand, shift, e); return;
             case Key.Right: Arrow(1, 0, vm.NextImageCommand, shift, e); return;
             case Key.Up: if (vm.HasSelection) { vm.Nudge(0, -1, shift); e.Handled = true; } return;

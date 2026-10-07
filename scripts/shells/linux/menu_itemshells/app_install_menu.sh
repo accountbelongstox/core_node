@@ -135,6 +135,7 @@ _run_install_entry() {
         echo "Running AI tool install: $display_name (${package_key#ai:})..."
         echo ""
         bash "$AI_TOOLS_SCRIPT" --only "${package_key#ai:}"
+        [ "${EUID:-$(id -u)}" -eq 0 ] && { bash "$LINUX_DIR/common/pyservice_www_permissions.sh" || true; }
     else
         if [ ! -s "$STEP120_SCRIPT" ]; then
             echo "120 script not found: $STEP120_SCRIPT"
@@ -144,6 +145,7 @@ _run_install_entry() {
         echo "Running 120 for package: $display_name ($package_key)..."
         echo ""
         bash "$STEP120_SCRIPT" --exact-app "$package_key"
+        [ "${EUID:-$(id -u)}" -eq 0 ] && { bash "$LINUX_DIR/common/pyservice_www_permissions.sh" || true; }
     fi
 }
 

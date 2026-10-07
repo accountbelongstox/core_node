@@ -1,0 +1,98 @@
+# -*- coding: utf-8 -*-
+"""Constants of the network router (NAT gateway) extension: units, state paths, CLI scripts, action and error codes."""
+
+from pathlib import Path
+
+from pycore.pyfoundations.pygvar import PROJECT_ROOT
+
+PLATFORM_LINUX = "linux"
+PLATFORM_WINDOWS = "windows"
+PLATFORM_OTHER = "other"
+
+INSTALL_FLAG_KEY = "INSTALL_NETWORK_ROUTER"
+INSTALL_FLAG_ENABLED = "true"
+
+SERVICE_NAME = "ncore-natgateway"
+DIAG_SERVICE_NAME = "ncore-natgateway-diag"
+SYSTEMD_UNIT_DIR = Path("/etc/systemd/system")
+SYSTEMD_UNIT_SUFFIX = ".service"
+SERVICE_UNIT_FILE = SYSTEMD_UNIT_DIR / f"{SERVICE_NAME}{SYSTEMD_UNIT_SUFFIX}"
+
+CONFIG_DIR_NAME = "natgateway"
+CONFIG_FILE_NAME = "router.conf"
+CONFIG_KEYS = (
+    "ROUTE_MODE", "WAN_SELECT", "LAN_MODE", "LAN_PORTS", "PAIRS", "LAN_MAP", "SYSTEM_WAN", "LAN_ADDRESS", "DHCP_ENABLED",
+)
+CONFIG_DHCP_DISABLED = "no"
+CONFIG_LAN_MAP_KEY = "LAN_MAP"
+CONFIG_AUTO = "auto"
+LAN_NAME_PREFIX = "LAN"
+LAN_MAP_SEPARATOR = ","
+LAN_MAP_PAIR_SEPARATOR = ":"
+
+LAN_SCOPE_DIR_NAME = "lans"
+LAN_SETTINGS_FILE_NAME = "settings.conf"
+LAN_BINDINGS_FILE_NAME = "bindings"
+LAN_SETTING_KEYS = ("FAIR_SHARE", "BANDWIDTH_DOWN", "BANDWIDTH_UP", "HOST_CONN_LIMIT", "AUTO_BIND")
+LAN_SETTING_DEFAULTS = {"FAIR_SHARE": "yes", "BANDWIDTH_DOWN": "0", "BANDWIDTH_UP": "0", "HOST_CONN_LIMIT": "2048", "AUTO_BIND": "yes"}
+LAN_BINDING_FIELDS = ("mac", "ip", "host", "bound_at", "source")
+COMMENT_PREFIX = "#"
+
+RUN_DIR = Path("/run/ncore-natgateway")
+APPLIED_FILE_PREFIX = "applied."
+LEASES_FILE_PREFIX = "dnsmasq."
+LEASES_FILE_SUFFIX = ".leases"
+PID_FILE_SUFFIX = ".pid"
+APPLIED_KEYS = ("WAN", "ADDRESS", "ROUTED", "ISOLATED", "TABLE", "LOST")
+APPLIED_YES = "yes"
+BRIDGE_PREFIX = "ncbr"
+SYS_NET_DIR = Path("/sys/class/net")
+SYS_BRIDGE_MEMBERS_DIR = "brif"
+SYS_DEVICE_LINK = "device"
+SYS_WIRELESS_DIR = "wireless"
+SYS_OPERSTATE_FILE = "operstate"
+SYS_CARRIER_FILE = "carrier"
+SYS_USB_PATH_MARKER = "/usb"
+PROC_DIR = Path("/proc")
+IP_FORWARD_FILE = Path("/proc/sys/net/ipv4/ip_forward")
+IP_FORWARD_ENABLED = "1"
+LEASE_FIELDS = 4
+
+LINUX_SCRIPT = Path(PROJECT_ROOT) / "scripts" / "shells" / "linux" / "debian" / "install_shells" / "113_natgateway.sh"
+WINDOWS_SCRIPT = Path(PROJECT_ROOT) / "scripts" / "shells" / "win" / "install_powershells" / "Step73_InstallNetworkRouter.ps1"
+BASH_COMMAND = "bash"
+POWERSHELL_COMMAND = "powershell"
+POWERSHELL_ARGS = ("-NoProfile", "-ExecutionPolicy", "Bypass", "-File")
+CLI_STATUS = "status"
+CLI_LOGS = "logs"
+CLI_INSTALL = "install"
+CLI_YES_FLAG = "--yes"
+CLI_QUERY_TIMEOUT_SEC = 30
+CLI_ACTION_TIMEOUT_SEC = 90
+REPORT_TAIL_CHARS = 8000
+ACTION_DETAIL_TAIL_CHARS = 400
+
+ACTION_START = "start"
+ACTION_STOP = "stop"
+ACTION_RESTART = "restart"
+ACTIONS = frozenset({ACTION_START, ACTION_STOP, ACTION_RESTART})
+
+LINK_STATE_ACTIVE = "active"
+LINK_STATE_HOLD = "hold"
+ROLE_NONE = ""
+ROLE_UPLINK = "uplink"
+ROLE_RELAY = "relay"
+KIND_ONBOARD = "onboard"
+KIND_USB = "usb"
+MEDIA_WIRED = "wired"
+MEDIA_WIFI = "wifi"
+
+UNSUPPORTED_PLATFORM = "NETWORK_ROUTER_PLATFORM_UNSUPPORTED"
+UNSUPPORTED_NO_SYSTEMD = "NETWORK_ROUTER_SYSTEMD_UNAVAILABLE"
+ERROR_NOT_INSTALLED = "NETWORK_ROUTER_NOT_INSTALLED"
+ERROR_ACTION_INVALID = "NETWORK_ROUTER_ACTION_INVALID"
+ERROR_SCRIPT_MISSING = "NETWORK_ROUTER_SCRIPT_MISSING"
+ERROR_PRIVILEGE_REQUIRED = "NETWORK_ROUTER_PRIVILEGE_REQUIRED"
+ERROR_ELEVATION_REQUIRED = "NETWORK_ROUTER_ELEVATION_REQUIRED"
+ERROR_COMMAND_FAILED = "NETWORK_ROUTER_COMMAND_FAILED"
+ERROR_UNSUPPORTED = "NETWORK_ROUTER_UNSUPPORTED"

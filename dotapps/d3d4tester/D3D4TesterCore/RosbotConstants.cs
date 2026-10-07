@@ -80,6 +80,12 @@ public static class RosbotConstants
     /// <summary>Virtual key F7 (ROSBOT pause/stop hotkey). 1:1 Python key_send VK_F7.</summary>
     public const ushort VkF7 = 0x76;
 
+    /// <summary>Virtual key F6: ROSBOT's pause toggle hotkey (monitoring pause / resume, unstuck move; RBAssist PRESSKEYANDCLICKWINDOWPOS).</summary>
+    public const ushort VkF6 = 0x75;
+
+    /// <summary>Virtual key F9 (ROSBOT hotkey, RBAssist "stop rosbot (F9)").</summary>
+    public const ushort VkF9 = 0x78;
+
     // ---------- Config keys read from Core via RosbotFlowHost (Python providor keys; app ConfigKeys aliases these) ----------
 
     // ---------- UI automation (1:1 Python rosbot_ui_automation + providor.constants.common) ----------
@@ -151,6 +157,17 @@ public static class RosbotConstants
 
     /// <summary>KEY dialog prompt substring. 1:1 Python key dialog controls name containing "key" -> "enter a key".</summary>
     public const string KeyDialogPromptSubstring = "enter a key";
+
+    /// <summary>KEY dialog child classes (WinForms "WindowsForms10.EDIT.app..." / Win32 "Edit", same for BUTTON), matched case-insensitively.</summary>
+    public const string KeyDialogEditClassToken = "edit";
+    public const string KeyDialogButtonClassToken = "button";
+
+    /// <summary>KEY dialogs filled with one key before it is treated as rejected (ROSBOT asks again after a wrong key).</summary>
+    public const int KeyDialogMaxFills = 3;
+
+    /// <summary>Pause between typing the key and pressing OK, and the poll step of stoppable waits.</summary>
+    public const int KeyDialogSettleMs = 300;
+    public const int StoppableWaitStepMs = 500;
 
     /// <summary>Fallback message when need_key_input and i18n not available. 1:1 Python ROSBOT_NEED_KEY_MESSAGE.</summary>
     public const string RosbotNeedKeyMessageFallback = "Key required";

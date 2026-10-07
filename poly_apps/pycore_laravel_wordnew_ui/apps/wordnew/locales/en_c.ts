@@ -22,6 +22,7 @@ export const enLocaleC: Record<string, string> = {
     'orchCompose.history.entry': 'Segment {segment} · {time}',
     'orchCompose.history.remove': 'Remove',
     'orchCompose.edition.offer': 'New resources are ready: {clips} more clips, {time} longer',
+    'orchCompose.edition.offerReplan': 'The composition was re-arranged: {clips} clips, {time} - replace what is playing?',
     'orchCompose.edition.replace': 'Replace',
     'orchCompose.edition.later': 'Later',
     'orchCompose.openPlayer': 'Player',

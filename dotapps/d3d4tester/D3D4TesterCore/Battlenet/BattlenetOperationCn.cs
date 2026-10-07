@@ -73,9 +73,6 @@ public sealed class BattlenetOperationCn : BattlenetOperationBase
         return T.ClickControl(byName);
     }
 
-    public override bool ClickPlayButtonIfVisible(bool forceRefresh = true)
-        => ClickPlayIfVisible(C.StartGameAutomationIdsCn, C.StartGameNameKeywordsFallbackCn, forceRefresh);
-
     /// <summary>1:1 Python is_game_starting.</summary>
     public override bool IsGameStarting()
     {

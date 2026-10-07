@@ -1,6 +1,6 @@
 # DOT 截图与识图类库说明
 
-本文档说明 DOT 侧**截图公共类库**与**大图查小图（模板匹配）类库**的能力、与 Python `main.py` 下游逻辑的对应关系，以及流程中的使用方式。实现依据 `DOT_ROSBOT_FLOW_DEVELOPMENT.md` §2.1 与 `pyapps/d3-check/main.py` 所启动的控制器/流程对截图与识图的用法。
+本文档说明 DOT 侧**截图公共类库**与**大图查小图（模板匹配）类库**的能力、与 Python `main.py` 下游逻辑的对应关系，以及流程中的使用方式。实现依据 `DOT_ROSBOT_FLOW_DEVELOPMENT.md`「D3 画面处理与传送详图」与 `pyapps/d3-check/main.py` 所启动的控制器/流程对截图与识图的用法。
 
 **代码规范**：本类库遵循 [DOT_UI_PROJECT_STANDARDS_PROGRESS.md](DOT_UI_PROJECT_STANDARDS_PROGRESS.md)（单例入口、常量集中、英文代码、命名与层次约定）。
 

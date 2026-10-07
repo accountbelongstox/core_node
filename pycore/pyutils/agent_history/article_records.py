@@ -2,13 +2,17 @@
 """
 Article-record primitives for agent-history consumers.
 
-Persists every generated article as an individual JSON record and optionally
-caches its audio under ``<local_data_dir>/cache/agent_history/`` (see
-``system_paths.get_local_data_dir``), with an ``index.json`` (newest first):
+Persists every generated article in one SQLite store and optionally caches
+its audio under ``<local_data_dir>/cache/agent_history/`` (see
+``system_paths.get_local_data_dir``):
 
-  index.json          {"records": [<record>, ...]}
-  <id>.json           one generated article record
-  audio/<id>.mp3      synthesized TTS audio
+  article_records.sqlite3   one row per generated article record (JSON body
+                            plus indexed counter columns, newest first)
+  audio/<id>.mp3            synthesized TTS audio
+  videos/<job>/             rendered video jobs
+
+The pre-SQLite ``index.json`` + ``<id>.json`` files are imported once
+(``json_imported`` meta key) and never read again.
 
 Record fields: id, created_at, title_cn, title_en, reference_cn (trimmed),
 article_en, word_count, openrouter_model, translation_engine (openrouter),
@@ -37,30 +41,36 @@ Lane contract (two independent lanes, each step idempotent on its own):
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.database.repositories.article_record_repository import ArticleRecordRepository
 from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.common.flat_text_store import SAFE_TEXT_KEY_PATTERN
-from pycore.pyutils.common.serialized_files import serialized_files
 
 _LIST_CAP = 500
-_INDEX_FILE_NAME = "index.json"
+_DATABASE_FILE_NAME = "article_records.sqlite3"
+_LEGACY_INDEX_FILE_NAME = "index.json"
+_META_JSON_IMPORTED = "json_imported"
 _ID_RE = SAFE_TEXT_KEY_PATTERN
 
-# Rule section 4: no module-level locks. On-disk state is mutated via single atomic
-# file replacements (_atomic_write_json -> atomic_write_json, a unique temp name per
-# write); every index read-modify-write runs on the index file's serialized
-# owner, so concurrent writers never drop each other's rows.
+RECORD_BODY_FIELDS = ("article_en", "reference_cn")
+_REBUILD_DELIVERY_CONTRACT = "audio-replace-v1"
+
+
+def _records_root() -> Path:
+    return get_local_data_dir() / "cache" / "agent_history"
 
 
 def records_dir() -> Path:
-    d = get_local_data_dir() / "cache" / "agent_history"
+    d = _records_root()
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -86,14 +96,6 @@ def video_job_dir(job_id: str) -> Path:
     return directory
 
 
-def _index_path() -> Path:
-    return records_dir() / _INDEX_FILE_NAME
-
-
-def _index_owner() -> Any:
-    return serialized_files.owner(_index_path())
-
-
 def _atomic_write_json(path: Path, data: Any) -> bool:
     try:
         atomic_write_json(path, data, indent=1)
@@ -112,66 +114,6 @@ def _read_record_path(path: Path) -> Optional[Dict[str, Any]]:
         ColorPrint.yellow(f"[ArticleRecords] read failed path={path}: {exc}")
         return None
     return data if isinstance(data, dict) else None
-
-
-def _align_durable_index(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Recover committed record files missing from the durable index.
-
-    Record JSON and index replacement are independent minimum steps. If the
-    process stops between them, or an older capped index omitted archived
-    records, the next read folds every committed record file back into the
-    index without changing an existing record identity.
-    """
-    indexed = {
-        str(row.get("id") or ""): row
-        for row in rows
-        if str(row.get("id") or "")
-    }
-    changed = False
-    for path in records_dir().glob("*.json"):
-        if path.name == _INDEX_FILE_NAME or path.stem in indexed:
-            continue
-        record = _read_record_path(path)
-        record_id = str((record or {}).get("id") or "")
-        if not record_id or not _ID_RE.match(record_id) or record_id in indexed:
-            continue
-        indexed[record_id] = record or {}
-        changed = True
-    if not changed:
-        return rows
-    aligned = sorted(
-        indexed.values(),
-        key=lambda row: (
-            str(row.get("created_at") or ""),
-            str(row.get("id") or ""),
-        ),
-        reverse=True,
-    )
-    _atomic_write_json(_index_path(), {"records": aligned})
-    return aligned
-
-
-def load_index() -> Dict[str, Any]:
-    return _index_owner().execute(_load_index_owned)
-
-
-def _load_index_owned() -> Dict[str, Any]:
-    path = _index_path()
-    if not path.is_file():
-        return {"records": _align_durable_index([])}
-    data = _read_record_path(path)
-    rows = data.get("records") if isinstance(data, dict) else None
-    if not isinstance(rows, list):
-        rows = []
-    return {
-        "records": _align_durable_index(
-            [row for row in rows if isinstance(row, dict)]
-        )
-    }
-
-
-RECORD_BODY_FIELDS = ("article_en", "reference_cn")
-_REBUILD_DELIVERY_CONTRACT = "audio-replace-v1"
 
 
 def _iso_timestamp_value(value: Any) -> float:
@@ -205,31 +147,118 @@ def is_rebuild_upload_current(record: Dict[str, Any]) -> bool:
     )
 
 
+def _columns(record: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "created_at": str(record.get("created_at") or ""),
+        "uploaded": int(bool(record.get("uploaded"))),
+        "audio_status": str(record.get("audio_status") or ""),
+        "tts_chunked": int(bool(record.get("tts_chunked"))),
+        "audio_rebuilt": int(bool(record.get("audio_rebuilt_at"))),
+        "rebuild_upload_current": int(is_rebuild_upload_current(record)),
+        "video_status": str(record.get("video_status") or ""),
+        "has_article": int(bool(record.get("article_en"))),
+    }
+
+
+class ArticleRecordStore:
+    """Owner of the article-record SQLite connection (one owner thread)."""
+
+    def __init__(self) -> None:
+        self._repository: Optional[ArticleRecordRepository] = None
+        init_serialized_owner(self, "pyutils.agent_history.article_records", "ArticleRecordStore")
+
+    def _repo(self) -> ArticleRecordRepository:
+        if self._repository is None:
+            repository = ArticleRecordRepository(records_dir() / _DATABASE_FILE_NAME)
+            if not repository.meta(_META_JSON_IMPORTED):
+                self._import_json(repository)
+            self._repository = repository
+        return self._repository
+
+    @staticmethod
+    def _import_json(repository: ArticleRecordRepository) -> None:
+        """One-shot import of the pre-SQLite ``index.json`` and ``<id>.json`` files."""
+        root = records_dir()
+        index = _read_record_path(root / _LEGACY_INDEX_FILE_NAME) or {}
+        merged: Dict[str, Dict[str, Any]] = {}
+        for row in index.get("records") or []:
+            record_id = str(row.get("id") or "") if isinstance(row, dict) else ""
+            if record_id and _ID_RE.match(record_id):
+                merged[record_id] = row
+        for path in root.glob("*.json"):
+            if path.name == _LEGACY_INDEX_FILE_NAME:
+                continue
+            record = _read_record_path(path)
+            record_id = str((record or {}).get("id") or "")
+            if record_id and _ID_RE.match(record_id):
+                merged[record_id] = record or {}
+        repository.upsert_many(
+            (record_id, _columns(record), record) for record_id, record in merged.items()
+        )
+        repository.set_meta(_META_JSON_IMPORTED, utc_now_iso())
+        repository.checkpoint()
+        ColorPrint.blue(f"[ArticleRecords] imported legacy JSON records count={len(merged)}")
+
+    @serialized_method
+    def revision(self) -> int:
+        return self._repo().revision()
+
+    @serialized_method
+    def put(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        self._repo().upsert_many([(str(record["id"]), _columns(record), record)])
+        return record
+
+    @serialized_method
+    def get(self, record_id: str) -> Optional[Dict[str, Any]]:
+        return self._repo().get(record_id)
+
+    @serialized_method
+    def page(self, offset: int, limit: int) -> Dict[str, Any]:
+        repository = self._repo()
+        return {"total": repository.count(), "items": repository.page(offset, limit)}
+
+    @serialized_method
+    def all(self) -> List[Dict[str, Any]]:
+        return self._repo().all()
+
+    @serialized_method
+    def rebuild_candidates(self) -> List[Dict[str, Any]]:
+        return self._repo().rebuild_candidates()
+
+    @serialized_method
+    def rebuild_candidate_count(self) -> int:
+        return self._repo().rebuild_candidate_count()
+
+    @serialized_method
+    def summary(self) -> Dict[str, int]:
+        return self._repo().summary()
+
+
+article_record_store = ArticleRecordStore()
+
+
 def _decorate_row(row: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(row)
+    root = _records_root()
     rid = str(out.get("id") or "")
-    local_audio = bool(rid) and (audio_dir() / f"{rid}.mp3").is_file()
+    local_audio = bool(rid) and (root / "audio" / f"{rid}.mp3").is_file()
     out["audio_available"] = local_audio or bool(out.get("audio_url"))
     out["audio_status"] = "ready" if local_audio else str(out.get("audio_status") or "queued")
     out["uploaded"] = bool(out.get("uploaded"))
     out["rebuild_uploaded"] = is_rebuild_upload_current(out)
     video_job_id = str(out.get("video_job_id") or "")
-    video_file = video_dir() / video_job_id / "video.mp4" if video_job_id else None
+    video_file = root / "videos" / video_job_id / "video.mp4" if video_job_id else None
     out["video_available"] = bool(video_file is not None and video_file.is_file())
     return out
 
 
 def records_revision() -> str:
-    """Revision marker for the records index (changes on every index write)."""
-    path = _index_path()
-    if not path.exists():
-        return "0:0"
+    """Revision marker for the record store (changes on every record write)."""
     try:
-        stat = path.stat()
-    except OSError as exc:
-        ColorPrint.yellow(f"[ArticleRecords] revision stat failed path={path}: {exc}")
-        return "0:0"
-    return f"{stat.st_mtime_ns}:{stat.st_size}"
+        return f"db:{article_record_store.revision()}"
+    except sqlite3.Error as exc:
+        ColorPrint.yellow(f"[ArticleRecords] revision read failed: {exc}")
+        return "db:0"
 
 
 def video_records_revision() -> str:
@@ -272,14 +301,13 @@ def list_record_metadata(limit: int = 100) -> List[Dict[str, Any]]:
 
 def record_metadata_page(page: int = 1, page_size: int = 50) -> Dict[str, Any]:
     """Return one bounded metadata page while counting the full inventory."""
-    rows = load_index()["records"]
-    total = len(rows)
     normalized_page_size = max(1, min(int(page_size or 50), _LIST_CAP))
+    total = int(article_record_store.page(0, 0)["total"])
     page_count = max(1, -(-total // normalized_page_size))
     normalized_page = max(1, min(int(page or 1), page_count))
     start = (normalized_page - 1) * normalized_page_size
     out: List[Dict[str, Any]] = []
-    for r in rows[start:start + normalized_page_size]:
+    for r in article_record_store.page(start, normalized_page_size)["items"]:
         row = _decorate_row(r)
         for field in RECORD_BODY_FIELDS:
             row.pop(field, None)
@@ -303,53 +331,31 @@ def get_records(record_ids: List[str], cap: int = 50) -> List[Dict[str, Any]]:
 
 
 def list_records(limit: int = 100) -> List[Dict[str, Any]]:
-    """Index records, newest first, with audio availability attached."""
-    rows = load_index()["records"]
-    out: List[Dict[str, Any]] = []
-    for r in rows[: max(1, min(int(limit or 100), _LIST_CAP))]:
-        out.append(_decorate_row(r))
-    return out
+    """Records, newest first, with audio availability attached."""
+    rows = article_record_store.page(0, max(1, min(int(limit or 100), _LIST_CAP)))["items"]
+    return [_decorate_row(r) for r in rows]
 
 
 def list_all_records() -> List[Dict[str, Any]]:
-    """Return complete authoritative record files, newest first."""
-    out: List[Dict[str, Any]] = []
-    for row in load_index()["records"]:
-        record_id = str(row.get("id") or "")
-        record = _read_record_path(records_dir() / f"{record_id}.json") if record_id else None
-        out.append(dict(record if record is not None else row))
-    return out
+    """Return every complete record, newest first."""
+    return article_record_store.all()
+
+
+def rebuild_candidates() -> List[Dict[str, Any]]:
+    """Records with an article body but no multi-sentence audio, newest first."""
+    return article_record_store.rebuild_candidates()
+
+
+def rebuild_candidate_count() -> int:
+    return article_record_store.rebuild_candidate_count()
 
 
 def summarize_records() -> Dict[str, int]:
-    rows = list_all_records()
-    return {
-        "total": len(rows),
-        "uploaded": sum(1 for row in rows if bool(row.get("uploaded"))),
-        "pending_upload": sum(1 for row in rows if not bool(row.get("uploaded"))),
-        "audio_ready": sum(1 for row in rows if str(row.get("audio_status") or "") == "ready"),
-        "audio_queued": sum(1 for row in rows if str(row.get("audio_status") or "") == "queued"),
-        "multi_sentence": sum(1 for row in rows if bool(row.get("tts_chunked"))),
-        "legacy_audio": sum(1 for row in rows if not bool(row.get("tts_chunked"))),
-        "rebuilt": sum(1 for row in rows if bool(row.get("audio_rebuilt_at"))),
-        # Uploaded records whose multi-sentence audio never replaced the
-        # published legacy audio (rebuilt locally, Laravel replace pending).
-        "rebuild_upload_pending": sum(
-            1 for row in rows
-            if bool(row.get("uploaded"))
-            and bool(row.get("tts_chunked"))
-            and not is_rebuild_upload_current(row)
-        ),
-        "video_ready": sum(1 for row in rows if str(row.get("video_status") or "") == "completed"),
-        "video_pending": sum(1 for row in rows if str(row.get("video_status") or "") not in ("", "completed", "failed")),
-        "video_failed": sum(1 for row in rows if str(row.get("video_status") or "") == "failed"),
-    }
+    return article_record_store.summary()
 
 
 def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
-    """Write <id>.json, optional audio, and prepend the record to the index."""
-    # Rule section 4: no lock - writes land via atomic os.replace; the index
-    # read-modify-write runs on the index owner.
+    """Write the record row and its optional audio."""
     rid = str(record.get("id") or "")
     if not rid or not _ID_RE.match(rid):
         raise ValueError("invalid record id")
@@ -360,49 +366,19 @@ def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
     record["uploaded_at"] = record.get("uploaded_at") or None
     if audio_bytes:
         (audio_dir() / f"{rid}.mp3").write_bytes(audio_bytes)
-    return _index_owner().execute(_save_record_owned, record)
-
-
-def _save_record_owned(record: Dict[str, Any]) -> Dict[str, Any]:
-    rid = str(record["id"])
-    _atomic_write_json(records_dir() / f"{rid}.json", record)
-    rows = [r for r in _load_index_owned()["records"] if r.get("id") != rid]
-    rows.insert(0, record)
-    _atomic_write_json(_index_path(), {"records": rows})
-    return record
+    return article_record_store.put(record)
 
 
 def get_record(record_id: str) -> Optional[Dict[str, Any]]:
     rid = str(record_id or "")
     if not rid or not _ID_RE.match(rid):
         return None
-    path = records_dir() / f"{rid}.json"
-    if path.is_file():
-        data = _read_record_path(path)
-        if data is not None:
-            return data
-    for r in load_index()["records"]:
-        if r.get("id") == rid:
-            return r
-    return None
+    return article_record_store.get(rid)
 
 
-def _commit_record(rec: Dict[str, Any], index_fields: List[str]) -> Dict[str, Any]:
-    """Shared record mutation commit: rewrite <id>.json atomically and mirror
-    the named fields into the matching index row (single atomic swap), on the
-    index owner."""
-    return _index_owner().execute(_commit_record_owned, rec, index_fields)
-
-
-def _commit_record_owned(rec: Dict[str, Any], index_fields: List[str]) -> Dict[str, Any]:
-    _atomic_write_json(records_dir() / f"{rec['id']}.json", rec)
-    rows = _load_index_owned()["records"]
-    for r in rows:
-        if r.get("id") == rec["id"]:
-            for field in index_fields:
-                r[field] = rec.get(field)
-    _atomic_write_json(_index_path(), {"records": rows})
-    return rec
+def _commit_record(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """Shared record mutation commit: one row replacement on the store owner."""
+    return article_record_store.put(rec)
 
 
 def load_video_job(job_id: str) -> Optional[Dict[str, Any]]:
@@ -418,10 +394,6 @@ def mark_video_job(record_id: str, job: Dict[str, Any]) -> Optional[Dict[str, An
     if record is None or not job_id or not _ID_RE.match(job_id):
         return None
     _atomic_write_json(video_job_dir(job_id) / "job.json", job)
-    fields = [
-        "video_job_id", "video_status", "video_error", "video_duration",
-        "video_generated_at", "video_batch_name", "video_username",
-    ]
     record["video_job_id"] = job_id
     record["video_status"] = str(job.get("status") or "pending")
     record["video_error"] = job.get("error")
@@ -429,7 +401,7 @@ def mark_video_job(record_id: str, job: Dict[str, Any]) -> Optional[Dict[str, An
     record["video_generated_at"] = job.get("completed_at")
     record["video_batch_name"] = job.get("batch_name")
     record["video_username"] = job.get("username")
-    return _commit_record(record, fields)
+    return _commit_record(record)
 
 
 def video_path(record_id: str) -> Optional[Path]:
@@ -445,19 +417,15 @@ def read_video(record_id: str) -> Optional[bytes]:
 
 
 def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-    # Rule section 4: no lock - build the updated record/index, then commit each
-    # with a single atomic os.replace write.
     rec = get_record(record_id)
     if rec is None:
         return None
     rec["uploaded"] = True
     rec["uploaded_at"] = utc_now_iso()
-    fields = ["uploaded", "uploaded_at"]
     if isinstance(laravel_data, dict):
         rec["laravel_article_id"] = laravel_data.get("article_id")
         rec["audio_url"] = laravel_data.get("audio_url")
         rec["audio_status"] = laravel_data.get("audio_status") or "queued"
-        fields += ["laravel_article_id", "audio_url", "audio_status"]
     # A full submit publishes the record's CURRENT local audio: when that
     # audio is already multi-sentence, Laravel main now serves it, so the
     # rebuild-replacement marker is satisfied by this very upload.
@@ -465,10 +433,7 @@ def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None)
         rec["rebuild_uploaded"] = True
         rec["rebuild_uploaded_at"] = rec["uploaded_at"]
         rec["rebuild_delivery_contract"] = _REBUILD_DELIVERY_CONTRACT
-        fields += [
-            "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
-        ]
-    return _commit_record(rec, fields)
+    return _commit_record(rec)
 
 
 def mark_audio_rebuilt(
@@ -503,11 +468,7 @@ def mark_audio_rebuilt(
     rec["rebuild_uploaded"] = False
     rec["rebuild_uploaded_at"] = None
     rec["rebuild_delivery_contract"] = None
-    return _commit_record(rec, [
-        "audio_file", "audio_status", "tts_engine", "tts_model",
-        "tts_chunked", "rebuild_attempts", "rebuild_audio_job", "rebuild_not_before", "audio_rebuilt_at",
-        "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
-    ])
+    return _commit_record(rec)
 
 
 def mark_rebuild_uploaded(
@@ -526,20 +487,14 @@ def mark_rebuild_uploaded(
     rec["rebuild_uploaded_at"] = stamped_at
     rec["rebuild_delivery_contract"] = _REBUILD_DELIVERY_CONTRACT
     rec["rebuild_writeback_pending"] = False
-    fields = [
-        "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
-        "rebuild_writeback_pending",
-    ]
     if isinstance(laravel_data, dict):
         rec["laravel_article_id"] = laravel_data.get("article_id") or rec.get("laravel_article_id")
         rec["audio_url"] = laravel_data.get("audio_url") or rec.get("audio_url")
-        fields += ["laravel_article_id", "audio_url"]
     # A successful replace proves the article is on Laravel main.
     if not bool(rec.get("uploaded")):
         rec["uploaded"] = True
         rec["uploaded_at"] = stamped_at
-        fields += ["uploaded", "uploaded_at"]
-    return _commit_record(rec, fields)
+    return _commit_record(rec)
 
 
 def mark_rebuild_failed(record_id: str) -> Optional[Dict[str, Any]]:
@@ -551,10 +506,7 @@ def mark_rebuild_failed(record_id: str) -> Optional[Dict[str, Any]]:
     rec["rebuild_attempts"] = attempts
     rec["rebuild_audio_job"] = None
     rec["rebuild_not_before"] = time.time() + min(300.0, float(2 ** min(attempts, 8)))
-    return _commit_record(
-        rec,
-        ["rebuild_attempts", "rebuild_audio_job", "rebuild_not_before"],
-    )
+    return _commit_record(rec)
 
 
 def mark_audio_rebuild_waiting(
@@ -568,7 +520,7 @@ def mark_audio_rebuild_waiting(
         return None
     rec["rebuild_audio_job"] = dict(job or {})
     rec["rebuild_not_before"] = time.time() + max(0.0, float(poll_after_s or 0.0))
-    return _commit_record(rec, ["rebuild_audio_job", "rebuild_not_before"])
+    return _commit_record(rec)
 
 
 def clear_rebuild_marker(record_id: str) -> Optional[Dict[str, Any]]:
@@ -584,18 +536,12 @@ def clear_rebuild_marker(record_id: str) -> Optional[Dict[str, Any]]:
     rec["rebuild_uploaded_at"] = None
     rec["rebuild_delivery_contract"] = None
     rec["audio_status"] = "queued"
-    return _commit_record(
-        rec,
-        [
-            "tts_chunked", "rebuild_uploaded", "rebuild_uploaded_at",
-            "rebuild_delivery_contract", "audio_status",
-        ],
-    )
+    return _commit_record(rec)
 
 
 def audio_path(record_id: str) -> Optional[Path]:
     """Path to the cached mp3, or None. record_id is validated against the
-    index and restricted to safe characters (path-traversal safe)."""
+    store and restricted to safe characters (path-traversal safe)."""
     rid = str(record_id or "")
     if not rid or not _ID_RE.match(rid):
         return None
@@ -631,5 +577,5 @@ def cache_audio(record_id: str, audio_bytes: bytes) -> bool:
     rec["id"] = rid
     rec["audio_file"] = f"audio/{rid}.mp3"
     rec["audio_status"] = "ready"
-    _commit_record(rec, ["audio_file", "audio_status"])
+    _commit_record(rec)
     return True

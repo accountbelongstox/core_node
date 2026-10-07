@@ -173,6 +173,11 @@ def get_third_package_psutil():
     return _lazy_import('psutil', 'import psutil')
 
 
+def get_third_package_pynvml():
+    """Get pynvml (NVIDIA Management Library bindings, lazy load)."""
+    return _lazy_import('pynvml', 'import pynvml')
+
+
 def get_third_package_pydantic():
     """Get pydantic package (lazy load)."""
     return _lazy_import('pydantic', 'import pydantic')
@@ -644,8 +649,16 @@ def get_third_package_okx():
 
 # Redis cache
 def get_third_package_redis():
-    """Get redis package (lazy load)"""
-    return _lazy_import('redis', 'import redis')
+    """Get redis package with its asyncio client and exceptions (lazy load)"""
+    return _lazy_compose('redis', 'import redis', {
+        'asyncio': 'redis.asyncio',
+        'exceptions': 'redis.exceptions',
+    })
+
+
+def get_third_package_orjson():
+    """Get orjson package (lazy load)"""
+    return _lazy_import('orjson', 'import orjson')
 
 
 # Google Gemini API

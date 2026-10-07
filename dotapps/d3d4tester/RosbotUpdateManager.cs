@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Threading;
+using System.Text;
 using System.Threading.Tasks;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
@@ -51,9 +52,21 @@ public sealed class RosbotUpdateManager
     private const string PanelLogTag = "[RosbotPanel]";
     private static readonly long MinZipBytes = D3PathConstants.RosbotZipMinSizeMb * 1024L * 1024L;
     private static readonly long MaxZipBytes = D3PathConstants.RosbotZipMaxSizeMb * 1024L * 1024L;
-    private static readonly string TempBaseDir = Path.Combine(D3PathConstants.RosbotGameToolsBase, ".tmp");
+    private const string TempBaseDirName = ".tmp";
+    /// <summary>Chinese ROSBOT zips store entry names in GBK without the UTF-8 flag.</summary>
+    private const int ZipEntryNameCodePage = 936;
+    private static readonly Lazy<Encoding> ZipEntryNameEncoding = new(() =>
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(ZipEntryNameCodePage);
+    });
 
     public static RosbotUpdateManager Instance { get; } = new RosbotUpdateManager();
+
+    /// <summary>GameTools folder of the current ROSBOT (same drive and folder as the installed version), else the default base.</summary>
+    public static string GameToolsBase => RosbotGameToolsLayout.GetBase(ConfigOptionsProvider.GetOptions<RosSettingsOptions>().RosDirectory);
+
+    private static string TempBaseDir => Path.Combine(GameToolsBase, TempBaseDirName);
 
     public string? GetBattlenetRegion() => GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion;
 
@@ -132,7 +145,7 @@ public sealed class RosbotUpdateManager
             if (!string.IsNullOrEmpty(parent) && parent.StartsWith(prefix, StringComparison.Ordinal))
                 return (curVer, curCtime);
         }
-        string basePath = D3PathConstants.RosbotGameToolsBase;
+        string basePath = GameToolsBase;
         if (!Directory.Exists(basePath)) return (null, 0);
         try
         {
@@ -196,7 +209,7 @@ public sealed class RosbotUpdateManager
         if (region != BattlenetConstants.RegionAsia && region != BattlenetConstants.RegionCn) return null;
         versionStr = ResolveVersionStr(versionStr, zipPath);
         if (string.IsNullOrEmpty(versionStr)) return null;
-        return Path.Combine(D3PathConstants.RosbotGameToolsBase, $"{RegionDirName(region)}_{versionStr}", RosbotFinalDirName);
+        return Path.Combine(GameToolsBase, $"{RegionDirName(region)}_{versionStr}", RosbotFinalDirName);
     }
 
     /// <summary>True when the target dir for (region, version) already holds the main exe. 1:1 Python target_already_has_version.</summary>
@@ -227,7 +240,7 @@ public sealed class RosbotUpdateManager
             versionStr = v != null ? RosbotVersionInfo.VersionToString(v.Value) : DefaultVersionStr;
         }
         string parentName = $"{RegionDirName(region)}_{versionStr}";
-        string parentDir = Path.Combine(D3PathConstants.RosbotGameToolsBase, parentName);
+        string parentDir = Path.Combine(GameToolsBase, parentName);
         string finalDir = Path.Combine(parentDir, RosbotFinalDirName);
 
         if (TargetAlreadyHasVersion(region, versionStr))
@@ -244,7 +257,7 @@ public sealed class RosbotUpdateManager
         try
         {
             Directory.CreateDirectory(tempRoot);
-            ZipFile.ExtractToDirectory(zipPath, tempRoot, true);
+            ZipFile.ExtractToDirectory(zipPath, tempRoot, ZipEntryNameEncoding.Value, true);
             ColorPrinter.Green($"{LogTag} Extracted main zip to temp: {tempRoot}");
 
             string? exePath = FindRosbotExeRecursive(tempRoot);
@@ -273,19 +286,7 @@ public sealed class RosbotUpdateManager
             CheckAndFixNestedRosbot(finalDir);
 
             if (!string.IsNullOrWhiteSpace(rosDirOld) && Directory.Exists(rosDirOld))
-            {
-                string oldIni = Path.Combine(rosDirOld, ShellConstants.RosbotIniFileName);
-                string newIni = Path.Combine(finalDir, ShellConstants.RosbotIniFileName);
-                if (File.Exists(oldIni))
-                {
-                    try
-                    {
-                        File.Copy(oldIni, newIni, true);
-                        ColorPrinter.Gray($"{LogTag} Copied RoS-BoT.ini");
-                    }
-                    catch (IOException) { }
-                }
-            }
+                CarryOverUserFiles(rosDirOld, finalDir);
 
             SetRosDirectoryVerified(NormalizeDir(finalDir));
             CleanupDirectorySafe(tempRoot);
@@ -482,6 +483,56 @@ public sealed class RosbotUpdateManager
         GameInterfaceData.Instance.NotifyCallbacks();
     }
 
+    /// <summary>
+    /// Keep the user's state from the previous version: RoS-BoT.ini, plugin folders the new package does not ship (installed
+    /// by the user or by this app) and, inside shipped plugin folders, files the new package does not contain (plugin configs).
+    /// Files the new package ships are never overwritten.
+    /// </summary>
+    private static void CarryOverUserFiles(string oldRosDir, string newRosDir)
+    {
+        string oldIni = Path.Combine(oldRosDir, ShellConstants.RosbotIniFileName);
+        if (File.Exists(oldIni))
+        {
+            try
+            {
+                File.Copy(oldIni, Path.Combine(newRosDir, ShellConstants.RosbotIniFileName), true);
+                ColorPrinter.Gray($"{LogTag} Copied RoS-BoT.ini");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                ColorPrinter.Yellow($"{LogTag} RoS-BoT.ini not copied: {ex.Message}");
+            }
+        }
+        string oldPlugins = Path.Combine(oldRosDir, RosbotPluginConstants.PluginsDirName);
+        string newPlugins = Path.Combine(newRosDir, RosbotPluginConstants.PluginsDirName);
+        if (!Directory.Exists(oldPlugins)) return;
+        try
+        {
+            foreach (var oldPlugin in Directory.EnumerateDirectories(oldPlugins))
+            {
+                string target = Path.Combine(newPlugins, Path.GetFileName(oldPlugin));
+                if (!Directory.Exists(target))
+                {
+                    if (CopyDirectorySafe(oldPlugin, target))
+                        ColorPrinter.Gray($"{LogTag} Kept plugin {Path.GetFileName(oldPlugin)}");
+                    continue;
+                }
+                foreach (var file in Directory.EnumerateFiles(oldPlugin, "*", SearchOption.AllDirectories))
+                {
+                    string dst = Path.Combine(target, Path.GetRelativePath(oldPlugin, file));
+                    if (File.Exists(dst)) continue;
+                    Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+                    File.Copy(file, dst);
+                    ColorPrinter.Gray($"{LogTag} Kept plugin file {Path.GetRelativePath(oldPlugins, file)}");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ColorPrinter.Yellow($"{LogTag} Plugin carry-over incomplete: {ex.Message}");
+        }
+    }
+
     private static string GetUniqueTempDir()
     {
         Directory.CreateDirectory(TempBaseDir);
@@ -520,7 +571,7 @@ public sealed class RosbotUpdateManager
             try
             {
                 Directory.CreateDirectory(tempExtract);
-                ZipFile.ExtractToDirectory(zipPath, tempExtract, true);
+                ZipFile.ExtractToDirectory(zipPath, tempExtract, ZipEntryNameEncoding.Value, true);
                 CopyExtractToDirNoNesting(tempExtract, zipDir);
                 CleanupDirectorySafe(tempExtract);
                 ColorPrinter.Gray($"{LogTag} Extracted nested zip: {Path.GetFileName(zipPath)}");

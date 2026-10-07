@@ -1,8 +1,6 @@
 // PY-REF: pyapps/d3-check/d3utils/battlenet_operation_base.py
 using System.Drawing;
 using System.IO;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using DotCore.Foundations;
 using DotCore.UIInspect;
 using DotCore.Utils;
@@ -37,11 +35,6 @@ public static class BattlenetControlTree
 {
     private static readonly object CacheLock = new();
     private static readonly Lazy<UIA3Automation> Automation = new(() => new UIA3Automation(), LazyThreadSafetyMode.ExecutionAndPublication);
-    private static readonly JsonSerializerOptions SnapshotJsonOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
 
     private static List<BattlenetControl>? _lightCache;
     private static long _lightCacheTimeMs;
@@ -183,6 +176,15 @@ public static class BattlenetControlTree
         });
     }
 
+    /// <summary>UIA Invoke of the live control without activating the window or moving the mouse; false when it cannot be invoked.</summary>
+    public static bool InvokeControl(BattlenetControl control)
+    {
+        var raw = FindRawMatching(control);
+        bool ok = raw != null && UIOperations.OperateButton(raw, _ => false, preferInvoke: true);
+        if (ok) InvalidateLightCache();
+        return ok;
+    }
+
     /// <summary>Activate, Invoke the live control, else mouse click at rect centre. 1:1 Python click_control.</summary>
     public static bool ClickControl(BattlenetControl control, bool requireClickable = false)
     {
@@ -278,52 +280,6 @@ public static class BattlenetControlTree
     /// <summary>1:1 Python get_clickable_buttons.</summary>
     public static List<BattlenetControl> GetClickableButtons(IReadOnlyList<BattlenetControl> controls)
         => controls.Where(c => c.Type.Contains("button", StringComparison.OrdinalIgnoreCase) && c.IsClickable).ToList();
-
-    /// <summary>Snapshot directory (.cache/bn_flow_snapshots under the app base directory).</summary>
-    public static string SnapshotsDir => Path.Combine(AppContext.BaseDirectory, BattlenetConstants.CacheDirName, BattlenetConstants.BnFlowSnapshotsDirName);
-
-    /// <summary>Write bn_flow_&lt;node&gt;.json when DebugSaveBnFlowUiSnapshots. 1:1 Python save_ui_elements_snapshot.</summary>
-    public static string? SaveUiElementsSnapshot(string nodeName, string reason)
-    {
-        if (!BattlenetConstants.DebugSaveBnFlowUiSnapshots)
-            return null;
-        var controls = Enumerate();
-        string dir = SnapshotsDir;
-        try
-        {
-            Directory.CreateDirectory(dir);
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Yellow($"[BattlenetOperation] save_ui_elements_snapshot mkdir: {ex.Message}");
-            return null;
-        }
-        string safeNode = (string.IsNullOrEmpty(nodeName) ? "unknown" : nodeName).Replace(" ", "_");
-        string path = Path.Combine(dir, BattlenetConstants.BnFlowSnapshotFilePrefix + safeNode + ".json");
-        var payload = new
-        {
-            meta = new { node = nodeName, reason },
-            controls = controls.Select(c => new
-            {
-                name = c.Name,
-                automation_id = c.AutomationId,
-                type = c.Type,
-                rect = c.Rect is { } r ? new { left = r.Left, top = r.Top, right = r.Right, bottom = r.Bottom, width = r.Width, height = r.Height } : null,
-                level = c.Level
-            })
-        };
-        try
-        {
-            File.WriteAllText(path, JsonSerializer.Serialize(payload, SnapshotJsonOptions));
-            ColorPrinter.Gray($"[BNFlow] UI snapshot saved: {Path.GetFileName(path)} | reason: {reason}");
-            return path;
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Yellow($"[BattlenetOperation] save_ui_elements_snapshot write: {ex.Message}");
-            return null;
-        }
-    }
 
     internal static bool ClickRectCenter(Rectangle rect)
     {

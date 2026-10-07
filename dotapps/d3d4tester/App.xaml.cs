@@ -40,6 +40,7 @@ public partial class App : Application
             return;
         }
         D3D4TesterI18n.EnsureInitialized();
+        YoloTrainingService.InitializeRuntime();
 
         if (bridgeOnly)
         {
@@ -53,7 +54,9 @@ public partial class App : Application
             return;
         }
 
+        LogonFontReadiness.WaitUntilReady();
         ThemeService.Instance.ApplySaved();
+        LogonFontReadiness.DropUnusableThemeFonts();
         var main = new MainWindow();
         MainWindow = main;
         main.Show();

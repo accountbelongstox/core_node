@@ -290,7 +290,11 @@
     "abnormal_timeout_sec": 120,
     "login_restart_enabled": true,
     "login_timeout_sec": 300,
-    "region_switch_prompt": true
+    "region_switch_prompt": true,
+    "net_hold_enabled": false,
+    "net_hold_on_boot": false,
+    "net_hold_interval_sec": 60,
+    "d4_install_path": ""
   },
   "battlenet_asia_credentials": {
     "email": "",
@@ -307,7 +311,16 @@
   "d3": {
     "d3_path": ""
   },
+  "d3planner": {
+    "url": "",
+    "profile_index": 0,
+    "build_index": 0,
+    "notify": true,
+    "notify_push": false
+  },
   "rosbot": {
+    "bridge_plugin_auto_install": true,
+    "bridge_follow_town_portal_key": "t",
     "pickup_blood_shards": false,
     "prevent_stuck": false,
     "blue_portal_priority": false,
@@ -356,7 +369,9 @@
     "export_onnx": true,
     "detect_on_open": true,
     "mode": "general",
-    "task_set": ""
+    "task_set": "",
+    "augmentation": "",
+    "augmentation_from_task_set": true
   },
   "yolo_dataset": {
     "source": "selected",
@@ -368,9 +383,102 @@
     "stratify": true,
     "include_background": true,
     "background_max_percent": 10,
-    "skip_difficult": true
+    "skip_difficult": true,
+    "include_unreviewed_pseudo_labels": false
+  },
+  "yolo_model_test": {
+    "last_model": "",
+    "confidence": 0.35,
+    "iou": 0.45,
+    "mode": "auto",
+    "tile_size": 0,
+    "tile_overlap": -1,
+    "roi": "",
+    "track": true,
+    "live_fps": 10,
+    "live_source": "region",
+    "screen_region": "",
+    "export_dir": "",
+    "task_set": "",
+    "provider": "",
+    "analysis_step": 1,
+    "export_filter": "every_n",
+    "export_every": 10,
+    "export_low_confidence": 0.5,
+    "snapshot_hotkey": "ctrl+alt+s"
   },
   "yolo_taskset": {
     "last_task_set": ""
+  },
+  "yolo_detect": {
+    "execution_provider": "auto",
+    "intra_op_threads": 0,
+    "warm_up": true
+  },
+  "monitor": {
+    "auto_start_on_launch": false,
+    "restart_on_error_popup": false,
+    "close_teamviewer_popups": false,
+    "log_timeout_mode": "log_only",
+    "d3_memory_restart": false,
+    "d3_memory_limit_mb": 8192,
+    "restart_battlenet_on_restart": false,
+    "archive_log_rollover": false,
+    "d3_shrink_on_start": false,
+    "d3_shrink_width": 1072,
+    "d3_shrink_height": 603,
+    "force_sequence": false,
+    "force_sequence_name": "",
+    "process_tuning": {
+      "enabled": false,
+      "d3_priority": "normal",
+      "d3_cpus": "",
+      "rosbot_priority": "normal",
+      "rosbot_cpus": ""
+    },
+    "screenshots": {
+      "crop_custom": false,
+      "crop": "0,0,0,0",
+      "periodic_minutes": 1,
+      "periodic_enabled": false,
+      "periodic_dir": "",
+      "periodic_keep": 0,
+      "death_enabled": false,
+      "death_dir": "",
+      "death_keep": 0,
+      "fail_enabled": false,
+      "fail_dir": "",
+      "fail_keep": 0,
+      "error_enabled": false,
+      "error_dir": "",
+      "error_keep": 0
+    },
+    "notify": {
+      "pushplus_token": "",
+      "telegram_token": "",
+      "telegram_chat_id": "",
+      "discord_webhook": "",
+      "prowl_api_key": "",
+      "on_restart": false,
+      "restart_channel": "all"
+    },
+    "tools": {
+      "speed_bridge_path": "",
+      "tcp_reset_path": ""
+    },
+    "probes": {
+      "fight": 280,
+      "town_portal": 10,
+      "urshi": "100,6,140",
+      "finish_illusion": "100,25",
+      "find_illusion": "60,1,2",
+      "portal_keys": ""
+    },
+    "triggers": [],
+    "rosbot_keys": {
+      "keys": "",
+      "active_index": 0,
+      "write_before_start": true
+    }
   }
 }

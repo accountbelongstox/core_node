@@ -4,6 +4,7 @@ import { pcEnFeatures } from './PcEnFeatures';
 import { pcEnPages } from './PcEnPages';
 import { aiHubEn } from './PcAiHubLocales';
 import { meshLoginEn } from './PcMeshLoginLocales';
+import { networkRouterEn } from './PcNetworkRouterLocales';
 
 export const pcEn = {
   ...pcEnCore,
@@ -11,6 +12,7 @@ export const pcEn = {
   ...pcEnPages,
   aiHub: aiHubEn,
   meshLogin: meshLoginEn,
+  networkRouter: networkRouterEn,
 } as const;
 
 type PcDeepStringify<T> = {

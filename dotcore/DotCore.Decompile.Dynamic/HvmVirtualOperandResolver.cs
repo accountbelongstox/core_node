@@ -18,6 +18,9 @@ public sealed class HvmContextOperand
     public string Kind { get; set; } = string.Empty;
     public uint DefinitionToken { get; set; }
     public string ModuleHandle { get; set; } = string.Empty;
+    public int TypeDescriptorKind { get; set; }
+    public string TypeModuleHandle { get; set; } = string.Empty;
+    public uint ResolvedTypeDefinitionToken { get; set; }
     public string MethodHandle { get; set; } = string.Empty;
 }
 
@@ -85,13 +88,16 @@ public sealed class HvmJitCaptureDocument
 public sealed class HvmOperandResolutionReport
 {
     public HvmOperandResolutionReport(string outputPath, int mappedOperands, int unresolvedOperands,
-        int resolvedLocals, int decodedMethods, IReadOnlyList<string> failures)
+        int resolvedLocals, int decodedMethods, int rejectedMethods, int rejectedOperands,
+        IReadOnlyList<string> failures)
     {
         OutputPath = outputPath;
         MappedOperands = mappedOperands;
         UnresolvedOperands = unresolvedOperands;
         ResolvedLocals = resolvedLocals;
         DecodedMethods = decodedMethods;
+        RejectedMethods = rejectedMethods;
+        RejectedOperands = rejectedOperands;
         Failures = failures;
     }
 
@@ -100,6 +106,8 @@ public sealed class HvmOperandResolutionReport
     public int UnresolvedOperands { get; }
     public int ResolvedLocals { get; }
     public int DecodedMethods { get; }
+    public int RejectedMethods { get; }
+    public int RejectedOperands { get; }
     public IReadOnlyList<string> Failures { get; }
 }
 
@@ -107,7 +115,8 @@ public sealed class HvmVirtualOperandResolver
 {
     public HvmOperandResolutionReport Resolve(string assemblyPath, IEnumerable<HvmContextOperand> contextOperands,
         IEnumerable<HvmMethodMetadata> methodMetadata, IEnumerable<HvmJitCaptureMethod> captures,
-        HvmLocalTypeDocument localTypes, string outputPath, Action<string>? log = null)
+        HvmLocalTypeDocument localTypes, string outputPath, Action<string>? log = null,
+        ISet<uint>? selectedMethodTokens = null)
     {
         string fullAssemblyPath = Path.GetFullPath(assemblyPath);
         string fullOutputPath = Path.GetFullPath(outputPath);
@@ -128,17 +137,24 @@ public sealed class HvmVirtualOperandResolver
         Dictionary<uint, HvmJitCaptureMethod> capturedMethods = captures.GroupBy(item => item.MethodToken)
             .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.ILBytes.Length).First());
         List<string> failures = new();
+        HashSet<uint> decodedMethodTokens = new();
         int mappedOperands = 0;
         int unresolvedOperands = 0;
         int resolvedLocals;
         int decodedMethods = 0;
+        int rejectedMethods = 0;
+        int rejectedOperands = 0;
 
         foreach (IGrouping<uint, HvmContextOperand> methodGroup in operands.GroupBy(item => item.MethodToken))
         {
+            if (selectedMethodTokens != null && !selectedMethodTokens.Contains(methodGroup.Key))
+                continue;
             if (!targetMethods.TryGetValue(unchecked((int)methodGroup.Key), out MethodDefinition? method)
                 || method.CilMethodBody == null
+                || !DnGuardMethodBodyClassifier.IsPlaceholder(method.CilMethodBody)
                 || !capturedMethods.TryGetValue(methodGroup.Key, out HvmJitCaptureMethod? capture))
                 continue;
+            CilMethodBody originalBody = method.CilMethodBody;
             byte[] rawBody = ParseHex(capture.ILBytes);
             Dictionary<uint, IMetadataMember> methodMembers = new();
             foreach (HvmContextOperand mapping in methodGroup)
@@ -148,10 +164,11 @@ public sealed class HvmVirtualOperandResolver
                 if (member != null)
                     methodMembers[mapping.VirtualToken] = member;
             }
-            if (DnGuardMethodBodyClassifier.IsPlaceholder(method.CilMethodBody)
-                && TryDecodeCapturedBody(method, capture, rawBody, methodGroup.Key,
+            if (!TryDecodeCapturedBody(method, capture, rawBody, methodGroup.Key,
                     methodGroup.First().JitCallIndex, methodMembers, localTypes, failures))
-                decodedMethods++;
+                continue;
+            int methodMappedOperands = 0;
+            int methodUnresolvedOperands = 0;
             foreach (HvmContextOperand mapping in methodGroup)
             {
                 methodMembers.TryGetValue(mapping.VirtualToken, out IMetadataMember? resolved);
@@ -169,17 +186,27 @@ public sealed class HvmVirtualOperandResolver
                     if (resolved != null)
                     {
                         instruction.Operand = resolved;
-                        mappedOperands++;
+                        methodMappedOperands++;
                     }
                     else if (instruction.Operand is IMetadataMember existing
                              && unchecked((uint)existing.MetadataToken.ToInt32()) != mapping.VirtualToken)
                         found = false;
                 }
-                if (found && resolved == null) unresolvedOperands++;
+                if (found && resolved == null) methodUnresolvedOperands++;
             }
+            if (methodUnresolvedOperands != 0)
+            {
+                method.CilMethodBody = originalBody;
+                rejectedMethods++;
+                rejectedOperands += methodUnresolvedOperands;
+                continue;
+            }
+            decodedMethods++;
+            decodedMethodTokens.Add(methodGroup.Key);
+            mappedOperands += methodMappedOperands;
         }
 
-        resolvedLocals = ResolveLocals(targetModule, targetMethods, operands, localTypes, modulePaths,
+        resolvedLocals = ResolveLocals(targetModule, targetMethods, decodedMethodTokens, operands, localTypes, modulePaths,
             sourceModules, failures);
 
         Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath) ?? Directory.GetCurrentDirectory());
@@ -193,9 +220,9 @@ public sealed class HvmVirtualOperandResolver
             MethodBodySerializer = new CilMethodBodySerializer { ComputeMaxStackOnBuildOverride = false }
         };
         targetModule.Write(fullOutputPath, new ManagedPEImageBuilder(directoryFactory));
-        writeLog($"Decoded {decodedMethods} HVM methods; resolved {mappedOperands} operands and {resolvedLocals} local variables; {unresolvedOperands} referenced operands remain unresolved.");
+        writeLog($"Decoded {decodedMethods} HVM methods; resolved {mappedOperands} operands and {resolvedLocals} local variables; {unresolvedOperands} referenced operands remain unresolved; rejected {rejectedMethods} methods with {rejectedOperands} unresolved operands.");
         return new HvmOperandResolutionReport(fullOutputPath, mappedOperands, unresolvedOperands, resolvedLocals,
-            decodedMethods, failures.AsReadOnly());
+            decodedMethods, rejectedMethods, rejectedOperands, failures.AsReadOnly());
     }
 
     private static bool TryDecodeCapturedBody(MethodDefinition method, HvmJitCaptureMethod capture, byte[] rawBody,
@@ -248,7 +275,8 @@ public sealed class HvmVirtualOperandResolver
     }
 
     private static int ResolveLocals(ModuleDefinition targetModule,
-        IReadOnlyDictionary<int, MethodDefinition> targetMethods, IEnumerable<HvmContextOperand> operands,
+        IReadOnlyDictionary<int, MethodDefinition> targetMethods, ISet<uint> decodedMethodTokens,
+        IEnumerable<HvmContextOperand> operands,
         HvmLocalTypeDocument localTypes, IReadOnlyDictionary<string, string> modulePaths,
         IDictionary<string, ModuleDefinition> sourceModules, ICollection<string> failures)
     {
@@ -262,6 +290,7 @@ public sealed class HvmVirtualOperandResolver
         foreach (IGrouping<int, HvmLocalType> group in localTypes.Locals.GroupBy(item => item.JitCallIndex))
         {
             if (!methodTokens.TryGetValue(group.Key, out uint methodToken)
+                || !decodedMethodTokens.Contains(methodToken)
                 || !targetMethods.TryGetValue(unchecked((int)methodToken), out MethodDefinition? method)
                 || method.CilMethodBody == null)
                 continue;
@@ -421,6 +450,10 @@ public sealed class HvmVirtualOperandResolver
         IMetadataMember? sourceMember;
         IMetadataMember? resolved;
 
+        if (string.Equals(mapping.Kind, "Type", StringComparison.OrdinalIgnoreCase)
+            && mapping.TypeDescriptorKind != 0)
+            return ResolveConstructedType(mapping, targetModule, modulePaths, sourceModules, cache, failures);
+
         if (string.Equals(mapping.Kind, "Method", StringComparison.OrdinalIgnoreCase))
         {
             if (!methodHandles.TryGetValue(mapping.MethodHandle, out HvmMethodMetadata? method))
@@ -430,8 +463,25 @@ public sealed class HvmVirtualOperandResolver
         }
         else
         {
-            if (!modulePaths.TryGetValue(mapping.ModuleHandle, out modulePath!)) return null;
             definitionToken = mapping.DefinitionToken;
+            if (!modulePaths.TryGetValue(mapping.ModuleHandle, out modulePath!))
+            {
+                if (ParsePointer(mapping.ModuleHandle) != 0) return null;
+                cacheKey = targetModule.Name + "|" + definitionToken.ToString("X8");
+                if (cache.TryGetValue(cacheKey, out resolved)) return resolved;
+                try
+                {
+                    resolved = targetModule.LookupMember(new MetadataToken(definitionToken));
+                    cache[cacheKey] = resolved;
+                    return resolved;
+                }
+                catch (ArgumentException exception)
+                {
+                    cache[cacheKey] = null;
+                    failures.Add($"Could not resolve {cacheKey}: {exception.Message}");
+                    return null;
+                }
+            }
         }
         cacheKey = modulePath + "|" + definitionToken.ToString("X8");
         if (cache.TryGetValue(cacheKey, out resolved)) return resolved;
@@ -521,6 +571,53 @@ public sealed class HvmVirtualOperandResolver
             return _mappedMembers.TryGetValue(rawToken, out IMetadataMember? member)
                 ? member
                 : base.ResolveMember(token)!;
+        }
+    }
+
+    private static IMetadataMember? ResolveConstructedType(HvmContextOperand mapping,
+        ModuleDefinition targetModule, IReadOnlyDictionary<string, string> modulePaths,
+        IDictionary<string, ModuleDefinition> sourceModules, IDictionary<string, IMetadataMember?> cache,
+        ICollection<string> failures)
+    {
+        string modulePath;
+        string cacheKey;
+        ModuleDefinition sourceModule;
+        IMetadataMember? sourceMember;
+        IMetadataMember? equivalent;
+        TypeSignature elementSignature;
+        IMetadataMember resolved;
+
+        if (mapping.TypeDescriptorKind != 0x1d || mapping.ResolvedTypeDefinitionToken == 0
+            || !modulePaths.TryGetValue(mapping.TypeModuleHandle, out modulePath!))
+            return null;
+        cacheKey = modulePath + "|" + mapping.ResolvedTypeDefinitionToken.ToString("X8")
+                   + "|" + mapping.TypeDescriptorKind.ToString("X2");
+        if (cache.TryGetValue(cacheKey, out equivalent)) return equivalent;
+        try
+        {
+            if (!sourceModules.TryGetValue(modulePath, out sourceModule!))
+            {
+                sourceModule = ModuleDefinition.FromFile(modulePath);
+                sourceModules.Add(modulePath, sourceModule);
+            }
+            sourceMember = sourceModule.LookupMember(new MetadataToken(mapping.ResolvedTypeDefinitionToken));
+            equivalent = FindEquivalent(targetModule, sourceModule, sourceMember);
+            if (sourceMember is not TypeDefinition sourceType || equivalent is not ITypeDefOrRef targetType)
+            {
+                failures.Add($"No target type reference matches {GetFullName(sourceMember) ?? cacheKey}.");
+                cache[cacheKey] = null;
+                return null;
+            }
+            elementSignature = new TypeDefOrRefSignature(targetType, sourceType.IsValueType);
+            resolved = new TypeSpecification(new SzArrayTypeSignature(elementSignature));
+            cache[cacheKey] = resolved;
+            return resolved;
+        }
+        catch (Exception exception)
+        {
+            cache[cacheKey] = null;
+            failures.Add($"Could not resolve constructed type {cacheKey}: {exception.Message}");
+            return null;
         }
     }
 }

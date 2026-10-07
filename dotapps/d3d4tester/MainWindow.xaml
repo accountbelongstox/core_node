@@ -2,12 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:main="clr-namespace:DotApps.d3d4tester.Pages.Main"
-        xmlns:rosbot="clr-namespace:DotApps.d3d4tester.Pages.Rosbot"
         xmlns:d4="clr-namespace:DotApps.d3d4tester.Pages.D4"
         xmlns:calibration="clr-namespace:DotApps.d3d4tester.Pages.Calibration"
         xmlns:runlog="clr-namespace:DotApps.d3d4tester.Pages.RunLog"
         xmlns:decompile="clr-namespace:DotApps.d3d4tester.Pages.Decompile"
         xmlns:battlenet="clr-namespace:DotApps.d3d4tester.Pages.Battlenet"
+        xmlns:monitor="clr-namespace:DotApps.d3d4tester.Pages.Monitor"
         xmlns:components="clr-namespace:DotApps.d3d4tester.Components"
         Title="D3D4Tester"
         Width="800" Height="600"
@@ -30,9 +30,6 @@
       <TabItem x:Name="TabMainPage" Header="Main">
         <main:MainPage/>
       </TabItem>
-      <TabItem x:Name="TabRosbot" Header="Rosbot">
-        <rosbot:RosbotPage/>
-      </TabItem>
       <TabItem x:Name="TabD4" Header="D4">
         <d4:D4Page/>
       </TabItem>
@@ -44,6 +41,9 @@
       </TabItem>
       <TabItem x:Name="TabDecompile" Header="Decompile">
         <decompile:DecompilePage/>
+      </TabItem>
+      <TabItem x:Name="TabMonitor" Header="Monitor">
+        <monitor:MonitorPage/>
       </TabItem>
       <TabItem x:Name="TabLog" Header="Log">
         <runlog:RunLogPage/>

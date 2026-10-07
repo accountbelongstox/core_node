@@ -50,6 +50,14 @@ public sealed record YoloTrainParameters
     public int Seed { get; init; }
     public int CloseMosaic { get; init; } = 10;
     public string ExtraArguments { get; init; } = "";
+    public YoloAugmentation Augmentation { get; init; } = YoloAugmentation.UltralyticsDefaults;
+
+    /// <summary>Keys set by this record, the runner or the augmentation; extra arguments must not override them.</summary>
+    public static readonly IReadOnlySet<string> ManagedKeys = new HashSet<string>(new[]
+    {
+        "data", "model", "epochs", "imgsz", "batch", "device", "workers", "patience", "cache", "amp", "optimizer", "lr0", "seed",
+        "close_mosaic", "project", "name", "exist_ok", "resume", "mode", "task",
+    }.Concat(YoloAugmentation.Keys), StringComparer.Ordinal);
 
     /// <summary>Imgsz rounded to the model stride and clamped.</summary>
     public static int NormalizeImgsz(int imgsz) =>
@@ -71,7 +79,17 @@ public sealed record YoloTrainParameters
         return stem[..^1] + scale + Path.GetExtension(name);
     }
 
-    /// <summary>key=value tokens from ExtraArguments (invalid tokens are returned in Rejected).</summary>
+    /// <summary>True for a stock checkpoint name (e.g. yolov8n.pt) that Ultralytics downloads, false for a path to custom weights.</summary>
+    public static bool IsStockModel(string? model) =>
+        !string.IsNullOrWhiteSpace(model) && Path.GetFileName(model) == model && Models.Contains(model);
+
+    /// <summary>Absolute model argument: stock names live in the shared weights dir (downloaded there once), paths are made absolute.</summary>
+    public static string ResolveModelPath(string model, string? weightsDir) =>
+        IsStockModel(model) && !string.IsNullOrWhiteSpace(weightsDir) ? Path.GetFullPath(Path.Combine(weightsDir, model))
+        : Path.IsPathRooted(model) || model.IndexOfAny(new[] { '/', '\\' }) >= 0 ? Path.GetFullPath(model)
+        : model;
+
+    /// <summary>key=value tokens from ExtraArguments (invalid tokens and managed keys are returned in Rejected).</summary>
     public (IReadOnlyList<string> Accepted, IReadOnlyList<string> Rejected) ParseExtraArguments()
     {
         var accepted = new List<string>();
@@ -79,20 +97,20 @@ public sealed record YoloTrainParameters
         foreach (var token in (ExtraArguments ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
             int eq = token.IndexOf('=');
-            if (eq > 0 && eq < token.Length - 1 && ExtraKey.IsMatch(token[..eq])) accepted.Add(token);
+            if (eq > 0 && eq < token.Length - 1 && ExtraKey.IsMatch(token[..eq]) && !ManagedKeys.Contains(token[..eq])) accepted.Add(token);
             else rejected.Add(token);
         }
         return (accepted, rejected);
     }
 
-    /// <summary>`detect train ...` argument list for the yolo CLI (one argv element per key=value).</summary>
-    public IReadOnlyList<string> ToTrainArguments(string dataYamlPath, string projectDir, string runName)
+    /// <summary>`detect train ...` argument list for the yolo CLI (one argv element per key=value); weightsDir holds stock checkpoints.</summary>
+    public IReadOnlyList<string> ToTrainArguments(string dataYamlPath, string projectDir, string runName, string? weightsDir = null)
     {
         var args = new List<string>
         {
             "detect", "train",
             Kv("data", dataYamlPath),
-            Kv("model", Model),
+            Kv("model", ResolveModelPath(Model, weightsDir)),
             Kv("epochs", Epochs),
             Kv("imgsz", NormalizeImgsz(Imgsz)),
             Kv("batch", Batch),
@@ -109,6 +127,7 @@ public sealed record YoloTrainParameters
             Kv("name", runName),
             Kv("exist_ok", false),
         };
+        args.AddRange(Augmentation.ToArguments());
         args.AddRange(ParseExtraArguments().Accepted);
         return args;
     }

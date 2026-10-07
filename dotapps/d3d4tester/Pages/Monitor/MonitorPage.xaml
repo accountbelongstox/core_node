@@ -1,0 +1,316 @@
+<UserControl x:Class="DotApps.d3d4tester.Pages.Monitor.MonitorPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
+  <!-- No scrolling: status + ROSBOT control strip on top, every settings group in its own sub-tab below -->
+  <UserControl.Resources>
+    <ResourceDictionary Source="/d3d4tester;component/Assets/Styles/CompactPage.xaml"/>
+  </UserControl.Resources>
+  <Grid Margin="8,6,8,4">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="6"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+
+    <!-- Status + ROSBOT control -->
+    <Border Grid.Row="0" Style="{StaticResource CompactCardStyle}">
+      <StackPanel>
+        <WrapPanel>
+          <Border x:Name="ChipMonitoring" Style="{StaticResource StatusChipStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtMonitoring"/></Border>
+          <Border x:Name="ChipD3" Style="{StaticResource StatusChipStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtD3"/></Border>
+          <Border x:Name="ChipRosbot" Style="{StaticResource StatusChipStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtRosbot"/></Border>
+          <Border Style="{StaticResource StatusChipInfoStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtLogIdle" FontFamily="{StaticResource MonoFontFamily}"/></Border>
+          <Border Style="{StaticResource StatusChipInfoStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtHistoryIdle" FontFamily="{StaticResource MonoFontFamily}"/></Border>
+          <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtRestarts"/></Border>
+          <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtCounters"/></Border>
+          <Border x:Name="ChipSpeed" Style="{StaticResource StatusChipStyle}" Margin="0,0,4,4"><TextBlock x:Name="TxtSpeed"/></Border>
+        </WrapPanel>
+        <TextBlock x:Name="TxtLastLog" Style="{StaticResource CaptionTextStyle}" FontFamily="{StaticResource MonoFontFamily}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+        <Border x:Name="ChipLogsWarning" Style="{StaticResource StatusChipWarningStyle}" Margin="0,0,0,4" Visibility="Collapsed" HorizontalAlignment="Stretch">
+          <TextBlock x:Name="TxtLogsWarning" TextWrapping="Wrap"/>
+        </Border>
+        <WrapPanel>
+          <Button x:Name="BtnToggleMonitoring" Style="{StaticResource SuccessButtonStyle}" MinWidth="110" Margin="0,0,6,0" Click="BtnToggleMonitoring_Click"/>
+          <Button x:Name="BtnPauseMonitoring" Style="{StaticResource WarningButtonStyle}" MinWidth="110" Margin="0,0,6,0" Visibility="Collapsed" Click="BtnPauseMonitoring_Click"/>
+          <Button x:Name="BtnImportRbAssist" Margin="0,0,6,0" Click="BtnImportRbAssist_Click"/>
+          <comp:RosbotControlBlock x:Name="RosbotControl"/>
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+
+    <TabControl x:Name="TabsMonitor" Grid.Row="2">
+      <!-- Crash recovery -->
+      <TabItem x:Name="TabRecovery">
+        <Grid Margin="4,8,4,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="16"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel Grid.Column="0">
+            <CheckBox x:Name="ChkRestartOnErrorPopup" Margin="0,0,0,6"/>
+            <CheckBox x:Name="ChkCloseTeamViewer" Margin="0,0,0,6"/>
+            <DockPanel Margin="0,0,0,2">
+              <TextBlock x:Name="LblTimeoutMode" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <ComboBox x:Name="CmbTimeoutMode"/>
+            </DockPanel>
+            <TextBlock x:Name="TxtTimeoutHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <StackPanel Orientation="Horizontal">
+              <CheckBox x:Name="ChkD3Memory" VerticalAlignment="Center" Margin="0,0,6,0"/>
+              <TextBox x:Name="TxtD3MemoryMb" Width="60" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"/>
+              <TextBlock x:Name="LblMb" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center"/>
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+              <CheckBox x:Name="ChkTimeoutRestart" VerticalAlignment="Center" Margin="0,0,6,0"/>
+              <TextBox x:Name="TxtTimeoutMinutes" Width="44" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"/>
+              <TextBlock x:Name="LblTimeoutMinutes" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center"/>
+            </StackPanel>
+            <CheckBox x:Name="ChkRestartBattlenet" Margin="0,0,0,6"/>
+            <CheckBox x:Name="ChkAutoStart" Margin="0,0,0,6"/>
+            <CheckBox x:Name="ChkArchiveRollover" Margin="0,0,0,6"/>
+            <CheckBox x:Name="ChkStartup"/>
+            <comp:StartupShortcutPathLabel/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- D3 window and processes -->
+      <TabItem x:Name="TabWindow">
+        <StackPanel Margin="4,8,4,4">
+          <WrapPanel Margin="0,0,0,6">
+            <CheckBox x:Name="ChkD3Shrink" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="TxtShrinkWidth" Width="52" TextAlignment="Right" VerticalAlignment="Center"/>
+            <TextBlock Text="x" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" Margin="4,0"/>
+            <TextBox x:Name="TxtShrinkHeight" Width="52" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <Button x:Name="BtnShrinkNow" Style="{StaticResource SubtleButtonStyle}" Click="BtnShrinkNow_Click"/>
+          </WrapPanel>
+          <DockPanel Margin="0,0,0,6">
+            <CheckBox x:Name="ChkForceSequence" DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="TxtSequenceName"/>
+          </DockPanel>
+          <CheckBox x:Name="ChkTuning" Margin="0,0,0,6"/>
+          <Grid x:Name="GridTuning" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblD3Priority" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,6" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CmbD3Priority" Grid.Column="1" Margin="0,0,12,6"/>
+            <TextBlock x:Name="LblD3Cpus" Grid.Column="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,6" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtD3Cpus" Grid.Column="3" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblRosbotPriority" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CmbRosbotPriority" Grid.Row="1" Grid.Column="1" Margin="0,0,12,0"/>
+            <TextBlock x:Name="LblRosbotCpus" Grid.Row="1" Grid.Column="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtRosbotCpus" Grid.Row="1" Grid.Column="3"/>
+          </Grid>
+          <DockPanel>
+            <Button x:Name="BtnApplyTuning" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}" Click="BtnApplyTuning_Click"/>
+            <TextBlock x:Name="TxtCpusHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+          </DockPanel>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Screenshots: one row per kind is built in code (periodic / death / fail / error) -->
+      <TabItem x:Name="TabScreenshots">
+        <StackPanel Margin="4,8,4,4">
+          <StackPanel x:Name="PanelShots" Grid.IsSharedSizeScope="True"/>
+          <WrapPanel Margin="0,2,0,0">
+            <RadioButton x:Name="RadioCropFull" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <RadioButton x:Name="RadioCropCustom" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="TxtCrop" Width="120"/>
+          </WrapPanel>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Notifications -->
+      <TabItem x:Name="TabNotify">
+        <StackPanel Margin="4,8,4,4">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="16"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblPushPlus" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdPushPlus" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblDiscord" Grid.Column="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdDiscord" Grid.Column="4" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblTelegramToken" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdTelegramToken" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblTelegramChat" Grid.Row="1" Grid.Column="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtTelegramChat" Grid.Row="1" Grid.Column="4" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblProwl" Grid.Row="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdProwl" Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"/>
+          </Grid>
+          <WrapPanel Margin="0,0,0,4">
+            <CheckBox x:Name="ChkNotifyOnRestart" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox x:Name="CmbRestartChannel" MinWidth="130" Margin="0,0,6,0"/>
+            <Button x:Name="BtnNotifyTest" Style="{StaticResource SubtleButtonStyle}" Click="BtnNotifyTest_Click"/>
+          </WrapPanel>
+          <TextBlock x:Name="TxtSecretHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </TabItem>
+
+      <!-- External tools and probe thresholds -->
+      <TabItem x:Name="TabTools">
+        <Grid Margin="4,8,4,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="16"/>
+            <ColumnDefinition Width="2*"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel Grid.Column="0">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock x:Name="LblSpeedBridge" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+              <TextBox x:Name="TxtSpeedBridge" Grid.Column="1" Margin="0,0,6,6"/>
+              <Button x:Name="BtnBrowseSpeedBridge" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="0,0,0,6" Click="BtnBrowseSpeedBridge_Click"/>
+              <TextBlock x:Name="LblTcpReset" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+              <TextBox x:Name="TxtTcpReset" Grid.Row="1" Grid.Column="1" Margin="0,0,6,6"/>
+              <Button x:Name="BtnBrowseTcpReset" Grid.Row="1" Grid.Column="2" Style="{StaticResource IconButtonStyle}" Content="&#xE8B7;" Margin="0,0,0,6" Click="BtnBrowseTcpReset_Click"/>
+            </Grid>
+            <TextBlock x:Name="TxtToolsHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblPortalKeys" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+            <TextBox x:Name="TxtPortalKeys"/>
+          </StackPanel>
+          <Grid Grid.Column="2">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblProbeFight" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtProbeFight" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblProbeTownPortal" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtProbeTownPortal" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblProbeUrshi" Grid.Row="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtProbeUrshi" Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblProbeFinish" Grid.Row="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtProbeFinish" Grid.Row="3" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblProbeFind" Grid.Row="4" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtProbeFind" Grid.Row="4" Grid.Column="1"/>
+          </Grid>
+        </Grid>
+      </TabItem>
+
+      <!-- ROSBOT license keys: the active one is written to RoS-BoT.ini before every ROSBOT start -->
+      <TabItem x:Name="TabRosbotKey">
+        <Grid Margin="4,8,4,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="16"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblRosbotKeys" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+            <ListBox x:Name="LstRosbotKeys" Grid.Row="1" MinHeight="60" FontFamily="{StaticResource MonoFontFamily}" MouseDoubleClick="LstRosbotKeys_MouseDoubleClick"/>
+            <WrapPanel Grid.Row="2" Margin="0,6,0,0">
+              <Button x:Name="BtnRosbotKeyActive" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Click="BtnRosbotKeyActive_Click"/>
+              <Button x:Name="BtnRosbotKeyRemove" Style="{StaticResource DangerButtonStyle}" Click="BtnRosbotKeyRemove_Click"/>
+            </WrapPanel>
+          </Grid>
+          <StackPanel Grid.Column="2">
+            <CheckBox x:Name="ChkRosbotKeyWrite" Margin="0,0,0,8"/>
+            <TextBlock x:Name="LblRosbotKeyNew" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+            <DockPanel Margin="0,0,0,8">
+              <Button x:Name="BtnRosbotKeyAdd" DockPanel.Dock="Right" Margin="6,0,0,0" Click="BtnRosbotKeyAdd_Click"/>
+              <PasswordBox x:Name="PwdRosbotKey" KeyDown="PwdRosbotKey_KeyDown"/>
+            </DockPanel>
+            <TextBlock x:Name="TxtRosbotKeyIni" Style="{StaticResource MonoTextStyle}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+            <WrapPanel Margin="0,0,0,4">
+              <Button x:Name="BtnRosbotKeyApply" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,8,0" Click="BtnRosbotKeyApply_Click"/>
+              <TextBlock x:Name="TxtRosbotKeyStatus" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </WrapPanel>
+            <TextBlock x:Name="TxtRosbotKeyHint" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- Triggers -->
+      <TabItem x:Name="TabTriggers">
+        <Grid Margin="4,6,4,4">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBlock x:Name="TxtTriggersInfo" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <ListView x:Name="ListTriggers" Grid.Row="1" MouseDoubleClick="ListTriggers_MouseDoubleClick">
+            <ListView.View>
+              <GridView>
+                <GridViewColumn x:Name="ColEvent" Width="130" DisplayMemberBinding="{Binding EventName}"/>
+                <GridViewColumn x:Name="ColEventArg" Width="110" DisplayMemberBinding="{Binding EventArgs}"/>
+                <GridViewColumn x:Name="ColAction" Width="130" DisplayMemberBinding="{Binding ActionName}"/>
+                <GridViewColumn x:Name="ColActionArg" Width="150" DisplayMemberBinding="{Binding ActionArgs}"/>
+                <GridViewColumn x:Name="ColEnabled" Width="56" DisplayMemberBinding="{Binding EnabledText}"/>
+                <GridViewColumn x:Name="ColLog" Width="56" DisplayMemberBinding="{Binding LogText}"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+          <WrapPanel Grid.Row="2" Margin="0,6,0,0">
+            <Button x:Name="BtnNewTrigger" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Click="BtnNewTrigger_Click"/>
+            <Button x:Name="BtnEditTrigger" Margin="0,0,6,0" Click="BtnEditTrigger_Click"/>
+            <Button x:Name="BtnToggleTrigger" Margin="0,0,6,0" Click="BtnToggleTrigger_Click"/>
+            <Button x:Name="BtnRunTrigger" Margin="0,0,6,0" Click="BtnRunTrigger_Click"/>
+            <Button x:Name="BtnDeleteTrigger" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,0" Click="BtnDeleteTrigger_Click"/>
+            <Button x:Name="BtnImportTriggers" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnImportTriggers_Click"/>
+            <Button x:Name="BtnExportTriggers" Style="{StaticResource SubtleButtonStyle}" Click="BtnExportTriggers_Click"/>
+          </WrapPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- Monitor log + ROSBOT log -->
+      <TabItem x:Name="TabLogs">
+        <Grid Margin="4,6,4,4">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="60"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*" MinHeight="90"/>
+          </Grid.RowDefinitions>
+          <DockPanel Margin="0,0,0,4">
+            <Button x:Name="BtnClearLog" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}" Click="BtnClearLog_Click"/>
+            <TextBlock x:Name="LblLogTitle" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center" Margin="0"/>
+          </DockPanel>
+          <TextBox x:Name="TxtMonitorLog" Grid.Row="1" Style="{StaticResource MonoLogTextBoxStyle}"/>
+          <comp:RosbotLogBlock x:Name="RosbotLog" Grid.Row="3"/>
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</UserControl>

@@ -116,7 +116,14 @@ export interface CmVocabulary {
   capability_roles?: Record<string, string>;
   roles: string[];
   transitions?: Record<string, Record<string, Record<string, string[]>>>;
+  activity?: CmActivityVocabulary;
   policy: CmBootstrapPolicy;
+}
+
+export interface CmActivityVocabulary {
+  resources?: string[];
+  actions?: string[];
+  resource_state_groups?: Record<string, string>;
 }
 
 export interface CmBootstrap {

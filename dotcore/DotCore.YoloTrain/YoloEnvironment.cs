@@ -18,7 +18,16 @@ public sealed record PythonEnvironment(
 {
     public bool HasUltralytics => !string.IsNullOrEmpty(UltralyticsVersion);
 
-    public bool CanTrain => HasUltralytics && !string.IsNullOrEmpty(YoloCli) && File.Exists(YoloCli);
+    /// <summary>`from ultralytics.cfg import entrypoint` works in this interpreter.</summary>
+    public bool HasEntrypoint { get; init; }
+
+    public bool CanTrain => HasUltralytics && Launcher != null;
+
+    /// <summary>The interpreter itself (entrypoint) when possible, else this environment's yolo CLI; null when neither works.</summary>
+    public YoloLauncher? Launcher =>
+        HasEntrypoint && File.Exists(Executable) ? YoloLauncher.ForPython(Executable)
+        : !string.IsNullOrEmpty(YoloCli) && File.Exists(YoloCli) ? YoloLauncher.ForCli(YoloCli)
+        : null;
 }
 
 /// <summary>Machine and Python environment used to recommend training parameters.</summary>

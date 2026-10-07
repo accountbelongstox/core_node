@@ -102,7 +102,7 @@ class AgentHistoryDelivery:
             laravel_delivery_outbox.enqueue(kind, self._record(kind, record_id, audio_sha256), namespace=namespace)
 
     def _inventory(self) -> Iterator[Dict[str, Any]]:
-        for row in records.load_index()["records"]:
+        for row in records.list_all_records():
             record_id = str(row.get("id") or "")
             if not record_id:
                 continue
@@ -118,7 +118,7 @@ class AgentHistoryDelivery:
         """v1 flags: an uploaded record is on the pre-upgrade server with
         its current audio, unless a rebuilt audio still awaited replacement
         (then its hash is unknown and the local diff reports it stale)."""
-        for row in records.load_index()["records"]:
+        for row in records.list_all_records():
             record_id = str(row.get("id") or "")
             if not record_id or not row.get("uploaded"):
                 continue

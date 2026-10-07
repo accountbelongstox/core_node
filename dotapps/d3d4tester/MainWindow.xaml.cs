@@ -21,7 +21,6 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Hotkeys;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Pages.Main;
-using DotApps.d3d4tester.Pages.Rosbot;
 using DotApps.d3d4tester.Pages.D4;
 using DotApps.d3d4tester.Pages.Calibration;
 using DotApps.d3d4tester.Pages.RunLog;
@@ -89,7 +88,7 @@ public partial class MainWindow : Window, IMainWindowHost
         D3D4TesterI18n.EnsureInitialized();
         BattlenetManager.Instance.SetPathProvider(() => ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath ?? "");
         BattlenetManager.Instance.SetRegionProvider(() => ConfigBinding.GetValue(ConfigKeys.BattlenetRegion, ""));
-        // D3 window finder: same CONFIG key as 一键扫描 (ApplyScanResults writes ConfigKeys.D3Path) and RosbotPage TxtD3Path; priority = configured exe first, then title match.
+        // D3 window finder: same CONFIG key as 一键扫描 (ApplyScanResults writes ConfigKeys.D3Path) and RosbotSettingsBlock TxtD3Path; priority = configured exe first, then title match.
         D3WindowFinder.SetConfigPathProvider(() => ConfigOptionsProvider.GetOptions<D3Options>().D3Path ?? "");
 
         // 1:1 Python game_interface_data._initialize_battlenet_region_from_config: region at startup for the status bar.
@@ -139,6 +138,8 @@ public partial class MainWindow : Window, IMainWindowHost
         });
         BattlenetGuardService.Initialize();
         StartupShortcutService.Initialize();
+        BattlenetNetHoldService.Initialize();
+        RosbotBridgePluginService.Initialize();
         RosbotPluginConfigSync.Initialize();
 
         var langList = provider.GetSupportedLanguages()
@@ -158,6 +159,8 @@ public partial class MainWindow : Window, IMainWindowHost
 
         RefreshAllUiText();
         GameInterfaceData.Instance.RegisterCallback(UpdateStatusFromState);
+        if (GetPage(AppConstants.PanelKeyMonitor) is Pages.Monitor.MonitorPage monitor && GetPage(AppConstants.PanelKeyMain) is MainPage main)
+            monitor.RosbotPathsChanged += main.RefreshRosbotPaths;
 
         TabMain.SelectedIndex = LoadLastSelectedTab();
         TabMain.SelectionChanged += OnTabSelectionChanged;
@@ -166,6 +169,11 @@ public partial class MainWindow : Window, IMainWindowHost
         // Single 1 s TickDriver (flow % 2, smart echo % 3, inactive refresh % 10) replaces the 100 ms poll and the 2 s BN timer. 1:1 Python rosbot_task.
         TickDriver.Instance.RegisterEveryTick(RefreshPathState);
         RosbotTaskProcessor.Instance.Install();
+        Services.Monitor.MonitorService.Instance.Install();
+        Services.Monitor.RosbotKeyService.Install();
+        D3PlannerService.Initialize();
+        Core.Bridge.BridgeFollowTownPortal.Install();
+        D3PlannerService.Alert += a => Dispatcher.BeginInvoke(() => ShowTrayNotification(a.Title, a.Message));
         LoginTryController.Initialize();
         InitializeShell();
     }
@@ -301,21 +309,21 @@ public partial class MainWindow : Window, IMainWindowHost
     }
 
     /// <summary>
-    /// Route ColorPrint to the current tab's panel only: Rosbot -> RosbotPage, D4 -> D4Page, Log -> RunLogPage; Main and
-    /// Calibration have no sink. 1:1 Python _reregister_log_callback.
+    /// Route ColorPrint to the current tab's panel only: Monitor -> its ROSBOT log, D4 -> D4Page, Log -> RunLogPage; the other
+    /// tabs have no sink. 1:1 Python _reregister_log_callback (the ROSBOT panel log moved to the Monitor tab).
     /// </summary>
     private void SwitchColorPrintToSelectedTab()
     {
         if (GetPage(AppConstants.PanelKeyLog) is RunLogPage logPage)
             logPage.UnregisterAsLogTarget();
-        if (GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rosbotPage)
-            rosbotPage.UnregisterAsLogTarget();
+        if (GetPage(AppConstants.PanelKeyMonitor) is Pages.Monitor.MonitorPage monitorPage)
+            monitorPage.UnregisterAsLogTarget();
         if (GetPage(AppConstants.PanelKeyD4) is D4Page d4Page)
             d4Page.UnregisterAsLogTarget();
         switch (TabMain.SelectedIndex)
         {
-            case AppConstants.TabIndexRosbot when GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rb:
-                rb.RegisterAsLogTarget();
+            case AppConstants.TabIndexMonitor when GetPage(AppConstants.PanelKeyMonitor) is Pages.Monitor.MonitorPage mp:
+                mp.RegisterAsLogTarget();
                 break;
             case AppConstants.TabIndexD4 when GetPage(AppConstants.PanelKeyD4) is D4Page d4:
                 d4.RegisterAsLogTarget();
@@ -401,12 +409,12 @@ public partial class MainWindow : Window, IMainWindowHost
         Title = p.GetUiText(I18nKeys.MainWindowTitle);
         TitleBar.Title = Title;
         TabMainPage.Header = p.GetUiText(I18nKeys.TabsMainFunctions);
-        TabRosbot.Header = p.GetUiText(I18nKeys.TabsRosbotExtension);
         TabD4.Header = p.GetUiText(I18nKeys.TabsD4Functions);
         TabCalibration.Header = p.GetUiText(I18nKeys.TabsCoordinateCalibration);
         TabLog.Header = p.GetUiText(I18nKeys.TabsLog);
         TabBattlenet.Header = p.GetUiText(I18nKeys.TabsBattlenetManagement);
         TabDecompile.Header = p.GetUiText(I18nKeys.TabsDecompile);
+        TabMonitor.Header = p.GetUiText(I18nKeys.TabsMonitor);
         BtnScanPaths.Content = p.GetUiText(_pathScanInProgress ? I18nKeys.BottomBarScanning : I18nKeys.BottomBarOneClickScan);
         BtnScanPaths.ToolTip = p.GetUiText(I18nKeys.BottomBarOneClickScanTooltip);
         GameInterfaceData.Instance.NotifyCallbacks();
@@ -414,14 +422,14 @@ public partial class MainWindow : Window, IMainWindowHost
             mainPage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyD4) is D4Page d4Page)
             d4Page.RefreshI18n();
-        if (GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rosbotPage)
-            rosbotPage.RefreshRosbotUiText();
         if (GetPage(AppConstants.PanelKeyLog) is RunLogPage runLogPage && runLogPage.IsLoaded)
             runLogPage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyBattlenet) is BattlenetPage battlenetPage && battlenetPage.IsLoaded)
             battlenetPage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyDecompile) is Pages.Decompile.DecompilePage decompilePage && decompilePage.IsLoaded)
             decompilePage.RefreshI18n();
+        if (GetPage(AppConstants.PanelKeyMonitor) is Pages.Monitor.MonitorPage monitorPage && monitorPage.IsLoaded)
+            monitorPage.RefreshI18n();
     }
 
     private void UpdateStatusFromState(GameInterfaceStateSnapshot s)
@@ -577,8 +585,8 @@ public partial class MainWindow : Window, IMainWindowHost
         string finalRos = didWriteRos ? chosen! : (rosOpts.RosDirectory ?? "");
         GameInterfaceData.Instance.UpdateFromPaths(finalBn, finalD3, finalRos);
         GameInterfaceData.Instance.NotifyCallbacks();
-        if (GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rosbotPage)
-            rosbotPage.RefreshPathFromConfig();
+        if (GetPage(AppConstants.PanelKeyMain) is MainPage mainPage)
+            mainPage.RefreshRosbotPaths();
         if (result.BattlenetPath == null && result.D3Path == null && result.RosbotDirs.Count == 0)
             ShowScanNothingFound();
     }
@@ -736,6 +744,8 @@ public partial class MainWindow : Window, IMainWindowHost
         [BattlenetGameAction.Install] = ("\uE896", WarningBrushKeyGameUi, I18nKeys.GameUiActionInstall),
         [BattlenetGameAction.TryFree] = ("\uE719", ErrorBrushKeyGameUi, I18nKeys.GameUiActionTryFree),
         [BattlenetGameAction.Starting] = ("\uE916", GameUiFoundBrushKey, I18nKeys.GameUiActionStarting),
+        [BattlenetGameAction.Downloading] = ("\uE896", GameUiFoundBrushKey, I18nKeys.GameUiActionDownloading),
+        [BattlenetGameAction.DownloadPaused] = ("\uE769", WarningBrushKeyGameUi, I18nKeys.GameUiActionDownloadPaused),
     };
 
     public object? GetPage(string key)
@@ -743,12 +753,12 @@ public partial class MainWindow : Window, IMainWindowHost
         return key switch
         {
             AppConstants.PanelKeyMain => TabMainPage.Content,
-            AppConstants.PanelKeyRosbot => TabRosbot.Content,
             AppConstants.PanelKeyD4 => TabD4.Content,
             AppConstants.PanelKeyCalibration => TabCalibration.Content,
             AppConstants.PanelKeyLog => TabLog.Content,
             AppConstants.PanelKeyBattlenet => TabBattlenet.Content,
             AppConstants.PanelKeyDecompile => TabDecompile.Content,
+            AppConstants.PanelKeyMonitor => TabMonitor.Content,
             _ => null
         };
     }

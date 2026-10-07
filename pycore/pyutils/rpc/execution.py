@@ -9,11 +9,12 @@ import json
 import uuid
 from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple
 
+from pycore.pyfoundations.elastic_worker_pool import ElasticWorkerPool
+from pycore.pyfoundations.json_codec import json_codec
 from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
     HTTP_JSON_CONTENT_TYPE as RPC_JSON_CONTENT_TYPE,
 )
-from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
@@ -23,6 +24,8 @@ from pycore.pyutils.rpc.dispatcher import HttpDispatcher, HttpRoute
 
 
 RPC_TEXT_CONTENT_TYPE = "text/plain"
+RPC_ROUTE_THREAD_NAME = "RpcRouteThread"
+RPC_ROUTE_IDLE_SECONDS = 60.0
 # Multipart bodies stream into spooled parts with no total deadline; file
 # parts reach handlers as upload objects and services enforce size caps.
 RPC_MULTIPART_CONTENT_TYPE = "multipart/form-data"
@@ -46,19 +49,44 @@ class RpcExecutionError(ValueError):
         self.status_code = int(status_code)
 
 
+def _set_future_result(future: "asyncio.Future[Any]", result: Any) -> None:
+    if not future.done():
+        future.set_result(result)
+
+
+def _set_future_exception(future: "asyncio.Future[Any]", error: BaseException) -> None:
+    if not future.done():
+        future.set_exception(error)
+
+
+def _bounce_to_loop(loop: Any, setter: Any, future: "asyncio.Future[Any]", value: Any) -> None:
+    """Complete ``future`` from a worker thread; a loop that already ended (timed-out relay call) drops it."""
+    if not loop.is_closed():
+        loop.call_soon_threadsafe(setter, future, value)
+
+
 class RpcExecutionKernel:
     """One route table and execution pipeline shared by HTTP and Relay."""
 
     def __init__(self) -> None:
+        self._route_workers = ElasticWorkerPool(RPC_ROUTE_THREAD_NAME, RPC_ROUTE_IDLE_SECONDS)
         self.dispatcher = HttpDispatcher(sync_invoker=self._invoke_sync_handler)
 
-    @staticmethod
-    async def _invoke_sync_handler(handler: Any, arguments: tuple) -> Any:
-        return await await_bus_task(
-            handler,
-            *arguments,
-            thread_name="RpcRouteThread",
-        )
+    async def _invoke_sync_handler(self, handler: Any, arguments: tuple) -> Any:
+        """Run a synchronous handler on a reusable route worker; the loop never starts a thread."""
+        loop = asyncio.get_running_loop()
+        future: "asyncio.Future[Any]" = loop.create_future()
+
+        def job() -> None:
+            try:
+                result = handler(*arguments)
+            except Exception as exc:  # bounce the exception onto the loop thread
+                _bounce_to_loop(loop, _set_future_exception, future, exc)
+                return
+            _bounce_to_loop(loop, _set_future_result, future, result)
+
+        self._route_workers.submit(job)
+        return await future
 
     def register(
         self,
@@ -161,8 +189,8 @@ class RpcExecutionKernel:
             params["text"] = body.decode("utf-8", errors="replace")
             return params
         try:
-            payload = json.loads(body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            payload = json_codec.decode(body)
+        except json_codec.DecodeError as error:
             raise RpcExecutionError("request_body_json_invalid", 400) from error
         if not isinstance(payload, dict):
             raise RpcExecutionError("request_body_not_object", 400)
@@ -309,18 +337,10 @@ class RpcExecutionKernel:
                 has_body,
             )
         else:
-            fastapi = get_third_package_fastapi()
-            encoded = fastapi.encoders.jsonable_encoder(result)
-            body = json.dumps(
-                encoded,
-                ensure_ascii=False,
-                allow_nan=False,
-                separators=(",", ":"),
-            ).encode("utf-8")
             response = RpcExecutionResponse(
                 200,
                 {"Content-Type": RPC_JSON_CONTENT_TYPE},
-                body,
+                json_codec.encode(result, default=get_third_package_fastapi().encoders.jsonable_encoder),
             )
         headers = dict(response.headers)
         headers["X-Request-ID"] = str(request_id)
@@ -339,16 +359,11 @@ class RpcExecutionKernel:
         status_code: int,
         request_id: str,
     ) -> RpcExecutionResponse:
-        body = json.dumps(
-            {
-                "success": False,
-                "error": {"code": str(code)},
-                "request_id": str(request_id),
-            },
-            ensure_ascii=False,
-            allow_nan=False,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        body = json_codec.encode({
+            "success": False,
+            "error": {"code": str(code)},
+            "request_id": str(request_id),
+        })
         return RpcExecutionResponse(
             int(status_code),
             {

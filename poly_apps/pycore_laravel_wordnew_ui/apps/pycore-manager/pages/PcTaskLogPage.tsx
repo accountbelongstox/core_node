@@ -80,6 +80,7 @@ const PcTaskLogPage: React.FC = () => {
               <div className="flex gap-2">
                 <span className="text-[10px] font-mono text-slate-400 shrink-0">{e.ts?.slice(0, 19) || '—'}</span>
                 <span className="text-[10px] uppercase text-indigo-400 shrink-0">{e.task_type}</span>
+                {e.worker && <span className="text-[10px] text-slate-400 shrink-0">{e.worker}</span>}
                 <span className={`text-[10px] shrink-0 ${e.success ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {e.success ? 'ok' : 'fail'}
                 </span>

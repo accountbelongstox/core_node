@@ -42,6 +42,8 @@ public static class BattlenetGameLauncher
             case BattlenetGameAction.Update:
             case BattlenetGameAction.Install:
             case BattlenetGameAction.TryFree:
+            case BattlenetGameAction.Downloading:
+            case BattlenetGameAction.DownloadPaused:
                 ColorPrinter.Yellow($"{LogTag} {game} page shows {action} instead of Play, not starting");
                 return false;
         }

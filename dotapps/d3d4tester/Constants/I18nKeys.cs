@@ -10,10 +10,10 @@ public static partial class I18nKeys
     public const string MainWindowTitle = "ui.main_window.title";
 
     public const string TabsMainFunctions = "ui.tabs.main_functions";
-    public const string TabsRosbotExtension = "ui.tabs.rosbot_extension";
     public const string TabsD4Functions = "ui.tabs.d4_functions";
     public const string TabsCoordinateCalibration = "ui.tabs.coordinate_calibration";
     public const string TabsLog = "ui.tabs.log";
+    public const string TabsRosbotExtension = "ui.tabs.rosbot_extension";
 
     public const string OptionsPlaySoundOnSwitch = "ui.options.play_sound_on_switch";
     public const string OptionsSmartPause = "ui.options.smart_pause";
@@ -59,6 +59,8 @@ public static partial class I18nKeys
     public const string RosbotMinutes = "ui.rosbot.minutes";
     public const string RosbotPreventStuck = "ui.rosbot.prevent_stuck";
     public const string RosbotStartup = "ui.rosbot.startup";
+    public const string StartupShortcutPath = "ui.startup.shortcut_path";
+    public const string StartupShortcutPathMissing = "ui.startup.shortcut_path_missing";
     public const string RosbotTimeoutRestart = "ui.rosbot.timeout_restart";
     public const string RosbotControlPanel = "ui.rosbot.control_panel";
     public const string RosbotStartRosbot = "ui.rosbot.start_rosbot";

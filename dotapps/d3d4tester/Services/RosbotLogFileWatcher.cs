@@ -7,12 +7,13 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// Watchdog-driven tail of logs.txt: enqueue complete lines to <see cref="RosbotLogLineBridge"/>.
+/// Watchdog-driven tail of logs.txt: enqueue complete lines to <see cref="RosbotLogLineBridge"/> (or to the given sink, e.g. history.txt).
 /// 1:1 Python threads/log_monitor_thread (watch + poll fallback).
 /// </summary>
 public sealed class RosbotLogFileWatcher : IDisposable
 {
     private readonly object _sync = new();
+    private readonly Action<string> _sink;
     private FileSystemWatcher? _watcher;
     private System.Timers.Timer? _pollTimer;
     private string? _path;
@@ -21,6 +22,8 @@ public sealed class RosbotLogFileWatcher : IDisposable
     private string _pendingPartial = "";
     private bool _initialized;
     private bool _disposed;
+
+    public RosbotLogFileWatcher(Action<string>? sink = null) => _sink = sink ?? RosbotLogLineBridge.Enqueue;
 
     /// <summary>Last logs.txt write time seen by the tail (UTC); null before the file is initialized. 1:1 Python get_last_log_modified_time.</summary>
     public DateTime? LastModifiedUtc
@@ -208,7 +211,7 @@ public sealed class RosbotLogFileWatcher : IDisposable
         {
             var line = raw.TrimEnd('\r');
             if (!string.IsNullOrWhiteSpace(line))
-                RosbotLogLineBridge.Enqueue(line);
+                _sink(line);
         }
     }
 

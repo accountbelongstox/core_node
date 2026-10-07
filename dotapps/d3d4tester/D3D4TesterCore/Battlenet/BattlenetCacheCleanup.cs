@@ -7,7 +7,7 @@ namespace DotApps.d3d4tester.Core.Battlenet;
 /// <summary>
 /// Battle.net cache cleanup for stuck states (Agent went to sleep / Fetching-Loading account info).
 /// Reddit/Blizzard: corrupted cache is the main cause; delete ProgramData and AppData Battle.net folders after fully closing BN/Agent.
-/// Call only when stuck in sleep or fetching for StuckCleanupDelaySec (e.g. 5 min).
+/// BattlenetReadyProcess calls it only after sleep / account loading lasted StuckCleanupDelaySec (5 min).
 /// </summary>
 public static class BattlenetCacheCleanup
 {

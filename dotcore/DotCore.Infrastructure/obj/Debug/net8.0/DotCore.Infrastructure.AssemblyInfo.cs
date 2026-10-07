@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.Infrastructure")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0d786e9191456f3f406a46c6586f213a317088df")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0c0e78e1cc8d2218a7ddf146471cb94aa6735316")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.Infrastructure")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.Infrastructure")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

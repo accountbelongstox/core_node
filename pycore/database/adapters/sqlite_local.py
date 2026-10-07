@@ -64,6 +64,7 @@ def open_wal_connection(
     row_factory: Optional[object] = None,
     isolation_level: Optional[str] = "",
     check_same_thread: bool = False,
+    query_only: bool = False,
 ) -> sqlite3.Connection:
     """Open a writable SQLite connection with WAL, busy timeout, and optional pragmas."""
     path = Path(local_sqlite_path(db_path))
@@ -81,6 +82,8 @@ def open_wal_connection(
         conn.execute(f"PRAGMA synchronous={synchronous}")
     if foreign_keys:
         conn.execute("PRAGMA foreign_keys=ON")
+    if query_only:
+        conn.execute("PRAGMA query_only=ON")
     return conn
 
 

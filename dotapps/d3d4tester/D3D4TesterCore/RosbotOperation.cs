@@ -41,8 +41,8 @@ public sealed class RosbotOperation : IRosbotOperation
     }
 
     /// <inheritdoc />
-    public bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true) =>
-        RosbotUiAutomation.RunAfterRosbotStart(waitSec, doDebug, doTab, doStartBotting);
+    public bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true, Func<bool>? shouldStop = null) =>
+        RosbotUiAutomation.RunAfterRosbotStart(waitSec, doDebug, doTab, doStartBotting, shouldStop);
 
     /// <inheritdoc />
     public bool ResumeRosbot(bool doTab = true, bool doStartBotting = true) =>

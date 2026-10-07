@@ -69,6 +69,7 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "httpx": "httpx",
     "okx": "python-okx",
     "redis": "redis",
+    "orjson": "orjson",
     "google.genai": "google-genai",
     "openai": "openai",
     "pygame": "pygame",
@@ -94,6 +95,7 @@ OPTIONAL_PACKAGES: Dict[str, str] = {
     "lxml": "lxml",
     "nltk": "nltk",
     "google.auth": "google-auth",
+    "pynvml": "nvidia-ml-py",
 }
 
 WINDOWS_ONLY_PACKAGES: Dict[str, str] = {

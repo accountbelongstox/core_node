@@ -37,7 +37,7 @@ A client turns a requirement into a funded project; an architect may structure i
 
 ## 3. Server contract
 
-- One bootstrap projection returns account, roles, capabilities, state vocabulary (including `terminal_states`, `capability_roles`), policy (including `withdrawal_methods`) and onboarding truth (completed and next steps). The UI keeps no second copy of server-owned vocabulary (`contexts/CmBootstrapContext.tsx`).
+- One bootstrap projection returns account, roles, capabilities, state vocabulary (including `terminal_states`, `capability_roles`), the activity vocabulary (`activity.resources`, `activity.actions`, `activity.resource_state_groups` mapping an activity resource to its state group), policy (including `withdrawal_methods`) and onboarding truth (completed and next steps). The UI keeps no second copy of server-owned vocabulary (`contexts/CmBootstrapContext.tsx`).
 - Canonical states, owned by the server:
   - Role: `pending -> active | rejected`; `active <-> suspended`.
   - AI analysis: `pending -> processing -> completed | failed`; `completed -> revision_requested -> pending`.
@@ -115,7 +115,6 @@ A client turns a requirement into a funded project; an architect may structure i
 - Not covered by the automated tests: positive email verification (`MAIL_MAILER=log`, the token never reaches the API), the registration with the installation super code (it would create a permanent administrator), phone OTP (no SMS provider), the AI analysis path while the operator task is disabled (the sweep asserts `analysis_unavailable` 503 and `confirm-budget`; with the task enabled it runs analyze, poll, accept and replay), architect self-application (needs the 10-project track record; the sweep grants the role as administrator), and interactive UI actions (buttons, forms, submission-review messages: the crawl only loads pages). The Laravel log is `/www/wwwroot/laravel_db/logs/laravel-<date>.log` (server date) and the UI token is `localStorage.app_auth_token`.
 - Server note: `AvatarService` calls api.dicebear.com on registration with a 2-3 s timeout, so registration is slow on hosts without outbound access (not a CodeMart defect, the avatar falls back locally).
 - Workspace pages (K3) are polished in code; the en/zh crawl at 390/1000/1280 px for all seven demo accounts that marks them verified is pending.
-- Server vocabulary copies: `admin/CmAdminTypes.ts` keeps `CM_ADMIN_ACTIVITY_ACTIONS`, `CM_ADMIN_ACTIVITY_RESOURCES` and `CM_ADMIN_RESOURCE_STATE_GROUPS` locally; they belong in the bootstrap vocabulary (cmdesign-03).
 - The Laravel image gateway fails on hosts whose FrankenPHP PHP has no CA bundle (`curl.cainfo`/`openssl.cafile` empty), so icons are generated through the pycore gateway; the CA bundle belongs to the shell installers.
 - Phone OTP delivery: no SMS provider implementation exists (`CodeMartV1Constants::SMS_PROVIDERS` is empty; `CodeMartV1OtpService::sendOtpSms` reports failure and never logs the code), so phone verification stays optional in onboarding (`smsDeliveryAvailable()` requires `CODEMART_SMS_PROVIDER` to name a listed provider) until a provider is added.
 - Data cleanup of test data needs user approval: test projects (ids 2, 11-15, 19-22), `cmtest_*`/`cmui*`/`cmkimi*` users, "UI Tester"/"Kimi" contact messages, deposits 12-16, refund 3, testimonial 5, reviewer applications 3-4.

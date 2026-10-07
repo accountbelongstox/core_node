@@ -71,7 +71,7 @@ public static class RosbotSmartEchoCoordinator
             _resumePending = true;
             _ocrResumeScheduled = false;
         }
-        if (!SystemKeySend.TrySendF7())
+        if (!RosbotManager.SendF7ToSystem())
         {
             lock (Sync) _resumePending = false;
             ColorPrinter.Red($"{LogPrefix} F7 send failed");
@@ -194,6 +194,6 @@ public static class RosbotSmartEchoCoordinator
         {
             ColorPrinter.Yellow($"{LogPrefix} Resume: " + ex.Message);
         }
-        RosbotFlowHost.Current?.TriggerExtensionRosbotStart();
+        F3MonitorProcess.RequestRosbotRestart();
     }
 }

@@ -4,12 +4,9 @@
 import functools
 import os
 import platform
-import shutil
-import subprocess
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.network_constants import NVIDIA_SMI_TIMEOUT_SECONDS
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_RESOURCES_TTL_SECONDS,
@@ -37,7 +34,7 @@ from pycore.pyctl.desktop.video_extract_models import (
 from pycore.pyctl.runtime.user_data_service import user_data_service
 from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyfoundations.tasks import TaskStatus
-from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_third_package_pynvml
 from pycore.pyfoundations.pygvar import IS_WINDOWS
 
 
@@ -277,51 +274,46 @@ class VideoExtractService:
 # --------------------------------------------------------------------------- #
 # System resources (CPU / memory / GPU) - shared by the resources endpoint     #
 # --------------------------------------------------------------------------- #
-def _query_gpus():
-    """Best-effort per-GPU utilization/memory via nvidia-smi. Returns [] when no
-    NVIDIA GPU / nvidia-smi is present."""
+class _NvmlGpuProbe:
+    """Per-GPU utilization/memory through NVML, in process (no nvidia-smi
+    child per sample). NVML is initialized once; a host without an NVIDIA
+    driver reports no GPUs."""
 
-    exe = shutil.which("nvidia-smi")
-    if not exe:
-        return []
-    try:
-        out = subprocess.run(
-            [exe, "--query-gpu=index,name,utilization.gpu,memory.used,memory.total",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        ColorPrint.yellow(f"[VideoExtract] nvidia-smi query failed ({exe}): {exc}")
-        return []
-    if out.returncode != 0:
-        return []
+    def __init__(self) -> None:
+        self._initialized = False
 
-    def _num(token, cast):
-        token = (token or "").strip()
-        if not token or token.lower() in ("n/a", "[n/a]"):
-            return None
+    def query(self) -> list:
+        pynvml = get_third_package_pynvml()
+        if pynvml is None:
+            return []
         try:
-            return cast(token)
-        except (ValueError, TypeError):
-            return None
+            if not self._initialized:
+                pynvml.nvmlInit()
+                self._initialized = True
+            gpus = []
+            for index in range(pynvml.nvmlDeviceGetCount()):
+                handle = pynvml.nvmlDeviceGetHandleByIndex(index)
+                utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                memory = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                name = pynvml.nvmlDeviceGetName(handle)
+                gpus.append({
+                    "index": index,
+                    "name": name.decode("utf-8", "replace") if isinstance(name, bytes) else str(name),
+                    "util_percent": float(utilization.gpu),
+                    "mem_used_mb": int(memory.used // (1024 * 1024)),
+                    "mem_total_mb": int(memory.total // (1024 * 1024)),
+                })
+        except pynvml.NVMLError as exc:
+            ColorPrint.yellow(f"[VideoExtract] NVML GPU query failed: {exc}")
+            return []
+        return gpus
 
-    gpus = []
-    for line in (out.stdout or "").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = [p.strip() for p in line.split(",")]
-        if len(parts) < 5:
-            continue
-        gpus.append({
-            "index": _num(parts[0], int) or 0,
-            "name": parts[1],
-            "util_percent": _num(parts[2], float),
-            "mem_used_mb": _num(parts[3], int),
-            "mem_total_mb": _num(parts[4], int),
-        })
-    return gpus
+
+_nvml_gpu_probe = _NvmlGpuProbe()
+
+
+def _query_gpus():
+    return _nvml_gpu_probe.query()
 
 
 CPU_NAME_REGISTRY_KEY = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"

@@ -3,6 +3,7 @@
 ARROW_MENU_LOADED="${ARROW_MENU_LOADED:-false}"
 ARROW_MENU_SELECTED_INDEX=0
 ARROW_MENU_CANCELLED=false
+ARROW_MENU_KEY=""
 
 if [ "$ARROW_MENU_LOADED" = "true" ]; then
     return
@@ -36,12 +37,15 @@ arrow_menu_noninteractive() {
     return 1
 }
 
+# horizontal=true (6th argument) also returns on Left/Right: ARROW_MENU_KEY is
+# left, right or enter (form rows that cycle their value).
 arrow_menu_select() {
     local title="$1"
     local options_name="$2"
     local initial_index="${3:-0}"
     local back_index="${4:--1}"
     local render_callback="${5:-}"
+    local horizontal="${6:-false}"
     local -n arrow_menu_options="$options_name"
     local option_count="${#arrow_menu_options[@]}"
     local selected_index="$initial_index"
@@ -54,6 +58,7 @@ arrow_menu_select() {
     local option_length=0
 
     ARROW_MENU_CANCELLED=false
+    ARROW_MENU_KEY=""
     if [ "$option_count" -eq 0 ]; then
         ARROW_MENU_SELECTED_INDEX=-1
         return
@@ -89,7 +94,11 @@ arrow_menu_select() {
                 "$render_callback"
                 echo ""
             fi
-            echo "Select an option (Up/Down to move, Enter to select):"
+            if [ "$horizontal" = "true" ]; then
+                echo "Up/Down: choose item | Left/Right: change value | Enter: edit / run"
+            else
+                echo "Select an option (Up/Down to move, Enter to select):"
+            fi
             if [ "$back_index" -ge 0 ]; then
                 echo "Press Ctrl+C to go back"
             fi
@@ -136,6 +145,13 @@ arrow_menu_select() {
                 case "$sequence" in
                     '[A'|'OA') selected_index=$(((selected_index - 1 + option_count) % option_count)) ;;
                     '[B'|'OB') selected_index=$(((selected_index + 1) % option_count)) ;;
+                    '[C'|'OC'|'[D'|'OD')
+                        if [ "$horizontal" = "true" ]; then
+                            ARROW_MENU_KEY="$([[ "$sequence" == *C ]] && echo right || echo left)"
+                            ARROW_MENU_SELECTED_INDEX="$selected_index"
+                            return
+                        fi
+                        ;;
                 esac
                 ;;
             ''|$'\r'|$'\n')
@@ -143,6 +159,7 @@ arrow_menu_select() {
                 # icrnl translation (raw-mode predecessors), where Enter
                 # otherwise never confirms and the menu looks stuck.
                 ARROW_MENU_SELECTED_INDEX="$selected_index"
+                ARROW_MENU_KEY="enter"
                 printf "\n" > /dev/tty
                 return
                 ;;

@@ -14,7 +14,6 @@ from typing import Any, AsyncContextManager, Callable, Dict, Iterable, List, Opt
 from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyfoundations.network_constants import (
@@ -37,6 +36,7 @@ from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_
 from pycore.pyutils.common.prerequisite_steps import current_platform
 from pycore.pyutils.rpc.dispatcher import HttpRoute
 from pycore.pyutils.rpc.execution import RpcExecutionError, rpc_execution_kernel
+from pycore.pyutils.rpc.http.access_log import http_access_log
 from pycore.pyutils.rpc.http.ws_event_service import WsEventService
 from pycore.pyutils.rpc.http.local_rpc_middleware import (
     LOCAL_RPC_ORIGIN_SCOPE_KEY,
@@ -71,10 +71,7 @@ class _HttpProtocolMiddleware:
         route = str(scope.get("path") or "/")
         started_at = float(scope.get(cls.STARTED_AT_SCOPE_KEY) or time.perf_counter())
         duration_ms = (time.perf_counter() - started_at) * 1000
-        ColorPrint.gray(
-            f"[HttpServer] {method} {route} -> {status_code} "
-            f"({duration_ms:.1f} ms)"
-        )
+        http_access_log.completed(method, route, status_code, duration_ms)
         scope[cls.RESPONSE_LOGGED_SCOPE_KEY] = True
 
     async def __call__(self, scope: Dict[str, Any], receive: Any, send: Any) -> None:
@@ -87,7 +84,7 @@ class _HttpProtocolMiddleware:
         started_at = time.perf_counter()
         scope[self.STARTED_AT_SCOPE_KEY] = started_at
         scope[self.RESPONSE_LOGGED_SCOPE_KEY] = False
-        ColorPrint.green(f"[HttpServer] Received {method} {route}")
+        http_access_log.received(method, route)
 
         async def send_with_protocol(message: Dict[str, Any]) -> None:
             if message.get("type") == "http.response.start":
@@ -268,7 +265,7 @@ class HttpServer:
             browser_id = str(payload.get("browser_id") or "").strip()
             return {
                 "success": True,
-                "client_id": await event_journal.allocate_client_id_async(browser_id),
+                "client_id": event_journal.allocate_client_id(browser_id),
                 "instance_id": event_journal.instance_id,
             }
 
@@ -278,8 +275,7 @@ class HttpServer:
 
         @self.app.get(HTTP_INFO_PATH)
         async def info() -> Dict[str, Any]:
-            # Reads the journal seq on its owner thread, off the event loop.
-            return await await_bus_task(self._protocol_info, thread_name="HttpProtocolInfoThread")
+            return self._protocol_info()
 
         @self.app.get(HTTP_ROUTES_PATH)
         async def routes() -> Dict[str, Any]:

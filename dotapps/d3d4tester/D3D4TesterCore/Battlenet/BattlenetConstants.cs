@@ -38,8 +38,6 @@ public static class BattlenetConstants
     public static readonly string[] BrowserLoginSubmitKeywords = { "登录", "登 录", "登入", "Log in", "Log In", "Sign in" };
     /// <summary>Password field name fallback when the UIA IsPassword property is not exposed.</summary>
     public static readonly string[] BrowserLoginPasswordKeywords = { "密码", "密碼", "Password" };
-    /// <summary>Web login step timeout (s) before exiting Battle.net (B11 -> B5).</summary>
-    public const double BrowserLoginTimeoutSec = 300.0;
 
     // ---------- Login screen: AutomationId first; keyword fallback only when no AutomationId found ----------
     public static readonly string[] LoginWindowAutomationIdMarkersCn = { "LoginWindow", "loginWidgetContainer", "loginWidget", "login-wrapper", "login-header", "legalAcceptance", "ntes", "connectAccounts" };
@@ -64,6 +62,33 @@ public static class BattlenetConstants
     public static readonly string[] GameActionUpdateNames = { "Update", "更新" };
     public static readonly string[] GameActionInstallNames = { "Install", "安装", "安裝" };
     public static readonly string[] GameActionTryFreeNames = { "Try For Free", "Try Free", "Buy Now", "免费试玩", "免費試玩", "立即购买", "立即購買" };
+    /// <summary>
+    /// Game page download control (live scan CN D4 install: ButtonControl "Resume Download" / "Pause Download", automation id
+    /// progress-bar-container-&lt;guid&gt;-resume-btn for both, status text "Paused" / "Queued", ProgressBarControl
+    /// "You can play at 40%, Installing required files", rate button "1.18 MB/s", size text "7.84 / 194.40 GB").
+    /// While it shows, the page's Play button is disabled because the game is installing, not starting.
+    /// </summary>
+    public const string DownloadButtonAutomationIdSuffix = "-resume-btn";
+    public static readonly string[] DownloadResumeNames = { "Resume Download", "Resume", "继续下载", "繼續下載", "恢复下载" };
+    public static readonly string[] DownloadPauseNames = { "Pause Download", "Pause", "暂停下载", "暫停下載" };
+    public const string ProgressBarControlType = "ProgressBarControl";
+    public const string DownloadRateAutomationIdPrefix = "download-rate-settings-button";
+    /// <summary>Size text "7.84 / 194.40 GB".</summary>
+    public static readonly string[] DownloadSizeUnits = { " GB", " MB", " KB" };
+    /// <summary>
+    /// Install dialog (live scan: window "Diablo IV Installation", class Phoenix::Install::InstallDialog, automation id InstallDialog).
+    /// Page 1 InstallStartView: editInstallDir (location text), buttonChange (opens the Windows "Choose a Folder" dialog),
+    /// buttonConfirm "Continue". Page 2 "Install Content" (Base Game / High-Resolution Assets): buttonConfirm "Start Install".
+    /// </summary>
+    public const string InstallDialogAutomationId = "InstallDialog";
+    public const string InstallDirAutomationIdSuffix = ".editInstallDir";
+    public const string InstallChangeFolderAutomationIdSuffix = ".buttonChange";
+    public const string InstallConfirmAutomationIdSuffix = ".buttonConfirm";
+    public const int InstallDialogWaitMs = 2500;
+    public const int InstallPageWaitMs = 2000;
+    public const int InstallDialogMaxPages = 4;
+    public const int FolderDialogTimeoutSec = 10;
+
     /// <summary>In-page modal popups (live scan: welcome-screen-modal "Explore your favorite games..." with Continue / Close).</summary>
     public const string ModalAutomationIdSuffix = "-modal";
     public static readonly string[] ModalCloseNames = { "Close", "关闭", "關閉" };
@@ -243,23 +268,27 @@ public static class BattlenetConstants
     public const int ActivateSettleMs = 200;
     public const int KillWaitTimeoutSec = 15;
 
-    // ---------- UI snapshots. 1:1 Python BN_FLOW_SNAPSHOTS_DIR / DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS ----------
-    public static readonly bool DebugSaveBnFlowUiSnapshots = false;
-    public const string BnFlowSnapshotsDirName = "bn_flow_snapshots";
-    public const string CacheDirName = D3PathConstants.CacheDirName;
-    public const string BnFlowSnapshotFilePrefix = "bn_flow_";
-
-    // ---------- BN flow timings. 1:1 Python BN_FLOW_* / flow_bn_block_state ----------
-    public const double FlowWaitAfterStartSec = 3.0;
-    public const double FlowPollTimeoutSec = 120.0;
-    public const double FlowOauthWaitSec = 120.0;
-    public const double FlowExitWaitSec = 2.0;
-    public const double FlowWaitPlaySec = 8.0;
-    public const int B7TriggerDAfterSkips = 6;
-    public const double B7TriggerDCooldownSec = 30.0;
-    public const double B11TickIntervalSec = 2.0;
-    public static readonly int B11MaxTicks = Math.Max(1, (int)(BrowserLoginTimeoutSec / B11TickIntervalSec));
+    // ---------- B process timings (BattlenetReadyProcess) ----------
+    /// <summary>Probe interval while waiting for the client to become ready.</summary>
+    public const double ReadyPollSec = 2.0;
+    /// <summary>Wait after a start / reopen / restart command before the next probe.</summary>
+    public const double AfterStartSec = 5.0;
+    /// <summary>After a start / show / restart command the client may run without a window for this long (no second start meanwhile).</summary>
+    public const double StartupGraceSec = 30.0;
+    /// <summary>Minimum gap between two automatic login actions (agree + NetEase, Asia fill + submit) on the same screen.</summary>
+    public const double LoginActionCooldownSec = 15.0;
+    /// <summary>Minimum gap between two region switches.</summary>
+    public const double RegionSwitchCooldownSec = 120.0;
 
     public const string RegionAsia = "asia";
     public const string RegionCn = "cn";
+
+    /// <summary>Battle.net agent product database (protobuf) and the D4 install entry / build info inside the game folder.</summary>
+    public const string AgentDirName = "Battle.net";
+    public const string AgentSubDirName = "Agent";
+    public const string ProductDbFileName = "product.db";
+    public const string D4ProductCode = "fenris";
+    public const string BuildInfoFileName = ".build.info";
+    /// <summary>.build.info Branch of the China (NetEase) build; every other branch is an international build.</summary>
+    public const string D4BranchCn = "cn";
 }

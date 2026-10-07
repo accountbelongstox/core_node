@@ -9,9 +9,9 @@ namespace DotCore.YoloTaskSet;
 
 /// <summary>
 /// Task sets on disk: {root}/{id}/taskset.json plus imported resources (YOLO_TASKSET_SYNTHESIS_DESIGN.md §3).
-/// Every mutating method saves taskset.json.
+/// Every mutating method saves taskset.json once.
 /// </summary>
-public sealed class TaskSetStore
+public sealed partial class TaskSetStore
 {
     public const string TaskSetFileName = "taskset.json";
     public const string TaskSetsSubdir = YoloDataLayout.ReservedPrefix + "tasksets";
@@ -19,6 +19,7 @@ public sealed class TaskSetStore
     public const string VariantsSubdir = "variants";
     public const string ScenesSubdir = "scenes";
     public const string CommonSubdir = "common";
+    public const string DistractorsSubdir = "distractors";
     public const string CacheSubdir = YoloDataLayout.ReservedPrefix + "cache";
     public const string FramesSubdir = "frames";
     public const string DatasetsSubdir = YoloDataLayout.DatasetsSubdir;
@@ -138,13 +139,18 @@ public sealed class TaskSetStore
         var sourceDir = GetDir(id);
         var targetDir = GetDir(newId);
         CopyDirectory(sourceDir, targetDir, skipReservedTopLevel: true);
-        var copy = JsonSerializer.Deserialize<TaskSet>(JsonSerializer.Serialize(source, JsonOptions), JsonOptions)!;
+        var copy = Clone(source);
         copy.Id = newId;
         copy.Name = newName.Trim();
         copy.CreatedUtc = DateTime.UtcNow;
         Save(copy);
         return copy;
     }
+
+    /// <summary>Deep copy (same id) through the taskset.json serializer, e.g. a snapshot for generation.</summary>
+    public static TaskSet Clone(TaskSet set) => CloneJson(set);
+
+    internal static T CloneJson<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value, JsonOptions), JsonOptions)!;
 
     public string GetDir(string id)
     {
@@ -157,23 +163,20 @@ public sealed class TaskSetStore
 
     public TaskTarget AddTarget(TaskSet set, string name)
     {
+        var target = AddTargetCore(set, name);
+        Save(set);
+        return target;
+    }
+
+    private static TaskTarget AddTargetCore(TaskSet set, string name)
+    {
         var target = new TaskTarget
         {
             Id = NewUniqueId(id => set.Targets.Any(t => t.Id.Equals(id, StringComparison.OrdinalIgnoreCase))),
             Name = name.Trim(),
         };
         set.Targets.Add(target);
-        Save(set);
         return target;
-    }
-
-    public void RemoveTarget(TaskSet set, string targetId)
-    {
-        var target = set.Targets.FirstOrDefault(t => t.Id == targetId);
-        if (target == null) return;
-        set.Targets.Remove(target);
-        Save(set);
-        DeleteDirQuietly(Path.Combine(GetDir(set.Id), TargetsSubdir, target.Id));
     }
 
     public void MoveTarget(TaskSet set, string targetId, int delta)
@@ -190,66 +193,106 @@ public sealed class TaskSetStore
 
     public TaskResource AddVariant(TaskSet set, TaskTarget target, string sourcePath)
     {
-        RequireImage(sourcePath);
-        var resource = Import(set, sourcePath, TaskResourceKind.Image, TargetsSubdir, target.Id, VariantsSubdir);
-        resource.Label = NextVariantLabel(set, target);
-        target.Variants.Add(resource);
+        var resource = AddCore(set, target, TaskResourcePool.Variants, sourcePath);
         Save(set);
         return resource;
     }
 
-    /// <summary>Stores an extracted variant (VariantExtractor.Cut output) as PNG; originalPath records its source, e.g. "clip.mp4#frame=120@x,y,w,h".</summary>
+    /// <summary>Stores an extracted variant (VariantExtractor.Cut output) as PNG; originalPath records its source (VariantExtractor.FormatSourceRef).</summary>
     public TaskResource AddVariantFromPng(TaskSet set, TaskTarget target, byte[] png, string originalPath, string nameHint)
     {
-        if (png == null || png.Length == 0) throw new ArgumentException("Empty PNG", nameof(png));
-        var stem = SanitizeFileName(string.IsNullOrWhiteSpace(nameHint) ? VariantsSubdir : nameHint);
-        if (IsSupportedImage(stem) || IsSupportedVideo(stem)) stem = Path.GetFileNameWithoutExtension(stem);
-        var resource = Store(set, TaskResourceKind.Image, stem + PngExtension, originalPath ?? "",
-            path => File.WriteAllBytes(path, png), TargetsSubdir, target.Id, VariantsSubdir);
-        resource.Label = NextVariantLabel(set, target);
-        target.Variants.Add(resource);
+        var resource = AddVariantPngCore(set, target, png, originalPath, nameHint);
         Save(set);
         return resource;
     }
 
     public TaskResource AddScene(TaskSet set, TaskTarget target, string sourcePath)
     {
-        RequireImage(sourcePath);
-        var resource = Import(set, sourcePath, TaskResourceKind.Image, TargetsSubdir, target.Id, ScenesSubdir);
-        target.Scenes.Add(resource);
+        var resource = AddCore(set, target, TaskResourcePool.Scenes, sourcePath);
         Save(set);
         return resource;
     }
 
     public TaskResource AddCommon(TaskSet set, string sourcePath)
     {
-        TaskResourceKind kind = IsSupportedImage(sourcePath) ? TaskResourceKind.Image
-            : IsSupportedVideo(sourcePath) ? TaskResourceKind.Video
-            : throw new ArgumentException("Unsupported resource type: " + sourcePath, nameof(sourcePath));
-        var resource = Import(set, sourcePath, kind, CommonSubdir);
-        set.CommonResources.Add(resource);
+        var resource = AddCore(set, null, TaskResourcePool.Common, sourcePath);
         Save(set);
         return resource;
     }
 
-    public void RemoveResource(TaskSet set, TaskResource resource)
+    public TaskResource AddDistractor(TaskSet set, string sourcePath)
     {
-        bool removed = set.CommonResources.Remove(resource);
-        foreach (var target in set.Targets)
-            removed |= target.Variants.Remove(resource) | target.Scenes.Remove(resource);
-        if (!removed) return;
+        var resource = AddCore(set, null, TaskResourcePool.Distractors, sourcePath);
         Save(set);
-        var dir = GetDir(set.Id);
-        try
+        return resource;
+    }
+
+    /// <summary>Stores an extracted distractor (VariantExtractor.Cut output) as PNG, like AddVariantFromPng.</summary>
+    public TaskResource AddDistractorFromPng(TaskSet set, byte[] png, string originalPath, string nameHint)
+    {
+        var resource = StorePng(set, png, originalPath, nameHint, DistractorsSubdir);
+        set.Distractors.Add(resource);
+        Save(set);
+        return resource;
+    }
+
+    /// <summary>True when the file type is accepted by the pool (variants / scenes / distractors: images; common: images and videos).</summary>
+    public static bool IsSupportedFor(TaskResourcePool pool, string path) =>
+        IsSupportedImage(path) || (pool == TaskResourcePool.Common && IsSupportedVideo(path));
+
+    /// <summary>Variants and scenes belong to a target; common and distractors to the set.</summary>
+    public static bool PoolNeedsTarget(TaskResourcePool pool) => pool is TaskResourcePool.Variants or TaskResourcePool.Scenes;
+
+    /// <summary>Copies the file into the pool without saving; throws ArgumentException for unsupported types.</summary>
+    private TaskResource AddCore(TaskSet set, TaskTarget? target, TaskResourcePool pool, string sourcePath)
+    {
+        if (!IsSupportedFor(pool, sourcePath)) throw new ArgumentException("Unsupported resource type: " + sourcePath, nameof(sourcePath));
+        if (PoolNeedsTarget(pool) && target == null) throw new ArgumentNullException(nameof(target));
+        var kind = IsSupportedImage(sourcePath) ? TaskResourceKind.Image : TaskResourceKind.Video;
+        switch (pool)
         {
-            var path = ResolveResourcePath(dir, resource);
-            if (path.StartsWith(dir, StringComparison.OrdinalIgnoreCase) && File.Exists(path)) File.Delete(path);
+            case TaskResourcePool.Variants:
+            {
+                var resource = Import(set, sourcePath, kind, TargetsSubdir, target!.Id, VariantsSubdir);
+                resource.Label = NextVariantLabel(set, target);
+                target.Variants.Add(resource);
+                return resource;
+            }
+            case TaskResourcePool.Scenes:
+            {
+                var resource = Import(set, sourcePath, kind, TargetsSubdir, target!.Id, ScenesSubdir);
+                target.Scenes.Add(resource);
+                return resource;
+            }
+            case TaskResourcePool.Distractors:
+            {
+                var resource = Import(set, sourcePath, kind, DistractorsSubdir);
+                set.Distractors.Add(resource);
+                return resource;
+            }
+            default:
+            {
+                var resource = Import(set, sourcePath, kind, CommonSubdir);
+                set.CommonResources.Add(resource);
+                return resource;
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            ColorPrinter.Yellow($"[YoloTaskSet] cannot delete {resource.File}: {ex.Message}");
-        }
-        DeleteDirQuietly(FrameCacheDir(dir, resource.Id));
+    }
+
+    private TaskResource AddVariantPngCore(TaskSet set, TaskTarget target, byte[] png, string originalPath, string nameHint)
+    {
+        var resource = StorePng(set, png, originalPath, nameHint, TargetsSubdir, target.Id, VariantsSubdir);
+        resource.Label = NextVariantLabel(set, target);
+        target.Variants.Add(resource);
+        return resource;
+    }
+
+    private TaskResource StorePng(TaskSet set, byte[] png, string originalPath, string nameHint, params string[] relativeDir)
+    {
+        if (png == null || png.Length == 0) throw new ArgumentException("Empty PNG", nameof(png));
+        var stem = SanitizeFileName(string.IsNullOrWhiteSpace(nameHint) ? relativeDir[^1] : nameHint);
+        if (IsSupportedImage(stem) || IsSupportedVideo(stem)) stem = Path.GetFileNameWithoutExtension(stem);
+        return Store(set, TaskResourceKind.Image, stem + PngExtension, originalPath ?? "", path => File.WriteAllBytes(path, png), relativeDir);
     }
 
     private TaskResource Import(TaskSet set, string sourcePath, TaskResourceKind kind, params string[] relativeDir)
@@ -284,13 +327,8 @@ public sealed class TaskSetStore
         return prefix + (max + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static void RequireImage(string path)
-    {
-        if (!IsSupportedImage(path)) throw new ArgumentException("Unsupported image type: " + path, nameof(path));
-    }
-
     internal static IEnumerable<TaskResource> AllResources(TaskSet set) =>
-        set.CommonResources.Concat(set.Targets.SelectMany(t => t.Variants.Concat(t.Scenes)));
+        set.CommonResources.Concat(set.Distractors).Concat(set.Targets.SelectMany(t => t.Variants.Concat(t.Scenes)));
 
     private static void Normalize(TaskSet set)
     {
@@ -300,6 +338,10 @@ public sealed class TaskSetStore
         set.Targets.RemoveAll(t => t == null);
         set.CommonResources ??= new List<TaskResource>();
         set.CommonResources.RemoveAll(r => r == null);
+        set.Distractors ??= new List<TaskResource>();
+        set.Distractors.RemoveAll(r => r == null);
+        set.HoldoutSources ??= new List<HoldoutSource>();
+        set.HoldoutSources.RemoveAll(h => h == null);
         set.Augmentation ??= new AugmentationProfile();
         set.Synthesis ??= new SynthesisSettings();
         set.Synthesis.ScaleMode ??= SynthesisSettings.ScaleModeNative;

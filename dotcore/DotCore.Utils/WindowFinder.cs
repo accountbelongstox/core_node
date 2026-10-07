@@ -160,6 +160,71 @@ public static class WindowFinder
         return list;
     }
 
+    /// <summary>All visible top-level windows (title may be empty) with class name and rect.</summary>
+    public static IReadOnlyList<WindowInfo> EnumerateTopLevelWindows()
+    {
+        var list = new List<WindowInfo>();
+        bool EnumCallback(IntPtr hwnd, IntPtr _)
+        {
+            if (!WindowFinderNative.IsWindowVisible(hwnd) || !WindowFinderNative.GetWindowRect(hwnd, out var r)) return true;
+            list.Add(new WindowInfo
+            {
+                Hwnd = hwnd, Title = GetWindowText(hwnd), ClassName = GetClassName(hwnd),
+                Left = r.Left, Top = r.Top, Right = r.Right, Bottom = r.Bottom
+            });
+            return true;
+        }
+        try { WindowFinderNative.EnumWindows(EnumCallback, IntPtr.Zero); }
+        catch (Exception) { /* ignore */ }
+        return list;
+    }
+
+    /// <summary>Titles of all child windows (static text, buttons), one per line.</summary>
+    public static string GetChildWindowsText(IntPtr hwnd)
+    {
+        var sb = new StringBuilder();
+        try
+        {
+            WindowFinderNative.EnumChildWindows(hwnd, (h, _) =>
+            {
+                sb.Append(GetWindowText(h)).Append('\n');
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch (Exception) { /* ignore */ }
+        return sb.ToString();
+    }
+
+    /// <summary>One child window: handle, class name and text (WM_GETTEXT, so edit contents of other processes too).</summary>
+    public sealed record ChildWindow(IntPtr Hwnd, string ClassName, string Text);
+
+    /// <summary>All descendant child windows of hwnd in Z order.</summary>
+    public static List<ChildWindow> GetChildWindows(IntPtr hwnd)
+    {
+        var list = new List<ChildWindow>();
+        if (hwnd == IntPtr.Zero) return list;
+        WindowFinderNative.EnumChildWindows(hwnd, (h, _) =>
+        {
+            list.Add(new ChildWindow(h, GetClassName(h), GetControlText(h)));
+            return true;
+        }, IntPtr.Zero);
+        return list;
+    }
+
+    /// <summary>First child window of className, or zero.</summary>
+    public static IntPtr FindChildWindow(IntPtr parent, string className) => WindowFinderNative.FindWindowEx(parent, IntPtr.Zero, className, null);
+
+    /// <summary>Control text by WM_GETTEXT (works for edit controls of other processes), up to maxLength chars.</summary>
+    public static string GetControlText(IntPtr hwnd, int maxLength = 4096)
+    {
+        if (hwnd == IntPtr.Zero) return "";
+        var sb = new StringBuilder(maxLength);
+        WindowFinderNative.SendMessageText(hwnd, WmGetText, (IntPtr)maxLength, sb);
+        return sb.ToString();
+    }
+
+    private const uint WmGetText = 0x000D;
+
     private static string GetWindowText(IntPtr hwnd)
     {
         var sb = new StringBuilder(512);
@@ -178,6 +243,6 @@ public static class WindowFinder
         return "";
     }
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW", CharSet = CharSet.Unicode)]
     private static extern int GetClassNameNative(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 }

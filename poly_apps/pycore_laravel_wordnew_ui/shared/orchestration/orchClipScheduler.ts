@@ -93,6 +93,12 @@
  *      engines), and a phrase meaning clip is a zh sentence clip, so it takes
  *      the sentence path. A phrase clip already held (device, R14) is never
  *      requested again.
+ *   R16 An edit never stops a download: the run of the previous plan goes on in
+ *      the background (it hands its clips to the current run - `feed` - and
+ *      stops asking for clips the current plan no longer has - `wanted`); the
+ *      edited plan's network stages leave to it what it still fetches
+ *      (`owned`: queued, never missing) and carry its progress by clip key
+ *      (`orchCarryProgress`). The stage order (R1) of every run is unchanged.
  */
 import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationContract';
 import {

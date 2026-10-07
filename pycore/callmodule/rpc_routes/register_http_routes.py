@@ -46,6 +46,7 @@ from pycore.callmodule.rpc_routes.management_control_routes import register_mana
 from pycore.callmodule.rpc_routes.machine_send_routes import register_machine_send_routes
 from pycore.callmodule.rpc_routes.media_routes import register_media_routes
 from pycore.callmodule.rpc_routes.model_live_routes import register_model_live_routes
+from pycore.callmodule.rpc_routes.network_router_routes import register_network_router_routes
 from pycore.callmodule.rpc_routes.notebooklm_stt_routes import register_notebooklm_stt_routes
 from pycore.callmodule.rpc_routes.operation_routes import register_operation_routes
 from pycore.callmodule.rpc_routes.pycore_manager_ui_state_routes import (
@@ -115,6 +116,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_management_config_routes,
     register_management_control_routes,
     register_model_live_routes,
+    register_network_router_routes,
     register_local_local_config_routes,
     register_operation_routes,
     register_pycore_manager_ui_state_routes,

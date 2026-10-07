@@ -58,7 +58,21 @@ public sealed class BattlenetManager
         }
         if (HasWindow())
             return true;
+        if (!WaitForNetwork()) return false;
         return Launch(path, GetConfiguredRegion());
+    }
+
+    /// <summary>
+    /// Battle.net is only (re)started with a working internet connection: started offline it drops the login. False (logged)
+    /// when offline; the callers' loops retry on their next tick.
+    /// </summary>
+    public static bool IsNetworkReady() => NetworkProbe.IsInternetAvailable();
+
+    private static bool WaitForNetwork()
+    {
+        if (IsNetworkReady()) return true;
+        ColorPrinter.Yellow($"{LogPrefix} No internet connection, not starting Battle.net (retry on the next check) caller: {DescribeCaller()}");
+        return false;
     }
 
     /// <summary>
@@ -73,6 +87,7 @@ public sealed class BattlenetManager
             ColorPrinter.Red($"{LogPrefix} Battle.net path not configured");
             return false;
         }
+        if (!WaitForNetwork()) return false;
         ColorPrinter.Blue($"{LogPrefix} Restart Battle.net in region {region}");
         if (!Close(force)) return false;
         if (waitAfterSec > 0) Thread.Sleep((int)(waitAfterSec * 1000));
@@ -129,21 +144,6 @@ public sealed class BattlenetManager
         .Take(4)
         .Select(m => m!.DeclaringType!.Name + "." + m.Name));
 
-    /// <summary>
-    /// Flow "exit and restart" (B5): only an unhealthy client is closed. A healthy main UI, an in-page popup, a starting game or a
-    /// user-wait screen (fresh probe) is kept and false is returned so the flow keeps polling.
-    /// </summary>
-    public bool CloseIfUnhealthy()
-    {
-        var status = BattlenetClientStateDetector.Detect();
-        if (status.State is BattlenetClientState.Normal or BattlenetClientState.Popup)
-        {
-            ColorPrinter.Yellow($"{LogPrefix} Not closing Battle.net: client is healthy ({status.State}) caller: {DescribeCaller()}");
-            return false;
-        }
-        return Close();
-    }
-
     /// <summary>Alias of Close. 1:1 Python kill.</summary>
     public bool Kill(bool force = false) => Close(force);
 
@@ -153,6 +153,7 @@ public sealed class BattlenetManager
         string? path = exePath ?? GetPath();
         if (string.IsNullOrWhiteSpace(path))
             return false;
+        if (!WaitForNetwork()) return false;
         if (!Close(force)) return false;
         if (waitAfterSec > 0)
             Thread.Sleep((int)(waitAfterSec * 1000));
@@ -221,6 +222,19 @@ public sealed class BattlenetManager
         bool ok = TrayIconClicker.ClickTrayIcon(TrayIconKeywords);
         if (ok) Thread.Sleep(AfterTrayClickMs);
         return ok;
+    }
+
+    /// <summary>
+    /// Bring back a client that runs with every window hidden in the tray: tray icon double-click, else start Battle.net.exe again
+    /// (a second start only surfaces the running instance). Never closes the client, so its login is kept.
+    /// </summary>
+    public bool ShowHiddenClient()
+    {
+        if (RestoreFromTray() && HasWindow()) return true;
+        string? path = GetPath();
+        if (path == null) return false;
+        ColorPrinter.Blue($"{LogPrefix} Battle.net runs hidden in the tray, start it again to show its window");
+        return Launch(path, null);
     }
 
     /// <summary>Restore + foreground the first window. True if a window was found. 1:1 Python activate_window.</summary>

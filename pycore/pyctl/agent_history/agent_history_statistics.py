@@ -8,17 +8,14 @@ import hashlib
 import re
 from typing import Any, Dict, List
 
-import pycore.pyctl.agent_history.agent_history_txt as txt
+from pycore.pyctl.agent_history.agent_history_index import agent_history_index
 from pycore.pyctl.agent_history.agent_history_records import local_time_text
 from pycore.pyctl.agent_history.agent_history_fragments import (
     collect_fragments,
     is_fragment_pending,
     summarize_tool_fragments_many,
 )
-from pycore.pyctl.agent_history.snapshot_cache import (
-    file_revision,
-    read_index_catalog,
-)
+from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache, read_index_catalog
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 
 
@@ -251,7 +248,7 @@ class AgentHistoryStatistics:
             f"{int(normalized_cursor['lane_aware'])}"
         )
         version = hashlib.md5(version_source.encode()).hexdigest()
-        return status_snapshot_cache.get(
+        return agent_history_snapshot_cache.get(
             TOOL_FRAGMENTS_CACHE_PREFIX + key + "." + normalized_kind,
             lambda: self._build_fragment_catalog(key, normalized_kind, normalized_cursor, version),
             ttl_seconds=float("inf"),
@@ -294,8 +291,7 @@ class AgentHistoryStatistics:
         return {"items": items, "revision": version}
 
     def source_revisions(self) -> Dict[str, Dict[str, Any]]:
-        state_path = txt.store_dir() / "state.txt"
-        revision = file_revision(state_path)
+        revision = agent_history_index.revision()
         snapshot = status_snapshot_cache.get(
             TOOL_SOURCE_REVISIONS_CACHE_KEY,
             self._build_source_revisions,
@@ -307,7 +303,7 @@ class AgentHistoryStatistics:
 
     @staticmethod
     def _build_source_revisions() -> Dict[str, Any]:
-        state = txt.read_state()
+        state = agent_history_index.state()
         sources = state.get("sources") or {}
         schema_revision = str(state.get("extractor_schema_revision") or "")
         parts_by_tool: Dict[str, List[str]] = {}

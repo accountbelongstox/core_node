@@ -17,7 +17,13 @@ class TableKeys:
     """
 
     # ===== Common Tables =====
+    # Key/value table read (and dropped) only by the terminal state migration.
     TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
+    TERMINAL_STATE_TERMINALS = f"{TableNamespaces.COMMON}.terminal_state_terminals"
+    TERMINAL_STATE_LOGS = f"{TableNamespaces.COMMON}.terminal_state_logs"
+    # Finished task units (pyctl/task_history/store.py).
+    TASK_HISTORY = f"{TableNamespaces.COMMON}.task_history"
+    TASK_HISTORY_META = f"{TableNamespaces.COMMON}.task_history_meta"
 
     # ===== Util Speech Tables =====
     # Ledger of every local word/sentence clip (pyutils/tts/audio_resource_ledger.py).
@@ -39,6 +45,16 @@ class TableKeys:
     AGENT_HISTORY_PROMPT_FEED = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_feed"
     AGENT_HISTORY_PROMPT_ARCHIVE = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_archive"
     AGENT_HISTORY_PROMPT_META = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_meta"
+
+    # ===== Util Agent History Store Tables (pyctl/agent_history/agent_history_index.py) =====
+    AGENT_HISTORY_SESSIONS = f"{TableNamespaces.UTIL_AGENT_HISTORY}.sessions"
+    AGENT_HISTORY_PROMPTS = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompts"
+    AGENT_HISTORY_SOURCES = f"{TableNamespaces.UTIL_AGENT_HISTORY}.sources"
+    AGENT_HISTORY_STORE_META = f"{TableNamespaces.UTIL_AGENT_HISTORY}.store_meta"
+
+    # ===== Util Agent History Article Tables (pyutils/agent_history/article_records.py) =====
+    AGENT_HISTORY_ARTICLE_RECORDS = f"{TableNamespaces.UTIL_AGENT_HISTORY}.article_records"
+    AGENT_HISTORY_ARTICLE_META = f"{TableNamespaces.UTIL_AGENT_HISTORY}.article_meta"
 
     @classmethod
     def get_all_table_keys(cls):

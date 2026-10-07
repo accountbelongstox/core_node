@@ -23,8 +23,6 @@ import {
   useCmAdminParam,
 } from './CmAdminShared';
 import {
-  CM_ADMIN_ACTIVITY_ACTIONS,
-  CM_ADMIN_ACTIVITY_RESOURCES,
   type CmAdminContactMessageRow,
   type CmAdminReviewerApplicationRow,
   type CmAdminTestimonialRow,
@@ -318,6 +316,7 @@ export const CmAdminContactMessagesPage: React.FC = () => {
 
 export const CmAdminActivityPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { activityResources, activityActions } = useCmBootstrap();
   const [resourceType, setResourceType] = useState(useCmAdminParam('resource_type'));
   const [resourceId, setResourceId] = useState(useCmAdminParam('resource_id'));
   const [actorId, setActorId] = useState(useCmAdminParam('actor_id'));
@@ -346,7 +345,7 @@ export const CmAdminActivityPage: React.FC = () => {
           labelKey="admin.activity.resourceType"
           value={resourceType}
           onChange={setResourceType}
-          options={CM_ADMIN_ACTIVITY_RESOURCES}
+          options={activityResources}
           optionLabel={(option) => t(`admin.activity.resources.${option}`, { defaultValue: cmHumanize(option) })}
           allKey="admin.allTypes"
         />
@@ -355,7 +354,7 @@ export const CmAdminActivityPage: React.FC = () => {
           labelKey="admin.activity.action"
           value={actionName}
           onChange={setActionName}
-          options={CM_ADMIN_ACTIVITY_ACTIONS}
+          options={activityActions}
           optionLabel={(option) => t(`admin.activity.actions.${option}`, { defaultValue: cmHumanize(option) })}
           allKey="admin.activity.allActions"
         />

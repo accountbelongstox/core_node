@@ -65,7 +65,27 @@ public static class F3LogTimeout
 
     public static bool IsTestMode() => RosbotFlowHost.GetConfig(ConfigKeys.RosbotTestMode, false);
 
+    /// <summary>Last history.txt write time (UTC) from the app's history tail; null when unknown.</summary>
+    public static Func<DateTime?>? HistoryLastModifiedProvider { get; set; }
+
     private static DateTime? LastLogUtc() => RosbotFlowHost.Current?.GetLastLogModifiedUtc();
+
+    /// <summary>
+    /// monitor.log_timeout_mode: log_only keeps the logs.txt result; both = logs.txt and history.txt stale (RBAssist loose mode);
+    /// either = one of them stale (RBAssist strict mode). history baseline follows the same current-run rule as the log.
+    /// </summary>
+    private static bool CombineWithHistory(bool logTimedOut, DateTime now, DateTime? startedAt, int timeoutSec, bool verbose)
+    {
+        string mode = RosbotFlowHost.GetConfig(ConfigKeys.MonitorLogTimeoutMode, Monitor.MonitorLogTimeoutModes.LogOnly) ?? Monitor.MonitorLogTimeoutModes.LogOnly;
+        if (mode == Monitor.MonitorLogTimeoutModes.LogOnly) return logTimedOut;
+        DateTime? history = HistoryLastModifiedProvider?.Invoke();
+        DateTime baseline = history != null && startedAt != null && history >= startedAt ? history.Value : startedAt ?? now;
+        bool historyTimedOut = (now - baseline).TotalSeconds >= timeoutSec;
+        bool result = mode == Monitor.MonitorLogTimeoutModes.Either ? logTimedOut || historyTimedOut : logTimedOut && historyTimedOut;
+        if (verbose)
+            ColorPrinter.Gray($"[F3] history check: mode={mode} history_ts={FormatTs(history)} log_timed_out={logTimedOut} history_timed_out={historyTimedOut} -> {result}");
+        return result;
+    }
 
     private static string FormatTs(DateTime? utc) =>
         utc == null ? NoTimestamp : utc.Value.ToLocalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture);
@@ -150,7 +170,7 @@ public static class F3LogTimeout
         }
 
         double elapsed = (now - baseline).TotalSeconds;
-        bool timedOut = elapsed >= timeoutSec;
+        bool timedOut = CombineWithHistory(elapsed >= timeoutSec, now, startedAt, timeoutSec, verbose);
         SetShort($"F3: {timeoutMinutes}min elapsed={elapsed:F0}s {(timedOut ? "timeout" : "ok")}");
         if (verbose)
             ColorPrinter.Gray($"[F3] timeout check: enabled={enabled} timeout={timeoutMinutes}min({timeoutSec}s) now={FormatTs(now)} started_at={FormatTs(startedAt)} last_log_ts={FormatTs(lastLog)} baseline={FormatTs(baseline)} baseline_src={baselineSrc} elapsed={elapsed:F1}s timed_out={timedOut}");

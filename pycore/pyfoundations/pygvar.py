@@ -34,9 +34,13 @@ TMP_FALLBACK_DIR_NAME = "core_node_tmp"
 
 def _usable_tmp_dir(preferred: Path) -> Path:
     """The preferred shared temp root, or a per-system fallback when it cannot
-    be created (a Windows host without D:, a first non-root Linux run)."""
+    be created (a Windows host without D:, a first non-root Linux run). Created
+    through ensure_owned_dir, so a root installer importing pycore leaves it
+    owned by the real user instead of root 755 under the sticky shared root."""
+    from pycore.pyfoundations.data_owner import ensure_owned_dir
+
     try:
-        preferred.mkdir(parents=True, exist_ok=True)
+        ensure_owned_dir(preferred)
     except OSError as exc:
         fallback = Path(tempfile.gettempdir()) / TMP_FALLBACK_DIR_NAME
         ColorPrint.yellow(f"[pygvar] temp root {preferred} unavailable ({exc}); using {fallback}")
@@ -99,7 +103,7 @@ BACKUP_METADATA_FILENAME = "backup_metadata.json"
 BACKUP_INDEX_FILENAME = "backup_index.json"
 
 PYTOOLS_TMP_DIR = TMP_DIR / "pytools"
-PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
+_usable_tmp_dir(PYTOOLS_TMP_DIR)
 
 
 def get_seven_zip_executable() -> Optional[str]:

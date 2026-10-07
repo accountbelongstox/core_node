@@ -1,7 +1,10 @@
 namespace DotCore.VocAnnotator;
 
-/// <summary>One axis-aligned detection box in image pixels (min corner inclusive, max corner exclusive).</summary>
-public sealed record AnnotationBox(string Label, double XMin, double YMin, double XMax, double YMax, bool Difficult = false)
+/// <summary>
+/// One axis-aligned detection box in image pixels (min corner inclusive, max corner exclusive).
+/// Confidence is the model score of a pseudo-label (null for manual boxes).
+/// </summary>
+public sealed record AnnotationBox(string Label, double XMin, double YMin, double XMax, double YMax, bool Difficult = false, double? Confidence = null)
 {
     public double Width => XMax - XMin;
 
@@ -45,7 +48,26 @@ public sealed record AnnotationBox(string Label, double XMin, double YMin, doubl
     }
 }
 
-/// <summary>Annotation of one image: source path, pixel size and boxes. An empty box list is a reviewed image without objects.</summary>
+/// <summary>
+/// Provenance of an image annotation ("source" in the JSON): "manual", or "model:&lt;run&gt;@&lt;confidence threshold&gt;" for pseudo-labels.
+/// Files without provenance are reviewed manual annotations.
+/// </summary>
+public static class AnnotationSources
+{
+    public const string Manual = "manual";
+    public const string ModelPrefix = "model:";
+    private const char ConfidenceSeparator = '@';
+
+    public static string Model(string run, double confidenceThreshold) =>
+        ModelPrefix + run + ConfidenceSeparator + confidenceThreshold.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    public static bool IsModel(string? source) => source?.StartsWith(ModelPrefix, StringComparison.Ordinal) == true;
+}
+
+/// <summary>
+/// Annotation of one image: source path, pixel size and boxes. An empty box list is a reviewed image without objects.
+/// Reviewed is false only for model pseudo-labels nobody has confirmed yet (dataset assembly excludes them by default).
+/// </summary>
 public sealed class ImageAnnotation
 {
     public ImageAnnotation(string imagePath, int width, int height, IEnumerable<AnnotationBox>? boxes = null)
@@ -63,6 +85,11 @@ public sealed class ImageAnnotation
     public int Height { get; }
 
     public List<AnnotationBox> Boxes { get; }
+
+    /// <summary>AnnotationSources.Manual or AnnotationSources.Model(...).</summary>
+    public string Source { get; init; } = AnnotationSources.Manual;
+
+    public bool Reviewed { get; init; } = true;
 }
 
 /// <summary>What AnnotationIo.Save writes besides the JSON file.</summary>

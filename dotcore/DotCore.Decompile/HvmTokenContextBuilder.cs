@@ -6,6 +6,7 @@ namespace DotCore.Decompile;
 
 public sealed record HvmResolvedOperand(uint MethodToken, string MethodName, int JitCallIndex,
     uint VirtualToken, string Kind, uint DefinitionToken, string ModuleHandle, string TypeHandle,
+    int TypeDescriptorKind, string TypeModuleHandle, uint ResolvedTypeDefinitionToken,
     string MethodHandle, string FieldHandle);
 
 public sealed record HvmTokenContextBuildReport(string OutputPath, int ResolveCalls,
@@ -61,6 +62,8 @@ public static class HvmTokenContextBuilder
             operands.Add(new HvmResolvedOperand(method.MethodToken, method.MethodName, jitCallIndex,
                 call.GetProperty("VirtualToken").GetUInt32(), kind, definitionToken,
                 call.GetProperty("ModuleHandle").GetString()!, call.GetProperty("TypeHandle").GetString()!,
+                ReadOptionalInt32(call, "TypeDescriptorKind"), ReadOptionalString(call, "TypeModuleHandle"),
+                ReadOptionalUInt32(call, "ResolvedTypeDefinitionToken"),
                 call.GetProperty("MethodHandle").GetString()!, call.GetProperty("FieldHandle").GetString()!));
         }
 
@@ -115,6 +118,21 @@ public static class HvmTokenContextBuilder
         if (token != 0) return ("Method", token);
         token = call.GetProperty("TypeDefinitionToken").GetUInt32();
         return token == 0 ? ("Unknown", 0) : ("Type", token);
+    }
+
+    private static int ReadOptionalInt32(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out JsonElement value) ? value.GetInt32() : 0;
+    }
+
+    private static uint ReadOptionalUInt32(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out JsonElement value) ? value.GetUInt32() : 0;
+    }
+
+    private static string ReadOptionalString(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out JsonElement value) ? value.GetString() ?? "0x0" : "0x0";
     }
 
     private readonly record struct CapturedMethod(uint MethodToken, string MethodName);

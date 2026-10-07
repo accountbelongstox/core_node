@@ -54,6 +54,23 @@ _ECDICT_COLUMNS = ("word", "phonetic", "definition", "translation",
 _BUSY_MARKERS = ("database is locked", "database table is locked")
 # Immediate-retry policy for SQLITE_BUSY: up to 3 attempts, 0s/0.05s/0.15s.
 _BUSY_RETRY_DELAYS = (0.0, 0.05, 0.15)
+# Words per batched ECDICT query (below SQLite's bound-variable limit).
+_ECDICT_BATCH_SIZE = 500
+
+
+def _sense_text(row: Optional[Dict[str, Any]], dest: str) -> Optional[str]:
+    """One-line senses of an ECDICT row for ``dest`` (None on miss / unsupported target)."""
+    if not row:
+        return None
+    dest_norm = (dest or "").strip().lower()
+    if dest_norm in _ZH_TARGETS:
+        text = (row.get("translation") or "").strip()
+    elif dest_norm in _EN_TARGETS:
+        text = (row.get("definition") or "").strip()
+    else:
+        return None
+    # The column holds newline-separated senses; collapse to a single line.
+    return "; ".join(part.strip() for part in text.splitlines() if part.strip()) or None
 
 
 def _is_busy_error(exc: BaseException) -> bool:
@@ -247,20 +264,30 @@ class DictionaryService:
         unsupported target, so the caller falls back to Google."""
         if not word:
             return None
-        dest_norm = (dest or "").strip().lower()
-        row = self._ecdict_row(word)
-        if not row:
-            return None
-        if dest_norm in _ZH_TARGETS:
-            text = (row.get("translation") or "").strip()
-        elif dest_norm in _EN_TARGETS:
-            text = (row.get("definition") or "").strip()
-        else:
-            return None
-        if not text:
-            return None
-        # The column holds newline-separated senses; collapse to a single line.
-        return "; ".join(part.strip() for part in text.splitlines() if part.strip())
+        return _sense_text(self._ecdict_row(word), dest)
+
+    @serialized_method
+    def translate_many(self, words: List[str], dest: str) -> Dict[str, str]:
+        """Offline translations of many words in one indexed query, keyed by
+        the lowercased word (misses omitted). The read-only ECDICT is shared
+        with Laravel; a busy race omits the batch like a miss."""
+        wanted = sorted({str(word or "").strip().lower() for word in words if str(word or "").strip()})
+        if not wanted or not self._ensure_conn():
+            return {}
+        cols = [c for c in ("word", "translation", "definition") if c in self._columns]
+        out: Dict[str, str] = {}
+        for start in range(0, len(wanted), _ECDICT_BATCH_SIZE):
+            chunk = wanted[start:start + _ECDICT_BATCH_SIZE]
+            sql = (
+                f"SELECT {', '.join(cols)} FROM stardict "
+                f"WHERE word COLLATE NOCASE IN ({', '.join('?' for _ in chunk)})"
+            )
+            rows, self._last_busy = self._query(sql, tuple(chunk))
+            for row in rows or ():
+                text = _sense_text(dict(zip(cols, row)), dest)
+                if text:
+                    out.setdefault(str(row[0]).lower(), text)
+        return out
 
     @serialized_method
     def match(self, prefix: str, limit: int = 20) -> Dict[str, Any]:

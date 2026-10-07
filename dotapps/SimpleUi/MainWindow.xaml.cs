@@ -7,7 +7,7 @@ namespace DotApps.SimpleUi;
 
 public partial class MainWindow : Window
 {
-    private const string BattleNetExePath = @"D:\applications\Games\Battle.net\Battle.net.exe";
+    private const string BattleNetExePath = @"E:\applications\Games\Battle.net\Battle.net.exe";
 
     public MainWindow()
     {

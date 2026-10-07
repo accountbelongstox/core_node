@@ -62,8 +62,8 @@ the device; test account). Timed through CDP from the save of the edit.
 
 Changes measured here: the composer publishes a preview timeline as soon as the first chain stage (the device
 store) has answered (`onSourceDone` in `resolveOrchClips`, `composeTimelines` in `orchComposer.ts`); an edition
-of another plan (an edit) is replaced at once by the new plan's preview or first ready run instead of waiting as
-an offer (`WordNewOrchEditionStore`); an edit of the word group / read state keeps the kept sentences and asks
+of another plan (an edit) is offered for replacement as soon as the new plan's preview exists - see the R16 run
+below (the first version replaced it without asking); an edit of the word group / read state keeps the kept sentences and asks
 only read counts (`include_media: false`, 400 words per request) for words whose meaning and audio are known
 (`WordNewOrchSources`, `getSentenceWordTable`).
 
@@ -76,3 +76,20 @@ The rest of the chain (pycore / Laravel transfers and generation requests for th
 runs after the preview (10-12 s here); clips it adds come as the usual "new resources are ready" offer.
 Raising the word-state concurrency from 3 to 6 did not help (the server serializes the requests: 4-6 s each).
 The preview of the edited plan played (0:00 -> 0:09 in 6 s).
+
+## Edit = re-plan, downloads never stop (R16, 2026-10-05, this PC)
+
+Requirements: (1) an edited composition is offered for replacement (the playing edition is never swapped without
+the reader's answer); (2) re-ordering steps (en/zh -> zh/en etc.) gives the new preview and the formal reading
+fast; (3) an edit never stops the background download (the download set may change). Rule R16 in
+`development-guides/WORDNEW_GUIDE.md`; drill re-run: violations=0.
+
+| Case (test copy, 6,974 clips, ~4,900 on the device) | Result |
+|---|---|
+| Reorder sentence_en <-> sentence_zh while a run was transferring | new preview 1.5-1.6 s, offer "re-arranged" at the same time; old run not aborted (`superseded`), kept delivering |
+| Same reorder with no run going (normal reading) | new plan's preview timelines 0.19-0.28 s after the save (was 2-9.5 s: the device pass waited for the book-plan request) |
+| Word-meaning toggle while transferring (download set 6,974 -> 4,420) | offer at 0.11 s; the new run asked only the device store (all other clips owned by the background run); after the background run ended the follow-up run finished the 30 queued clips (2 from pycore, 27 flagged generating) |
+| UI: reorder while the edition was playing | banner "The composition was re-arranged: 8274 clips, 470:39 - replace what is playing?" after 0.14 s; the old edition kept playing; Replace continued at the same clip in the new order (0:03 -> 0:07 / 470:39) |
+
+Observation (not caused by edits): Chromium reports some Laravel `audio/bundle` requests as `canceled` in every run
+(9-11 per run with no edit and no `AbortController.abort()` call at all); the edit runs showed the same.

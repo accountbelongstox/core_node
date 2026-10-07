@@ -2,6 +2,9 @@
 # Watcher unit of the Laravel rescue plane (config/service_contract.json#laravel_rescue).
 # Every LR_POLL_SECONDS: each <epoch>-<nonce>.<action>.request in LR_REQUESTS_DIR is
 # deleted at once, then its Laravel action runs (one run per action per pass).
+# With LR_KEEPALIVE_FLAG present, every pass also restarts the Laravel / UI unit
+# whose port stopped listening (at most once per LR_KEEPALIVE_COOLDOWN seconds,
+# never within LR_KEEPALIVE_START_GRACE seconds of the unit becoming active).
 # Environment comes from the unit rendered by laravel_rescue_common.sh.
 
 LR_STATUS_KEEP_LINES=500
@@ -13,6 +16,8 @@ LR_DONE=""
 LR_EXIT=0
 LR_OUTPUT=""
 LR_ACTIONS="${LR_ACTIONS//,/ }"
+LR_KEEPALIVE_LAST_LARAVEL=0
+LR_KEEPALIVE_LAST_UI=0
 
 lr_log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LR_STATUS_FILE"
@@ -40,6 +45,68 @@ lr_unit_present() {
 }
 
 # No registered plane unit: the 175 setup registers and starts it non-interactively.
+lr_ui_unit_present() {
+    [ -n "$LR_UI_SERVICE" ] && [ -f "/etc/systemd/system/$LR_UI_SERVICE.service" ]
+}
+
+lr_port_up() {
+    ss -ltnH "sport = :$1" 2>/dev/null | grep -q .
+}
+
+# Type=simple units are "active" while their wrapper still converges before binding the port.
+lr_unit_in_start_grace() {
+    local since_us=""
+    local uptime_s=""
+
+    since_us="$(systemctl show -p ActiveEnterTimestampMonotonic --value "$1" 2>/dev/null)"
+    [ -n "$since_us" ] && [ "$since_us" -gt 0 ] 2>/dev/null || return 1
+    uptime_s="$(cut -d. -f1 /proc/uptime)"
+    [ $(( uptime_s - since_us / 1000000 )) -lt "${LR_KEEPALIVE_START_GRACE:-180}" ]
+}
+
+lr_ui_action() {
+    if lr_ui_unit_present; then
+        systemctl reset-failed "$LR_UI_SERVICE" >/dev/null 2>&1
+        systemctl "$1" "$LR_UI_SERVICE" 2>&1
+    elif [ -n "$LR_LARAVEL_START_SCRIPT" ]; then
+        bash "$LR_LARAVEL_START_SCRIPT" --ui-service < /dev/null 2>&1 | tail -n 5
+        return "${PIPESTATUS[0]}"
+    else
+        echo "$LR_UI_SERVICE unit missing"
+        return 1
+    fi
+}
+
+# lr_keepalive_unit <label> <port> <unit> <last_var>: restart a registered unit
+# whose port is down; skipped while systemd is still activating it or within the start grace.
+lr_keepalive_unit() {
+    local label="$1"
+    local port="$2"
+    local unit="$3"
+    local last_var="$4"
+    local now=0
+    local state=""
+
+    [ -n "$port" ] && [ -n "$unit" ] && [ -f "/etc/systemd/system/$unit.service" ] || return 0
+    lr_port_up "$port" && return 0
+    now="$(date +%s)"
+    [ $(( now - ${!last_var} )) -ge "${LR_KEEPALIVE_COOLDOWN:-300}" ] || return 0
+    state="$(systemctl is-active "$unit" 2>/dev/null)"
+    [ "$state" = "activating" ] && return 0
+    [ "$state" = "active" ] && lr_unit_in_start_grace "$unit" && return 0
+    printf -v "$last_var" '%s' "$now"
+    lr_log "keepalive: $label port $port down (unit $state); restarting $unit"
+    systemctl reset-failed "$unit" >/dev/null 2>&1
+    LR_OUTPUT="$(systemctl restart "$unit" 2>&1)"
+    lr_log "keepalive: $label restart exit=$? $(printf '%s' "$LR_OUTPUT" | tr '\n' ' ' | cut -c1-200)"
+}
+
+lr_keepalive_pass() {
+    [ -n "$LR_KEEPALIVE_FLAG" ] && [ -f "$LR_KEEPALIVE_FLAG" ] || return 0
+    lr_keepalive_unit laravel "$LR_LARAVEL_PORT" "$LR_LARAVEL_SERVICE" LR_KEEPALIVE_LAST_LARAVEL
+    lr_keepalive_unit ui "$LR_UI_PORT" "$LR_UI_SERVICE" LR_KEEPALIVE_LAST_UI
+}
+
 lr_run_setup() {
     AS_SERVICE=yes CODEMART_INIT=no INCLUDE_UI=no LARAVEL_RESCUE_SKIP=yes \
         bash "$LR_LARAVEL_START_SCRIPT" < /dev/null 2>&1 | tail -n 5
@@ -79,6 +146,18 @@ lr_run_action() {
         optimize-clear)
             lr_artisan optimize:clear
             ;;
+        ui-start)
+            lr_ui_action start
+            ;;
+        ui-restart)
+            lr_ui_action restart
+            ;;
+        keepalive-on)
+            : > "$LR_KEEPALIVE_FLAG" && echo "keepalive on"
+            ;;
+        keepalive-off)
+            rm -f "$LR_KEEPALIVE_FLAG" && echo "keepalive off"
+            ;;
         *)
             echo "unsupported action"
             return 1
@@ -87,7 +166,7 @@ lr_run_action() {
 }
 
 mkdir -p "$LR_REQUESTS_DIR"
-lr_log "watcher started (poll ${LR_POLL_SECONDS}s, dir $LR_REQUESTS_DIR, unit ${LR_LARAVEL_SERVICE:-none})"
+lr_log "watcher started (poll ${LR_POLL_SECONDS}s, dir $LR_REQUESTS_DIR, unit ${LR_LARAVEL_SERVICE:-none}, ui ${LR_UI_SERVICE:-none})"
 lr_fix_ownership
 while true; do
     LR_DONE=" "
@@ -109,6 +188,7 @@ while true; do
         LR_EXIT=$?
         lr_log "finished $LR_ACTION exit=$LR_EXIT $(printf '%s' "$LR_OUTPUT" | tr '\n' ' ' | cut -c1-400)"
     done
+    lr_keepalive_pass
     lr_trim_status
     lr_fix_ownership
     sleep "$LR_POLL_SECONDS"

@@ -289,6 +289,42 @@ repair_app_secret_tree() {
     return "$repair_status"
 }
 
+# repair_owned_tree_owner_only <absolute-path> [user] [group]
+# Hands entries a root process created back to the permission user; every mode
+# bit stays as its owner set it (sticky shared dirs, private 750/640 stores).
+# Symlinks are re-owned themselves (chown -h).
+repair_owned_tree_owner_only() {
+    local target_path="$1"
+    local target_user="${2:-}"
+    local target_group="${3:-}"
+    local privilege_prefix=""
+    local mismatch_list=""
+    local repair_status=0
+    local privilege_command=()
+
+    [[ "$target_path" == /* ]] || return 1
+    [ -e "$target_path" ] || return 0
+    fs_perm_is_fuse_mount "$target_path" && return 0
+    if [ -z "$target_user" ]; then
+        resolve_active_permission_owner >/dev/null
+        target_user="$ACTIVE_PERMISSION_USER"
+        target_group="$ACTIVE_PERMISSION_GROUP"
+    elif [ -z "$target_group" ]; then
+        target_group="$(id -gn "$target_user" 2>/dev/null || echo "$target_user")"
+    fi
+    privilege_prefix="$(fs_perm_sudo_prefix)"
+    if [ "$(id -u)" -ne 0 ]; then
+        [ -n "$privilege_prefix" ] || return 1
+        privilege_command=("$privilege_prefix")
+    fi
+    mismatch_list="$(mktemp)" || return 1
+    "${privilege_command[@]}" find "$target_path" -xdev \( ! -user "$target_user" -o ! -group "$target_group" \) \
+        -print0 > "$mismatch_list" 2>/dev/null || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chown -h "$target_user:$target_group" -- < "$mismatch_list" 2>/dev/null || repair_status=$?
+    rm -f "$mismatch_list"
+    return "$repair_status"
+}
+
 # repair_owned_tree_no_shared_write <absolute-path> [user] [group]
 # Git metadata: owned by the permission user, group/other write removed, every
 # other mode bit left as git wrote it.
@@ -553,21 +589,27 @@ fs_perm_sudo_prefix() {
 }
 
 # safe_chown_R <owner[:group]> <path>
-# Idempotent recursive chown. Skips on mount-fixed-permission fs and when the
-# root entry already has the requested owner.
+# Idempotent recursive chown over the WHOLE tree: one find walk collects the
+# entries whose owner (or group, when given) differs, only those change, so a
+# root-created file inside an already user-owned directory is handed back too.
+# Skips on mount-fixed-permission fs.
 safe_chown_R() {
     local owner="$1"
     local path="$2"
-    local cur=""
+    local user="${owner%%:*}"
+    local group=""
     local prefix=""
+    local -a mismatch=()
     [ -e "$path" ] || return 0
     if fs_perm_is_fuse_mount "$path"; then
         return 0
     fi
-    cur="$(stat -c '%U:%G' "$path" 2>/dev/null)"
-    [ -n "$cur" ] && [ "$cur" = "$owner" ] && return 0
+    [[ "$owner" == *:* ]] && group="${owner#*:}"
+    mismatch=(! -user "$user")
+    [ -n "$group" ] && mismatch=(\( ! -user "$user" -o ! -group "$group" \))
     prefix="$(fs_perm_sudo_prefix)"
-    ${prefix:+$prefix }chown -R "$owner" "$path" 2>/dev/null || true
+    ${prefix:+$prefix }find "$path" -xdev "${mismatch[@]}" -print0 2>/dev/null \
+        | ${prefix:+$prefix }xargs -0 -r chown -h "$owner" -- 2>/dev/null || true
 }
 
 # safe_chmod_R <mode> <path>

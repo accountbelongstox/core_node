@@ -125,6 +125,23 @@ public static class WindowResizer
         return false;
     }
 
+    /// <summary>Resize hwnd's client area, then move the window so its outer rect touches the primary screen's top-right corner. True when moved.</summary>
+    public static bool PlaceAtTopRight(IntPtr hwnd, int clientWidth, int clientHeight)
+    {
+        var (moveOk, _) = ResizeWindowToClientSize(hwnd, clientWidth, clientHeight, keepPosition: true, ensureOnScreen: false);
+        if (!moveOk || !WindowFinderNative.GetWindowRect(hwnd, out var wr)) return false;
+        int w = wr.Right - wr.Left, h = wr.Bottom - wr.Top;
+        var (sw, _) = GetScreenSize();
+        int left = Math.Max(0, sw - w);
+        if (!MoveWindow(hwnd, left, 0, w, h, true))
+        {
+            ColorPrinter.Red($"{LogTag} PlaceAtTopRight: MoveWindow failed (Win32 error {Marshal.GetLastWin32Error()})");
+            return false;
+        }
+        ColorPrinter.Blue($"{LogTag} Placed at top-right ({left}, 0) outer {w}x{h}");
+        return true;
+    }
+
     /// <summary>Primary monitor size in pixels. 1:1 Python _get_screen_size.</summary>
     public static (int Width, int Height) GetScreenSize()
     {

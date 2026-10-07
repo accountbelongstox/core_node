@@ -6,9 +6,10 @@
  * player skips. The first run reaching `ready` publishes it; after that it is
  * static - opening a page or a re-run never recompiles it. A later run of the
  * same plan with other clips (new or updated resources) is an offer that
- * replaces the edition only when accepted. An edit (a new plan) makes the
- * edition stale: the new plan's preview (the clips its first source pass held,
- * published while its run still goes) or its first ready run replaces it at once. Editions are kept per user on
+ * replaces the edition only when accepted. An edit (a new plan - other order,
+ * steps or words) is offered the same way, as soon as its preview is composed
+ * (the clips its first source pass held, while its run still goes): the
+ * edition may be playing, so it is never swapped without the reader's answer. Editions are kept per user on
  * the device (`wfnew-orch/users/<user>/editions/<task>.json`), so opening a
  * player needs no run and no network. The file is compact (one bridge write
  * on the app): items and clip URLs once each, timelines as flat number rows
@@ -50,6 +51,8 @@ export interface OrchEditionOffer {
   durationMs: number;
   addedClips: number;
   addedMs: number;
+  /** The offer is another plan (an edit), not new clips of the playing one. */
+  replan: boolean;
 }
 
 /** Stored form: `segments[s]` = flat `[item, url, startMs, endMs, ...]` indices into `items` / `urls` (after `urlPrefix`). */
@@ -251,7 +254,7 @@ class WordNewOrchEditionStoreService {
     return edition;
   }
 
-  /** A run reached `ready`: the first one becomes the edition, a later one with other clips waits as an offer. */
+  /** A run reached `ready` (or an edited plan's preview): the first one becomes the edition, a later different one waits as an offer. */
   private async offer(taskId: string, session: OrchComposeSession): Promise<void> {
     if (this.seen.has(session.timelines) || session.timelines.length === 0) return;
     this.seen.add(session.timelines);
@@ -265,7 +268,7 @@ class WordNewOrchEditionStoreService {
       this.offers.delete(key);
       return;
     }
-    if (!current || current.planHash !== session.planHash) {
+    if (!current) {
       await this.publish(task, session);
       return;
     }
@@ -277,17 +280,16 @@ class WordNewOrchEditionStoreService {
       durationMs,
       addedClips: clips - current.clips,
       addedMs: durationMs - current.durationMs,
+      replan: current.planHash !== session.planHash,
     });
     this.emit(taskId);
   }
 
-  /** Early timelines of the task's current plan: they replace an edition of another plan (or none), never one of this plan. */
+  /** Early timelines of the task's current plan: offered against an edition of another plan (or published when there is none). */
   private async preview(taskId: string, session: OrchComposeSession): Promise<void> {
-    const task = await wordNewOrchTaskStore.get(taskId);
-    if (!task || task.planHash !== session.planHash) return;
     const current = await this.load(taskId);
     if (current?.planHash === session.planHash) return;
-    await this.publish(task, session);
+    await this.offer(taskId, session);
   }
 
   /**
@@ -299,7 +301,11 @@ class WordNewOrchEditionStoreService {
     const current = await this.load(task.id);
     const session = wordNewOrchComposer.session(task.id);
     if (session?.planHash !== task.planHash || session.timelines.length === 0) return current;
-    if (!current || current.planHash !== session.planHash) return this.publish(task, session);
+    if (!current) return this.publish(task, session);
+    if (current.planHash !== session.planHash) {
+      await this.offer(task.id, session);
+      return current;
+    }
     if (session.phase !== 'ready') return current;
     const { clips, durationMs } = measure(session.timelines);
     if (signatureOf(session.planHash, clips, durationMs) !== editionSignature(current)) {
@@ -324,7 +330,7 @@ class WordNewOrchEditionStoreService {
     const key = this.key(taskId);
     const offer = this.offers.get(key);
     if (!offer || this.dismissed.get(key) === offer.signature) return null;
-    return { clips: offer.clips, durationMs: offer.durationMs, addedClips: offer.addedClips, addedMs: offer.addedMs };
+    return { clips: offer.clips, durationMs: offer.durationMs, addedClips: offer.addedClips, addedMs: offer.addedMs, replan: offer.replan };
   }
 
   /** Copy the waiting offer into the playing edition. */

@@ -429,16 +429,23 @@ ai_shared_login_ensure_dir() {
     printf '%s' "$config_dir"
 }
 
-ai_shared_login_repair_ownership() {
-    local real_user real_home key config_dir
-    real_user="$(ai_shared_login_real_user)"
+ai_shared_login_existing_config_dirs() {
+    local real_home key config_dir
     real_home="$(ai_shared_login_real_home)"
-    [ -n "$real_user" ] && [ -n "$real_home" ] || return 0
+    [ -n "$real_home" ] || return 0
     while IFS= read -r key; do
         config_dir="$(ai_catalog_expand_config_dir "$key" "$real_home")"
-        [ -n "$config_dir" ] && [ -d "$config_dir" ] || continue
-        $USE_SUDO chown -R "$real_user:$real_user" "$config_dir" 2>/dev/null || true
+        [ -n "$config_dir" ] && [ -d "$config_dir" ] && printf '%s\n' "$config_dir"
     done < <(ai_shared_login_shareable_keys)
+}
+
+ai_shared_login_repair_ownership() {
+    local real_user config_dir
+    real_user="$(ai_shared_login_real_user)"
+    [ -n "$real_user" ] || return 0
+    while IFS= read -r config_dir; do
+        $USE_SUDO chown -R "$real_user:$real_user" "$config_dir" 2>/dev/null || true
+    done < <(ai_shared_login_existing_config_dirs)
 }
 
 ai_shared_login_setup() {
@@ -1183,6 +1190,8 @@ ai99_install_npm() {
     fi
     prefix="$AI99_TARGET_HOME/.local"
     ai99_run_as_target mkdir -p "$prefix/bin" "$prefix/lib" || return 1
+    # Root npm runs leave root-owned entries in the shared cache (EACCES for the user install).
+    [ -n "${npm_config_cache:-}" ] && ensure_owned_tree_777 "$npm_config_cache" "$AI99_TARGET_USER" "$(id -gn "$AI99_TARGET_USER" 2>/dev/null)"
     ai99_log "[INSTALL] npm install -g $pkg (prefix $prefix, user $AI99_TARGET_USER)"
     ai99_run_as_target env "npm_config_prefix=$prefix" "$npm_bin" install -g "$pkg@latest" </dev/null
 }

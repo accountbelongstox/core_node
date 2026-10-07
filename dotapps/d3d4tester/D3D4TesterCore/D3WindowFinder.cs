@@ -13,7 +13,7 @@ public static class D3WindowFinder
 {
     private static Func<string?>? _configPathProvider;
 
-    /// <summary>Set provider for d3.d3_path (full exe path). Call from app once (e.g. OnLoaded). Same key as path scan / RosbotPage TxtD3Path (ConfigKeys.D3Path). When null, find by title only.</summary>
+    /// <summary>Set provider for d3.d3_path (full exe path). Call from app once (e.g. OnLoaded). Same key as path scan / RosbotSettingsBlock TxtD3Path (ConfigKeys.D3Path). When null, find by title only.</summary>
     public static void SetConfigPathProvider(Func<string?>? provider) => _configPathProvider = provider;
 
     /// <summary>Return D3 exe path from config if valid file; else null. 1:1 Python get_path().</summary>

@@ -102,6 +102,7 @@ public partial class CalibrationPage : UserControl
         BtnYoloCleanUnlabeled.Click += (_, _) => OnCleanUnlabeled();
         BtnYoloTrain.Click += (_, _) => OnTrain();
         BtnYoloTaskSets.Click += (_, _) => TaskSetWindow.ShowSingle(Window.GetWindow(this));
+        BtnYoloModelTest.Click += (_, _) => ModelTestWindow.ShowSingle(Window.GetWindow(this));
         CboYoloProject.SelectionChanged += (_, _) => OnProjectSwitch();
         BtnYoloLoadProject.Click += (_, _) => OnProjectLoad();
         BtnYoloCreateProject.Click += (_, _) => OnProjectCreate();
@@ -124,6 +125,7 @@ public partial class CalibrationPage : UserControl
         _patchMenuFolder.Click += (_, _) => OnPatchImport(oneFile: false);
         _patchMenu.Items.Add(_patchMenuOne);
         _patchMenu.Items.Add(_patchMenuFolder);
+        BindTaskSetMenu();
     }
 
     /// <summary>Re-apply all localized texts.</summary>
@@ -142,6 +144,7 @@ public partial class CalibrationPage : UserControl
         BtnYoloCleanUnlabeled.Content = T(I18nKeys.CoordCalYoloFlowCleanUnlabeled);
         BtnYoloTrain.Content = T(I18nKeys.CoordCalYoloFlowTrain);
         BtnYoloTaskSets.Content = T(I18nKeys.YoloTaskSetOpenButton);
+        BtnYoloModelTest.Content = T(I18nKeys.ModelTestOpenButton);
         LblYoloProject.Text = T(I18nKeys.CoordCalYoloDataProjectLabel);
         BtnYoloLoadProject.Content = T(I18nKeys.CoordCalYoloProjectLoad);
         BtnYoloCreateProject.Content = T(I18nKeys.CoordCalYoloProjectCreate);
@@ -154,6 +157,7 @@ public partial class CalibrationPage : UserControl
         MiSegmentExportFrames.Header = T(I18nKeys.CoordCalYoloSegmentExportFrames);
         MiSegmentOpenLabel.Header = T(I18nKeys.CoordCalYoloSegmentOpenLabel);
         MiSegmentDelete.Header = T(I18nKeys.CoordCalYoloSegmentDelete);
+        ApplyTaskSetMenuTexts();
         _patchMenuOne.Header = T(I18nKeys.CoordCalYoloPatchImportOne);
         _patchMenuFolder.Header = T(I18nKeys.CoordCalYoloPatchImportFolder);
         BtnYoloRefresh.Content = T(I18nKeys.CoordCalYoloDataRefresh);
@@ -645,8 +649,7 @@ public partial class CalibrationPage : UserControl
             return;
         }
         var all = YoloSegmentLayout.ListSegments(project).Select(s => s.SegmentPath).ToList();
-        var win = new YoloTrainingWindow(project, all, SelectedSegmentPaths()) { Owner = Window.GetWindow(this) };
-        win.Show();
+        YoloTrainingWindow.ShowSingle(Window.GetWindow(this), project, all, SelectedSegmentPaths());
     }
 
     /// <summary>Record-log button: step 2 export latest segment frames. 1:1 _on_flow2_export_frames.</summary>

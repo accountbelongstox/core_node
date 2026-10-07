@@ -72,7 +72,6 @@ TEXT_SKIP_AGENT_WORKING = "terminal_text_agent_working"
 TEXT_SKIP_USER_ACTIVE = "terminal_text_user_active"
 TEXT_SKIP_RECENT = "terminal_text_recent"
 TEXT_SKIP_BUSY = "terminal_text_busy"
-LOG_CONTENT_KIND = "log"
 SPECIAL_PROMPT_WAITING = "prompt_waiting"
 SPECIAL_PROMPT_FOLLOW_UP = "prompt_follow_up"
 SPECIAL_RESUME_PENDING = "resume_pending"
@@ -138,19 +137,18 @@ class TerminalBackupService:
         return TerminalAgentActivity.title_busy(str(window.get("title") or "")) is True
 
     def _sent_inputs(self, number: int, window: Dict[str, Any]) -> List[Dict[str, Any]]:
-        inputs = []
-        for log in window.get("logs") or []:
-            content = self._terminals.read_text(number, LOG_CONTENT_KIND, str(log.get("id") or ""))
-            inputs.append(
-                {
-                    "id": str(log.get("id") or ""),
-                    "date": str(log.get("date") or ""),
-                    "source": str(log.get("source") or ""),
-                    "status": str(log.get("status") or ""),
-                    "content": content or "",
-                }
-            )
-        return inputs
+        logs = window.get("logs") or []
+        contents = self._terminals.read_log_texts(number, [str(log.get("id") or "") for log in logs])
+        return [
+            {
+                "id": str(log.get("id") or ""),
+                "date": str(log.get("date") or ""),
+                "source": str(log.get("source") or ""),
+                "status": str(log.get("status") or ""),
+                "content": contents.get(str(log.get("id") or ""), ""),
+            }
+            for log in logs
+        ]
 
     def _export(self, window: Dict[str, Any]) -> Dict[str, Any]:
         number = int(window["terminal_number"])

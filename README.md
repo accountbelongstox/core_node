@@ -41,6 +41,12 @@ sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://gitee.com/accountb
 sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.sh && sudo chmod +x /usr/tmp/dd.sh && sudo bash /usr/tmp/dd.sh
 ```
 
+OpenWrt mode menu (on the router as root: AP mode, router mode with bandwidth balancing, status and restore; on a Linux PC or Git Bash it scans the LAN, uploads the scripts over SSH and opens the menu on the router; it downloads its scripts when missing):
+
+```sh
+mkdir -p /root/openwrt-router && wget -qO /root/openwrt-router/openwrt_menu.sh https://raw.githubusercontent.com/accountbelongstox/core_node/main/apps/network_router/openwrt/openwrt_menu.sh && sh /root/openwrt-router/openwrt_menu.sh
+```
+
 Pycore on hosted notebooks (outbound-only Relay agent to Laravel; re-running the cell is idempotent):
 add the notebook secret `CORE_NODE_SECRET_PASSWORD` (the `.secret_keys` password) or type it when asked. A pycore node on a notebook host assists the Laravel queue (audio lanes, translation) by default, with no UI toggle.
 

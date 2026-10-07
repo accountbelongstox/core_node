@@ -13,8 +13,8 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
-/// ROSBOT controller helpers: Battle.net flow hook installation, stop ROSBOT, resolve the ROSBOT exe. The B/D/E flow runs only
-/// from RosbotTaskProcessor (TickDriver flow step: BN-only tick, flow master) and LoginTryController (D block).
+/// ROSBOT controller helpers: Battle.net flow hook installation, stop ROSBOT, resolve the ROSBOT exe. The B/C/D/E flow runs only
+/// in Core RosbotFlowRunner (monitoring) and BattlenetGuardRunner (Ensure Battle.net); LoginTryController runs B + D manually.
 /// </summary>
 public static class RosbotFlowController
 {
@@ -49,10 +49,6 @@ public static class RosbotFlowController
         BattlenetFlowHooks.ScheduleLoginCredentialsDialog = region => AsiaCredentialsService.ScheduleCredentialsDialog(region);
         BattlenetFlowHooks.ResetOauthDone = OAuthCallbackState.ResetOauthDone;
         BattlenetFlowHooks.NotifyOauthDone = OAuthCallbackState.NotifyOauthDone;
-        BattlenetFlowHooks.TriggerExtensionRosbotStart = EventCenter.TriggerExtensionRosbotStart;
-        BattlenetFlowHooks.RefreshBattlenetStatus = () => BattlenetStatusProvider.Refresh().Changed;
-        BattlenetFlowHooks.NotifyStateSync = GameInterfaceData.Instance.NotifyCallbacks;
-        ShutdownManager.RegisterShutdownHook(BattlenetReadyFlow.ResetFlowMasterBnBlock);
     }
 
     /// <summary>Kill ROSBOT main + same-dir exes by PID (renamed copies included), then invalidate the lookup cache. 1:1 Python get_rosbot_manager().kill_if_running.</summary>

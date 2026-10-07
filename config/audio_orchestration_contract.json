@@ -165,14 +165,19 @@
         "meaning_language": "zh",
         "extraction": {
             "provider": "openrouter",
-            "model": "openrouter/free",
+            "model": "google/gemma-4-31b-it:free",
             "free_only": true,
             "prompt_key": "sentence_phrase_extraction",
-            "batch_sentences": 40,
-            "batch_max_chars": 6000,
-            "max_output_tokens": 8000,
+            "batch_sentences": 20,
+            "batch_max_chars": 3000,
+            "max_output_tokens": 6000,
             "temperature": 0.2,
-            "request_timeout_seconds": 120,
+            "request_timeout_seconds": 180,
+            "request_options": {
+                "models": ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free", "nvidia/nemotron-3-super-120b-a12b:free"],
+                "response_format": {"type": "json_object"},
+                "reasoning": {"effort": "none", "exclude": true}
+            },
             "min_interval_seconds": 3,
             "tick_seconds": 5,
             "lease_seconds": 600,
@@ -183,7 +188,7 @@
             "pycore_fallback_codes": ["AI_RATE_LIMITED", "AI_PROVIDER_NOT_CONFIGURED", "AI_DAILY_BUDGET_EXHAUSTED"],
             "pycore_task_type": "phrase_extract",
             "pycore_tasks_max_pending": 20,
-            "rule": "OpenRouter free tier (openrouter.ai/docs/api-reference/limits): 20 requests/min, 50/day without credits, 1000/day with >= 10 credits; free models have >= 32k context, so a batch is at most batch_sentences sentences and batch_max_chars input chars (about 1.5k tokens) with max_output_tokens for the JSON answer, which keeps one request well inside every free model's window while spending the daily budget on many sentences per request. Laravel claims a batch of sentences without phrases (phrase lease columns), calls the gateway itself (AI gateway rule); on a pycore_fallback_codes failure it hands the batch to pycore as one global_tasks row of pycore_task_type (at most pycore_tasks_max_pending open), and pycore answers with its own OpenRouter free key. A sentence whose answer lists no phrase is phrase_status none (done, never retried); a failure adds one attempt and after max_attempts the sentence is failed until sys:init or the resurface sweep returns it."
+            "rule": "OpenRouter free tier (openrouter.ai/docs/api-reference/limits): 20 requests/min, 50/day without credits, 1000/day with >= 10 credits; free models have >= 32k context, so a batch is at most batch_sentences sentences and batch_max_chars input chars (about 750 tokens) with max_output_tokens for the JSON answer, which keeps one request well inside every free model's window and under request_timeout_seconds while spending the daily budget on many sentences per request. model is pinned to free instruct models with JSON mode (request_options.models is the OpenRouter in-request fallback list, free ids only; re-check the free catalog GET /api/v1/models when they disappear): the random openrouter/free router picked reasoning models and the nemotron content-safety guard. request_options ask for JSON mode and reasoning off (effort none, excluded; with only low effort the models still spent the token budget thinking and returned empty content, finish_reason length; measured 2026-10-05 with 40-sentence batches: timeouts, reasoning-only and guard answers). Laravel claims a batch of sentences without phrases (phrase lease columns), calls the gateway itself (AI gateway rule); on a pycore_fallback_codes failure it hands the batch to pycore as one global_tasks row of pycore_task_type (at most pycore_tasks_max_pending open), and pycore answers with its own OpenRouter free key. A sentence whose answer lists no phrase is phrase_status none (done, never retried); a failure adds one attempt and after max_attempts the sentence is failed until sys:init or the resurface sweep returns it."
         },
         "audio": {
             "lane": "phrase_audio",

@@ -115,6 +115,7 @@ FS_PERM_HELPERS_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/fs_perm_helpers.
 CLIENT_KEY_COMMON_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/client_key_common.sh"
 NOTEBOOK_RUNTIME_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/notebook_runtime.sh"
 AI_KEY_HEALTH_WARNING_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/ai_key_health_warning.sh"
+LAN_FIREWALL_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/pyservice_lan_firewall.sh"
 NOTEBOOK_PLATFORM=""
 NOTEBOOK_EXPORT_IDENTITY=0
 
@@ -753,6 +754,11 @@ fi
 export PORT="${RPC_PORT:-59000}"
 export PYCORE_RPC_PORT="$PORT"
 
+# --- LAN bind: open the RPC port first ----------------------------------- #
+# With rpcLanBind on the worker binds every interface; allow the port in the
+# firewall before the worker starts (the pycore unit does it as root).
+bash "$LAN_FIREWALL_SCRIPT" "$(id -un)" "$PORT" "$PY"
+
 # Ensure DISPLAY is set on Linux desktop so the tray (AppIndicator/pystray) can
 # connect to the X11/Wayland session. Also forward DBUS_SESSION_BUS_ADDRESS which
 # AppIndicator3 needs to register with the system tray (GNOME/Ubuntu/KDE).
@@ -914,6 +920,9 @@ if [[ -n "$DESKTOP_USER" ]]; then
         # Root read helper: parses only the agent sessions '$DESKTOP_USER' cannot
         # read (root-owned 0600) into a root-owned spool the worker reads; it exits
         # with the worker (parent pid = this shell, replaced by sudo below).
+        # The prerequisite installers above ran as root: hand their entries
+        # back before the worker starts as the desktop user.
+        bash "$SCRIPT_DIR/scripts/shells/linux/common/pyservice_www_permissions.sh" || true
         echo "[i] Starting the agent-history root read helper for '$DESKTOP_USER'."
         "$PY" -m "$ROOT_SPOOL_MODULE" --worker-user "$DESKTOP_USER" --parent-pid "$$" &
         exec sudo -u "$DESKTOP_USER" env "${WORKER_ENV_ARGS[@]}" "$PY" "${PY_ARGS[@]}"

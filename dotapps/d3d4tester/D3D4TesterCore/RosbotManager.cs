@@ -1,6 +1,7 @@
 // PY-REF: pyapps/d3-check/d3utils/rosbot_manager.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_operation.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_ui_automation.py
+// PY-REF: pyapps/d3-check/d3utils/key_send.py
 using System.IO;
 using DotApps.d3d4tester.Core.Flow;
 using DotCore.Foundations;
@@ -25,6 +26,8 @@ public sealed class RosbotManager
     private DateTime _cacheAtUtc = DateTime.MinValue;
     private Func<IntPtr, bool>? _mainWindowContentValidator;
     private string? _lastLoggedFindRosbotExe;
+    private Action<string>? _beforeStart;
+    private Func<string?>? _keyProvider;
 
     private static readonly RosbotDetectionResult NotFound = new() { Status = RosbotDetection.StatusNotFound };
 
@@ -389,7 +392,15 @@ public sealed class RosbotManager
         return false;
     }
 
-    /// <summary>Start the main ROSBOT exe. 1:1 Python start.</summary>
+    /// <summary>Set by app at startup: the ROSBOT key to type into ROSBOT's KEY dialog, or null when none is configured / enabled.</summary>
+    public void SetKeyProvider(Func<string?>? provider) => _keyProvider = provider;
+
+    public string? GetKey() => _keyProvider?.Invoke() is { Length: > 0 } key ? key : null;
+
+    /// <summary>Set by app at startup: runs with the exe path right before every Start launches ROSBOT (e.g. write RoS-BoT.ini).</summary>
+    public void SetBeforeStartHook(Action<string>? hook) => _beforeStart = hook;
+
+    /// <summary>Start the main ROSBOT exe (before-start hook first; a failing hook never blocks the start). 1:1 Python start.</summary>
     public bool Start()
     {
         string? exePath = FindRosbotExe();
@@ -397,6 +408,14 @@ public sealed class RosbotManager
         {
             ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} No ROSBOT exe found, skip start");
             return false;
+        }
+        try
+        {
+            _beforeStart?.Invoke(exePath);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} before-start hook failed: {ex.Message}");
         }
         return StartExecutable(exePath);
     }
@@ -436,6 +455,9 @@ public sealed class RosbotManager
 
     /// <summary>Global F7 key press (ROSBOT pause/stop). 1:1 Python key_send.send_f7_to_system.</summary>
     public static bool SendF7ToSystem() => WindowInputHelper.SendSystemKey(RosbotConstants.VkF7);
+
+    /// <summary>Global F6 key press: ROSBOT's pause toggle hotkey (pause when botting, resume when paused).</summary>
+    public static bool SendPauseToggleToSystem() => WindowInputHelper.SendSystemKey(RosbotConstants.VkF6);
 
     /// <summary>Kill all same-dir other exe processes, optionally F7 to each window first. 1:1 Python cleanup_old_other_exe_processes.</summary>
     public bool CleanupOldOtherExeProcesses(bool sendF7BeforeKill = false)

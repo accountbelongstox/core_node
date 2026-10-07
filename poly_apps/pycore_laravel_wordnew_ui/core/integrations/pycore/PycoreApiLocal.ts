@@ -431,6 +431,11 @@ export const pycoreApiLocal = {
       worker: params.worker,
       limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
     }) as Promise<{ success?: boolean; entries?: any[]; total?: number; stored?: number }>,
+  appendTaskHistory: (record: {
+    title: string; task_type?: string; task_id?: string; content?: string; worker?: string;
+    success?: boolean; error?: string; detail?: Record<string, unknown>;
+  }) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryAppendRecord, { record }) as Promise<{ success: boolean; error?: string }>,
 
 
   setQueueCenterControl: (

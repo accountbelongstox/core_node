@@ -89,36 +89,22 @@ def _runtime_log_fragment(job: Dict[str, Any]) -> str:
     )
 
 
-def is_rebuild_candidate(record: Dict[str, Any]) -> bool:
-    """Any record whose data lacks the multi-sentence marker.
-
-    Engine-agnostic by design: the marker is the ONLY criterion (missing data
-    = legacy), and regeneration always runs through the pinned qwen3tts
-    stage, so any pre-contract engine's audio (legacy qwen single-shot, the
-    ChattTS fallback era) converges on the same multi-sentence pipeline.
-    Upload state is irrelevant - a never-uploaded legacy record is rebuilt
-    too, and its FIRST full submit then publishes multi-sentence audio."""
-    if not bool(record.get("article_en")):
-        return False
-    return not bool(record.get("tts_chunked"))
-
-
 def pending_rebuild_records() -> List[Dict[str, Any]]:
     """Legacy records to regenerate, newest first.
 
-    Pure local scan of the record index (no server probe, no version
-    negotiation): a record is legacy exactly when its data lacks the
-    ``tts_chunked`` marker. Once the backlog is drained this costs
-    milliseconds per tick."""
-    return [
-        row
-        for row in records.list_all_records()
-        if row.get("article_en") and is_rebuild_candidate(row)
-    ]
+    Indexed local query of the record store (no server probe, no version
+    negotiation): a record with an article body is legacy exactly when its
+    data lacks the ``tts_chunked`` marker. Engine-agnostic by design:
+    regeneration always runs through the pinned qwen3tts stage, so any
+    pre-contract engine's audio converges on the same multi-sentence
+    pipeline. Upload state is irrelevant - a never-uploaded legacy record is
+    rebuilt too, and its FIRST full submit then publishes multi-sentence
+    audio."""
+    return records.rebuild_candidates()
 
 
 def pending_rebuild_count() -> int:
-    return len(pending_rebuild_records())
+    return records.rebuild_candidate_count()
 
 
 def piggyback_rebuild_tick() -> int:
@@ -295,7 +281,6 @@ def _delivery_pending(record: Dict[str, Any]) -> bool:
 
 
 __all__ = [
-    "is_rebuild_candidate",
     "pending_rebuild_records",
     "pending_rebuild_count",
     "piggyback_rebuild_tick",

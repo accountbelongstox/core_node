@@ -103,6 +103,7 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_cv2,
     get_third_package_pyautogui,
     get_third_package_psutil,
+    get_third_package_pynvml,
     get_third_package_pydantic,
     get_third_package_mss,
     get_third_package_torch,
@@ -171,6 +172,7 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_Context,
     get_third_package_okx,
     get_third_package_redis,
+    get_third_package_orjson,
     get_third_package_google_genai,
     get_third_package_openai,
     get_third_package_pygame,
@@ -310,6 +312,7 @@ __all__ = [
     'get_third_package_cv2',
     'get_third_package_pyautogui',
     'get_third_package_psutil',
+    'get_third_package_pynvml',
     'get_third_package_pydantic',
     'get_third_package_mss',
     'get_third_package_torch',
@@ -423,6 +426,7 @@ __all__ = [
     'get_third_package_okx',
     # Redis cache
     'get_third_package_redis',
+    'get_third_package_orjson',
     # Google Gemini API
     'get_third_package_google_genai',
     # OpenAI-compatible API

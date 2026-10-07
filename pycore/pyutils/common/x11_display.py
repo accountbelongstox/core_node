@@ -81,15 +81,17 @@ class X11Connector:
 x11_connector = X11Connector()
 
 
-def _session_get_auth(sock: Any, dname: Any, host: Any, dno: Any) -> Tuple[Any, Any]:
+def _session_get_auth(sock: Any, dname: Any, *address: Any) -> Tuple[Any, Any]:
     """Process-wide Xlib auth hook: the cookie of the connect in progress on the
     connector thread, else Xlib's own strict lookup, else the session cookies
     (display-less Xwayland/mutter entries that python-xlib alone never matches),
-    so every Xlib user connects."""
+    so every Xlib user connects. ``address`` is (host, dno) for python-xlib's
+    old get_auth and (protocol, host, dno) for the current one; it is passed
+    through unchanged so both signatures work."""
     cookie = x11_connector.cookie_for_current_connect()
     if cookie is not None:
         return cookie
-    name, data = _XLIB_ORIGINAL_GET_AUTH["get_auth"](sock, dname, host, dno)
+    name, data = _XLIB_ORIGINAL_GET_AUTH["get_auth"](sock, dname, *address)
     if name:
         return name, data
     session = ensure_session_environment()

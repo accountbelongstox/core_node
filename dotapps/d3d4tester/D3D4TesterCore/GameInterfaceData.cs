@@ -7,6 +7,7 @@ using System.Drawing;
 using System.IO;
 using DotApps.d3d4tester.Core.Bag;
 using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Core.Bridge;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.TemplateMatcher;
@@ -30,8 +31,10 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private string _rosbotExtendedStatus = "not_found";
     private bool _rosbotRunning;
     private bool _rosbotDisconnectedFromLog;
-    private bool _d3JustEnteredFromD13;
     private bool _rosbotFlowMasterEnabled;
+    private bool _rosbotFlowPaused;
+    private RosbotBridgeState? _rosbotBridge;
+    private bool _rosbotBridgeFresh;
     private bool _ensureBattlenetOnlyEnabled;
     private bool _d3Running;
     private string _mapType = "unknown";
@@ -91,6 +94,12 @@ public sealed class GameInterfaceData : IGameInterfaceData
     public bool RosbotFlowMasterEnabled
     {
         get { lock (_lock) return _rosbotFlowMasterEnabled; }
+    }
+
+    /// <summary>Monitoring paused (flow halted, ROSBOT paused with its own key); written only through RosbotFlowState.</summary>
+    public bool RosbotFlowPaused
+    {
+        get { lock (_lock) return _rosbotFlowPaused; }
     }
 
     /// <summary>Ensure-Battle.net-only switch; written only through RosbotFlowState.</summary>
@@ -158,6 +167,8 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 RosbotRunning = _rosbotRunning,
                 RosbotDisconnectedFromLog = _rosbotDisconnectedFromLog,
                 RosbotFlowMasterEnabled = _rosbotFlowMasterEnabled,
+                RosbotBridge = _rosbotBridge,
+                RosbotBridgeFresh = _rosbotBridgeFresh,
                 EnsureBattlenetOnlyEnabled = _ensureBattlenetOnlyEnabled,
                 D3Running = _d3Running,
                 MapType = _mapType,
@@ -278,23 +289,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
         }
     }
 
-    /// <summary>Set when D13 just entered the game (C7a map teleport without C10). 1:1 Python set_d3_just_entered_from_d13.</summary>
-    public void SetD3JustEnteredFromD13(bool value)
-    {
-        lock (_lock) _d3JustEnteredFromD13 = value;
-    }
-
-    /// <summary>Read and clear the D13 just-entered flag. 1:1 Python get_and_clear_d3_just_entered_from_d13.</summary>
-    public bool GetAndClearD3JustEnteredFromD13()
-    {
-        lock (_lock)
-        {
-            bool v = _d3JustEnteredFromD13;
-            _d3JustEnteredFromD13 = false;
-            return v;
-        }
-    }
-
     /// <summary>Set map type from ROSBOT log (e.g. town, echo, firstborn_temple). Returns true if value changed.</summary>
     public bool SetMapType(string mapType)
     {
@@ -330,6 +324,30 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotFlowMasterEnabled(enabled={enabled}).");
             }
         }
+    }
+
+    /// <summary>Publish the CoreNodeBridge plugin state (null = no state.json). True when the state or its freshness changed.</summary>
+    public bool SetRosbotBridgeState(RosbotBridgeState? state, DateTime nowUtc)
+    {
+        bool fresh = state != null && !state.IsStale(nowUtc);
+        lock (_lock)
+        {
+            bool changed = fresh != _rosbotBridgeFresh || state?.UpdatedUtc != _rosbotBridge?.UpdatedUtc;
+            _rosbotBridge = state;
+            _rosbotBridgeFresh = fresh;
+            return changed;
+        }
+    }
+
+    /// <summary>Set monitoring paused (Pause / Resume monitoring).</summary>
+    public void SetRosbotFlowPaused(bool paused)
+    {
+        lock (_lock)
+        {
+            if (_rosbotFlowPaused == paused) return;
+            _rosbotFlowPaused = paused;
+        }
+        ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotFlowPaused(paused={paused}).");
     }
 
     /// <summary>Set Ensure Battle.net only mode (button on/off). Dot: 2s tick loop when enabled (1:1 Python process_task + tick_bn_only_flow).</summary>

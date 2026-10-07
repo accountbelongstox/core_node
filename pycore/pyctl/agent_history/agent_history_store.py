@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
+from pycore.pyctl.agent_history.agent_history_index import agent_history_index
 from pycore.pyctl.agent_history.agent_history_records import (
     IS_DEV_MACHINE,
     local_time_text,
@@ -20,12 +21,7 @@ from pycore.pyctl.agent_history.agent_history_records import (
     prompt_session_id,
 )
 from pycore.pyctl.agent_history.agent_history_statistics import valid_generated_at
-from pycore.pyctl.agent_history.snapshot_cache import (
-    read_index_catalog,
-    read_prompt_catalog,
-    read_prompt_catalog_snapshot,
-    session_summary,
-)
+from pycore.pyctl.agent_history.snapshot_cache import read_index_catalog, session_summary
 
 MATERIALIZE_CAP = 100
 ID_PAGE_SIZE_CAP = 1000
@@ -47,34 +43,10 @@ def _paginate(items: List[Dict[str, Any]], page: int, page_size: int) -> Dict[st
     return result
 
 
-def _filter_prompts(
-    prompts: List[Dict[str, Any]],
-    tool: Optional[str] = None,
-    user: Optional[str] = None,
-    q: Optional[str] = None,
-    tools: Optional[List[str]] = None,
-    lang: Optional[str] = None,
-) -> List[Dict[str, Any]]:
-    needle = (q or "").strip().lower()
-    allowed_tools = {
-        str(item).strip().lower()
-        for item in (tools or [])
-        if str(item).strip()
-    }
-    filtered = []
-    for p in prompts:
-        if tool and p.get("tool") != tool:
-            continue
-        if not tool and allowed_tools and str(p.get("tool") or "").lower() not in allowed_tools:
-            continue
-        if user and p.get("os_user") != user:
-            continue
-        if lang and p.get("lang") != lang:
-            continue
-        if needle and needle not in (p.get("text") or "").lower():
-            continue
-        filtered.append(p)
-    return filtered
+def _allowed_tools(tool: Optional[str], tools: Optional[List[str]]) -> List[str]:
+    if tool:
+        return []
+    return sorted({str(item).strip().lower() for item in (tools or []) if str(item).strip()})
 
 
 def _wanted_ids(ids: List[str]) -> List[str]:
@@ -92,15 +64,12 @@ class AgentHistoryStore:
 
     @staticmethod
     def _store_header(index: Dict[str, Any]) -> Dict[str, Any]:
-        state = txt.read_state()
-        counts = state.get("counts") or {}
-        if not isinstance(counts, dict):
-            counts = {}
+        counts = dict(index.get("counts") or {})
         if not counts.get("sessions"):
             counts["sessions"] = index.get("sessions_count") or len(index.get("sessions") or [])
         return {
-            "is_dev_machine": index.get("is_dev_machine", IS_DEV_MACHINE),
-            "generated_at": valid_generated_at(index.get("generated_at")) or valid_generated_at(state.get("generated_at")),
+            "is_dev_machine": IS_DEV_MACHINE,
+            "generated_at": valid_generated_at(index.get("generated_at")),
             "tools": index.get("tools") or [],
             "users": index.get("users") or [],
             "langs": index.get("langs") or [],
@@ -127,12 +96,20 @@ class AgentHistoryStore:
         lang: Optional[str] = None,
         tools: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        filtered = _filter_prompts(read_prompt_catalog(), tool, user, q, tools, lang)
         limit = max(1, limit) if limit > 0 else DEFAULT_PAGE_SIZE
         offset = max(0, offset)
+        result = agent_history_index.prompt_query(
+            tool=tool,
+            user=user,
+            lang=lang,
+            needle=(q or "").strip().lower(),
+            tools=_allowed_tools(tool, tools),
+            offset=offset,
+            limit=limit,
+        )
         return {
-            "items": filtered[offset: offset + limit],
-            "total": len(filtered),
+            "items": result["items"],
+            "total": result["total"],
             "limit": limit,
             "offset": offset,
         }
@@ -189,18 +166,21 @@ class AgentHistoryStore:
         page_size: int = DEFAULT_PAGE_SIZE,
         since_revision: str = "",
     ) -> Dict[str, Any]:
-        prompt_snapshot = read_prompt_catalog_snapshot()
-        revision = str(prompt_snapshot.get("revision") or "missing")
+        revision = agent_history_index.revision()
         if since_revision and since_revision == revision:
             return {"revision": revision, "unchanged": True}
-        filtered = _filter_prompts(prompt_snapshot.get("items") or [], tool, user, q, tools)
+        window = agent_history_index.prompt_id_page(
+            tool=tool,
+            user=user,
+            needle=(q or "").strip().lower(),
+            tools=_allowed_tools(tool, tools),
+            page=page,
+            page_size=page_size,
+            cap=ID_PAGE_SIZE_CAP,
+        )
         result = self._store_header(self._index_catalog())
         result["revision"] = revision
-        result.update(_paginate(filtered, page, page_size))
-        result["items"] = [
-            {key: value for key, value in p.items() if key != "text"}
-            for p in result["items"]
-        ]
+        result.update(window)
         return result
 
     def read_prompt_page(self, ids: List[str]) -> Dict[str, Any]:
@@ -242,12 +222,7 @@ class AgentHistoryStore:
         edits[prompt_id] = {"text": text, "edited_at": local_time_text()}
         txt.write_edits(edits)
 
-        prompts = txt.read_prompts()
-        for p in prompts:
-            if p.get("id") == prompt_id:
-                p["text"] = text
-                p["edited"] = True
-        txt.write_prompts(prompts)
+        agent_history_index.set_prompt_text(prompt_id, text)
 
         detail = txt.read_session(session_id)
         if detail:

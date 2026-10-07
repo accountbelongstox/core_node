@@ -19,8 +19,8 @@ public static class D3PathConstants
     public const string FileTimestampFormat = "yyyyMMdd_HHmmss";
     public const string FileTimestampMsFormat = "yyyyMMdd_HHmmss_fff";
 
-    /// <summary>Base directory for ROSBOT update convention: GameTools\{Asia|CN}_{version}\RosBot. 1:1 Python ROSBOT_GAMETOOLS_BASE.</summary>
-    public const string RosbotGameToolsBase = @"D:\applications\GameTools";
+    /// <summary>Fallback GameTools folder for ROSBOT updates when no ROSBOT path is set (normally it follows the scanned ROSBOT, see RosbotGameToolsLayout).</summary>
+    public const string RosbotGameToolsBase = @"E:\applications\GameTools";
 
     public const string RosbotDirNamespaceAsia = "Asia";
     public const string RosbotDirNamespaceCn = "CN";

@@ -87,6 +87,7 @@ execute_test_script() {
     # Execute the script
     "$script_path"
     local exit_code=$?
+    run_install_permission_gateway
     
     echo ""
     echo "Script execution completed with exit code: $exit_code"

@@ -45,3 +45,9 @@ D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\obj\Debug\net8.0-windo
 D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\obj\Debug\net8.0-windows\refint\D3D4TesterCore.dll
 D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\obj\Debug\net8.0-windows\D3D4TesterCore.pdb
 D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\obj\Debug\net8.0-windows\ref\D3D4TesterCore.dll
+D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\bin\Debug\net8.0-windows\DotCore.VocAnnotator.dll
+D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\bin\Debug\net8.0-windows\DotCore.YoloDetect.dll
+D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\bin\Debug\net8.0-windows\DotCore.YoloTrain.dll
+D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\bin\Debug\net8.0-windows\DotCore.YoloDetect.pdb
+D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\bin\Debug\net8.0-windows\DotCore.VocAnnotator.pdb
+D:\programing\core_node\dotapps\d3d4tester\D3D4TesterCore\bin\Debug\net8.0-windows\DotCore.YoloTrain.pdb

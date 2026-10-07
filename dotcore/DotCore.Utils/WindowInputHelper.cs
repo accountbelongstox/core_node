@@ -22,6 +22,27 @@ public static class WindowInputHelper
     private const int MK_RBUTTON = 0x0002;
     private const int SystemKeyHoldMs = 50;
 
+    private const uint WM_CLOSE = 0x0010;
+    private const uint WM_SETTEXT = 0x000C;
+    private const uint BM_CLICK = 0x00F5;
+
+    /// <summary>Post a raw window message (e.g. key down/up with an explicit lParam).</summary>
+    public static bool PostMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam) =>
+        hwnd != IntPtr.Zero && WindowInputNative.PostMessage(hwnd, msg, wParam, lParam);
+
+    /// <summary>Ask the window to close (WM_CLOSE).</summary>
+    public static bool PostClose(IntPtr hwnd) => PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+
+    /// <summary>Replace a control's text (WM_SETTEXT, synchronous; edit boxes of other processes, no keyboard or focus needed).</summary>
+    public static bool SetControlText(IntPtr control, string text) =>
+        control != IntPtr.Zero && WindowInputNative.SendMessageText(control, WM_SETTEXT, IntPtr.Zero, text) != IntPtr.Zero;
+
+    /// <summary>Press a button control (BM_CLICK, synchronous).</summary>
+    public static void ClickButton(IntPtr button)
+    {
+        if (button != IntPtr.Zero) WindowInputNative.SendMessage(button, BM_CLICK, IntPtr.Zero, IntPtr.Zero);
+    }
+
     /// <summary>Send key down or up to window. 1:1 Python send_key(hwnd, key_code, press).</summary>
     public static bool SendKey(IntPtr hwnd, uint vk, bool press)
     {
@@ -110,6 +131,12 @@ internal static class WindowInputNative
     [DllImport(User32)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport(User32)]
+    public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport(User32, EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessageText(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam);
 
     [DllImport(User32)]
     [return: MarshalAs(UnmanagedType.Bool)]

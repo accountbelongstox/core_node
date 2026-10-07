@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
 using DotApps.d3d4tester.I18n;
+using DotApps.d3d4tester.Services;
 using DotCore.Common;
 using DotCore.UITheme.StatusBar;
 
@@ -12,7 +13,9 @@ namespace DotApps.d3d4tester.StatusBar;
 
 /// <summary>
 /// D3-specific status bar display builder: implements public lib IStatusBarDisplayBuilder.
-/// Single place that defines how snapshot + i18n become status bar segment text and brush keys.
+/// Single place that defines how snapshot + i18n become status bar segment text and brush keys. While the CoreNodeBridge plugin
+/// state in the snapshot is live, the D3 / map / stage segments come from it (dead / in game, level area, town / rift kind);
+/// otherwise from the D3 screenshot state and the ROSBOT log.
 /// </summary>
 public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
 {
@@ -20,6 +23,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     private const string MutedBrushKey = "TextMutedBrush";
     private const string WarningBrushKey = "TextWarningBrush";
     private const string ErrorBrushKey = "TextErrorBrush";
+    private const string BridgeHintSeparator = " · ";
     private const string ChipNeutralStyleKey = "StatusChipStyle";
     private const string ChipSuccessStyleKey = "StatusChipSuccessStyle";
     private const string ChipWarningStyleKey = "StatusChipWarningStyle";
@@ -97,6 +101,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string rosText = $"{rosLabel} {rosVal}";
         string rosBrushKey = s.RosbotExtendedStatus == "running" ? successKey : (s.RosbotExtendedStatus == "paused" ? warningKey : errorKey);
 
+        var bridge = s.RosbotBridgeFresh ? s.RosbotBridge : null;
         string d3Label = p.GetUiText(I18nKeys.StatusD3);
         string d3Text;
         string d3BrushKey;
@@ -104,6 +109,13 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         {
             d3Text = $"{d3Label}: {p.GetUiText(I18nKeys.StatusNotRunning)}";
             d3BrushKey = errorKey;
+        }
+        else if (bridge != null)
+        {
+            d3Text = $"{d3Label}: {p.GetUiText(bridge.Dead ? I18nKeys.RosbotBridgeDead : bridge.InGame ? I18nKeys.StatusD3InGame : I18nKeys.RosbotBridgeNotInGame)}"
+                + (bridge.InventoryFull ? BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeInventoryFull) : "")
+                + (bridge.RepairNeeded ? BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeRepairNeeded) : "");
+            d3BrushKey = bridge.InGame && !bridge.Dead && !bridge.InventoryFull && !bridge.RepairNeeded ? successKey : warningKey;
         }
         else if (s.D3Disconnected)
         {
@@ -126,15 +138,28 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
             d3BrushKey = successKey;
         }
 
-        string mapKey = "ui.rosbot.map_" + (string.IsNullOrEmpty(s.MapType) ? "unknown" : s.MapType);
-        string mapVal = p.GetUiText(mapKey) != mapKey ? p.GetUiText(mapKey) : (s.MapType ?? "unknown");
+        string mapVal;
+        string mapBrushKey;
+        string stageVal;
+        string stageBrushKey;
+        if (bridge is { InGame: true })
+        {
+            mapVal = RosbotBridgeText.AreaText(bridge.LevelAreaSno, p);
+            mapBrushKey = bridge.LevelAreaSno != 0 ? successKey : warningKey;
+            stageVal = RosbotBridgeText.LocationText(bridge, p);
+            stageBrushKey = successKey;
+        }
+        else
+        {
+            string mapKey = "ui.rosbot.map_" + (string.IsNullOrEmpty(s.MapType) ? "unknown" : s.MapType);
+            mapVal = p.GetUiText(mapKey) != mapKey ? p.GetUiText(mapKey) : (s.MapType ?? "unknown");
+            mapBrushKey = s.MapType != "unknown" ? successKey : warningKey;
+            string stageKey = "ui.rosbot.stage_" + (string.IsNullOrEmpty(s.GameStage) ? "unknown" : s.GameStage);
+            stageVal = p.GetUiText(stageKey) != stageKey ? p.GetUiText(stageKey) : (s.GameStage ?? "unknown");
+            stageBrushKey = s.GameStage != "unknown" ? successKey : warningKey;
+        }
         string mapText = (p.GetUiText(I18nKeys.StatusMap) ?? "Map") + ": " + mapVal;
-        string mapBrushKey = s.MapType != "unknown" ? successKey : warningKey;
-
-        string stageKey = "ui.rosbot.stage_" + (string.IsNullOrEmpty(s.GameStage) ? "unknown" : s.GameStage);
-        string stageVal = p.GetUiText(stageKey) != stageKey ? p.GetUiText(stageKey) : (s.GameStage ?? "unknown");
         string stageText = (p.GetUiText(I18nKeys.StatusStage) ?? "Stage") + ": " + stageVal;
-        string stageBrushKey = s.GameStage != "unknown" ? successKey : warningKey;
 
         string oauthText = p.GetUiText(I18nKeys.StatusOauthScriptLabel) + ": " + (s.OauthScriptConnected ? p.GetUiText(I18nKeys.StatusOauthConnected) : p.GetUiText(I18nKeys.StatusOauthDisconnected));
         string oauthBrushKey = s.OauthScriptConnected ? successKey : errorKey;

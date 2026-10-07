@@ -89,6 +89,14 @@ public static partial class ConfigKeys
     public const string BattlenetAbnormalTimeoutSec = "battlenet.abnormal_timeout_sec";
     public const string BattlenetLoginRestartEnabled = "battlenet.login_restart_enabled";
     public const string BattlenetLoginTimeoutSec = "battlenet.login_timeout_sec";
+    /// <summary>Hold the network with the D4 download (BattlenetNetHoldService): ensure the client, start / resume D4, D3 tab when done.</summary>
+    public const string BattlenetNetHoldEnabled = "battlenet.net_hold_enabled";
+    /// <summary>Start the app at logon (Startup shortcut) so the network hold resumes after a reboot; needs net_hold_enabled.</summary>
+    public const string BattlenetNetHoldOnBoot = "battlenet.net_hold_on_boot";
+    public const string BattlenetNetHoldIntervalSec = "battlenet.net_hold_interval_sec";
+    public const int BattlenetNetHoldIntervalSecDefault = 60;
+    /// <summary>Folder D4 is installed into (the install dialog is pointed there); empty = keep Battle.net's suggestion.</summary>
+    public const string BattlenetD4InstallPath = "battlenet.d4_install_path";
     /// <summary>Ask before restarting Battle.net when the global region changes.</summary>
     public const string BattlenetRegionSwitchPrompt = "battlenet.region_switch_prompt";
     /// <summary>Saved accounts per region: battlenet_accounts.cn / .asia = [{label, email, password (encrypted)}].</summary>
@@ -107,6 +115,11 @@ public static partial class ConfigKeys
     public const string RosbotSmartEcho = "rosbot.smart_echo";
     public const string RosbotSmartEchoWaitSeconds = "rosbot.smart_echo_wait_seconds";
     public const string RosbotStartup = "rosbot.startup";
+    /// <summary>Install / refresh this app's CoreNodeBridge plugin in the current ROSBOT automatically. Default on.</summary>
+    public const string RosbotBridgePluginAutoInstall = "rosbot.bridge_plugin_auto_install";
+    public const bool RosbotBridgePluginAutoInstallDefault = true;
+    public const string BridgeFollowTownPortalKey = "rosbot.bridge_follow_town_portal_key";
+    public const string BridgeFollowTownPortalKeyDefault = "t";
     public const string RosbotFirstbornBlueGateReuse = "rosbot.firstborn_blue_gate_reuse";
     public const string RosbotTestMode = "rosbot.test_mode";
     public const string RosbotTestTimeoutMinutes = "rosbot.test_timeout_minutes";

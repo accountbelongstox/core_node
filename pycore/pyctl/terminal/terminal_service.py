@@ -8,7 +8,7 @@ import secrets
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -619,6 +619,15 @@ class TerminalService:
             content_kind,
             log_id,
         )
+
+    def read_log_texts(
+        self,
+        terminal_number: int,
+        log_ids: Sequence[str],
+    ) -> Dict[str, str]:
+        if terminal_number <= 0:
+            return {}
+        return self._state_repository.read_log_texts(terminal_number, log_ids)
 
     @serialized_method
     def input_text(

@@ -26,27 +26,20 @@ public static class D3InterfaceConstants
     public static readonly (int X, int Y) D3TeleportClick2 = (713, 611);
 
     public const double C7bTeleportClickIntervalSec = 0.5;
-    public const double C7bWaitAfterClickSec = 2.0;
-    public const double C7bAfterBountyStableSec = 0.5;
-    public const double D3GameToolAfterMDelaySec = 2.0;
-    public const double D3StartGameWaitIntervalSec = 2.0;
-    public const int D3StartGameMaxAttempts = 10;
-    public const int D3GameToolMaxAttempts = 10;
-    public const int D3Fragment1WaitGameToolAttempts = 5;
-    public const int D3Fragment2DisappearAttempts = 5;
 
-    /// <summary>C3/C3w overall timeout (3 minutes) for the blocking C3 loop.</summary>
-    public const double C3C3wTimeoutSec = 180.0;
+    /// <summary>[C3] Recognition loop timeout; a Start Game click restarts it.</summary>
+    public const double C3TimeoutSec = 180.0;
 
-    /// <summary>Extension flow deadline in flow ticks (2 s per flow tick): 90 * 2 s = 180 s.</summary>
-    public const int C3DeadlineTicks = 90;
+    /// <summary>[C5w] Wait for d3_game_tool after the Start Game click.</summary>
+    public const double C5wTimeoutSec = 10.0;
 
-    /// <summary>Flow ticks to wait for d3_game_tool after Start Game (C5w).</summary>
-    public const int C5wDeadlineTicks = 5;
-
+    /// <summary>[C3w] Pause between two C3 recognitions.</summary>
     public const double C3wWaitSec = 2.0;
 
-    /// <summary>Within this many seconds after a teleport skip C10 (M-key disconnect check) and do not re-enter the C branch.</summary>
+    /// <summary>[C10] / [C7w] Wait after M before the next capture (map toggle animation).</summary>
+    public const double MapToggleWaitSec = 2.0;
+
+    /// <summary>Within this many seconds after a teleport skip C10 (M-key disconnect check).</summary>
     public const int C10SkipAfterTeleportSec = 90;
 
     /// <summary>C10b: before/after-M similarity at or above this means M had no response, i.e. disconnected.</summary>

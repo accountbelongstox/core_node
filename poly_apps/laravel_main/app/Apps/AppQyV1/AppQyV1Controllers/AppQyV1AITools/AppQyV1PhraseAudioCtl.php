@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1PhraseAudioService;
 use App\Http\Controllers\Controller;
 use App\Services\WorkLeases\WorkLeaseLanes;
@@ -28,19 +29,25 @@ class AppQyV1PhraseAudioCtl extends Controller
     private const CONTENT_ID_RULE = 'regex:/^[a-f0-9]{32}$/i';
     private const CACHE_CONTROL = 'public, max-age=31536000';
     private const AUDIO_MIME = 'audio/mpeg';
+    /** Durable offset upload scope of a phrase clip (pycore laravel_progress_uploader). */
+    private const UPLOAD_SCOPE = 'phrase_tts';
 
-    public function __construct(private readonly AppQyV1PhraseAudioService $service = new AppQyV1PhraseAudioService())
-    {
+    public function __construct(
+        private readonly AppQyV1PhraseAudioService $service = new AppQyV1PhraseAudioService(),
+        private readonly AppQyV1DurableOffsetUploadService $uploadService = new AppQyV1DurableOffsetUploadService()
+    ) {
     }
 
     /**
      * Multipart (success): { content_id, language, worker_id?, success?:"true", text?, provider?, audio|file:<mp3> }
-     * (or audio_base64). Failure: { content_id, language, worker_id?, success:"false", error? }.
+     * (or audio_base64, or the durable offset-v1 chunk body pycore sends). Failure: { content_id, language, worker_id?, success:"false", error? }.
      */
     public function report(Request $request): JsonResponse
     {
         $audioBinary = null;
         $upload = null;
+        $offsetReceipt = null;
+        $publicReceipt = [];
         $result = [];
         $status = 0;
         $validator = Validator::make($request->all(), [
@@ -52,13 +59,39 @@ class AppQyV1PhraseAudioCtl extends Controller
             'provider' => 'nullable|string|max:100',
             'error' => 'nullable|string|max:2000',
             'audio_base64' => 'nullable|string',
+            'upload_protocol' => 'nullable|string|in:offset-v1',
+            'upload_offset' => 'required_with:upload_protocol|integer|min:0',
+            'upload_length' => 'required_with:upload_protocol|integer|min:100',
+            'audio_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'chunk_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
         ]);
 
         if ($validator->fails()) {
             return $this->validationFailed($validator);
         }
         $success = !$request->has('success') || filter_var($request->input('success'), FILTER_VALIDATE_BOOLEAN);
-        if ($success) {
+        if ($success && $request->filled('upload_protocol')) {
+            $offsetReceipt = $this->uploadService->receive(
+                self::UPLOAD_SCOPE,
+                (string) $request->input('content_id') . ':' . (string) $request->input('language'),
+                (string) $request->getContent(),
+                (int) $request->input('upload_offset'),
+                (int) $request->input('upload_length'),
+                (string) $request->input('audio_sha256'),
+                (string) $request->input('chunk_sha256')
+            );
+            if ($offsetReceipt === null) {
+                return $this->codedError(self::ERROR_INVALID_PAYLOAD, __('app_qy_v1.messages.phrase_audio_upload_failed', ['detail' => 'invalid durable audio chunk']), [], 422);
+            }
+            $publicReceipt = $this->uploadService->publicReceipt($offsetReceipt);
+            if (!($offsetReceipt['upload_complete'] ?? false)) {
+                return response()->json(['success' => true, 'data' => $publicReceipt]);
+            }
+            $audioBinary = $this->uploadService->completedBytes($offsetReceipt);
+            if ($audioBinary === false) {
+                return $this->codedError(self::ERROR_INVALID_PAYLOAD, __('app_qy_v1.messages.phrase_audio_upload_failed', ['detail' => 'completed upload unreadable']), [], 500);
+            }
+        } elseif ($success) {
             $upload = $request->file('audio') ?? $request->file('file');
             if ($upload !== null) {
                 if (!$upload->isValid()) {
@@ -85,6 +118,13 @@ class AppQyV1PhraseAudioCtl extends Controller
         );
         $status = $result['http_status'];
         unset($result['http_status']);
+        if ($offsetReceipt !== null) {
+            if ($result['ok']) {
+                $this->uploadService->discardCompleted($offsetReceipt);
+            }
+
+            return response()->json(['success' => $result['ok'], 'data' => array_merge($publicReceipt, $result)], $status);
+        }
 
         return response()->json(['success' => $result['ok']] + $result, $status);
     }

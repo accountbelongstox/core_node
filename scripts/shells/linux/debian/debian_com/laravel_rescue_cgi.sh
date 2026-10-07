@@ -2,7 +2,7 @@
 # busybox httpd CGI of the Laravel rescue plane (config/service_contract.json#laravel_rescue).
 # Verifies the client_key_auth signature, then only writes
 # <epoch>-<nonce>.<action>.request into LR_REQUESTS_DIR (the watcher runs it);
-# read actions return the watcher status tail. Every LR_* value comes from the
+# read actions return the watcher status tail or the port/keepalive state. Every LR_* value comes from the
 # generated cgi-bin wrapper (laravel_rescue_common.sh lr_ensure_cgi).
 
 LR_STATUS_TAIL_LINES=20
@@ -28,6 +28,20 @@ source "$LR_SIGNATURE_LIB"
 lr_own() {
     [ "$(id -u)" -eq 0 ] && chown "$LR_OWNER:$LR_GROUP" "$@" 2>/dev/null
     return 0
+}
+
+# lr_port_state <port>: up when a TCP listener exists on it.
+lr_port_state() {
+    ss -ltnH "sport = :$1" 2>/dev/null | grep -q . && echo up || echo down
+}
+
+lr_reply_services() {
+    printf 'Status: 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\n\r\n'
+    printf 'laravel_port=%s\nlaravel_state=%s\n' "$LR_LARAVEL_PORT" "$(lr_port_state "$LR_LARAVEL_PORT")"
+    printf 'ui_port=%s\nui_state=%s\nui_unit=%s\n' "$LR_UI_PORT" "$(lr_port_state "$LR_UI_PORT")" \
+        "$(systemctl is-active "$LR_UI_SERVICE" 2>/dev/null)"
+    printf 'keepalive=%s\n' "$([ -f "$LR_KEEPALIVE_FLAG" ] && echo on || echo off)"
+    exit 0
 }
 
 # lr_reply <http status> <code> [extra json members]
@@ -103,6 +117,9 @@ if ! ( set -C; : > "$LR_NONCE_FILE" ) 2>/dev/null; then
 fi
 lr_own "$LR_NONCE_FILE"
 
+if [ "$LR_ACTION" = "services" ]; then
+    lr_reply_services
+fi
 if lr_word_in "$LR_ACTION" "$LR_READ_ACTIONS"; then
     printf 'Status: 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\n\r\n'
     tail -n "$LR_STATUS_TAIL_LINES" "$LR_STATUS_FILE" 2>/dev/null

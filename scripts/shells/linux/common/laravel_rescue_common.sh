@@ -4,7 +4,7 @@
 # that only writes request files; the watcher unit polls them every poll_seconds,
 # deletes each at once and runs its Laravel action (start/restart/sys:init/...).
 # Every step probes its own state and repairs only what is missing or drifted.
-#   bash laravel_rescue_common.sh httpd                    busybox + openssl + dirs + CGI + httpd unit
+#   bash laravel_rescue_common.sh httpd                    busybox + openssl + dirs + CGI + index page + httpd unit
 #   bash laravel_rescue_common.sh watcher                  httpd steps + watcher unit (LR_LARAVEL_* env)
 #   bash laravel_rescue_common.sh request <action> [url]   signed client call (url default: loopback)
 
@@ -19,6 +19,9 @@ LR_LINUX_DIR="$(dirname "$LR_COMMON_DIR")"
 LR_SIGNATURE_LIB="$LR_COMMON_DIR/laravel_rescue_signature.sh"
 LR_CGI_SCRIPT="$LR_LINUX_DIR/debian/debian_com/laravel_rescue_cgi.sh"
 LR_WATCHER_SCRIPT="$LR_LINUX_DIR/debian/debian_com/laravel_rescue_watcher.sh"
+LR_INDEX_TEMPLATE="$LR_LINUX_DIR/debian/debian_com/laravel_rescue_index.html"
+LR_INDEX_CONFIG_TOKEN="__LR_CONFIG__"
+LR_PAGE_CLIENT="shell"
 LR_BASH_BIN="/bin/bash"
 LR_HTTPD_CPU="10%"
 LR_HTTPD_MEM="32M"
@@ -41,6 +44,13 @@ LR_CGI_NAME=""
 LR_REQUESTS_DIR=""
 LR_NONCES_DIR=""
 LR_STATUS_FILE=""
+LR_KEEPALIVE_FLAG=""
+LR_KEEPALIVE_COOLDOWN=""
+LR_KEEPALIVE_START_GRACE=""
+LR_INDEX_FILE=""
+LR_UI_SERVICE=""
+LR_LARAVEL_PORT=""
+LR_UI_PORT=""
 LR_POLL_SECONDS=""
 LR_ACTIONS=""
 LR_READ_ACTIONS=""
@@ -83,6 +93,12 @@ lr_load_contract() {
     LR_REQUESTS_DIR="$CORE_NODE_DATA_DIR/$(sc_get laravel_rescue.requests_subpath)"
     LR_NONCES_DIR="$CORE_NODE_DATA_DIR/$(sc_get laravel_rescue.nonces_subpath)"
     LR_STATUS_FILE="$CORE_NODE_DATA_DIR/$(sc_get laravel_rescue.status_file_subpath)"
+    LR_KEEPALIVE_FLAG="$CORE_NODE_DATA_DIR/$(sc_get laravel_rescue.keepalive_flag_subpath)"
+    LR_KEEPALIVE_COOLDOWN="$(sc_get laravel_rescue.keepalive_cooldown_seconds)"
+    LR_KEEPALIVE_START_GRACE="$(sc_get laravel_rescue.keepalive_start_grace_seconds)"
+    LR_UI_SERVICE="$(sc_get laravel_rescue.ui_service)"
+    LR_LARAVEL_PORT="$(sc_get ports.laravel_api_backend)"
+    LR_UI_PORT="$(sc_get ports.nexus_dash_frontend)"
     LR_CGI_NAME="$(sc_get laravel_rescue.cgi_name)"
     LR_POLL_SECONDS="$(sc_get laravel_rescue.poll_seconds)"
     LR_ACTIONS="$(sc_get laravel_rescue.actions | tr ',' ' ')"
@@ -96,6 +112,7 @@ lr_load_contract() {
     LR_NONCE_TTL="$(sc_get client_key_auth.nonce_ttl_seconds)"
     LR_CGI_DIR="$LR_DOCROOT/cgi-bin"
     LR_CGI_FILE="$LR_CGI_DIR/$LR_CGI_NAME"
+    LR_INDEX_FILE="$LR_DOCROOT/$(sc_get laravel_rescue.index_name)"
     LR_KEY_FILE="$CLIENT_KEY_RAW_DIR/$CLIENT_KEY_NAME"
     if [ -z "$CORE_NODE_DATA_DIR" ] || [ -z "$LR_PORT" ] || [ -z "$LR_HTTPD_SERVICE" ] || [ -z "$LR_WATCHER_SERVICE" ] \
        || [ -z "$LR_CGI_NAME" ] || [ -z "$LR_POLL_SECONDS" ] || [ -z "$LR_ACTIONS" ] || [ -z "$LR_PROTOCOL" ] \
@@ -198,11 +215,31 @@ export LR_READ_ACTIONS='$LR_READ_ACTIONS'
 export LR_REQUESTS_DIR='$LR_REQUESTS_DIR'
 export LR_NONCES_DIR='$LR_NONCES_DIR'
 export LR_STATUS_FILE='$LR_STATUS_FILE'
+export LR_KEEPALIVE_FLAG='$LR_KEEPALIVE_FLAG'
+export LR_UI_SERVICE='$LR_UI_SERVICE'
+export LR_LARAVEL_PORT='$LR_LARAVEL_PORT'
+export LR_UI_PORT='$LR_UI_PORT'
 export LR_POLL_SECONDS='$LR_POLL_SECONDS'
 export LR_OWNER='$LR_OWNER'
 export LR_GROUP='$LR_GROUP'
 exec $LR_BASH_BIN '$LR_CGI_SCRIPT'
 EOF
+}
+
+# Docroot index page: the template with the contract values the browser signs
+# with inlined at the config token; rewritten only on drift.
+lr_ensure_index() {
+    local template=""
+    local config=""
+    local actions_json=""
+    local read_json=""
+
+    template="$(cat "$LR_INDEX_TEMPLATE")"
+    actions_json="\"${LR_ACTIONS// /\",\"}\""
+    read_json="\"${LR_READ_ACTIONS// /\",\"}\""
+    config="{\"protocol\":\"$LR_PROTOCOL\",\"canonicalVersion\":\"$LR_CANONICAL_VERSION\",\"client\":\"$LR_PAGE_CLIENT\",\"cgiPath\":\"/cgi-bin/$LR_CGI_NAME\",\"keyIdLength\":$CLIENT_KEY_ID_LENGTH,\"keyName\":\"$CLIENT_KEY_NAME\",\"pollSeconds\":$LR_POLL_SECONDS,\"actions\":[$actions_json],\"readActions\":[$read_json]}"
+    printf '%s\n' "${template/$LR_INDEX_CONFIG_TOKEN/$config}" \
+        | write_file_if_changed "$LR_INDEX_FILE" "" 644 "$LR_OWNER" "$LR_GROUP"
 }
 
 # Root only: converge_systemd_service rewrites/enables/starts/restarts on drift.
@@ -220,7 +257,7 @@ lr_ensure_httpd_unit() {
 
 lr_ensure_watcher_unit() {
     lr_converge_unit "$LR_WATCHER_SERVICE" "$LR_WATCHER_DESC" \
-        "LR_ROOT_DIR=$LR_ROOT_DIR LR_OWNER=$LR_OWNER LR_GROUP=$LR_GROUP LR_REQUESTS_DIR=$LR_REQUESTS_DIR LR_STATUS_FILE=$LR_STATUS_FILE LR_POLL_SECONDS=$LR_POLL_SECONDS LR_ACTIONS=${LR_ACTIONS// /,} LR_LARAVEL_DIR=$LR_LARAVEL_DIR LR_LARAVEL_START_SCRIPT=$LR_LARAVEL_START_SCRIPT LR_LARAVEL_SERVICE=${LR_LARAVEL_SERVICE:-none} $LR_BASH_BIN $LR_WATCHER_SCRIPT" \
+        "LR_ROOT_DIR=$LR_ROOT_DIR LR_OWNER=$LR_OWNER LR_GROUP=$LR_GROUP LR_REQUESTS_DIR=$LR_REQUESTS_DIR LR_STATUS_FILE=$LR_STATUS_FILE LR_KEEPALIVE_FLAG=$LR_KEEPALIVE_FLAG LR_KEEPALIVE_COOLDOWN=$LR_KEEPALIVE_COOLDOWN LR_KEEPALIVE_START_GRACE=$LR_KEEPALIVE_START_GRACE LR_LARAVEL_PORT=$LR_LARAVEL_PORT LR_UI_PORT=$LR_UI_PORT LR_UI_SERVICE=$LR_UI_SERVICE LR_POLL_SECONDS=$LR_POLL_SECONDS LR_ACTIONS=${LR_ACTIONS// /,} LR_LARAVEL_DIR=$LR_LARAVEL_DIR LR_LARAVEL_START_SCRIPT=$LR_LARAVEL_START_SCRIPT LR_LARAVEL_SERVICE=${LR_LARAVEL_SERVICE:-none} $LR_BASH_BIN $LR_WATCHER_SCRIPT" \
         "$LR_LARAVEL_DIR" root always 10s "" "" "" "" "" interactive
 }
 
@@ -277,6 +314,7 @@ lr_ensure() {
     lr_resolve_owner
     lr_ensure_dirs
     lr_ensure_cgi
+    lr_ensure_index
     if [ "$(id -u)" -eq 0 ]; then
         lr_converge_root "$mode"
     else
