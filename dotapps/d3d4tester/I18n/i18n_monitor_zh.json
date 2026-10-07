@@ -269,7 +269,7 @@
         "ini_path": "ini：{0}",
         "no_ros_dir": "未设置 ROSBOT 目录",
         "add_failed": "钥匙为空或已在列表中。",
-        "hint": "钥匙加密保存。每次启动 ROSBOT 前，使用中的钥匙会替换 ROSBOT 程序旁 RoS-BoT.ini 里的 Key=。该文件由 ROSBOT 首次运行时生成，生成前不会写入。",
+        "hint": "钥匙加密保存。每次启动 ROSBOT 前，使用中的钥匙会替换 ROSBOT 程序旁 RoS-BoT.ini 里的 Key=。若该文件还不存在，会先启动一次 ROSBOT 生成它，关闭后写入钥匙，再重新启动 ROSBOT。",
         "last_apply": "上次写入 {0}：{1}",
         "result_unchanged": "已是最新",
         "result_replaced": "钥匙已更新",

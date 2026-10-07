@@ -269,7 +269,7 @@
         "ini_path": "ini: {0}",
         "no_ros_dir": "ROSBOT folder not set",
         "add_failed": "The key is empty or already in the list.",
-        "hint": "Keys are stored encrypted. Before every ROSBOT start the active key replaces Key= in RoS-BoT.ini next to the ROSBOT exe. ROSBOT creates that file on its first run; until then nothing is written.",
+        "hint": "Keys are stored encrypted. Before every ROSBOT start the active key replaces Key= in RoS-BoT.ini next to the ROSBOT exe. When that file does not exist yet, ROSBOT is started once to create it, closed, the key is written and ROSBOT starts again.",
         "last_apply": "Last write {0}: {1}",
         "result_unchanged": "already up to date",
         "result_replaced": "key updated",
