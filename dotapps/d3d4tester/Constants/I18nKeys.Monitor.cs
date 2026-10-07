@@ -130,4 +130,25 @@ public static partial class I18nKeys
     public const string MonitorEventDescPrefix = "ui.monitor.event_desc.";
     public const string MonitorActionPrefix = "ui.monitor.action.";
     public const string MonitorActionDescPrefix = "ui.monitor.action_desc.";
+
+    public const string MonitorRosbotKeyTab = "ui.monitor.rosbot_key.tab";
+    public const string MonitorRosbotKeyWriteBeforeStart = "ui.monitor.rosbot_key.write_before_start";
+    public const string MonitorRosbotKeyKeys = "ui.monitor.rosbot_key.keys";
+    public const string MonitorRosbotKeyNewKey = "ui.monitor.rosbot_key.new_key";
+    public const string MonitorRosbotKeyAdd = "ui.monitor.rosbot_key.add";
+    public const string MonitorRosbotKeyRemove = "ui.monitor.rosbot_key.remove";
+    public const string MonitorRosbotKeySetActive = "ui.monitor.rosbot_key.set_active";
+    public const string MonitorRosbotKeyApplyNow = "ui.monitor.rosbot_key.apply_now";
+    public const string MonitorRosbotKeyActiveItem = "ui.monitor.rosbot_key.active_item";
+    public const string MonitorRosbotKeyIniPath = "ui.monitor.rosbot_key.ini_path";
+    public const string MonitorRosbotKeyNoRosDir = "ui.monitor.rosbot_key.no_ros_dir";
+    public const string MonitorRosbotKeyAddFailed = "ui.monitor.rosbot_key.add_failed";
+    public const string MonitorRosbotKeyHint = "ui.monitor.rosbot_key.hint";
+    public const string MonitorRosbotKeyLastApply = "ui.monitor.rosbot_key.last_apply";
+    public const string MonitorRosbotKeyResultUnchanged = "ui.monitor.rosbot_key.result_unchanged";
+    public const string MonitorRosbotKeyResultReplaced = "ui.monitor.rosbot_key.result_replaced";
+    public const string MonitorRosbotKeyResultInserted = "ui.monitor.rosbot_key.result_inserted";
+    public const string MonitorRosbotKeyResultFileMissing = "ui.monitor.rosbot_key.result_file_missing";
+    public const string MonitorRosbotKeyResultNoAnchor = "ui.monitor.rosbot_key.result_no_anchor";
+    public const string MonitorRosbotKeyResultNotWritten = "ui.monitor.rosbot_key.result_not_written";
 }

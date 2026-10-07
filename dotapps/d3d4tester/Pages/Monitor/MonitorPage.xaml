@@ -222,6 +222,44 @@
         </Grid>
       </TabItem>
 
+      <!-- ROSBOT license keys: the active one is written to RoS-BoT.ini before every ROSBOT start -->
+      <TabItem x:Name="TabRosbotKey">
+        <Grid Margin="4,8,4,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="16"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblRosbotKeys" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+            <ListBox x:Name="LstRosbotKeys" Grid.Row="1" MinHeight="60" FontFamily="{StaticResource MonoFontFamily}" MouseDoubleClick="LstRosbotKeys_MouseDoubleClick"/>
+            <WrapPanel Grid.Row="2" Margin="0,6,0,0">
+              <Button x:Name="BtnRosbotKeyActive" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Click="BtnRosbotKeyActive_Click"/>
+              <Button x:Name="BtnRosbotKeyRemove" Style="{StaticResource DangerButtonStyle}" Click="BtnRosbotKeyRemove_Click"/>
+            </WrapPanel>
+          </Grid>
+          <StackPanel Grid.Column="2">
+            <CheckBox x:Name="ChkRosbotKeyWrite" Margin="0,0,0,8"/>
+            <TextBlock x:Name="LblRosbotKeyNew" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+            <DockPanel Margin="0,0,0,8">
+              <Button x:Name="BtnRosbotKeyAdd" DockPanel.Dock="Right" Margin="6,0,0,0" Click="BtnRosbotKeyAdd_Click"/>
+              <PasswordBox x:Name="PwdRosbotKey" KeyDown="PwdRosbotKey_KeyDown"/>
+            </DockPanel>
+            <TextBlock x:Name="TxtRosbotKeyIni" Style="{StaticResource MonoTextStyle}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+            <WrapPanel Margin="0,0,0,4">
+              <Button x:Name="BtnRosbotKeyApply" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,8,0" Click="BtnRosbotKeyApply_Click"/>
+              <TextBlock x:Name="TxtRosbotKeyStatus" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </WrapPanel>
+            <TextBlock x:Name="TxtRosbotKeyHint" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
       <!-- Triggers -->
       <TabItem x:Name="TabTriggers">
         <Grid Margin="4,6,4,4">

@@ -255,6 +255,28 @@
         "send_keys": "Sends keys to the foreground window (AutoIt Send syntax).",
         "notify": "Pushes a message through PushPlus / Telegram / Discord / Prowl.",
         "set_sequence": "Selects the sequence in the ROSBOT sequence list."
+      },
+      "rosbot_key": {
+        "tab": "ROSBOT Key",
+        "write_before_start": "Write the active key to RoS-BoT.ini before ROSBOT starts",
+        "keys": "Keys",
+        "new_key": "New key",
+        "add": "Add",
+        "remove": "Remove",
+        "set_active": "Use this key",
+        "apply_now": "Write to ini now",
+        "active_item": "{0}  (active)",
+        "ini_path": "ini: {0}",
+        "no_ros_dir": "ROSBOT folder not set",
+        "add_failed": "The key is empty or already in the list.",
+        "hint": "Keys are stored encrypted. Before every ROSBOT start the active key replaces Key= in RoS-BoT.ini next to the ROSBOT exe. ROSBOT creates that file on its first run; until then nothing is written.",
+        "last_apply": "Last write {0}: {1}",
+        "result_unchanged": "already up to date",
+        "result_replaced": "key updated",
+        "result_inserted": "key added",
+        "result_file_missing": "RoS-BoT.ini not found (start ROSBOT once first)",
+        "result_no_anchor": "no ROSBOT settings section found in RoS-BoT.ini",
+        "result_not_written": "not written (see the monitor log)"
       }
     }
   }

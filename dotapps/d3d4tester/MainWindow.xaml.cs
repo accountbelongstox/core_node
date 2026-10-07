@@ -170,6 +170,7 @@ public partial class MainWindow : Window, IMainWindowHost
         TickDriver.Instance.RegisterEveryTick(RefreshPathState);
         RosbotTaskProcessor.Instance.Install();
         Services.Monitor.MonitorService.Instance.Install();
+        Services.Monitor.RosbotKeyService.Install();
         LoginTryController.Initialize();
         InitializeShell();
     }

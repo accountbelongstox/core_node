@@ -53,6 +53,11 @@ public static partial class ConfigKeys
 
     public const string MonitorTriggers = "monitor.triggers";
 
+    /// <summary>ROSBOT license keys (one cipher text, newline-joined), the one written to RoS-BoT.ini, and the before-start switch.</summary>
+    public const string MonitorRosbotKeys = "monitor.rosbot_keys.keys";
+    public const string MonitorRosbotKeyActiveIndex = "monitor.rosbot_keys.active_index";
+    public const string MonitorRosbotKeyWriteBeforeStart = "monitor.rosbot_keys.write_before_start";
+
     /// <summary>Screenshot key for kind (periodic, death, fail, error) and suffix: monitor.screenshots.death_dir.</summary>
     public static string MonitorScreenshotKey(string kind, string suffix) => $"{MonitorScreenshotsRoot}.{kind}{suffix}";
 }

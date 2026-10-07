@@ -26,6 +26,7 @@ public sealed class RosbotManager
     private DateTime _cacheAtUtc = DateTime.MinValue;
     private Func<IntPtr, bool>? _mainWindowContentValidator;
     private string? _lastLoggedFindRosbotExe;
+    private Action<string>? _beforeStart;
 
     private static readonly RosbotDetectionResult NotFound = new() { Status = RosbotDetection.StatusNotFound };
 
@@ -390,7 +391,10 @@ public sealed class RosbotManager
         return false;
     }
 
-    /// <summary>Start the main ROSBOT exe. 1:1 Python start.</summary>
+    /// <summary>Set by app at startup: runs with the exe path right before every Start launches ROSBOT (e.g. write RoS-BoT.ini).</summary>
+    public void SetBeforeStartHook(Action<string>? hook) => _beforeStart = hook;
+
+    /// <summary>Start the main ROSBOT exe (before-start hook first; a failing hook never blocks the start). 1:1 Python start.</summary>
     public bool Start()
     {
         string? exePath = FindRosbotExe();
@@ -398,6 +402,14 @@ public sealed class RosbotManager
         {
             ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} No ROSBOT exe found, skip start");
             return false;
+        }
+        try
+        {
+            _beforeStart?.Invoke(exePath);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} before-start hook failed: {ex.Message}");
         }
         return StartExecutable(exePath);
     }

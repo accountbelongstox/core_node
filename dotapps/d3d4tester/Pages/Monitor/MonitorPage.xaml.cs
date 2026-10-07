@@ -22,7 +22,8 @@ namespace DotApps.d3d4tester.Pages.Monitor;
 /// <summary>
 /// Monitor tab: the RBAssist features merged into the app, shown without scrolling: a status strip (monitoring = ROSBOT flow, D3 / ROSBOT,
 /// log and history idle, restarts, counters, game speed) with the ROSBOT control buttons on top, then one sub-tab each for crash recovery (incl. the ROSBOT log-timeout switch and minutes, startup shortcut),
-/// D3 window and process tuning, screenshots, notifications, external tools and probe thresholds, the trigger list with its editor,
+/// D3 window and process tuning, screenshots, notifications, external tools and probe thresholds, ROSBOT license keys (the active one
+/// is written to RoS-BoT.ini before every ROSBOT start), the trigger list with its editor,
 /// and the logs (monitor log + ROSBOT log). Settings bind to monitor.* (ROSBOT options to their own keys) through ConfigBinding.
 /// </summary>
 public partial class MonitorPage : UserControl
@@ -87,6 +88,8 @@ public partial class MonitorPage : UserControl
         TxtMonitorLog.ScrollToEnd();
         MonitorLog.LineAdded -= OnMonitorLogLine;
         MonitorLog.LineAdded += OnMonitorLogLine;
+        RosbotKeyService.Applied -= OnRosbotKeyApplied;
+        RosbotKeyService.Applied += OnRosbotKeyApplied;
         _statusTimer.Start();
         UpdateStatus();
     }
@@ -95,6 +98,7 @@ public partial class MonitorPage : UserControl
     {
         _statusTimer.Stop();
         MonitorLog.LineAdded -= OnMonitorLogLine;
+        RosbotKeyService.Applied -= OnRosbotKeyApplied;
     }
 
     /// <summary>All labels, combo display lists, trigger names and status from i18n (Loaded and language change).</summary>
@@ -157,6 +161,16 @@ public partial class MonitorPage : UserControl
         LblProbeFind.Text = T(I18nKeys.MonitorProbeFindIllusion);
         LblPortalKeys.Text = T(I18nKeys.MonitorPortalKeys);
 
+        TabRosbotKey.Header = T(I18nKeys.MonitorRosbotKeyTab);
+        LblRosbotKeys.Text = T(I18nKeys.MonitorRosbotKeyKeys);
+        BtnRosbotKeyActive.Content = T(I18nKeys.MonitorRosbotKeySetActive);
+        BtnRosbotKeyRemove.Content = T(I18nKeys.MonitorRosbotKeyRemove);
+        ChkRosbotKeyWrite.Content = T(I18nKeys.MonitorRosbotKeyWriteBeforeStart);
+        LblRosbotKeyNew.Text = T(I18nKeys.MonitorRosbotKeyNewKey);
+        BtnRosbotKeyAdd.Content = T(I18nKeys.MonitorRosbotKeyAdd);
+        BtnRosbotKeyApply.Content = T(I18nKeys.MonitorRosbotKeyApplyNow);
+        TxtRosbotKeyHint.Text = T(I18nKeys.MonitorRosbotKeyHint);
+        ReloadRosbotKeys();
         TabTriggers.Header = T(I18nKeys.MonitorTriggersTitle);
         TxtTriggersInfo.Text = T(I18nKeys.MonitorTriggersInfo);
         ColEvent.Header = T(I18nKeys.MonitorColEvent);
@@ -246,6 +260,7 @@ public partial class MonitorPage : UserControl
         ConfigBinding.BindTextBox(TxtProbeFinish, ConfigKeys.MonitorProbeFinishIllusion, MonitorSettings.FinishIllusionDefault);
         ConfigBinding.BindTextBox(TxtProbeFind, ConfigKeys.MonitorProbeFindIllusion, MonitorSettings.FindIllusionDefault);
         ConfigBinding.BindTextBox(TxtPortalKeys, ConfigKeys.MonitorProbePortalKeys);
+        ConfigBinding.BindCheckBox(ChkRosbotKeyWrite, ConfigKeys.MonitorRosbotKeyWriteBeforeStart, true);
     }
 
     private static void BindSecret(PasswordBox box, string key)
@@ -462,6 +477,87 @@ public partial class MonitorPage : UserControl
         if (export.Count == 0) return;
         Clipboard.SetText(string.Join(Environment.NewLine, export.Select(t => t.ToJson())));
         MessageBox.Show(Window.GetWindow(this), T(I18nKeys.MonitorExportDone), T(I18nKeys.MonitorExport), MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private static readonly Dictionary<IniSetResult, string> RosbotKeyResultKeys = new()
+    {
+        [IniSetResult.Unchanged] = I18nKeys.MonitorRosbotKeyResultUnchanged,
+        [IniSetResult.Replaced] = I18nKeys.MonitorRosbotKeyResultReplaced,
+        [IniSetResult.Inserted] = I18nKeys.MonitorRosbotKeyResultInserted,
+        [IniSetResult.FileMissing] = I18nKeys.MonitorRosbotKeyResultFileMissing,
+        [IniSetResult.NoAnchor] = I18nKeys.MonitorRosbotKeyResultNoAnchor,
+    };
+
+    /// <summary>Key list (masked, active marked), ini path and the last write result.</summary>
+    private void ReloadRosbotKeys()
+    {
+        int selected = LstRosbotKeys.SelectedIndex;
+        var keys = RosbotKeyService.Keys;
+        int active = RosbotKeyService.ActiveIndex;
+        LstRosbotKeys.ItemsSource = keys.Select((k, i) => i == active
+            ? string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyActiveItem), RosbotKeyService.Mask(k))
+            : RosbotKeyService.Mask(k)).ToList();
+        LstRosbotKeys.SelectedIndex = selected >= 0 && selected < keys.Count ? selected : active;
+        TxtRosbotKeyIni.Text = RosbotKeyService.IniPath is { } ini
+            ? string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyIniPath), ini)
+            : T(I18nKeys.MonitorRosbotKeyNoRosDir);
+        TxtRosbotKeyIni.ToolTip = TxtRosbotKeyIni.Text;
+        TxtRosbotKeyStatus.Text = RosbotKeyService.LastApply is { } last
+            ? string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRosbotKeyLastApply),
+                last.At.ToString("HH:mm:ss", CultureInfo.InvariantCulture), T(RosbotKeyResultKeys[last.Result]))
+            : "";
+    }
+
+    private void OnRosbotKeyApplied()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, OnRosbotKeyApplied);
+            return;
+        }
+        ReloadRosbotKeys();
+    }
+
+    private void BtnRosbotKeyAdd_Click(object sender, RoutedEventArgs e)
+    {
+        if (!RosbotKeyService.Add(PwdRosbotKey.Password))
+        {
+            MessageBox.Show(Window.GetWindow(this), T(I18nKeys.MonitorRosbotKeyAddFailed), T(I18nKeys.MonitorRosbotKeyTab),
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        PwdRosbotKey.Clear();
+        ReloadRosbotKeys();
+    }
+
+    private void PwdRosbotKey_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) BtnRosbotKeyAdd_Click(sender, e);
+    }
+
+    private void BtnRosbotKeyActive_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstRosbotKeys.SelectedIndex < 0) return;
+        RosbotKeyService.ActiveIndex = LstRosbotKeys.SelectedIndex;
+        ReloadRosbotKeys();
+    }
+
+    private void LstRosbotKeys_MouseDoubleClick(object sender, MouseButtonEventArgs e) => BtnRosbotKeyActive_Click(sender, e);
+
+    private void BtnRosbotKeyRemove_Click(object sender, RoutedEventArgs e)
+    {
+        int index = LstRosbotKeys.SelectedIndex;
+        if (index < 0) return;
+        var answer = MessageBox.Show(Window.GetWindow(this), T(I18nKeys.MonitorDeleteConfirm), T(I18nKeys.MonitorRosbotKeyRemove),
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes) return;
+        RosbotKeyService.Remove(index);
+        ReloadRosbotKeys();
+    }
+
+    private void BtnRosbotKeyApply_Click(object sender, RoutedEventArgs e)
+    {
+        if (RosbotKeyService.ApplyNow() == null) TxtRosbotKeyStatus.Text = T(I18nKeys.MonitorRosbotKeyResultNotWritten);
     }
 
     private void BtnClearLog_Click(object sender, RoutedEventArgs e)
