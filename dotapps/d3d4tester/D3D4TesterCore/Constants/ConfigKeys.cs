@@ -118,6 +118,8 @@ public static partial class ConfigKeys
     /// <summary>Install / refresh this app's CoreNodeBridge plugin in the current ROSBOT automatically. Default on.</summary>
     public const string RosbotBridgePluginAutoInstall = "rosbot.bridge_plugin_auto_install";
     public const bool RosbotBridgePluginAutoInstallDefault = true;
+    public const string BridgeFollowTownPortalKey = "rosbot.bridge_follow_town_portal_key";
+    public const string BridgeFollowTownPortalKeyDefault = "t";
     public const string RosbotFirstbornBlueGateReuse = "rosbot.firstborn_blue_gate_reuse";
     public const string RosbotTestMode = "rosbot.test_mode";
     public const string RosbotTestTimeoutMinutes = "rosbot.test_timeout_minutes";

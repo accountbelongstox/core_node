@@ -72,6 +72,14 @@
         <DockPanel Margin="4">
           <WrapPanel x:Name="PanelTownNpcs" DockPanel.Dock="Top" Margin="0,0,0,4"/>
           <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+            <Button x:Name="BtnFollow" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnFollow_Click"/>
+            <ComboBox x:Name="CmbFollowTarget" MinWidth="110" Margin="0,0,8,4"/>
+            <TextBlock x:Name="LblFollowBanner" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,4,4"/>
+            <ComboBox x:Name="CmbFollowBanner" MinWidth="70" Margin="0,0,8,4"/>
+            <CheckBox x:Name="ChkFollowPickup" VerticalAlignment="Center" Margin="0,0,8,4"/>
+            <TextBlock x:Name="TxtFollowState" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,0,4"/>
+          </WrapPanel>
+          <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
             <TextBox x:Name="TxtNpcTarget" Width="140" Margin="0,0,6,4" VerticalAlignment="Center"/>
             <Button x:Name="BtnNpcFind" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnNpcFind_Click"/>
             <Button x:Name="BtnNpcOpen" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,4" Click="BtnNpcOpen_Click"/>

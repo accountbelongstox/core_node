@@ -80,7 +80,10 @@ flowchart TB
         C7_MCheck["[C7] 按 M 前后截图对比（相似 = 无响应 = 掉线）"]
         C8_Map["[C8] 确保地图打开：见悬赏进度即可，否则按 M 等 2s，最多两轮（找不到也继续）"]
         C9_Teleport["[C9] 缩小地图 → 等 2s → 传送两次点击 → 记录传送时间"]
-        C1_Resize --> C2_Detect
+        C1_Plugin{"[C1p] 插件数据在线且在游戏内？"}
+        C1_Resize --> C1_Plugin
+        C1_Plugin -->|"是 → 跳过截图与 M 键检测"| C8_Map
+        C1_Plugin -->|否| C2_Detect
         C2_Detect -->|"游戏工具栏（在游戏中）"| C6_Origin
         C2_Detect -->|"开始游戏按钮"| C3_StartGame
         C2_Detect -->|"掉线"| C4_Disconnect

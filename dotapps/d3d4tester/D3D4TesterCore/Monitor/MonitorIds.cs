@@ -31,12 +31,16 @@ public static class MonitorEvents
     public const string ShrineSpeed = "shrine_speed";
     public const string BuffEnd = "buff_end";
     public const string SpecialPortalTimer = "special_portal_timer";
+    public const string InventoryFull = "inventory_full";
+    public const string RepairNeeded = "repair_needed";
+    public const string ItemPickup = "item_pickup";
 
     public static IReadOnlyList<string> All { get; } = new[]
     {
         ScheduledTime, LogMatch, HistoryMatch, ErrorDetected, DeathDetected, FailDetected, D3Launch, D3Exit, RosbotLaunch, RosbotExit,
         MonitoringStart, MonitoringStop, AppLaunch, AppExit, LogRollover, HistoryRollover, LogTimer, HistoryTimer, NewRun, CombatSwitch,
-        UrshiOpen, TownPortal, TownPortalAfterIllusion, ShrineInfinite, ShrineSpeed, BuffEnd, SpecialPortalTimer
+        UrshiOpen, TownPortal, TownPortalAfterIllusion, ShrineInfinite, ShrineSpeed, BuffEnd, SpecialPortalTimer,
+        InventoryFull, RepairNeeded, ItemPickup
     };
 }
 

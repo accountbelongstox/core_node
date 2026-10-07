@@ -110,6 +110,8 @@ public sealed class TriggerEngine
             case MonitorEvents.LogMatch:
             case MonitorEvents.HistoryMatch:
                 return t.EventArg.Length > 0 && text != null && text.Contains(t.EventArg, StringComparison.OrdinalIgnoreCase);
+            case MonitorEvents.ItemPickup:
+                return t.EventArg.Length == 0 || (text != null && text.Contains(t.EventArg, StringComparison.OrdinalIgnoreCase));
             default:
                 return true;
         }

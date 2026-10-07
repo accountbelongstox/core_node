@@ -88,6 +88,14 @@ internal static class WorldScanner
             .Select(FromActor)
             .ToList();
 
+    public const double PlayerRange = 400;
+
+    /// <summary>Other players in this world, nearest first (party members).</summary>
+    public static List<IActor> Players(IActor[] actors) =>
+        actors.Where(a => Safe(() => a.IsValid && a.IsPlayer && !a.IsMe, false) && Safe(() => a.Distance, float.MaxValue) <= PlayerRange)
+            .OrderBy(a => Safe(() => a.Distance, float.MaxValue))
+            .ToList();
+
     public static (int Monsters, int Elites) MonsterCounts(IActor[] actors)
     {
         int monsters = 0, elites = 0;

@@ -198,8 +198,12 @@ public static class D3PlannerService
     }
 
     /// <summary>Name to show for an item seen in game: maxroll name by GBID, else the plugin's name, else the GBID.</summary>
-    public static string DisplayName(int gbid, string pluginName) =>
-        ItemNameByGbid(gbid) ?? (pluginName.Length > 0 ? pluginName : $"gbid {gbid}");
+    public static string DisplayName(int gbid, string pluginName)
+    {
+        if (pluginName.Length > 0 && D3D4TesterI18n.Provider.GetUiText(I18nKeys.RosbotBridgeItemNamePrefix + pluginName.ToLowerInvariant(), "") is { Length: > 0 } fixedName)
+            return fixedName;
+        return ItemNameByGbid(gbid) ?? (pluginName.Length > 0 ? pluginName : $"gbid {gbid}");
+    }
 
     public static string ItemName(PlannerItem item) => UseChineseNames && item.NameZh.Length > 0 ? item.NameZh : item.NameEn;
 

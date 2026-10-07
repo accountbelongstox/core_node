@@ -33,6 +33,9 @@ public static class RosbotPluginConstants
     public const string BridgeFilterFileName = "pickup_filter.txt";
     /// <summary>Items / affix attributes the plugin reads (same name as CoreNodeBridge ItemWatch.FileName; the plugin cannot reference the app).</summary>
     public const string BridgeItemWatchFileName = "item_watch.txt";
+    /// <summary>Pickup record kind for an item put into the stash (other kinds are pickups from the ground).</summary>
+    public const string BridgePickupKindStash = "stash";
+
     public const string BridgeActionMoveTo = "move_to";
     public const string BridgeActionInteract = "interact";
     public const string BridgeActionPickup = "pickup";
@@ -40,6 +43,12 @@ public static class RosbotPluginConstants
     public const string BridgeActionClickUi = "click_ui";
     public const string BridgeActionGoNpc = "go_npc";
     public const string BridgeActionSalvageAll = "salvage_all";
+    public const string BridgeActionFollow = "follow";
+    public const string BridgeFollowOff = "off";
+    /// <summary>Banner slot choices for follow: 0 = try every banner, else the leader's party slot.</summary>
+    public static readonly int[] BridgeFollowBannerSlots = { 0, 1, 2, 3, 4 };
+    /// <summary>Banner of party slot 1 = the party leader (who formed the party).</summary>
+    public const int BridgeFollowLeaderSlot = 1;
     public const string BridgeSalvageNormal = "normal";
     public const string BridgeSalvageMagic = "magic";
     public const string BridgeSalvageRare = "rare";

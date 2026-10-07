@@ -23,6 +23,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     private const string MutedBrushKey = "TextMutedBrush";
     private const string WarningBrushKey = "TextWarningBrush";
     private const string ErrorBrushKey = "TextErrorBrush";
+    private const string BridgeHintSeparator = " · ";
     private const string ChipNeutralStyleKey = "StatusChipStyle";
     private const string ChipSuccessStyleKey = "StatusChipSuccessStyle";
     private const string ChipWarningStyleKey = "StatusChipWarningStyle";
@@ -111,8 +112,10 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         }
         else if (bridge != null)
         {
-            d3Text = $"{d3Label}: {p.GetUiText(bridge.Dead ? I18nKeys.RosbotBridgeDead : bridge.InGame ? I18nKeys.StatusD3InGame : I18nKeys.RosbotBridgeNotInGame)}";
-            d3BrushKey = bridge.InGame && !bridge.Dead ? successKey : warningKey;
+            d3Text = $"{d3Label}: {p.GetUiText(bridge.Dead ? I18nKeys.RosbotBridgeDead : bridge.InGame ? I18nKeys.StatusD3InGame : I18nKeys.RosbotBridgeNotInGame)}"
+                + (bridge.InventoryFull ? BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeInventoryFull) : "")
+                + (bridge.RepairNeeded ? BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeRepairNeeded) : "");
+            d3BrushKey = bridge.InGame && !bridge.Dead && !bridge.InventoryFull && !bridge.RepairNeeded ? successKey : warningKey;
         }
         else if (s.D3Disconnected)
         {

@@ -901,6 +901,7 @@
       "dead": "Dead",
       "in_combat": "In combat",
       "inventory_full": "Inventory full",
+      "repair_needed": "Repair needed",
       "unnamed_area": "Unnamed area ({0})",
       "town": "Town",
       "greater_rift": "Greater rift {0}",
@@ -1054,7 +1055,29 @@
         "a2_uniquevendor_collector_intown_01": "Collector",
         "a3_hub_soldier": "Soldier",
         "a3_hub_woundedsoldier": "Wounded soldier"
-      }
+      },
+      "player": "Player",
+      "follow_start": "Follow",
+      "follow_stop": "Stop following",
+      "follow_banner": "Banner",
+      "follow_banner_auto": "Auto",
+      "follow_tip": "Follow the nearest or the selected player; the plugin never attacks (monitoring and ROSBOT stay paused). Lost outside town: town portal (key rosbot.bridge_follow_town_portal_key); in town: the chosen banner (1 = leader, Auto tries 1-4). Pickup: matching items near the leader.",
+      "follow_state": {
+        "following": "following",
+        "lost": "lost, in town",
+        "needs_town": "lost, returning to town",
+        "banner": "using banner",
+        "off": "off"
+      },
+      "item_name": {
+        "healthpotion_bottomless": "Health Potion",
+        "p74_consumable_sanctify_legendary_item": "Angelic Crucible"
+      },
+      "follow_target_nearest": "Nearest player",
+      "follow_target_selected": "Selected player",
+      "follow_select_player": "Select a player in the list first",
+      "follow_banner_leader": "{0} (leader)",
+      "follow_pickup": "Pick up (pickup filter)"
     }
   },
   "skills": {

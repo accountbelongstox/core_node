@@ -37,6 +37,7 @@ public static partial class I18nKeys
     public const string RosbotBridgeDead = "ui.rosbot_bridge.dead";
     public const string RosbotBridgeInCombat = "ui.rosbot_bridge.in_combat";
     public const string RosbotBridgeInventoryFull = "ui.rosbot_bridge.inventory_full";
+    public const string RosbotBridgeRepairNeeded = "ui.rosbot_bridge.repair_needed";
     public const string RosbotBridgeUnnamedArea = "ui.rosbot_bridge.unnamed_area";
     public const string RosbotBridgeTown = "ui.rosbot_bridge.town";
     public const string RosbotBridgeGreaterRift = "ui.rosbot_bridge.greater_rift";
@@ -58,6 +59,21 @@ public static partial class I18nKeys
     public const string RosbotBridgeHoldResume = "ui.rosbot_bridge.hold_resume";
     public const string RosbotBridgeHoldTip = "ui.rosbot_bridge.hold_tip";
     public const string RosbotBridgeHoldTaken = "ui.rosbot_bridge.hold_taken";
+
+    // follow mode and players; follow states are FollowStatePrefix + plugin state, fixed item names ItemNamePrefix + lowercase internal name
+    public const string RosbotBridgePlayer = "ui.rosbot_bridge.player";
+    public const string RosbotBridgeFollowStart = "ui.rosbot_bridge.follow_start";
+    public const string RosbotBridgeFollowStop = "ui.rosbot_bridge.follow_stop";
+    public const string RosbotBridgeFollowBanner = "ui.rosbot_bridge.follow_banner";
+    public const string RosbotBridgeFollowBannerAuto = "ui.rosbot_bridge.follow_banner_auto";
+    public const string RosbotBridgeFollowTip = "ui.rosbot_bridge.follow_tip";
+    public const string RosbotBridgeFollowStatePrefix = "ui.rosbot_bridge.follow_state.";
+    public const string RosbotBridgeFollowTargetNearest = "ui.rosbot_bridge.follow_target_nearest";
+    public const string RosbotBridgeFollowTargetSelected = "ui.rosbot_bridge.follow_target_selected";
+    public const string RosbotBridgeFollowSelectPlayer = "ui.rosbot_bridge.follow_select_player";
+    public const string RosbotBridgeFollowBannerLeader = "ui.rosbot_bridge.follow_banner_leader";
+    public const string RosbotBridgeFollowPickup = "ui.rosbot_bridge.follow_pickup";
+    public const string RosbotBridgeItemNamePrefix = "ui.rosbot_bridge.item_name.";
 
     // town NPC shortcuts and test buttons; NPC display names are NpcNamePrefix + lowercase internal actor name
     public const string RosbotBridgeNpcNamePrefix = "ui.rosbot_bridge.npc_name.";
