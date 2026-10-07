@@ -73,12 +73,18 @@ class OpenAiCompatClient
             }
 
             $data = $response->json();
-            $text = self::messageText((array) ($data['choices'][0]['message'] ?? []));
+            $message = (array) ($data['choices'][0]['message'] ?? []);
+            $text = self::messageText($message);
+            $served = [
+                'served_model' => (string) ($data['model'] ?? ''),
+                'finish_reason' => (string) ($data['choices'][0]['finish_reason'] ?? ''),
+                'reasoning_only' => self::contentText($message) === '',
+            ];
 
             if ($text === '') {
-                return ['success' => false, 'text' => '', 'error' => 'Empty response from provider', 'error_code' => 'empty_response', 'provider_reached' => true];
+                return ['success' => false, 'text' => '', 'error' => 'Empty response from provider', 'error_code' => 'empty_response', 'provider_reached' => true] + $served;
             }
-            return ['success' => true, 'text' => $text, 'error' => null, 'error_code' => null, 'provider_reached' => true];
+            return ['success' => true, 'text' => $text, 'error' => null, 'error_code' => null, 'provider_reached' => true] + $served;
         } catch (\Throwable $e) {
             $failure = AiRequestFailure::classify($e->getMessage());
             return [
@@ -97,16 +103,25 @@ class OpenAiCompatClient
      */
     private static function messageText(array $message): string
     {
-        $content = $message['content'] ?? '';
+        $content = self::contentText($message);
 
-        if (is_array($content)) {
-            $content = implode('', array_map(static fn ($p) => is_array($p) ? ($p['text'] ?? '') : (string) $p, $content));
-        }
-        if ((string) $content === '') {
+        if ($content === '') {
             $content = (string) ($message['reasoning'] ?? '');
         }
         if ($content === '' && is_array($message['reasoning_details'] ?? null)) {
             $content = implode('', array_map(static fn ($d) => is_array($d) ? (string) ($d['text'] ?? '') : '', $message['reasoning_details']));
+        }
+
+        return (string) $content;
+    }
+
+    /** The answer proper (string or parts content), without the reasoning fields. */
+    private static function contentText(array $message): string
+    {
+        $content = $message['content'] ?? '';
+
+        if (is_array($content)) {
+            $content = implode('', array_map(static fn ($p) => is_array($p) ? ($p['text'] ?? '') : (string) $p, $content));
         }
 
         return (string) $content;

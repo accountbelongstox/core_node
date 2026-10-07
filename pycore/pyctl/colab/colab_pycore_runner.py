@@ -116,12 +116,18 @@ class ColabPycoreRunner:
             state["state"] = STATE_RUNNING if state.get("running") else STATE_IDLE
         return state
 
-    async def _ready_state(self, tab_id: int) -> Dict[str, Any]:
+    async def _loaded_state(self, tab_id: int, need_run_button: bool) -> Dict[str, Any]:
+        """The state once the notebook model has loaded (a freshly opened tab needs a few seconds)."""
         deadline = time.monotonic() + NOTEBOOK_READY_TIMEOUT_SECONDS
         state = await self._state(tab_id)
-        while (state["state"] == STATE_NOT_READY or not state.get("hasRunButton")) and time.monotonic() < deadline:
+        while (state["state"] == STATE_NOT_READY or (need_run_button and not state.get("hasRunButton"))) \
+                and time.monotonic() < deadline:
             await asyncio.sleep(POLL_SECONDS)
             state = await self._state(tab_id)
+        return state
+
+    async def _ready_state(self, tab_id: int) -> Dict[str, Any]:
+        state = await self._loaded_state(tab_id, need_run_button=True)
         if state["state"] == STATE_NOT_READY:
             raise RuntimeError(ERROR_NOTEBOOK_NOT_READY)
         if not state.get("hasRunButton"):
@@ -173,7 +179,7 @@ class ColabPycoreRunner:
     async def _logs(self, tail: int, grep: Optional[str]) -> Dict[str, Any]:
         tab_id = await self._notebook_tab()
         try:
-            state = await self._state(tab_id)
+            state = await self._loaded_state(tab_id, need_run_button=False)
         except RuntimeError as error:
             ColorPrint.yellow(f"[Colab] notebook page unresponsive ({error}); reading the output frames only")
             state = {"state": STATE_UNRESPONSIVE}
