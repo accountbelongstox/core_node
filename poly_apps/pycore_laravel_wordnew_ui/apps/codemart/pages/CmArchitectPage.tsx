@@ -60,6 +60,7 @@ export const CmArchitectPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadRetryable, setLoadRetryable] = useState(true);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -70,8 +71,10 @@ export const CmArchitectPage: React.FC = () => {
     if (eligibilityResponse.success && eligibilityResponse.data) {
       setEligibility(eligibilityResponse.data);
       setLoadError(null);
+      setLoadRetryable(true);
     } else {
       setLoadError(cmErrorMessage(t, eligibilityResponse, 'architect.loadFailed'));
+      setLoadRetryable(eligibilityResponse.status !== 403 && eligibilityResponse.status !== 404);
     }
     if (tasksResponse.success && tasksResponse.data) setAssignments(tasksResponse.data);
     setLoading(false);
@@ -124,7 +127,7 @@ export const CmArchitectPage: React.FC = () => {
       {loading && !eligibility ? (
         <CmLoadingState />
       ) : loadError || !eligibility ? (
-        <CmErrorState message={loadError ?? t('architect.loadFailed')} onRetry={() => void load()} />
+        <CmErrorState message={loadError ?? t('architect.loadFailed')} onRetry={loadRetryable ? () => void load() : undefined} />
       ) : (
         <>
           {!isArchitect && (
