@@ -1767,7 +1767,7 @@ export const cmEn = {
     paymentNumber: 'Payment #{{id}}',
     noProjectsAtAll: 'No projects have been created yet.',
     purpose: {
-      overview: 'Work through the queues that wait for an administrator decision, then check platform totals and the policy the server enforces.',
+      overview: 'Work through the queues that wait for an administrator decision, then check platform totals and the platform policy.',
       users: 'Find an account and open it to review its roles, identity verification, deposits, wallet and activity, or to change a role status.',
       userDetail: 'Everything recorded for this account. Role changes take effect immediately, are logged and notify the user.',
       kyc: 'Compare the submitted documents with the stated identity. Approving marks the user as verified; rejecting asks them to resubmit with your reason.',
@@ -1979,7 +1979,7 @@ export const cmEn = {
     invalid_verification_token: 'The verification link is invalid or has expired. Request a new verification email.',
     invalid_otp_code: 'The verification code is invalid or has expired.',
     file_upload_failed: 'The files could not be uploaded. Try again.',
-    mail_unavailable: 'Mail delivery is not available on this server right now, so the verification email was not sent. Try again later.',
+    mail_unavailable: 'Mail delivery is not available right now, so the verification email was not sent. Try again later.',
     role_not_found: 'Role not found.',
     insufficient_balance: 'Insufficient wallet balance.',
     deposit_role_not_allowed: 'A deposit is not allowed for this role.',
@@ -2017,8 +2017,8 @@ export const cmEn = {
     task_budget_missing: 'The task has no budget.',
     escrow_insufficient: 'The project escrow does not hold enough funds for this task budget.',
     escrow_release_failed: 'The escrow payout for this task failed, so the approval was not applied.',
-    sms_unavailable: 'Phone verification is unavailable because SMS delivery is not configured on this server.',
-    analysis_unavailable: 'AI analysis is unavailable because the analysis task is disabled on this server.',
+    sms_unavailable: 'Phone verification is unavailable because SMS delivery is not configured.',
+    analysis_unavailable: 'AI analysis is unavailable because the analysis task is disabled.',
     analysis_available: 'AI analysis is available; run it to get a proposal instead.',
     notification_not_found: 'Notification not found.',
     deposit_already_pending: 'Deposits awaiting administrator confirmation already cover the remaining amount for this role.',
@@ -2081,7 +2081,7 @@ export const cmEn = {
   estimate: {
     eyebrow: 'PROJECT ESTIMATE',
     title: 'Project estimate',
-    lead: 'A quick budget, duration, and team range calculated by the server from the CodeMart pricing policy.',
+    lead: 'A quick budget, duration, and team range calculated from the CodeMart pricing policy.',
     complexity: 'Project complexity',
     complexities: {
       simple: 'Simple',

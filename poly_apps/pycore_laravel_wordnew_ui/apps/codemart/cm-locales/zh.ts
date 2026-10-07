@@ -1769,7 +1769,7 @@ export const cmZh: CmTranslationDict = {
     paymentNumber: '支付 #{{id}}',
     noProjectsAtAll: '还没有创建任何项目。',
     purpose: {
-      overview: '先处理等待管理员决定的事项，再查看平台总量和服务器执行的策略。',
+      overview: '先处理等待管理员决定的事项，再查看平台总量和平台执行的策略。',
       users: '查找账户并打开详情，查看其角色、实名认证、保证金、钱包和操作记录，或调整角色状态。',
       userDetail: '该账户的全部记录。角色变更立即生效、写入日志并通知用户。',
       kyc: '核对提交的证件与填写的身份信息。通过后用户即完成实名认证；拒绝会附上原因，请用户重新提交。',
@@ -1981,7 +1981,7 @@ export const cmZh: CmTranslationDict = {
     invalid_verification_token: '验证链接无效或已过期，请重新发送验证邮件。',
     invalid_otp_code: '验证码无效或已过期。',
     file_upload_failed: '文件上传失败，请重试。',
-    mail_unavailable: '本服务器目前无法发送邮件，验证邮件未发出，请稍后再试。',
+    mail_unavailable: '本站目前无法发送邮件，验证邮件未发出，请稍后再试。',
     role_not_found: '未找到该角色。',
     insufficient_balance: '钱包余额不足。',
     deposit_role_not_allowed: '该角色不允许缴纳保证金。',
@@ -2019,8 +2019,8 @@ export const cmZh: CmTranslationDict = {
     task_budget_missing: '任务没有预算。',
     escrow_insufficient: '项目托管资金不足以覆盖该任务预算。',
     escrow_release_failed: '该任务的托管资金支付失败，审核通过未生效。',
-    sms_unavailable: '本服务器未配置短信发送，暂时无法进行手机验证。',
-    analysis_unavailable: '本服务器已停用 AI 分析任务，暂时无法进行 AI 分析。',
+    sms_unavailable: '本站未配置短信发送，暂时无法进行手机验证。',
+    analysis_unavailable: '本站已停用 AI 分析任务，暂时无法进行 AI 分析。',
     analysis_available: 'AI 分析可用，请先运行分析获取方案。',
     notification_not_found: '通知不存在。',
     deposit_already_pending: '待管理员确认的保证金已覆盖该角色的剩余金额。',
@@ -2083,7 +2083,7 @@ export const cmZh: CmTranslationDict = {
   estimate: {
     eyebrow: '项目估价',
     title: '项目估价',
-    lead: '根据本站配置的计价政策，由服务端快速算出预算、工期和团队区间。',
+    lead: '根据本站配置的计价政策，快速算出预算、工期和团队区间。',
     complexity: '项目复杂度',
     complexities: {
       simple: '简单',

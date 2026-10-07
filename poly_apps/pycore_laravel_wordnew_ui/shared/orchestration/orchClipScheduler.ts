@@ -54,7 +54,10 @@
  *      app's LAN route (a LAN URL the selected machine reported, K3-signed)
  *      is only the address of the selected pycore, never a second source.
  *   R8 A clip is delivered once per run; what a channel does not deliver is
- *      released (never left `loading`) and goes on to the next stage.
+ *      released (never left `loading`) and goes on to the next stage. Clips
+ *      left at the end are missing once a backend answered this run, or a
+ *      usable stage skipped clips below its fresh cursor (that backend answered
+ *      within the window); otherwise they stay queued for the next run.
  *   R9 Recovery while pycore / Laravel come and go (WordNewOrchComposer):
  *      a channel turning usable, an endpoint change, `online` or start resumes
  *      every unfinished (`resolving` / `partial`) task of the device, open or
@@ -298,6 +301,7 @@ function transferStage(stage: OrchClipStageId, channel: OrchClipChannel, sink: O
       const endpoint = channel.bundle.baseUrl();
       const from = context.cursors.position(stage, endpoint);
       const ask = from > 0 ? resources.filter((resource) => planIndex(context, resource) >= from) : resources;
+      if (ask.length < resources.length) context.recalled();
       let delivered = 0;
       let batchesDone = 0;
       context.stage(stage, {
@@ -356,6 +360,7 @@ function generateStage(stage: OrchClipStageId, channel: OrchClipChannel, gate: (
       const from = context.cursors.position(stage, endpoint);
       const requested = resources.filter((resource) => planIndex(context, resource) < from);
       requested.forEach((resource) => context.generating(resource, channel.id));
+      if (requested.length > 0) context.recalled();
       const next = resources.filter((resource) => planIndex(context, resource) >= from).slice(0, AUDIO_ORCH_TRANSFER.generateMaxItems);
       context.stage(stage, {
         state: 'running', asked: next.length, known: requested.length, found: requested.length,
