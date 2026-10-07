@@ -240,6 +240,19 @@ public sealed class BattlenetManager
         return ok;
     }
 
+    /// <summary>
+    /// Bring back a client that runs with every window hidden in the tray: tray icon double-click, else start Battle.net.exe again
+    /// (a second start only surfaces the running instance). Never closes the client, so its login is kept.
+    /// </summary>
+    public bool ShowHiddenClient()
+    {
+        if (RestoreFromTray() && HasWindow()) return true;
+        string? path = GetPath();
+        if (path == null) return false;
+        ColorPrinter.Blue($"{LogPrefix} Battle.net runs hidden in the tray, start it again to show its window");
+        return Launch(path, null);
+    }
+
     /// <summary>Restore + foreground the first window. True if a window was found. 1:1 Python activate_window.</summary>
     public bool ActivateWindow()
     {

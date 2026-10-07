@@ -38,8 +38,6 @@ public static class BattlenetConstants
     public static readonly string[] BrowserLoginSubmitKeywords = { "登录", "登 录", "登入", "Log in", "Log In", "Sign in" };
     /// <summary>Password field name fallback when the UIA IsPassword property is not exposed.</summary>
     public static readonly string[] BrowserLoginPasswordKeywords = { "密码", "密碼", "Password" };
-    /// <summary>Web login step timeout (s) before exiting Battle.net (B11 -> B5).</summary>
-    public const double BrowserLoginTimeoutSec = 300.0;
 
     // ---------- Login screen: AutomationId first; keyword fallback only when no AutomationId found ----------
     public static readonly string[] LoginWindowAutomationIdMarkersCn = { "LoginWindow", "loginWidgetContainer", "loginWidget", "login-wrapper", "login-header", "legalAcceptance", "ntes", "connectAccounts" };
@@ -276,15 +274,15 @@ public static class BattlenetConstants
     public const string CacheDirName = D3PathConstants.CacheDirName;
     public const string BnFlowSnapshotFilePrefix = "bn_flow_";
 
-    // ---------- BN flow timings. 1:1 Python BN_FLOW_* / flow_bn_block_state ----------
-    public const double FlowWaitAfterStartSec = 3.0;
-    public const double FlowPollTimeoutSec = 120.0;
-    public const double FlowOauthWaitSec = 120.0;
-    public const double FlowExitWaitSec = 2.0;
-    public const int B7RestoreWindowAfterSkips = 6;
-    public const double B7RestoreWindowCooldownSec = 30.0;
-    public const double B11TickIntervalSec = 2.0;
-    public static readonly int B11MaxTicks = Math.Max(1, (int)(BrowserLoginTimeoutSec / B11TickIntervalSec));
+    // ---------- B process timings (BattlenetReadyProcess) ----------
+    /// <summary>Probe interval while waiting for the client to become ready.</summary>
+    public const double ReadyPollSec = 2.0;
+    /// <summary>Wait after a start / reopen / restart command before the next probe.</summary>
+    public const double AfterStartSec = 5.0;
+    /// <summary>Minimum gap between two automatic login actions (agree + NetEase, Asia fill + submit) on the same screen.</summary>
+    public const double LoginActionCooldownSec = 15.0;
+    /// <summary>Minimum gap between two region switches.</summary>
+    public const double RegionSwitchCooldownSec = 120.0;
 
     public const string RegionAsia = "asia";
     public const string RegionCn = "cn";
