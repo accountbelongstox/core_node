@@ -149,6 +149,43 @@ public sealed class BlacksmithHandler
         return true;
     }
 
+    /// <summary>
+    /// Salvage the items in the given backpack cells (row, column; top cell of each item) with the same click sequence as auto salvage:
+    /// salvage tab, then per item: item, salvage button, confirm. Needs the bag coordinates (fresh capture); returns the cells clicked.
+    /// </summary>
+    public int SalvageCells(IReadOnlyList<(int Row, int Col)> cells, Func<bool>? shouldStop = null)
+    {
+        var shared = GameInterfaceData.Instance;
+        var coords = shared.BagCoordinates;
+        if (coords == null)
+        {
+            ColorPrinter.Red("[BlacksmithHandler] No bag coordinates for salvage by cells");
+            return 0;
+        }
+        var (ox, oy) = shared.WindowOffset;
+        var ui = D3StandardCoordinates.GetScaledBlacksmithUiCoords();
+        var (tabX, tabY) = ui[D3StandardCoordinates.KeyTabSalvageMaterials];
+        var (salvageX, salvageY) = ui[D3StandardCoordinates.KeySalvageDialogSalvageButton];
+        var (confirmX, confirmY) = ui[D3StandardCoordinates.KeySalvageDialogConfirm];
+        ClickDirect(ox + tabX, oy + tabY);
+        Thread.Sleep(AfterSalvageTabMs);
+        int done = 0;
+        foreach (var (row, col) in cells)
+        {
+            if (shouldStop?.Invoke() == true || row < 0 || col < 0 || row >= coords.Rows || col >= coords.Cols) continue;
+            var (x, y) = coords.SlotCenter(row, col);
+            ClickDirect(ox + x, oy + y);
+            Thread.Sleep(AfterSlotClickMs);
+            ClickDirect(ox + salvageX, oy + salvageY);
+            Thread.Sleep(AfterSalvageButtonMs);
+            ClickDirect(ox + confirmX, oy + confirmY);
+            Thread.Sleep(AfterConfirmMs);
+            done++;
+        }
+        ColorPrinter.Green($"[BlacksmithHandler] Salvage by cells completed ({done} of {cells.Count})");
+        return done;
+    }
+
     /// <summary>True when the shared bag coordinates and layout are present; logs the failing feature otherwise.</summary>
     public static bool HasBagLayout(GameInterfaceData shared, string feature)
     {

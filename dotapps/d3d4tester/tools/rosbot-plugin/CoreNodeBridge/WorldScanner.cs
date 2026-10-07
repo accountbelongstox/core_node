@@ -25,6 +25,9 @@ internal sealed class EntityInfo
     public bool Equipped;
     /// <summary>ROSBOT InventorySlot name (Backpack, Stash, Head, ...), "" when unknown.</summary>
     public string Slot = "";
+    /// <summary>Grid cell (column, row) inside the backpack / stash, -1 when unknown.</summary>
+    public int InvX = -1;
+    public int InvY = -1;
     public int DurabilityCur;
     public int DurabilityMax;
     public bool Elite;
@@ -57,6 +60,9 @@ internal static class WorldScanner
 
     private static readonly int ItemActorType = ResolveItemActorType();
     private static readonly Dictionary<Type, PropertyInfo> SlotProperties = new();
+    private static readonly Dictionary<Type, (PropertyInfo X, PropertyInfo Y)> CellProperties = new();
+    private const int BackpackColumns = 10;
+    private const int BackpackRows = 6;
     private static readonly Dictionary<string, int> AttributeIds = new(StringComparer.Ordinal);
 
     /// <summary>Set by the plugin: items whose affixes are read.</summary>
@@ -110,6 +116,7 @@ internal static class WorldScanner
             string name = ActorName(sno);
             var info = new EntityInfo { AcdId = acdId, Sno = sno, Name = name, InternalName = name, Slot = slot };
             FillItemAttributes(info, acd);
+            ReadCell(info, acd);
             result.Add(info);
         }
         return result;
@@ -130,6 +137,37 @@ internal static class WorldScanner
             SlotSupported |= prop != null;
         }
         return prop == null ? "" : Safe(() => prop.GetValue(acd)?.ToString(), "") ?? "";
+    }
+
+    /// <summary>True once backpack cells were read and every backpack item fell inside the 10 x 6 grid.</summary>
+    public static bool CellSupported { get; private set; }
+
+    /// <summary>
+    /// Grid cell of the item: the two int properties declared right after the InventorySlot property of ROSBOT's ACD class (D3 keeps
+    /// the location slot, column and row together). Backpack values outside the 10 x 6 grid disable the cells (published as -1).
+    /// </summary>
+    private static void ReadCell(EntityInfo info, IAcd acd)
+    {
+        var type = acd.GetType();
+        if (!CellProperties.TryGetValue(type, out var cell))
+        {
+            var props = type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .Where(p => p.GetIndexParameters().Length == 0).OrderBy(p => p.MetadataToken).ToList();
+            int slotIndex = props.FindIndex(p => p.PropertyType.IsEnum && p.PropertyType.Name == InventorySlotEnumName);
+            var ints = slotIndex < 0 ? new List<PropertyInfo>() : props.Skip(slotIndex + 1).Where(p => p.PropertyType == typeof(int)).Take(2).ToList();
+            cell = ints.Count == 2 ? (ints[0], ints[1]) : (null, null);
+            CellProperties[type] = cell;
+            CellSupported = cell.X != null;
+        }
+        if (cell.X == null || !CellSupported) return;
+        int x = Safe(() => (int)cell.X.GetValue(acd), -1), y = Safe(() => (int)cell.Y.GetValue(acd), -1);
+        if (info.Slot == "Backpack" && (x < 0 || x >= BackpackColumns || y < 0 || y >= BackpackRows))
+        {
+            CellSupported = false;
+            return;
+        }
+        info.InvX = x;
+        info.InvY = y;
     }
 
     /// <summary>ROSBOT's ActorType.Item value (found by enum name in ROSBOT's assembly), else the D3 value 8.</summary>

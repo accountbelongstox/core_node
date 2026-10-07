@@ -178,15 +178,23 @@ public sealed class MonitorService
         RosbotRestartRequest.Request(reasonId, detail, restartBattlenet);
     }
 
-    /// <summary>Game speed action: combat when the ROSBOT overlay shows enough combat-cursor pixels, then the matching factor.</summary>
+    /// <summary>Game speed action: combat from the live CoreNodeBridge state (in_combat), else from the ROSBOT overlay combat-cursor pixels; then the matching factor.</summary>
     public void ApplyGameSpeed(string normalFactor, string combatFactor)
     {
+        bool combat = DetectCombat();
+        lock (_lock) _inCombat = combat;
+        ExternalGameTools.SetSpeed(combat ? combatFactor : normalFactor);
+    }
+
+    private static bool DetectCombat()
+    {
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        if (snapshot.RosbotBridgeFresh && snapshot.RosbotBridge is { InGame: true } bridge)
+            return bridge.InCombat;
         int count = 0;
         using (var bmp = GameWindowActions.CaptureClient(GameWindowActions.FindRosbotOverlayHwnd()))
             if (bmp != null) count = D3PixelProbes.CountCenterColor(bmp, CombatColorR, CombatColorG, CombatColorB);
-        bool combat = count >= MonitorSettings.GetInt(ConfigKeys.MonitorProbeFight, MonitorSettings.FightThresholdDefault);
-        lock (_lock) _inCombat = combat;
-        ExternalGameTools.SetSpeed(combat ? combatFactor : normalFactor);
+        return count >= MonitorSettings.GetInt(ConfigKeys.MonitorProbeFight, MonitorSettings.FightThresholdDefault);
     }
 
     /// <summary>Town portal after delayMs (one pending at a time, RBAssist SENDTPTOD3).</summary>

@@ -190,6 +190,13 @@ public static class D3PlannerService
         return UseChineseNames && n.Zh.Length > 0 ? n.Zh : n.En;
     }
 
+    /// <summary>True when the item is one of any gear set of any loaded build (salvage / drop tests keep these).</summary>
+    public static bool IsPlanned(int gbid, string internalName, string name)
+    {
+        var observed = new ObservedItem(gbid, internalName, name, 0, null);
+        return _builds.Any(b => AllItems(b).Any(i => D3PlannerMatcher.IsSameItem(i, observed)));
+    }
+
     /// <summary>Name to show for an item seen in game: maxroll name by GBID, else the plugin's name, else the GBID.</summary>
     public static string DisplayName(int gbid, string pluginName) =>
         ItemNameByGbid(gbid) ?? (pluginName.Length > 0 ? pluginName : $"gbid {gbid}");

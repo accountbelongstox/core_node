@@ -103,6 +103,8 @@
             <Button x:Name="BtnSalvageNormal" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageNormal_Click"/>
             <Button x:Name="BtnSalvageMagic" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageMagic_Click"/>
             <Button x:Name="BtnSalvageRare" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageRare_Click"/>
+            <Button x:Name="BtnSalvageKeepAncient" Style="{StaticResource WarningButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageKeepAncient_Click"/>
+            <Button x:Name="BtnSalvageKeepPrimal" Style="{StaticResource WarningButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageKeepPrimal_Click"/>
             <Button x:Name="BtnSalvageRule" Style="{StaticResource WarningButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageRule_Click"/>
             <Button x:Name="BtnDropRule" Style="{StaticResource DangerButtonStyle}" Margin="0,0,0,4" Click="BtnDropRule_Click"/>
           </WrapPanel>

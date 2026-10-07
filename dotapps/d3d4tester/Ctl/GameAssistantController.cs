@@ -71,6 +71,8 @@ public sealed class GameAssistantController
         TestActionRegistry.Register(I18nKeys.RosbotBridgeTestSalvageRule, () => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceBlacksmith, () =>
             BlacksmithHandler.Instance.HandleAutoSalvageBySlots(KeepRule(Aux()), debugOnly: false)));
         TestActionRegistry.Register(I18nKeys.RosbotBridgeTestDropRule, RunDropEquipmentTest);
+        TestActionRegistry.Register(I18nKeys.RosbotBridgeTestSalvageKeepAncient, () => RunSalvageLegendaryTest(LegendaryAncientRank));
+        TestActionRegistry.Register(I18nKeys.RosbotBridgeTestSalvageKeepPrimal, () => RunSalvageLegendaryTest(LegendaryPrimalRank));
     }
 
     /// <summary>
@@ -321,6 +323,54 @@ public sealed class GameAssistantController
             catch (Exception ex)
             {
                 ColorPrinter.Red($"[DebugBagHover] {ex.Message}");
+            }
+        });
+    }
+
+    private const int LegendaryQualityMin = 9;
+    private const int LegendaryAncientRank = 1;
+    private const int LegendaryPrimalRank = 2;
+
+    /// <summary>
+    /// Test button: with the blacksmith open, salvage backpack legendaries / set items below keepRank (1 = keep ancient and primal,
+    /// 2 = keep primal only) chosen from the bridge plugin's memory data (quality, ancient rank, backpack cell; no hover reading), never
+    /// an item of a loaded maxroll build; the list is logged first, then clicked with the existing salvage sequence.
+    /// </summary>
+    private static void RunSalvageLegendaryTest(int keepRank)
+    {
+        _ = Instance;
+        Task.Run(() =>
+        {
+            try
+            {
+                var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+                if (snapshot.RosbotBridge is not { } bridge || !snapshot.RosbotBridgeFresh)
+                {
+                    ColorPrinter.Yellow($"{LogTag} Salvage legendaries: no live bridge plugin data");
+                    return;
+                }
+                if (!bridge.UiVendorOpen || !bridge.InventoryCellSupported)
+                {
+                    ColorPrinter.Yellow($"{LogTag} Salvage legendaries: blacksmith open={bridge.UiVendorOpen}, backpack cells readable={bridge.InventoryCellSupported}");
+                    return;
+                }
+                var targets = bridge.CarriedItems
+                    .Where(e => e.Slot == RosbotPluginConstants.BridgeSlotBackpack && e.Quality >= LegendaryQualityMin && e.AncientRank < keepRank
+                                && e.InvX >= 0 && e.InvY >= 0 && !D3PlannerService.IsPlanned(e.Gbid, e.InternalName, e.Name))
+                    .OrderBy(e => e.InvY).ThenBy(e => e.InvX).ToList();
+                foreach (var e in targets)
+                    ColorPrinter.Blue($"{LogTag} Salvage: {D3PlannerService.DisplayName(e.Gbid, e.Name)} ancient={e.AncientRank} cell=({e.InvX},{e.InvY})");
+                if (targets.Count == 0)
+                {
+                    ColorPrinter.Gray($"{LogTag} Salvage legendaries: nothing below rank {keepRank} in the backpack");
+                    return;
+                }
+                D3InterfaceManager.Instance.CollectBagInfoQuik(forceRefresh: true, saveScreenshot: false, forceNewCapture: true);
+                BlacksmithHandler.Instance.SalvageCells(targets.Select(e => (e.InvY, e.InvX)).ToList(), ShouldStop);
+            }
+            catch (Exception ex)
+            {
+                ColorPrinter.Red($"{LogTag} Salvage legendaries failed: {ex.Message}");
             }
         });
     }
