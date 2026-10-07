@@ -23,9 +23,12 @@ Two-part design:
      is answered by whether the shortcut exists.
 
   3. An **elevated scheduled task** (same name, logon trigger, highest run level,
-     interactive user) replaces the shortcut whenever enable()/refresh() runs
-     elevated: a Startup-folder process is never elevated, and Windows UIPI drops
-     the keystrokes and clicks it sends to Administrator terminals. The NSSM
+     interactive user) is registered whenever enable()/refresh() runs elevated:
+     a Startup-folder process is never elevated, and Windows UIPI drops the
+     keystrokes and clicks it sends to Administrator terminals. The shortcut then
+     runs ``<app_name>_task.ps1`` (Start-ScheduledTask), so pycore and its tray
+     still start elevated from the Startup folder and can answer Administrator
+     terminals; the task's IgnoreNew setting keeps it to one instance. The NSSM
      service run (LocalSystem) never registers it.
 """
 
@@ -33,7 +36,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from pycore.pyfoundations.system_paths import get_app_data_dir
 from pycore.pyfoundations.system_service_state import is_elevated
@@ -127,6 +130,7 @@ class WindowsStartupManager:
         # Fixed-location PowerShell launcher script (content regenerated each enable).
         self.script_dir = AUTOSTART_DATA_PATH
         self.ps1_path = self.script_dir / f"{app_name}.ps1"
+        self.task_ps1_path = self.script_dir / f"{app_name}_task.ps1"
 
         self.python_exe = PYTHON_EXE_PATH
         self.pythonw_exe = PYTHONW_EXE_PATH
@@ -194,23 +198,34 @@ class WindowsStartupManager:
             body += self._pyservice_ps1()
         return header + body
 
+    def _generate_task_ps1(self) -> str:
+        """Build the PowerShell lines that start the elevated logon task."""
+        return (
+            "# PyCore RPC Server - Startup-folder entry for the elevated logon task\n"
+            "# AUTO-GENERATED: regenerated on every enable() and on every service start.\n"
+            "$ErrorActionPreference = 'SilentlyContinue'\n"
+            f"Start-ScheduledTask -TaskName {_ps_single_quote(self.app_name)}\n"
+        )
+
     def _write_ps1(self) -> None:
-        """(Re)write the fixed PS1 launcher with current config."""
+        """(Re)write the fixed PS1 launcher and the task-start PS1 with current config."""
         self.script_dir.mkdir(parents=True, exist_ok=True)
         with open(self.ps1_path, "w", encoding="utf-8") as fh:
             fh.write(self._generate_ps1())
+        with open(self.task_ps1_path, "w", encoding="utf-8") as fh:
+            fh.write(self._generate_task_ps1())
 
     # ----- native shortcut creation --------------------------------------- #
-    def _shortcut_arguments(self) -> str:
+    def _shortcut_arguments(self, script_path: Path) -> str:
         """Full-path arguments for the windowless Python startup bridge."""
         return (
             f'"{self.startup_runner}" '
             f'"{self.powershell_exe}" '
-            f'"{self.ps1_path}" '
+            f'"{script_path}" '
             f'"{self.pyservice_script.parent}"'
         )
 
-    def _create_shortcut(self, lnk_path: Path) -> bool:
+    def _create_shortcut(self, lnk_path: Path, script_path: Path) -> bool:
         """Create the .lnk pointing at pythonw and the full-path startup bridge."""
         # Guard: refuse a relative target so a missing env var (e.g. empty APPDATA)
         # can never make mkdir(parents=True) materialize a stray 'Microsoft\Windows\...'
@@ -219,7 +234,7 @@ class WindowsStartupManager:
             return False
         lnk_path.parent.mkdir(parents=True, exist_ok=True)
         target = str(self.pythonw_exe)
-        arguments = self._shortcut_arguments()
+        arguments = self._shortcut_arguments(script_path)
         workdir = str(self.pyservice_script.parent)
 
         # Primary: WScript.Shell COM via pywin32 (the canonical native way).
@@ -299,7 +314,7 @@ class WindowsStartupManager:
         user = _ps_single_quote(self._task_user())
         ps = (
             f"$action = New-ScheduledTaskAction -Execute {_ps_single_quote(str(self.pythonw_exe))} "
-            f"-Argument {_ps_single_quote(self._shortcut_arguments())} "
+            f"-Argument {_ps_single_quote(self._shortcut_arguments(self.ps1_path))} "
             f"-WorkingDirectory {_ps_single_quote(str(self.pyservice_script.parent))}; "
             f"$trigger = New-ScheduledTaskTrigger -AtLogOn -User {user}; "
             f"$principal = New-ScheduledTaskPrincipal -UserId {user} -LogonType Interactive -RunLevel Highest; "
@@ -331,12 +346,28 @@ class WindowsStartupManager:
             removed.append(str(lnk))
         return removed, errors
 
+    def _install_startup_shortcut(self, script_path: Path) -> Tuple[Optional[Path], str, str]:
+        """(shortcut, scope, error) for the first Startup folder that accepts the shortcut."""
+        last_error = ""
+        for lnk, scope in ((self.common_shortcut, "all-users"),
+                           (self.user_shortcut, "current-user")):
+            try:
+                if self._create_shortcut(lnk, script_path):
+                    return lnk, scope, ""
+            except OSError as e:
+                ColorPrint.yellow(f"[WindowsStartup] create shortcut {lnk} failed: {e}")
+                last_error = str(e)
+        return None, "", last_error or "shortcut creation failed"
+
     def _install_task(self) -> bool:
-        """Register the elevated task and drop the shortcuts so pycore starts once."""
+        """Register the elevated task and point the Startup shortcut at it."""
         if not self._register_task():
             return False
         self._remove_shortcuts()
-        ColorPrint.green(f"[WindowsStartup] elevated logon task registered: {self.app_name}")
+        lnk, _scope, error = self._install_startup_shortcut(self.task_ps1_path)
+        if lnk is None:
+            ColorPrint.yellow(f"[WindowsStartup] Startup shortcut for task {self.app_name} failed: {error}")
+        ColorPrint.green(f"[WindowsStartup] elevated logon task registered: {self.app_name} (shortcut: {lnk})")
         return True
 
     # ----- public API ------------------------------------------------------ #
@@ -367,24 +398,18 @@ class WindowsStartupManager:
                 "task_name": self.app_name, "script_path": str(self.ps1_path),
             }
 
-        last_error = None
-        for lnk, scope in ((self.common_shortcut, "all-users"),
-                           (self.user_shortcut, "current-user")):
-            try:
-                if self._create_shortcut(lnk):
-                    return {
-                        "success": True, "enabled": True, "scope": scope, "elevated": False,
-                        "message": f"Auto-start enabled ({scope}): {lnk}",
-                        "shortcut_path": str(lnk), "script_path": str(self.ps1_path),
-                    }
-            except OSError as e:
-                ColorPrint.yellow(f"[WindowsStartup] create shortcut {lnk} failed: {e}")
-                last_error = str(e)
+        lnk, scope, error = self._install_startup_shortcut(self.ps1_path)
+        if lnk is not None:
+            return {
+                "success": True, "enabled": True, "scope": scope, "elevated": False,
+                "message": f"Auto-start enabled ({scope}): {lnk}",
+                "shortcut_path": str(lnk), "script_path": str(self.ps1_path),
+            }
         return {
             "success": False, "enabled": self.is_enabled(),
             "message": "Failed to create startup shortcut "
                        "(the common folder needs administrator rights).",
-            "error": last_error or "shortcut creation failed",
+            "error": error,
         }
 
     def disable(self) -> dict:
@@ -416,7 +441,8 @@ class WindowsStartupManager:
         Called on every service start so launchers written by an OLDER version
         are upgraded to the current full-path pythonw entry without the user
         having to toggle auto-start off and on. An elevated run moves a
-        shortcut-based auto-start onto the elevated logon task.
+        shortcut-based auto-start onto the elevated logon task and its Startup
+        shortcut.
         """
         shortcut_paths = [path for path in self._shortcut_paths() if path.exists()]
         task_exists = self._task_exists()
@@ -426,9 +452,8 @@ class WindowsStartupManager:
             self._write_ps1()
             if self._can_register_task():
                 return self._install_task()
-            if task_exists:
-                return True
-            return all(self._create_shortcut(path) for path in shortcut_paths)
+            script_path = self.task_ps1_path if task_exists else self.ps1_path
+            return all(self._create_shortcut(path, script_path) for path in shortcut_paths)
         except OSError as exc:
             ColorPrint.yellow(f"[WindowsStartup] refresh launcher {self.ps1_path} failed: {exc}")
             return False
@@ -454,6 +479,7 @@ class WindowsStartupManager:
             "user_shortcut": str(self.user_shortcut),
             "script_path": str(self.ps1_path),
             "script_exists": self.ps1_path.exists(),
+            "task_script_path": str(self.task_ps1_path),
             "pythonw": str(self.pythonw_exe),
             "startup_runner": str(self.startup_runner),
             "powershell": str(self.powershell_exe),

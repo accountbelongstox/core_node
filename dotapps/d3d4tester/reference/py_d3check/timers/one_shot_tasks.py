@@ -3,7 +3,7 @@
 # DOT-REF: dotapps/d3d4tester/Components/AuxiliaryOptionsBlock.xaml.cs
 # DOT-REF: dotapps/d3d4tester/Ctl/RosbotTaskProcessor.cs
 # DOT-REF: dotapps/d3d4tester/MainWindow.xaml.cs
-# DOT-REF: dotapps/d3d4tester/Pages/Rosbot/RosbotPage.xaml.cs
+# DOT-REF: dotapps/d3d4tester/Components/RosbotControlBlock.xaml.cs
 # DOT-REF: dotapps/d3d4tester/RosbotUpdateManager.cs
 # DOT-REF: dotapps/d3d4tester/Services/BattlenetUiAnalyzeService.cs
 # DOT-REF: dotapps/d3d4tester/Services/BnUiDebugPaths.cs

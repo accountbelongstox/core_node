@@ -21,9 +21,9 @@ namespace DotApps.d3d4tester.Pages.Monitor;
 
 /// <summary>
 /// Monitor tab: the RBAssist features merged into the app. Status (monitoring = ROSBOT flow, D3 / ROSBOT, log and history idle, restarts,
-/// counters, game speed), crash recovery, D3 window and process tuning, screenshots, notifications, external tools and probe thresholds,
-/// the trigger list with its editor, and the monitor log. Settings bind to monitor.* through ConfigBinding; options that already existed
-/// (log-timeout switch and minutes, startup shortcut) stay on the ROSBOT tab.
+/// counters, game speed), ROSBOT control buttons, crash recovery (incl. the ROSBOT log-timeout switch and minutes, startup shortcut),
+/// D3 window and process tuning, screenshots, notifications, external tools and probe thresholds, the trigger list with its editor,
+/// the monitor log and the ROSBOT log. Settings bind to monitor.* (ROSBOT options to their own keys) through ConfigBinding.
 /// </summary>
 public partial class MonitorPage : UserControl
 {
@@ -46,6 +46,8 @@ public partial class MonitorPage : UserControl
     private const int KeepMax = 9999;
     private const int MinutesMax = 999;
     private const int ProbeMax = 1000000;
+    private const int RosbotMinutesMin = 1;
+    private const int RosbotMinutesMax = 120;
     private static readonly TimeSpan StatusInterval = TimeSpan.FromSeconds(1);
 
     private readonly DispatcherTimer _statusTimer;
@@ -110,6 +112,11 @@ public partial class MonitorPage : UserControl
         LblMb.Text = T(I18nKeys.MonitorMb);
         ChkRestartBattlenet.Content = T(I18nKeys.MonitorRestartBattlenet);
         ChkAutoStart.Content = T(I18nKeys.MonitorAutoStart);
+        ChkTimeoutRestart.Content = T(I18nKeys.RosbotTimeoutRestart);
+        LblTimeoutMinutes.Text = T(I18nKeys.RosbotMinutes);
+        ChkStartup.Content = T(I18nKeys.RosbotStartup);
+        RosbotControl.RefreshI18n();
+        RosbotLog.RefreshI18n();
         ChkArchiveRollover.Content = T(I18nKeys.MonitorArchiveRollover);
 
         LblWindowTitle.Text = T(I18nKeys.MonitorWindowTitle);
@@ -194,6 +201,9 @@ public partial class MonitorPage : UserControl
         ConfigBinding.BindIntTextBox(TxtD3MemoryMb, ConfigKeys.MonitorD3MemoryLimitMb, MemoryMbMin, MemoryMbMax, MonitorSettings.D3MemoryLimitMbDefault);
         ConfigBinding.BindCheckBox(ChkRestartBattlenet, ConfigKeys.MonitorRestartBattlenetOnRestart);
         ConfigBinding.BindCheckBox(ChkAutoStart, ConfigKeys.MonitorAutoStartOnLaunch);
+        ConfigBinding.BindCheckBox(ChkTimeoutRestart, ConfigKeys.BattlenetTimeoutRestart, true);
+        ConfigBinding.BindIntTextBox(TxtTimeoutMinutes, ConfigKeys.RosbotTimeoutMinutes, RosbotMinutesMin, RosbotMinutesMax, AppConstants.RosbotTimeoutMinutesDefault);
+        ConfigBinding.BindCheckBox(ChkStartup, ConfigKeys.RosbotStartup);
         ConfigBinding.BindCheckBox(ChkArchiveRollover, ConfigKeys.MonitorArchiveLogRollover);
 
         ConfigBinding.BindCheckBox(ChkD3Shrink, ConfigKeys.MonitorD3ShrinkOnStart);
@@ -254,6 +264,18 @@ public partial class MonitorPage : UserControl
         var answer = MessageBox.Show(Window.GetWindow(this), T(I18nKeys.MonitorTuningWarning), T(I18nKeys.MonitorTuningWarningTitle),
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) ChkTuning.IsChecked = false;
+    }
+
+    /// <summary>ROSBOT log is the ColorPrint sink while this tab is selected. Called from MainWindow.</summary>
+    public void RegisterAsLogTarget() => RosbotLog.RegisterAsLogTarget();
+
+    public void UnregisterAsLogTarget() => RosbotLog.UnregisterAsLogTarget();
+
+    /// <summary>Raised after a ROSBOT update rewrote the path config.</summary>
+    public event Action? RosbotPathsChanged
+    {
+        add => RosbotControl.PathsChanged += value;
+        remove => RosbotControl.PathsChanged -= value;
     }
 
     private void UpdateStatus()

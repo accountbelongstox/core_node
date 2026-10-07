@@ -1,7 +1,8 @@
 <UserControl x:Class="DotApps.d3d4tester.Pages.Monitor.MonitorPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- RBAssist features merged in: left = status and settings cards, right = triggers and monitor log -->
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
+  <!-- RBAssist features merged in: left = status, ROSBOT control and settings cards, right = triggers, monitor log and ROSBOT log -->
   <Grid Margin="{StaticResource PageMargin}">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*" MinWidth="420"/>
@@ -36,6 +37,11 @@
           </StackPanel>
         </Border>
 
+        <!-- ROSBOT control (from the former ROSBOT tab) -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <comp:RosbotControlBlock x:Name="RosbotControl"/>
+        </Border>
+
         <!-- Crash recovery -->
         <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
           <StackPanel>
@@ -52,8 +58,17 @@
               <TextBox x:Name="TxtD3MemoryMb" Width="64" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"/>
               <TextBlock x:Name="LblMb" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center"/>
             </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <CheckBox x:Name="ChkTimeoutRestart" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <TextBox x:Name="TxtTimeoutMinutes" Width="52" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"/>
+              <TextBlock x:Name="LblTimeoutMinutes" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center"/>
+            </StackPanel>
             <CheckBox x:Name="ChkRestartBattlenet" Margin="0,0,0,8"/>
             <CheckBox x:Name="ChkAutoStart" Margin="0,0,0,8"/>
+            <StackPanel Margin="0,0,0,8">
+              <CheckBox x:Name="ChkStartup"/>
+              <comp:StartupShortcutPathLabel/>
+            </StackPanel>
             <CheckBox x:Name="ChkArchiveRollover"/>
           </StackPanel>
         </Border>
@@ -199,6 +214,7 @@
       <Grid.RowDefinitions>
         <RowDefinition Height="3*" MinHeight="200"/>
         <RowDefinition Height="2*" MinHeight="140"/>
+        <RowDefinition Height="2*" MinHeight="160"/>
       </Grid.RowDefinitions>
 
       <!-- Triggers -->
@@ -237,7 +253,7 @@
       </Border>
 
       <!-- Monitor log -->
-      <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
+      <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
         <Grid>
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -249,6 +265,11 @@
           </DockPanel>
           <TextBox x:Name="TxtMonitorLog" Grid.Row="1" Style="{StaticResource MonoLogTextBoxStyle}"/>
         </Grid>
+      </Border>
+
+      <!-- ROSBOT log (from the former ROSBOT tab) -->
+      <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+        <comp:RosbotLogBlock x:Name="RosbotLog"/>
       </Border>
     </Grid>
   </Grid>

@@ -1,0 +1,14 @@
+<UserControl x:Class="DotApps.d3d4tester.Components.RosbotControlBlock"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- ROSBOT control panel (Python control_frame); Start / Stop is the Monitor toggle -->
+  <StackPanel>
+    <TextBlock x:Name="LblControlPanel" Style="{StaticResource SectionHeaderTextStyle}"/>
+    <WrapPanel>
+      <Button x:Name="BtnEnsureBattlenet" Margin="0,0,8,8" Click="BtnEnsureBattlenet_Click"/>
+      <Button x:Name="BtnUpdateRosbot" Margin="0,0,8,8" Click="BtnUpdateRosbot_Click"/>
+      <Button x:Name="BtnOpenTampermonkey" Margin="0,0,8,8" Click="BtnOpenTampermonkey_Click"/>
+      <Button x:Name="BtnSetAccountPassword" Margin="0,0,0,8" Click="BtnSetAccountPassword_Click"/>
+    </WrapPanel>
+  </StackPanel>
+</UserControl>
