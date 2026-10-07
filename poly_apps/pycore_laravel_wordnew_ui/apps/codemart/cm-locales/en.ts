@@ -211,7 +211,7 @@ export const cmEn = {
     roles: {
       eyebrow: 'WHO DOES WHAT',
       title: 'Four delivery roles in one workspace',
-      lead: 'One account can hold several roles. Each role unlocks only after its own requirements are met.',
+      lead: 'One account can hold several roles. Each role becomes active only after its own requirements are met.',
       client: {
         title: 'Client',
         body: 'Writes the brief, accepts the proposal, funds escrow, and approves deliverables. Active immediately after registration.',
@@ -419,7 +419,7 @@ export const cmEn = {
     notificationsTitle: 'Recent notifications',
     viewAll: 'View all',
     noWorkTitle: 'Nothing to work on yet',
-    noWorkBody: 'Request a client or developer role and finish verification to unlock projects and tasks.',
+    noWorkBody: 'Request a client or developer role and finish verification to start using projects and tasks.',
     stepTitles: {
       account: 'Complete your account',
       role_request: 'Request a role',
@@ -2696,7 +2696,7 @@ export const cmEn = {
           items: {
             funding: 'Funding moves the accepted amount from the client wallet into escrow before work starts.',
             release: 'Client approval of a submission releases the task amount from escrow to the developer.',
-            commission: 'The platform commission, set by server policy, is deducted from each release.',
+            commission: 'The platform commission is deducted from each release.',
           },
         },
         refunds: {
