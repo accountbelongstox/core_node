@@ -31,6 +31,8 @@ public static class RosbotPluginConstants
     public const string BridgeStateFileName = "state.json";
     public const string BridgeCommandFileName = "command.txt";
     public const string BridgeFilterFileName = "pickup_filter.txt";
+    /// <summary>Items / affix attributes the plugin reads (same name as CoreNodeBridge ItemWatch.FileName; the plugin cannot reference the app).</summary>
+    public const string BridgeItemWatchFileName = "item_watch.txt";
     public const string BridgeActionMoveTo = "move_to";
     public const string BridgeActionInteract = "interact";
     public const string BridgeActionPickup = "pickup";

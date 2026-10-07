@@ -49,6 +49,7 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("item_acd_types")] public string ItemAcdTypes { get; init; } = "";
     [JsonPropertyName("pickup_filter_auto")] public bool PickupFilterAuto { get; init; }
     [JsonPropertyName("pickup_filter")] public string PickupFilter { get; init; } = "";
+    [JsonPropertyName("item_watch_unknown")] public string ItemWatchUnknown { get; init; } = "";
     [JsonPropertyName("ground_items")] public IReadOnlyList<RosbotBridgeEntity> GroundItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("npcs")] public IReadOnlyList<RosbotBridgeEntity> Npcs { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("carried_items")] public IReadOnlyList<RosbotBridgeEntity> CarriedItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
@@ -75,7 +76,11 @@ public sealed record RosbotBridgeEntity(
     [property: JsonPropertyName("durability_max")] int DurabilityMax,
     [property: JsonPropertyName("elite")] bool Elite,
     [property: JsonPropertyName("boss")] bool Boss,
-    [property: JsonPropertyName("filter_match")] bool FilterMatch);
+    [property: JsonPropertyName("filter_match")] bool FilterMatch)
+{
+    [JsonPropertyName("gbid")] public int Gbid { get; init; }
+    [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
+}
 
 /// <summary>Live pickup (item vanished next to the hero) or stash event.</summary>
 public sealed record RosbotBridgePickup(
@@ -85,7 +90,11 @@ public sealed record RosbotBridgePickup(
     [property: JsonPropertyName("internal_name")] string InternalName,
     [property: JsonPropertyName("sno")] int Sno,
     [property: JsonPropertyName("quality")] int Quality,
-    [property: JsonPropertyName("ancient_rank")] int AncientRank);
+    [property: JsonPropertyName("ancient_rank")] int AncientRank)
+{
+    [JsonPropertyName("gbid")] public int Gbid { get; init; }
+    [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
+}
 
 public sealed record RosbotBridgeCommandResult(
     [property: JsonPropertyName("id")] long Id,
@@ -239,6 +248,13 @@ public static class RosbotBridgePluginService
         bool ok = WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeFilterFileName), lines);
         ColorPrinter.Blue($"{LogTag} pickup filter saved: auto={autoAtRiftEnd} patterns={string.Join(", ", lines.Skip(1))}");
         return ok;
+    }
+
+    /// <summary>Write the plugin's item watch (lines "g|gbid", "n|name", "a|key|attribute|parameter|f or i"); false without the plugin folder.</summary>
+    public static bool SaveItemWatch(IEnumerable<string> lines)
+    {
+        if (InstalledDir is not { } dir || !Directory.Exists(dir)) return false;
+        return WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeItemWatchFileName), lines);
     }
 
     /// <summary>Pickup filter currently stored in ROSBOT's plugin folder: (auto, patterns).</summary>

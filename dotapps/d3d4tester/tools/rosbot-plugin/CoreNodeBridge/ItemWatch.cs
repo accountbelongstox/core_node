@@ -40,11 +40,15 @@ internal sealed class ItemWatch
     private HashSet<int> _gbids = new();
     private HashSet<string> _names = new(StringComparer.OrdinalIgnoreCase);
     private List<WatchedAttribute> _attributes = new();
+    private List<string> _unknown = new();
     private DateTime _stamp = DateTime.MinValue;
 
     public ItemWatch(Action<string> log) => _log = log;
 
     public bool IsEmpty => _gbids.Count == 0 && _names.Count == 0;
+
+    /// <summary>Watch keys whose attribute name ROSBOT does not know (published so the app shows them as not checkable).</summary>
+    public IReadOnlyList<string> UnknownKeys => _unknown;
 
     public void Reload(string dir)
     {
@@ -57,6 +61,7 @@ internal sealed class ItemWatch
             var gbids = new HashSet<int>();
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var attributes = new List<WatchedAttribute>();
+            var unknown = new List<string>();
             var lines = stamp == DateTime.MinValue ? Array.Empty<string>() : File.ReadAllLines(path, Encoding.UTF8);
             foreach (var line in lines)
             {
@@ -65,6 +70,8 @@ internal sealed class ItemWatch
                     gbids.Add(gbid);
                 else if (parts.Length >= 2 && parts[0] == KindName && parts[1].Trim().Length > 0)
                     names.Add(parts[1].Trim());
+                else if (parts.Length >= 5 && parts[0] == KindAttribute && !TryAttributeId(parts[2], out _))
+                    unknown.Add(parts[1]);
                 else if (parts.Length >= 5 && parts[0] == KindAttribute && TryAttributeId(parts[2], out int id))
                     attributes.Add(new WatchedAttribute
                     {
@@ -77,7 +84,8 @@ internal sealed class ItemWatch
             _gbids = gbids;
             _names = names;
             _attributes = attributes;
-            _log($"item watch: {gbids.Count} gbids, {names.Count} names, {attributes.Count} attributes");
+            _unknown = unknown;
+            _log($"item watch: {gbids.Count} gbids, {names.Count} names, {attributes.Count} attributes, unknown: {string.Join(",", unknown)}");
         }
         catch (IOException) { }
     }
