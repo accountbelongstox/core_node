@@ -34,12 +34,17 @@ final class AppQyV1PhraseExtractionService
     public const OUTCOME_DELEGATED = 'delegated';
     public const OUTCOME_FAILED = 'failed';
     public const OUTCOME_RELEASED = 'released';
+    public const OUTCOME_BACKOFF = 'backoff';
 
     private const APP_NAME = 'AppQyV1';
     private const SOURCE = 'phrase_extraction';
     private const CACHE_STORE = 'file';
     private const INTERVAL_KEY = 'appqyv1:phrase_extraction:interval';
     private const FALLBACK_KEY = 'appqyv1:phrase_extraction:fallback_until';
+    private const BACKOFF_KEY = 'appqyv1:phrase_extraction:backoff_until';
+    private const LAST_OUTCOME_KEY = 'appqyv1:phrase_extraction:last_outcome';
+    private const LAST_OUTCOME_KEEP_SECONDS = 86400;
+    private const FINISH_REASON_LENGTH = 'length';
     private const LANGUAGE_CURSOR_KEY = 'appqyv1:phrase_extraction:language_cursor';
     private const LANGUAGE_CACHE_SECONDS = 300;
     private const NOT_CONFIGURED_CODE = 'not_configured';
@@ -59,7 +64,8 @@ final class AppQyV1PhraseExtractionService
 
     public function __construct(
         private readonly AppQyV1PhraseResponseParser $parser = new AppQyV1PhraseResponseParser(),
-        private readonly AppQyV1PhraseWriter $writer = new AppQyV1PhraseWriter()
+        private readonly AppQyV1PhraseWriter $writer = new AppQyV1PhraseWriter(),
+        private readonly AppQyV1PhraseModelSelector $selector = new AppQyV1PhraseModelSelector()
     ) {
     }
 
@@ -73,6 +79,9 @@ final class AppQyV1PhraseExtractionService
             return ['outcome' => self::OUTCOME_IDLE];
         }
         $this->renewDelegatedLeases();
+        if ($this->inBackoff()) {
+            return ['outcome' => self::OUTCOME_BACKOFF];
+        }
         if (!Cache::store(self::CACHE_STORE)->add(self::INTERVAL_KEY, 1, max(1, (int) $this->setting('min_interval_seconds')))) {
             return ['outcome' => self::OUTCOME_IDLE];
         }
