@@ -555,6 +555,7 @@ export const enLocaleA: Record<string, string> = {
     'orchAudio.filterAll': 'All',
     'orchAudio.source.vocab_book': 'Vocabulary book',
     'orchAudio.source.prompt_rewrite': 'Prompt rewrite',
+    'orchAudio.source.passages': 'Short passages',
     'orchAudio.source.other': '{source}',
     'orchAudio.empty': 'No orchestrated audio yet',
     'orchAudio.loadFailed': 'Orchestrated audio is unavailable',

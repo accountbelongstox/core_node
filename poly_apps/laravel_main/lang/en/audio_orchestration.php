@@ -24,6 +24,7 @@ return [
     'book_plan_book_not_found' => 'The book does not exist.',
     'book_plan_validation_failed' => 'The book audio plan request is invalid.',
     'phrases_by_sentences_loaded' => 'Sentence phrases loaded.',
+    'phrases_extraction_status_loaded' => 'Phrase extraction status loaded.',
     'phrases_by_sentences_validation_failed' => 'The sentence phrases request is invalid.',
     'phrases_attribute_language' => 'language',
     'phrases_attribute_content_ids' => 'sentence content ids',

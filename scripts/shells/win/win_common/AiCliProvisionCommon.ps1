@@ -349,7 +349,6 @@ function Invoke-AiCliNativeInstaller {
     $installerDir = Get-Variable -Name 'DOWNLOADS_DIR' -Scope Global -ValueOnly -ErrorAction SilentlyContinue
     $installerWorkDir = Get-Variable -Name 'WORK_DIR' -Scope Global -ValueOnly -ErrorAction SilentlyContinue
     $installerFile = $null
-    $powerShellExe = (Get-Process -Id $PID).Path
     $installerExitCode = 1
     $envName = ""
     $savedEnv = @{}
@@ -390,8 +389,7 @@ function Invoke-AiCliNativeInstaller {
                 }
                 Set-Content -LiteralPath $installerFile -Value $installerContent -Encoding UTF8
                 Write-Host ("[INFO] Installer script saved: {0} ({1} chars)" -f $installerFile, $installerContent.Length) -ForegroundColor Cyan
-                & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $installerFile | Out-Host
-                $installerExitCode = $LASTEXITCODE
+                $installerExitCode = Invoke-AiCliNativeInstallerProcess -Tool $Tool -InstallerFile $installerFile
                 Remove-Item -LiteralPath $installerFile -Force -ErrorAction SilentlyContinue
                 if (($installerExitCode -eq 0) -and (Test-Path -LiteralPath (Get-AiCliNativeExe -Tool $Tool))) {
                     return $true

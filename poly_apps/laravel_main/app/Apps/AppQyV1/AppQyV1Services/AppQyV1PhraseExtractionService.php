@@ -99,6 +99,8 @@ final class AppQyV1PhraseExtractionService
         $rendered = '';
         $result = [];
         $code = null;
+        $selection = [];
+        $options = [];
 
         if ($fallbackMode && $this->openTaskCount() >= (int) $this->setting('pycore_tasks_max_pending')) {
             return ['outcome' => self::OUTCOME_IDLE, 'language' => $language];
@@ -108,6 +110,16 @@ final class AppQyV1PhraseExtractionService
             Log::warning('[AppQyV1PhraseExtraction] prompt row missing or disabled; run sys:init', ['prompt_key' => $this->setting('prompt_key')]);
             return ['outcome' => self::OUTCOME_IDLE, 'language' => $language];
         }
+        $selection = $this->selector->choose();
+        if ($selection['model'] === null) {
+            $this->startBackoff((int) AudioOrchestrationContract::phrasePipeline('extraction.model_selection.all_cooled_backoff_seconds'));
+            Log::warning('[AppQyV1PhraseExtraction] every candidate model is cooling down, extraction paused', [
+                'cooled' => $selection['cooled'],
+                'available_in_s' => $this->selector->secondsUntilAvailable(),
+            ]);
+            return $this->remember(['outcome' => self::OUTCOME_BACKOFF, 'language' => $language, 'error_code' => 'no_model']);
+        }
+        $options = $this->requestOptions($selection);
         $leaseId = str_replace('-', '', (string) Str::uuid());
         $batch = $this->claim($language, $leaseId);
         if ($batch === []) {
@@ -117,39 +129,89 @@ final class AppQyV1PhraseExtractionService
 
         if ($fallbackMode || !AiProviderRegistry::isConfigured((string) $this->setting('provider'))) {
             $code = $fallbackMode ? 'local_rate_limit' : self::NOT_CONFIGURED_CODE;
-            return $this->delegate($language, $batch, $leaseId, $rendered, $code);
+            return $this->remember($this->delegate($language, $batch, $leaseId, $rendered, $code, $selection, $options));
         }
 
         $result = AiGateway::chatWith(
             (string) $this->setting('provider'),
             $rendered,
-            (string) $this->setting('model'),
+            (string) $selection['model'],
             null,
             self::SOURCE,
             (int) $this->setting('request_timeout_seconds'),
             [
                 'max_tokens' => (int) $this->setting('max_output_tokens'),
                 'temperature' => (float) $this->setting('temperature'),
-            ] + (array) $this->setting('request_options')
+            ] + $options
         );
         if (!empty($result['success'])) {
-            return $this->store($language, $batch, (string) ($result['text'] ?? ''), (string) ($result['model'] ?? ''));
+            return $this->remember($this->store(
+                $language,
+                $batch,
+                (string) ($result['text'] ?? ''),
+                $this->servedModel($result, $selection),
+                [
+                    'finish_reason' => (string) ($result['finish_reason'] ?? ''),
+                    'reasoning_only' => !empty($result['reasoning_only']),
+                ]
+            ));
         }
 
         $code = $this->errorCode($result);
         if ($this->isFallbackCode($code)) {
             $this->enterFallbackMode((float) ($result['retry_after_s'] ?? 0));
-            return $this->delegate($language, $batch, $leaseId, $rendered, $code);
+            return $this->remember($this->delegate($language, $batch, $leaseId, $rendered, $code, $selection, $options));
         }
-        $this->writer->recordFailure($language, array_column($batch, 'content_id'));
-        Log::warning('[AppQyV1PhraseExtraction] gateway failure, attempts counted', [
+
+        return $this->remember($this->gatewayFailure($language, $batch, $result, $code, $selection));
+    }
+
+    /**
+     * A gateway call that failed for a reason other than rate limit / quota /
+     * missing key (contract failure_policy). Provider and model faults are not
+     * the sentences' fault: the claim is released without a phrase attempt and
+     * the extractor backs off. A heavy-batch fault (timeout, empty answer)
+     * strikes the model and still charges the attempt unless that strike
+     * benched the model.
+     *
+     * @param array<int, array{n:int, content_id:string, text:string}> $batch
+     */
+    private function gatewayFailure(string $language, array $batch, array $result, ?string $code, array $selection): array
+    {
+        $contentIds = array_column($batch, 'content_id');
+        $error = strtolower((string) ($result['error'] ?? ''));
+        $modelError = $this->containsAny($error, (array) $this->policy('model_error_marks'));
+        $uncharged = in_array((string) $code, (array) $this->policy('uncharged_codes'), true)
+            || $this->containsAny($error, (array) $this->policy('uncharged_marks'));
+        $benched = false;
+        $charge = true;
+
+        if ($modelError) {
+            $benched = $this->selector->recordFailure($selection['model'], AppQyV1PhraseModelSelector::FAILURE_MODEL_ERROR);
+        } elseif (in_array((string) $code, (array) $this->policy('model_strike_codes'), true)) {
+            $benched = $this->selector->recordFailure(
+                $selection['model'],
+                $code === 'empty_response' ? AppQyV1PhraseModelSelector::FAILURE_EMPTY : AppQyV1PhraseModelSelector::FAILURE_TIMEOUT
+            );
+        }
+        $charge = !$modelError && !$uncharged && !$benched;
+        if ($charge) {
+            $this->writer->recordFailure($language, $contentIds);
+        } else {
+            $this->writer->releaseLease($language, $contentIds);
+            $this->startBackoff((int) $this->policy('backoff_seconds'));
+        }
+        Log::warning('[AppQyV1PhraseExtraction] gateway failure', [
             'language' => $language,
             'sentences' => count($batch),
+            'model' => $selection['model'],
             'error_code' => $code,
+            'charged' => $charge,
+            'model_benched' => $benched,
             'error' => mb_substr((string) ($result['error'] ?? ''), 0, 300),
         ]);
 
-        return ['outcome' => self::OUTCOME_FAILED, 'language' => $language, 'sentences' => count($batch), 'error_code' => $code];
+        return ['outcome' => self::OUTCOME_FAILED, 'language' => $language, 'sentences' => count($batch), 'error_code' => $code, 'charged' => $charge];
     }
 
     /**
@@ -157,27 +219,148 @@ final class AppQyV1PhraseExtractionService
      * counts one attempt for every batch sentence. Shared with the
      * phrase_extract result writeback.
      *
+     * $meta (finish_reason, reasoning_only) describes how the model answered:
+     * it feeds the model health (selector strikes) and decides whether the
+     * sentences the answer did not reach are charged an attempt. A model that
+     * answered unusably and got benched by that strike is not held against the
+     * sentences.
+     *
      * @param array<int, array{n:int, content_id:string, text:string}> $batch
+     * @param array{finish_reason?:string, reasoning_only?:bool} $meta
      */
-    public function store(string $language, array $batch, string $raw, ?string $sourceModel): array
+    public function store(string $language, array $batch, string $raw, ?string $sourceModel, array $meta = []): array
     {
         $parsed = $this->parser->parse($raw, $batch);
         $stored = [];
+        $truncated = (string) ($meta['finish_reason'] ?? '') === self::FINISH_REASON_LENGTH || !empty($parsed['salvaged']);
+        $reasoningOnly = !empty($meta['reasoning_only']);
+        $reason = null;
+        $benched = false;
 
         if (!$parsed['ok']) {
-            $this->writer->recordFailure($language, array_column($batch, 'content_id'));
-            Log::warning('[AppQyV1PhraseExtraction] answer not parseable, attempts counted', [
+            $reason = $reasoningOnly
+                ? AppQyV1PhraseModelSelector::FAILURE_REASONING_ONLY
+                : ($parsed['error'] === AppQyV1PhraseResponseParser::ERROR_EMPTY
+                    ? AppQyV1PhraseModelSelector::FAILURE_EMPTY
+                    : ($truncated ? AppQyV1PhraseModelSelector::FAILURE_TRUNCATED : AppQyV1PhraseModelSelector::FAILURE_UNPARSEABLE));
+            $benched = $this->selector->recordFailure($sourceModel, $reason);
+            if ($benched) {
+                $this->writer->releaseLease($language, array_column($batch, 'content_id'));
+            } else {
+                $this->writer->recordFailure($language, array_column($batch, 'content_id'));
+            }
+            Log::warning('[AppQyV1PhraseExtraction] answer not parseable', [
                 'language' => $language,
                 'sentences' => count($batch),
+                'model' => $sourceModel,
                 'error' => $parsed['error'],
+                'reason' => $reason,
+                'model_benched' => $benched,
+                'charged' => !$benched,
                 'answer_head' => mb_substr($raw, 0, 200),
             ]);
             return ['outcome' => self::OUTCOME_FAILED, 'language' => $language, 'sentences' => count($batch), 'error_code' => $parsed['error']];
         }
-        $stored = $this->writer->store($language, $batch, $parsed['items'], $sourceModel);
-        Log::info('[AppQyV1PhraseExtraction] batch stored', ['language' => $language, 'model' => $sourceModel] + $stored);
+        $stored = $this->writer->store($language, $batch, $parsed['items'], $sourceModel, !$truncated);
+        if ($reasoningOnly) {
+            $reason = AppQyV1PhraseModelSelector::FAILURE_REASONING_ONLY;
+        } elseif ($truncated) {
+            $reason = AppQyV1PhraseModelSelector::FAILURE_TRUNCATED;
+        }
+        if ($reason !== null) {
+            $this->selector->recordFailure($sourceModel, $reason);
+        } else {
+            $this->selector->recordSuccess($sourceModel);
+        }
+        Log::info('[AppQyV1PhraseExtraction] batch stored', ['language' => $language, 'model' => $sourceModel, 'truncated' => $truncated] + $stored);
 
         return ['outcome' => self::OUTCOME_STORED, 'language' => $language] + $stored;
+    }
+
+    /** Model that produced the answer: the one OpenRouter reports as served, else the primary asked for. */
+    private function servedModel(array $result, array $selection): ?string
+    {
+        $served = trim((string) ($result['served_model'] ?? ''));
+
+        return $served !== '' ? $served : ($selection['model'] ?? null);
+    }
+
+    /**
+     * Gateway request options of this batch: the contract's request_options
+     * with the in-request `models` list replaced by the selector's choice.
+     *
+     * @return array<string,mixed>
+     */
+    private function requestOptions(array $selection): array
+    {
+        $options = (array) $this->setting('request_options');
+
+        $options['models'] = $selection['models'];
+
+        return $options;
+    }
+
+    /** Remember the last tick outcome for status(); returns it unchanged. */
+    private function remember(array $outcome): array
+    {
+        Cache::store(self::CACHE_STORE)->put(self::LAST_OUTCOME_KEY, $outcome + ['at' => time()], self::LAST_OUTCOME_KEEP_SECONDS);
+
+        return $outcome;
+    }
+
+    private function inBackoff(): bool
+    {
+        return (int) Cache::store(self::CACHE_STORE)->get(self::BACKOFF_KEY, 0) > time();
+    }
+
+    private function startBackoff(int $seconds): void
+    {
+        $seconds = max(1, $seconds);
+
+        Cache::store(self::CACHE_STORE)->put(self::BACKOFF_KEY, time() + $seconds, $seconds);
+    }
+
+    private function containsAny(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if ($needle !== '' && str_contains($haystack, strtolower((string) $needle))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function policy(string $name): mixed
+    {
+        return $this->setting('failure_policy.' . $name);
+    }
+
+    /**
+     * Pipeline state for the status endpoint: extraction modes, the model
+     * choice and health, the pycore delegation queue and per-language counts.
+     */
+    public function status(): array
+    {
+        $languages = $this->languages();
+        $store = Cache::store(self::CACHE_STORE);
+        $now = time();
+        $counts = [];
+
+        foreach ($languages as $language) {
+            $counts[$language] = $this->writer->statusCounts($language);
+        }
+
+        return [
+            'languages' => $counts,
+            'fallback_mode_seconds' => max(0, (int) $store->get(self::FALLBACK_KEY, 0) - $now),
+            'backoff_seconds' => max(0, (int) $store->get(self::BACKOFF_KEY, 0) - $now),
+            'pycore_tasks_open' => $this->openTaskCount(),
+            'provider_configured' => AiProviderRegistry::isConfigured((string) $this->setting('provider')),
+            'selection' => $this->selector->choose(),
+            'model_health' => $this->selector->snapshot(),
+            'last_outcome' => $store->get(self::LAST_OUTCOME_KEY),
+        ];
     }
 
     /**
@@ -233,7 +416,7 @@ final class AppQyV1PhraseExtractionService
     }
 
     /** Hand the claimed batch to pycore as one phrase_extract task; the lease stays while the task is live. */
-    private function delegate(string $language, array $batch, string $leaseId, string $rendered, ?string $code): array
+    private function delegate(string $language, array $batch, string $leaseId, string $rendered, ?string $code, array $selection, array $options): array
     {
         $taskType = (string) $this->setting('pycore_task_type');
         $contentIds = array_column($batch, 'content_id');
@@ -251,7 +434,8 @@ final class AppQyV1PhraseExtractionService
                     'language' => $language,
                     'prompt_key' => (string) $this->setting('prompt_key'),
                     'prompt' => $rendered,
-                    'model' => (string) $this->setting('model'),
+                    'model' => (string) $selection['model'],
+                    'request_options' => $options,
                     'max_tokens' => (int) $this->setting('max_output_tokens'),
                     'temperature' => (float) $this->setting('temperature'),
                     'lease_id' => $leaseId,

@@ -24,6 +24,7 @@ return [
     'book_plan_book_not_found' => '书籍不存在。',
     'book_plan_validation_failed' => '书籍音频计划请求无效。',
     'phrases_by_sentences_loaded' => '句子短语已加载。',
+    'phrases_extraction_status_loaded' => '短语提取状态已加载。',
     'phrases_by_sentences_validation_failed' => '句子短语请求无效。',
     'phrases_attribute_language' => '语言',
     'phrases_attribute_content_ids' => '句子内容 ID',

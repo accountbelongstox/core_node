@@ -12,6 +12,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  FileText,
   Languages,
   ListOrdered,
   Plus,
@@ -27,6 +28,7 @@ import { wfNewApi, type WfNewBookChapter } from '../../api';
 import { AUDIO_ORCH_MEANING_STEP_TYPES, AUDIO_ORCH_STEP_TYPES, audioOrchDefaultPattern } from '../../../../core/contracts/AudioOrchestrationContract';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchPresetStore, type OrchPresetDocument } from '../../services/orchestration/WordNewOrchPresetStore';
+import { orchArticleSentences, orchPassageFits, orchPassageKey } from '../../../../shared/orchestration/orchPassages';
 import {
   defaultOrchConfig,
   ORCH_DEFAULT_MINUTES,
@@ -37,6 +39,7 @@ import {
 import type {
   OrchComposeConfig,
   OrchComposeLanguages,
+  OrchComposePassageRef,
   OrchComposeSentence,
   OrchComposeSource,
   OrchComposeStep,
@@ -44,11 +47,11 @@ import type {
   OrchComposeTask,
 } from '../../../../shared/orchestration/orchTypes';
 import { WordNewOrchSourcePicker, type OrchSourceChoice } from './WordNewOrchSourcePicker';
+import { WordNewOrchPassagePicker } from './WordNewOrchPassagePicker';
 import { WordNewOrchReadStateField } from './WordNewOrchReadStateField';
 import { WfNewOrchSection } from './WfNewOrchSection';
 import { WordNewOrchMissingLanguageNotice } from './WordNewOrchMissingLanguageNotice';
 import { orchFormStyles } from './orchFormStyles';
-import { orchSourceTitle } from './orchTaskView';
 
 interface Props {
   theme: ElementTheme;
@@ -61,7 +64,7 @@ interface Props {
   sentences?: OrchComposeSentence[];
 }
 
-type SectionId = 'source' | 'pattern' | 'words' | 'output';
+type SectionId = 'source' | 'passages' | 'pattern' | 'words' | 'output';
 
 const LANGUAGES: OrchComposeLanguages[] = ['both', 'en', 'zh'];
 const MAX_SEGMENT_VALUE = 120;
@@ -85,10 +88,11 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
   const [name, setName] = useState(task?.name ?? '');
   const [language, setLanguage] = useState(task?.language ?? 'en');
   const [config, setConfig] = useState<OrchComposeConfig>(task?.config ?? defaultOrchConfig('vocab_book'));
-  const [open, setOpen] = useState<Record<SectionId, boolean>>({ source: task === null, pattern: task === null, words: false, output: false });
+  const [open, setOpen] = useState<Record<SectionId, boolean>>({ source: task === null, passages: (task?.config.passages ?? []).length > 0, pattern: task === null, words: false, output: false });
   const [chapters, setChapters] = useState<WfNewBookChapter[]>([]);
   const [presets, setPresets] = useState<OrchPresetDocument | null>(null);
   const [saving, setSaving] = useState(false);
+  const [passageNotice, setPassageNotice] = useState('');
 
   useEffect(() => { void wordNewOrchPresetStore.load().then(setPresets); }, []);
 
@@ -128,24 +132,53 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
     setOpen((current) => ({ ...current, source: false, pattern: true }));
   };
 
+  const passages = config.passages ?? [];
+  const takenPassages = useMemo(() => new Set(passages.map(orchPassageKey)), [passages]);
+  const hasSource = !!config.book || !!config.prompt;
+
+  const addPassage = (ref: OrchComposePassageRef): void => {
+    if (takenPassages.has(orchPassageKey(ref))) return;
+    if (!orchPassageFits(passages, ref)) {
+      setPassageNotice(trans('orchCompose.passages.limit'));
+      return;
+    }
+    setPassageNotice('');
+    if (!hasSource) {
+      setLanguage(ref.language || 'en');
+      setName((current) => (current.trim() ? current : ref.title));
+    }
+    patch({ passages: [...passages, ref] });
+  };
+  const movePassage = (index: number, offset: -1 | 1): void => {
+    const next = [...passages];
+    [next[index + offset], next[index]] = [next[index], next[index + offset]];
+    patch({ passages: next });
+  };
+  const removePassage = (index: number): void => {
+    setPassageNotice('');
+    patch({ passages: passages.filter((_, at) => at !== index) });
+  };
+
   const missingLanguages = useMemo(() => (sentences ? orchSkippedLanguages(sentences, config.pattern) : null), [sentences, config.pattern]);
 
-  const valid = name.trim() !== '' && config.pattern.length > 0 && (source === 'vocab_book' ? !!config.book : !!config.prompt);
+  const valid = name.trim() !== '' && config.pattern.length > 0 && (hasSource || passages.length > 0);
 
   const save = async (): Promise<void> => {
     if (!valid || saving) return;
     setSaving(true);
-    const finalConfig: OrchComposeConfig = source === 'prompt_rewrite'
+    // The composition's source follows what it holds: a book, else a prompt, else short passages only.
+    const finalSource: OrchComposeSource = config.book ? 'vocab_book' : config.prompt ? 'prompt_rewrite' : 'passages';
+    const finalConfig: OrchComposeConfig = finalSource === 'prompt_rewrite'
       ? { ...config, book: null, segmentMode: 'count', segmentValue: 1 }
-      : { ...config, prompt: null };
+      : { ...config, book: finalSource === 'vocab_book' ? config.book : null, prompt: null };
     const saved = task
-      ? await wordNewOrchTaskStore.update(task.id, { name: name.trim(), language, config: finalConfig, source })
-      : await wordNewOrchTaskStore.create(source, name.trim(), language, finalConfig);
+      ? await wordNewOrchTaskStore.update(task.id, { name: name.trim(), language, config: finalConfig, source: finalSource })
+      : await wordNewOrchTaskStore.create(finalSource, name.trim(), language, finalConfig);
     setSaving(false);
     if (saved) onSaved(saved);
   };
 
-  const sourceTitle = orchSourceTitle(config) ?? '';
+  const sourceTitle = config.book?.title ?? config.prompt?.title ?? '';
   const patternSummary = config.pattern
     .map((step) => `${trans(`orchCompose.step.${step.type}`)}${step.meaning ? `+${trans('orchCompose.step.meaningShort')}` : ''}${step.times > 1 ? ` x${step.times}` : ''}`)
     .join(' → ');
@@ -168,11 +201,14 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
       <WfNewOrchSection icon={BookOpen} title={trans('orchCompose.field.source')} summary={sourceTitle || trans('orchCompose.source.pick')} open={open.source} onToggle={() => toggle('source')} theme={theme}>
         {sourceTitle && (
           <p className={styles.hint}>
-            {trans(source === 'vocab_book' ? 'orchCompose.source.books' : 'orchCompose.source.prompts')} · <span className={theme.textPrimaryClass}>{sourceTitle}</span>
+            {trans(config.book ? 'orchCompose.source.books' : 'orchCompose.source.prompts')} · <span className={theme.textPrimaryClass}>{sourceTitle}</span>
+            {passages.length > 0 && (
+              <button type="button" onClick={() => patch({ book: null, prompt: null })} className={`ml-2 ${styles.chip}`}>{trans('orchCompose.source.clear')}</button>
+            )}
           </p>
         )}
         <WordNewOrchSourcePicker selected={sourceSelection(source, config)} onPick={pick} theme={theme} trans={trans} />
-        {source === 'vocab_book' && config.book && (
+        {config.book && (
           <label className={styles.label}>
             <span>{trans('orchCompose.field.chapter')}</span>
             <select
@@ -189,6 +225,44 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
             </select>
           </label>
         )}
+      </WfNewOrchSection>
+
+      <WfNewOrchSection
+        icon={FileText}
+        title={trans('orchCompose.field.passages')}
+        summary={trans('orchCompose.passages.summary', { count: passages.length })}
+        open={open.passages}
+        onToggle={() => toggle('passages')}
+        theme={theme}
+      >
+        <p className={styles.hint}>{trans('orchCompose.passages.hint')}</p>
+        {passages.length > 0 && (
+          <ol className="space-y-2">
+            {passages.map((entry, index) => (
+              <li key={orchPassageKey(entry)} className={`flex items-center gap-2 rounded-xl border p-2 ${theme.borderClass}`}>
+                <span className={`w-5 text-center font-mono text-[11px] ${theme.textSecondaryClass}`}>{index + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block truncate text-xs font-semibold ${theme.textPrimaryClass}`}>{entry.title}</span>
+                  <span className={`flex flex-wrap gap-x-2 font-mono text-[10px] ${theme.textSecondaryClass}`}>
+                    <span>{trans(entry.store === 'article' ? 'orchCompose.passages.articles' : 'orchCompose.source.prompts')}</span>
+                    {entry.store === 'article' && <span>{trans('orchCompose.source.sentences', { count: orchArticleSentences(entry).length })}</span>}
+                  </span>
+                </span>
+                <button type="button" disabled={index === 0} onClick={() => movePassage(index, -1)} className={styles.iconButton} aria-label={trans('orchCompose.step.up')}>
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" disabled={index === passages.length - 1} onClick={() => movePassage(index, 1)} className={styles.iconButton} aria-label={trans('orchCompose.step.down')}>
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={() => removePassage(index)} className={`${styles.iconButton} text-rose-500`} aria-label={trans('orchCompose.passages.remove')}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+        {passageNotice && <p className="text-[11px] text-rose-500">{passageNotice}</p>}
+        <WordNewOrchPassagePicker taken={takenPassages} onPick={addPassage} theme={theme} trans={trans} />
       </WfNewOrchSection>
 
       <WfNewOrchSection icon={ListOrdered} title={trans('orchCompose.field.pattern')} summary={patternSummary} open={open.pattern} onToggle={() => toggle('pattern')} theme={theme}>
@@ -286,7 +360,7 @@ export const WordNewOrchComposeEditor: React.FC<Props> = ({ theme, trans, task, 
         onToggle={() => toggle('output')}
         theme={theme}
       >
-        {source === 'vocab_book' && (
+        {config.book && (
           <div className="flex flex-wrap items-end gap-2">
             <label className={`${styles.label} min-w-[10rem] flex-1`}>
               <span>{trans('orchCompose.field.segmentMode')}</span>

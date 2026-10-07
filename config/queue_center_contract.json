@@ -198,6 +198,7 @@
   "audio_phrase_report": "/api/app_qy_v1/ai_tools/tts/phrase/report",
   "audio_phrase_audio": "/api/app_qy_v1/ai_tools/tts/phrase/audio",
   "phrases_by_sentences": "/api/app_qy_v1/phrases/by_sentences",
+  "phrases_extraction_status": "/api/app_qy_v1/phrases/extraction_status",
   "audio_queue_stats": "/api/app_qy_v1/ai_tools/tts/queue/stats",
   "audio_word_upload": "/api/app_qy_v1/word/audio/upload",
   "audio_word_media": "/api/app_qy_v1/word/{lang}/{word}/media",

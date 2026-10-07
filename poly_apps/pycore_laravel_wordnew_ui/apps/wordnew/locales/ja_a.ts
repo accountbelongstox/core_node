@@ -597,6 +597,7 @@ export const jaLocaleA: Record<string, string> = {
     'orchAudio.filterAll': 'すべて',
     'orchAudio.source.vocab_book': '語彙帳',
     'orchAudio.source.prompt_rewrite': 'プロンプトの書き換え',
+    'orchAudio.source.passages': '短文',
     'orchAudio.source.other': '{source}',
     'orchAudio.empty': 'オーケストレーション音声はまだありません',
     'orchAudio.loadFailed': 'オーケストレーション音声を利用できません',

@@ -24,6 +24,7 @@ THREAD_BUS Integration:
 """
 
 import json
+import os
 import select
 import socket
 import time
@@ -55,7 +56,10 @@ class _SingletonServerMixin:
         """
         try:
             self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Windows SO_REUSEADDR lets a second process bind the same port (two PRIMARY
+            # instances) and TIME_WAIT never blocks a plain Windows bind: set it on POSIX only.
+            if os.name != 'nt':
+                self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._server_socket.bind(('localhost', port))
             self._server_socket.listen(5)
             self._server_socket.settimeout(1.0)

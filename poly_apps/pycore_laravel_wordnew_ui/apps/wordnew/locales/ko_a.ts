@@ -597,6 +597,7 @@ export const koLocaleA: Record<string, string> = {
     'orchAudio.filterAll': '전체',
     'orchAudio.source.vocab_book': '어휘장',
     'orchAudio.source.prompt_rewrite': '프롬프트 다시 쓰기',
+    'orchAudio.source.passages': '짧은 글',
     'orchAudio.source.other': '{source}',
     'orchAudio.empty': '아직 오케스트레이션 오디오가 없습니다',
     'orchAudio.loadFailed': '오케스트레이션 오디오를 사용할 수 없습니다',

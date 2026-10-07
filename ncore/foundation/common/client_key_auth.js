@@ -28,8 +28,11 @@ const KEY_MISSING_HINT = 'run dd.sh (Linux) or dd.cmd (Windows) to decrypt or ge
 const STATUS_UNAUTHORIZED = 401;
 const MS_PER_SECOND = 1000;
 const QUERY_SPACE = '+';
+// The HTTP Date header has whole-second resolution: its midpoint is half a second later.
+const DATE_RESOLUTION_MS = 1000;
 
 let signingKeyCache, verifyKeysCache, verifyKeysLoadedAt, missingKeyLoggedAt;
+const serverClockOffsets = new Map();
 let machineDigestCache, nonceStore, nonceSweepAt, keyIdLength, utf8Decoder, machineIdPattern, noncePattern;
 
 signingKeyCache = null;
@@ -487,6 +490,48 @@ function resolveSignedDigest(request) {
   return SHA256_HEX_PATTERN.test(String(digest)) ? String(digest) : null;
 }
 
+function originOf(url) {
+  try {
+    return new URL(String(url)).origin.toLowerCase();
+  } catch (error) {
+    return '';
+  }
+}
+
+/**
+ * Learns the verifying server's clock offset (per origin) from the Date header of one answer, so a signer whose
+ * clock drifted past clock_skew_seconds still signs with the server time; true when the offset moved by a second
+ * or more. Other origins keep the local clock.
+ */
+function observeServerDate(url, dateHeader, startedMs, receivedMs) {
+  const serverMs = Date.parse(String(dateHeader || ''));
+  const elapsed = receivedMs - startedMs;
+  const key = originOf(url);
+  let offset, previous;
+
+  if (!key || !Number.isFinite(serverMs) || serverMs <= 0 || elapsed < 0 || elapsed >= CONTRACT.clock_skew_seconds * MS_PER_SECOND) {
+    return false;
+  }
+  offset = serverMs + DATE_RESOLUTION_MS / 2 - (startedMs + elapsed / 2);
+  previous = serverClockOffsets.get(key) || 0;
+  serverClockOffsets.set(key, offset);
+
+  return Math.abs(offset - previous) >= DATE_RESOLUTION_MS;
+}
+
+function serverNow(url) {
+  return Date.now() + (url === undefined ? 0 : serverClockOffsets.get(originOf(url)) || 0);
+}
+
+/** The server refused a signature only for its timestamp (re-signing with the learned clock may pass). */
+function isTimestampRejection(status, text) {
+  try {
+    return status === STATUS_UNAUTHORIZED && JSON.parse(text).error_code === errorCode('timestamp_invalid');
+  } catch (error) {
+    return false;
+  }
+}
+
 function signRequest(request) {
   let key, target, fields, signature, headers, query, client, digest;
 
@@ -524,7 +569,7 @@ function signRequest(request) {
     client,
     machine_id: request.machineId || getMachineId(client),
     key_id: key.keyId,
-    timestamp: String(Math.floor(Date.now() / MS_PER_SECOND)),
+    timestamp: String(Math.floor(serverNow(request.url) / MS_PER_SECOND)),
     nonce: createNonce(),
     content_sha256: digest,
   };
@@ -703,6 +748,8 @@ module.exports = {
   buildCanonical,
   signFields,
   signRequest,
+  observeServerDate,
+  isTimestampRejection,
   verifyRequestHeaders,
   verifyBodyDigest,
   verifyRequest,

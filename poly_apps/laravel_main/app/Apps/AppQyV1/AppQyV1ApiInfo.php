@@ -753,6 +753,13 @@ class AppQyV1ApiInfo
                 "auth_required" => true,
                 "parameters" => ["language", "content_ids"]
             ],
+            [
+                "path" => "/api/app_qy_v1/phrases/extraction_status",
+                "method" => "GET",
+                "feature" => "Phrase Extraction Status",
+                "description" => "Phrase extraction state: sentence counts per language by phrase_status, pycore fallback/backoff timers, open phrase_extract tasks, chosen OpenRouter free models and their health (Sanctum or client key)",
+                "auth_required" => true
+            ],
 
             // Cover pipeline dashboard endpoints
             [

@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1PhraseExtractionService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1PhraseLookupService;
 use App\Helpers\AuthHelper;
 use App\Http\Controllers\Controller;
@@ -15,6 +16,9 @@ use Illuminate\Support\Facades\Validator;
  * POST /api/app_qy_v1/phrases/by_sentences (queue_center_contract endpoint
  * phrases_by_sentences; Sanctum user or client key).
  * Body: {language, content_ids[]} -> {items: [{content_id, status, phrases}]} in request order.
+ *
+ * GET /api/app_qy_v1/phrases/extraction_status (contract endpoint
+ * phrases_extraction_status; same auth): extraction counters, timers and model health.
  */
 class AppQyV1PhrasesBySentencesCtl extends Controller
 {
@@ -27,6 +31,18 @@ class AppQyV1PhrasesBySentencesCtl extends Controller
 
     public function __construct(private readonly AppQyV1PhraseLookupService $phrases)
     {
+    }
+
+    public function extractionStatus(Request $request): JsonResponse
+    {
+        if (AuthHelper::requireAuth($request) === null && !ClientKeyAuthService::hasSignature($request)) {
+            return $this->unauthorized();
+        }
+
+        return $this->success(
+            app(AppQyV1PhraseExtractionService::class)->status(),
+            __('audio_orchestration.phrases_extraction_status_loaded')
+        );
     }
 
     public function bySentences(Request $request): JsonResponse

@@ -554,6 +554,7 @@ export const zhLocaleA: Record<string, string> = {
     'orchAudio.filterAll': '全部',
     'orchAudio.source.vocab_book': '词书',
     'orchAudio.source.prompt_rewrite': '提示词改写',
+    'orchAudio.source.passages': '短文',
     'orchAudio.source.other': '{source}',
     'orchAudio.empty': '暂无编排音频',
     'orchAudio.loadFailed': '编排音频暂不可用',

@@ -51,6 +51,15 @@ function log(message) {
 
 async function signedFetch(method, requestPath, rawBody) {
   const url = origin() + requestPath;
+  const result = await signedFetchOnce(method, url, rawBody);
+
+  // A drifted local clock: one more attempt signed with the server time learned from the answer.
+  return result.clockMoved && clientKeyAuth.isTimestampRejection(result.status, result.text)
+    ? signedFetchOnce(method, url, rawBody)
+    : result;
+}
+
+async function signedFetchOnce(method, url, rawBody) {
   const body = rawBody === undefined ? undefined : Buffer.from(rawBody, 'utf8');
   const signed = clientKeyAuth.signRequest({
     client: CODE_SYNC.client,
@@ -60,7 +69,7 @@ async function signedFetch(method, requestPath, rawBody) {
     contentType: body ? CONTENT_TYPE : '',
   });
   const headers = { Accept: CONTENT_TYPE };
-  let response, text;
+  let response, text, sentAt, clockMoved;
 
   if (!signed.ok) {
     throw new Error('client key signing failed (' + (signed.code || signed.error || 'unknown') + '); run dd.sh / dd.cmd to restore the client key');
@@ -69,10 +78,12 @@ async function signedFetch(method, requestPath, rawBody) {
   if (body) {
     headers['Content-Type'] = CONTENT_TYPE;
   }
+  sentAt = Date.now();
   response = await fetch(url, { method, headers, body, signal: AbortSignal.timeout(CODE_SYNC.request_timeout_seconds * MS_PER_SECOND) });
+  clockMoved = clientKeyAuth.observeServerDate(url, response.headers.get('date'), sentAt, Date.now());
   text = await response.text();
 
-  return { status: response.status, text };
+  return { status: response.status, text, clockMoved };
 }
 
 function parseData(result) {

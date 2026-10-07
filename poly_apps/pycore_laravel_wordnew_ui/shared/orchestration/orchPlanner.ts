@@ -340,6 +340,25 @@ export function planComposition(
   return { segments, sentences, resources: [...resources.values()], skippedLanguages: orchSkippedLanguages(sentences, config.pattern) };
 }
 
+/**
+ * Keys of the plan's resources the server book plan owns: everything but the word meaning clips (they are not
+ * book content) and the clips only short-passage entries use (the plan derives the book's clips; a passage clip
+ * is outside it and takes the normal chain, R11).
+ */
+export function orchBookCoveredKeys(plan: OrchComposePlan): Set<string> {
+  const meanings = new Set<string>();
+  const book = new Set<string>();
+  plan.segments.forEach((segment) => segment.items.forEach((item) => {
+    const key = orchResourceKey(item.kind, item.language, item.text);
+    if (item.meaningOf) meanings.add(key);
+    else if (!plan.sentences[item.position]?.passage) book.add(key);
+  }));
+  const hasPassages = plan.sentences.some((sentence) => sentence.passage);
+  const covered = new Set<string>();
+  plan.resources.forEach((resource) => { if (!meanings.has(resource.key) && (!hasPassages || book.has(resource.key))) covered.add(resource.key); });
+  return covered;
+}
+
 /** Hash of everything that shapes the plan (sync conflict + staleness marker). */
 export function orchPlanHash({ source, config, language }: OrchComposeSpec): string {
   const passages = config.passages ?? [];
@@ -356,7 +375,6 @@ export function orchPlanHash({ source, config, language }: OrchComposeSpec): str
     readState: config.readState,
     virtualBatch: config.readState === 'real' ? '' : config.virtualBatch,
     // Added only with entries, so a composition without any keeps the hash (and the progress) it had.
-    ...(passages.length > 0 ? { passages: passages.map((entry) => [orchPassageKey(entry), sha256Hex(`${entry.text ?? ''}
-${entry.textZh ?? ''}`)]) } : {}),
+    ...(passages.length > 0 ? { passages: passages.map((entry) => [orchPassageKey(entry), sha256Hex(`${entry.text ?? ''}|${entry.textZh ?? ''}`)]) } : {}),
   }));
 }

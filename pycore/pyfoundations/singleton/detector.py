@@ -74,6 +74,8 @@ from pycore.pyfoundations.singleton.server import _SingletonServerMixin
 
 # Re-export protocol types for backward compatibility (callers that imported
 # them from this module before the split keep working).
+BIND_RACE_RECHECK_SECONDS = 1.0
+
 __all__ = [
     'SingletonDetector',
     'DetectionResult',
@@ -385,7 +387,9 @@ class SingletonDetector(_SingletonServerMixin):
         self._log(f"Shutdown existing: {self.shutdown_existing}")
         self._log("=" * 60)
 
-        for offset in range(self.port_range):
+        offset = 0
+        rechecked_port = None
+        while offset < self.port_range:
             port = self.port_start + offset
 
             self._log(f"[{offset + 1}/{self.port_range}] Checking port {port}...")
@@ -570,6 +574,15 @@ class SingletonDetector(_SingletonServerMixin):
                     existing_port=None,
                     message=f"Became PRIMARY instance on port {port}"
                 )
+
+            # An instance starting at the same moment may have bound this port between
+            # our probe and our bind: probe it once more (it then answers as the existing
+            # instance) instead of becoming a second PRIMARY on the next port.
+            if rechecked_port != port:
+                rechecked_port = port
+                time.sleep(BIND_RACE_RECHECK_SECONDS)
+                continue
+            offset += 1
 
         # Exhausted all ports
         self._log("[FAILED] No available port in range", "ERROR")

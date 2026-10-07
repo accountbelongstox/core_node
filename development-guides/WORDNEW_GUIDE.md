@@ -49,7 +49,7 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 - 并发：所有大流量传输都通过 `TransferLimiter` 占用后端通道的名额；上限是本机设置，默认值来自合同 `transfer.parallel_defaults`。
 - 首次运行（还没有选中的 pycore）时，`WordNewPycoreLink` 在可达的候选中优先选 Laravel 在线工作节点里的 GPU 节点，其次 CPU 节点，最后才按延迟选最快的（按主机名匹配节点的 `label`）；之后只由用户切换。
 - 节点身份：每个 pycore 在 Laravel 名册和 wordnew 里只是一个节点（`work_nodes` 按设备 id `node_id` 合并该设备所有通道的 worker；`sid` 由设备 id 派生；`workers` 给出通道到 worker 的映射，`lane_rates` 给出每通道吞吐）。R12 的窗口仍按（节点 sid，通道）提交，由该通道的 worker 租用；Colab/Kaggle 标签为 `<平台>-<设备 id 前 6 位>`。离线超过 `work_leases.node_hide_seconds` 的节点不再列出。
-- 短语片段（kind `phrase`）：身份 `content_id = media_content_id(短语)`、`resourceId = sha256("phrase:language:content_id")`；编排步骤 `phrases`（每个句子之后读其短语，`meaning` 时再读中文释义，释义是 zh 句子片段）。短语片段走同一条来源链（R1 不变），不受 R13 句子质量底线限制（CPU/kokoro 可生成，任务类型 `phrase_audio` 为 `cpu_ok`，Laravel 租约通道 `phrase_audio`）。编排页打开且连着在线的直连 pycore 时，短语音频由 wordnew 主调度（`generate:pycore` + R12 窗口通道 `phrase_audio`），Laravel 次要；否则 Laravel 主调度。短语文本由 Laravel 定时任务调用 OpenRouter 免费模型 + 预置 prompt 幂等生成。设计：`docs_fix/DESIGN_PHRASE_PIPELINE.md`。
+- 短语片段（kind `phrase`）：身份 `content_id = media_content_id(短语)`、`resourceId = sha256("phrase:language:content_id")`；编排步骤 `phrases`（每个句子之后读其短语，`meaning` 时再读中文释义，释义是 zh 句子片段）。短语片段走同一条来源链（R1 不变），不受 R13 句子质量底线限制（CPU/kokoro 可生成，任务类型 `phrase_audio` 为 `cpu_ok`，Laravel 租约通道 `phrase_audio`）。编排页打开且连着在线的直连 pycore 时，短语音频由 wordnew 主调度（`generate:pycore` + R12 窗口通道 `phrase_audio`），Laravel 次要；否则 Laravel 主调度。短语文本由 Laravel 定时任务调用 OpenRouter 免费模型 + 预置 prompt 幂等生成（模型按实时免费目录选取并按健康度冷却，状态 `phrases/extraction_status`）。设计：`docs_fix/DESIGN_PHRASE_PIPELINE.md`。
 - 每个交付的片段记录来源通道 `via`（`pycore` / `relay` / `laravel`）；界面（`WordNewOrchChainBadge`、进度条目）据此显示。
 
 - **R9 反复上下线的恢复**（pycore 和 Laravel 相同，代码在 `WordNewOrchComposer`）：
