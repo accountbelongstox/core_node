@@ -195,6 +195,22 @@ public static class WindowFinder
         return sb.ToString();
     }
 
+    /// <summary>One child window: handle, class name and text (WM_GETTEXT, so edit contents of other processes too).</summary>
+    public sealed record ChildWindow(IntPtr Hwnd, string ClassName, string Text);
+
+    /// <summary>All descendant child windows of hwnd in Z order.</summary>
+    public static List<ChildWindow> GetChildWindows(IntPtr hwnd)
+    {
+        var list = new List<ChildWindow>();
+        if (hwnd == IntPtr.Zero) return list;
+        WindowFinderNative.EnumChildWindows(hwnd, (h, _) =>
+        {
+            list.Add(new ChildWindow(h, GetClassName(h), GetControlText(h)));
+            return true;
+        }, IntPtr.Zero);
+        return list;
+    }
+
     /// <summary>First child window of className, or zero.</summary>
     public static IntPtr FindChildWindow(IntPtr parent, string className) => WindowFinderNative.FindWindowEx(parent, IntPtr.Zero, className, null);
 

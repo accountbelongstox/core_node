@@ -23,6 +23,7 @@ public static class WindowInputHelper
     private const int SystemKeyHoldMs = 50;
 
     private const uint WM_CLOSE = 0x0010;
+    private const uint WM_SETTEXT = 0x000C;
     private const uint BM_CLICK = 0x00F5;
 
     /// <summary>Post a raw window message (e.g. key down/up with an explicit lParam).</summary>
@@ -31,6 +32,10 @@ public static class WindowInputHelper
 
     /// <summary>Ask the window to close (WM_CLOSE).</summary>
     public static bool PostClose(IntPtr hwnd) => PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+
+    /// <summary>Replace a control's text (WM_SETTEXT, synchronous; edit boxes of other processes, no keyboard or focus needed).</summary>
+    public static bool SetControlText(IntPtr control, string text) =>
+        control != IntPtr.Zero && WindowInputNative.SendMessageText(control, WM_SETTEXT, IntPtr.Zero, text) != IntPtr.Zero;
 
     /// <summary>Press a button control (BM_CLICK, synchronous).</summary>
     public static void ClickButton(IntPtr button)
@@ -129,6 +134,9 @@ internal static class WindowInputNative
 
     [DllImport(User32)]
     public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport(User32, EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessageText(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam);
 
     [DllImport(User32)]
     [return: MarshalAs(UnmanagedType.Bool)]

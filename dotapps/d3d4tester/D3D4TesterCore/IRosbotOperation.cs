@@ -13,8 +13,11 @@ public interface IRosbotOperation
     /// <summary>Bring ROSBOT window to foreground. Returns true if window found and activated. 1:1 Python activate_window().</summary>
     bool ActivateWindow();
 
-    /// <summary>After ROSBOT process started: wait window, activate, then run sequence (main profile tab + Start botting). 1:1 Python run_after_rosbot_start.</summary>
-    bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true);
+    /// <summary>
+    /// After ROSBOT process started: wait window (filling the KEY dialog), activate, then run sequence (main profile tab + Start
+    /// botting); every wait ends early once shouldStop returns true. 1:1 Python run_after_rosbot_start.
+    /// </summary>
+    bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true, Func<bool>? shouldStop = null);
 
     /// <summary>Resume ROSBOT when paused: activate window, run sequence (main profile + Start botting). 1:1 Python resume_rosbot.</summary>
     bool ResumeRosbot(bool doTab = true, bool doStartBotting = true);

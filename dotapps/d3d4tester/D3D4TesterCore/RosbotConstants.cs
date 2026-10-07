@@ -158,6 +158,17 @@ public static class RosbotConstants
     /// <summary>KEY dialog prompt substring. 1:1 Python key dialog controls name containing "key" -> "enter a key".</summary>
     public const string KeyDialogPromptSubstring = "enter a key";
 
+    /// <summary>KEY dialog child classes (WinForms "WindowsForms10.EDIT.app..." / Win32 "Edit", same for BUTTON), matched case-insensitively.</summary>
+    public const string KeyDialogEditClassToken = "edit";
+    public const string KeyDialogButtonClassToken = "button";
+
+    /// <summary>KEY dialogs filled with one key before it is treated as rejected (ROSBOT asks again after a wrong key).</summary>
+    public const int KeyDialogMaxFills = 3;
+
+    /// <summary>Pause between typing the key and pressing OK, and the poll step of stoppable waits.</summary>
+    public const int KeyDialogSettleMs = 300;
+    public const int StoppableWaitStepMs = 500;
+
     /// <summary>Fallback message when need_key_input and i18n not available. 1:1 Python ROSBOT_NEED_KEY_MESSAGE.</summary>
     public const string RosbotNeedKeyMessageFallback = "Key required";
 }

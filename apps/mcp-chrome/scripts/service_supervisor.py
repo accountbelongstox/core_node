@@ -40,10 +40,8 @@ EXTENSION_RELOAD_PAGE = contract_value("mcp_chrome.extension_reload_page")
 MCP_PORT = port("mcp_chrome")
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
-SERVICE_RECOVERY_COOLDOWN_SECONDS = 15.0
-LINK_RECOVERY_COOLDOWN_SECONDS = 5.0
+BUILD_RELOAD_GRACE_SECONDS = 15.0
 WAKE_MIN_INTERVAL_SECONDS = 5.0
-RECOVERY_MAX_ATTEMPTS = 5
 TAKEOVER_WAIT_SECONDS = 30.0
 WINDOWS_ALREADY_EXISTS = 183
 WINDOWS_SYNCHRONIZE = 0x00100000
@@ -469,9 +467,6 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
     takeover_signature = takeover_request_signature()
     watch_mode = initial_watch_mode
     pending_recovery_at: Optional[float] = time.monotonic() if recover_on_start else None
-    last_recovery_at = 0.0
-    consecutive_down_recoveries = 0
-    auto_recovery_suspended_logged = False
 
     print(f"[Supervisor] Watch mode: {watch_mode}.", flush=True)
     align_registered_extension_paths(project_root)
@@ -496,57 +491,21 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
         now = time.monotonic()
         current_signature = artifact_signature(project_root)
         if current_signature != signature:
-            # A fresh build restarts the extension/native host on its own; give
-            # that reconnect a cooldown window before any wake attempt.
+            # A fresh build restarts the extension/native host on its own; check
+            # once after that hot reload settles.
             signature = current_signature
-            last_recovery_at = now
-            consecutive_down_recoveries = 0
-            auto_recovery_suspended_logged = False
+            pending_recovery_at = now + BUILD_RELOAD_GRACE_SECONDS
 
         current_request_signature = recovery_request_signature()
         if current_request_signature != request_signature:
             request_signature = current_request_signature
             pending_recovery_at = now
-            consecutive_down_recoveries = 0
-            auto_recovery_suspended_logged = False
 
-        service_up = port_is_listening()
-        extension_connected = extension_is_connected() if service_up else False
-        if extension_connected:
-            consecutive_down_recoveries = 0
-            auto_recovery_suspended_logged = False
-        recovery_due = pending_recovery_at is not None and now >= pending_recovery_at
-        recovery_cooldown = (
-            LINK_RECOVERY_COOLDOWN_SECONDS
-            if service_up
-            else SERVICE_RECOVERY_COOLDOWN_SECONDS
-        )
-        cooldown_elapsed = now - last_recovery_at >= recovery_cooldown
-        if recovery_due:
-            if not extension_connected:
-                wake_extension(force=True)
-                last_recovery_at = now
+        # Wake only on start, an explicit request or a code change; never poll.
+        if pending_recovery_at is not None and now >= pending_recovery_at:
             pending_recovery_at = None
-        elif (
-            cooldown_elapsed
-            and not extension_connected
-            and consecutive_down_recoveries < RECOVERY_MAX_ATTEMPTS
-        ):
-            wake_extension(force=service_up)
-            last_recovery_at = now
-            consecutive_down_recoveries += 1
-        elif (
-            not extension_connected
-            and consecutive_down_recoveries >= RECOVERY_MAX_ATTEMPTS
-            and not auto_recovery_suspended_logged
-        ):
-            auto_recovery_suspended_logged = True
-            print(
-                "[Supervisor] Chrome extension remains disconnected after "
-                f"{RECOVERY_MAX_ATTEMPTS} recovery attempts; pausing automatic "
-                "recovery until the next build or explicit request.",
-                flush=True,
-            )
+            if not (port_is_listening() and extension_is_connected()):
+                wake_extension(force=True)
 
         stop_event.wait(POLL_INTERVAL_SECONDS)
 
