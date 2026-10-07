@@ -171,6 +171,8 @@ public partial class MainWindow : Window, IMainWindowHost
         RosbotTaskProcessor.Instance.Install();
         Services.Monitor.MonitorService.Instance.Install();
         Services.Monitor.RosbotKeyService.Install();
+        D3PlannerService.Initialize();
+        D3PlannerService.Alert += a => Dispatcher.BeginInvoke(() => ShowTrayNotification(a.Title, a.Message));
         LoginTryController.Initialize();
         InitializeShell();
     }

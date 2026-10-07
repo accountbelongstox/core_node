@@ -5,6 +5,7 @@ using System.Text.Json;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core.Flow;
+using DotApps.d3d4tester.Core.Monitor;
 using DotApps.d3d4tester.Core.Planner;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services.Monitor;
