@@ -51,6 +51,7 @@ import { readingMethods } from './methods/reading';
 import { orchAudioMethods } from './methods/orchAudio';
 import { orchClientTaskMethods } from './methods/orchClientTasks';
 import { phraseMethods } from './methods/phrases';
+import { translationMethods } from './methods/translation';
 import { virtualReadMethods } from './methods/virtualReads';
 import { WFNEW_BUILTIN_LANGUAGES, WFNEW_BUILTIN_PRESET_AVATARS } from './WfNewApiDefaults';
 import { logWarn } from '../../../core/logstore/logStore';
@@ -261,6 +262,7 @@ export const wfNewApiHttp: WfNewApi = {
   ...orchAudioMethods,
   ...orchClientTaskMethods,
   ...phraseMethods,
+  ...translationMethods,
   ...virtualReadMethods,
 
   // ---- Home content groups (words / books / subtitles / documents) ----

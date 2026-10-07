@@ -45,6 +45,7 @@ import {
 } from '../../../../shared/orchestration/orchComposer';
 import type { OrchComposePlan, OrchComposeResource, OrchComposeSentence, OrchComposeTask, OrchResolvedClip } from '../../../../shared/orchestration/orchTypes';
 import { orchBookCoveredKeys, orchPatternHasPhrases } from '../../../../shared/orchestration/orchPlanner';
+import { orchPassageSignature } from '../../../../shared/orchestration/orchPassages';
 import type { OrchStageCursor } from '../../../../shared/orchestration/orchClipResolver';
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { Backoff } from '../../../../core/tasks/Backoff';
@@ -69,6 +70,7 @@ import {
 } from './WordNewOrchPhraseInputs';
 import { wordNewOrchProgressStore } from './WordNewOrchProgressStore';
 import { wordNewOrchSources } from './WordNewOrchSources';
+import { wordNewOrchPassageZh } from './WordNewOrchPassageZh';
 import { wordNewOrchTaskStore } from './WordNewOrchTaskStore';
 
 export type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
@@ -135,6 +137,8 @@ class WordNewOrchComposerService {
   /** The current run's intake of clips the background runs deliver (per task). */
   private readonly feeds = new Map<string, Set<ClipFeed>>();
   private readonly phraseMemory = new Map<string, PhraseMemory>();
+  /** Per task: what the passage sentences of its last plan read (`orchPassageSignature`). */
+  private readonly passageSignatures = new Map<string, string>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly anyListeners = new Set<Listener>();
   private readonly readyListeners = new Set<ReadyListener>();
@@ -506,6 +510,7 @@ class WordNewOrchComposerService {
     this.background.clear();
     this.feeds.clear();
     this.phraseMemory.clear();
+    this.passageSignatures.clear();
     this.resumeAfterRun.clear();
     this.reruns.forEach((entry) => { if (entry.timer) clearTimeout(entry.timer); });
     this.reruns.clear();
@@ -582,7 +587,19 @@ class WordNewOrchComposerService {
     try {
       const session = await runComposition(task, task.planHash, {
         loadInputs: async (report) => {
-          const inputs = await wordNewOrchSources.load(task, { force }, report);
+          const loaded = await wordNewOrchSources.load(task, { force }, report);
+          // Passage sentences without a Chinese line get one (machine translation kept in the entry), then the
+          // passage part is built from the entries as they are now.
+          const current = await wordNewOrchPassageZh.fill(task, loaded.sentences, signal);
+          const rebuilt = (current.config.passages ?? []).length > 0
+            ? await wordNewOrchSources.withCurrentPassages(current, loaded.sentences)
+            : loaded.sentences;
+          const signature = orchPassageSignature(rebuilt);
+          const inputs = signature === orchPassageSignature(loaded.sentences) ? loaded : { ...loaded, sentences: rebuilt };
+          // Stage cursors are plan positions: lines that joined the passages since the last run shifted them.
+          const lastSignature = this.passageSignatures.get(task.id) ?? orchPassageSignature(loaded.sentences);
+          if (signature !== lastSignature && seedCursors) Object.keys(seedCursors).forEach((stage) => { delete seedCursors[stage]; });
+          this.passageSignatures.set(task.id, signature);
           // The same sentences (an edit) reuse their phrases unless the phrases are asked again.
           const withPhrases = orchPatternHasPhrases(task.config.pattern);
           const memory = this.phraseMemory.get(task.id);

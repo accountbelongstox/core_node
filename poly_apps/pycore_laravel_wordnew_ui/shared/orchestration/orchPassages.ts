@@ -4,6 +4,7 @@
  * so the planner, the clip scheduler (R1 order) and the stage layout treat it exactly like a book sentence.
  */
 import { sentenceSegmenter } from '../../core/contracts/SentenceSegmenter';
+import { orchContentId } from './orchClipIdentity';
 import type { OrchComposePassageRef, OrchComposeSentence } from './orchTypes';
 
 /** Entries one composition may hold, and the room their kept texts may take in the synced task config (Laravel keeps 256 KiB). */
@@ -45,10 +46,31 @@ function pieces(text: string | undefined): string[] {
   return sentenceSegmenter.split(text ?? '', { speakable: true });
 }
 
+/** Sentences of an entry that still need a Chinese line (not Chinese themselves, no Chinese text, not translated yet). */
+export function orchPassageZhMissing(sentences: ReadonlyArray<OrchComposeSentence>, ref: Pick<OrchComposePassageRef, 'zh'>): OrchComposeSentence[] {
+  return sentences.filter((sentence) => sentence.language !== CHINESE && !sentence.languages[CHINESE]
+    && ref.zh?.[orchContentId(sentence.text)] === undefined);
+}
+
+/** What the passage sentences of a plan read (their lines in order): a change shifts the plan positions after them. */
+export function orchPassageSignature(sentences: ReadonlyArray<OrchComposeSentence>): string {
+  return JSON.stringify(sentences.filter((sentence) => sentence.passage).map((sentence) => [sentence.passage, sentence.text, sentence.languages[CHINESE] ?? '']));
+}
+
+/** `sentences` with the entry's translated Chinese lines filled in where they have none. */
+export function orchApplyPassageZh(sentences: ReadonlyArray<OrchComposeSentence>, ref: Pick<OrchComposePassageRef, 'zh'>): OrchComposeSentence[] {
+  if (!ref.zh) return [...sentences];
+  return sentences.map((sentence) => {
+    const zh = sentence.language === CHINESE || sentence.languages[CHINESE] ? '' : ref.zh?.[orchContentId(sentence.text)] ?? '';
+    return zh ? { ...sentence, languages: { ...sentence.languages, [CHINESE]: zh } } : sentence;
+  });
+}
+
 /**
  * Sentences of an `article` entry. The passage and its Chinese reference are cut by the shared segmenter; equal
  * counts pair up line by line (bilingual sentences). Otherwise the pairing would be a guess: the passage keeps its
- * sentences and the reference follows as Chinese-only sentences, so every step still reads what the text has.
+ * sentences, each with its translated Chinese line (`zh`) once the translation ran; before that the reference
+ * follows as Chinese-only sentences, so every step still reads what the text has.
  */
 export function orchArticleSentences(ref: OrchComposePassageRef): OrchComposeSentence[] {
   const language = ref.language.toLowerCase().startsWith(CHINESE_PREFIX) ? CHINESE : (ref.language.toLowerCase() || ENGLISH);
@@ -62,9 +84,8 @@ export function orchArticleSentences(ref: OrchComposePassageRef): OrchComposeSen
     languages: paired && other[index] ? { [language]: text, [CHINESE]: other[index] } : { [language]: text },
     audio: {},
   }));
-  if (!paired) {
-    other.forEach((text) => sentences.push({ seq: sentences.length, text, language: CHINESE, languages: { [CHINESE]: text }, audio: {} }));
-  }
+  if (paired || ref.zh) return orchApplyPassageZh(sentences, ref);
+  other.forEach((text) => sentences.push({ seq: sentences.length, text, language: CHINESE, languages: { [CHINESE]: text }, audio: {} }));
   return sentences;
 }
 
