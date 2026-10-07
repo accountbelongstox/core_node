@@ -155,7 +155,7 @@ class CodeMartV1PaymentCtl extends Controller
         if (!$replayed) {
             CodeMartV1DomainEventService::emit(
                 $payerId,
-                'payment',
+                CodeMartV1Constants::RESOURCE_PAYMENT,
                 (int) $payment->id,
                 'payment_created',
                 null,
@@ -357,7 +357,7 @@ class CodeMartV1PaymentCtl extends Controller
             $payment = CodeMartV1PaymentModel::findById((int) $refund->payment_id);
             CodeMartV1DomainEventService::emit(
                 $userId,
-                'refund',
+                CodeMartV1Constants::RESOURCE_REFUND,
                 (int) $refund->id,
                 'refund_requested',
                 null,
@@ -467,7 +467,7 @@ class CodeMartV1PaymentCtl extends Controller
         if (!$replayed) {
             CodeMartV1DomainEventService::emit(
                 $userId,
-                'withdrawal',
+                CodeMartV1Constants::RESOURCE_WITHDRAWAL,
                 (int) $withdrawal->id,
                 'withdrawal_requested',
                 null,

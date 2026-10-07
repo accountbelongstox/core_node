@@ -18,12 +18,29 @@ import {
 import { useCmPagedList, type CmPagedList, type CmPagedSlice } from '../components/workspace/useCmPagedList';
 import {
   CM_ADMIN_FALLBACK_CURRENCY,
-  CM_ADMIN_RESOURCE_STATE_GROUPS,
   type CmAdminActivityRow,
   type CmAdminPage,
   type CmAdminQuery,
   type CmAdminUserSummary,
 } from './CmAdminTypes';
+
+/** Locale prefix holding each server state group's translations (vocabulary.activity.resource_state_groups). */
+const CM_ACTIVITY_STATE_GROUP_PREFIX: Record<string, string> = {
+  role: 'states.role',
+  project: 'states.project',
+  milestone: 'states.milestone',
+  task: 'states.task',
+  submission: 'states.submission',
+  payment: 'states.payment',
+  kyc: 'states.kyc',
+  deposit: 'admin.states.deposit',
+  refund: 'admin.states.refund',
+  withdrawal: 'admin.states.withdrawal',
+  escrow: 'admin.states.escrow',
+  testimonial: 'admin.states.testimonial',
+  reviewer_application: 'admin.states.reviewer',
+  contact_message: 'admin.states.contact',
+};
 
 export type CmAdminReasonMode = 'none' | 'optional' | 'required';
 
@@ -319,10 +336,12 @@ export const CmAdminKeyValues: React.FC<{ value: Record<string, unknown> | null 
 /** "from → to" with each state translated through the resource's state group. */
 export const CmAdminStateChange: React.FC<{ resourceType: string; from: string | null; to: string | null }> = ({ resourceType, from, to }) => {
   const { t } = useTranslation('cm');
-  const group = CM_ADMIN_RESOURCE_STATE_GROUPS[resourceType];
+  const { activityStateGroup } = useCmBootstrap();
+  const group = activityStateGroup(resourceType);
+  const prefix = group ? CM_ACTIVITY_STATE_GROUP_PREFIX[group] : undefined;
   const label = (state: string | null): string => {
     if (!state) return t('common.unavailable');
-    return group ? t(`${group}.${state}`, { defaultValue: cmHumanize(state) }) : cmHumanize(state);
+    return prefix ? t(`${prefix}.${state}`, { defaultValue: cmHumanize(state) }) : cmHumanize(state);
   };
   if (!from && !to) return <>{t('common.unavailable')}</>;
   return <span className="cm-admin-transition">{from ? `${label(from)} → ${label(to)}` : label(to)}</span>;

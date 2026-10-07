@@ -21,7 +21,8 @@ public enum D3DirectResult
 /// [C] D3 is running (reused, or just launched by D): one sequential pass over the D3 screen. C2 resize -> C3 recognize until game_tool
 /// (d3_start_game_button: C5a end ROSBOT, C5 click, C5w wait game_tool; d3_disconnected twice: F1d + F1c; timeout: C12) -> C6/C10 M
 /// online check (skipped when just entered or right after a teleport) -> C7a open the map (bounty progress, at most two M rounds)
-/// -> C7b minimize + teleport. Any D3 end returns <see cref="D3DirectResult.D3Ended"/>.
+/// -> C7b minimize + teleport. Any D3 end returns <see cref="D3DirectResult.D3Ended"/>. While the CoreNodeBridge plugin state is live and
+/// in game, C3 ends at once and C10 is skipped (the plugin reads the running game, so it is online).
 /// </summary>
 public static class D3DirectProcess
 {
@@ -46,7 +47,7 @@ public static class D3DirectProcess
         if (!WaitInGame(ctx, ref d3JustEntered))
             return D3DirectResult.D3Ended;
 
-        if (!d3JustEntered && !IsInTeleportCooldown())
+        if (!d3JustEntered && !IsInTeleportCooldown() && !BridgeInGame())
         {
             ColorPrinter.Gray($"{LogTag} [C10] M-key online check");
             if (!S.StepC10SendM())
@@ -56,7 +57,7 @@ public static class D3DirectProcess
                 return EndD3("C10 M had no effect (disconnected)");
         }
         else
-            ColorPrinter.Gray($"{LogTag} [C6] just entered or teleported recently -> skip C10");
+            ColorPrinter.Gray($"{LogTag} [C6] just entered, teleported recently or plugin in game -> skip C10");
 
         OpenMap(ctx);
         ColorPrinter.Gray($"{LogTag} [C7b] minimize map -> wait -> teleport");
@@ -82,6 +83,11 @@ public static class D3DirectProcess
             {
                 ColorPrinter.Yellow($"{LogTag} [C3] D3 is gone");
                 return false;
+            }
+            if (BridgeInGame())
+            {
+                ColorPrinter.Gray($"{LogTag} [C3] in game (CoreNodeBridge plugin)");
+                return true;
             }
             switch (S.DetectD3AlreadyRunningState())
             {
@@ -152,6 +158,13 @@ public static class D3DirectProcess
             ctx.Wait(K.MapToggleWaitSec);
         }
         ColorPrinter.Yellow($"{LogTag} [C7a] no bounty progress after two M rounds, teleport anyway");
+    }
+
+    /// <summary>Live plugin state says the hero is in game.</summary>
+    private static bool BridgeInGame()
+    {
+        var s = GameInterfaceData.Instance.GetStateSnapshot();
+        return s.RosbotBridgeFresh && s.RosbotBridge is { InGame: true };
     }
 
     private static D3DirectResult EndD3(string reason)

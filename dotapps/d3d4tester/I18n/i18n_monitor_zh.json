@@ -191,14 +191,17 @@
         "shrine_infinite": "发现减耗塔",
         "shrine_speed": "发现加速塔",
         "buff_end": "Buff 结束时",
-        "special_portal_timer": "特殊传送门计时"
+        "special_portal_timer": "特殊传送门计时",
+        "inventory_full": "背包已满时",
+        "repair_needed": "需要修理时",
+        "item_pickup": "拾取物品时"
       },
       "event_desc": {
         "scheduled_time": "在指定的时间和星期触发。",
         "log_match": "ROSBOT 日志出现包含指定文字的行时触发（不区分大小写）。",
         "history_match": "ROSBOT 历史记录出现包含指定文字的行时触发。",
         "error_detected": "检测到错误弹窗或日志超时重启时触发。",
-        "death_detected": "日志显示人物死亡时触发。",
+        "death_detected": "日志或插件显示人物死亡时触发（15 秒内只算一次）。",
         "fail_detected": "日志显示副本失败时触发。",
         "d3_launch": "检测到 D3 运行时触发（监控启动时 D3 已运行也会触发）。",
         "d3_exit": "检测到 D3 未运行时触发。",
@@ -220,7 +223,10 @@
         "shrine_infinite": "发现减耗塔时触发，Buff 结束前暂停「战斗切换时」。",
         "shrine_speed": "发现加速塔时触发，Buff 结束前暂停「战斗切换时」。",
         "buff_end": "加速和减耗 Buff 都结束时触发（超过持续时间或回城/开新秘境）。",
-        "special_portal_timer": "进入特殊传送门流程超过指定秒数时触发，之后每隔该秒数重复。"
+        "special_portal_timer": "进入特殊传送门流程超过指定秒数时触发，之后每隔该秒数重复。",
+        "inventory_full": "插件显示背包变满时触发。",
+        "repair_needed": "插件显示装备需要修理时触发。",
+        "item_pickup": "插件记录到拾取物品时触发；填写文字则只在物品名或内部名包含该文字时触发（不区分大小写）。"
       },
       "action": {
         "write_log": "写入日志",

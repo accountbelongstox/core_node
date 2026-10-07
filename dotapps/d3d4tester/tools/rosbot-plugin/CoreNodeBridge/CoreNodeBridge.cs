@@ -36,6 +36,7 @@ public sealed class CoreNodeBridge : IPlugin
     private readonly PickupTracker _pickups = new();
     private BridgeCommands _commands;
     private ItemWatch _watch;
+    private FollowMode _follow;
     private Timer _timer;
     private readonly object _writeLock = new();
     private int _ticking;
@@ -52,7 +53,7 @@ public sealed class CoreNodeBridge : IPlugin
     private List<EntityInfo> _ground = new();
 
     public string Author => "core_node";
-    public Version Version => new(1, 5, 0);
+    public Version Version => new(1, 6, 0);
     public string Name => "CoreNode Bridge";
     public string Description => "Publishes map, items, NPCs and pickups to d3d4tester (state.json) and runs its commands.";
     public bool CanSettings => false;
@@ -68,7 +69,9 @@ public sealed class CoreNodeBridge : IPlugin
     public void OnInitialize()
     {
         _dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-        _commands = new BridgeCommands(_dir, Log);
+        _follow = new FollowMode(Log);
+        _commands = new BridgeCommands(_dir, Log, _follow);
+        _follow.PickupHandler = _commands.PickupNearestMatching;
         _commands.ReloadFilter();
         _watch = new ItemWatch(Log);
         _watch.Reload(_dir);
@@ -135,6 +138,7 @@ public sealed class CoreNodeBridge : IPlugin
             _watch.Reload(_dir);
         }
         _commands.Poll();
+        _follow.Tick();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
         {
             _lastScanUtc = now;
@@ -246,6 +250,11 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("item_watch_unknown", string.Join(",", _watch.UnknownKeys))
                 .Prop("inventory_slot_supported", WorldScanner.SlotSupported)
                 .Prop("inventory_cell_supported", WorldScanner.CellSupported)
+                .Prop("follow_enabled", _follow.Enabled)
+                .Prop("follow_state", _follow.State)
+                .Prop("follow_pickup", _follow.Pickup)
+                .Prop("follow_leader", _follow.Leader)
+                .Prop("follow_distance", _follow.Distance)
                 .Prop("ui_vendor_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.VendorDialog)), false))
                 .Prop("ui_salvage_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.SalvageDialog)), false))
                 .Prop("ui_inventory_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.InventoryDialog)), false));
@@ -254,6 +263,11 @@ public sealed class CoreNodeBridge : IPlugin
             json.EndArray();
             WriteEntities(json, "ground_items", _ground);
             WriteEntities(json, "npcs", WorldScanner.Npcs(actors));
+            WriteEntities(json, "players", WorldScanner.Players(actors).Select(a => new EntityInfo
+            {
+                Id = WorldScanner.Safe(() => a.RActorId, 0u), AcdId = WorldScanner.Safe(() => a.AcdId, 0), Name = WorldScanner.Safe(() => a.Name, "") ?? "",
+                Sno = WorldScanner.Safe(() => a.ActorSnoId, 0), Distance = WorldScanner.Safe(() => a.Distance, 0f),
+            }));
             WriteEntities(json, "carried_items", WorldScanner.CarriedItems(acds, _ground));
             json.BeginArray("pickups");
             foreach (var r in _pickups.Records)

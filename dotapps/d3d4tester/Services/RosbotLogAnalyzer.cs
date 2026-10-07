@@ -218,7 +218,7 @@ internal sealed class RosbotLogAnalyzerEngine
     {
         if (RosbotFlowState.Instance.FlowMasterEnabled)
         {
-            RosbotRestartRequest.Request(RosbotRestartRequest.ReasonLogSystemError, "", restartBattlenet: false);
+            Monitor.MonitorService.Instance.RequestRestart(RosbotRestartRequest.ReasonLogSystemError, "", restartBattlenet: false);
             return;
         }
         D3Manager.Instance.KillIfRunning();

@@ -901,6 +901,7 @@
       "dead": "已死亡",
       "in_combat": "战斗中",
       "inventory_full": "背包已满",
+      "repair_needed": "需要修理",
       "unnamed_area": "未命名区域 ({0})",
       "town": "城镇",
       "greater_rift": "大秘境 {0} 层",
@@ -1054,7 +1055,29 @@
         "a2_uniquevendor_collector_intown_01": "收藏家",
         "a3_hub_soldier": "士兵",
         "a3_hub_woundedsoldier": "伤兵"
-      }
+      },
+      "player": "玩家",
+      "follow_start": "跟随",
+      "follow_stop": "停止跟随",
+      "follow_banner": "战旗",
+      "follow_banner_auto": "自动",
+      "follow_tip": "跟随最近或选中的玩家；插件不打怪（监控和 ROSBOT 保持暂停）。野外跟丢：按回城键（rosbot.bridge_follow_town_portal_key）；城里：点所选战旗（1=队长，自动=依次试 1-4）。拾取：队长附近符合拾取规则的物品。",
+      "follow_state": {
+        "following": "跟随中",
+        "lost": "跟丢（城里）",
+        "needs_town": "跟丢，回城中",
+        "banner": "点战旗中",
+        "off": "未跟随"
+      },
+      "item_name": {
+        "healthpotion_bottomless": "治疗药水",
+        "p74_consumable_sanctify_legendary_item": "天使坩埚"
+      },
+      "follow_target_nearest": "最近的玩家",
+      "follow_target_selected": "选中的玩家",
+      "follow_select_player": "请先在列表中选中一个玩家",
+      "follow_banner_leader": "{0}（队长）",
+      "follow_pickup": "按拾取规则拾取"
     }
   },
   "skills": {

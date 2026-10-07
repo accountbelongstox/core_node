@@ -32,16 +32,16 @@ public partial class RosbotBridgePanel : UserControl
     private const string Separator = " · ";
     private const string Empty = RosbotBridgeText.Empty;
     private const string LogTag = "[RosbotBridge]";
-    private const string PickupKindStash = "stash";
     private const string StyleSecondaryButton = "SecondaryButtonStyle";
     private const string StyleWarningButton = "WarningButtonStyle";
+    private const int FollowTargetSelectedIndex = 1;
     /// <summary>Time for ROSBOT to stop its current action after the pause key before the command is written.</summary>
     private const int TakeControlSettleMs = 1500;
     private static readonly HashSet<string> GameActions = new(StringComparer.Ordinal)
     {
         RosbotPluginConstants.BridgeActionMoveTo, RosbotPluginConstants.BridgeActionInteract, RosbotPluginConstants.BridgeActionPickup,
         RosbotPluginConstants.BridgeActionPickupFilter, RosbotPluginConstants.BridgeActionClickUi, RosbotPluginConstants.BridgeActionGoNpc,
-        RosbotPluginConstants.BridgeActionSalvageAll,
+        RosbotPluginConstants.BridgeActionSalvageAll, RosbotPluginConstants.BridgeActionFollow,
     };
     private DateTime _lastLoggedPickupUtc = DateTime.UtcNow;
     private long _lastLoggedCommandId;
@@ -123,6 +123,17 @@ public partial class RosbotBridgePanel : UserControl
             button.ToolTip = string.Format(p.GetUiText(I18nKeys.RosbotBridgeNpcGoTip), button.Content);
         }
         RefreshHold();
+        LblFollowBanner.Text = p.GetUiText(I18nKeys.RosbotBridgeFollowBanner);
+        BtnFollow.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeFollowTip);
+        int bannerIndex = CmbFollowBanner.SelectedIndex;
+        CmbFollowBanner.ItemsSource = RosbotPluginConstants.BridgeFollowBannerSlots
+            .Select(s => s == 0 ? p.GetUiText(I18nKeys.RosbotBridgeFollowBannerAuto)
+                : s == RosbotPluginConstants.BridgeFollowLeaderSlot ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeFollowBannerLeader), s) : s.ToString()).ToList();
+        int targetIndex = CmbFollowTarget.SelectedIndex;
+        CmbFollowTarget.ItemsSource = new[] { p.GetUiText(I18nKeys.RosbotBridgeFollowTargetNearest), p.GetUiText(I18nKeys.RosbotBridgeFollowTargetSelected) };
+        CmbFollowTarget.SelectedIndex = targetIndex < 0 ? 0 : targetIndex;
+        ChkFollowPickup.Content = p.GetUiText(I18nKeys.RosbotBridgeFollowPickup);
+        CmbFollowBanner.SelectedIndex = bannerIndex < 0 ? 0 : bannerIndex;
         LblTests.Text = p.GetUiText(I18nKeys.RosbotBridgeTests);
         BtnSalvageNormal.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageNormal);
         BtnSalvageMagic.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageMagic);
@@ -196,7 +207,9 @@ public partial class RosbotBridgePanel : UserControl
             LstHistory.Items.Add($"{visit.Utc.ToLocalTime().ToString(TimeFormat)}{Separator}{RosbotBridgeText.AreaText(visit.Sno, p)}");
 
         Fill(LstGround, s?.GroundItems, e => GroundText(e, p));
-        Fill(LstNpcs, s?.Npcs, e => NpcText(e, p));
+        Fill(LstNpcs, (s?.Players ?? Array.Empty<RosbotBridgeEntity>()).Concat(s?.Npcs ?? Array.Empty<RosbotBridgeEntity>()).ToList(),
+            e => s?.Players.Contains(e) == true ? PlayerText(e, p) : NpcText(e, p));
+        RefreshFollow(s, p);
         Fill(LstCarried, s?.CarriedItems.Where(e => !RosbotPluginConstants.BridgeHiddenSlots.Contains(e.Slot))
             .OrderBy(SlotOrder).ThenBy(e => e.Slot, StringComparer.Ordinal).ToList(), e => CarriedText(e, p));
         LstPickups.Items.Clear();
@@ -235,8 +248,41 @@ public partial class RosbotBridgePanel : UserControl
     }
 
     private static string GroundText(RosbotBridgeEntity e, II18nProvider p) => Join(
-        (e.FilterMatch ? p.GetUiText(I18nKeys.RosbotBridgeFilterMark) : "") + D3PlannerService.DisplayName(e.Gbid, e.Name),
+        (e.FilterMatch ? p.GetUiText(I18nKeys.RosbotBridgeFilterMark) : "") + D3PlannerService.DisplayName(e.Gbid, e.Name), ItemIds(e),
         QualityText(e, p), string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance));
+
+    private static string PlayerText(RosbotBridgeEntity e, II18nProvider p) => Join(
+        p.GetUiText(I18nKeys.RosbotBridgePlayer), $"[{e.Name} #{e.Id}]", string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance));
+
+    /// <summary>Follow button text / style and the follow state line (state, leader, distance).</summary>
+    private void RefreshFollow(RosbotBridgeState? s, II18nProvider p)
+    {
+        bool on = s?.FollowEnabled == true;
+        BtnFollow.Content = p.GetUiText(on ? I18nKeys.RosbotBridgeFollowStop : I18nKeys.RosbotBridgeFollowStart);
+        BtnFollow.SetResourceReference(StyleProperty, on ? StyleWarningButton : StyleSecondaryButton);
+        TxtFollowState.Text = !on ? "" : Join(p.GetUiText(I18nKeys.RosbotBridgeFollowStatePrefix + s!.FollowState, s.FollowState), s.FollowLeader,
+            s.FollowDistance >= 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), s.FollowDistance) : "");
+    }
+
+    /// <summary>Start following the selected player (else the nearest one) with the chosen banner slot, or stop.</summary>
+    private void BtnFollow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_state?.FollowEnabled == true)
+        {
+            Send(RosbotPluginConstants.BridgeActionFollow, value: RosbotPluginConstants.BridgeFollowOff);
+            return;
+        }
+        var selected = Selected(LstNpcs);
+        bool useSelected = CmbFollowTarget.SelectedIndex == FollowTargetSelectedIndex;
+        if (useSelected && (selected == null || _state?.Players.Contains(selected) != true))
+        {
+            TxtCommandResult.Text = D3D4TesterI18n.Provider.GetUiText(I18nKeys.RosbotBridgeFollowSelectPlayer);
+            return;
+        }
+        string leader = useSelected ? selected!.Id.ToString() : "";
+        int slot = RosbotPluginConstants.BridgeFollowBannerSlots[Math.Max(0, CmbFollowBanner.SelectedIndex)];
+        Send(RosbotPluginConstants.BridgeActionFollow, leader, value: $"{slot},{(ChkFollowPickup.IsChecked == true ? 1 : 0)}");
+    }
 
     /// <summary>Localized NPC name (i18n table by internal actor name), the internal name and the SNO id, distances.</summary>
     private static string NpcText(RosbotBridgeEntity e, II18nProvider p) => Join(
@@ -255,14 +301,14 @@ public partial class RosbotBridgePanel : UserControl
             : RosbotPluginConstants.BridgePotionSlots.Contains(e.Slot) ? p.GetUiText(I18nKeys.RosbotBridgeSlotPotion)
             : D3PaperDollLayout.FromInventorySlot.TryGetValue(e.Slot, out var slotKey) ? p.GetUiText(I18nKeys.RosbotBridgeSlotPrefix + slotKey)
             : e.Equipped ? p.GetUiText(I18nKeys.RosbotBridgeEquipped).Trim() : "",
-        D3PlannerService.DisplayName(e.Gbid, e.Name),
+        D3PlannerService.DisplayName(e.Gbid, e.Name), ItemIds(e),
         QualityText(e, p),
         e.Stack > 1 ? $"×{e.Stack}" : "",
         e.DurabilityMax > 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeDurability), e.DurabilityCur, e.DurabilityMax) : "");
 
     private static string PickupText(RosbotBridgePickup r, II18nProvider p) => Join(
         r.Utc.ToLocalTime().ToString(TimeFormat),
-        p.GetUiText(r.Kind == PickupKindStash ? I18nKeys.RosbotBridgeKindStash : I18nKeys.RosbotBridgeKindPickup),
+        p.GetUiText(r.Kind == RosbotPluginConstants.BridgePickupKindStash ? I18nKeys.RosbotBridgeKindStash : I18nKeys.RosbotBridgeKindPickup),
         r.Gbid != 0 ? D3PlannerService.DisplayName(r.Gbid, r.Name) : r.Name,
         QualityText(r.Quality, r.AncientRank, p));
 
@@ -287,6 +333,12 @@ public partial class RosbotBridgePanel : UserControl
         };
         return string.Join(" ", new[] { a, q }.Where(x => x.Length > 0));
     }
+
+    /// <summary>Internal actor name and GameBalanceId of an item, e.g. [x1_Ruby_07 #1019190640].</summary>
+    private static string ItemIds(RosbotBridgeEntity e) =>
+        $"[{(e.InternalName.Length > 0 ? DisplayInternal(e.InternalName) : e.Name)} #{e.Gbid}]";
+
+    private static string DisplayInternal(string internalName) => Core.Planner.D3PlannerMatcher.NormalizeName(internalName);
 
     private static string NpcName(RosbotBridgeEntity e, II18nProvider p)
     {
@@ -326,7 +378,8 @@ public partial class RosbotBridgePanel : UserControl
             RefreshHold();
             await Task.Delay(TakeControlSettleMs);
         }
-        if (action is not (RosbotPluginConstants.BridgeActionPickupFilter or RosbotPluginConstants.BridgeActionClickUi or RosbotPluginConstants.BridgeActionSalvageAll)
+        if (action is not (RosbotPluginConstants.BridgeActionPickupFilter or RosbotPluginConstants.BridgeActionClickUi or RosbotPluginConstants.BridgeActionSalvageAll
+                or RosbotPluginConstants.BridgeActionFollow)
             && string.IsNullOrWhiteSpace(target))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeSelectTarget);

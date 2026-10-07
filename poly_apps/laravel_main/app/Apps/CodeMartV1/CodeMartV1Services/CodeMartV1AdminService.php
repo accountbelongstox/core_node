@@ -770,7 +770,7 @@ class CodeMartV1AdminService
 
         CodeMartV1DomainEventService::emit(
             $adminId,
-            'deposit',
+            CodeMartV1Constants::RESOURCE_DEPOSIT,
             (int) $fresh->id,
             'deposit_confirmed',
             CodeMartV1Constants::DEPOSIT_STATUS_PENDING,

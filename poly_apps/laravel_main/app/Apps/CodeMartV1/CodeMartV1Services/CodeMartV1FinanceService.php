@@ -164,7 +164,7 @@ class CodeMartV1FinanceService
         if (!$result['replayed']) {
             CodeMartV1DomainEventService::emit(
                 $adminId,
-                'refund',
+                CodeMartV1Constants::RESOURCE_REFUND,
                 (int) $result['refund']->id,
                 'refund_processed',
                 CodeMartV1Constants::REFUND_STATUS_APPROVED,

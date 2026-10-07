@@ -37,6 +37,7 @@ public static class TriggerCatalog
         [MonitorEvents.ScheduledTime] = new[] { new TriggerArgSpec("time", TriggerArgKind.TimeOfDay), new TriggerArgSpec("day", TriggerArgKind.Weekday) },
         [MonitorEvents.LogMatch] = new[] { new TriggerArgSpec("text", TriggerArgKind.Text) },
         [MonitorEvents.HistoryMatch] = new[] { new TriggerArgSpec("text", TriggerArgKind.Text) },
+        [MonitorEvents.ItemPickup] = new[] { new TriggerArgSpec("text", TriggerArgKind.Text) },
         [MonitorEvents.LogTimer] = new[] { new TriggerArgSpec("seconds", TriggerArgKind.Integer) },
         [MonitorEvents.HistoryTimer] = new[] { new TriggerArgSpec("minutes", TriggerArgKind.Integer) },
         [MonitorEvents.SpecialPortalTimer] = new[] { new TriggerArgSpec("seconds", TriggerArgKind.Integer) },

@@ -103,16 +103,16 @@ public static class MaxrollD3PlannerClient
             if (Text(gem?["id"]) is { Length: > 0 } gemId)
                 names.TryAdd(D3Gbid.Of(gemId), (Text(gem!["name"]), Text(zhPatch?["legendaryGems"]?[key]?["name"])));
         var tiers = data?["gemQualities"]?.AsArray() ?? new JsonArray();
+        var oldTiers = data?["oldGemQualities"]?.AsArray() ?? new JsonArray();
         foreach (var (color, def) in data?["gemColors"]?.AsObject() ?? new JsonObject())
         {
             var zhNames = zhPatch?["gemColors"]?[color]?["names"]?.AsArray();
+            (string, string) Entry(int t) => ($"{Text(tiers[t])} {Text(def?["name"])}", zhNames != null && t < zhNames.Count ? Text(zhNames[t]) : "");
             for (int t = 0; t < tiers.Count; t++)
-            {
-                var entry = ($"{Text(tiers[t])} {Text(def?["name"])}", zhNames != null && t < zhNames.Count ? Text(zhNames[t]) : "");
-                string tier = (t + 1).ToString(GemTierFormat, CultureInfo.InvariantCulture);
-                foreach (var prefix in new[] { Text(def?["id"]), Text(def?["oldid"]) })
-                    if (prefix.Length > 0) names.TryAdd(D3Gbid.Of(prefix + tier), entry);
-            }
+                if (Text(def?["id"]) is { Length: > 0 } id) names.TryAdd(D3Gbid.Of(id + (t + 1).ToString(GemTierFormat, CultureInfo.InvariantCulture)), Entry(t));
+            for (int o = 0; o < oldTiers.Count; o++)
+                if (Text(def?["oldid"]) is { Length: > 0 } oldId && oldTiers[o] is JsonValue ov && ov.TryGetValue(out int t) && t >= 0 && t < tiers.Count)
+                    names.TryAdd(D3Gbid.Of(oldId + (o + 1).ToString(GemTierFormat, CultureInfo.InvariantCulture)), Entry(t));
         }
         return names;
     }

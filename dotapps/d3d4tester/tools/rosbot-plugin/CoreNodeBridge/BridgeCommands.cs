@@ -30,7 +30,7 @@ internal sealed class CommandResult
 /// go_npc (target = exact actor name: walk the path ROSBOT computes for it, waypoint by waypoint, stop when stuck, then interact at
 /// the NPC's position and report whether a vendor window opened),
 /// salvage_all (value = normal / magic / rare: with the blacksmith window open, open its salvage page, press that salvage-all
-/// button and confirm). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
+/// button and confirm), follow (target = leader actor id or empty for the nearest player, value = "banner slot 0-4,pickup 0/1" or "off"; FollowMode). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -45,6 +45,10 @@ internal sealed class BridgeCommands
     public const string ActionClickUi = "click_ui";
     public const string ActionGoNpc = "go_npc";
     public const string ActionSalvageAll = "salvage_all";
+    public const string ActionFollow = "follow";
+    private const string FollowOff = "off";
+    private const char FollowValueSeparator = ',';
+    private const string FollowPickupOn = "1";
     private const string QualityNormal = "normal";
     private const string QualityMagic = "magic";
     private const string QualityRare = "rare";
@@ -66,11 +70,14 @@ internal sealed class BridgeCommands
     private DateTime _filterStamp = DateTime.MinValue;
     private List<string> _patterns = new();
 
-    public BridgeCommands(string dir, Action<string> log)
+    public BridgeCommands(string dir, Action<string> log, FollowMode follow)
     {
         _dir = dir;
         _log = log;
+        _follow = follow;
     }
+
+    private readonly FollowMode _follow;
 
     public CommandResult Last { get; private set; }
 
@@ -119,6 +126,21 @@ internal sealed class BridgeCommands
         _patterns.Any(p => Contains(item.Name, p) || Contains(item.InternalName, p));
 
     /// <summary>Pick up every ground item that matches the filter (nearest first, bounded in time).</summary>
+    /// <summary>Pick up the nearest ground item within range that matches the pickup filter (one item, Pickup's own time bound).</summary>
+    public bool PickupNearestMatching(float range)
+    {
+        if (_patterns.Count == 0) return false;
+        var target = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>())
+            .Where(a => WorldScanner.Safe(() => a.IsValid && a.IsItem, false) && WorldScanner.Safe(() => a.Distance, float.MaxValue) <= range)
+            .Where(a => _patterns.Any(p => Contains(WorldScanner.Safe(() => a.Name, ""), p) || Contains(WorldScanner.Safe(() => a.InternalName, ""), p)))
+            .OrderBy(a => WorldScanner.Safe(() => a.Distance, float.MaxValue))
+            .FirstOrDefault();
+        if (target == null) return false;
+        bool ok = Pickup(target);
+        _log($"follow pickup: {WorldScanner.Safe(() => target.Name, "")} {(ok ? "picked" : "not picked")}");
+        return ok;
+    }
+
     public (int Picked, int Matched) PickupMatching()
     {
         var sw = Stopwatch.StartNew();
@@ -179,6 +201,17 @@ internal sealed class BridgeCommands
                     var (picked, matched) = PickupMatching();
                     result.Ok = picked > 0 || matched == 0;
                     result.Message = $"picked {picked} of {matched} matching";
+                    return result;
+                }
+                case ActionFollow:
+                {
+                    cmd.TryGetValue("value", out var mode);
+                    var parts = (mode ?? "").Split(FollowValueSeparator);
+                    if (mode == FollowOff) _follow.Stop();
+                    else _follow.Start(uint.TryParse(target, out uint leader) ? leader : 0u, int.TryParse(parts[0], out int slot) ? slot : 0,
+                        parts.Length > 1 && parts[1] == FollowPickupOn);
+                    result.Ok = true;
+                    result.Message = "follow " + (_follow.Enabled ? "on" : "off");
                     return result;
                 }
                 case ActionGoNpc:

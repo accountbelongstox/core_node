@@ -35,6 +35,9 @@ export interface CmBootstrapState {
   stateRule: (rule: string) => readonly string[];
   policyList: (key: CmPolicyListKey) => readonly string[];
   roleForCapability: (capability: string | null) => string | null;
+  activityResources: readonly string[];
+  activityActions: readonly string[];
+  activityStateGroup: (resourceType: string) => string | null;
 }
 
 const CmBootstrapContext = createContext<CmBootstrapState | null>(null);
@@ -139,6 +142,9 @@ export const CmBootstrapProvider: React.FC<{ children: React.ReactNode }> = ({ c
       stateRule: (rule) => vocabularyList(vocabulary?.state_rules?.[rule]),
       policyList: (key) => vocabularyList(vocabulary?.policy?.[key]),
       roleForCapability: (capability) => (capability ? vocabulary?.capability_roles?.[capability] ?? null : null),
+      activityResources: vocabularyList(vocabulary?.activity?.resources),
+      activityActions: vocabularyList(vocabulary?.activity?.actions),
+      activityStateGroup: (resourceType) => vocabulary?.activity?.resource_state_groups?.[resourceType] ?? null,
     };
   }, [bootstrap, loading, error, unreadCount, load, refreshUnread]);
 

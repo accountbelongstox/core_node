@@ -191,14 +191,17 @@
         "shrine_infinite": "Channeling pylon found",
         "shrine_speed": "Speed pylon found",
         "buff_end": "Buff ended",
-        "special_portal_timer": "Special portal timer"
+        "special_portal_timer": "Special portal timer",
+        "inventory_full": "Inventory full",
+        "repair_needed": "Repair needed",
+        "item_pickup": "Item picked up"
       },
       "event_desc": {
         "scheduled_time": "Fires at the given time and day.",
         "log_match": "Fires on a ROSBOT log line that contains the text (case-insensitive).",
         "history_match": "Fires on a ROSBOT history line that contains the text.",
         "error_detected": "Fires on an error popup or a log timeout restart.",
-        "death_detected": "Fires when the log reports a death.",
+        "death_detected": "Fires when the log or the plugin reports a death (once per 15 seconds).",
         "fail_detected": "Fires when the log reports a failed run.",
         "d3_launch": "Fires when D3 is detected running (also when monitoring starts with D3 open).",
         "d3_exit": "Fires when D3 is detected not running.",
@@ -220,7 +223,10 @@
         "shrine_infinite": "Fires when a channeling pylon is found; pauses \"Combat switch\" until the buff ends.",
         "shrine_speed": "Fires when a speed pylon is found; pauses \"Combat switch\" until the buff ends.",
         "buff_end": "Fires when both pylon buffs have ended (duration reached, back in town or new rift).",
-        "special_portal_timer": "Fires when a special portal sequence runs longer than the given seconds, then repeats every that many seconds."
+        "special_portal_timer": "Fires when a special portal sequence runs longer than the given seconds, then repeats every that many seconds.",
+        "inventory_full": "Fires when the plugin reports the inventory became full.",
+        "repair_needed": "Fires when the plugin reports gear needs repair.",
+        "item_pickup": "Fires when the plugin records a picked-up item; with text, only when the item or internal name contains it (case-insensitive)."
       },
       "action": {
         "write_log": "Write to log",

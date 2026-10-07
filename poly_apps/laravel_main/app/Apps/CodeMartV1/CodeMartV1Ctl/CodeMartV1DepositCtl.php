@@ -175,7 +175,7 @@ class CodeMartV1DepositCtl extends Controller
         if (!$replayed) {
             CodeMartV1DomainEventService::emit(
                 $userId,
-                'deposit',
+                CodeMartV1Constants::RESOURCE_DEPOSIT,
                 (int) $deposit->id,
                 'deposit_created',
                 null,

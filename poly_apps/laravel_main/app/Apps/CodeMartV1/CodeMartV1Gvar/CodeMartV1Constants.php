@@ -727,6 +727,115 @@ class CodeMartV1Constants
     public const RESOURCE_ANALYSIS = 'analysis';
     public const RESOURCE_COMMENT = 'comment';
     public const RESOURCE_ATTACHMENT = 'attachment';
+    public const RESOURCE_PAYMENT = 'payment';
+    public const RESOURCE_REFUND = 'refund';
+    public const RESOURCE_DEPOSIT = 'deposit';
+    public const RESOURCE_WITHDRAWAL = 'withdrawal';
+    public const RESOURCE_ESCROW = 'escrow';
+    public const RESOURCE_ROLE = 'role';
+
+    // Activity vocabulary (GET /bootstrap vocabulary.activity).
+    public const ACTIVITY_RESOURCE_TYPES = [
+        self::RESOURCE_PROJECT,
+        self::RESOURCE_MILESTONE,
+        self::RESOURCE_TASK,
+        self::RESOURCE_SUBMISSION,
+        self::RESOURCE_ANALYSIS,
+        self::RESOURCE_COMMENT,
+        self::RESOURCE_ATTACHMENT,
+        self::RESOURCE_PAYMENT,
+        self::RESOURCE_REFUND,
+        self::RESOURCE_DEPOSIT,
+        self::RESOURCE_WITHDRAWAL,
+        self::RESOURCE_ESCROW,
+        self::RESOURCE_USER,
+        self::RESOURCE_USER_ROLE,
+        self::RESOURCE_ROLE,
+        self::RESOURCE_KYC,
+        self::RESOURCE_TESTIMONIAL,
+        self::RESOURCE_REVIEWER_APPLICATION,
+        self::RESOURCE_CONTACT_MESSAGE,
+    ];
+
+    public const ACTIVITY_ACTIONS = [
+        'created',
+        'updated',
+        'published',
+        'status_changed',
+        'accepted',
+        'submitted',
+        'approved',
+        'rejected',
+        'completed',
+        'revision_requested',
+        'requested',
+        'uploaded',
+        'escrow_released',
+        'escrow_refunded',
+        'first_task_accepted',
+        'project_funded',
+        'proposal_accepted',
+        'budget_confirmed',
+        'analysis_completed',
+        'architect_assigned',
+        'tasks_opened',
+        'cancelled_by_project',
+        'comment_added',
+        'submission_created',
+        'submission_reviewed',
+        'reviewer_review_recorded',
+        'payment_created',
+        'dispute_resolved',
+        'refund_requested',
+        'refund_approved',
+        'refund_rejected',
+        'refund_processed',
+        'deposit_created',
+        'deposit_confirmed',
+        'deposit_rejected',
+        'deposit_refunded',
+        'withdrawal_requested',
+        'withdrawal_approved',
+        'withdrawal_rejected',
+        'withdrawal_paid',
+        'role_requested',
+        'role_activated',
+        'role_activated_by_deposit',
+        'role_suspended',
+        'architect_activated',
+        'kyc_submitted',
+        'test_graded',
+        'testimonial_submitted',
+        'contact_message_received',
+        'admin_role_granted',
+        'admin_role_status_changed',
+        'admin_kyc_approved',
+        'admin_kyc_rejected',
+        'admin_testimonial_approved',
+        'admin_testimonial_hidden',
+        'admin_testimonial_updated',
+        'admin_reviewer_revoked',
+        'admin_contact_message_handled',
+    ];
+
+    // Activity resource -> state group in vocabulary.states (from/to state labels).
+    public const ACTIVITY_RESOURCE_STATE_GROUPS = [
+        self::RESOURCE_PROJECT => 'project',
+        self::RESOURCE_MILESTONE => 'milestone',
+        self::RESOURCE_TASK => 'task',
+        self::RESOURCE_SUBMISSION => 'submission',
+        self::RESOURCE_PAYMENT => 'payment',
+        self::RESOURCE_REFUND => 'refund',
+        self::RESOURCE_DEPOSIT => 'deposit',
+        self::RESOURCE_WITHDRAWAL => 'withdrawal',
+        self::RESOURCE_ESCROW => 'escrow',
+        self::RESOURCE_USER_ROLE => 'role',
+        self::RESOURCE_ROLE => 'role',
+        self::RESOURCE_KYC => 'kyc',
+        self::RESOURCE_TESTIMONIAL => 'testimonial',
+        self::RESOURCE_REVIEWER_APPLICATION => 'reviewer_application',
+        self::RESOURCE_CONTACT_MESSAGE => 'contact_message',
+    ];
 
     // Notification i18n keys (UI resolves notifications.*).
     public const NOTIFY_TASK_ACCEPTED = 'notifications.taskAccepted';
@@ -892,6 +1001,11 @@ class CodeMartV1Constants
             ],
             'capability_roles' => self::CAPABILITY_ROLES,
             'roles' => self::getAllRoles(),
+            'activity' => [
+                'resources' => self::ACTIVITY_RESOURCE_TYPES,
+                'actions' => self::ACTIVITY_ACTIONS,
+                'resource_state_groups' => self::ACTIVITY_RESOURCE_STATE_GROUPS,
+            ],
             'transitions' => [
                 'project' => self::PROJECT_TRANSITIONS,
                 'task' => self::TASK_TRANSITIONS,
