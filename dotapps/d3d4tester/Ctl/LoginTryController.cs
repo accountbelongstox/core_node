@@ -15,9 +15,9 @@ using DotCore.ScreenCapture;
 namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
-/// Login try / game launch controller: on log "Login try" restart Battle.net when disconnected; screenshot trigger (login by region);
-/// ensure Battle.net logged in; D block (tray restore, game tab + Play, window poll) for D3 and D4 with the D3 C3 connect loop;
-/// ensure D3 / D4 running without ROSBOT; full-screen login_try capture. UI-only Battle.net checks (no OCR).
+/// Login try / game launch controller: on log "Login try" restart Battle.net when disconnected; the single D block (tray restore,
+/// activate, game tab + Play, window poll) for D3 and D4, used by the flow master (Battle.net already confirmed by the B block) and by
+/// the manual "ensure D3 / D4 running" actions (login-first); full-screen login_try capture. UI-only Battle.net checks (no OCR).
 /// Call <see cref="Initialize"/> once at startup. 1:1 Python controller/login_try_screenshot_controller.py (D4 launch is DOT-only).
 /// </summary>
 public static class LoginTryController
@@ -28,35 +28,37 @@ public static class LoginTryController
     private const int AfterBnStartMs = 3000;
     private const int AfterKillD3Ms = 5000;
     private const int AfterActivateMs = 1000;
-    private const int AfterActivateFastMs = 300;
     private const int AfterActivateLoginCheckMs = 500;
-    private const int AfterLoginFlowMs = 2000;
     private const int AfterLoginByRegionMs = 3000;
     private const int LoginPollIdleMs = 2000;
-    private const int D12SleepMs = 3000;
-    private const double D12PollTimeoutSec = 8.0;
+    private const int D12SleepMs = 5000;
+    private const double D12PollTimeoutSec = 10.0;
     private const double D12PollIntervalSec = 0.5;
     private const int D12PollLogEveryN = 4;
-    private const int MaxRounds = 3;
-    private const int MaxOuterRetries = 3;
     private const int MaxLoginRounds = 5;
 
     private static int _initialized;
 
-    /// <summary>A game launched from Battle.net by the D block: window manager, tab + Play click, state write on window found.</summary>
-    private sealed record LaunchTarget(string Label, GameWindowManager Manager, Func<IBattlenetOperation, bool> ClickTabAndPlay, Action OnWindowFound);
+    /// <summary>
+    /// A game launched from Battle.net by the D block: window manager, tab + Play click, state write on window found, and whether
+    /// ROSBOT is ended right before Play (D11a, D3 only).
+    /// </summary>
+    private sealed record LaunchTarget(string Label, GameWindowManager Manager, Func<IBattlenetOperation, bool> ClickTabAndPlay, Action OnWindowFound,
+        bool EndRosbotBeforePlay);
 
     private static readonly LaunchTarget D3Target = new(
         "D3",
         D3Manager.Instance,
         BattlenetGameLauncher.ClickD3TabAndPlay,
-        () => GameInterfaceData.Instance.SetD3Status(true));
+        () => GameInterfaceData.Instance.SetD3Status(true),
+        EndRosbotBeforePlay: true);
 
     private static readonly LaunchTarget D4Target = new(
         "D4",
         D4Manager.Instance,
         BattlenetGameLauncher.ClickD4TabAndPlay,
-        () => GameInterfaceData.Instance.D4.GameRunning = true);
+        () => GameInterfaceData.Instance.D4.GameRunning = true,
+        EndRosbotBeforePlay: false);
 
     /// <summary>Register the "Login try" log callback and prepare the screenshot directory. 1:1 Python controller init + register_login_try_callback.</summary>
     public static void Initialize()
@@ -162,8 +164,8 @@ public static class LoginTryController
     }
 
     /// <summary>
-    /// Ensure Battle.net is logged in (normal_available): start when missing; disconnected / browser-wait -> restart; login screen ->
-    /// login by region. Never kills D3. 1:1 Python _ensure_battlenet_logged_in_first.
+    /// Manual actions only (the flow master uses the B block): ensure Battle.net is logged in (normal_available): start when missing;
+    /// disconnected / browser-wait -> restart; login screen -> login by region. Never kills D3. 1:1 Python _ensure_battlenet_logged_in_first.
     /// </summary>
     private static bool EnsureBattlenetLoggedInFirst(string bnPath)
     {
@@ -207,13 +209,78 @@ public static class LoginTryController
             }
             Thread.Sleep(LoginPollIdleMs);
         }
-        ColorPrinter.Yellow($"{LogPrefix} Battle.net not confirmed logged in; skip D3 branch, run Battle.net flow only");
+        ColorPrinter.Yellow($"{LogPrefix} Battle.net not confirmed logged in; skip game launch");
         return false;
     }
 
     /// <summary>
+    /// Flow master [D1]: launch D3 from the Battle.net the B block confirmed. True only when this call launched D3 (D13: the caller marks
+    /// "just entered"); a D3 that is already running is reused by the flow, never relaunched.
+    /// </summary>
+    public static bool LaunchD3FromBattlenet()
+    {
+        if (D3Manager.Instance.IsRunning())
+        {
+            ColorPrinter.Gray($"{LogPrefix} [D1] D3 already running, reuse it (no launch)");
+            return false;
+        }
+        return LaunchFromBattlenet(D3Target, killGameFirst: false);
+    }
+
+    /// <summary>
+    /// The D block, one pass: [D4] tray restore + activate Battle.net -> [D5] logged-in UI required (else the B block / login-first owns
+    /// Battle.net; never restarts it) -> [D11a] end ROSBOT (D3) -> [D9/D11] game tab + Play -> [D12] wait -> [D12b] poll the game window
+    /// -> [D13] found: state write. A missing window returns false; the caller retries later instead of restarting Battle.net.
+    /// </summary>
+    private static bool LaunchFromBattlenet(LaunchTarget target, bool killGameFirst)
+    {
+        string tag = $"{LogPrefix} [D {target.Label}]";
+        if (killGameFirst)
+        {
+            ColorPrinter.Gray($"{tag} [D3] end current {target.Label} process -> wait");
+            target.Manager.KillIfRunning();
+            Thread.Sleep(AfterKillD3Ms);
+        }
+        if (!Bn.HasWindow())
+            Bn.RestoreFromTray();
+        if (!Bn.ActivateWindow())
+        {
+            ColorPrinter.Yellow($"{tag} [D6f] Battle.net window not found");
+            return false;
+        }
+        Thread.Sleep(AfterActivateMs);
+        var op = BattlenetStatusProvider.GetOperation();
+        if (op.IsLoadingUiVisible() || !op.GetDynamicState().NormalAvailable)
+        {
+            ColorPrinter.Yellow($"{tag} [D5] Battle.net not on the logged-in main UI, skip launch (Battle.net left as is)");
+            return false;
+        }
+        if (target.EndRosbotBeforePlay)
+        {
+            ColorPrinter.Gray($"{tag} [D11a] end ROSBOT before starting {target.Label}");
+            RosbotManager.Instance.KillIfRunning();
+        }
+        if (!target.ClickTabAndPlay(op))
+        {
+            ColorPrinter.Yellow($"{tag} [D8] {target.Label} tab / Play not available");
+            return false;
+        }
+        ColorPrinter.Gray($"{tag} [D12] wait then poll {target.Label} window up to {D12PollTimeoutSec}s...");
+        Thread.Sleep(D12SleepMs);
+        if (!target.Manager.PollUntilWindowAppears(D12PollTimeoutSec, D12PollIntervalSec, D12PollLogEveryN))
+        {
+            ColorPrinter.Yellow($"{tag} [D13] {target.Label} window not found in time");
+            return false;
+        }
+        target.OnWindowFound();
+        GameInterfaceData.Instance.NotifyCallbacks();
+        ColorPrinter.Green($"{tag} [D13] {target.Label} window found");
+        return true;
+    }
+
+    /// <summary>
     /// D3 online and not disconnected -> nothing; online but disconnected (confirmed by two captures) -> kill + relaunch from Battle.net;
-    /// not online -> launch from Battle.net. Never starts ROSBOT. 1:1 Python ensure_d3_running_from_battlenet_no_rosbot.
+    /// not online -> launch from Battle.net (login-first). Never starts ROSBOT. 1:1 Python ensure_d3_running_from_battlenet_no_rosbot.
     /// </summary>
     public static bool EnsureD3RunningFromBattlenetNoRosbot()
     {
@@ -248,7 +315,7 @@ public static class LoginTryController
             ColorPrinter.Blue($"{LogPrefix} D3 not online -> start from Battle.net");
             killD3First = false;
         }
-        return RunDBlockLaunchGameOnly(bnPath, killD3First, D3Target);
+        return EnsureBattlenetLoggedInFirst(bnPath) && LaunchFromBattlenet(D3Target, killD3First);
     }
 
     /// <summary>
@@ -270,7 +337,7 @@ public static class LoginTryController
             return true;
         }
         ColorPrinter.Blue($"{LogPrefix} D4 not online -> start from Battle.net");
-        return RunDBlockLaunchGameOnly(bnPath, killGameFirst: false, D4Target);
+        return EnsureBattlenetLoggedInFirst(bnPath) && LaunchFromBattlenet(D4Target, killGameFirst: false);
     }
 
     /// <summary>Full-screen capture saved to the login_try directory; returns saved paths or null. 1:1 Python capture_screenshot.</summary>

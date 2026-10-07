@@ -5,6 +5,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.I18n;
 using DotCore.Foundations;
 
@@ -202,13 +203,26 @@ internal sealed class RosbotLogAnalyzerEngine
             _atErrorBuffer.Add(line);
             if (_atErrorBuffer.Count >= 2)
             {
-                ColorPrinter.Red("[LogAnalyzer] System error detected: consecutive 'at System' lines, killing D3 and ROSBOT");
-                D3AndRosbotKillHelper.KillD3AndRosbotIfRunning();
+                ColorPrinter.Red("[LogAnalyzer] System error detected: consecutive 'at System' lines, restarting D3 and ROSBOT");
+                RestartAfterSystemError();
                 _atErrorBuffer.Clear();
                 _linesSinceSystemKill = 0;
             }
         }
         else
             _atErrorBuffer.Clear();
+    }
+
+    /// <summary>Monitoring on: the flow master's single F4 -> B2 restart (counted, notified); off: only end D3 and ROSBOT.</summary>
+    private static void RestartAfterSystemError()
+    {
+        if (RosbotFlowState.Instance.FlowMasterEnabled)
+        {
+            RosbotRestartRequest.Request(RosbotRestartRequest.ReasonLogSystemError, "", restartBattlenet: false);
+            return;
+        }
+        D3Manager.Instance.KillIfRunning();
+        RosbotManager.Instance.KillIfRunning();
+        RosbotManager.Instance.InvalidateLookupCache();
     }
 }

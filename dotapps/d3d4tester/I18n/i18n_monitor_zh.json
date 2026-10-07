@@ -88,6 +88,7 @@
       "secret_hint": "Token、Webhook 与 API Key 加密保存在用户配置中，切勿泄露。",
       "reason_log_timeout": "ROSBOT 日志超时",
       "reason_log_disconnect": "ROSBOT 掉线",
+      "reason_log_system_error": "ROSBOT 日志系统错误",
       "reason_error_popup": "错误弹窗（{0}）",
       "reason_memory": "D3 内存 {0} MB 超过上限",
       "reason_trigger": "触发器（{0}）",

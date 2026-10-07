@@ -49,7 +49,6 @@ public static class RosbotFlowController
         BattlenetFlowHooks.ScheduleLoginCredentialsDialog = region => AsiaCredentialsService.ScheduleCredentialsDialog(region);
         BattlenetFlowHooks.ResetOauthDone = OAuthCallbackState.ResetOauthDone;
         BattlenetFlowHooks.NotifyOauthDone = OAuthCallbackState.NotifyOauthDone;
-        BattlenetFlowHooks.TriggerExtensionRosbotStart = EventCenter.TriggerExtensionRosbotStart;
         BattlenetFlowHooks.RefreshBattlenetStatus = () => BattlenetStatusProvider.Refresh().Changed;
         BattlenetFlowHooks.NotifyStateSync = GameInterfaceData.Instance.NotifyCallbacks;
         ShutdownManager.RegisterShutdownHook(BattlenetReadyFlow.ResetFlowMasterBnBlock);
