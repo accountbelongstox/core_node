@@ -14,7 +14,8 @@ namespace CoreNodeBridge;
 /// ROSBOT plugin that publishes the bot's game state for d3d4tester and runs its commands. Every ScanIntervalMs it scans the
 /// world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to this DLL (atomic replace):
 /// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monster counts, carried
-/// items, the live pickup / stash record and the last command result. Commands and the pickup filter: see BridgeCommands.
+/// items, the live pickup / stash record and the last command result. Commands and the pickup filter: see BridgeCommands; item
+/// GameBalanceIds and the affixes of watched build items: see ItemWatch.
 /// Everything noteworthy also goes to ROSBOT's log (Context.Log). API reads are guarded: outside the game getters may throw.
 /// </summary>
 public sealed class CoreNodeBridge : IPlugin
@@ -30,6 +31,7 @@ public sealed class CoreNodeBridge : IPlugin
     private readonly List<KeyValuePair<int, DateTime>> _areaHistory = new();
     private readonly PickupTracker _pickups = new();
     private BridgeCommands _commands;
+    private ItemWatch _watch;
     private DateTime _lastScanUtc = DateTime.MinValue;
     private DateTime _lastWriteUtc = DateTime.MinValue;
     private DateTime _lastFilterUtc = DateTime.MinValue;
@@ -43,7 +45,7 @@ public sealed class CoreNodeBridge : IPlugin
     private List<EntityInfo> _ground = new();
 
     public string Author => "core_node";
-    public Version Version => new(1, 1, 0);
+    public Version Version => new(1, 2, 0);
     public string Name => "CoreNode Bridge";
     public string Description => "Publishes map, items, NPCs and pickups to d3d4tester (state.json) and runs its commands.";
     public bool CanSettings => false;
@@ -61,6 +63,9 @@ public sealed class CoreNodeBridge : IPlugin
         _dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
         _commands = new BridgeCommands(_dir, Log);
         _commands.ReloadFilter();
+        _watch = new ItemWatch(Log);
+        _watch.Reload(_dir);
+        WorldScanner.Watch = _watch;
         Log("initialized v" + Version + ", folder " + _dir);
     }
 
@@ -98,6 +103,7 @@ public sealed class CoreNodeBridge : IPlugin
         {
             _lastFilterUtc = now;
             _commands.ReloadFilter();
+            _watch.Reload(_dir);
         }
         _commands.Poll();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
@@ -154,7 +160,7 @@ public sealed class CoreNodeBridge : IPlugin
         int world = WorldScanner.Safe(() => LocalPlayer.MeWorldId, 0);
         bool alive = WorldScanner.Safe(() => LocalPlayer.IsValid && !LocalPlayer.IsDead, false);
         foreach (var r in _pickups.Update(_ground, world, alive, now))
-            Log($"picked: {r.Name} [{r.InternalName}] quality={r.Quality} ancient={r.AncientRank}");
+            Log($"picked: {r.Name} [{r.InternalName}] gbid={r.Gbid} quality={r.Quality} ancient={r.AncientRank}");
     }
 
     private void WriteState(DateTime now)
@@ -209,8 +215,12 @@ public sealed class CoreNodeBridge : IPlugin
             WriteEntities(json, "carried_items", WorldScanner.CarriedItems(acds, _ground));
             json.BeginArray("pickups");
             foreach (var r in _pickups.Records)
+            {
                 json.BeginObject().Prop("utc", r.Utc).Prop("kind", r.Kind).Prop("name", r.Name).Prop("internal_name", r.InternalName)
-                    .Prop("sno", r.Sno).Prop("quality", r.Quality).Prop("ancient_rank", r.AncientRank).EndObject();
+                    .Prop("sno", r.Sno).Prop("gbid", r.Gbid).Prop("quality", r.Quality).Prop("ancient_rank", r.AncientRank);
+                WriteAttrs(json, r.Attrs);
+                json.EndObject();
+            }
             json.EndArray();
             if (_commands.Last is { } c)
                 json.BeginObject("last_command").Prop("id", c.Id).Prop("action", c.Action).Prop("ok", c.Ok).Prop("message", c.Message).Prop("utc", c.Utc).EndObject();
@@ -237,10 +247,19 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("sno", e.Sno).Prop("distance", e.Distance).Prop("interact_distance", e.InteractDistance)
                 .Prop("quality", e.Quality).Prop("ancient_rank", e.AncientRank).Prop("stack", e.Stack).Prop("equipped", e.Equipped)
                 .Prop("durability_cur", e.DurabilityCur).Prop("durability_max", e.DurabilityMax)
-                .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e))
-                .EndObject();
+                .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e)).Prop("gbid", e.Gbid);
+            WriteAttrs(json, e.Attrs);
+            json.EndObject();
         }
         json.EndArray();
+    }
+
+    private static void WriteAttrs(JsonWriter json, Dictionary<string, double> attrs)
+    {
+        if (attrs == null) return;
+        json.BeginObject("attrs");
+        foreach (var a in attrs) json.Prop(a.Key, a.Value);
+        json.EndObject();
     }
 
     private void TrackArea(int area, DateTime now)

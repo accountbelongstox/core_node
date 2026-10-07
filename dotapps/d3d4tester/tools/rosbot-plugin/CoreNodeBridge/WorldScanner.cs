@@ -15,6 +15,7 @@ internal sealed class EntityInfo
     public string Name = "";
     public string InternalName = "";
     public int Sno;
+    public int Gbid;
     public double Distance;
     public double InteractDistance;
     public int Quality = -1;
@@ -25,13 +26,16 @@ internal sealed class EntityInfo
     public int DurabilityMax;
     public bool Elite;
     public bool Boss;
+    /// <summary>Watched affix values (ItemWatch), null when the item is not watched.</summary>
+    public Dictionary<string, double> Attrs;
 }
 
 /// <summary>
 /// Reads ROSBOT's actor and ACD lists: items on the ground, NPCs and nearby monsters, and the items the hero carries.
 /// ROSBOT exposes no inventory slot, so carried items are the ACDs of the item ACD types (learned from ground items, D3 default
 /// 2) that are not lying on the ground: backpack, stash and equipped together; Item_Equipped marks the worn ones.
-/// Attributes are looked up by name in ROSBOT's own AttributeId enum, names of ACD-only items from its ActorId enum.
+/// Attributes are looked up by name in ROSBOT's own AttributeId enum, names of ACD-only items from its ActorId enum. Every item
+/// carries its GameBalanceId; items selected by the ItemWatch also carry the watched affix values.
 /// </summary>
 internal static class WorldScanner
 {
@@ -44,6 +48,9 @@ internal static class WorldScanner
 
     private static readonly HashSet<int> ItemAcdTypes = new() { DefaultItemAcdType };
     private static readonly Dictionary<string, int> AttributeIds = new(StringComparer.Ordinal);
+
+    /// <summary>Set by the plugin: items whose affixes are read.</summary>
+    public static ItemWatch Watch;
 
     public static List<EntityInfo> GroundItems(IActor[] actors) =>
         actors.Where(a => Safe(() => a.IsValid && a.IsItem, false) && Safe(() => a.Distance, float.MaxValue) <= GroundItemRange)
@@ -133,6 +140,8 @@ internal static class WorldScanner
         info.Equipped = Attribute(acd, "Item_Equipped", 0) != 0;
         info.DurabilityCur = Attribute(acd, "Durability_Cur", 0);
         info.DurabilityMax = Attribute(acd, "Durability_Max", 0);
+        info.Gbid = Safe(() => acd.Gball, 0);
+        if (Watch != null && Watch.IsWatched(info.Gbid, info.InternalName)) info.Attrs = Watch.Read(acd);
     }
 
     private static int Attribute(IAcd acd, string name, int fallback)

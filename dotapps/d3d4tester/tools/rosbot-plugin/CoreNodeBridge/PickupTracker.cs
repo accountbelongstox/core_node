@@ -13,8 +13,10 @@ internal sealed class PickupRecord
     public string Name = "";
     public string InternalName = "";
     public int Sno;
+    public int Gbid;
     public int Quality = -1;
     public int AncientRank = -1;
+    public Dictionary<string, double> Attrs;
 }
 
 /// <summary>
@@ -52,7 +54,7 @@ internal sealed class PickupTracker
                 var record = new PickupRecord
                 {
                     Utc = nowUtc, Kind = KindPickup, Name = gone.Name, InternalName = gone.InternalName,
-                    Sno = gone.Sno, Quality = gone.Quality, AncientRank = gone.AncientRank,
+                    Sno = gone.Sno, Gbid = gone.Gbid, Quality = gone.Quality, AncientRank = gone.AncientRank, Attrs = gone.Attrs,
                 };
                 Add(record);
                 PickedCount++;
