@@ -52,7 +52,7 @@ public sealed class CoreNodeBridge : IPlugin
     private List<EntityInfo> _ground = new();
 
     public string Author => "core_node";
-    public Version Version => new(1, 3, 0);
+    public Version Version => new(1, 4, 0);
     public string Name => "CoreNode Bridge";
     public string Description => "Publishes map, items, NPCs and pickups to d3d4tester (state.json) and runs its commands.";
     public bool CanSettings => false;

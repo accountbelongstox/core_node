@@ -20,6 +20,10 @@ public sealed class GameInterfaceStateSnapshot
     /// <summary>True when user has enabled "Ensure Battle.net only" (BN open + activated). Dot: set after flow runs; no tick.</summary>
     public bool EnsureBattlenetOnlyEnabled { get; init; }
     public bool D3Running { get; init; }
+    /// <summary>Latest CoreNodeBridge plugin state (null = no state.json); published once per second by RosbotBridgePluginService.</summary>
+    public Bridge.RosbotBridgeState? RosbotBridge { get; init; }
+    /// <summary>True when <see cref="RosbotBridge"/> is current (the plugin runs inside a running ROSBOT).</summary>
+    public bool RosbotBridgeFresh { get; init; }
     public string MapType { get; init; } = "unknown";
     public string GameStage { get; init; } = "unknown";
     public bool D3OnLoginScreen { get; init; }

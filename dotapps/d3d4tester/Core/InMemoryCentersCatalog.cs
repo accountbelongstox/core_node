@@ -127,6 +127,13 @@ public static class InMemoryCentersCatalog
             ThreadingContract: "One FlowThread; every wait is cancellable through FlowContext, Stop ends it at the current step.",
             Responsibility: "Sequential ROSBOT flow F1 -> B -> D -> C -> E -> F3 (docs/ROSBOT_FLOW_MERMAID.md); D3 / Battle.net / ROSBOT reused when healthy."),
         new Center(
+            Key: "bridge.rosbot_state",
+            TypeName: "DotApps.d3d4tester.Core.Bridge.RosbotBridgeState (in GameInterfaceData)",
+            Kind: InMemoryCenterKind.State,
+            Access: "GameInterfaceData.Instance.GetStateSnapshot().RosbotBridge / RosbotBridgeFresh; text via Services.RosbotBridgeText",
+            ThreadingContract: "RosbotBridgePluginService reads state.json once per TickDriver tick and notifies on change; readers only use the snapshot.",
+            Responsibility: "CoreNodeBridge plugin game state (area, town / rift, dead, sequence, items) shared by the bottom status bar, the bridge panel and the planner."),
+        new Center(
             Key: "flow.battlenet_guard",
             TypeName: "DotApps.d3d4tester.Services.BattlenetGuardService + Core.Flow.BattlenetGuardRunner",
             Kind: InMemoryCenterKind.State,

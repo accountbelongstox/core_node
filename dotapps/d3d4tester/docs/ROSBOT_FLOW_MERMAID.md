@@ -11,7 +11,11 @@
 flowchart TB
     subgraph A["总流程 RosbotFlowRunner（独立线程，顺序执行）"]
         A1_Start["[A1] 点击启动监控：置监控开关，启动流程线程"]
-        A1_Stop["[A1s] 点击停止监控：取消流程（当前步骤立即结束）"]
+        A1_Stop["[A1s] 点击停止监控：取消流程（当前步骤立即结束，ROSBOT 保持原样）"]
+        A1_Pause["[A1p] 点击暂停监控：流程在当前步骤停下（监控仍开，重启请求忽略，战网守护不动）；ROSBOT 正在运行则按它的暂停键 F6"]
+        A1_Resume["[A1r] 点击继续监控：被暂停的 ROSBOT 再按 F6 恢复；日志超时重新计时；从 F1 继续（运行中的一律复用）"]
+        A1_Pause --> A1_Resume
+        A1_Resume --> F1_HasD3
         F1_HasD3{"[F1] D3 是否在运行？"}
         F2_RosbotOnline{"[F2] ROSBOT 是否在线（running / paused）？"}
         A1_Start --> F1_HasD3

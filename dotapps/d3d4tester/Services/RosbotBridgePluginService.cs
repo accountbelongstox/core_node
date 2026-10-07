@@ -3,107 +3,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Bridge;
+using DotApps.d3d4tester.Core.Flow;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Services;
-
-/// <summary>Area visit in the plugin's history.</summary>
-public sealed record RosbotBridgeAreaVisit([property: JsonPropertyName("sno")] int Sno, [property: JsonPropertyName("utc")] DateTime Utc);
-
-/// <summary>state.json written by the CoreNodeBridge ROSBOT plugin (field names fixed by tools/rosbot-plugin/CoreNodeBridge).</summary>
-public sealed record RosbotBridgeState(
-    [property: JsonPropertyName("updated_utc")] DateTime UpdatedUtc,
-    [property: JsonPropertyName("plugin_version")] string PluginVersion,
-    [property: JsonPropertyName("enabled")] bool Enabled,
-    [property: JsonPropertyName("valid")] bool Valid,
-    [property: JsonPropertyName("in_game")] bool InGame,
-    [property: JsonPropertyName("level_area_sno")] int LevelAreaSno,
-    [property: JsonPropertyName("level_area_since_utc")] DateTime LevelAreaSinceUtc,
-    [property: JsonPropertyName("scene_sno")] int SceneSno,
-    [property: JsonPropertyName("global_world_id")] int GlobalWorldId,
-    [property: JsonPropertyName("world_id")] int WorldId,
-    [property: JsonPropertyName("in_town")] bool InTown,
-    [property: JsonPropertyName("in_rift")] bool InRift,
-    [property: JsonPropertyName("greater_rift")] bool GreaterRift,
-    [property: JsonPropertyName("nephalem_rift")] bool NephalemRift,
-    [property: JsonPropertyName("greater_rift_level")] int GreaterRiftLevel,
-    [property: JsonPropertyName("rift_keys")] int RiftKeys,
-    [property: JsonPropertyName("blood_shards")] int BloodShards,
-    [property: JsonPropertyName("paragon")] int Paragon,
-    [property: JsonPropertyName("actor_class")] int ActorClass,
-    [property: JsonPropertyName("health_pct")] double HealthPct,
-    [property: JsonPropertyName("dead")] bool Dead,
-    [property: JsonPropertyName("in_combat")] bool InCombat,
-    [property: JsonPropertyName("inventory_full")] bool InventoryFull,
-    [property: JsonPropertyName("sequence")] string Sequence,
-    [property: JsonPropertyName("last_event")] string LastEvent,
-    [property: JsonPropertyName("level_area_history")] IReadOnlyList<RosbotBridgeAreaVisit>? LevelAreaHistory)
-{
-    [JsonPropertyName("repair_needed")] public bool RepairNeeded { get; init; }
-    [JsonPropertyName("monsters_nearby")] public int MonstersNearby { get; init; }
-    [JsonPropertyName("elites_nearby")] public int ElitesNearby { get; init; }
-    [JsonPropertyName("picked_count")] public int PickedCount { get; init; }
-    [JsonPropertyName("item_acd_types")] public string ItemAcdTypes { get; init; } = "";
-    [JsonPropertyName("pickup_filter_auto")] public bool PickupFilterAuto { get; init; }
-    [JsonPropertyName("pickup_filter")] public string PickupFilter { get; init; } = "";
-    [JsonPropertyName("item_watch_unknown")] public string ItemWatchUnknown { get; init; } = "";
-    [JsonPropertyName("inventory_slot_supported")] public bool InventorySlotSupported { get; init; }
-    [JsonPropertyName("ground_items")] public IReadOnlyList<RosbotBridgeEntity> GroundItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
-    [JsonPropertyName("npcs")] public IReadOnlyList<RosbotBridgeEntity> Npcs { get; init; } = Array.Empty<RosbotBridgeEntity>();
-    [JsonPropertyName("carried_items")] public IReadOnlyList<RosbotBridgeEntity> CarriedItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
-    [JsonPropertyName("pickups")] public IReadOnlyList<RosbotBridgePickup> Pickups { get; init; } = Array.Empty<RosbotBridgePickup>();
-    [JsonPropertyName("last_command")] public RosbotBridgeCommandResult? LastCommand { get; init; }
-
-    public bool IsStale(DateTime nowUtc) => (nowUtc - UpdatedUtc).TotalSeconds > RosbotPluginConstants.BridgeStaleSec;
-}
-
-/// <summary>Ground item, NPC or carried item from the plugin (Id = ROSBOT RActorId; carried items have only AcdId).</summary>
-public sealed record RosbotBridgeEntity(
-    [property: JsonPropertyName("id")] long Id,
-    [property: JsonPropertyName("acd_id")] int AcdId,
-    [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("internal_name")] string InternalName,
-    [property: JsonPropertyName("sno")] int Sno,
-    [property: JsonPropertyName("distance")] double Distance,
-    [property: JsonPropertyName("interact_distance")] double InteractDistance,
-    [property: JsonPropertyName("quality")] int Quality,
-    [property: JsonPropertyName("ancient_rank")] int AncientRank,
-    [property: JsonPropertyName("stack")] int Stack,
-    [property: JsonPropertyName("equipped")] bool Equipped,
-    [property: JsonPropertyName("durability_cur")] int DurabilityCur,
-    [property: JsonPropertyName("durability_max")] int DurabilityMax,
-    [property: JsonPropertyName("elite")] bool Elite,
-    [property: JsonPropertyName("boss")] bool Boss,
-    [property: JsonPropertyName("filter_match")] bool FilterMatch)
-{
-    [JsonPropertyName("slot")] public string Slot { get; init; } = "";
-    [JsonPropertyName("gbid")] public int Gbid { get; init; }
-    [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
-}
-
-/// <summary>Live pickup (item vanished next to the hero) or stash event.</summary>
-public sealed record RosbotBridgePickup(
-    [property: JsonPropertyName("utc")] DateTime Utc,
-    [property: JsonPropertyName("kind")] string Kind,
-    [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("internal_name")] string InternalName,
-    [property: JsonPropertyName("sno")] int Sno,
-    [property: JsonPropertyName("quality")] int Quality,
-    [property: JsonPropertyName("ancient_rank")] int AncientRank)
-{
-    [JsonPropertyName("gbid")] public int Gbid { get; init; }
-    [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
-}
-
-public sealed record RosbotBridgeCommandResult(
-    [property: JsonPropertyName("id")] long Id,
-    [property: JsonPropertyName("action")] string Action,
-    [property: JsonPropertyName("ok")] bool Ok,
-    [property: JsonPropertyName("message")] string Message,
-    [property: JsonPropertyName("utc")] DateTime Utc);
 
 public enum RosbotBridgeInstallResult { Installed, UpToDate, NoRosbot, NoBundle, Locked, Failed }
 
@@ -112,8 +19,9 @@ public sealed record RosbotBridgePluginInfo(string? RosDirectory, string? Instal
 
 /// <summary>
 /// This app's ROSBOT plugin (CoreNodeBridge): install / refresh it in &lt;ROSBOT&gt;\plugins\CoreNodeBridge (idempotent, by
-/// content hash; also automatically on startup and whenever ros_settings.ros_directory changes, unless switched off), read the
-/// state.json it writes, and keep user names for level-area SNO ids (rosbot_area_names.json in the user data dir).
+/// content hash; also automatically on startup and whenever ros_settings.ros_directory changes, unless switched off), publish the
+/// state.json it writes into GameInterfaceData once per second (TickDriver; the single source for the bottom bar, the bridge panel
+/// and the planner), and keep user names for level-area SNO ids (rosbot_area_names.json in the user data dir).
 /// ROSBOT loads plugins at its start, so a refreshed DLL is used after the next ROSBOT start; enable it once in ROSBOT's plugin list.
 /// </summary>
 public static class RosbotBridgePluginService
@@ -149,10 +57,11 @@ public static class RosbotBridgePluginService
 
     public static bool AutoInstall => ConfigBinding.GetValue(ConfigKeys.RosbotBridgePluginAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstallDefault);
 
-    /// <summary>Auto-install now and on every ROSBOT path / switch change (call once at startup).</summary>
+    /// <summary>Auto-install now and on every ROSBOT path / switch change, and publish the plugin state every tick (call once at startup).</summary>
     public static void Initialize()
     {
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
+        TickDriver.Instance.RegisterEveryTick(_ => PublishState());
         D3D4TesterConfigChangeHub.Notifier.Subscribe(key =>
         {
             if (key is ConfigKeys.RosSettingsRosDirectory or ConfigKeys.RosbotBridgePluginAutoInstall) _ = Task.Run(AutoInstallIfEnabled);
@@ -207,8 +116,16 @@ public static class RosbotBridgePluginService
         }
     }
 
+    /// <summary>Read state.json into GameInterfaceData; notify the UI when the state or its freshness changed.</summary>
+    private static void PublishState()
+    {
+        var game = GameInterfaceData.Instance;
+        if (game.SetRosbotBridgeState(ReadState(), DateTime.UtcNow))
+            game.NotifyCallbacks();
+    }
+
     /// <summary>Latest state written by the plugin, or null when there is none (or it cannot be read right now).</summary>
-    public static RosbotBridgeState? ReadState()
+    private static RosbotBridgeState? ReadState()
     {
         string? path = StatePath;
         if (path == null || !File.Exists(path)) return null;

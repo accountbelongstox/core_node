@@ -87,7 +87,7 @@ public static class GameWindowActions
         var points = new[] { (r.Left + w / 4, r.Top + h / 2), (r.Left + w / 2, r.Top + h * 3 / 4), (r.Left + w / 2, r.Top + h / 4), (r.Left + w * 3 / 4, r.Top + h / 2) };
         var (px, py) = points[Random.Shared.Next(points.Length)];
         MonitorLog.Info("Unstuck move");
-        WindowInputHelper.SendSystemKey(RosbotConstants.VkF6);
+        RosbotManager.SendPauseToggleToSystem();
         Thread.Sleep(StepWaitMs);
         ClickHandler.MoveCursor(px, py);
         Thread.Sleep(StepWaitMs);
@@ -96,7 +96,7 @@ public static class GameWindowActions
         int cx = r.Left + w / 2, cy = r.Top + h / 2, radius = Math.Max(10, h / 2 - CircleRadiusInset);
         DragCircle(cx, cy, radius, counterClockwise: true);
         DragCircle(cx, cy, radius, counterClockwise: false);
-        WindowInputHelper.SendSystemKey(RosbotConstants.VkF6);
+        RosbotManager.SendPauseToggleToSystem();
         return true;
     }
 

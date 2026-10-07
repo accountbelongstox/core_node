@@ -46,6 +46,8 @@ public static class MonitorActions
     public const string WriteLog = "write_log";
     public const string StartMonitoring = "start_monitoring";
     public const string StopMonitoring = "stop_monitoring";
+    public const string PauseMonitoring = "pause_monitoring";
+    public const string ResumeMonitoring = "resume_monitoring";
     public const string StopBotF7 = "stop_bot_f7";
     public const string StopBotF9 = "stop_bot_f9";
     public const string CloseBot = "close_bot";
@@ -63,7 +65,7 @@ public static class MonitorActions
 
     public static IReadOnlyList<string> All { get; } = new[]
     {
-        WriteLog, StartMonitoring, StopMonitoring, StopBotF7, StopBotF9, CloseBot, RestartBot, RestartBotWithBattlenet, TakeScreenshot,
+        WriteLog, StartMonitoring, StopMonitoring, PauseMonitoring, ResumeMonitoring, StopBotF7, StopBotF9, CloseBot, RestartBot, RestartBotWithBattlenet, TakeScreenshot,
         GameSpeed, TownPortal, QuickQuit, UnstuckMove, ExecuteCommand, SendKeys, Notify, SetSequence
     };
 }

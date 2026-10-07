@@ -107,6 +107,8 @@ namespace Rcdw32.Ws.Plugins
         public static bool IsInCombat => throw new NotSupportedException();
         public static bool PickupItem(IActor actor) => throw new NotSupportedException();
         public static bool MoveTo(IActor actor) => throw new NotSupportedException();
+        public static void CoreMoveTo(Vector3 target, float dis = 10f) => throw new NotSupportedException();
+        public static void CoreMoveTo(Vector3 target, Func<bool> cancel, float dis = 10f) => throw new NotSupportedException();
         public static void Interact(IActor actor, bool mode = true, bool click = true, Vector3 loc = default) => throw new NotSupportedException();
     }
 

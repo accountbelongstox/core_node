@@ -104,6 +104,8 @@ public static class RbAssistTriggerImport
         ["重启rosbot2.0"] = MonitorActions.RestartBotWithBattlenet,
         ["启动监控"] = MonitorActions.StartMonitoring,
         ["停止监控"] = MonitorActions.StopMonitoring,
+        ["暂停监控"] = MonitorActions.PauseMonitoring,
+        ["继续监控"] = MonitorActions.ResumeMonitoring,
         ["屏幕截图"] = MonitorActions.TakeScreenshot,
         ["游戏调速"] = MonitorActions.GameSpeed,
         ["回城"] = MonitorActions.TownPortal,

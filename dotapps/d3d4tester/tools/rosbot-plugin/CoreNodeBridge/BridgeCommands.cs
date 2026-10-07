@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading;
 using Rcdw32.Ws.Models;
@@ -26,7 +27,8 @@ internal sealed class CommandResult
 /// atomically by the app, consumed (deleted) on the next pulse and executed on ROSBOT's pulse thread.
 /// Actions: move_to / interact / pickup (target = actor id, else a name or internal-name fragment, nearest first),
 /// pickup_filter (every ground item matching the pickup filter), click_ui (UI element id, 0x id or UI path, if shown),
-/// go_npc (target = exact actor name: walk there when a path exists, then interact and report whether a vendor window opened),
+/// go_npc (target = exact actor name: walk the path ROSBOT computes for it, waypoint by waypoint, stop when stuck, then interact at
+/// the NPC's position and report whether a vendor window opened),
 /// salvage_all (value = normal / magic / rare: with the blacksmith window open, open its salvage page, press that salvage-all
 /// button and confirm). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
@@ -51,6 +53,9 @@ internal sealed class BridgeCommands
     private const int UiWaitMs = 3000;
     private const int UiSettleMs = 400;
     private const float NpcReach = 8f;
+    private const float WaypointReach = 4f;
+    private const int StuckMs = 4000;
+    private const float StuckProgress = 1f;
     private const string AutoKey = "auto";
     private const int PickupTimeoutMs = 5000;
     private const int FilterBudgetMs = 20000;
@@ -155,13 +160,13 @@ internal sealed class BridgeCommands
                         return result;
                     }
                     string who = $"{actor.Name} ({actor.RActorId}, {actor.Distance:0.0})";
-                    if (result.Action == ActionMoveTo) result.Ok = LocalPlayer.MoveTo(actor);
+                    if (result.Action == ActionMoveTo) result.Ok = Walk(actor, NpcReach);
                     else if (result.Action == ActionPickup) result.Ok = Pickup(actor);
                     else
                     {
                         bool mode = !cmd.TryGetValue("mode", out var m) || !bool.TryParse(m, out bool mv) || mv;
                         bool click = !cmd.TryGetValue("click", out var c) || !bool.TryParse(c, out bool cv) || cv;
-                        LocalPlayer.Interact(actor, mode, click);
+                        LocalPlayer.Interact(actor, mode, click, actor.Position);
                         result.Ok = true;
                         who += $" mode={mode} click={click}";
                     }
@@ -221,31 +226,59 @@ internal sealed class BridgeCommands
             result.Message = "npc not found nearby: " + name;
             return result;
         }
-        var path = WorldScanner.Safe(() => Context.FindPaths(LocalPlayer.Position, actor.Position), null);
-        if (path != null && path.Length == 0)
-        {
-            result.Message = $"no path to {name} ({actor.Distance:0.0})";
-            return result;
-        }
-        var sw = Stopwatch.StartNew();
         float reach = Math.Max(NpcReach, (float)WorldScanner.Safe(() => actor.Interactdistance, 0d));
-        while (sw.ElapsedMilliseconds < GoNpcTimeoutMs && WorldScanner.Safe(() => actor.Distance, float.MaxValue) > reach)
+        var sw = Stopwatch.StartNew();
+        Func<bool> cancel = () => sw.ElapsedMilliseconds > GoNpcTimeoutMs || WorldScanner.Safe(() => actor.Distance, 0f) <= reach;
+        var waypoints = Waypoints(WorldScanner.Safe(() => Context.FindPaths(LocalPlayer.Position, actor.Position), null), out string pathInfo);
+        _log($"go_npc {name}: distance {actor.Distance:0.0}, path {pathInfo}");
+        foreach (var point in waypoints)
         {
-            if (!WorldScanner.Safe(() => actor.IsValid, false)) break;
-            LocalPlayer.MoveTo(actor);
+            if (cancel()) break;
+            if (!WorldScanner.Safe(() => { LocalPlayer.CoreMoveTo(point, cancel, WaypointReach); return true; }, false)) break;
+        }
+        float best = float.MaxValue;
+        var lastProgress = Stopwatch.StartNew();
+        while (!cancel() && WorldScanner.Safe(() => actor.IsValid, false))
+        {
+            float d = WorldScanner.Safe(() => actor.Distance, float.MaxValue);
+            if (d < best - StuckProgress)
+            {
+                best = d;
+                lastProgress.Restart();
+            }
+            else if (lastProgress.ElapsedMilliseconds > StuckMs) break;
+            if (!WorldScanner.Safe(() => LocalPlayer.MoveTo(actor), false))
+                WorldScanner.Safe(() => { LocalPlayer.CoreMoveTo(actor.Position, cancel, reach); return true; }, false);
             Thread.Sleep(StepPauseMs);
         }
         float distance = WorldScanner.Safe(() => actor.Distance, float.MaxValue);
         if (distance > reach)
         {
-            result.Message = $"{name} not reached in time ({distance:0.0})";
+            result.Message = $"{name} not reached ({distance:0.0}, path {pathInfo}, {sw.ElapsedMilliseconds / 1000}s)";
             return result;
         }
-        LocalPlayer.Interact(actor);
+        LocalPlayer.Interact(actor, true, true, actor.Position);
         bool opened = WaitUi(UiIds.VendorDialog, UiWaitMs) || Shown(UiIds.ShopDialog);
         result.Ok = true;
         result.Message = $"{name} reached ({distance:0.0}), {(opened ? "window open" : "no vendor window")}";
         return result;
+    }
+
+    /// <summary>ROSBOT path points (x,y,z triples, else x,y pairs at the hero's height); info = point count and layout for the log.</summary>
+    private static List<Vector3> Waypoints(float[] path, out string info)
+    {
+        var points = new List<Vector3>();
+        if (path == null || path.Length == 0)
+        {
+            info = path == null ? "none" : "empty";
+            return points;
+        }
+        float z = WorldScanner.Safe(() => LocalPlayer.Position.Z, 0f);
+        int stride = path.Length % 3 == 0 ? 3 : 2;
+        for (int i = 0; i + stride <= path.Length; i += stride)
+            points.Add(new Vector3(path[i], path[i + 1], stride == 3 ? path[i + 2] : z));
+        info = $"{points.Count} points (stride {stride}, first {(points.Count > 0 ? points[0].ToString() : "-")})";
+        return points;
     }
 
     /// <summary>Blacksmith window open: switch to the salvage page, press the salvage-all button of the quality, confirm.</summary>
@@ -291,6 +324,18 @@ internal sealed class BridgeCommands
         result.Ok = true;
         result.Message = $"salvage {quality} pressed{(confirmed ? ", confirmed" : "")}";
         return result;
+    }
+
+    /// <summary>ROSBOT's MoveTo(actor) (fails for far targets), else its cancellable CoreMoveTo to the actor position (bounded).</summary>
+    private static bool Walk(IActor actor, float reach)
+    {
+        if (WorldScanner.Safe(() => LocalPlayer.MoveTo(actor), false)) return true;
+        var sw = Stopwatch.StartNew();
+        return WorldScanner.Safe(() =>
+        {
+            LocalPlayer.CoreMoveTo(actor.Position, () => sw.ElapsedMilliseconds > StuckMs, reach);
+            return true;
+        }, false);
     }
 
     private static bool Shown(string path) => WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(path)), false);

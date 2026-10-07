@@ -6,6 +6,7 @@ public static partial class ConfigKeys
 {
     public const string D3PlannerUrl = "d3planner.url";
     public const string D3PlannerProfileIndex = "d3planner.profile_index";
+    public const string D3PlannerBuildIndex = "d3planner.build_index";
     public const string D3PlannerNotify = "d3planner.notify";
     public const string D3PlannerNotifyPush = "d3planner.notify_push";
 }

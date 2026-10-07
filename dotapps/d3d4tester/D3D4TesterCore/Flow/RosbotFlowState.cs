@@ -20,7 +20,12 @@ public sealed class RosbotFlowState
 
     public bool BnOnlyEnabled => GameInterfaceData.Instance.EnsureBattlenetOnlyEnabled;
 
+    /// <summary>Monitoring is on but paused: the flow is halted and ROSBOT was paused with its pause key.</summary>
+    public bool Paused => GameInterfaceData.Instance.RosbotFlowPaused;
+
     public void SetFlowMasterEnabled(bool enabled) => GameInterfaceData.Instance.SetRosbotFlowMasterEnabled(enabled);
+
+    public void SetPaused(bool paused) => GameInterfaceData.Instance.SetRosbotFlowPaused(paused);
 
     public void SetBnOnlyEnabled(bool enabled) => GameInterfaceData.Instance.SetEnsureBattlenetOnlyEnabled(enabled);
 }

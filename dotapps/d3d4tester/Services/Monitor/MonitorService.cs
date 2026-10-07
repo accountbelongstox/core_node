@@ -169,6 +169,11 @@ public sealed class MonitorService
             MonitorLog.Warn($"Restart ({reasonId}) ignored: monitoring is off");
             return;
         }
+        if (RosbotFlowState.Instance.Paused)
+        {
+            MonitorLog.Warn($"Restart ({reasonId}) ignored: monitoring is paused");
+            return;
+        }
         MonitorLog.Warn($"Restart requested: {reasonId} {detail}");
         RosbotRestartRequest.Request(reasonId, detail, restartBattlenet);
     }

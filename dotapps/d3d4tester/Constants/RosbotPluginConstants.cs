@@ -46,6 +46,13 @@ public static class RosbotPluginConstants
     /// <summary>Plugin InventorySlot names of the non-equipped item locations.</summary>
     public const string BridgeSlotBackpack = "Backpack";
     public const string BridgeSlotStash = "Stash";
+    /// <summary>
+    /// ROSBOT's InventorySlot enum is one behind the live game for the vendor locations: vendor stock (e.g. Kadala's gamble items)
+    /// prints as Socketed, gems inside sockets as InSocket; both are not the hero's items and are hidden.
+    /// </summary>
+    public static readonly HashSet<string> BridgeHiddenSlots = new(StringComparer.Ordinal) { "Socketed", "InSocket", "Merchant" };
+    /// <summary>Equipped potion locations as published (Gold / 17 in this D3 version).</summary>
+    public static readonly HashSet<string> BridgePotionSlots = new(StringComparer.Ordinal) { "Gold", "17" };
 
     /// <summary>Town NPCs reachable from the NPC tab: exact actor name (shortcut actors such as PT_Blacksmith_RepairShortcut excluded) and label key.</summary>
     public static readonly (string ActorName, string LabelKey)[] BridgeTownNpcs =
@@ -58,6 +65,4 @@ public static class RosbotPluginConstants
     };
     public const string BridgeBundledDir = "tools\\rosbot-plugins\\CoreNodeBridge";
     public const string BridgeAreaNamesFileName = "rosbot_area_names.json";
-    /// <summary>state.json older than this means the plugin is not running (disabled in ROSBOT, or ROSBOT stopped).</summary>
-    public const int BridgeStaleSec = 5;
 }
