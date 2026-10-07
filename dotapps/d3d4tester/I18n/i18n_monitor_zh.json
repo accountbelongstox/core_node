@@ -255,6 +255,28 @@
         "send_keys": "向前台窗口发送按键（AutoIt Send 语法）。",
         "notify": "通过 PushPlus / Telegram / Discord / Prowl 推送消息。",
         "set_sequence": "在 ROSBOT 序列下拉框中选择指定序列。"
+      },
+      "rosbot_key": {
+        "tab": "ROSBOT 钥匙",
+        "write_before_start": "启动 ROSBOT 前把使用中的钥匙写入 RoS-BoT.ini",
+        "keys": "钥匙列表",
+        "new_key": "新钥匙",
+        "add": "添加",
+        "remove": "删除",
+        "set_active": "使用此钥匙",
+        "apply_now": "立即写入 ini",
+        "active_item": "{0}（使用中）",
+        "ini_path": "ini：{0}",
+        "no_ros_dir": "未设置 ROSBOT 目录",
+        "add_failed": "钥匙为空或已在列表中。",
+        "hint": "钥匙加密保存。每次启动 ROSBOT 前，使用中的钥匙会替换 ROSBOT 程序旁 RoS-BoT.ini 里的 Key=。该文件由 ROSBOT 首次运行时生成，生成前不会写入。",
+        "last_apply": "上次写入 {0}：{1}",
+        "result_unchanged": "已是最新",
+        "result_replaced": "钥匙已更新",
+        "result_inserted": "钥匙已添加",
+        "result_file_missing": "未找到 RoS-BoT.ini（请先启动一次 ROSBOT）",
+        "result_no_anchor": "RoS-BoT.ini 中未找到 ROSBOT 设置段",
+        "result_not_written": "未写入（见监控日志）"
       }
     }
   }

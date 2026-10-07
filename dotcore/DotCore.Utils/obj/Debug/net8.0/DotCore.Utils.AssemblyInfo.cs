@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.Utils")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dde3d349921e2e43e08f30f181498db5e3bc057f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+62f55d0e1291123e8a6a9de504385ed5816d5ac8")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.Utils")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.Utils")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

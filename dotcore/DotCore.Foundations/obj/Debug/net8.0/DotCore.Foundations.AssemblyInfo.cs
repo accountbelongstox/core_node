@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.Foundations")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+effb3bd9897adc2e4710832d5fede5542a2d03ec")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+62f55d0e1291123e8a6a9de504385ed5816d5ac8")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.Foundations")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.Foundations")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

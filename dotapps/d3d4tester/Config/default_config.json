@@ -466,6 +466,11 @@
       "find_illusion": "60,1,2",
       "portal_keys": ""
     },
-    "triggers": []
+    "triggers": [],
+    "rosbot_keys": {
+      "keys": "",
+      "active_index": 0,
+      "write_before_start": true
+    }
   }
 }
