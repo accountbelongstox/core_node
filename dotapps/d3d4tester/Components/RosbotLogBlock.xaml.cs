@@ -54,11 +54,8 @@ public partial class RosbotLogBlock : UserControl
         _logStatusTimer.Start();
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        _logStatusTimer.Stop();
-        ColorPrinter.UnregisterCallback(OnLogMessage);
-    }
+    /// <summary>Only the status timer stops: the ColorPrint sink stays while a sub-tab hides the log (MainWindow unregisters it on tab change).</summary>
+    private void OnUnloaded(object sender, RoutedEventArgs e) => _logStatusTimer.Stop();
 
     public void RefreshI18n()
     {

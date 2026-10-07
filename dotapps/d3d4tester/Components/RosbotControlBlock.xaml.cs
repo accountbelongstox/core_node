@@ -50,7 +50,6 @@ public partial class RosbotControlBlock : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        LblControlPanel.Text = p.GetUiText(I18nKeys.RosbotControlPanel);
         BtnUpdateRosbot.Content = p.GetUiText(I18nKeys.RosbotUpdateRosbot);
         BtnOpenTampermonkey.Content = p.GetUiText(I18nKeys.RosbotOpenTampermonkeyScript);
         BtnSetAccountPassword.Content = p.GetUiText(I18nKeys.RosbotSetAccountPassword);

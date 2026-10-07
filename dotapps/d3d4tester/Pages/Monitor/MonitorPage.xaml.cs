@@ -20,10 +20,10 @@ using Microsoft.Win32;
 namespace DotApps.d3d4tester.Pages.Monitor;
 
 /// <summary>
-/// Monitor tab: the RBAssist features merged into the app. Status (monitoring = ROSBOT flow, D3 / ROSBOT, log and history idle, restarts,
-/// counters, game speed), ROSBOT control buttons, crash recovery (incl. the ROSBOT log-timeout switch and minutes, startup shortcut),
+/// Monitor tab: the RBAssist features merged into the app, shown without scrolling: a status strip (monitoring = ROSBOT flow, D3 / ROSBOT,
+/// log and history idle, restarts, counters, game speed) with the ROSBOT control buttons on top, then one sub-tab each for crash recovery (incl. the ROSBOT log-timeout switch and minutes, startup shortcut),
 /// D3 window and process tuning, screenshots, notifications, external tools and probe thresholds, the trigger list with its editor,
-/// the monitor log and the ROSBOT log. Settings bind to monitor.* (ROSBOT options to their own keys) through ConfigBinding.
+/// and the logs (monitor log + ROSBOT log). Settings bind to monitor.* (ROSBOT options to their own keys) through ConfigBinding.
 /// </summary>
 public partial class MonitorPage : UserControl
 {
@@ -67,6 +67,7 @@ public partial class MonitorPage : UserControl
         }
         _statusTimer = new DispatcherTimer { Interval = StatusInterval };
         _statusTimer.Tick += (_, _) => UpdateStatus();
+        TxtMonitorLog.Loaded += (_, _) => TxtMonitorLog.ScrollToEnd();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -99,11 +100,10 @@ public partial class MonitorPage : UserControl
     /// <summary>All labels, combo display lists, trigger names and status from i18n (Loaded and language change).</summary>
     public void RefreshI18n()
     {
-        LblStatusTitle.Text = T(I18nKeys.MonitorStatusTitle);
         BtnImportRbAssist.Content = T(I18nKeys.MonitorImportRbAssist);
         TxtLogsWarning.Text = T(I18nKeys.MonitorLogsDisabledWarning);
 
-        LblRecoveryTitle.Text = T(I18nKeys.MonitorRecoveryTitle);
+        TabRecovery.Header = T(I18nKeys.MonitorRecoveryTitle);
         ChkRestartOnErrorPopup.Content = T(I18nKeys.MonitorRestartOnErrorPopup);
         ChkCloseTeamViewer.Content = T(I18nKeys.MonitorCloseTeamViewer);
         LblTimeoutMode.Text = T(I18nKeys.MonitorLogTimeoutMode);
@@ -119,7 +119,7 @@ public partial class MonitorPage : UserControl
         RosbotLog.RefreshI18n();
         ChkArchiveRollover.Content = T(I18nKeys.MonitorArchiveRollover);
 
-        LblWindowTitle.Text = T(I18nKeys.MonitorWindowTitle);
+        TabWindow.Header = T(I18nKeys.MonitorWindowTitle);
         ChkD3Shrink.Content = T(I18nKeys.MonitorD3Shrink);
         BtnShrinkNow.Content = T(I18nKeys.MonitorApplyNow);
         ChkForceSequence.Content = T(I18nKeys.MonitorForceSequence);
@@ -131,12 +131,12 @@ public partial class MonitorPage : UserControl
         TxtCpusHint.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorCpusHint), Environment.ProcessorCount);
         BtnApplyTuning.Content = T(I18nKeys.MonitorApplyNow);
 
-        LblScreenshotsTitle.Text = T(I18nKeys.MonitorScreenshotsTitle);
+        TabScreenshots.Header = T(I18nKeys.MonitorScreenshotsTitle);
         RadioCropFull.Content = T(I18nKeys.MonitorCropFull);
         RadioCropCustom.Content = T(I18nKeys.MonitorCropCustom);
         foreach (var row in _shotRows) row.RefreshText();
 
-        LblNotifyTitle.Text = T(I18nKeys.MonitorNotifyTitle);
+        TabNotify.Header = T(I18nKeys.MonitorNotifyTitle);
         LblPushPlus.Text = T(I18nKeys.MonitorPushPlusToken);
         LblTelegramToken.Text = T(I18nKeys.MonitorTelegramToken);
         LblTelegramChat.Text = T(I18nKeys.MonitorTelegramChat);
@@ -146,7 +146,7 @@ public partial class MonitorPage : UserControl
         BtnNotifyTest.Content = T(I18nKeys.MonitorNotifyTest);
         TxtSecretHint.Text = T(I18nKeys.MonitorSecretHint);
 
-        LblToolsTitle.Text = T(I18nKeys.MonitorToolsTitle);
+        TabTools.Header = T(I18nKeys.MonitorToolsTitle);
         LblSpeedBridge.Text = T(I18nKeys.MonitorSpeedBridge);
         LblTcpReset.Text = T(I18nKeys.MonitorTcpReset);
         TxtToolsHint.Text = T(I18nKeys.MonitorToolsHint);
@@ -157,7 +157,7 @@ public partial class MonitorPage : UserControl
         LblProbeFind.Text = T(I18nKeys.MonitorProbeFindIllusion);
         LblPortalKeys.Text = T(I18nKeys.MonitorPortalKeys);
 
-        LblTriggersTitle.Text = T(I18nKeys.MonitorTriggersTitle);
+        TabTriggers.Header = T(I18nKeys.MonitorTriggersTitle);
         TxtTriggersInfo.Text = T(I18nKeys.MonitorTriggersInfo);
         ColEvent.Header = T(I18nKeys.MonitorColEvent);
         ColEventArg.Header = T(I18nKeys.MonitorColEventArg);
@@ -172,6 +172,7 @@ public partial class MonitorPage : UserControl
         BtnDeleteTrigger.Content = T(I18nKeys.MonitorDelete);
         BtnImportTriggers.Content = T(I18nKeys.MonitorImport);
         BtnExportTriggers.Content = T(I18nKeys.MonitorExport);
+        TabLogs.Header = T(I18nKeys.TabsLog);
         LblLogTitle.Text = T(I18nKeys.MonitorLogTitle);
         BtnClearLog.Content = T(I18nKeys.MonitorClear);
 
@@ -471,58 +472,58 @@ public partial class MonitorPage : UserControl
 
     private sealed record TriggerRow(string EventName, string EventArgs, string ActionName, string ActionArgs, string EnabledText, string LogText);
 
-    /// <summary>Screenshot settings row for one kind: enable (+ period for periodic), folder with browse / open, keep count.</summary>
+    /// <summary>Screenshot settings for one kind on one grid row: enable (+ period for periodic), save-to folder with browse / open, keep count.</summary>
     private sealed class ShotRow
     {
+        private const string SharedHead = "ShotHead";
+        private const string SharedKeepHint = "ShotKeepHint";
         private readonly string _kind;
-        private readonly CheckBox _enabled = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        private readonly CheckBox _enabled = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
         private readonly TextBox? _minutes;
         private readonly TextBlock? _minutesLabel;
-        private readonly TextBlock _saveTo = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 12, 0) };
-        private readonly TextBox _dir = new() { Margin = new Thickness(0, 0, 8, 0) };
-        private readonly Button _browse = new() { Content = GlyphBrowse, Margin = new Thickness(0, 0, 4, 0) };
+        private readonly TextBlock _saveTo = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0) };
+        private readonly TextBox _dir = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
+        private readonly Button _browse = new() { Content = GlyphBrowse, Margin = new Thickness(0, 0, 2, 0) };
         private readonly Button _open = new() { Content = GlyphOpenFolder };
-        private readonly TextBlock _keep = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 8, 0) };
-        private readonly TextBox _keepCount = new() { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        private readonly TextBlock _keep = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0) };
+        private readonly TextBox _keepCount = new() { Width = 44, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         private readonly TextBlock _keepHint = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
 
-        public StackPanel Root { get; } = new() { Margin = new Thickness(0, 0, 0, 10) };
+        public Grid Root { get; } = new() { Margin = new Thickness(0, 0, 0, 6) };
 
         public ShotRow(string kind)
         {
             _kind = kind;
-            var head = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) };
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = SharedHead });
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = SharedKeepHint });
+
+            var head = new StackPanel { Orientation = Orientation.Horizontal };
             head.Children.Add(_enabled);
             if (kind == MonitorScreenshotKinds.Periodic)
             {
-                _minutes = new TextBox { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
+                _minutes = new TextBox { Width = 44, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
                 _minutesLabel = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
                 _minutesLabel.SetResourceReference(StyleProperty, StyleMuted);
                 head.Children.Add(_minutes);
                 head.Children.Add(_minutesLabel);
             }
-            Root.Children.Add(head);
-
-            var dirRow = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
             _saveTo.SetResourceReference(StyleProperty, StyleFieldLabel);
             _browse.SetResourceReference(StyleProperty, StyleIconButton);
             _open.SetResourceReference(StyleProperty, StyleIconButton);
-            DockPanel.SetDock(_saveTo, Dock.Left);
-            DockPanel.SetDock(_open, Dock.Right);
-            DockPanel.SetDock(_browse, Dock.Right);
-            dirRow.Children.Add(_saveTo);
-            dirRow.Children.Add(_open);
-            dirRow.Children.Add(_browse);
-            dirRow.Children.Add(_dir);
-            Root.Children.Add(dirRow);
-
-            var keepRow = new StackPanel { Orientation = Orientation.Horizontal };
             _keep.SetResourceReference(StyleProperty, StyleFieldLabel);
             _keepHint.SetResourceReference(StyleProperty, StyleMuted);
-            keepRow.Children.Add(_keep);
-            keepRow.Children.Add(_keepCount);
-            keepRow.Children.Add(_keepHint);
-            Root.Children.Add(keepRow);
+            UIElement[] cells = { head, _saveTo, _dir, _browse, _open, _keep, _keepCount, _keepHint };
+            for (int i = 0; i < cells.Length; i++)
+            {
+                Grid.SetColumn(cells[i], i);
+                Root.Children.Add(cells[i]);
+            }
 
             _browse.Click += (_, _) =>
             {
