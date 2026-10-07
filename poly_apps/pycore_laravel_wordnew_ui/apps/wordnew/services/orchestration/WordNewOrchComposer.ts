@@ -137,8 +137,8 @@ class WordNewOrchComposerService {
   /** The current run's intake of clips the background runs deliver (per task). */
   private readonly feeds = new Map<string, Set<ClipFeed>>();
   private readonly phraseMemory = new Map<string, PhraseMemory>();
-  /** Per task: what the passage sentences of its last plan read (`orchPassageSignature`). */
-  private readonly passageSignatures = new Map<string, string>();
+  /** Per task: the passage sentences of its last plan (`orchPassageSignature`), and the inputs built from the loaded ones. */
+  private readonly passageInputs = new Map<string, { signature: string; loaded: OrchComposeSentence[]; sentences: OrchComposeSentence[] }>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly anyListeners = new Set<Listener>();
   private readonly readyListeners = new Set<ReadyListener>();
@@ -510,7 +510,7 @@ class WordNewOrchComposerService {
     this.background.clear();
     this.feeds.clear();
     this.phraseMemory.clear();
-    this.passageSignatures.clear();
+    this.passageInputs.clear();
     this.resumeAfterRun.clear();
     this.reruns.forEach((entry) => { if (entry.timer) clearTimeout(entry.timer); });
     this.reruns.clear();
@@ -595,11 +595,16 @@ class WordNewOrchComposerService {
             ? await wordNewOrchSources.withCurrentPassages(current, loaded.sentences)
             : loaded.sentences;
           const signature = orchPassageSignature(rebuilt);
-          const inputs = signature === orchPassageSignature(loaded.sentences) ? loaded : { ...loaded, sentences: rebuilt };
+          const last = this.passageInputs.get(task.id);
+          // The same sentences keep their array (the phrase memory below is keyed by it).
+          const sentences = signature === orchPassageSignature(loaded.sentences) ? loaded.sentences
+            : last?.signature === signature && last.loaded === loaded.sentences ? last.sentences : rebuilt;
+          const inputs = sentences === loaded.sentences ? loaded : { ...loaded, sentences };
           // Stage cursors are plan positions: lines that joined the passages since the last run shifted them.
-          const lastSignature = this.passageSignatures.get(task.id) ?? orchPassageSignature(loaded.sentences);
-          if (signature !== lastSignature && seedCursors) Object.keys(seedCursors).forEach((stage) => { delete seedCursors[stage]; });
-          this.passageSignatures.set(task.id, signature);
+          if (signature !== (last?.signature ?? orchPassageSignature(loaded.sentences)) && seedCursors) {
+            Object.keys(seedCursors).forEach((stage) => { delete seedCursors[stage]; });
+          }
+          this.passageInputs.set(task.id, { signature, loaded: loaded.sentences, sentences });
           // The same sentences (an edit) reuse their phrases unless the phrases are asked again.
           const withPhrases = orchPatternHasPhrases(task.config.pattern);
           const memory = this.phraseMemory.get(task.id);
