@@ -52,6 +52,8 @@ public static class D3PlannerService
     private static bool _watchWritten;
     private static int _lastWorld;
     private static int _initialized;
+    private static IReadOnlyDictionary<int, (string En, string Zh)>? _itemNames;
+    private static int _itemNamesLoading;
 
     public static event Action? BuildChanged;
 
@@ -111,6 +113,30 @@ public static class D3PlannerService
         lock (Lock) SeenGround.Clear();
         WriteWatch();
         BuildChanged?.Invoke();
+    }
+
+    /// <summary>Item name for a GameBalanceId from the maxroll game data (loaded once in the background); null while unknown.</summary>
+    public static string? ItemNameByGbid(int gbid)
+    {
+        if (_itemNames == null)
+        {
+            if (Interlocked.Exchange(ref _itemNamesLoading, 1) == 0)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        _itemNames = await MaxrollD3PlannerClient.LoadItemNamesAsync(CacheDir).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is IOException or JsonException or System.Net.Http.HttpRequestException)
+                    {
+                        ColorPrinter.Yellow($"{LogTag} item names not loaded: {ex.Message}");
+                        Interlocked.Exchange(ref _itemNamesLoading, 0);
+                    }
+                });
+            return null;
+        }
+        if (gbid == 0 || !_itemNames.TryGetValue(gbid, out var n)) return null;
+        return UseChineseNames && n.Zh.Length > 0 ? n.Zh : n.En;
     }
 
     public static string ItemName(PlannerItem item) => UseChineseNames && item.NameZh.Length > 0 ? item.NameZh : item.NameEn;

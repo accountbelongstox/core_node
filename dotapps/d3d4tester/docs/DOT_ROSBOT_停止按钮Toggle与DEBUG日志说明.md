@@ -63,7 +63,7 @@
 ### 2.3 为何「大量功能未完成」
 
 - **Python 端**：ROSBOT 流程为 tick 驱动（1s 定时器、2s 步长）、扩展线程（D3ExtensionThread）收 CMD_START_ROSBOT/CMD_STOP_ROSBOT、B/D/C/E/F 块由 `rosbot_flow_battlenet`、`flow_c_d3_direct`、`flow_e_rosbot_run`、`flow_master_driver` 等分步执行；F3 日志超时、F4 关 D3 发 F7、凭证弹窗调度、油猴/国服 B10/B11 等均在该架构下实现。
-- **DOT 端（已对齐）**：`TickDriver`（1s，flow step %2）+ `RosbotTaskProcessor` + `FlowMasterDriver`（F3-only 门控）+ `F3LogTimeout`/`F4CloseD3SendF7`+ `BattlenetReadyFlow`/`ExtensionFlowTickStep`，1:1 对应 `pyapps/d3-check/d3utils/rosbot_flow/`。
+- **DOT 端（流程驱动）**：启动 / 停止监控 = `RosbotFlowRunner.Start/Stop`（独立线程按流程顺序执行 F1 → B → D → C → E → F3，停止即取消当前步骤），各段为 `BattlenetReadyProcess` / `GameLaunchProcess` / `D3DirectProcess` / `RosbotRunFlow` / `F3MonitorProcess`（`F3LogTimeout`），见 `ROSBOT_FLOW_MERMAID.md`。
 
 ---
 

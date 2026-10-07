@@ -26,6 +26,7 @@ public partial class RosbotBridgePanel : UserControl
     private const string Empty = "-";
     private const string LogTag = "[RosbotBridge]";
     private const string PickupKindStash = "stash";
+    private const string StyleSecondaryButton = "SecondaryButtonStyle";
     private DateTime _lastLoggedPickupUtc = DateTime.UtcNow;
     private long _lastLoggedCommandId;
     private readonly DispatcherTimer _timer = new() { Interval = PollInterval };
@@ -44,6 +45,13 @@ public partial class RosbotBridgePanel : UserControl
     {
         InitializeComponent();
         foreach (var key in RowKeys) AddRow(key);
+        foreach (var (actorName, _) in RosbotPluginConstants.BridgeTownNpcs)
+        {
+            var button = new Button { Tag = actorName, Margin = new Thickness(0, 0, 6, 4) };
+            button.SetResourceReference(StyleProperty, StyleSecondaryButton);
+            button.Click += (_, _) => Send(RosbotPluginConstants.BridgeActionGoNpc, actorName);
+            PanelTownNpcs.Children.Add(button);
+        }
         _timer.Tick += (_, _) => RefreshLive();
         Loaded += (_, _) =>
         {
@@ -92,6 +100,21 @@ public partial class RosbotBridgePanel : UserControl
         BtnClickUi.Content = p.GetUiText(I18nKeys.RosbotBridgeClickUi);
         TxtUiId.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeUiIdHint);
         TxtCapabilities.Text = p.GetUiText(I18nKeys.RosbotBridgeCapabilities);
+        foreach (var button in PanelTownNpcs.Children.OfType<Button>())
+        {
+            string labelKey = RosbotPluginConstants.BridgeTownNpcs.First(n => n.ActorName == (string)button.Tag).LabelKey;
+            button.Content = p.GetUiText(labelKey);
+            button.ToolTip = string.Format(p.GetUiText(I18nKeys.RosbotBridgeNpcGoTip), button.Content);
+        }
+        LblTests.Text = p.GetUiText(I18nKeys.RosbotBridgeTests);
+        BtnSalvageNormal.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageNormal);
+        BtnSalvageMagic.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageMagic);
+        BtnSalvageRare.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageRare);
+        BtnSalvageNormal.ToolTip = BtnSalvageMagic.ToolTip = BtnSalvageRare.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageTip);
+        BtnSalvageRule.Content = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageRule);
+        BtnSalvageRule.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeTestSalvageRuleTip);
+        BtnDropRule.Content = p.GetUiText(I18nKeys.RosbotBridgeTestDropRule);
+        BtnDropRule.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeTestDropRuleTip);
         foreach (var (key, label, _) in _rows) label.Text = p.GetUiText(key);
         RefreshInstallInfo();
         RefreshLive();
@@ -152,7 +175,7 @@ public partial class RosbotBridgePanel : UserControl
 
         Fill(LstGround, s?.GroundItems, e => GroundText(e, p));
         Fill(LstNpcs, s?.Npcs, e => NpcText(e, p));
-        Fill(LstCarried, s?.CarriedItems, e => CarriedText(e, p));
+        Fill(LstCarried, s?.CarriedItems.OrderBy(SlotOrder).ThenBy(e => e.Slot, StringComparer.Ordinal).ToList(), e => CarriedText(e, p));
         LstPickups.Items.Clear();
         foreach (var r in s?.Pickups ?? Array.Empty<RosbotBridgePickup>()) LstPickups.Items.Add(PickupText(r, p));
         if (s?.LastCommand is { } c)
@@ -196,8 +219,16 @@ public partial class RosbotBridgePanel : UserControl
         e.Name, $"[{e.InternalName}]", string.Format(p.GetUiText(I18nKeys.RosbotBridgeDistance), e.Distance),
         string.Format(p.GetUiText(I18nKeys.RosbotBridgeInteractDistance), e.InteractDistance));
 
+    /// <summary>Equipped first, then backpack, then stash.</summary>
+    private static int SlotOrder(RosbotBridgeEntity e) =>
+        e.Slot == RosbotPluginConstants.BridgeSlotStash ? 2 : e.Slot == RosbotPluginConstants.BridgeSlotBackpack ? 1 : e.Equipped ? 0 : 1;
+
+    /// <summary>Location (equipment slot / backpack / stash), the item name (maxroll name by GBID when the plugin has none), quality, stack, durability.</summary>
     private static string CarriedText(RosbotBridgeEntity e, II18nProvider p) => Join(
-        e.Equipped ? p.GetUiText(I18nKeys.RosbotBridgeEquipped) + e.Name : e.Name,
+        e.Slot == RosbotPluginConstants.BridgeSlotBackpack ? p.GetUiText(I18nKeys.RosbotBridgeSlotBackpack)
+            : e.Slot == RosbotPluginConstants.BridgeSlotStash ? p.GetUiText(I18nKeys.RosbotBridgeSlotStash)
+            : e.Equipped ? p.GetUiText(I18nKeys.RosbotBridgeEquipped).Trim() + (e.Slot.Length > 0 ? $" {e.Slot}" : "") : "",
+        D3PlannerService.ItemNameByGbid(e.Gbid) ?? (e.Name.Length > 0 ? e.Name : $"gbid {e.Gbid}"),
         QualityText(e, p),
         e.Stack > 1 ? $"×{e.Stack}" : "",
         e.DurabilityMax > 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeDurability), e.DurabilityCur, e.DurabilityMax) : "");
@@ -235,15 +266,16 @@ public partial class RosbotBridgePanel : UserControl
     private static RosbotBridgeEntity? Selected(ListBox list) => (list.SelectedItem as ListBoxItem)?.Tag as RosbotBridgeEntity;
 
     /// <summary>Queue a plugin command and show that it was sent (the plugin's result follows in the next state).</summary>
-    private void Send(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null)
+    private void Send(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null)
     {
         var p = D3D4TesterI18n.Provider;
-        if (action != RosbotPluginConstants.BridgeActionPickupFilter && action != RosbotPluginConstants.BridgeActionClickUi && string.IsNullOrWhiteSpace(target))
+        if (action is not (RosbotPluginConstants.BridgeActionPickupFilter or RosbotPluginConstants.BridgeActionClickUi or RosbotPluginConstants.BridgeActionSalvageAll)
+            && string.IsNullOrWhiteSpace(target))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeSelectTarget);
             return;
         }
-        long? id = RosbotBridgePluginService.SendCommand(action, target, mode, click, uiId);
+        long? id = RosbotBridgePluginService.SendCommand(action, target, mode, click, uiId, value);
         TxtCommandResult.Text = id == null ? p.GetUiText(I18nKeys.RosbotBridgeCommandNotSent) : string.Format(p.GetUiText(I18nKeys.RosbotBridgeCommandSent), action);
     }
 
@@ -273,6 +305,19 @@ public partial class RosbotBridgePanel : UserControl
 
     private void BtnNpcOpen_Click(object sender, RoutedEventArgs e) =>
         Send(RosbotPluginConstants.BridgeActionInteract, NpcTarget(), ChkInteractMode.IsChecked == true, ChkInteractClick.IsChecked == true);
+
+    private void BtnSalvageNormal_Click(object sender, RoutedEventArgs e) =>
+        Send(RosbotPluginConstants.BridgeActionSalvageAll, value: RosbotPluginConstants.BridgeSalvageNormal);
+
+    private void BtnSalvageMagic_Click(object sender, RoutedEventArgs e) =>
+        Send(RosbotPluginConstants.BridgeActionSalvageAll, value: RosbotPluginConstants.BridgeSalvageMagic);
+
+    private void BtnSalvageRare_Click(object sender, RoutedEventArgs e) =>
+        Send(RosbotPluginConstants.BridgeActionSalvageAll, value: RosbotPluginConstants.BridgeSalvageRare);
+
+    private void BtnSalvageRule_Click(object sender, RoutedEventArgs e) => TestActionRegistry.TryInvoke(I18nKeys.RosbotBridgeTestSalvageRule);
+
+    private void BtnDropRule_Click(object sender, RoutedEventArgs e) => TestActionRegistry.TryInvoke(I18nKeys.RosbotBridgeTestDropRule);
 
     private void BtnClickUi_Click(object sender, RoutedEventArgs e)
     {

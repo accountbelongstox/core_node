@@ -50,6 +50,7 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("pickup_filter_auto")] public bool PickupFilterAuto { get; init; }
     [JsonPropertyName("pickup_filter")] public string PickupFilter { get; init; } = "";
     [JsonPropertyName("item_watch_unknown")] public string ItemWatchUnknown { get; init; } = "";
+    [JsonPropertyName("inventory_slot_supported")] public bool InventorySlotSupported { get; init; }
     [JsonPropertyName("ground_items")] public IReadOnlyList<RosbotBridgeEntity> GroundItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("npcs")] public IReadOnlyList<RosbotBridgeEntity> Npcs { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("carried_items")] public IReadOnlyList<RosbotBridgeEntity> CarriedItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
@@ -78,6 +79,7 @@ public sealed record RosbotBridgeEntity(
     [property: JsonPropertyName("boss")] bool Boss,
     [property: JsonPropertyName("filter_match")] bool FilterMatch)
 {
+    [JsonPropertyName("slot")] public string Slot { get; init; } = "";
     [JsonPropertyName("gbid")] public int Gbid { get; init; }
     [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
 }
@@ -225,7 +227,7 @@ public static class RosbotBridgePluginService
     /// Queue a command for the plugin (command.txt, consumed on ROSBOT's next pulse; the result appears as last_command in
     /// state.json). Returns the command id, or null when ROSBOT's plugin folder is missing. Logged in the app log.
     /// </summary>
-    public static long? SendCommand(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null)
+    public static long? SendCommand(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null)
     {
         if (InstalledDir is not { } dir || !Directory.Exists(dir)) return null;
         long id = DateTime.UtcNow.Ticks;
@@ -234,6 +236,7 @@ public static class RosbotBridgePluginService
         if (mode != null) lines.Add($"{CommandKeyMode}={mode.Value}");
         if (click != null) lines.Add($"{CommandKeyClick}={click.Value}");
         if (!string.IsNullOrWhiteSpace(uiId)) lines.Add($"{CommandKeyUiId}={uiId.Trim()}");
+        if (!string.IsNullOrWhiteSpace(value)) lines.Add($"{CommandKeyValue}={value.Trim()}");
         if (!WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeCommandFileName), lines)) return null;
         ColorPrinter.Blue($"{LogTag} command {id} {action} target='{target}' mode={mode} click={click} ui={uiId}");
         return id;
@@ -280,6 +283,7 @@ public static class RosbotBridgePluginService
     private const string CommandKeyMode = "mode";
     private const string CommandKeyClick = "click";
     private const string CommandKeyUiId = "ui_id";
+    private const string CommandKeyValue = "value";
     private const string FilterKeyAuto = "auto";
     private const string TempSuffix = ".tmp";
 

@@ -68,6 +68,9 @@ public sealed class GameAssistantController
         TestActionRegistry.Register(I18nKeys.AuxDebugQuickPickup, DebugPreviewQuickPickup);
         TestActionRegistry.Register(I18nKeys.AuxDebugSmartPause, DebugPreviewSmartPause);
         TestActionRegistry.Register(I18nKeys.AuxDebugSoundFeedback, EventCenter.PlayFeedbackBeep);
+        TestActionRegistry.Register(I18nKeys.RosbotBridgeTestSalvageRule, () => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceBlacksmith, () =>
+            BlacksmithHandler.Instance.HandleAutoSalvageBySlots(KeepRule(Aux()), debugOnly: false)));
+        TestActionRegistry.Register(I18nKeys.RosbotBridgeTestDropRule, RunDropEquipmentTest);
     }
 
     /// <summary>
@@ -318,6 +321,26 @@ public sealed class GameAssistantController
             catch (Exception ex)
             {
                 ColorPrinter.Red($"[DebugBagHover] {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>Test button: with the inventory open, read the bag from a fresh capture and really drop what the salvage keep rule removes.</summary>
+    private static void RunDropEquipmentTest()
+    {
+        _ = Instance;
+        Task.Run(() =>
+        {
+            try
+            {
+                D3InterfaceManager.Instance.CollectBagInfoQuik(forceRefresh: true, saveScreenshot: false, forceNewCapture: true);
+                var aux = Aux();
+                bool ok = DropEquipment.Run(KeepRule(aux), ResolveStandKey(), AssistantTiming.HelperDelayMs(aux.AnimationSpeed), ShouldStop);
+                ColorPrinter.Blue($"{LogTag} Test drop equipment (rule {KeepRule(aux)}): {(ok ? "done" : "nothing dropped")}");
+            }
+            catch (Exception ex)
+            {
+                ColorPrinter.Red($"{LogTag} Test drop equipment failed: {ex.Message}");
             }
         });
     }

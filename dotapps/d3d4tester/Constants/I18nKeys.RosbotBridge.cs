@@ -53,6 +53,25 @@ public static partial class I18nKeys
     public const string RosbotBridgeTabCarried = "ui.rosbot_bridge.tab_carried";
     public const string RosbotBridgeTabPickups = "ui.rosbot_bridge.tab_pickups";
     public const string RosbotBridgeTabAdvanced = "ui.rosbot_bridge.tab_advanced";
+    // town NPC shortcuts and test buttons
+    public const string RosbotBridgeNpcBlacksmith = "ui.rosbot_bridge.npc_blacksmith";
+    public const string RosbotBridgeNpcJeweler = "ui.rosbot_bridge.npc_jeweler";
+    public const string RosbotBridgeNpcMystic = "ui.rosbot_bridge.npc_mystic";
+    public const string RosbotBridgeNpcKadala = "ui.rosbot_bridge.npc_kadala";
+    public const string RosbotBridgeNpcKanai = "ui.rosbot_bridge.npc_kanai";
+    public const string RosbotBridgeNpcGoTip = "ui.rosbot_bridge.npc_go_tip";
+    public const string RosbotBridgeTests = "ui.rosbot_bridge.tests";
+    public const string RosbotBridgeTestSalvageNormal = "ui.rosbot_bridge.test_salvage_normal";
+    public const string RosbotBridgeTestSalvageMagic = "ui.rosbot_bridge.test_salvage_magic";
+    public const string RosbotBridgeTestSalvageRare = "ui.rosbot_bridge.test_salvage_rare";
+    public const string RosbotBridgeTestSalvageTip = "ui.rosbot_bridge.test_salvage_tip";
+    public const string RosbotBridgeTestSalvageRule = "ui.rosbot_bridge.test_salvage_rule";
+    public const string RosbotBridgeTestSalvageRuleTip = "ui.rosbot_bridge.test_salvage_rule_tip";
+    public const string RosbotBridgeTestDropRule = "ui.rosbot_bridge.test_drop_rule";
+    public const string RosbotBridgeTestDropRuleTip = "ui.rosbot_bridge.test_drop_rule_tip";
+    public const string RosbotBridgeSlotBackpack = "ui.rosbot_bridge.slot_backpack";
+    public const string RosbotBridgeSlotStash = "ui.rosbot_bridge.slot_stash";
+
     // d3planner build matching (Build sub-tab)
     public const string RosbotBridgeTabBuild = "ui.rosbot_bridge.tab_build";
     public const string RosbotBridgeBuildUrl = "ui.rosbot_bridge.build_url";

@@ -981,7 +981,24 @@
       "build_event_drop": "掉落",
       "build_event_pickup": "已拾取",
       "build_notify_message": "{0} {1}：属性 {2}/{3}{4}",
-      "build_hint": "按游戏数据编号、内部名称和名称配对装备；属性需要 CoreNodeBridge 插件 1.2 以上（传奇特效、技能伤害等游戏不提供的属性不检查）。"
+      "build_hint": "按游戏数据编号、内部名称和名称配对装备；属性需要 CoreNodeBridge 插件 1.2 以上（传奇特效、技能伤害等游戏不提供的属性不检查）。",
+      "npc_blacksmith": "铁匠",
+      "npc_jeweler": "珠宝匠",
+      "npc_mystic": "秘术师",
+      "npc_kadala": "卡达拉",
+      "npc_kanai": "卡奈魔盒",
+      "npc_go_tip": "可达时走到{0}并打开",
+      "tests": "测试",
+      "test_salvage_normal": "分解白装",
+      "test_salvage_magic": "分解蓝装",
+      "test_salvage_rare": "分解黄装",
+      "test_salvage_tip": "需先打开铁匠窗口（插件点分解页和全部分解按钮）",
+      "test_salvage_rule": "按保留规则分解",
+      "test_salvage_rule_tip": "需打开铁匠窗口；按截图识别，使用 TAB1 的保留规则",
+      "test_drop_rule": "按保留规则丢弃",
+      "test_drop_rule_tip": "需打开背包；按截图识别，真的丢弃 TAB1 保留规则会去掉的装备",
+      "slot_backpack": "背包",
+      "slot_stash": "仓库"
     }
   },
   "skills": {

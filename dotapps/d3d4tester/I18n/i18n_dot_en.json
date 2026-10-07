@@ -981,7 +981,24 @@
       "build_event_drop": "dropped",
       "build_event_pickup": "picked up",
       "build_notify_message": "{0} {1}: {2}/{3} affixes{4}",
-      "build_hint": "Items are matched by game balance id, internal name and name; affixes need the CoreNodeBridge plugin 1.2+ (affixes the game does not expose, such as legendary powers or skill damage, are not checked)."
+      "build_hint": "Items are matched by game balance id, internal name and name; affixes need the CoreNodeBridge plugin 1.2+ (affixes the game does not expose, such as legendary powers or skill damage, are not checked).",
+      "npc_blacksmith": "Blacksmith",
+      "npc_jeweler": "Jeweler",
+      "npc_mystic": "Mystic",
+      "npc_kadala": "Kadala",
+      "npc_kanai": "Kanai's Cube",
+      "npc_go_tip": "Walk to {0} when a path exists and open it",
+      "tests": "Tests",
+      "test_salvage_normal": "Salvage white",
+      "test_salvage_magic": "Salvage blue",
+      "test_salvage_rare": "Salvage yellow",
+      "test_salvage_tip": "Blacksmith window must be open (plugin clicks the salvage page and the salvage-all button)",
+      "test_salvage_rule": "Salvage by keep rule",
+      "test_salvage_rule_tip": "Blacksmith window open; screen-based, uses the TAB1 keep rule",
+      "test_drop_rule": "Drop by keep rule",
+      "test_drop_rule_tip": "Inventory open; screen-based, really drops what the TAB1 keep rule removes",
+      "slot_backpack": "Backpack",
+      "slot_stash": "Stash"
     }
   },
   "skills": {

@@ -71,6 +71,28 @@ public static class MaxrollD3PlannerClient
         return Parse(id, urlOrId.Trim(), JsonNode.Parse(profileTask.Result)!, data, zh);
     }
 
+    /// <summary>English / Chinese item names by GameBalanceId (every maxroll item id, alternate ids included) from the cached game data.</summary>
+    public static async Task<IReadOnlyDictionary<int, (string En, string Zh)>> LoadItemNamesAsync(string cacheDir, CancellationToken ct = default)
+    {
+        var names = new Dictionary<int, (string En, string Zh)>();
+        string? dataPath = await HttpFileCache.GetCachedAsync(AssetsBase + DataFileName, Path.Combine(cacheDir, DataCacheName), GameDataMaxAge, ct).ConfigureAwait(false);
+        string? zhPath = await HttpFileCache.GetCachedAsync(AssetsBase + LocaleZhFileName, Path.Combine(cacheDir, LocaleZhCacheName), GameDataMaxAge, ct).ConfigureAwait(false);
+        if (dataPath == null) return names;
+        var data = JsonNode.Parse(await File.ReadAllTextAsync(dataPath, ct).ConfigureAwait(false));
+        var zh = zhPath != null ? JsonNode.Parse(await File.ReadAllTextAsync(zhPath, ct).ConfigureAwait(false))?["patch"]?["itemById"] : null;
+        foreach (var item in data?["items"]?.AsArray() ?? new JsonArray())
+        {
+            if (item?["id"]?.GetValue<string>() is not { Length: > 0 } id) continue;
+            var entry = (Text(item["name"]), Text(zh?[id]?["name"]));
+            var ids = new List<string> { id };
+            foreach (var alt in item["ids"]?.AsArray() ?? new JsonArray())
+                if (alt is JsonValue av && av.TryGetValue(out string? s) && s.Length > 0) ids.Add(s);
+            if (item["realid"] is JsonValue rv && rv.TryGetValue(out string? real) && real.Length > 0) ids.Add(real);
+            foreach (var i in ids) names[D3Gbid.Of(i)] = entry;
+        }
+        return names;
+    }
+
     private static PlannerBuild Parse(long id, string url, JsonNode profile, JsonNode data, JsonNode? zh)
     {
         var body = profile["data"] is JsonValue v && v.TryGetValue(out string? text) ? JsonNode.Parse(text)! : profile["data"]!;

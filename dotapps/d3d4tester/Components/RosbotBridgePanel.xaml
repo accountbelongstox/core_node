@@ -69,6 +69,7 @@
       </TabItem>
       <TabItem x:Name="TabNpc">
         <DockPanel Margin="4">
+          <WrapPanel x:Name="PanelTownNpcs" DockPanel.Dock="Top" Margin="0,0,0,4"/>
           <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
             <TextBox x:Name="TxtNpcTarget" Width="140" Margin="0,0,6,4" VerticalAlignment="Center"/>
             <Button x:Name="BtnNpcFind" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnNpcFind_Click"/>
@@ -95,6 +96,14 @@
           <WrapPanel Margin="0,0,0,6">
             <TextBox x:Name="TxtUiId" Width="200" Margin="0,0,6,0" VerticalAlignment="Center"/>
             <Button x:Name="BtnClickUi" Style="{StaticResource SecondaryButtonStyle}" Click="BtnClickUi_Click"/>
+          </WrapPanel>
+          <TextBlock x:Name="LblTests" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
+          <WrapPanel Margin="0,0,0,6">
+            <Button x:Name="BtnSalvageNormal" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageNormal_Click"/>
+            <Button x:Name="BtnSalvageMagic" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageMagic_Click"/>
+            <Button x:Name="BtnSalvageRare" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageRare_Click"/>
+            <Button x:Name="BtnSalvageRule" Style="{StaticResource WarningButtonStyle}" Margin="0,0,6,4" Click="BtnSalvageRule_Click"/>
+            <Button x:Name="BtnDropRule" Style="{StaticResource DangerButtonStyle}" Margin="0,0,0,4" Click="BtnDropRule_Click"/>
           </WrapPanel>
           <TextBlock x:Name="TxtCapabilities" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
         </StackPanel>

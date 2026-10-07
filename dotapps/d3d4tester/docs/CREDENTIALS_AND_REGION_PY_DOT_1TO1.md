@@ -75,7 +75,7 @@ Reference: **PY** `pyapps/d3-check/share/asia_credentials.py`, `pycore/pyutils/s
 
 | Flow | PY | DOT |
 |------|----|-----|
-| Asia login fill+submit | `login_try_screenshot_controller`: `get_asia_credentials()` → `perform_asia_login_fill_and_submit(email, password)` | `LoginTryController.RunLoginFlowUiByRegion`, `BattlenetReadyFlow` (BN_LoginAsia via `BattlenetFlowHooks.GetAsiaCredentials`): `AsiaCredentialsService.GetCredentials(RegionAsia)` → `PerformAsiaLoginFillAndSubmit(email, password)` |
+| Asia login fill+submit | `login_try_screenshot_controller`: `get_asia_credentials()` → `perform_asia_login_fill_and_submit(email, password)` | `BattlenetReadyProcess` (LoginAsia / LoginEmail / LoginPassword via `BattlenetFlowHooks.GetAsiaCredentials`): `AsiaCredentialsService.GetCredentials(RegionAsia)` → `PerformAsiaLoginFillAndSubmit(email, password)` |
 
 ---
 
