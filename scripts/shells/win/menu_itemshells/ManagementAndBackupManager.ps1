@@ -85,19 +85,7 @@ function Show-WindowsSystemInfoHeader {
     $osInfo = Get-CimInstance Win32_OperatingSystem
     $computerInfo = Get-CimInstance Win32_ComputerSystem
 
-    Write-Host ""
-    Write-ColorMessage -Message "================================================================================" -Type "Info"
-    Write-ColorMessage -Message "Windows System Information" -Type "Info"
-    Write-ColorMessage -Message "================================================================================" -Type "Info"
-    Write-ColorMessage -Message "Operating System: $($osInfo.Caption)" -Type "Info"
-    Write-ColorMessage -Message "Version: $($osInfo.Version) (Build $($osInfo.BuildNumber))" -Type "Info"
-    Write-ColorMessage -Message "Architecture: $($osInfo.OSArchitecture)" -Type "Info"
-    Write-ColorMessage -Message "Computer Name: $($computerInfo.Name)" -Type "Info"
-    Write-ColorMessage -Message "Total Physical Memory: $([math]::Round($computerInfo.TotalPhysicalMemory / 1GB, 2)) GB" -Type "Info"
-    Write-ColorMessage -Message "Manufacturer: $($computerInfo.Manufacturer)" -Type "Info"
-    Write-ColorMessage -Message "Model: $($computerInfo.Model)" -Type "Info"
-    Write-ColorMessage -Message "================================================================================" -Type "Info"
-    Write-Host ""
+    Write-ColorMessage -Message ("{0} {1} (Build {2}, {3}) | {4} | {5} GB RAM | {6} {7}" -f $osInfo.Caption, $osInfo.Version, $osInfo.BuildNumber, $osInfo.OSArchitecture, $computerInfo.Name, [math]::Round($computerInfo.TotalPhysicalMemory / 1GB, 2), $computerInfo.Manufacturer, $computerInfo.Model) -Type "Info"
 }
 function Show-DetailedSystemInfo {
     $os = $null
@@ -139,6 +127,7 @@ function Invoke-DesktopIconAction {
 function Show-SystemToolsMenu {
     Show-NumberedMenu -Title "Management & Backup > System Tools" -Items @(
         @{ Text = "Display system information"; Action = { Show-DetailedSystemInfo } },
+        @{ Text = "One-click: organize desktop icons"; Action = { Invoke-DesktopIconAction -DesktopIconMode "organize" } },
         @{ Text = "Extend Windows Update pause days"; Action = {
                 if (Test-Path $script:EXTEND_WINDOWS_UPDATE_SCRIPT) { & $script:EXTEND_WINDOWS_UPDATE_SCRIPT } else { Write-ColorMessage -Message "Step15 script not found at: $script:EXTEND_WINDOWS_UPDATE_SCRIPT" -Type "Error" }
             } },

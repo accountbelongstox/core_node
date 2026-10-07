@@ -265,6 +265,8 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
         DesktopCategory    = $Global:DESKTOP_CATEGORY_GAMES
         AdditionalKeywords = @(
             "Steam", "Epic Games", "Origin", "Uplay", "Battle.net", "Blizzard", "\u66B4\u96EA\u6218\u7F51", "GOG Galaxy", "Xbox", "PlayStation",
+            "Diablo", "\u6697\u9ED1\u7834\u574F\u795E", "Hearthstone", "StarCraft", "\u661F\u9645\u4E89\u9738", "Heroes of the Storm",
+            "RoS-BoT", "RBAssist",
             "Minecraft", "Roblox", "Fortnite", "League of Legends", "Dota 2", "Counter-Strike",
             "World of Warcraft", "Overwatch", "Apex Legends", "Valorant", "PUBG", "Among Us",
             "Fall Guys", "Rocket League", "Grand Theft Auto", "Call of Duty", "FIFA", "NBA 2K",
