@@ -1,13 +1,12 @@
 // PY-REF: pyapps/d3-check/d3utils/d3_status_provider.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_status_provider.py
-// PY-REF: pyapps/d3-check/d3utils/battlenet_status_provider.py
 // PY-REF: pyapps/d3-check/d3utils/d3_manager.py
 // PY-REF: pyapps/d3-check/d3utils/log_monitor_api.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_task_registry.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// App services the Core flow library needs (config, status providers, task start/stop, extension trigger). The app sets
+/// App services the Core flow library needs (config, status providers, task start/stop, the E block). The app sets
 /// <see cref="RosbotFlowHost.Current"/> at startup. Replaces Python module-level imports of providor / status providers /
 /// event_center / rosbot_task_registry, which Core cannot reference directly.
 /// </summary>
@@ -35,20 +34,14 @@ public interface IRosbotFlowHost
     /// <summary>Returns state_changed. 1:1 Python _refresh_rosbot_status_internal.</summary>
     bool RefreshRosbotStatus();
 
-    /// <summary>Returns state_changed. 1:1 Python _refresh_battlenet_status_internal.</summary>
-    bool RefreshBattlenetStatus();
-
     /// <summary>1:1 Python game_interface_data.notify_state_sync.</summary>
     void NotifyStateSync();
 
-    /// <summary>True while a blocking flow job (D block or E block) is queued or running on the extension worker.</summary>
-    bool IsFlowJobBusy { get; }
-
-    /// <summary>Queue the E block (F2 gate, then E1-E6) on the extension worker; ignored while a flow job is busy. 1:1 Python event_center.trigger_extension_rosbot_start.</summary>
-    void TriggerExtensionRosbotStart();
-
-    /// <summary>Queue the D block (launch D3 from the confirmed Battle.net, D13 marks "just entered") on the extension worker; ignored while a flow job is busy.</summary>
-    void TriggerD3Launch();
+    /// <summary>
+    /// [F2] ROSBOT online -> true; else [E1-E6] (end, optional update, start, task init, UI start clicks), aborted when ctx stops.
+    /// Runs on the flow thread; true when ROSBOT is online or was started.
+    /// </summary>
+    bool RunRosbotStart(Flow.FlowContext ctx);
 }
 
 /// <summary>Holder for the app-provided <see cref="IRosbotFlowHost"/>.</summary>

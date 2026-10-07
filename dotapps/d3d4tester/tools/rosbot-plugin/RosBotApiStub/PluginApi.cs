@@ -79,6 +79,7 @@ namespace Rcdw32.Ws.Plugins
         public static bool InventoryFull => throw new NotSupportedException();
         public static bool RepairNeeded => throw new NotSupportedException();
         public static void Log(string info) => throw new NotSupportedException();
+        public static float[] FindPaths(Vector3 from, Vector3 to) => throw new NotSupportedException();
         public static bool HasUIElement(ulong id) => throw new NotSupportedException();
         public static void ClickUIElement(ulong id) => throw new NotSupportedException();
     }
@@ -88,6 +89,7 @@ namespace Rcdw32.Ws.Plugins
         public static bool IsValid => throw new NotSupportedException();
         public static bool IsInGame => throw new NotSupportedException();
         public static int AcdId => throw new NotSupportedException();
+        public static Vector3 Position => throw new NotSupportedException();
         public static int SnoLevelArea => throw new NotSupportedException();
         public static int SnoScene => throw new NotSupportedException();
         public static int GlobalWorldId => throw new NotSupportedException();

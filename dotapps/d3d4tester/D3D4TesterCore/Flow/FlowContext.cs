@@ -20,6 +20,10 @@ public sealed class FlowContext
         _deadlineUtc = timeout is { } t ? DateTime.UtcNow + t : null;
     }
 
+    /// <summary>Same stop conditions plus yieldWhen: a nested run that gives way (throws) as soon as yieldWhen turns true.</summary>
+    public FlowContext WithYield(Func<bool> yieldWhen) =>
+        new(_token, () => (_yieldWhen?.Invoke() ?? false) || yieldWhen(), _deadlineUtc is { } d ? d - DateTime.UtcNow : null);
+
     /// <summary>A context that only ends by its timeout (manual one-shot actions).</summary>
     public static FlowContext WithTimeout(TimeSpan timeout) => new(CancellationToken.None, timeout: timeout);
 

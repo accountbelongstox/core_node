@@ -43,6 +43,10 @@ public static class BattlenetReadyProcess
     };
 
     private static DateTime _lastRegionSwitchUtc = DateTime.MinValue;
+    private static volatile bool _running;
+
+    /// <summary>True while a run probes the client itself (other probes stand aside).</summary>
+    public static bool IsRunning => _running;
 
     /// <summary>
     /// Run until Battle.net is ready. activate=false (Battle.net guard) never brings windows to front except where a login step must.
@@ -50,16 +54,18 @@ public static class BattlenetReadyProcess
     /// </summary>
     public static BattlenetReadyResult Run(FlowContext ctx, bool activate)
     {
-        while (!Monitor.TryEnter(Gate, 250))
+        while (!System.Threading.Monitor.TryEnter(Gate, 250))
             ctx.ThrowIfStopped();
         try
         {
+            _running = true;
             return RunLocked(ctx, activate);
         }
         finally
         {
+            _running = false;
             GameInterfaceData.Instance.SetBattlenetWakingUp(false);
-            Monitor.Exit(Gate);
+            System.Threading.Monitor.Exit(Gate);
         }
     }
 
@@ -161,10 +167,14 @@ public static class BattlenetReadyProcess
             bool waitingForUser = status.IsWaitingForUser;
             abnormalSince = !waitingForUser && AbnormalStates.Contains(state) ? abnormalSince ?? now : null;
             loginSince = !waitingForUser && LoginStates.Contains(state) ? loginSince ?? now : null;
+            bool stuck = state is BattlenetClientState.Sleeping or BattlenetClientState.LoadingAccount;
+            double abnormalTimeoutSec = stuck
+                ? C.StuckCleanupDelaySec
+                : RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalTimeoutSec, C.AbnormalTimeoutSecDefault);
             if (abnormalSince is { } a && RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalRestartEnabled, true)
-                && (now - a).TotalSeconds >= RosbotFlowHost.GetConfig(ConfigKeys.BattlenetAbnormalTimeoutSec, C.AbnormalTimeoutSecDefault))
+                && (now - a).TotalSeconds >= abnormalTimeoutSec)
             {
-                Restart(ctx, $"{state} for {(int)(now - a).TotalSeconds}s (abnormal timeout)", clearCache: state is BattlenetClientState.Sleeping or BattlenetClientState.LoadingAccount);
+                Restart(ctx, $"{state} for {(int)(now - a).TotalSeconds}s (abnormal timeout)", clearCache: stuck);
                 abnormalSince = loginSince = null;
                 continue;
             }

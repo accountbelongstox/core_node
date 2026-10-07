@@ -2,10 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using Rcdw32.Ws.Models;
 using Rcdw32.Ws.Plugins;
 
@@ -25,7 +25,10 @@ internal sealed class CommandResult
 /// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id), written
 /// atomically by the app, consumed (deleted) on the next pulse and executed on ROSBOT's pulse thread.
 /// Actions: move_to / interact / pickup (target = actor id, else a name or internal-name fragment, nearest first),
-/// pickup_filter (every ground item matching the pickup filter), click_ui (ROSBOT UI element id, if present).
+/// pickup_filter (every ground item matching the pickup filter), click_ui (UI element id, 0x id or UI path, if shown),
+/// go_npc (target = exact actor name: walk there when a path exists, then interact and report whether a vendor window opened),
+/// salvage_all (value = normal / magic / rare: with the blacksmith window open, open its salvage page, press that salvage-all
+/// button and confirm). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -38,6 +41,16 @@ internal sealed class BridgeCommands
     public const string ActionPickup = "pickup";
     public const string ActionPickupFilter = "pickup_filter";
     public const string ActionClickUi = "click_ui";
+    public const string ActionGoNpc = "go_npc";
+    public const string ActionSalvageAll = "salvage_all";
+    private const string QualityNormal = "normal";
+    private const string QualityMagic = "magic";
+    private const string QualityRare = "rare";
+    private const int GoNpcTimeoutMs = 25000;
+    private const int StepPauseMs = 100;
+    private const int UiWaitMs = 3000;
+    private const int UiSettleMs = 400;
+    private const float NpcReach = 8f;
     private const string AutoKey = "auto";
     private const int PickupTimeoutMs = 5000;
     private const int FilterBudgetMs = 20000;
@@ -163,9 +176,13 @@ internal sealed class BridgeCommands
                     result.Message = $"picked {picked} of {matched} matching";
                     return result;
                 }
+                case ActionGoNpc:
+                    return GoNpc(result, target);
+                case ActionSalvageAll:
+                    return SalvageAll(result, cmd.TryGetValue("value", out var quality) ? quality : "");
                 case ActionClickUi:
                 {
-                    if (!cmd.TryGetValue("ui_id", out var raw) || !TryParseUiId(raw, out ulong uiId))
+                    if (!cmd.TryGetValue("ui_id", out var raw) || !UiIds.TryParse(raw, out ulong uiId))
                     {
                         result.Message = "invalid ui_id: " + raw;
                         return result;
@@ -192,6 +209,105 @@ internal sealed class BridgeCommands
         }
     }
 
+    /// <summary>Nearest actor with exactly this name; walk to it when a path exists, interact, and wait for a vendor window.</summary>
+    private CommandResult GoNpc(CommandResult result, string name)
+    {
+        var actor = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>())
+            .Where(a => WorldScanner.Safe(() => a.IsValid, false) && string.Equals(WorldScanner.Safe(() => a.Name, ""), name, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(a => WorldScanner.Safe(() => a.Distance, float.MaxValue))
+            .FirstOrDefault();
+        if (actor == null)
+        {
+            result.Message = "npc not found nearby: " + name;
+            return result;
+        }
+        var path = WorldScanner.Safe(() => Context.FindPaths(LocalPlayer.Position, actor.Position), null);
+        if (path != null && path.Length == 0)
+        {
+            result.Message = $"no path to {name} ({actor.Distance:0.0})";
+            return result;
+        }
+        var sw = Stopwatch.StartNew();
+        float reach = Math.Max(NpcReach, (float)WorldScanner.Safe(() => actor.Interactdistance, 0d));
+        while (sw.ElapsedMilliseconds < GoNpcTimeoutMs && WorldScanner.Safe(() => actor.Distance, float.MaxValue) > reach)
+        {
+            if (!WorldScanner.Safe(() => actor.IsValid, false)) break;
+            LocalPlayer.MoveTo(actor);
+            Thread.Sleep(StepPauseMs);
+        }
+        float distance = WorldScanner.Safe(() => actor.Distance, float.MaxValue);
+        if (distance > reach)
+        {
+            result.Message = $"{name} not reached in time ({distance:0.0})";
+            return result;
+        }
+        LocalPlayer.Interact(actor);
+        bool opened = WaitUi(UiIds.VendorDialog, UiWaitMs) || Shown(UiIds.ShopDialog);
+        result.Ok = true;
+        result.Message = $"{name} reached ({distance:0.0}), {(opened ? "window open" : "no vendor window")}";
+        return result;
+    }
+
+    /// <summary>Blacksmith window open: switch to the salvage page, press the salvage-all button of the quality, confirm.</summary>
+    private CommandResult SalvageAll(CommandResult result, string quality)
+    {
+        string button = quality switch
+        {
+            QualityNormal => UiIds.SalvageNormal,
+            QualityMagic => UiIds.SalvageMagic,
+            QualityRare => UiIds.SalvageRare,
+            _ => null,
+        };
+        if (button == null)
+        {
+            result.Message = "unknown quality: " + quality;
+            return result;
+        }
+        if (!Shown(UiIds.VendorDialog))
+        {
+            result.Message = "blacksmith window not open";
+            return result;
+        }
+        foreach (var tab in UiIds.VendorTabs)
+        {
+            if (Shown(UiIds.SalvageDialog)) break;
+            if (!Shown(tab)) continue;
+            Click(tab);
+            Thread.Sleep(UiSettleMs);
+        }
+        if (!Shown(UiIds.SalvageDialog))
+        {
+            result.Message = "salvage page not found (is this the blacksmith?)";
+            return result;
+        }
+        if (!Shown(button))
+        {
+            result.Message = $"salvage {quality} button not shown";
+            return result;
+        }
+        Click(button);
+        bool confirmed = WaitUi(UiIds.ConfirmOk, UiWaitMs);
+        if (confirmed) Click(UiIds.ConfirmOk);
+        result.Ok = true;
+        result.Message = $"salvage {quality} pressed{(confirmed ? ", confirmed" : "")}";
+        return result;
+    }
+
+    private static bool Shown(string path) => WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(path)), false);
+
+    private static void Click(string path) => Context.ClickUIElement(UiIds.Of(path));
+
+    private static bool WaitUi(string path, int timeoutMs)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            if (Shown(path)) return true;
+            Thread.Sleep(StepPauseMs);
+        }
+        return false;
+    }
+
     /// <summary>Walk to the item and pick it up until it vanishes (bounded); true when it is gone.</summary>
     private bool Pickup(IActor actor)
     {
@@ -215,14 +331,6 @@ internal sealed class BridgeCommands
         return actors.Where(a => Contains(WorldScanner.Safe(() => a.Name, ""), target) || Contains(WorldScanner.Safe(() => a.InternalName, ""), target))
             .OrderBy(a => WorldScanner.Safe(() => a.Distance, float.MaxValue))
             .FirstOrDefault();
-    }
-
-    private static bool TryParseUiId(string raw, out ulong id)
-    {
-        raw = (raw ?? "").Trim();
-        return raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? ulong.TryParse(raw.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out id)
-            : ulong.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out id);
     }
 
     private static bool Contains(string text, string fragment) =>

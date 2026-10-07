@@ -268,12 +268,6 @@ public static class BattlenetConstants
     public const int ActivateSettleMs = 200;
     public const int KillWaitTimeoutSec = 15;
 
-    // ---------- UI snapshots. 1:1 Python BN_FLOW_SNAPSHOTS_DIR / DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS ----------
-    public static readonly bool DebugSaveBnFlowUiSnapshots = false;
-    public const string BnFlowSnapshotsDirName = "bn_flow_snapshots";
-    public const string CacheDirName = D3PathConstants.CacheDirName;
-    public const string BnFlowSnapshotFilePrefix = "bn_flow_";
-
     // ---------- B process timings (BattlenetReadyProcess) ----------
     /// <summary>Probe interval while waiting for the client to become ready.</summary>
     public const double ReadyPollSec = 2.0;

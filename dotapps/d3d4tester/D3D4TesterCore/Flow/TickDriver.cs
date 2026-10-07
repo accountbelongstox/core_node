@@ -1,7 +1,5 @@
 // PY-REF: pyapps/d3-check/d3utils/tick_driver.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_task_processor.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_bn_only.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_master_driver.py
 // PY-REF: pyapps/d3-check/share/values/task_status.py
 // PY-REF: pyapps/d3-check/threads/task_thread_manager.py
 using DotCore.Foundations;
@@ -9,21 +7,19 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Core.Flow;
 
 /// <summary>
-/// Unified 1 s clock; periods by modulo: flow step (tick % 2), smart echo (tick % 3), inactive refresh (tick % 10).
-/// Each second: per-tick callbacks (task processor drain/state), then OnTick dispatch, then flow step on even ticks.
+/// Unified 1 s clock for periodic services (the ROSBOT flow itself runs sequentially on RosbotFlowRunner); periods by modulo:
+/// smart echo (tick % 3), inactive refresh (tick % 10). Each second: per-tick callbacks (log drain, monitor), then OnTick dispatch.
 /// The SIGINT guard (tick % 1) is Python-only and not ported.
 /// 1:1 Python d3utils/tick_driver.py (+ rosbot_task_processor.process_task ordering).
 /// </summary>
 public sealed class TickDriver : IFlowTick, IDisposable
 {
     public const int TickIntervalMs = 1000;
-    public const int TickFlowStep = 2;
     public const int TickSmartEcho = 3;
     public const int TickInactiveRefresh = 10;
 
     private readonly object _lock = new();
     private readonly List<Action<IFlowTick>> _everyTick = new();
-    private readonly List<Action<IFlowTick>> _flowStep = new();
     private readonly List<Action<IFlowTick>> _smartEcho = new();
     private Action? _inactiveRefresh;
     private Timer? _timer;
@@ -39,14 +35,10 @@ public sealed class TickDriver : IFlowTick, IDisposable
     /// <summary>Current global tick count (+1 every 1 s).</summary>
     public int GlobalTick => Volatile.Read(ref _globalTick);
 
-    /// <summary>Flow step tick: every 2 global ticks = 1 flow tick. 1:1 Python get_flow_tick_from_global.</summary>
-    public int FlowTick => GlobalTick / TickFlowStep;
 
     /// <summary>Called every tick before OnTick (Python process_task head: log drain, test display, restart count).</summary>
     public void RegisterEveryTick(Action<IFlowTick> callback) => Add(_everyTick, callback);
 
-    /// <summary>Called when tick % 2 == 0, after OnTick (Python tick_bn_only_flow / tick_flow_master entry).</summary>
-    public void RegisterFlowStep(Action<IFlowTick> callback) => Add(_flowStep, callback);
 
     /// <summary>Called when tick % 3 == 0. 1:1 Python smart_echo.on_tick_from_driver.</summary>
     public void RegisterSmartEcho(Action<IFlowTick> callback) => Add(_smartEcho, callback);
@@ -62,7 +54,6 @@ public sealed class TickDriver : IFlowTick, IDisposable
         lock (_lock)
         {
             _everyTick.Remove(callback);
-            _flowStep.Remove(callback);
             _smartEcho.Remove(callback);
         }
     }
@@ -94,7 +85,7 @@ public sealed class TickDriver : IFlowTick, IDisposable
 
     public void Dispose() => Stop();
 
-    /// <summary>One 1 s step: every-tick callbacks, OnTick, then flow step when tick % 2 == 0.</summary>
+    /// <summary>One 1 s step: every-tick callbacks, then OnTick.</summary>
     public void RunOnce()
     {
         if (Interlocked.Exchange(ref _running, 1) == 1) return;
@@ -102,8 +93,6 @@ public sealed class TickDriver : IFlowTick, IDisposable
         {
             Dispatch(Snapshot(_everyTick), "every_tick");
             OnTick();
-            if (GlobalTick % TickFlowStep == 0)
-                Dispatch(Snapshot(_flowStep), "flow_step");
         }
         finally
         {

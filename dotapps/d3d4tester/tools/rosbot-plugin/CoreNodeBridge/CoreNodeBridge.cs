@@ -5,14 +5,17 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using Rcdw32.Ws.Models;
 using Rcdw32.Ws.Plugins;
 
 namespace CoreNodeBridge;
 
 /// <summary>
-/// ROSBOT plugin that publishes the bot's game state for d3d4tester and runs its commands. Every ScanIntervalMs it scans the
-/// world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to this DLL (atomic replace):
+/// ROSBOT plugin that publishes the bot's game state for d3d4tester and runs its commands. ROSBOT pulses plugins only while it is
+/// botting, so from OnEnabled to OnDisabled the plugin runs its own TickMs timer (OnPulse drives the same Tick; one tick at a time).
+/// Every ScanIntervalMs it scans the world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to
+/// this DLL (atomic replace):
 /// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monster counts, carried
 /// items, the live pickup / stash record and the last command result. Commands and the pickup filter: see BridgeCommands; item
 /// GameBalanceIds and the affixes of watched build items: see ItemWatch.
@@ -23,6 +26,7 @@ public sealed class CoreNodeBridge : IPlugin
     private const string StateFileName = "state.json";
     private const string TempSuffix = ".tmp";
     private const int ScanIntervalMs = 250;
+    private const int TickMs = 250;
     private const int WriteIntervalMs = 1000;
     private const int FilterReloadMs = 2000;
     private const int MaxAreaHistory = 20;
@@ -32,6 +36,9 @@ public sealed class CoreNodeBridge : IPlugin
     private readonly PickupTracker _pickups = new();
     private BridgeCommands _commands;
     private ItemWatch _watch;
+    private Timer _timer;
+    private readonly object _writeLock = new();
+    private int _ticking;
     private DateTime _lastScanUtc = DateTime.MinValue;
     private DateTime _lastWriteUtc = DateTime.MinValue;
     private DateTime _lastFilterUtc = DateTime.MinValue;
@@ -45,7 +52,7 @@ public sealed class CoreNodeBridge : IPlugin
     private List<EntityInfo> _ground = new();
 
     public string Author => "core_node";
-    public Version Version => new(1, 2, 0);
+    public Version Version => new(1, 3, 0);
     public string Name => "CoreNode Bridge";
     public string Description => "Publishes map, items, NPCs and pickups to d3d4tester (state.json) and runs its commands.";
     public bool CanSettings => false;
@@ -78,6 +85,7 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnOpenGreateRift += OnOpenGreaterRift;
         PluginsEvents.OnGemUpdateFinish += OnRiftEnd;
         PluginsEvents.OnItemStash += OnItemStash;
+        _timer = new Timer(_ => Tick(), null, TickMs, TickMs);
         WriteState(DateTime.UtcNow);
         Log("enabled");
     }
@@ -91,13 +99,34 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnOpenGreateRift -= OnOpenGreaterRift;
         PluginsEvents.OnGemUpdateFinish -= OnRiftEnd;
         PluginsEvents.OnItemStash -= OnItemStash;
+        _timer?.Dispose();
+        _timer = null;
         WriteState(DateTime.UtcNow);
         Log("disabled");
     }
 
-    public void OnPulse()
+    public void OnPulse() => Tick();
+
+    /// <summary>Reload files, run a pending command, scan and write when due; skipped while a previous tick (e.g. a command) runs.</summary>
+    private void Tick()
     {
-        if (!_enabled) return;
+        if (!_enabled || Interlocked.Exchange(ref _ticking, 1) == 1) return;
+        try
+        {
+            TickOnce();
+        }
+        catch (Exception ex)
+        {
+            Log("tick failed: " + ex.GetType().Name + ": " + ex.Message);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _ticking, 0);
+        }
+    }
+
+    private void TickOnce()
+    {
         var now = DateTime.UtcNow;
         if ((now - _lastFilterUtc).TotalMilliseconds >= FilterReloadMs)
         {
@@ -117,6 +146,8 @@ public sealed class CoreNodeBridge : IPlugin
     public void OnShutdown()
     {
         _enabled = false;
+        _timer?.Dispose();
+        _timer = null;
         WriteState(DateTime.UtcNow);
     }
 
@@ -165,6 +196,11 @@ public sealed class CoreNodeBridge : IPlugin
 
     private void WriteState(DateTime now)
     {
+        lock (_writeLock) WriteStateLocked(now);
+    }
+
+    private void WriteStateLocked(DateTime now)
+    {
         _lastWriteUtc = now;
         try
         {
@@ -207,7 +243,8 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("item_acd_types", WorldScanner.ItemAcdTypesText)
                 .Prop("pickup_filter_auto", _commands.AutoPickup)
                 .Prop("pickup_filter", string.Join(", ", _commands.Patterns))
-                .Prop("item_watch_unknown", string.Join(",", _watch.UnknownKeys));
+                .Prop("item_watch_unknown", string.Join(",", _watch.UnknownKeys))
+                .Prop("inventory_slot_supported", WorldScanner.SlotSupported);
             json.BeginArray("level_area_history");
             foreach (var v in _areaHistory) json.BeginObject().Prop("sno", v.Key).Prop("utc", v.Value).EndObject();
             json.EndArray();
@@ -248,7 +285,8 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("sno", e.Sno).Prop("distance", e.Distance).Prop("interact_distance", e.InteractDistance)
                 .Prop("quality", e.Quality).Prop("ancient_rank", e.AncientRank).Prop("stack", e.Stack).Prop("equipped", e.Equipped)
                 .Prop("durability_cur", e.DurabilityCur).Prop("durability_max", e.DurabilityMax)
-                .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e)).Prop("gbid", e.Gbid);
+                .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e)).Prop("gbid", e.Gbid)
+                .Prop("slot", e.Slot);
             WriteAttrs(json, e.Attrs);
             json.EndObject();
         }

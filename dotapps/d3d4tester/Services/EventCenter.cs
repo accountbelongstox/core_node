@@ -76,20 +76,11 @@ public static class EventCenter
 
     public static void TriggerExtensionMainStopMacro() => Hub.Publish(AppEventIds.ExtensionMainStopMacro, null);
 
-    /// <summary>Request ROSBOT start; the ROSBOT task processor subscribes to AppEventIds.ExtensionRosbotStart.</summary>
-    public static void TriggerExtensionRosbotStart() => Hub.Publish(AppEventIds.ExtensionRosbotStart, null);
-
-    /// <summary>Request ROSBOT stop; the ROSBOT task processor subscribes to AppEventIds.ExtensionRosbotStop.</summary>
-    public static void TriggerExtensionRosbotStop() => Hub.Publish(AppEventIds.ExtensionRosbotStop, null);
-
     /// <summary>Completion of a ROSBOT start; UI subscribers receive a RosbotStartedPayload on the main thread.</summary>
     public static void TriggerExtensionRosbotStarted(bool success, Exception? error, bool ranEBlock) =>
         Hub.PublishOnMainThread(AppEventIds.ExtensionRosbotStarted, new RosbotStartedPayload(success, error, ranEBlock));
 
     public static void TriggerExtensionRosbotStopped() => Hub.PublishOnMainThread(AppEventIds.ExtensionRosbotStopped);
-
-    /// <summary>Signal all extension workers to stop (ShutdownManager step 0). 1:1 Python trigger_extension_shutdown.</summary>
-    public static void TriggerExtensionShutdown() => Hub.Publish(AppEventIds.ExtensionShutdown, null);
 
     /// <summary>
     /// Skill config switched (UI combo or HTTP bridge): beep when sound feedback is on.

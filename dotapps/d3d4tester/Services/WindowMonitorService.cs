@@ -133,13 +133,13 @@ public sealed class WindowMonitorService
             return;
         }
         ProbeBattlenetClient();
-        if (RosbotFlowState.Instance.IsFlowActive) return;
+        if (RosbotFlowState.Instance.FlowMasterEnabled || RosbotFlowState.Instance.BnOnlyEnabled) return;
         ApplyWindowSize(GetCurrentWindowInfo());
     }
 
     private static void ProbeBattlenetClient()
     {
-        if (ShutdownManager.IsShutdownRequested || RosbotFlowState.Instance.BnOnlyEnabled) return;
+        if (ShutdownManager.IsShutdownRequested || BattlenetReadyProcess.IsRunning) return;
         try
         {
             bool changed = BattlenetStatusProvider.Refresh().Changed;
