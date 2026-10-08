@@ -265,7 +265,7 @@ final class PycoreTaskQueue
             'task_id' => (string) $task->task_id,
             'task_type' => $taskType,
             'client_task_id' => $clientTaskId,
-            'required_compute' => QueueCenterContract::taskTypeCompute($taskType),
+            'required_compute' => QueueCenterContract::taskTypeComputeStrictest($taskType),
             'poll' => sprintf(self::POLL_ROUTE, $task->task_id),
         ];
 
@@ -278,7 +278,7 @@ final class PycoreTaskQueue
 
     private static function unavailable(string $taskType, ?GlobalTask $task, ?string $clientTaskId, array $availability): array
     {
-        $required = QueueCenterContract::taskTypeCompute($taskType);
+        $required = QueueCenterContract::taskTypeComputeStrictest($taskType);
 
         return [
             'success' => false,

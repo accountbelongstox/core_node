@@ -704,32 +704,25 @@ final class WorkLeaseService
     private function claimOrder(string $computeClass, array $lanes, array $online): array
     {
         $order = [];
-        $laneNames = array_keys($lanes);
+        $isGpu = $computeClass === PycoreComputeRoster::CLASS_GPU;
 
-        // A gpu node serves its gpu_preferred lanes first, a cpu node its cpu_ok lanes.
-        usort($laneNames, function (string $a, string $b) use ($computeClass): int {
-            $prefersGpu = static fn (string $lane): bool => QueueCenterContract::taskTypeCompute($lane) !== QueueCenterContract::COMPUTE_CPU_OK;
-
-            return $computeClass === PycoreComputeRoster::CLASS_GPU
-                ? (int) $prefersGpu($b) <=> (int) $prefersGpu($a)
-                : (int) $prefersGpu($a) <=> (int) $prefersGpu($b);
-        });
-        foreach ($laneNames as $lane) {
-            $compute = QueueCenterContract::taskTypeCompute($lane);
-            if ($computeClass !== PycoreComputeRoster::CLASS_GPU && $compute === QueueCenterContract::COMPUTE_GPU_REQUIRED) {
-                continue;
-            }
-            foreach ($lanes[$lane]['languages'] as $language) {
-                if ($computeClass !== PycoreComputeRoster::CLASS_GPU
-                    && $compute === QueueCenterContract::COMPUTE_GPU_PREFERRED
-                    && $this->gpuNodeServes($online, $lane, $language)) {
+        // Compute class per lane and language (task_types[].compute_by_language).
+        foreach ($lanes as $lane => $spec) {
+            foreach ($spec['languages'] as $language) {
+                $compute = QueueCenterContract::taskTypeCompute((string) $lane, (string) $language);
+                if (!$isGpu && $compute === QueueCenterContract::COMPUTE_GPU_REQUIRED) {
                     continue;
                 }
-                $order[] = [$lane, $language, $lanes[$lane]['max_items']];
+                if (!$isGpu && $compute === QueueCenterContract::COMPUTE_GPU_PREFERRED && $this->gpuNodeServes($online, (string) $lane, (string) $language)) {
+                    continue;
+                }
+                $order[] = [(string) $lane, (string) $language, $spec['max_items'], $compute !== QueueCenterContract::COMPUTE_CPU_OK];
             }
         }
+        // A gpu node serves its gpu pairs first, a cpu node its cpu_ok pairs (stable sort keeps the declared order).
+        usort($order, static fn (array $a, array $b): int => $isGpu ? (int) $b[3] <=> (int) $a[3] : (int) $a[3] <=> (int) $b[3]);
 
-        return $order;
+        return array_map(static fn (array $entry): array => [$entry[0], $entry[1], $entry[2]], $order);
     }
 
     /**
@@ -773,9 +766,9 @@ final class WorkLeaseService
     {
         $figures = GapLaneSnapshot::language($lane, $language);
         $free = max(0, $figures['gap'] - $figures['leased']);
-        $mine = $this->laneWeight($computeClass, $lane, (float) $rate, $online[$workerId] ?? null);
+        $mine = $this->laneWeight($computeClass, $lane, $language, (float) $rate, $online[$workerId] ?? null);
         $others = 0.0;
-        $gpuPreferred = QueueCenterContract::taskTypeCompute($lane) === QueueCenterContract::COMPUTE_GPU_PREFERRED;
+        $gpuPreferred = QueueCenterContract::taskTypeCompute($lane, $language) === QueueCenterContract::COMPUTE_GPU_PREFERRED;
 
         foreach ($online as $id => $node) {
             $id = (string) $id;
@@ -787,7 +780,7 @@ final class WorkLeaseService
                 continue;
             }
             $rates[$id] ??= (float) $this->itemsPerHour($id, $node['seed']);
-            $others += $this->laneWeight($node['compute_class'], $lane, $rates[$id], $node);
+            $others += $this->laneWeight($node['compute_class'], $lane, $language, $rates[$id], $node);
         }
         if ($others <= 0.0) {
             return PHP_INT_MAX;
@@ -796,13 +789,13 @@ final class WorkLeaseService
         return max(1, (int) ceil($free * $mine / ($mine + $others)));
     }
 
-    /** A node's rate on one lane (fairShare: the gpu discount on cpu_ok lanes). */
-    private function laneWeight(string $computeClass, string $lane, float $rate, ?array $node): float
+    /** A node's rate on one lane and language (fairShare: the gpu discount on cpu_ok pairs). */
+    private function laneWeight(string $computeClass, string $lane, string $language, float $rate, ?array $node): float
     {
         $weight = max(1.0, $rate);
 
         if ($computeClass === PycoreComputeRoster::CLASS_GPU
-            && QueueCenterContract::taskTypeCompute($lane) === QueueCenterContract::COMPUTE_CPU_OK
+            && QueueCenterContract::taskTypeCompute($lane, $language) === QueueCenterContract::COMPUTE_CPU_OK
             && $node !== null && $this->hasGpuWork($node)) {
             $weight *= (float) $this->setting('gpu_cpu_lane_weight');
         }
@@ -810,14 +803,14 @@ final class WorkLeaseService
         return $weight;
     }
 
-    /** Whether a gpu_preferred lane the node serves still has free rows in one of its languages. */
+    /** Whether a gpu lane+language (gpu_preferred or gpu_required) the node serves still has free rows. */
     private function hasGpuWork(array $node): bool
     {
         foreach ((array) $node['lanes'] as $lane => $spec) {
-            if (QueueCenterContract::taskTypeCompute((string) $lane) !== QueueCenterContract::COMPUTE_GPU_PREFERRED) {
-                continue;
-            }
             foreach ((array) ($spec['languages'] ?? []) as $language) {
+                if (QueueCenterContract::taskTypeCompute((string) $lane, (string) $language) === QueueCenterContract::COMPUTE_CPU_OK) {
+                    continue;
+                }
                 $figures = GapLaneSnapshot::language((string) $lane, (string) $language);
                 if ($figures['gap'] - $figures['leased'] > 0) {
                     return true;
@@ -1111,7 +1104,12 @@ final class WorkLeaseService
 
     private function anyNodeServes(array $online, string $lane, string $language): bool
     {
+        $gpuOnly = QueueCenterContract::taskTypeCompute($lane, $language) === QueueCenterContract::COMPUTE_GPU_REQUIRED;
+
         foreach ($online as $node) {
+            if ($gpuOnly && $node['compute_class'] !== PycoreComputeRoster::CLASS_GPU) {
+                continue;
+            }
             if (in_array($language, (array) ($node['lanes'][$lane]['languages'] ?? []), true)) {
                 return true;
             }
