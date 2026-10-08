@@ -87,6 +87,10 @@ SHELL_OS_LINUX = "linux"
 # Force run: Ctrl+C stops the running command, then the input line is cleared.
 INTERRUPT_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C)
 INTERRUPT_SETTLE_SECONDS = 0.5
+# Restart: Ctrl+C pressed several times so nested programs (an agent CLI, then its shell job) all exit.
+RESTART_INTERRUPT_PRESSES = 3
+RESTART_INTERRUPT_INTERVAL_SECONDS = 0.35
+RESTART_SETTLE_SECONDS = 1.0
 # Agent choice menus (Claude Code, Codex, Kimi...) start on the first option; Down moves one row.
 OPTION_STEP_SECONDS = 0.06
 POINTER_BUTTON_LEFT = 1
@@ -391,6 +395,7 @@ class TerminalWindowBackend:
         clear_first: bool = False,
         interrupt_first: bool = False,
         shell_prompt: bool = False,
+        restart_first: bool = False,
     ) -> Dict[str, Any]:
         window, blocked = self._input_window(window_id)
         if window is None:
@@ -398,14 +403,13 @@ class TerminalWindowBackend:
         with self._input_guard():
             if not self._input_target_ready(window):
                 return failure("terminal_focus_failed")
-            if interrupt_first:
-                if not self._keys(window, list(INTERRUPT_KEYS)):
-                    return failure("terminal_key_failed")
-                time.sleep(INTERRUPT_SETTLE_SECONDS)
-            clearing = clear_first or interrupt_first
+            interrupting = interrupt_first or restart_first
+            if interrupting and not self._interrupt(window, restart_first):
+                return failure("terminal_key_failed")
+            clearing = clear_first or interrupting
             if clearing and not self._clear_input(window, shell_prompt):
                 return failure("terminal_clear_failed")
-            if clear_first and not interrupt_first and content_length <= 0:
+            if clear_first and not interrupting and content_length <= 0:
                 return success(window)
             # Cleared first, so leftover input is never submitted by these Enters; cleared again after,
             # since a confirmation screen the Enters closed may have left input behind it.
@@ -418,7 +422,13 @@ class TerminalWindowBackend:
             time.sleep(paste_settle_seconds(content_length))
             return self._submit(window)
 
-    def prepare_input(self, window_id: str, clear_first: bool = False, interrupt_first: bool = False) -> Dict[str, Any]:
+    def prepare_input(
+        self,
+        window_id: str,
+        clear_first: bool = False,
+        interrupt_first: bool = False,
+        restart_first: bool = False,
+    ) -> Dict[str, Any]:
         """Optional Ctrl+C, then optional clear of the input line; nothing is pasted or submitted."""
         window, blocked = self._input_window(window_id)
         if window is None:
@@ -426,13 +436,22 @@ class TerminalWindowBackend:
         with self._input_guard():
             if not self._input_target_ready(window):
                 return failure("terminal_focus_failed")
-            if interrupt_first:
-                if not self._keys(window, list(INTERRUPT_KEYS)):
-                    return failure("terminal_key_failed")
-                time.sleep(INTERRUPT_SETTLE_SECONDS)
-            if (clear_first or interrupt_first) and not self._clear_input(window):
+            interrupting = interrupt_first or restart_first
+            if interrupting and not self._interrupt(window, restart_first):
+                return failure("terminal_key_failed")
+            if (clear_first or interrupting) and not self._clear_input(window):
                 return failure("terminal_clear_failed")
         return success(window)
+
+    def _interrupt(self, window: Dict[str, Any], restart: bool = False) -> bool:
+        presses = RESTART_INTERRUPT_PRESSES if restart else 1
+        for index in range(presses):
+            if index:
+                time.sleep(RESTART_INTERRUPT_INTERVAL_SECONDS)
+            if not self._keys(window, list(INTERRUPT_KEYS)):
+                return False
+        time.sleep(RESTART_SETTLE_SECONDS if restart else INTERRUPT_SETTLE_SECONDS)
+        return True
 
     def hold_key(
         self,
@@ -703,6 +722,7 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         clear_first: bool = False,
         interrupt_first: bool = False,
         shell_prompt: bool = False,
+        restart_first: bool = False,
     ) -> Dict[str, Any]:
         return failure("unsupported_platform")
 

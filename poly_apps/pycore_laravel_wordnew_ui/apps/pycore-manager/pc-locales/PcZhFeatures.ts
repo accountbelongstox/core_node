@@ -577,6 +577,9 @@ terminal: {
       loadFailed: '无法加载命令列表。',
       sent: '命令已发送到终端。',
       forceSent: '已用 Ctrl+C 结束正在运行的命令，并发送了新命令。',
+      restart: '重启',
+      restartHint: '先多次按 Ctrl+C 结束终端内正在运行的程序，再执行命令。',
+      restartSent: '已多次按 Ctrl+C 结束运行中的程序，并重新执行了命令。',
     },
     keys: {
       escape: 'Esc',

@@ -21,6 +21,9 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_INPUT,
     UI_TERMINAL_VOICE,
     UI_TERMINAL_KEY,
+    UI_TERMINAL_LAUNCHER_KILL,
+    UI_TERMINAL_LAUNCHER_LAUNCH,
+    UI_TERMINAL_LAUNCHER_RESTART,
     UI_TERMINAL_PERMISSION_MODE,
     UI_TERMINAL_REMOVE,
     UI_TERMINAL_RENAME,
@@ -39,6 +42,7 @@ from pycore.callmodule.rpc_routes.route_names import (
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyctl.terminal.terminal_backup_history_service import terminal_backup_history_service
 from pycore.pyctl.terminal.terminal_backup_service import terminal_backup_service
+from pycore.pyctl.terminal.launcher_control_service import launcher_control_service
 from pycore.pyctl.terminal.terminal_quick_commands import list_quick_commands
 from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
 from pycore.pyctl.terminal.terminal_rpc import (
@@ -155,6 +159,7 @@ def register_terminal_routes(server) -> None:
         clear_first = bool_param(params, "clear_first")
         interrupt_first = bool_param(params, "interrupt_first")
         shell_prompt = bool_param(params, "shell_prompt")
+        restart_first = bool_param(params, "restart_first")
         return run_terminal_action(
             "input",
             request_id,
@@ -165,6 +170,7 @@ def register_terminal_routes(server) -> None:
                 clear_first=clear_first,
                 interrupt_first=interrupt_first,
                 shell_prompt=shell_prompt,
+                restart_first=restart_first,
             ),
         )
 
@@ -188,6 +194,29 @@ def register_terminal_routes(server) -> None:
                 interrupt_first=interrupt_first,
                 agent=agent,
             ),
+        )
+
+    def launcher_launch_handler(params, request_id, _context):
+        mode = str(params.get("mode") or "")
+        return run_terminal_action(
+            "launcher_launch",
+            request_id,
+            lambda: launcher_control_service.launch(mode),
+        )
+
+    def launcher_kill_handler(_params, request_id, _context):
+        return run_terminal_action(
+            "launcher_kill",
+            request_id,
+            launcher_control_service.kill_all,
+        )
+
+    def launcher_restart_handler(params, request_id, _context):
+        mode = str(params.get("mode") or "")
+        return run_terminal_action(
+            "launcher_restart",
+            request_id,
+            lambda: launcher_control_service.restart_all(mode),
         )
 
     def commands_handler(_params, request_id, _context):
@@ -538,6 +567,9 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_VOICE, handler=voice_handler)
     server.post(path=UI_TERMINAL_KEY, handler=key_handler)
+    server.post(path=UI_TERMINAL_LAUNCHER_LAUNCH, handler=launcher_launch_handler)
+    server.post(path=UI_TERMINAL_LAUNCHER_KILL, handler=launcher_kill_handler)
+    server.post(path=UI_TERMINAL_LAUNCHER_RESTART, handler=launcher_restart_handler)
     server.post(path=UI_TERMINAL_PERMISSION_MODE, handler=permission_mode_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
     server.post(path=UI_TERMINAL_REMOVE, handler=remove_handler)

@@ -13,6 +13,7 @@ from typing import Any, AsyncContextManager, Callable, Dict, Iterable, List, Opt
 
 from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.event_journal import event_journal
+from pycore.pyfoundations.net_probe import private_lan_ipv4_addresses
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
@@ -54,6 +55,17 @@ RouteRegistration = Union[
     Tuple[str, Callable],
     Tuple[str, Callable, Optional[str]],
 ]
+# /api/status is probed every few seconds; the LAN address lookup is cached this long.
+LAN_IPS_CACHE_SECONDS = 60.0
+_lan_ips_cache: Dict[str, Any] = {"at": 0.0, "ips": []}
+
+
+def _status_lan_ips() -> List[str]:
+    now = time.monotonic()
+    if not _lan_ips_cache["ips"] or now - _lan_ips_cache["at"] >= LAN_IPS_CACHE_SECONDS:
+        _lan_ips_cache["ips"] = private_lan_ipv4_addresses()
+        _lan_ips_cache["at"] = now
+    return list(_lan_ips_cache["ips"])
 
 
 class _HttpProtocolMiddleware:
@@ -297,6 +309,7 @@ class HttpServer:
             "platform": current_platform(),
             "instance_id": event_journal.instance_id,
             "machine_id": get_pycore_machine_id(),
+            "lan_ips": _status_lan_ips(),
         }
 
     def _protocol_info(

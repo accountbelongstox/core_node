@@ -77,7 +77,7 @@ import { PcTerminalGlobalCountdown, PcTerminalStatusMarks, PcTerminalTileCountdo
 import { PcTerminalWatchProvider, usePcTerminalWatch } from '@/apps/pycore-manager/components/terminal/PcTerminalWatchContext';
 import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal/PcTerminalAgentDoneToasts';
 import PcPycoreRestartButton from '@/apps/pycore-manager/components/PcPycoreRestartButton';
-import { pycoreNodeClient } from '@/apps/pycore-manager/api';
+import { getPycoreProbe, getPycoreTarget, pycoreNodeClient, subscribePycoreProbes } from '@/apps/pycore-manager/api';
 import { usePcTerminalFrames } from '@/apps/pycore-manager/components/terminal/usePcTerminalFrames';
 import type { TerminalViewMode } from '@/apps/pycore-manager/components/terminal/terminalFrames';
 import { PcTerminalNavActionsProvider } from '@/apps/pycore-manager/components/terminal/PcTerminalNavContext';
@@ -89,11 +89,13 @@ import { PcTerminalDispatchToggle } from '@/apps/pycore-manager/components/PcTer
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
+import { PcTerminalCardCommands } from '@/apps/pycore-manager/components/PcTerminalCardCommands';
 import { PcTerminalChoicePicker } from '@/apps/pycore-manager/components/PcTerminalChoicePicker';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
+import { PcTerminalLauncherBar } from '@/apps/pycore-manager/components/terminal/PcTerminalLauncherBar';
 import { PcTerminalSentSearch } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
@@ -204,6 +206,9 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_window_not_controllable: 'terminal.errors.notControllable',
   terminal_windows_not_controllable: 'terminal.errors.windowsNotControllable',
   desktop_integration_action_invalid: 'terminal.errors.integrationAction',
+  launcher_mode_invalid: 'terminal.errors.launcherMode',
+  launcher_start_failed: 'terminal.errors.launcherStart',
+  launcher_kill_partial: 'terminal.errors.launcherKillPartial',
   terminal_enumeration_failed: 'terminal.errors.enumeration',
   unsupported_platform: 'terminal.errors.unsupportedPlatform',
   terminal_window_not_found: 'terminal.errors.windowNotFound',
@@ -568,8 +573,30 @@ function calculateCanvasLayout(
 }
 
 // One node's terminals; re-mounted per node, so every piece of state belongs to that node.
-/** searchSlot: the node-tab row element the sent-message search renders into. */
-const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ searchSlot }) => {
+interface PcNodeIdentity { hostname: string; lanIps: string }
+
+function readPcNodeIdentity(nodeUrl: string | null): PcNodeIdentity {
+  const probe = getPycoreProbe(nodeUrl ?? getPycoreTarget().url);
+  return { hostname: probe?.hostname || '', lanIps: (probe?.lanIps || []).join(' · ') };
+}
+
+/** The shown node's system hostname and LAN IPs from its pycore probe; empty until the probe answers. */
+function usePcNodeIdentity(nodeUrl: string | null): PcNodeIdentity {
+  const [identity, setIdentity] = useState(() => readPcNodeIdentity(nodeUrl));
+  useEffect(() => {
+    const read = () => setIdentity((current) => {
+      const next = readPcNodeIdentity(nodeUrl);
+      return next.hostname === current.hostname && next.lanIps === current.lanIps ? current : next;
+    });
+    read();
+    return subscribePycoreProbes(read);
+  }, [nodeUrl]);
+  return identity;
+}
+
+/** searchSlot: the node-tab row element the sent-message search renders into; nodeUrl: the shown node, null is this machine. */
+const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: string | null }> = ({ searchSlot, nodeUrl }) => {
+  const nodeIdentity = usePcNodeIdentity(nodeUrl);
   const { t, i18n } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
   const terminalWatch = usePcTerminalWatch();
@@ -1822,6 +1849,27 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
     return Boolean(result?.success);
   }, [runAction, selectedWindow, takeSendOnce]);
 
+  // Card title commands run on that card's terminal; restart presses Ctrl+C several times before the command.
+  const runCardCommand = useCallback(async (windowInfo: TerminalWindowInfo, command: string, restart: boolean) => {
+    if (!windowInfo.online) return false;
+    selectTerminal(windowInfo.terminal_number);
+    const result = await runAction(
+      windowInfo.id,
+      () => terminalApi.inputTerminalText(
+        windowInfo.id,
+        windowInfo.terminal_number,
+        command,
+        false,
+        false,
+        true,
+        restart,
+      ),
+      restart ? 'terminal.commands.restartSent' : 'terminal.commands.sent',
+    );
+    if (result?.success) frames.thaw(windowInfo.terminal_number);
+    return Boolean(result?.success);
+  }, [runAction, selectTerminal]);
+
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
     const result = await runAction(
@@ -2449,7 +2497,7 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
               : 'border-slate-500/40 bg-white/80 dark:bg-slate-900/80'
         } ${windowInfo.online ? '' : 'border-dashed'}`}
       >
-        <div className="flex shrink-0 items-center gap-2 border-b border-slate-500/20 bg-slate-900 px-3 py-2 text-white">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-slate-500/20 bg-slate-900 px-3 py-2 text-white">
           <button
             type="button"
             onClick={() => selectTerminal(windowInfo.terminal_number)}
@@ -2507,6 +2555,16 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
               <Trash2 className="h-4 w-4" />
             </button>
           )}
+          {windowInfo.online && (
+            <div className="basis-full">
+              <PcTerminalCardCommands
+                shellOs={windowInfo.shell_os}
+                disabled={!snapshot?.supported || windowInfo.controllable === false}
+                busy={busy}
+                onRun={(command, restart) => runCardCommand(windowInfo, command, restart)}
+              />
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -2558,9 +2616,16 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
           <div className="relative px-4 py-1.5 border-b border-slate-500/10">
             <PcTerminalGlobalCountdown className="absolute right-3 top-2" />
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                {t('terminal.windowsTitle')}
-              </h2>
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                  {nodeIdentity.hostname || t('terminal.windowsTitle')}
+                </h2>
+                {nodeIdentity.lanIps && (
+                  <p className="truncate font-mono text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                    {nodeIdentity.lanIps}
+                  </p>
+                )}
+              </div>
               <div className="flex rounded-lg border border-slate-500/20 p-0.5 text-[10px] font-semibold" role="tablist">
                 {(['windows', 'desktop'] as const).map((view) => (
                   <button
@@ -2579,6 +2644,11 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null }> = ({ sear
               </div>
             </div>
             <p className="mt-0.5 hidden text-[11px] text-slate-500 sm:block">{t('terminal.windowsHint')}</p>
+            <PcTerminalLauncherBar
+              errorTranslationKey={errorTranslationKey}
+              onNotice={setActionNotice}
+              onDone={() => void refresh()}
+            />
           </div>
           {commonView === 'desktop' ? (
             <div className="h-[52vh] min-h-[22rem] max-h-[38rem] bg-slate-950/[0.03] dark:bg-slate-950/40">
@@ -3055,7 +3125,7 @@ const PcTerminalPage: React.FC = () => {
       </div>
       <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
         <PcTerminalWatchProvider>
-          <PcTerminalNodeView searchSlot={searchSlot} />
+          <PcTerminalNodeView searchSlot={searchSlot} nodeUrl={nodeUrl} />
         </PcTerminalWatchProvider>
       </PcTerminalApiProvider>
     </>

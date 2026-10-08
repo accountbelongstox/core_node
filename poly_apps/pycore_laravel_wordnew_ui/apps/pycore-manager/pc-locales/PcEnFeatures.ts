@@ -577,6 +577,9 @@ terminal: {
       loadFailed: 'The command list could not be loaded.',
       sent: 'Command sent to the terminal.',
       forceSent: 'Stopped the running command (Ctrl+C) and sent the new command.',
+      restart: 'Restart',
+      restartHint: 'Press Ctrl+C several times first to end everything running in the terminal, then run the command.',
+      restartSent: 'Ended the running programs (Ctrl+C several times) and ran the command again.',
     },
     keys: {
       escape: 'Esc',
