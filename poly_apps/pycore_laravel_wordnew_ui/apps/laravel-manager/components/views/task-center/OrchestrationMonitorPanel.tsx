@@ -44,7 +44,10 @@ const OrchestrationMonitorPanel: React.FC<OrchestrationMonitorPanelProps> = () =
   const inFlight = useRef(false);
   const rerun = useRef(false);
   const loadedAtRef = useRef(0);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     if (inFlight.current) {

@@ -322,7 +322,8 @@
       "PowerShell(Set-Location D:\\\\programing\\\\core_node; $env:MSYS_NO_PATHCONV=1; $o = node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/work/monitor\" | ConvertFrom-Json; $d=$o.data; foreach\\($c in $d.clients | Where-Object online\\){ \"seq=$\\($c.seq\\) sent=$\\($c.sent_at\\) fresh=$\\($c.assignments[0].fresh\\) exp=$\\($c.assignments[0].expires_in\\)\"; foreach\\($t in $c.tasks\\){ \"state=$\\($t.state\\) stages=$\\($t.stages|ConvertTo-Json -Compress\\)\"; foreach\\($k in 'word','sentence','phrase'\\){ $x=$t.counts.$k; if\\($x\\){ \"$k total=$\\($x.total\\) done=$\\($x.done\\) miss=$\\($x.missing\\) load=$\\($x.loading\\) q=$\\($x.queued\\) gen=$\\($x.generating|ConvertTo-Json -Compress\\)\" } } } }; $d.plans | % { \"plan mode=$\\($_.mode\\) state=$\\($_.counters.state\\) total=$\\($_.counters.total\\) ready=$\\($_.counters.ready\\) gen=$\\($_.counters.generating\\) q=$\\($_.counters.queued\\) layout=$\\($_.layout|ConvertTo-Json -Compress -Depth 4\\)\" })",
       "PowerShell(Show *)",
       "PowerShell(Set-Location D:\\\\programing\\\\core_node; $env:CORE_NODE_ROLE=''; python -m pycore.pyfoundations.console_log_reader --summary --minutes 25 2>&1 | Select-Object -First 60)",
-      "Bash(perl -ne '$c++ if /\\\\r/; END{print \"CR lines: \".\\($c+0\\).\"\\\\n\"}' WordNewBookAudioPlan.ts)"
+      "Bash(perl -ne '$c++ if /\\\\r/; END{print \"CR lines: \".\\($c+0\\).\"\\\\n\"}' WordNewBookAudioPlan.ts)",
+      "PowerShell(Set-Location D:\\\\programing\\\\core_node; $env:MSYS_NO_PATHCONV=1; foreach\\($p in \"/api/work/monitor\",\"/api/internal/pycore/logs/latest?level=error&limit=4\"\\){ \"== $p\"; node ncore/foundation/common/laravel_signed_cli.js request GET $p | Out-String | % { $_.Substring\\(0,[Math]::Min\\(1800,$_.Length\\)\\) } }; Get-Date -Format o)"
     ],
     "deny": [],
     "ask": []
