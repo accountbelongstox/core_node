@@ -124,6 +124,12 @@ public static class F3LogTimeout
         DateTime now = DateTime.UtcNow;
         DateTime? lastLog = LastLogUtc();
         DateTime? startedAt = RosbotStartedAtUtc;
+        if (startedAt == null)
+        {
+            ColorPrinter.Gray("[F3] no started_at (D3 + ROSBOT adopted, e.g. after an app restart) -> timeout measured from now");
+            SetRosbotStartedAt();
+            startedAt = RosbotStartedAtUtc;
+        }
         bool testMode = IsTestMode();
 
         DateTime? waitUntil = RosbotExitState.GetTestWait50PercentUntil();
@@ -159,24 +165,10 @@ public static class F3LogTimeout
             baseline = lastLog!.Value;
             baselineSrc = "log_mtime";
         }
-        else if (startedAt != null)
-        {
-            baseline = startedAt.Value;
-            baselineSrc = "started_at(no_log_yet)";
-        }
-        else if (lastLog != null)
-        {
-            SetShort("F3: stale log -> f4");
-            if (verbose)
-                ColorPrinter.Gray($"[F3] timeout check: last_log_ts from previous run ({FormatTs(lastLog)}), no started_at -> f4");
-            return F3Step.F4;
-        }
         else
         {
-            SetShort("F3: no log mtime -> f4");
-            if (verbose)
-                ColorPrinter.Gray($"[F3] timeout check: enabled={enabled} timeout={timeoutMinutes}min({timeoutSec}s) now={FormatTs(now)} started_at={FormatTs(startedAt)} last_log_ts={FormatTs(lastLog)} -> no log mtime, f4");
-            return F3Step.F4;
+            baseline = startedAt!.Value;
+            baselineSrc = "started_at(no_log_yet)";
         }
 
         double elapsed = (now - baseline).TotalSeconds;
