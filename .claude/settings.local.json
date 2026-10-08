@@ -301,7 +301,9 @@
       "Bash(powershell -c \"\\(Get-CimInstance Win32_OperatingSystem\\).FreePhysicalMemory/1024\")",
       "Bash(node -e \"console.log\\(require\\('./config/pycore_relay_contract.json'\\).public_urls\\)\")",
       "Bash(time bun run D:/.tmp/claude/D--programing-core-node/5ed6cd49-f3e9-41b0-99be-3b0b6b853a5b/scratchpad/drill.ts)",
-      "PowerShell($root = Resolve-Path \"D:\\\\programing\\\\core_node\"; $dd = Join-Path $root \"dd.cmd\"; & $dd gitsync -m \"Laravel: language-aware quality hint, keep floor languages on gpu nodes, drop legacy sentence_quality.accepted_engines\" --notice-laravel 2>&1 | Select-Object -Last 25)"
+      "PowerShell($root = Resolve-Path \"D:\\\\programing\\\\core_node\"; $dd = Join-Path $root \"dd.cmd\"; & $dd gitsync -m \"Laravel: language-aware quality hint, keep floor languages on gpu nodes, drop legacy sentence_quality.accepted_engines\" --notice-laravel 2>&1 | Select-Object -Last 25)",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js code-sync)",
+      "Bash(bun run *)"
     ],
     "deny": [],
     "ask": []
