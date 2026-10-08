@@ -12,6 +12,7 @@ import {
   getEndpointById,
   getAllEndpoints,
   getPagePreferredEndpoint,
+  getPrimaryDomainEndpoint,
   isEndpointMixedContentBlocked,
   MIXED_CONTENT_BLOCKED_ERROR,
 } from '@/core/integrations/laravel/LaravelEndpoints';
@@ -42,9 +43,24 @@ interface ApiManagerOptions {
   timeout?: number;
 }
 
+/**
+ * Endpoint-selection scope of an end: its own persisted selection and first-run
+ * default. The shared scope (pycore side) starts on this page's own API; a scoped
+ * end never rebinds pycore's Laravel worker.
+ */
+export interface ApiSelectionScope {
+  id: string;
+  firstRunDefault: 'page' | 'domain';
+}
+
+const SHARED_SELECTION_SCOPE: ApiSelectionScope = { id: '', firstRunDefault: 'page' };
+/** laravel-manager starts on the primary root-domain API (api.<region>.<domain>). */
+export const LARAVEL_MANAGER_SELECTION_SCOPE: ApiSelectionScope = { id: 'laravel-manager', firstRunDefault: 'domain' };
+
 class ApiManager {
   private endpointProbe = new EndpointProbeAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.root));
   private currentEndpoint: BackendApiEndpoint | null = null;
+  private selectionScope: ApiSelectionScope = SHARED_SELECTION_SCOPE;
   private healthResults: Map<string, HealthCheckResult> = new Map();
   private initPromise: Promise<void> | null = null;
   /** Single-flight detection pass (startup, reconnect without a selection, manual detect). */
@@ -92,9 +108,26 @@ class ApiManager {
     return endpoint;
   }
 
-  /** Endpoints in first-run order: this page's own API first, then by priority. */
+  /** Switch to an end's selection scope and restore that scope's selection (no network). */
+  enterSelectionScope(scope: ApiSelectionScope): BackendApiEndpoint | null {
+    if (scope.id === this.selectionScope.id) return this.preselectEndpointSync();
+    this.selectionScope = scope;
+    return this.restoreSelection() ?? this.currentEndpoint;
+  }
+
+  leaveSelectionScope(): BackendApiEndpoint | null {
+    return this.enterSelectionScope(SHARED_SELECTION_SCOPE);
+  }
+
+  private scopedKey(key: string): string {
+    return this.selectionScope.id ? `${key}:${this.selectionScope.id}` : key;
+  }
+
+  /** Endpoints in first-run order: the scope's default (this page's own API or the primary domain API) first, then by priority. */
   private firstRunOrder(): BackendApiEndpoint[] {
-    const preferred = getPagePreferredEndpoint();
+    const preferred = this.selectionScope.firstRunDefault === 'domain'
+      ? getPrimaryDomainEndpoint()
+      : getPagePreferredEndpoint();
     const endpoints = getAllEndpoints();
     return preferred ? [preferred, ...endpoints.filter((endpoint) => endpoint.id !== preferred.id)] : endpoints;
   }
@@ -106,6 +139,10 @@ class ApiManager {
    */
   preselectEndpointSync(): BackendApiEndpoint | null {
     if (this.currentEndpoint) return this.currentEndpoint;
+    return this.restoreSelection();
+  }
+
+  private restoreSelection(): BackendApiEndpoint | null {
     const persisted = this.persistedEndpoint();
     if (persisted) {
       this.setStoredCurrentEndpoint(persisted.id);
@@ -306,7 +343,7 @@ class ApiManager {
     this.setUserModifiedEndpoint(endpoint.id);
     this.activateEndpoint(endpoint);
     this.link.markOnline();
-    await persistSharedBaseURL(buildApiUrl(endpoint));
+    if (!this.selectionScope.id) await persistSharedBaseURL(buildApiUrl(endpoint));
     return { ok: true, endpoint, result };
   }
 
@@ -361,40 +398,40 @@ class ApiManager {
   // LocalStorage management methods
 
   private getStoredCurrentEndpoint(): string | null {
-    return StorageManager.getRaw(StorageKeys.CURRENT_ENDPOINT);
+    return StorageManager.getRaw(this.scopedKey(StorageKeys.CURRENT_ENDPOINT));
   }
 
   private getAutoDetectedEndpoint(): string | null {
-    return StorageManager.getRaw(StorageKeys.AUTO_DETECTED_ENDPOINT);
+    return StorageManager.getRaw(this.scopedKey(StorageKeys.AUTO_DETECTED_ENDPOINT));
   }
 
   private setAutoDetectedEndpoint(endpointId: string): void {
-    StorageManager.setRaw(StorageKeys.AUTO_DETECTED_ENDPOINT, endpointId);
+    StorageManager.setRaw(this.scopedKey(StorageKeys.AUTO_DETECTED_ENDPOINT), endpointId);
     this.setStoredCurrentEndpoint(endpointId);
   }
 
   private getUserModifiedEndpoint(): string | null {
-    return StorageManager.getRaw(StorageKeys.USER_MODIFIED_ENDPOINT);
+    return StorageManager.getRaw(this.scopedKey(StorageKeys.USER_MODIFIED_ENDPOINT));
   }
 
   private setUserModifiedEndpoint(endpointId: string): void {
-    StorageManager.setRaw(StorageKeys.USER_MODIFIED_ENDPOINT, endpointId);
+    StorageManager.setRaw(this.scopedKey(StorageKeys.USER_MODIFIED_ENDPOINT), endpointId);
     this.setStoredCurrentEndpoint(endpointId);
   }
 
   /** Persist every accepted selection; health and reload paths never clear it. */
   private setStoredCurrentEndpoint(endpointId: string): void {
-    StorageManager.setRaw(StorageKeys.CURRENT_ENDPOINT, endpointId);
+    StorageManager.setRaw(this.scopedKey(StorageKeys.CURRENT_ENDPOINT), endpointId);
   }
 
   /** Upgrade legacy dynamic IDs to the exact resolved endpoint in-place. */
   private migrateResolvedEndpointId(sourceId: string, resolvedId: string): void {
     if (!sourceId || sourceId === resolvedId) return;
     if (this.getUserModifiedEndpoint() === sourceId) {
-      StorageManager.setRaw(StorageKeys.USER_MODIFIED_ENDPOINT, resolvedId);
+      StorageManager.setRaw(this.scopedKey(StorageKeys.USER_MODIFIED_ENDPOINT), resolvedId);
     }
     if (this.getAutoDetectedEndpoint() === sourceId) {
-      StorageManager.setRaw(StorageKeys.AUTO_DETECTED_ENDPOINT, resolvedId);
+      StorageManager.setRaw(this.scopedKey(StorageKeys.AUTO_DETECTED_ENDPOINT), resolvedId);
     }
     if (this.getStoredCurrentEndpoint() === sourceId) {
       this.setStoredCurrentEndpoint(resolvedId);
@@ -405,16 +442,16 @@ class ApiManager {
    * Clear only the manual marker; the persisted current endpoint remains.
    */
   clearUserModifiedEndpoint(): void {
-    StorageManager.remove(StorageKeys.USER_MODIFIED_ENDPOINT);
+    StorageManager.remove(this.scopedKey(StorageKeys.USER_MODIFIED_ENDPOINT));
   }
 
   /**
    * Reset all settings
    */
   reset(): void {
-    StorageManager.remove(StorageKeys.AUTO_DETECTED_ENDPOINT);
-    StorageManager.remove(StorageKeys.USER_MODIFIED_ENDPOINT);
-    StorageManager.remove(StorageKeys.CURRENT_ENDPOINT);
+    StorageManager.remove(this.scopedKey(StorageKeys.AUTO_DETECTED_ENDPOINT));
+    StorageManager.remove(this.scopedKey(StorageKeys.USER_MODIFIED_ENDPOINT));
+    StorageManager.remove(this.scopedKey(StorageKeys.CURRENT_ENDPOINT));
     this.currentEndpoint = null;
     this.healthResults.clear();
   }

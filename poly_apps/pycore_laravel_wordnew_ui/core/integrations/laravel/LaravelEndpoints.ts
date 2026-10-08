@@ -358,6 +358,14 @@ export function getPagePreferredEndpoint(): BackendApiEndpoint | null {
   return endpoints.find((endpoint) => endpointKey(endpoint) === key) ?? null;
 }
 
+/** The listed API of the first root domain (api.<region>.<domain>), or null without one. */
+export function getPrimaryDomainEndpoint(): BackendApiEndpoint | null {
+  const primary = getDomainApiEndpoints()[0];
+  if (!primary) return null;
+  const key = endpointKey(primary);
+  return getAllEndpoints().find((endpoint) => endpointKey(endpoint) === key) ?? null;
+}
+
 /**
  * Get an endpoint by ID. A legacy current-url id resolves to the listed
  * endpoint with the same address (or undefined when that is no longer listed).

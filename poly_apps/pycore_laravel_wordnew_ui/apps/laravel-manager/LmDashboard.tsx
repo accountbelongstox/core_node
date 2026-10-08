@@ -20,7 +20,7 @@ import { ViewType } from './uiTypes';
 import { useTranslation } from 'react-i18next';
 import { isDebugAuthBypass, isRequireLoginView, setDebugAuthBypass } from './config/auth';
 import { htmlErrorManager, HtmlErrorEvent } from '@/core/integrations/laravel/transport/HtmlErrorEvents';
-import { apiManager } from '@/core/integrations/laravel/ApiManager';
+import { apiManager, LARAVEL_MANAGER_SELECTION_SCOPE } from '@/core/integrations/laravel/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
 import GlobalLogPanel from '@/apps/laravel-manager/components/common/GlobalLogPanel';
 import OfflineBanner from '@/apps/laravel-manager/components/common/OfflineBanner';
@@ -63,7 +63,8 @@ const LmDashboardContent: React.FC = () => {
     // there is no awaited health probe between mount and paint, so dead LAN
     // IPs / slow HTTPS remotes can no longer cause the white
     // "Loading API endpoint..." screen.
-    const preselected = apiManager.preselectEndpointSync();
+    // This end keeps its own selection; its first-run default is the primary domain API, not the pycore side's.
+    const preselected = apiManager.enterSelectionScope(LARAVEL_MANAGER_SELECTION_SCOPE);
     if (preselected) {
       api.updateBaseURL(apiManager.getCurrentBaseUrl());
       console.log('[ApiManager] Pre-selected (sync):', apiManager.getCurrentBaseUrl());
@@ -106,6 +107,7 @@ const LmDashboardContent: React.FC = () => {
     return () => {
       cancelled = true;
       stopOfflineRecheckLoop();
+      apiManager.leaveSelectionScope();
     };
   }, []);
 
