@@ -54,7 +54,7 @@ public static class InMemoryCentersCatalog
             Key: "core.rosbot_detection_cache",
             TypeName: "DotApps.d3d4tester.Core.RosbotDetection",
             Kind: InMemoryCenterKind.Cache,
-            Access: "RosbotDetection.GetDetection(...); RosbotDetection.InvalidateCache()",
+            Access: "RosbotManager.Instance.GetDetection(); InvalidateLookupCache()",
             ThreadingContract: "Thread-safe (cache lock).",
             Responsibility: "TTL-based cache for ROSBOT process/window lookup."),
         new Center(
@@ -260,7 +260,7 @@ public static class InMemoryCentersCatalog
 
     public static void InvalidateCaches()
     {
-        RosbotDetection.InvalidateCache();
+        RosbotManager.Instance.InvalidateLookupCache();
         DriveOrder.InvalidateCache();
     }
 }

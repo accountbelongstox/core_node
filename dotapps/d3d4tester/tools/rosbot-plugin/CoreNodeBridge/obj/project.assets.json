@@ -431,16 +431,16 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\accou\\.nuget\\packages\\": {},
+    "C:\\Users\\accou\\.nuget\\packages": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
-    "version": "1.6.0",
+    "version": "1.10.0",
     "restore": {
       "projectUniqueName": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\CoreNodeBridge.csproj",
       "projectName": "CoreNodeBridge",
       "projectPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\CoreNodeBridge.csproj",
-      "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
       "outputPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [

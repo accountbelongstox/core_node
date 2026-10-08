@@ -1,0 +1,67 @@
+// PY-REF: none (DOT-only)
+using DotApps.d3d4tester.Config;
+using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Flow;
+using DotCore.Foundations;
+
+namespace DotApps.d3d4tester.Services;
+
+/// <summary>
+/// What the flow does through the CoreNodeBridge plugin once ROSBOT runs (instead of screenshot recognition): wait until the plugin
+/// reports the hero in game, pause ROSBOT (its pause key) so it does not act meanwhile, then
+/// - follow configured (last follow command, saved when the panel sent it): replay it and hand control to the plugin by pausing
+///   monitoring with ROSBOT kept paused, so ROSBOT, the log timeout and the follow walk never race (Resume monitoring gives it back);
+/// - else, on a fresh ROSBOT start with a teleport sequence configured: the plugin clicks it (map teleport), then ROSBOT is resumed.
+/// Nothing configured, or no live plugin in game: ROSBOT just keeps botting.
+/// </summary>
+public static class RosbotBridgeStartActions
+{
+    private const string LogTag = "[BridgeStart]";
+    private const double InGameWaitSec = 90.0;
+    private const double InGamePollSec = 2.0;
+    private const double PauseSettleSec = 1.5;
+    private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(45);
+
+    /// <summary>Run after ROSBOT is online (started this cycle when freshStart). Throws OperationCanceledException when the flow stops.</summary>
+    public static void Run(FlowContext ctx, bool freshStart)
+    {
+        bool follow = RosbotBridgePluginService.FollowConfigured(out string followValue, out string followTarget);
+        string teleport = (ConfigBinding.GetValue(ConfigKeys.BridgeTeleportUiSequence, "") ?? "").Trim();
+        bool doTeleport = freshStart && teleport.Length > 0;
+        if (!follow && !doTeleport) return;
+        if (!RosbotBridgePluginService.IsInstalled || !WaitPluginInGame(ctx))
+        {
+            ColorPrinter.Yellow($"{LogTag} plugin not live in game within {InGameWaitSec}s -> {(follow ? "follow" : "teleport")} skipped, ROSBOT keeps botting");
+            return;
+        }
+        ColorPrinter.Blue($"{LogTag} pause ROSBOT -> plugin {(follow ? "follow (teleport skipped)" : "map teleport")}");
+        RosbotManager.SendPauseToggleToSystem();
+        ctx.Wait(PauseSettleSec);
+        if (follow)
+        {
+            var result = RosbotBridgePluginService.SendCommandAndWait(ctx, CommandTimeout, RosbotPluginConstants.BridgeActionFollow, followTarget, followValue);
+            ColorPrinter.Blue($"{LogTag} follow: {Describe(result)}; monitoring paused, ROSBOT stays paused (Resume monitoring hands control back)");
+            RosbotFlowRunner.HoldForPlugin();
+            return;
+        }
+        var teleported = RosbotBridgePluginService.SendCommandAndWait(ctx, CommandTimeout, RosbotPluginConstants.BridgeActionUiSequence, value: teleport);
+        ColorPrinter.Blue($"{LogTag} map teleport: {Describe(teleported)} -> resume ROSBOT");
+        RosbotManager.SendPauseToggleToSystem();
+    }
+
+    private static bool WaitPluginInGame(FlowContext ctx)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(InGameWaitSec);
+        while (DateTime.UtcNow < deadline)
+        {
+            var s = GameInterfaceData.Instance.GetStateSnapshot();
+            if (s.RosbotBridgeFresh && s.RosbotBridge is { InGame: true }) return true;
+            ctx.Wait(InGamePollSec);
+        }
+        return false;
+    }
+
+    private static string Describe(Core.Bridge.RosbotBridgeCommandResult? r) =>
+        r == null ? "no result (timeout)" : $"{(r.Ok ? "ok" : "failed")} {r.Message}";
+}

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core.Assistant;
 using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
 using DotCore.Foundations;
@@ -49,8 +50,12 @@ public partial class AuxiliaryOptionsBlock : UserControl
                 I18nKeys.AuxAutoSalvageKeepAncientPlus, I18nKeys.AuxAutoSalvageKeepPrimal,
             })),
         new(I18nKeys.AuxiliaryDropEquipmentEnabled, ConfigKeys.AuxiliaryDropEquipmentEnabled, false, null),
-        new(I18nKeys.AuxiliarySoundFeedback, ConfigKeys.AuxiliarySoundFeedback, true, null),
-        new(I18nKeys.AuxiliarySmartPause, ConfigKeys.AuxiliarySmartPause, true, null),
+    };
+
+    private static readonly string[] AnimationSpeedValues = { AssistantTiming.SpeedSlow, AssistantTiming.SpeedMedium, AssistantTiming.SpeedFast };
+    private static readonly string[] AnimationSpeedItemKeys =
+    {
+        I18nKeys.MainFunctionsPanelAnimationSpeedSlow, I18nKeys.MainFunctionsPanelAnimationSpeedMedium, I18nKeys.MainFunctionsPanelAnimationSpeedFast,
     };
 
     private readonly List<(FeatureSpec Spec, CheckBox Check, ComboBox? Combo)> _cells = new();
@@ -67,6 +72,7 @@ public partial class AuxiliaryOptionsBlock : UserControl
         if (_built) return;
         _built = true;
         BuildAutomationCells();
+        ConfigBinding.BindComboBox(CboAnimationSpeed, ConfigKeys.AuxiliaryAnimationSpeed, AnimationSpeedValues, AssistantTiming.SpeedMedium);
         ConfigBinding.BindOffsetTextBox(TxtBagOffset, OffsetInputHelper.BagOffset,
             ConfigKeys.UiAnalysisBagOffsetTop, ConfigKeys.UiAnalysisBagOffsetLeft, ConfigKeys.UiAnalysisBagOffsetBottom, ConfigKeys.UiAnalysisBagOffsetRight);
         RefreshI18n();
@@ -81,6 +87,10 @@ public partial class AuxiliaryOptionsBlock : UserControl
         LblBagOffsetDesc.Text = p.GetUiText(I18nKeys.AuxBagOffsetDesc);
         LblAutomationTitle.Text = p.GetUiText(I18nKeys.AutomationOptions);
         TxtStartD3.Text = p.GetUiText(I18nKeys.ButtonAreaStartD3);
+        LblAnimationSpeed.Text = p.GetUiText(I18nKeys.MainFunctionsPanelAnimationSpeedLabel);
+        for (int i = 0; i < CboAnimationSpeed.Items.Count && i < AnimationSpeedItemKeys.Length; i++)
+            if (CboAnimationSpeed.Items[i] is ComboBoxItem item)
+                item.Content = p.GetUiText(AnimationSpeedItemKeys[i]);
         foreach (var (spec, check, combo) in _cells)
         {
             var featureLabel = p.GetUiText(spec.LabelKey);

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Input;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.D4;
 using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
@@ -70,7 +71,6 @@ public sealed class D4ViewModel : BaseViewModel
     private readonly RelayCommand _toggleExpFarmingCommand;
 
     private D4StatusSnapshot? _lastSnapshot;
-    private bool _isExpFarmingRunning;
     private bool _isBusy;
     private string _startStopText = "";
     private string _updatedAtText = "";
@@ -91,7 +91,7 @@ public sealed class D4ViewModel : BaseViewModel
     /// <summary>Resume EXP farming at startup when d4_settings.exp_farming_running was saved as on and D4 is running (Python only wrote the flag).</summary>
     private async Task RestoreRunningAsync()
     {
-        if (!D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.D4SettingsExpFarmingRunning, false) || D4Controller.Instance.IsExpFarmingRunning()) return;
+        if (!ConfigBinding.GetValue(ConfigKeys.D4SettingsExpFarmingRunning, false) || D4Controller.Instance.IsExpFarmingRunning()) return;
         if (!await Task.Run(() => D4Manager.Instance.IsRunning()))
         {
             ColorPrinter.Gray($"{LogPrefix} EXP farming was running last time, but D4 is not running; not restoring");
@@ -108,10 +108,18 @@ public sealed class D4ViewModel : BaseViewModel
     /// <summary>Panel log line (UI thread); the page appends it to the log box.</summary>
     public event Action<string>? LogRequested;
 
-    public bool IsExpFarmingRunning
+    /// <summary>Running flag from the state center (GameInterfaceData.D4); Apply raises the change.</summary>
+    public bool IsExpFarmingRunning => GameInterfaceData.Instance.D4.IsExpFarmingRunning();
+
+    private bool _shownExpFarmingRunning;
+
+    private void SyncExpFarmingRunning()
     {
-        get => _isExpFarmingRunning;
-        private set { if (SetProperty(ref _isExpFarmingRunning, value)) RefreshStartStopText(); }
+        bool running = IsExpFarmingRunning;
+        if (running == _shownExpFarmingRunning) return;
+        _shownExpFarmingRunning = running;
+        RaisePropertyChanged(nameof(IsExpFarmingRunning));
+        RefreshStartStopText();
     }
 
     public bool IsBusy
@@ -135,7 +143,7 @@ public sealed class D4ViewModel : BaseViewModel
         if (_attached) return;
         _attached = true;
         D4UiStatusUpdater.Instance.StatusUpdated += OnStatusUpdated;
-        IsExpFarmingRunning = D4Controller.Instance.IsExpFarmingRunning();
+        SyncExpFarmingRunning();
         RefreshI18n();
         Apply(D4Controller.Instance.GetState());
     }
@@ -212,7 +220,7 @@ public sealed class D4ViewModel : BaseViewModel
             }
 
             D4Controller.Instance.StartExpFarming();
-            IsExpFarmingRunning = true;
+            SyncExpFarmingRunning();
             PersistRunning(true);
             D4TickLoop.Instance.EnsureRunning();
             Apply(D4Controller.Instance.GetState());
@@ -243,7 +251,7 @@ public sealed class D4ViewModel : BaseViewModel
         try
         {
             D4Controller.Instance.StopExpFarming();
-            IsExpFarmingRunning = false;
+            SyncExpFarmingRunning();
             await Task.Run(ResetKeepingDebugWindow);
             Apply(D4Controller.Instance.GetState());
             PersistRunning(false);
@@ -256,22 +264,14 @@ public sealed class D4ViewModel : BaseViewModel
         }
     }
 
+    /// <summary>Reset with the debug-window flags kept (inside the pipeline tick lock); the tick loop keeps running while the debug window is open.</summary>
     private static void ResetKeepingDebugWindow()
     {
-        var data = D4InterfaceData.Instance;
-        bool debugOpen = data.DebugWindowOpen;
-        bool debugPaused = data.DebugWindowPaused;
-        D4Pipeline.Instance.Reset();
-        data.DebugWindowOpen = debugOpen;
-        data.DebugWindowPaused = debugPaused;
+        D4Pipeline.Instance.Reset(keepDebugWindow: true);
+        if (GameInterfaceData.Instance.D4.DebugWindowOpen) D4TickLoop.Instance.EnsureRunning();
     }
 
-    private static void PersistRunning(bool running)
-    {
-        var config = D3D4TesterConfigService.Instance;
-        config.SetValueAsync(ConfigKeys.D4SettingsExpFarmingRunning, running);
-        config.QueueSave();
-    }
+    private static void PersistRunning(bool running) => ConfigBinding.SetValue(ConfigKeys.D4SettingsExpFarmingRunning, running);
 
     private void Log(string message) => LogRequested?.Invoke(message);
 
@@ -287,6 +287,7 @@ public sealed class D4ViewModel : BaseViewModel
     private void Apply(D4StatusSnapshot s)
     {
         _lastSnapshot = s;
+        SyncExpFarmingRunning();
         var p = D3D4TesterI18n.Provider;
         string unknown = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusUnknown);
         string running = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusRunning);

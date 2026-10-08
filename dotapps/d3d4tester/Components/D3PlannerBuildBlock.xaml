@@ -16,9 +16,12 @@
       <TextBlock x:Name="LblProfile" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
       <ComboBox x:Name="CmbProfile" MinWidth="180" Margin="0,0,10,4" SelectionChanged="CmbProfile_SelectionChanged"/>
       <CheckBox x:Name="ChkNotify" VerticalAlignment="Center" Margin="0,0,10,4"/>
-      <CheckBox x:Name="ChkNotifyPush" VerticalAlignment="Center" Margin="0,0,0,4"/>
+      <CheckBox x:Name="ChkNotifyPush" VerticalAlignment="Center" Margin="0,0,10,4"/>
+      <CheckBox x:Name="ChkEquipInTown" VerticalAlignment="Center" Margin="0,0,10,4"/>
+      <CheckBox x:Name="ChkGambleUnaligned" VerticalAlignment="Center" Margin="0,0,0,4"/>
     </WrapPanel>
     <TextBlock x:Name="TxtStatus" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+    <TextBlock x:Name="TxtAlignment" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
     <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>

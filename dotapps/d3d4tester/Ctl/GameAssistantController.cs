@@ -27,7 +27,6 @@ public sealed class GameAssistantController
 {
     private const string LogTag = "[AutoUseInterface]";
     private const string DebugTitle = "AutoUseInterface";
-    private const string DebugCaptureDirName = "debug_capture";
     private const string DebugLeftFilePrefix = "autouse_debug_left30_";
     private const string DebugAnnotatorFilePrefix = "autouse_annotator_";
     private const string DebugFileTimeFormat = D3PathConstants.FileTimestampFormat;
@@ -79,24 +78,32 @@ public sealed class GameAssistantController
     /// Hotkey entry: guard, run, always reset state. 1:1 auto_use_interface_function
     /// (the hotkey callback already checked can_start and set_should_stop).
     /// </summary>
+    /// <summary>Marks the state running on the caller thread (so a second hotkey press requests stop), then runs the flow on a worker thread. Returns false when it cannot start.</summary>
     public bool AutoUseInterfaceFunction()
     {
         var state = AssistantExecutionState.Instance;
-        if (!state.CanStart())
+        if (!state.TryBeginRun())
         {
             ColorPrinter.Yellow($"{LogTag} Cannot start: already running or disabled");
             return false;
         }
-        state.SetRunning(true);
-        try
+        ColorPrinter.Blue($"{LogTag} Started (press hotkey again to stop)");
+        Task.Run(() =>
         {
-            ColorPrinter.Blue($"{LogTag} Started (press hotkey again to stop)");
-            return Run(state);
-        }
-        finally
-        {
-            state.ResetState();
-        }
+            try
+            {
+                Run(state);
+            }
+            catch (Exception ex)
+            {
+                ColorPrinter.Red($"{LogTag} {ex.Message}");
+            }
+            finally
+            {
+                state.ResetState();
+            }
+        });
+        return true;
     }
 
     private bool Run(AssistantExecutionState state)
@@ -225,7 +232,7 @@ public sealed class GameAssistantController
         return false;
     }
 
-    private static MacroAuxiliaryOptions Aux() => ConfigOptionsProvider.GetOptions<MacroAuxiliaryOptions>();
+    private static MacroAuxiliaryOptions Aux() => MacroAuxiliaryOptions.ReadLive();
 
     private static string KeepRule(MacroAuxiliaryOptions aux) => aux.AutoSalvage.Keep ?? AuxiliaryFeatureOptions.AutoSalvageKeepDefault;
 
@@ -255,7 +262,7 @@ public sealed class GameAssistantController
     private static string? DetectInterface(Bitmap? fullWindow, bool wantBlacksmith)
     {
         bool showDebugLogs = ConfigOptionsProvider.GetOptions<LogSettingsOptions>().ShowDebugLogs;
-        string debugDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName, DebugCaptureDirName);
+        string debugDir = ConfigPaths.DebugCaptureDir;
         if (showDebugLogs && fullWindow != null)
             SaveLeftRegionDebug(fullWindow, debugDir);
         var attempts = showDebugLogs ? new List<InterfaceDetectionAttempt>() : null;
@@ -316,7 +323,7 @@ public sealed class GameAssistantController
             {
                 DebugBagHover.Run(() =>
                 {
-                    var keep = ConfigOptionsProvider.GetOptions<MacroAuxiliaryOptions>().AutoSalvage.Keep ?? AuxiliaryFeatureOptions.AutoSalvageKeepDefault;
+                    var keep = KeepRule(Aux());
                     BlacksmithHandler.Instance.HandleAutoSalvageBySlots(keep, debugOnly: false);
                 });
             }
@@ -483,7 +490,7 @@ public sealed class GameAssistantController
 
     private static void DebugPreviewSmartPause()
     {
-        var hwnd = D3WindowFinder.FindFirstHandle();
+        var hwnd = D3Manager.Instance.FindFirstHwnd();
         ColorPrinter.Blue($"{LogTag} Debug smart pause: enabled={ConfigBinding.GetValue(ConfigKeys.AuxiliarySmartPause, true)} "
                           + $"d3Window={hwnd != IntPtr.Zero} d3Foreground={WindowInputHelper.IsForegroundWindow(hwnd)} standKey={ResolveStandKey()?.ToString() ?? "-"} (Tab pauses, Enter/T/M stop)");
     }

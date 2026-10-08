@@ -76,7 +76,7 @@ public partial class ModelTestWindow : Window
     private static readonly double[] Speeds = { 0.25, 0.5, 1, 2, 0 };
 
     private readonly ModelTestSession _session = new();
-    private readonly TaskSetStore _store = new(TaskSetStore.DefaultRoot);
+    private static TaskSetStore TaskSets => new(TaskSetStore.DefaultRoot);
     private readonly ObservableCollection<AnnotationBox> _boxes = new();
     private readonly ObservableCollection<string> _counts = new();
     private readonly ObservableCollection<string> _tracks = new();
@@ -103,6 +103,7 @@ public partial class ModelTestWindow : Window
     private CancellationTokenSource? _exportCts;
     private CancellationTokenSource? _playCts;
     private Task _playTask = Task.CompletedTask;
+    private readonly HashSet<Task> _sessionWork = new();
     private IReadOnlyList<Rect> _monitors = Array.Empty<Rect>();
     private Rect? _screenRegion;
     private Rect _pickOrigin;
@@ -204,15 +205,29 @@ public partial class ModelTestWindow : Window
         _frame = null;
         _still = null;
         Canvas.ImageSource = null;
+        Task[] running;
+        lock (_sessionWork) running = _sessionWork.Append(play).ToArray();
         _ = Task.Run(async () =>
         {
             _session.StopLive();
-            await Task.WhenAny(play, Task.Delay(CloseWaitMs));
+            await Task.WhenAny(Task.WhenAll(running), Task.Delay(CloseWaitMs));
             _session.Dispose();
             frame?.Dispose();
             still?.Dispose();
             Interlocked.Exchange(ref _pending, null)?.Frame.Dispose();
         });
+    }
+
+    /// <summary>Run session work on the pool and track it until done, so closing waits for it before disposing the session.</summary>
+    private Task<T> RunSessionWork<T>(Func<T> work) => TrackSessionWork(Task.Run(work));
+
+    private Task RunSessionWork(Action work) => TrackSessionWork(Task.Run(work));
+
+    private TTask TrackSessionWork<TTask>(TTask task) where TTask : Task
+    {
+        lock (_sessionWork) _sessionWork.Add(task);
+        task.ContinueWith(done => { lock (_sessionWork) _sessionWork.Remove(done); }, TaskScheduler.Default);
+        return task;
     }
 
     // ---------- settings ----------
@@ -799,7 +814,7 @@ public partial class ModelTestWindow : Window
         SetStatus(ChipInfo, () => T(I18nKeys.ModelTestModelLoading).Replace("{name}", name));
         try
         {
-            await Task.Run(() => _session.Load(item.OnnxPath, item.Profile, options));
+            await RunSessionWork(() => _session.Load(item.OnnxPath, item.Profile, options));
             if (version != _modelVersion || _closed) return;
             _model = item;
             ConfigBinding.SaveString(ConfigKeys.YoloModelTestLastModel, item.OnnxPath);
@@ -897,7 +912,7 @@ public partial class ModelTestWindow : Window
         var settings = CurrentSettings();
         try
         {
-            var (image, frame) = await Task.Run(() =>
+            var (image, frame) = await RunSessionWork(() =>
             {
                 var (mat, captureMs) = load();
                 if (mat == null) return ((Mat?)null, (Rendered?)null);
@@ -949,7 +964,7 @@ public partial class ModelTestWindow : Window
         var copy = still.Clone();
         try
         {
-            var frame = await Task.Run(() => Render(_session.DetectStill(copy, settings)));
+            var frame = await RunSessionWork(() => Render(_session.DetectStill(copy, settings)));
             if (version != _stillVersion || _closed)
             {
                 frame.Frame.Dispose();
@@ -978,9 +993,8 @@ public partial class ModelTestWindow : Window
         var capture = ScreenCaptureService.GetScreenshotProvider();
         if (source == LiveSourceClient)
         {
-            var data = new YoloCalibrationData();
-            data.LoadFromConfig();
-            var hwnd = data.FindClientWindow();
+            var clientType = YoloCalibrationData.ConfiguredClientType();
+            var hwnd = YoloCalibrationData.FindClientWindow(clientType);
             if (hwnd == IntPtr.Zero)
             {
                 SetStatus(ChipDanger, () => T(I18nKeys.ModelTestNoClientWindow));
@@ -990,7 +1004,7 @@ public partial class ModelTestWindow : Window
             {
                 if (_minimized) return null;
                 var mat = ToMat(capture.CaptureWindow(hwnd));
-                if (mat == null) hwnd = data.FindClientWindow();
+                if (mat == null) hwnd = YoloCalibrationData.FindClientWindow(clientType);
                 return mat;
             };
         }
@@ -1265,7 +1279,7 @@ public partial class ModelTestWindow : Window
         RenderFrameInfo();
         try
         {
-            var frame = await Task.Run(() => _session.DetectVideoFrame(path, target, info.Fps, settings, analysis) is { } f ? Render(f) : null);
+            var frame = await RunSessionWork(() => _session.DetectVideoFrame(path, target, info.Fps, settings, analysis) is { } f ? Render(f) : null);
             if (version != _stillVersion || _closed)
             {
                 frame?.Frame.Dispose();
@@ -1305,7 +1319,7 @@ public partial class ModelTestWindow : Window
         if (_videoPath is not { } path || _session.Detector == null) return;
         var settings = CurrentSettings();
         int step = AnalysisStep;
-        var cached = await Task.Run(() => _session.LoadAnalysis(path, settings, step));
+        var cached = await RunSessionWork(() => _session.LoadAnalysis(path, settings, step));
         if (_closed || _videoPath != path) return;
         SetAnalysis(cached);
         if (cached != null) SetAnalysisStatus(AnalysisSummary(cached, true));
@@ -1330,7 +1344,7 @@ public partial class ModelTestWindow : Window
         UpdateEnabled();
         try
         {
-            var analysis = await Task.Run(() => _session.AnalyzeVideo(path, info.FrameCount, settings, step, progress, cts.Token));
+            var analysis = await RunSessionWork(() => _session.AnalyzeVideo(path, info.FrameCount, settings, step, progress, cts.Token));
             if (_closed || _videoPath != path) return;
             if (analysis == null)
             {
@@ -1622,8 +1636,7 @@ public partial class ModelTestWindow : Window
         var configured = ConfigBinding.GetValue(ConfigKeys.YoloModelTestExportDir, "");
         if (!string.IsNullOrWhiteSpace(configured)) return configured;
         if (_sessionExportDir != null) return _sessionExportDir;
-        var project = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloCurrentProject, "");
-        if (string.IsNullOrWhiteSpace(project) || !Directory.Exists(project)) return null;
+        if (YoloCalibrationData.ResolveCurrentProject() is not { } project) return null;
         _sessionExportDir = Path.Combine(project, YoloSegmentLayout.MakeSegmentId(), YoloSegmentLayout.FramesSubdir);
         return _sessionExportDir;
     }
@@ -1669,7 +1682,7 @@ public partial class ModelTestWindow : Window
         IReadOnlyList<TaskSet> sets;
         try
         {
-            sets = _store.List();
+            sets = TaskSets.List();
         }
         catch (Exception ex) when (IsHandled(ex))
         {
@@ -1715,7 +1728,7 @@ public partial class ModelTestWindow : Window
         try
         {
             await TaskSetWindow.FlushPendingAsync(setId);
-            var name = await Task.Run(() => ModelTestSession.AddVariant(_store, setId, targetId, png, originalPath, nameHint));
+            var name = await Task.Run(() => ModelTestSession.AddVariant(TaskSets, setId, targetId, png, originalPath, nameHint));
             if (name == null)
             {
                 SetHardStatus(() => T(I18nKeys.ModelTestNoTarget));
@@ -1745,7 +1758,7 @@ public partial class ModelTestWindow : Window
             await TaskSetWindow.FlushPendingAsync(setId);
             var name = await Task.Run(() =>
             {
-                using (image) return ModelTestSession.AddCommonNegative(_store, setId, image, nameHint);
+                using (image) return ModelTestSession.AddCommonNegative(TaskSets, setId, image, nameHint);
             });
             if (name == null)
             {

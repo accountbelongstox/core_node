@@ -54,9 +54,6 @@ public sealed class BattlenetRegionJudge
         return account != null && password != null;
     }
 
-    public bool IsAsiaPasswordStepWithSwitchAccount()
-        => IsAsiaPasswordStep() && T.FindByName(_controls, C.AsiaLoginSwitchAccountKeywords) != null;
-
     public bool HasCnLoginMarkers() => T.HasAutomationIdContainingAny(_controls, C.LoginWindowAutomationIdMarkersCn);
 
     public bool IsCnLoginUi() => HasCnLoginMarkers() || T.FindByName(_controls, C.LoginScreenKeywordsFallbackCn) != null;
@@ -88,8 +85,6 @@ public sealed class BattlenetRegionJudge
             return true;
         return T.FindByName(_controls, C.ConnectingKeywords) != null;
     }
-
-    public bool IsLoggedIn() => HasAsiaMainUi() || HasCnMainUi();
 
     private BattlenetControl? FindAsiaD3Tab() => T.FindByAnyAutomationId(_controls, C.D3TabAutomationIdsAsia) ?? T.FindByName(_controls, C.D3TabNameKeywordsFallbackAsia);
 

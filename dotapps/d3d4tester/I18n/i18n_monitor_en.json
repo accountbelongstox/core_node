@@ -1,10 +1,15 @@
 {
   "ui": {
     "tabs": {
-      "monitor": "Monitor"
+      "monitor": "Control Center"
     },
     "monitor": {
       "status_title": "Status",
+      "nav_run": "Run",
+      "nav_automation": "Automation",
+      "nav_environment": "Environment",
+      "nav_development": "Development",
+      "game_data": "Live Game",
       "monitoring_on": "Monitoring",
       "monitoring_off": "Monitoring stopped",
       "start_monitoring": "Start Monitoring",
@@ -40,6 +45,8 @@
       "restart_battlenet": "Also restart Battle.net when restarting D3",
       "auto_start": "Start monitoring when the app starts (hold Shift at startup to skip)",
       "archive_rollover": "Archive logs.txt.1 / history.txt.1 to the Pure Numbers folder on rollover",
+      "bridge_teleport_label": "Map teleport after ROSBOT starts (plugin UI clicks)",
+      "bridge_teleport_hint": "D3 UI element paths or ids, clicked in order by the CoreNodeBridge plugin while ROSBOT is paused, separated by |. Empty = no teleport. Skipped when follow mode is on (follow starts directly).",
       "window_title": "D3 Window and Processes",
       "d3_shrink": "Shrink D3 to the top-right corner after ROSBOT starts",
       "apply_now": "Apply Now",

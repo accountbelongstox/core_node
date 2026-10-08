@@ -194,11 +194,10 @@ public static class RosbotUiAutomation
     {
         var mgr = RosbotManager.Instance;
         if (mgr.GetKey() is not { } key) return false;
-        foreach (int pid in mgr.CollectRosbotPids())
+        foreach (var w in mgr.FindKeyDialogWindows())
         {
-            foreach (var w in mgr.FindWindowsByPid(pid, visibleOnly: false))
             {
-                if (w.Title.Trim() != RosbotConstants.KeyDialogWindowTitleDefault) continue;
+                int pid = w.Pid;
                 var children = WindowFinder.GetChildWindows(w.Hwnd);
                 if (!children.Any(c => c.Text.Contains(RosbotConstants.KeyDialogPromptSubstring, StringComparison.OrdinalIgnoreCase))) continue;
                 var edit = children.FirstOrDefault(c => c.ClassName.Contains(RosbotConstants.KeyDialogEditClassToken, StringComparison.OrdinalIgnoreCase));
@@ -389,12 +388,7 @@ public static class RosbotUiAutomation
     /// </summary>
     public static bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true, Func<bool>? shouldStop = null)
     {
-        TryCloseD3MustBeLaunchedDialog();
-        if (TryCloseNoItemsPopup())
-        {
-            ColorPrinter.Blue($"{LogTag} No items popup closed at start; switching to rift mode and start.");
-            if (DoAfterNoItemsCloseSwitchRiftAndStart()) return true;
-        }
+        if (HandleStartupPopups()) return true;
 
         var mgr = RosbotManager.Instance;
         RosbotWindowInfo? winfo = null;
@@ -480,6 +474,19 @@ public static class RosbotUiAutomation
     {
         ColorPrinter.Yellow($"{LogTag} after-start automation stopped (monitoring stopped)");
         return false;
+    }
+
+    /// <summary>
+    /// Close the "D3 must be launched" dialog, then the No-items popup; after a No-items popup switch to rift mode and start.
+    /// True when that restart ran (the caller's own start / resume is not needed). Shared by the after-start automation, the
+    /// "No items" log handler and the smart echo resume.
+    /// </summary>
+    public static bool HandleStartupPopups()
+    {
+        TryCloseD3MustBeLaunchedDialog();
+        if (!TryCloseNoItemsPopup()) return false;
+        ColorPrinter.Blue($"{LogTag} No items popup closed; switching to rift mode and start.");
+        return DoAfterNoItemsCloseSwitchRiftAndStart();
     }
 
     /// <summary>Resume a paused ROSBOT: activate, wait, run the resume sequence. 1:1 Python resume_rosbot_ui.</summary>

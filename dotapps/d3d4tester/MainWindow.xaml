@@ -5,7 +5,6 @@
         xmlns:d4="clr-namespace:DotApps.d3d4tester.Pages.D4"
         xmlns:calibration="clr-namespace:DotApps.d3d4tester.Pages.Calibration"
         xmlns:runlog="clr-namespace:DotApps.d3d4tester.Pages.RunLog"
-        xmlns:decompile="clr-namespace:DotApps.d3d4tester.Pages.Decompile"
         xmlns:battlenet="clr-namespace:DotApps.d3d4tester.Pages.Battlenet"
         xmlns:monitor="clr-namespace:DotApps.d3d4tester.Pages.Monitor"
         xmlns:components="clr-namespace:DotApps.d3d4tester.Components"
@@ -39,9 +38,6 @@
       <TabItem x:Name="TabBattlenet" Header="Battle.net">
         <battlenet:BattlenetPage/>
       </TabItem>
-      <TabItem x:Name="TabDecompile" Header="Decompile">
-        <decompile:DecompilePage/>
-      </TabItem>
       <TabItem x:Name="TabMonitor" Header="Monitor">
         <monitor:MonitorPage/>
       </TabItem>
@@ -65,6 +61,9 @@
           </Border>
           <Border x:Name="ChipRos" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusRos" Text="ROS: -"/>
+          </Border>
+          <Border x:Name="ChipMonitoring" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+            <TextBlock x:Name="TxtStatusMonitoring" Text="-"/>
           </Border>
           <Border x:Name="ChipD3" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusD3" Text="D3: -"/>

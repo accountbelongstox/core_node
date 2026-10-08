@@ -20,7 +20,7 @@ public sealed class D3D4TesterConfigService
     private readonly JsonKeyPathConfig _config;
     private readonly object _loadLock = new();
     private bool _initialized;
-    private volatile bool _saveScheduled;
+    private int _saveScheduled;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
@@ -99,8 +99,7 @@ public sealed class D3D4TesterConfigService
     public void QueueSave()
     {
         _config.QueueSave();
-        if (_saveScheduled) return;
-        _saveScheduled = true;
+        if (Interlocked.CompareExchange(ref _saveScheduled, 1, 0) != 0) return;
         Task.Run(SaveWorker);
     }
 
@@ -119,18 +118,34 @@ public sealed class D3D4TesterConfigService
             ColorPrinter.Gray($"[Config] FlushPendingSave done, path={ConfigPaths.ConfigUserPath}");
     }
 
-    /// <summary>Runs on thread pool; performs one coalesced write. Only path that does file I/O during normal operation.</summary>
+    /// <summary>
+    /// Runs on thread pool; coalesced writes until nothing is pending. Only path that does file I/O during normal operation.
+    /// After clearing the flag it re-checks pending saves, so a QueueSave that saw the flag still set is never lost.
+    /// </summary>
     private void SaveWorker()
     {
-        try
+        bool failed = false;
+        do
         {
-            _config.FlushPendingSave();
-            ConfigOptionsProvider.Reload();
+            try
+            {
+                while (_config.IsSavePending)
+                {
+                    _config.FlushPendingSave();
+                    ConfigOptionsProvider.Reload();
+                }
+            }
+            catch (Exception ex)
+            {
+                failed = true;
+                ColorPrinter.Yellow("[Config] Save failed: " + ex.Message);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _saveScheduled, 0);
+            }
         }
-        finally
-        {
-            _saveScheduled = false;
-        }
+        while (!failed && _config.IsSavePending && Interlocked.CompareExchange(ref _saveScheduled, 1, 0) == 0);
     }
 
     private static void EnsureUserDataDir()

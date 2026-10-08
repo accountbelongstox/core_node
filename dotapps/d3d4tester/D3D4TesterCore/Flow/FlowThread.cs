@@ -54,6 +54,14 @@ public sealed class FlowThread
         lock (_lock) _cts?.Cancel();
     }
 
+    /// <summary>Wait until a stopped run has left its current step (false when it is still busy after timeoutMs).</summary>
+    public bool WaitStopped(int timeoutMs)
+    {
+        Thread? thread;
+        lock (_lock) thread = _thread;
+        return thread == null || thread == Thread.CurrentThread || thread.Join(timeoutMs);
+    }
+
     private void Run(FlowContext ctx)
     {
         ColorPrinter.Blue($"[{_name}] started");

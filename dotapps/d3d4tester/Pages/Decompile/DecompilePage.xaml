@@ -2,16 +2,12 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:components="clr-namespace:DotApps.d3d4tester.Components">
-  <!-- Test tab, no scrolling: sub-tabs for the CoreNodeBridge ROSBOT plugin (live game state), the decompile tools (ILSpy, de4dot-cex,
-       autoit-ripper, UPX; one-click ROSBOT / RBAssist / any file, output folder) and the log (selected while an operation runs) -->
+  <!-- Development section of the control center: decompile tools (ILSpy, de4dot-cex, autoit-ripper, UPX; one-click ROSBOT /
+       RBAssist / any file, output folder) and their log (selected while an operation runs) -->
   <UserControl.Resources>
     <ResourceDictionary Source="/d3d4tester;component/Assets/Styles/CompactPage.xaml"/>
   </UserControl.Resources>
-  <TabControl x:Name="TabsDecompile" Margin="8,4,8,4">
-    <TabItem x:Name="TabBridge">
-      <components:RosbotBridgePanel x:Name="BridgePanel" Margin="4,8,4,4"/>
-    </TabItem>
-
+  <TabControl x:Name="TabsDecompile">
     <TabItem x:Name="TabTools">
       <Grid Margin="0,6,0,0">
         <Grid.ColumnDefinitions>

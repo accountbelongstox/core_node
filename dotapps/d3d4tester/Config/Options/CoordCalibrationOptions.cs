@@ -1,4 +1,5 @@
 // PY-REF: pyapps/d3-check/providor/providor_index.py
+using DotApps.d3d4tester.Constants;
 using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
 
@@ -8,7 +9,7 @@ namespace DotApps.d3d4tester.Config.Options;
 public sealed class CoordCalibrationOptions
 {
     [ConfigurationKeyName("client_type")]
-    public string ClientType { get; set; } = "battlenet";
+    public string ClientType { get; set; } = AppConstants.ClientTypeBattlenet;
 
     [ConfigurationKeyName("yolo_data_root")]
     public string YoloDataRoot { get; set; } = "";

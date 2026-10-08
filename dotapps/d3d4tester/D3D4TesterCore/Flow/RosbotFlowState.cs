@@ -23,9 +23,16 @@ public sealed class RosbotFlowState
     /// <summary>Monitoring is on but paused: the flow is halted and ROSBOT was paused with its pause key.</summary>
     public bool Paused => GameInterfaceData.Instance.RosbotFlowPaused;
 
-    public void SetFlowMasterEnabled(bool enabled) => GameInterfaceData.Instance.SetRosbotFlowMasterEnabled(enabled);
+    /// <summary>Set the flow master switch; GameInterfaceData callbacks are notified when it changed. Returns changed.</summary>
+    public bool SetFlowMasterEnabled(bool enabled) => NotifyIfChanged(GameInterfaceData.Instance.SetRosbotFlowMasterEnabled(enabled));
 
-    public void SetPaused(bool paused) => GameInterfaceData.Instance.SetRosbotFlowPaused(paused);
+    public bool SetPaused(bool paused) => NotifyIfChanged(GameInterfaceData.Instance.SetRosbotFlowPaused(paused));
 
-    public void SetBnOnlyEnabled(bool enabled) => GameInterfaceData.Instance.SetEnsureBattlenetOnlyEnabled(enabled);
+    public bool SetBnOnlyEnabled(bool enabled) => NotifyIfChanged(GameInterfaceData.Instance.SetEnsureBattlenetOnlyEnabled(enabled));
+
+    private static bool NotifyIfChanged(bool changed)
+    {
+        if (changed) GameInterfaceData.Instance.NotifyCallbacks();
+        return changed;
+    }
 }

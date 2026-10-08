@@ -48,6 +48,8 @@
       "add_image": "添加图片"
     },
     "hotkey_input": {
+      "conflict": "热键 {0} 已被其他功能使用。",
+      "conflict_title": "热键冲突",
       "placeholder": "按下热键...",
       "keys": {
         "ctrl": "Ctrl",

@@ -4,6 +4,8 @@ using System.IO;
 using System.Text;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Battlenet;
 using DotApps.d3d4tester.Core.Monitor;
 using DotCore.Utils;
 
@@ -22,8 +24,13 @@ public static class RbAssistSettingsImporter
     public const string SettingsFileName = "RBAssistSettings.ini";
     private const string CheckedValue = "1";
     private const string RosbotExeName = "RoS-BoT.exe";
-    private const int TimeoutMinutesMin = 1;
-    private const int TimeoutMinutesMax = 120;
+
+    /// <summary>RBAssist General/comboServer (国服 = China, 外服 = global) -> battlenet.region (selects the D3CN / D3 launch product).</summary>
+    private static readonly Dictionary<string, string> ServerRegions = new(StringComparer.Ordinal)
+    {
+        ["国服"] = BattlenetConstants.RegionCn,
+        ["外服"] = BattlenetConstants.RegionAsia,
+    };
 
     private static readonly Dictionary<string, string> PriorityNames = new(StringComparer.Ordinal)
     {
@@ -81,6 +88,7 @@ public static class RbAssistSettingsImporter
         string botPath = Get(general, "botPath");
         if (botPath.EndsWith(RosbotExeName, StringComparison.OrdinalIgnoreCase) && (ConfigBinding.GetValue(ConfigKeys.RosSettingsRosDirectory, "") ?? "").Length == 0)
             Set(ConfigKeys.RosSettingsRosDirectory, Path.GetDirectoryName(botPath) ?? "");
+        if (ServerRegions.TryGetValue(Get(general, "comboServer"), out var region)) Set(ConfigKeys.BattlenetRegion, region);
         string bnPath = Get(general, "btlntPath");
         if (bnPath.Length > 0 && (ConfigBinding.GetValue(ConfigKeys.BattlenetPath, "") ?? "").Length == 0)
             Set(ConfigKeys.BattlenetPath, bnPath);
@@ -100,7 +108,7 @@ public static class RbAssistSettingsImporter
 
         SetBool(crash, "restartOnError", ConfigKeys.MonitorRestartOnErrorPopup);
         SetBool(crash, "restartOnlogs", ConfigKeys.BattlenetTimeoutRestart);
-        SetInt(crash, "restartOnlogsTime", ConfigKeys.RosbotTimeoutMinutes, TimeoutMinutesMin, TimeoutMinutesMax);
+        SetInt(crash, "restartOnlogsTime", ConfigKeys.RosbotTimeoutMinutes, RosbotConstants.RosbotLogTimeoutMinutesMin, RosbotConstants.RosbotLogTimeoutMinutesMax);
         if (Has(crash, "StrictMode"))
             Set(ConfigKeys.MonitorLogTimeoutMode, Get(crash, "StrictMode") == CheckedValue ? MonitorLogTimeoutModes.Either : MonitorLogTimeoutModes.Both);
         SetBool(crash, "restartbt", ConfigKeys.MonitorRestartBattlenetOnRestart);

@@ -5,7 +5,6 @@ namespace DotApps.d3d4tester.Constants;
 public static partial class I18nKeys
 {
     public const string DecompileRecoverSources = "ui.decompile.recover_sources";
-    public const string TabsDecompile = "ui.decompile.tab";
     public const string DecompileToolsTitle = "ui.decompile.tools_title";
     public const string DecompileToolsDesc = "ui.decompile.tools_desc";
     public const string DecompileInstall = "ui.decompile.install";
@@ -31,4 +30,11 @@ public static partial class I18nKeys
     public const string DecompileIncomplete = "ui.decompile.incomplete";
     public const string DecompileCancelled = "ui.decompile.cancelled";
     public const string DecompileFileFilter = "ui.decompile.file_filter";
+    public const string DecompileChainRosbotMissing = "ui.decompile.chain_rosbot_missing";
+    public const string DecompileRosbotNotFound = "ui.decompile.rosbot_not_found";
+    public const string DecompileRbAssistNotFound = "ui.decompile.rbassist_not_found";
+    public const string DecompileSettingsFieldsWritten = "ui.decompile.settings_fields_written";
+    public const string DecompileResultPartial = "ui.decompile.result_partial";
+    public const string DecompileResultOk = "ui.decompile.result_ok";
+    public const string DecompileResultFailed = "ui.decompile.result_failed";
 }

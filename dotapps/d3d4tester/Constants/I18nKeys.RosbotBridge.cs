@@ -51,6 +51,10 @@ public static partial class I18nKeys
     public const string RosbotBridgeResultFailed = "ui.rosbot_bridge.result_failed";
     public const string RosbotBridgeTabGround = "ui.rosbot_bridge.tab_ground";
     public const string RosbotBridgeTabNpc = "ui.rosbot_bridge.tab_npc";
+    public const string RosbotBridgeTabFollow = "ui.rosbot_bridge.tab_follow";
+    public const string RosbotBridgeCommandRunning = "ui.rosbot_bridge.command_running";
+    public const string RosbotBridgeFollowTownPortalKey = "ui.rosbot_bridge.follow_town_portal_key";
+    public const string RosbotBridgeFollowTownPortalKeyTip = "ui.rosbot_bridge.follow_town_portal_key_tip";
     public const string RosbotBridgeTabCarried = "ui.rosbot_bridge.tab_carried";
     public const string RosbotBridgeTabPickups = "ui.rosbot_bridge.tab_pickups";
     public const string RosbotBridgeTabAdvanced = "ui.rosbot_bridge.tab_advanced";
@@ -59,6 +63,8 @@ public static partial class I18nKeys
     public const string RosbotBridgeHoldResume = "ui.rosbot_bridge.hold_resume";
     public const string RosbotBridgeHoldTip = "ui.rosbot_bridge.hold_tip";
     public const string RosbotBridgeHoldTaken = "ui.rosbot_bridge.hold_taken";
+    public const string RosbotBridgeTakeControl = "ui.rosbot_bridge.take_control";
+    public const string RosbotBridgePluginNotRunning = "ui.rosbot_bridge.plugin_not_running";
 
     // follow mode and players; follow states are FollowStatePrefix + plugin state, fixed item names ItemNamePrefix + lowercase internal name
     public const string RosbotBridgePlayer = "ui.rosbot_bridge.player";
@@ -69,10 +75,14 @@ public static partial class I18nKeys
     public const string RosbotBridgeFollowTip = "ui.rosbot_bridge.follow_tip";
     public const string RosbotBridgeFollowStatePrefix = "ui.rosbot_bridge.follow_state.";
     public const string RosbotBridgeFollowTargetNearest = "ui.rosbot_bridge.follow_target_nearest";
+    public const string RosbotBridgeFollowTargetLeader = "ui.rosbot_bridge.follow_target_leader";
+    public const string RosbotBridgeFollowTargetSlot = "ui.rosbot_bridge.follow_target_slot";
     public const string RosbotBridgeFollowTargetSelected = "ui.rosbot_bridge.follow_target_selected";
     public const string RosbotBridgeFollowSelectPlayer = "ui.rosbot_bridge.follow_select_player";
     public const string RosbotBridgeFollowBannerLeader = "ui.rosbot_bridge.follow_banner_leader";
     public const string RosbotBridgeFollowPickup = "ui.rosbot_bridge.follow_pickup";
+    public const string RosbotBridgeFollowRevive = "ui.rosbot_bridge.follow_revive";
+    public const string RosbotBridgeFollowReviveTip = "ui.rosbot_bridge.follow_revive_tip";
     public const string RosbotBridgeItemNamePrefix = "ui.rosbot_bridge.item_name.";
 
     // town NPC shortcuts and test buttons; NPC display names are NpcNamePrefix + lowercase internal actor name
@@ -117,6 +127,16 @@ public static partial class I18nKeys
     public const string RosbotBridgeBuildProfile = "ui.rosbot_bridge.build_profile";
     public const string RosbotBridgeBuildNotify = "ui.rosbot_bridge.build_notify";
     public const string RosbotBridgeBuildNotifyPush = "ui.rosbot_bridge.build_notify_push";
+    public const string RosbotBridgeBuildEquipInTown = "ui.rosbot_bridge.build_equip_in_town";
+    public const string RosbotBridgeBuildEquipInTownTip = "ui.rosbot_bridge.build_equip_in_town_tip";
+    public const string RosbotBridgeBuildGambleUnaligned = "ui.rosbot_bridge.build_gamble_unaligned";
+    public const string RosbotBridgeBuildGambleUnalignedTip = "ui.rosbot_bridge.build_gamble_unaligned_tip";
+    public const string RosbotBridgeBuildAlignment = "ui.rosbot_bridge.build_alignment";
+    public const string RosbotBridgeBuildAligned = "ui.rosbot_bridge.build_aligned";
+    public const string RosbotBridgePickupBuildEquip = "ui.rosbot_bridge.pickup_build_equip";
+    public const string RosbotBridgePickupBuildAligned = "ui.rosbot_bridge.pickup_build_aligned";
+    public const string RosbotBridgeBloodShards = "ui.rosbot_bridge.blood_shards";
+    public const string RosbotBridgeBloodShardsFull = "ui.rosbot_bridge.blood_shards_full";
     public const string RosbotBridgeBuildColSlot = "ui.rosbot_bridge.build_col_slot";
     public const string RosbotBridgeBuildColItem = "ui.rosbot_bridge.build_col_item";
     public const string RosbotBridgeBuildColHave = "ui.rosbot_bridge.build_col_have";

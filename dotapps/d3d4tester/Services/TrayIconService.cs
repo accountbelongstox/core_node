@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
 using DotCore.Common;
 using DotCore.Foundations;
@@ -23,6 +25,8 @@ public sealed class TrayIconService : IDisposable
     private const string GlyphRestart = "";
     private const string GlyphDebug = "";
     private const string GlyphExit = "";
+    private const string GlyphMonitoring = "\uE768";
+    private const string GlyphMonitoringPause = "\uE769";
     private const string IconTextStyleKey = "IconTextStyle";
 
     private readonly Action<int> _switchToTab;
@@ -32,6 +36,8 @@ public sealed class TrayIconService : IDisposable
     private MenuItem? _restartItem;
     private MenuItem? _debugItem;
     private MenuItem? _exitItem;
+    private MenuItem? _monitoringItem;
+    private MenuItem? _monitoringPauseItem;
     private readonly List<MenuItem> _tabItems = new();
 
     /// <param name="switchToTab">Main window switch_to_tab (runs on the UI thread).</param>
@@ -55,6 +61,7 @@ public sealed class TrayIconService : IDisposable
             return false;
         }
         D3D4TesterI18n.Provider.LanguageChanged += OnLanguageChanged;
+        GameInterfaceData.Instance.RegisterCallback(OnStateChanged);
         ColorPrinter.Green("[TRAY] System tray started");
         return true;
     }
@@ -64,6 +71,7 @@ public sealed class TrayIconService : IDisposable
     {
         if (_icon == null) return;
         D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
+        GameInterfaceData.Instance.UnregisterCallback(OnStateChanged);
         _icon.Dispose();
         _icon = null;
         ColorPrinter.Blue("[TRAY] System tray stopped");
@@ -96,11 +104,16 @@ public sealed class TrayIconService : IDisposable
             _debugItem.Items.Add(tabItem);
         }
         _exitItem = CreateItem(GlyphExit, (_, _) => { EventCenter.TriggerAppExit(); ColorPrinter.Blue("[TRAY] Exit requested"); });
+        _monitoringItem = CreateItem(GlyphMonitoring, (_, _) => { RosbotTaskProcessor.Instance.ToggleFlow(); ColorPrinter.Blue("[TRAY] Start / stop monitoring requested"); });
+        _monitoringPauseItem = CreateItem(GlyphMonitoringPause, (_, _) => { RosbotTaskProcessor.Instance.TogglePause(); ColorPrinter.Blue("[TRAY] Pause / resume monitoring requested"); });
 
         var menu = new ContextMenu();
         menu.Items.Add(_showItem);
         menu.Items.Add(_maximizeItem);
         menu.Items.Add(_restartItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(_monitoringItem);
+        menu.Items.Add(_monitoringPauseItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(_debugItem);
         menu.Items.Add(new Separator());
@@ -129,9 +142,24 @@ public sealed class TrayIconService : IDisposable
         });
     }
 
+    /// <summary>GameInterfaceData callback (UI thread): monitoring items follow the flow state.</summary>
+    private void OnStateChanged(GameInterfaceStateSnapshot s) => RefreshMonitoringItems(s, D3D4TesterI18n.Provider);
+
+    private void RefreshMonitoringItems(GameInterfaceStateSnapshot s, II18nProvider p)
+    {
+        if (_monitoringItem != null)
+            _monitoringItem.Header = p.GetUiText(s.RosbotFlowMasterEnabled ? I18nKeys.MonitorStopMonitoring : I18nKeys.MonitorStartMonitoring);
+        if (_monitoringPauseItem != null)
+        {
+            _monitoringPauseItem.Header = p.GetUiText(s.RosbotFlowPaused ? I18nKeys.MonitorResumeMonitoring : I18nKeys.MonitorPauseMonitoring);
+            _monitoringPauseItem.Visibility = s.RosbotFlowMasterEnabled ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
     private void RefreshText()
     {
         var p = D3D4TesterI18n.Provider;
+        RefreshMonitoringItems(GameInterfaceData.Instance.GetStateSnapshot(), p);
         if (_showItem != null) _showItem.Header = p.GetUiText(I18nKeys.SystemTrayShowSoftware);
         if (_maximizeItem != null) _maximizeItem.Header = p.GetUiText(I18nKeys.SystemTrayMaximize);
         if (_restartItem != null) _restartItem.Header = p.GetUiText(I18nKeys.SystemTrayRestart);

@@ -23,11 +23,12 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     private const string MutedBrushKey = "TextMutedBrush";
     private const string WarningBrushKey = "TextWarningBrush";
     private const string ErrorBrushKey = "TextErrorBrush";
-    private const string BridgeHintSeparator = " · ";
-    private const string ChipNeutralStyleKey = "StatusChipStyle";
-    private const string ChipSuccessStyleKey = "StatusChipSuccessStyle";
-    private const string ChipWarningStyleKey = "StatusChipWarningStyle";
-    private const string ChipDangerStyleKey = "StatusChipDangerStyle";
+    private const string BridgeHintSeparator = AppConstants.DisplaySeparator;
+    private const string EmptyValue = "-";
+    public const string ChipNeutralStyleKey = "StatusChipStyle";
+    public const string ChipSuccessStyleKey = "StatusChipSuccessStyle";
+    public const string ChipWarningStyleKey = "StatusChipWarningStyle";
+    public const string ChipDangerStyleKey = "StatusChipDangerStyle";
     private static readonly Regex PascalBoundary = new("(?<=[a-z0-9])(?=[A-Z])", RegexOptions.Compiled);
 
     public static D3StatusBarDisplayBuilder Instance { get; } = new();
@@ -96,10 +97,10 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
 
         string rosLabel = p.GetUiText(I18nKeys.StatusRos);
         string rosFmt = p.GetUiText(I18nKeys.StatusRestartCountFormat);
-        if (string.IsNullOrEmpty(rosFmt) || rosFmt == I18nKeys.StatusRestartCountFormat) rosFmt = "[R{count}]";
-        string rosVal = s.RosbotTotalRestartCount > 0 ? rosFmt.Replace("{count}", s.RosbotTotalRestartCount.ToString()) : "-";
-        string rosText = $"{rosLabel} {rosVal}";
-        string rosBrushKey = s.RosbotExtendedStatus == "running" ? successKey : (s.RosbotExtendedStatus == "paused" ? warningKey : errorKey);
+        string rosVal = s.RosbotTotalRestartCount > 0 ? rosFmt.Replace(I18nKeys.StatusRestartCountPlaceholder, s.RosbotTotalRestartCount.ToString()) : EmptyValue;
+        string rosProcess = RosbotDetection.IsOnline(s.RosbotExtendedStatus) ? ProcessText(s.RosbotFoundExeName, s.RosbotFoundPid) : "";
+        string rosText = $"{rosLabel} {rosVal}" + (rosProcess.Length > 0 ? BridgeHintSeparator + rosProcess : "");
+        string rosBrushKey = RosbotBrushKey(s.RosbotExtendedStatus);
 
         var bridge = s.RosbotBridgeFresh ? s.RosbotBridge : null;
         string d3Label = p.GetUiText(I18nKeys.StatusD3);
@@ -113,6 +114,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         else if (bridge != null)
         {
             d3Text = $"{d3Label}: {p.GetUiText(bridge.Dead ? I18nKeys.RosbotBridgeDead : bridge.InGame ? I18nKeys.StatusD3InGame : I18nKeys.RosbotBridgeNotInGame)}"
+                + (bridge.InGame ? BridgeHintSeparator + RosbotBridgeText.BloodShardsText(bridge, p) : "")
                 + (bridge.InventoryFull ? BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeInventoryFull) : "")
                 + (bridge.RepairNeeded ? BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeRepairNeeded) : "");
             d3BrushKey = bridge.InGame && !bridge.Dead && !bridge.InventoryFull && !bridge.RepairNeeded ? successKey : warningKey;
@@ -151,15 +153,19 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         }
         else
         {
-            string mapKey = "ui.rosbot.map_" + (string.IsNullOrEmpty(s.MapType) ? "unknown" : s.MapType);
-            mapVal = p.GetUiText(mapKey) != mapKey ? p.GetUiText(mapKey) : (s.MapType ?? "unknown");
-            mapBrushKey = s.MapType != "unknown" ? successKey : warningKey;
-            string stageKey = "ui.rosbot.stage_" + (string.IsNullOrEmpty(s.GameStage) ? "unknown" : s.GameStage);
-            stageVal = p.GetUiText(stageKey) != stageKey ? p.GetUiText(stageKey) : (s.GameStage ?? "unknown");
-            stageBrushKey = s.GameStage != "unknown" ? successKey : warningKey;
+            const string unknown = GameInterfaceStateSnapshot.UnknownValue;
+            string mapType = string.IsNullOrEmpty(s.MapType) ? unknown : s.MapType;
+            string mapKey = I18nKeys.StatusMapPrefix + mapType;
+            mapVal = p.GetUiText(mapKey) != mapKey ? p.GetUiText(mapKey) : mapType;
+            mapBrushKey = mapType != unknown ? successKey : warningKey;
+            string gameStage = string.IsNullOrEmpty(s.GameStage) ? unknown : s.GameStage;
+            string stageKey = I18nKeys.StatusStagePrefix + gameStage;
+            stageVal = p.GetUiText(stageKey) != stageKey ? p.GetUiText(stageKey) : gameStage;
+            stageBrushKey = gameStage != unknown ? successKey : warningKey;
         }
-        string mapText = (p.GetUiText(I18nKeys.StatusMap) ?? "Map") + ": " + mapVal;
-        string stageText = (p.GetUiText(I18nKeys.StatusStage) ?? "Stage") + ": " + stageVal;
+        string mapText = p.GetUiText(I18nKeys.StatusMap) + ": " + mapVal;
+        string stageText = p.GetUiText(I18nKeys.StatusStage) + ": " + stageVal;
+        var (monitoringText, monitoringBrushKey) = MonitoringStatus(s, p);
 
         string oauthText = p.GetUiText(I18nKeys.StatusOauthScriptLabel) + ": " + (s.OauthScriptConnected ? p.GetUiText(I18nKeys.StatusOauthConnected) : p.GetUiText(I18nKeys.StatusOauthDisconnected));
         string oauthBrushKey = s.OauthScriptConnected ? successKey : errorKey;
@@ -185,7 +191,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string pathRosText = (rosOk ? StatusDisplaySymbols.Found : StatusDisplaySymbols.NotFound) + " ROS" + rosSuffix;
         string pathRosBrushKey = rosOk ? successKey : mutedKey;
 
-        string configName = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.MacroConfigsCurrentSkillConfig, ViewModels.MainViewModel.DefaultConfigName) ?? ViewModels.MainViewModel.DefaultConfigName;
+        string configName = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.MacroConfigsCurrentSkillConfig, MacroConfigLoader.DefaultConfigName) ?? MacroConfigLoader.DefaultConfigName;
         string configKey = I18nKeys.ConfigTabsPrefix + configName;
         string configText = p.GetUiText(configKey);
         if (string.IsNullOrEmpty(configText) || configText == configKey) configText = configName;
@@ -204,6 +210,8 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
             MapBrushKey = mapBrushKey,
             StageText = stageText,
             StageBrushKey = stageBrushKey,
+            MonitoringText = monitoringText,
+            MonitoringBrushKey = monitoringBrushKey,
             OauthText = oauthText,
             OauthBrushKey = oauthBrushKey,
             WindowSizeText = windowSizeText,
@@ -219,6 +227,27 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
             PathRosBrushKey = pathRosBrushKey,
         };
     }
+
+    /// <summary>ROSBOT status colour: running -> success, paused -> warning, anything else -> error. Shared by the status bar and the Monitor tab.</summary>
+    public static string RosbotBrushKey(string? status) => status switch
+    {
+        RosbotDetection.StatusRunning => SuccessBrushKey,
+        RosbotDetection.StatusPaused => WarningBrushKey,
+        _ => ErrorBrushKey,
+    };
+
+    /// <summary>Monitoring (ROSBOT flow) state text and brush: paused -> warning, on -> success, off -> muted. Shared by the status bar and the Monitor tab.</summary>
+    public static (string Text, string BrushKey) MonitoringStatus(GameInterfaceStateSnapshot s, II18nProvider p)
+    {
+        if (s.RosbotFlowMasterEnabled && s.RosbotFlowPaused) return (p.GetUiText(I18nKeys.MonitorMonitoringPaused), WarningBrushKey);
+        return s.RosbotFlowMasterEnabled
+            ? (p.GetUiText(I18nKeys.MonitorMonitoringOn), SuccessBrushKey)
+            : (p.GetUiText(I18nKeys.MonitorMonitoringOff), MutedBrushKey);
+    }
+
+    /// <summary>"name.exe #1234" for a found process; "" when there is none. Shared by the status bar and the Monitor tab.</summary>
+    public static string ProcessText(string exeName, int pid) =>
+        string.IsNullOrEmpty(exeName) || pid <= 0 ? "" : $"{exeName} #{pid}";
 
     /// <summary>Status chip style for a builder brush key: success / warning / danger chips, neutral otherwise.</summary>
     public static string ChipStyleKeyForBrush(string brushKey) => brushKey switch

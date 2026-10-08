@@ -41,6 +41,7 @@ public partial class ResourceMonitorBlock : UserControl
     private readonly Dictionary<string, TextBlock[]> _cells = new(StringComparer.Ordinal);
     private SystemResourceSampler? _sampler;
     private int _sampling;
+    private Window? _stateWindow;
 
     public ResourceMonitorBlock()
     {
@@ -51,11 +52,26 @@ public partial class ResourceMonitorBlock : UserControl
         Loaded += (_, _) =>
         {
             RefreshI18n();
-            if (Window.GetWindow(this) is { } w) w.StateChanged += (_, _) => UpdateTimer();
+            AttachWindow(Window.GetWindow(this));
             UpdateTimer();
         };
-        Unloaded += (_, _) => _timer.Stop();
+        Unloaded += (_, _) =>
+        {
+            _timer.Stop();
+            AttachWindow(null);
+        };
     }
+
+    /// <summary>Subscribe the hosting window's StateChanged once (re-Loaded pages do not stack handlers); null unsubscribes.</summary>
+    private void AttachWindow(Window? window)
+    {
+        if (ReferenceEquals(_stateWindow, window)) return;
+        if (_stateWindow != null) _stateWindow.StateChanged -= OnWindowStateChanged;
+        _stateWindow = window;
+        if (_stateWindow != null) _stateWindow.StateChanged += OnWindowStateChanged;
+    }
+
+    private void OnWindowStateChanged(object? sender, EventArgs e) => UpdateTimer();
 
     public void RefreshI18n()
     {

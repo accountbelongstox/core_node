@@ -24,13 +24,18 @@ internal sealed class CommandResult
 
 /// <summary>
 /// Commands from the app: command.txt next to the plugin, key=value lines (id, action, target, mode, click, ui_id), written
-/// atomically by the app, consumed (deleted) on the next pulse and executed on ROSBOT's pulse thread.
+/// atomically by the app, consumed (deleted) on the next pulse and executed on a worker thread, one at a time, so the plugin keeps
+/// scanning and writing state.json while a command waits for the game (e.g. movement while ROSBOT is paused). A command still running
+/// after CommandTimeoutMs is reported as timed out and abandoned (its late result is dropped); the next command may then run.
 /// Actions: move_to / interact / pickup (target = actor id, else a name or internal-name fragment, nearest first),
 /// pickup_filter (every ground item matching the pickup filter), click_ui (UI element id, 0x id or UI path, if shown),
 /// go_npc (target = exact actor name: walk the path ROSBOT computes for it, waypoint by waypoint, stop when stuck, then interact at
 /// the NPC's position and report whether a vendor window opened),
 /// salvage_all (value = normal / magic / rare: with the blacksmith window open, open its salvage page, press that salvage-all
-/// button and confirm), follow (target = leader actor id or empty for the nearest player, value = "banner slot 0-4,pickup 0/1" or "off"; FollowMode). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
+/// button and confirm), follow (target = selected player actor id, value = "mode,party slot,banner slot 0-4,pickup 0/1,revive 0/1" with mode nearest / selected /
+/// leader / slot, or "off"; FollowMode), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
+/// clicked in order, e.g. the map teleport the app runs right after ROSBOT starts). Commands run on the plugin's tick; walking is
+/// bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -46,6 +51,8 @@ internal sealed class BridgeCommands
     public const string ActionGoNpc = "go_npc";
     public const string ActionSalvageAll = "salvage_all";
     public const string ActionFollow = "follow";
+    public const string ActionUiSequence = "ui_sequence";
+    private const char UiSequenceSeparator = '|';
     private const string FollowOff = "off";
     private const char FollowValueSeparator = ',';
     private const string FollowPickupOn = "1";
@@ -64,6 +71,13 @@ internal sealed class BridgeCommands
     private const int PickupTimeoutMs = 5000;
     private const int FilterBudgetMs = 20000;
     private const float PickupReach = 2f;
+    private const int CommandMaxAgeSec = 60;
+    private const int CommandTimeoutMs = 60000;
+    private const string BlacksmithNpc = "PT_Blacksmith";
+    private const int SalvageSettleMs = 1500;
+    private const int QualityMagicMin = 3;
+    private const int QualityRareMin = 6;
+    private const int QualityLegendaryMin = 9;
 
     private readonly string _dir;
     private readonly Action<string> _log;
@@ -78,16 +92,45 @@ internal sealed class BridgeCommands
     }
 
     private readonly FollowMode _follow;
+    private readonly object _workerLock = new();
+    private Thread _worker;
+    private CommandResult _running;
 
+    /// <summary>Result of the last finished (or timed out / expired) command.</summary>
     public CommandResult Last { get; private set; }
+
+    /// <summary>A command (or an abandoned, timed-out one) still runs on a worker: it may be moving the hero.</summary>
+    public bool Busy
+    {
+        get { lock (_workerLock) return _running != null || _worker is { IsAlive: true }; }
+    }
+
+    /// <summary>Command executing right now on the worker (id, action, start time), or null.</summary>
+    public CommandResult Running
+    {
+        get { lock (_workerLock) return _running; }
+    }
 
     public bool AutoPickup { get; private set; }
 
     public IReadOnlyList<string> Patterns => _patterns;
 
-    /// <summary>Run a pending command, if any (call on every pulse).</summary>
+    /// <summary>Start a pending command on the worker, if any and none is running; time out a stuck one (call on every pulse).</summary>
     public void Poll()
     {
+        lock (_workerLock)
+        {
+            if (_running != null)
+            {
+                if ((DateTime.UtcNow - _running.Utc).TotalMilliseconds < CommandTimeoutMs) return;
+                _running.Message = $"timeout after {CommandTimeoutMs / 1000}s (the game did not respond, e.g. ROSBOT paused), abandoned";
+                _running.Utc = DateTime.UtcNow;
+                Last = _running;
+                _log($"command {_running.Id} {_running.Action}: failed {_running.Message}");
+                _running = null;
+            }
+            if (_worker is { IsAlive: true }) return;
+        }
         string path = Path.Combine(_dir, CommandFileName);
         if (!File.Exists(path)) return;
         Dictionary<string, string> cmd;
@@ -100,8 +143,40 @@ internal sealed class BridgeCommands
         {
             return;
         }
-        Last = Execute(cmd);
-        _log($"command {Last.Id} {Last.Action}: {(Last.Ok ? "ok" : "failed")} {Last.Message}");
+        long ticks = cmd.TryGetValue("id", out var rawId) && long.TryParse(rawId, out long t) ? t : 0;
+        double age = ticks > 0 ? (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc)).TotalSeconds : 0;
+        string action = cmd.TryGetValue("action", out var a) ? a : "";
+        if (age > CommandMaxAgeSec)
+        {
+            Last = new CommandResult
+            {
+                Id = ticks, Action = action, Utc = DateTime.UtcNow,
+                Message = $"expired ({age:0}s old, written while the plugin was not running), not run",
+            };
+            _log($"command {Last.Id} {Last.Action}: failed {Last.Message}");
+            return;
+        }
+        var running = new CommandResult { Id = ticks, Action = action, Utc = DateTime.UtcNow };
+        var worker = new Thread(() => RunOnWorker(cmd, running)) { IsBackground = true, Name = "CoreNodeBridgeCommand" };
+        lock (_workerLock)
+        {
+            _running = running;
+            _worker = worker;
+        }
+        worker.Start();
+    }
+
+    private void RunOnWorker(Dictionary<string, string> cmd, CommandResult running)
+    {
+        var result = Execute(cmd);
+        lock (_workerLock)
+        {
+            if (!ReferenceEquals(_running, running)) return;
+            Last = result;
+            _running = null;
+            _worker = null;
+        }
+        _log($"command {result.Id} {result.Action}: {(result.Ok ? "ok" : "failed")} {result.Message}");
     }
 
     /// <summary>Re-read pickup_filter.txt when it changed.</summary>
@@ -207,9 +282,11 @@ internal sealed class BridgeCommands
                 {
                     cmd.TryGetValue("value", out var mode);
                     var parts = (mode ?? "").Split(FollowValueSeparator);
+                    string Part(int i) => parts.Length > i ? parts[i] : "";
                     if (mode == FollowOff) _follow.Stop();
-                    else _follow.Start(uint.TryParse(target, out uint leader) ? leader : 0u, int.TryParse(parts[0], out int slot) ? slot : 0,
-                        parts.Length > 1 && parts[1] == FollowPickupOn);
+                    else _follow.Start(Part(0), uint.TryParse(target, out uint selected) ? selected : 0u,
+                        int.TryParse(Part(1), out int slot) ? slot : 0, int.TryParse(Part(2), out int banner) ? banner : 0, Part(3) == FollowPickupOn,
+                        Part(4) == FollowPickupOn);
                     result.Ok = true;
                     result.Message = "follow " + (_follow.Enabled ? "on" : "off");
                     return result;
@@ -235,6 +312,8 @@ internal sealed class BridgeCommands
                     result.Message = "clicked " + raw;
                     return result;
                 }
+                case ActionUiSequence:
+                    return UiSequence(result, cmd.TryGetValue("value", out var sequence) ? sequence : "");
                 default:
                     result.Message = "unknown action";
                     return result;
@@ -314,7 +393,11 @@ internal sealed class BridgeCommands
         return points;
     }
 
-    /// <summary>Blacksmith window open: switch to the salvage page, press the salvage-all button of the quality, confirm.</summary>
+    /// <summary>
+    /// In town: walk to the blacksmith and open him unless his window is already open, switch to the salvage page (ROSBOT's
+    /// BlacksmithTab3 = tab_2), press the salvage-all button of the quality (ROSBOT SalvageNormal / SalvageBlue / SalvageYellow),
+    /// confirm, then count the backpack items of that quality before and after.
+    /// </summary>
     private CommandResult SalvageAll(CommandResult result, string quality)
     {
         string button = quality switch
@@ -329,11 +412,22 @@ internal sealed class BridgeCommands
             result.Message = "unknown quality: " + quality;
             return result;
         }
-        if (!Shown(UiIds.VendorDialog))
+        if (!WorldScanner.Safe(() => LocalPlayer.IsInTown, false))
         {
-            result.Message = "blacksmith window not open";
+            result.Message = "not in town";
             return result;
         }
+        if (!Shown(UiIds.VendorDialog))
+        {
+            var walk = GoNpc(new CommandResult { Id = result.Id, Action = ActionGoNpc, Utc = result.Utc }, BlacksmithNpc);
+            if (!walk.Ok || !Shown(UiIds.VendorDialog))
+            {
+                result.Message = "blacksmith window not opened: " + walk.Message;
+                return result;
+            }
+            Thread.Sleep(UiSettleMs);
+        }
+        int before = CountBackpack(quality);
         foreach (var tab in UiIds.VendorTabs)
         {
             if (Shown(UiIds.SalvageDialog)) break;
@@ -354,9 +448,26 @@ internal sealed class BridgeCommands
         Click(button);
         bool confirmed = WaitUi(UiIds.ConfirmOk, UiWaitMs);
         if (confirmed) Click(UiIds.ConfirmOk);
+        Thread.Sleep(SalvageSettleMs);
+        int after = CountBackpack(quality);
         result.Ok = true;
-        result.Message = $"salvage {quality} pressed{(confirmed ? ", confirmed" : "")}";
+        result.Message = $"salvage {quality} pressed{(confirmed ? ", confirmed" : "")}"
+                         + (before >= 0 ? $", backpack {quality} items {before} -> {after}" : "");
         return result;
+    }
+
+    /// <summary>Backpack items of a salvage-all quality (normal: inferior..superior, magic, rare); -1 without inventory slots.</summary>
+    private static int CountBackpack(string quality)
+    {
+        if (!WorldScanner.SlotSupported) return -1;
+        var (min, max) = quality switch
+        {
+            QualityNormal => (0, QualityMagicMin - 1),
+            QualityMagic => (QualityMagicMin, QualityRareMin - 1),
+            _ => (QualityRareMin, QualityLegendaryMin - 1),
+        };
+        var items = WorldScanner.CarriedItems(WorldScanner.Safe(() => Context.Acds, Array.Empty<IAcd>()), Array.Empty<EntityInfo>());
+        return items.Count(i => i.Slot == WorldScanner.SlotBackpack && i.Quality >= min && i.Quality <= max);
     }
 
     /// <summary>ROSBOT's MoveTo(actor) (fails for far targets), else its cancellable CoreMoveTo to the actor position (bounded).</summary>
@@ -374,6 +485,40 @@ internal sealed class BridgeCommands
     private static bool Shown(string path) => WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(path)), false);
 
     private static void Click(string path) => Context.ClickUIElement(UiIds.Of(path));
+
+    /// <summary>Wait for each UI element of the sequence and click it, in order; stops at the first one that does not show.</summary>
+    private static CommandResult UiSequence(CommandResult result, string sequence)
+    {
+        var steps = sequence.Split(UiSequenceSeparator).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+        if (steps.Count == 0)
+        {
+            result.Message = "empty ui_sequence";
+            return result;
+        }
+        for (int i = 0; i < steps.Count; i++)
+        {
+            if (!UiIds.TryParse(steps[i], out ulong id))
+            {
+                result.Message = $"invalid ui id at step {i + 1}: {steps[i]}";
+                return result;
+            }
+            var sw = Stopwatch.StartNew();
+            while (!WorldScanner.Safe(() => Context.HasUIElement(id), false))
+            {
+                if (sw.ElapsedMilliseconds >= UiWaitMs)
+                {
+                    result.Message = $"step {i + 1}/{steps.Count} not shown: {steps[i]}";
+                    return result;
+                }
+                Thread.Sleep(StepPauseMs);
+            }
+            Context.ClickUIElement(id);
+            Thread.Sleep(UiSettleMs);
+        }
+        result.Ok = true;
+        result.Message = $"ui_sequence {steps.Count} step(s) clicked";
+        return result;
+    }
 
     private static bool WaitUi(string path, int timeoutMs)
     {

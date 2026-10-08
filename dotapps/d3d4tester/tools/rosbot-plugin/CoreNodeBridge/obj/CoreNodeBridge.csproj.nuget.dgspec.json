@@ -5,12 +5,12 @@
   },
   "projects": {
     "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\CoreNodeBridge.csproj": {
-      "version": "1.6.0",
+      "version": "1.10.0",
       "restore": {
         "projectUniqueName": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\CoreNodeBridge.csproj",
         "projectName": "CoreNodeBridge",
         "projectPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\CoreNodeBridge.csproj",
-        "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
         "outputPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
@@ -72,7 +72,7 @@
         "projectUniqueName": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\RosBotApiStub\\RosBotApiStub.csproj",
         "projectName": "RosBot",
         "projectPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\RosBotApiStub\\RosBotApiStub.csproj",
-        "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
         "outputPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\RosBotApiStub\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [

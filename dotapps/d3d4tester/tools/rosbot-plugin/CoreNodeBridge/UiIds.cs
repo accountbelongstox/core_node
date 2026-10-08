@@ -24,6 +24,17 @@ internal static class UiIds
     public const string SalvageRare = "Root.NormalLayer.vendor_dialog_mainPage.salvage_dialog.salvage_all_wrapper.salvage_rare_button";
     public const string ConfirmOk = "Root.TopLayer.confirmation.subdlg.stack.wrap.button_ok";
 
+    /// <summary>Death menu button to accept a teammate's resurrection (path from the D3 client; UI_DeathMenu_AcceptResurrection).</summary>
+    public const string AcceptResurrection = "Root.NormalLayer.deathmenu_dialog.dialog_main.button_accept_resurrection";
+
+    /// <summary>Death menu buttons in revive preference order (corpse, checkpoint, town).</summary>
+    public static readonly string[] ReviveButtons =
+    {
+        "Root.NormalLayer.deathmenu_dialog.dialog_main.button_revive_at_corpse",
+        "Root.NormalLayer.deathmenu_dialog.dialog_main.button_revive_at_checkpoint",
+        "Root.NormalLayer.deathmenu_dialog.dialog_main.button_revive_in_town",
+    };
+
     /// <summary>Vendor side tabs tried in order until the salvage page shows (the blacksmith's salvage tab).</summary>
     public static readonly string[] VendorTabs =
     {

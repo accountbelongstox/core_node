@@ -2,6 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
 using DotCore.Foundations;
 using DotCore.Utils.Security;
 
@@ -62,12 +63,18 @@ public static class BattlenetAccountService
         ColorPrinter.Blue($"{LogTag} saved {region} account {Mask(email)}");
     }
 
+    /// <summary>Remove by email. Removing the active account activates the first remaining one, else clears the region credentials (so List does not re-add it).</summary>
     public static void Remove(string region, string email)
     {
+        bool wasActive = SameEmail(ActiveEmail(region), email);
         var stored = Load(region);
         stored.RemoveAll(a => SameEmail(a.Email, email));
         Save(region, stored);
         ColorPrinter.Blue($"{LogTag} removed {region} account {Mask(email)}");
+        if (!wasActive) return;
+        if (stored.Count > 0 && Activate(region, stored[0].Email)) return;
+        AsiaCredentialsService.SaveCredentials(region, "", "");
+        ColorPrinter.Blue($"{LogTag} {region} credentials cleared (active account removed)");
     }
 
     /// <summary>Make an account active (credentials used by the login flow). False when unknown or its password cannot be decrypted.</summary>
@@ -108,5 +115,7 @@ public static class BattlenetAccountService
 
     private static bool SameEmail(string a, string b) => string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    private static string Mask(string email) => email.Length <= 4 ? "***" : email[..2] + "***" + email[^2..];
+    private const int MaskVisibleChars = 2;
+
+    private static string Mask(string email) => SecretMask.Mask(email, MaskVisibleChars);
 }

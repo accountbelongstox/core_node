@@ -8,6 +8,7 @@ using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
+using DotApps.d3d4tester.Ui;
 using DotApps.d3d4tester.ViewModels;
 using DotCore.Foundations;
 using Microsoft.Win32;
@@ -141,8 +142,7 @@ public partial class RunLogPage : UserControl
             return;
         }
         var level = string.IsNullOrEmpty(logLevel) ? AppConstants.LogLevelInfo : logLevel.ToUpperInvariant();
-        var opts = ConfigOptionsProvider.GetOptions<LogSettingsOptions>();
-        if (level == AppConstants.LogLevelDebug && !opts.ShowDebugLogs) return;
+        if (level == AppConstants.LogLevelDebug && ChkShowDebugLogs.IsChecked != true) return;
         var filter = CmbLogLevel.SelectedItem as string ?? LevelAll;
         if (filter != LevelAll)
         {
@@ -150,8 +150,7 @@ public partial class RunLogPage : UserControl
             var filterRank = LevelRank.TryGetValue(filter, out var f) ? f : 0;
             if (msgRank < filterRank) return;
         }
-        TxtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] [{level}] {StripUiLogPrefix(message)}\n");
-        if (opts.AutoScroll) TxtLog.ScrollToEnd();
+        LogTextBoxHelper.Append(TxtLog, $"[{DateTime.Now:HH:mm:ss}] [{level}] {StripUiLogPrefix(message)}\n", ChkAutoScroll.IsChecked == true);
     }
 
     private void BtnClearLogs_Click(object sender, RoutedEventArgs e) => TxtLog.Clear();

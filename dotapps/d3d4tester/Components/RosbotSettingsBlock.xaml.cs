@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.I18n;
 using Microsoft.Win32;
 
@@ -48,9 +49,9 @@ public partial class RosbotSettingsBlock : UserControl
         ConfigBinding.BindCheckBox(ChkFirstbornBlueGateReuse, ConfigKeys.RosbotFirstbornBlueGateReuse);
         ConfigBinding.BindCheckBox(ChkPickupBloodShards, ConfigKeys.RosbotPickupBloodShards);
         ConfigBinding.BindCheckBox(ChkSmartEcho, ConfigKeys.RosbotSmartEcho);
-        ConfigBinding.BindIntTextBox(TxtSmartEchoWaitSeconds, ConfigKeys.RosbotSmartEchoWaitSeconds, SettingMin, SettingMax, AppConstants.RosbotSmartEchoWaitSecondsDefault);
+        ConfigBinding.BindIntTextBox(TxtSmartEchoWaitSeconds, ConfigKeys.RosbotSmartEchoWaitSeconds, SettingMin, SettingMax, RosbotConstants.RosbotSmartEchoWaitSecondsDefault);
         ConfigBinding.BindCheckBox(ChkTestMode, ConfigKeys.RosbotTestMode);
-        ConfigBinding.BindIntTextBox(TxtTestTimeoutMinutes, ConfigKeys.RosbotTestTimeoutMinutes, SettingMin, SettingMax, AppConstants.RosbotTestTimeoutMinutesDefault);
+        ConfigBinding.BindIntTextBox(TxtTestTimeoutMinutes, ConfigKeys.RosbotTestTimeoutMinutes, SettingMin, SettingMax, RosbotConstants.RosbotTestTimeoutMinutesDefault);
         ConfigBinding.BindCheckBox(ChkPreventStuck, ConfigKeys.RosbotPreventStuck);
     }
 

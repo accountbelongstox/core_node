@@ -92,6 +92,7 @@ namespace Rcdw32.Ws.Plugins
         public static bool IsInGame => throw new NotSupportedException();
         public static int AcdId => throw new NotSupportedException();
         public static Vector3 Position => throw new NotSupportedException();
+        public static T GetAttribute<T>(int attr, uint parameter = 4294963200u) where T : struct => throw new NotSupportedException();
         public static int SnoLevelArea => throw new NotSupportedException();
         public static int SnoScene => throw new NotSupportedException();
         public static int GlobalWorldId => throw new NotSupportedException();
@@ -102,6 +103,7 @@ namespace Rcdw32.Ws.Plugins
         public static bool IsNephalemRift => throw new NotSupportedException();
         public static int RiftKey => throw new NotSupportedException();
         public static int Shards => throw new NotSupportedException();
+        public static int MaxShard => throw new NotSupportedException();
         public static int ParagonLevel => throw new NotSupportedException();
         public static int ActorClass => throw new NotSupportedException();
         public static double CurrentHealthPct => throw new NotSupportedException();

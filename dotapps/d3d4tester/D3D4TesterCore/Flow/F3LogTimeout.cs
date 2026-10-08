@@ -65,6 +65,9 @@ public static class F3LogTimeout
 
     public static bool IsTestMode() => RosbotFlowHost.GetConfig(ConfigKeys.RosbotTestMode, false);
 
+    /// <summary>True when ROSBOT writes no logs (RosBotGlobalSettings.ini DebugLevel = NoLogs): the log timeout cannot work and is off.</summary>
+    public static Func<bool>? LogsDisabledProvider { get; set; }
+
     /// <summary>Last history.txt write time (UTC) from the app's history tail; null when unknown.</summary>
     public static Func<DateTime?>? HistoryLastModifiedProvider { get; set; }
 
@@ -133,6 +136,13 @@ public static class F3LogTimeout
             return F3Step.Stay;
         }
 
+        if (enabled && LogsDisabledProvider?.Invoke() == true)
+        {
+            SetShort("F3: ROSBOT logs off");
+            if (verbose)
+                ColorPrinter.Gray("[F3] ROSBOT DebugLevel = NoLogs -> log timeout off, f3_stay");
+            return F3Step.Stay;
+        }
         if (!enabled)
         {
             SetShort("F3: disabled");
@@ -188,7 +198,6 @@ public static class F3LogTimeout
             {
                 if (RosbotManager.SendF7ToSystem())
                 {
-                    RosbotExitState.SetF7SentForRosbot();
                     RosbotExitState.SetTestWait50PercentUntil(now.AddSeconds(TestHalfRatio * recorded.Value));
                     ColorPrinter.Gray($"[F3] Test mode: has recorded DEBUG duration {recorded.Value:F1}s, F7 sent; will simulate 50% then [E2] continue test");
                 }

@@ -1,4 +1,5 @@
 // PY-REF: pyapps/d3-check/providor/providor_index.py
+using DotApps.d3d4tester.Core;
 using Microsoft.Extensions.Configuration;
 
 namespace DotApps.d3d4tester.Config.Options;
@@ -19,7 +20,7 @@ public sealed class RosbotOptions
     public bool SmartEcho { get; set; }
 
     [ConfigurationKeyName("smart_echo_wait_seconds")]
-    public int SmartEchoWaitSeconds { get; set; } = 15;
+    public int SmartEchoWaitSeconds { get; set; } = RosbotConstants.RosbotSmartEchoWaitSecondsDefault;
 
     [ConfigurationKeyName("startup")]
     public bool Startup { get; set; }
@@ -31,8 +32,8 @@ public sealed class RosbotOptions
     public bool TestMode { get; set; }
 
     [ConfigurationKeyName("test_timeout_minutes")]
-    public int TestTimeoutMinutes { get; set; } = 30;
+    public int TestTimeoutMinutes { get; set; } = RosbotConstants.RosbotTestTimeoutMinutesDefault;
 
     [ConfigurationKeyName("timeout_minutes")]
-    public int TimeoutMinutes { get; set; } = 8;
+    public int TimeoutMinutes { get; set; } = RosbotConstants.RosbotLogTimeoutMinutesDefault;
 }

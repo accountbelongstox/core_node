@@ -100,6 +100,7 @@ public partial class MainWindow : Window, IMainWindowHost
         var hwnd = helper.Handle;
         var dispatcher = new MainThreadDispatcher(Dispatcher);
         _hotkeyService = new WindowsGlobalHotkeyService(hwnd, dispatcher);
+        RosbotHotkeyCheck.Install(_hotkeyService);
         var source = HwndSource.FromHwnd(hwnd);
         source?.AddHook(WndProc);
         _hotkeyBinder = new D3D4TesterHotkeyBinder(_hotkeyService);
@@ -172,6 +173,7 @@ public partial class MainWindow : Window, IMainWindowHost
         Services.Monitor.MonitorService.Instance.Install();
         Services.Monitor.RosbotKeyService.Install();
         D3PlannerService.Initialize();
+        D3PlannerTownService.Initialize();
         Core.Bridge.BridgeFollowTownPortal.Install();
         D3PlannerService.Alert += a => Dispatcher.BeginInvoke(() => ShowTrayNotification(a.Title, a.Message));
         LoginTryController.Initialize();
@@ -413,7 +415,6 @@ public partial class MainWindow : Window, IMainWindowHost
         TabCalibration.Header = p.GetUiText(I18nKeys.TabsCoordinateCalibration);
         TabLog.Header = p.GetUiText(I18nKeys.TabsLog);
         TabBattlenet.Header = p.GetUiText(I18nKeys.TabsBattlenetManagement);
-        TabDecompile.Header = p.GetUiText(I18nKeys.TabsDecompile);
         TabMonitor.Header = p.GetUiText(I18nKeys.TabsMonitor);
         BtnScanPaths.Content = p.GetUiText(_pathScanInProgress ? I18nKeys.BottomBarScanning : I18nKeys.BottomBarOneClickScan);
         BtnScanPaths.ToolTip = p.GetUiText(I18nKeys.BottomBarOneClickScanTooltip);
@@ -426,8 +427,6 @@ public partial class MainWindow : Window, IMainWindowHost
             runLogPage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyBattlenet) is BattlenetPage battlenetPage && battlenetPage.IsLoaded)
             battlenetPage.RefreshI18n();
-        if (GetPage(AppConstants.PanelKeyDecompile) is Pages.Decompile.DecompilePage decompilePage && decompilePage.IsLoaded)
-            decompilePage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyMonitor) is Pages.Monitor.MonitorPage monitorPage && monitorPage.IsLoaded)
             monitorPage.RefreshI18n();
     }
@@ -440,8 +439,8 @@ public partial class MainWindow : Window, IMainWindowHost
         string? regionKey = s.BattlenetRegion;
         if (regionKey == BattlenetConstants.RegionAsia || regionKey == BattlenetConstants.RegionCn)
         {
-            var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-            string? cached = string.IsNullOrEmpty(rosOpts.BattlenetRegionCache) ? null : rosOpts.BattlenetRegionCache;
+            string cachedRaw = ConfigBinding.GetValue(ConfigKeys.RosSettingsBattlenetRegionCache, "") ?? "";
+            string? cached = string.IsNullOrEmpty(cachedRaw) ? null : cachedRaw;
             if (cached != regionKey)
             {
                 D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, regionKey ?? "");
@@ -449,7 +448,7 @@ public partial class MainWindow : Window, IMainWindowHost
                 if (cached != null)
                     SubmitPathScanIfThrottleOk();
             }
-            string rosDir = rosOpts.RosDirectory ?? "";
+            string rosDir = ConfigBinding.GetValue(ConfigKeys.RosSettingsRosDirectory, "") ?? "";
             bool match = RosbotPathPicker.PathMatchesRegion(rosDir, regionKey);
             if (match)
                 _mismatchScanTriggered = false;
@@ -461,10 +460,11 @@ public partial class MainWindow : Window, IMainWindowHost
         }
 
         // Centralized display: one place defines text + brush key (D3StatusBarDisplayBuilder), UI only applies
-        IStatusBarDisplay d = D3StatusBarDisplayBuilder.Build(s, p);
+        var d = D3StatusBarDisplayBuilder.Build(s, p);
         TxtMacroStatus.Text = d.CurrentConfigLabel;
         ApplyChip(ChipBn, TxtStatusBn, d.BattlenetText, d.BattlenetBrushKey);
         ApplyChip(ChipRos, TxtStatusRos, d.RosText, d.RosBrushKey);
+        ApplyChip(ChipMonitoring, TxtStatusMonitoring, d.MonitoringText, d.MonitoringBrushKey);
         ApplyChip(ChipD3, TxtStatusD3, d.D3Text, d.D3BrushKey);
         ApplyChip(ChipMap, TxtStatusMap, d.MapText, d.MapBrushKey);
         ApplyChip(ChipStage, TxtStatusStage, d.StageText, d.StageBrushKey);
@@ -757,7 +757,6 @@ public partial class MainWindow : Window, IMainWindowHost
             AppConstants.PanelKeyCalibration => TabCalibration.Content,
             AppConstants.PanelKeyLog => TabLog.Content,
             AppConstants.PanelKeyBattlenet => TabBattlenet.Content,
-            AppConstants.PanelKeyDecompile => TabDecompile.Content,
             AppConstants.PanelKeyMonitor => TabMonitor.Content,
             _ => null
         };

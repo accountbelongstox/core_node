@@ -80,6 +80,8 @@ public static class WindowInputHelper
     /// <summary>True when hwnd is the foreground window.</summary>
     public static bool IsForegroundWindow(IntPtr hwnd) => hwnd != IntPtr.Zero && WindowInputNative.GetForegroundWindow() == hwnd;
 
+    public static IntPtr GetForegroundWindowHandle() => WindowInputNative.GetForegroundWindow();
+
     /// <summary>True while the key is physically down (GetAsyncKeyState high bit).</summary>
     public static bool IsKeyDown(int vk) => (WindowInputNative.GetAsyncKeyState(vk) & 0x8000) != 0;
 

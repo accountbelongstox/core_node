@@ -15,6 +15,18 @@
     <TextBlock x:Name="LblBagOffsetDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
     <TextBlock x:Name="LblAutomationTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>
+    <Grid Margin="0,0,0,4">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*" MaxWidth="200"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="LblAnimationSpeed" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center"/>
+      <ComboBox x:Name="CboAnimationSpeed" Grid.Column="1">
+        <ComboBoxItem/>
+        <ComboBoxItem/>
+        <ComboBoxItem/>
+      </ComboBox>
+    </Grid>
     <Grid x:Name="AutomationGrid">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>

@@ -8,8 +8,8 @@ using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Shared Battle.net operations (no region logic): start/close/activate, loading/disconnect/login-failed/browser-wait detection,
-/// popup close, UI snapshot, single-walk dynamic state, play-starting rule.
+/// Shared Battle.net operations (no region logic): start/close/activate, client screen classification, game tab / Play clicks,
+/// account log out, play-starting rule.
 /// 1:1 Python d3utils/battlenet_operation_base.py (BattlenetOperationBase).
 /// </summary>
 public abstract class BattlenetOperationBase : IBattlenetOperation
@@ -20,24 +20,14 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
 
     public bool Close() => BattlenetManager.Instance.Close();
 
-    public bool Restart(double waitAfterSec = 2.0) => BattlenetManager.Instance.Restart(null, waitAfterSec);
-
     public bool ActivateWindow() => BattlenetManager.Instance.ActivateWindow();
 
-    public abstract bool IsOnLoginScreen();
-    public abstract bool IsLoggedIn();
     public abstract bool PerformCnLoginFlow(double waitAfterNetEaseSec = C.CnAfterNetEaseClickSettleSec);
     public abstract bool PerformAsiaLoginFillAndSubmit(string? email, string? password);
     public abstract bool ClickD3Tab();
     public abstract bool ClickStartGame();
-    public abstract bool IsLoginScreenReady();
-    public abstract bool IsGameStarting();
     public abstract bool IsOnAsiaLoginScreen();
-    public abstract bool PerformAsiaEmailStep(string email);
-    public abstract bool PerformAsiaPasswordStep(string? password = null);
-    public abstract bool ClickCnLoginButton();
     public abstract bool ClickD4Tab();
-    public abstract bool IsD4Starting();
 
     /// <summary>
     /// Shared screen classification (priority order): sleep, browser-login wait, login failed, region login screens
@@ -228,79 +218,12 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         controls.Any(c => (c.Type == C.LoadingIndicatorControlType || c.Type == C.LoadingIndicatorControlTypeShort)
                           && BattlenetRegionJudge.ContainsAny(c.Name, keywords));
 
-    /// <summary>TextControl whose name contains a loading substring. 1:1 Python is_loading_ui_visible.</summary>
-    public bool IsLoadingUiVisible()
-    {
-        foreach (var c in T.Enumerate())
-        {
-            if (c.Type != C.LoadingIndicatorControlType && c.Type != C.LoadingIndicatorControlTypeShort) continue;
-            if (BattlenetRegionJudge.ContainsAny(c.Name, C.LoadingIndicatorNameSubstrings))
-                return true;
-        }
-        return false;
-    }
-
-    /// <summary>Primary (Continue Offline) and secondary (Cancel) both present; false on browser-wait popup. 1:1 Python is_login_failed_screen.</summary>
-    public bool IsLoginFailedScreen()
-    {
-        var controls = T.EnumerateLight();
-        if (controls.Count == 0) return false;
-        if (IsOnBrowserLoginWaitScreen()) return false;
-        bool hasPrimary = T.HasAutomationIdContainingAny(controls, C.LoginFailedPrimaryAutomationIds);
-        bool hasSecondary = T.HasAutomationIdContainingAny(controls, C.LoginFailedSecondaryAutomationIds);
-        if (!hasPrimary || !hasSecondary)
-        {
-            foreach (var c in controls)
-            {
-                if (!hasPrimary && (BattlenetRegionJudge.ContainsAny(c.Name, C.LoginFailedPrimaryKeywords) || BattlenetRegionJudge.ContainsAny(c.AutomationId, C.LoginFailedPrimaryKeywords)))
-                    hasPrimary = true;
-                if (!hasSecondary && (BattlenetRegionJudge.ContainsAny(c.Name, C.LoginFailedSecondaryKeywords) || BattlenetRegionJudge.ContainsAny(c.AutomationId, C.LoginFailedSecondaryKeywords)))
-                    hasSecondary = true;
-            }
-        }
-        return hasPrimary && hasSecondary;
-    }
-
-    /// <summary>1:1 Python is_on_browser_login_wait_screen.</summary>
-    public bool IsOnBrowserLoginWaitScreen()
-    {
-        var controls = T.EnumerateLight();
-        if (controls.Count == 0) return false;
-        if (C.BrowserLoginWaitAutomationIds.Length > 0 && T.HasAutomationIdContainingAny(controls, C.BrowserLoginWaitAutomationIds))
-            return true;
-        return T.FindByName(controls, C.BrowserLoginWaitMainKeywords) != null;
-    }
-
-    /// <summary>1:1 Python is_disconnected.</summary>
-    public bool IsDisconnected()
-    {
-        var controls = T.EnumerateLight();
-        if (controls.Count == 0) return false;
-        if (C.DisconnectAutomationIds.Length > 0 && T.HasAutomationIdContainingAny(controls, C.DisconnectAutomationIds))
-            return true;
-        return T.FindByName(controls, C.DisconnectKeywords) != null;
-    }
-
     /// <summary>Name contains Playing Now/正在, else disabled. 1:1 Python play_button_indicates_starting.</summary>
     public static bool PlayButtonIndicatesStarting(BattlenetControl ctrl)
     {
         if (BattlenetRegionJudge.ContainsAny(ctrl.Name, C.PlayStartingNameSubstrings))
             return true;
         return ctrl.IsEnabled is { } enabled && !enabled;
-    }
-
-    /// <summary>
-    /// Flow view of the single client classifier (ClassifyClientState) on one fresh walk, so the B / D blocks judge the screen exactly
-    /// like the status center: Normal = logged-in main UI by the avatar presence (HOME has no Play), AccountOffline counts as connecting.
-    /// </summary>
-    public BattlenetDynamicState GetDynamicState()
-    {
-        var controls = T.EnumerateLight(forceRefresh: true);
-        if (controls.Count == 0) return new BattlenetDynamicState(false, false, false, null, false, null);
-        var status = ClassifyClientState(controls);
-        var (onLogin, disconnected, normal) = status.DynamicTriple;
-        bool connecting = status.State is BattlenetClientState.Connecting or BattlenetClientState.AccountOffline;
-        return new BattlenetDynamicState(onLogin, disconnected, normal, FindMainPlayButton(controls)?.Name, connecting, Region);
     }
 
     /// <summary>Exact automation id match (optionally skipping Playing Now/Game Version names). Shared by D3/D4 tab clicks.</summary>
@@ -316,15 +239,68 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         return null;
     }
 
-    /// <summary>Play control by automation id (substring) then name. 1:1 Python _find_play_control_in_list.</summary>
-    protected static BattlenetControl? FindPlay(IReadOnlyList<BattlenetControl> controls, string[] aids, string[] names)
+    /// <summary>Play control by automation id (substring, matched id returned) then name. 1:1 Python _find_play_control_in_list.</summary>
+    protected static (BattlenetControl? Control, string? MatchedAutomationId) FindPlay(IReadOnlyList<BattlenetControl> controls, string[] aids, string[] names)
     {
-        if (controls.Count == 0) return null;
+        if (controls.Count == 0) return (null, null);
         foreach (var aid in aids)
         {
             var ctrl = T.FindByAutomationId(controls, aid);
-            if (ctrl != null) return ctrl;
+            if (ctrl != null) return (ctrl, aid);
         }
-        return T.FindByName(controls, names);
+        return (T.FindByName(controls, names), null);
+    }
+
+    /// <summary>Region label in click log lines ("CN" / "Asia").</summary>
+    protected abstract string LogRegionLabel { get; }
+
+    /// <summary>Suffix of the region's "not found" click log lines.</summary>
+    protected abstract string NotFoundLogSuffix { get; }
+
+    private const string OperationLogTag = "[BattlenetOperation]";
+    private const string D4OperationLogTag = "[D4BattlenetOperation]";
+    private const string D3TabLogLabel = "D3";
+    private const string D4TabLogLabel = "D4";
+
+    /// <summary>D3 tab: exact automation id, then name (not Playing Now / Game Version). 1:1 Python click_d3_tab.</summary>
+    protected bool ClickD3TabBy(string[] aids, string[] names) =>
+        ClickGameTab(OperationLogTag, D3TabLogLabel, aids, skipExcludedOnAid: false, names);
+
+    /// <summary>D4 tab: exact automation id (optionally skipping Playing Now / Game Version), then name. 1:1 Python D4BattlenetOperation.click_d4_tab.</summary>
+    protected bool ClickD4TabBy(string[] aids, bool skipExcludedOnAid, string[] names) =>
+        ClickGameTab(D4OperationLogTag, D4TabLogLabel, aids, skipExcludedOnAid, names);
+
+    private bool ClickGameTab(string logTag, string tabLabel, string[] aids, bool skipExcludedOnAid, string[] names)
+    {
+        var controls = T.Enumerate();
+        var ctrl = FindGameTabByAutomationId(controls, aids, skipExcludedOnAid);
+        if (ctrl != null)
+        {
+            ColorPrinter.Blue($"{logTag} {LogRegionLabel} Click {tabLabel} tab: automation_id={ctrl.AutomationId}");
+            return T.ClickControl(ctrl);
+        }
+        var byName = T.FindByName(controls, names);
+        if (byName != null && !BattlenetRegionJudge.ContainsAny(byName.Name, C.GameTabExcludedNameSubstrings))
+        {
+            ColorPrinter.Blue($"{logTag} {LogRegionLabel} Click {tabLabel} tab: name={byName.Name}");
+            return T.ClickControl(byName);
+        }
+        ColorPrinter.Yellow($"{logTag} {tabLabel} tab control not found{NotFoundLogSuffix}");
+        return false;
+    }
+
+    /// <summary>Play / start game: automation id (substring), then name. 1:1 Python click_start_game.</summary>
+    protected bool ClickPlayBy(string[] aids, string[] names)
+    {
+        var (ctrl, aid) = FindPlay(T.Enumerate(), aids, names);
+        if (ctrl == null)
+        {
+            ColorPrinter.Yellow($"{OperationLogTag} Start game button not found{NotFoundLogSuffix}");
+            return false;
+        }
+        ColorPrinter.Blue(aid != null
+            ? $"{OperationLogTag} {LogRegionLabel} Click start game: automation_id={aid}"
+            : $"{OperationLogTag} {LogRegionLabel} Click start game: name={ctrl.Name}");
+        return T.ClickControl(ctrl);
     }
 }

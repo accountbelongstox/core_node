@@ -18,18 +18,12 @@ public static class OAuthCallbackState
     /// <summary>Clear the done flag before starting a wait (right after clicking NetEase login).</summary>
     public static void ResetOauthDone() => OauthDone.Reset();
 
-    /// <summary>Block until oauth-done arrives or timeout. True when the user completed the web login.</summary>
-    public static bool WaitOauthDone(TimeSpan timeout) => OauthDone.Wait(timeout);
-
     /// <summary>Called by the HTTP bridge on oauth-done (GET/POST).</summary>
     public static void NotifyOauthDone()
     {
         lock (Lock) _lastOauthDoneUtc = DateTime.UtcNow;
         OauthDone.Set();
     }
-
-    /// <summary>Non-blocking: true once oauth-done was notified (tick-driven flow).</summary>
-    public static bool IsOauthDone() => OauthDone.IsSet;
 
     /// <summary>Called by the HTTP bridge on oauth-ping (script health check).</summary>
     public static void NotifyPing()

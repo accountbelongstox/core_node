@@ -626,7 +626,7 @@ internal static class InputNative
         {
             ["enter"] = 0x0D, ["return"] = 0x0D, ["\n"] = 0x0D, ["tab"] = 0x09, ["\t"] = 0x09,
             ["esc"] = 0x1B, ["escape"] = 0x1B, ["space"] = 0x20, [" "] = 0x20,
-            ["backspace"] = 0x08, ["delete"] = 0x2E, ["del"] = 0x2E, ["insert"] = 0x2D,
+            ["backspace"] = 0x08, ["delete"] = 0x2E, ["del"] = 0x2E, ["insert"] = 0x2D, ["ins"] = 0x2D,
             ["home"] = 0x24, ["end"] = 0x23, ["pageup"] = 0x21, ["pgup"] = 0x21, ["pagedown"] = 0x22, ["pgdn"] = 0x22,
             ["left"] = 0x25, ["up"] = 0x26, ["right"] = 0x27, ["down"] = 0x28,
             ["shift"] = 0x10, ["shiftleft"] = 0xA0, ["shiftright"] = 0xA1,

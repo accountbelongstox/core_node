@@ -18,6 +18,7 @@ using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.Ui;
 using DotApps.d3d4tester.Windows.CoordinatePicker;
+using DotCore.Common;
 using DotCore.Foundations;
 using OpenCvSharp;
 using WpfWindow = System.Windows.Window;
@@ -67,7 +68,7 @@ public partial class CoordinatePickerWindow : WpfWindow
     private static int _nextPickId;
 
     private readonly string _clientType;
-    private readonly Func<(Mat? Image, string? Error)>? _refreshScreenshot;
+    private readonly Func<Task<(Mat? Image, string? Error)>>? _refreshScreenshot;
     private readonly TemplateMatcherHelper _matcher = TemplateMatcherHelper.Instance;
     private readonly List<CoordinatePick> _sessionPicks = new();
     private readonly List<(int X, int Y)> _tempPoints = new();
@@ -81,9 +82,10 @@ public partial class CoordinatePickerWindow : WpfWindow
     private int _pickHeight = HeightDefault;
     private int _pickRadius = RadiusDefault;
 
-    private CoordinatePickerWindow(Mat screenshot, string clientType, Func<(Mat? Image, string? Error)>? refreshScreenshot)
+    private CoordinatePickerWindow(Mat screenshot, string clientType, Func<Task<(Mat? Image, string? Error)>>? refreshScreenshot)
     {
         InitializeComponent();
+        _matcher.Reset();
         _original = screenshot;
         _clientType = clientType;
         _refreshScreenshot = refreshScreenshot;
@@ -97,6 +99,7 @@ public partial class CoordinatePickerWindow : WpfWindow
         SetPickType(CoordinatePickType.Point);
         RenumberHistory();
         RefreshDisplaySource();
+        D3D4TesterI18n.Provider.LanguageChanged += OnLanguageChanged;
         Closed += OnClosed;
     }
 
@@ -108,7 +111,7 @@ public partial class CoordinatePickerWindow : WpfWindow
     /// <paramref name="refreshScreenshot"/> re-captures the client window; null hides the Refresh button.
     /// 1:1 Python _open_calibration_window.
     /// </summary>
-    public static CoordinatePickerWindow ShowPicker(WpfWindow? owner, Mat screenshot, string clientType, Func<(Mat? Image, string? Error)>? refreshScreenshot)
+    public static CoordinatePickerWindow ShowPicker(WpfWindow? owner, Mat screenshot, string clientType, Func<Task<(Mat? Image, string? Error)>>? refreshScreenshot)
     {
         _current?.Close();
         var window = new CoordinatePickerWindow(screenshot, clientType, refreshScreenshot) { Owner = owner };
@@ -120,10 +123,18 @@ public partial class CoordinatePickerWindow : WpfWindow
     private void OnClosed(object? sender, EventArgs e)
     {
         History.CollectionChanged -= OnHistoryChanged;
+        D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
         if (ReferenceEquals(_current, this)) _current = null;
+        _matcher.Reset();
         _original?.Dispose();
         _original = null;
     }
+
+    private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e) => Dispatcher.InvokeAsync(() =>
+    {
+        ApplyTexts();
+        RenumberHistory();
+    });
 
     private void ApplyTexts()
     {
@@ -356,7 +367,7 @@ public partial class CoordinatePickerWindow : WpfWindow
         if (_scale is not { } s || _original == null) return false;
         x = (int)((canvasPoint.X - _offsetX) / s);
         y = (int)((canvasPoint.Y - _offsetY) / s);
-        return x >= 0 && y >= 0 && x <= _original.Width && y <= _original.Height;
+        return x >= 0 && y >= 0 && x < _original.Width && y < _original.Height;
     }
 
     private void PickCanvas_MouseMove(object sender, MouseEventArgs e) =>
@@ -444,10 +455,19 @@ public partial class CoordinatePickerWindow : WpfWindow
     }
 
     /// <summary>Re-capture the client window; history is kept. 1:1 Python _on_refresh_screenshot.</summary>
-    private void BtnRefresh_Click(object sender, RoutedEventArgs e)
+    private async void BtnRefresh_Click(object sender, RoutedEventArgs e)
     {
         if (_refreshScreenshot == null) return;
-        var (image, error) = _refreshScreenshot();
+        BtnRefresh.IsEnabled = false;
+        (Mat? Image, string? Error) result;
+        try { result = await _refreshScreenshot(); }
+        finally { BtnRefresh.IsEnabled = true; }
+        var (image, error) = result;
+        if (!IsLoaded)
+        {
+            image?.Dispose();
+            return;
+        }
         if (image == null || error != null)
         {
             image?.Dispose();

@@ -11,19 +11,25 @@ namespace DotApps.d3d4tester.Core.Flow;
 /// The ROSBOT flow (docs/ROSBOT_FLOW_MERMAID.md) as one sequential procedure on its own thread, started by "Start monitoring" and
 /// cancelled by "Stop monitoring" (every wait ends at once). One cycle:
 /// [F1] D3 running? no -> [B] Battle.net ready (reused when logged in) -> [D] launch D3 (just entered); yes -> D3 reused.
-/// [F2] ROSBOT online? no -> [C] D3 screen + map teleport -> [E] start ROSBOT. Then [F3] monitor until a restart (F4: end D3 +
+/// [F2] ROSBOT online? no -> [E] start ROSBOT (autostart; no screen recognition) -> plugin start actions (ROSBOT paused: follow, else
+/// map teleport via UI clicks, then resumed). Then [F3] monitor until a restart (F4: end D3 +
 /// ROSBOT), D3 gone (F4), ROSBOT gone (D3 kept) or a ROSBOT-only restart (E again). The cycle repeats until stopped.
-/// Pause halts the flow (monitoring stays on, so restart requests and the Battle.net guard stay idle) and pauses a botting ROSBOT
-/// with its own pause key; Resume presses the key again for a ROSBOT it paused, restarts the F3 timeout window and continues from F1
-/// (everything still running is reused).
+/// Pause halts the flow (monitoring stays on, so restart requests and the Battle.net guard stay idle), waits for the running step to
+/// end and pauses a botting ROSBOT with its own pause key; Resume presses the key again for a ROSBOT it paused, restarts the F3 timeout
+/// window and continues from F1 (everything still running is reused). Pause key and F4 take the GameControl lease.
 /// </summary>
 public static class RosbotFlowRunner
 {
     private const string LogTag = "[Flow]";
+    private const int StepFinishWaitMs = 20000;
+    private const int LeaseWaitMs = 20000;
+    private const int TaskStartWaitMs = 25000;
+    private const string LeasePause = "pause key";
+    private const string LeaseF4 = "F4 end D3 + ROSBOT";
 
     private static readonly FlowThread Worker = new("RosbotFlow", RunCycle);
     private static readonly object PauseLock = new();
-    private static bool _d3JustEntered;
+    private static readonly object StateLock = new();
     private static bool _rosbotPausedByFlow;
 
     private static GameInterfaceStateSnapshot State => GameInterfaceData.Instance.GetStateSnapshot();
@@ -31,6 +37,9 @@ public static class RosbotFlowRunner
     public static bool IsRunning => Worker.IsRunning;
 
     public static bool IsPaused => RosbotFlowState.Instance.Paused;
+
+    /// <summary>Raised after Resume gave control back (the app ends what the user drove while paused, e.g. follow mode).</summary>
+    public static event Action? Resumed;
 
     /// <summary>Start monitoring: set the flow flag and start the flow thread (idempotent; a paused flow is resumed).</summary>
     public static void Start()
@@ -44,49 +53,88 @@ public static class RosbotFlowRunner
         Worker.Start();
     }
 
-    /// <summary>Stop monitoring: clear the flow and pause flags and cancel the flow at its current step (ROSBOT is left as it is).</summary>
+    /// <summary>
+    /// Stop monitoring: clear the flow flag and pending restarts and cancel the flow at its current step. ROSBOT is left as it is; a taken
+    /// control stays taken (Resume still presses the pause key again for a ROSBOT the pause stopped).
+    /// </summary>
     public static void Stop()
     {
-        var state = RosbotFlowState.Instance;
-        state.SetFlowMasterEnabled(false);
-        state.SetPaused(false);
-        lock (PauseLock) _rosbotPausedByFlow = false;
+        RosbotFlowState.Instance.SetFlowMasterEnabled(false);
+        RosbotRestartRequest.Clear();
         Worker.Stop();
     }
 
-    /// <summary>Pause monitoring: halt the flow at its current step, then press ROSBOT's pause key when it is botting.</summary>
-    public static void Pause()
+    /// <summary>
+    /// Pause (take control): with or without monitoring. Halts the flow at its current step when monitoring runs, then presses ROSBOT's
+    /// pause key when ROSBOT is botting. The returned task completes once the key was sent (or not needed).
+    /// </summary>
+    public static Task Pause()
     {
         var state = RosbotFlowState.Instance;
-        if (!state.FlowMasterEnabled || state.Paused) return;
-        state.SetPaused(true);
-        Worker.Stop();
-        ColorPrinter.Yellow($"{LogTag} monitoring paused");
-        Task.Run(() =>
+        lock (StateLock)
         {
+            if (state.Paused) return Task.CompletedTask;
+            state.SetPaused(true);
+        }
+        Worker.Stop();
+        ColorPrinter.Yellow($"{LogTag} paused (control taken)");
+        return Task.Run(() =>
+        {
+            if (!Worker.WaitStopped(StepFinishWaitMs)) ColorPrinter.Yellow($"{LogTag} flow step still running after {StepFinishWaitMs / 1000}s");
+            using var lease = GameControl.TryAcquire(LeasePause, LeaseWaitMs);
             lock (PauseLock)
             {
+                if (!state.Paused || _rosbotPausedByFlow) return;
+                RosbotInterruptGuard.WaitSafe(LeasePause, TaskStartWaitMs, () => !state.Paused);
                 if (!state.Paused) return;
+                RosbotManager.Instance.InvalidateLookupCache();
                 Refresh();
-                if (State.RosbotExtendedStatus != RosbotDetection.StatusRunning) return;
+                if (!RosbotDetection.IsBotting(State))
+                {
+                    ColorPrinter.Gray($"{LogTag} ROSBOT not botting ({State.RosbotExtendedStatus}), no pause key");
+                    return;
+                }
                 _rosbotPausedByFlow = RosbotManager.SendPauseToggleToSystem();
                 ColorPrinter.Yellow($"{LogTag} ROSBOT pause key {(_rosbotPausedByFlow ? "sent" : "send failed")}");
             }
         });
     }
 
-    /// <summary>Resume monitoring: press ROSBOT's pause key again for a ROSBOT the pause stopped, restart the F3 window, run from F1.</summary>
+    /// <summary>
+    /// Hand control to the plugin from the flow thread (follow mode right after ROSBOT started): ROSBOT was already paused with its key,
+    /// so monitoring is paused with that ROSBOT marked as paused by the flow (Resume presses the key again) and the flow halts.
+    /// </summary>
+    public static void HoldForPlugin()
+    {
+        var state = RosbotFlowState.Instance;
+        lock (StateLock)
+        {
+            if (state.Paused) return;
+            state.SetPaused(true);
+        }
+        lock (PauseLock) _rosbotPausedByFlow = true;
+        ColorPrinter.Yellow($"{LogTag} paused: control handed to the plugin (ROSBOT paused)");
+        Worker.Stop();
+    }
+
+    /// <summary>Resume: press ROSBOT's pause key again for a ROSBOT the pause stopped, restart the F3 window; monitoring continues from F1.</summary>
     public static void Resume()
     {
         var state = RosbotFlowState.Instance;
-        if (!state.FlowMasterEnabled || !state.Paused) return;
+        if (!state.Paused) return;
         Task.Run(() =>
         {
+            using var lease = GameControl.TryAcquire(LeasePause, LeaseWaitMs);
             lock (PauseLock)
             {
                 if (!state.Paused) return;
                 Refresh();
-                if (_rosbotPausedByFlow && State.RosbotExtendedStatus == RosbotDetection.StatusPaused)
+                if (!state.Paused)
+                {
+                    ColorPrinter.Gray($"{LogTag} resume skipped: no longer paused");
+                    return;
+                }
+                if (_rosbotPausedByFlow)
                 {
                     bool sent = RosbotManager.SendPauseToggleToSystem();
                     ColorPrinter.Blue($"{LogTag} ROSBOT resume key {(sent ? "sent" : "send failed")}");
@@ -95,9 +143,10 @@ public static class RosbotFlowRunner
                 RosbotRestartRequest.Clear();
                 F3LogTimeout.SetRosbotStartedAt();
                 state.SetPaused(false);
-                ColorPrinter.Green($"{LogTag} monitoring resumed");
-                Worker.Start();
+                ColorPrinter.Green($"{LogTag} resumed");
+                if (state.FlowMasterEnabled && !state.Paused) Worker.Start();
             }
+            Resumed?.Invoke();
         });
     }
 
@@ -119,7 +168,6 @@ public static class RosbotFlowRunner
                     ctx.Wait(FlowTimings.D3LaunchRetrySec);
                     return;
                 }
-                _d3JustEntered = true;
             }
             Refresh();
         }
@@ -134,12 +182,6 @@ public static class RosbotFlowRunner
                 ctx.Wait(FlowTimings.RosbotStartRetrySec);
                 return;
             }
-            bool justEntered = _d3JustEntered;
-            _d3JustEntered = false;
-            if (D3DirectProcess.IsInTeleportCooldown())
-                ColorPrinter.Gray($"{LogTag} [C] teleported recently -> skip C, start ROSBOT");
-            else if (D3DirectProcess.Run(ctx, justEntered) != D3DirectResult.Ready)
-                return;
         }
         else
             ColorPrinter.Blue($"{LogTag} [F2] ROSBOT online -> reuse it");
@@ -155,42 +197,49 @@ public static class RosbotFlowRunner
                     ColorPrinter.Yellow($"{LogTag} restart ({outcome.ReasonId} {outcome.Detail}) -> [F4] end D3 + ROSBOT");
                     if (outcome.CountRestart) RosbotExitState.IncrementTotalRestartCount();
                     RosbotRestartRequest.NotifyExecuted(outcome.ReasonId, outcome.Detail, outcome.RestartBattlenet);
-                    RunF4();
+                    EndD3AndRosbot();
                     return;
                 case F3Exit.D3Gone:
                     ColorPrinter.Yellow($"{LogTag} D3 is gone -> [F4] end ROSBOT");
-                    RunF4();
+                    EndD3AndRosbot();
                     return;
                 case F3Exit.RosbotGone:
                     ColorPrinter.Yellow($"{LogTag} ROSBOT offline -> route again (D3 reused)");
                     return;
                 case F3Exit.RosbotRestart:
-                    ColorPrinter.Yellow($"{LogTag} ROSBOT restart requested -> [E]");
-                    if (!StartRosbot(ctx)) return;
+                    ColorPrinter.Yellow($"{LogTag} ROSBOT restart requested -> [E] (ROSBOT closed and started again)");
+                    if (!StartRosbot(ctx, restart: true)) return;
                     continue;
             }
         }
     }
 
-    /// <summary>[F2] + [E] on the host; false (after the retry wait) when ROSBOT could not be started.</summary>
-    private static bool StartRosbot(FlowContext ctx)
+    /// <summary>[F2] + [E] on the host (restart: [E] even when ROSBOT is online); false (after the retry wait) when ROSBOT could not be started.</summary>
+    private static bool StartRosbot(FlowContext ctx, bool restart = false)
     {
-        if (RosbotFlowHost.Current?.RunRosbotStart(ctx) == true)
+        if (RosbotFlowHost.Current?.RunRosbotStart(ctx, restart) == true)
             return true;
         ColorPrinter.Yellow($"{LogTag} [E] ROSBOT not started, retry in {FlowTimings.RosbotStartRetrySec}s");
         ctx.Wait(FlowTimings.RosbotStartRetrySec);
         return false;
     }
 
-    /// <summary>[F4a] end D3, [F4b] F7 to the system + end ROSBOT by PID.</summary>
-    private static void RunF4()
+    /// <summary>
+    /// [F4] RBAssist order, without its fixed waits: F7 stops botting while D3 is still up, end D3, second F7 closes ROSBOT (polled until it
+    /// exits, leftovers killed by PID), refresh. Also the restart path outside the flow (log system error).
+    /// </summary>
+    public static void EndD3AndRosbot()
     {
-        D3Manager.Instance.KillIfRunning();
-        if (RosbotManager.SendF7ToSystem())
-            RosbotExitState.SetF7SentForRosbot();
+        using var lease = GameControl.TryAcquire(LeaseF4, LeaseWaitMs);
         var rosbot = RosbotManager.Instance;
-        rosbot.KillIfRunning();
-        rosbot.InvalidateLookupCache();
+        bool rosbotRunning = rosbot.FindRosbotProcesses().Count > 0;
+        if (rosbotRunning)
+        {
+            RosbotManager.SendF7ToSystem();
+            Thread.Sleep(RosbotConstants.F7StopSettleMs);
+        }
+        D3Manager.Instance.KillIfRunning();
+        if (rosbotRunning) rosbot.CloseGracefully();
         Refresh();
     }
 

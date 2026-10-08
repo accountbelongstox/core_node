@@ -9,8 +9,9 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
-/// E block: ROSBOT run flow E1 kill -> E2 wait 1 s -> E3 optional zip update (E3a-E3f) + auto_start_rosbot check -> E4 start
-/// (F3 baseline) -> E5 task init -> E5a wait window / server / poll UI / main profile + Start botting -> E6. Runs on the flow thread;
+/// E block: ROSBOT run flow E1 kill -> E2 wait 1 s -> E3 optional zip update (E3a-E3f) + auto_start_rosbot check -> E4 start with
+/// "autostart" (F3 baseline) -> E5 task init -> E5a wait until it bots by itself, else wait window / server / poll UI / main profile +
+/// Start botting -> E6. Runs on the flow thread;
 /// Stop monitoring (the flow context) aborts it between steps and inside the E5a waits.
 /// 1:1 Python d3utils/rosbot_flow/flow_e_rosbot_run.py + rosbot_flow_f2_rosbot_online.py.
 /// </summary>
@@ -18,6 +19,8 @@ public static class RosbotRunFlow
 {
     private const double E2WaitSec = 1.0;
     private const int E5aWaitSec = 30;
+    private const double AutostartWaitSec = 45.0;
+    private const double AutostartPollSec = 2.0;
 
     /// <summary>[F2] ROSBOT online? Refresh, then running|paused. 1:1 Python run_f2_rosbot_online.</summary>
     public static bool RunF2RosbotOnline()
@@ -57,10 +60,32 @@ public static class RosbotRunFlow
             ColorPrinter.Yellow("[E4] Battle.net is waking up (sleep / fetching account), skip ROSBOT start this round");
             return false;
         }
-        bool ok = RosbotManager.Instance.Start();
+        bool ok = RosbotManager.Instance.Start(autostart: true);
         if (ok)
             F3LogTimeout.SetRosbotStartedAt();
         return ok;
+    }
+
+    /// <summary>
+    /// [E5a] ROSBOT was started with "autostart" (RBAssist method): poll its status (filling the KEY dialog when it asks) until it bots
+    /// (running = no visible ROSBOT window) within AutostartWaitSec; false leaves the UI clicks as the fallback.
+    /// </summary>
+    private static bool WaitBottingByItself(FlowContext ctx)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(AutostartWaitSec);
+        while (DateTime.UtcNow < deadline)
+        {
+            ctx.Wait(AutostartPollSec);
+            RosbotUiAutomation.TryFillKeyDialog();
+            RosbotManager.Instance.InvalidateLookupCache();
+            RosbotStatusProvider.Refresh();
+            if (RosbotDetection.IsBotting(GameInterfaceData.Instance.GetStateSnapshot()))
+            {
+                ColorPrinter.Green("[E5a] ROSBOT botting (autostart)");
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>E1..E6 in order (E4/E5 only when E3 says proceed). startRosbotTask = [E5] task init. True when E4 started ROSBOT.</summary>
@@ -68,6 +93,7 @@ public static class RosbotRunFlow
     {
         RosbotManager.Instance.KillIfRunning();
         ctx.Wait(E2WaitSec);
+        Services.RosbotHotkeyCheck.CheckBeforeRosbotStart();
         if (!RunE3UpdateFlow())
         {
             ColorPrinter.Gray("[E3] auto_start_rosbot is off, ROSBOT not started");
@@ -77,7 +103,10 @@ public static class RosbotRunFlow
         if (!RunE4Start()) return false;
         ctx.ThrowIfStopped();
         startRosbotTask();
-        RosbotStatusProvider.GetRosbotOperation().RunAfterRosbotStart(waitSec: E5aWaitSec, doDebug: true, doTab: true, doStartBotting: true,
+        if (WaitBottingByItself(ctx))
+            return true;
+        ColorPrinter.Gray("[E5a] ROSBOT did not start botting by itself -> UI start (main profile + Start botting)");
+        RosbotUiAutomation.RunAfterRosbotStart(waitSec: E5aWaitSec, doDebug: true, doTab: true, doStartBotting: true,
             shouldStop: () => ctx.IsStopped);
         return true;
     }

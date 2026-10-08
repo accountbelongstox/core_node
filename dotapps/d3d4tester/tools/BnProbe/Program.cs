@@ -112,8 +112,9 @@ public static class Program
         var cn = BattlenetOperationFactory.GetOperationBase(BattlenetConstants.RegionCn);
         var asia = BattlenetOperationFactory.GetOperationBase(BattlenetConstants.RegionAsia);
         var judge = new BattlenetRegionJudge(controls);
-        using var process = BattlenetManager.Instance.GetProcess();
         var classified = BattlenetClientStateDetector.Detect();
+        var cnClassified = cn.ClassifyClientState(controls);
+        var asiaClassified = asia.ClassifyClientState(controls);
         var report = new
         {
             time = DateTime.Now.ToString("o"),
@@ -122,10 +123,9 @@ public static class Program
             classified = new { state = classified.State.ToString(), classified.UiRegion, classified.Detail },
             detectors = new
             {
-                cnDynamic = cn.GetDynamicState(),
-                asiaDynamic = asia.GetDynamicState(),
+                cnClassified = new { state = cnClassified.State.ToString(), cnClassified.UiRegion, cnClassified.Detail },
+                asiaClassified = new { state = asiaClassified.State.ToString(), asiaClassified.UiRegion, asiaClassified.Detail },
                 cnLoginUi = judge.IsCnLoginUi(),
-                cnLoginReady = cn.IsLoginScreenReady(),
                 asiaLoginUi = judge.IsAsiaLoginUi(),
                 asiaEmailStep = judge.IsAsiaEmailStep(),
                 asiaPasswordStep = judge.IsAsiaPasswordStep(),
@@ -134,13 +134,6 @@ public static class Program
                 asiaMainUi = judge.HasAsiaMainUi(),
                 connecting = judge.HasConnecting(),
                 disconnect = judge.HasDisconnect(),
-                loginFailed = cn.IsLoginFailedScreen(),
-                browserLoginWait = cn.IsOnBrowserLoginWaitScreen(),
-                loadingUi = cn.IsLoadingUiVisible(),
-                cnGameStarting = cn.IsGameStarting(),
-                asiaGameStarting = asia.IsGameStarting(),
-                sleepMode = BattlenetStuckDetector.IsSleepMode(process),
-                fetchingAccount = BattlenetStuckDetector.IsFetchingAccountInfo(process),
             },
             controls = controls.Select(c => new { c.Level, c.Type, c.Name, c.AutomationId, c.IsEnabled, c.IsOffscreen, c.IsSelected }),
         };

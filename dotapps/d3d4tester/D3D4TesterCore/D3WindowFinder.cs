@@ -45,9 +45,12 @@ public static class D3WindowFinder
         return false;
     }
 
-    /// <summary>Find D3 windows: by exe when config path set, else by title with skip. 1:1 Python find_windows(use_cache).</summary>
+    /// <summary>Find D3 windows: by window class "D3 Main Window Class" (RBAssist), else by exe when the config path is set, else by title with skip. 1:1 Python find_windows(use_cache) + class lookup.</summary>
     public static IReadOnlyList<WindowFinder.WindowInfo> FindWindows()
     {
+        var byClass = WindowFinder.FindWindowsByClass(D3WindowConstants.DiabloIIIWindowClass);
+        if (byClass.Count > 0)
+            return byClass;
         var exePath = GetConfiguredExePath();
         if (!string.IsNullOrEmpty(exePath))
         {
@@ -65,10 +68,4 @@ public static class D3WindowFinder
             SkipBrowserOrEditor);
     }
 
-    /// <summary>First D3 window handle or IntPtr.Zero. Convenience for callers that only need hwnd.</summary>
-    public static IntPtr FindFirstHandle()
-    {
-        var list = FindWindows();
-        return list.Count > 0 ? list[0].Hwnd : IntPtr.Zero;
-    }
 }

@@ -43,7 +43,7 @@ public static class BnUiDebugPaths
         string? projectDir = FindProjectDirectory();
         string dir = projectDir != null
             ? Path.Combine(projectDir, DocsDirName)
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName, DocsDirName);
+            : Path.Combine(ConfigPaths.LocalAppDataDir, DocsDirName);
         Directory.CreateDirectory(dir);
         return dir;
     }

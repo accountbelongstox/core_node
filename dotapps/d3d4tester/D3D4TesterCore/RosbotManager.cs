@@ -11,10 +11,13 @@ using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Core;
 
+/// <summary>One running ROSBOT process: PID, exe file name, and whether it is the configured main exe.</summary>
+public sealed record RosbotProcess(int Pid, string ExeName, bool IsMainExe);
+
 /// <summary>
-/// ROSBOT process management and the single process/window lookup flow: same-dir exe list (other exes first, then main) ->
-/// exact exe-name process -> windows by PID (content validator selects the main window). Kill by PID of main and every
-/// same-dir exe (renamed copies included), start, F7 to process / system, cleanup, waits.
+/// ROSBOT process management and the single process/window lookup flow: ROSBOT processes (every process whose exe lives under
+/// ros_directory, then the main exe by name) -> windows by PID (content validator selects the main window). Kill by PID of every
+/// ROSBOT process, start, F7 to the system.
 /// Settings are read from ros_settings on every call (Python cached them in the singleton constructor).
 /// 1:1 Python pyapps/d3-check/d3utils/rosbot_manager.py.
 /// </summary>
@@ -24,7 +27,6 @@ public sealed class RosbotManager
     private RosbotDetectionResult _cache = NotFound;
     private bool _cacheProcessFound;
     private DateTime _cacheAtUtc = DateTime.MinValue;
-    private Func<IntPtr, bool>? _mainWindowContentValidator;
     private string? _lastLoggedFindRosbotExe;
     private Action<string>? _beforeStart;
     private Func<string?>? _keyProvider;
@@ -35,7 +37,6 @@ public sealed class RosbotManager
 
     private RosbotManager()
     {
-        _mainWindowContentValidator = RosbotUiAutomation.WindowHasRosbotMainContent;
     }
 
     public string RosbotExeName
@@ -57,7 +58,6 @@ public sealed class RosbotManager
 
     public int StartupDelaySeconds => RosbotFlowHost.GetConfig(ConfigKeys.RosSettingsStartupDelaySeconds, RosbotConstants.StartupDelaySecondsDefault);
 
-    public int DetectionTimeoutSeconds => RosbotFlowHost.GetConfig(ConfigKeys.RosSettingsProcessDetectionTimeout, RosbotConstants.ProcessDetectionTimeoutDefault);
 
     /// <summary>Configured ROS directory (directory of exe if config is an exe path), or null. 1:1 Python get_ros_directory.</summary>
     public string? GetRosDirectory()
@@ -67,24 +67,6 @@ public sealed class RosbotManager
         if (Directory.Exists(raw)) return raw;
         string? parent = Path.GetDirectoryName(raw);
         return !string.IsNullOrEmpty(parent) && Directory.Exists(parent) ? parent : null;
-    }
-
-    /// <summary>1:1 Python validate_ros_directory.</summary>
-    public bool ValidateRosDirectory()
-    {
-        string raw = RawRosDirectory;
-        if (raw.Length == 0)
-        {
-            ColorPrinter.Red($"{RosbotConstants.ManagerLogPrefix} ROS directory not configured");
-            return false;
-        }
-        if (!Directory.Exists(raw) && !File.Exists(raw))
-        {
-            ColorPrinter.Red($"{RosbotConstants.ManagerLogPrefix} ROS directory not found: {raw}");
-            return false;
-        }
-        ColorPrinter.Gray($"{RosbotConstants.ManagerLogPrefix} ROS directory: {raw}");
-        return true;
     }
 
     /// <summary>Main exe: exact rosbot_exe_name first, then ROSBOT_EXE_PATTERNS (never an arbitrary *.exe). Logs only when the path changes. 1:1 Python find_rosbot_exe.</summary>
@@ -130,27 +112,14 @@ public sealed class RosbotManager
         var outList = new List<string>();
         string? baseDir = GetRosDirectory();
         if (baseDir == null) return outList;
-        var excludes = ExcludePatterns;
         try
         {
             foreach (string pattern in SearchPatterns)
             {
                 foreach (string filePath in Directory.GetFiles(baseDir, pattern))
                 {
-                    if (!File.Exists(filePath)) continue;
-                    string fileName = Path.GetFileName(filePath);
-                    if (IsGarbledFileName(fileName)) continue;
-                    bool exclude = false;
-                    foreach (string ex in excludes)
-                    {
-                        string stub = (ex ?? "").Replace("*", "");
-                        if (stub.Length > 0 && fileName.Contains(stub, StringComparison.OrdinalIgnoreCase))
-                        {
-                            exclude = true;
-                            break;
-                        }
-                    }
-                    if (!exclude && !outList.Contains(filePath)) outList.Add(filePath);
+                    if (!File.Exists(filePath) || IsExcludedExe(Path.GetFileName(filePath))) continue;
+                    if (!outList.Contains(filePath)) outList.Add(filePath);
                 }
             }
         }
@@ -159,26 +128,56 @@ public sealed class RosbotManager
         return outList;
     }
 
-    /// <summary>1:1 Python find_same_dir_exe_names.</summary>
-    public List<string> FindSameDirExeNames() => FindOtherExeFiles().Select(p => Path.GetFileName(p)).ToList();
+    /// <summary>Garbled name or matches an exclude pattern (installer / uninstaller ...): not a ROSBOT exe.</summary>
+    private bool IsExcludedExe(string fileName)
+    {
+        if (IsGarbledFileName(fileName)) return true;
+        foreach (string ex in ExcludePatterns)
+        {
+            string stub = (ex ?? "").Replace("*", "");
+            if (stub.Length > 0 && fileName.Contains(stub, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
 
-    /// <summary>Validator(hwnd) identifying the main window by UI content; null = first visible window by PID. 1:1 Python set_main_window_content_validator.</summary>
-    public void SetMainWindowContentValidator(Func<IntPtr, bool>? validator) => _mainWindowContentValidator = validator;
+    /// <summary>
+    /// Running ROSBOT processes, the single scan for detection, PID collection and kill: every process whose exe lives under
+    /// ros_directory (whatever its name, so the random-named copy ROSBOT starts itself as is found even when the folder listing changed),
+    /// excluded names skipped, then the main exe by image name anywhere. Same-dir copies first, main exe last.
+    /// </summary>
+    public List<RosbotProcess> FindRosbotProcesses()
+    {
+        var result = new List<RosbotProcess>();
+        var seen = new HashSet<int>();
+        string mainExe = RosbotExeName;
+        if (GetRosDirectory() is { } dir)
+        {
+            foreach (var p in ProcessUtil.FindProcessesUnderDirectory(dir))
+            {
+                if (p.Pid <= 0 || IsExcludedExe(p.ExeName) || !seen.Add(p.Pid)) continue;
+                result.Add(new RosbotProcess(p.Pid, p.ExeName, string.Equals(p.ExeName, mainExe, StringComparison.OrdinalIgnoreCase)));
+            }
+        }
+        if (FindProcessByExeName(mainExe) is { Pid: > 0 } main && seen.Add(main.Pid))
+            result.Add(new RosbotProcess(main.Pid, mainExe, true));
+        return result.OrderBy(p => p.IsMainExe).ToList();
+    }
+
+    /// <summary>ROSBOT KEY dialog windows (title "Error") of the given PIDs, or of every ROSBOT process when none are given; hidden ones included.</summary>
+    public IEnumerable<RosbotWindowInfo> FindKeyDialogWindows(IReadOnlyList<int>? pids = null)
+    {
+        IReadOnlyList<int> scan = pids is { Count: > 0 } ? pids.Distinct().ToList() : CollectRosbotPids();
+        foreach (int pid in scan)
+            foreach (var w in FindWindowsByPid(pid, visibleOnly: false))
+                if (w.Title.Trim() == RosbotConstants.KeyDialogWindowTitleDefault)
+                    yield return w;
+    }
 
     /// <summary>Windows of the PID: visible ones (when any) else all. 1:1 Python find_windows_by_pid.</summary>
     public List<RosbotWindowInfo> FindWindowsByPid(int pid, bool visibleOnly = true)
     {
         var (visible, any) = NativeWindowHelper.EnumWindowsByPid(pid);
         return visibleOnly && visible.Count > 0 ? visible : (visible.Count > 0 ? visible : any);
-    }
-
-    /// <summary>One window of the PID: prefers a non-empty title. 1:1 Python find_window_by_pid (no exclude/prefer filters used by ROSBOT).</summary>
-    public RosbotWindowInfo? FindWindowByPid(int pid, bool visibleOnly = false)
-    {
-        var (visible, any) = NativeWindowHelper.EnumWindowsByPid(pid);
-        var list = visibleOnly ? visible : (visible.Count > 0 ? visible : any);
-        if (list.Count == 0) return null;
-        return list.FirstOrDefault(w => w.Title.Trim().Length > 0) ?? list[0];
     }
 
     /// <summary>Process by exact exe name (image name, or exe basename under ros_directory). 1:1 Python find_process_by_exe_name.</summary>
@@ -195,19 +194,8 @@ public sealed class RosbotManager
         }
     }
 
-    /// <summary>PIDs of every running same-dir exe then the main exe. 1:1 Python pid collection in get_ui_state / try_close_d3_must_be_launched_dialog.</summary>
-    public List<int> CollectRosbotPids()
-    {
-        var pids = new List<int>();
-        foreach (string exePath in FindOtherExeFiles())
-        {
-            var proc = FindProcessByExeName(Path.GetFileName(exePath));
-            if (proc != null && proc.Pid > 0 && !pids.Contains(proc.Pid)) pids.Add(proc.Pid);
-        }
-        var main = FindProcessByExeName(RosbotExeName);
-        if (main != null && main.Pid > 0 && !pids.Contains(main.Pid)) pids.Add(main.Pid);
-        return pids;
-    }
+    /// <summary>PIDs of every running ROSBOT process (same-dir copies, then the main exe). 1:1 Python pid collection in get_ui_state.</summary>
+    public List<int> CollectRosbotPids() => FindRosbotProcesses().Select(p => p.Pid).ToList();
 
     /// <summary>
     /// Extended status: not_found | running (process, zero visible windows) | paused (any visible window). Cached for
@@ -239,38 +227,30 @@ public sealed class RosbotManager
             }
         }
 
-        string? rosDir = GetRosDirectory();
-        var otherFiles = FindOtherExeFiles();
-        log($"{RosbotConstants.ManagerLogPrefix} get_rosbot_window Step 1: same-dir exe list -> ros_directory='{rosDir}', count={otherFiles.Count}, list=[{string.Join(", ", otherFiles.Select(Path.GetFileName))}]");
+        var processes = FindRosbotProcesses();
+        log($"{RosbotConstants.ManagerLogPrefix} get_rosbot_window Step 1: ROSBOT processes under '{GetRosDirectory()}' + main exe -> count={processes.Count}, list=[{string.Join(", ", processes.Select(p => $"{p.ExeName}#{p.Pid}"))}]");
         bool anyProcessFound = false;
         var pids = new List<int>();
         string resolvedExeName = "";
-        bool hasValidator = _mainWindowContentValidator != null;
-
-        var candidates = otherFiles.Select(p => (ExeName: Path.GetFileName(p), Label: "same-dir")).ToList();
-        candidates.Add((RosbotExeName, "main exe"));
-        foreach (var (exeName, label) in candidates)
+        foreach (var proc in processes)
         {
-            var proc = FindProcessByExeName(exeName);
-            if (proc == null || proc.Pid <= 0) continue;
+            string exeName = proc.ExeName;
+            string label = proc.IsMainExe ? "main exe" : "same-dir";
             anyProcessFound = true;
             pids.Add(proc.Pid);
             if (resolvedExeName.Length == 0) resolvedExeName = exeName;
             var (winfo, visibleCount, isMain) = ResolveWindow(proc.Pid);
             if (winfo != null)
             {
-                if (hasValidator && isMain)
-                    log($"{RosbotConstants.ManagerLogPrefix} get_rosbot_window Step 2: {label} '{exeName}' {visibleCount} visible window(s), content-matched main window");
-                else if (hasValidator)
-                    log($"{RosbotConstants.ManagerLogPrefix} get_rosbot_window Step 2: {label} '{exeName}' {visibleCount} visible window(s) -> paused (any visible)");
-                else
-                    log($"{RosbotConstants.ManagerLogPrefix} get_rosbot_window Step 2: {label} '{exeName}' visible window, title='{winfo.Title}'");
+                log(isMain
+                    ? $"{RosbotConstants.ManagerLogPrefix} get_rosbot_window Step 2: {label} '{exeName}' {visibleCount} visible window(s), content-matched main window"
+                    : $"{RosbotConstants.ManagerLogPrefix} get_rosbot_window Step 2: {label} '{exeName}' {visibleCount} visible window(s) -> paused (any visible)");
                 return StoreCache(new RosbotDetectionResult
                 {
                     Status = RosbotDetection.StatusPaused,
                     WindowInfo = winfo,
                     ExeName = exeName,
-                    Pids = pids.ToList(),
+                    Pids = processes.Select(p => p.Pid).ToList(),
                     IsMainUi = isMain
                 }, true);
             }
@@ -296,27 +276,21 @@ public sealed class RosbotManager
         return result;
     }
 
-    /// <summary>(window, visible count, is main). Validator set: content-matched main window preferred, popup title "The Vault" skipped, else any visible. 1:1 Python _resolve_window.</summary>
-    private (RosbotWindowInfo? Window, int VisibleCount, bool IsMain) ResolveWindow(int pid)
+    /// <summary>(window, visible count, is main): content-matched main window preferred, popup title "The Vault" skipped, else any visible. 1:1 Python _resolve_window.</summary>
+    private static (RosbotWindowInfo? Window, int VisibleCount, bool IsMain) ResolveWindow(int pid)
     {
-        var validator = _mainWindowContentValidator;
-        if (validator != null)
+        var (visible, _) = NativeWindowHelper.EnumWindowsByPid(pid);
+        if (visible.Count == 0) return (null, 0, false);
+        var mainCandidates = visible.Where(w => w.Title.Trim() != RosbotConstants.PopupNoItemsTitle).ToList();
+        foreach (var w in mainCandidates)
         {
-            var (visible, _) = NativeWindowHelper.EnumWindowsByPid(pid);
-            if (visible.Count == 0) return (null, 0, false);
-            var mainCandidates = visible.Where(w => w.Title.Trim() != RosbotConstants.PopupNoItemsTitle).ToList();
-            foreach (var w in mainCandidates)
+            try
             {
-                try
-                {
-                    if (validator(w.Hwnd)) return (w, visible.Count, true);
-                }
-                catch { /* next candidate */ }
+                if (RosbotUiAutomation.WindowHasRosbotMainContent(w.Hwnd)) return (w, visible.Count, true);
             }
-            return (mainCandidates.Count > 0 ? mainCandidates[0] : visible[0], visible.Count, false);
+            catch { /* next candidate */ }
         }
-        var win = FindWindowByPid(pid, visibleOnly: true);
-        return (win, win != null ? 1 : 0, win != null);
+        return (mainCandidates.Count > 0 ? mainCandidates[0] : visible[0], visible.Count, false);
     }
 
     /// <summary>Clear the lookup cache so the next detection does a full lookup. Call after F4 or when ROSBOT is closed. 1:1 Python invalidate_lookup_cache.</summary>
@@ -338,16 +312,20 @@ public sealed class RosbotManager
     /// <summary>Any visible window of the same-dir ROSBOT process; no validator, no cache. 1:1 Python get_any_visible_rosbot_window.</summary>
     public RosbotWindowInfo? GetAnyVisibleRosbotWindow() => GetAnyRosbotWindow(true);
 
+    /// <summary>First visible titled ROSBOT window (its overlay, which shows the combat cursor), popup skipped; null when none.</summary>
+    public RosbotWindowInfo? GetOverlayWindow() => GetAnyRosbotWindow(true, titledOnly: true);
+
     /// <summary>Any window incl. minimized; debug/export only. 1:1 Python get_any_rosbot_window_for_debug.</summary>
     public RosbotWindowInfo? GetAnyRosbotWindowForDebug() => GetAnyRosbotWindow(false);
 
-    private RosbotWindowInfo? GetAnyRosbotWindow(bool visibleOnly)
+    private RosbotWindowInfo? GetAnyRosbotWindow(bool visibleOnly, bool titledOnly = false)
     {
         foreach (int pid in CollectRosbotPids())
         {
             foreach (var w in FindWindowsByPid(pid, visibleOnly))
             {
-                if (w.Title.Trim() == RosbotConstants.PopupNoItemsTitle) continue;
+                string title = w.Title.Trim();
+                if (title == RosbotConstants.PopupNoItemsTitle || (titledOnly && title.Length == 0)) continue;
                 return w;
             }
         }
@@ -357,35 +335,26 @@ public sealed class RosbotManager
     /// <summary>True if running or paused. 1:1 Python is_running.</summary>
     public bool IsRunning() => RosbotDetection.IsOnline(GetDetection().Status);
 
-    /// <summary>Kill the main exe and every same-dir exe process by PID (renamed copies included). 1:1 Python kill_if_running.</summary>
+    /// <summary>Kill every running ROSBOT process by PID (same-dir copies of any name, then the main exe), then clear the lookup cache. 1:1 Python kill_if_running.</summary>
     public bool KillIfRunning()
     {
         bool ok = true;
-        string mainExe = RosbotExeName;
-        var main = FindProcessByExeName(mainExe);
-        if (main != null && main.Pid > 0)
+        foreach (var proc in FindRosbotProcesses())
         {
-            ColorPrinter.Blue($"{RosbotConstants.ManagerLogPrefix} Killing main exe {mainExe} (PID: {main.Pid})...");
-            if (!ProcessUtil.KillProcessByPid(main.Pid, logPrefix: RosbotConstants.ManagerLogPrefix)) ok = false;
-        }
-        foreach (string exePath in FindOtherExeFiles())
-        {
-            string exeName = Path.GetFileName(exePath);
-            var proc = FindProcessByExeName(exeName);
-            if (proc == null || proc.Pid <= 0) continue;
-            ColorPrinter.Blue($"{RosbotConstants.ManagerLogPrefix} Killing same-dir {exeName} (PID: {proc.Pid})...");
+            ColorPrinter.Blue($"{RosbotConstants.ManagerLogPrefix} Killing {(proc.IsMainExe ? "main exe" : "same-dir")} {proc.ExeName} (PID: {proc.Pid})...");
             if (!ProcessUtil.KillProcessByPid(proc.Pid, logPrefix: RosbotConstants.ManagerLogPrefix)) ok = false;
         }
+        InvalidateLookupCache();
         return ok;
     }
 
     /// <summary>1:1 Python start_executable (system_launcher.start_program).</summary>
-    public bool StartExecutable(string exePath)
+    public bool StartExecutable(string exePath, params string[] args)
     {
         if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath)) return false;
-        if (ShellOpen.StartProgram(exePath))
+        if (ShellOpen.StartProgramElevated(exePath, args))
         {
-            ColorPrinter.Green($"{RosbotConstants.ManagerLogPrefix} Started: {exePath}");
+            ColorPrinter.Green($"{RosbotConstants.ManagerLogPrefix} Started: {exePath} {string.Join(" ", args)}");
             return true;
         }
         ColorPrinter.Red($"{RosbotConstants.ManagerLogPrefix} Start failed");
@@ -401,7 +370,7 @@ public sealed class RosbotManager
     public void SetBeforeStartHook(Action<string>? hook) => _beforeStart = hook;
 
     /// <summary>Start the main ROSBOT exe (before-start hook first; a failing hook never blocks the start). 1:1 Python start.</summary>
-    public bool Start()
+    public bool Start(bool autostart = false)
     {
         string? exePath = FindRosbotExe();
         if (exePath == null)
@@ -417,88 +386,33 @@ public sealed class RosbotManager
         {
             ColorPrinter.Yellow($"{RosbotConstants.ManagerLogPrefix} before-start hook failed: {ex.Message}");
         }
-        return StartExecutable(exePath);
+        return autostart ? StartExecutable(exePath, RosbotConstants.AutostartArgument) : StartExecutable(exePath);
     }
 
-    /// <summary>Poll every 2 s until a process with exeName appears. 1:1 Python wait_for_process.</summary>
-    public ProcessUtil.ProcessMatch? WaitForProcess(string exeName, int? timeoutSeconds = null)
+    /// <summary>Global F7 key press (ROSBOT stop to its main UI), recorded so a later process exit counts as a normal pause. 1:1 Python key_send.send_f7_to_system.</summary>
+    public static bool SendF7ToSystem()
     {
-        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds ?? DetectionTimeoutSeconds);
-        while (DateTime.UtcNow < deadline)
-        {
-            var info = FindProcessByExeName(exeName);
-            if (info != null) return info;
-            Thread.Sleep(RosbotConstants.WaitForProcessPollMs);
-        }
-        return null;
+        bool sent = WindowInputHelper.SendSystemKey(RosbotConstants.VkF7);
+        if (sent) Flow.RosbotExitState.SetF7SentForRosbot();
+        return sent;
     }
 
-    /// <summary>Activate the window then press F7 (system key). 1:1 Python send_f7_to_process.</summary>
-    public bool SendF7ToProcess(IntPtr hwnd)
+    /// <summary>
+    /// Close ROSBOT the way it expects (RBAssist): a second F7 after the one that stopped botting closes it; poll until it exits
+    /// (at most F7CloseGraceMs instead of a fixed wait), then kill whatever is still running by PID.
+    /// </summary>
+    public bool CloseGracefully()
     {
-        if (hwnd == IntPtr.Zero) return false;
-        try
-        {
-            NativeWindowHelper.ActivateWindow(hwnd);
-            Thread.Sleep(RosbotConstants.SendF7ActivateDelayMs);
-            var input = ClickHandler.Instance;
-            input.KeyDown("f7");
-            Thread.Sleep(RosbotConstants.SendF7HoldMs);
-            input.KeyUp("f7");
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        if (FindRosbotProcesses().Count == 0) return true;
+        SendF7ToSystem();
+        var deadline = DateTime.UtcNow.AddMilliseconds(RosbotConstants.F7CloseGraceMs);
+        while (DateTime.UtcNow < deadline && FindRosbotProcesses().Count > 0)
+            Thread.Sleep(RosbotConstants.F7ClosePollMs);
+        return KillIfRunning();
     }
-
-    /// <summary>Global F7 key press (ROSBOT pause/stop). 1:1 Python key_send.send_f7_to_system.</summary>
-    public static bool SendF7ToSystem() => WindowInputHelper.SendSystemKey(RosbotConstants.VkF7);
 
     /// <summary>Global F6 key press: ROSBOT's pause toggle hotkey (pause when botting, resume when paused).</summary>
     public static bool SendPauseToggleToSystem() => WindowInputHelper.SendSystemKey(RosbotConstants.VkF6);
-
-    /// <summary>Kill all same-dir other exe processes, optionally F7 to each window first. 1:1 Python cleanup_old_other_exe_processes.</summary>
-    public bool CleanupOldOtherExeProcesses(bool sendF7BeforeKill = false)
-    {
-        var files = FindOtherExeFiles();
-        if (files.Count == 0) return true;
-        int cleanupCount = 0;
-        foreach (string exePath in files)
-        {
-            var proc = FindProcessByExeName(Path.GetFileName(exePath));
-            if (proc == null) continue;
-            if (sendF7BeforeKill && proc.Pid > 0)
-            {
-                var winfo = FindWindowByPid(proc.Pid);
-                if (winfo != null) SendF7ToProcess(winfo.Hwnd);
-                Thread.Sleep(RosbotConstants.CleanupF7WaitMs);
-            }
-            if (proc.Pid > 0 && ProcessUtil.KillProcessByPid(proc.Pid, logPrefix: RosbotConstants.ManagerLogPrefix))
-                cleanupCount++;
-            Thread.Sleep(RosbotConstants.CleanupPerProcessWaitMs);
-        }
-        if (cleanupCount > 0) Thread.Sleep(RosbotConstants.CleanupAfterKillWaitMs);
-        return true;
-    }
-
-    /// <summary>Poll every 3 s until a same-dir other exe process appears. 1:1 Python wait_for_new_other_exe.</summary>
-    public (string ExeName, string ExePath, ProcessUtil.ProcessMatch Process)? WaitForNewOtherExe(int timeoutSeconds = RosbotConstants.WaitForNewOtherExeTimeoutSec)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
-        while (DateTime.UtcNow < deadline)
-        {
-            foreach (string exePath in FindOtherExeFiles())
-            {
-                string exeName = Path.GetFileName(exePath);
-                var proc = FindProcessByExeName(exeName);
-                if (proc != null) return (exeName, exePath, proc);
-            }
-            Thread.Sleep(RosbotConstants.WaitForNewOtherExePollMs);
-        }
-        return null;
-    }
 
     private static bool IsGarbledFileName(string name)
     {

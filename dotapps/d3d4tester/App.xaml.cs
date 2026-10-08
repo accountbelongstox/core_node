@@ -12,6 +12,7 @@ using DotApps.d3d4tester.Ui;
 using DotCore.Foundations;
 using DotCore.Infrastructure.Http;
 using DotCore.UITheme;
+using DotCore.Utils;
 
 namespace DotApps.d3d4tester;
 
@@ -26,10 +27,17 @@ public partial class App : Application
     private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 
     private const string AppLogFilePrefix = "d3d4tester";
+    private const string DotnetWatchEnvVar = "DOTNET_WATCH";
+    private const string DotnetWatchEnvValue = "1";
 
     private void App_Startup(object sender, StartupEventArgs e)
     {
         var (bridgeOnly, host, port) = ParseArgs(e.Args);
+        if (ShouldRelaunchElevated() && ShellOpen.RelaunchSelfElevated(e.Args))
+        {
+            Shutdown(0);
+            return;
+        }
         SetAppUserModelId();
         Exit += App_Exit;
         ColorPrinter.EnableFileLog(ConfigPaths.LogDirectory, AppLogFilePrefix);
@@ -63,6 +71,14 @@ public partial class App : Application
         if (D3D4TesterHttpBridge.StartShared(UiRegistry.GetCombatMacroController, host, port) != null)
             ColorPrinter.Green($"[MAIN] HTTP bridge started on http://{host}:{port}");
     }
+
+    /// <summary>
+    /// Run as administrator (RBAssist does too): ROSBOT and the games are started elevated, and only an elevated app can drive their
+    /// windows (UIPI). Not under dotnet watch or a debugger, so development keeps its process; a declined prompt keeps this copy.
+    /// </summary>
+    private static bool ShouldRelaunchElevated() =>
+        OperatingSystem.IsWindows() && !ShellOpen.IsElevated && !System.Diagnostics.Debugger.IsAttached
+        && Environment.GetEnvironmentVariable(DotnetWatchEnvVar) != DotnetWatchEnvValue;
 
     private static void App_Exit(object sender, ExitEventArgs e)
     {

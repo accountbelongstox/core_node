@@ -1,6 +1,7 @@
 // PY-REF: pyapps/d3-check/d3utils/macro_config_ops.py
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using DotCore.Foundations;
 using DotCore.Utils;
 using DotCore.Utils.Input;
@@ -10,101 +11,138 @@ namespace DotApps.d3d4tester.Core;
 /// <summary>
 /// One macro tick: read skill config, respect intervals/delays, send keys and mouse to D3 window.
 /// 1:1 with Python d3utils.macro_config_ops.run_one_skill_tick. Uses DotCore.Utils.WindowInputHelper (common lib).
-/// Feature status: currently works as expected. DEBUG log for each key sent is commented out.
-/// Key binding: CONFIG is path-based (macro_configs.skill_configs.{name}.skills.{skillKey}.key|strategy|interval|delay|random_delay).
-/// To add a new skill row: add skillKey to MacroConfigLoader.LoadActive() skill list, to SkillOrder below, and to UI table; new key names add to KeyNameToVkMap or use single character (any single char is supported).
+/// Key binding: CONFIG is path-based (macro_configs.skill_configs.{name}.skills.{skillKey}.{field}, schema in MacroSkillSchema).
+/// To add a new skill row: add skillKey to SkillKeys below (config loader, UI table and runner all use it); key names resolve via ClickHandler.TryResolveKey.
 /// </summary>
 public static class MacroSkillRunner
 {
-    private static readonly HashSet<string> SkippedStrategies = new(StringComparer.Ordinal) { "ignore", "disabled", "禁用", "忽略" };
-    private static readonly string[] SkillOrder = { "skill1", "skill2", "skill3", "skill4", "left_click", "right_click", "potion" };
-    private const string StrategyHold = "hold";
-    private const string StrategyContinuous = "continuous";
+    public const string SkillLeftClick = "left_click";
+    public const string SkillRightClick = "right_click";
+    public const string SkillPotion = "potion";
+    private const string MouseLeftName = "LMB";
+    private const string MouseRightName = "RMB";
 
-    /// <summary>Skills currently held down by the hold strategy -> release action.</summary>
-    private static readonly Dictionary<string, Action> HeldSkills = new(StringComparer.Ordinal);
+    /// <summary>Skill rows in run / table order (macro_configs.skill_configs.&lt;name&gt;.skills.&lt;key&gt;); the single list for loader, UI and runner.</summary>
+    public static readonly IReadOnlyList<string> SkillKeys = new[] { "skill1", "skill2", "skill3", "skill4", SkillLeftClick, SkillRightClick, SkillPotion };
+
+    /// <summary>Skills currently held down by the hold strategy -> held vk (0 for mouse rows) and release action.</summary>
+    private static readonly Dictionary<string, HeldEntry> HeldSkills = new(StringComparer.Ordinal);
     private static readonly object HeldLock = new();
+
+    private sealed record HeldEntry(ushort Vk, Action Release);
 
     /// <summary>Release every key / mouse button held by the hold strategy (macro stop or smart pause).</summary>
     public static void ReleaseHeld()
     {
-        List<Action> releases;
+        List<HeldEntry> releases;
         lock (HeldLock)
         {
             releases = HeldSkills.Values.ToList();
             HeldSkills.Clear();
         }
-        foreach (var release in releases)
-        {
-            try { release(); } catch (Exception ex) { ColorPrinter.Yellow($"[MacroSkillRunner] Release held failed: {ex.Message}"); }
-        }
+        foreach (var entry in releases) Release(entry);
     }
 
-    /// <summary>Hold strategy: press once (key or mouse button via SendInput) and keep it down until ReleaseHeld. Mouse only inside the D3 client area.</summary>
+    private static void Release(HeldEntry entry)
+    {
+        try { entry.Release(); } catch (Exception ex) { ColorPrinter.Yellow($"[MacroSkillRunner] Release held failed: {ex.Message}"); }
+    }
+
+    /// <summary>Release held entries whose skill is no longer "hold" or whose key changed.</summary>
+    private static void ReleaseStaleHeld(IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> skills)
+    {
+        List<HeldEntry>? stale = null;
+        lock (HeldLock)
+        {
+            foreach (var kv in HeldSkills.ToList())
+            {
+                bool keep = skills.TryGetValue(kv.Key, out var data) && data != null
+                    && StrategyOf(kv.Key, data) == MacroSkillSchema.StrategyHold
+                    && (MacroSkillSchema.IsMouseRow(kv.Key) || (ResolveKey(KeyOf(kv.Key, data), out ushort vk) && vk == kv.Value.Vk));
+                if (keep) continue;
+                HeldSkills.Remove(kv.Key);
+                (stale ??= new List<HeldEntry>()).Add(kv.Value);
+            }
+        }
+        if (stale != null) foreach (var entry in stale) Release(entry);
+    }
+
+    /// <summary>Hold strategy: press once (key or mouse button via SendInput) and keep it down until released. Mouse only inside the D3 client area.</summary>
     private static void EnsureHeld(string skillKey, IReadOnlyDictionary<string, string> data, bool cursorInD3)
     {
         lock (HeldLock)
         {
             if (HeldSkills.ContainsKey(skillKey)) return;
         }
-        Action? release = null;
-        if (skillKey is "left_click" or "right_click")
+        HeldEntry? entry = null;
+        if (MacroSkillSchema.IsMouseRow(skillKey))
         {
             if (!cursorInD3) return;
-            var button = skillKey == "left_click" ? MouseButton.Left : MouseButton.Right;
-            if (ClickHandler.MouseButtonDown(button)) release = () => ClickHandler.MouseButtonUp(button);
+            var button = skillKey == SkillLeftClick ? MouseButton.Left : MouseButton.Right;
+            if (ClickHandler.MouseButtonDown(button)) entry = new HeldEntry(0, () => ClickHandler.MouseButtonUp(button));
         }
-        else
+        else if (ResolveKey(KeyOf(skillKey, data), out ushort vk) && vk != 0 && ClickHandler.SendVirtualKey(vk, down: true))
         {
-            var vk = KeyNameToVk(data.TryGetValue("key", out var k) ? k : null);
-            if (vk is > 0 and <= ushort.MaxValue && ClickHandler.SendVirtualKey((ushort)vk.Value, down: true))
-                release = () => ClickHandler.SendVirtualKey((ushort)vk.Value, down: false);
+            entry = new HeldEntry(vk, () => ClickHandler.SendVirtualKey(vk, down: false));
         }
-        if (release == null) return;
-        lock (HeldLock) HeldSkills[skillKey] = release;
+        if (entry == null) return;
+        lock (HeldLock) HeldSkills[skillKey] = entry;
     }
 
-    /// <summary>Resolve config key string to VK code. Returns null for unknown; LMB/RMB return 0 (caller uses mouse). Single char = VK of that char. 1:1 Python key_name_to_vk.</summary>
-    public static uint? KeyNameToVk(string? keyName)
+    /// <summary>Resolve a config / hotkey-box key name to a VK code via the shared ClickHandler resolver. LMB/RMB resolve to 0 (caller uses mouse).</summary>
+    public static bool ResolveKey(string? keyName, out ushort vk)
     {
-        if (string.IsNullOrWhiteSpace(keyName)) return null;
-        var u = keyName.Trim().ToUpperInvariant();
-        if (u == "LMB" || u == "RMB") return 0; // mouse, not key
-        if (KeyNameToVkMap.TryGetValue(u, out uint vk)) return vk;
-        if (u.Length == 1) return (uint)u[0];
-        return null;
+        vk = 0;
+        if (string.IsNullOrWhiteSpace(keyName)) return false;
+        var name = keyName.Trim();
+        if (name.Equals(MouseLeftName, StringComparison.OrdinalIgnoreCase) || name.Equals(MouseRightName, StringComparison.OrdinalIgnoreCase)) return true;
+        return ClickHandler.TryResolveKey(name, out vk);
     }
 
-    /// <summary>Run one macro tick; returns updated lastSkillTimes. 1:1 Python run_one_skill_tick.</summary>
+    private static string StrategyOf(string skillKey, IReadOnlyDictionary<string, string> data) =>
+        MacroSkillSchema.NormalizeStrategy(
+            data.TryGetValue(MacroSkillSchema.FieldStrategy, out var s) ? s : null,
+            MacroSkillSchema.DefaultStrategy(skillKey, data.Count > 0));
+
+    private static string KeyOf(string skillKey, IReadOnlyDictionary<string, string> data) =>
+        data.TryGetValue(MacroSkillSchema.FieldKey, out var k) && !string.IsNullOrWhiteSpace(k) ? k : MacroSkillSchema.DefaultKey(skillKey);
+
+    private static int ReadMs(IReadOnlyDictionary<string, string> data, string field, int defaultValue) =>
+        data.TryGetValue(field, out var text) && int.TryParse(text, out var v) ? Math.Max(0, v) : defaultValue;
+
+    /// <summary>Run one macro tick; returns updated lastSkillTimes. Delays wait on the token so a stop interrupts them. 1:1 Python run_one_skill_tick.</summary>
     public static IReadOnlyDictionary<string, double> RunOneSkillTick(
         IntPtr hwnd,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> skills,
         IReadOnlyDictionary<string, double> lastSkillTimes,
         double now,
         (int Left, int Top, int Right, int Bottom)? cachedD3Rect,
+        CancellationToken token,
         ushort? standVk = null)
     {
         var nextTimes = new Dictionary<string, double>(lastSkillTimes);
-        foreach (var sk in SkillOrder)
+        ReleaseStaleHeld(skills);
+        foreach (var sk in SkillKeys)
         {
+            if (token.IsCancellationRequested) break;
             if (!skills.TryGetValue(sk, out var data) || data == null) continue;
-            var strategy = (data.TryGetValue("strategy", out var stratVal) ? stratVal : StrategyContinuous)?.Trim().ToLowerInvariant() ?? StrategyContinuous;
-            if (SkippedStrategies.Contains(strategy)) continue;
-            if (strategy == StrategyHold)
+            var strategy = StrategyOf(sk, data);
+            if (strategy == MacroSkillSchema.StrategyIgnore) continue;
+            if (strategy == MacroSkillSchema.StrategyHold)
             {
                 EnsureHeld(sk, data, IsCursorInD3(hwnd, cachedD3Rect));
                 continue;
             }
-            int intervalMs = int.TryParse(data.TryGetValue("interval", out var iv) ? iv : "100", out var i) ? Math.Max(0, i) : 100;
-            int delayMs = int.TryParse(data.TryGetValue("delay", out var dv) ? dv : "0", out var d) ? Math.Max(0, d) : 0;
-            int randMs = int.TryParse(data.TryGetValue("random_delay", out var rv) ? rv : "0", out var r) ? Math.Max(0, r) : 0;
+            int intervalMs = ReadMs(data, MacroSkillSchema.FieldInterval, MacroSkillSchema.IntervalDefault);
+            int delayMs = ReadMs(data, MacroSkillSchema.FieldDelay, MacroSkillSchema.DelayDefault);
+            int randMs = ReadMs(data, MacroSkillSchema.FieldRandomDelay, MacroSkillSchema.RandomDelayDefault);
             double intervalSec = intervalMs / 1000.0;
             double last = lastSkillTimes.TryGetValue(sk, out var lt) ? lt : 0.0;
             if (now - last < intervalSec) continue;
-            if (delayMs > 0) Thread.Sleep(delayMs);
-            if (randMs > 0) Thread.Sleep(Random.Shared.Next(0, randMs + 1));
+            if (delayMs > 0 && token.WaitHandle.WaitOne(delayMs)) break;
+            if (randMs > 0 && token.WaitHandle.WaitOne(Random.Shared.Next(0, randMs + 1))) break;
             bool sent = false;
-            if (sk == "left_click")
+            if (sk == SkillLeftClick)
             {
                 if (IsCursorInD3(hwnd, cachedD3Rect))
                 {
@@ -113,29 +151,22 @@ public static class MacroSkillRunner
                     if (stand) ClickHandler.SendVirtualKey(standVk!.Value, down: false);
                 }
             }
-            else if (sk == "right_click")
+            else if (sk == SkillRightClick)
             {
                 sent = IsCursorInD3(hwnd, cachedD3Rect) && WindowInputHelper.SendMouseClickAtCursor(hwnd, false);
             }
             else
             {
-                var keyName = data.TryGetValue("key", out var k) ? k : null;
+                var keyName = KeyOf(sk, data);
                 if (!string.IsNullOrWhiteSpace(keyName))
                 {
-                    var vk = KeyNameToVk(keyName);
-                    if (vk.HasValue && vk.Value != 0)
-                        sent = WindowInputHelper.PressKey(hwnd, vk.Value);
-                    else if (vk.HasValue == false && !string.IsNullOrWhiteSpace(keyName))
+                    if (!ResolveKey(keyName, out ushort vk))
                         ColorPrinter.Yellow($"[MacroSkillRunner] Unknown key name: {keyName}");
+                    else if (vk != 0)
+                        sent = WindowInputHelper.PressKey(hwnd, vk);
                 }
             }
-            if (sent)
-            {
-                nextTimes[sk] = now;
-                // DEBUG: uncomment to log each key sent. Feature currently works as expected.
-                // ColorPrinter.Gray($"[MacroSkill] DEBUG: Sent {sk} key={(sk == "left_click" ? "LMB" : sk == "right_click" ? "RMB" : (data.TryGetValue("key", out var kx) ? kx : sk))}");
-            }
-            if (strategy != StrategyContinuous) nextTimes[sk] = now;
+            if (sent || strategy != MacroSkillSchema.StrategyContinuous) nextTimes[sk] = now;
         }
         return nextTimes;
     }
@@ -144,22 +175,4 @@ public static class MacroSkillRunner
         cachedD3Rect.HasValue
             ? WindowInputHelper.IsCursorInRect(cachedD3Rect.Value.Left, cachedD3Rect.Value.Top, cachedD3Rect.Value.Right, cachedD3Rect.Value.Bottom)
             : WindowInputHelper.IsCursorInWindow(hwnd);
-
-    /// <summary>Supported keys: 0-9, A-Z, F1-F12, ESCAPE, ENTER, SPACE, TAB, UP/DOWN/LEFT/RIGHT, PAGEUP/PAGEDOWN, HOME, END, INSERT. LMB/RMB = mouse. Any single character also supported as VK. Extend KeyNameToVkMap for more names.</summary>
-    private static readonly Dictionary<string, uint> KeyNameToVkMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["A"] = 0x41, ["B"] = 0x42, ["C"] = 0x43, ["D"] = 0x44, ["E"] = 0x45, ["F"] = 0x46,
-        ["G"] = 0x47, ["H"] = 0x48, ["I"] = 0x49, ["J"] = 0x4A, ["K"] = 0x4B, ["L"] = 0x4C,
-        ["M"] = 0x4D, ["N"] = 0x4E, ["O"] = 0x4F, ["P"] = 0x50, ["Q"] = 0x51, ["R"] = 0x52,
-        ["S"] = 0x53, ["T"] = 0x54, ["U"] = 0x55, ["V"] = 0x56, ["W"] = 0x57, ["X"] = 0x58,
-        ["Y"] = 0x59, ["Z"] = 0x5A,
-        ["0"] = 0x30, ["1"] = 0x31, ["2"] = 0x32, ["3"] = 0x33, ["4"] = 0x34,
-        ["5"] = 0x35, ["6"] = 0x36, ["7"] = 0x37, ["8"] = 0x38, ["9"] = 0x39,
-        ["F1"] = 0x70, ["F2"] = 0x71, ["F3"] = 0x72, ["F4"] = 0x73, ["F5"] = 0x74,
-        ["F6"] = 0x75, ["F7"] = 0x76, ["F8"] = 0x77, ["F9"] = 0x78, ["F10"] = 0x79,
-        ["F11"] = 0x7A, ["F12"] = 0x7B,
-        ["ESCAPE"] = 0x1B, ["ENTER"] = 0x0D, ["SPACE"] = 0x20, ["TAB"] = 0x09,
-        ["UP"] = 0x26, ["DOWN"] = 0x28, ["LEFT"] = 0x25, ["RIGHT"] = 0x27,
-        ["PAGEUP"] = 0x21, ["PAGEDOWN"] = 0x22, ["HOME"] = 0x24, ["END"] = 0x23, ["INSERT"] = 0x2D,
-    };
 }

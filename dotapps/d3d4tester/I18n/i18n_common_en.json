@@ -48,6 +48,8 @@
       "add_image": "Add Image"
     },
     "hotkey_input": {
+      "conflict": "Hotkey {0} is already used by another function.",
+      "conflict_title": "Hotkey conflict",
       "placeholder": "Press hotkey...",
       "keys": {
         "ctrl": "Ctrl",

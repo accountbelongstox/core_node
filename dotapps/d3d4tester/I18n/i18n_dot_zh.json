@@ -1,5 +1,9 @@
 {
   "ui": {
+    "startup": {
+      "shortcut_path": "启动项快捷方式：{0}",
+      "shortcut_path_missing": "启动项快捷方式（未创建）：{0}"
+    },
     "common": {
       "use_custom_stand_key": "使用自定义强制站立按键"
     },
@@ -125,7 +129,6 @@
       "rosbot_stopped": "ROSBOT 已停止"
     },
     "decompile": {
-      "tab": "测试",
       "tools_title": "反编译工具",
       "tools_desc": "下载到程序数据目录：ILSpy（.NET 转 C#，需要 .NET SDK）、de4dot-cex（.NET 去混淆）、autoit-ripper（AutoIt 程序转 .au3，需要 Python）、UPX（脱壳）。已安装的工具保留不动。",
       "install": "一键下载 / 修复工具",
@@ -151,7 +154,14 @@
       "cancel": "取消",
       "passed": "链路通过：工具运行正常，全部目标生成输出，未检测到 DNGuard 占位方法。",
       "incomplete": "链路未完整通过：请查看日志和 chain_report.json，检查缺失工具、失败目标或受保护的方法体。",
-      "cancelled": "操作已取消或超时。"
+      "cancelled": "操作已取消或超时。",
+      "chain_rosbot_missing": "检查 ROSBOT：失败，未找到配置的可执行文件",
+      "rosbot_not_found": "在 '{dir}' 中未找到 ROSBOT 可执行文件（请在 Rosbot 页设置 ROSBOT 目录或使用扫描）",
+      "rbassist_not_found": "未找到 RBAssist 可执行文件（请用浏览选择）",
+      "settings_fields_written": "ROSBOT 设置：{count} 个字段 -> {path}",
+      "result_partial": "部分完成",
+      "result_ok": "成功",
+      "result_failed": "失败"
     },
     "yolo_training": {
       "mode": "训练方式",
@@ -338,7 +348,6 @@
       "run_delete": "删除",
       "run_delete_confirm": "删除训练 {run} 及其全部权重、结果和导出文件？\n{dir}",
       "current_model_set": "{consumer}模型已设置：{path}",
-      "navigation_override_active": "已设为当前导航模型，但导航设置中的固定路径仍然优先：\n{path}\n清空该设置后才会使用当前模型。",
       "existing_dataset": "使用已有数据集训练：{dir}（不重新生成）",
       "include_pseudo_labels": "包含未复核的 AI 预标注（仅用于训练集）",
       "preview_pseudo_labels": "AI 预标注图片：{included} 张用于训练，{skipped} 张未复核已跳过",
@@ -894,7 +903,7 @@
       "paragon": "巅峰等级",
       "health": "生命",
       "resources": "资源",
-      "resources_format": "血岩碎片 {0} · 钥石 {1}",
+      "resources_format": "{0} · 钥石 {1}",
       "sequence": "当前序列",
       "last_event": "最近事件",
       "updated": "数据时间",
@@ -918,6 +927,10 @@
       "not_loaded": "ROSBOT 正在运行，但插件没有写数据：在 ROSBOT 插件列表勾选 CoreNode Bridge；若刚安装/更新，请重启 ROSBOT",
       "tab_ground": "周边掉落",
       "tab_npc": "附近 NPC",
+      "tab_follow": "跟随队伍",
+      "command_running": "插件正在执行：{0}（已 {1}）",
+      "follow_town_portal_key": "跟丢回城键",
+      "follow_town_portal_key_tip": "跟随时在野外跟丢队长，会把 D3 切到前台并按这个键回城（默认 t），之后在城里用队长的旗帜回去。",
       "tab_carried": "物品",
       "tab_pickups": "拾取记录",
       "tab_advanced": "高级",
@@ -965,6 +978,16 @@
       "build_profile": "装备方案",
       "build_notify": "掉落/拾取提示",
       "build_notify_push": "推送",
+      "build_equip_in_town": "回城换装",
+      "build_equip_in_town_tip": "背包里有比身上更接近配装（maxroll）的装备时，下次回城先暂停 ROSBOT 的回城流程（跟随时在点战旗前），打开背包右键穿上，再让 ROSBOT 继续分解。每件装备本次运行只尝试一次。",
+      "build_gamble_unaligned": "血岩赌未对齐",
+      "build_gamble_unaligned_tip": "改写 ROSBOT 的赌博设置（RosBotGamblingSettings.ini）：只赌配装中未对齐的部位，血岩碎片满时由 ROSBOT 回城去卡达拉处购买；全部对齐或关闭后恢复你原来的设置。",
+      "build_alignment": "未对齐 {0} 件：{1} · 背包待换装 {2} 件 · {3}",
+      "build_aligned": "身上装备已和配装对齐",
+      "pickup_build_equip": "配装 {0}：回城换装",
+      "pickup_build_aligned": "配装 {0}：已对齐",
+      "blood_shards": "血岩碎片 {0}/{1}",
+      "blood_shards_full": "血岩已满",
       "build_col_slot": "部位",
       "build_col_item": "装备",
       "build_col_have": "游戏中",
@@ -1061,13 +1084,15 @@
       "follow_stop": "停止跟随",
       "follow_banner": "战旗",
       "follow_banner_auto": "自动",
-      "follow_tip": "跟随最近或选中的玩家；插件不打怪（监控和 ROSBOT 保持暂停）。野外跟丢：按回城键（rosbot.bridge_follow_town_portal_key）；城里：点所选战旗（1=队长，自动=依次试 1-4）。拾取：队长附近符合拾取规则的物品。",
+      "follow_tip": "跟随队长、队伍第 N 人、最近或选中的玩家。队伍位置来自城里的战旗（需在城里见过一次）；队长按 Leader 属性判断，读不到则当 1 号。插件不打怪（监控和 ROSBOT 保持暂停）。野外跟丢：按回城键（rosbot.bridge_follow_town_portal_key）；城里：点目标的战旗（自动）或所选战旗。拾取：目标附近符合拾取规则的物品。",
       "follow_state": {
         "following": "跟随中",
         "lost": "跟丢（城里）",
         "needs_town": "跟丢，回城中",
         "banner": "点战旗中",
-        "off": "未跟随"
+        "off": "未跟随",
+        "dead": "已死亡",
+        "town_tasks": "城里换装中"
       },
       "item_name": {
         "healthpotion_bottomless": "治疗药水",
@@ -1077,7 +1102,13 @@
       "follow_target_selected": "选中的玩家",
       "follow_select_player": "请先在列表中选中一个玩家",
       "follow_banner_leader": "{0}（队长）",
-      "follow_pickup": "按拾取规则拾取"
+      "follow_pickup": "按拾取规则拾取",
+      "follow_target_leader": "队长",
+      "follow_target_slot": "队伍第 {0} 人",
+      "follow_revive": "自动复活",
+      "follow_revive_tip": "跟随中死亡：先等 8 秒让队友复活（队友复活无需点击），之后依次点在尸体处复活、检查点复活、城里复活。",
+      "take_control": "操作游戏时自动暂停监控和 ROSBOT（跟随、NPC、分解等）",
+      "plugin_not_running": "未发送：插件未运行（请启动 ROSBOT 并启用 CoreNode Bridge）"
     }
   },
   "skills": {

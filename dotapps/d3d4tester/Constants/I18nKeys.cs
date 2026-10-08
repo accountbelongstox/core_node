@@ -42,6 +42,12 @@ public static partial class I18nKeys
     public const string StatusWindowSizeFormat = "ui.status_bar.size_format";
     /// <summary>Format for ROS restart count, e.g. [R{count}] or 重{count}. 1:1 Python rosbot.restart_count_format.</summary>
     public const string StatusRestartCountFormat = "ui.rosbot.restart_count_format";
+    /// <summary>Placeholder for the restart count in <see cref="StatusRestartCountFormat"/>.</summary>
+    public const string StatusRestartCountPlaceholder = "{count}";
+    /// <summary>Map type text key prefix (ui.rosbot.map_&lt;map_type&gt;).</summary>
+    public const string StatusMapPrefix = "ui.rosbot.map_";
+    /// <summary>Game stage text key prefix (ui.rosbot.stage_&lt;game_stage&gt;).</summary>
+    public const string StatusStagePrefix = "ui.rosbot.stage_";
 
     // Rosbot panel (same keys as Python ui.rosbot.*)
     public const string RosbotPathSettings = "ui.rosbot.path_settings";

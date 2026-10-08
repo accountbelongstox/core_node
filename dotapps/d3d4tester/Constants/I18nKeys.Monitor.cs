@@ -7,6 +7,12 @@ public static partial class I18nKeys
     public const string TabsMonitor = "ui.tabs.monitor";
 
     public const string MonitorStatusTitle = "ui.monitor.status_title";
+    public const string MonitorNavRun = "ui.monitor.nav_run";
+    public const string MonitorNavAutomation = "ui.monitor.nav_automation";
+    public const string MonitorNavEnvironment = "ui.monitor.nav_environment";
+    public const string MonitorNavDevelopment = "ui.monitor.nav_development";
+    public const string MonitorGameData = "ui.monitor.game_data";
+
     public const string MonitorMonitoringOn = "ui.monitor.monitoring_on";
     public const string MonitorMonitoringOff = "ui.monitor.monitoring_off";
     public const string MonitorStartMonitoring = "ui.monitor.start_monitoring";
@@ -41,6 +47,8 @@ public static partial class I18nKeys
     public const string MonitorRestartBattlenet = "ui.monitor.restart_battlenet";
     public const string MonitorAutoStart = "ui.monitor.auto_start";
     public const string MonitorArchiveRollover = "ui.monitor.archive_rollover";
+    public const string MonitorBridgeTeleportLabel = "ui.monitor.bridge_teleport_label";
+    public const string MonitorBridgeTeleportHint = "ui.monitor.bridge_teleport_hint";
 
     public const string MonitorWindowTitle = "ui.monitor.window_title";
     public const string MonitorD3Shrink = "ui.monitor.d3_shrink";

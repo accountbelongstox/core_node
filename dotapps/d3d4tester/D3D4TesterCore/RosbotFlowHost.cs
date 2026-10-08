@@ -41,7 +41,8 @@ public interface IRosbotFlowHost
     /// [F2] ROSBOT online -> true; else [E1-E6] (end, optional update, start, task init, UI start clicks), aborted when ctx stops.
     /// Runs on the flow thread; true when ROSBOT is online or was started.
     /// </summary>
-    bool RunRosbotStart(Flow.FlowContext ctx);
+    /// <summary>[F2] + [E]; restart = [E] (ROSBOT closed and started again) even when ROSBOT is online.</summary>
+    bool RunRosbotStart(Flow.FlowContext ctx, bool restart);
 }
 
 /// <summary>Holder for the app-provided <see cref="IRosbotFlowHost"/>.</summary>

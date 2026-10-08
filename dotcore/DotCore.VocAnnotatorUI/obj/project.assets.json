@@ -492,7 +492,7 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\accou\\.nuget\\packages\\": {},
+    "C:\\Users\\accou\\.nuget\\packages": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
@@ -501,7 +501,7 @@
       "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotatorUI\\DotCore.VocAnnotatorUI.csproj",
       "projectName": "DotCore.VocAnnotatorUI",
       "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotatorUI\\DotCore.VocAnnotatorUI.csproj",
-      "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
       "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotatorUI\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,

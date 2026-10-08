@@ -1,5 +1,4 @@
 // PY-REF: pyapps/d3-check/d3utils/browser_login_window_finder.py
-using System.Runtime.InteropServices;
 using DotCore.Utils;
 using DotCore.Utils.Window;
 
@@ -7,7 +6,7 @@ namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
 /// Find browser login windows by title, owned by a browser process only. 1:1 Python browser_login_window_finder:
-/// find_browser_login_windows / get_frontmost_browser_login_window.
+/// find_browser_login_windows.
 /// Fixes C# port bug: without the browser-process filter the Battle.net client window itself matched.
 /// </summary>
 public static class BrowserWindowFinder
@@ -37,21 +36,4 @@ public static class BrowserWindowFinder
             })
             .ToList();
     }
-
-    /// <summary>Return foreground window if it matches, otherwise first from FindBrowserLoginWindows. 1:1 get_frontmost_browser_login_window.</summary>
-    public static BrowserLoginWindow? GetFrontmostBrowserLoginWindow(string[]? titleSubstrs = null)
-    {
-        var candidates = FindBrowserLoginWindows(titleSubstrs);
-        if (candidates.Count == 0) return null;
-        var fg = GetForegroundWindow();
-        if (fg != IntPtr.Zero)
-        {
-            var match = candidates.FirstOrDefault(c => c.Hwnd == fg);
-            if (match != null) return match;
-        }
-        return candidates[0];
-    }
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
 }

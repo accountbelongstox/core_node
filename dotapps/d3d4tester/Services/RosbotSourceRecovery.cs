@@ -118,7 +118,7 @@ public static class RosbotSourceRecovery
             string dynamicExecutable = Path.Combine(dynamicTargetDirectory, Path.GetFileName(executable));
             string dynamicCandidate = Path.Combine(dynamicAttemptDirectory,
                 Path.GetFileNameWithoutExtension(executable) + "-Captured" + Path.GetExtension(executable));
-            CopyDirectory(executableDirectory, dynamicTargetDirectory);
+            CopyDirectory(executableDirectory, dynamicTargetDirectory, token);
             using var dynamicTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             dynamicTimeout.CancelAfter(TimeSpan.FromMinutes(15));
             log("Starting local runtime method acquisition from a complete target-directory copy.");
@@ -169,13 +169,14 @@ public static class RosbotSourceRecovery
         return report;
     }
 
-    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory, CancellationToken token)
     {
         string relativePath;
         string destinationPath;
         Directory.CreateDirectory(destinationDirectory);
         foreach (string sourcePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
         {
+            token.ThrowIfCancellationRequested();
             relativePath = Path.GetRelativePath(sourceDirectory, sourcePath);
             destinationPath = Path.Combine(destinationDirectory, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);

@@ -39,8 +39,7 @@ public static class RosbotPluginConfigSync
         try
         {
             ApplyExtPickup(pluginsDir, ConfigBinding.GetValue(ConfigKeys.RosbotPickupBloodShards, false));
-            if (ConfigBinding.GetValue(ConfigKeys.RosbotBluePortalPriority, false))
-                ApplyBlueFastExitOff(pluginsDir);
+            ApplyBlueFastExit(pluginsDir, !ConfigBinding.GetValue(ConfigKeys.RosbotBluePortalPriority, false));
         }
         catch (Exception ex)
         {
@@ -59,18 +58,19 @@ public static class RosbotPluginConfigSync
         ColorPrinter.Blue($"{LogTag} {RosbotPluginConstants.ExtPickupConfigFileName}: pickup {(enabled ? "on" : "off")} (applies on next ROSBOT start)");
     }
 
-    private static void ApplyBlueFastExitOff(string pluginsDir)
+    /// <summary>Write enableBlue to match the blue-portal-first option: off while blue-first is on, on otherwise.</summary>
+    private static void ApplyBlueFastExit(string pluginsDir, bool enableBlue)
     {
         string dir = Path.Combine(pluginsDir, RosbotPluginConstants.FastExitDirName);
         if (!Directory.Exists(dir)) return;
         string path = Path.Combine(dir, RosbotPluginConstants.FastExitConfigFileName);
-        string wanted = RosbotPluginConstants.FastExitEnableBlueKey + "=" + bool.FalseString;
+        string wanted = RosbotPluginConstants.FastExitEnableBlueKey + "=" + (enableBlue ? bool.TrueString : bool.FalseString);
         var lines = File.Exists(path) ? File.ReadAllLines(path).ToList() : new List<string>();
         int idx = lines.FindIndex(l => l.Split('=', 2)[0].Trim().Equals(RosbotPluginConstants.FastExitEnableBlueKey, StringComparison.OrdinalIgnoreCase));
         if (idx >= 0 && lines[idx].Trim() == wanted) return;
         if (idx >= 0) lines[idx] = wanted;
         else lines.Add(wanted);
         File.WriteAllLines(path, lines);
-        ColorPrinter.Blue($"{LogTag} {RosbotPluginConstants.FastExitConfigFileName}: blue rift fast exit off (applies on next ROSBOT start)");
+        ColorPrinter.Blue($"{LogTag} {RosbotPluginConstants.FastExitConfigFileName}: blue rift fast exit {(enableBlue ? "on" : "off")} (applies on next ROSBOT start)");
     }
 }

@@ -17,7 +17,6 @@ namespace DotApps.d3d4tester.Core.Battlenet;
 public sealed class BattlenetManager
 {
     private const string LogPrefix = "[BattleNetManager]";
-    private const string DefaultCaptureTitle = "Battle.net";
     private static readonly string[] TrayIconKeywords = { "battle", "blizzard" };
     private const int AfterTrayClickMs = 1000;
 
@@ -38,13 +37,28 @@ public sealed class BattlenetManager
     /// <summary>The global region the client must run in, or null when the user did not choose one.</summary>
     public string? GetConfiguredRegion() => _regionProvider?.Invoke() is { } r && (r == BattlenetConstants.RegionCn || r == BattlenetConstants.RegionAsia) ? r : null;
 
-    /// <summary>Configured path when the file exists, else null. 1:1 Python get_battlenet_path.</summary>
+    /// <summary>Configured path when the file exists, else the installed client from the registry (RBAssist), else null. 1:1 Python get_battlenet_path.</summary>
     public string? GetPath()
     {
-        var path = _pathProvider?.Invoke();
-        if (string.IsNullOrWhiteSpace(path)) return null;
-        path = path.Trim();
-        return File.Exists(path) ? path : null;
+        var path = _pathProvider?.Invoke()?.Trim();
+        if (!string.IsNullOrEmpty(path) && File.Exists(path)) return path;
+        return InstalledClientPath();
+    }
+
+    private static string? InstalledClientPath()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(BattlenetConstants.UninstallRegistryKey);
+            if (key?.GetValue(BattlenetConstants.UninstallInstallLocationValue) is not string dir || dir.Length == 0) return null;
+            string exe = Path.Combine(dir, BattlenetConstants.BattlenetExeName);
+            return File.Exists(exe) ? exe : null;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Start Battle.net. Returns true if the start command was sent. 1:1 Python start(exe_path).</summary>
@@ -106,7 +120,7 @@ public sealed class BattlenetManager
         try
         {
             // Outside our job object: a dotnet watch restart / app exit must not take Battle.net down with it.
-            if (!ShellOpen.StartProgram(exe, args.Length > 0 ? new[] { args } : Array.Empty<string>()))
+            if (!ShellOpen.StartProgramElevated(exe, args.Length > 0 ? new[] { args } : Array.Empty<string>()))
                 throw new InvalidOperationException("start failed");
             ColorPrinter.Green($"{LogPrefix} Battle.net start command sent");
             return true;
@@ -144,9 +158,6 @@ public sealed class BattlenetManager
         .Take(4)
         .Select(m => m!.DeclaringType!.Name + "." + m.Name));
 
-    /// <summary>Alias of Close. 1:1 Python kill.</summary>
-    public bool Kill(bool force = false) => Close(force);
-
     /// <summary>Kill then start (skipped entirely when Close refuses). 1:1 Python restart(exe_path, wait_after_sec).</summary>
     public bool Restart(string? exePath = null, double waitAfterSec = 2.0, bool force = false)
     {
@@ -168,23 +179,6 @@ public sealed class BattlenetManager
     {
         var windows = FindWindows();
         return windows.Count > 0 ? windows[0] : null;
-    }
-
-    /// <summary>Process owning the first Battle.net window, or null.</summary>
-    public Process? GetProcess()
-    {
-        var win = FindBattlenetWindow();
-        if (win == null) return null;
-        int? pid = ProcessUtil.GetPidFromHwnd(win.Hwnd);
-        if (pid == null) return null;
-        try
-        {
-            return Process.GetProcessById(pid.Value);
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
     }
 
     /// <summary>Process ids of the Battle.net client and its update agent (resource monitor).</summary>
@@ -225,6 +219,29 @@ public sealed class BattlenetManager
     }
 
     /// <summary>
+    /// Launch a game directly through the client: Battle.net.exe --exec="launch &lt;product&gt;" (no tab / Play clicks, the RBAssist
+    /// method). Battle.net.exe next to the configured path is used; false when it cannot be started.
+    /// </summary>
+    public bool LaunchProduct(string productCode)
+    {
+        string? path = GetPath();
+        if (path == null) return false;
+        string exe = Path.Combine(Path.GetDirectoryName(path) ?? "", BattlenetConstants.BattlenetExeName);
+        if (!File.Exists(exe)) exe = path;
+        string arg = string.Format(BattlenetConstants.ExecLaunchArgFormat, productCode);
+        ColorPrinter.Blue($"{LogPrefix} Launch {productCode}: {exe} {arg}");
+        return ShellOpen.StartProgramElevated(exe, arg);
+    }
+
+    /// <summary>D3 product code for --exec in the configured (else UI) region; null when the region is unknown.</summary>
+    public string? GetD3ProductCode(string? uiRegion) => (GetConfiguredRegion() ?? uiRegion) switch
+    {
+        BattlenetConstants.RegionCn => BattlenetConstants.ProductD3Cn,
+        BattlenetConstants.RegionAsia => BattlenetConstants.ProductD3Global,
+        _ => null,
+    };
+
+    /// <summary>
     /// Bring back a client that runs with every window hidden in the tray: tray icon double-click, else start Battle.net.exe again
     /// (a second start only surfaces the running instance). Never closes the client, so its login is kept.
     /// </summary>
@@ -246,7 +263,4 @@ public sealed class BattlenetManager
         ScreenCaptureService.ActivateWindow(win.Hwnd);
         return true;
     }
-
-    /// <summary>Titles passed to capture (BATTLE_NET_WINDOW_TITLES[0]). 1:1 Python get_capture_titles.</summary>
-    public IReadOnlyList<string> GetCaptureTitles() => new[] { DefaultCaptureTitle };
 }

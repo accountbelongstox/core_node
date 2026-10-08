@@ -50,6 +50,7 @@ public partial class VariantExtractWindow : Window
     private readonly List<ExtractCrop> _frameCrops = new();
     private readonly List<string> _externalSources = new();
     private readonly Dictionary<string, VideoFrameReader> _readers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<Task> _readerWork = new();
     private readonly UndoHistory<CropState> _history = new();
     private readonly SemaphoreSlim _cutGate = new(CutConcurrency);
     private readonly DispatcherTimer _frameTimer;
@@ -235,8 +236,14 @@ public partial class VariantExtractWindow : Window
         _frameTimer.Stop();
         _recutTimer.Stop();
         D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
-        foreach (var reader in _readers.Values) reader.Dispose();
+        var readers = _readers.Values.ToList();
         _readers.Clear();
+        Task[] running;
+        lock (_readerWork) running = _readerWork.ToArray();
+        Task.WhenAll(running).ContinueWith(_ =>
+        {
+            foreach (var reader in readers) reader.Dispose();
+        }, TaskScheduler.Default);
         base.OnClosed(e);
     }
 
@@ -542,6 +549,15 @@ public partial class VariantExtractWindow : Window
         if (dlg.ShowDialog(this) == true) await SelectSourceAsync(dlg.FileName);
     }
 
+    /// <summary>Run reader work on the pool and track it, so closing disposes the readers only after it completed.</summary>
+    private Task<T> RunReaderWork<T>(Func<T> work, CancellationToken ct = default)
+    {
+        var task = Task.Run(work, ct);
+        lock (_readerWork) _readerWork.Add(task);
+        task.ContinueWith(done => { lock (_readerWork) _readerWork.Remove(done); }, TaskScheduler.Default);
+        return task;
+    }
+
     /// <summary>Open (or reuse) the reader of a source; null when the window closed meanwhile.</summary>
     private async Task<VideoFrameReader?> GetReaderAsync(string path)
     {
@@ -655,7 +671,7 @@ public partial class VariantExtractWindow : Window
         BitmapSource? image;
         try
         {
-            image = await Task.Run(() =>
+            image = await RunReaderWork(() =>
             {
                 using var bgra = reader.ReadBgra(frame);
                 return bgra == null ? null : BitmapDecode.FromMat(bgra);
@@ -978,7 +994,7 @@ public partial class VariantExtractWindow : Window
             await _cutGate.WaitAsync(ct);
             entered = true;
             if (reader != null && version == crop.Version)
-                result = await Task.Run(() => CutCore(reader, frame, region, mode, tolerance, holes, strokes), ct);
+                result = await RunReaderWork(() => CutCore(reader, frame, region, mode, tolerance, holes, strokes), ct);
         }
         catch (OperationCanceledException)
         {
@@ -1087,7 +1103,7 @@ public partial class VariantExtractWindow : Window
             var progress = new Progress<WorkProgress>(p => ReportProgress(Math.Max(0, p.Done - 1), count, I18nKeys.VariantExtractTracking));
             ReportProgress(0, count, I18nKeys.VariantExtractTracking);
             var (frame, region, token) = (start.Frame, start.Region, cts.Token);
-            var result = await Task.Run(() => VariantExtractor.Track(reader, frame, region, step, count + 1, direction, token, progress), token);
+            var result = await RunReaderWork(() => VariantExtractor.Track(reader, frame, region, step, count + 1, direction, token, progress), token);
             var regions = result.Regions.Where(r => r.FrameIndex != start.Frame).ToList();
             var (added, duplicates) = await AddSeriesAsync(start, regions, withConfidence: true, cts.Token);
             var done = T(I18nKeys.VariantExtractTrackDone).Replace("{count}", N(added)).Replace("{duplicates}", N(duplicates));
@@ -1243,7 +1259,7 @@ public partial class VariantExtractWindow : Window
         {
             var readers = new Dictionary<ExtractCrop, VideoFrameReader?>();
             foreach (var crop in crops.Where(c => c.Png == null)) readers[crop] = await GetReaderAsync(crop.SourcePath);
-            var variants = await Task.Run(() => crops
+            var variants = await RunReaderWork(() => crops
                 .Select(c => (Crop: c, Png: c.Png ?? (readers.GetValueOrDefault(c) is { } r ? CutCore(r, c.Frame, c.Region, c.Mode, c.Tolerance, c.Holes, c.Strokes)?.Png : null)))
                 .Where(x => x.Png != null)
                 .Select(x => (x.Crop, Variant: new ExtractedVariant(x.Png!, OriginalPathOf(x.Crop), NameHintOf(x.Crop), x.Crop.Replaces, x.Crop.PixelScale)))

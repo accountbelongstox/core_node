@@ -40,6 +40,17 @@ public sealed class AssistantExecutionState : IAssistantExecutionState
         lock (_lock) return !_isRunning && _enabled;
     }
 
+    /// <summary>Atomic CanStart + SetRunning(true).</summary>
+    public bool TryBeginRun()
+    {
+        lock (_lock)
+        {
+            if (_isRunning || !_enabled) return false;
+            _isRunning = true;
+            return true;
+        }
+    }
+
     public bool ShouldStopAssistant()
     {
         lock (_lock) return _shouldStop;

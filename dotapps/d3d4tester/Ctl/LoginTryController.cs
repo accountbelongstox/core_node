@@ -14,7 +14,7 @@ namespace DotApps.d3d4tester.Ctl;
 /// <summary>
 /// Login try / manual game launch: on log "Login try" restart Battle.net when disconnected; the manual "ensure D3 / D4 running"
 /// actions run the same Battle.net ready process (B) and game launch process (D) as the ROSBOT flow, bounded by
-/// <see cref="ManualActionTimeout"/>; full-screen login_try capture. Call <see cref="Initialize"/> once at startup.
+/// <see cref="ManualActionTimeout"/>. Call <see cref="Initialize"/> once at startup.
 /// 1:1 Python controller/login_try_screenshot_controller.py (D4 launch is DOT-only).
 /// </summary>
 public static class LoginTryController
@@ -25,27 +25,23 @@ public static class LoginTryController
 
     private static int _initialized;
 
-    /// <summary>Register the "Login try" log callback and prepare the screenshot directory. 1:1 Python controller init + register_login_try_callback.</summary>
+    /// <summary>Register the "Login try" log callback. 1:1 Python controller init + register_login_try_callback.</summary>
     public static void Initialize()
     {
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
-        try
-        {
-            Directory.CreateDirectory(LoginTryDir);
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Yellow($"{LogPrefix} {ex.Message}");
-        }
         RosbotLogLoginTryRegistry.LoginTryCallback = () => Task.Run(HandleLoginTry);
         ColorPrinter.Blue($"{LogPrefix} Initialized");
     }
 
-    private static string LoginTryDir => Path.Combine(D3InterfaceConstants.TmpRootDir, D3InterfaceConstants.LoginTrySubdir);
-
     /// <summary>On "Login try" in log: UI check only; restart Battle.net when disconnected. 1:1 Python handle_login_try.</summary>
     public static void HandleLoginTry()
     {
+        if (!GameControl.Allowed("login try Battle.net restart", needsMonitoring: false)) return;
+        if (BattlenetReadyProcess.IsRunning)
+        {
+            ColorPrinter.Gray($"{LogPrefix} Battle.net ready process running, it handles the login");
+            return;
+        }
         var bn = BattlenetManager.Instance;
         var bnPath = bn.GetPath();
         if (bnPath == null)
@@ -71,13 +67,13 @@ public static class LoginTryController
         bool killD3First = false;
         if (D3Manager.Instance.IsRunning())
         {
-            if (!D3StartGameAndTeleport.CaptureAndDetectAllD3States().States.Disconnected)
+            if (!D3ScreenState.CaptureAndDetectAllD3States().States.Disconnected)
             {
                 ColorPrinter.Gray($"{LogPrefix} D3 online and not disconnected, skip");
                 return true;
             }
             Thread.Sleep(TimeSpan.FromSeconds(D3InterfaceConstants.C3wWaitSec));
-            if (!D3StartGameAndTeleport.CaptureAndDetectAllD3States().States.Disconnected)
+            if (!D3ScreenState.CaptureAndDetectAllD3States().States.Disconnected)
             {
                 ColorPrinter.Gray($"{LogPrefix} D3 disconnect not confirmed (second capture != disconnect), skip");
                 return true;
@@ -115,19 +111,4 @@ public static class LoginTryController
         }
     }
 
-    /// <summary>Full-screen capture saved to the login_try directory; returns saved paths or null. 1:1 Python capture_screenshot.</summary>
-    public static (string? FullscreenPath, string? GameWindowPath)? CaptureScreenshot()
-    {
-        ColorPrinter.Blue($"{LogPrefix} Capturing full-screen screenshot...");
-        var sd = ScreenCaptureService.GetScreenshotProvider().Gen();
-        if (sd == null)
-        {
-            ColorPrinter.Yellow($"{LogPrefix} Failed to capture screenshot");
-            return null;
-        }
-        var saved = sd.Save(LoginTryDir, D3InterfaceConstants.LoginTryScreenshotPrefix);
-        if (saved.FullscreenPath != null)
-            ColorPrinter.Green($"{LogPrefix} Screenshot saved: {saved.FullscreenPath}");
-        return saved;
-    }
 }

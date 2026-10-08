@@ -68,8 +68,6 @@ public static class EventCenter
 
     public static void TriggerWindowShow() => Hub.PublishOnMainThread(AppEventIds.WindowShow);
 
-    public static void TriggerWindowMinimize() => Hub.PublishOnMainThread(AppEventIds.WindowMinimize);
-
     public static void TriggerWindowMaximize() => Hub.PublishOnMainThread(AppEventIds.WindowMaximize);
 
     public static void TriggerExtensionMainStartMacro() => Hub.Publish(AppEventIds.ExtensionMainStartMacro, null);

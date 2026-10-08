@@ -76,9 +76,6 @@ public static class BattlenetStatusProvider
         }
     }
 
-    /// <summary>Detect window + dynamic state and update GameInterfaceData; returns the window or null. 1:1 Python refresh_battlenet_status.</summary>
-    public static BattlenetWindowInfo? RefreshBattlenetStatus() => Refresh().Window;
-
     /// <summary>Returns (window or null, state_changed). 1:1 Python _refresh_battlenet_status_internal.</summary>
     public static (BattlenetWindowInfo? Window, bool Changed) Refresh()
     {

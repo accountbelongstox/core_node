@@ -11,8 +11,7 @@ namespace DotApps.d3d4tester.Core;
 /// </summary>
 public sealed class D3InterfaceManager
 {
-    private const uint VkI = 0x49;
-    private const int KeyPressHoldMs = 50;
+    private const ushort VkI = 0x49;
     private const int AfterBagKeyMs = 400;
     private const string Separator = "============================================================";
 
@@ -57,12 +56,8 @@ public sealed class D3InterfaceManager
         if (bag == null)
         {
             ColorPrinter.Yellow("[InterfaceManager] No bag data: send I to D3 and retry once");
-            var hwnd = D3WindowFinder.FindFirstHandle();
-            if (hwnd != IntPtr.Zero)
+            if (D3Manager.Instance.SendKeyToWindow(VkI))
             {
-                WindowInputHelper.SendKey(hwnd, VkI, press: true);
-                Thread.Sleep(KeyPressHoldMs);
-                WindowInputHelper.SendKey(hwnd, VkI, press: false);
                 Thread.Sleep(AfterBagKeyMs);
                 if (CollectUiInfo(forceNewCapture: true, saveScreenshot) != null)
                     bag = collector.Collect(forceRefresh: true, saveScreenshot);
@@ -91,55 +86,4 @@ public sealed class D3InterfaceManager
         return BagInfoCollector.Instance.Collect(forceRefresh: true, saveScreenshot);
     }
 
-    /// <summary>UI region offset (bag offset is already part of bag coords). 1:1 get_window_offset.</summary>
-    public (int X, int Y) GetWindowOffset()
-    {
-        var ui = GameInterfaceData.Instance.UiRegion;
-        return ui == null ? (0, 0) : (ui.UiOffsetX, ui.UiOffsetY);
-    }
-
-    /// <summary>Log shared data summary. 1:1 print_summary.</summary>
-    public void PrintSummary()
-    {
-        var shared = GameInterfaceData.Instance;
-        ColorPrinter.Blue("\n" + Separator);
-        ColorPrinter.Blue("[D3 Interface Manager Summary]");
-        ColorPrinter.Blue(Separator);
-        ColorPrinter.Blue($"Timestamp: {shared.Timestamp}");
-        if (!string.IsNullOrEmpty(shared.Error)) ColorPrinter.Red($"Error: {shared.Error}");
-        else ColorPrinter.Green("Error: None");
-
-        if (shared.UiRegion is { } ui)
-        {
-            ColorPrinter.Green("\nUI Region: Available");
-            ColorPrinter.Green($"  Position: ({ui.X}, {ui.Y})");
-            ColorPrinter.Green($"  Size: {ui.Width}x{ui.Height}");
-            ColorPrinter.Green($"  Offset: ({ui.UiOffsetX}, {ui.UiOffsetY})");
-            ColorPrinter.Green($"  Fullscreen: {ui.IsFullscreen}");
-            ColorPrinter.Green($"  Source: {ui.Source}");
-        }
-        else ColorPrinter.Yellow("\nUI Region: Not available");
-
-        if (shared.BagCoordinates is { } bag)
-        {
-            ColorPrinter.Green("\nBag Coordinates: Available");
-            ColorPrinter.Green($"  Top-left: ({bag.TopLeft.X}, {bag.TopLeft.Y})");
-            ColorPrinter.Green($"  Bottom-right: ({bag.BottomRight.X}, {bag.BottomRight.Y})");
-            ColorPrinter.Green($"  Size: {bag.Width}x{bag.Height}");
-            ColorPrinter.Green($"  Grid: {bag.Rows}x{bag.Cols} ({bag.TotalSlots} slots)");
-        }
-        else ColorPrinter.Yellow("\nBag Coordinates: Not available");
-
-        if (shared.BagLayout != null) ColorPrinter.Green("\nBag Layout: Available");
-        else ColorPrinter.Gray("\nBag Layout: Not available");
-
-        if (shared.InterfaceType == D3InterfaceDetection.InterfaceKanaiCube)
-        {
-            ColorPrinter.Green($"\nConversion Button (coordinate system): {D3StandardCoordinates.GetScaledConversionButton()}");
-            ColorPrinter.Green($"Put Material Button (coordinate system): {D3StandardCoordinates.GetScaledKanaiPutMaterialButton()}");
-        }
-        if (!string.IsNullOrEmpty(shared.FunctionalInterface))
-            ColorPrinter.Blue($"Functional Interface: {shared.FunctionalInterface}");
-        ColorPrinter.Blue(Separator);
-    }
 }

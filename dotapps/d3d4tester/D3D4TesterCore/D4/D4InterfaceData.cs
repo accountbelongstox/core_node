@@ -181,8 +181,8 @@ public sealed class D4InterfaceData
         ColorPrinter.Blue("[MapNameUtils] Cleared current map name");
     }
 
-    /// <summary>Clear all data (called on Stop). 1:1 D4InterfaceData.clear.</summary>
-    public void Clear()
+    /// <summary>Clear all data (called on Stop); keepDebugWindow keeps the debug-window open / paused flags. 1:1 D4InterfaceData.clear.</summary>
+    public void Clear(bool keepDebugWindow = false)
     {
         Timestamp = null;
         Error = null;
@@ -218,8 +218,11 @@ public sealed class D4InterfaceData
         ParagonLevel = 0;
         LastScreenshotPath = null;
         LastScreenshotTime = null;
-        DebugWindowOpen = false;
-        DebugWindowPaused = false;
+        if (!keepDebugWindow)
+        {
+            DebugWindowOpen = false;
+            DebugWindowPaused = false;
+        }
         IsSwitchingMap = false;
         MapSwitchCount = 0;
         IsPostSwitchIdle = false;

@@ -65,7 +65,11 @@ public sealed class D4Controller
         else if (Data.DebugWindowOpen)
         {
             var result = D4Pipeline.Instance.RunDebugWindowSteps();
-            if (result.Success) UpdateDebugWindowIfOpen();
+            if (result.Success)
+            {
+                D4UiStatusUpdater.Instance.UpdateUiStatus(TickCounter);
+                UpdateDebugWindowIfOpen();
+            }
         }
     }
 
