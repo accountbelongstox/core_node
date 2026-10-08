@@ -365,6 +365,7 @@ final class WorkLeaseService
         $heartbeat = null;
         $primary = $workers[0];
         $identity = [];
+        $load = null;
 
         foreach ($workers as $worker) {
             $metadata = $worker->metadata;
@@ -414,6 +415,8 @@ final class WorkLeaseService
             'batch_size' => $batchSize,
             'eta_seconds' => $donePerHour > 0 ? (int) ceil($itemsLeased / $donePerHour * self::HOUR_SECONDS) : null,
             'last_heartbeat_at' => $heartbeat?->toIso8601String(),
+            'load' => $load['load'] ?? null,
+            'load_at' => $load['load_at'] ?? null,
         ];
     }
 
@@ -1202,4 +1205,13 @@ final class WorkLeaseService
         return $this->limit('lease_ttl_seconds') * 2;
     }
 
-    private
+    private function limit(string $name): int
+    {
+        return (int) $this->setting($name);
+    }
+
+    private function setting(string $name): mixed
+    {
+        return QueueCenterContract::section('work_leases')[$name];
+    }
+}

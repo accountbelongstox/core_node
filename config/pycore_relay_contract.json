@@ -1001,6 +1001,12 @@
     },
     {
       "match": "exact",
+      "value": "ui/queue_center/lane_capability",
+      "profile": "general_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
       "value": "ui/laravel_delivery/status",
       "profile": "general_read",
       "methods": [ "POST" ]

@@ -5,6 +5,7 @@ namespace App\Services\WorkLeases;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookAudioPlanService;
 use App\Services\PycoreTasks\PycoreComputeRoster;
 use App\Support\AudioOrchestrationContract;
+use App\Support\QueueCenterContract;
 use Carbon\Carbon;
 
 /**
@@ -79,7 +80,9 @@ final class WorkLeaseFastPass
             }
         }
         if ($declaresQuality) {
-            foreach ($fastLanguages as $language) {
+            // The quality-engine hint goes only to rows of a floor language (sentence_quality.accepted_engines_by_language).
+            $floorLanguages = array_filter($fastLanguages, static fn (string $language): bool => in_array(self::qualityEngine(), QueueCenterContract::sentenceFloorEngines($language) ?? [], true));
+            foreach ($floorLanguages as $language) {
                 $take = min($budget - count($items), $limit - count($items));
                 if ($take > 0) {
                     array_push($items, ...$this->upgradeRows($language, $take, $workerId, $leaseId, $expiresAt));

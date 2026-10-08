@@ -662,6 +662,14 @@ class AppQyV1ApiInfo
                 "auth_required" => true,
                 "parameters" => ["clientTaskId", "client_updated_at"]
             ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/clients/report",
+                "method" => "POST",
+                "feature" => "Client Orchestration Telemetry",
+                "description" => "Latest state of one wordnew client (route, channels, tasks, assignments) for the orchestration monitor; a seq not newer than the stored one is dropped (stale=true)",
+                "auth_required" => true,
+                "parameters" => ["device_id", "instance_id", "seq", "sent_at", "platform", "app_version", "foreground", "route", "channels", "tasks", "assignments"]
+            ],
 
             // Third-party image-assist protocol (mcp-chrome, 60-minute lease)
             [

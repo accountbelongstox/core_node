@@ -17,6 +17,8 @@ return [
     'orch_client_task_deleted' => '客户端编排任务已删除。',
     'orch_client_task_validation_failed' => '客户端编排任务请求无效。',
     'orch_client_task_config_too_large' => '任务配置超过 256 KB 上限。',
+    'orch_client_report_saved' => '已收到客户端编排上报。',
+    'orch_client_report_validation_failed' => '客户端编排上报无效。',
     'book_plan_saved' => '书籍音频计划已保存。',
     'book_plan_assignments_saved' => '书籍音频计划分配已保存。',
     'book_plan_loaded' => '书籍音频计划已加载。',

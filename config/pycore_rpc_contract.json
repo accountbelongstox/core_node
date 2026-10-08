@@ -834,6 +834,10 @@
       "path": "ui/queue_center/event_page",
       "method": "POST"
     },
+    "queueCenterLaneCapability": {
+      "path": "ui/queue_center/lane_capability",
+      "method": "POST"
+    },
     "queueCenterPromoteLocalHead": {
       "path": "ui/queue_center/promote_local_head",
       "method": "POST"

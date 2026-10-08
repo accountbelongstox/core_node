@@ -153,12 +153,12 @@ Server: `pycore/tts_install_assets/qwen3tts_api_server.py` in its own venv (no p
 
 ## 11. Compute class per task type
 
-Source: `config/queue_center_contract.json` `task_contract.task_types[].compute`. Laravel routes `gpu_preferred` rows to GPU nodes first; a `cpu_only` node gets them only while no online GPU node declares the lane + language; nothing is `gpu_required` today.
+Source: `config/queue_center_contract.json` `task_contract.task_types[].compute`, overridden per language by `compute_by_language` (`QueueCenterContract::taskTypeCompute($type, $language)`). Laravel routes `gpu_preferred` rows to GPU nodes first; a `cpu_only` node gets them only while no online GPU node declares the lane + language; `gpu_required` rows never go to a `cpu_only` node. Sentence quality floor (R13, `work_leases.sentence_quality.accepted_engines_by_language`, `QueueCenterContract::sentenceFloorEngines`): English sentences are `gpu_required` and accepted only from qwen3tts; zh sentences, word and phrase meanings, phrases and words accept any engine (kokoro on CPU is fine). Global tasks carry no language at the roster level, so `PycoreComputeRoster` holds a type to its strictest class.
 
 | Task type | Class | Engine on GPU / CPU node |
 |---|---|---|
 | word_audio | cpu_ok | kokoro / kokoro |
-| sentence_audio | gpu_preferred | qwen3tts / kokoro |
+| sentence_audio | cpu_ok; en gpu_required | en: qwen3tts / none; other languages: qwen3tts / kokoro |
 | article_audio | gpu_preferred | qwen3tts (runs on CPU, slowly) |
 | tts_synthesize | cpu_ok | edge -> kokoro / kokoro |
 | stt, audio_transcribe, subtitle_search | gpu_preferred | faster-whisper (large on GPU, medium on CPU) |

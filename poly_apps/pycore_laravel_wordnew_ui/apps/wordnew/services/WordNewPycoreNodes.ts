@@ -31,10 +31,7 @@ export interface WordNewPycoreNodesSnapshot {
   labelOf: (kind: OrchResourceKind, language: string, text: string) => string | null;
 }
 
-/** First DNS label of a node's host label, lower case ('' when it has none): how a direct pycore host is matched to its work nodes. */
-export function workNodeHost(node: WorkNode): string {
-  return String(node.label ?? '').toLowerCase().split('.')[0];
-}
+export { workNodeHost } from './orchestration/WordNewBookPlanAssigner';
 
 /** `<platform or host>·gpu|cpu·<sid>`: short, stable, language-free. */
 export function workNodeLabel(node: WorkNode): string {

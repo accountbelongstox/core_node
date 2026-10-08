@@ -2,6 +2,7 @@
 
 namespace App\Services\TimerTasks;
 
+use App\Services\WorkLeases\OrchClientMonitorService;
 use App\Services\WorkLeases\WorkLeaseService;
 use App\Support\SchemaGate;
 
@@ -34,5 +35,6 @@ final class WorkLeaseReaperTask extends OctaneTimerTaskAbstract
         foreach ($leases->resurface() as $sweep) {
             $this->logInfo('failed resurfacing sweep finished', $sweep);
         }
+        app(OrchClientMonitorService::class)->expire();
     }
 }

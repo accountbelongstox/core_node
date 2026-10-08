@@ -72,6 +72,7 @@ import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
 import { commonMessage } from '../laravel/ClientKeyFailure';
 import type { AudioLaneKey, AudioLaneStatePayload } from '../../contracts/QueueCenterTypes';
+import { pycoreLaneCapabilityRoute } from './PycoreLaneCapability';
 import type { OrchResourceKind } from './PycoreApiOrchestrationResources';
 
 export const pycoreApiLocal = {
@@ -411,6 +412,9 @@ export const pycoreApiLocal = {
       error_code?: string;
     }>,
 
+
+  /** The lanes, languages and engines the selected pycore declares on its claims (what it can generate at all). */
+  laneCapability: () => requestPycoreHttp(pycoreLaneCapabilityRoute(), {}, 8_000) as Promise<unknown>,
 
   /** Tells the selected pycore which book audio plan its work-lease claims should favor (best effort). */
   bookPlanHint: (planId: string) =>

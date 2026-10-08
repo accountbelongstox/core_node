@@ -176,6 +176,7 @@
         "max_tasks": 8,
         "max_assignments": 16,
         "max_windows": 48,
+        "max_bytes": 65536,
         "report_request": {
             "device_id": "string, at most 16 chars",
             "instance_id": "string, at most 64 chars (one app run)",
@@ -190,7 +191,7 @@
             "assignments": "[{plan_id, fresh, expires_in, direct_share: {<lane>: n}, windows: [{sid, lane, language, count, assigned, generating, done}]}]"
         },
         "report_response": "{accepted: bool, stale: bool}: stale = a seq not newer than the stored one of the same (device_id, instance_id), dropped",
-        "rule": "Laravel keeps one entry per (user, device_id, instance_id) in cache for ttl_seconds after its last report (latest wins, an older or equal seq is dropped as stale); a report inside min_interval_seconds of the previous one of the same key is accepted but not republished. A change emits the throttled realtime event orch_clients.changed (queue_center_contract realtime.orch_clients_changed). The monitor lists clients with user, last_seen_at and online (younger than ttl_seconds)."
+        "rule": "Laravel keeps one entry per (user, device_id, instance_id) in cache for ttl_seconds after its last report (latest wins, an older or equal seq is dropped as stale); a client never reports more often than min_interval_seconds (it reports every report_seconds and on a route, channel or task change). A changed state (seq and sent_at ignored) or an expired client emits the throttled realtime event orch_clients.changed (queue_center_contract realtime.orch_clients_changed). The monitor lists clients with user, last_seen_at and online (younger than ttl_seconds)."
     },
     "step_options": {
         "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: open item in docs_fix/DESIGN_AUDIO_ORCHESTRATION.md); phrases steps: after each phrase, read its Chinese meaning (a zh sentence clip of the meaning text)"

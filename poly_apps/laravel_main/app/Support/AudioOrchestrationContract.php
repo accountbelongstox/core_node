@@ -52,26 +52,28 @@ final class AudioOrchestrationContract
     /** One value of the `book_plan` section (dot path into nested arrays, e.g. fast_pass.engine). */
     public static function bookPlan(string $path): mixed
     {
-        $value = self::document()['book_plan'] ?? null;
-
-        foreach (explode('.', $path) as $segment) {
-            if (!is_array($value) || !array_key_exists($segment, $value)) {
-                throw new RuntimeException("Unknown audio orchestration book_plan value: {$path}");
-            }
-            $value = $value[$segment];
-        }
-
-        return $value;
+        return self::sectionValue('book_plan', $path);
     }
 
     /** One value of the `phrase_pipeline` section (dot path, e.g. extraction.batch_sentences). */
     public static function phrasePipeline(string $path): mixed
     {
-        $value = self::document()['phrase_pipeline'] ?? null;
+        return self::sectionValue('phrase_pipeline', $path);
+    }
+
+    /** One value of the `client_monitor` section (dot path, e.g. ttl_seconds). */
+    public static function clientMonitor(string $path): mixed
+    {
+        return self::sectionValue('client_monitor', $path);
+    }
+
+    private static function sectionValue(string $section, string $path): mixed
+    {
+        $value = self::document()[$section] ?? null;
 
         foreach (explode('.', $path) as $segment) {
             if (!is_array($value) || !array_key_exists($segment, $value)) {
-                throw new RuntimeException("Unknown audio orchestration phrase_pipeline value: {$path}");
+                throw new RuntimeException("Unknown audio orchestration {$section} value: {$path}");
             }
             $value = $value[$segment];
         }

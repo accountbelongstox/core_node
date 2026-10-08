@@ -20,7 +20,7 @@ import { pycoreApi } from '../../../../core/integrations/pycore';
 import { Backoff } from '../../../../core/tasks/Backoff';
 import { orchPatternHasPhrases } from '../../../../shared/orchestration/orchPlanner';
 import type { OrchComposePlan, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
-import { wfNewApi, type WfNewBookPlanStatus } from '../../api';
+import { wfNewApi, type WfNewBookPlanStatus, type WfNewBookPlanWindow } from '../../api';
 import { CapJsonStore, Directory } from '../../platform/capabilities';
 import { wordNewPycoreLink, hostKey } from '../../integrations/WordNewPycoreLink';
 import { wordNewChannels } from '../compute/WordNewCompute';
@@ -29,10 +29,14 @@ import { wordNewPycoreNodes } from '../WordNewPycoreNodes';
 import {
   buildAssignment,
   defaultDirectShare,
+  directWindowSid,
   laneOfKind,
   type Assignment,
+  type AssignmentDirect,
   type AssignmentLanguages,
 } from './WordNewBookPlanAssigner';
+import { orchClientDeviceId } from './WordNewOrchDeviceId';
+import { wordNewLaneCapability } from './WordNewLaneCapability';
 import { wordNewOrchPlaybackStore } from './WordNewOrchPlaybackStore';
 
 const PLAN_PATH = 'wfnew-orch/book-plans.json';
@@ -82,6 +86,15 @@ export interface WordNewBookPlanSnapshot {
   scope: { total: number; ready: number; generating: number; queued: number; failed: number; outside: number } | null;
 }
 
+/** One followed plan's app-led assignment as the monitor reports it. */
+export interface BookPlanAssignmentReport {
+  planId: string;
+  fresh: boolean;
+  expiresIn: number;
+  directShare: Record<string, number>;
+  windows: Array<WfNewBookPlanWindow & { assigned: number; generating: number; done: number }>;
+}
+
 interface LivePlan {
   stored: StoredPlan;
   covered: Set<string>;
@@ -101,6 +114,12 @@ interface LivePlan {
   /** The last assignment computed from the roster and the direct pycore (null before the first). */
   assignment: Assignment | null;
   assigning: Promise<void> | null;
+  /** A change (direct pycore fell / switched / changed capability, roster) arrived while a post was going: post again. */
+  assignAgain: boolean;
+  /** Windows of the last post that reached the server (a post with none is still needed to drop direct ranges). */
+  postedWindows: number;
+  /** The windows of the last post (what the monitor reports next to the server's figures). */
+  postedList: WfNewBookPlanWindow[];
   /** The plan heartbeat: the assignment is posted again on this timer while the plan is followed. */
   assignTimer: ReturnType<typeof setInterval> | null;
   releaseRoster: (() => void) | null;
@@ -223,6 +242,9 @@ class WordNewBookAudioPlanService {
         languages: coveredLanguages(plan, covered),
         assignment: null,
         assigning: null,
+        assignAgain: false,
+        postedWindows: 0,
+        postedList: [],
         assignTimer: null,
         releaseRoster: null,
         rosterNodes: null,
@@ -333,24 +355,55 @@ class WordNewBookAudioPlanService {
       console.warn('[BookPlan] assignment skipped: Laravel channel unavailable');
       return Promise.resolve();
     }
-    live.assigning ??= this.postAssignment(taskId, live).finally(() => { live.assigning = null; });
+    if (live.assigning) {
+      // A post is going: what changed is posted right after it (the direct pycore must not wait for the next heartbeat).
+      live.assignAgain = true;
+      return live.assigning;
+    }
+    live.assigning = this.postAssignment(taskId, live).finally(() => {
+      live.assigning = null;
+      if (live.assignAgain && this.live.get(taskId) === live) {
+        live.assignAgain = false;
+        void this.assign(taskId, live);
+      }
+    });
     return live.assigning;
   }
 
+  /** The direct pycore as the assignment sees it (null while no direct pycore is usable). */
+  private directOf(): AssignmentDirect | null {
+    if (!wordNewChannels.direct()) return null;
+    return {
+      nodeSid: wordNewLaneCapability.directNodeSid(),
+      host: hostKey(wordNewPycoreLink.getSnapshot().selectedUrl),
+      windowSid: directWindowSid(orchClientDeviceId()),
+      covers: (lane, language) => wordNewLaneCapability.coversLane('direct', lane, language),
+    };
+  }
+
   private async postAssignment(taskId: string, live: LivePlan): Promise<void> {
-    const directHost = wordNewChannels.direct() ? hostKey(wordNewPycoreLink.getSnapshot().selectedUrl) : '';
+    // The capability of the pycore selected now decides which direct windows exist (read again after a switch).
+    await wordNewLaneCapability.ensure();
+    const direct = this.directOf();
     const roster = wordNewPycoreNodes.getSnapshot();
-    live.assignment = buildAssignment({ roster: roster.nodes, directHost, languages: live.languages });
-    if (live.assignment.windows.length === 0 || serverSchemaGate.getSnapshot().schema === 'pending') {
+    live.assignment = buildAssignment({ roster: roster.nodes, direct, languages: live.languages });
+    const { windows } = live.assignment;
+    // An empty assignment is still posted once after windows were posted: it drops this device's direct ranges.
+    if ((windows.length === 0 && live.postedWindows === 0) || serverSchemaGate.getSnapshot().schema === 'pending') {
       // Before the first roster answer the roster subscription posts as soon as it arrives: nothing to report yet.
       if (roster.version > 0) console.warn('[BookPlan] assignment empty', { roster: roster.nodes.length, languages: live.languages });
       return;
     }
     try {
       const assignments = await within(
-        wfNewApi.postBookAudioPlanAssignments(live.stored.planId, live.stored.position, live.assignment.windows),
+        wfNewApi.postBookAudioPlanAssignments(live.stored.planId, live.stored.position, windows, {
+          deviceId: orchClientDeviceId(),
+          directNodeSid: direct?.nodeSid ?? '',
+        }),
         AUDIO_ORCH_BOOK_PLAN.requestTimeoutMs,
       );
+      live.postedWindows = windows.length;
+      live.postedList = windows;
       if (live.stored.status) live.stored = { ...live.stored, status: { ...live.stored.status, assignments } };
       this.publish(taskId, live);
     } catch (error) {
@@ -390,7 +443,22 @@ class WordNewBookAudioPlanService {
       void this.assign(taskId, live);
     });
     live.assignTimer = setInterval(() => { void this.assign(taskId, live); }, AUDIO_ORCH_BOOK_PLAN.assignmentRefreshMs);
-    live.wake = () => { stopReady(); stopRoster(); };
+    // The direct pycore changing (falls or returns, another one is selected, its capability changes) posts at once (S2, S3).
+    let directUsable = wordNewChannels.direct();
+    let selected = wordNewPycoreLink.getSnapshot().selectedUrl;
+    const stopChannels = wordNewChannels.subscribe(() => {
+      if (wordNewChannels.direct() === directUsable) return;
+      directUsable = wordNewChannels.direct();
+      void this.assign(taskId, live);
+    });
+    const stopLink = wordNewPycoreLink.subscribe(() => {
+      const { selectedUrl } = wordNewPycoreLink.getSnapshot();
+      if (selectedUrl === selected) return;
+      selected = selectedUrl;
+      void this.assign(taskId, live);
+    });
+    const stopCapability = wordNewLaneCapability.subscribe(() => { void this.assign(taskId, live); });
+    live.wake = () => { stopReady(); stopRoster(); stopChannels(); stopLink(); stopCapability(); };
     schedule(wordNewClipReady.pollDelayMs(AUDIO_ORCH_BOOK_PLAN.statusPollMs));
   }
 
@@ -403,6 +471,25 @@ class WordNewBookAudioPlanService {
     live.assignTimer = null;
     live.releaseRoster?.();
     live.releaseRoster = null;
+  }
+
+  /** The followed plans' assignments as the monitor reports them: the windows posted next to the server's figures. */
+  assignmentReports(): BookPlanAssignmentReport[] {
+    return [...this.live.values()]
+      .filter((live) => live.stored.planId && live.assignment)
+      .map((live) => {
+        const figures = live.stored.status?.assignments;
+        return {
+          planId: live.stored.planId,
+          fresh: figures?.fresh === true,
+          expiresIn: figures?.expiresIn ?? 0,
+          directShare: { ...(live.assignment?.direct ?? defaultDirectShare()) },
+          windows: live.postedList.map((window) => {
+            const figure = figures?.windows.find((entry) => entry.sid === window.sid && entry.lane === window.lane);
+            return { ...window, assigned: figure?.assigned ?? 0, generating: figure?.generating ?? 0, done: figure?.done ?? 0 };
+          }),
+        };
+      });
   }
 
   private publish(taskId: string, live: LivePlan): void {

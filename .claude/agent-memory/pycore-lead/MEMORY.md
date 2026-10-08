@@ -24,3 +24,4 @@
 - [Terminal state normalized](project_terminal_state_normalized.md) — 2026-10-05 schema/migration/reader owner; import checks migrate the LIVE db unless env redirected
 - [Network router manager](project_network_router_manager.md) — 2026-10-06 pycore router lib + pycore-manager page; delegates to 113_natgateway.sh; relay policy; Windows untested
 - [API latency / journal refactor](project_api_latency_journal_refactor.md) — 2026-10-06 in-process journal, no Redis in journal, test isolation traps (live log pollution)
+- [Per-language sentence floor](project_sentence_floor_per_language.md) — 2026-10-08 floor by language, lane_capability RPC, node load on claim/renew; open items
