@@ -2,7 +2,8 @@
 """phrase_extract task handler: Laravel queues the extraction prompt when its own
 OpenRouter call is rate limited or unconfigured; ``laravel_compute_worker`` pulls
 it and this handler answers it on pycore's own OpenRouter free key. The result is
-the raw model answer (``{text, model}``); Laravel parses and stores it.
+the raw model answer (``{text, model, finish_reason, reasoning_only}``); Laravel
+parses and stores it and keeps the model health from those fields.
 
 Handler contract (``LaravelHandlerWorker``): a dict result completes the task, a
 ``TaskRelease`` hands it back to Laravel (rate limit or missing key: another node
@@ -41,6 +42,9 @@ RELEASE_PAUSE_MAX_SECONDS = 900.0
 ERROR_PROMPT_MISSING = "PHRASE_EXTRACT_PROMPT_MISSING"
 ERROR_NOT_CONFIGURED = "AI_PROVIDER_NOT_CONFIGURED"
 ERROR_PREFIX = "AI_"
+FREE_MODEL_SUFFIX = ":free"
+FREE_ROUTER_MODEL = "openrouter/free"
+OPTION_KEYS = ("response_format", "reasoning", "models")
 FAILURE_EMPTY_CODES = ("", "none")
 FAILURE_EMPTY_NAME = "empty_response"
 RELEASE_CODES = frozenset({"local_rate_limit", "rate_limit", "quota"})
@@ -88,6 +92,27 @@ def _max_tokens(payload: Dict[str, Any]) -> int:
     return min(requested, EXTRACTION_MAX_TOKENS) if requested > 0 else EXTRACTION_MAX_TOKENS
 
 
+def _request_options(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Sampling plus the extraction request options Laravel chose for this batch
+    (JSON mode, reasoning off, the in-request free ``models`` fallback list)."""
+    options: Dict[str, Any] = {"temperature": EXTRACTION_TEMPERATURE, "max_tokens": _max_tokens(payload)}
+    requested = dict(_EXTRACTION.get("request_options") or {})
+    if isinstance(payload.get("request_options"), dict):
+        requested.update(payload["request_options"])
+    for key in OPTION_KEYS:
+        if key in requested:
+            options[key] = requested[key]
+    models = [
+        str(model).strip() for model in options.get("models") or []
+        if str(model).strip().endswith(FREE_MODEL_SUFFIX) or str(model).strip() == FREE_ROUTER_MODEL
+    ]
+    if models:
+        options["models"] = models
+    else:
+        options.pop("models", None)
+    return options
+
+
 def _release_or_fail(code: str, message: str, retry_after_s: Any) -> TaskRelease:
     if code in KEY_COOLDOWN_CODES:
         mark_text_key_cooldown(FREE_TEXT_PROVIDER, error=message)
@@ -104,7 +129,7 @@ def phrase_extract(payload: Dict[str, Any], task: Dict[str, Any]) -> Union[Dict[
     if not is_configured(FREE_TEXT_PROVIDER):
         return TaskRelease(ERROR_NOT_CONFIGURED, RELEASE_PAUSE_MAX_SECONDS)
     model = resolve_free_text_model(payload.get("model") or EXTRACTION_MODEL)
-    options = {"temperature": EXTRACTION_TEMPERATURE, "max_tokens": _max_tokens(payload)}
+    options = _request_options(payload)
     try:
         res = free_text_chat(
             [{"role": "user", "content": prompt}], model=model, source=SOURCE_LABEL, options=options,
@@ -121,7 +146,13 @@ def phrase_extract(payload: Dict[str, Any], task: Dict[str, Any]) -> Union[Dict[
         f"[PhraseExtract] task {str(task.get('task_id') or '')[:8]} answered by {used_model}: "
         f"{len(payload.get('sentences') or [])} sentence(s), {len(text)} chars"
     )
-    return {"text": text, "model": used_model}
+    served_model = str(res.get("served_model") or used_model)
+    return {
+        "text": text,
+        "model": served_model,
+        "finish_reason": str(res.get("finish_reason") or ""),
+        "reasoning_only": bool(res.get("reasoning_only")),
+    }
 
 
 __all__ = [

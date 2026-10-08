@@ -241,6 +241,24 @@ cleanup_os_upgrade_artifacts() {
     $USE_SUDO rm -rf "$STATE_DIR"
 }
 
+# After a successful major-version hop, the OS packages are on the new
+# release but every /www/_<os>_<old_ver> tool dir (node/python/pipx/certbot/
+# poetry/uv/omp symlinks, PostgreSQL, the RustDesk relay server - see
+# debian_tooldir_migration.sh) is still exactly where it was. Idempotent and
+# self-contained: no-ops when there is nothing to migrate, never deletes the
+# old copy, and a failure here does not fail the OS upgrade itself (the
+# upgrade already succeeded; a stuck tool dir is fixed by re-running this
+# step, including by hand from the dd.sh Linux Management menu).
+run_post_upgrade_tooldir_migration() {
+    local migration_script="$(dirname "$(dirname "$SCRIPT_DIR")")/common/debian_tooldir_migration.sh"
+    if [ -s "$migration_script" ]; then
+        log_line "Checking for a legacy tool directory to migrate to the new OS version ..."
+        bash "$migration_script" || log_line "[WARN] Tool-dir migration reported issues; re-run $migration_script by hand (or via dd.sh Linux Management > Linux System Tools) after investigating."
+    else
+        log_line "[WARN] Tool-dir migration script not found at $migration_script; skipping (no tool dirs were moved)"
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # Shared steps (generalized from the former upgrade_to_debian_13.sh)
 # ---------------------------------------------------------------------------
@@ -719,6 +737,10 @@ main() {
     if [ "$resume_flag" != "1" ]; then
         if ! os_upgrade_available; then
             echo "[$SCRIPT_INDEX] This host is already at the latest supported release for this upgrader."
+            echo "[$SCRIPT_INDEX] Nothing to hop, but a previous hop can leave the per-OS tool directory"
+            echo "[$SCRIPT_INDEX] (/www/_<os>_<ver>) behind - running the idempotent follow-up now (no-op if"
+            echo "[$SCRIPT_INDEX] nothing is pending)."
+            run_post_upgrade_tooldir_migration
             return 0
         fi
         echo "[$SCRIPT_INDEX] ============================================"
@@ -769,6 +791,7 @@ main() {
         os_upgrade_state_set STATUS "done"
         log_line "Upgrade complete ($(os_upgrade_current_id_version)). Cleaning up resume artifacts."
         cleanup_os_upgrade_artifacts
+        run_post_upgrade_tooldir_migration
         return 0
     fi
 

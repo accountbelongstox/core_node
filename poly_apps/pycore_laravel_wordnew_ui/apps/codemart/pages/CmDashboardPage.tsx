@@ -264,13 +264,13 @@ const CmDashboardPage: React.FC = () => {
       <div className="cm-dashboard-columns">
         <div className="cm-dashboard-columns__main">
           {showProjects && (
-            <CmPreviewList titleKey="dashboard.activeProjectsTitle" allRoute={CM_PROTECTED_ROUTE.projects} emptyKey="dashboard.noActiveProjects" loading={projects.loading} error={projects.error} rows={projectRows} onRetry={() => void projects.reload()} />
+            <CmPreviewList titleKey="dashboard.activeProjectsTitle" allRoute={CM_PROTECTED_ROUTE.projects} emptyKey="dashboard.noActiveProjects" loading={projects.loading} error={projects.error} rows={projectRows} onRetry={projects.retryable ? () => void projects.reload() : undefined} />
           )}
           {showTasks && (
-            <CmPreviewList titleKey="dashboard.activeTasksTitle" allRoute={CM_PROTECTED_ROUTE.tasks} emptyKey="dashboard.noActiveTasks" loading={tasks.loading} error={tasks.error} rows={taskRows} onRetry={() => void tasks.reload()} />
+            <CmPreviewList titleKey="dashboard.activeTasksTitle" allRoute={CM_PROTECTED_ROUTE.tasks} emptyKey="dashboard.noActiveTasks" loading={tasks.loading} error={tasks.error} rows={taskRows} onRetry={tasks.retryable ? () => void tasks.reload() : undefined} />
           )}
           {showReviews && (
-            <CmPreviewList titleKey="dashboard.reviewQueueTitle" allRoute={CM_PROTECTED_ROUTE.reviews} emptyKey="dashboard.noReviews" loading={reviews.loading} error={reviews.error} rows={reviewRows} onRetry={() => void reviews.reload()} />
+            <CmPreviewList titleKey="dashboard.reviewQueueTitle" allRoute={CM_PROTECTED_ROUTE.reviews} emptyKey="dashboard.noReviews" loading={reviews.loading} error={reviews.error} rows={reviewRows} onRetry={reviews.retryable ? () => void reviews.reload() : undefined} />
           )}
           {!showProjects && !showTasks && !showReviews && (
             <CmEmptyState
@@ -289,7 +289,7 @@ const CmDashboardPage: React.FC = () => {
             {notifications.loading ? (
               <CmLoadingState compact />
             ) : notifications.error ? (
-              <CmErrorState compact message={notifications.error} onRetry={() => void notifications.reload()} />
+              <CmErrorState compact message={notifications.error} onRetry={notifications.retryable ? () => void notifications.reload() : undefined} />
             ) : notifications.items.length === 0 ? (
               <CmEmptyState compact title={t('notifications.emptyTitle')} />
             ) : (

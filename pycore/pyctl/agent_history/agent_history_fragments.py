@@ -19,7 +19,12 @@ from pycore.pyutils.common.strtools.normalization import WHITESPACE_RE
 
 _CODE_TOKEN_RE = re.compile(r"\[\[CODE_\d+\]\]")
 _FENCE_RE = re.compile(r"```[\s\S]*?```|`[^`]+`")
-_NOISE_RE = re.compile(r"[^\w\s\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af.,!?;:'\"()-]+")
+# Kept: letters, CJK scripts, ASCII and full-width CJK punctuation (sentence boundaries of Chinese text),
+# curly quotes, dashes and the ellipsis.
+_NOISE_RE = re.compile(
+    r"[^\w\s\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u3000-\u303f\uff01-\uff60"
+    r"\u2013\u2014\u2018\u2019\u201c\u201d\u2026.,!?;:'\"()-]+"
+)
 _WS_RE = WHITESPACE_RE
 
 def _summary_last_ts(summary: Dict[str, Any]) -> int:

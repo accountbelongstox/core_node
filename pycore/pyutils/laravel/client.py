@@ -19,7 +19,11 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlencode, urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.client_key_auth import client_key_headers
+from pycore.pyutils.common.client_key_auth import (
+    client_key_headers,
+    client_key_server_clock,
+    client_key_timestamp_rejected,
+)
 from pycore.pyutils.common.http_client import (
     HTTP_TRANSPORT_NAME,
     HttpConnectError,
@@ -91,6 +95,13 @@ def laravel_envelope(response: Any) -> Dict[str, Any]:
     content_type = str(response.headers.get("Content-Type") or "").lower()
     body = response.json() if "json" in content_type else {}
     return body if isinstance(body, dict) else {}
+
+
+def _envelope_error_code(response: Any) -> str:
+    try:
+        return str(laravel_envelope(response).get("error_code") or "")
+    except ValueError:
+        return ""
 
 
 def _encode_form(values: Any) -> str:
@@ -258,22 +269,34 @@ class LaravelClient:
             request_body = request_body.encode("utf-8") if isinstance(request_body, str) else bytes(request_body)
         if request_body is not None and not isinstance(request_body, bytes):
             raise ValueError(f"Laravel request body must be bytes, str, json or form fields: {type(request_body).__name__}")
-        request_headers.update(client_key_headers(
-            method,
-            url,
-            request_body or b"",
-            _MULTIPART_CONTENT_TYPE if files is not None else _header_value(request_headers, _CONTENT_TYPE_HEADER),
-        ))
-        started = time.perf_counter()
-        try:
-            response = http_client.request(
+        sign_content_type = _MULTIPART_CONTENT_TYPE if files is not None else _header_value(request_headers, _CONTENT_TYPE_HEADER)
+        response_profile = response
+
+        def send():
+            # Signed per attempt: the timestamp follows the server clock learned from its answers.
+            signed_offset = client_key_server_clock.now(url) - time.time()
+            signed_headers = {**request_headers, **client_key_headers(method, url, request_body or b"", sign_content_type)}
+            sent_at = time.time()
+            answer = http_client.request(
                 method, url,
-                headers=request_headers, body=request_body, form=form, files=files,
+                headers=signed_headers, body=request_body, form=form, files=files,
                 timeout=timeout,
                 progress_callback=progress_callback,
                 stream=stream, follow_redirects=allow_redirects,
-                response=response,
+                response=response_profile,
             )
+            client_key_server_clock.observe(url, answer.headers.get("Date"), sent_at, time.time())
+            # This answer or a concurrent one corrected the clock since signing.
+            return answer, abs(client_key_server_clock.now(url) - time.time() - signed_offset) >= 1
+
+        started = time.perf_counter()
+        try:
+            response, clock_moved = send()
+            # A drifted local clock: one more attempt signed with the server time (bodies only when re-sendable).
+            if clock_moved and not stream and files is None and client_key_timestamp_rejected(
+                response.status_code, _envelope_error_code(response),
+            ):
+                response, _ = send()
         except OSError as exc:
             ms = (time.perf_counter() - started) * 1000.0
             error = redacted_http_error(exc)

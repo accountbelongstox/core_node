@@ -103,6 +103,8 @@ SCHTASKS_EXE_PATH = SYSTEM_ROOT_PATH / "System32" / "schtasks.exe"
 SERVICE_RUN_ENV = "PYCORE_SERVICE_RUN"
 TASK_COMMAND_TIMEOUT_SECONDS = 60
 TASK_DESCRIPTION = "PyCore RPC Server - elevated auto-start at logon"
+TASK_UNCHANGED = "unchanged"
+TASK_REGISTERED = "registered"
 
 
 def _ps_single_quote(value: str) -> str:
@@ -208,12 +210,14 @@ class WindowsStartupManager:
         )
 
     def _write_ps1(self) -> None:
-        """(Re)write the fixed PS1 launcher and the task-start PS1 with current config."""
+        """Write the fixed PS1 launcher and the task-start PS1 only when their content changed."""
         self.script_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.ps1_path, "w", encoding="utf-8") as fh:
-            fh.write(self._generate_ps1())
-        with open(self.task_ps1_path, "w", encoding="utf-8") as fh:
-            fh.write(self._generate_task_ps1())
+        for path, content in ((self.ps1_path, self._generate_ps1()),
+                              (self.task_ps1_path, self._generate_task_ps1())):
+            if path.exists() and path.read_text(encoding="utf-8", errors="replace") == content:
+                continue
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
 
     # ----- native shortcut creation --------------------------------------- #
     def _shortcut_arguments(self, script_path: Path) -> str:
@@ -290,7 +294,8 @@ class WindowsStartupManager:
         """Only an elevated interactive run may register the task (never the LocalSystem service)."""
         return os.environ.get(SERVICE_RUN_ENV) != "1" and is_elevated()
 
-    def _run_task_command(self, arguments: List[str]) -> bool:
+    def _run_task_output(self, arguments: List[str]) -> Optional[str]:
+        """Stdout of a successful task command, None when it failed."""
         try:
             completed = subprocess.run(
                 arguments,
@@ -301,32 +306,58 @@ class WindowsStartupManager:
             )
         except (OSError, subprocess.SubprocessError) as exc:
             ColorPrint.yellow(f"[WindowsStartup] task command {arguments[0]} failed: {exc}")
-            return False
+            return None
         if completed.returncode != 0 and (completed.stderr or "").strip():
             ColorPrint.gray(f"[WindowsStartup] task command: {completed.stderr.strip()}")
-        return completed.returncode == 0
+        return (completed.stdout or "") if completed.returncode == 0 else None
+
+    def _run_task_command(self, arguments: List[str]) -> bool:
+        return self._run_task_output(arguments) is not None
 
     def _task_exists(self) -> bool:
         return self._run_task_command([str(SCHTASKS_EXE_PATH), "/Query", "/TN", self.app_name])
 
-    def _register_task(self) -> bool:
-        """Create or update the logon task that starts pythonw elevated in the user's session."""
+    def _register_task(self) -> str:
+        """Create the logon task, or re-register it only when its definition drifted.
+
+        Re-registering an unchanged task on every start would detach the running
+        instance from the task, so MultipleInstances=IgnoreNew stops guarding it.
+        """
         user = _ps_single_quote(self._task_user())
+        name = _ps_single_quote(self.app_name)
+        execute = _ps_single_quote(str(self.pythonw_exe))
+        argument = _ps_single_quote(self._shortcut_arguments(self.ps1_path))
+        workdir = _ps_single_quote(str(self.pyservice_script.parent))
         ps = (
-            f"$action = New-ScheduledTaskAction -Execute {_ps_single_quote(str(self.pythonw_exe))} "
-            f"-Argument {_ps_single_quote(self._shortcut_arguments(self.ps1_path))} "
-            f"-WorkingDirectory {_ps_single_quote(str(self.pyservice_script.parent))}; "
+            f"$t = Get-ScheduledTask -TaskName {name} -ErrorAction SilentlyContinue; "
+            "$a = if ($t) { @($t.Actions)[0] } else { $null }; "
+            "$same = [bool]($t -and (@($t.Actions).Count -eq 1) "
+            f"-and ($a.Execute -eq {execute}) -and ($a.Arguments -eq {argument}) "
+            f"-and ($a.WorkingDirectory -eq {workdir}) "
+            "-and ([string]$t.Principal.RunLevel -eq 'Highest') "
+            "-and ([string]$t.Principal.LogonType -eq 'Interactive') "
+            "-and ([string]$t.Settings.MultipleInstances -eq 'IgnoreNew') "
+            "-and ([string]$t.Settings.ExecutionTimeLimit -eq 'PT0S') "
+            "-and (@($t.Triggers).Count -eq 1) "
+            "-and (@($t.Triggers)[0].CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger')); "
+            f"if ($same) {{ Write-Output '{TASK_UNCHANGED}'; return }}; "
+            f"$action = New-ScheduledTaskAction -Execute {execute} "
+            f"-Argument {argument} "
+            f"-WorkingDirectory {workdir}; "
             f"$trigger = New-ScheduledTaskTrigger -AtLogOn -User {user}; "
             f"$principal = New-ScheduledTaskPrincipal -UserId {user} -LogonType Interactive -RunLevel Highest; "
             "$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries "
             "-ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew; "
-            f"Register-ScheduledTask -TaskName {_ps_single_quote(self.app_name)} "
+            f"Register-ScheduledTask -TaskName {name} "
             f"-Description {_ps_single_quote(TASK_DESCRIPTION)} -Action $action -Trigger $trigger "
             "-Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null"
         )
-        return self._run_task_command(
+        output = self._run_task_output(
             [str(self.powershell_exe), "-NoProfile", "-NonInteractive", "-Command", ps]
         )
+        if output is None:
+            return ""
+        return TASK_UNCHANGED if TASK_UNCHANGED in output else TASK_REGISTERED
 
     def _delete_task(self) -> bool:
         return self._run_task_command([str(SCHTASKS_EXE_PATH), "/Delete", "/TN", self.app_name, "/F"])
@@ -360,9 +391,12 @@ class WindowsStartupManager:
         return None, "", last_error or "shortcut creation failed"
 
     def _install_task(self) -> bool:
-        """Register the elevated task and point the Startup shortcut at it."""
-        if not self._register_task():
+        """Register the elevated task and point the Startup shortcut at it (no-op when both are in place)."""
+        registration = self._register_task()
+        if not registration:
             return False
+        if registration == TASK_UNCHANGED and self.common_shortcut.exists() and not self.user_shortcut.exists():
+            return True
         self._remove_shortcuts()
         lnk, _scope, error = self._install_startup_shortcut(self.task_ps1_path)
         if lnk is None:

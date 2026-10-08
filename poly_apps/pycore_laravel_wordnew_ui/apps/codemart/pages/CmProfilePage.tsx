@@ -29,6 +29,7 @@ export const CmProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<CmProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadRetryable, setLoadRetryable] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [name, setName] = useState('');
@@ -54,8 +55,10 @@ export const CmProfilePage: React.FC = () => {
     if (response.success && response.data) {
       apply(response.data);
       setLoadError(null);
+      setLoadRetryable(true);
     } else {
       setLoadError(cmErrorMessage(t, response, 'profile.loadFailed'));
+      setLoadRetryable(response.status !== 403 && response.status !== 404);
     }
     setLoading(false);
   }, [t]);
@@ -100,7 +103,7 @@ export const CmProfilePage: React.FC = () => {
       {loading && !profile ? (
         <CmLoadingState />
       ) : loadError || !profile ? (
-        <CmErrorState message={loadError ?? t('profile.loadFailed')} onRetry={() => void load()} />
+        <CmErrorState message={loadError ?? t('profile.loadFailed')} onRetry={loadRetryable ? () => void load() : undefined} />
       ) : (
         <form onSubmit={(event) => void save(event)} noValidate>
           <section className="cm-section-card">

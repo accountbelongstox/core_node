@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Writeback of pycore phrase_extract tasks (docs_fix/DESIGN_PHRASE_PIPELINE.md §4).
  *
- * payload: {language, prompt_key, prompt, model, max_tokens, lease_id, sentences:[{n, content_id, text}]}
- * result:  {text, model?} (flat or under result.result; `answer` accepted)
+ * payload: {language, prompt_key, prompt, model, request_options, max_tokens, temperature, lease_id, sentences:[{n, content_id, text}]}
+ * result:  {text, model?, finish_reason?, reasoning_only?} (flat or under result.result; `answer` accepted)
  *
  * The raw answer goes through the same parser and writer as the Laravel
  * gateway path. Stored count = sentences resolved (done + none); 0 makes the
@@ -47,7 +47,16 @@ class PhraseExtractTaskProcessor extends AbstractTaskProcessor
                 Log::warning('[PhraseExtractTaskProcessor] empty answer, attempts counted', ['task_id' => $task->task_id]);
                 return 0;
             }
-            $outcome = app(AppQyV1PhraseExtractionService::class)->store($language, $sentences, $raw, is_string($model) ? $model : null);
+            $outcome = app(AppQyV1PhraseExtractionService::class)->store(
+                $language,
+                $sentences,
+                $raw,
+                is_string($model) ? $model : null,
+                [
+                    'finish_reason' => (string) ($inner['finish_reason'] ?? ''),
+                    'reasoning_only' => !empty($inner['reasoning_only']),
+                ]
+            );
         } catch (\Throwable $e) {
             Log::error('[PhraseExtractTaskProcessor] writeback failed', ['task_id' => $task->task_id, 'error' => $e->getMessage()]);
             return 0;

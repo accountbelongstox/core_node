@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import ctypes
 import sys
+import time
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.commander import run_args
+from pycore.pyfoundations.pybasecommon.commander import run_args, run_args_bytes
 from pycore.pyfoundations.third_party.api import get_third_package_pyperclip
 
 
@@ -47,7 +49,32 @@ WINAPI_PROTOTYPES = (
     (USER32, "SetClipboardData", [ctypes.c_uint, ctypes.c_void_p], ctypes.c_void_p),
     (USER32, "CloseClipboard", [], ctypes.c_int),
     (USER32, "EnumClipboardFormats", [ctypes.c_uint], ctypes.c_uint),
+    (USER32, "GetClipboardData", [ctypes.c_uint], ctypes.c_void_p),
+    (USER32, "GetClipboardFormatNameW", [ctypes.c_uint, ctypes.c_wchar_p, ctypes.c_int], ctypes.c_int),
+    (USER32, "RegisterClipboardFormatW", [ctypes.c_wchar_p], ctypes.c_uint),
+    (KERNEL32, "GlobalSize", [ctypes.c_void_p], ctypes.c_size_t),
 )
+WIN32_OPEN_ATTEMPTS = 10
+WIN32_OPEN_RETRY_SECONDS = 0.02
+WIN32_FORMAT_NAME_MAX_CHARS = 256
+WIN32_REGISTERED_FORMAT_FIRST = 0xC000
+# Formats whose handle is a GDI object or NULL (CF_BITMAP, CF_METAFILEPICT,
+# CF_PALETTE, CF_ENHMETAFILE, CF_OWNERDISPLAY, CF_DSP*) cannot be copied as
+# memory; CF_BITMAP/CF_PALETTE are synthesized again from CF_DIB/CF_DIBV5.
+WIN32_HANDLE_FORMATS = frozenset({2, 3, 9, 14, 0x80, 0x82, 0x83, 0x8E})
+# CF_PRIVATEFIRST..CF_PRIVATELAST handles are owned by the source window.
+WIN32_PRIVATE_FORMATS = range(0x200, 0x300)
+# Live OLE references into the source process; meaningless once it lost ownership.
+WIN32_OLE_LIVE_FORMAT_NAMES = frozenset({"DataObject", "Ole Private Data"})
+# Synthesized siblings: only the first enumerated (the real) one is kept.
+WIN32_SYNTHESIZED_GROUPS = (frozenset({1, 7, 13}), frozenset({8, 17}))
+# Registered formats that keep an item out of Win+V history and cloud sync.
+WIN32_HISTORY_EXCLUSION_FORMATS = (
+    ("ExcludeClipboardContentFromMonitorProcessing", b"\0\0\0\0"),
+    ("CanIncludeInClipboardHistory", b"\0\0\0\0"),
+    ("CanUploadToCloudClipboard", b"\0\0\0\0"),
+)
+CLIPBOARD_SNAPSHOT_MAX_BYTES = 128 * 1024 * 1024
 
 if IS_WINDOWS:
     for _library, _name, _argtypes, _restype in WINAPI_PROTOTYPES:
@@ -55,35 +82,64 @@ if IS_WINDOWS:
         getattr(_library, _name).restype = _restype
 
 
-def _set_with_winapi(text: str, _selection: str) -> bool:
-    if not IS_WINDOWS:
-        return False
-    kernel32 = KERNEL32
-    user32 = USER32
-    buffer = ctypes.create_unicode_buffer(text)
-    size = ctypes.sizeof(buffer)
-    handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, size)
+def _open_win32_clipboard() -> bool:
+    for _attempt in range(WIN32_OPEN_ATTEMPTS):
+        if USER32.OpenClipboard(None):
+            return True
+        time.sleep(WIN32_OPEN_RETRY_SECONDS)
+    return False
+
+
+def _win32_global(data: bytes) -> Optional[int]:
+    handle = KERNEL32.GlobalAlloc(GMEM_MOVEABLE, max(len(data), 1))
     if not handle:
-        return False
-    locked = kernel32.GlobalLock(handle)
+        return None
+    locked = KERNEL32.GlobalLock(handle)
     if not locked:
-        kernel32.GlobalFree(handle)
+        KERNEL32.GlobalFree(handle)
+        return None
+    ctypes.memmove(locked, data, len(data))
+    KERNEL32.GlobalUnlock(handle)
+    return handle
+
+
+def _win32_format_id(format_id: int, name: str) -> int:
+    return int(USER32.RegisterClipboardFormatW(name)) if name else format_id
+
+
+def _win32_history_exclusion_entries() -> List[Tuple[int, str, bytes]]:
+    return [(0, name, data) for name, data in WIN32_HISTORY_EXCLUSION_FORMATS]
+
+
+def _win32_write(entries: List[Tuple[int, str, bytes]]) -> bool:
+    """Replace the clipboard with (format_id, registered_name, data) items; an empty list empties it."""
+    if not IS_WINDOWS or not _open_win32_clipboard():
         return False
-    ctypes.memmove(locked, ctypes.addressof(buffer), size)
-    kernel32.GlobalUnlock(handle)
-    if not user32.OpenClipboard(None):
-        kernel32.GlobalFree(handle)
-        return False
-    if not user32.EmptyClipboard():
-        user32.CloseClipboard()
-        kernel32.GlobalFree(handle)
-        return False
-    if not user32.SetClipboardData(CF_UNICODETEXT, handle):
-        user32.CloseClipboard()
-        kernel32.GlobalFree(handle)
-        return False
-    user32.CloseClipboard()
-    return True
+    written = 0
+    try:
+        if not USER32.EmptyClipboard():
+            return False
+        for format_id, name, data in entries:
+            target = _win32_format_id(format_id, name)
+            handle = _win32_global(data) if target else None
+            if handle is None:
+                continue
+            if USER32.SetClipboardData(target, handle):
+                written += 1
+            else:
+                KERNEL32.GlobalFree(handle)
+    finally:
+        USER32.CloseClipboard()
+    return written > 0 or not entries
+
+
+def _win32_text_entries(text: str, transient: bool) -> List[Tuple[int, str, bytes]]:
+    entries = [(CF_UNICODETEXT, "", text.encode("utf-16-le") + b"\0\0")]
+    return entries + _win32_history_exclusion_entries() if transient else entries
+
+
+def _set_with_winapi(text: str, _selection: str, transient: bool = False) -> bool:
+    return IS_WINDOWS and _win32_write(_win32_text_entries(text, transient))
 
 
 def _set_with_powershell(text: str, _selection: str) -> bool:
@@ -221,7 +277,7 @@ POSIX_TEXT_TARGETS = ("UTF8_STRING", "STRING", "TEXT", "text/plain")
 
 
 def _win32_formats() -> Optional[List[int]]:
-    if not IS_WINDOWS or not USER32.OpenClipboard(None):
+    if not IS_WINDOWS or not _open_win32_clipboard():
         return None
     formats = []
     current = USER32.EnumClipboardFormats(0)
@@ -299,13 +355,18 @@ READERS: Tuple[Callable[[str], Optional[str]], ...] = (
 )
 
 
-def _write_selection(text: str, selection: str) -> bool:
+def _write_selection(text: str, selection: str, transient: bool = False) -> bool:
+    if transient and _set_with_winapi(text, selection, transient):
+        return True
     return any(writer(text, selection) for writer in WRITERS)
 
 
-def set_clipboard_text(text: str, include_primary: bool = False) -> bool:
-    """Set the clipboard (and, on Linux, optionally PRIMARY) to text."""
-    written = _write_selection(text, SELECTION_CLIPBOARD)
+def set_clipboard_text(text: str, include_primary: bool = False, transient: bool = False) -> bool:
+    """Set the clipboard (and, on Linux, optionally PRIMARY) to text.
+
+    transient=True keeps the item out of the Windows clipboard history and cloud sync.
+    """
+    written = _write_selection(text, SELECTION_CLIPBOARD, transient)
     if written and include_primary and IS_LINUX:
         return _write_selection(text, SELECTION_PRIMARY)
     return written
@@ -323,8 +384,160 @@ def get_clipboard_text(primary: bool = False) -> Optional[str]:
     return None
 
 
+POSIX_META_TARGETS = frozenset({"TARGETS", "MULTIPLE", "TIMESTAMP", "SAVE_TARGETS", "DELETE", "INSERT_PROPERTY",
+                                "INSERT_SELECTION"})
+POSIX_IMAGE_PREFERENCE = ("image/png",)
+POSIX_FILE_PREFERENCE = ("x-special/gnome-copied-files", "text/uri-list")
+
+
+@dataclass(frozen=True)
+class ClipboardSnapshot:
+    """Every restorable format of the clipboard at one moment.
+
+    items are (win32 format id, registered name or POSIX target, raw bytes).
+    text holds the POSIX text kind, restored through the text writers.
+    """
+    kind: str
+    items: Tuple[Tuple[int, str, bytes], ...] = ()
+    text: Optional[str] = None
+
+
+def _win32_format_name(format_id: int) -> str:
+    if format_id < WIN32_REGISTERED_FORMAT_FIRST:
+        return ""
+    buffer = ctypes.create_unicode_buffer(WIN32_FORMAT_NAME_MAX_CHARS)
+    length = USER32.GetClipboardFormatNameW(format_id, buffer, WIN32_FORMAT_NAME_MAX_CHARS)
+    return buffer.value[:length] if length > 0 else ""
+
+
+def _win32_read_handle(handle: int) -> Optional[bytes]:
+    size = int(KERNEL32.GlobalSize(handle) or 0)
+    if size <= 0:
+        return None
+    locked = KERNEL32.GlobalLock(handle)
+    if not locked:
+        return None
+    try:
+        return ctypes.string_at(locked, size)
+    finally:
+        KERNEL32.GlobalUnlock(handle)
+
+
+def _win32_snapshot() -> Optional[ClipboardSnapshot]:
+    kind = get_clipboard_kind()
+    if kind["type"] == CLIPBOARD_KIND_UNKNOWN and not kind["formats"]:
+        return None
+    if not _open_win32_clipboard():
+        return None
+    items: List[Tuple[int, str, bytes]] = []
+    total = 0
+    claimed_groups = set()
+    try:
+        format_id = USER32.EnumClipboardFormats(0)
+        while format_id:
+            current = int(format_id)
+            format_id = USER32.EnumClipboardFormats(current)
+            if current in WIN32_HANDLE_FORMATS or current in WIN32_PRIVATE_FORMATS:
+                continue
+            group = next((index for index, members in enumerate(WIN32_SYNTHESIZED_GROUPS) if current in members), None)
+            if group is not None:
+                if group in claimed_groups:
+                    continue
+                claimed_groups.add(group)
+            name = _win32_format_name(current)
+            if current >= WIN32_REGISTERED_FORMAT_FIRST and (not name or name in WIN32_OLE_LIVE_FORMAT_NAMES):
+                continue
+            handle = USER32.GetClipboardData(current)
+            data = _win32_read_handle(handle) if handle else None
+            if data is None or total + len(data) > CLIPBOARD_SNAPSHOT_MAX_BYTES:
+                continue
+            total += len(data)
+            items.append((current, name, data))
+    finally:
+        USER32.CloseClipboard()
+    return ClipboardSnapshot(kind["type"], tuple(items))
+
+
+def _posix_restore_target(kind: str, targets: List[str]) -> Optional[str]:
+    candidates = [target for target in targets if target not in POSIX_META_TARGETS]
+    preference = POSIX_FILE_PREFERENCE if kind == CLIPBOARD_KIND_FILES else POSIX_IMAGE_PREFERENCE
+    for target in preference:
+        if target in candidates:
+            return target
+    if kind == CLIPBOARD_KIND_IMAGE:
+        return next((target for target in candidates if target.startswith("image/")), None)
+    return candidates[0] if candidates else None
+
+
+def _posix_read_target(target: str) -> Optional[bytes]:
+    if _linux_x11_ready():
+        command = ["xclip", "-selection", SELECTION_CLIPBOARD, "-t", target, "-o"]
+    elif _linux_wayland_only():
+        command = ["wl-paste", "--no-newline", "--type", target]
+    else:
+        return None
+    success, data = run_args_bytes(command, timeout=CLIPBOARD_COMMAND_TIMEOUT_SECONDS)
+    return data if success else None
+
+
+def _posix_write_target(target: str, data: bytes) -> bool:
+    if _linux_x11_ready():
+        command = ["xclip", "-selection", SELECTION_CLIPBOARD, "-t", target, "-in"]
+    elif _linux_wayland_only():
+        command = ["wl-copy", "--type", target]
+    else:
+        return False
+    success, _output = run_args_bytes(command, data, CLIPBOARD_COMMAND_TIMEOUT_SECONDS, detach_output=True)
+    return success
+
+
+def _posix_snapshot() -> Optional[ClipboardSnapshot]:
+    kind = get_clipboard_kind()
+    if kind["type"] == CLIPBOARD_KIND_EMPTY:
+        return ClipboardSnapshot(CLIPBOARD_KIND_EMPTY)
+    if kind["type"] == CLIPBOARD_KIND_TEXT:
+        text = get_clipboard_text()
+        return ClipboardSnapshot(CLIPBOARD_KIND_TEXT, text=text) if text is not None else None
+    target = _posix_restore_target(kind["type"], kind["formats"])
+    data = _posix_read_target(target) if target else None
+    if data is None or len(data) > CLIPBOARD_SNAPSHOT_MAX_BYTES:
+        return None
+    return ClipboardSnapshot(kind["type"], ((0, target, data),))
+
+
+def snapshot_clipboard() -> Optional[ClipboardSnapshot]:
+    """Capture the clipboard in every restorable format (text, images, files, rich text).
+
+    None means the clipboard could not be read; callers then leave it alone.
+    """
+    if IS_WINDOWS:
+        return _win32_snapshot()
+    if IS_LINUX:
+        return _posix_snapshot()
+    text = get_clipboard_text()
+    return ClipboardSnapshot(CLIPBOARD_KIND_TEXT, text=text) if text is not None else None
+
+
+def restore_clipboard(snapshot: ClipboardSnapshot) -> bool:
+    """Put a snapshot back; the restored item stays out of the Windows clipboard history."""
+    if IS_WINDOWS and snapshot.text is None:
+        entries = list(snapshot.items)
+        return _win32_write(entries + _win32_history_exclusion_entries() if entries else entries)
+    if snapshot.text is not None:
+        return set_clipboard_text(snapshot.text, transient=True)
+    if snapshot.kind == CLIPBOARD_KIND_EMPTY:
+        if _linux_wayland_only():
+            return run_args(["wl-copy", "--clear"], timeout=CLIPBOARD_COMMAND_TIMEOUT_SECONDS,
+                            detach_output=True).success
+        return set_clipboard_text("")
+    return all(_posix_write_target(target, data) for _format_id, target, data in snapshot.items)
+
+
 __all__ = [
+    "ClipboardSnapshot",
     "get_clipboard_kind",
     "get_clipboard_text",
+    "restore_clipboard",
     "set_clipboard_text",
+    "snapshot_clipboard",
 ]

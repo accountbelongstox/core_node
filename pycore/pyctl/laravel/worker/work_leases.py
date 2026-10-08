@@ -8,6 +8,7 @@ expires. ``WorkLeaseClient`` is the HTTP side, ``LeaseBook`` the node's
 lease state on a THREAD_BUS owner.
 """
 
+import hashlib
 import socket
 import time
 from collections import deque
@@ -20,6 +21,7 @@ from pycore.pyutils.common.local_rpc_guard import lan_bind_enabled
 from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORK_LEASES, queue_center_endpoint
+from pycore.pyctl.laravel.worker.node_load import work_node_load
 from pycore.pyctl.laravel.worker.registration import node_device_id
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
 
@@ -36,6 +38,8 @@ WANT_MAX = int(QUEUE_CENTER_WORK_LEASES["want_max"])
 NODE_LABEL_MAX = 32
 NODE_LABEL_ID_CHARS = 6
 NODE_LAN_URLS_MAX = 4
+NODE_SID_LENGTH = int(QUEUE_CENTER_WORK_LEASES["sid_length"])
+NODE_KEY_PREFIX = "node:"
 
 
 def lease_reason_code(code: str) -> str:
@@ -80,6 +84,15 @@ def work_node_identity() -> Dict[str, Any]:
     return identity
 
 
+def work_node_sid() -> str:
+    """Short node id Laravel publishes for this device (work_nodes[].sid): the
+    head of sha1 of the claim node key ``node:<node_id>``; empty without a node id."""
+    node_id = node_device_id()
+    if not node_id:
+        return ""
+    return hashlib.sha1(f"{NODE_KEY_PREFIX}{node_id}".encode("utf-8")).hexdigest()[:NODE_SID_LENGTH]
+
+
 def _data(response: Any) -> Dict[str, Any]:
     envelope = laravel_envelope(response)
     if response.status_code != 200 or envelope.get("success") is False:
@@ -95,13 +108,16 @@ class WorkLeaseClient:
 
     @staticmethod
     def claim(base_url: str, request: Dict[str, Any]) -> Dict[str, Any]:
-        return _data(laravel_client.post(queue_center_endpoint("work_lease_claim"), base_url=base_url, json=request, response=RESPONSE_CONTROL))
+        return _data(laravel_client.post(
+            queue_center_endpoint("work_lease_claim"), base_url=base_url,
+            json={**request, "load": work_node_load.snapshot()}, response=RESPONSE_CONTROL,
+        ))
 
     @staticmethod
     def renew(base_url: str, worker_id: str, lease_ids: List[str]) -> Dict[str, Any]:
         return _data(laravel_client.post(
             queue_center_endpoint("work_lease_renew"), base_url=base_url,
-            json={"worker_id": worker_id, "lease_ids": lease_ids}, response=RESPONSE_CONTROL,
+            json={"worker_id": worker_id, "lease_ids": lease_ids, "load": work_node_load.snapshot()}, response=RESPONSE_CONTROL,
         ))
 
     @staticmethod
@@ -304,6 +320,7 @@ __all__ = [
     "WANT_MAX",
     "WORK_LEASE_LANES",
     "work_node_identity",
+    "work_node_sid",
     "WorkLeaseClient",
     "lease_reason_code",
     "work_lease_client",

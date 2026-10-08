@@ -100,6 +100,7 @@ import { mockLearningMethods } from './methods/mockLearning';
 import { mockOrchAudioMethods } from './methods/mockOrchAudio';
 import { mockOrchClientTaskMethods } from './methods/orchClientTasks';
 import { mockPhraseMethods } from './methods/phrases';
+import { mockTranslationMethods } from './methods/translation';
 import { mockVirtualReadMethods } from './methods/virtualReads';
 
 export const wfNewApiMock: WfNewApi = {
@@ -507,6 +508,7 @@ export const wfNewApiMock: WfNewApi = {
   ...mockOrchAudioMethods,
   ...mockOrchClientTaskMethods,
   ...mockPhraseMethods,
+  ...mockTranslationMethods,
   ...mockVirtualReadMethods,
 
   // ---- Home content groups (words derived from bento; rest curated) ----

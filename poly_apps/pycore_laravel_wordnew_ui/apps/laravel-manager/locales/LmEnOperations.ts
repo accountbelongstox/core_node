@@ -10,7 +10,8 @@ taskCenter: {
         workers: "Workers",
         assist: "Assist Requests",
         dispatch: "Dispatch",
-        assistDist: "Assist Distribution"
+        assistDist: "Assist Distribution",
+        orchestration: "Orchestration"
       },
       refresh: "Refresh",
       auto_refresh: "Auto-refresh",

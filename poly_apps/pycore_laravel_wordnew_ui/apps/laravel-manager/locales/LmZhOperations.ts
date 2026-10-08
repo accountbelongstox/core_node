@@ -10,7 +10,8 @@ taskCenter: {
         workers: "工作节点",
         assist: "协助请求",
         dispatch: "分发",
-        assistDist: "协助分发"
+        assistDist: "协助分发",
+        orchestration: "编排监控"
       },
       refresh: "刷新",
       auto_refresh: "自动刷新",

@@ -98,7 +98,7 @@ export const CmProjectsPage: React.FC = () => {
       {list.loading ? (
         <CmLoadingState />
       ) : list.error ? (
-        <CmErrorState message={list.error} onRetry={() => void list.reload()} />
+        <CmErrorState message={list.error} onRetry={list.retryable ? () => void list.reload() : undefined} />
       ) : list.items.length === 0 ? (
         filtered ? (
           <CmEmptyState

@@ -4,6 +4,10 @@
  *                   per-language sentence audio Laravel already holds
  *   prompt_rewrite  a prompt-rewrite result Laravel holds (`/orch_audio/tasks`,
  *                   source prompt_rewrite): bilingual sentences with audio
+ *   short passages  entries appended after the source (or the whole composition, source `passages`): an
+ *                   `article` entry keeps its text in the task config and is cut by the shared segmenter, a
+ *                   `prompt` entry is a prompt-rewrite result loaded like the prompt source; every sentence
+ *                   is tagged with its entry and numbered after the sentences before it
  * Word read states come from Laravel `learning/sentence-words` for the task's
  * word group, overlaid (read only) with its API-side virtual read batch; the
  * lookup also queues missing word audio at the head of the generation lane.
@@ -18,7 +22,14 @@ import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { orchPool } from '../../../../shared/orchestration/orchClipResolver';
 import type { OrchComposeInputs, OrchInputsProgress } from '../../../../shared/orchestration/orchComposer';
 import { tokenize } from '../../../../shared/orchestration/orchPlanner';
-import type { OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
+import {
+  orchApplyPassageZh,
+  orchArticleSentences,
+  orchNextSeq,
+  orchPassageKey,
+  orchTagPassage,
+} from '../../../../shared/orchestration/orchPassages';
+import type { OrchComposePassageRef, OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
 import { CapJsonStore, Directory, capFs } from '../../platform/capabilities';
 import { wfNewApi, type WfNewBookVerse, type WfNewOrchAudioSentence } from '../../api';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
@@ -56,11 +67,33 @@ function stateStore(taskId: string): CapJsonStore<WordStateCheckpoint> {
 }
 
 const SOURCE_KEY_SEPARATOR = '|';
+/** Splits the source part of an origin key from the short-passage entries (an origin without entries has no separator). */
+const PASSAGES_SEPARATOR = '~';
+const PASSAGE_KEY_SEPARATOR = ',';
 
-/** Identity of the sentences a task needs (book chapter or prompt result). */
+/** Identity of the book chapter or prompt result a task is made of ('' for a composition of short passages only). */
+function primaryKeyOf(task: OrchComposeTask): string {
+  const { book, prompt, passages } = task.config;
+  if (book) return `book:${book.sourceKey}:${book.chapterIndex ?? 'all'}`;
+  if (prompt) return `prompt:${prompt.taskKey}`;
+  return (passages ?? []).length > 0 ? '' : 'prompt:';
+}
+
+function passageKeyOf(ref: OrchComposePassageRef): string {
+  return encodeURIComponent(orchPassageKey(ref)).replace(/~/g, '%7E');
+}
+
+/** Identity of the sentences a task needs (book chapter or prompt result, then its short-passage entries). */
 function originKeyOf(task: OrchComposeTask): string {
-  const { book, prompt } = task.config;
-  return book ? `book:${book.sourceKey}:${book.chapterIndex ?? 'all'}` : `prompt:${prompt?.taskKey ?? ''}`;
+  const passages = task.config.passages ?? [];
+  return passages.length > 0
+    ? `${primaryKeyOf(task)}${PASSAGES_SEPARATOR}${passages.map(passageKeyOf).join(PASSAGE_KEY_SEPARATOR)}`
+    : primaryKeyOf(task);
+}
+
+/** The book / prompt part of an origin key. */
+function primaryPartOf(originKey: string): string {
+  return originKey.split(PASSAGES_SEPARATOR)[0] ?? '';
 }
 
 /** Identity of the inputs a task needs (a kept copy of other inputs is not used). */
@@ -139,10 +172,8 @@ async function bookSentences(task: OrchComposeTask, report: ReportSentences): Pr
   return sentences;
 }
 
-async function promptSentences(task: OrchComposeTask, report: ReportSentences): Promise<OrchComposeSentence[]> {
-  const prompt = task.config.prompt;
-  if (!prompt) return [];
-  const detail = await wfNewApi.getOrchAudioDetail(prompt.taskKey);
+async function promptSentencesOf(taskKey: string, report: ReportSentences): Promise<OrchComposeSentence[]> {
+  const detail = await wfNewApi.getOrchAudioDetail(taskKey);
   if (!detail) return [];
   const total = detail.firstSentencePage.total;
   const pages: WfNewOrchAudioSentence[][] = [detail.firstSentencePage.items];
@@ -151,11 +182,40 @@ async function promptSentences(task: OrchComposeTask, report: ReportSentences): 
   const count = Math.ceil(total / Math.max(1, detail.firstSentencePage.perPage));
   const rest = Array.from({ length: Math.max(0, count - 1) }, (_, index) => index + 2);
   await orchPool(rest, async (page) => {
-    pages[page - 1] = (await wfNewApi.getOrchAudioSentencePage(prompt.taskKey, page)).items;
+    pages[page - 1] = (await wfNewApi.getOrchAudioSentencePage(taskKey, page)).items;
     loaded += pages[page - 1].length;
     report(loaded, total);
   }, undefined, VERSE_PAGE_CONCURRENCY);
   return pages.flat().map(promptSentence).filter((sentence) => sentence.text !== '');
+}
+
+async function primarySentences(task: OrchComposeTask, report: ReportSentences): Promise<OrchComposeSentence[]> {
+  if (task.config.book) return bookSentences(task, report);
+  return task.config.prompt ? promptSentencesOf(task.config.prompt.taskKey, report) : [];
+}
+
+const NO_REPORT: ReportSentences = () => undefined;
+
+/**
+ * `primary` followed by the task's short-passage entries, in order. An `article` entry is built from the text
+ * kept in the task config; a `prompt` entry reuses the sentences a kept copy holds, else loads the result. Each
+ * entry is numbered after the sentences before it, so the plan's sentence numbers stay unique.
+ */
+async function withPassages(
+  task: OrchComposeTask,
+  primary: OrchComposeSentence[],
+  kept: ReadonlyArray<OrchComposeSentence>,
+): Promise<OrchComposeSentence[]> {
+  const sentences = [...primary];
+  for (const ref of task.config.passages ?? []) {
+    const key = orchPassageKey(ref);
+    const heldBefore = kept.filter((sentence) => sentence.passage === key);
+    const own = ref.store === 'article'
+      ? orchArticleSentences(ref)
+      : orchApplyPassageZh(heldBefore.length > 0 ? heldBefore : await promptSentencesOf(ref.id, NO_REPORT), ref);
+    sentences.push(...orchTagPassage(own, key, orchNextSeq(sentences)));
+  }
+  return sentences;
 }
 
 function shortMeaning(translations: string[]): string {
@@ -288,6 +348,15 @@ class WordNewOrchSourcesService {
   }
 
   /**
+   * `sentences` with their short-passage part built again from the task's entries as they are now (an entry's
+   * translated Chinese lines may have arrived after the inputs were kept); prompt entries reuse their loaded
+   * sentences, so this asks no API.
+   */
+  withCurrentPassages(task: OrchComposeTask, sentences: ReadonlyArray<OrchComposeSentence>): Promise<OrchComposeSentence[]> {
+    return withPassages(task, sentences.filter((sentence) => !sentence.passage), sentences);
+  }
+
+  /**
    * Local-first (native): Laravel serves the initial load; a complete kept copy
    * of the same inputs is used without network. The initial load is
    * checkpointed - sentences once fetched, word states after every batch - so
@@ -321,15 +390,22 @@ class WordNewOrchSourcesService {
     // Sentences are kept once fetched (`complete: false` marks only the word states as unfinished).
     const keptSentences = keptMatch
       || (!options.force && kept !== null && kept.sentences.length > 0 && originKeyOfSourceKey(kept.sourceKey) === originKeyOf(task));
+    // Only the short-passage entries changed: the book / prompt sentences of the kept copy are used as they are.
+    const keptPrimary = !keptSentences && !options.force && kept !== null && kept.sentences.length > 0
+      && primaryPartOf(originKeyOfSourceKey(kept.sourceKey)) === primaryKeyOf(task);
     const sentences = keptSentences && kept ? kept.sentences
-      : await (task.config.book ? bookSentences : promptSentences)(task, (loaded, total) => publish({ sentences: loaded, sentencesTotal: total })).catch(() => null);
+      : await (keptPrimary && kept
+        ? Promise.resolve(kept.sentences.filter((sentence) => !sentence.passage))
+        : primarySentences(task, (loaded, total) => publish({ sentences: loaded, sentencesTotal: total })))
+        .then((primary) => withPassages(task, primary, kept?.sentences ?? []))
+        .catch(() => null);
     if (sentences) {
       publish({ sentences: sentences.length, sentencesTotal: sentences.length });
       if (this.keep && !keptMatch) await inputStore(task.id).save({ sourceKey, sentences, wordStates: [], complete: false });
     }
     const checkpoint = this.keep && !options.force ? await stateStore(task.id).load() : EMPTY_CHECKPOINT;
     // Kept states of the same sentences under other read settings: only their read counts are asked again.
-    const knownStates = new Map(keptSentences && !keptMatch && kept ? kept.wordStates.map((state) => [state.word, state]) : []);
+    const knownStates = new Map((keptSentences || keptPrimary) && !keptMatch && kept ? kept.wordStates.map((state) => [state.word, state]) : []);
     const writer = checkpointWriter<WordStateCheckpoint>((value) => (this.keep ? stateStore(task.id).save(value) : Promise.resolve()));
     // Read states are per user: logged out, every word counts as unread (not a failure).
     const states = !sentences ? null
@@ -356,6 +432,42 @@ class WordNewOrchSourcesService {
       wordStates: states ?? new Map(keptStates.map((state) => [state.word, state])),
       fresh: false,
     };
+  }
+
+  /**
+   * Words whose meaning was empty at lookup are asked again (a full lookup: the server translates a word it
+   * did not know yet): the ones that now have a meaning fill the kept read states, in memory and in the kept
+   * copy, so the next plan of the task reads their meaning clip. Returns how many gained a meaning.
+   */
+  async refreshMeanings(task: OrchComposeTask, words: readonly string[]): Promise<number> {
+    const remembered = this.memory.get(task.id);
+    if (!remembered || words.length === 0) return 0;
+    const target = task.config.book?.targetLanguage || 'zh';
+    const states = remembered.inputs.wordStates;
+    let gained = 0;
+    for (const batch of chunk([...words], WORD_STATE_BATCH, true)) {
+      const rows = await getSentenceWordTable(
+        batch.words.join(' '),
+        task.language,
+        target,
+        task.config.newOnlyMaxReadCount,
+        task.config.wordGroupId,
+        task.config.readState === 'real' ? null : task.config.virtualBatch || null,
+        true,
+      ).catch(() => []);
+      rows.forEach((row) => {
+        const word = row.word.trim().toLowerCase();
+        const state = states.get(word);
+        const meaning = shortMeaning(sentenceWordTranslations(row));
+        if (!state || state.meaning.trim() || !meaning) return;
+        states.set(word, { ...state, meaning, audioUrl: state.audioUrl ?? (row.audio_url && row.audio_status !== 'pending' ? row.audio_url : null) });
+        gained += 1;
+      });
+    }
+    if (gained > 0 && this.keep) {
+      await inputStore(task.id).save({ sourceKey: remembered.sourceKey, sentences: remembered.inputs.sentences, wordStates: [...states.values()], complete: true });
+    }
+    return gained;
   }
 
   /** Kept input copies (cache registry item `orchInputs`). */

@@ -18,7 +18,7 @@ import {
   QUEUE_CENTER_ENDPOINTS,
   isGlobalTaskQueuePositionOrdered,
 } from '../../integrations/pycore';
-import type { WorkNodesResponse } from '../../../../core/contracts/QueueCenterTypes';
+import type { WorkMonitorResponse, WorkNodesResponse } from '../../../../core/contracts/QueueCenterTypes';
 
 /** systemctl start/stop/restart can wait on unit timeouts well past the module default. */
 /** The transport base already carries this prefix; contract endpoints are absolute. */
@@ -447,6 +447,14 @@ export class ServerManagerAPI extends LmBaseAPI {
    */
   async getWorkNodes(): Promise<APIResponse<WorkNodesResponse>> {
     return this.get(QUEUE_CENTER_ENDPOINTS.work_nodes.replace(API_PATH_PREFIX, ''));
+  }
+
+  /**
+   * Orchestration monitor (contract endpoint `work_monitor`): wordnew client
+   * telemetry, scheduling plans and the node roster with load in one answer.
+   */
+  async getWorkMonitor(): Promise<APIResponse<WorkMonitorResponse>> {
+    return this.get(QUEUE_CENTER_ENDPOINTS.work_monitor.replace(API_PATH_PREFIX, ''));
   }
 
   // ==================== Assist requests (CoreBook §6) ====================

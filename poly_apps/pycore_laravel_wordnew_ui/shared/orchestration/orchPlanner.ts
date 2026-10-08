@@ -7,6 +7,7 @@
 import { sha256Hex } from '../../core/utils/contentHash';
 import type { OrchResourceKind } from '../../core/integrations/pycore';
 import { orchClipIdentity, orchContentId } from './orchClipIdentity';
+import { orchPassageBoundaries, orchPassageKey } from './orchPassages';
 import {
   AUDIO_ORCH_DEFAULT_MAX_READ_COUNT,
   AUDIO_ORCH_DEFAULT_SEGMENT_MODE,
@@ -61,6 +62,7 @@ export function defaultOrchConfig(_source: OrchComposeSource): OrchComposeConfig
     presetId: '',
     book: null,
     prompt: null,
+    passages: [],
     wordGroupId: null,
     readState: 'virtual',
     // A new task's own batch is named when the task gets its id (`orchTaskVirtualBatch`).
@@ -120,6 +122,27 @@ interface Partition {
 }
 
 export function partitionSentences(sentences: OrchComposeSentence[], mode: 'count' | 'minutes', value: number): Partition[] {
+  const entries = orchPassageBoundaries(sentences);
+  if (entries.length > 0) return partitionWithPassages(sentences, entries, mode, value);
+  return partitionPlain(sentences, mode, value);
+}
+
+/** The source's sentences by the segment settings, then one segment per short-passage entry. */
+function partitionWithPassages(
+  sentences: OrchComposeSentence[],
+  entries: Array<{ start: number; end: number }>,
+  mode: 'count' | 'minutes',
+  value: number,
+): Partition[] {
+  const segments = partitionPlain(sentences.slice(0, entries[0].start), mode, value);
+  entries.forEach(({ start, end }) => {
+    const seconds = sentences.slice(start, end + 1).reduce((total, sentence) => total + estimateSentenceSeconds(sentence), 0);
+    segments.push({ index: segments.length + 1, start, end, estSeconds: Math.round(seconds * 10) / 10 });
+  });
+  return segments;
+}
+
+function partitionPlain(sentences: OrchComposeSentence[], mode: 'count' | 'minutes', value: number): Partition[] {
   const total = sentences.length;
   if (total === 0) return [];
   const estimates = sentences.map(estimateSentenceSeconds);
@@ -317,8 +340,28 @@ export function planComposition(
   return { segments, sentences, resources: [...resources.values()], skippedLanguages: orchSkippedLanguages(sentences, config.pattern) };
 }
 
+/**
+ * Keys of the plan's resources the server book plan owns: everything but the word meaning clips (they are not
+ * book content) and the clips only short-passage entries use (the plan derives the book's clips; a passage clip
+ * is outside it and takes the normal chain, R11).
+ */
+export function orchBookCoveredKeys(plan: OrchComposePlan): Set<string> {
+  const meanings = new Set<string>();
+  const book = new Set<string>();
+  plan.segments.forEach((segment) => segment.items.forEach((item) => {
+    const key = orchResourceKey(item.kind, item.language, item.text);
+    if (item.meaningOf) meanings.add(key);
+    else if (!plan.sentences[item.position]?.passage) book.add(key);
+  }));
+  const hasPassages = plan.sentences.some((sentence) => sentence.passage);
+  const covered = new Set<string>();
+  plan.resources.forEach((resource) => { if (!meanings.has(resource.key) && (!hasPassages || book.has(resource.key))) covered.add(resource.key); });
+  return covered;
+}
+
 /** Hash of everything that shapes the plan (sync conflict + staleness marker). */
 export function orchPlanHash({ source, config, language }: OrchComposeSpec): string {
+  const passages = config.passages ?? [];
   return sha256Hex(JSON.stringify({
     source,
     language,
@@ -331,5 +374,7 @@ export function orchPlanHash({ source, config, language }: OrchComposeSpec): str
     wordGroupId: config.wordGroupId,
     readState: config.readState,
     virtualBatch: config.readState === 'real' ? '' : config.virtualBatch,
+    // Added only with entries, so a composition without any keeps the hash (and the progress) it had.
+    ...(passages.length > 0 ? { passages: passages.map((entry) => [orchPassageKey(entry), sha256Hex(`${entry.text ?? ''}|${entry.textZh ?? ''}`)]) } : {}),
   }));
 }

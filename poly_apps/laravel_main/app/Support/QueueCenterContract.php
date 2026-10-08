@@ -514,9 +514,64 @@ final class QueueCenterContract
     }
 
     /** Required pycore compute class: gpu_required | gpu_preferred | cpu_ok. */
-    public static function taskTypeCompute(string $taskType): string
+    public static function taskTypeCompute(string $taskType, ?string $language = null): string
     {
-        return (string) (self::taskTypeDefinition($taskType)['compute'] ?? self::COMPUTE_CPU_OK);
+        $definition = self::taskTypeDefinition($taskType) ?? [];
+        $language = $language === null ? '' : strtolower(trim($language));
+        $byLanguage = $definition['compute_by_language'] ?? null;
+        if ($language !== '' && is_array($byLanguage) && is_string($byLanguage[$language] ?? null)) {
+            return (string) $byLanguage[$language];
+        }
+
+        return (string) ($definition['compute'] ?? self::COMPUTE_CPU_OK);
+    }
+
+    /**
+     * Strictest compute class of a task type over its default and every
+     * per-language override (gpu_required > gpu_preferred > cpu_ok).
+     */
+    public static function taskTypeComputeStrictest(string $taskType): string
+    {
+        $definition = self::taskTypeDefinition($taskType) ?? [];
+        $classes = array_merge(
+            [(string) ($definition['compute'] ?? self::COMPUTE_CPU_OK)],
+            array_map('strval', array_values((array) ($definition['compute_by_language'] ?? [])))
+        );
+        foreach ([self::COMPUTE_GPU_REQUIRED, self::COMPUTE_GPU_PREFERRED] as $class) {
+            if (in_array($class, $classes, true)) {
+                return $class;
+            }
+        }
+
+        return self::COMPUTE_CPU_OK;
+    }
+
+    /**
+     * Sentence quality floor of one language (work_leases.sentence_quality
+     * .accepted_engines_by_language): the accepted engines, or null when the
+     * language has no floor (any engine is accepted).
+     *
+     * @return array<int, string>|null
+     */
+    public static function sentenceFloorEngines(?string $language): ?array
+    {
+        $language = strtolower(trim((string) $language));
+        $byLanguage = self::section('work_leases')['sentence_quality']['accepted_engines_by_language'] ?? [];
+        if ($language === '' || !is_array($byLanguage) || !is_array($byLanguage[$language] ?? null)) {
+            return null;
+        }
+
+        return array_values(array_map(static fn ($engine): string => strtolower(trim((string) $engine)), $byLanguage[$language]));
+    }
+
+    /** @return array<int, string> languages that carry a sentence quality floor */
+    public static function sentenceFloorLanguages(): array
+    {
+        $byLanguage = self::section('work_leases')['sentence_quality']['accepted_engines_by_language'] ?? [];
+
+        return is_array($byLanguage)
+            ? array_values(array_map(static fn ($language): string => strtolower(trim((string) $language)), array_keys($byLanguage)))
+            : [];
     }
 
     /** What a request does while no suitable pycore is online: queue | reject. */

@@ -494,6 +494,35 @@ export interface WorkNode {
   batch_size: number;
   eta_seconds: number | null;
   last_heartbeat_at: string | null;
+  /** Latest resource sample the node attached to a claim or renew (absent on an older node or server). */
+  load?: WorkNodeLoad | null;
+  /** When Laravel received `load` (ISO-8601). */
+  load_at?: string | null;
+}
+
+/** One GPU of a node load sample. */
+export interface WorkNodeGpuLoad {
+  index: number;
+  name?: string;
+  util_percent?: number | null;
+  mem_used_mb?: number | null;
+  mem_total_mb?: number | null;
+}
+
+/** Per-lane in-flight work of a node load sample (Queue = Part1 + Part2). */
+export interface WorkNodeLaneLoad {
+  in_flight?: number;
+  part1?: number;
+  part2?: number;
+}
+
+/** Resource sample of a pycore node (`work_nodes[].load`); every field is optional. */
+export interface WorkNodeLoad {
+  sampled_at?: string | number | null;
+  cpu_percent?: number | null;
+  mem_percent?: number | null;
+  gpus?: WorkNodeGpuLoad[];
+  lanes?: Record<string, WorkNodeLaneLoad>;
 }
 
 export interface WorkNodesResponse {
@@ -501,6 +530,98 @@ export interface WorkNodesResponse {
   revision?: number;
   nodes: WorkNode[];
   pool: WorkPoolEntry[];
+}
+
+/** Clips of one kind inside an orchestration task, as a wordnew client reports them. */
+export interface OrchClientKindCounts {
+  lane?: string;
+  total?: number;
+  queued?: number;
+  loading?: number;
+  done?: number;
+  missing?: number;
+  generating?: { pycore?: number; relay?: number; laravel?: number };
+}
+
+export interface OrchClientTask {
+  task_id: string;
+  plan_id?: string | null;
+  state?: string;
+  counts?: Record<string, OrchClientKindCounts>;
+  stages?: Record<string, string>;
+}
+
+export interface OrchClientWindow {
+  sid?: string;
+  lane?: string;
+  language?: string;
+  count?: number;
+  assigned?: number;
+  generating?: number;
+  done?: number;
+}
+
+export interface OrchClientAssignment {
+  plan_id: string;
+  fresh?: boolean;
+  expires_in?: number | null;
+  direct_share?: Record<string, number>;
+  windows?: OrchClientWindow[];
+}
+
+export interface OrchClientChannels {
+  direct?: boolean;
+  relay?: boolean;
+  laravel?: boolean;
+  lan?: boolean;
+  selected_pycore?: { host?: string | null; node_sid?: string | null } | null;
+  laravel_endpoint_id?: string | null;
+}
+
+/** One wordnew device's latest telemetry (`audio_orchestration_contract.client_monitor`) plus server fields. */
+export interface OrchClientReport {
+  device_id: string;
+  instance_id?: string;
+  seq?: number;
+  sent_at?: string | number | null;
+  platform?: 'native' | 'web' | string;
+  app_version?: string;
+  foreground?: boolean;
+  route?: { tab?: string | null; item?: string | null; changed_at?: string | number | null } | null;
+  channels?: OrchClientChannels | null;
+  tasks?: OrchClientTask[];
+  assignments?: OrchClientAssignment[];
+  user?: string | { id?: string | number; name?: string; email?: string } | null;
+  last_seen_at?: string | null;
+  online?: boolean;
+}
+
+export interface WorkMonitorPlan {
+  plan_id: string;
+  source_key?: string | null;
+  languages?: string[];
+  include_words?: boolean;
+  include_phrases?: boolean;
+  counters?: Record<string, number>;
+  /** app_led: a fresh wordnew layout drives the nodes; laravel_fallback: Laravel leases alone. */
+  mode?: 'app_led' | 'laravel_fallback' | string;
+  layout?: {
+    applied_at?: string | null;
+    expires_in?: number | null;
+    device_ids?: string[];
+    ranges?: unknown[];
+  } | null;
+}
+
+/** `GET api/work/monitor`: wordnew clients, plans and nodes in one picture. */
+export interface WorkMonitorResponse {
+  /** The server's clock (ISO 8601): every other timestamp of the answer is compared with it. */
+  server_time?: string;
+  revision?: { nodes?: number; clients?: number };
+  clients: OrchClientReport[];
+  nodes: WorkNode[];
+  pool: WorkPoolEntry[];
+  plans: WorkMonitorPlan[];
 }
 
 export interface AudioLaneState extends QueueLaneReport {

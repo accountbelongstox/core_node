@@ -177,6 +177,12 @@ export interface WfNewBookPlanWindow {
   count: number;
 }
 
+/** Who posts an assignment: the device (its direct window is named after it) and the work-node sid of its direct pycore. */
+export interface WfNewBookPlanAssignmentDevice {
+  deviceId: string;
+  directNodeSid: string;
+}
+
 /** Per node and lane figures of the live assignment (contract book_plan.assignments_response). */
 export interface WfNewBookPlanAssignmentWindow {
   sid: string;
@@ -227,4 +233,68 @@ export interface WfNewBookPlanReadyPage {
   ids: string[];
   cursor: number;
   more: boolean;
+}
+
+/** Per kind figures of one task in a client report (contract `client_monitor.report_request.tasks`). */
+export interface WfNewOrchClientKindCounts {
+  lane: string;
+  total: number;
+  queued: number;
+  loading: number;
+  done: number;
+  missing: number;
+  generating: { pycore: number; relay: number; laravel: number };
+}
+
+export interface WfNewOrchClientTaskReport {
+  task_id: string;
+  plan_id: string | null;
+  state: string;
+  counts: Record<string, WfNewOrchClientKindCounts>;
+  stages: Record<string, string>;
+}
+
+export interface WfNewOrchClientWindowReport {
+  sid: string;
+  lane: string;
+  language: string;
+  count: number;
+  assigned: number;
+  generating: number;
+  done: number;
+}
+
+export interface WfNewOrchClientAssignmentReport {
+  plan_id: string;
+  fresh: boolean;
+  expires_in: number;
+  direct_share: Record<string, number>;
+  windows: WfNewOrchClientWindowReport[];
+}
+
+/** Latest state of the open client (contract `client_monitor.report_request`). */
+export interface WfNewOrchClientReport {
+  device_id: string;
+  instance_id: string;
+  seq: number;
+  sent_at: string;
+  platform: 'native' | 'web';
+  app_version: string;
+  foreground: boolean;
+  route: { tab: string; item: string; changed_at: string };
+  channels: {
+    direct: boolean;
+    relay: boolean;
+    laravel: boolean;
+    lan: boolean;
+    selected_pycore: { host: string; node_sid: string };
+    laravel_endpoint_id: string;
+  };
+  tasks: WfNewOrchClientTaskReport[];
+  assignments: WfNewOrchClientAssignmentReport[];
+}
+
+export interface WfNewOrchClientReportAnswer {
+  accepted: boolean;
+  stale: boolean;
 }

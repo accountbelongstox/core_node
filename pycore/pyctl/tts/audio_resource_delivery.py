@@ -28,7 +28,7 @@ from typing import Any, Dict, Iterator, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 from pycore.pyfoundations.system_paths import get_app_cache_dir
-from pycore.pyutils.common.queue_center_contract import SENTENCE_QUALITY_ENGINES, queue_center_endpoint
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint, sentence_engine_accepted
 from pycore.pyutils.common.strtools.normalization import media_content_id, word_text
 from pycore.pyutils.laravel.delivery_diff import (
     BATCH_STORED_STATUSES,
@@ -167,10 +167,10 @@ class AudioResourceDelivery:
         }
 
     @staticmethod
-    def below_quality_floor(kind: str, provider: str) -> bool:
-        """A sentence clip from an engine outside work_leases.sentence_quality: kept
-        locally, never delivered (Laravel rejects it)."""
-        return kind == "sentence" and str(provider or "").strip().lower() not in SENTENCE_QUALITY_ENGINES
+    def below_quality_floor(kind: str, language: Optional[str], provider: str) -> bool:
+        """A sentence clip from an engine outside work_leases.sentence_quality for its
+        language: kept locally, never delivered (Laravel rejects it)."""
+        return kind == "sentence" and not sentence_engine_accepted(provider, language)
 
     @staticmethod
     def cached_clip(kind: str, text: str, language: str) -> Optional[Path]:
@@ -236,7 +236,7 @@ class AudioResourceDelivery:
         ledger_row = audio_resource_ledger.record(kind, language, text, self.durable_clip_path(kind, path, language or "", text), provider, variant, md5)
         if ledger_row is None:
             return {"queued": False}
-        if self.below_quality_floor(kind, provider):
+        if self.below_quality_floor(kind, language, provider):
             return {"queued": False, "below_quality_floor": True, "ledger": ledger_row}
         record = self._record(ledger_row, group_key)
         namespaces = [first_namespace] if first_namespace else []
@@ -268,7 +268,7 @@ class AudioResourceDelivery:
         self._bootstrap()
         for ledger_row in audio_resource_ledger.entries():
             # Phrases have no W7 diff kind: they are queued when generated, never reconciled.
-            if ledger_row["kind"] not in DIFF_KINDS or self.below_quality_floor(ledger_row["kind"], ledger_row.get("provider")):
+            if ledger_row["kind"] not in DIFF_KINDS or self.below_quality_floor(ledger_row["kind"], ledger_row.get("language"), ledger_row.get("provider")):
                 continue
             yield {
                 "key": ledger_row["resource_key"],

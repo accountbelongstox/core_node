@@ -99,6 +99,8 @@ export interface OrchClipSourceContext {
   loading: (resource: OrchComposeResource, origin: OrchClipOrigin, loaded?: number, total?: number, unit?: 'bytes' | 'percent') => void;
   /** A request to `baseUrl` just answered (only real responses are reported). */
   answered: (origin: OrchApiOrigin, baseUrl: string) => void;
+  /** A usable stage skipped clips below its fresh cursor: its backend answered for them within the window (R8). */
+  recalled: () => void;
   /** The source does not hold this resource: it leaves `loading` at once (queued for the next source). */
   release: (resource: OrchComposeResource) => void;
   /** A backend accepted to generate this missing resource (it stays unresolved this run). */
@@ -224,6 +226,7 @@ export async function resolveOrchClips(
   const clips = new Map<string, OrchResolvedClip>();
   let transferredBytes = 0;
   const endpoints: OrchApiEndpoints = {};
+  let recalled = false;
   const stages: Record<string, OrchStageProgress> = {};
   /** Bytes already counted per item (chunk progress), so a landing clip adds only the rest. */
   const counted = new Map<number, number>();
@@ -271,6 +274,9 @@ export async function resolveOrchClips(
       endpoints[origin] = baseUrl;
       report();
     },
+    recalled: () => {
+      recalled = true;
+    },
   };
   const deliver = (resource: OrchComposeResource, clip: OrchResolvedClip): void => {
     const index = at(resource);
@@ -302,10 +308,11 @@ export async function resolveOrchClips(
   } finally {
     unfeed?.();
   }
-  // A clip is missing only once a backend answered this run; with no answer at all (channels off,
-  // requests aborted) nothing was asked, so the clips stay queued for the next run - like the clips
-  // another run of the task still fetches and the clips no longer wanted.
-  if (Object.keys(endpoints).length > 0) {
+  // A clip is missing only once a backend answered this run - or answered within the cursor window for the
+  // clips a usable stage skipped below its fresh cursor (a resumed run asks nothing again); with no answer at
+  // all (channels off, requests aborted) nothing was asked, so the clips stay queued for the next run - like
+  // the clips another run of the task still fetches and the clips no longer wanted.
+  if (Object.keys(endpoints).length > 0 || recalled) {
     remaining.filter(askable).forEach((resource) => table.set(at(resource), { state: 'missing', origin: null }));
   }
   report();

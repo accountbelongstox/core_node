@@ -45,7 +45,7 @@ export type {
 export { TERMINAL_BACKUP_DELETE_CONFIRM, TERMINAL_BACKUP_PAGE_SIZE } from './PycoreApiTerminal';
 export { createPycoreApiTerminal, type PycoreTerminalApi } from './PycoreApiTerminal';
 export { pycoreNodeClient, pycoreNodeTerminalApi, type PycoreNodeClient } from './PycoreNodeClients';
-export type { GitSyncControl, GitSyncHistoryPage, GitSyncLanPeer, GitSyncPush, GitSyncRun, GitSyncState } from './PycoreApiGitSync';
+export type { GitSyncControl, GitSyncHistoryPage, GitSyncLanPeer, GitSyncPush, GitSyncRun, GitSyncState, PycoreGitSyncApi } from './PycoreApiGitSync';
 export type {
   NetworkRouterAction, NetworkRouterActionResult, NetworkRouterConfig, NetworkRouterInterface, NetworkRouterLease,
   NetworkRouterLink, NetworkRouterLogs, NetworkRouterPlatform, NetworkRouterService, NetworkRouterStatus,
@@ -152,6 +152,10 @@ export {
 } from '../../network/TailnetDiscovery';
 export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
 export { deliverThroughRelay, relayPycoreFetch, relayPycoreOrigin } from './RelayDelivery';
+export {
+  parsePycoreLaneCapability, pycoreLaneCapabilityRoute, pycoreLaneCovers,
+  type PycoreLaneCapability, type PycoreLaneCapabilityLane,
+} from './PycoreLaneCapability';
 export {
   designateLaravelRelayDevice, clearLaravelRelayDevice, laravelRelayDeviceId,
   subscribeLaravelRelayDevice, isLaravelRelayReady,

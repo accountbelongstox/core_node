@@ -75,7 +75,7 @@ const fetchTransactions = (page: number) => cmApi.getWalletTransactions(page);
 function CmListBody<T>({ list, emptyKey, children }: { list: CmPagedList<T>; emptyKey: string; children: React.ReactNode }): React.ReactElement {
   const { t } = useTranslation('cm');
   if (list.loading) return <CmLoadingState compact />;
-  if (list.error) return <CmErrorState compact message={list.error} onRetry={() => void list.reload()} />;
+  if (list.error) return <CmErrorState compact message={list.error} onRetry={list.retryable ? () => void list.reload() : undefined} />;
   if (list.items.length === 0) return <CmEmptyState compact title={t(emptyKey)} />;
   return (
     <>

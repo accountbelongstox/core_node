@@ -19,7 +19,10 @@ import type {
   WfNewOrchAudioSentencePage,
   WfNewOrchClientPlaybackPage,
   WfNewOrchClientPlaybackRow,
+  WfNewBookPlanAssignmentDevice,
   WfNewBookPlanAssignments,
+  WfNewOrchClientReport,
+  WfNewOrchClientReportAnswer,
   WfNewBookPlanReadyPage,
   WfNewBookPlanWindow,
   WfNewBookPlanRequest,
@@ -266,13 +269,17 @@ export interface WfNewApi {
   /** Post (idempotent by plan hash) a book audio plan; the server answers its counters. */
   postBookAudioPlan(request: WfNewBookPlanRequest): Promise<WfNewBookPlanStatus>;
   getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus>;
-  postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[]): Promise<WfNewBookPlanAssignments>;
+  postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[], device: WfNewBookPlanAssignmentDevice): Promise<WfNewBookPlanAssignments>;
+  /** Latest-state client telemetry for the orchestration monitor (not queued: a failed post is replaced by the next report). */
+  postOrchClientReport(report: WfNewOrchClientReport): Promise<WfNewOrchClientReportAnswer>;
   /** Ready resource ids after `cursor` (ready sequence order). */
   getBookAudioPlanReady(planId: string, cursor: number, limit: number): Promise<WfNewBookPlanReadyPage>;
   /** Phrases of sentences (by sentence content id, at most 500 per call), in request order. */
   getPhrasesBySentences(language: string, contentIds: string[]): Promise<WfNewSentencePhrases[]>;
   /** A non-passive phrase audio request: the server promotes the phrase in its phrase lane. True when accepted. */
   requestPhraseAudio(text: string, language: string): Promise<boolean>;
+  /** Machine translations of `texts` into `targetLanguage`, in request order ('' where the server had none). */
+  translateTexts(texts: string[], targetLanguage: string): Promise<string[]>;
   /** The user's virtual read batches (max 20; Laravel prunes unreferenced, then stale ones). */
   getVirtualReadBatches(): Promise<WfNewVirtualReadBatchList>;
   /** Record reads of played words (dictionary ids) into a batch; idempotent per request key. */

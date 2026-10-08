@@ -343,7 +343,10 @@ lr_request() {
     [ -n "$base_url" ] || base_url="http://$LR_LOOPBACK_HOST:$LR_PORT"
     path="/cgi-bin/$LR_CGI_NAME"
     machine_id="$(cat /etc/machine-id 2>/dev/null | sha256sum | cut -c1-16)"
-    timestamp="$(date +%s)"
+    # The verifier checks the timestamp against its own clock: sign with the server time (its Date header)
+    # so a drifted local clock is not refused; the local clock when the server sends none.
+    timestamp="$(date -d "$(curl -sSI --max-time 10 "$base_url/" 2>/dev/null | tr -d '\r' | sed -n 's/^[Dd]ate: //p' | head -n 1)" +%s 2>/dev/null)"
+    [ -n "$timestamp" ] || timestamp="$(date +%s)"
     nonce="$(head -c 24 /dev/urandom | base64 -w 0 | tr '+/' '-_' | tr -d '=')"
     lr_sig_sign "$LR_CANONICAL_VERSION" "$LR_PROTOCOL" POST "$path" "$query" shell "$machine_id" \
         "$LR_SIG_KEY_ID" "$timestamp" "$nonce" "$LR_SIG_EMPTY_SHA256"

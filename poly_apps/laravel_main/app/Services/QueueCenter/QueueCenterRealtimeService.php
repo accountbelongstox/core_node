@@ -15,6 +15,7 @@ class QueueCenterRealtimeService
     private const PENDING_SECONDS = 10;
     private const TRAILING_MARGIN_MICROSECONDS = 100000;
     private const WORK_NODES_KEY = 'queue_center:realtime:work_nodes';
+    private const ORCH_CLIENTS_KEY = 'queue_center:realtime:orch_clients';
     private RealtimeConnectionService $connections;
 
     public function __construct(?RealtimeConnectionService $connections = null)
@@ -50,6 +51,31 @@ class QueueCenterRealtimeService
 
             return $revision;
         });
+    }
+
+    /**
+     * Throttled `orch_clients.changed` (contract realtime.orch_clients_changed):
+     * a revision the orchestration monitor refetches work/monitor by.
+     */
+    public function publishOrchClients(string $reason): int
+    {
+        $interval = (int) QueueCenterContract::realtime()['orch_clients_changed']['min_interval_seconds'];
+
+        return $this->throttled(self::ORCH_CLIENTS_KEY, $interval, function () use ($reason): int {
+            $revision = QueueCenterCacheStore::increment(self::ORCH_CLIENTS_KEY);
+            AppQyV1TranslationEventModel::emit(
+                QueueCenterContract::realtimeEvent('orch_clients_changed'),
+                ['revision' => $revision, 'reason' => $reason, 'changed_at' => now()->toIso8601String()]
+            );
+
+            return $revision;
+        });
+    }
+
+    /** Current orch_clients.changed revision. */
+    public function orchClientsRevision(): int
+    {
+        return (int) QueueCenterCacheStore::get()->get(self::ORCH_CLIENTS_KEY, 0);
     }
 
     /** Current work_nodes.changed revision: the cursor a client compares before refetching work_nodes. */

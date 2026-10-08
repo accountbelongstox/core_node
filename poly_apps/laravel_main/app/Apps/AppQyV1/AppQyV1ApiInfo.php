@@ -662,6 +662,14 @@ class AppQyV1ApiInfo
                 "auth_required" => true,
                 "parameters" => ["clientTaskId", "client_updated_at"]
             ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/clients/report",
+                "method" => "POST",
+                "feature" => "Client Orchestration Telemetry",
+                "description" => "Latest state of one wordnew client (route, channels, tasks, assignments) for the orchestration monitor; a seq not newer than the stored one is dropped (stale=true)",
+                "auth_required" => true,
+                "parameters" => ["device_id", "instance_id", "seq", "sent_at", "platform", "app_version", "foreground", "route", "channels", "tasks", "assignments"]
+            ],
 
             // Third-party image-assist protocol (mcp-chrome, 60-minute lease)
             [
@@ -752,6 +760,13 @@ class AppQyV1ApiInfo
                 "description" => "Phrases of up to 500 sentences in request order: status pending|done|none|failed|unknown and phrases {content_id, text, meaning, has_audio, version}; pending sentences are raised in the extraction queue (Sanctum or client key)",
                 "auth_required" => true,
                 "parameters" => ["language", "content_ids"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/phrases/extraction_status",
+                "method" => "GET",
+                "feature" => "Phrase Extraction Status",
+                "description" => "Phrase extraction state: sentence counts per language by phrase_status, pycore fallback/backoff timers, open phrase_extract tasks, chosen OpenRouter free models and their health (Sanctum or client key)",
+                "auth_required" => true
             ],
 
             // Cover pipeline dashboard endpoints

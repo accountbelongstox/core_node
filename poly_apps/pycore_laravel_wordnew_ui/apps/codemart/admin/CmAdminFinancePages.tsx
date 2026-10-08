@@ -116,7 +116,7 @@ export const CmAdminDepositsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.deposit.${option}`)}
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noDeposits" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noDeposits" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.nav.deposits')} actions>
           <thead>
             <tr>
@@ -237,7 +237,7 @@ export const CmAdminRefundsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.refund.${option}`)}
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noRefunds" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noRefunds" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.nav.refunds')} actions>
           <thead>
             <tr>
@@ -372,7 +372,7 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.withdrawal.${option}`)}
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noWithdrawals" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noWithdrawals" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.nav.withdrawals')} actions>
           <thead>
             <tr>
@@ -480,7 +480,7 @@ const CmAdminPaymentsTable: React.FC = () => {
           allKey="admin.allTypes"
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noPayments" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noPayments" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.payments.tab.payments')} actions>
           <thead>
             <tr>
@@ -575,7 +575,7 @@ const CmAdminEscrowsTable: React.FC = () => {
         />
         <CmAdminSearch labelKey="admin.payments.projectId" value={projectId} onApply={setProjectId} icon={false} inputMode="numeric" />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noEscrows" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noEscrows" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.payments.tab.escrows')} actions>
           <thead>
             <tr>
@@ -697,7 +697,7 @@ export const CmAdminProjectsPage: React.FC = () => {
         />
         <CmAdminSearch labelKey="admin.projects.clientId" value={clientId} onApply={setClientId} icon={false} inputMode="numeric" />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noProjects" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noProjects" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.nav.projects')} actions>
           <thead>
             <tr>

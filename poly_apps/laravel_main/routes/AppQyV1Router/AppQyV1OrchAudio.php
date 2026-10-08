@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1BookAudioPlanCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1OrchAudioCtl;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1OrchClientCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1OrchClientTaskCtl;
 use App\Http\Middleware\ServerIdentityHeader;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
@@ -34,6 +35,8 @@ Route::prefix('app_qy_v1/orch_audio')->middleware('auth:sanctum')->group(functio
         Route::post('/{planId}/assignments', [AppQyV1BookAudioPlanCtl::class, 'assign'])
             ->where('planId', '[a-f0-9]{40}');
     });
+    // Client telemetry for the orchestration monitor (audio_orchestration_contract client_monitor).
+    Route::post('/clients/report', [AppQyV1OrchClientCtl::class, 'report']);
     Route::get('/client_tasks', [AppQyV1OrchClientTaskCtl::class, 'index']);
     Route::post('/client_tasks/{clientTaskId}', [AppQyV1OrchClientTaskCtl::class, 'upsert'])
         ->where('clientTaskId', '[A-Za-z0-9._-]{1,64}');

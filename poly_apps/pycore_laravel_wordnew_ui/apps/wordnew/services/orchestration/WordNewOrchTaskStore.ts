@@ -7,10 +7,9 @@
  */
 import { CapJsonStore, Directory } from '../../platform/capabilities';
 import { wfNewApi, type WfNewOrchClientTaskRow } from '../../api';
-import { StorageManager } from '../../../../core/persistence';
 import { getWordNewClientKey } from '../../utils/WordNewClientIdentity';
 import { wordNewOrchProgressStore } from './WordNewOrchProgressStore';
-import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
+import { newOrchRandomId, orchDeviceId, STABLE_DEVICE_PREFIX } from './WordNewOrchDeviceId';
 import { defaultOrchConfig, orchPlanHash, orchTaskVirtualBatch } from '../../../../shared/orchestration/orchPlanner';
 import type {
   OrchComposeConfig,
@@ -23,8 +22,6 @@ import type {
 const TASKS_PATH = 'wfnew-orch/tasks.json';
 const PUSH_DELAY_MS = 1_200;
 const DEVICE_ID_MAX = 64;
-/** Prefix of a stable device id (a fingerprint id has another). */
-const STABLE_DEVICE_PREFIX = 'd-';
 const UNFINISHED_STATUSES: readonly OrchComposeStatus[] = ['resolving', 'partial'];
 
 interface TaskDocument {
@@ -37,20 +34,7 @@ interface TaskDocument {
 type TaskListener = (tasks: OrchComposeTask[]) => void;
 
 function newTaskId(): string {
-  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-  return `c-${random}`.slice(0, DEVICE_ID_MAX);
-}
-
-/**
- * This device's id for its tasks: random, generated once and kept (a browser
- * fingerprint can change between sessions; this does not).
- */
-function orchDeviceId(): string {
-  const stored = StorageManager.get<string>(StorageKeys.WORDNEW_ORCH_DEVICE_ID, '');
-  if (stored) return stored;
-  const created = newTaskId().replace(/^c-/, STABLE_DEVICE_PREFIX);
-  StorageManager.set(StorageKeys.WORDNEW_ORCH_DEVICE_ID, created);
-  return created;
+  return newOrchRandomId('c-');
 }
 
 function newer(left: string, right: string): boolean {
@@ -91,7 +75,7 @@ function progressFromRow(raw: Record<string, unknown> | null): OrchTaskProgressS
 }
 
 function fromRow(row: WfNewOrchClientTaskRow): OrchComposeTask {
-  const source: OrchComposeSource = row.source === 'prompt_rewrite' ? 'prompt_rewrite' : 'vocab_book';
+  const source: OrchComposeSource = row.source === 'prompt_rewrite' || row.source === 'passages' ? row.source : 'vocab_book';
   const config = { ...defaultOrchConfig(source), ...(row.config as Partial<OrchComposeConfig> | null) };
   const status = (['draft', 'resolving', 'ready', 'partial'] as OrchComposeStatus[]).includes(row.status as OrchComposeStatus)
     ? row.status as OrchComposeStatus

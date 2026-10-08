@@ -31,6 +31,7 @@ from pycore.pyfoundations.network_constants import (
     HTTP_WS_PATH,
     PYCORE_HTTP_PORT,
 )
+from pycore.pyutils.common.client_key_auth import get_pycore_machine_id
 from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
 from pycore.pyutils.common.prerequisite_steps import current_platform
 from pycore.pyutils.rpc.dispatcher import HttpRoute
@@ -295,6 +296,7 @@ class HttpServer:
             "hostname": socket.gethostname(),
             "platform": current_platform(),
             "instance_id": event_journal.instance_id,
+            "machine_id": get_pycore_machine_id(),
         }
 
     def _protocol_info(

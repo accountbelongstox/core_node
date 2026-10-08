@@ -132,9 +132,9 @@ export const PcTerminalCapturePanel: React.FC<PcTerminalCapturePanelProps> = ({
           onClick={() => void capture()}
           disabled={!actionable || working}
           title={t('terminal.capture.hint')}
-          className="inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md bg-emerald-600/90 px-2 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="inline-flex h-6 min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-emerald-600/90 px-2 text-[10px] font-semibold text-white hover:bg-emerald-500 disabled:opacity-50 sm:flex-none sm:px-3"
         >
-          {capturing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanText className="h-3.5 w-3.5" />}
+          {capturing ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <ScanText className="h-3 w-3 shrink-0" />}
           <span className="truncate">{t(capturing ? 'terminal.capture.running' : 'terminal.capture.action')}</span>
         </button>
         <label title={t('terminal.capture.openEditor')} className="shrink-0 cursor-pointer">
@@ -144,9 +144,9 @@ export const PcTerminalCapturePanel: React.FC<PcTerminalCapturePanelProps> = ({
             checked={openEditor}
             onChange={(event) => toggleOpenEditor(event.target.checked)}
           />
-          <span className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-500/20 px-1.5 text-[10px] font-semibold text-slate-500 peer-checked:border-emerald-500/40 peer-checked:bg-emerald-500/15 peer-checked:text-emerald-600 dark:peer-checked:text-emerald-400">
-            <ExternalLink className="h-3.5 w-3.5" />
-            <FileText className="h-3.5 w-3.5" />
+          <span className="inline-flex h-6 items-center gap-0.5 rounded-md border border-slate-500/20 px-1 text-[10px] font-semibold text-slate-500 peer-checked:border-emerald-500/40 peer-checked:bg-emerald-500/15 peer-checked:text-emerald-600 dark:peer-checked:text-emerald-400">
+            <ExternalLink className="h-3 w-3" />
+            <FileText className="h-3 w-3" />
           </span>
         </label>
       </div>

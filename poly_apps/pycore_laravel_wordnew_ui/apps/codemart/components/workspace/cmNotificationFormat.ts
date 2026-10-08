@@ -49,6 +49,22 @@ function stateNamespace(resourceType: string | null): string {
   return 'states.role';
 }
 
+/** Body keys whose trailing variable older rows may lack, with a variable-free fallback key. */
+const BODY_FALLBACK_KEYS: Record<string, [string, string]> = {
+  'notifications.submissionCreatedBody': ['file_count', 'notifications.submissionCreatedBodyNoCount'],
+  'notifications.submissionReviewedBody': ['decision', 'notifications.submissionReviewedBodyNoDecision'],
+};
+
+/** Swap in the variable-free fallback body when an older row lacks the variable. */
+export function cmNotificationBodyKey(bodyKey: string | null, params: Record<string, unknown>): string | null {
+  if (!bodyKey) return bodyKey;
+  const fallback = BODY_FALLBACK_KEYS[bodyKey];
+  if (!fallback) return bodyKey;
+  const [variable, fallbackKey] = fallback;
+  const value = params[variable];
+  return value === undefined || value === null || value === '' ? fallbackKey : bodyKey;
+}
+
 /** Notification params with server codes (roles, states, decisions, methods) replaced by localized labels. */
 export function cmNotificationParams(t: CmTranslate, notification: CmNotification): Record<string, unknown> {
   const params: Record<string, unknown> = { ...(notification.params ?? {}) };

@@ -16,6 +16,8 @@ export interface CmPagedList<T> {
   total: number;
   loading: boolean;
   error: string | null;
+  /** False when the last failure cannot be fixed by retrying (403/404). */
+  retryable: boolean;
   load: (page: number) => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -37,6 +39,7 @@ export function useCmPagedList<R, T>(
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(true);
   const pageRef = useRef(1);
   const requestRef = useRef(0);
   const translate = useRef(t);
@@ -56,8 +59,10 @@ export function useCmPagedList<R, T>(
       setPage(targetPage);
       pageRef.current = targetPage;
       setError(null);
+      setRetryable(true);
     } else {
       setError(cmErrorMessage(translate.current, response, fallbackKey));
+      setRetryable(response.status !== 403 && response.status !== 404);
     }
     setLoading(false);
   }, [fetcher, extract, fallbackKey]);
@@ -73,5 +78,5 @@ export function useCmPagedList<R, T>(
     setLoading(false);
   }, [enabled, load]);
 
-  return { items, page, totalPages, total, loading, error, load, reload };
+  return { items, page, totalPages, total, loading, error, retryable, load, reload };
 }

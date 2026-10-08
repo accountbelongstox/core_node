@@ -140,8 +140,23 @@ export const AUDIO_ORCH_BOOK_PLAN = {
   assignmentMinClips: contract.book_plan.assignment_min_clips,
   assignmentDirectFraction: contract.book_plan.assignment_direct_fraction,
   assignmentDirectMax: contract.book_plan.assignment_direct_max,
+  /** Longest device id a window post carries (`device_id`). */
+  deviceIdMaxChars: contract.book_plan.device_id_max_chars,
+  /** Leading chars of the device id that name the device's direct window (`direct_sid:<device id prefix>`). */
+  directSidDeviceChars: contract.book_plan.direct_sid_device_chars,
   fastPassEngine: contract.book_plan.fast_pass.engine,
   qualityEngine: contract.book_plan.fast_pass.quality_engine,
+} as const;
+
+/** Client telemetry (contract `client_monitor`): latest-state reports of the open client, never an availability source (R7). */
+export const AUDIO_ORCH_CLIENT_MONITOR = {
+  /** The client reports this often while open. */
+  reportMs: contract.client_monitor.report_seconds * 1000,
+  /** Two reports of one client are at least this far apart (the server accepts closer ones but does not republish them). */
+  minIntervalMs: contract.client_monitor.min_interval_seconds * 1000,
+  maxTasks: contract.client_monitor.max_tasks,
+  maxAssignments: contract.client_monitor.max_assignments,
+  maxWindows: contract.client_monitor.max_windows,
 } as const;
 
 /** A fresh copy of the default reading pattern. */

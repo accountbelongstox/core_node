@@ -10,24 +10,25 @@ Linux: a systemd --user unit or an XDG .desktop autostart entry). All managers s
 """
 
 import platform
+import sys
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pylauncher.platform.autostart_target import (
     normalize_mechanism,
     read_preference,
 )
 from pycore.pyfoundations.system_service_state import (
-    STATE_ABSENT,
     systemd_available,
     systemd_unit_enabled,
-    windows_service_state,
 )
 
 
 PLATFORM_SYSTEM = platform.system()
 SUPPORTED_PLATFORMS = ("Windows", "Linux")
-# The headless system service (NSSM on Windows, systemd on Linux) installed by
-# `pyservice install`; when present it already owns boot start.
+# The Linux systemd system unit installed by `pyservice.sh install`; when enabled it
+# already owns boot start. Windows has no system service: the logon task always does.
 PYCORE_SYSTEM_SERVICE_NAME = "pycore"
+CLI_ENABLE = "enable"
+CLI_DISABLE = "disable"
 
 if PLATFORM_SYSTEM == "Windows":
     from pycore.pylauncher.platform.windows_startup_manager import WindowsStartupManager
@@ -94,7 +95,7 @@ def get_startup_manager(app_name: str = "PyCore_RPC_Server", target=None, mechan
 
 def _pycore_system_service_installed() -> bool:
     if PLATFORM_SYSTEM == "Windows":
-        return windows_service_state(PYCORE_SYSTEM_SERVICE_NAME) != STATE_ABSENT
+        return False
     return systemd_available() and systemd_unit_enabled(PYCORE_SYSTEM_SERVICE_NAME)
 
 
@@ -105,7 +106,7 @@ def ensure_startup_launcher(app_name: str = "PyCore_RPC_Server") -> str:
     explicitly disabled it, a missing registration is created (Windows: logon
     task; Linux: systemd --user unit with linger, XDG entry as fallback) and an
     existing one is refreshed so the next boot runs the CURRENT entry point. A
-    host with the ``pycore`` system service installed needs neither.
+    Linux host with the ``pycore`` systemd unit enabled needs neither.
     Returns "registered", "refreshed" or "" (nothing done).
     """
     try:
@@ -128,3 +129,25 @@ def ensure_startup_launcher(app_name: str = "PyCore_RPC_Server") -> str:
     except OSError as exc:
         ColorPrint.yellow(f"[StartupManager] ensure auto-start for {app_name} failed: {exc}")
         return ""
+
+
+def _main(argv) -> int:
+    """``enable`` registers/refreshes the auto-start entry; ``disable`` removes it."""
+    action = argv[0] if argv else ""
+    manager = get_startup_manager()
+    if action == CLI_ENABLE:
+        if manager.is_enabled() and manager.refresh():
+            result = {"success": True, "message": "Auto-start refreshed"}
+        else:
+            result = manager.enable(start_now=False)
+    elif action == CLI_DISABLE:
+        result = manager.disable()
+    else:
+        ColorPrint.yellow(f"[StartupManager] usage: python -m {__spec__.name if __spec__ else __name__} {CLI_ENABLE}|{CLI_DISABLE}")
+        return 2
+    (ColorPrint.green if result.get("success") else ColorPrint.yellow)(f"[StartupManager] {result.get('message')}")
+    return 0 if result.get("success") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(_main(sys.argv[1:]))

@@ -1,18 +1,11 @@
 # -*- coding: utf-8 -*-
 """Video Extract application service over the processor and task layer."""
 
-import functools
 import os
-import platform
 from pathlib import Path
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.user_data_store import user_data_store
-from pycore.pyutils.common.status_snapshot_cache import (
-    STATUS_SNAPSHOT_RESOURCES_TTL_SECONDS,
-    STATUS_SNAPSHOT_SYSTEM_RESOURCES_KEY,
-    status_snapshot_cache,
-)
+from pycore.pyutils.common.system_resources import system_resources
 import pycore.pyfoundations.system_launcher as system_launcher
 from pycore.pyutils.media_processing.video_extract_processor import VideoExtractProcessor
 from pycore.pyutils.media_processing.whisper_runtime import whisper_capabilities
@@ -34,8 +27,6 @@ from pycore.pyctl.desktop.video_extract_models import (
 from pycore.pyctl.runtime.user_data_service import user_data_service
 from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyfoundations.tasks import TaskStatus
-from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_third_package_pynvml
-from pycore.pyfoundations.pygvar import IS_WINDOWS
 
 
 
@@ -184,12 +175,7 @@ class VideoExtractService:
 
     def system_resources(self, refresh: bool = False) -> dict:
         """CPU / memory / GPU snapshot for the live resource meters."""
-        return status_snapshot_cache.get(
-            STATUS_SNAPSHOT_SYSTEM_RESOURCES_KEY,
-            _collect_system_resources,
-            refresh=refresh,
-            ttl_seconds=STATUS_SNAPSHOT_RESOURCES_TTL_SECONDS,
-        )
+        return system_resources.snapshot(refresh=refresh)
 
     def preview(self, request: VideoExtractRequest) -> VideoExtractPreviewResponse:
         """Dry-run scan: list what would be processed (no files written)."""
@@ -269,121 +255,6 @@ class VideoExtractService:
             task_id=task_id,
             total=total,
         )
-
-
-# --------------------------------------------------------------------------- #
-# System resources (CPU / memory / GPU) - shared by the resources endpoint     #
-# --------------------------------------------------------------------------- #
-class _NvmlGpuProbe:
-    """Per-GPU utilization/memory through NVML, in process (no nvidia-smi
-    child per sample). NVML is initialized once; a host without an NVIDIA
-    driver reports no GPUs."""
-
-    def __init__(self) -> None:
-        self._initialized = False
-
-    def query(self) -> list:
-        pynvml = get_third_package_pynvml()
-        if pynvml is None:
-            return []
-        try:
-            if not self._initialized:
-                pynvml.nvmlInit()
-                self._initialized = True
-            gpus = []
-            for index in range(pynvml.nvmlDeviceGetCount()):
-                handle = pynvml.nvmlDeviceGetHandleByIndex(index)
-                utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                memory = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                name = pynvml.nvmlDeviceGetName(handle)
-                gpus.append({
-                    "index": index,
-                    "name": name.decode("utf-8", "replace") if isinstance(name, bytes) else str(name),
-                    "util_percent": float(utilization.gpu),
-                    "mem_used_mb": int(memory.used // (1024 * 1024)),
-                    "mem_total_mb": int(memory.total // (1024 * 1024)),
-                })
-        except pynvml.NVMLError as exc:
-            ColorPrint.yellow(f"[VideoExtract] NVML GPU query failed: {exc}")
-            return []
-        return gpus
-
-
-_nvml_gpu_probe = _NvmlGpuProbe()
-
-
-def _query_gpus():
-    return _nvml_gpu_probe.query()
-
-
-CPU_NAME_REGISTRY_KEY = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
-CPU_NAME_REGISTRY_VALUE = "ProcessorNameString"
-CPU_INFO_PATH = Path("/proc/cpuinfo")
-CPU_INFO_MODEL_FIELD = "model name"
-
-
-@functools.lru_cache(maxsize=1)
-def _cpu_name() -> str:
-    """Marketing name of the CPU (registry on Windows, /proc/cpuinfo on Linux); read once."""
-    try:
-        if IS_WINDOWS:
-            import winreg
-
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, CPU_NAME_REGISTRY_KEY) as key:
-                return str(winreg.QueryValueEx(key, CPU_NAME_REGISTRY_VALUE)[0]).strip()
-        if CPU_INFO_PATH.is_file():
-            for line in CPU_INFO_PATH.read_text(encoding="utf-8", errors="replace").splitlines():
-                field, _, value = line.partition(":")
-                if field.strip() == CPU_INFO_MODEL_FIELD:
-                    return value.strip()
-    except OSError:
-        pass
-    return platform.processor() or platform.machine()
-
-
-def _cpu_info(psutil) -> dict:
-    return {
-        "name": _cpu_name(),
-        "logical_cores": int(psutil.cpu_count(logical=True) or 0) if psutil is not None else int(os.cpu_count() or 0),
-    }
-
-
-def _battery_info(psutil):
-    """Battery charge of this host, or None when it has no battery (desktops, servers)."""
-    try:
-        battery = psutil.sensors_battery() if psutil is not None else None
-    except (AttributeError, OSError):
-        return None
-    if battery is None or battery.percent is None:
-        return None
-    return {"percent": float(battery.percent), "charging": bool(battery.power_plugged)}
-
-
-def _collect_system_resources() -> dict:
-    """Snapshot of CPU%, memory, and GPUs for the UI's live resource meters."""
-    psutil = get_third_package_psutil()
-    if psutil is None:
-        return {
-            "success": False, "error": "psutil unavailable",
-            "cpu_percent": 0.0,
-            "cpu": _cpu_info(None),
-            "mem": {"used_mb": 0, "total_mb": 0, "percent": 0.0},
-            "gpus": _query_gpus(),
-        }
-    cpu_percent = float(psutil.cpu_percent(interval=None))
-    vm = psutil.virtual_memory()
-    return {
-        "success": True,
-        "cpu_percent": cpu_percent,
-        "cpu": _cpu_info(psutil),
-        "mem": {
-            "used_mb": int(vm.used / (1024 * 1024)),
-            "total_mb": int(vm.total / (1024 * 1024)),
-            "percent": float(vm.percent),
-        },
-        "battery": _battery_info(psutil),
-        "gpus": _query_gpus(),
-    }
 
 
 video_extract_service = VideoExtractService()

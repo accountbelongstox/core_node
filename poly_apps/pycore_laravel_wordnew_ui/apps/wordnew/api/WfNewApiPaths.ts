@@ -149,6 +149,8 @@ export const WfNewApiPaths = {
   orchBookPlanReady: (planId: string, cursor: number, limit: number): string =>
     p(`/orch_audio/book_plans/${encodeURIComponent(planId)}/ready?cursor=${cursor}&limit=${limit}`),
   orchClientPlayback: (id: string): string => p(`/orch_audio/client_playback/${encodeURIComponent(id)}`),
+  /** POST latest-state client telemetry for the orchestration monitor (sanctum). */
+  orchClientReport: p('/orch_audio/clients/report'),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,
@@ -164,6 +166,8 @@ export const WfNewApiPaths = {
   wordAudioHead: p('/word/audio/head'),
   /** Phrases of sentences (POST `{language, content_ids[]}`; contract `phrases_by_sentences`). */
   phrasesBySentences: p(APPQYV1_AI_TOOLS_ROUTES.phrasesBySentences),
+  /** Machine translation of several texts (POST `{texts[], target_language}`, sanctum; cached server-side). */
+  translationBatch: p(APPQYV1_AI_TOOLS_ROUTES.translationBatch),
   /** Phrase audio: a non-passive GET promotes a missing phrase in Laravel's phrase lane (contract `audio_phrase_audio`). */
   phraseAudio: (text: string, language: string, passive = false): string =>
     p(`${APPQYV1_AI_TOOLS_ROUTES.ttsPhraseAudio}?${new URLSearchParams({ text, language, ...(passive ? { passive: '1' } : {}) })}`),

@@ -17,6 +17,7 @@ const ACCEPT = 'application/json, text/event-stream';
 const JSONRPC_VERSION = '2.0';
 const JSONRPC_TRANSPORT_ERROR = -32000;
 const HTTP_ACCEPTED = 202;
+const HTTP_UNAUTHORIZED = 401;
 const REQUEST_TIMEOUT_MS = 60000;
 const SEGMENT_MAX = 64;
 const SSE_DATA_PREFIX = 'data:';
@@ -89,6 +90,19 @@ function bodyLines(text, contentType) {
 }
 
 async function post(rawBody) {
+  const sentAt = Date.now();
+  const response = await postOnce(rawBody);
+  const clockMoved = clientKeyAuth.observeServerDate(endpoint, response.headers.get('date'), sentAt, Date.now());
+
+  // A drifted local clock: one more attempt signed with the server time learned from the answer.
+  if (clockMoved && response.status === HTTP_UNAUTHORIZED
+    && clientKeyAuth.isTimestampRejection(response.status, await response.clone().text())) {
+    return postOnce(rawBody);
+  }
+  return response;
+}
+
+async function postOnce(rawBody) {
   const signed = clientKeyAuth.signRequest({
     client: BUS_CONTRACT.identity.bridge_client,
     method: 'POST',

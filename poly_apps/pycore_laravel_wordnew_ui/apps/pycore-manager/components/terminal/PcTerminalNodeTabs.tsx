@@ -47,6 +47,23 @@ function otherNodes(): PycoreEndpoint[] {
   return listPycoreEndpoints().filter((endpoint) => endpoint.kind !== 'relay' && endpoint.url !== targetUrl);
 }
 
+/** One tab per machine: a node whose machine id is this machine's or an earlier tab's (127.0.0.1 vs its LAN/tailnet URL) is dropped; the shown node always stays. */
+function uniqueMachines(nodes: PycoreEndpoint[], targetUrl: string, activeUrl: string | null): PycoreEndpoint[] {
+  const seen = new Set<string>();
+  const targetMachineId = getPycoreProbe(targetUrl)?.machineId;
+  if (targetMachineId) seen.add(targetMachineId);
+  const activeMachineId = activeUrl ? getPycoreProbe(activeUrl)?.machineId : '';
+  if (activeMachineId && activeMachineId !== targetMachineId) seen.add(activeMachineId);
+  return nodes.filter((node) => {
+    if (node.url === activeUrl) return true;
+    const machineId = getPycoreProbe(node.url)?.machineId;
+    if (!machineId) return true;
+    if (seen.has(machineId)) return false;
+    seen.add(machineId);
+    return true;
+  });
+}
+
 export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUrl, onSelect }) => {
   const { t } = useTranslation('pc');
   const target = getPycoreTarget();
@@ -97,7 +114,11 @@ export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUr
   };
   const scanning = rescanning || getLanMachines().scanning;
 
-  const online = nodes.filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP);
+  const online = uniqueMachines(
+    nodes.filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP),
+    target.url,
+    activeUrl,
+  );
   const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || t('terminal.nodes.thisMachine');
 
   const tab = (url: string | null, index: number, os: string | undefined, title: string) => (

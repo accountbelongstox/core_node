@@ -4,9 +4,11 @@
 import base64
 import hashlib
 import hmac
+import math
 import re
 import secrets
 import time
+from email.utils import parsedate_to_datetime
 from typing import Any, Dict, List, Mapping, Optional
 from urllib.parse import parse_qsl, urlsplit
 
@@ -46,6 +48,10 @@ CLIENT_KEY_HEADERS: Dict[str, str] = {
     str(name): str(header) for name, header in CLIENT_KEY_CONTRACT["headers"].items()
 }
 CLIENT_KEY_NONCE_BYTES = 24
+# The HTTP Date header has whole-second resolution: its midpoint is half a second later.
+CLIENT_KEY_DATE_RESOLUTION_SECONDS = 1.0
+# An offset change this large is a clock correction worth one console line.
+CLIENT_KEY_CLOCK_REPORT_SECONDS = 5.0
 CLIENT_KEY_DD_STEP = "dd.sh / dd.cmd step [SECRETS] ensure_secret_keys_ready"
 PYCORE_CLIENT_ID = "pycore"
 PYCORE_MACHINE_ID_PREFIX = "pycore-"
@@ -148,6 +154,53 @@ def _signature(key: bytes, fields: Mapping[str, str]) -> str:
     return _encode(hmac.new(key, canonical_string(fields).encode("utf-8"), hashlib.sha256).digest())
 
 
+def _origin(url: str) -> str:
+    parts = urlsplit(str(url or ""))
+    return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
+
+
+class ClientKeyServerClock:
+    """Per-origin offset of the verifying server's clock, learned from the ``Date``
+    header of its answers: a signer whose wall clock drifted past
+    ``clock_skew_seconds`` still signs with the server's time (the server keeps
+    checking it). Other origins (loopback / LAN pycore) keep the local clock."""
+
+    def __init__(self) -> None:
+        self._offsets: Dict[str, float] = {}
+        init_serialized_owner(self, "pyutils.client_key.server_clock", "ClientKeyServerClockThread")
+
+    @serialized_method
+    def observe(self, url: str, date_header: str, started: float, received: float) -> bool:
+        """Learn the offset from one answer (wall times around the request);
+        True when it moved by at least the header resolution."""
+        try:
+            server_epoch = parsedate_to_datetime(str(date_header or "")).timestamp()
+        except (TypeError, ValueError, IndexError):
+            return False
+        elapsed = received - started
+        if not math.isfinite(server_epoch) or server_epoch <= 0 or not 0 <= elapsed < CLIENT_KEY_CLOCK_SKEW_SECONDS:
+            return False
+        key = _origin(url)
+        offset = server_epoch + CLIENT_KEY_DATE_RESOLUTION_SECONDS / 2 - (started + elapsed / 2)
+        previous = self._offsets.get(key, 0.0)
+        self._offsets[key] = offset
+        if abs(offset - previous) >= CLIENT_KEY_CLOCK_REPORT_SECONDS:
+            ColorPrint.yellow(f"[client_key] {key} clock offset {offset:+.1f}s (local clock drifted; signing with the server time)")
+        return abs(offset - previous) >= CLIENT_KEY_DATE_RESOLUTION_SECONDS
+
+    @serialized_method
+    def now(self, url: str) -> float:
+        return time.time() + self._offsets.get(_origin(url), 0.0)
+
+
+client_key_server_clock = ClientKeyServerClock()
+
+
+def client_key_timestamp_rejected(status: int, error_code: Any) -> bool:
+    """The server refused a signature only for its timestamp (re-signing with the learned clock may pass)."""
+    return status == 401 and str(error_code or "") == ERROR_TIMESTAMP
+
+
 def client_key_headers(
     method: str,
     url: str,
@@ -174,7 +227,7 @@ def client_key_headers(
         "client": str(client),
         "machine_id": str(machine_id or get_pycore_machine_id()),
         "key_id": client_key_id(key),
-        "timestamp": str(int(time.time())),
+        "timestamp": str(int(client_key_server_clock.now(url))),
         "nonce": secrets.token_urlsafe(CLIENT_KEY_NONCE_BYTES),
         "content_sha256": content_sha256(body, content_type),
     }
@@ -300,6 +353,8 @@ __all__ = [
     "client_key_id",
     "client_key_nonce_ledger",
     "client_key_present",
+    "client_key_server_clock",
+    "client_key_timestamp_rejected",
     "client_key_verify",
     "content_sha256",
     "get_pycore_machine_id",

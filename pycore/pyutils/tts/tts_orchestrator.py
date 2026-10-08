@@ -14,7 +14,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     call_serialized,
 )
-from pycore.pyutils.common.queue_center_contract import SENTENCE_QUALITY_ENGINES
+from pycore.pyutils.common.queue_center_contract import sentence_floor_engines
 from pycore.pyfoundations.system_paths import (
     get_edge_tts_voice_cache_dir,
 )
@@ -71,7 +71,7 @@ _REQUIRED_ENGINE_RECOVERY_BUDGET_SECONDS = 300.0
 
 
 
-# Sentence audio is accepted from the quality-floor engines only (work_leases.sentence_quality).
+# Sentence audio of a quality-floor language is accepted from the floor engines only (work_leases.sentence_quality).
 SENTENCE_QUALITY_PROFILES = ("sentence", "agent_history")
 
 
@@ -247,8 +247,9 @@ def synthesize(
         name for name in configured_order
         if name not in excluded and tts_engine_supports_language(name, language)
     )
-    if profile in SENTENCE_QUALITY_PROFILES:
-        engine_order = tuple(name for name in engine_order if name in SENTENCE_QUALITY_ENGINES)
+    floor_engines = sentence_floor_engines(language) if profile in SENTENCE_QUALITY_PROFILES else None
+    if floor_engines is not None:
+        engine_order = tuple(name for name in engine_order if name in floor_engines)
     unsupported_engines = tuple(
         name for name in configured_order
         if not tts_engine_supports_language(name, language)

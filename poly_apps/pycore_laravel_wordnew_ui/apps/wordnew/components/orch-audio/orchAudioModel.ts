@@ -1,4 +1,4 @@
-import { BookOpen, Sparkles, AudioLines, type LucideIcon } from 'lucide-react';
+import { BookOpen, Sparkles, AudioLines, FileText, type LucideIcon } from 'lucide-react';
 import type { StatusTone } from '@/shared/ui/statusTone';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
@@ -52,10 +52,11 @@ interface OrchAudioSourceView {
 const SOURCE_VIEWS: Record<string, OrchAudioSourceView> = {
   vocab_book: { labelKey: 'orchAudio.source.vocab_book', icon: BookOpen, tone: 'amber' },
   prompt_rewrite: { labelKey: 'orchAudio.source.prompt_rewrite', icon: Sparkles, tone: 'violet' },
+  passages: { labelKey: 'orchAudio.source.passages', icon: FileText, tone: 'emerald' },
 };
 
-/** Source ids with dedicated presentation, used until the backend lists its own. */
-export const ORCH_AUDIO_KNOWN_SOURCES: readonly WfNewOrchAudioSource[] = Object.freeze(Object.keys(SOURCE_VIEWS));
+/** Source ids the backend lists orchestrated audio under, used until it lists its own (`passages` is a client composition source only). */
+export const ORCH_AUDIO_KNOWN_SOURCES: readonly WfNewOrchAudioSource[] = Object.freeze(['vocab_book', 'prompt_rewrite']);
 
 const FALLBACK_SOURCE_VIEW: OrchAudioSourceView = {
   labelKey: 'orchAudio.source.other',

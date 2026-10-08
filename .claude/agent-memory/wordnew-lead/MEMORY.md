@@ -4,3 +4,5 @@
 - [Daily Reading feed redesign](wordnew-daily-reading-feed.md) — date strip + day feed + server read state; endpoints, guest fallback, gaps
 - [Phone debug pitfalls](wordnew-phone-debug-pitfalls.md) — start Vite alone, CDP driving, shared-phone ANRs, stage windowing and Capacitor log findings
 - [Device test playbook](wordnew-device-test-playbook.md) — release APK needs CORE_NODE_ANDROID_DEBUGGABLE=1; live build ?t= module trap; dev build CPU is not release CPU
+- [Web E2E findings (2026-10-08)](wordnew-web-e2e-findings.md) — web cursor rule, driving the dev page in Chrome, PC clock drift, delete/confirm hang
+- [Orch engine policy (2026-10-08)](wordnew-orch-engine-policy.md) — canGenerate/asked-pycore rule, capability defaults, cursor keys, per-device direct sid; drill S13/S14

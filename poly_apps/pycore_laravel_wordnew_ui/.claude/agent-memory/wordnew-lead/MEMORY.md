@@ -1,1 +1,2 @@
 - [Phone debug via CDP](phone_debug_cdp.md) — inspect live wordnew service state on the phone; gotchas
+- [Phrase extraction model selection](project_phrase_extraction_model_selection.md) — OpenRouter free-model selector, health, status endpoint; server checks left

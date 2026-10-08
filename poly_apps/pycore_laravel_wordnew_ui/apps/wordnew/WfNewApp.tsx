@@ -163,6 +163,7 @@ export const WfNewApp: React.FC = () => {
   useEffect(() => {
     void import('./services/orchestration/WordNewOrchComposer');
     void import('./services/orchestration/WordNewClipUpdater');
+    void import('./services/monitor/WordNewMonitorReporter');
   }, []);
 
   return (

@@ -28,6 +28,7 @@ import {
   HandHelping,
   Languages,
   Boxes,
+  Network,
   RefreshCw,
   AlertCircle,
   Loader2,
@@ -39,6 +40,7 @@ import QueuePanel from './task-center/QueuePanel';
 import WorkersPanel from './task-center/WorkersPanel';
 import AssistRequestsPanel from './task-center/AssistRequestsPanel';
 import AssistDistributionPanel from './task-center/AssistDistributionPanel';
+import OrchestrationMonitorPanel from './task-center/OrchestrationMonitorPanel';
 import MCPManager from './MCPManager';
 import { SCROLL_X_HIDDEN_CLASS } from '../common/CenteredPageLayout';
 
@@ -54,9 +56,10 @@ const TAB_ICONS: Record<TaskCenterTab, React.ComponentType<{ className?: string 
   assist: HandHelping,
   assistDist: Languages,
   dispatch: Boxes,
+  orchestration: Network,
 };
 
-const TAB_ORDER: TaskCenterTab[] = ['overview', 'scheduler', 'queue', 'workers', 'assist', 'dispatch', 'assistDist'];
+const TAB_ORDER: TaskCenterTab[] = ['overview', 'scheduler', 'queue', 'workers', 'assist', 'dispatch', 'assistDist', 'orchestration'];
 
 const TaskCenterContent: React.FC<TaskCenterProps> = ({ lang = 'en' }) => {
   const [activeTab, setActiveTab] = useState<TaskCenterTab>('overview');
@@ -214,6 +217,9 @@ const TaskCenterContent: React.FC<TaskCenterProps> = ({ lang = 'en' }) => {
         <AssistDistributionPanel
           lang={lang}
         />
+      )}
+      {activeTab === 'orchestration' && (
+        <OrchestrationMonitorPanel lang={lang} />
       )}
 
       {/* Last updated */}

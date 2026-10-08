@@ -10,6 +10,7 @@ import {
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 import { DEFAULT_SYNC_SHORTCUT, isUsableShortcut, matchesShortcut } from './machineSendShortcut';
 import { usePcTerminalNode } from '../terminal/PcTerminalApiContext';
+import { IMAGE_MIME, readPcClipboard } from '../../utils/pcClipboardRead';
 
 export type MachineSendKind = 'file' | 'text' | 'clipboardText' | 'clipboardFile' | 'clipboardSync';
 export type MachineSendStatus = 'sending' | 'done' | 'error';
@@ -40,7 +41,6 @@ const IMAGE_KIND = 'image';
 const FILE_KIND = 'file';
 const LABEL_PREVIEW_CHARS = 40;
 const BYTES_PER_MIB = 1024 * 1024;
-const IMAGE_MIME = /^image\//i;
 
 function errorOf(result: MachineSendResult | null | undefined): Pick<MachineSendActivity, 'errorKey' | 'errorParams'> {
   const params: Record<string, string | number> = {};
@@ -215,30 +215,13 @@ export function usePcMachineSend() {
   /** This browser's clipboard to the machine's clipboard, through the same backup path. */
   const syncLocalClipboard = useCallback(async () => {
     setHint('');
-    const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
-    if (!clipboard?.read && !clipboard?.readText) {
-      setHint('unsupported');
+    const read = await readPcClipboard();
+    if (read.status !== 'ok') {
+      setHint(read.status);
       return;
     }
-    let text = '';
-    let image: File | null = null;
-    try {
-      if (clipboard.read) {
-        for (const item of await clipboard.read()) {
-          const imageType = item.types.find((type) => IMAGE_MIME.test(type));
-          if (imageType) {
-            image = new File([await item.getType(imageType)], `clipboard.${imageType.split('/')[1] || 'png'}`, { type: imageType });
-            break;
-          }
-          if (item.types.includes('text/plain')) text = await (await item.getType('text/plain')).text();
-        }
-      } else {
-        text = await clipboard.readText();
-      }
-    } catch {
-      setHint('permission');
-      return;
-    }
+    const image = read.images[0] ?? null;
+    const { text } = read;
     if (!image && !text) {
       setHint('empty');
       return;

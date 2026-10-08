@@ -37,6 +37,8 @@ export interface OrchSourceAdapter<T> {
 interface Props<T> {
   adapter: OrchSourceAdapter<T>;
   selectedId: string | null;
+  /** Entries already taken (a list that adds several shows a check on each). */
+  selectedIds?: ReadonlySet<string>;
   onSelect: (item: OrchSourceListItem<T>) => void;
   theme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
@@ -44,7 +46,7 @@ interface Props<T> {
 
 const SEARCH_DELAY_MS = 300;
 
-export function WfNewOrchSourceList<T>({ adapter, selectedId, onSelect, theme, trans }: Props<T>): React.ReactElement {
+export function WfNewOrchSourceList<T>({ adapter, selectedId, selectedIds, onSelect, theme, trans }: Props<T>): React.ReactElement {
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -88,7 +90,7 @@ export function WfNewOrchSourceList<T>({ adapter, selectedId, onSelect, theme, t
       ) : (
         <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-1" role="listbox" aria-label={trans('orchCompose.source.pick')}>
           {(result?.items ?? []).map((item) => {
-            const selected = item.id === selectedId;
+            const selected = item.id === selectedId || selectedIds?.has(item.id) === true;
             return (
               <li key={item.id}>
                 <button

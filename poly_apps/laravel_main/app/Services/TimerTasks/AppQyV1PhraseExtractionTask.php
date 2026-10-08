@@ -38,7 +38,10 @@ final class AppQyV1PhraseExtractionTask extends OctaneTimerTaskAbstract
     {
         try {
             $outcome = app(AppQyV1PhraseExtractionService::class)->tick();
-            if (($outcome['outcome'] ?? AppQyV1PhraseExtractionService::OUTCOME_IDLE) !== AppQyV1PhraseExtractionService::OUTCOME_IDLE) {
+            if (!in_array($outcome['outcome'] ?? AppQyV1PhraseExtractionService::OUTCOME_IDLE, [
+                AppQyV1PhraseExtractionService::OUTCOME_IDLE,
+                AppQyV1PhraseExtractionService::OUTCOME_BACKOFF,
+            ], true)) {
                 $this->logInfo('phrase extraction tick', $outcome);
             }
         } catch (\Throwable $e) {

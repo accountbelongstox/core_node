@@ -412,6 +412,9 @@ class OpenAICompatClient:
         message = choices[0].get("message") or {}
         out["message"] = message
         out["text"] = message_text(message, self.profile.reasoning_fallback)
+        out["served_model"] = str(data.get("model") or "")
+        out["finish_reason"] = str(choices[0].get("finish_reason") or "")
+        out["reasoning_only"] = not message_text(message, False)
         out["success"] = bool(out["text"])
         if not out["success"]:
             out["error"] = self.profile.empty_text_error

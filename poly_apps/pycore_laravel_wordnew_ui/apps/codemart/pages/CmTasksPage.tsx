@@ -103,6 +103,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
   const [task, setTask] = useState<CmTaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadRetryable, setLoadRetryable] = useState(true);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -112,8 +113,10 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
     if (response.success && response.data) {
       setTask(response.data);
       setLoadError(null);
+      setLoadRetryable(true);
     } else {
       setLoadError(cmErrorMessage(t, response, 'tasks.loadFailed'));
+      setLoadRetryable(response.status !== 403 && response.status !== 404);
     }
     setLoading(false);
   }, [taskId, t]);
@@ -200,7 +203,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
         {loading ? (
           <CmLoadingState compact />
         ) : loadError || !task ? (
-          <CmErrorState compact message={loadError ?? t('tasks.loadFailed')} onRetry={() => { setLoading(true); void load(); }} />
+          <CmErrorState compact message={loadError ?? t('tasks.loadFailed')} onRetry={loadRetryable ? () => { setLoading(true); void load(); } : undefined} />
         ) : (
           <>
             <div className="cm-record-card__meta">
@@ -324,7 +327,7 @@ export const CmTasksPage: React.FC = () => {
       {list.loading ? (
         <CmLoadingState />
       ) : list.error ? (
-        <CmErrorState message={list.error} onRetry={() => void list.reload()} />
+        <CmErrorState message={list.error} onRetry={list.retryable ? () => void list.reload() : undefined} />
       ) : list.items.length === 0 ? (
         <CmEmptyState
           title={t('tasks.emptyTitle')}

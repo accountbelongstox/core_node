@@ -91,7 +91,7 @@ export const CmAdminTestimonialsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.testimonial.${option}`)}
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noTestimonials" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noTestimonials" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <section className="cm-card-list">
           {list.items.map((item) => (
             <article key={item.id} className="cm-record-card cm-admin-record">
@@ -201,7 +201,7 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.reviewer.${option}`)}
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noReviewerApplications" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noReviewerApplications" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminTable label={t('admin.nav.reviewers')} actions>
           <thead>
             <tr>
@@ -274,7 +274,7 @@ export const CmAdminContactMessagesPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.contact.${option}`)}
         />
       </CmAdminToolbar>
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noContactMessages" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noContactMessages" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <section className="cm-card-list">
           {list.items.map((item) => (
             <article key={item.id} className="cm-record-card cm-admin-record">
@@ -316,6 +316,7 @@ export const CmAdminContactMessagesPage: React.FC = () => {
 
 export const CmAdminActivityPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { activityResources, activityActions } = useCmBootstrap();
   const [resourceType, setResourceType] = useState(useCmAdminParam('resource_type'));
   const [resourceId, setResourceId] = useState(useCmAdminParam('resource_id'));
   const [actorId, setActorId] = useState(useCmAdminParam('actor_id'));
@@ -344,7 +345,7 @@ export const CmAdminActivityPage: React.FC = () => {
           labelKey="admin.activity.resourceType"
           value={resourceType}
           onChange={setResourceType}
-          options={CM_ADMIN_ACTIVITY_RESOURCES}
+          options={activityResources}
           optionLabel={(option) => t(`admin.activity.resources.${option}`, { defaultValue: cmHumanize(option) })}
           allKey="admin.allTypes"
         />
@@ -353,7 +354,7 @@ export const CmAdminActivityPage: React.FC = () => {
           labelKey="admin.activity.action"
           value={actionName}
           onChange={setActionName}
-          options={CM_ADMIN_ACTIVITY_ACTIONS}
+          options={activityActions}
           optionLabel={(option) => t(`admin.activity.actions.${option}`, { defaultValue: cmHumanize(option) })}
           allKey="admin.activity.allActions"
         />
@@ -367,7 +368,7 @@ export const CmAdminActivityPage: React.FC = () => {
           </button>
         </p>
       )}
-      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noActivity" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noActivity" onRetry={list.retryable ? () => void list.reload() : undefined}>
         <CmAdminActivityTable
           rows={list.items}
           onResource={(type, id) => {

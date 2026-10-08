@@ -14,6 +14,7 @@ const routeSuffix = (endpoint: string): string => endpoint.slice(APPQYV1_API_BAS
 
 export const APPQYV1_AI_TOOLS_ROUTES = {
   translationTranslate: '/ai_tools/translation/translate',
+  translationBatch: '/ai_tools/translation/batch',
   translationLanguages: '/ai_tools/translation/languages',
   translationQueueList: '/ai_tools/translation/queue/list',
   translationBatchAdd: '/ai_tools/translation/queue/batch/add',
@@ -27,6 +28,8 @@ export const APPQYV1_AI_TOOLS_ROUTES = {
   ttsPhraseReport: routeSuffix(queueCenterContract.endpoints.audio_phrase_report),
   /** Phrases of sentences (contract endpoint `phrases_by_sentences`). */
   phrasesBySentences: routeSuffix(queueCenterContract.endpoints.phrases_by_sentences),
+  /** Phrase extraction state (contract endpoint `phrases_extraction_status`, GET). */
+  phrasesExtractionStatus: routeSuffix(queueCenterContract.endpoints.phrases_extraction_status),
 } as const;
 
 /** Sentences per `phrases_by_sentences` request (DESIGN_PHRASE_PIPELINE.md section 5). */

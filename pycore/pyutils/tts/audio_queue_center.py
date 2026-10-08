@@ -266,6 +266,11 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
         queue = self.queue_for(lane)
         return len(queue) if queue is not None else 0
 
+    def lane_load(self, lane: str) -> Dict[str, int]:
+        """Cheap per-lane load: ``in_flight`` (popped, not completed), ``part1``, ``part2``."""
+        queue = self.queue_for(lane)
+        return queue.load_counts() if queue is not None else {"in_flight": 0, "part1": 0, "part2": 0}
+
     @serialized_method
     def _tracker_view(self, lane: str, owner: str, item_limit: int) -> Dict[str, Any]:
         counts = {TRACK_QUEUED: 0, TRACK_PROCESSING: 0, TRACK_DONE: 0, TRACK_FAILED: 0}

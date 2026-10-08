@@ -409,6 +409,12 @@ terminal: {
       uploadFailed: 'Image upload failed.',
       uploadStalled: 'Image upload stalled with no progress.',
       sendBlocked: 'Some images were not uploaded. Retry or remove them, then send again.',
+      pull: {
+        action: 'Pull images from the clipboard now (on phones, opens the gallery when the clipboard has none)',
+        empty: 'The clipboard has no image.',
+        permission: 'Clipboard access was denied by the browser.',
+        unsupported: 'This browser cannot read the clipboard.',
+      },
       errors: {
         missing: 'No image was received.',
         tooLarge: 'The image is larger than {{max}} MiB.',
@@ -432,6 +438,22 @@ terminal: {
     scrolledBottom: 'The terminal was activated and scrolled to the bottom.',
     send: 'Paste and press Enter',
     sendShortcut: 'Ctrl+Enter',
+    sendShortcutDesktop: 'Enter',
+    dispatch: {
+      toggle: 'Send to an idle agent',
+      hint: 'When on, each message goes to an idle agent terminal of the chosen kind instead of the selected terminal.',
+      agentLabel: 'Target agent',
+      agentHint: 'Which kind of idle agent receives the message.',
+      agents: {
+        claude: 'claude',
+        gemini: 'gemini',
+        kimi: 'kimi',
+        codex: 'codex',
+        any: 'Any agent',
+      },
+      sent: 'Message sent to idle agent terminal #{{number}}.',
+      noIdle: 'No idle {{agent}} agent is available; the message was not sent.',
+    },
     capture: {
       title: 'Full terminal output',
       hint: 'Selects everything from the top of the scrollback to the bottom, copies it, saves it as a .txt file on the host, and restores the clipboard.',
@@ -503,6 +525,7 @@ terminal: {
     choice: {
       title: 'Answer an AI choice',
       pick: 'Choose option {{option}}',
+      more: 'More options',
       mode: {
         number: 'Label options 1, 2, 3…',
         letter: 'Label options A, B, C…',

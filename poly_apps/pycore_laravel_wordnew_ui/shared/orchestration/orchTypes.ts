@@ -8,7 +8,8 @@ import type { AudioOrchStepType } from '../../core/contracts/AudioOrchestrationC
 
 /** Step types of the shared contract (config/audio_orchestration_contract.json). */
 export type OrchComposeStepType = AudioOrchStepType;
-export type OrchComposeSource = 'vocab_book' | 'prompt_rewrite';
+/** `passages`: a composition made of short-passage entries only (no book, no prompt). */
+export type OrchComposeSource = 'vocab_book' | 'prompt_rewrite' | 'passages';
 export type OrchComposeSegmentMode = 'count' | 'minutes';
 export type OrchComposeLanguages = 'both' | 'en' | 'zh';
 export type OrchComposeStatus = 'draft' | 'resolving' | 'ready' | 'partial';
@@ -35,6 +36,31 @@ export interface OrchComposePromptRef {
   language: string;
 }
 
+/** Where a short passage comes from: an agent / daily-reading article, or a prompt-rewrite result. */
+export type OrchPassageStore = 'article' | 'prompt';
+
+/**
+ * One short-passage entry of a composition. The entries follow the book / prompt source in order; each
+ * entry is a segment of its own. An `article` entry keeps its text with the entry (the passage is
+ * self-contained on every device and in the Laravel copy); a `prompt` entry is loaded by its task key.
+ */
+export interface OrchComposePassageRef {
+  store: OrchPassageStore;
+  /** Article id, or the prompt-rewrite task key. */
+  id: string;
+  title: string;
+  language: string;
+  /** `article` entries: the passage text in `language`. */
+  text?: string;
+  /** `article` entries: the Chinese reference text. */
+  textZh?: string;
+  /**
+   * Chinese lines of the entry's sentences that have none (machine translation, by sentence content id),
+   * filled when the inputs load; a sentence the translation could not answer maps to ''.
+   */
+  zh?: Record<string, string>;
+}
+
 /** Everything that shapes the plan; `plan_hash` is computed from it. */
 export interface OrchComposeConfig {
   pattern: OrchComposeStep[];
@@ -45,6 +71,8 @@ export interface OrchComposeConfig {
   presetId: string;
   book: OrchComposeBookRef | null;
   prompt: OrchComposePromptRef | null;
+  /** Short-passage entries appended after the book / prompt (each is one segment). */
+  passages: OrchComposePassageRef[];
   /** Word group whose read counts decide new words (null: the user's default group). */
   wordGroupId: string | null;
   /**
@@ -97,6 +125,8 @@ export interface OrchComposeSentence {
   languages: Record<string, string>;
   /** Laravel audio URL per language when the source already carries one. */
   audio: Record<string, string>;
+  /** Short-passage entry the sentence belongs to (`orchPassageKey`); absent for the book / prompt source. */
+  passage?: string;
 }
 
 export interface OrchComposeItem {

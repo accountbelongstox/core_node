@@ -44,7 +44,8 @@ import {
   type OrchComposeSession,
 } from '../../../../shared/orchestration/orchComposer';
 import type { OrchComposePlan, OrchComposeResource, OrchComposeSentence, OrchComposeTask, OrchResolvedClip } from '../../../../shared/orchestration/orchTypes';
-import { orchPatternHasPhrases, orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
+import { orchBookCoveredKeys, orchPatternHasPhrases } from '../../../../shared/orchestration/orchPlanner';
+import { orchPassageSignature } from '../../../../shared/orchestration/orchPassages';
 import type { OrchStageCursor } from '../../../../shared/orchestration/orchClipResolver';
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { Backoff } from '../../../../core/tasks/Backoff';
@@ -58,6 +59,7 @@ import { translateActive } from '../../WfNewLocales';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { scopeOrchClipSources, WORDNEW_ORCH_SCHEDULE, type OrchPlanScopeHolder } from './WordNewOrchClipSources';
 import { wordNewBookAudioPlan } from './WordNewBookAudioPlan';
+import { wordNewLaneCapability } from './WordNewLaneCapability';
 import { resetOrchCountsFloor } from './WordNewOrchCountsFloor';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import {
@@ -68,7 +70,9 @@ import {
   type OrchPhraseInputs,
 } from './WordNewOrchPhraseInputs';
 import { wordNewOrchProgressStore } from './WordNewOrchProgressStore';
+import { OrchMeaningWatchService } from './WordNewOrchMeaningWatch';
 import { wordNewOrchSources } from './WordNewOrchSources';
+import { wordNewOrchPassageZh } from './WordNewOrchPassageZh';
 import { wordNewOrchTaskStore } from './WordNewOrchTaskStore';
 
 export type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
@@ -82,17 +86,6 @@ const RETRY_MISSING_MS = 30_000;
 /** A forced run of the same plan started this recently absorbs another force. */
 const FORCE_DEBOUNCE_MS = 2_000;
 const TRANSFER_STAGE_PREFIX = 'transfer:';
-
-/** Keys of the plan's resources the server book plan owns: everything but the word meaning clips (they are not book content). */
-function planCoveredKeys(plan: OrchComposePlan): Set<string> {
-  const meanings = new Set<string>();
-  plan.segments.forEach((segment) => segment.items.forEach((item) => {
-    if (item.meaningOf) meanings.add(orchResourceKey(item.kind, item.language, item.text));
-  }));
-  const covered = new Set<string>();
-  plan.resources.forEach((resource) => { if (!meanings.has(resource.key)) covered.add(resource.key); });
-  return covered;
-}
 
 /** A book task's transfer cursors are not kept: the server plan names what to ask (a cursor past unready clips would skip them later). */
 function withoutTransferCursors(cursors: Record<string, OrchStageCursor> | undefined): Record<string, OrchStageCursor> | undefined {
@@ -146,6 +139,8 @@ class WordNewOrchComposerService {
   /** The current run's intake of clips the background runs deliver (per task). */
   private readonly feeds = new Map<string, Set<ClipFeed>>();
   private readonly phraseMemory = new Map<string, PhraseMemory>();
+  /** Per task: the passage sentences of its last plan (`orchPassageSignature`), and the inputs built from the loaded ones. */
+  private readonly passageInputs = new Map<string, { signature: string; loaded: OrchComposeSentence[]; sentences: OrchComposeSentence[] }>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly anyListeners = new Set<Listener>();
   private readonly readyListeners = new Set<ReadyListener>();
@@ -161,6 +156,15 @@ class WordNewOrchComposerService {
   private readonly resumeAfterRun = new Set<string>();
   /** Tasks waiting for the server to extract the phrases of some of their sentences. */
   private readonly phraseWatch = new Map<string, PhraseWatch>();
+  /** Tasks with words still lacking a meaning: the pending re-check (G1c). */
+  private readonly meanings = new OrchMeaningWatchService({
+    session: (taskId) => this.sessions.get(taskId) ?? null,
+    isRunning: (taskId) => this.runs.has(taskId),
+    loadTask: (taskId) => wordNewOrchTaskStore.get(taskId),
+    onGained: (task) => this.ensure(task, { resume: true, meanings: true }),
+  });
+  /** The capability signature of the direct and relay pycore last seen (a change re-plans which stage owns which clip). */
+  private capabilityKey = `${wordNewLaneCapability.signature('direct')}|${wordNewLaneCapability.signature('relay')}`;
   /** Tasks waiting for clips a backend generates: the pending re-check. */
   private readonly generationWatch = new Map<string, ReturnType<typeof setTimeout>>();
   /** Tasks waiting for clips: the `clip.ready` subscription that brings their re-check forward. */
@@ -191,6 +195,13 @@ class WordNewOrchComposerService {
       if (!selectedUrl || selectedUrl === this.pycoreSelected) return;
       if (this.pycoreSelected) resume();
       this.pycoreSelected = selectedUrl;
+    });
+    // A pycore that declares other lanes or languages changes which stage owns which clip (R4): unfinished tasks run again.
+    wordNewLaneCapability.subscribe(() => {
+      const key = `${wordNewLaneCapability.signature('direct')}|${wordNewLaneCapability.signature('relay')}`;
+      if (key === this.capabilityKey) return;
+      this.capabilityKey = key;
+      resume();
     });
     wfNewEndpoints.subscribe(() => {
       const id = wfNewEndpoints.getSnapshot().currentId;
@@ -403,6 +414,11 @@ class WordNewOrchComposerService {
     return this.sessions.get(taskId) ?? null;
   }
 
+  /** Every task with a session in this process (the monitor report picks from them). */
+  sessionEntries(): ReadonlyArray<readonly [string, OrchComposeSession]> {
+    return [...this.sessions];
+  }
+
   isRunning(taskId: string): boolean {
     return this.runs.has(taskId);
   }
@@ -412,18 +428,18 @@ class WordNewOrchComposerService {
    * same plan already going, or a finished session of it, is kept; `force`
    * restarts it with a fresh input load from Laravel.
    */
-  ensure(task: OrchComposeTask, options: { force?: boolean; resume?: boolean; interrupt?: boolean; phrases?: boolean } = {}): void {
+  ensure(task: OrchComposeTask, options: { force?: boolean; resume?: boolean; interrupt?: boolean; phrases?: boolean; meanings?: boolean } = {}): void {
     const active = this.runs.get(task.id);
     const session = this.sessions.get(task.id);
     if (options.force && active?.planHash === task.planHash && Date.now() - active.forcedAt < FORCE_DEBOUNCE_MS) return;
     if (!options.force) {
       if (active?.planHash === task.planHash && !options.interrupt) return;
-      if (session?.planHash === task.planHash && !options.phrases && !this.needsResume(task.id, session, options.resume === true)) return;
+      if (session?.planHash === task.planHash && !options.phrases && !options.meanings && !this.needsResume(task.id, session, options.resume === true)) return;
     }
     // Another plan (an edit) never stops a download: a run already fetching goes on in the background.
     if (active && active.planHash !== task.planHash && active.keys) this.supersede(task.id, active);
     else active?.controller.abort();
-    void this.run(task, options.force === true, options.phrases === true);
+    void this.run(task, options.force === true, options.phrases === true, options.meanings === true);
   }
 
   private supersede(taskId: string, run: ActiveRun): void {
@@ -517,11 +533,13 @@ class WordNewOrchComposerService {
     this.background.clear();
     this.feeds.clear();
     this.phraseMemory.clear();
+    this.passageInputs.clear();
     this.resumeAfterRun.clear();
     this.reruns.forEach((entry) => { if (entry.timer) clearTimeout(entry.timer); });
     this.reruns.clear();
     [...this.generationWatch.keys()].forEach((taskId) => this.stopGenerationWatch(taskId));
     [...this.phraseWatch.keys()].forEach((taskId) => this.stopPhraseWatch(taskId));
+    this.meanings.stopAll();
     this.chased.clear();
     const ids = [...this.sessions.keys()];
     this.sessions.clear();
@@ -547,7 +565,7 @@ class WordNewOrchComposerService {
     return (await wordNewOrchTaskStore.get(task.id))?.planHash === task.planHash;
   }
 
-  private async run(task: OrchComposeTask, force: boolean, reloadPhrases = false): Promise<void> {
+  private async run(task: OrchComposeTask, force: boolean, reloadPhrases = false, reloadMeanings = false): Promise<void> {
     const run: ActiveRun = {
       id: Symbol(task.id),
       planHash: task.planHash,
@@ -593,7 +611,28 @@ class WordNewOrchComposerService {
     try {
       const session = await runComposition(task, task.planHash, {
         loadInputs: async (report) => {
-          const inputs = await wordNewOrchSources.load(task, { force }, report);
+          // What the selected pycore can generate decides which stage owns each clip (R4): read before the run asks anything.
+          await wordNewLaneCapability.ensure();
+          const loaded = await wordNewOrchSources.load(task, { force }, report);
+          // Stage cursors are plan positions: meaning clips that joined the plan since the last run shifted them.
+          if (reloadMeanings && seedCursors) Object.keys(seedCursors).forEach((stage) => { delete seedCursors[stage]; });
+          // Passage sentences without a Chinese line get one (machine translation kept in the entry), then the
+          // passage part is built from the entries as they are now.
+          const current = await wordNewOrchPassageZh.fill(task, loaded.sentences, signal);
+          const rebuilt = (current.config.passages ?? []).length > 0
+            ? await wordNewOrchSources.withCurrentPassages(current, loaded.sentences)
+            : loaded.sentences;
+          const signature = orchPassageSignature(rebuilt);
+          const last = this.passageInputs.get(task.id);
+          // The same sentences keep their array (the phrase memory below is keyed by it).
+          const sentences = signature === orchPassageSignature(loaded.sentences) ? loaded.sentences
+            : last?.signature === signature && last.loaded === loaded.sentences ? last.sentences : rebuilt;
+          const inputs = sentences === loaded.sentences ? loaded : { ...loaded, sentences };
+          // Stage cursors are plan positions: lines that joined the passages since the last run shifted them.
+          if (signature !== (last?.signature ?? orchPassageSignature(loaded.sentences)) && seedCursors) {
+            Object.keys(seedCursors).forEach((stage) => { delete seedCursors[stage]; });
+          }
+          this.passageInputs.set(task.id, { signature, loaded: loaded.sentences, sentences });
           // The same sentences (an edit) reuse their phrases unless the phrases are asked again.
           const withPhrases = orchPatternHasPhrases(task.config.pattern);
           const memory = this.phraseMemory.get(task.id);
@@ -622,7 +661,7 @@ class WordNewOrchComposerService {
         onPlan: async (plan) => {
           run.keys = new Set(plan.resources.map((resource) => resource.key));
           if (!task.config.book) return;
-          planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, planCoveredKeys(plan)).catch((error: unknown) => {
+          planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, orchBookCoveredKeys(plan)).catch((error: unknown) => {
             console.warn('[BookPlan] ensurePlan failed', error);
             return null;
           });
@@ -701,6 +740,7 @@ class WordNewOrchComposerService {
         else this.watchGeneration(task.id);
         this.scheduleRerun(task.id);
         this.watchPhrases(task.id, phrases.pending, true);
+        this.meanings.watch(task, reloadMeanings);
       }
     }
   }
