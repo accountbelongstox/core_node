@@ -299,6 +299,20 @@ export interface TerminalImageUploadResult {
   max_bytes?: number;
 }
 
+/** Desktop-icon launcher modes pycore can run: [1] plain claudeteam grid, [2] grid only, [4] grid + module. */
+export type TerminalLauncherMode = 'device' | 'windows' | 'both';
+export type TerminalLauncherAction = 'launch' | 'kill' | 'restart';
+
+export interface TerminalLauncherResult {
+  success: boolean;
+  error_code?: string | null;
+  mode?: TerminalLauncherMode;
+  pid?: number;
+  closed_terminals?: string[];
+  failed_terminals?: string[];
+  stopped_apps?: string[];
+}
+
 export interface TerminalImageUploadOptions {
   onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
@@ -635,12 +649,14 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       clearFirst = false,
       interruptFirst = false,
       shellPrompt = false,
+      restartFirst = false,
     ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,
       terminal_number: terminalNumber,
       clear_first: clearFirst ? '1' : '0',
       interrupt_first: interruptFirst ? '1' : '0',
       shell_prompt: shellPrompt ? '1' : '0',
+      restart_first: restartFirst ? '1' : '0',
     }) as Promise<TerminalActionResult>,
     /** Types recordings through the agent's own hold-to-talk dictation, appends text and submits. */
     dictateTerminalVoice: (
@@ -687,6 +703,21 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
     ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
       terminal_number: terminalNumber > 0 ? terminalNumber : undefined,
     }) as Promise<TerminalScheduleSyncResult>,
+    launchTerminalLauncher: (mode: TerminalLauncherMode) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalLauncherLaunch,
+      { mode },
+    ) as Promise<TerminalLauncherResult>,
+    /** Reverses a launch: closes every terminal window and stops the launcher's apps (pycore keeps running). */
+    killTerminalLauncher: () => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalLauncherKill,
+      {},
+      TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,
+    ) as Promise<TerminalLauncherResult>,
+    restartTerminalLauncher: (mode: TerminalLauncherMode) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalLauncherRestart,
+      { mode },
+      TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,
+    ) as Promise<TerminalLauncherResult>,
     runTerminalDesktopIntegration: (
       action: TerminalDesktopIntegrationAction,
       timeoutMs = TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,

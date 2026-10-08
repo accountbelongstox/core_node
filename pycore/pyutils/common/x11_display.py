@@ -294,6 +294,21 @@ class X11Display:
         finally:
             connection.close()
 
+    def kill_client(self, xid: int) -> bool:
+        """XKillClient on the window's owner: closes it whatever uid runs the client."""
+        connection, _error_code = self._open()
+        if connection is None:
+            return False
+        try:
+            connection.window(xid).kill_client()
+            connection.display.sync()
+            return True
+        except Exception as exc:  # noqa: BLE001 - a vanished window or X error is a plain failure
+            x11_activity_log.warning("window.kill.failed", xid=f"0x{xid:x}", error=type(exc).__name__)
+            return False
+        finally:
+            connection.close()
+
     def activate(self, xid: int) -> bool:
         xlib_x = get_third_package_Xlib_module('X')
         connection, _error_code = self._open()

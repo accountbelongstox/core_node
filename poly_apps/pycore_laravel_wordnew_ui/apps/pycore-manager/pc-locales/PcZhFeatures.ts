@@ -551,6 +551,34 @@ terminal: {
       confirmAll: '移除全部 {{count}} 个离线终端，连同其草稿、发送记录、定时器和捕获文件？',
       done: '已移除 {{count}} 条离线终端记录。',
     },
+    launcher: {
+      title: '窗口启动器',
+      modeHint: '桌面图标启动器的启动模式',
+      modes: {
+        device: '[1] 普通 ClaudeTeam',
+        windows: '[2] 窗口布局',
+        both: '[4] 布局 + 模块',
+      },
+      actions: {
+        launch: '启动',
+        restart: '全部重启',
+        kill: '全部关闭',
+      },
+      hints: {
+        launch: '按所选模式运行桌面图标启动器；已打开的终端和运行中的应用会保留。',
+        restart: '关闭所有终端窗口和启动器应用，然后按所选模式重新启动。',
+        kill: '反向启动：关闭所有终端窗口并停止启动器应用，pycore 保持运行。',
+      },
+      confirm: {
+        kill: '关闭所有终端窗口并停止启动器应用？其中正在运行的命令会被结束。',
+        restart: '关闭所有终端窗口和启动器应用后重新启动？正在运行的命令会被结束。',
+      },
+      done: {
+        launch: '启动器已运行。',
+        kill: '已关闭 {{terminals}} 个终端，停止 {{apps}} 个应用。',
+        restart: '已关闭 {{terminals}} 个终端，停止 {{apps}} 个应用并重新启动。',
+      },
+    },
     commands: {
       title: '命令',
       noRecent: '暂无最近命令',
@@ -577,6 +605,9 @@ terminal: {
       loadFailed: '无法加载命令列表。',
       sent: '命令已发送到终端。',
       forceSent: '已用 Ctrl+C 结束正在运行的命令，并发送了新命令。',
+      restart: '重启',
+      restartHint: '先多次按 Ctrl+C 结束终端内正在运行的程序，再执行命令。',
+      restartSent: '已多次按 Ctrl+C 结束运行中的程序，并重新执行了命令。',
     },
     keys: {
       escape: 'Esc',
@@ -877,6 +908,9 @@ terminal: {
       notControllable: '该终端可见，但在当前桌面会话中无法控制。',
       windowsNotControllable: '部分终端可见但无法控制，请安装 pycore GNOME 窗口桥接以控制原生 Wayland 终端。',
       integrationAction: '桌面集成操作无效。',
+      launcherMode: '启动器模式无效。',
+      launcherStart: '无法启动启动器。',
+      launcherKillPartial: '部分终端窗口未能关闭。',
       inputDesktopUnavailable: '桌面已锁定或正在显示 UAC 提示，Windows 不接收模拟输入，请先解锁桌面。',
       targetElevated: '该终端以管理员身份运行，而 pycore 不是，Windows 会拦截发给它的输入。请以管理员身份重启 pycore，或在提升权限的会话中重新开启开机自启（会注册为最高权限计划任务）。',
       unknown: '终端操作失败。',

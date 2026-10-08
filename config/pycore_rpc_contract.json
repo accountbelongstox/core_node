@@ -1174,6 +1174,18 @@
       "path": "ui/terminal/view",
       "method": "POST"
     },
+    "terminalLauncherKill": {
+      "path": "ui/terminal/launcher/kill",
+      "method": "POST"
+    },
+    "terminalLauncherLaunch": {
+      "path": "ui/terminal/launcher/launch",
+      "method": "POST"
+    },
+    "terminalLauncherRestart": {
+      "path": "ui/terminal/launcher/restart",
+      "method": "POST"
+    },
     "terminalViewerDemand": {
       "path": "ui/terminal/viewer_demand",
       "method": "POST"

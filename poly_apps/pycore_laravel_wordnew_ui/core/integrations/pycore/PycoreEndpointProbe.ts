@@ -22,6 +22,8 @@ export interface PycoreProbeResult {
   instanceId: string;
   /** Stable per-machine code; one machine reached through several URLs reports the same value. */
   machineId: string;
+  /** Private LAN IPv4 addresses, the default-route one first; empty for older backends. */
+  lanIps: string[];
   checkedAt: number;
 }
 
@@ -49,6 +51,7 @@ function outcome(state: PycoreProbeState, ms: number | null, httpStatus = 0, pay
     platform: String(payload?.platform || ''),
     instanceId: String(payload?.instance_id || ''),
     machineId: String(payload?.machine_id || ''),
+    lanIps: Array.isArray(payload?.lan_ips) ? payload.lan_ips.map(String) : [],
     checkedAt: Date.now(),
   };
 }

@@ -17,6 +17,6 @@
   "launcher.grid.startup_cells": "  [{first}-{last}] {command}",
   "launcher.grid.startup_cell": "  [{cell}] {command}",
   "launcher.grid.startup_rest": "  [{cell}+] 普通终端",
-  "launcher.grid.menu_cross_device": "  [1] - 跨设备启动（网格单元运行 claudeteam --device-slot <n>）",
-  "launcher.grid.mode_cross_device": "\n[Launcher] 模式：跨设备（由 claudeteam 解析设备、配置与角色）"
+  "launcher.grid.menu_cross_device": "  [1] - 普通 ClaudeTeam 启动（网格单元运行不带参数的 claudeteam）",
+  "launcher.grid.mode_cross_device": "\n[Launcher] 模式：普通 ClaudeTeam（claudeteam 单元不带参数启动）"
 }

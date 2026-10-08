@@ -36,11 +36,10 @@ AUTO_PROFILE_SEPARATOR = ' / '
 # Launcher-started claudeteam sessions begin in Claude Code manual permission
 # mode (claudeteam defaults to auto); shift+tab cycles the mode in the session.
 CLAUDETEAM_PERMISSION_MODE = 'manual'
-CLAUDETEAM_COMMAND = f'claudeteam --permission-mode {CLAUDETEAM_PERMISSION_MODE}'
+CLAUDETEAM_PLAIN_COMMAND = 'claudeteam'
+CLAUDETEAM_COMMAND = f'{CLAUDETEAM_PLAIN_COMMAND} --permission-mode {CLAUDETEAM_PERMISSION_MODE}'
 GRID_STARTUP_COMMANDS: Tuple[str, ...] = (CLAUDETEAM_COMMAND,) * 8 + ('agyyolo', 'codexyolo', 'kimi1', 'kimi2')
-# Cross-device mode: claudeteam cell n runs `claudeteam --device-slot n`; claudeteam
-# resolves the device, profile and role (config/claude_team_roles.json device_profiles).
-DEVICE_SLOT_FLAG = '--device-slot'
+# Option [1]: every claudeteam cell runs plain `claudeteam` without parameters.
 _cross_device_mode = False
 
 
@@ -171,8 +170,7 @@ def grid_startup_command(cell_index: int) -> Optional[str]:
         return None
     command = GRID_STARTUP_COMMANDS[cell_index]
     if _cross_device_mode and command == CLAUDETEAM_COMMAND:
-        slot = GRID_STARTUP_COMMANDS[:cell_index + 1].count(CLAUDETEAM_COMMAND)
-        return f"{command} {DEVICE_SLOT_FLAG} {slot}"
+        return CLAUDETEAM_PLAIN_COMMAND
     return command
 
 

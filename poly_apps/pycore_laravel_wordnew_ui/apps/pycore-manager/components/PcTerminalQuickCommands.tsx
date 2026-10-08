@@ -17,7 +17,7 @@ interface PcTerminalQuickCommandsProps {
 }
 
 /** The recent command is a logical reference shared by every node and terminal; each node maps it to its own command line. */
-interface RecentCommandRef {
+export interface RecentCommandRef {
   kind: TerminalQuickCommand['kind'];
   id: string;
   /** Command line last run, shown when this node's list is not loaded yet. */
@@ -26,6 +26,9 @@ interface RecentCommandRef {
 
 /** Command lists per pycore node, kept for the page session (pycore caches its scan as well). */
 const catalogCache = new Map<string, TerminalQuickCommands>();
+/** One list request per node at a time, shared by the panel and every card header. */
+const catalogRequests = new Map<string, Promise<TerminalQuickCommands | null>>();
+const RECENT_COMMAND_EVENT = 'pc-terminal-recent-command';
 
 const SHELL_OSES: readonly TerminalShellOs[] = ['windows', 'linux'];
 /** Always one tap away in the collapsed row (kind + id), when the node offers them. */
@@ -35,7 +38,7 @@ const PINNED_COMMANDS: ReadonlyArray<{ kind: TerminalQuickCommand['kind']; id: s
 ];
 
 /** The entry's command line for a shell OS; null when that OS has no such command. */
-function lineFor(entry: TerminalQuickCommand, os: TerminalShellOs, hostOs: string | undefined): string | null {
+export function lineFor(entry: TerminalQuickCommand, os: TerminalShellOs, hostOs: string | undefined): string | null {
   const perOs = entry.commands?.[os];
   if (perOs !== undefined) return perOs;
   return os === hostOs ? entry.command : null;
@@ -43,7 +46,12 @@ function lineFor(entry: TerminalQuickCommand, os: TerminalShellOs, hostOs: strin
 
 const chipClass = 'inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 font-mono text-[11px] disabled:opacity-40';
 
-function readRecent(): RecentCommandRef | null {
+/** The shell a command line is picked for: the terminal's detected shell, else the node's own OS. */
+export function resolveShellOs(shellOs: TerminalShellOs | undefined, hostOs: string | undefined): TerminalShellOs {
+  return shellOs ?? (hostOs === 'linux' ? 'linux' : 'windows');
+}
+
+export function readRecent(): RecentCommandRef | null {
   try {
     const value = JSON.parse(StorageManager.getRaw(StorageKeys.PYCORE_TERMINAL_RECENT_COMMAND) || 'null');
     return value && typeof value.kind === 'string' && typeof value.id === 'string' ? value : null;
@@ -52,59 +60,61 @@ function readRecent(): RecentCommandRef | null {
   }
 }
 
-function entryId(entry: TerminalQuickCommand): string {
+export function entryId(entry: TerminalQuickCommand): string {
   return entry.id || entry.command || '';
 }
 
-/** Shown name: the command line itself (PATH name plus arguments), never a description. */
-function commandLabel(entry: TerminalQuickCommand, os: TerminalShellOs, hostOs: string | undefined): string {
-  return lineFor(entry, os, hostOs) ?? entryId(entry);
+function writeRecent(ref: RecentCommandRef): void {
+  StorageManager.setRaw(StorageKeys.PYCORE_TERMINAL_RECENT_COMMAND, JSON.stringify(ref));
+  window.dispatchEvent(new Event(RECENT_COMMAND_EVENT));
 }
 
-/** Quick commands: a tap sends at once; pinned and recent commands stay in the collapsed row, the list holds every command. */
-export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = ({
-  shellOs, disabled, busy, onRun,
-}) => {
-  const { t } = useTranslation('pc');
+/** The shared recent command, kept in step across the panel and every card header. */
+export function useRecentCommand(): [RecentCommandRef | null, (entry: TerminalQuickCommand, line: string) => void] {
+  const [recent, setRecent] = useState<RecentCommandRef | null>(readRecent);
+  useEffect(() => {
+    const sync = () => setRecent(readRecent());
+    window.addEventListener(RECENT_COMMAND_EVENT, sync);
+    return () => window.removeEventListener(RECENT_COMMAND_EVENT, sync);
+  }, []);
+  const remember = useCallback((entry: TerminalQuickCommand, line: string) => {
+    writeRecent({ kind: entry.kind, id: entryId(entry), label: line });
+  }, []);
+  return [recent, remember];
+}
+
+/** The node's command list with its pinned entries; loads once per node and page session. */
+export function useQuickCommandCatalog() {
   const { api: terminalApi, nodeKey } = usePcTerminalNode();
-  const [expanded, setExpanded] = useState(false);
   const [catalog, setCatalog] = useState<TerminalQuickCommands | null>(() => catalogCache.get(nodeKey) ?? null);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [filter, setFilter] = useState('');
-  const [recent, setRecent] = useState<RecentCommandRef | null>(readRecent);
-  const [unavailable, setUnavailable] = useState('');
-  const [osOverride, setOsOverride] = useState<TerminalShellOs | null>(null);
-  const hostOs = catalog?.platform;
-  const detectedOs: TerminalShellOs = shellOs ?? (hostOs === 'linux' ? 'linux' : 'windows');
-  const activeOs = osOverride ?? detectedOs;
 
   const load = useCallback(async (): Promise<TerminalQuickCommands | null> => {
     setLoading(true);
-    try {
-      const result = await terminalApi.listTerminalCommands();
-      setLoadFailed(!result.success);
-      if (!result.success) return null;
-      catalogCache.set(nodeKey, result);
-      setCatalog(result);
-      return result;
-    } catch {
-      setLoadFailed(true);
-      return null;
-    } finally {
-      setLoading(false);
+    let request = catalogRequests.get(nodeKey);
+    if (!request) {
+      request = terminalApi.listTerminalCommands()
+        .then((result) => {
+          if (!result.success) return null;
+          catalogCache.set(nodeKey, result);
+          return result;
+        })
+        .catch(() => null)
+        .finally(() => catalogRequests.delete(nodeKey));
+      catalogRequests.set(nodeKey, request);
     }
+    const result = await request;
+    setLoadFailed(result === null);
+    if (result) setCatalog(result);
+    setLoading(false);
+    return result;
   }, [nodeKey, terminalApi]);
 
   // Pinned chips need the list, so it loads with the panel (pycore answers from its cache).
   useEffect(() => {
     if (!catalog && !loading && !loadFailed) void load();
   }, [catalog, load, loadFailed, loading]);
-
-  // A new terminal starts on its own detected shell.
-  useEffect(() => {
-    setOsOverride(null);
-  }, [shellOs]);
 
   const allEntries = useMemo(
     () => (catalog ? [...(catalog.preset ?? []), ...catalog.system, ...catalog.custom] : []),
@@ -120,6 +130,33 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
     () => PINNED_COMMANDS.map((ref) => findEntry(ref)).filter((entry): entry is TerminalQuickCommand => entry !== null),
     [findEntry],
   );
+  return { catalog, loading, loadFailed, load, findEntry, pinned };
+}
+
+/** Shown name: the command line itself (PATH name plus arguments), never a description. */
+export function commandLabel(entry: TerminalQuickCommand, os: TerminalShellOs, hostOs: string | undefined): string {
+  return lineFor(entry, os, hostOs) ?? entryId(entry);
+}
+
+/** Quick commands: a tap sends at once; pinned and recent commands stay in the collapsed row, the list holds every command. */
+export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = ({
+  shellOs, disabled, busy, onRun,
+}) => {
+  const { t } = useTranslation('pc');
+  const { catalog, loading, loadFailed, load, findEntry, pinned } = useQuickCommandCatalog();
+  const [expanded, setExpanded] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [recent, rememberRecent] = useRecentCommand();
+  const [unavailable, setUnavailable] = useState('');
+  const [osOverride, setOsOverride] = useState<TerminalShellOs | null>(null);
+  const hostOs = catalog?.platform;
+  const detectedOs = resolveShellOs(shellOs, hostOs);
+  const activeOs = osOverride ?? detectedOs;
+
+  // A new terminal starts on its own detected shell.
+  useEffect(() => {
+    setOsOverride(null);
+  }, [shellOs]);
 
   const matches = useCallback((entry: TerminalQuickCommand) => {
     const needle = filter.trim().toLowerCase();
@@ -138,11 +175,7 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
       return;
     }
     setUnavailable('');
-    if (await onRun(line)) {
-      const ref: RecentCommandRef = { kind: entry.kind, id: entryId(entry), label: line };
-      setRecent(ref);
-      StorageManager.setRaw(StorageKeys.PYCORE_TERMINAL_RECENT_COMMAND, JSON.stringify(ref));
-    }
+    if (await onRun(line)) rememberRecent(entry, line);
   };
 
   // The recent reference resolves against this node's list, so it runs the node's own command line.

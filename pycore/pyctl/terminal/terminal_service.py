@@ -640,6 +640,7 @@ class TerminalService:
         interrupt_first: bool = False,
         activate_window: bool = True,
         shell_prompt: bool = False,
+        restart_first: bool = False,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -672,7 +673,9 @@ class TerminalService:
         try:
             activation = self._backend.activate(window_id) if activate_window else {"success": True}
             action = (
-                self._backend.paste_and_submit(window_id, len(text), clear_first, interrupt_first, shell_prompt)
+                self._backend.paste_and_submit(
+                    window_id, len(text), clear_first, interrupt_first, shell_prompt, restart_first,
+                )
                 if activation.get("success")
                 else activation
             )
