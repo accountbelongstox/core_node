@@ -17,6 +17,7 @@ import {
   laravelRelayDeviceId,
   parsePycoreLaneCapability,
   pycoreApi,
+  subscribeLaravelRelayDevice,
   pycoreLaneCapabilityRoute,
   pycoreLaneCovers,
   relayPycoreFetch,
@@ -74,6 +75,14 @@ class WordNewLaneCapabilityService {
       if (selectedUrl === this.selected) return;
       this.selected = selectedUrl;
       // The old machine's capability is void at once; the new one is read now.
+      this.changes.emit();
+      void this.ensure(0);
+    });
+    // Another paired pycore behind the relay is another machine.
+    let pairedDevice: string | null = laravelRelayDeviceId();
+    subscribeLaravelRelayDevice((deviceId) => {
+      if (deviceId === pairedDevice) return;
+      pairedDevice = deviceId;
       this.changes.emit();
       void this.ensure(0);
     });
