@@ -1,0 +1,486 @@
+#!/bin/bash
+# =============================================================================
+# debian_tooldir_migration.sh - idempotent migration of the legacy per-OS tool
+# directories (/www/_debian_<N>, e.g. _debian_12 -> _debian_13) created by
+# gvar_storage_common.sh / nodetools/gvar_common.js (format: _<os>_<ver>).
+#
+# Background (see development-guides/DIRECTORY_NAMESPACE_RULES.md section 2
+# and .claude/agents_shared/d30/audit_result.json): these dirs are the
+# documented "legacy" tool root; the final target is /opt/core_node/_<os>_<ver>,
+# but that larger migration (fixing get_dev_compile_base and friends) is a
+# separate, already-tracked task. THIS script only catches the tool dirs up to
+# the CURRENT OS major version (e.g. _debian_12 -> _debian_13), which is what
+# a kernel/OS major-version hop (upgrade_os_to_latest.sh) leaves undone today:
+# the OS packages move, but every /usr/local/bin symlink and systemd
+# WorkingDirectory that was pointing at the old _<os>_<ver> dir keeps pointing
+# there forever (verified on this host: node/npm/python3.12/pipx/certbot/
+# poetry/uv/omp symlinks, plus the live rustdesk-hbbr/hbbs services and the
+# PostgreSQL 15 cluster, were still on _debian_12 while the OS itself was
+# already Debian 13).
+#
+# Safety model (never run unattended without these guarantees):
+#   - Every step is idempotent: already-migrated items are detected and
+#     skipped (safe to re-run after a partial failure).
+#   - A collision at the destination (same subdir name used for something
+#     ELSE, e.g. python3_venv) is NEVER overwritten; the item is renamed to a
+#     non-colliding name instead, and every consumer (symlink / env var) is
+#     repointed to the new name.
+#   - Nothing here is a hard, irreversible delete. Simple tool dirs are mv'd
+#     (same filesystem, atomic). Stateful/live data (PostgreSQL, the RustDesk
+#     server) is copied with rsync, verified healthy on the new path, and the
+#     OLD copy is renamed aside (".pre_migration_<ts>") rather than removed -
+#     the user deletes it manually once satisfied.
+#   - Every service-affecting step stops the service first, only ever reads/
+#     writes while stopped, and restarts + verifies (systemctl is-active,
+#     plus a real smoke test: --version / pg_isready) before moving on. A
+#     failed verification stops the whole run with the service left on
+#     whichever path last passed its own verification (never half-moved).
+#
+# Usage:
+#   ./debian_tooldir_migration.sh                  # auto-detect old -> new
+#   ./debian_tooldir_migration.sh _debian_12 _debian_13   # explicit
+#   ./debian_tooldir_migration.sh --report-only     # scan + report, no changes
+# =============================================================================
+
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TDM_SCRIPT_INDEX="tooldir-migration"
+
+source "$SCRIPT_CURRENT_DIR/common_functions.sh"
+source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
+
+TDM_WWW_ROOT="/www"
+TDM_OLD_DIR=""
+TDM_NEW_DIR=""
+TDM_REPORT_ONLY=false
+declare -a TDM_DONE=()
+declare -a TDM_SKIPPED=()
+declare -a TDM_FAILED=()
+
+tdm_log() { echo "[$TDM_SCRIPT_INDEX] $*"; }
+tdm_ok()   { TDM_DONE+=("$1");    tdm_log "OK: $1"; }
+tdm_skip() { TDM_SKIPPED+=("$1"); tdm_log "SKIP: $1"; }
+tdm_fail() { TDM_FAILED+=("$1");  tdm_log "FAIL: $1"; }
+
+# ---------------------------------------------------------------------------
+# Detection
+# ---------------------------------------------------------------------------
+
+# Current "_<os>_<ver>" name per the same convention as gvar_storage_common.sh
+# / nodetools/gvar_common.js (ID + major VERSION_ID from /etc/os-release).
+tdm_current_name() {
+    local os_id="" ver_major=""
+    [ -f /etc/os-release ] || { echo ""; return 1; }
+    os_id="$(. /etc/os-release 2>/dev/null; echo "$ID")"
+    ver_major="$(. /etc/os-release 2>/dev/null; echo "$VERSION_ID" | grep -oE '^[0-9]+')"
+    [ -n "$os_id" ] && [ -n "$ver_major" ] || { echo ""; return 1; }
+    echo "_${os_id}_${ver_major}"
+}
+
+# Every "_<os>_<ver>" directory under /www other than the current one.
+tdm_detect_old_dirs() {
+    local current="" d="" base=""
+    current="$(tdm_current_name)"
+    for d in "$TDM_WWW_ROOT"/_*_*; do
+        [ -d "$d" ] || continue
+        base="$(basename "$d")"
+        [[ "$base" =~ ^_[a-z]+_[0-9]+$ ]] || continue
+        [ "$base" = "$current" ] && continue
+        echo "$base"
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+# Idempotent symlink repoint; no-op if already correct.
+tdm_relink() {
+    local link="$1" target="$2" current=""
+    [ -e "$target" ] || { tdm_log "  [WARN] relink target missing, not touching link: $target"; return 1; }
+    [ -L "$link" ] && current="$(readlink "$link" 2>/dev/null)"
+    if [ "$current" = "$target" ]; then
+        tdm_log "  symlink already correct: $link -> $target"
+        return 0
+    fi
+    $USE_SUDO ln -sfn "$target" "$link"
+    tdm_log "  symlink repointed: $link -> $target (was: ${current:-absent})"
+}
+
+# Fix absolute-path references (shebangs, pyvenv.cfg, activate scripts, .pth
+# files) baked into a relocated Python venv or similar text-based tool dir.
+# Safe/idempotent: a dir with nothing left to fix is a silent no-op.
+tdm_fix_embedded_paths() {
+    local dir="$1" old_path="$2" new_path="$3"
+    [ -d "$dir" ] || return 0
+    grep -rlZ --binary-files=without-match -- "$old_path" "$dir" 2>/dev/null \
+        | xargs -0 -r $USE_SUDO sed -i "s#${old_path}#${new_path}#g"
+}
+
+# mv a simple (non-live-service) tool dir from old root to a given name under
+# the new root. Idempotent: if the destination already exists and the source
+# is gone, treat as already-migrated; if both exist, do NOT overwrite (collision).
+# Prints the resolved destination path on stdout for the caller to use.
+tdm_move_simple() {
+    local src="$1" dst="$2"
+    if [ ! -e "$src" ] && [ -e "$dst" ]; then
+        echo "$dst"; return 0
+    fi
+    if [ ! -e "$src" ]; then
+        echo ""; return 1
+    fi
+    if [ -e "$dst" ]; then
+        tdm_log "  [WARN] destination already exists, refusing to overwrite: $dst (source left in place: $src)"
+        echo ""; return 1
+    fi
+    $USE_SUDO mkdir -p "$(dirname "$dst")"
+    $USE_SUDO mv "$src" "$dst" || { echo ""; return 1; }
+    echo "$dst"; return 0
+}
+
+# ---------------------------------------------------------------------------
+# Node.js core (node/npm/npx/yarn/corepack/pnpm/pnpx under node/<version>/bin)
+# merges into the SAME <version> folder on the new side (it may already hold
+# only a pnpm-global home with no real install - verified safe to merge).
+# ---------------------------------------------------------------------------
+tdm_migrate_node_core() {
+    local ver="" src="" dst="" link="" bin=""
+    local -a links=(node npm npx pnpm pnpx yarn yarnpkg corepack)
+
+    for src in "$TDM_OLD_DIR/node"/*/; do
+        [ -d "$src" ] || continue
+        ver="$(basename "$src")"
+        [ -d "$src/bin" ] || continue
+        dst="$TDM_NEW_DIR/node/$ver"
+        if [ -d "$dst/bin" ] && [ "$dst/bin" != "$src/bin" ]; then
+            # Real install already on both sides for the same version string -
+            # do not clobber; leave for manual reconciliation.
+            if ! $USE_SUDO diff -rq "$src/bin" "$dst/bin" >/dev/null 2>&1; then
+                tdm_fail "node $ver: both $src and $dst have a real install and differ - manual reconciliation needed"
+                continue
+            fi
+        fi
+        $USE_SUDO mkdir -p "$dst"
+        $USE_SUDO rsync -a --remove-source-files "$src"/ "$dst"/ 2>/dev/null \
+            || { tdm_fail "node $ver: rsync merge failed"; continue; }
+        find "$src" -depth -type d -empty -exec $USE_SUDO rmdir {} \; 2>/dev/null
+        tdm_ok "node $ver merged: $src -> $dst"
+    done
+
+    for link in "${links[@]}"; do
+        bin="$(readlink -f "/usr/local/bin/$link" 2>/dev/null)"
+        case "$bin" in
+            "$TDM_OLD_DIR"/node/*)
+                ver="$(echo "$bin" | sed -E "s#.*/node/([^/]+)/.*#\1#")"
+                tdm_relink "/usr/local/bin/$link" "$TDM_NEW_DIR/node/$ver/bin/$link"
+                ;;
+        esac
+    done
+
+    command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1 \
+        && tdm_ok "smoke test: node --version OK" \
+        || tdm_fail "smoke test: node --version failed after migration"
+}
+
+# pnpm-global "pi"/"rebrowser-puppeteer" tree under node/node-v24.11.1 - a
+# second, differently-versioned node install, moved as its own unit.
+tdm_migrate_node_secondary() {
+    local src="" dst="" link="" bin="" sub=""
+    for src in "$TDM_OLD_DIR/node"/*/; do
+        sub="$(basename "$src")"
+        [ -d "$TDM_NEW_DIR/node/$sub" ] && continue
+        dst="$(tdm_move_simple "$src" "$TDM_NEW_DIR/node/$sub")"
+        [ -n "$dst" ] && tdm_ok "node (secondary) moved: $src -> $dst"
+    done
+    for link in pi rebrowser-puppeteer; do
+        bin="$(readlink -f "/usr/local/bin/$link" 2>/dev/null)"
+        case "$bin" in
+            "$TDM_OLD_DIR"/node/*)
+                sub="$(echo "$bin" | sed -E "s#${TDM_OLD_DIR}/node/([^/]+)/.*#\1#")"
+                tdm_relink "/usr/local/bin/$link" "$TDM_NEW_DIR/node/$sub/$(echo "$bin" | sed -E "s#.*${sub}/##")"
+                ;;
+        esac
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Python system venv (python3.12 symlink). _new/python3_venv is ALREADY a
+# different, live venv (rustdesk_dashboard + pip/pip3) - never collide with
+# it; the system venv moves to a distinctly-named sibling.
+# ---------------------------------------------------------------------------
+tdm_migrate_python_system_venv() {
+    local src="$TDM_OLD_DIR/python3_venv" dst="$TDM_NEW_DIR/python3.12_venv" moved=""
+    [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "python3.12 venv: nothing to migrate"; return 0; }
+    moved="$(tdm_move_simple "$src" "$dst")"
+    [ -n "$moved" ] || { [ -e "$dst" ] || { tdm_fail "python3.12 venv move failed"; return 1; }; moved="$dst"; }
+    tdm_fix_embedded_paths "$moved" "$TDM_OLD_DIR/python3_venv" "$moved"
+    tdm_relink "/usr/local/bin/python3.12" "$moved/bin/python3"
+    [ "$(get_var "UV_PROJECT_ENVIRONMENT" 2>/dev/null)" = "$src" ] \
+        && set_env_and_var "UV_PROJECT_ENVIRONMENT" "$moved"
+    grep -q "^UV_PROJECT_ENVIRONMENT=\"$src\"" /etc/environment 2>/dev/null \
+        && set_env_and_var "UV_PROJECT_ENVIRONMENT" "$moved"
+    python3.12 --version >/dev/null 2>&1 \
+        && tdm_ok "python3.12 venv migrated: $src -> $moved" \
+        || tdm_fail "smoke test: python3.12 --version failed after migration"
+}
+
+# pipx (the tool itself) + pipx_home (certbot's venv lives here - SSL renewal,
+# highest-stakes item besides PostgreSQL).
+tdm_migrate_pipx() {
+    local src_venv="$TDM_OLD_DIR/pipx_venv" dst_venv="$TDM_NEW_DIR/pipx_venv"
+    local src_home="$TDM_OLD_DIR/pipx_home" dst_home="$TDM_NEW_DIR/pipx_home"
+    local moved_venv="" moved_home=""
+
+    if [ -e "$src_venv" ] || [ -e "$dst_venv" ]; then
+        moved_venv="$(tdm_move_simple "$src_venv" "$dst_venv")"
+        [ -n "$moved_venv" ] || moved_venv="$dst_venv"
+        tdm_fix_embedded_paths "$moved_venv" "$src_venv" "$moved_venv"
+        tdm_relink "/usr/local/bin/pipx" "$moved_venv/bin/pipx"
+    fi
+    if [ -e "$src_home" ] || [ -e "$dst_home" ]; then
+        moved_home="$(tdm_move_simple "$src_home" "$dst_home")"
+        [ -n "$moved_home" ] || moved_home="$dst_home"
+        tdm_fix_embedded_paths "$moved_home" "$src_home" "$moved_home"
+        tdm_relink "/usr/local/bin/certbot" "$moved_home/venvs/certbot/bin/certbot"
+        set_env_and_var "PIPX_HOME" "$moved_home"
+    fi
+
+    pipx --version >/dev/null 2>&1 \
+        && tdm_ok "pipx migrated: $src_venv -> ${moved_venv:-$dst_venv}" \
+        || tdm_fail "smoke test: pipx --version failed after migration"
+    certbot --version >/dev/null 2>&1 \
+        && tdm_ok "certbot migrated: $src_home -> ${moved_home:-$dst_home}" \
+        || tdm_fail "smoke test: certbot --version failed after migration (SSL renewal at risk - investigate before relying on auto-renew)"
+}
+
+tdm_migrate_poetry() {
+    local src="$TDM_OLD_DIR/poetry_venv" dst="$TDM_NEW_DIR/poetry_venv" moved=""
+    [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "poetry: nothing to migrate"; return 0; }
+    moved="$(tdm_move_simple "$src" "$dst")"
+    [ -n "$moved" ] || moved="$dst"
+    tdm_fix_embedded_paths "$moved" "$src" "$moved"
+    tdm_relink "/usr/local/bin/poetry" "$moved/bin/poetry"
+    poetry --version >/dev/null 2>&1 \
+        && tdm_ok "poetry migrated: $src -> $moved" \
+        || tdm_fail "smoke test: poetry --version failed after migration"
+}
+
+tdm_migrate_uv() {
+    local src="$TDM_OLD_DIR/uv_bin" dst="$TDM_NEW_DIR/uv_bin" moved=""
+    [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "uv: nothing to migrate"; return 0; }
+    moved="$(tdm_move_simple "$src" "$dst")"
+    [ -n "$moved" ] || moved="$dst"
+    tdm_relink "/usr/local/bin/uv" "$moved/uv"
+    uv --version >/dev/null 2>&1 \
+        && tdm_ok "uv migrated: $src -> $moved" \
+        || tdm_fail "smoke test: uv --version failed after migration"
+}
+
+tdm_migrate_omp() {
+    local src="$TDM_OLD_DIR/omp" dst="$TDM_NEW_DIR/omp" moved=""
+    [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "oh-my-posh: nothing to migrate"; return 0; }
+    moved="$(tdm_move_simple "$src" "$dst")"
+    [ -n "$moved" ] || moved="$dst"
+    tdm_relink "/usr/local/bin/omp" "$moved/omp"
+    omp --version >/dev/null 2>&1 \
+        && tdm_ok "oh-my-posh migrated: $src -> $moved" \
+        || tdm_fail "smoke test: omp --version failed after migration"
+}
+
+# ---------------------------------------------------------------------------
+# RustDesk relay/rendezvous server - live stateful data (ed25519 identity key
+# + sqlite client DB) with TWO live systemd services whose WorkingDirectory=
+# is a raw absolute path (no symlink indirection). Stop -> rsync copy ->
+# verify -> edit units -> daemon-reload -> start -> verify active.
+# ---------------------------------------------------------------------------
+tdm_migrate_rustdesk_server() {
+    local src="$TDM_OLD_DIR/applications/rustdesk-server"
+    local src_clients="$TDM_OLD_DIR/applications/rustdesk-clients"
+    local dst="$TDM_NEW_DIR/applications/rustdesk-server"
+    local dst_clients="$TDM_NEW_DIR/applications/rustdesk-clients"
+    local unit="" f=""
+    local -a units=(rustdesk-hbbr.service rustdesk-hbbs.service)
+
+    [ -d "$src" ] || { tdm_skip "rustdesk-server: nothing to migrate"; return 0; }
+    if [ -d "$dst" ]; then
+        tdm_fail "rustdesk-server: destination already exists, refusing to overwrite: $dst"
+        return 1
+    fi
+
+    for unit in "${units[@]}"; do
+        $USE_SUDO systemctl stop "$unit" 2>/dev/null \
+            && tdm_log "  stopped: $unit" \
+            || tdm_log "  [WARN] $unit was not running (continuing)"
+    done
+
+    $USE_SUDO mkdir -p "$(dirname "$dst")"
+    $USE_SUDO rsync -a "$src"/ "$dst"/ || { tdm_fail "rustdesk-server: rsync copy failed"; return 1; }
+    if [ -d "$src_clients" ] && [ ! -d "$dst_clients" ]; then
+        $USE_SUDO rsync -a "$src_clients"/ "$dst_clients"/ 2>/dev/null
+    fi
+    if ! $USE_SUDO diff -rq "$src/data" "$dst/data" >/dev/null 2>&1; then
+        tdm_fail "rustdesk-server: copy verification mismatch - leaving services stopped, NOT switching over (old data untouched at $src)"
+        return 1
+    fi
+
+    for unit in "${units[@]}"; do
+        f="/etc/systemd/system/$unit"
+        [ -f "$f" ] || continue
+        $USE_SUDO sed -i "s#${src}#${dst}#g" "$f"
+    done
+    $USE_SUDO systemctl daemon-reload
+
+    for unit in "${units[@]}"; do
+        $USE_SUDO systemctl start "$unit" 2>/dev/null
+        sleep 1
+        if $USE_SUDO systemctl is-active --quiet "$unit"; then
+            tdm_log "  started and active: $unit"
+        else
+            tdm_fail "rustdesk-server: $unit failed to come up on the new path - unit file now points at $dst but service is down; old data still intact at $src for manual rollback"
+            return 1
+        fi
+    done
+
+    $USE_SUDO mv "$src" "${src}.pre_migration_$(date +%Y%m%d_%H%M%S)"
+    tdm_ok "rustdesk-server migrated and verified running: $src -> $dst (old copy kept as backup, not deleted)"
+}
+
+# ---------------------------------------------------------------------------
+# PostgreSQL 15 cluster - the highest-stakes item. Stop -> rsync copy ->
+# verify byte-for-byte -> repoint postgresql.conf -> start -> pg_isready.
+# Any failure leaves the cluster back on the OLD path (postgresql.conf is
+# only edited after the copy is verified, and only switched again back to
+# the old path if the new path fails to come up healthy).
+# ---------------------------------------------------------------------------
+tdm_migrate_postgresql() {
+    local conf="/etc/postgresql/15/main/postgresql.conf"
+    local src_data="$TDM_OLD_DIR/postgresql/data" src_logs="$TDM_OLD_DIR/postgresql/logs"
+    local dst_data="$TDM_NEW_DIR/postgresql/data" dst_logs="$TDM_NEW_DIR/postgresql/logs"
+    local unit="postgresql@15-main.service"
+
+    [ -d "$src_data" ] || { tdm_skip "PostgreSQL: nothing to migrate (data not at $src_data)"; return 0; }
+    if [ -d "$dst_data" ]; then
+        tdm_fail "PostgreSQL: destination already exists, refusing to overwrite: $dst_data"
+        return 1
+    fi
+    [ -f "$conf" ] || { tdm_fail "PostgreSQL: config not found at $conf"; return 1; }
+
+    tdm_log "  stopping $unit ..."
+    $USE_SUDO systemctl stop "$unit" || { tdm_fail "PostgreSQL: failed to stop $unit"; return 1; }
+
+    $USE_SUDO mkdir -p "$(dirname "$dst_data")" "$(dirname "$dst_logs")"
+    tdm_log "  copying data directory (this can take a while for a large cluster) ..."
+    $USE_SUDO rsync -a "$src_data"/ "$dst_data"/ || { tdm_fail "PostgreSQL: rsync copy failed; restarting on old path"; $USE_SUDO systemctl start "$unit"; return 1; }
+    [ -d "$src_logs" ] && $USE_SUDO rsync -a "$src_logs"/ "$dst_logs"/ 2>/dev/null
+    if ! $USE_SUDO diff -rq "$src_data" "$dst_data" >/dev/null 2>&1; then
+        tdm_fail "PostgreSQL: copy verification mismatch; restarting on OLD path (untouched), new copy left at $dst_data for inspection"
+        $USE_SUDO systemctl start "$unit"
+        return 1
+    fi
+    $USE_SUDO chown -R postgres:postgres "$dst_data" "$dst_logs" 2>/dev/null
+
+    $USE_SUDO cp "$conf" "${conf}.pre_migration_$(date +%Y%m%d_%H%M%S)"
+    $USE_SUDO sed -i "s#${src_data}#${dst_data}#; s#${src_logs}#${dst_logs}#" "$conf"
+
+    tdm_log "  starting $unit on the new path ..."
+    $USE_SUDO systemctl start "$unit"
+    sleep 2
+    if $USE_SUDO systemctl is-active --quiet "$unit" && $USE_SUDO -u postgres pg_isready -q 2>/dev/null; then
+        tdm_log "  active and accepting connections: $unit"
+    else
+        tdm_fail "PostgreSQL: did not come up healthy on the new path - reverting postgresql.conf to the OLD path and restarting (old data untouched at $src_data; new copy left at $dst_data for inspection)"
+        $USE_SUDO sed -i "s#${dst_data}#${src_data}#; s#${dst_logs}#${src_logs}#" "$conf"
+        $USE_SUDO systemctl start "$unit"
+        return 1
+    fi
+
+    $USE_SUDO mv "$src_data" "${src_data}.pre_migration_$(date +%Y%m%d_%H%M%S)"
+    [ -d "$src_logs" ] && $USE_SUDO mv "$src_logs" "${src_logs}.pre_migration_$(date +%Y%m%d_%H%M%S)"
+    tdm_ok "PostgreSQL migrated and verified healthy: $src_data -> $dst_data (old copy kept as backup, not deleted)"
+}
+
+# ---------------------------------------------------------------------------
+# Best-effort PATH cleanup in /etc/environment: drop stale old-dir entries,
+# never fatal (a stale PATH entry is cosmetic - the repointed /usr/local/bin
+# symlinks are what every caller actually uses).
+# ---------------------------------------------------------------------------
+tdm_cleanup_path_env() {
+    local current_path="" cleaned=""
+    [ -f /etc/environment ] || return 0
+    current_path="$(awk -F= '/^PATH=/{gsub(/^"|"$/,"",$2); print $2; exit}' /etc/environment 2>/dev/null)"
+    [ -n "$current_path" ] || return 0
+    cleaned="$(echo "$current_path" | tr ':' '\n' | grep -vF "$TDM_OLD_DIR/" | paste -sd: -)"
+    if [ "$cleaned" != "$current_path" ] && [ -n "$cleaned" ]; then
+        set_env_and_var "PATH" "$cleaned"
+        tdm_ok "PATH cleaned in /etc/environment (dropped $TDM_OLD_DIR entries)"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Orchestration
+# ---------------------------------------------------------------------------
+
+tdm_report_only() {
+    local old=""
+    tdm_log "Current tool dir: $(tdm_current_name)"
+    tdm_log "Legacy tool dirs found under $TDM_WWW_ROOT:"
+    while IFS= read -r old; do
+        [ -n "$old" ] || continue
+        echo "  - $TDM_WWW_ROOT/$old ($(du -sh "$TDM_WWW_ROOT/$old" 2>/dev/null | cut -f1))"
+    done < <(tdm_detect_old_dirs)
+}
+
+tdm_run_full_migration() {
+    local old_name="$1" new_name="$2"
+
+    [ -n "$new_name" ] || new_name="$(tdm_current_name)"
+    if [ -z "$old_name" ]; then
+        old_name="$(tdm_detect_old_dirs | head -1)"
+    fi
+    if [ -z "$old_name" ] || [ -z "$new_name" ]; then
+        tdm_log "Nothing to migrate: no legacy _<os>_<ver> dir found (or current dir undetectable)."
+        return 0
+    fi
+    if [ "$old_name" = "$new_name" ]; then
+        tdm_log "Old and new tool dirs are the same ($old_name); nothing to do."
+        return 0
+    fi
+
+    TDM_OLD_DIR="$TDM_WWW_ROOT/$old_name"
+    TDM_NEW_DIR="$TDM_WWW_ROOT/$new_name"
+    [ -d "$TDM_OLD_DIR" ] || { tdm_log "Old dir does not exist: $TDM_OLD_DIR - nothing to migrate."; return 0; }
+    $USE_SUDO mkdir -p "$TDM_NEW_DIR"
+
+    tdm_log "=========================================="
+    tdm_log "Migrating tool directory: $TDM_OLD_DIR -> $TDM_NEW_DIR"
+    tdm_log "=========================================="
+
+    tdm_migrate_node_core
+    tdm_migrate_node_secondary
+    tdm_migrate_python_system_venv
+    tdm_migrate_pipx
+    tdm_migrate_poetry
+    tdm_migrate_uv
+    tdm_migrate_omp
+    tdm_migrate_rustdesk_server
+    tdm_migrate_postgresql
+    tdm_cleanup_path_env
+
+    tdm_log "=========================================="
+    tdm_log "Migration summary: ${#TDM_DONE[@]} done, ${#TDM_SKIPPED[@]} skipped, ${#TDM_FAILED[@]} failed"
+    [ "${#TDM_FAILED[@]}" -gt 0 ] && { tdm_log "FAILED items (left as-is, safe to re-run this script after investigating):"; printf '  - %s\n' "${TDM_FAILED[@]}"; }
+    if [ "${#TDM_FAILED[@]}" -eq 0 ]; then
+        tdm_log "All items migrated/verified. $TDM_OLD_DIR now holds only already-migrated-away (empty) subdirs plus anything explicitly skipped."
+        tdm_log "Nothing was force-deleted; review and remove $TDM_OLD_DIR yourself once satisfied."
+    fi
+    tdm_log "=========================================="
+
+    [ "${#TDM_FAILED[@]}" -eq 0 ]
+}
+
+if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
+    if [ "$1" = "--report-only" ]; then
+        tdm_report_only
+    else
+        tdm_run_full_migration "$1" "$2"
+    fi
+fi

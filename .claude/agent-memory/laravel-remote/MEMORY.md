@@ -6,4 +6,5 @@
 - [175 declarative refactor](project_175_declarative_refactor.md) — 2026-09-30 converge/probe-first rewrite, root causes, open items
 - [Profile timer tasks safely](feedback_profile_timer_tasks_respect_isenabled.md) — never exec() disabled timer tasks; they mutate data
 - [Relay](project_relay.md) — single relay: code map, session fencing, owner auth being restored, route/phpredis gotchas
-- [Disk full breaks git sync](project_disk_full_git_sync_failure_2026_10_08.md) — root disk 99%→76% fix; cache-cleanup+git gc; `/www/_debian_12` is LIVE (16 symlinks: node/python/pipx/certbot), never delete; frankenphp src/ safe-delete; fixed 41_install_browsers.sh to skip headless installs
+- [Disk full breaks git sync](project_disk_full_git_sync_failure_2026_10_08.md) — root disk 99%→76% fix; cache-cleanup+git gc; frankenphp src/ safe-delete; fixed 41_install_browsers.sh to skip headless installs
+- [_debian_12→13 tooldir migration](project_debian_12_to_13_tooldir_migration.md) — exact live split (node/pg/rustdesk/certbot) + idempotent migration script wired into dd.sh menu + OS-upgrade hook; NOT yet run

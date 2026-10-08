@@ -9,6 +9,7 @@ DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUT
 PERMISSIONS_REPAIR_MENU_SCRIPT="$DD_HELPER_DIR/permissions_repair_menu.sh"
 RUSTDESK_INSTALL_INFO_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/server_manager/rustdesk_install_info.sh"
 OS_UPGRADE_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/upgrade_os_to_latest.sh"
+TOOLDIR_MIGRATION_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/debian_tooldir_migration.sh"
 TAILSCALE_COMMON_SCRIPT_FOR_MENU="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/tailscale_common.sh"
 LINUX_MANAGED_USER_VALID=false
 
@@ -64,9 +65,33 @@ OS_UPGRADE_DEBIAN_LATEST_MAJOR=13
 OS_UPGRADE_DEBIAN_LATEST_CODENAME="trixie"
 OS_UPGRADE_UBUNTU_LATEST_VERSION="26.04"
 
+# True when a legacy /www/_<os>_<ver> tool directory exists other than the
+# one matching the CURRENT OS (e.g. _debian_12 lingering after the OS itself
+# already upgraded to Debian 13; on Ubuntu this would be e.g. _ubuntu_24
+# lingering after 26.04 - the directory names are derived live from
+# /etc/os-release by debian_tooldir_migration.sh, never hardcoded per-OS
+# text, so this never shows the wrong OS family's naming). Read-only, cheap,
+# cannot hang - see debian_tooldir_migration.sh for why this happens (OS
+# packages hop major versions but the tool-install dirs/symlinks never
+# follow on their own).
+tooldir_migration_pending() {
+    [ -s "$TOOLDIR_MIGRATION_SCRIPT" ] || return 1
+    ( source "$TOOLDIR_MIGRATION_SCRIPT" >/dev/null 2>&1; [ -n "$(tdm_detect_old_dirs 2>/dev/null)" ] )
+}
+
+# "_debian_12 -> _debian_13" (or the equivalent _ubuntu_<old> -> _ubuntu_<new>
+# on Ubuntu) style label, always derived from the live OS, never hardcoded.
+tooldir_migration_label() {
+    ( source "$TOOLDIR_MIGRATION_SCRIPT" >/dev/null 2>&1
+      printf '%s -> %s' "$(tdm_detect_old_dirs 2>/dev/null | head -1)" "$(tdm_current_name 2>/dev/null)" )
+}
+
 # True when the current system is Debian below OS_UPGRADE_DEBIAN_LATEST_MAJOR
-# or Ubuntu below OS_UPGRADE_UBUNTU_LATEST_VERSION; used to conditionally show
-# the upgrade menu item. Read-only, no network, cannot hang.
+# or Ubuntu below OS_UPGRADE_UBUNTU_LATEST_VERSION, OR the OS is already at
+# that latest version but its per-OS tool directory still needs the
+# idempotent catch-up (see tooldir_migration_pending above). One menu item
+# covers both: a real OS hop, and the follow-up cleanup a hop leaves behind.
+# Read-only, no network, cannot hang.
 os_upgrade_target_available() {
     local os_id="" os_version_id=""
     [ -f /etc/os-release ] || return 1
@@ -74,23 +99,40 @@ os_upgrade_target_available() {
     os_version_id="$(. /etc/os-release 2>/dev/null; echo "$VERSION_ID")"
     [ -n "$os_version_id" ] || return 1
     case "$os_id" in
-        debian) [ "$os_version_id" -lt "$OS_UPGRADE_DEBIAN_LATEST_MAJOR" ] 2>/dev/null ;;
-        ubuntu) command -v dpkg >/dev/null 2>&1 && dpkg --compare-versions "$os_version_id" lt "$OS_UPGRADE_UBUNTU_LATEST_VERSION" 2>/dev/null ;;
+        debian)
+            [ "$os_version_id" -lt "$OS_UPGRADE_DEBIAN_LATEST_MAJOR" ] 2>/dev/null && return 0
+            ;;
+        ubuntu)
+            command -v dpkg >/dev/null 2>&1 && dpkg --compare-versions "$os_version_id" lt "$OS_UPGRADE_UBUNTU_LATEST_VERSION" 2>/dev/null && return 0
+            ;;
         *) return 1 ;;
     esac
+    tooldir_migration_pending
 }
 
-# "<current> -> <target>" label text for the menu item.
+# "<current> -> <target>" label when an OS hop is still available; when the
+# OS is already at latest but a tool-dir migration is pending, labels that
+# idempotent follow-up instead (OS-aware via tooldir_migration_label - never
+# prints "Debian" wording on an Ubuntu host or vice versa).
 os_upgrade_target_label() {
-    local os_id="" os_version_id="" target=""
+    local os_id="" os_version_id=""
     os_id="$(. /etc/os-release 2>/dev/null; echo "$ID")"
     os_version_id="$(. /etc/os-release 2>/dev/null; echo "$VERSION_ID")"
     case "$os_id" in
-        debian) target="$OS_UPGRADE_DEBIAN_LATEST_MAJOR ($OS_UPGRADE_DEBIAN_LATEST_CODENAME)" ;;
-        ubuntu) target="$OS_UPGRADE_UBUNTU_LATEST_VERSION" ;;
-        *) target="latest" ;;
+        debian)
+            if [ "$os_version_id" -lt "$OS_UPGRADE_DEBIAN_LATEST_MAJOR" ] 2>/dev/null; then
+                printf '%s -> %s' "${os_version_id:-?}" "$OS_UPGRADE_DEBIAN_LATEST_MAJOR ($OS_UPGRADE_DEBIAN_LATEST_CODENAME)"
+                return 0
+            fi
+            ;;
+        ubuntu)
+            if command -v dpkg >/dev/null 2>&1 && dpkg --compare-versions "$os_version_id" lt "$OS_UPGRADE_UBUNTU_LATEST_VERSION" 2>/dev/null; then
+                printf '%s -> %s' "${os_version_id:-?}" "$OS_UPGRADE_UBUNTU_LATEST_VERSION"
+                return 0
+            fi
+            ;;
     esac
-    printf '%s -> %s' "${os_version_id:-?}" "$target"
+    printf 'already %s, idempotent tool-dir cleanup: %s' "${os_version_id:-?}" "$(tooldir_migration_label)"
 }
 
 # Launch the one-step OS upgrader (official Debian hop chain / Ubuntu
