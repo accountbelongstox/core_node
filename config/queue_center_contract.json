@@ -235,7 +235,8 @@
    "topic": "realtime.topic (the queue-center hub)",
    "payload": {"revision": "int, monotonic", "reason": "claim|renew|release|expiry|node|pool", "changed_at": "ISO-8601"},
    "min_interval_seconds": 2,
-   "rule": "Emitted on lease claim, renew, release, reaper expiry, node online/offline and pool count changes; leading edge at most every min_interval_seconds, a change inside the window is coalesced into one trailing event. Carries only a revision: the UI refetches work_nodes when the revision moves and reconciles by one refetch after a reconnect; no polling timer."
+   "view_refresh_seconds": 15,
+   "rule": "Emitted on lease claim, renew, release, reaper expiry, node online/offline and pool count changes; leading edge at most every min_interval_seconds, a change inside the window is coalesced into one trailing event. Carries only a revision: the UI refetches work_nodes when the revision moves and reconciles by one refetch after a reconnect; no polling timer. Display-only client views (wordnew generation assist) refetch at most every view_refresh_seconds; scheduling consumers keep min_interval_seconds."
   },
   "description": "Multi-node work distribution for the gap lanes. Laravel is the single scheduler: a node claims a WORK LEASE (a disjoint batch of gap rows, atomic UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) on the row itself: tts_locked_by, tts_lease_id, tts_lease_expires_at), renews it while it works and delivers each item by content. No node mirrors the backlog: it holds its leased batch plus a prefetch. An expired lease returns its rows to the pool (claim treats expired rows as free). Binding: docs_fix/DESIGN_QUEUE_PIPELINE.md.",
   "lanes": [

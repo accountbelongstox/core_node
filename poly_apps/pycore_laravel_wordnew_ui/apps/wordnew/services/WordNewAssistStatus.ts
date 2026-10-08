@@ -13,7 +13,7 @@ const WORD_LANE = queueCenterContract.work_leases.lanes[0];
 const PHRASE_LANE = AUDIO_ORCH_PHRASE_PIPELINE.audioLane;
 const GPU_CLASS = 'gpu';
 const FALLBACK_REFRESH_MS = 60_000;
-const MIN_REFRESH_GAP_MS = queueCenterContract.work_leases.nodes_event.min_interval_seconds * 1000;
+const MIN_REFRESH_GAP_MS = queueCenterContract.work_leases.nodes_event.view_refresh_seconds * 1000;
 const HTTP_FORBIDDEN = 403;
 const HTTP_UNAUTHORIZED = 401;
 
@@ -74,7 +74,7 @@ function laneView(lane: string, nodes: WorkNode[], pool: WorkPoolEntry[], langua
  * Assist state of the server-side generation lanes for the phone: which pycore nodes are online and
  * assisting (GPU / CPU, from Laravel's work roster), the gap lanes' contract progress, and the server
  * schema gate. Loaded only while a view uses it; refetched when Laravel pushes `work_nodes.changed`
- * (at most every `min_interval_seconds`) and on a slow fallback; nothing is requested while the gate is pending.
+ * (at most every `view_refresh_seconds`) and on a slow fallback; nothing is requested while the gate is pending.
  */
 class WordNewAssistStatusStore {
   private readonly changes = new ChangeSignal();
