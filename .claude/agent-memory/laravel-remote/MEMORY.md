@@ -6,4 +6,4 @@
 - [175 declarative refactor](project_175_declarative_refactor.md) — 2026-09-30 converge/probe-first rewrite, root causes, open items
 - [Profile timer tasks safely](feedback_profile_timer_tasks_respect_isenabled.md) — never exec() disabled timer tasks; they mutate data
 - [Relay](project_relay.md) — single relay: code map, session fencing, owner auth being restored, route/phpredis gotchas
-- [Disk full breaks git sync](project_disk_full_git_sync_failure_2026_10_08.md) — root disk 99%→84% full fix; full safe cache-cleanup recipe (pip/cargo/codex/pnpm/gem/chrome) + git gc, DB/audio always excluded
+- [Disk full breaks git sync](project_disk_full_git_sync_failure_2026_10_08.md) — root disk 99%→78% fix; cache-cleanup recipe + git gc; **`/www/_debian_12` is LIVE (16 /usr/local/bin symlinks: node/python/pipx/certbot), never delete it; frankenphp src/ IS safe to delete (reproducible build cache)
