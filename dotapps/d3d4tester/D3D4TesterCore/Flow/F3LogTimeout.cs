@@ -18,7 +18,7 @@ public sealed record F3TestModeDisplay(double ElapsedSec, int TimeoutMinutes, in
 
 /// <summary>
 /// [F3] ROSBOT log timeout (flow timeout, not log tailing). Baseline: log mtime when the log is from the current run, else the
-/// in-memory started_at (set at E4 / after teleport), else F4. Test mode: count=1 and 50 % -> F4; count>=2 and elapsed>=recorded
+/// in-memory started_at (set at E4, after teleport and on every F3 entry, i.e. when ROSBOT was started or adopted), else F4. Test mode: count=1 and 50 % -> F4; count>=2 and elapsed>=recorded
 /// -> F7 then wait 50 % -> E2 1 s. Timeout with the process gone marks the exit (with duration in test mode).
 /// 1:1 Python d3utils/rosbot_flow_f3_log_timeout.py + rosbot_flow_f3_baseline.py.
 /// </summary>

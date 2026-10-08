@@ -10,7 +10,8 @@ namespace DotApps.d3d4tester.Core.Flow;
 /// <summary>
 /// The ROSBOT flow (docs/ROSBOT_FLOW_MERMAID.md) as one sequential procedure on its own thread, started by "Start monitoring" and
 /// cancelled by "Stop monitoring" (every wait ends at once). One cycle:
-/// [F1] D3 running? no -> [B] Battle.net ready (reused when logged in) -> [D] launch D3 (just entered); yes -> D3 reused.
+/// [F1] D3 running? no -> ROSBOT left without D3 is closed (ROSBOT must start after D3) -> [B] Battle.net ready (reused when logged in)
+/// -> [D] launch D3; yes -> D3 reused. Both running = both reused, nothing restarted (F3 measures the log timeout from adoption).
 /// [F2] ROSBOT online? no -> [E] start ROSBOT (autostart; no screen recognition) -> plugin start actions (ROSBOT paused: follow, else
 /// map teleport via UI clicks, then resumed). Then [F3] monitor until a restart (F4: end D3 +
 /// ROSBOT), D3 gone (F4), ROSBOT gone (D3 kept) or a ROSBOT-only restart (E again). The cycle repeats until stopped.
@@ -26,6 +27,7 @@ public static class RosbotFlowRunner
     private const int TaskStartWaitMs = 25000;
     private const string LeasePause = "pause key";
     private const string LeaseF4 = "F4 end D3 + ROSBOT";
+    private const string LeaseRosbotWithoutD3 = "close ROSBOT without D3";
 
     private static readonly FlowThread Worker = new("RosbotFlow", RunCycle);
     private static readonly object PauseLock = new();
@@ -155,6 +157,7 @@ public static class RosbotFlowRunner
         Refresh();
         if (!State.D3Running)
         {
+            CloseRosbotWithoutD3();
             ColorPrinter.Blue($"{LogTag} [F1] D3 not running -> [B] Battle.net -> [D] launch D3");
             if (BattlenetReadyProcess.Run(ctx, activate: true) == BattlenetReadyResult.NoPath)
             {
@@ -212,6 +215,17 @@ public static class RosbotFlowRunner
                     continue;
             }
         }
+    }
+
+    /// <summary>[F1] ROSBOT runs but D3 does not: close ROSBOT, so it is started again after the new D3 ([E]).</summary>
+    private static void CloseRosbotWithoutD3()
+    {
+        var rosbot = RosbotManager.Instance;
+        if (rosbot.FindRosbotProcesses().Count == 0) return;
+        ColorPrinter.Yellow($"{LogTag} [F1] ROSBOT running without D3 -> close ROSBOT (it starts after D3)");
+        using var lease = GameControl.TryAcquire(LeaseRosbotWithoutD3, LeaseWaitMs);
+        rosbot.CloseGracefully();
+        Refresh();
     }
 
     /// <summary>[F2] + [E] on the host (restart: [E] even when ROSBOT is online); false (after the retry wait) when ROSBOT could not be started.</summary>
