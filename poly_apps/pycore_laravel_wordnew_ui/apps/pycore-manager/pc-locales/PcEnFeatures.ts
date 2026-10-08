@@ -551,6 +551,34 @@ terminal: {
       confirmAll: 'Remove all {{count}} offline terminals with their drafts, send history, timers and captures?',
       done: 'Removed {{count}} offline terminal record(s).',
     },
+    launcher: {
+      title: 'Window launcher',
+      modeHint: 'Launch mode of the desktop-icon launcher',
+      modes: {
+        device: '[1] Plain ClaudeTeam',
+        windows: '[2] Window layout',
+        both: '[4] Layout + module',
+      },
+      actions: {
+        launch: 'Launch',
+        restart: 'Restart all',
+        kill: 'Kill all',
+      },
+      hints: {
+        launch: 'Run the desktop-icon launcher in the chosen mode; open terminals and running apps are kept.',
+        restart: 'Close every terminal window and launcher app, then launch again in the chosen mode.',
+        kill: 'Reverse the launch: close every terminal window and stop the launcher apps. pycore keeps running.',
+      },
+      confirm: {
+        kill: 'Close every terminal window and stop the launcher apps? Running commands in them are killed.',
+        restart: 'Close every terminal window and launcher app, then launch again? Running commands are killed.',
+      },
+      done: {
+        launch: 'Launcher started.',
+        kill: 'Closed {{terminals}} terminal(s) and stopped {{apps}} app(s).',
+        restart: 'Closed {{terminals}} terminal(s), stopped {{apps}} app(s) and launched again.',
+      },
+    },
     commands: {
       title: 'Commands',
       noRecent: 'No recent command',
@@ -880,6 +908,9 @@ terminal: {
       notControllable: 'This terminal is visible but cannot be controlled in the current desktop session.',
       windowsNotControllable: 'Some terminals are visible but not controllable. Install the pycore GNOME window bridge to control native Wayland terminals.',
       integrationAction: 'The desktop integration action is invalid.',
+      launcherMode: 'The launcher mode is invalid.',
+      launcherStart: 'The launcher could not be started.',
+      launcherKillPartial: 'Some terminal windows could not be closed.',
       inputDesktopUnavailable: 'The desktop is locked or showing a UAC prompt, so Windows accepts no synthesized input. Unlock the desktop first.',
       targetElevated: 'This terminal runs as Administrator but pycore does not, so Windows blocks input sent to it. Restart pycore as Administrator, or re-enable auto-start from an elevated session (it registers a highest-privilege scheduled task).',
       unknown: 'The terminal operation failed.',
