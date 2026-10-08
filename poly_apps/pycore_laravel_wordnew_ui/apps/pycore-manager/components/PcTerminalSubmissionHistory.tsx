@@ -1,15 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Clock3, Copy, Loader2, Pencil, ScrollText, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
-import type { TerminalLogEntry, TerminalWindowInfo } from '@/apps/pycore-manager/api';
-import { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
+import type { TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
+import { LOG_SOURCES, PcTerminalLogSourceBadge, terminalLogSource } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 
 /** Collapsed rows show at most this many characters of the sent content. */
 const SNIPPET_MAX_CHARS = 200;
 const WHITESPACE_PATTERN = /\s+/g;
+const PRIMARY_LOG_SOURCE: TerminalLogSource = 'input';
 
 const STATUS_STYLES: Record<TerminalLogEntry['status'], string> = {
   sent: 'text-emerald-500',
@@ -46,7 +47,20 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
   const [copiedId, setCopiedId] = useState('');
   const requestedRef = useRef<Set<string>>(new Set());
   const terminalNumber = windowInfo?.terminal_number ?? 0;
-  const logs = windowInfo?.logs ?? [];
+  const allLogs = windowInfo?.logs ?? [];
+  const [activeSource, setActiveSource] = useState<TerminalLogSource>(PRIMARY_LOG_SOURCE);
+  const sourceCounts = useMemo(() => {
+    const counts = Object.fromEntries(LOG_SOURCES.map((source) => [source, 0])) as Record<TerminalLogSource, number>;
+    for (const entry of allLogs) counts[terminalLogSource(entry)] += 1;
+    return counts;
+  }, [allLogs]);
+  // The text tab is always shown; other sources get a tab only while they still have records.
+  const visibleSources = LOG_SOURCES.filter((source) => source === PRIMARY_LOG_SOURCE || sourceCounts[source] > 0);
+  const selectedSource = visibleSources.includes(activeSource) ? activeSource : PRIMARY_LOG_SOURCE;
+  const logs = useMemo(
+    () => allLogs.filter((entry) => terminalLogSource(entry) === selectedSource),
+    [allLogs, selectedSource],
+  );
 
   useEffect(() => {
     requestedRef.current = new Set();
@@ -95,7 +109,7 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
           <button
             type="button"
             onClick={onOpenLogs}
-            disabled={!logs.length}
+            disabled={!allLogs.length}
             className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
           >
             <ScrollText className="h-3 w-3" />
@@ -103,6 +117,26 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
           </button>
         </div>
       </div>
+      {visibleSources.length > 1 && (
+        <div role="tablist" className="flex flex-wrap gap-1.5">
+          {visibleSources.map((source) => (
+            <button
+              key={source}
+              type="button"
+              role="tab"
+              aria-selected={selectedSource === source}
+              onClick={() => setActiveSource(source)}
+              className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold ${
+                selectedSource === source
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-500/10 text-slate-600 hover:bg-slate-500/20 dark:text-slate-300'
+              }`}
+            >
+              {t(`terminal.logSource.${source}`)} · {sourceCounts[source]}
+            </button>
+          ))}
+        </div>
+      )}
       {!logs.length ? (
         <p className="rounded-xl border border-dashed border-slate-500/20 p-4 text-center text-[11px] text-slate-500">
           {t('terminal.historyEmpty')}
