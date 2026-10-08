@@ -107,6 +107,7 @@ final class OrchClientMonitorService
         usort($clients, static fn (array $a, array $b): int => strcmp((string) $b['last_seen_at'], (string) $a['last_seen_at']));
 
         return [
+            'server_time' => Carbon::now()->toIso8601String(),
             'revision' => [
                 'nodes' => (int) $nodes['revision'],
                 'clients' => $this->realtime->orchClientsRevision(),

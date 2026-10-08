@@ -21,7 +21,7 @@ import { useTaskCenterState } from './TaskCenterState';
 import { formatLastRunAgo } from './shared';
 import { OrchClientsSection, OrchSchedulingSection } from './OrchestrationClientsSection';
 import { OrchNodesSection } from './OrchestrationNodesSection';
-import { ageSeconds, nowMs, ORCH_CLIENT_TTL_SECONDS } from './orchestrationFormat';
+import { ageSeconds, nowMs, ORCH_CLIENT_TTL_SECONDS, syncServerClock } from './orchestrationFormat';
 
 interface OrchestrationMonitorPanelProps {
   lang: string;
@@ -61,6 +61,7 @@ const OrchestrationMonitorPanel: React.FC<OrchestrationMonitorPanelProps> = () =
       if (!mounted.current) return;
       setFailed(!response.success || !response.data);
       if (response.success && response.data) {
+        syncServerClock(response.data.server_time);
         setData(response.data);
         loadedAtRef.current = nowMs();
         setLoadedAt(loadedAtRef.current);
