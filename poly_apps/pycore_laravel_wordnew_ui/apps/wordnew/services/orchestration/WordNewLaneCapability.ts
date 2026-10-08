@@ -29,7 +29,7 @@ import { laneOfKind } from './WordNewBookPlanAssigner';
 
 export type LaneCapabilityChannel = 'direct' | 'relay';
 
-const CAPABILITY_TTL_MS = 5 * 60_000;
+const CAPABILITY_TTL_MS = 60_000;
 /** A failed read is tried again after this long (at the next run start or channel change). */
 const FAILED_RETRY_MS = 30_000;
 /** A run waits at most this long for a capability read before it continues with what is cached. */
@@ -134,14 +134,11 @@ class WordNewLaneCapabilityService {
     let capability: PycoreLaneCapability | null = null;
     let answered = false;
     try {
-      const route = pycoreLaneCapabilityRoute();
-      if (route) {
-        if (channel === 'direct') {
-          capability = parsePycoreLaneCapability(await pycoreApi.laneCapability());
-        } else {
-          const response = await relayPycoreFetch(route, {});
-          capability = response.ok ? parsePycoreLaneCapability(await response.json()) : null;
-        }
+      if (channel === 'direct') {
+        capability = parsePycoreLaneCapability(await pycoreApi.laneCapability());
+      } else {
+        const response = await relayPycoreFetch(pycoreLaneCapabilityRoute(), {});
+        capability = response.ok ? parsePycoreLaneCapability(await response.json()) : null;
       }
       answered = true;
     } catch {
