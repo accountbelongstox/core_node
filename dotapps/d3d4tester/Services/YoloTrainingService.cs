@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.I18n;
 using DotCore.Foundations;
 using DotCore.VocAnnotator;
@@ -68,7 +69,7 @@ public sealed record YoloEvalOutcome(bool Success, bool Cancelled, YoloRealEval?
 /// </summary>
 public sealed class YoloTrainingService
 {
-    public const string RunStampFormat = "yyyyMMdd_HHmmss";
+    public const string RunStampFormat = D3PathConstants.FileTimestampFormat;
     private const string LogTag = "[YoloTraining] ";
     private const string EvalSubdir = "eval";
     private const string EvalDatasetSubdir = "dataset";
@@ -135,11 +136,12 @@ public sealed class YoloTrainingService
     }
 
     /// <summary>
-    /// App startup: ONNX session defaults of the shared model host from config, and shutdown hooks that stop a running training
-    /// child and release every loaded model.
+    /// App startup: YOLO data root override and recorder shutdown (YoloCalibrationData), ONNX session defaults of the shared model host
+    /// from config, and shutdown hooks that stop a running training child and release every loaded model.
     /// </summary>
     public static void InitializeRuntime()
     {
+        YoloCalibrationData.InitializeRuntime();
         YoloModelHost.Shared.DefaultOptions = new YoloDetectorOptions(
             YoloDetectorOptions.ParseProvider(ConfigBinding.GetValue(ConfigKeys.YoloDetectExecutionProvider, "")),
             ConfigBinding.GetValue(ConfigKeys.YoloDetectIntraOpThreads, 0),
@@ -289,7 +291,7 @@ public sealed class YoloTrainingService
 
     /// <summary>Export {run}/weights/best.pt to ONNX (also the best-so-far weights of a cancelled run).</summary>
     public Task<YoloTrainingOutcome> ExportAsync(string runDir, YoloLauncher launcher, YoloExportOptions? options = null) =>
-        Exclusive(null, "", Busy, error => Fail(error, null, runDir, null), () => Cancelled(null, runDir, null), async ct =>
+        Exclusive(Path.GetDirectoryName(Path.GetFullPath(runDir)), "export " + Path.GetFileName(runDir), Busy, error => Fail(error, null, runDir, null), () => Cancelled(null, runDir, null), async ct =>
         {
             var full = Path.GetFullPath(runDir);
             var weights = YoloArtifacts.WeightsPath(full);
@@ -306,7 +308,7 @@ public sealed class YoloTrainingService
     /// {run}/eval/{stamp}/dataset (classes = the model's classes), `yolo detect val` at the training imgsz, metrics stored in run_info.
     /// </summary>
     public Task<YoloEvalOutcome> EvaluateOnRealDataAsync(string runDir, IReadOnlyList<YoloDatasetSource> sources, YoloLauncher launcher) =>
-        Exclusive(null, "", error => new YoloEvalOutcome(false, false, null, error), EvalFail, () => new YoloEvalOutcome(false, true, null, null), ct => EvaluateCoreAsync(Path.GetFullPath(runDir), sources, launcher, ct));
+        Exclusive(Path.GetDirectoryName(Path.GetFullPath(runDir)), "eval " + Path.GetFileName(runDir), error => new YoloEvalOutcome(false, false, null, error), EvalFail, () => new YoloEvalOutcome(false, true, null, null), ct => EvaluateCoreAsync(Path.GetFullPath(runDir), sources, launcher, ct));
 
     private async Task<YoloTrainingOutcome> TrainCoreAsync(YoloTrainingJob job, CancellationToken ct)
     {

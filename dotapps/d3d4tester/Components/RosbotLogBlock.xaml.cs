@@ -10,6 +10,7 @@ using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Pages.RunLog;
 using DotApps.d3d4tester.Services;
+using DotApps.d3d4tester.Ui;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Components;
@@ -28,7 +29,6 @@ public partial class RosbotLogBlock : UserControl
 
     private readonly DispatcherTimer _logStatusTimer;
     private bool _bound;
-    private DateTime? _lastLogUtc;
     private double? _lastLatencySec;
 
     public RosbotLogBlock()
@@ -85,7 +85,6 @@ public partial class RosbotLogBlock : UserControl
             Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnLogMessage(message, colorType, logLevel));
             return;
         }
-        _lastLogUtc = DateTime.UtcNow;
         int start = message.IndexOf(LatencyTagStart, StringComparison.Ordinal);
         if (start >= 0)
         {
@@ -94,16 +93,13 @@ public partial class RosbotLogBlock : UserControl
             if (end >= 0)
                 _lastLatencySec = double.TryParse(message[start..end], NumberStyles.Float, CultureInfo.InvariantCulture, out var latency) ? latency : null;
         }
-        TxtRosbotLog.AppendText(RunLogPage.StripUiLogPrefix(message) + "\n");
-        TxtRosbotLog.ScrollToEnd();
+        LogTextBoxHelper.Append(TxtRosbotLog, RunLogPage.StripUiLogPrefix(message) + "\n");
     }
 
-    /// <summary>"Last: x ago" from max(watcher logs.txt mtime, last accepted line); latency only when log_settings.debug_log_latency. 1:1 Python _update_rosbot_log_status_display.</summary>
+    /// <summary>"Last: x ago" from the logs.txt watcher mtime (the source F3 uses); latency only when log_settings.debug_log_latency. 1:1 Python _update_rosbot_log_status_display.</summary>
     private void UpdateLogStatusDisplay()
     {
-        DateTime? last = _lastLogUtc;
-        var mtime = RosbotFlowHost.Current?.GetLastLogModifiedUtc() ?? LogFileMtimeUtc();
-        if (mtime != null && (last == null || mtime > last)) last = mtime;
+        DateTime? last = RosbotFlowHost.Current?.GetLastLogModifiedUtc();
         if (last == null)
         {
             ChipLogStatus.Visibility = Visibility.Collapsed;
@@ -126,12 +122,6 @@ public partial class RosbotLogBlock : UserControl
         {
             ChipLogLatency.Visibility = Visibility.Collapsed;
         }
-    }
-
-    private static DateTime? LogFileMtimeUtc()
-    {
-        var path = RosbotLogPaths.GetLogsFilePath();
-        return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
     }
 
     /// <summary>Open ROSBOT logs.txt in Notepad. 1:1 Python _open_rosbot_log_file.</summary>

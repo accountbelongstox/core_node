@@ -14,6 +14,8 @@ using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services.Monitor;
 using DotApps.d3d4tester.Windows;
+using DotApps.d3d4tester.StatusBar;
+using DotApps.d3d4tester.Ui;
 using DotCore.Utils;
 using Microsoft.Win32;
 
@@ -31,16 +33,16 @@ public partial class MonitorPage : UserControl
     private const string StyleSuccessButton = "SuccessButtonStyle";
     private const string StyleDangerButton = "DangerButtonStyle";
     private const string StyleWarningButton = "WarningButtonStyle";
-    private const string StyleChip = "StatusChipStyle";
-    private const string StyleChipSuccess = "StatusChipSuccessStyle";
-    private const string StyleChipWarning = "StatusChipWarningStyle";
+    private const string StyleChip = D3StatusBarDisplayBuilder.ChipNeutralStyleKey;
+    private const string StyleChipSuccess = D3StatusBarDisplayBuilder.ChipSuccessStyleKey;
+    private const string StyleChipWarning = D3StatusBarDisplayBuilder.ChipWarningStyleKey;
     private const string StyleFieldLabel = "FieldLabelTextStyle";
     private const string StyleMuted = "MutedTextStyle";
     private const string StyleIconButton = "IconButtonStyle";
     private const string GlyphBrowse = "";
     private const string GlyphOpenFolder = "";
     private const string IdleUnknown = "-";
-    private const string CounterSeparator = " · ";
+    private const string CounterSeparator = AppConstants.DisplaySeparator;
     private const int MemoryMbMin = 512;
     private const int MemoryMbMax = 262144;
     private const int ShrinkMaxWidth = 7680;
@@ -48,8 +50,6 @@ public partial class MonitorPage : UserControl
     private const int KeepMax = 9999;
     private const int MinutesMax = 999;
     private const int ProbeMax = 1000000;
-    private const int RosbotMinutesMin = 1;
-    private const int RosbotMinutesMax = 120;
     private static readonly TimeSpan StatusInterval = TimeSpan.FromSeconds(1);
 
     private readonly DispatcherTimer _statusTimer;
@@ -85,7 +85,7 @@ public partial class MonitorPage : UserControl
             _bound = true;
             BindSettings();
         }
-        TxtMonitorLog.Text = string.Join(Environment.NewLine, MonitorLog.Snapshot()) + Environment.NewLine;
+        LogTextBoxHelper.SetText(TxtMonitorLog, string.Join(Environment.NewLine, MonitorLog.Snapshot()) + Environment.NewLine);
         TxtMonitorLog.ScrollToEnd();
         MonitorLog.LineAdded -= OnMonitorLogLine;
         MonitorLog.LineAdded += OnMonitorLogLine;
@@ -108,6 +108,15 @@ public partial class MonitorPage : UserControl
         BtnImportRbAssist.Content = T(I18nKeys.MonitorImportRbAssist);
         TxtLogsWarning.Text = T(I18nKeys.MonitorLogsDisabledWarning);
 
+        NavGroupRun.Header = T(I18nKeys.MonitorNavRun);
+        NavGroupAutomation.Header = T(I18nKeys.MonitorNavAutomation);
+        NavGroupEnvironment.Header = T(I18nKeys.MonitorNavEnvironment);
+        NavGroupDevelopment.Header = T(I18nKeys.MonitorNavDevelopment);
+        TabBridge.Header = T(I18nKeys.MonitorGameData);
+        TabDecompile.Header = T(I18nKeys.DecompileToolsTitle);
+        BridgePanel.RefreshI18n();
+        if (DecompileTools.IsLoaded) DecompileTools.RefreshI18n();
+
         TabRecovery.Header = T(I18nKeys.MonitorRecoveryTitle);
         ChkRestartOnErrorPopup.Content = T(I18nKeys.MonitorRestartOnErrorPopup);
         ChkCloseTeamViewer.Content = T(I18nKeys.MonitorCloseTeamViewer);
@@ -123,6 +132,8 @@ public partial class MonitorPage : UserControl
         RosbotControl.RefreshI18n();
         RosbotLog.RefreshI18n();
         ChkArchiveRollover.Content = T(I18nKeys.MonitorArchiveRollover);
+        LblBridgeTeleport.Text = T(I18nKeys.MonitorBridgeTeleportLabel);
+        TxtBridgeTeleport.ToolTip = T(I18nKeys.MonitorBridgeTeleportHint);
 
         TabWindow.Header = T(I18nKeys.MonitorWindowTitle);
         ChkD3Shrink.Content = T(I18nKeys.MonitorD3Shrink);
@@ -218,17 +229,18 @@ public partial class MonitorPage : UserControl
         ConfigBinding.BindCheckBox(ChkRestartBattlenet, ConfigKeys.MonitorRestartBattlenetOnRestart);
         ConfigBinding.BindCheckBox(ChkAutoStart, ConfigKeys.MonitorAutoStartOnLaunch);
         ConfigBinding.BindCheckBox(ChkTimeoutRestart, ConfigKeys.BattlenetTimeoutRestart, true);
-        ConfigBinding.BindIntTextBox(TxtTimeoutMinutes, ConfigKeys.RosbotTimeoutMinutes, RosbotMinutesMin, RosbotMinutesMax, AppConstants.RosbotTimeoutMinutesDefault);
+        ConfigBinding.BindIntTextBox(TxtTimeoutMinutes, ConfigKeys.RosbotTimeoutMinutes, RosbotConstants.RosbotLogTimeoutMinutesMin, RosbotConstants.RosbotLogTimeoutMinutesMax, RosbotConstants.RosbotLogTimeoutMinutesDefault);
         ConfigBinding.BindCheckBox(ChkStartup, ConfigKeys.RosbotStartup);
         ConfigBinding.BindCheckBox(ChkArchiveRollover, ConfigKeys.MonitorArchiveLogRollover);
+        ConfigBinding.BindTextBox(TxtBridgeTeleport, ConfigKeys.BridgeTeleportUiSequence, "");
 
         ConfigBinding.BindCheckBox(ChkD3Shrink, ConfigKeys.MonitorD3ShrinkOnStart);
         ConfigBinding.BindIntTextBox(TxtShrinkWidth, ConfigKeys.MonitorD3ShrinkWidth, MonitorSettings.D3ShrinkMinWidth, ShrinkMaxWidth, MonitorSettings.D3ShrinkWidthDefault);
         ConfigBinding.BindIntTextBox(TxtShrinkHeight, ConfigKeys.MonitorD3ShrinkHeight, MonitorSettings.D3ShrinkMinHeight, ShrinkMaxHeight, MonitorSettings.D3ShrinkHeightDefault);
         ConfigBinding.BindCheckBox(ChkForceSequence, ConfigKeys.MonitorForceSequence);
         ConfigBinding.BindTextBox(TxtSequenceName, ConfigKeys.MonitorForceSequenceName);
-        ConfigBinding.BindCheckBox(ChkTuning, ConfigKeys.MonitorTuningEnabled);
-        ChkTuning.Checked += OnTuningChecked;
+        ChkTuning.IsChecked = ConfigBinding.GetValue(ConfigKeys.MonitorTuningEnabled, false);
+        ChkTuning.Click += OnTuningClick;
         ChkTuning.Checked += (_, _) => GridTuning.IsEnabled = true;
         ChkTuning.Unchecked += (_, _) => GridTuning.IsEnabled = false;
         GridTuning.IsEnabled = ChkTuning.IsChecked == true;
@@ -274,13 +286,21 @@ public partial class MonitorPage : UserControl
         };
     }
 
-    /// <summary>RBAssist SHOWADVANCED: confirm the risk before enabling process tuning.</summary>
-    private void OnTuningChecked(object sender, RoutedEventArgs e)
+    /// <summary>RBAssist SHOWADVANCED: confirm the risk before enabling process tuning; monitor.tuning.enabled is written only after Yes (No reverts the box).</summary>
+    private void OnTuningClick(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return;
-        var answer = MessageBox.Show(Window.GetWindow(this), T(I18nKeys.MonitorTuningWarning), T(I18nKeys.MonitorTuningWarningTitle),
-            MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (answer != MessageBoxResult.Yes) ChkTuning.IsChecked = false;
+        bool enable = ChkTuning.IsChecked == true;
+        if (enable)
+        {
+            var answer = MessageBox.Show(Window.GetWindow(this), T(I18nKeys.MonitorTuningWarning), T(I18nKeys.MonitorTuningWarningTitle),
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (answer != MessageBoxResult.Yes)
+            {
+                ChkTuning.IsChecked = false;
+                return;
+            }
+        }
+        ConfigBinding.SetValue(ConfigKeys.MonitorTuningEnabled, enable);
     }
 
     /// <summary>ROSBOT log is the ColorPrint sink while this tab is selected. Called from MainWindow.</summary>
@@ -297,15 +317,19 @@ public partial class MonitorPage : UserControl
 
     private void UpdateStatus()
     {
-        var st = MonitorService.Instance.GetStatus();
-        bool flow = GameInterfaceData.Instance.GetStateSnapshot().RosbotFlowMasterEnabled;
-        bool paused = flow && GameInterfaceData.Instance.RosbotFlowPaused;
-        TxtMonitoring.Text = T(paused ? I18nKeys.MonitorMonitoringPaused : flow ? I18nKeys.MonitorMonitoringOn : I18nKeys.MonitorMonitoringOff);
-        ChipMonitoring.SetResourceReference(StyleProperty, paused ? StyleChipWarning : flow ? StyleChipSuccess : StyleChip);
-        TxtD3.Text = T(st.D3Running ? I18nKeys.MonitorD3Running : I18nKeys.MonitorD3NotRunning);
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        var st = MonitorService.Instance.GetStatus(snapshot);
+        bool flow = snapshot.RosbotFlowMasterEnabled;
+        bool paused = flow && snapshot.RosbotFlowPaused;
+        var (monitoringText, monitoringBrush) = D3StatusBarDisplayBuilder.MonitoringStatus(snapshot, D3D4TesterI18n.Provider);
+        TxtMonitoring.Text = monitoringText;
+        ChipMonitoring.SetResourceReference(StyleProperty, D3StatusBarDisplayBuilder.ChipStyleKeyForBrush(monitoringBrush));
+        string d3Process = st.D3Running ? D3StatusBarDisplayBuilder.ProcessText(snapshot.D3ExeName, snapshot.D3Pid) : "";
+        string rosbotProcess = st.RosbotOnline ? D3StatusBarDisplayBuilder.ProcessText(snapshot.RosbotFoundExeName, snapshot.RosbotFoundPid) : "";
+        TxtD3.Text = T(st.D3Running ? I18nKeys.MonitorD3Running : I18nKeys.MonitorD3NotRunning) + (d3Process.Length > 0 ? CounterSeparator + d3Process : "");
         ChipD3.SetResourceReference(StyleProperty, st.D3Running ? StyleChipSuccess : StyleChip);
-        TxtRosbot.Text = T(st.RosbotOnline ? I18nKeys.MonitorRosbotRunning : I18nKeys.MonitorRosbotNotRunning);
-        ChipRosbot.SetResourceReference(StyleProperty, st.RosbotOnline ? StyleChipSuccess : StyleChip);
+        TxtRosbot.Text = T(st.RosbotOnline ? I18nKeys.MonitorRosbotRunning : I18nKeys.MonitorRosbotNotRunning) + (rosbotProcess.Length > 0 ? CounterSeparator + rosbotProcess : "");
+        ChipRosbot.SetResourceReference(StyleProperty, D3StatusBarDisplayBuilder.ChipStyleKeyForBrush(D3StatusBarDisplayBuilder.RosbotBrushKey(snapshot.RosbotExtendedStatus)));
         TxtLogIdle.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorLogIdle), FormatIdle(st.LogIdleSec));
         TxtHistoryIdle.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorHistoryIdle), FormatIdle(st.HistoryIdleSec));
         TxtRestarts.Text = string.Format(CultureInfo.InvariantCulture, T(I18nKeys.MonitorRestarts), st.Restarts);
@@ -332,8 +356,7 @@ public partial class MonitorPage : UserControl
             Dispatcher.BeginInvoke(DispatcherPriority.Background, () => OnMonitorLogLine(line));
             return;
         }
-        TxtMonitorLog.AppendText(line + Environment.NewLine);
-        TxtMonitorLog.ScrollToEnd();
+        LogTextBoxHelper.Append(TxtMonitorLog, line + Environment.NewLine);
     }
 
     private void BtnToggleMonitoring_Click(object sender, RoutedEventArgs e)

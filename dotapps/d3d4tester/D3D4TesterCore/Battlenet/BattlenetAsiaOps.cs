@@ -7,7 +7,7 @@ using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Asia Battle.net login steps: email step (Continue), password step (Log in), combined form, fill-whatever-present + submit.
+/// Asia Battle.net login: fill whatever fields are present (email / password step or combined form) + submit.
 /// Field fill: UIA ValuePattern first, keyboard fallback (focus, replace, type 0.05-0.15 s per char, clipboard for unicode).
 /// 1:1 Python d3utils/battlenet_asia_ops.py.
 /// </summary>
@@ -31,110 +31,6 @@ public sealed class BattlenetAsiaOps
     public BattlenetAsiaOps(BattlenetOperationBase op)
     {
         _op = op;
-    }
-
-    public bool IsOnAsiaEmailStep(IReadOnlyList<BattlenetControl>? controls = null) => Judge(controls).IsAsiaEmailStep();
-
-    public bool IsOnAsiaPasswordStep(IReadOnlyList<BattlenetControl>? controls = null) => Judge(controls).IsAsiaPasswordStep();
-
-    public bool IsOnAsiaLoginScreen(IReadOnlyList<BattlenetControl>? controls = null) => Judge(controls).IsAsiaLoginUi();
-
-    public bool IsOnAsiaCombinedLoginUi(IReadOnlyList<BattlenetControl>? controls = null) => Judge(controls).IsAsiaCombinedLoginUi();
-
-    /// <summary>Fill email then click Continue (submit). 1:1 Python perform_asia_email_step.</summary>
-    public bool PerformAsiaEmailStep(string email)
-    {
-        _op.ActivateWindow();
-        Thread.Sleep(C.ActivateSettleMs);
-        var controls = T.Enumerate();
-        if (!IsOnAsiaEmailStep(controls))
-        {
-            ColorPrinter.Yellow($"{LogTag} Not on Asia email step, skip");
-            return false;
-        }
-        var account = FindAccountControl(controls);
-        if (account != null)
-        {
-            FillField(account, email, isPassword: false);
-            SleepSec(C.AsiaAfterFieldFillSec);
-        }
-        var submit = FindSubmitButton(controls);
-        if (submit == null)
-        {
-            ColorPrinter.Yellow($"{LogTag} Continue button (submit) not found");
-            return false;
-        }
-        ColorPrinter.Blue($"{LogTag} Click Continue (submit)");
-        return T.ClickControl(submit);
-    }
-
-    /// <summary>Fill password (if given, re-enumerate once after 0.5 s) then click submit (Log in). 1:1 Python perform_asia_password_step.</summary>
-    public bool PerformAsiaPasswordStep(string? password)
-    {
-        _op.ActivateWindow();
-        Thread.Sleep(C.ActivateSettleMs);
-        var controls = T.Enumerate();
-        if (!IsOnAsiaPasswordStep(controls))
-        {
-            ColorPrinter.Yellow($"{LogTag} Not on Asia password step, skip");
-            return false;
-        }
-        if (!string.IsNullOrEmpty(password))
-        {
-            var passwordCtrl = FindPasswordControl(controls);
-            if (passwordCtrl == null)
-            {
-                SleepSec(C.AsiaPasswordReenumerateDelaySec);
-                controls = T.Enumerate();
-                passwordCtrl = FindPasswordControl(controls);
-            }
-            if (passwordCtrl != null)
-            {
-                FillField(passwordCtrl, password, isPassword: true);
-                SleepSec(C.AsiaAfterFieldFillSec);
-            }
-        }
-        var submit = T.FindByAnyAutomationId(controls, C.AsiaLoginSubmitAutomationIds);
-        if (submit == null)
-        {
-            ColorPrinter.Yellow($"{LogTag} Submit (automation_id=submit) not found");
-            return false;
-        }
-        ColorPrinter.Blue($"{LogTag} Click submit (Log in)");
-        return T.ClickControl(submit);
-    }
-
-    /// <summary>Account and password on one screen: fill both then submit. 1:1 Python perform_asia_combined_login.</summary>
-    public bool PerformAsiaCombinedLogin(string email, string? password)
-    {
-        _op.ActivateWindow();
-        Thread.Sleep(C.ActivateSettleMs);
-        var controls = T.Enumerate();
-        if (!IsOnAsiaCombinedLoginUi(controls))
-        {
-            ColorPrinter.Yellow($"{LogTag} Not on Asia combined login UI, skip");
-            return false;
-        }
-        var account = FindAccountControl(controls);
-        if (account != null)
-        {
-            FillField(account, email, isPassword: false);
-            SleepSec(C.AsiaAfterFieldFillSec);
-        }
-        var passwordCtrl = FindPasswordControl(controls);
-        if (passwordCtrl != null && !string.IsNullOrEmpty(password))
-        {
-            FillField(passwordCtrl, password, isPassword: true);
-            SleepSec(C.AsiaAfterFieldFillSec);
-        }
-        var submit = FindSubmitButton(controls) ?? T.FindByName(controls, C.AsiaLoginSubmitKeywordsFallback);
-        if (submit == null)
-        {
-            ColorPrinter.Yellow($"{LogTag} Submit button not found (combined)");
-            return false;
-        }
-        ColorPrinter.Blue($"{LogTag} Click submit (combined login)");
-        return T.ClickControl(submit);
     }
 
     /// <summary>
@@ -235,12 +131,6 @@ public sealed class BattlenetAsiaOps
             ColorPrinter.Gray($"{LogTag} Field fill failed (ValuePattern and keyboard)");
         return ok;
     }
-
-    private static BattlenetControl? FindSubmitButton(IReadOnlyList<BattlenetControl> controls)
-        => T.FindByAnyAutomationId(controls, C.AsiaLoginSubmitAutomationIds);
-
-    private static BattlenetControl? FindAccountControl(IReadOnlyList<BattlenetControl> controls)
-        => T.FindByAnyAutomationId(controls, C.AsiaLoginAccountAutomationIds) ?? T.FindByName(controls, C.AsiaLoginAccountKeywordsFallback);
 
     /// <summary>Automation id, then name, then EditControl with a password name. 1:1 Python _find_password_control.</summary>
     private static BattlenetControl? FindPasswordControl(IReadOnlyList<BattlenetControl> controls)

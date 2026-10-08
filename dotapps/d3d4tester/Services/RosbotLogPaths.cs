@@ -13,6 +13,7 @@ public static class RosbotLogPaths
     private const string LogsFileName = "logs.txt";
     private const string HistoryFileName = "history.txt";
     private const string GlobalSettingsFileName = "RosBotGlobalSettings.ini";
+    private const string GamblingSettingsFileName = "RosBotGamblingSettings.ini";
 
     public static string GetRosbotDocumentsDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), RosbotDocumentsDir);
@@ -26,4 +27,6 @@ public static class RosbotLogPaths
 
     /// <summary>ROSBOT global settings (DebugLevel = NoLogs disables logs.txt).</summary>
     public static string GetGlobalSettingsPath() => Path.Combine(GetRosbotDocumentsDirectory(), GlobalSettingsFileName);
+
+    public static string GetGamblingSettingsPath() => Path.Combine(GetRosbotDocumentsDirectory(), GamblingSettingsFileName);
 }

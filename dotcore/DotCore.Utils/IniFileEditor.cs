@@ -16,6 +16,7 @@ public enum IniSetResult
 /// Line-level INI edit that keeps the file as its owner wrote it: encoding (UTF-8 with / without BOM, UTF-16, other single-byte
 /// text round-tripped as Latin-1), line endings, comments and order. SetValue replaces the value of the first existing key, or
 /// inserts the key at the end of the first section that holds one of the anchor keys; it never invents a section or a file.
+/// GetValue reads the value of the first existing key (null when the file or key is missing).
 /// </summary>
 public static class IniFileEditor
 {
@@ -28,6 +29,17 @@ public static class IniFileEditor
     private const char SectionStart = '[';
     private const char SectionEnd = ']';
     private static readonly char[] CommentStarts = { ';', '#' };
+
+    public static string? GetValue(string path, string key)
+    {
+        if (!File.Exists(path)) return null;
+        byte[] bytes = File.ReadAllBytes(path);
+        var (encoding, preamble) = DetectEncoding(bytes);
+        foreach (string line in encoding.GetString(bytes, preamble.Length, bytes.Length - preamble.Length).Split(LineFeed))
+            if (TryKey(line, out string name, out int eq) && string.Equals(name, key, StringComparison.OrdinalIgnoreCase))
+                return line.TrimEnd(CarriageReturn)[(eq + 1)..].Trim();
+        return null;
+    }
 
     public static IniSetResult SetValue(string path, string key, string value, IReadOnlyCollection<string> anchorKeys)
     {

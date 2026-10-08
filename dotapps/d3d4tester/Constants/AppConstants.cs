@@ -21,26 +21,27 @@ public static class AppConstants
     public const string PanelKeyCalibration = "calibration";
     public const string PanelKeyLog = "log";
     public const string PanelKeyBattlenet = "battlenet";
-    public const string PanelKeyDecompile = "decompile";
     public const string PanelKeyMonitor = "monitor";
     public const int TabIndexMain = 0;
     public const int TabIndexD4 = 1;
     public const int TabIndexCalibration = 2;
-    /// <summary>Battle.net management sits before the log; the log tab is always last.</summary>
+    /// <summary>Battle.net management sits before the log; the control center (monitor + test) follows it; the log tab is always last.</summary>
     public const int TabIndexBattlenet = 3;
-    public const int TabIndexDecompile = 4;
-    public const int TabIndexMonitor = 5;
-    public const int TabIndexLog = 6;
-    public const int TabCount = 7;
+    public const int TabIndexMonitor = 4;
+    public const int TabIndexLog = 5;
+    public const int TabCount = 6;
 
     // ---------- Popup keys (UiRegistry.RegisterPopup/GetPopup; 1:1 Python POPUP_KEY_*) ----------
     public const string PopupKeyDebugWindow = "debug_window";
 
     // ---------- Default hotkeys (1:1 Python game_interface_controller fallback when key missing) ----------
-    public const string DefaultMacroStartHotkey = "F9";
-    public const string DefaultAssistantHotkey = "F10";
+    public const string DefaultMacroStartHotkey = "F2";
+    public const string DefaultAssistantHotkey = "F3";
     /// <summary>Per-config hotkey default (macro_configs.skill_configs.&lt;name&gt;.quick_switch). 1:1 Python PER_CONFIG_HOTKEY_SPEC.</summary>
     public const string DefaultQuickSwitchHotkey = "F1";
+
+    /// <summary>Separator between parts of one status text (status bar, Monitor and Battle.net tabs).</summary>
+    public const string DisplaySeparator = " · ";
 
     /// <summary>Default custom force-stand key (macro_configs.auxiliary_config.custom_stand_key).</summary>
     public const string DefaultCustomStandKey = "Shift";
@@ -69,9 +70,6 @@ public static class AppConstants
     public const string LogLevelDefault = LogLevelInfo;
 
     // ---------- Rosbot panel defaults (same as Python d3.py ROSBOT_*_DEFAULT where applicable) ----------
-    public const int RosbotSmartEchoWaitSecondsDefault = 15;
-    public const int RosbotTestTimeoutMinutesDefault = 30;
-    public const int RosbotTimeoutMinutesDefault = 8;
 
     // ---------- Bag offset input (1:1 Python auxiliary_options_block _OFFSET_MIN/_OFFSET_MAX) ----------
     public const int BagOffsetMin = -500;

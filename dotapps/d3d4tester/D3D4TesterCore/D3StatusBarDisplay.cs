@@ -20,6 +20,8 @@ public sealed class D3StatusBarDisplay : IStatusBarDisplay
     public string MapBrushKey { get; init; } = "TextMutedBrush";
     public string StageText { get; init; } = "";
     public string StageBrushKey { get; init; } = "TextMutedBrush";
+    public string MonitoringText { get; init; } = "";
+    public string MonitoringBrushKey { get; init; } = "TextMutedBrush";
     public string OauthText { get; init; } = "";
     public string OauthBrushKey { get; init; } = "TextMutedBrush";
     public string WindowSizeText { get; init; } = "";

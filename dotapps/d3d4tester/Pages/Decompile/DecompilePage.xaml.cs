@@ -36,8 +36,6 @@ public partial class DecompilePage : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        BridgePanel.RefreshI18n();
-        TabBridge.Header = p.GetUiText(I18nKeys.RosbotBridgeTitle);
         TabTools.Header = p.GetUiText(I18nKeys.DecompileToolsTitle);
         TabLog.Header = p.GetUiText(I18nKeys.DecompileLog);
         BtnInstall.ToolTip = p.GetUiText(I18nKeys.DecompileToolsDesc);
@@ -94,6 +92,7 @@ public partial class DecompilePage : UserControl
     private void BtnRecoverSources_Click(object sender, RoutedEventArgs e) => _ = RunAsync(async (log, token) =>
     {
         var report = await DecompileService.RecoverSourcesAsync(log, token);
+        if (report == null) return;
         await Dispatcher.InvokeAsync(() => _chainStatusKey = report.AllProtectedBodiesRecovered
             ? I18nKeys.DecompilePassed : I18nKeys.DecompileIncomplete);
     });
@@ -141,15 +140,18 @@ public partial class DecompilePage : UserControl
         return dlg.ShowDialog(Window.GetWindow(this)) == true ? dlg.FileName : null;
     }
 
-    private static void Report(DecompileResult r, Action<string> log) =>
-        log($"{(r.Partial ? "PARTIAL" : r.Ok ? "OK" : "FAILED")} [{r.Kind}] {r.Summary} -> {r.OutputDir}");
+    private static void Report(DecompileResult r, Action<string> log)
+    {
+        var status = r.Partial ? I18nKeys.DecompileResultPartial : r.Ok ? I18nKeys.DecompileResultOk : I18nKeys.DecompileResultFailed;
+        log($"{D3D4TesterI18n.Provider.GetUiText(status)} [{r.Kind}] {r.Summary} -> {r.OutputDir}");
+    }
 
     /// <summary>Run one operation on a worker thread with buttons disabled; tool output streams into the log box and ColorPrinter.</summary>
     private async Task RunAsync(Func<Action<string>, CancellationToken, Task> work)
     {
         if (_busy) return;
         _busy = true;
-        _operation = new CancellationTokenSource();
+        _operation = DecompileService.BeginOperation();
         TabsDecompile.SelectedItem = TabLog;
         RefreshState();
         void Log(string line)
@@ -168,7 +170,7 @@ public partial class DecompilePage : UserControl
         catch (OperationCanceledException)
         {
             _chainStatusKey = I18nKeys.DecompileCancelled;
-            Log("Operation cancelled or timed out");
+            Log(D3D4TesterI18n.Provider.GetUiText(I18nKeys.DecompileCancelled));
         }
         catch (Exception ex)
         {

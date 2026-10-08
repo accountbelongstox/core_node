@@ -179,12 +179,12 @@ public sealed class D4Pipeline
         Data.RedPortal = portal;
     }
 
-    /// <summary>Clear the shared data and detector state (call on Stop).</summary>
-    public void Reset()
+    /// <summary>Clear the shared data and detector state (call on Stop); keepDebugWindow keeps the debug-window flags inside the tick lock.</summary>
+    public void Reset(bool keepDebugWindow = false)
     {
         lock (_tickLock)
         {
-            Data.Clear();
+            Data.Clear(keepDebugWindow);
             D4MapSwitchDetector.Instance.Reset();
             D4MapNameRecognizer.Instance.Reset();
         }

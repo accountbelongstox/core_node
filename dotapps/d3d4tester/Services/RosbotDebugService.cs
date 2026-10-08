@@ -22,8 +22,7 @@ public static class RosbotDebugService
     private const string ErrorNotFound = "Window not found";
     private const string DefaultTitle = "ROSBOT";
     private const int F7SettleMs = 1000;
-    private const int E2SleepMs = 1000;
-    private const int E5aWaitSec = 30;
+    private static readonly TimeSpan EBlockTimeout = TimeSpan.FromMinutes(3);
     private static int _running;
 
     /// <summary>Register the RunLog debug button handler (idempotent).</summary>
@@ -61,7 +60,6 @@ public static class RosbotDebugService
                 ColorPrinter.Blue("[RosbotPanel] ROSBOT UI JSON: process running, all windows invisible, send F7 then debug");
                 if (RosbotManager.SendF7ToSystem())
                 {
-                    RosbotExitState.SetF7SentForRosbot();
                     ColorPrinter.Green("[RosbotPanel] F7 sent to system (pause)");
                 }
                 else
@@ -74,16 +72,14 @@ public static class RosbotDebugService
             }
             else
             {
-                ColorPrinter.Blue("[RosbotPanel] ROSBOT UI JSON: not started, starting ROSBOT (E1/E2/E4/E5/E5a)...");
-                mgr.KillIfRunning();
-                await Task.Delay(E2SleepMs).ConfigureAwait(false);
-                if (!mgr.Start())
+                ColorPrinter.Blue("[RosbotPanel] ROSBOT UI JSON: not started, starting ROSBOT (E block)...");
+                bool started = await Task.Run(() => RosbotRunFlow.RunEBlock(FlowContext.WithTimeout(EBlockTimeout),
+                    () => RosbotFlowHost.Current?.StartRosbotTask())).ConfigureAwait(false);
+                if (!started)
                 {
                     ColorPrinter.Red("[RosbotPanel] ROSBOT UI JSON: start failed");
                     return;
                 }
-                RosbotFlowHost.Current?.StartRosbotTask();
-                RosbotUiAutomation.RunAfterRosbotStart(E5aWaitSec, doDebug: true, doTab: true, doStartBotting: true);
                 RosbotStatusProvider.Refresh();
                 window = mgr.GetAnyRosbotWindowForDebug();
             }

@@ -36,6 +36,14 @@ public sealed record RosbotBridgeState(
     [property: JsonPropertyName("level_area_history")] IReadOnlyList<RosbotBridgeAreaVisit>? LevelAreaHistory)
 {
     [JsonPropertyName("repair_needed")] public bool RepairNeeded { get; init; }
+    /// <summary>Blood shard cap of the hero (ROSBOT LocalPlayer.MaxShard); 0 = unknown (older plugin).</summary>
+    [JsonPropertyName("max_blood_shards")] public int MaxBloodShards { get; init; }
+    /// <summary>The plugin holds this town visit (ROSBOT's town run or follow) until the app clears town_hold.txt.</summary>
+    [JsonPropertyName("town_hold")] public bool TownHold { get; init; }
+    [JsonPropertyName("town_hold_reason")] public string TownHoldReason { get; init; } = "";
+    [JsonPropertyName("town_hold_since_utc")] public DateTime TownHoldSinceUtc { get; init; }
+
+    public bool BloodShardsFull => MaxBloodShards > 0 && BloodShards >= MaxBloodShards;
     [JsonPropertyName("monsters_nearby")] public int MonstersNearby { get; init; }
     [JsonPropertyName("elites_nearby")] public int ElitesNearby { get; init; }
     [JsonPropertyName("picked_count")] public int PickedCount { get; init; }
@@ -48,6 +56,7 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("follow_enabled")] public bool FollowEnabled { get; init; }
     [JsonPropertyName("follow_state")] public string FollowState { get; init; } = "";
     [JsonPropertyName("follow_pickup")] public bool FollowPickup { get; init; }
+    [JsonPropertyName("follow_mode")] public string FollowMode { get; init; } = "";
     [JsonPropertyName("follow_leader")] public string FollowLeader { get; init; } = "";
     [JsonPropertyName("follow_distance")] public double FollowDistance { get; init; } = -1;
     [JsonPropertyName("players")] public IReadOnlyList<RosbotBridgeEntity> Players { get; init; } = Array.Empty<RosbotBridgeEntity>();
@@ -59,6 +68,8 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("carried_items")] public IReadOnlyList<RosbotBridgeEntity> CarriedItems { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("pickups")] public IReadOnlyList<RosbotBridgePickup> Pickups { get; init; } = Array.Empty<RosbotBridgePickup>();
     [JsonPropertyName("last_command")] public RosbotBridgeCommandResult? LastCommand { get; init; }
+    /// <summary>Command the plugin is executing right now (Ok / Message unused), or null.</summary>
+    [JsonPropertyName("running_command")] public RosbotBridgeCommandResult? RunningCommand { get; init; }
 
     /// <summary>state.json older than this means the plugin is not running (disabled in ROSBOT, or ROSBOT stopped).</summary>
     public const int StaleSec = 5;
@@ -89,6 +100,9 @@ public sealed record RosbotBridgeEntity(
     /// <summary>Backpack / stash grid cell (column, row), -1 when the plugin cannot read it.</summary>
     [JsonPropertyName("inv_x")] public int InvX { get; init; } = -1;
     [JsonPropertyName("inv_y")] public int InvY { get; init; } = -1;
+    /// <summary>Players: party slot from the town banners (0 unknown) and the Leader attribute.</summary>
+    [JsonPropertyName("party_slot")] public int PartySlot { get; init; }
+    [JsonPropertyName("is_leader")] public bool IsLeader { get; init; }
     [JsonPropertyName("gbid")] public int Gbid { get; init; }
     [JsonPropertyName("attrs")] public IReadOnlyDictionary<string, double>? Attrs { get; init; }
 }

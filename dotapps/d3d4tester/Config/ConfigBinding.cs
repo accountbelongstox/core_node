@@ -14,21 +14,16 @@ namespace DotApps.d3d4tester.Config;
 public static class ConfigBinding
 {
     private static readonly Dictionary<string, List<Binding>> _bindings = new(StringComparer.Ordinal);
-    private static bool _updating;
+    /// <summary>Per thread: true while this thread pushes a value into bound controls, so their change events are not saved back.</summary>
+    [ThreadStatic] private static bool _updating;
 
     public static T? GetValue<T>(string keyPath, T? defaultValue = default) =>
         D3D4TesterConfigService.Instance.GetValueSafe(keyPath, defaultValue);
 
-    /// <summary>Set value (async save), sync other bound controls, notify change hub on direct writes. 1:1 Python set_config_value.</summary>
+    /// <summary>Set value (async save), sync other bound controls, notify change hub. 1:1 Python set_config_value.</summary>
     public static bool SetValue(string keyPath, object? value)
     {
         var svc = D3D4TesterConfigService.Instance;
-        if (_updating)
-        {
-            svc.SetValueAsync(keyPath, value);
-            UpdateBindings(keyPath, value);
-            return true;
-        }
         svc.SetValueAsync(keyPath, value);
         ColorPrinter.Green($"[ConfigBinding] Updated config '{keyPath}' = {value}");
         UpdateBindings(keyPath, value);
@@ -39,13 +34,6 @@ public static class ConfigBinding
     public static void SaveCheckbox(string keyPath, bool value) => SetValue(keyPath, value);
 
     public static void SaveString(string keyPath, string? value) => SetValue(keyPath, value ?? "");
-
-    /// <summary>Combo value; null (no selection) is ignored.</summary>
-    public static void SaveComboBox(string keyPath, string? value)
-    {
-        if (value == null) return;
-        SetValue(keyPath, value);
-    }
 
     /// <summary>Integer from text: non-numeric -> defaultValue, then clamped to [min, max]. Returns the saved value.</summary>
     public static int SaveInt(string keyPath, string? text, int min, int max, int defaultValue)
@@ -64,7 +52,7 @@ public static class ConfigBinding
     }
 
     /// <summary>Int at key whether stored as JSON number or string; invalid -> defaultValue, then clamped to [min, max].</summary>
-    public static int GetIntValue(string keyPath, int min, int max, int defaultValue) => ParseInt(GetRawScalar(keyPath), min, max, defaultValue);
+    public static int GetIntValue(string keyPath, int min, int max, int defaultValue) => ParseInt(GetScalarText(keyPath), min, max, defaultValue);
 
     public static int ParseInt(string? text, int min, int max, int defaultValue)
     {
@@ -84,7 +72,7 @@ public static class ConfigBinding
     /// <summary>Bind CheckBox: load bool, save on Checked/Unchecked. 1:1 Python create_checkbox_binding.</summary>
     public static void BindCheckBox(CheckBox checkBox, string keyPath, bool defaultValue = false)
     {
-        if (!TryRegister(checkBox, keyPath, v => checkBox.IsChecked = ToBool(v, defaultValue))) return;
+        if (!TryRegister(checkBox, keyPath, (c, v) => ((CheckBox)c).IsChecked = ToBool(v, defaultValue))) return;
         checkBox.IsChecked = GetValue<bool?>(keyPath, defaultValue) ?? defaultValue;
         checkBox.Checked += (_, _) => OnControlChanged(keyPath, true);
         checkBox.Unchecked += (_, _) => OnControlChanged(keyPath, false);
@@ -93,7 +81,7 @@ public static class ConfigBinding
     /// <summary>Bind TextBox to a string key: load, save on LostFocus. 1:1 Python create_input_binding.</summary>
     public static void BindTextBox(TextBox textBox, string keyPath, string defaultValue = "")
     {
-        if (!TryRegister(textBox, keyPath, v => textBox.Text = v?.ToString() ?? "")) return;
+        if (!TryRegister(textBox, keyPath, SetTextBoxText)) return;
         textBox.Text = GetValue<string>(keyPath, defaultValue) ?? defaultValue;
         textBox.LostFocus += (_, _) => OnControlChanged(keyPath, textBox.Text ?? "");
     }
@@ -101,8 +89,8 @@ public static class ConfigBinding
     /// <summary>Bind TextBox to an int key with range validation: invalid -> defaultValue, clamp to [min, max], normalized text. 1:1 Python create_spinbox_binding (int increment).</summary>
     public static void BindIntTextBox(TextBox textBox, string keyPath, int min, int max, int defaultValue)
     {
-        if (!TryRegister(textBox, keyPath, v => textBox.Text = v?.ToString() ?? "")) return;
-        textBox.Text = ParseInt(GetRawScalar(keyPath), min, max, defaultValue).ToString(CultureInfo.InvariantCulture);
+        if (!TryRegister(textBox, keyPath, SetTextBoxText)) return;
+        textBox.Text = ParseInt(GetScalarText(keyPath), min, max, defaultValue).ToString(CultureInfo.InvariantCulture);
         textBox.LostFocus += (_, _) =>
         {
             int v = ParseInt(textBox.Text, min, max, defaultValue);
@@ -117,14 +105,14 @@ public static class ConfigBinding
     /// </summary>
     public static void BindComboBox(ComboBox comboBox, string keyPath, IReadOnlyList<string> values, string defaultValue)
     {
-        void Select(object? v)
+        void Select(Control control, object? v)
         {
             int idx = IndexOf(values, v?.ToString());
             if (idx < 0) idx = IndexOf(values, defaultValue);
-            comboBox.SelectedIndex = idx;
+            ((ComboBox)control).SelectedIndex = idx;
         }
         if (!TryRegister(comboBox, keyPath, Select)) return;
-        Select(GetValue<string>(keyPath, defaultValue));
+        Select(comboBox, GetValue<string>(keyPath, defaultValue));
         comboBox.SelectionChanged += (_, _) =>
         {
             int idx = comboBox.SelectedIndex;
@@ -138,7 +126,7 @@ public static class ConfigBinding
     /// </summary>
     public static void BindOffsetTextBox(TextBox textBox, OffsetInputHelper helper, string topKey, string leftKey, string bottomKey, string rightKey)
     {
-        if (!TryRegister(textBox, topKey, _ => LoadOffset(textBox, topKey, leftKey, bottomKey, rightKey))) return;
+        if (!TryRegister(textBox, topKey, (c, _) => LoadOffset((TextBox)c, topKey, leftKey, bottomKey, rightKey))) return;
         LoadOffset(textBox, topKey, leftKey, bottomKey, rightKey);
         void Commit()
         {
@@ -159,23 +147,16 @@ public static class ConfigBinding
             GetValue(topKey, 0), GetValue(leftKey, 0), GetValue(bottomKey, 0), GetValue(rightKey, 0));
     }
 
-    /// <summary>Log one line with the number of bound keys. Call once after all pages are built.</summary>
-    public static void LogRegistrationSummary()
-    {
-        int n;
-        lock (_bindings) n = _bindings.Count;
-        if (n == 0) return;
-        ColorPrinter.Debug($"[ConfigBinding] Registered {n} bindings");
-    }
-
     private static void OnControlChanged(string keyPath, object value)
     {
         if (_updating) return;
         SetValue(keyPath, value);
     }
 
-    /// <summary>Register control setter; false when this control is already bound to the key (page re-load), so handlers are not attached twice.</summary>
-    private static bool TryRegister(Control control, string keyPath, Action<object?> setter)
+    private static void SetTextBoxText(Control control, object? value) => ((TextBox)control).Text = value?.ToString() ?? "";
+
+    /// <summary>Register control setter; false when this control is already bound to the key (page re-load), so handlers are not attached twice. The setter receives the resolved control so the static registry never holds it strongly.</summary>
+    private static bool TryRegister(Control control, string keyPath, Action<Control, object?> setter)
     {
         lock (_bindings)
         {
@@ -207,11 +188,11 @@ public static class ConfigBinding
             foreach (var b in copy)
             {
                 if (!b.Control.TryGetTarget(out var control)) continue;
-                if (control.Dispatcher.CheckAccess()) b.Setter(newValue);
+                if (control.Dispatcher.CheckAccess()) b.Setter(control, newValue);
                 else control.Dispatcher.BeginInvoke(() =>
                 {
                     _updating = true;
-                    try { b.Setter(newValue); }
+                    try { b.Setter(control, newValue); }
                     finally { _updating = false; }
                 });
             }
@@ -223,7 +204,7 @@ public static class ConfigBinding
     }
 
     /// <summary>Scalar at key as text whether stored as JSON number or string; null when missing.</summary>
-    private static string? GetRawScalar(string keyPath) =>
+    public static string? GetScalarText(string keyPath) =>
         D3D4TesterConfigService.Instance.GetRawText(keyPath)?.Trim().Trim('"');
 
     private static bool ToBool(object? v, bool defaultValue) => v switch
@@ -241,5 +222,5 @@ public static class ConfigBinding
         return -1;
     }
 
-    private sealed record Binding(WeakReference<Control> Control, Action<object?> Setter);
+    private sealed record Binding(WeakReference<Control> Control, Action<Control, object?> Setter);
 }

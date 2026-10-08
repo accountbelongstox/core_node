@@ -1,5 +1,9 @@
 {
   "ui": {
+    "startup": {
+      "shortcut_path": "Startup shortcut: {0}",
+      "shortcut_path_missing": "Startup shortcut (not created): {0}"
+    },
     "common": {
       "use_custom_stand_key": "Use custom force stand key"
     },
@@ -125,7 +129,6 @@
       "rosbot_stopped": "ROSBOT stopped"
     },
     "decompile": {
-      "tab": "Test",
       "tools_title": "Decompiler tools",
       "tools_desc": "Downloaded into the program data folder: ILSpy (.NET to C#, needs the .NET SDK), de4dot-cex (.NET deobfuscation), autoit-ripper (compiled AutoIt to .au3, needs Python), UPX (unpack). Already installed tools are kept.",
       "install": "Download / repair tools",
@@ -151,7 +154,14 @@
       "cancel": "Cancel",
       "passed": "Chain passed: tools ran and all targets produced output without detected DNGuard placeholders.",
       "incomplete": "Chain incomplete: check the log and chain_report.json for missing tools, failed targets or protected method bodies.",
-      "cancelled": "Operation cancelled or timed out."
+      "cancelled": "Operation cancelled or timed out.",
+      "chain_rosbot_missing": "CHECK ROSBOT: FAIL configured executable not found",
+      "rosbot_not_found": "ROSBOT exe not found in '{dir}' (set the ROSBOT directory on the Rosbot tab or use Scan)",
+      "rbassist_not_found": "RBAssist exe not found (choose it with Browse)",
+      "settings_fields_written": "ROSBOT settings: {count} fields -> {path}",
+      "result_partial": "PARTIAL",
+      "result_ok": "OK",
+      "result_failed": "FAILED"
     },
     "yolo_training": {
       "mode": "Training mode",
@@ -338,7 +348,6 @@
       "run_delete": "Delete",
       "run_delete_confirm": "Delete run {run} with all its weights, results and exports?\n{dir}",
       "current_model_set": "{consumer} model set: {path}",
-      "navigation_override_active": "Saved as the current navigation model, but the fixed path in the navigation settings still takes precedence:\n{path}\nClear that setting to use the current model.",
       "existing_dataset": "Trains on the existing dataset {dir} (no regeneration)",
       "include_pseudo_labels": "Include unreviewed AI pre-labels (train split only)",
       "preview_pseudo_labels": "AI pre-labeled images: {included} used for train, {skipped} unreviewed skipped",
@@ -894,7 +903,7 @@
       "paragon": "Paragon",
       "health": "Health",
       "resources": "Resources",
-      "resources_format": "Blood shards {0} · keys {1}",
+      "resources_format": "{0} · keys {1}",
       "sequence": "Sequence",
       "last_event": "Last event",
       "updated": "Updated",
@@ -918,6 +927,10 @@
       "not_loaded": "ROSBOT is running but the plugin writes no data: enable CoreNode Bridge in ROSBOT's plugin list; restart ROSBOT after installing or updating",
       "tab_ground": "Drops nearby",
       "tab_npc": "NPCs nearby",
+      "tab_follow": "Follow party",
+      "command_running": "Plugin running: {0} (for {1})",
+      "follow_town_portal_key": "Lost-leader town key",
+      "follow_town_portal_key_tip": "When following and the leader is lost outside town, D3 is brought to the front and this key is pressed to go to town (default t); in town the leader's banner is used.",
       "tab_carried": "Items",
       "tab_pickups": "Pickups",
       "tab_advanced": "Advanced",
@@ -965,6 +978,16 @@
       "build_profile": "Gear set",
       "build_notify": "Drop / pickup alert",
       "build_notify_push": "Push",
+      "build_equip_in_town": "Equip in town",
+      "build_equip_in_town_tip": "When the backpack holds items closer to the gear set (maxroll) than the worn ones, the next town visit holds ROSBOT's town run (in follow mode: before the banner), opens the inventory and right-clicks them on, then ROSBOT salvages as usual. Each item is tried once per run.",
+      "build_gamble_unaligned": "Gamble unaligned",
+      "build_gamble_unaligned_tip": "Rewrites ROSBOT's gamble settings (RosBotGamblingSettings.ini): only the unaligned gear-set slots, bought by ROSBOT at Kadala once the blood shards are full; your own settings come back when everything is aligned or this is off.",
+      "build_alignment": "{0} unaligned: {1} · {2} backpack upgrade(s) · {3}",
+      "build_aligned": "Worn gear matches the gear set",
+      "pickup_build_equip": "gear set {0}: equip in town",
+      "pickup_build_aligned": "gear set {0}: aligned",
+      "blood_shards": "Blood shards {0}/{1}",
+      "blood_shards_full": "shards full",
       "build_col_slot": "Slot",
       "build_col_item": "Item",
       "build_col_have": "In game",
@@ -1061,13 +1084,15 @@
       "follow_stop": "Stop following",
       "follow_banner": "Banner",
       "follow_banner_auto": "Auto",
-      "follow_tip": "Follow the nearest or the selected player; the plugin never attacks (monitoring and ROSBOT stay paused). Lost outside town: town portal (key rosbot.bridge_follow_town_portal_key); in town: the chosen banner (1 = leader, Auto tries 1-4). Pickup: matching items near the leader.",
+      "follow_tip": "Follow the party leader, party member N, the nearest or the selected player. Party slots come from the town banners (seen once in town); the leader from the Leader attribute, else slot 1. The plugin never attacks (monitoring and ROSBOT stay paused). Lost outside town: town portal (key rosbot.bridge_follow_town_portal_key); in town: the target's banner (Auto) or the chosen one. Pickup: matching items near the target.",
       "follow_state": {
         "following": "following",
         "lost": "lost, in town",
         "needs_town": "lost, returning to town",
         "banner": "using banner",
-        "off": "off"
+        "off": "off",
+        "dead": "dead",
+        "town_tasks": "equipping in town"
       },
       "item_name": {
         "healthpotion_bottomless": "Health Potion",
@@ -1077,7 +1102,13 @@
       "follow_target_selected": "Selected player",
       "follow_select_player": "Select a player in the list first",
       "follow_banner_leader": "{0} (leader)",
-      "follow_pickup": "Pick up (pickup filter)"
+      "follow_pickup": "Pick up (pickup filter)",
+      "follow_target_leader": "Party leader",
+      "follow_target_slot": "Party member {0}",
+      "follow_revive": "Auto revive",
+      "follow_revive_tip": "Dead while following: wait 8 s for a teammate (a party revive needs no click), then revive at corpse, else at checkpoint, else in town.",
+      "take_control": "Pause monitoring and ROSBOT when a command acts in the game (follow, NPC, salvage...)",
+      "plugin_not_running": "Not sent: the plugin is not running (start ROSBOT and enable CoreNode Bridge)"
     }
   },
   "skills": {

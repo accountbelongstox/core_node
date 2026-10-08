@@ -1,4 +1,5 @@
 // PY-REF: pyapps/d3-check/d3utils/d3_status_provider.py
+using System.IO;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Flow;
 using DotCore.Foundations;
@@ -42,14 +43,23 @@ public static class D3StatusProvider
             logPrefix: LogPrefix,
             progressRefresh: silent ? _ => { } : step => ColorPrinter.GrayRefresh($"{ProgressPrefix} {winLabel} {step}"),
             skipFinalNewline: silent);
+        changed |= RefreshD3Process(window);
         return (window, changed);
+    }
+
+    /// <summary>Exe name + PID of the process owning the D3 window into GameInterfaceData.</summary>
+    private static bool RefreshD3Process(WindowFinder.WindowInfo? window)
+    {
+        int pid = window != null && ProcessUtil.GetPidFromHwnd(window.Hwnd) is int p ? p : 0;
+        string exe = pid > 0 ? Path.GetFileName(ProcessUtil.GetProcessExePath(pid) ?? "") : "";
+        return GameInterfaceData.Instance.SetD3Process(exe, pid);
     }
 
     /// <summary>(on_login_screen, disconnected, in_game) from one capture of all templates; exclusive, disconnected first.</summary>
     private static (bool OnLogin, bool Disconnected, bool Third) DetectD3Dynamic(bool found, WindowFinder.WindowInfo? window)
     {
         if (!found || window == null) return (false, false, false);
-        var (_, states) = D3StartGameAndTeleport.CaptureAndDetectAllD3States();
+        var (_, states) = D3ScreenState.CaptureAndDetectAllD3States();
         if (states.Disconnected) return (false, true, false);
         if (states.GameTool) return (false, false, true);
         return (states.StartGameButton || states.Connecting, false, false);

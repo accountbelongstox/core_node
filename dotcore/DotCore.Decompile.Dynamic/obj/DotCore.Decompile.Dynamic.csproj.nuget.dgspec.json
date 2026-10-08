@@ -10,7 +10,7 @@
         "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Decompile.Dynamic\\DotCore.Decompile.Dynamic.csproj",
         "projectName": "DotCore.Decompile.Dynamic",
         "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Decompile.Dynamic\\DotCore.Decompile.Dynamic.csproj",
-        "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
         "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Decompile.Dynamic\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,

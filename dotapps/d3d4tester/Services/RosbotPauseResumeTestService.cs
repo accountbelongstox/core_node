@@ -59,7 +59,6 @@ public static class RosbotPauseResumeTestService
             ColorPrinter.Red($"{LogTag} Test: F7 send failed");
             return false;
         }
-        RosbotExitState.SetF7SentForRosbot();
         Thread.Sleep(AfterSendMs);
         return true;
     }
@@ -67,7 +66,7 @@ public static class RosbotPauseResumeTestService
     private static bool Resume()
     {
         ColorPrinter.Blue($"{LogTag} Test: resume (main profile + Start botting!)...");
-        if (!RosbotStatusProvider.GetRosbotOperation().ResumeRosbot(doTab: true, doStartBotting: true))
+        if (!RosbotUiAutomation.ResumeRosbotUi(doTab: true, doStartBotting: true))
         {
             ColorPrinter.Red($"{LogTag} Test: resume (UI) failed");
             return false;

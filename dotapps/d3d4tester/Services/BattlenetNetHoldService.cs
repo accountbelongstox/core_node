@@ -17,8 +17,9 @@ namespace DotApps.d3d4tester.Services;
 public static class BattlenetNetHoldService
 {
     private const string LogTag = "[NetHold]";
-    private const int MinIntervalSec = 15;
-    private const int MaxIntervalSec = 3600;
+    /// <summary>Allowed range of battlenet.net_hold_interval_sec (loop clamp and the Battle.net page input).</summary>
+    public const int MinIntervalSec = 15;
+    public const int MaxIntervalSec = 3600;
 
     private static readonly object Lock = new();
     private static readonly AutoResetEvent Wake = new(false);
@@ -27,6 +28,8 @@ public static class BattlenetNetHoldService
     private static volatile bool _running;
     private static volatile bool _userPaused;
     private static int _retry;
+    /// <summary>Bumped on every enable / disable; a loop exits once its generation is no longer current, so only one loop runs.</summary>
+    private static int _generation;
     private static NetHoldRecord _last = new(DateTime.Now, NetHoldPhase.Idle, null, null, null, null, null, null);
 
     /// <summary>Raised on the worker thread after every pass (already recorded in NetHoldHistory) and when the hold stops.</summary>
@@ -95,11 +98,13 @@ public static class BattlenetNetHoldService
         {
             if (enabled == _running) return;
             _running = enabled;
+            int generation = Interlocked.Increment(ref _generation);
             if (enabled)
             {
                 _retry = 0;
+                _userPaused = false;
                 NetHoldTaskLog.BeginRun();
-                _thread = new Thread(Loop) { IsBackground = true, Name = "NetHold" };
+                _thread = new Thread(() => Loop(generation)) { IsBackground = true, Name = "NetHold" };
                 _thread.Start();
             }
             else Wake.Set();
@@ -109,9 +114,11 @@ public static class BattlenetNetHoldService
         else Publish(new NetHoldResult(NetHoldPhase.Idle));
     }
 
-    private static void Loop()
+    private static bool IsCurrent(int generation) => _running && Volatile.Read(ref _generation) == generation;
+
+    private static void Loop(int generation)
     {
-        while (_running)
+        while (IsCurrent(generation))
         {
             try
             {
@@ -123,7 +130,10 @@ public static class BattlenetNetHoldService
                 if (result.Phase is NetHoldPhase.Completed or NetHoldPhase.NotOwned)
                 {
                     ColorPrinter.Green($"{LogTag} D4 download finished ({result.Phase}); hold idle until the next app start");
-                    lock (Lock) _running = false;
+                    lock (Lock)
+                    {
+                        if (Volatile.Read(ref _generation) == generation) _running = false;
+                    }
                     return;
                 }
             }

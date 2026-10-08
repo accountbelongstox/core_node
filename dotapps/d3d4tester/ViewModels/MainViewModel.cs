@@ -1,6 +1,8 @@
 // PY-REF: pyapps/d3-check/ui/panels/main_functions_panel.py
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Ui;
 using DotApps.d3d4tester.ViewModels.Base;
 using DotCore.Common;
@@ -13,19 +15,14 @@ namespace DotApps.d3d4tester.ViewModels;
 /// </summary>
 public sealed class MainViewModel : BaseViewModel
 {
-    public const string DefaultConfigName = "config1";
 
-    private static readonly string[] SkillTableKeys =
-    {
-        "skill1", "skill2", "skill3", "skill4", SkillRowViewModel.SkillLeftClick, SkillRowViewModel.SkillRightClick, SkillRowViewModel.SkillPotion,
-    };
 
-    private string _currentConfigName = DefaultConfigName;
+    private string _currentConfigName = MacroConfigLoader.DefaultConfigName;
 
     public MainViewModel(II18nProvider? i18n)
     {
         CombatMacroToggleCommand = new RelayCommand(ExecuteCombatMacroToggle);
-        foreach (var skillKey in SkillTableKeys)
+        foreach (var skillKey in MacroSkillRunner.SkillKeys)
             SkillRows.Add(new SkillRowViewModel(skillKey, () => _currentConfigName, i18n));
     }
 
@@ -38,7 +35,7 @@ public sealed class MainViewModel : BaseViewModel
     /// <summary>Switch to a config and refresh rows in place (no save). 1:1 Python _update_skill_tabs_content.</summary>
     public void LoadSkillRows(string configName)
     {
-        _currentConfigName = string.IsNullOrEmpty(configName) ? DefaultConfigName : configName;
+        _currentConfigName = string.IsNullOrEmpty(configName) ? MacroConfigLoader.DefaultConfigName : configName;
         foreach (var row in SkillRows) row.Load(_currentConfigName);
     }
 

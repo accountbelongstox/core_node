@@ -78,6 +78,18 @@ public sealed class TemplateMatcherHelper
         _display = null;
     }
 
+    /// <summary>Dispose and clear every image and the matches so a new picker never shows the previous screenshot.</summary>
+    public void Reset()
+    {
+        _original?.Dispose();
+        _display?.Dispose();
+        _backup?.Dispose();
+        _original = null;
+        _display = null;
+        _backup = null;
+        Matches.Clear();
+    }
+
     /// <summary>Template names grouped by category, in table order. 1:1 get_available_templates.</summary>
     public IReadOnlyDictionary<string, List<string>> GetAvailableTemplates(string clientType)
     {
@@ -194,18 +206,6 @@ public sealed class TemplateMatcherHelper
         ColorPrinter.Blue($"{LogPrefix} Image reset to original state");
         return true;
     }
-
-    /// <summary>1:1 clear_matches.</summary>
-    public void ClearMatches()
-    {
-        Matches.Clear();
-        SelectedTemplates.Clear();
-        ColorPrinter.Blue($"{LogPrefix} Matches and templates cleared");
-    }
-
-    /// <summary>Match data for export. 1:1 get_matches_data.</summary>
-    public IReadOnlyList<(string Template, int X, int Y, int Width, int Height, double Threshold, string Method)> GetMatchesData() =>
-        Matches.Select(m => (m.TemplateName, m.X, m.Y, m.Width, m.Height, m.Config.Threshold, m.Config.MatchMethod.ToName())).ToList();
 
     private void ReplaceImages(Mat original, Mat display, Mat backup)
     {

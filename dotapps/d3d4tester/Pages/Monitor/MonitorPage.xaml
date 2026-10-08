@@ -1,8 +1,9 @@
 <UserControl x:Class="DotApps.d3d4tester.Pages.Monitor.MonitorPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
-  <!-- No scrolling: status + ROSBOT control strip on top, every settings group in its own sub-tab below -->
+             xmlns:comp="clr-namespace:DotApps.d3d4tester.Components"
+             xmlns:decompile="clr-namespace:DotApps.d3d4tester.Pages.Decompile">
+  <!-- Control center (monitor + test merged), no page scrolling: status + run controls always on top, grouped side navigation below -->
   <UserControl.Resources>
     <ResourceDictionary Source="/d3d4tester;component/Assets/Styles/CompactPage.xaml"/>
   </UserControl.Resources>
@@ -39,7 +40,67 @@
       </StackPanel>
     </Border>
 
-    <TabControl x:Name="TabsMonitor" Grid.Row="2">
+    <!-- Sections grouped by purpose: Run (live game data, logs), Automation (triggers, recovery, notifications, screenshots),
+         Environment (D3 window / processes, external tools and probes, ROSBOT keys), Development (decompile tools) -->
+    <TabControl x:Name="TabsMonitor" Grid.Row="2" Style="{StaticResource SideNavTabControlStyle}" ItemContainerStyle="{StaticResource SideNavTabItemStyle}" Padding="6">
+      <TabItem x:Name="NavGroupRun" Style="{StaticResource SideNavGroupHeaderStyle}"/>
+      <!-- Live game data from the CoreNodeBridge ROSBOT plugin (shared data center) and its test commands -->
+      <TabItem x:Name="TabBridge" IsSelected="True">
+        <comp:RosbotBridgePanel x:Name="BridgePanel"/>
+      </TabItem>
+
+      <!-- Monitor log + ROSBOT log -->
+      <TabItem x:Name="TabLogs">
+        <Grid Margin="4,6,4,4">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="60"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*" MinHeight="90"/>
+          </Grid.RowDefinitions>
+          <DockPanel Margin="0,0,0,4">
+            <Button x:Name="BtnClearLog" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}" Click="BtnClearLog_Click"/>
+            <TextBlock x:Name="LblLogTitle" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center" Margin="0"/>
+          </DockPanel>
+          <TextBox x:Name="TxtMonitorLog" Grid.Row="1" Style="{StaticResource MonoLogTextBoxStyle}"/>
+          <comp:RosbotLogBlock x:Name="RosbotLog" Grid.Row="3"/>
+        </Grid>
+      </TabItem>
+
+      <TabItem x:Name="NavGroupAutomation" Style="{StaticResource SideNavGroupHeaderStyle}"/>
+      <!-- Triggers -->
+      <TabItem x:Name="TabTriggers">
+        <Grid Margin="4,6,4,4">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBlock x:Name="TxtTriggersInfo" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <ListView x:Name="ListTriggers" Grid.Row="1" MouseDoubleClick="ListTriggers_MouseDoubleClick">
+            <ListView.View>
+              <GridView>
+                <GridViewColumn x:Name="ColEvent" Width="130" DisplayMemberBinding="{Binding EventName}"/>
+                <GridViewColumn x:Name="ColEventArg" Width="110" DisplayMemberBinding="{Binding EventArgs}"/>
+                <GridViewColumn x:Name="ColAction" Width="130" DisplayMemberBinding="{Binding ActionName}"/>
+                <GridViewColumn x:Name="ColActionArg" Width="150" DisplayMemberBinding="{Binding ActionArgs}"/>
+                <GridViewColumn x:Name="ColEnabled" Width="56" DisplayMemberBinding="{Binding EnabledText}"/>
+                <GridViewColumn x:Name="ColLog" Width="56" DisplayMemberBinding="{Binding LogText}"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+          <WrapPanel Grid.Row="2" Margin="0,6,0,0">
+            <Button x:Name="BtnNewTrigger" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Click="BtnNewTrigger_Click"/>
+            <Button x:Name="BtnEditTrigger" Margin="0,0,6,0" Click="BtnEditTrigger_Click"/>
+            <Button x:Name="BtnToggleTrigger" Margin="0,0,6,0" Click="BtnToggleTrigger_Click"/>
+            <Button x:Name="BtnRunTrigger" Margin="0,0,6,0" Click="BtnRunTrigger_Click"/>
+            <Button x:Name="BtnDeleteTrigger" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,0" Click="BtnDeleteTrigger_Click"/>
+            <Button x:Name="BtnImportTriggers" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnImportTriggers_Click"/>
+            <Button x:Name="BtnExportTriggers" Style="{StaticResource SubtleButtonStyle}" Click="BtnExportTriggers_Click"/>
+          </WrapPanel>
+        </Grid>
+      </TabItem>
+
       <!-- Crash recovery -->
       <TabItem x:Name="TabRecovery">
         <Grid Margin="4,8,4,4">
@@ -73,10 +134,61 @@
             <CheckBox x:Name="ChkArchiveRollover" Margin="0,0,0,6"/>
             <CheckBox x:Name="ChkStartup"/>
             <comp:StartupShortcutPathLabel/>
+            <TextBlock x:Name="LblBridgeTeleport" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,2"/>
+            <TextBox x:Name="TxtBridgeTeleport" TextWrapping="Wrap"/>
           </StackPanel>
         </Grid>
       </TabItem>
 
+      <!-- Notifications -->
+      <TabItem x:Name="TabNotify">
+        <StackPanel Margin="4,8,4,4">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="16"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="LblPushPlus" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdPushPlus" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblDiscord" Grid.Column="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdDiscord" Grid.Column="4" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblTelegramToken" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdTelegramToken" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblTelegramChat" Grid.Row="1" Grid.Column="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtTelegramChat" Grid.Row="1" Grid.Column="4" Margin="0,0,0,6"/>
+            <TextBlock x:Name="LblProwl" Grid.Row="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PwdProwl" Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"/>
+          </Grid>
+          <WrapPanel Margin="0,0,0,4">
+            <CheckBox x:Name="ChkNotifyOnRestart" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox x:Name="CmbRestartChannel" MinWidth="130" Margin="0,0,6,0"/>
+            <Button x:Name="BtnNotifyTest" Style="{StaticResource SubtleButtonStyle}" Click="BtnNotifyTest_Click"/>
+          </WrapPanel>
+          <TextBlock x:Name="TxtSecretHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Screenshots: one row per kind is built in code (periodic / death / fail / error) -->
+      <TabItem x:Name="TabScreenshots">
+        <StackPanel Margin="4,8,4,4">
+          <StackPanel x:Name="PanelShots" Grid.IsSharedSizeScope="True"/>
+          <WrapPanel Margin="0,2,0,0">
+            <RadioButton x:Name="RadioCropFull" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <RadioButton x:Name="RadioCropCustom" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="TxtCrop" Width="120"/>
+          </WrapPanel>
+        </StackPanel>
+      </TabItem>
+
+      <TabItem x:Name="NavGroupEnvironment" Style="{StaticResource SideNavGroupHeaderStyle}"/>
       <!-- D3 window and processes -->
       <TabItem x:Name="TabWindow">
         <StackPanel Margin="4,8,4,4">
@@ -116,54 +228,6 @@
             <Button x:Name="BtnApplyTuning" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}" Click="BtnApplyTuning_Click"/>
             <TextBlock x:Name="TxtCpusHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
           </DockPanel>
-        </StackPanel>
-      </TabItem>
-
-      <!-- Screenshots: one row per kind is built in code (periodic / death / fail / error) -->
-      <TabItem x:Name="TabScreenshots">
-        <StackPanel Margin="4,8,4,4">
-          <StackPanel x:Name="PanelShots" Grid.IsSharedSizeScope="True"/>
-          <WrapPanel Margin="0,2,0,0">
-            <RadioButton x:Name="RadioCropFull" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,12,0"/>
-            <RadioButton x:Name="RadioCropCustom" GroupName="MonitorCrop" VerticalAlignment="Center" Margin="0,0,6,0"/>
-            <TextBox x:Name="TxtCrop" Width="120"/>
-          </WrapPanel>
-        </StackPanel>
-      </TabItem>
-
-      <!-- Notifications -->
-      <TabItem x:Name="TabNotify">
-        <StackPanel Margin="4,8,4,4">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto"/>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="16"/>
-              <ColumnDefinition Width="Auto"/>
-              <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto"/>
-              <RowDefinition Height="Auto"/>
-              <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-            <TextBlock x:Name="LblPushPlus" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
-            <PasswordBox x:Name="PwdPushPlus" Grid.Column="1" Margin="0,0,0,6"/>
-            <TextBlock x:Name="LblDiscord" Grid.Column="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
-            <PasswordBox x:Name="PwdDiscord" Grid.Column="4" Margin="0,0,0,6"/>
-            <TextBlock x:Name="LblTelegramToken" Grid.Row="1" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
-            <PasswordBox x:Name="PwdTelegramToken" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"/>
-            <TextBlock x:Name="LblTelegramChat" Grid.Row="1" Grid.Column="3" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
-            <TextBox x:Name="TxtTelegramChat" Grid.Row="1" Grid.Column="4" Margin="0,0,0,6"/>
-            <TextBlock x:Name="LblProwl" Grid.Row="2" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,8,6" VerticalAlignment="Center"/>
-            <PasswordBox x:Name="PwdProwl" Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"/>
-          </Grid>
-          <WrapPanel Margin="0,0,0,4">
-            <CheckBox x:Name="ChkNotifyOnRestart" VerticalAlignment="Center" Margin="0,0,6,0"/>
-            <ComboBox x:Name="CmbRestartChannel" MinWidth="130" Margin="0,0,6,0"/>
-            <Button x:Name="BtnNotifyTest" Style="{StaticResource SubtleButtonStyle}" Click="BtnNotifyTest_Click"/>
-          </WrapPanel>
-          <TextBlock x:Name="TxtSecretHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
         </StackPanel>
       </TabItem>
 
@@ -261,55 +325,10 @@
         </Grid>
       </TabItem>
 
-      <!-- Triggers -->
-      <TabItem x:Name="TabTriggers">
-        <Grid Margin="4,6,4,4">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-          </Grid.RowDefinitions>
-          <TextBlock x:Name="TxtTriggersInfo" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
-          <ListView x:Name="ListTriggers" Grid.Row="1" MouseDoubleClick="ListTriggers_MouseDoubleClick">
-            <ListView.View>
-              <GridView>
-                <GridViewColumn x:Name="ColEvent" Width="130" DisplayMemberBinding="{Binding EventName}"/>
-                <GridViewColumn x:Name="ColEventArg" Width="110" DisplayMemberBinding="{Binding EventArgs}"/>
-                <GridViewColumn x:Name="ColAction" Width="130" DisplayMemberBinding="{Binding ActionName}"/>
-                <GridViewColumn x:Name="ColActionArg" Width="150" DisplayMemberBinding="{Binding ActionArgs}"/>
-                <GridViewColumn x:Name="ColEnabled" Width="56" DisplayMemberBinding="{Binding EnabledText}"/>
-                <GridViewColumn x:Name="ColLog" Width="56" DisplayMemberBinding="{Binding LogText}"/>
-              </GridView>
-            </ListView.View>
-          </ListView>
-          <WrapPanel Grid.Row="2" Margin="0,6,0,0">
-            <Button x:Name="BtnNewTrigger" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0" Click="BtnNewTrigger_Click"/>
-            <Button x:Name="BtnEditTrigger" Margin="0,0,6,0" Click="BtnEditTrigger_Click"/>
-            <Button x:Name="BtnToggleTrigger" Margin="0,0,6,0" Click="BtnToggleTrigger_Click"/>
-            <Button x:Name="BtnRunTrigger" Margin="0,0,6,0" Click="BtnRunTrigger_Click"/>
-            <Button x:Name="BtnDeleteTrigger" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,0" Click="BtnDeleteTrigger_Click"/>
-            <Button x:Name="BtnImportTriggers" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnImportTriggers_Click"/>
-            <Button x:Name="BtnExportTriggers" Style="{StaticResource SubtleButtonStyle}" Click="BtnExportTriggers_Click"/>
-          </WrapPanel>
-        </Grid>
-      </TabItem>
-
-      <!-- Monitor log + ROSBOT log -->
-      <TabItem x:Name="TabLogs">
-        <Grid Margin="4,6,4,4">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*" MinHeight="60"/>
-            <RowDefinition Height="8"/>
-            <RowDefinition Height="*" MinHeight="90"/>
-          </Grid.RowDefinitions>
-          <DockPanel Margin="0,0,0,4">
-            <Button x:Name="BtnClearLog" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}" Click="BtnClearLog_Click"/>
-            <TextBlock x:Name="LblLogTitle" Style="{StaticResource SectionHeaderTextStyle}" VerticalAlignment="Center" Margin="0"/>
-          </DockPanel>
-          <TextBox x:Name="TxtMonitorLog" Grid.Row="1" Style="{StaticResource MonoLogTextBoxStyle}"/>
-          <comp:RosbotLogBlock x:Name="RosbotLog" Grid.Row="3"/>
-        </Grid>
+      <TabItem x:Name="NavGroupDevelopment" Style="{StaticResource SideNavGroupHeaderStyle}"/>
+      <!-- Decompile tools (ILSpy, de4dot-cex, autoit-ripper, UPX) and their log -->
+      <TabItem x:Name="TabDecompile">
+        <decompile:DecompilePage x:Name="DecompileTools"/>
       </TabItem>
     </TabControl>
   </Grid>

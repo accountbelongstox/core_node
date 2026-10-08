@@ -37,8 +37,8 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private bool _rosbotBridgeFresh;
     private bool _ensureBattlenetOnlyEnabled;
     private bool _d3Running;
-    private string _mapType = "unknown";
-    private string _gameStage = "unknown";
+    private string _mapType = GameInterfaceStateSnapshot.UnknownValue;
+    private string _gameStage = GameInterfaceStateSnapshot.UnknownValue;
     private bool _d3OnLoginScreen = false;
     private bool _d3Disconnected = false;
     private bool _d3InGame = false;
@@ -54,6 +54,9 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private string? _battlenetAccountPresence;
     private string _rosbotFoundExeName = "";
     private string _rosbotFoundWindowTitle = "";
+    private int _rosbotFoundPid;
+    private string _d3ExeName = "";
+    private int _d3Pid;
     private bool _rosbotNeedKeyInput = false;
     private string _rosbotNeedKeyMessage = "";
     private string? _rosbotTestModeDisplay = null;
@@ -167,6 +170,7 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 RosbotRunning = _rosbotRunning,
                 RosbotDisconnectedFromLog = _rosbotDisconnectedFromLog,
                 RosbotFlowMasterEnabled = _rosbotFlowMasterEnabled,
+                RosbotFlowPaused = _rosbotFlowPaused,
                 RosbotBridge = _rosbotBridge,
                 RosbotBridgeFresh = _rosbotBridgeFresh,
                 EnsureBattlenetOnlyEnabled = _ensureBattlenetOnlyEnabled,
@@ -188,6 +192,9 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 BattlenetAccountPresence = _battlenetAccountPresence,
                 RosbotFoundExeName = _rosbotFoundExeName,
                 RosbotFoundWindowTitle = _rosbotFoundWindowTitle,
+                RosbotFoundPid = _rosbotFoundPid,
+                D3ExeName = _d3ExeName,
+                D3Pid = _d3Pid,
                 RosbotNeedKeyInput = _rosbotNeedKeyInput,
                 RosbotNeedKeyMessage = _rosbotNeedKeyMessage,
                 RosbotTestModeDisplay = _rosbotTestModeDisplay,
@@ -294,7 +301,7 @@ public sealed class GameInterfaceData : IGameInterfaceData
     {
         lock (_lock)
         {
-            string v = string.IsNullOrWhiteSpace(mapType) ? "unknown" : mapType.Trim();
+            string v = string.IsNullOrWhiteSpace(mapType) ? GameInterfaceStateSnapshot.UnknownValue : mapType.Trim();
             if (_mapType == v) return false;
             _mapType = v;
             return true;
@@ -306,24 +313,23 @@ public sealed class GameInterfaceData : IGameInterfaceData
     {
         lock (_lock)
         {
-            string v = string.IsNullOrWhiteSpace(gameStage) ? "unknown" : gameStage.Trim();
+            string v = string.IsNullOrWhiteSpace(gameStage) ? GameInterfaceStateSnapshot.UnknownValue : gameStage.Trim();
             if (_gameStage == v) return false;
             _gameStage = v;
             return true;
         }
     }
 
-    /// <summary>Set flow master enabled (Start/Stop ROSBOT). Logic 1:1 with Python set_rosbot_flow_master_enabled.</summary>
-    public void SetRosbotFlowMasterEnabled(bool enabled)
+    /// <summary>Set flow master enabled (Start/Stop ROSBOT); true when changed. Logic 1:1 with Python set_rosbot_flow_master_enabled.</summary>
+    public bool SetRosbotFlowMasterEnabled(bool enabled)
     {
         lock (_lock)
         {
-            if (_rosbotFlowMasterEnabled != enabled)
-            {
-                _rosbotFlowMasterEnabled = enabled;
-                ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotFlowMasterEnabled(enabled={enabled}).");
-            }
+            if (_rosbotFlowMasterEnabled == enabled) return false;
+            _rosbotFlowMasterEnabled = enabled;
         }
+        ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotFlowMasterEnabled(enabled={enabled}).");
+        return true;
     }
 
     /// <summary>Publish the CoreNodeBridge plugin state (null = no state.json). True when the state or its freshness changed.</summary>
@@ -339,27 +345,28 @@ public sealed class GameInterfaceData : IGameInterfaceData
         }
     }
 
-    /// <summary>Set monitoring paused (Pause / Resume monitoring).</summary>
-    public void SetRosbotFlowPaused(bool paused)
+    /// <summary>Set monitoring paused (Pause / Resume monitoring); true when changed.</summary>
+    public bool SetRosbotFlowPaused(bool paused)
     {
         lock (_lock)
         {
-            if (_rosbotFlowPaused == paused) return;
+            if (_rosbotFlowPaused == paused) return false;
             _rosbotFlowPaused = paused;
         }
         ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotFlowPaused(paused={paused}).");
+        return true;
     }
 
     /// <summary>Set Ensure Battle.net only mode (button on/off). Dot: 2s tick loop when enabled (1:1 Python process_task + tick_bn_only_flow).</summary>
-    public void SetEnsureBattlenetOnlyEnabled(bool enabled)
+    public bool SetEnsureBattlenetOnlyEnabled(bool enabled)
     {
         lock (_lock)
         {
-            bool changed = _ensureBattlenetOnlyEnabled != enabled;
+            if (_ensureBattlenetOnlyEnabled == enabled) return false;
             _ensureBattlenetOnlyEnabled = enabled;
-            if (changed)
-                ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetEnsureBattlenetOnlyEnabled(enabled={enabled}).");
         }
+        ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetEnsureBattlenetOnlyEnabled(enabled={enabled}).");
+        return true;
     }
 
     /// <summary>Set D3 running status (window found). 1:1 with Python set_d3_status. Notify callbacks.</summary>
@@ -444,16 +451,29 @@ public sealed class GameInterfaceData : IGameInterfaceData
         }
     }
 
-    /// <summary>Set ROSBOT found display (exe name and window title). 1:1 Python set_rosbot_found_display.</summary>
-    public bool SetRosbotFoundDisplay(string exeName, string? windowTitle)
+    /// <summary>Set ROSBOT found display (exe name, window title, PID). 1:1 Python set_rosbot_found_display (+ PID).</summary>
+    public bool SetRosbotFoundDisplay(string exeName, string? windowTitle, int pid)
     {
         lock (_lock)
         {
             string exe = exeName ?? "";
             string title = windowTitle ?? "";
-            if (_rosbotFoundExeName == exe && _rosbotFoundWindowTitle == title) return false;
+            if (_rosbotFoundExeName == exe && _rosbotFoundWindowTitle == title && _rosbotFoundPid == pid) return false;
             _rosbotFoundExeName = exe;
             _rosbotFoundWindowTitle = title;
+            _rosbotFoundPid = pid;
+            return true;
+        }
+    }
+
+    /// <summary>Set the D3 client process shown in the UI (exe file name and PID; "" / 0 when no window).</summary>
+    public bool SetD3Process(string exeName, int pid)
+    {
+        lock (_lock)
+        {
+            if (_d3ExeName == exeName && _d3Pid == pid) return false;
+            _d3ExeName = exeName;
+            _d3Pid = pid;
             return true;
         }
     }
@@ -468,21 +488,25 @@ public sealed class GameInterfaceData : IGameInterfaceData
         }
     }
 
-    /// <summary>Set ROSBOT test mode display line for status bar. Set each tick when test_mode; null when off.</summary>
-    public void SetRosbotTestModeDisplay(string? display)
+    /// <summary>Set ROSBOT test mode display line for status bar (each tick when test_mode; null when off); true when changed.</summary>
+    public bool SetRosbotTestModeDisplay(string? display)
     {
         lock (_lock)
         {
+            if (string.Equals(_rosbotTestModeDisplay, display, StringComparison.Ordinal)) return false;
             _rosbotTestModeDisplay = display;
+            return true;
         }
     }
 
-    /// <summary>Set ROSBOT total restart count. 1:1 with Python set_rosbot_total_restart_count.</summary>
-    public void SetRosbotTotalRestartCount(int count)
+    /// <summary>Set ROSBOT total restart count; true when changed. 1:1 with Python set_rosbot_total_restart_count.</summary>
+    public bool SetRosbotTotalRestartCount(int count)
     {
         lock (_lock)
         {
+            if (_rosbotTotalRestartCount == count) return false;
             _rosbotTotalRestartCount = count;
+            return true;
         }
     }
 
@@ -672,32 +696,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
     {
         lock (_lock)
             return (_globalScaleX, _globalScaleY);
-    }
-
-    /// <summary>DEBUG: returns (isWindowed, gameWindowW, gameWindowH, effectiveActualW, effectiveActualH, effectiveStandardW, effectiveStandardH). 1:1 Python update_global_scale: windowed = outer - borders/title, fullscreen = actual + threshold.</summary>
-    public (bool IsWindowed, int GameWindowW, int GameWindowH, double EffectiveActualW, double EffectiveActualH, double EffectiveStandardW, double EffectiveStandardH) GetScaleDebugInfo()
-    {
-        lock (_lock)
-        {
-            bool isWindowed = IsWindowedModeInternal();
-            double effAw, effAh, effSw, effSh;
-            if (isWindowed)
-            {
-                effAw = _gameWindowWidth - (D3ScaleConstants.WindowBorderLeft + D3ScaleConstants.WindowBorderRight);
-                effAh = _gameWindowHeight - (D3ScaleConstants.TitleBarHeight + D3ScaleConstants.WindowBorderBottom);
-                effSw = D3ScaleConstants.D3StandardResolutionWidth;
-                effSh = D3ScaleConstants.D3StandardResolutionHeight;
-            }
-            else
-            {
-                int th = D3ScaleConstants.WindowHeightThreshold;
-                effAw = _gameWindowWidth + th;
-                effAh = _gameWindowHeight + th;
-                effSw = D3ScaleConstants.D3StandardResolutionWidth + th;
-                effSh = D3ScaleConstants.D3StandardResolutionHeight + th;
-            }
-            return (isWindowed, _gameWindowWidth, _gameWindowHeight, effAw, effAh, effSw, effSh);
-        }
     }
 
     /// <summary>True when last capture had fullscreen larger than game window by threshold (1:1 Python is_windowed_mode).</summary>

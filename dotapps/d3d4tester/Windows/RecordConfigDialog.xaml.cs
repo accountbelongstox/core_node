@@ -2,6 +2,7 @@
 using System.Windows;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
+using DotCore.Common;
 using DotCore.YoloRecord;
 
 namespace DotApps.d3d4tester.Windows;
@@ -20,7 +21,11 @@ public partial class RecordConfigDialog : Window
         InitializeComponent();
         ApplyI18n();
         LoadConfig();
+        D3D4TesterI18n.Provider.LanguageChanged += OnLanguageChanged;
+        Closed += (_, _) => D3D4TesterI18n.Provider.LanguageChanged -= OnLanguageChanged;
     }
+
+    private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e) => Dispatcher.InvokeAsync(ApplyI18n);
 
     private static string T(string key) => D3D4TesterI18n.Provider.GetUiText(key);
 

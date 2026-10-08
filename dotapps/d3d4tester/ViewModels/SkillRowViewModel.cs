@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotCore.Common;
@@ -17,32 +18,28 @@ namespace DotApps.d3d4tester.ViewModels;
 /// </summary>
 public sealed class SkillRowViewModel : INotifyPropertyChanged
 {
-    public const string SkillLeftClick = "left_click";
-    public const string SkillRightClick = "right_click";
-    public const string SkillPotion = "potion";
+    public const string SkillLeftClick = MacroSkillRunner.SkillLeftClick;
+    public const string SkillRightClick = MacroSkillRunner.SkillRightClick;
+    public const string SkillPotion = MacroSkillRunner.SkillPotion;
     public const int NumberMin = 0;
     public const int NumberMax = 10000;
-    public const int IntervalDefault = 100;
-    public const string PotionDefaultKey = "Q";
-    private const string FieldKey = "key";
-    private const string FieldStrategy = "strategy";
-    private const string FieldInterval = "interval";
-    private const string FieldDelay = "delay";
-    private const string FieldRandomDelay = "random_delay";
-    private const string StrategyContinuous = "continuous";
-    private const string StrategyIgnore = "ignore";
+    private const string FieldKey = MacroSkillSchema.FieldKey;
+    private const string FieldStrategy = MacroSkillSchema.FieldStrategy;
+    private const string FieldInterval = MacroSkillSchema.FieldInterval;
+    private const string FieldDelay = MacroSkillSchema.FieldDelay;
+    private const string FieldRandomDelay = MacroSkillSchema.FieldRandomDelay;
 
     private readonly Func<string> _getCurrentConfig;
     private readonly II18nProvider? _i18n;
 
     private string _key = "";
-    private string _strategy = StrategyContinuous;
-    private int _interval = IntervalDefault;
-    private int _delay;
-    private int _randomDelay;
+    private string _strategy = MacroSkillSchema.StrategyContinuous;
+    private int _interval = MacroSkillSchema.IntervalDefault;
+    private int _delay = MacroSkillSchema.DelayDefault;
+    private int _randomDelay = MacroSkillSchema.RandomDelayDefault;
 
     /// <summary>English keys for config (1:1 Python).</summary>
-    public static string[] StrategyOptionValues { get; } = { StrategyContinuous, "single", "hold", StrategyIgnore };
+    public static IReadOnlyList<string> StrategyOptionValues => MacroSkillSchema.StrategyValues;
 
     /// <summary>
     /// Strategy dropdown items (value + i18n display), shared by every row. Created once and never cleared: a language change only
@@ -82,7 +79,7 @@ public sealed class SkillRowViewModel : INotifyPropertyChanged
         get => _strategy;
         set
         {
-            if (string.IsNullOrEmpty(value) || value == _strategy || Array.IndexOf(StrategyOptionValues, value) < 0) return;
+            if (string.IsNullOrEmpty(value) || value == _strategy || !StrategyOptionValues.Contains(value)) return;
             _strategy = value;
             OnPropertyChanged();
             Save(FieldStrategy, _strategy);
@@ -115,14 +112,14 @@ public sealed class SkillRowViewModel : INotifyPropertyChanged
     {
         string basePath = $"{ConfigKeys.MacroConfigsSkillConfigs}.{configName}.skills.{SkillKey}";
         bool exists = D3D4TesterConfigService.Instance.GetRawText(basePath) != null;
-        string defaultStrategy = !exists && (IsMouseRow(SkillKey) || SkillKey == SkillPotion) ? StrategyIgnore : StrategyContinuous;
-        string defaultKey = SkillKey == SkillPotion ? PotionDefaultKey : "";
+        string defaultStrategy = MacroSkillSchema.DefaultStrategy(SkillKey, exists);
+        string defaultKey = MacroSkillSchema.DefaultKey(SkillKey);
         var key = ConfigBinding.GetValue(basePath + "." + FieldKey, defaultKey);
         _key = string.IsNullOrEmpty(key) ? defaultKey : key;
-        _strategy = NormalizeStrategy(ConfigBinding.GetValue(basePath + "." + FieldStrategy, defaultStrategy));
-        _interval = ReadNumber(basePath + "." + FieldInterval, IntervalDefault);
-        _delay = ReadNumber(basePath + "." + FieldDelay, 0);
-        _randomDelay = ReadNumber(basePath + "." + FieldRandomDelay, 0);
+        _strategy = MacroSkillSchema.NormalizeStrategy(ConfigBinding.GetValue(basePath + "." + FieldStrategy, defaultStrategy), defaultStrategy);
+        _interval = ReadNumber(basePath + "." + FieldInterval, MacroSkillSchema.IntervalDefault);
+        _delay = ReadNumber(basePath + "." + FieldDelay, MacroSkillSchema.DelayDefault);
+        _randomDelay = ReadNumber(basePath + "." + FieldRandomDelay, MacroSkillSchema.RandomDelayDefault);
         OnPropertyChanged(string.Empty);
     }
 
@@ -133,17 +130,9 @@ public sealed class SkillRowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(Strategy));
     }
 
-    private static bool IsMouseRow(string skillKey) => skillKey is SkillLeftClick or SkillRightClick;
+    private static bool IsMouseRow(string skillKey) => MacroSkillSchema.IsMouseRow(skillKey);
 
-    private static string NormalizeStrategy(string? s)
-    {
-        var v = (s ?? "").Trim().ToLowerInvariant();
-        if (v == "drag" || v == "disabled") return StrategyIgnore;
-        return Array.IndexOf(StrategyOptionValues, v) >= 0 ? v : StrategyContinuous;
-    }
-
-    private static int ReadNumber(string keyPath, int defaultValue) =>
-        ConfigBinding.ParseInt(D3D4TesterConfigService.Instance.GetRawText(keyPath)?.Trim().Trim('"'), int.MinValue, int.MaxValue, defaultValue);
+    private static int ReadNumber(string keyPath, int defaultValue) => ConfigBinding.GetIntValue(keyPath, int.MinValue, int.MaxValue, defaultValue);
 
     /// <summary>Invalid text -> 0, clamp to the spinbox range 0..10000. 1:1 Python _parse_int_from_ui + Spinbox(from_=0, to=10000).</summary>
     private void SetNumber(ref int field, string? text, string configField, [CallerMemberName] string? propertyName = null)

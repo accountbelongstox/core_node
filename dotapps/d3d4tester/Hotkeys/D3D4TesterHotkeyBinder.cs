@@ -126,11 +126,15 @@ public sealed class D3D4TesterHotkeyBinder
     /// </summary>
     private void ReregisterAuxiliary()
     {
-        var opts = ConfigOptionsProvider.GetOptions<MacroAuxiliaryOptions>();
-        var assistantNew = HotkeyUtil.NormalizeCanonical(opts.AssistantHotkey ?? AppConstants.DefaultAssistantHotkey);
-        var combatNew = HotkeyUtil.NormalizeCanonical(opts.MacroStartHotkey ?? AppConstants.DefaultMacroStartHotkey);
+        var assistantNew = HotkeyUtil.NormalizeCanonical(ConfigBinding.GetValue(ConfigKeys.AuxiliaryAssistantHotkey, AppConstants.DefaultAssistantHotkey) ?? AppConstants.DefaultAssistantHotkey);
+        var combatNew = HotkeyUtil.NormalizeCanonical(ConfigBinding.GetValue(ConfigKeys.AuxiliaryMacroStartHotkey, AppConstants.DefaultMacroStartHotkey) ?? AppConstants.DefaultMacroStartHotkey);
 
         ReregisterOne("assistant", assistantNew, BuildAssistantCallback());
+        if (!string.IsNullOrEmpty(combatNew) && string.Equals(combatNew, assistantNew, StringComparison.OrdinalIgnoreCase))
+        {
+            ColorPrinter.Yellow($"[HOTKEY] Combat hotkey {combatNew} equals the assistant hotkey, skipped");
+            combatNew = "";
+        }
         ReregisterOne("combat", combatNew, BuildCombatCallback());
     }
 

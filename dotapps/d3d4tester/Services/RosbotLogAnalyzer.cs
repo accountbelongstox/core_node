@@ -213,16 +213,27 @@ internal sealed class RosbotLogAnalyzerEngine
             _atErrorBuffer.Clear();
     }
 
-    /// <summary>Monitoring on: the flow master's single F4 -> B2 restart (counted, notified); off: only end D3 and ROSBOT.</summary>
+    /// <summary>
+    /// ROSBOT stack traces (e.g. its server unreachable) are ROSBOT's problem: while D3 runs normally only ROSBOT is restarted (monitoring
+    /// on: the flow's ROSBOT-only restart; off: ROSBOT ended). Only with D3 gone or disconnected: the full F4 restart (counted, notified)
+    /// or, monitoring off, end D3 and ROSBOT.
+    /// </summary>
     private static void RestartAfterSystemError()
     {
-        if (RosbotFlowState.Instance.FlowMasterEnabled)
+        if (!GameControl.Allowed("log system error restart", needsMonitoring: false)) return;
+        bool monitoring = RosbotFlowState.Instance.FlowMasterEnabled;
+        if (F3MonitorProcess.D3ShowsFine())
+        {
+            ColorPrinter.Yellow("[LogAnalyzer] ROSBOT system error but D3 is fine -> restart ROSBOT only");
+            if (monitoring) F3MonitorProcess.RequestRosbotRestart();
+            else RosbotManager.Instance.KillIfRunning();
+            return;
+        }
+        if (monitoring)
         {
             Monitor.MonitorService.Instance.RequestRestart(RosbotRestartRequest.ReasonLogSystemError, "", restartBattlenet: false);
             return;
         }
-        D3Manager.Instance.KillIfRunning();
-        RosbotManager.Instance.KillIfRunning();
-        RosbotManager.Instance.InvalidateLookupCache();
+        Task.Run(RosbotFlowRunner.EndD3AndRosbot);
     }
 }

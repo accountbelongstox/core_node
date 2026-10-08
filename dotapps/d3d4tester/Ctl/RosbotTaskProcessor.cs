@@ -26,11 +26,14 @@ namespace DotApps.d3d4tester.Ctl;
 public sealed class RosbotTaskProcessor : IRosbotFlowHost
 {
     private const string LogTag = "[RosbotTaskProcessor]";
+    /// <summary>A second toggle within this window (double click, button + tray) is ignored, so one gesture never flips twice.</summary>
+    private const int ToggleDebounceMs = 1000;
 
     private readonly object _lock = new();
     private RosbotLogFileWatcher? _logWatcher;
     private bool _installed;
     private bool _initialized;
+    private long _lastToggleTicks;
 
     public static RosbotTaskProcessor Instance { get; } = new();
 
@@ -121,8 +124,9 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
     {
         var game = GameInterfaceData.Instance;
         game.SetRosbotStatus(false);
-        game.SetRosbotTestModeDisplay(null);
-        game.SetRosbotTotalRestartCount(RosbotExitState.GetTotalRestartCount());
+        bool changed = game.SetRosbotTestModeDisplay(null);
+        changed |= game.SetRosbotTotalRestartCount(RosbotExitState.GetTotalRestartCount());
+        if (changed) game.NotifyCallbacks();
         ColorPrinter.Yellow($"{LogTag} ROSBOT monitoring stopped");
     }
 
@@ -148,7 +152,12 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
     }
 
     /// <summary>Pause monitoring: flow halted, ROSBOT paused with its pause key when botting.</summary>
-    public void RequestPauseFlow() => RosbotFlowRunner.Pause();
+    public Task RequestPauseFlow()
+    {
+        var task = RosbotFlowRunner.Pause();
+        RequestStatusRefresh();
+        return task;
+    }
 
     /// <summary>Resume monitoring: ROSBOT resumed with its pause key when the pause stopped it, flow continues from F1.</summary>
     public void RequestResumeFlow()
@@ -157,18 +166,31 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         RequestStatusRefresh();
     }
 
-    /// <summary>Pause / resume button (Monitor tab).</summary>
+    /// <summary>Pause / resume button (Monitor tab, tray); reads the same state snapshot the UI shows.</summary>
     public void TogglePause()
     {
-        if (RosbotFlowRunner.IsPaused) RequestResumeFlow();
+        if (!AcceptToggle()) return;
+        if (GameInterfaceData.Instance.GetStateSnapshot().RosbotFlowPaused) RequestResumeFlow();
         else RequestPauseFlow();
     }
 
-    /// <summary>Start / stop button (ROSBOT tab, Monitor tab): stop when monitoring, else start.</summary>
+    /// <summary>Start / stop button (ROSBOT tab, Monitor tab, tray): stop when monitoring, else start; reads the same state snapshot the UI shows.</summary>
     public void ToggleFlow()
     {
-        if (RosbotFlowState.Instance.FlowMasterEnabled) RequestStopFlow();
+        if (!AcceptToggle()) return;
+        if (GameInterfaceData.Instance.GetStateSnapshot().RosbotFlowMasterEnabled) RequestStopFlow();
         else RequestStartFlow();
+    }
+
+    private bool AcceptToggle()
+    {
+        long now = Environment.TickCount64, last = Interlocked.Read(ref _lastToggleTicks);
+        if (now - last < ToggleDebounceMs || Interlocked.CompareExchange(ref _lastToggleTicks, now, last) != last)
+        {
+            ColorPrinter.Gray($"{LogTag} toggle ignored ({now - last} ms after the previous one)");
+            return false;
+        }
+        return true;
     }
 
     /// <summary>"Ensure Battle.net" button: flips the persisted guard switch; BattlenetGuardService applies it. 1:1 Python _ensure_battlenet_only.</summary>
@@ -209,8 +231,9 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
     {
         RosbotLogTickProcessor.ProcessPendingLines();
         var game = GameInterfaceData.Instance;
-        game.SetRosbotTestModeDisplay(FormatTestModeDisplay(F3LogTimeout.GetTestModeDisplay()));
-        game.SetRosbotTotalRestartCount(RosbotExitState.GetTotalRestartCount());
+        bool changed = game.SetRosbotTestModeDisplay(FormatTestModeDisplay(F3LogTimeout.GetTestModeDisplay()));
+        changed |= game.SetRosbotTotalRestartCount(RosbotExitState.GetTotalRestartCount());
+        if (changed) game.NotifyCallbacks();
     }
 
     private static string? FormatTestModeDisplay(F3TestModeDisplay? d)
@@ -234,14 +257,14 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
     /// [F2] ROSBOT online -> monitoring task on; else [E1-E6]. Publishes ExtensionRosbotStarted (tray, D3 shrink). Errors are logged
     /// and reported as false so the flow retries. 1:1 Python D3ExtensionThread._do_start_rosbot (F2 + E part).
     /// </summary>
-    public bool RunRosbotStart(FlowContext ctx)
+    public bool RunRosbotStart(FlowContext ctx, bool restart)
     {
         bool success = false;
         bool ranEBlock = false;
         Exception? error = null;
         try
         {
-            if (RosbotRunFlow.RunF2RosbotOnline())
+            if (!restart && RosbotRunFlow.RunF2RosbotOnline())
             {
                 ColorPrinter.Gray("[F2] ROSBOT online -> no start needed");
                 StartRosbotTask();
@@ -249,7 +272,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
             }
             else
             {
-                ColorPrinter.Gray("[F2] ROSBOT not online -> [E1-E6] start ROSBOT");
+                ColorPrinter.Gray(restart ? "[E] ROSBOT restart -> [E1-E6] close and start ROSBOT" : "[F2] ROSBOT not online -> [E1-E6] start ROSBOT");
                 ranEBlock = true;
                 success = RosbotRunFlow.RunEBlock(ctx, StartRosbotTask);
             }
@@ -264,6 +287,8 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
             ColorPrinter.Red($"[E] ROSBOT start error: {ex.Message}");
         }
         EventCenter.TriggerExtensionRosbotStarted(success, error, ranEBlock);
+        if (success)
+            RosbotBridgeStartActions.Run(ctx, freshStart: ranEBlock);
         return success;
     }
 

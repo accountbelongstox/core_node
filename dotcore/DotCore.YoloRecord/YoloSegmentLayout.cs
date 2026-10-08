@@ -1,6 +1,6 @@
 // PY-REF: pyapps/d3-check/d3utils/yolo_record.py
 // PY-REF: pyapps/d3-check/d3utils/yolo_train_flow.py
-using System.Diagnostics;
+using DotCore.Utils;
 using DotCore.VocAnnotator;
 using OpenCvSharp;
 
@@ -309,19 +309,7 @@ public static class YoloSegmentLayout
     }
 
     /// <summary>Open an existing directory in the system file manager. 1:1 pycore system_launcher.open_dir.</summary>
-    public static bool OpenDir(string? dir)
-    {
-        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return false;
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = dir, UseShellExecute = true });
-            return true;
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            return false;
-        }
-    }
+    public static bool OpenDir(string? dir) => !string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir) && ShellOpen.OpenDir(dir);
 
     private static string FrameName(int index, string ext) => $"frame_{index:D6}{ext}";
 

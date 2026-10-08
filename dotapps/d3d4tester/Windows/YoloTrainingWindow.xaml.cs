@@ -42,10 +42,11 @@ public partial class YoloTrainingWindow : Window
     private readonly IReadOnlyList<string> _allSegments;
     private readonly IReadOnlyList<string> _selectedSegments;
     private readonly YoloTrainingService _service = YoloTrainingService.Instance;
-    private readonly TaskSetStore _taskSets = new(TaskSetStore.DefaultRoot);
+    private static TaskSetStore TaskSets => new(TaskSetStore.DefaultRoot);
     private readonly string? _initialTaskSetId;
     private readonly bool _autoStart;
     private YoloEnvironment? _env;
+    private bool _pythonEdited;
     private YoloDatasetPlan? _plan;
     private IYoloDatasetStats? _taskSetStats;
     private string? _datasetYaml;
@@ -130,8 +131,7 @@ public partial class YoloTrainingWindow : Window
     /// <summary>Open in specific (task set) mode over the current calibration project; autoStart begins training after the environment check.</summary>
     public static YoloTrainingWindow ShowForTaskSet(Window? owner, string taskSetId, bool autoStart)
     {
-        var project = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloCurrentProject, "");
-        project = !string.IsNullOrWhiteSpace(project) && Directory.Exists(project) ? project : null;
+        var project = YoloCalibrationData.ResolveCurrentProject();
         var segments = project == null ? new List<string>() : YoloSegmentLayout.ListSegments(project).Select(s => s.SegmentPath).ToList();
         ConfigBinding.SaveString(ConfigKeys.YoloTrainingMode, ModeSpecific);
         return ShowSingle(owner, project, segments, Array.Empty<string>(), taskSetId, autoStart);
@@ -143,8 +143,7 @@ public partial class YoloTrainingWindow : Window
     /// </summary>
     public static YoloTrainingWindow ShowForDataset(Window? owner, string taskSetId, string datasetDir, bool autoStart)
     {
-        var project = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloCurrentProject, "");
-        project = !string.IsNullOrWhiteSpace(project) && Directory.Exists(project) ? project : null;
+        var project = YoloCalibrationData.ResolveCurrentProject();
         var segments = project == null ? new List<string>() : YoloSegmentLayout.ListSegments(project).Select(s => s.SegmentPath).ToList();
         ConfigBinding.SaveString(ConfigKeys.YoloTrainingMode, ModeSpecific);
         return ShowSingle(owner, project, segments, Array.Empty<string>(), taskSetId, autoStart, datasetDir);
@@ -308,6 +307,14 @@ public partial class YoloTrainingWindow : Window
     private void BindConfig()
     {
         ConfigBinding.BindTextBox(TxtPython, ConfigKeys.YoloTrainingPythonExe);
+        TxtPython.TextChanged += (_, _) => _pythonEdited = true;
+        TxtPython.LostFocus += (_, _) =>
+        {
+            if (!_pythonEdited) return;
+            _pythonEdited = false;
+            _env = null;
+            RenderEnvironment();
+        };
         BindEditableCombo(CboModel, YoloTrainParameters.Models, ConfigKeys.YoloTrainingModel, Defaults.Model);
         BindEditableCombo(CboDevice, Devices, ConfigKeys.YoloTrainingDevice, Defaults.Device);
         ConfigBinding.BindIntTextBox(TxtEpochs, ConfigKeys.YoloTrainingEpochs, 1, 10000, Defaults.Epochs);
@@ -385,14 +392,14 @@ public partial class YoloTrainingWindow : Window
     private void RefreshTaskSets()
     {
         IReadOnlyList<TaskSet> sets;
-        try { sets = _taskSets.List(); }
+        try { sets = TaskSets.List(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { sets = Array.Empty<TaskSet>(); }
         var wanted = (CboTaskSet.SelectedItem as TaskSet)?.Id ?? _initialTaskSetId ?? ConfigBinding.GetValue(ConfigKeys.YoloTrainingTaskSet, "");
         CboTaskSet.ItemsSource = sets;
         CboTaskSet.SelectedItem = sets.FirstOrDefault(s => s.Id == wanted) ?? sets.FirstOrDefault();
     }
 
-    private TaskSet? SelectedTaskSet() => CboTaskSet.SelectedItem is TaskSet s ? _taskSets.Load(s.Id) : null;
+    private TaskSet? SelectedTaskSet() => CboTaskSet.SelectedItem is TaskSet s ? TaskSets.Load(s.Id) : null;
 
     private async Task RenderTaskSetSummaryAsync()
     {
@@ -417,7 +424,7 @@ public partial class YoloTrainingWindow : Window
             .Replace("{per_target}", set.Synthesis.ImagesPerTarget.ToString())
             .Replace("{val}", set.Synthesis.ValPercent.ToString());
         TxtTaskSetSummary.Text = summary;
-        var dir = _taskSets.GetDir(set.Id);
+        var dir = TaskSets.GetDir(set.Id);
         var (issues, stats) = await Task.Run(() =>
         {
             var found = TaskSetSynthesizer.Validate(set, dir);
@@ -673,7 +680,7 @@ public partial class YoloTrainingWindow : Window
                 Warn(I18nKeys.YoloTrainingTaskSetNone);
                 return;
             }
-            var dir = _taskSets.GetDir(set.Id);
+            var dir = TaskSets.GetDir(set.Id);
             parameters = parameters with { Augmentation = UseDerivedAugmentation ? YoloTrainingService.AugmentationForTaskSet(set) : CustomAugmentation() };
             if (_datasetYaml is { } yaml && _datasetTaskSetId == set.Id)
             {
@@ -752,7 +759,7 @@ public partial class YoloTrainingWindow : Window
     private string? RunsDir()
     {
         if (!IsSpecific) return _projectDir == null ? null : YoloDataLayout.GetRunsDir(_projectDir);
-        return CboTaskSet.SelectedItem is TaskSet s ? YoloDataLayout.GetRunsDir(_taskSets.GetDir(s.Id)) : null;
+        return CboTaskSet.SelectedItem is TaskSet s ? YoloDataLayout.GetRunsDir(TaskSets.GetDir(s.Id)) : null;
     }
 
     private void OnServiceLog(string line) => Dispatcher.BeginInvoke(() => AppendLog(line));

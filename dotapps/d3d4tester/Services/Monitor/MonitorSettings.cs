@@ -19,9 +19,13 @@ public static class MonitorSettings
     public const int PeriodicMinutesDefault = 1;
     public const int FightThresholdDefault = 280;
     public const int TownPortalThresholdDefault = 10;
-    public const string UrshiDefault = "100,6,140";
-    public const string FinishIllusionDefault = "100,25";
-    public const string FindIllusionDefault = "60,1,2";
+    public static readonly int[] UrshiDefaults = { 100, 6, 140 };
+    public static readonly int[] FinishIllusionDefaults = { 100, 25 };
+    public static readonly int[] FindIllusionDefaults = { 60, 1, 2 };
+    public static readonly string UrshiDefault = string.Join(ThresholdSeparator, UrshiDefaults);
+    public static readonly string FinishIllusionDefault = string.Join(ThresholdSeparator, FinishIllusionDefaults);
+    public static readonly string FindIllusionDefault = string.Join(ThresholdSeparator, FindIllusionDefaults);
+    private const string ThresholdSeparator = ",";
     public const string CropDefault = "0,0,0,0";
 
     public static bool GetBool(string key, bool defaultValue = false) => ConfigBinding.GetValue(key, defaultValue);

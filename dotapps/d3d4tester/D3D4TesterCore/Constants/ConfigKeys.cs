@@ -29,7 +29,6 @@ public static partial class ConfigKeys
     public const string AuxiliaryMacroStartHotkey = "macro_configs.auxiliary_config.macro_start_hotkey";
     public const string AuxiliaryAssistantHotkey = "macro_configs.auxiliary_config.assistant_hotkey";
     public const string AuxiliaryAnimationSpeed = "macro_configs.auxiliary_config.animation_speed";
-    public const string AuxiliaryGameLanguage = "macro_configs.auxiliary_config.game_language";
     public const string AuxiliarySmartPause = "macro_configs.auxiliary_config.smart_pause";
     public const string AuxiliarySoundFeedback = "macro_configs.auxiliary_config.sound_feedback";
 
@@ -119,7 +118,18 @@ public static partial class ConfigKeys
     public const string RosbotBridgePluginAutoInstall = "rosbot.bridge_plugin_auto_install";
     public const bool RosbotBridgePluginAutoInstallDefault = true;
     public const string BridgeFollowTownPortalKey = "rosbot.bridge_follow_town_portal_key";
+    /// <summary>Panel commands that act in the game (follow, NPC, salvage, ...) first pause monitoring and ROSBOT (F6).</summary>
+    public const string BridgeTakeControl = "rosbot.bridge_take_control";
+    public const bool BridgeTakeControlDefault = true;
     public const string BridgeFollowTownPortalKeyDefault = "t";
+    /// <summary>
+    /// Map teleport run by the plugin right after ROSBOT starts (ROSBOT paused meanwhile): D3 UI element ids / paths clicked in order,
+    /// separated by '|'. Empty = no teleport (no screenshot fallback).
+    /// </summary>
+    public const string BridgeTeleportUiSequence = "rosbot.bridge_teleport_ui_sequence";
+    /// <summary>Last follow command sent to the plugin (value "mode,party slot,banner,pickup,revive" or "off", target = player id); replayed after ROSBOT starts.</summary>
+    public const string BridgeFollowCommandValue = "rosbot.bridge_follow_value";
+    public const string BridgeFollowCommandTarget = "rosbot.bridge_follow_target";
     public const string RosbotFirstbornBlueGateReuse = "rosbot.firstborn_blue_gate_reuse";
     public const string RosbotTestMode = "rosbot.test_mode";
     public const string RosbotTestTimeoutMinutes = "rosbot.test_timeout_minutes";

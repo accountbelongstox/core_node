@@ -135,6 +135,14 @@ public static class BattlenetConstants
 
     // ---------- Region switch (official launcher argument; LastLoginRegion becomes CN / KR) ----------
     public const string LauncherExeName = "Battle.net Launcher.exe";
+    /// <summary>Installed client location when battlenet.battlenet_path is empty (RBAssist): HKLM uninstall key, value InstallLocation.</summary>
+    public const string UninstallRegistryKey = @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Battle.net";
+    public const string UninstallInstallLocationValue = "InstallLocation";
+    /// <summary>Direct game launch through the running client (RBAssist method): Battle.net.exe --exec="launch &lt;product&gt;".</summary>
+    public const string ExecLaunchArgFormat = "--exec=launch {0}";
+    /// <summary>Battle.net product codes for --exec: D3 global (Asia / TW client) and D3 China.</summary>
+    public const string ProductD3Global = "D3";
+    public const string ProductD3Cn = "D3CN";
     public const string SetRegionArgFormat = "--setregion={0}";
     public const string SetRegionCodeCn = "CN";
     /// <summary>Asia entry: --setregion=TW (Battle.net.config then shows LastLoginRegion KR).</summary>
@@ -167,16 +175,6 @@ public static class BattlenetConstants
     // ---------- Browser login wait popup: exit BN when this is shown. 1:1 Python BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS. ----------
     /// <summary>Main keyword for "Complete login in browser" popup. When present -> B5 exit.</summary>
     public static readonly string[] BrowserLoginWaitMainKeywords = { "使用浏览器完成登录" };
-
-    // ---------- In-UI popup close: ButtonControl only. 1:1 Python BATTLE_NET_POPUP_CLOSE_AUTOMATION_IDS / BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS (UI_NAME_KEYWORDS_CLOSE). ----------
-    public static readonly string[] PopupCloseAutomationIds = { "winCloseButton" };
-    public static readonly string[] PopupCloseNameKeywords = { "Close", "关闭" };
-    /// <summary>AutomationId substrings that identify the main window title-bar (X button). When automation_id contains any of these AND "winCloseButton", do NOT click (would close whole client). 1:1 Python BATTLE_NET_MAIN_WINDOW_FRAME_AUTOMATION_ID_SUBSTRINGS.</summary>
-    public static readonly string[] MainWindowCloseAutomationIdSubstrings = { "topLayerContainer.TopLayer.buttonContainer" };
-
-    // ---------- Fetching / Loading account info (stuck state, EN/CN). Reddit/Blizzard: "Fetching account info", "Loading", 读取中, 获取信息. ----------
-    /// <summary>UI text indicating Battle.net is fetching/loading account info (stuck state). Match when any present. Case-insensitive for EN.</summary>
-    public static readonly string[] FetchingAccountInfoKeywords = { "Fetching", "Loading", "account info", "Loading account", "Please wait", "读取中", "获取信息", "正在获取", "正在读取", "载入中" };
 
     // ---------- Stuck recovery: cache cleanup only after this duration (seconds). Reddit/Blizzard: cache corruption causes sleep/loading loop. ----------
     /// <summary>When stuck in sleep or fetching/loading account info for this many seconds, trigger cache cleanup. 5 minutes.</summary>
@@ -228,16 +226,9 @@ public static class BattlenetConstants
     public const double AsiaPasswordReenumerateDelaySec = 0.5;
     public const double AsiaAfterFieldFillSec = 0.15;
 
-    // ---------- CN login button. 1:1 Python BATTLE_NET_CN_LOGIN_BUTTON_* (+ "Login") ----------
-    public static readonly string[] CnLoginButtonAutomationIds = Array.Empty<string>();
-    public static readonly string[] CnLoginButtonKeywords = { "登陆", "登录", "Login" };
-
     // ---------- Detection by AutomationId (empty in uidocs) then keyword. 1:1 Python BATTLE_NET_*_AUTOMATION_IDS ----------
     public static readonly string[] DisconnectAutomationIds = Array.Empty<string>();
     public static readonly string[] ConnectingAutomationIds = Array.Empty<string>();
-    public static readonly string[] BrowserLoginWaitAutomationIds = Array.Empty<string>();
-    public static readonly string[] LoginFailedPrimaryAutomationIds = Array.Empty<string>();
-    public static readonly string[] LoginFailedSecondaryAutomationIds = Array.Empty<string>();
 
     // ---------- Loading UI: TextControl whose name contains a substring. 1:1 Python BATTLE_NET_LOADING_INDICATOR_* ----------
     public const string LoadingIndicatorControlType = "TextControl";

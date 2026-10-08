@@ -1912,4 +1912,79 @@
       </Setter.Value>
     </Setter>
   </Style>
+  <!-- Side navigation: a TabControl with its items stacked on the left (grouped by SideNavGroupHeaderStyle items) and the
+       selected section on the right. Used by pages that hold many sections (e.g. the d3d4tester control center). -->
+  <Style x:Key="SideNavTabControlStyle" TargetType="TabControl">
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabControl">
+          <Grid KeyboardNavigation.TabNavigation="Local" SnapsToDevicePixels="True">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" MinWidth="132"/>
+              <ColumnDefinition Width="6"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardStrokeBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource CardCornerRadius}" Padding="4">
+              <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="HeaderPanel" IsItemsHost="True" KeyboardNavigation.TabIndex="1"/>
+              </ScrollViewer>
+            </Border>
+            <Border Grid.Column="2" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardStrokeBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource CardCornerRadius}" Padding="{TemplateBinding Padding}" ClipToBounds="True">
+              <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="SideNavTabItemStyle" TargetType="TabItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+    <Setter Property="Padding" Value="10,5"/>
+    <Setter Property="Margin" Value="0,0,0,2"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Grid>
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="{StaticResource ControlCornerRadius}" Padding="{TemplateBinding Padding}">
+              <ContentPresenter ContentSource="Header" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+            </Border>
+            <Border x:Name="Marker" Width="3" HorizontalAlignment="Left" Margin="0,5" CornerRadius="2" Background="{DynamicResource AccentBrush}" Visibility="Collapsed"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{DynamicResource ControlFillHoverBrush}"/>
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+              <Setter TargetName="Marker" Property="Visibility" Value="Visible"/>
+              <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Group caption inside a side navigation: not selectable, not focusable -->
+  <Style x:Key="SideNavGroupHeaderStyle" TargetType="TabItem">
+    <Setter Property="IsEnabled" Value="False"/>
+    <Setter Property="Focusable" Value="False"/>
+    <Setter Property="IsTabStop" Value="False"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <ContentPresenter ContentSource="Header" Margin="8,8,8,2"/>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
 </ResourceDictionary>

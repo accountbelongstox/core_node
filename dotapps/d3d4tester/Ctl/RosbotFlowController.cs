@@ -51,13 +51,6 @@ public static class RosbotFlowController
         BattlenetFlowHooks.NotifyOauthDone = OAuthCallbackState.NotifyOauthDone;
     }
 
-    /// <summary>Kill ROSBOT main + same-dir exes by PID (renamed copies included), then invalidate the lookup cache. 1:1 Python get_rosbot_manager().kill_if_running.</summary>
-    public static bool StopRosbot()
-    {
-        bool ok = RosbotManager.Instance.KillIfRunning();
-        RosbotDetection.InvalidateCache();
-        return ok;
-    }
 
     /// <summary>Resolve ROSBOT exe path from directory (or return path if already exe): exact rosbot_exe_name, then ROSBOT exe patterns. 1:1 Python find_rosbot_exe.</summary>
     public static string? ResolveRosbotExe(string rosDirectory)

@@ -1,6 +1,7 @@
 // PY-REF: pyapps/d3-check/ui/panels/coordinate_calibration_panel.py
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using DotApps.d3d4tester.Config;
@@ -9,6 +10,7 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
 using DotApps.d3d4tester.Core.D4;
+using DotCore.Foundations;
 using DotCore.Utils;
 using DotCore.VocAnnotator;
 using DotCore.YoloRecord;
@@ -24,6 +26,9 @@ namespace DotApps.d3d4tester.Services;
 public sealed class YoloCalibrationData
 {
     public const int ProjectListMax = 30;
+    private const string ProjectNamePrefix = "project_";
+    private const string LogTag = "[YoloCalibrationData]";
+    private static readonly TimeSpan RecorderStopTimeout = TimeSpan.FromSeconds(3);
     private static readonly string[] RecordConfigRelativePath = { "GameAISDK", "tools", "SDKTool", "Resource", "cfg", YoloRecordConfig.FileName };
 
     private string _clientType = AppConstants.ClientTypeBattlenet;
@@ -33,6 +38,66 @@ public sealed class YoloCalibrationData
     public string ClientType => _clientType;
     public IReadOnlyList<string> ProjectList => _projectList;
     public string? LastRecordProjectPath { get; set; }
+
+    /// <summary>The single YOLO recorder of the app (calibration page and HTTP bridge); stopped and flushed on app shutdown.</summary>
+    public static YoloRecordService Recorder { get; } = new();
+
+    /// <summary>App startup: apply the yolo_data_root override now and on every change of that key, and stop the recorder on shutdown.</summary>
+    public static void InitializeRuntime()
+    {
+        ApplyDataRootOverride();
+        D3D4TesterConfigChangeHub.Notifier.Subscribe(OnConfigChanged);
+        ShutdownManager.RegisterShutdownHook(StopRecorder);
+    }
+
+    /// <summary>record_cfg.json loaded from <see cref="RecordConfigPath"/> (defaults when missing).</summary>
+    public static YoloRecordConfig LoadRecordConfig() => YoloRecordConfig.Load(RecordConfigPath);
+
+    /// <summary>
+    /// Current project from the live config without side effects: the saved project when it exists, else the default project of the
+    /// configured client when it exists. Same fallbacks as <see cref="GetCurrentProject"/> without the in-memory last record project.
+    /// </summary>
+    public static string? ResolveCurrentProject()
+    {
+        var saved = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloCurrentProject, "");
+        if (!string.IsNullOrWhiteSpace(saved))
+        {
+            var candidate = Path.GetFullPath(saved.Trim());
+            if (Directory.Exists(candidate)) return candidate;
+        }
+        var def = YoloDataLayout.GetProjectPath(YoloSegmentLayout.GetClientSubdir(ConfiguredClientType()), YoloSegmentLayout.DefaultProjectName);
+        return Directory.Exists(def) ? def : null;
+    }
+
+    /// <summary>Client type from the live config (invalid -> Battle.net).</summary>
+    public static string ConfiguredClientType()
+    {
+        var clientType = ConfigBinding.GetValue(ConfigKeys.CoordCalibrationClientType, AppConstants.ClientTypeBattlenet);
+        return IsValidClientType(clientType) ? clientType! : AppConstants.ClientTypeBattlenet;
+    }
+
+    private static void ApplyDataRootOverride() =>
+        YoloDataLayout.SetRootOverride(ConfigBinding.GetValue(ConfigKeys.CoordCalibrationYoloDataRoot, ""));
+
+    private static void OnConfigChanged(string? keyPath)
+    {
+        if (keyPath == null || ConfigKeys.CoordCalibrationYoloDataRoot.StartsWith(keyPath, StringComparison.Ordinal))
+            ApplyDataRootOverride();
+    }
+
+    private static void StopRecorder()
+    {
+        if (!Recorder.IsRecording) return;
+        try
+        {
+            if (!Recorder.StopRecordAsync().Wait(RecorderStopTimeout))
+                ColorPrinter.Yellow($"{LogTag} Stop recording timed out");
+        }
+        catch (AggregateException ex)
+        {
+            ColorPrinter.Yellow($"{LogTag} Stop recording failed: {ex.InnerException?.Message ?? ex.Message}");
+        }
+    }
 
     /// <summary>record_cfg.json path: repo pyapps/GameAISDK/tools/SDKTool/Resource/cfg (Python location) when pyapps is found above the app dir, else next to the app.</summary>
     public static string RecordConfigPath
@@ -50,7 +115,7 @@ public sealed class YoloCalibrationData
     {
         var opts = ConfigOptionsProvider.GetOptions<CoordCalibrationOptions>();
         _clientType = IsValidClientType(opts.ClientType) ? opts.ClientType : AppConstants.ClientTypeBattlenet;
-        YoloDataLayout.SetRootOverride(opts.YoloDataRoot);
+        ApplyDataRootOverride();
         _projectList = (opts.YoloProjectList ?? new List<string>())
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => Path.GetFullPath(p.Trim()))
@@ -146,7 +211,7 @@ public sealed class YoloCalibrationData
     {
         var baseDir = Path.Combine(YoloDataLayout.Root, YoloSegmentLayout.GetClientSubdir(_clientType));
         Directory.CreateDirectory(baseDir);
-        var name = "project_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var name = ProjectNamePrefix + DateTime.Now.ToString(D3PathConstants.FileTimestampFormat, CultureInfo.InvariantCulture);
         var projectPath = Path.Combine(baseDir, name);
         Directory.CreateDirectory(projectPath);
         ProjectConfig.SaveProjectConfig(Path.Combine(projectPath, ProjectConfig.AnnotatorConfigFileName), name, new[] { ProjectConfig.DefaultClassName });
@@ -154,15 +219,29 @@ public sealed class YoloCalibrationData
     }
 
     /// <summary>Find the window for the current client type; IntPtr.Zero when none.</summary>
-    public IntPtr FindClientWindow()
+    public IntPtr FindClientWindow() => FindClientWindow(_clientType);
+
+    /// <summary>Find the window of a client type; IntPtr.Zero when none.</summary>
+    public static IntPtr FindClientWindow(string clientType)
     {
-        if (_clientType == AppConstants.ClientTypeD3Game)
-            return D3WindowFinder.FindFirstHandle();
-        var window = _clientType == AppConstants.ClientTypeD4Game
+        if (clientType == AppConstants.ClientTypeD3Game)
+            return D3Manager.Instance.FindFirstHwnd();
+        var window = clientType == AppConstants.ClientTypeD4Game
             ? D4Manager.Instance.FindFirstWindow()
             : BattlenetManager.Instance.FindBattlenetWindow();
         return window?.Hwnd ?? IntPtr.Zero;
     }
+
+    /// <summary>Bring the current client window to front through its manager (blocking; game clients wait the settle delay).</summary>
+    public bool ActivateClientWindow() => ActivateClientWindow(_clientType);
+
+    /// <summary>Bring the window of a client type to front through its manager; false when no window.</summary>
+    public static bool ActivateClientWindow(string clientType) => clientType switch
+    {
+        AppConstants.ClientTypeD3Game => D3Manager.Instance.ActivateWindow(),
+        AppConstants.ClientTypeD4Game => D4Manager.Instance.ActivateWindow(),
+        _ => BattlenetManager.Instance.ActivateWindow(),
+    };
 
     /// <summary>"client/project" (last two components) for display.</summary>
     public static string ShortProjectPathDisplay(string? path)
@@ -181,12 +260,7 @@ public sealed class YoloCalibrationData
 
     private static void SaveCurrentProject(string path) => Save(ConfigKeys.CoordCalibrationYoloCurrentProject, path);
 
-    private static void Save(string key, object value)
-    {
-        var svc = D3D4TesterConfigService.Instance;
-        svc.SetValueAsync(key, value);
-        svc.QueueSave();
-    }
+    private static void Save(string key, object value) => ConfigBinding.SetValue(key, value);
 
     private static bool PathEquals(string a, string b) =>
         string.Equals(YoloDataLayout.TrimSeparators(Path.GetFullPath(a)), YoloDataLayout.TrimSeparators(Path.GetFullPath(b)), StringComparison.OrdinalIgnoreCase);

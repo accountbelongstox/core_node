@@ -24,6 +24,26 @@ public sealed class D3Manager : GameWindowManager
 
     protected override string GameLabel => "D3";
 
+    protected override IReadOnlyList<string> ProcessNames => D3WindowConstants.DiabloIIIProcessNames;
+
+    protected override int ReadyMinHeight => D3WindowConstants.ReadyMinHeight;
+
+    /// <summary>Close D3's "New version" prompt with Escape when it is shown (RBAssist). True when one was dismissed.</summary>
+    public bool DismissNewVersionPopup()
+    {
+        bool any = false;
+        foreach (var w in WindowFinder.EnumerateTopLevelWindows())
+        {
+            if (!string.Equals(w.Title, D3WindowConstants.NewVersionPopupTitle, StringComparison.Ordinal)) continue;
+            WindowInputHelper.SendKey(w.Hwnd, D3InterfaceConstants.VkEscape, true);
+            Thread.Sleep(D3InterfaceConstants.SendKeyHoldMs);
+            WindowInputHelper.SendKey(w.Hwnd, D3InterfaceConstants.VkEscape, false);
+            ColorPrinter.Gray($"{LogPrefix} \"{w.Title}\" prompt dismissed (Escape)");
+            any = true;
+        }
+        return any;
+    }
+
     /// <summary>Titles passed to provider/analyzer after prime. 1:1 Python get_capture_titles.</summary>
     public IReadOnlyList<string> GetCaptureTitles() => D3WindowConstants.DiabloIIIWindowTitles;
 

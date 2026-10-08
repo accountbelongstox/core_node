@@ -26,13 +26,16 @@ public static class RosbotPluginConstants
     /// &lt;ROSBOT&gt;\plugins\CoreNodeBridge; it writes the game state to state.json there once per second.
     /// </summary>
     public const string BridgeDirName = "CoreNodeBridge";
-    public const string RosbotProcessName = "RoS-BoT";
     public const string BridgeDllName = "CoreNodeBridge.dll";
     public const string BridgeStateFileName = "state.json";
     public const string BridgeCommandFileName = "command.txt";
     public const string BridgeFilterFileName = "pickup_filter.txt";
     /// <summary>Items / affix attributes the plugin reads (same name as CoreNodeBridge ItemWatch.FileName; the plugin cannot reference the app).</summary>
     public const string BridgeItemWatchFileName = "item_watch.txt";
+    /// <summary>App town work flag (same name as CoreNodeBridge TownHold.FileName): "1" = hold the next town visit, "0" = none / done.</summary>
+    public const string BridgeTownHoldFileName = "town_hold.txt";
+    public const string BridgeTownHoldOn = "1";
+    public const string BridgeTownHoldOff = "0";
     /// <summary>Pickup record kind for an item put into the stash (other kinds are pickups from the ground).</summary>
     public const string BridgePickupKindStash = "stash";
 
@@ -44,7 +47,20 @@ public static class RosbotPluginConstants
     public const string BridgeActionGoNpc = "go_npc";
     public const string BridgeActionSalvageAll = "salvage_all";
     public const string BridgeActionFollow = "follow";
+    /// <summary>Plugin command: wait for and click UI elements in order (value = ids / paths separated by BridgeUiSequenceSeparator).</summary>
+    public const string BridgeActionUiSequence = "ui_sequence";
+    public const string BridgeUiSequenceSeparator = "|";
     public const string BridgeFollowOff = "off";
+    /// <summary>Follow targets (plugin FollowMode modes): nearest player, the selected player, the party leader, party slot 1-4.</summary>
+    public const string BridgeFollowNearest = "nearest";
+    public const string BridgeFollowSelected = "selected";
+    public const string BridgeFollowLeader = "leader";
+    public const string BridgeFollowSlot = "slot";
+    public static readonly (string Mode, int Slot)[] BridgeFollowTargets =
+    {
+        (BridgeFollowLeader, 0), (BridgeFollowSlot, 1), (BridgeFollowSlot, 2), (BridgeFollowSlot, 3), (BridgeFollowSlot, 4),
+        (BridgeFollowNearest, 0), (BridgeFollowSelected, 0),
+    };
     /// <summary>Banner slot choices for follow: 0 = try every banner, else the leader's party slot.</summary>
     public static readonly int[] BridgeFollowBannerSlots = { 0, 1, 2, 3, 4 };
     /// <summary>Banner of party slot 1 = the party leader (who formed the party).</summary>

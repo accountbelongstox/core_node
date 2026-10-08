@@ -46,7 +46,6 @@ public partial class CalibrationPage : UserControl
     private const string StyleDangerButton = "CalDangerButton";
 
     private readonly YoloCalibrationData _yoloData = new();
-    private readonly YoloRecordService _recorder = new();
     private readonly ObservableCollection<YoloSegmentRow> _rows = new();
     private readonly ContextMenu _patchMenu = new();
     private readonly MenuItem _patchMenuOne = new();
@@ -54,6 +53,7 @@ public partial class CalibrationPage : UserControl
     private YoloSegmentRow? _contextRow;
     private bool _initialized;
     private bool _suppressEvents;
+    private int _tableVersion;
 
     public CalibrationPage()
     {
@@ -93,7 +93,7 @@ public partial class CalibrationPage : UserControl
         RadioBattlenet.Checked += (_, _) => OnClientTypeChange(AppConstants.ClientTypeBattlenet);
         RadioD3Game.Checked += (_, _) => OnClientTypeChange(AppConstants.ClientTypeD3Game);
         RadioD4Game.Checked += (_, _) => OnClientTypeChange(AppConstants.ClientTypeD4Game);
-        BtnCapture.Click += (_, _) => OnCaptureScreenshot();
+        BtnCapture.Click += async (_, _) => await OnCaptureScreenshotAsync();
         BtnYoloConfig.Click += (_, _) => OnRecordConfig();
         BtnYoloRecordToggle.Click += async (_, _) => await OnRecordToggleAsync();
         BtnYoloFlowOpenLabel.Click += async (_, _) => await OpenLabelAsync(null, useSelection: false);
@@ -115,7 +115,7 @@ public partial class CalibrationPage : UserControl
         BtnExportGameFrames.Click += async (_, _) => await OnExportGameFramesAsync();
         BtnOpenRecordDir.Click += (_, _) => OnOpenRecordDir();
         DgYoloSegments.PreviewMouseRightButtonDown += DgYoloSegments_PreviewMouseRightButtonDown;
-        SegmentContextMenu.Opened += (_, _) => MiSegmentDelete.IsEnabled = !_recorder.IsRecording;
+        SegmentContextMenu.Opened += (_, _) => MiSegmentDelete.IsEnabled = !Recorder.IsRecording;
         DgYoloSegments.ContextMenuOpening += (_, e) => { if (_contextRow == null || _contextRow.IsPatch) e.Handled = true; };
         MiSegmentOpenFolder.Click += (_, _) => { if (_contextRow != null) YoloSegmentLayout.OpenDir(_contextRow.SegmentPath); };
         MiSegmentExportFrames.Click += async (_, _) => await OnSegmentExportFramesAsync();
@@ -189,36 +189,58 @@ public partial class CalibrationPage : UserControl
         ColorPrinter.Blue(LogPrefix + text);
     }
 
+    private static YoloRecordService Recorder => YoloCalibrationData.Recorder;
+
     private string? CurrentProject() => _yoloData.GetCurrentProject();
 
     private List<string> SelectedSegmentPaths() =>
         DgYoloSegments.SelectedItems.OfType<YoloSegmentRow>().Where(r => !r.IsPatch).Select(r => r.SegmentPath).ToList();
 
-    private void RefreshYoloDataTable(bool logWhenEmpty = true)
+    /// <summary>Reload the segment table: disk enumeration on a worker, rows filled on the dispatcher; only the latest refresh is applied.</summary>
+    private async void RefreshYoloDataTable(bool logWhenEmpty = true)
     {
-        _rows.Clear();
+        int version = ++_tableVersion;
         var project = CurrentProject();
         UpdateProjectDropdown();
         if (project == null)
         {
+            _rows.Clear();
             UpdateWorkflowBar(Array.Empty<YoloSegmentLayout.SegmentInfo>());
             return;
         }
-        var (_, patchItems) = PatchData.LoadPatchData(Path.Combine(project, ProjectConfig.AnnotatorConfigFileName));
+        int patchCount;
+        List<(string SegmentId, string SegmentPath, YoloSegmentLayout.SegmentInfo Info)> segments;
+        try
+        {
+            (patchCount, segments) = await Task.Run(() =>
+            {
+                var (_, patchItems) = PatchData.LoadPatchData(Path.Combine(project, ProjectConfig.AnnotatorConfigFileName));
+                var list = new List<(string SegmentId, string SegmentPath, YoloSegmentLayout.SegmentInfo Info)>();
+                foreach (var (segmentId, segmentPath) in YoloSegmentLayout.ListSegments(project))
+                    list.Add((segmentId, segmentPath, YoloSegmentLayout.GetSegmentInfo(segmentPath)));
+                return (patchItems.Count, list);
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (version == _tableVersion) AppendLog(ex.Message);
+            return;
+        }
+        if (version != _tableVersion) return;
+        _rows.Clear();
         _rows.Add(new YoloSegmentRow
         {
             IsPatch = true,
             Timestamp = T(I18nKeys.CoordCalYoloPatchRowFormat)
                 .Replace(PlaceholderLabel, T(I18nKeys.CoordCalYoloPatchRowLabel))
-                .Replace(PlaceholderCount, patchItems.Count.ToString()),
+                .Replace(PlaceholderCount, patchCount.ToString()),
             Frames = EmptyCell,
             Status = EmptyCell,
             Size = EmptyCell,
         });
         var infos = new List<YoloSegmentLayout.SegmentInfo>();
-        foreach (var (segmentId, segmentPath) in YoloSegmentLayout.ListSegments(project))
+        foreach (var (segmentId, segmentPath, info) in segments)
         {
-            var info = YoloSegmentLayout.GetSegmentInfo(segmentPath);
             infos.Add(info);
             _rows.Add(new YoloSegmentRow
             {
@@ -258,7 +280,7 @@ public partial class CalibrationPage : UserControl
 
     private void UpdateRecordStatus()
     {
-        if (_recorder.IsRecording)
+        if (Recorder.IsRecording)
         {
             BtnYoloRecordToggle.Content = T(I18nKeys.CoordCalYoloRecordStop);
             BtnYoloRecordToggle.SetResourceReference(StyleProperty, StyleDangerButton);
@@ -333,10 +355,15 @@ public partial class CalibrationPage : UserControl
         dlg.ShowDialog();
     }
 
-    private void OnCaptureScreenshot()
+    private async Task OnCaptureScreenshotAsync()
     {
-        ColorPrinter.Blue($"[COORD_CALIBRATION] Capturing for client: {_yoloData.ClientType}...");
-        var (screenshot, error) = Windows.CoordinatePicker.ClientWindowCapture.Capture(_yoloData.FindClientWindow);
+        var clientType = _yoloData.ClientType;
+        ColorPrinter.Blue($"[COORD_CALIBRATION] Capturing for client: {clientType}...");
+        BtnCapture.IsEnabled = false;
+        (OpenCvSharp.Mat? Image, string? Error) captured;
+        try { captured = await Windows.CoordinatePicker.ClientWindowCapture.CaptureAsync(clientType); }
+        finally { BtnCapture.IsEnabled = true; }
+        var (screenshot, error) = captured;
         if (screenshot == null)
         {
             MessageBox.Show(Window.GetWindow(this), error ?? T(I18nKeys.CoordCalNoGameWindow), T(I18nKeys.CoordCalErrorTitle), MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -344,13 +371,13 @@ public partial class CalibrationPage : UserControl
             return;
         }
         ColorPrinter.Green("[COORD_CALIBRATION] Captured in memory");
-        CoordinatePickerWindow.ShowPicker(Window.GetWindow(this), screenshot, _yoloData.ClientType,
-            () => Windows.CoordinatePicker.ClientWindowCapture.Capture(_yoloData.FindClientWindow));
+        CoordinatePickerWindow.ShowPicker(Window.GetWindow(this), screenshot, clientType,
+            () => Windows.CoordinatePicker.ClientWindowCapture.CaptureAsync(clientType));
     }
 
     private async Task OnRecordToggleAsync()
     {
-        if (_recorder.IsRecording)
+        if (Recorder.IsRecording)
             await StopRecordAsync();
         else
             await StartRecordAsync();
@@ -365,17 +392,17 @@ public partial class CalibrationPage : UserControl
             AppendLog(T(I18nKeys.CoordCalYoloRecordErrorClientWindowRequired));
             return;
         }
-        WindowInputHelper.SetForegroundWindow(hwnd);
+        await Task.Run(() => _yoloData.ActivateClientWindow());
         AppendLog(T(I18nKeys.CoordCalYoloRecordClientTopped));
-        var cfg = YoloRecordConfig.Load(YoloCalibrationData.RecordConfigPath);
+        var cfg = YoloCalibrationData.LoadRecordConfig();
         var project = CurrentProject();
         if (project == null)
         {
             AppendLog(T(I18nKeys.CoordCalYoloDataNoProject));
             return;
         }
-        _recorder.OnLog = msg => Dispatcher.InvokeAsync(() => AppendLog(msg));
-        var (ok, err, projectPath) = _recorder.StartRecord(project, hwnd, cfg.FrameWidth, cfg.FrameHeight, cfg);
+        Recorder.OnLog = msg => Dispatcher.InvokeAsync(() => AppendLog(msg));
+        var (ok, err, projectPath) = Recorder.StartRecord(project, hwnd, cfg.FrameWidth, cfg.FrameHeight, cfg);
         if (!ok)
         {
             AppendLog(string.IsNullOrEmpty(err) ? T(I18nKeys.CoordCalYoloRecordStartFailed) : err);
@@ -398,13 +425,13 @@ public partial class CalibrationPage : UserControl
                 AppendLog(T(I18nKeys.CoordCalYoloRecordOpenedDir));
         }
         await Task.Delay(StartSegmentDelayMs);
-        if (_recorder.StartSegment())
+        if (Recorder.StartSegment())
             AppendLog(T(I18nKeys.CoordCalYoloRecordSegmentStarted));
     }
 
     private async Task StopRecordAsync()
     {
-        await _recorder.StopRecordAsync();
+        await Recorder.StopRecordAsync();
         UpdateRecordStatus();
         AppendLog(T(I18nKeys.CoordCalYoloRecordStopOk));
         RefreshYoloDataTable();
@@ -510,7 +537,7 @@ public partial class CalibrationPage : UserControl
             AppendLog(T(I18nKeys.CoordCalYoloDataSelectFirst));
             return;
         }
-        if (_recorder.IsRecording)
+        if (Recorder.IsRecording)
         {
             AppendLog(T(I18nKeys.CoordCalYoloRecordDeleteWhileRecording));
             return;

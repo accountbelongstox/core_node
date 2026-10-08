@@ -8,10 +8,15 @@ namespace DotApps.d3d4tester.Services;
 
 /// <summary>
 /// Watchdog-driven tail of logs.txt: enqueue complete lines to <see cref="RosbotLogLineBridge"/> (or to the given sink, e.g. history.txt).
-/// 1:1 Python threads/log_monitor_thread (watch + poll fallback).
+/// 1:1 Python threads/log_monitor_thread (watch + poll fallback). ROSBOT keeps logs.txt open and Windows then neither raises change
+/// events nor updates the write time reliably, so the poll also reads when the size grew, and the last-log time becomes the arrival
+/// time of new content when the file's own write time lags behind.
 /// </summary>
 public sealed class RosbotLogFileWatcher : IDisposable
 {
+    /// <summary>A write time older than this when new content arrives is stale (file held open), the arrival time is used instead.</summary>
+    private const int WriteTimeLagSec = 5;
+
     private readonly object _sync = new();
     private readonly Action<string> _sink;
     private FileSystemWatcher? _watcher;
@@ -133,7 +138,7 @@ public sealed class RosbotLogFileWatcher : IDisposable
             try
             {
                 var t = File.GetLastWriteTimeUtc(_path);
-                if (t > _lastWriteUtc)
+                if (t > _lastWriteUtc || new FileInfo(_path).Length != _lastPosition)
                     ReadNewLinesUnsafe();
             }
             catch { /* ignore */ }
@@ -188,7 +193,8 @@ public sealed class RosbotLogFileWatcher : IDisposable
 
         try
         {
-            _lastWriteUtc = File.GetLastWriteTimeUtc(_path);
+            var written = File.GetLastWriteTimeUtc(_path);
+            _lastWriteUtc = string.IsNullOrEmpty(newContent) || written > DateTime.UtcNow.AddSeconds(-WriteTimeLagSec) ? written : DateTime.UtcNow;
         }
         catch { /* ignore */ }
 

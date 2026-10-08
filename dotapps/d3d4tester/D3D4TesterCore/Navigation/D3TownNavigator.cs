@@ -225,7 +225,15 @@ public sealed class D3TownNavigator
             return null;
         }
         offset = sd.WindowOffset;
-        return ImageConvert.BitmapToMat(sd.GameWindowImage);
+        try
+        {
+            return ImageConvert.BitmapToMat(sd.GameWindowImage);
+        }
+        finally
+        {
+            sd.GameWindowImage.Dispose();
+            sd.FullscreenImage?.Dispose();
+        }
     }
 
     private static void Log(IReadOnlyList<YoloDetection> detections)

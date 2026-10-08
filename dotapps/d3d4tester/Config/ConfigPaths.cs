@@ -1,5 +1,6 @@
 // PY-REF: pyapps/d3-check/share/project_path.py
 using System.IO;
+using DotApps.d3d4tester.Constants;
 
 namespace DotApps.d3d4tester.Config;
 
@@ -16,5 +17,13 @@ public static class ConfigPaths
     public static string CurrentUserDataPath => UserDataDir;
     /// <summary>Daily app log files (ColorPrinter file log).</summary>
     public static string LogDirectory => Path.Combine(UserDataDir, "logs");
-    public static string ConfigUserPath => Path.Combine(UserDataDir, "d3check_config.json");
+    public static string ConfigUserPath => Path.Combine(UserDataDir, ConfigKeys.ConfigFileName);
+
+    /// <summary>App-local data root: %LOCALAPPDATA%\d3d4tester (debug captures, generated docs).</summary>
+    public static string LocalAppDataDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName);
+
+    /// <summary>Assistant / town navigation debug captures.</summary>
+    public static string DebugCaptureDir => Path.Combine(LocalAppDataDir, DebugCaptureDirName);
+
+    private const string DebugCaptureDirName = "debug_capture";
 }

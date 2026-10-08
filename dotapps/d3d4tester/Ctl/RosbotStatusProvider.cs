@@ -33,16 +33,14 @@ public static class RosbotStatusProvider
         if (RosbotDetection.IsOnline(prev.RosbotExtendedStatus) && status == RosbotDetection.StatusNotFound)
             RosbotExitState.MarkExitReasonWhenProcessGone();
         bool statusChanged = game.SetRosbotExtendedStatus(status);
-        bool hasMainUi = status == RosbotDetection.StatusPaused;
+        bool hasMainUi = status == RosbotDetection.StatusPaused && det.IsMainUi;
         bool mainUiChanged = prev.RosbotHasMainUi != hasMainUi;
         game.SetRosbotHasMainUi(hasMainUi);
-        bool displayChanged = game.SetRosbotFoundDisplay(det.ExeName ?? "", det.WindowInfo?.Title ?? "");
+        bool displayChanged = game.SetRosbotFoundDisplay(det.ExeName ?? "", det.WindowInfo?.Title ?? "", det.Pids.Count > 0 ? det.Pids[0] : 0);
 
         RosbotUiState ui = GetRosbotOperation().GetUiState(det.Pids.Count > 0 ? det.Pids : null);
         game.SetRosbotUiNeedKey(ui.NeedKeyInput, ui.Message.Trim());
         return (det.WindowInfo, statusChanged || displayChanged || mainUiChanged);
     }
 
-    /// <summary>Immediate check: current ROSBOT window or null. 1:1 Python get_current_rosbot_window.</summary>
-    public static RosbotWindowInfo? GetCurrentWindow() => RosbotManager.Instance.GetRosbotWindow();
 }

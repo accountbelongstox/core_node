@@ -135,6 +135,8 @@ public sealed class MonitorService
         _historyWatcher = new RosbotLogFileWatcher(line => _historyQueue.Enqueue(line));
         _historyWatcher.Start(RosbotLogPaths.GetHistoryFilePath());
         F3LogTimeout.HistoryLastModifiedProvider = () => _historyWatcher?.LastModifiedUtc;
+        F3LogTimeout.LogsDisabledProvider = () => { lock (_lock) return _logsDisabled; };
+        RosbotInterruptGuard.LogPathProvider = RosbotLogPaths.GetLogsFilePath;
         RosbotUiAutomation.ForcedSequenceProvider = () =>
             MonitorSettings.GetBool(ConfigKeys.MonitorForceSequence) ? MonitorSettings.GetString(ConfigKeys.MonitorForceSequenceName) : null;
         RosbotRestartRequest.Executed += OnRestartExecuted;
@@ -142,7 +144,7 @@ public sealed class MonitorService
         _logRolloverStamp = RolloverStamp(RosbotLogPaths.GetLogsFilePath());
         _historyRolloverStamp = RolloverStamp(RosbotLogPaths.GetHistoryFilePath());
         CheckRosbotLogLevel();
-        lock (_lock) _flowEnabled = RosbotFlowState.Instance.FlowMasterEnabled;
+        lock (_lock) _flowEnabled = IsActive(GameInterfaceData.Instance.GetStateSnapshot());
         TickDriver.Instance.RegisterEveryTick(OnTick);
         ShutdownManager.RegisterShutdownHook(OnShutdown);
         TriggerEngine.Instance.Fire(MonitorEvents.AppLaunch);
@@ -158,17 +160,28 @@ public sealed class MonitorService
         }
     }
 
-    public MonitorStatus GetStatus()
+    public MonitorStatus GetStatus() => GetStatus(GameInterfaceData.Instance.GetStateSnapshot());
+
+    /// <summary>
+    /// Status from one state snapshot (the caller renders the same snapshot). Log / history idle use the file modification times F3 uses
+    /// (logs.txt watcher via the flow host, history.txt watcher); the restart count is the snapshot's.
+    /// </summary>
+    public MonitorStatus GetStatus(GameInterfaceStateSnapshot s)
     {
         DateTime now = DateTime.UtcNow;
+        DateTime? logModified = RosbotFlowHost.Current?.GetLastLogModifiedUtc();
+        DateTime? historyModified = _historyWatcher?.LastModifiedUtc;
         lock (_lock)
         {
             return new MonitorStatus(
-                _flowEnabled == true, _d3Running == true, _rosbotOnline == true,
-                IdleSeconds(now, _lastLogUtc), IdleSeconds(now, _lastHistoryUtc), RosbotExitState.GetTotalRestartCount(),
+                s.RosbotFlowMasterEnabled, s.D3Running, RosbotDetection.IsOnline(s.RosbotExtendedStatus),
+                IdleSeconds(now, logModified), IdleSeconds(now, historyModified), s.RosbotTotalRestartCount,
                 _deaths, _fails, _runs, ExternalGameTools.CurrentSpeedFactor, _inCombat, _lastLogLine, _logsDisabled);
         }
     }
+
+    /// <summary>Log-driven events and watchdogs run only while monitoring is on and not paused.</summary>
+    private static bool IsActive(GameInterfaceStateSnapshot s) => s.RosbotFlowMasterEnabled && !s.RosbotFlowPaused;
 
     /// <summary>Restart D3 + ROSBOT through the flow (ignored while monitoring is off, as RBAssist).</summary>
     public void RequestRestart(string reasonId, string detail, bool restartBattlenet)
@@ -238,13 +251,13 @@ public sealed class MonitorService
     /// <summary>Called for each logs.txt line on the tick thread (RosbotLogTickProcessor).</summary>
     public void OnLogLine(string line)
     {
-        bool active;
+        bool active = IsActive(GameInterfaceData.Instance.GetStateSnapshot());
         lock (_lock)
         {
             _lastLogLine = line;
             _lastLogUtc = DateTime.UtcNow;
             _logTimerFired.Clear();
-            active = _flowEnabled == true;
+            active &= _flowEnabled == true;
         }
         if (!active) return;
         var engine = TriggerEngine.Instance;
@@ -284,13 +297,13 @@ public sealed class MonitorService
             _lastMinute = minute;
             engine.Fire(MonitorEvents.ScheduledTime);
         }
-        bool active = s.RosbotFlowMasterEnabled;
+        bool active = IsActive(s);
         HandleFlowEdge(active);
         DrainHistory(active);
         if (!active) return;
         HandleProcessEdges(s);
         DateTime now = DateTime.UtcNow;
-        EvaluateIdleTimers(now);
+        if (!GameControl.TownHoldActive) EvaluateIdleTimers(now);
         EvaluatePortalTimer(now);
         EvaluateShrineTimers(now);
         EvaluatePixelProbes(s);
@@ -555,11 +568,11 @@ public sealed class MonitorService
         bool tp = engine.HasEnabled(MonitorEvents.TownPortal);
         bool tp2 = engine.HasEnabled(MonitorEvents.TownPortalAfterIllusion);
         if (!(urshi || tp || tp2) || !s.D3Running) return;
-        using var bmp = GameWindowActions.CaptureClient(GameWindowActions.FindD3Hwnd());
+        using var bmp = GameWindowActions.CaptureClient(D3Manager.Instance.FindFirstHwnd());
         if (bmp == null) return;
         if (urshi)
         {
-            bool open = D3PixelProbes.IsUrshiOpen(bmp, D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeUrshi, MonitorSettings.UrshiDefault), 100, 6, 140));
+            bool open = D3PixelProbes.IsUrshiOpen(bmp, D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeUrshi, MonitorSettings.UrshiDefault), MonitorSettings.UrshiDefaults));
             engine.Evaluate(MonitorEvents.UrshiOpen, (i, _) => Rising(StatePrefixUrshi, i, open));
         }
         if (!tp && !tp2) return;
@@ -568,12 +581,12 @@ public sealed class MonitorService
         if (tp)
             engine.Evaluate(MonitorEvents.TownPortal, (i, _) => Rising(StatePrefixTownPortal, i, tpPixels > threshold));
         if (!tp2) return;
-        if (!_illusionFound && D3PixelProbes.IsIllusionFound(bmp, D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeFindIllusion, MonitorSettings.FindIllusionDefault), 60, 1, 2)))
+        if (!_illusionFound && D3PixelProbes.IsIllusionFound(bmp, D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeFindIllusion, MonitorSettings.FindIllusionDefault), MonitorSettings.FindIllusionDefaults)))
         {
             _illusionFound = true;
             _illusionFoundUtc = DateTime.UtcNow;
         }
-        var finishThresholds = D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeFinishIllusion, MonitorSettings.FinishIllusionDefault), 100, 25);
+        var finishThresholds = D3PixelProbes.ParseThresholds(MonitorSettings.GetString(ConfigKeys.MonitorProbeFinishIllusion, MonitorSettings.FinishIllusionDefault), MonitorSettings.FinishIllusionDefaults);
         engine.Evaluate(MonitorEvents.TownPortalAfterIllusion, (i, _) =>
         {
             if (!Rising(StatePrefixTownPortal2, i, tpPixels > threshold)) return false;
@@ -724,7 +737,7 @@ public sealed class MonitorService
             ColorPrinter.Gray($"{MonitorLog.Tag} read ROSBOT settings: {ex.Message}");
         }
         lock (_lock) _logsDisabled = disabled;
-        if (disabled) MonitorLog.Warn("ROSBOT logs are disabled (DebugLevel = NoLogs): log timeout and log triggers will not work");
+        if (disabled) MonitorLog.Warn("ROSBOT logs are disabled (DebugLevel = NoLogs): log timeout restart is off, log triggers will not work");
     }
 
     /// <summary>Single place for every restart: error trigger (timeouts), error screenshot, Battle.net close (requested or configured), notification.</summary>

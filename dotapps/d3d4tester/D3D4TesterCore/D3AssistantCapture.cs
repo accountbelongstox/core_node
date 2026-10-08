@@ -33,12 +33,6 @@ public static class D3AssistantCapture
     public static bool DebugSaveUiCapture { get; set; }
 
     /// <summary>
-    /// Find first D3 window handle. 1:1 Python D3Manager.find_windows: by config exe path then by title with skip.
-    /// Returns IntPtr.Zero if not found. Call D3WindowFinder.SetConfigPathProvider from app before use.
-    /// </summary>
-    public static IntPtr FindD3WindowHandle() => D3WindowFinder.FindFirstHandle();
-
-    /// <summary>
     /// Capture the D3 window, store image/offset/scale and the UI region in shared data. 1:1 Python
     /// UIRegionCollectorOptimized.collect (window cache -> UIRegion source window_cache_optimized, error state, annotated save).
     /// </summary>

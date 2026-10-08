@@ -1,6 +1,7 @@
 // PY-REF: none (DOT-only)
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -30,6 +31,8 @@ public sealed class CoreNodeBridge : IPlugin
     private const int WriteIntervalMs = 1000;
     private const int FilterReloadMs = 2000;
     private const int MaxAreaHistory = 20;
+    private const int SlowWriteMs = 800;
+    private const int SlowLogIntervalSec = 60;
     private const string LogTag = "[CoreNodeBridge] ";
 
     private readonly List<KeyValuePair<int, DateTime>> _areaHistory = new();
@@ -37,6 +40,7 @@ public sealed class CoreNodeBridge : IPlugin
     private BridgeCommands _commands;
     private ItemWatch _watch;
     private FollowMode _follow;
+    private TownHold _townHold;
     private Timer _timer;
     private readonly object _writeLock = new();
     private int _ticking;
@@ -51,9 +55,10 @@ public sealed class CoreNodeBridge : IPlugin
     private DateTime _lastEventUtc = DateTime.MinValue;
     private string _dir = ".";
     private List<EntityInfo> _ground = new();
+    private DateTime _lastSlowLogUtc = DateTime.MinValue;
 
     public string Author => "core_node";
-    public Version Version => new(1, 6, 0);
+    public Version Version => typeof(CoreNodeBridge).Assembly.GetName().Version;
     public string Name => "CoreNode Bridge";
     public string Description => "Publishes map, items, NPCs and pickups to d3d4tester (state.json) and runs its commands.";
     public bool CanSettings => false;
@@ -69,9 +74,11 @@ public sealed class CoreNodeBridge : IPlugin
     public void OnInitialize()
     {
         _dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-        _follow = new FollowMode(Log);
+        _townHold = new TownHold(_dir, Log);
+        _follow = new FollowMode(Log) { TownHold = _townHold };
         _commands = new BridgeCommands(_dir, Log, _follow);
         _follow.PickupHandler = _commands.PickupNearestMatching;
+        _follow.CommandBusy = () => _commands.Busy;
         _commands.ReloadFilter();
         _watch = new ItemWatch(Log);
         _watch.Reload(_dir);
@@ -104,6 +111,7 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnItemStash -= OnItemStash;
         _timer?.Dispose();
         _timer = null;
+        _townHold.Release("plugin disabled");
         WriteState(DateTime.UtcNow);
         Log("disabled");
     }
@@ -138,6 +146,7 @@ public sealed class CoreNodeBridge : IPlugin
             _watch.Reload(_dir);
         }
         _commands.Poll();
+        _townHold.Tick();
         _follow.Tick();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
         {
@@ -150,12 +159,19 @@ public sealed class CoreNodeBridge : IPlugin
     public void OnShutdown()
     {
         _enabled = false;
+        _townHold?.Release("plugin shut down");
         _timer?.Dispose();
         _timer = null;
         WriteState(DateTime.UtcNow);
     }
 
-    private void OnInTown(object sender, EventArgs e) => Event("in_town");
+    /// <summary>ROSBOT's town run starts: hold it (this thread) while the app equips build items, before ROSBOT salvages.</summary>
+    private void OnInTown(object sender, EventArgs e)
+    {
+        bool hold = _townHold.TryBegin(TownHold.ReasonTownRun);
+        Event("in_town");
+        if (hold) _townHold.Wait();
+    }
 
     private void OnOpenRift(object sender, EventArgs e) => Event("open_rift");
 
@@ -190,6 +206,11 @@ public sealed class CoreNodeBridge : IPlugin
 
     private void Scan(DateTime now)
     {
+        if (!WorldScanner.Safe(() => LocalPlayer.IsValid && LocalPlayer.IsInGame, false))
+        {
+            _ground = new List<EntityInfo>();
+            return;
+        }
         var actors = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()) ?? Array.Empty<IActor>();
         _ground = WorldScanner.GroundItems(actors);
         int world = WorldScanner.Safe(() => LocalPlayer.MeWorldId, 0);
@@ -206,15 +227,23 @@ public sealed class CoreNodeBridge : IPlugin
     private void WriteStateLocked(DateTime now)
     {
         _lastWriteUtc = now;
+        var total = Stopwatch.StartNew();
+        var sections = new List<string>();
+        void Section(string name)
+        {
+            sections.Add($"{name} {total.ElapsedMilliseconds}ms");
+        }
         try
         {
-            var actors = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()) ?? Array.Empty<IActor>();
-            var acds = WorldScanner.Safe(() => Context.Acds, Array.Empty<IAcd>()) ?? Array.Empty<IAcd>();
+            bool inGame = WorldScanner.Safe(() => LocalPlayer.IsValid && LocalPlayer.IsInGame, false);
+            Section("in_game");
+            var actors = inGame ? WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>()) ?? Array.Empty<IActor>() : Array.Empty<IActor>();
+            var acds = inGame ? WorldScanner.Safe(() => Context.Acds, Array.Empty<IAcd>()) ?? Array.Empty<IAcd>() : Array.Empty<IAcd>();
+            Section("actors");
             int area = WorldScanner.Safe(() => LocalPlayer.SnoLevelArea, 0);
             TrackArea(area, now);
             var (monsters, elites) = WorldScanner.MonsterCounts(actors);
             var json = new JsonWriter().BeginObject()
-                .Prop("updated_utc", now)
                 .Prop("plugin_version", Version.ToString())
                 .Prop("enabled", _enabled)
                 .Prop("valid", WorldScanner.Safe(() => LocalPlayer.IsValid, false))
@@ -231,6 +260,10 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("greater_rift_level", _greaterRiftLevel)
                 .Prop("rift_keys", WorldScanner.Safe(() => LocalPlayer.RiftKey, 0))
                 .Prop("blood_shards", WorldScanner.Safe(() => LocalPlayer.Shards, 0))
+                .Prop("max_blood_shards", WorldScanner.Safe(() => LocalPlayer.MaxShard, 0))
+                .Prop("town_hold", _townHold.Holding)
+                .Prop("town_hold_reason", _townHold.Holding ? _townHold.Reason : "")
+                .Prop("town_hold_since_utc", _townHold.SinceUtc)
                 .Prop("paragon", WorldScanner.Safe(() => LocalPlayer.ParagonLevel, 0))
                 .Prop("actor_class", WorldScanner.Safe(() => LocalPlayer.ActorClass, 0))
                 .Prop("health_pct", WorldScanner.Safe(() => LocalPlayer.CurrentHealthPct, 0d))
@@ -253,22 +286,29 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("follow_enabled", _follow.Enabled)
                 .Prop("follow_state", _follow.State)
                 .Prop("follow_pickup", _follow.Pickup)
+                .Prop("follow_mode", _follow.Mode)
+                .Prop("follow_revive", _follow.Revive)
                 .Prop("follow_leader", _follow.Leader)
                 .Prop("follow_distance", _follow.Distance)
-                .Prop("ui_vendor_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.VendorDialog)), false))
-                .Prop("ui_salvage_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.SalvageDialog)), false))
-                .Prop("ui_inventory_open", WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.InventoryDialog)), false));
+                .Prop("ui_vendor_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.VendorDialog)), false))
+                .Prop("ui_salvage_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.SalvageDialog)), false))
+                .Prop("ui_inventory_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.InventoryDialog)), false));
+            Section("player+ui");
             json.BeginArray("level_area_history");
             foreach (var v in _areaHistory) json.BeginObject().Prop("sno", v.Key).Prop("utc", v.Value).EndObject();
             json.EndArray();
             WriteEntities(json, "ground_items", _ground);
             WriteEntities(json, "npcs", WorldScanner.Npcs(actors));
+            _follow.LearnBanners(actors);
             WriteEntities(json, "players", WorldScanner.Players(actors).Select(a => new EntityInfo
             {
                 Id = WorldScanner.Safe(() => a.RActorId, 0u), AcdId = WorldScanner.Safe(() => a.AcdId, 0), Name = WorldScanner.Safe(() => a.Name, "") ?? "",
                 Sno = WorldScanner.Safe(() => a.ActorSnoId, 0), Distance = WorldScanner.Safe(() => a.Distance, 0f),
+                PartySlot = _follow.SlotOf(WorldScanner.Safe(() => a.AcdId, 0)), IsLeader = FollowMode.IsLeader(a),
             }));
+            Section("ground+npcs+players");
             WriteEntities(json, "carried_items", WorldScanner.CarriedItems(acds, _ground));
+            Section("carried");
             json.BeginArray("pickups");
             foreach (var r in _pickups.Records)
             {
@@ -278,9 +318,17 @@ public sealed class CoreNodeBridge : IPlugin
                 json.EndObject();
             }
             json.EndArray();
+            if (_commands.Running is { } runningCommand)
+                json.BeginObject("running_command").Prop("id", runningCommand.Id).Prop("action", runningCommand.Action).Prop("utc", runningCommand.Utc).EndObject();
             if (_commands.Last is { } c)
                 json.BeginObject("last_command").Prop("id", c.Id).Prop("action", c.Action).Prop("ok", c.Ok).Prop("message", c.Message).Prop("utc", c.Utc).EndObject();
+            json.Prop("write_ms", total.ElapsedMilliseconds).Prop("updated_utc", DateTime.UtcNow);
             json.EndObject();
+            if (total.ElapsedMilliseconds >= SlowWriteMs && (DateTime.UtcNow - _lastSlowLogUtc).TotalSeconds >= SlowLogIntervalSec)
+            {
+                _lastSlowLogUtc = DateTime.UtcNow;
+                Log($"slow state: {total.ElapsedMilliseconds}ms ({string.Join(", ", sections)})");
+            }
 
             string path = Path.Combine(_dir, StateFileName);
             string tmp = path + TempSuffix;
@@ -304,7 +352,7 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("quality", e.Quality).Prop("ancient_rank", e.AncientRank).Prop("stack", e.Stack).Prop("equipped", e.Equipped)
                 .Prop("durability_cur", e.DurabilityCur).Prop("durability_max", e.DurabilityMax)
                 .Prop("elite", e.Elite).Prop("boss", e.Boss).Prop("filter_match", _commands.MatchesFilter(e)).Prop("gbid", e.Gbid)
-                .Prop("slot", e.Slot).Prop("inv_x", e.InvX).Prop("inv_y", e.InvY);
+                .Prop("slot", e.Slot).Prop("inv_x", e.InvX).Prop("inv_y", e.InvY).Prop("party_slot", e.PartySlot).Prop("is_leader", e.IsLeader);
             WriteAttrs(json, e.Attrs);
             json.EndObject();
         }

@@ -1,5 +1,6 @@
 // PY-REF: pyapps/d3-check/d3utils/log_analyzer.py
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Flow;
 
 namespace DotApps.d3d4tester.Services;
 
@@ -11,6 +12,8 @@ public static class RosbotLogNoItemsHandler
 {
     private const string NoItemsMarker = "No items";
     private const string VendorLoopDoneMarker = "Vendor loop done";
+    private const string LeaseNoItems = "ROSBOT no-items restart";
+    private const int LeaseWaitMs = 10000;
 
     public static void OnLine(string line)
     {
@@ -18,8 +21,9 @@ public static class RosbotLogNoItemsHandler
             return;
         if (RosbotManager.Instance.GetDetection().Status == RosbotDetection.StatusNotFound)
             return;
-        RosbotUiAutomation.TryCloseD3MustBeLaunchedDialog();
-        if (RosbotUiAutomation.TryCloseNoItemsPopup())
-            RosbotUiAutomation.DoAfterNoItemsCloseSwitchRiftAndStart();
+        if (!GameControl.Allowed(LeaseNoItems, needsMonitoring: true))
+            return;
+        using var lease = GameControl.TryAcquire(LeaseNoItems, LeaseWaitMs);
+        if (lease != null) RosbotUiAutomation.HandleStartupPopups();
     }
 }

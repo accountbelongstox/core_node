@@ -21,6 +21,15 @@ public sealed record PlannerAlert(string Title, string Message, PlannerMatch Mat
 /// <summary>Best in-game copy of a planned item: the match (null = none seen) and whether it is carried (else on the ground).</summary>
 public sealed record PlannerSlotStatus(PlannerItem Planned, PlannerMatch? Match, bool Carried);
 
+/// <summary>A backpack item (bridge plugin entity, inventory cell) that improves a planned item over the worn copy.</summary>
+public sealed record PlannerUpgrade(PlannerMatch Match, RosbotBridgeEntity Item);
+
+/// <summary>Gear set vs worn items: planned items not worn at their ancient rank, and the backpack upgrades for them.</summary>
+public sealed record PlannerAlignment(IReadOnlyList<PlannerItem> Unaligned, IReadOnlyList<PlannerUpgrade> Upgrades)
+{
+    public static readonly PlannerAlignment Empty = new(Array.Empty<PlannerItem>(), Array.Empty<PlannerUpgrade>());
+}
+
 /// <summary>
 /// maxroll d3planner builds matched against the game. LoadAsync(url) adds a build (or refreshes the one with the same id), keeps the
 /// list in the user data folder and writes the bridge plugin's item watch (GBIDs, item ids and checkable affix attributes of every
@@ -240,6 +249,40 @@ public static class D3PlannerService
     }
 
     public static IReadOnlySet<string> Uncheckable => _uncheckable;
+
+    /// <summary>
+    /// Gear set (cube powers excluded) against the worn items: a planned item is aligned when worn (any slot, so rings / weapons may
+    /// swap hands) at its ancient rank. For every unaligned one, the best backpack copy that is better than the worn copy: ancient rank
+    /// reached, or the same rank with more affixes in range. Empty without a build or plugin state.
+    /// </summary>
+    public static PlannerAlignment Alignment()
+    {
+        if (Profile is not { } profile || _state is not { } state) return PlannerAlignment.Empty;
+        var worn = state.CarriedItems.Where(e => D3PaperDollLayout.FromInventorySlot.ContainsKey(e.Slot)).Select(Observe).ToList();
+        var backpack = state.CarriedItems.Where(e => e.Slot == RosbotPluginConstants.BridgeSlotBackpack && e.InvX >= 0 && e.InvY >= 0).ToList();
+        var unaligned = new List<PlannerItem>();
+        var upgrades = new List<PlannerUpgrade>();
+        var taken = new HashSet<int>();
+        foreach (var item in profile.Items)
+        {
+            var current = Best(item, worn);
+            if (current is { AncientOk: true }) continue;
+            unaligned.Add(item);
+            var upgrade = backpack.Where(e => !taken.Contains(e.AcdId) && D3PlannerMatcher.IsSameItem(item, Observe(e)))
+                .Select(e => new PlannerUpgrade(D3PlannerMatcher.Evaluate(item, Observe(e), _uncheckable), e))
+                .Where(u => current == null || (u.Match.AncientOk && !current.AncientOk) || (u.Match.AncientOk == current.AncientOk && u.Match.OkStats > current.OkStats))
+                .OrderByDescending(u => u.Match.AncientOk).ThenByDescending(u => u.Match.OkStats)
+                .FirstOrDefault();
+            if (upgrade == null) continue;
+            taken.Add(upgrade.Item.AcdId);
+            upgrades.Add(upgrade);
+        }
+        return new PlannerAlignment(unaligned, upgrades);
+    }
+
+    /// <summary>Planned item of the current gear set this observed item is (slot + item), null when it is not part of it.</summary>
+    public static PlannerItem? PlannedFor(int gbid, string internalName, string name, int ancientRank) =>
+        Profile is { } profile ? D3PlannerMatcher.Match(profile.Items, new ObservedItem(gbid, internalName, name, ancientRank, null))?.Planned : null;
 
     private static PlannerMatch? Best(PlannerItem item, IEnumerable<ObservedItem> observed) =>
         observed.Where(o => D3PlannerMatcher.IsSameItem(item, o))

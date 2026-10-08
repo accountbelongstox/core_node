@@ -10,7 +10,7 @@
         "projectUniqueName": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\RosBotApiStub\\RosBotApiStub.csproj",
         "projectName": "RosBot",
         "projectPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\RosBotApiStub\\RosBotApiStub.csproj",
-        "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
         "outputPath": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\RosBotApiStub\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [

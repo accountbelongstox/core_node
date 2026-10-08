@@ -24,6 +24,12 @@ public static class RosbotBridgeText
         : RosbotBridgePluginService.GetAreaName(sno) is { } name ? $"{name} ({sno})"
         : string.Format(p.GetUiText(I18nKeys.RosbotBridgeUnnamedArea), sno);
 
+    /// <summary>Blood shards with the hero's cap ("full" at the cap), or the bare count from an older plugin.</summary>
+    public static string BloodShardsText(RosbotBridgeState s, II18nProvider p) =>
+        s.MaxBloodShards <= 0 ? string.Format(p.GetUiText(I18nKeys.RosbotBridgeBloodShards), s.BloodShards, Empty)
+        : string.Format(p.GetUiText(I18nKeys.RosbotBridgeBloodShards), s.BloodShards, s.MaxBloodShards)
+          + (s.BloodShardsFull ? AppConstants.DisplaySeparator + p.GetUiText(I18nKeys.RosbotBridgeBloodShardsFull) : "");
+
     /// <summary>Location kind: town / greater rift level / rift / field.</summary>
     public static string LocationText(RosbotBridgeState s, II18nProvider p) =>
         s.InTown ? p.GetUiText(I18nKeys.RosbotBridgeTown)

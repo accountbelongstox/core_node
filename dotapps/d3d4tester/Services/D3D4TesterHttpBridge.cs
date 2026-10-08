@@ -34,7 +34,6 @@ public sealed class D3D4TesterHttpBridge : IDisposable
 
     private readonly LocalJsonHttpHost _host;
     private readonly Func<CombatMacroController?> _macroController;
-    private readonly YoloRecordService _recorder = new();
 
     public static D3D4TesterHttpBridge? Current { get; private set; }
 
@@ -70,15 +69,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
 
     public bool Start() => _host.Start();
 
-    public void Stop()
-    {
-        if (_recorder.IsRecording)
-        {
-            try { _recorder.StopRecordAsync().Wait(TimeSpan.FromSeconds(3)); }
-            catch (Exception ex) { ColorPrinter.Yellow($"[HTTPBridgeController] Stop recording failed: {ex.Message}"); }
-        }
-        _host.Stop();
-    }
+    public void Stop() => _host.Stop();
 
     public void Dispose() => Stop();
 
@@ -225,7 +216,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
         return result;
     }
 
-    private object HandleYoloRecordStatus(JsonObject _) => Ok(new JsonObject { ["recording"] = _recorder.IsRecording });
+    private object HandleYoloRecordStatus(JsonObject _) => Ok(new JsonObject { ["recording"] = YoloCalibrationData.Recorder.IsRecording });
 
     private object HandleYoloRecordStart(JsonObject body)
     {
@@ -240,7 +231,8 @@ public sealed class D3D4TesterHttpBridge : IDisposable
             return Error(ErrorYoloSerialRequired);
         try
         {
-            var (ok, err, outProject) = _recorder.StartRecord(projectPath, new IntPtr(hwnd), YoloRecordConfig.DefaultFrameWidth, YoloRecordConfig.DefaultFrameHeight, new YoloRecordConfig());
+            var cfg = YoloCalibrationData.LoadRecordConfig();
+            var (ok, err, outProject) = YoloCalibrationData.Recorder.StartRecord(projectPath, new IntPtr(hwnd), cfg.FrameWidth, cfg.FrameHeight, cfg);
             if (!ok) return Error(string.IsNullOrEmpty(err) ? "start failed" : err);
             return new JsonObject { [KeySuccess] = true, [KeyMessage] = "recording started", ["project_path"] = outProject };
         }
@@ -251,7 +243,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
     {
         try
         {
-            _recorder.StopRecordAsync().Wait();
+            YoloCalibrationData.Recorder.StopRecordAsync().Wait();
             return Message("recording stopped");
         }
         catch (Exception ex) { return Error(ex.Message); }

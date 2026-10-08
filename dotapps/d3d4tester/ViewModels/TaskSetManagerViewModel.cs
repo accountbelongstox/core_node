@@ -51,7 +51,6 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
     private const int MaxUndoEntries = 20;
     private const double PixelScaleEpsilon = 1e-6;
     private const int AugGridCount = 9;
-    private const string DatasetStampFormat = "yyyyMMdd_HHmmss";
     private const string NumberPlaceholderDone = "{done}";
     private const string NumberPlaceholderTotal = "{total}";
 
@@ -88,7 +87,7 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
     /// <summary>Busy / generating / selection state changed: the view refreshes IsEnabled of its commands.</summary>
     public event Action? StateChanged;
 
-    public TaskSetStore Store { get; } = new(TaskSetStore.DefaultRoot);
+    public TaskSetStore Store => new(TaskSetStore.DefaultRoot);
 
     public ObservableCollection<TaskSetRow> Sets { get; } = new();
 
@@ -988,7 +987,8 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
         if (issues.Any(i => i.IsError)) return false;
         var snapshot = Snapshot(set);
         var dir = Store.GetDir(set.Id);
-        var outDir = Path.Combine(dir, TaskSetStore.DatasetsSubdir, DateTime.Now.ToString(DatasetStampFormat, CultureInfo.InvariantCulture));
+        var datasetsDir = Path.Combine(dir, TaskSetStore.DatasetsSubdir);
+        var outDir = Path.Combine(datasetsDir, YoloTrainingService.UniqueStamp(datasetsDir));
         var cts = BeginJob();
         _isGenerating = true;
         Result = null;

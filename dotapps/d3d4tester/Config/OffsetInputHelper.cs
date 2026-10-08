@@ -37,11 +37,5 @@ public sealed class OffsetInputHelper
         return (output[0], output[1], output[2], output[3]);
     }
 
-    public string FormatDisplay(string? raw)
-    {
-        var (t, l, b, r) = Parse(raw);
-        return Format(t, l, b, r);
-    }
-
     public static string Format(int top, int left, int bottom, int right) => $"{top},{left},{bottom},{right}";
 }

@@ -25,8 +25,7 @@ public sealed class RosbotWindowInfo
 }
 
 /// <summary>
-/// Facade over <see cref="RosbotManager"/> lookup (single lookup flow, 15 s cache). Kept for existing callers; the rosDirectory /
-/// mainExeName arguments are ignored because the manager reads ros_settings each call.
+/// ROSBOT status values and the online check; detection itself is <see cref="RosbotManager.GetDetection"/>.
 /// </summary>
 public static class RosbotDetection
 {
@@ -37,13 +36,12 @@ public static class RosbotDetection
     /// <summary>True for running or paused (ROSBOT online). 1:1 Python status in ("running", "paused").</summary>
     public static bool IsOnline(string? status) => status == StatusRunning || status == StatusPaused;
 
-    public static void InvalidateCache() => RosbotManager.Instance.InvalidateLookupCache();
-
-    public static RosbotDetectionResult GetDetection(string? rosDirectory = null, string? mainExeName = null) =>
-        RosbotManager.Instance.GetDetection();
-
-    public static RosbotWindowInfo? GetRosbotWindow(string? rosDirectory = null, string? mainExeName = null) =>
-        RosbotManager.Instance.GetRosbotWindow();
+    /// <summary>
+    /// ROSBOT is botting: process with no visible window, or online with its main UI hidden (the overlay window stays visible while
+    /// it bots, so "paused" alone does not mean stopped).
+    /// </summary>
+    public static bool IsBotting(GameInterfaceStateSnapshot s) =>
+        s.RosbotExtendedStatus == StatusRunning || (s.RosbotExtendedStatus == StatusPaused && !s.RosbotHasMainUi);
 }
 
 /// <summary>Win32 window helpers for the ROSBOT lookup (win32gui equivalents).</summary>
@@ -86,7 +84,6 @@ internal static class NativeWindowHelper
 
     public static bool IsWindowValid(IntPtr hWnd) => hWnd != IntPtr.Zero && IsWindow(hWnd);
 
-    public static bool IsVisible(IntPtr hWnd) => hWnd != IntPtr.Zero && IsWindowVisible(hWnd);
 
     /// <summary>Bring window to foreground and restore. 1:1 Python SetForegroundWindow + ShowWindow(SW_RESTORE).</summary>
     public static bool ActivateWindow(IntPtr hWnd)

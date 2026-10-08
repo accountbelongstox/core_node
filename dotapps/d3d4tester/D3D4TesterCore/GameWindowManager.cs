@@ -29,7 +29,31 @@ public abstract class GameWindowManager
         return windows.Count > 0 ? windows[0] : null;
     }
 
+    /// <summary>Handle of the first game window, or IntPtr.Zero.</summary>
+    public IntPtr FindFirstHwnd() => FindFirstWindow()?.Hwnd ?? IntPtr.Zero;
+
     public bool IsRunning() => FindWindows().Count > 0;
+
+    /// <summary>Minimum window height (pixels) for a ready game window; 0 = any window counts.</summary>
+    protected virtual int ReadyMinHeight => 0;
+
+    /// <summary>True when the game window is up and full size (not a splash / loading stub).</summary>
+    public bool IsWindowReady() => FindFirstWindow() is { } w && w.Height > ReadyMinHeight;
+
+    /// <summary>Client process names of this game (process may run before its window shows); empty when unknown.</summary>
+    protected virtual IReadOnlyList<string> ProcessNames => Array.Empty<string>();
+
+    /// <summary>True when a client process of this game runs, window or not.</summary>
+    public bool IsProcessRunning()
+    {
+        foreach (string name in ProcessNames)
+        {
+            var processes = System.Diagnostics.Process.GetProcessesByName(name);
+            foreach (var p in processes) p.Dispose();
+            if (processes.Length > 0) return true;
+        }
+        return false;
+    }
 
     /// <summary>Process ids owning the game window(s) (resource monitor, kill).</summary>
     public IReadOnlyCollection<int> GetProcessIds()
@@ -73,15 +97,8 @@ public abstract class GameWindowManager
     /// </summary>
     public bool KillIfRunning()
     {
-        var windows = FindWindows();
-        if (windows.Count == 0) return true;
-        var pids = new HashSet<int>();
-        foreach (var w in windows)
-        {
-            if (w.Hwnd == IntPtr.Zero) continue;
-            if (ProcessUtil.GetPidFromHwnd(w.Hwnd) is int pid && pid > 0)
-                pids.Add(pid);
-        }
+        if (!IsRunning()) return true;
+        var pids = GetProcessIds();
         if (pids.Count == 0)
         {
             ColorPrinter.Yellow($"{LogPrefix} {GameLabel} window found but could not get PID");

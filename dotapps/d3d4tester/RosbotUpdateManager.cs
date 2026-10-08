@@ -324,7 +324,7 @@ public sealed class RosbotUpdateManager
     public async Task<bool> RunUpdateFlowAsync(bool silent, Func<RosbotUpdateOffer, bool>? confirm, Action<RosbotNoUpdateDetection>? showNoUpdate, CancellationToken cancellationToken = default)
     {
         ColorPrinter.Blue($"{PanelLogTag} Update ROSBOT: E1 kill existing");
-        RosbotFlowController.StopRosbot();
+        RosbotManager.Instance.KillIfRunning();
         ColorPrinter.Blue($"{PanelLogTag} E2 wait 1s");
         await Task.Delay(ShellConstants.RosbotUpdateKillWaitMs, cancellationToken).ConfigureAwait(false);
 
@@ -474,7 +474,7 @@ public sealed class RosbotUpdateManager
         else
             ColorPrinter.Yellow($"{LogTag} Config path mismatch: expected {finalDirNorm}, got {cfg.GetValueSafe<string>(ConfigKeys.RosSettingsRosDirectory, "")}");
 
-        RosbotDetection.InvalidateCache();
+        RosbotManager.Instance.InvalidateLookupCache();
         ColorPrinter.Gray($"{LogTag} Cleared ROSBOT detection cache");
         GameInterfaceData.Instance.UpdateFromPaths(
             ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath ?? "",

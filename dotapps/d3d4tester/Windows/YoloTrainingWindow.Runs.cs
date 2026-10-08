@@ -8,6 +8,7 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core.Navigation;
 using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.ViewModels;
+using DotCore.Foundations;
 using DotCore.VocAnnotator;
 using DotCore.YoloRecord;
 using DotCore.YoloTaskSet;
@@ -218,7 +219,10 @@ public partial class YoloTrainingWindow
             {
                 check = D3TownNavigator.SetCurrentModel(onnx);
                 if (check.IsOk && ConfigBinding.GetValue(ConfigKeys.NavigationNpcModelPath, "") is { Length: > 0 } overridePath)
-                    WarnText(T(I18nKeys.YoloTrainingNavigationOverrideActive).Replace("{path}", overridePath));
+                {
+                    ConfigBinding.SetValue(ConfigKeys.NavigationNpcModelPath, "");
+                    ColorPrinter.Yellow($"[YoloTraining] Cleared {ConfigKeys.NavigationNpcModelPath} ({overridePath}) so the current navigation model is used");
+                }
             }
             else
             {

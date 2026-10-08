@@ -20,7 +20,6 @@ public static class RosbotKeyService
     private const string IniKeyName = "Key";
     private const char KeySeparator = '\n';
     private const int MaskVisibleChars = 4;
-    private const string MaskFill = "****";
     /// <summary>ROSBOT [SettingsField] names without a Category, declared next to "Key" (same ini section).</summary>
     private static readonly string[] IniAnchorKeys = { "KeyEx", "TosAccepted", "LastScriptUsed", "LastLaunchWasLocal", "SceneVersion", "Seasons", "Exts", "LocalPickit", "LocalSkill", "DontPickit", "SeasonItems" };
 
@@ -100,8 +99,7 @@ public static class RosbotKeyService
     }
 
     /// <summary>First and last characters only, e.g. ABCD****WXYZ.</summary>
-    public static string Mask(string key) =>
-        key.Length <= MaskVisibleChars * 2 ? MaskFill : key[..MaskVisibleChars] + MaskFill + key[^MaskVisibleChars..];
+    public static string Mask(string key) => SecretMask.Mask(key, MaskVisibleChars);
 
     /// <summary>RoS-BoT.ini of the configured ROSBOT folder, or null when the folder is not set.</summary>
     public static string? IniPath =>

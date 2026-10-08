@@ -49,9 +49,21 @@ public partial class MainPage : UserControl
         {
             _bound = true;
             CboConfig.SelectionChanged += OnConfigSelectionChanged;
-            TxtMacroStartHotkey.HotkeyCaptured += (_, hotkey) => ConfigBinding.SetValue(ConfigKeys.AuxiliaryMacroStartHotkey, hotkey);
-            TxtAssistantHotkey.HotkeyCaptured += (_, hotkey) => ConfigBinding.SetValue(ConfigKeys.AuxiliaryAssistantHotkey, hotkey);
-            TxtQuickSwitch.HotkeyCaptured += (_, hotkey) => SaveQuickSwitch(hotkey);
+            TxtMacroStartHotkey.HotkeyCaptured += (_, hotkey) =>
+            {
+                if (RejectConflict(hotkey, HotkeyRole.Combat)) LoadHotkeys();
+                else ConfigBinding.SetValue(ConfigKeys.AuxiliaryMacroStartHotkey, hotkey);
+            };
+            TxtAssistantHotkey.HotkeyCaptured += (_, hotkey) =>
+            {
+                if (RejectConflict(hotkey, HotkeyRole.Assistant)) LoadHotkeys();
+                else ConfigBinding.SetValue(ConfigKeys.AuxiliaryAssistantHotkey, hotkey);
+            };
+            TxtQuickSwitch.HotkeyCaptured += (_, hotkey) =>
+            {
+                if (RejectConflict(hotkey, HotkeyRole.QuickSwitch)) LoadQuickSwitch(ViewModel.CurrentConfigName);
+                else SaveQuickSwitch(hotkey);
+            };
             ConfigBinding.BindCheckBox(ChkPlaySoundOnSwitch, ConfigKeys.AuxiliarySoundFeedback, true);
             ConfigBinding.BindCheckBox(ChkSmartPauseBar, ConfigKeys.AuxiliarySmartPause, true);
             ConfigBinding.BindCheckBox(ChkCustomStand, ConfigKeys.AuxiliaryUseCustomStandKey, false);
@@ -174,4 +186,26 @@ public partial class MainPage : UserControl
     }
 
     private static string QuickSwitchKey(string configName) => MacroConfigLoader.QuickSwitchKey(configName);
+
+    private enum HotkeyRole { Combat, Assistant, QuickSwitch }
+
+    /// <summary>True (and an i18n warning shown) when the captured key is already used by another hotkey role; quick switch keys may be shared between configs.</summary>
+    private bool RejectConflict(string hotkey, HotkeyRole role)
+    {
+        var key = HotkeyUtil.NormalizeCanonical(hotkey);
+        if (string.IsNullOrEmpty(key)) return false;
+        var used = new List<string>();
+        if (role != HotkeyRole.Combat)
+            used.Add(HotkeyUtil.NormalizeCanonical(ConfigBinding.GetValue(ConfigKeys.AuxiliaryMacroStartHotkey, AppConstants.DefaultMacroStartHotkey) ?? ""));
+        if (role != HotkeyRole.Assistant)
+            used.Add(HotkeyUtil.NormalizeCanonical(ConfigBinding.GetValue(ConfigKeys.AuxiliaryAssistantHotkey, AppConstants.DefaultAssistantHotkey) ?? ""));
+        if (role != HotkeyRole.QuickSwitch)
+            foreach (var name in MacroConfigLoader.GetConfigNames()) used.Add(SkillConfigSwitcher.QuickSwitchHotkey(name));
+        if (!used.Exists(u => string.Equals(u, key, StringComparison.OrdinalIgnoreCase))) return false;
+        var p = D3D4TesterI18n.Provider;
+        ColorPrinter.Yellow($"[MainFunctionsPanel] Hotkey {key} rejected: already in use");
+        MessageBox.Show(Window.GetWindow(this), string.Format(p.GetUiText(I18nKeys.HotkeyInputConflict), key),
+            p.GetUiText(I18nKeys.HotkeyInputConflictTitle), MessageBoxButton.OK, MessageBoxImage.Warning);
+        return true;
+    }
 }

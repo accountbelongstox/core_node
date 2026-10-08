@@ -179,7 +179,6 @@ public static partial class I18nKeys
     public const string YoloTrainingRunDelete = Yt + "run_delete";
     public const string YoloTrainingRunDeleteConfirm = Yt + "run_delete_confirm";
     public const string YoloTrainingCurrentModelSet = Yt + "current_model_set";
-    public const string YoloTrainingNavigationOverrideActive = Yt + "navigation_override_active";
     public const string YoloTrainingModelMissingClasses = Yt + "model_missing_classes";
     public const string YoloTrainingModelFileMissing = Yt + "model_file_missing";
     public const string YoloTrainingFineTuneSet = Yt + "fine_tune_set";

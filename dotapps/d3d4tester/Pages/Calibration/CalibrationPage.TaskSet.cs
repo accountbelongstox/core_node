@@ -23,7 +23,7 @@ public partial class CalibrationPage
         I18nKeys.YoloTaskSetExtractModeRectangle, I18nKeys.VariantExtractModeColorKey, I18nKeys.YoloTaskSetExtractModeGrabCut,
     };
 
-    private readonly TaskSetStore _taskSets = new(TaskSetStore.DefaultRoot);
+    private static TaskSetStore TaskSets => new(TaskSetStore.DefaultRoot);
     private readonly MenuItem _miSegmentToCommon = new();
     private readonly MenuItem _miSegmentToScenes = new();
     private readonly MenuItem _miSegmentToVariants = new();
@@ -55,7 +55,7 @@ public partial class CalibrationPage
 
     private async Task<IReadOnlyList<TaskSet>?> ListTaskSetsAsync()
     {
-        var sets = await Task.Run(() => _taskSets.List());
+        var sets = await Task.Run(() => TaskSets.List());
         if (sets.Count > 0) return sets;
         AppendLog(T(I18nKeys.YoloTaskSetSegmentNoSets));
         return null;
@@ -77,7 +77,7 @@ public partial class CalibrationPage
         try
         {
             await TaskSetWindow.FlushPendingAsync(setId);
-            var result = await Task.Run(() => _taskSets.Load(setId) is { } fresh ? write(fresh) : null);
+            var result = await Task.Run(() => TaskSets.Load(setId) is { } fresh ? write(fresh) : null);
             TaskSetWindow.NotifyExternalChange(setId);
             return result;
         }
@@ -110,7 +110,7 @@ public partial class CalibrationPage
         }
         var targetId = p.Targets.FirstOrDefault()?.Id;
         var results = await WriteTaskSetAsync(p.Set.Id, set =>
-            _taskSets.AddMany(set, set.Targets.FirstOrDefault(t => t.Id == targetId), pool, new[] { source }));
+            TaskSets.AddMany(set, set.Targets.FirstOrDefault(t => t.Id == targetId), pool, new[] { source }));
         if (results == null) return;
         var summary = TaskSetImportSummary.From(results);
         AppendLog(T(I18nKeys.YoloTaskSetSegmentAdded)
@@ -134,7 +134,7 @@ public partial class CalibrationPage
         if (pick is not { } p) return;
         var cutout = AnnotationCutouts[Math.Clamp(p.Option, 0, AnnotationCutouts.Count - 1)];
         AppendLog(T(I18nKeys.YoloTaskSetSegmentExtracting));
-        var result = await WriteTaskSetAsync(p.Set.Id, set => _taskSets.AddVariantsFromAnnotations(set, framesDir, framesDir, null, cutout));
+        var result = await WriteTaskSetAsync(p.Set.Id, set => TaskSets.AddVariantsFromAnnotations(set, framesDir, framesDir, null, cutout));
         if (result == null) return;
         AppendLog(T(I18nKeys.YoloTaskSetSegmentVariantsAdded)
             .Replace("{added}", result.Added.ToString())

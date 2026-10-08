@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
+using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core.Monitor;
 using DotCore.ScreenCapture;
@@ -33,7 +34,7 @@ public static class MonitorScreenshotService
     {
         try
         {
-            using Bitmap? full = GameWindowActions.CaptureClient(GameWindowActions.FindD3Hwnd());
+            using Bitmap? full = GameWindowActions.CaptureClient(D3Manager.Instance.FindFirstHwnd());
             if (full == null)
             {
                 MonitorLog.Warn("Screenshot skipped: D3 window not available");

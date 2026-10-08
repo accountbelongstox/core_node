@@ -7,5 +7,5 @@ namespace DotApps.d3d4tester.Config.Options;
 public sealed class MacroConfigsOptions
 {
     [ConfigurationKeyName("current_skill_config")]
-    public string CurrentSkillConfig { get; set; } = "config1";
+    public string CurrentSkillConfig { get; set; } = MacroConfigLoader.DefaultConfigName;
 }

@@ -316,11 +316,18 @@
     "profile_index": 0,
     "build_index": 0,
     "notify": true,
-    "notify_push": false
+    "notify_push": false,
+    "equip_in_town": true,
+    "gamble_unaligned": true,
+    "inventory_key": "i"
   },
   "rosbot": {
     "bridge_plugin_auto_install": true,
     "bridge_follow_town_portal_key": "t",
+    "bridge_take_control": true,
+    "bridge_teleport_ui_sequence": "",
+    "bridge_follow_value": "",
+    "bridge_follow_target": "",
     "pickup_blood_shards": false,
     "prevent_stuck": false,
     "blue_portal_priority": false,

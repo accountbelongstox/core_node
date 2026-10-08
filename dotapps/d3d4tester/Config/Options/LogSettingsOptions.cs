@@ -1,4 +1,5 @@
 // PY-REF: pyapps/d3-check/providor/providor_index.py
+using DotApps.d3d4tester.Constants;
 using Microsoft.Extensions.Configuration;
 
 namespace DotApps.d3d4tester.Config.Options;
@@ -13,5 +14,5 @@ public sealed class LogSettingsOptions
     public bool AutoScroll { get; set; } = true;
 
     [ConfigurationKeyName("log_level")]
-    public string LogLevel { get; set; } = "INFO";
+    public string LogLevel { get; set; } = AppConstants.LogLevelDefault;
 }

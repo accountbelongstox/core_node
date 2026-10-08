@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Planner;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
@@ -29,6 +30,7 @@ public partial class D3PlannerBuildBlock : UserControl
     private const string MarkUnchecked = "? ";
     private const string KanaiSlotPrefix = "kanai.";
     private const string ValueFormat = "0.##";
+    private const string SlotSeparator = ", ";
 
     private readonly DispatcherTimer _timer = new() { Interval = RefreshInterval };
     private bool _bound;
@@ -46,6 +48,8 @@ public partial class D3PlannerBuildBlock : UserControl
                 ConfigBinding.BindTextBox(TxtUrl, ConfigKeys.D3PlannerUrl, "");
                 ConfigBinding.BindCheckBox(ChkNotify, ConfigKeys.D3PlannerNotify, true);
                 ConfigBinding.BindCheckBox(ChkNotifyPush, ConfigKeys.D3PlannerNotifyPush, false);
+                ConfigBinding.BindCheckBox(ChkEquipInTown, ConfigKeys.D3PlannerEquipInTown, ConfigKeys.D3PlannerEquipInTownDefault);
+                ConfigBinding.BindCheckBox(ChkGambleUnaligned, ConfigKeys.D3PlannerGambleUnaligned, ConfigKeys.D3PlannerGambleUnalignedDefault);
             }
             D3PlannerService.BuildChanged -= OnBuildChanged;
             D3PlannerService.BuildChanged += OnBuildChanged;
@@ -70,6 +74,10 @@ public partial class D3PlannerBuildBlock : UserControl
         LblProfile.Text = T(I18nKeys.RosbotBridgeBuildProfile);
         ChkNotify.Content = T(I18nKeys.RosbotBridgeBuildNotify);
         ChkNotifyPush.Content = T(I18nKeys.RosbotBridgeBuildNotifyPush);
+        ChkEquipInTown.Content = T(I18nKeys.RosbotBridgeBuildEquipInTown);
+        ChkEquipInTown.ToolTip = T(I18nKeys.RosbotBridgeBuildEquipInTownTip);
+        ChkGambleUnaligned.Content = T(I18nKeys.RosbotBridgeBuildGambleUnaligned);
+        ChkGambleUnaligned.ToolTip = T(I18nKeys.RosbotBridgeBuildGambleUnalignedTip);
         LblDollGame.Text = T(I18nKeys.RosbotBridgeDollGame);
         LblDollPlan.Text = T(I18nKeys.RosbotBridgeDollPlan);
         ColSlot.Header = T(I18nKeys.RosbotBridgeBuildColSlot);
@@ -110,7 +118,25 @@ public partial class D3PlannerBuildBlock : UserControl
     {
         if (!IsVisible) return;
         LstItems.ItemsSource = D3PlannerService.Status().Select(ToRow).ToList();
+        RefreshAlignment();
         RefreshDolls();
+    }
+
+    /// <summary>Unaligned planned items (slots), backpack upgrades the next town visit equips, blood shards for the Kadala gamble.</summary>
+    private void RefreshAlignment()
+    {
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        if (D3PlannerService.Profile == null || snapshot.RosbotBridge is not { } state || !snapshot.RosbotBridgeFresh)
+        {
+            TxtAlignment.Text = "";
+            return;
+        }
+        var alignment = D3PlannerService.Alignment();
+        TxtAlignment.Text = alignment.Unaligned.Count == 0
+            ? T(I18nKeys.RosbotBridgeBuildAligned)
+            : string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildAlignment), alignment.Unaligned.Count,
+                string.Join(SlotSeparator, alignment.Unaligned.Select(D3PlannerService.SlotName)), alignment.Upgrades.Count,
+                RosbotBridgeText.BloodShardsText(state, D3D4TesterI18n.Provider));
     }
 
     /// <summary>Left doll = worn items (bridge plugin), right doll = planned gear set; cells compare the same slot on both sides.</summary>

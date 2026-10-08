@@ -1,10 +1,15 @@
 {
   "ui": {
     "tabs": {
-      "monitor": "监控中控"
+      "monitor": "中控"
     },
     "monitor": {
       "status_title": "运行状态",
+      "nav_run": "运行",
+      "nav_automation": "自动化",
+      "nav_environment": "环境",
+      "nav_development": "开发",
+      "game_data": "游戏实况",
       "monitoring_on": "监控中",
       "monitoring_off": "监控已停止",
       "start_monitoring": "启动监控",
@@ -40,6 +45,8 @@
       "restart_battlenet": "重启 D3 时同时重启战网",
       "auto_start": "程序启动时自动开启监控（启动时按住 Shift 可跳过）",
       "archive_rollover": "日志滚动时把 logs.txt.1 / history.txt.1 归档到 Pure Numbers 目录",
+      "bridge_teleport_label": "ROSBOT 启动后传送地图（插件点击 UI）",
+      "bridge_teleport_hint": "D3 UI 元素路径或 id，用 | 分隔；ROSBOT 暂停期间由 CoreNodeBridge 插件按顺序点击。留空 = 不传送。开启跟随模式时跳过传送，直接跟随。",
       "window_title": "D3 窗口与进程",
       "d3_shrink": "ROSBOT 启动后把 D3 缩小到屏幕右上角",
       "apply_now": "立即执行",

@@ -3,7 +3,7 @@
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// Template names, region ratio, C-branch (C3/C5/C7/C10) templates, clicks and timings for D3. 1:1 with Python
+/// Template names, region ratio, capture and key timings for D3. 1:1 with Python
 /// providor.constants.d3, providor.constants.common (click/activate) and share.scaled_template_matcher_base.LEFT_REGION_RATIO.
 /// </summary>
 public static class D3InterfaceConstants
@@ -11,41 +11,8 @@ public static class D3InterfaceConstants
     /// <summary>Match center in left this fraction of image width = blacksmith (bag opened) or kanai. 1:1 Python LEFT_REGION_RATIO = 0.3.</summary>
     public const double LeftRegionRatio = 0.3;
 
-    /// <summary>Template name for bag-opened indicator (left 30% -> blacksmith). 1:1 Python BAG_OPENED_INDICATOR_TEMPLATE_NAME.</summary>
-    public const string BagOpenedIndicatorTemplateName = D3TemplateNames.BagOpenedIndicator;
-
-    /// <summary>Template name for Kanai Cube left panel indicator. 1:1 Python KANAI_CUBE_LEFT_PANEL_INDICATOR_TEMPLATE_NAME.</summary>
-    public const string KanaiCubeLeftPanelIndicatorTemplateName = D3TemplateNames.KanaiCubeLeftPanelIndicator;
-
-    /// <summary>Default match threshold when config not set. 1:1 Python template config threshold 0.8.</summary>
-    public const double DefaultMatchThreshold = 0.8;
-
-    /// <summary>Standard-coordinate clicks (unified scaled): minimize map, teleport 1 (large/small map), teleport 2 (secret camp minimap).</summary>
-    public static readonly (int X, int Y) D3MapMinimizeClick = (610, 126);
-    public static readonly (int X, int Y) D3TeleportClick = (751, 413);
-    public static readonly (int X, int Y) D3TeleportClick2 = (713, 611);
-
-    public const double C7bTeleportClickIntervalSec = 0.5;
-
-    /// <summary>[C3] Recognition loop timeout; a Start Game click restarts it.</summary>
-    public const double C3TimeoutSec = 180.0;
-
-    /// <summary>[C5w] Wait for d3_game_tool after the Start Game click.</summary>
-    public const double C5wTimeoutSec = 10.0;
-
     /// <summary>[C3w] Pause between two C3 recognitions.</summary>
     public const double C3wWaitSec = 2.0;
-
-    /// <summary>[C10] / [C7w] Wait after M before the next capture (map toggle animation).</summary>
-    public const double MapToggleWaitSec = 2.0;
-
-    /// <summary>Within this many seconds after a teleport skip C10 (M-key disconnect check).</summary>
-    public const int C10SkipAfterTeleportSec = 90;
-
-    /// <summary>C10b: before/after-M similarity at or above this means M had no response, i.e. disconnected.</summary>
-    public const double D3OnlineSimilarityThreshold = 0.995;
-
-    public const int D3OnlineSimilarityResize = 64;
 
     /// <summary>1:1 Python CLICK_MOVE_DURATION_SEC / CLICK_PAUSE_AFTER_MOVE_SEC.</summary>
     public const double ClickMoveDurationSec = 0.0;
@@ -57,12 +24,7 @@ public static class D3InterfaceConstants
     /// <summary>Key-down to key-up gap for M sent via PostMessage.</summary>
     public const int SendKeyHoldMs = 50;
 
-    public const ushort VkM = 0x4D;
-
-    /// <summary>Debug image subdirectories under <see cref="TmpRootDir"/>. 1:1 Python MATCH_DEBUG_DIR / LOGIN_TRY_SCREENSHOT_DIR.</summary>
-    public const string MatchDebugSubdir = "match_debug";
-    public const string LoginTrySubdir = "login_try_screenshots";
-    public const string LoginTryScreenshotPrefix = "login_try";
+    public const ushort VkEscape = 0x1B;
 
     /// <summary>1:1 Python TMP_DIR (system cache pytools/tmp).</summary>
     public static readonly string TmpRootDir = Path.Combine(Path.GetTempPath(), "pytools", "tmp");

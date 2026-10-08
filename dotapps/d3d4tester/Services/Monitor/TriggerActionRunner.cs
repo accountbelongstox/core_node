@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.Core.Monitor;
 using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
@@ -17,8 +18,30 @@ public static class TriggerActionRunner
 {
     private const int CloseBotGapMs = 5000;
     private const int UnstuckCooldownDefaultMs = 3000;
+    private const int LeaseWaitMs = 10000;
+    private const string LeasePrefix = "trigger ";
 
+    /// <summary>Actions that never touch the game or ROSBOT: they run even while the user has taken control.</summary>
+    private static readonly HashSet<string> PassiveActions = new(StringComparer.Ordinal)
+    {
+        MonitorActions.WriteLog, MonitorActions.TakeScreenshot, MonitorActions.Notify, MonitorActions.StopMonitoring, MonitorActions.ExecuteCommand,
+    };
+
+    /// <summary>Run one trigger action: game / ROSBOT actions are dropped while the user has control and run under the GameControl lease.</summary>
     public static void Run(TriggerDefinition t)
+    {
+        if (PassiveActions.Contains(t.Action))
+        {
+            Execute(t);
+            return;
+        }
+        if (!GameControl.Allowed(LeasePrefix + t.Action, needsMonitoring: false)) return;
+        using var lease = GameControl.TryAcquire(LeasePrefix + t.Action, LeaseWaitMs);
+        if (lease == null) return;
+        Execute(t);
+    }
+
+    private static void Execute(TriggerDefinition t)
     {
         var monitor = MonitorService.Instance;
         string a1 = Expand(t.ActionArg, monitor), a2 = Expand(t.ActionArg2, monitor);
@@ -40,15 +63,15 @@ public static class TriggerActionRunner
                 RosbotTaskProcessor.Instance.RequestResumeFlow();
                 break;
             case MonitorActions.StopBotF7:
-                GameWindowActions.SendKeyToD3(RosbotConstants.VkF7);
+                GameWindowActions.StopRosbotF7();
                 break;
             case MonitorActions.StopBotF9:
                 GameWindowActions.SendKeyToD3(RosbotConstants.VkF9);
                 break;
             case MonitorActions.CloseBot:
-                GameWindowActions.SendKeyToD3(RosbotConstants.VkF7);
+                GameWindowActions.StopRosbotF7();
                 Thread.Sleep(CloseBotGapMs);
-                GameWindowActions.SendKeyToD3(RosbotConstants.VkF7);
+                GameWindowActions.StopRosbotF7();
                 break;
             case MonitorActions.RestartBot:
             case MonitorActions.RestartBotWithBattlenet:

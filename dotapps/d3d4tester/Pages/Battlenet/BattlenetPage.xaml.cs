@@ -26,8 +26,7 @@ public partial class BattlenetPage : UserControl
     private const string EmptyValue = "-";
     private const int TimeoutMinSec = 30;
     private const int TimeoutMaxSec = 3600;
-    private const int NetHoldIntervalMinSec = 15;
-    private const string StatusSeparator = " · ";
+    private const string StatusSeparator = AppConstants.DisplaySeparator;
     private const int NetHoldHistoryRows = 50;
     private const string HistoryTimeFormat = "MM-dd HH:mm";
     private const string FinishTimeFormat = "MM-dd HH:mm";
@@ -35,6 +34,7 @@ public partial class BattlenetPage : UserControl
     private const int OpenD4PageWaitSec = 180;
     private const int OpenD4PagePollMs = 5000;
     private string? _boundRegion;
+    private bool _restoringRegion;
     private bool _loaded;
 
     public BattlenetPage()
@@ -65,12 +65,14 @@ public partial class BattlenetPage : UserControl
             ConfigBinding.BindCheckBox(ChkRegionPrompt, ConfigKeys.BattlenetRegionSwitchPrompt, true);
             string current = GameInterfaceData.Instance.GetStateSnapshot().BattlenetUiRegion
                              ?? GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion ?? C.RegionAsia;
-            ConfigBinding.BindComboBox(CmbRegion, ConfigKeys.BattlenetRegion, RegionValues, current);
+            string stored = ConfigBinding.GetValue(ConfigKeys.BattlenetRegion, current) ?? current;
+            int regionIndex = Array.IndexOf(RegionValues, stored);
+            CmbRegion.SelectedIndex = regionIndex >= 0 ? regionIndex : Array.IndexOf(RegionValues, current);
             _boundRegion = SelectedRegion;
             CmbRegion.SelectionChanged += OnRegionChanged;
             ConfigBinding.BindCheckBox(ChkNetHold, ConfigKeys.BattlenetNetHoldEnabled, false);
             ConfigBinding.BindCheckBox(ChkNetHoldOnBoot, ConfigKeys.BattlenetNetHoldOnBoot, false);
-            ConfigBinding.BindIntTextBox(TxtNetHoldInterval, ConfigKeys.BattlenetNetHoldIntervalSec, NetHoldIntervalMinSec, TimeoutMaxSec, ConfigKeys.BattlenetNetHoldIntervalSecDefault);
+            ConfigBinding.BindIntTextBox(TxtNetHoldInterval, ConfigKeys.BattlenetNetHoldIntervalSec, BattlenetNetHoldService.MinIntervalSec, BattlenetNetHoldService.MaxIntervalSec, ConfigKeys.BattlenetNetHoldIntervalSecDefault);
             ChkNetHoldOnBoot.Checked += (_, _) => ChkNetHold.IsChecked = true;
             ConfigBinding.BindTextBox(TxtD4InstallPath, ConfigKeys.BattlenetD4InstallPath, "");
         }
@@ -235,21 +237,31 @@ public partial class BattlenetPage : UserControl
         OnStateChanged(GameInterfaceData.Instance.GetStateSnapshot());
     }
 
-    /// <summary>User changed the global region: reload its accounts and, when enabled, offer the official region restart.</summary>
+    /// <summary>
+    /// User changed the global region: ask the D4-branch and restart prompts first, then write battlenet.region and reload its accounts.
+    /// Cancel restores the previous selection without writing.
+    /// </summary>
     private void OnRegionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_restoringRegion) return;
         string region = SelectedRegion;
-        RefreshAccounts();
-        if (region == _boundRegion) return;
+        if (region == _boundRegion)
+        {
+            RefreshAccounts();
+            return;
+        }
         string? previous = _boundRegion;
-        _boundRegion = region;
         var p = D3D4TesterI18n.Provider;
         string regionName = RegionName(region);
         var d4 = AskD4Build(region, regionName);
         if (d4 == MessageBoxResult.Cancel && previous != null)
         {
-            _boundRegion = previous;
-            Dispatcher.BeginInvoke(() => CmbRegion.SelectedIndex = Array.IndexOf(RegionValues, previous));
+            Dispatcher.BeginInvoke(() =>
+            {
+                _restoringRegion = true;
+                try { CmbRegion.SelectedIndex = Array.IndexOf(RegionValues, previous); }
+                finally { _restoringRegion = false; }
+            });
             return;
         }
         bool restart = false;
@@ -259,6 +271,9 @@ public partial class BattlenetPage : UserControl
                 p.GetUiText(I18nKeys.BnPanelRegionTitle), MessageBoxButton.YesNo, MessageBoxImage.Question);
             restart = answer == MessageBoxResult.Yes;
         }
+        _boundRegion = region;
+        ConfigBinding.SetValue(ConfigKeys.BattlenetRegion, region);
+        RefreshAccounts();
         bool openD4 = d4 == MessageBoxResult.No;
         if (restart || openD4)
             _ = Task.Run(() =>

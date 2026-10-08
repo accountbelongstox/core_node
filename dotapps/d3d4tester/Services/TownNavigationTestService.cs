@@ -15,7 +15,6 @@ namespace DotApps.d3d4tester.Services;
 public static class TownNavigationTestService
 {
     private const string LogTag = "[TownNav]";
-    private const string DebugCaptureDirName = "debug_capture";
     private static int _running;
     private static volatile bool _stopRequested;
 
@@ -37,7 +36,7 @@ public static class TownNavigationTestService
             return;
         }
         _stopRequested = false;
-        D3TownNavigator.DebugDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName, DebugCaptureDirName);
+        D3TownNavigator.DebugDir = ConfigPaths.DebugCaptureDir;
         Task.Run(() =>
         {
             try

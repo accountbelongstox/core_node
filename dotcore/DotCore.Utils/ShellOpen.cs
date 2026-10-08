@@ -78,6 +78,69 @@ public static class ShellOpen
         return Start(psi, exe);
     }
 
+    /// <summary>True when this process runs with an administrator (elevated) token.</summary>
+    public static bool IsElevated => Environment.IsPrivilegedProcess;
+
+    private static int _elevationDeclined;
+
+    /// <summary>
+    /// Windows: start a program elevated (administrator) and detached from this app, so it outlives app restarts while this app can
+    /// still drive its windows. Already elevated: breakaway from our job, our elevated token is kept (no UAC prompt). Not elevated:
+    /// ShellExecute "runas" (one UAC prompt; the system creates the process outside our process tree). After a declined prompt the
+    /// rest of the session starts programs normally (no repeated prompts). Other OSes: normal start.
+    /// </summary>
+    public static bool StartProgramElevated(string executablePath, params string[] args)
+    {
+        string exe = Path.GetFullPath(executablePath);
+        if (!File.Exists(exe)) return false;
+        if (!OperatingSystem.IsWindows() || Volatile.Read(ref _elevationDeclined) == 1) return StartProgram(exe, args);
+        string workingDirectory = Path.GetDirectoryName(exe) ?? "";
+        if (IsElevated)
+        {
+            string commandLine = string.Join(" ", new[] { exe }.Concat(args).Select(QuoteArgument));
+            if (StartBreakaway(exe, commandLine, workingDirectory)) return true;
+            var psi = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = workingDirectory };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            return Start(psi, exe);
+        }
+        return StartRunas(exe, args, workingDirectory, startNormallyWhenDeclined: true);
+    }
+
+    /// <summary>Restart this app elevated (UAC prompt) with the same arguments; true when the elevated copy was started.</summary>
+    public static bool RelaunchSelfElevated(IReadOnlyList<string> args)
+    {
+        string? exe = Environment.ProcessPath;
+        return OperatingSystem.IsWindows() && !IsElevated && exe != null && StartRunas(exe, args, Path.GetDirectoryName(exe) ?? "", startNormallyWhenDeclined: false);
+    }
+
+    private static bool StartRunas(string exe, IReadOnlyList<string> args, string workingDirectory, bool startNormallyWhenDeclined)
+    {
+        var psi = new ProcessStartInfo(exe)
+        {
+            UseShellExecute = true,
+            Verb = RunasVerb,
+            WorkingDirectory = workingDirectory,
+            Arguments = string.Join(" ", args.Select(QuoteArgument)),
+        };
+        try
+        {
+            using var p = Process.Start(psi);
+            ColorPrinter.Gray($"{LogTag} started elevated (runas): {exe}");
+            return true;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCancelled)
+        {
+            Interlocked.Exchange(ref _elevationDeclined, 1);
+            ColorPrinter.Yellow($"{LogTag} administrator prompt declined, programs start normally from now on: {exe}");
+            return startNormallyWhenDeclined && StartProgram(exe, args.ToArray());
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            ColorPrinter.Yellow($"{LogTag} elevated start failed ({ex.Message}): {exe}");
+            return false;
+        }
+    }
+
     /// <summary>
     /// Windows: start a program that must outlive this app (Battle.net, ROSBOT). A host such as dotnet watch runs us in a
     /// kill-on-close job, so a normal child dies whenever the app restarts or exits.
@@ -90,6 +153,12 @@ public static class ShellOpen
     {
         string commandLine = string.Join(" ", new[] { exe }.Concat(args).Select(QuoteArgument));
         if (StartWithShellParent(exe, commandLine, workingDirectory)) return true;
+        return StartBreakaway(exe, commandLine, workingDirectory);
+    }
+
+    /// <summary>Our child outside our job (CREATE_BREAKAWAY_FROM_JOB): keeps our token, survives our job closing.</summary>
+    private static bool StartBreakaway(string exe, string commandLine, string workingDirectory)
+    {
         var si = new StartupInfo { cb = Marshal.SizeOf<StartupInfo>() };
         if (!CreateProcessW(exe, commandLine, IntPtr.Zero, IntPtr.Zero, false, CreateBreakawayFromJob | CreateNewProcessGroup,
                 IntPtr.Zero, workingDirectory, ref si, out var pi))
@@ -147,6 +216,8 @@ public static class ShellOpen
     private static string QuoteArgument(string arg) =>
         arg.Length > 0 && arg.IndexOfAny(new[] { ' ', '\t', '"' }) < 0 ? arg : "\"" + arg.Replace("\"", "\\\"") + "\"";
 
+    private const string RunasVerb = "runas";
+    private const int ErrorCancelled = 1223;
     private const uint CreateBreakawayFromJob = 0x01000000;
     private const uint CreateNewProcessGroup = 0x00000200;
     private const uint ExtendedStartupInfoPresent = 0x00080000;

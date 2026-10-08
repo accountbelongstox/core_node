@@ -52,8 +52,15 @@ public static class RosbotConstants
     /// <summary>Main UI poll interval (s). 1:1 Python MAIN_UI_POLL_INTERVAL_SECONDS = 2.</summary>
     public const int MainUiPollIntervalSeconds = 2;
 
-    /// <summary>F3 log timeout default (minutes) when rosbot.timeout_minutes is missing. Unified with the config/UI default (AppConstants.RosbotTimeoutMinutesDefault = 8); Python constant 30 conflicted with its documented 8 min.</summary>
+    /// <summary>Smart echo wait default (seconds), rosbot.smart_echo_wait_seconds.</summary>
+    public const int RosbotSmartEchoWaitSecondsDefault = 15;
+
+    /// <summary>F3 log timeout default (minutes) when rosbot.timeout_minutes is missing (config, UI and flow share it); Python constant 30 conflicted with its documented 8 min.</summary>
     public const int RosbotLogTimeoutMinutesDefault = 8;
+
+    /// <summary>Allowed range (minutes) for rosbot.timeout_minutes (UI input and RBAssist import).</summary>
+    public const int RosbotLogTimeoutMinutesMin = 1;
+    public const int RosbotLogTimeoutMinutesMax = 120;
 
     /// <summary>F3 test-mode timeout default (minutes). 1:1 Python rosbot.test_timeout_minutes default 30.</summary>
     public const int RosbotTestTimeoutMinutesDefault = 30;
@@ -66,16 +73,16 @@ public static class RosbotConstants
     public static readonly string[] DefaultOtherExeExcludePatterns = { "RoS-BoT.exe", "Uninstall*.exe", "setup*.exe" };
 
     public const int StartupDelaySecondsDefault = 3;
-    public const int ProcessDetectionTimeoutDefault = 30;
-    public const int WaitForProcessPollMs = 2000;
-    public const int WaitForNewOtherExePollMs = 3000;
-    public const int WaitForNewOtherExeTimeoutSec = 60;
-    public const int SendF7ActivateDelayMs = 500;
-    public const int SendF7HoldMs = 100;
-    public const int CleanupF7WaitMs = 1000;
-    public const int CleanupPerProcessWaitMs = 500;
-    public const int CleanupAfterKillWaitMs = 2000;
     public const string ManagerLogPrefix = "[ROSBOTManager]";
+
+    /// <summary>After the first F7 (stop botting) before the next step (RBAssist waits a fixed 4-8 s).</summary>
+    public const int F7StopSettleMs = 2000;
+    /// <summary>After the second F7 (close ROSBOT): poll up to this long for ROSBOT to exit, then kill what is left (RBAssist fixed 5 s).</summary>
+    public const int F7CloseGraceMs = 5000;
+    public const int F7ClosePollMs = 500;
+
+    /// <summary>ROSBOT command-line argument that starts botting right after launch (RBAssist "auto start botting").</summary>
+    public const string AutostartArgument = "autostart";
 
     /// <summary>Virtual key F7 (ROSBOT pause/stop hotkey). 1:1 Python key_send VK_F7.</summary>
     public const ushort VkF7 = 0x76;

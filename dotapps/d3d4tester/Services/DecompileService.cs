@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.I18n;
 using DotCore.Decompile;
 
 namespace DotApps.d3d4tester.Services;
@@ -17,6 +18,11 @@ namespace DotApps.d3d4tester.Services;
 public static class DecompileService
 {
     private const string ToolsDirName = "tools";
+    private const string CompatibilityToolsDirName = "compatibility";
+    private const string DynamicToolsDirName = "dynamic";
+    private const string PlaceholderDir = "{dir}";
+    private const string PlaceholderCount = "{count}";
+    private const string PlaceholderPath = "{path}";
     private const string OutputDirName = "decompiled";
     private const string RosbotOutName = "rosbot";
     private const string RbAssistOutName = "rbassist";
@@ -28,22 +34,49 @@ public static class DecompileService
     private static readonly Regex SettingsField = new(
         @"\[SettingsField\(Name = ""(?<name>[^""]*)""(?:, Desc = ""(?<desc>[^""]*)"")?(?:, Category = ""(?<cat>[^""]*)"")?",
         RegexOptions.Compiled);
+    private static readonly CancellationTokenSource ShutdownCts = new();
+    private static int _shutdownHookRegistered;
 
     public static string ToolsRoot => Path.Combine(ConfigPaths.CurrentUserDataPath, ToolsDirName);
 
     public static string OutputRoot => Path.Combine(ConfigPaths.CurrentUserDataPath, OutputDirName);
 
+    /// <summary>Tools shipped next to the app (&lt;app&gt;/tools).</summary>
+    public static string BundledToolsRoot => Path.Combine(AppContext.BaseDirectory, ToolsDirName);
+
     public static DecompileTools Tools { get; } = new(ToolsRoot);
+
+    /// <summary>Token source for one operation: cancelled by the caller or on app shutdown, which kills running external tools.</summary>
+    public static CancellationTokenSource BeginOperation()
+    {
+        if (Interlocked.Exchange(ref _shutdownHookRegistered, 1) == 0)
+            ShutdownManager.RegisterShutdownHook(ShutdownCts.Cancel);
+        return CancellationTokenSource.CreateLinkedTokenSource(ShutdownCts.Token);
+    }
+
+    private static string T(string key) => D3D4TesterI18n.Provider.GetUiText(key);
+
+    /// <summary>First ROSBOT exe in the configured directory; null (logged) when the directory is empty, missing or has no exe.</summary>
+    private static (string RosDir, string? Exe) FindRosbotExe(Action<string> log)
+    {
+        var rosDir = ConfigBinding.GetValue(ConfigKeys.RosSettingsRosDirectory, "") ?? "";
+        var exe = !string.IsNullOrWhiteSpace(rosDir) && Directory.Exists(rosDir)
+            ? RosbotConstants.RosbotExePatterns.SelectMany(p => Directory.EnumerateFiles(rosDir, p)).FirstOrDefault()
+            : null;
+        if (exe == null) log(T(I18nKeys.DecompileRosbotNotFound).Replace(PlaceholderDir, rosDir));
+        return (rosDir, exe);
+    }
 
     public static Task<bool> InstallToolsAsync(Action<string> log, CancellationToken token = default) => Tools.InstallAllAsync(log, token);
 
-    public static Task<SourceRecoveryReport> RecoverSourcesAsync(Action<string> log, CancellationToken token = default)
+    /// <summary>Null when no ROSBOT exe is configured (logged).</summary>
+    public static async Task<SourceRecoveryReport?> RecoverSourcesAsync(Action<string> log, CancellationToken token = default)
     {
-        string rosDir = ConfigBinding.GetValue(ConfigKeys.RosSettingsRosDirectory, "") ?? "";
-        string executable = RosbotConstants.RosbotExePatterns.SelectMany(pattern => Directory.EnumerateFiles(rosDir, pattern)).First();
-        string toolPath = Path.Combine(AppContext.BaseDirectory, "tools", "compatibility", RosbotSourceRecovery.ToolFileName);
-        string dynamicCollector = Path.Combine(AppContext.BaseDirectory, "tools", "dynamic", RosbotSourceRecovery.DynamicCollectorFileName);
-        return RosbotSourceRecovery.RunAsync(executable, OutputRoot, Tools, toolPath, dynamicCollector, log, token);
+        var (_, executable) = FindRosbotExe(log);
+        if (executable == null) return null;
+        string toolPath = Path.Combine(BundledToolsRoot, CompatibilityToolsDirName, RosbotSourceRecovery.ToolFileName);
+        string dynamicCollector = Path.Combine(BundledToolsRoot, DynamicToolsDirName, RosbotSourceRecovery.DynamicCollectorFileName);
+        return await RosbotSourceRecovery.RunAsync(executable, OutputRoot, Tools, toolPath, dynamicCollector, log, token);
     }
 
     public static Task<DecompileChainReport> TestChainAsync(string? rbAssistPath, Action<string> log, CancellationToken token = default)
@@ -56,7 +89,7 @@ public static class DecompileService
             targets.AddRange(RosbotConstants.RosbotExePatterns.SelectMany(pattern => Directory.EnumerateFiles(rosDir, pattern)));
         if (!targets.Any())
         {
-            log("CHECK ROSBOT: FAIL configured executable not found");
+            log(T(I18nKeys.DecompileChainRosbotMissing));
             targets.Add(Path.Combine(rosDir, RosbotOutName + ".exe"));
         }
         if (Directory.Exists(pluginsDir))
@@ -69,15 +102,8 @@ public static class DecompileService
     public static async Task<IReadOnlyList<DecompileResult>> DecompileRosbotAsync(Action<string> log, CancellationToken token = default)
     {
         var results = new List<DecompileResult>();
-        var rosDir = ConfigBinding.GetValue(ConfigKeys.RosSettingsRosDirectory, "") ?? "";
-        var exe = Directory.Exists(rosDir)
-            ? RosbotConstants.RosbotExePatterns.SelectMany(p => Directory.EnumerateFiles(rosDir, p)).FirstOrDefault()
-            : null;
-        if (exe == null)
-        {
-            log($"ROSBOT exe not found in '{rosDir}' (set the ROSBOT directory on the Rosbot tab or use Scan)");
-            return results;
-        }
+        var (rosDir, exe) = FindRosbotExe(log);
+        if (exe == null) return results;
         var runner = new DecompileRunner(Tools);
         string outRoot = Path.Combine(OutputRoot, RosbotOutName);
         results.Add(await runner.DecompileAsync(exe, Path.Combine(outRoot, Path.GetFileNameWithoutExtension(exe)), log, token));
@@ -100,7 +126,7 @@ public static class DecompileService
         path = string.IsNullOrWhiteSpace(path) ? FindRbAssist() : path.Trim();
         if (path == null || !File.Exists(path))
         {
-            log("RBAssist exe not found (choose it with Browse)");
+            log(T(I18nKeys.DecompileRbAssistNotFound));
             return null;
         }
         ConfigBinding.SetValue(ConfigKeys.ToolsRbAssistPath, path);
@@ -148,6 +174,6 @@ public static class DecompileService
         if (count == 0) return;
         var path = Path.Combine(outRoot, SettingsReportName);
         File.WriteAllText(path, sb.ToString());
-        log($"ROSBOT settings: {count} fields -> {path}");
+        log(T(I18nKeys.DecompileSettingsFieldsWritten).Replace(PlaceholderCount, count.ToString()).Replace(PlaceholderPath, path));
     }
 }

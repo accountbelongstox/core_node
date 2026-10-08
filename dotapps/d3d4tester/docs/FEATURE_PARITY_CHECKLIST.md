@@ -136,7 +136,7 @@
 - [x] D 块（启动 D3/D4）、C 分支（C1–C12）、E 块（启动 ROSBOT）、F0–F4、日志掉线重启、系统错误、无物品弹窗、智能回响、“必须启动 D3”弹窗 — `Core/Flow/RosbotFlowRunner`（流程驱动）、`Core/Flow/*Process`、`Ctl/RosbotRunFlow`、`Ctl/LoginTryController`（手动）、`Services/RosbotLog*`
 
 ## 13. D3 检测
-- [x] D3 窗口查找、掉线/菜单/游戏中、界面类型、背包与品质、Kanai 页状态、D3 状态截图 — `D3WindowFinder`、`Ctl/D3StatusProvider`、`D3InterfaceDetection`、`Core/Bag/*`、`D3StartGameAndTeleport`
+- [x] D3 窗口查找、掉线/菜单/游戏中、界面类型、背包与品质、Kanai 页状态、D3 状态截图 — `D3WindowFinder`、`Ctl/D3StatusProvider`、`D3InterfaceDetection`、`Core/Bag/*`、`D3ScreenState`
 
 ## 14. 反编译页（DOT）
 - [x] 工具一键下载/修复到数据目录 `~/.core_node/.d3check/tools`：ILSpy（ilspycmd 8.2，需 .NET SDK，以 roll-forward 运行在 .NET 8）、de4dot-cex 4.0、autoit-ripper 1.2（需 Python）、UPX 5.2.1 — dotcore `DotCore.Decompile.DecompileTools`

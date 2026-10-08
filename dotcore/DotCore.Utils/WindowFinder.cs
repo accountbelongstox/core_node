@@ -160,6 +160,10 @@ public static class WindowFinder
         return list;
     }
 
+    /// <summary>Visible top-level windows of one window class (exact, case-insensitive).</summary>
+    public static IReadOnlyList<WindowInfo> FindWindowsByClass(string className) =>
+        EnumerateTopLevelWindows().Where(w => string.Equals(w.ClassName, className, StringComparison.OrdinalIgnoreCase)).ToList();
+
     /// <summary>All visible top-level windows (title may be empty) with class name and rect.</summary>
     public static IReadOnlyList<WindowInfo> EnumerateTopLevelWindows()
     {

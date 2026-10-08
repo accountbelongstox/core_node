@@ -21,12 +21,15 @@ namespace DotApps.d3d4tester.Services;
 public static class RosbotSmartEchoCoordinator
 {
     private const string LogPrefix = "[SmartEcho]";
+    private const string LeaseSmartEcho = "smart echo";
+    private const int SmartEchoGuardWaitMs = 25000;
     private const char CjkFirst = '一';
     private const char CjkLast = '鿿';
 
     private static readonly object Sync = new();
     private static readonly Action<IFlowTick> SmartEchoTick = _ => OnTickFromDriver();
     private static bool _resumePending;
+    private static int _capturing;
     private static bool _ocrResumeScheduled;
     private static DateTime _endUtc;
     private static DateTime _ocrStartUtc;
@@ -44,9 +47,11 @@ public static class RosbotSmartEchoCoordinator
     /// <summary>Picking end + lookback contains Echoing Fury: F7 and start the OCR resume loop.</summary>
     public static void TryPickingEndEchoRule(string line, IReadOnlyList<string> recentLinesBeforeCurrent)
     {
-        if (!ConfigOptionsProvider.GetOptions<RosbotOptions>().SmartEcho)
+        if (!ConfigBinding.GetValue(ConfigKeys.RosbotSmartEcho, false))
             return;
         if (!line.Contains(RosbotLogConstants.PickingEndSentinel, StringComparison.Ordinal))
+            return;
+        if (!GameControl.Allowed(LeaseSmartEcho, needsMonitoring: true))
             return;
         var lookback = RosbotLogLookback.GetLookbackLines(
             recentLinesBeforeCurrent,
@@ -71,14 +76,14 @@ public static class RosbotSmartEchoCoordinator
             _resumePending = true;
             _ocrResumeScheduled = false;
         }
-        if (!RosbotManager.SendF7ToSystem())
+        if (!RosbotInterruptGuard.WaitSafe(LeaseSmartEcho, SmartEchoGuardWaitMs) || !RosbotManager.SendF7ToSystem())
         {
             lock (Sync) _resumePending = false;
             ColorPrinter.Red($"{LogPrefix} F7 send failed");
             return;
         }
         ColorPrinter.Green($"{LogPrefix} Smart pause ROSBOT to prevent game exit.");
-        int waitSec = Math.Max(0, ConfigOptionsProvider.GetOptions<RosbotOptions>().SmartEchoWaitSeconds);
+        int waitSec = Math.Max(0, ConfigBinding.GetIntValue(ConfigKeys.RosbotSmartEchoWaitSeconds, 0, int.MaxValue, RosbotConstants.RosbotSmartEchoWaitSecondsDefault));
         DateTime start = DateTime.UtcNow.AddSeconds(waitSec);
         DateTime end = start.AddSeconds(RosbotLogConstants.SmartEchoOcrMaxSeconds);
         lock (Sync)
@@ -105,6 +110,26 @@ public static class RosbotSmartEchoCoordinator
 
     /// <summary>OCR the game region; no CJK and no digit -> resume; timeout -> resume. 1:1 Python _smart_echo_capture_tick.</summary>
     private static void CaptureTick(DateTime endUtc)
+    {
+        if (GameControl.UserHasControl)
+        {
+            lock (Sync) _resumePending = false;
+            ColorPrinter.Yellow($"{LogPrefix} control taken, smart echo resume cancelled");
+            return;
+        }
+        if (Interlocked.Exchange(ref _capturing, 1) == 1) return;
+        try
+        {
+            using var lease = GameControl.TryAcquire(LeaseSmartEcho);
+            if (lease != null) CaptureTickLeased(endUtc);
+        }
+        finally
+        {
+            Volatile.Write(ref _capturing, 0);
+        }
+    }
+
+    private static void CaptureTickLeased(DateTime endUtc)
     {
         DateTime startUtc;
         lock (Sync) startUtc = _ocrStartUtc;
@@ -175,15 +200,12 @@ public static class RosbotSmartEchoCoordinator
             _ocrResumeScheduled = false;
         }
         TickDriver.Instance.Unregister(SmartEchoTick);
+        if (!MonitoringActive("resume")) return;
         try
         {
-            RosbotUiAutomation.TryCloseD3MustBeLaunchedDialog();
-            if (RosbotUiAutomation.TryCloseNoItemsPopup())
-            {
-                RosbotUiAutomation.DoAfterNoItemsCloseSwitchRiftAndStart();
+            if (RosbotUiAutomation.HandleStartupPopups())
                 return;
-            }
-            if (RosbotStatusProvider.GetRosbotOperation().ResumeRosbot(doTab: true, doStartBotting: true))
+            if (RosbotUiAutomation.ResumeRosbotUi(doTab: true, doStartBotting: true))
             {
                 ColorPrinter.Green($"{LogPrefix} ROSBOT resumed after pause.");
                 return;
@@ -194,6 +216,16 @@ public static class RosbotSmartEchoCoordinator
         {
             ColorPrinter.Yellow($"{LogPrefix} Resume: " + ex.Message);
         }
+        if (!MonitoringActive("restart request")) return;
         F3MonitorProcess.RequestRosbotRestart();
+    }
+
+    /// <summary>Resume / restart only while monitoring is on and not paused (the user took control otherwise).</summary>
+    private static bool MonitoringActive(string action)
+    {
+        var state = RosbotFlowState.Instance;
+        if (state.FlowMasterEnabled && !state.Paused) return true;
+        ColorPrinter.Yellow($"{LogPrefix} Skip {action}: monitoring is {(state.FlowMasterEnabled ? "paused" : "off")}");
+        return false;
     }
 }

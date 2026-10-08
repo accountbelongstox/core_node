@@ -6,7 +6,6 @@
 // PY-REF: pyapps/d3-check/lifecycle/thread_registry.py
 // PY-REF: pyapps/d3-check/d3utils/macro_config_ops.py
 using DotApps.d3d4tester.Config;
-using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotCore.Foundations;
@@ -23,20 +22,16 @@ public sealed class CombatMacroController
     private readonly IEventHub _eventHub;
     private readonly object _lock = new();
     private bool _macroRunning;
-    private string _currentSkillConfig = "config1";
 
     /// <summary>Whether the combat macro is currently running.</summary>
     public bool MacroRunning { get { lock (_lock) return _macroRunning; } }
-
-    /// <summary>Current skill config name (config1..config4). 1:1 Python current_skill_config.</summary>
-    public string CurrentSkillConfig { get { lock (_lock) return _currentSkillConfig; } }
 
     public CombatMacroController(IEventHub eventHub)
     {
         _eventHub = eventHub ?? throw new ArgumentNullException(nameof(eventHub));
         MacroFallbackRunner.SkillConfigProvider = () => MacroConfigLoader.Instance.GetCurrentSkillConfig();
         MacroFallbackRunner.RuntimeOptionsProvider = ReadRuntimeOptions;
-        MacroFallbackRunner.SmartStopRequested = StopMacro;
+        MacroFallbackRunner.SmartStopRequested = RequestSmartStop;
         D3D4TesterConfigChangeHub.Notifier.Subscribe(OnConfigChanged);
     }
 
@@ -47,11 +42,13 @@ public sealed class CombatMacroController
             MacroConfigLoader.Instance.LoadActive();
     }
 
-    /// <summary>Called after StartMacro. 1:1 Python on_macro_start.</summary>
-    public Action? OnMacroStart { get; set; }
-
-    /// <summary>Called after StopMacro. 1:1 Python on_macro_stop.</summary>
-    public Action? OnMacroStop { get; set; }
+    /// <summary>Smart pause stop from the fallback loop thread: marshal to the UI dispatcher (StopMacro waits for that loop).</summary>
+    private void RequestSmartStop()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher != null) dispatcher.BeginInvoke(StopMacro);
+        else ThreadPool.QueueUserWorkItem(_ => StopMacro());
+    }
 
     /// <summary>
     /// Toggle combat macro: if running then stop, else start. Call from hotkey callback (main thread).
@@ -80,21 +77,18 @@ public sealed class CombatMacroController
         lock (_lock)
         {
             if (_macroRunning) return;
+            _macroRunning = true;
         }
 
-        var cfg = ConfigOptionsProvider.GetOptions<MacroConfigsOptions>();
-        string current = cfg.CurrentSkillConfig ?? "config1";
-        lock (_lock) _currentSkillConfig = current;
-
-        ColorPrinter.Blue($"[CombatMacro] StartMacro: current_skill_config={current} (reading from CONFIG)");
+        ColorPrinter.Blue("[CombatMacro] StartMacro (reading from CONFIG)");
         LoadActiveMacroConfig();
         TriggerExtensionMainStartMacro();
-        lock (_lock) _macroRunning = true;
 
-        if (!HasMainFunctionThread())
-            StartMacroFallback();
-
-        try { OnMacroStart?.Invoke(); } catch { /* ignore */ }
+        if (!HasMainFunctionThread() && !StartMacroFallback())
+        {
+            lock (_lock) _macroRunning = false;
+            TriggerExtensionMainStopMacro();
+        }
     }
 
     /// <summary>
@@ -105,16 +99,14 @@ public sealed class CombatMacroController
         lock (_lock)
         {
             if (!_macroRunning) return;
+            _macroRunning = false;
         }
 
         ColorPrinter.Blue("[CombatMacro] StopMacro");
 
         TriggerExtensionMainStopMacro();
-        lock (_lock) _macroRunning = false;
         ClearD3WindowCache();
         StopMacroFallback();
-
-        try { OnMacroStop?.Invoke(); } catch { /* ignore */ }
     }
 
     /// <summary>Smart pause and custom force-stand key from macro_configs.auxiliary_config (read every tick, so UI edits apply at once).</summary>
@@ -151,10 +143,7 @@ public sealed class CombatMacroController
     }
 
     /// <summary>Start fallback macro loop when no main function thread. 1:1 Python get_thread_registry().start_macro_fallback.</summary>
-    private void StartMacroFallback()
-    {
-        MacroFallbackRunner.Instance.Start(() => MacroRunning);
-    }
+    private bool StartMacroFallback() => MacroFallbackRunner.Instance.Start(() => MacroRunning);
 
     /// <summary>Stop fallback macro loop. 1:1 Python get_thread_registry().stop_macro_fallback.</summary>
     private static void StopMacroFallback()

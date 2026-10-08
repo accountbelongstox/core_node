@@ -21,7 +21,6 @@ namespace DotApps.d3d4tester.Services;
 public sealed class WindowMonitorService
 {
     private readonly object _lock = new();
-    private readonly List<Action<WindowFinder.WindowInfo?>> _callbacks = new();
     private Func<WindowFinder.WindowInfo?>? _fullStatusRefresh;
     private bool _inactiveRefreshDone;
     private bool _registered;
@@ -37,20 +36,6 @@ public sealed class WindowMonitorService
     public void SetFullStatusRefresh(Func<WindowFinder.WindowInfo?>? refresh)
     {
         lock (_lock) _fullStatusRefresh = refresh;
-    }
-
-    /// <summary>Add a D3 window callback (null = no window). 1:1 Python add_callback.</summary>
-    public void AddCallback(Action<WindowFinder.WindowInfo?> callback)
-    {
-        lock (_lock)
-        {
-            if (!_callbacks.Contains(callback)) _callbacks.Add(callback);
-        }
-    }
-
-    public void RemoveCallback(Action<WindowFinder.WindowInfo?> callback)
-    {
-        lock (_lock) _callbacks.Remove(callback);
     }
 
     /// <summary>Register the inactive-refresh callback (tick % 10) and the per-tick OAuth health update on the TickDriver.</summary>
@@ -79,41 +64,14 @@ public sealed class WindowMonitorService
     public void RunInitialCheck()
     {
         var d3 = RunFullRefresh();
-        NotifyWindowCallbacks(d3);
+        ApplyWindowSize(d3);
         MarkInactiveRefreshDone();
         ColorPrinter.Blue("[Refresh] Done (Battle.net + D3 + ROSBOT)");
-    }
-
-    /// <summary>Notify callbacks and update the status bar window size. 1:1 Python notify_window_callbacks.</summary>
-    public void NotifyWindowCallbacks(WindowFinder.WindowInfo? d3)
-    {
-        ApplyWindowSize(d3);
-        Action<WindowFinder.WindowInfo?>[] copy;
-        lock (_lock) copy = _callbacks.ToArray();
-        foreach (var cb in copy)
-        {
-            try { cb(d3); }
-            catch (Exception ex) { ColorPrinter.Gray($"[DEBUG][WindowMonitor] callback error: {ex.Message}"); }
-        }
     }
 
     public void MarkInactiveRefreshDone()
     {
         lock (_lock) _inactiveRefreshDone = true;
-    }
-
-    /// <summary>Immediate D3 window lookup (first match) or null. 1:1 Python get_current_window_info.</summary>
-    public static WindowFinder.WindowInfo? GetCurrentWindowInfo()
-    {
-        try
-        {
-            var windows = D3WindowFinder.FindWindows();
-            return windows.Count > 0 ? windows[0] : null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     /// <summary>
@@ -128,13 +86,33 @@ public sealed class WindowMonitorService
         if (!done)
         {
             var d3 = RunFullRefresh();
-            NotifyWindowCallbacks(d3);
+            ApplyWindowSize(d3);
             MarkInactiveRefreshDone();
             return;
         }
         ProbeBattlenetClient();
+        RefreshGameAndRosbotWhileFlowIdle();
         if (RosbotFlowState.Instance.FlowMasterEnabled || RosbotFlowState.Instance.BnOnlyEnabled) return;
-        ApplyWindowSize(GetCurrentWindowInfo());
+        ApplyWindowSize(D3Manager.Instance.FindFirstWindow());
+    }
+
+    /// <summary>
+    /// D3 window + ROSBOT process status into GameInterfaceData every 10 s while the ROSBOT flow thread does not run (it refreshes them
+    /// itself), so the Monitor tab, status bar and bridge panel show live D3 / ROSBOT state with monitoring off too.
+    /// </summary>
+    private static void RefreshGameAndRosbotWhileFlowIdle()
+    {
+        if (ShutdownManager.IsShutdownRequested || RosbotFlowRunner.IsRunning) return;
+        try
+        {
+            bool changed = D3StatusProvider.Refresh(skipDynamic: true).Changed;
+            changed |= RosbotStatusProvider.RefreshInternal().Changed;
+            if (changed) GameInterfaceData.Instance.NotifyCallbacks();
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Gray($"[WindowMonitor] D3 / ROSBOT refresh: {ex.Message}");
+        }
     }
 
     private static void ProbeBattlenetClient()
@@ -174,7 +152,7 @@ public sealed class WindowMonitorService
             try { return refresh(); }
             catch (Exception ex) { ColorPrinter.Red($"[WindowMonitor] Full status refresh failed: {ex.Message}"); }
         }
-        return GetCurrentWindowInfo();
+        return D3Manager.Instance.FindFirstWindow();
     }
 
     private static void ApplyWindowSize(WindowFinder.WindowInfo? d3)

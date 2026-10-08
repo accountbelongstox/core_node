@@ -44,5 +44,5 @@ public static class SkillConfigSwitcher
         HotkeyUtil.NormalizeCanonical(ConfigBinding.GetValue(MacroConfigLoader.QuickSwitchKey(configName), AppConstants.DefaultQuickSwitchHotkey) ?? AppConstants.DefaultQuickSwitchHotkey);
 
     private static string Current() =>
-        ConfigBinding.GetValue(ConfigKeys.MacroConfigsCurrentSkillConfig, MacroConfigLoader.DefaultConfigNames[0]) ?? MacroConfigLoader.DefaultConfigNames[0];
+        ConfigBinding.GetValue(ConfigKeys.MacroConfigsCurrentSkillConfig, MacroConfigLoader.DefaultConfigName) ?? MacroConfigLoader.DefaultConfigName;
 }

@@ -27,6 +27,7 @@ public sealed record RosbotBridgePluginInfo(string? RosDirectory, string? Instal
 public static class RosbotBridgePluginService
 {
     private const string LogTag = "[RosbotBridge]";
+    private const double CommandPollSec = 0.5;
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
     private static readonly object NamesLock = new();
@@ -44,16 +45,8 @@ public static class RosbotBridgePluginService
 
     public static bool IsInstalled => InstalledDir is { } d && File.Exists(Path.Combine(d, RosbotPluginConstants.BridgeDllName));
 
-    /// <summary>True while a ROSBOT process runs (it loads plugins at its start).</summary>
-    public static bool IsRosbotRunning
-    {
-        get
-        {
-            var processes = Process.GetProcessesByName(RosbotPluginConstants.RosbotProcessName);
-            foreach (var process in processes) process.Dispose();
-            return processes.Length > 0;
-        }
-    }
+    /// <summary>True while a ROSBOT process runs (it loads plugins at its start); from the shared ROSBOT status in GameInterfaceData.</summary>
+    public static bool IsRosbotRunning => RosbotDetection.IsOnline(GameInterfaceData.Instance.GetStateSnapshot().RosbotExtendedStatus);
 
     public static bool AutoInstall => ConfigBinding.GetValue(ConfigKeys.RosbotBridgePluginAutoInstall, ConfigKeys.RosbotBridgePluginAutoInstallDefault);
 
@@ -62,11 +55,21 @@ public static class RosbotBridgePluginService
     {
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
         TickDriver.Instance.RegisterEveryTick(_ => PublishState());
+        RosbotFlowRunner.Resumed += StopFollowOnResume;
         D3D4TesterConfigChangeHub.Notifier.Subscribe(key =>
         {
             if (key is ConfigKeys.RosSettingsRosDirectory or ConfigKeys.RosbotBridgePluginAutoInstall) _ = Task.Run(AutoInstallIfEnabled);
         });
         _ = Task.Run(AutoInstallIfEnabled);
+    }
+
+    /// <summary>Control given back to ROSBOT: end follow mode, so the plugin does not walk the hero while ROSBOT bots.</summary>
+    private static void StopFollowOnResume()
+    {
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        if (snapshot.RosbotBridge is not { FollowEnabled: true }) return;
+        ColorPrinter.Blue($"{LogTag} resumed -> follow off (follow setup kept)");
+        SendCommand(RosbotPluginConstants.BridgeActionFollow, null, null, null, null, RosbotPluginConstants.BridgeFollowOff, rememberFollow: false);
     }
 
     private static void AutoInstallIfEnabled()
@@ -144,7 +147,11 @@ public static class RosbotBridgePluginService
     /// Queue a command for the plugin (command.txt, consumed on ROSBOT's next pulse; the result appears as last_command in
     /// state.json). Returns the command id, or null when ROSBOT's plugin folder is missing. Logged in the app log.
     /// </summary>
-    public static long? SendCommand(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null)
+    public static long? SendCommand(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null) =>
+        SendCommand(action, target, mode, click, uiId, value, rememberFollow: true);
+
+    /// <summary>rememberFollow: a follow command is saved as the follow setup replayed after ROSBOT starts (false for automatic follow-off).</summary>
+    private static long? SendCommand(string action, string? target, bool? mode, bool? click, string? uiId, string? value, bool rememberFollow)
     {
         if (InstalledDir is not { } dir || !Directory.Exists(dir)) return null;
         long id = DateTime.UtcNow.Ticks;
@@ -156,7 +163,33 @@ public static class RosbotBridgePluginService
         if (!string.IsNullOrWhiteSpace(value)) lines.Add($"{CommandKeyValue}={value.Trim()}");
         if (!WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeCommandFileName), lines)) return null;
         ColorPrinter.Blue($"{LogTag} command {id} {action} target='{target}' mode={mode} click={click} ui={uiId}");
+        if (rememberFollow && action == RosbotPluginConstants.BridgeActionFollow)
+        {
+            ConfigBinding.SetValue(ConfigKeys.BridgeFollowCommandValue, value?.Trim() ?? "");
+            ConfigBinding.SetValue(ConfigKeys.BridgeFollowCommandTarget, target?.Trim() ?? "");
+        }
         return id;
+    }
+
+    /// <summary>Send a command and wait (polling the shared plugin state) until the plugin reports its result; null on timeout / no plugin.</summary>
+    public static RosbotBridgeCommandResult? SendCommandAndWait(FlowContext ctx, TimeSpan timeout, string action, string? target = null, string? value = null)
+    {
+        if (SendCommand(action, target, value: value) is not { } id) return null;
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            ctx.Wait(CommandPollSec);
+            if (GameInterfaceData.Instance.GetStateSnapshot().RosbotBridge?.LastCommand is { } r && r.Id == id) return r;
+        }
+        return null;
+    }
+
+    /// <summary>True when the saved follow command turns follow on (it is replayed after ROSBOT starts).</summary>
+    public static bool FollowConfigured(out string value, out string target)
+    {
+        value = ConfigBinding.GetValue(ConfigKeys.BridgeFollowCommandValue, "") ?? "";
+        target = ConfigBinding.GetValue(ConfigKeys.BridgeFollowCommandTarget, "") ?? "";
+        return value.Length > 0 && value != RosbotPluginConstants.BridgeFollowOff;
     }
 
     /// <summary>Write the pickup filter for the plugin (pickup_filter.txt: auto line + one name fragment per line).</summary>
@@ -175,6 +208,14 @@ public static class RosbotBridgePluginService
     {
         if (InstalledDir is not { } dir || !Directory.Exists(dir)) return false;
         return WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeItemWatchFileName), lines);
+    }
+
+    /// <summary>Tell the plugin whether the app has town work (hold the next town visit) or is done (end the current hold).</summary>
+    public static bool SaveTownHold(bool hold)
+    {
+        if (InstalledDir is not { } dir || !Directory.Exists(dir)) return false;
+        return WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeTownHoldFileName),
+            new[] { hold ? RosbotPluginConstants.BridgeTownHoldOn : RosbotPluginConstants.BridgeTownHoldOff });
     }
 
     /// <summary>Pickup filter currently stored in ROSBOT's plugin folder: (auto, patterns).</summary>

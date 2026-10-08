@@ -69,7 +69,7 @@ public static class D3D4TesterI18n
                 }
                 var flat = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 Flatten(merged, "", flat);
-                foreach (var kv in I18nFallbacks.ForLanguage(lang).Concat(AnnotatorI18n.GetStrings(lang)))
+                foreach (var kv in AnnotatorI18n.GetStrings(lang))
                 {
                     if (!flat.ContainsKey(kv.Key))
                         flat[kv.Key] = kv.Value;

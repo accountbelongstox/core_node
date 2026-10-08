@@ -6,7 +6,9 @@ namespace DotCore.Utils;
 
 /// <summary>
 /// Windows implementation of IGlobalHotkeyService using a pass-through low-level keyboard hook: keys always reach every app
-/// (1:1 with Python keyboard.add_hotkey suppress=False). A match posts WM_HOTKEY to the window handle.
+/// (1:1 with Python keyboard.add_hotkey suppress=False). A match posts WM_HOTKEY to the window handle. Only keys typed by a person
+/// count: injected keystrokes (SendInput / keybd_event from this app, bots or macros) never fire a hotkey. FunctionKeyObserver sees every
+/// function-key press (by virtual key or by F1-F12 scan code, so a keyboard that remaps F keys shows up) off the hook thread.
 /// App must forward WM_HOTKEY (0x0312) to OnWmHotkey(wParam).
 /// </summary>
 public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService
@@ -16,6 +18,12 @@ public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService
     private const int WM_SYSKEYDOWN = 0x0104;
     private const int WM_QUIT = 0x0012;
     private const int WH_KEYBOARD_LL = 13;
+    private const int KbdFlagsOffset = 8;
+    private const int LLKHF_INJECTED = 0x10;
+    private const int KbdScanOffset = 4;
+    private const uint VkF1 = 0x70;
+    private const uint VkF24 = 0x87;
+    private static readonly uint[] FunctionScanCodes = { 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x57, 0x58 };
     private const uint PM_NOREMOVE = 0x0000;
     private const uint MOD_ALT = 0x0001;
     private const uint MOD_CONTROL = 0x0002;
@@ -48,6 +56,9 @@ public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService
     /// <summary>
     /// Call this from your window's WndProc when message == WM_HOTKEY (0x0312). wParam is the hotkey id.
     /// </summary>
+    /// <summary>Called on a pool thread for each function-key press: (virtual key, scan code, injected).</summary>
+    public Action<uint, uint, bool>? FunctionKeyObserver { get; set; }
+
     public void OnWmHotkey(int wParam)
     {
         if (!_idToKey.TryGetValue(wParam, out var id))
@@ -138,7 +149,14 @@ public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
         int message = wParam.ToInt32();
-        if (nCode >= 0 && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
+        if (nCode >= 0 && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) && FunctionKeyObserver is { } observer)
+        {
+            uint key = (uint)Marshal.ReadInt32(lParam), scan = (uint)Marshal.ReadInt32(lParam, KbdScanOffset);
+            bool injected = (Marshal.ReadInt32(lParam, KbdFlagsOffset) & LLKHF_INJECTED) != 0;
+            if ((key >= VkF1 && key <= VkF24) || Array.IndexOf(FunctionScanCodes, scan) >= 0)
+                ThreadPool.QueueUserWorkItem(_ => observer(key, scan, injected));
+        }
+        if (nCode >= 0 && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) && (Marshal.ReadInt32(lParam, KbdFlagsOffset) & LLKHF_INJECTED) == 0)
         {
             uint vk = (uint)Marshal.ReadInt32(lParam);
             uint mods = CurrentModifiers();

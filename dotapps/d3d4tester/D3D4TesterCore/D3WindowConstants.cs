@@ -24,4 +24,16 @@ public static class D3WindowConstants
         "暗黑破壞神III (64位)",
         "III"
     };
+
+    /// <summary>Window class of the D3 client main window (RBAssist lookup): the primary, title-independent way to find D3.</summary>
+    public const string DiabloIIIWindowClass = "D3 Main Window Class";
+
+    /// <summary>A D3 window this tall (pixels) is a real game window, not a splash / loading stub (RBAssist ready check).</summary>
+    public const int ReadyMinHeight = 500;
+
+    /// <summary>Patch prompt shown while D3 starts; dismissed with Escape (RBAssist).</summary>
+    public const string NewVersionPopupTitle = "New version";
+
+    /// <summary>D3 client process names (64-bit client first): a running one means a launch is already in progress.</summary>
+    public static readonly string[] DiabloIIIProcessNames = { "Diablo III64", "Diablo III" };
 }

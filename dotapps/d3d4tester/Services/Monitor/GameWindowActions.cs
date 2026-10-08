@@ -2,6 +2,7 @@
 using System.Drawing;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Flow;
 using DotCore.ScreenCapture;
 using DotCore.Utils;
 using DotCore.Utils.Input;
@@ -21,7 +22,6 @@ public static class GameWindowActions
     private const int VkTownPortal = 0x54;
     private const int TownPortalDownLParam = 0x001E0001;
     private const uint TownPortalUpLParam = 0xC01E0001;
-    private const int ActivateWaitMs = 200;
     private const int StepWaitMs = 50;
     private const int KeyWaitMs = 100;
     private const int CirclePoints = 12;
@@ -30,12 +30,10 @@ public static class GameWindowActions
     private static readonly object UnstuckLock = new();
     private static DateTime _lastUnstuckUtc = DateTime.MinValue;
 
-    public static IntPtr FindD3Hwnd() => D3Manager.Instance.FindFirstWindow()?.Hwnd ?? IntPtr.Zero;
-
     /// <summary>Resize the D3 client to the configured size (min 1070x600) and move it to the top-right of the primary screen.</summary>
     public static bool ShrinkD3()
     {
-        IntPtr hwnd = FindD3Hwnd();
+        IntPtr hwnd = D3Manager.Instance.FindFirstHwnd();
         if (hwnd == IntPtr.Zero)
         {
             MonitorLog.Warn("Shrink D3 skipped: D3 window not found");
@@ -48,18 +46,24 @@ public static class GameWindowActions
         return ok;
     }
 
-    /// <summary>Activate D3 and send a system-wide key (ROSBOT F7 stop / F9 pause hotkeys).</summary>
+    /// <summary>Activate D3 and send ROSBOT's F7 stop through RosbotManager (records the F7 so the ROSBOT exit counts as a stop).</summary>
+    public static bool StopRosbotF7()
+    {
+        D3Manager.Instance.ActivateWindow();
+        return RosbotManager.SendF7ToSystem();
+    }
+
+    /// <summary>Activate D3 and send a system-wide key (ROSBOT F9 pause hotkey).</summary>
     public static bool SendKeyToD3(ushort vk)
     {
         D3Manager.Instance.ActivateWindow();
-        Thread.Sleep(ActivateWaitMs);
         return WindowInputHelper.SendSystemKey(vk);
     }
 
     /// <summary>Post the town portal key to the D3 window without focusing it.</summary>
     public static bool PostTownPortal()
     {
-        IntPtr hwnd = FindD3Hwnd();
+        IntPtr hwnd = D3Manager.Instance.FindFirstHwnd();
         if (hwnd == IntPtr.Zero) return false;
         bool down = WindowInputHelper.PostMessage(hwnd, WmKeyDown, (IntPtr)VkTownPortal, (IntPtr)TownPortalDownLParam);
         bool up = WindowInputHelper.PostMessage(hwnd, WmKeyUp, (IntPtr)VkTownPortal, unchecked((IntPtr)(int)TownPortalUpLParam));
@@ -78,25 +82,31 @@ public static class GameWindowActions
             if ((DateTime.UtcNow - _lastUnstuckUtc).TotalMilliseconds < cooldownMs) return false;
             _lastUnstuckUtc = DateTime.UtcNow;
         }
-        IntPtr hwnd = FindD3Hwnd();
+        IntPtr hwnd = D3Manager.Instance.FindFirstHwnd();
         if (hwnd == IntPtr.Zero || !D3Manager.Instance.ActivateWindow()) return false;
-        Thread.Sleep(ActivateWaitMs);
         var rect = WindowInputHelper.GetWindowClientRectScreen(hwnd);
         if (rect is not { } r) return false;
         int w = r.Right - r.Left, h = r.Bottom - r.Top;
         var points = new[] { (r.Left + w / 4, r.Top + h / 2), (r.Left + w / 2, r.Top + h * 3 / 4), (r.Left + w / 2, r.Top + h / 4), (r.Left + w * 3 / 4, r.Top + h / 2) };
         var (px, py) = points[Random.Shared.Next(points.Length)];
+        if (!RosbotInterruptGuard.WaitSafe("unstuck move", 0)) return false;
         MonitorLog.Info("Unstuck move");
-        RosbotManager.SendPauseToggleToSystem();
-        Thread.Sleep(StepWaitMs);
-        ClickHandler.MoveCursor(px, py);
-        Thread.Sleep(StepWaitMs);
-        AutoItKeySequence.Send(skillKey);
-        Thread.Sleep(KeyWaitMs);
-        int cx = r.Left + w / 2, cy = r.Top + h / 2, radius = Math.Max(10, h / 2 - CircleRadiusInset);
-        DragCircle(cx, cy, radius, counterClockwise: true);
-        DragCircle(cx, cy, radius, counterClockwise: false);
-        RosbotManager.SendPauseToggleToSystem();
+        if (!RosbotManager.SendPauseToggleToSystem()) return false;
+        try
+        {
+            Thread.Sleep(StepWaitMs);
+            ClickHandler.MoveCursor(px, py);
+            Thread.Sleep(StepWaitMs);
+            AutoItKeySequence.Send(skillKey);
+            Thread.Sleep(KeyWaitMs);
+            int cx = r.Left + w / 2, cy = r.Top + h / 2, radius = Math.Max(10, h / 2 - CircleRadiusInset);
+            DragCircle(cx, cy, radius, counterClockwise: true);
+            DragCircle(cx, cy, radius, counterClockwise: false);
+        }
+        finally
+        {
+            RosbotManager.SendPauseToggleToSystem();
+        }
         return true;
     }
 
@@ -131,15 +141,6 @@ public static class GameWindowActions
         return ScreenCaptureService.GetScreenshotProvider().CaptureRegionBitBlt(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
     }
 
-    /// <summary>First titled window of the ROSBOT process (its overlay, which shows the combat cursor), or zero.</summary>
-    public static IntPtr FindRosbotOverlayHwnd()
-    {
-        var mgr = RosbotManager.Instance;
-        foreach (int pid in mgr.GetDetection().Pids)
-        {
-            var w = mgr.FindWindowsByPid(pid, visibleOnly: true).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x.Title));
-            if (w != null) return w.Hwnd;
-        }
-        return IntPtr.Zero;
-    }
+    /// <summary>ROSBOT overlay window (shows the combat cursor), or zero.</summary>
+    public static IntPtr FindRosbotOverlayHwnd() => RosbotManager.Instance.GetOverlayWindow()?.Hwnd ?? IntPtr.Zero;
 }

@@ -14,7 +14,7 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | `d3utils/tick_driver`, `rosbot_task_processor`, `rosbot_flow/*`, `rosbot_flow_battlenet` | `Core/Flow/*` (sequential, not tick-driven: `RosbotFlowRunner`, `BattlenetReadyProcess`, `GameLaunchProcess`, `D3DirectProcess`, `F3MonitorProcess`, `BattlenetGuardRunner`; `TickDriver` only for periodic services), `Ctl/RosbotTaskProcessor`, `Ctl/RosbotFlowController` |
 | `d3utils/battlenet_*`, `browser_login_*` | `Core/Battlenet/*`, `Core/BattlenetRegionDetection` |
 | `d3utils/rosbot_*` (manager, operation, detection, log) | `Core/Rosbot*`, `Services/RosbotLog*`, `Services/RosbotSmartEchoCoordinator` |
-| `d3utils/d3_manager`, `d3_status_provider`, `d3_start_game_and_teleport_waiter`, action groups | `Core/D3Manager`, `Ctl/D3StatusProvider`, `Core/D3StartGameAndTeleport`, `Core/Flow/ActionGroups/` |
+| `d3utils/d3_manager`, `d3_status_provider`, `d3_start_game_and_teleport_waiter`, action groups | `Core/D3Manager`, `Ctl/D3StatusProvider`, `Core/D3ScreenState` (map teleport: CoreNodeBridge `ui_sequence`) |
 | `d3utils/interface_detection`, `interface_manager`, `d3_scaled_template_matcher`, `game_window_detector` | `Core/D3InterfaceDetection`, `D3InterfaceManager`, `D3ScaledTemplateMatcher`, `GameWindowDetector` |
 | `d3utils/collectors`, `slot_quality`, `debug_bag_hover`, `kanai/`, `state_aware_click_handler` | `Core/Bag/*`, `Core/Kanai/*`, `Core/StateAwareClickHandler` |
 | `d3utils/macro_config_ops`, `d3u_common/hotkey_registry` | `Core/MacroSkillRunner`, `MacroFallbackRunner`, `Hotkeys/D3D4TesterHotkeyBinder` |

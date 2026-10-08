@@ -2,26 +2,11 @@
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// ROSBOT operation: get window, activate window, run after-start automation, resume, get UI state (e.g. need key).
+/// ROSBOT operation: UI state (KEY dialog -> need key). Start / resume automation lives in RosbotUiAutomation, windows in RosbotManager.
 /// 1:1 with Python d3utils.rosbot_operation.RosbotOperation and get_rosbot_operation().
 /// </summary>
 public interface IRosbotOperation
 {
-    /// <summary>Return current ROSBOT window info (when status is paused) or null. 1:1 Python get_window().</summary>
-    RosbotWindowInfo? GetWindow();
-
-    /// <summary>Bring ROSBOT window to foreground. Returns true if window found and activated. 1:1 Python activate_window().</summary>
-    bool ActivateWindow();
-
-    /// <summary>
-    /// After ROSBOT process started: wait window (filling the KEY dialog), activate, then run sequence (main profile tab + Start
-    /// botting); every wait ends early once shouldStop returns true. 1:1 Python run_after_rosbot_start.
-    /// </summary>
-    bool RunAfterRosbotStart(int waitSec = 30, bool doDebug = true, bool doTab = true, bool doStartBotting = true, Func<bool>? shouldStop = null);
-
-    /// <summary>Resume ROSBOT when paused: activate window, run sequence (main profile + Start botting). 1:1 Python resume_rosbot.</summary>
-    bool ResumeRosbot(bool doTab = true, bool doStartBotting = true);
-
     /// <summary>Return current ROSBOT UI state. When KEY dialog is present (e.g. "Error" with "enter a key"), need_key_input is true. 1:1 Python get_ui_state().</summary>
     RosbotUiState GetUiState(IReadOnlyList<int>? pids = null);
 }

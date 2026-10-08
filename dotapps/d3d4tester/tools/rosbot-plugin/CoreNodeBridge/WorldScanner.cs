@@ -32,6 +32,9 @@ internal sealed class EntityInfo
     public int DurabilityMax;
     public bool Elite;
     public bool Boss;
+    /// <summary>Players: party slot from the banners (0 unknown) and the Leader attribute.</summary>
+    public int PartySlot;
+    public bool IsLeader;
     /// <summary>Watched affix values (ItemWatch), null when the item is not watched.</summary>
     public Dictionary<string, double> Attrs;
 }
@@ -55,6 +58,7 @@ internal static class WorldScanner
     private const string ActorTypeEnumName = "ActorType";
     private const string ActorTypeItem = "Item";
     private const string InventorySlotEnumName = "InventorySlot";
+    public const string SlotBackpack = "Backpack";
     private const string SlotUnknown = "Unknown";
     private const string SlotMerchant = "Merchant";
 
@@ -169,7 +173,7 @@ internal static class WorldScanner
         }
         if (cell.X == null || !CellSupported) return;
         int x = Safe(() => (int)cell.X.GetValue(acd), -1), y = Safe(() => (int)cell.Y.GetValue(acd), -1);
-        if (info.Slot == "Backpack" && (x < 0 || x >= BackpackColumns || y < 0 || y >= BackpackRows))
+        if (info.Slot == SlotBackpack && (x < 0 || x >= BackpackColumns || y < 0 || y >= BackpackRows))
         {
             CellSupported = false;
             return;
@@ -219,11 +223,22 @@ internal static class WorldScanner
         info.DurabilityCur = Attribute(acd, "Durability_Cur", 0);
         info.DurabilityMax = Attribute(acd, "Durability_Max", 0);
         info.Gbid = Safe(() => acd.Gball, 0);
-        if (info.Slot.Length > 0) info.Equipped |= info.Slot != "Backpack" && info.Slot != "Stash";
+        if (info.Slot.Length > 0) info.Equipped |= info.Slot != SlotBackpack && info.Slot != "Stash";
         if (Watch != null && Watch.IsWatched(info.Gbid, info.InternalName)) info.Attrs = Watch.Read(acd);
     }
 
-    private static int Attribute(IAcd acd, string name, int fallback)
+    /// <summary>ROSBOT AttributeId value for an attribute name, int.MinValue when unknown (cached).</summary>
+    public static int AttributeId(string name)
+    {
+        if (!AttributeIds.TryGetValue(name, out int id))
+        {
+            id = Safe(() => (int)Enum.Parse(typeof(AttributeId), name), int.MinValue);
+            AttributeIds[name] = id;
+        }
+        return id;
+    }
+
+    public static int Attribute(IAcd acd, string name, int fallback)
     {
         if (!AttributeIds.TryGetValue(name, out int id))
         {
