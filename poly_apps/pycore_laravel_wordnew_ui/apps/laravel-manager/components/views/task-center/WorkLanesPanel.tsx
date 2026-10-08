@@ -33,7 +33,10 @@ const WorkLanesPanel: React.FC<WorkLanesPanelProps> = ({ lang }) => {
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);

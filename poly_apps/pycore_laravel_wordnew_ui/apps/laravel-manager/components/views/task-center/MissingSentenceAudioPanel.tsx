@@ -34,7 +34,10 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ r
   const [pcAudio, setPcAudio] = useState<SentenceAudioAutoStatus | null>(null);
   const [pcBusy, setPcBusy] = useState(false);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const fetchPage = useCallback(async (cursor: string | null): Promise<MissingPage> => {
     const res = await api.appQyV1.listMissingSentenceAudio({
