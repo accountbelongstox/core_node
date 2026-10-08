@@ -310,7 +310,9 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/work/monitor\")",
       "PowerShell(Push-Location *)",
       "PowerShell($cli = Join-Path \\(Get-Location\\) 'ncore\\\\foundation\\\\common\\\\laravel_signed_cli.js'; node $cli request GET \"/api/work/monitor\" | Out-String -Width 400 | Select-Object -First 1 | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(3000, $_.Length\\)\\) }; node $cli request GET \"/api/system/code-sync/status\" | Out-String | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(1200, $_.Length\\)\\) }; git log --oneline -3)",
-      "PowerShell($log = Join-Path \\(Get-Location\\) 'poly_apps\\\\pycore_laravel_wordnew_ui\\\\artifacts\\\\live-reload\\\\current.log'; if \\(Test-Path $log\\) { \\(Get-Item $log\\).LastWriteTime; Get-Content $log -Tail 40 } else { 'NO_LOG' }; $cli = Join-Path \\(Get-Location\\) 'ncore\\\\foundation\\\\common\\\\laravel_signed_cli.js'; node $cli request GET \"/api/work/monitor\" | Out-String | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(600, $_.Length\\)\\) })"
+      "PowerShell($log = Join-Path \\(Get-Location\\) 'poly_apps\\\\pycore_laravel_wordnew_ui\\\\artifacts\\\\live-reload\\\\current.log'; if \\(Test-Path $log\\) { \\(Get-Item $log\\).LastWriteTime; Get-Content $log -Tail 40 } else { 'NO_LOG' }; $cli = Join-Path \\(Get-Location\\) 'ncore\\\\foundation\\\\common\\\\laravel_signed_cli.js'; node $cli request GET \"/api/work/monitor\" | Out-String | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(600, $_.Length\\)\\) })",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Set-Location *)"
     ],
     "deny": [],
     "ask": []
