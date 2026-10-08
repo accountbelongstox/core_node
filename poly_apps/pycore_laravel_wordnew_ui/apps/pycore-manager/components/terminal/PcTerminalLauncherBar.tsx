@@ -67,14 +67,14 @@ export const PcTerminalLauncherBar: React.FC<PcTerminalLauncherBarProps> = ({ er
   ];
 
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-1.5" aria-label={t('terminal.launcher.title')}>
+    <div className="flex min-w-0 items-center gap-1" aria-label={t('terminal.launcher.title')}>
       <select
         value={mode}
         onChange={(event) => setMode(event.target.value as TerminalLauncherMode)}
         disabled={Boolean(busy)}
         title={t('terminal.launcher.modeHint')}
         aria-label={t('terminal.launcher.modeHint')}
-        className="min-w-0 rounded-lg border border-slate-500/20 bg-transparent px-1.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+        className="w-0 min-w-[4.5rem] max-w-[9rem] flex-1 truncate rounded-lg border border-slate-500/20 bg-transparent px-1 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
       >
         {LAUNCHER_MODES.map((value) => (
           <option key={value} value={value}>{t(`terminal.launcher.modes.${value}`)}</option>
@@ -86,11 +86,11 @@ export const PcTerminalLauncherBar: React.FC<PcTerminalLauncherBarProps> = ({ er
           type="button"
           onClick={() => void run(id)}
           disabled={Boolean(busy)}
-          title={t(`terminal.launcher.hints.${id}`)}
-          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold disabled:opacity-50 ${tone}`}
+          title={`${t(`terminal.launcher.actions.${id}`)} · ${t(`terminal.launcher.hints.${id}`)}`}
+          aria-label={t(`terminal.launcher.actions.${id}`)}
+          className={`inline-flex shrink-0 items-center rounded-lg p-1.5 disabled:opacity-50 ${tone}`}
         >
           {busy === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
-          {t(`terminal.launcher.actions.${id}`)}
         </button>
       ))}
     </div>

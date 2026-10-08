@@ -25,6 +25,8 @@ import {
   Hand,
   ImageIcon,
   Layers,
+  LayoutGrid,
+  Monitor,
   Eraser,
   History,
   Info,
@@ -2613,10 +2615,9 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">
-          <div className="relative px-4 py-1.5 border-b border-slate-500/10">
-            <PcTerminalGlobalCountdown className="absolute right-3 top-2" />
-            <div className="flex items-center gap-2">
-              <div className="min-w-0">
+          <div className="px-3 py-1.5 border-b border-slate-500/10 sm:px-4">
+            <div className="flex items-center gap-1.5">
+              <div className="min-w-0 shrink">
                 <h2 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
                   {nodeIdentity.hostname || t('terminal.windowsTitle')}
                 </h2>
@@ -2626,29 +2627,36 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
                   </p>
                 )}
               </div>
-              <div className="flex rounded-lg border border-slate-500/20 p-0.5 text-[10px] font-semibold" role="tablist">
-                {(['windows', 'desktop'] as const).map((view) => (
-                  <button
-                    key={view}
-                    type="button"
-                    role="tab"
-                    aria-selected={commonView === view}
-                    onClick={() => setCommonView(view)}
-                    className={`rounded-md px-2 py-0.5 ${
-                      commonView === view ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-500/10'
-                    }`}
-                  >
-                    {t(view === 'windows' ? 'terminal.desktopView.windowsTab' : 'terminal.desktopView.tab')}
-                  </button>
-                ))}
+              <div className="flex shrink-0 rounded-lg border border-slate-500/20 p-0.5" role="tablist">
+                {(['windows', 'desktop'] as const).map((view) => {
+                  const label = t(view === 'windows' ? 'terminal.desktopView.windowsTab' : 'terminal.desktopView.tab');
+                  const ViewIcon = view === 'windows' ? LayoutGrid : Monitor;
+                  return (
+                    <button
+                      key={view}
+                      type="button"
+                      role="tab"
+                      aria-selected={commonView === view}
+                      aria-label={label}
+                      title={label}
+                      onClick={() => setCommonView(view)}
+                      className={`rounded-md p-1 ${
+                        commonView === view ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-500/10'
+                      }`}
+                    >
+                      <ViewIcon className="h-3.5 w-3.5" />
+                    </button>
+                  );
+                })}
               </div>
+              <PcTerminalLauncherBar
+                errorTranslationKey={errorTranslationKey}
+                onNotice={setActionNotice}
+                onDone={() => void refresh()}
+              />
+              <PcTerminalGlobalCountdown className="ml-auto shrink-0" />
             </div>
             <p className="mt-0.5 hidden text-[11px] text-slate-500 sm:block">{t('terminal.windowsHint')}</p>
-            <PcTerminalLauncherBar
-              errorTranslationKey={errorTranslationKey}
-              onNotice={setActionNotice}
-              onDone={() => void refresh()}
-            />
           </div>
           {commonView === 'desktop' ? (
             <div className="h-[52vh] min-h-[22rem] max-h-[38rem] bg-slate-950/[0.03] dark:bg-slate-950/40">
