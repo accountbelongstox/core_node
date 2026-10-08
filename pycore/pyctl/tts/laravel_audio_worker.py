@@ -809,6 +809,10 @@ class BaseLaravelAudioWorker(
     def lane_payload(self, task_type: str) -> Dict[str, Any]:
         return {**super().lane_payload(task_type), "leases": self._leases.status()}
 
+    def declared_capability(self) -> Dict[str, List[str]]:
+        """Engines and languages a work-lease claim of this lane declares now (read-only)."""
+        return self._leases.declared(self.active_base_url())
+
 
 class LaravelWordAudioWorker(BaseLaravelAudioWorker):
     """Word-audio lane: global_tasks task_type word_audio on remote_audio."""

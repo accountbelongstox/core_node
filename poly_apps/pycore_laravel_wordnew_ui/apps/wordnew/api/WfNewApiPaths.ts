@@ -149,6 +149,8 @@ export const WfNewApiPaths = {
   orchBookPlanReady: (planId: string, cursor: number, limit: number): string =>
     p(`/orch_audio/book_plans/${encodeURIComponent(planId)}/ready?cursor=${cursor}&limit=${limit}`),
   orchClientPlayback: (id: string): string => p(`/orch_audio/client_playback/${encodeURIComponent(id)}`),
+  /** POST latest-state client telemetry for the orchestration monitor (sanctum). */
+  orchClientReport: p('/orch_audio/clients/report'),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,

@@ -85,6 +85,7 @@ return [
         'work_lease_renewed' => 'Work leases renewed',
         'work_lease_released' => 'Work leases released',
         'work_nodes_listed' => 'Work nodes listed',
+        'work_monitor_listed' => 'Orchestration monitor loaded',
         'work_lease_promoted' => 'Gap item raised to the front of its work-lease lane',
         'task_or_worker_not_found' => 'Task or worker not found',
         'task_is_owned_by_another_worker_or' => 'Task is owned by another worker or already finished',

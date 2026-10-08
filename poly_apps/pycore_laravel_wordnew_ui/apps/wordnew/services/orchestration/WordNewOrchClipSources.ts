@@ -13,7 +13,7 @@
  */
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
-import { parseOrchResourceBundle } from '../../../../core/integrations/pycore';
+import { laravelRelayDeviceId, parseOrchResourceBundle, relayPycoreOrigin } from '../../../../core/integrations/pycore';
 import { protocolFetch } from '../../../../core/network/ProtocolFetch';
 import { readBytesWithStallGuard } from '../../../../core/network/StallGuardedRead';
 import { transferLimiter } from '../../../../core/network/TransferLimiter';
@@ -37,6 +37,7 @@ import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSc
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import type { OrchPlanScope } from './WordNewBookAudioPlan';
 import { laneOfKind } from './WordNewBookPlanAssigner';
+import { wordNewLaneCapability } from './WordNewLaneCapability';
 
 const PROGRESS_SCALE = 100;
 
@@ -249,6 +250,8 @@ async function laravelPerFile(
 const LARAVEL_CHANNEL: OrchClipChannel = {
   id: 'laravel',
   available: wordNewChannels.available('laravel'),
+  // The server, not the domain a request happens to use (S5): switching endpoints of one server keeps the cursors.
+  cursorKey: () => wfNewEndpoints.getSnapshot().currentId ?? wfNewEndpoints.getCurrentBaseUrl(),
   bundle: LARAVEL_BUNDLE_TRANSPORT,
   preferPerFile: !NATIVE,
   perFile: (resources, sink, context, found) => laravelPerFile(resources, sink, context, found),
@@ -260,8 +263,17 @@ const LARAVEL_CHANNEL: OrchClipChannel = {
 export const WORDNEW_ORCH_SCHEDULE = buildOrchClipSchedule({
   device: NATIVE ? deviceSource : undefined,
   sink: NATIVE ? DEVICE_SINK : WEB_SINK,
-  pycore: orchPycoreDirectChannel(wordNewChannels.available('direct'), () => wordNewPycoreLink.reportFailure()),
-  relay: orchPycoreRelayChannel(wordNewChannels.available('relay')),
+  pycore: orchPycoreDirectChannel(wordNewChannels.available('direct'), () => wordNewPycoreLink.reportFailure(), {
+    canGenerate: (kind, language) => wordNewLaneCapability.canGenerate('direct', kind, language),
+    // The selected machine, never the address in use: the LAN route and the selection's own URL share their cursors (S1).
+    cursorKey: () => wordNewPycoreLink.getSnapshot().selectedUrl,
+    capabilityKey: () => wordNewLaneCapability.signature('direct'),
+  }),
+  relay: orchPycoreRelayChannel(wordNewChannels.available('relay'), {
+    canGenerate: (kind, language) => wordNewLaneCapability.canGenerate('relay', kind, language),
+    cursorKey: () => String(laravelRelayDeviceId() ?? relayPycoreOrigin()),
+    capabilityKey: () => wordNewLaneCapability.signature('relay'),
+  }),
   laravel: LARAVEL_CHANNEL,
 });
 
@@ -276,9 +288,9 @@ export interface OrchPlanScopeHolder {
  * The schedule's sources limited by the run's server book plan (the stages and their order are unchanged):
  *   transfer  covered clips are asked only once the server reported them ready (plus every uncovered clip);
  *   generate  covered clips belong to the server plan, which every node generates through work leases - they
- *             are flagged `generating`; only the direct pycore's share of the missing covered clips (the app-led
- *             assignment, WordNewBookPlanAssigner; `book_plan.local_head_items` until one is computed) is
- *             still requested from the direct pycore.
+ *             are flagged `generating`; only the direct pycore's share of the missing covered clips it can
+ *             generate (the app-led assignment, WordNewBookPlanAssigner; `book_plan.local_head_items` until one
+ *             is computed) is still requested from the direct pycore.
  */
 export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly OrchClipSource[] {
   return WORDNEW_ORCH_SCHEDULE.sources.map((source, index): OrchClipSource => {
@@ -298,7 +310,7 @@ export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly Orch
         const own = resources.filter((resource) => {
           if (!scope.covered.has(resource.key)) return true;
           const lane = laneOfKind(resource.kind);
-          if (stage === 'generate:pycore' && headLeft[lane] > 0) {
+          if (stage === 'generate:pycore' && headLeft[lane] > 0 && wordNewLaneCapability.canGenerate('direct', resource.kind, resource.language)) {
             headLeft[lane] -= 1;
             return true;
           }

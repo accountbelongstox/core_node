@@ -1,5 +1,8 @@
 import type {
+  WfNewBookPlanAssignmentDevice,
   WfNewBookPlanAssignments,
+  WfNewOrchClientReport,
+  WfNewOrchClientReportAnswer,
   WfNewBookPlanReadyPage,
   WfNewBookPlanWindow,
   WfNewBookPlanRequest,
@@ -189,9 +192,20 @@ export const orchClientTaskMethods = {
     return toBookPlanStatus(res?.plan ?? res);
   },
 
-  async postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[]): Promise<WfNewBookPlanAssignments> {
-    const res = unwrapEnvelope(await authedPostJSON<any>(WfNewApiPaths.orchBookPlanAssignments(planId), { from, windows }));
+  async postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[], device: WfNewBookPlanAssignmentDevice): Promise<WfNewBookPlanAssignments> {
+    const res = unwrapEnvelope(await authedPostJSON<any>(WfNewApiPaths.orchBookPlanAssignments(planId), {
+      from,
+      windows,
+      device_id: device.deviceId,
+      ...(device.directNodeSid ? { direct_node_sid: device.directNodeSid } : {}),
+    }));
     return toBookPlanAssignments(res?.assignments ?? res);
+  },
+
+  /** Latest-state client telemetry (never queued, never retried: the next report replaces it). */
+  async postOrchClientReport(report: WfNewOrchClientReport): Promise<WfNewOrchClientReportAnswer> {
+    const res = unwrapEnvelope(await authedPostJSON<any>(WfNewApiPaths.orchClientReport, report));
+    return { accepted: res?.accepted !== false, stale: res?.stale === true };
   },
 
   async getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus> {
@@ -244,6 +258,10 @@ export const mockOrchClientTaskMethods = {
 
   async postBookAudioPlanAssignments(): Promise<WfNewBookPlanAssignments> {
     return toBookPlanAssignments({});
+  },
+
+  async postOrchClientReport(): Promise<WfNewOrchClientReportAnswer> {
+    return { accepted: true, stale: false };
   },
 
   async getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus> {

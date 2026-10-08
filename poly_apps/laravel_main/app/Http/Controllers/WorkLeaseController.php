@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\PycoreTasks\PycoreComputeRoster;
+use App\Services\WorkLeases\OrchClientMonitorService;
 use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Services\WorkLeases\WorkLeaseService;
 use App\Support\QueueCenterContract;
@@ -49,6 +50,7 @@ class WorkLeaseController extends Controller
             'plan_id' => 'nullable|string|max:40',
             'lease_ids' => 'nullable|array',
             'lease_ids.*' => 'string|max:64',
+            'load' => 'nullable|array',
         ]);
 
         return $this->success($this->leases->claim($validated), __('api.messages.work_lease_claimed'));
@@ -60,9 +62,10 @@ class WorkLeaseController extends Controller
             'worker_id' => 'required|string|max:100',
             'lease_ids' => 'required|array',
             'lease_ids.*' => 'string|max:64',
+            'load' => 'nullable|array',
         ]);
 
-        return $this->success($this->leases->renewWithProgress($validated['worker_id'], $validated['lease_ids']), __('api.messages.work_lease_renewed'));
+        return $this->success($this->leases->renewWithProgress($validated['worker_id'], $validated['lease_ids'], $validated['load'] ?? null), __('api.messages.work_lease_renewed'));
     }
 
     public function release(Request $request): JsonResponse
@@ -84,5 +87,11 @@ class WorkLeaseController extends Controller
     public function nodes(Request $request): JsonResponse
     {
         return $this->success($this->leases->nodes($request->boolean('online')), __('api.messages.work_nodes_listed'));
+    }
+
+    /** GET work/monitor: wordnew clients, nodes with load, pool and book plans with their scheduling mode. */
+    public function monitor(): JsonResponse
+    {
+        return $this->success(app(OrchClientMonitorService::class)->monitor(), __('api.messages.work_monitor_listed'));
     }
 }

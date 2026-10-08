@@ -153,6 +153,10 @@ export {
 export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
 export { deliverThroughRelay, relayPycoreFetch, relayPycoreOrigin } from './RelayDelivery';
 export {
+  parsePycoreLaneCapability, pycoreLaneCapabilityRoute, pycoreLaneCovers,
+  type PycoreLaneCapability, type PycoreLaneCapabilityLane,
+} from './PycoreLaneCapability';
+export {
   designateLaravelRelayDevice, clearLaravelRelayDevice, laravelRelayDeviceId,
   subscribeLaravelRelayDevice, isLaravelRelayReady,
 } from './RelayPairing';

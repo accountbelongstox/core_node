@@ -301,6 +301,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
             Route::post('leases/release', [\App\Http\Controllers\WorkLeaseController::class, 'release']);
         });
         Route::get('nodes', [\App\Http\Controllers\WorkLeaseController::class, 'nodes'])->middleware('client.key_or_dashboard');
+        Route::get('monitor', [\App\Http\Controllers\WorkLeaseController::class, 'monitor'])->middleware('client.key_or_dashboard');
     });
 
     // Unified Task Center — one aggregate over BOTH task layers (scheduler +

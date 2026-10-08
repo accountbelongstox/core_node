@@ -284,7 +284,10 @@
       "Read(//d/programing/core_node/poly_apps/laravel_main/**)",
       "Read(//d/programing/core_node/config/**)",
       "Read(//d/programing/core_node/pycore/pyctl/laravel/**)",
-      "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c\\\\n\"}' PycoreQueueTypes.ts)"
+      "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c\\\\n\"}' PycoreQueueTypes.ts)",
+      "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c of $.\\\\n\"}' index.ts)",
+      "Bash(php -l app/Services/WorkLeases/WorkLeaseService.php)",
+      "Bash(php -l app/Http/Controllers/WorkLeaseController.php)"
     ],
     "deny": [],
     "ask": []

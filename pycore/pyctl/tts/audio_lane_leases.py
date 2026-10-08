@@ -120,7 +120,7 @@ class AudioLaneLeases:
         return not self._worker.intake_stopped() and self._book.claim_due(self._floor(), False)
 
     def _eligible(self) -> bool:
-        """A sentence lane leases only on a node that can run an accepted engine."""
+        """A sentence lane leases only on a node that can voice a language under the quality floor."""
         return self._lane != "sentence_audio" or bool(self.capability()["languages"])
 
     def _floor(self) -> int:
