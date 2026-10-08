@@ -230,8 +230,8 @@ class AppQyV1SentenceAudioService
             return ['ok' => true, 'status' => $sentence->tts_status, 'http_status' => 200];
         }
 
-        // --- Quality floor: only accepted engines (qwen3tts, GPU) produce sentence audio ---
-        if (!self::isAcceptedSentenceProvider($provider)) {
+        // --- Quality floor: a floor language (en) accepts only its listed engines (qwen3tts, GPU) ---
+        if (!self::isAcceptedSentenceProvider($provider, $language)) {
             $this->clearLease($sentence);
             $sentence->saveRecord();
             Log::warning('[SentenceAudio] Report below the quality floor rejected', ['content_id' => $contentId, 'language' => $language, 'worker' => $workerId, 'provider' => (string) $provider]);
@@ -242,7 +242,7 @@ class AppQyV1SentenceAudioService
         // --- Idempotent fill-missing: a file already on disk is never clobbered, unless its recorded provider is below the floor ---
         clearstatcache(true, $fullPath);
         $storedProvider = (string) (((array) $sentence->metadata)['audio_provider'] ?? '');
-        $belowFloor = ($variantKey === null || $variantKey === '') && $storedProvider !== '' && !self::isAcceptedSentenceProvider($storedProvider);
+        $belowFloor = ($variantKey === null || $variantKey === '') && $storedProvider !== '' && !self::isAcceptedSentenceProvider($storedProvider, $language);
         if (!$belowFloor && is_file($fullPath) && filesize($fullPath) > 0) {
             $this->reconcilePresent($sentence, $relativePath);
             $this->clearLease($sentence);
@@ -624,10 +624,12 @@ class AppQyV1SentenceAudioService
         return QueueCenterContract::section('work_leases')['sentence_quality'][$name] ?? null;
     }
 
-    /** Whether a provider (engine id) may deliver sentence audio. */
-    public static function isAcceptedSentenceProvider(?string $provider): bool
+    /** Whether a provider (engine id) may deliver sentence audio of a language (no floor = any engine). */
+    public static function isAcceptedSentenceProvider(?string $provider, ?string $language): bool
     {
-        return in_array(strtolower(trim((string) $provider)), (array) self::qualityRule('accepted_engines'), true);
+        $engines = QueueCenterContract::sentenceFloorEngines($language);
+
+        return $engines === null || in_array(strtolower(trim((string) $provider)), $engines, true);
     }
 
     /** Stamp the last error into metadata + tts_error (in-memory; caller saves). */

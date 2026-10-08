@@ -41,6 +41,13 @@ export interface LaravelWorkNodesChangedEvent {
   changed_at?: string | null;
 }
 
+/** `orch_clients.changed`: only a revision; refetch `work/monitor` when it moves. */
+export interface LaravelOrchClientsChangedEvent {
+  revision: number;
+  reason?: string;
+  changed_at?: string | null;
+}
+
 export interface LaravelQueueChangedEvent {
   revision: number;
   resource: string;
@@ -89,6 +96,7 @@ const LARAVEL_REALTIME_WIRE_EVENTS = {
   clipLeased: QUEUE_CENTER_REALTIME_EVENTS.clip_leased,
   workerPresence: QUEUE_CENTER_REALTIME_EVENTS.worker_presence,
   workNodesChanged: QUEUE_CENTER_REALTIME_EVENTS.work_nodes_changed,
+  orchClientsChanged: QUEUE_CENTER_REALTIME_EVENTS.orch_clients_changed,
   articlePublished: 'article.published',
   articleAudioReady: 'article.audio.ready',
 } as const;
@@ -104,6 +112,7 @@ export const LARAVEL_REALTIME_EVENTS: { readonly [EventName in LaravelRealtimeEv
   clipLeased: 'clipLeased',
   workerPresence: 'workerPresence',
   workNodesChanged: 'workNodesChanged',
+  orchClientsChanged: 'orchClientsChanged',
   articlePublished: 'articlePublished',
   articleAudioReady: 'articleAudioReady',
 };
@@ -116,6 +125,7 @@ export type LaravelRealtimeEventPayloadMap = {
   clipLeased: LaravelClipLeasedEvent;
   workerPresence: LaravelWorkerPresenceEvent;
   workNodesChanged: LaravelWorkNodesChangedEvent;
+  orchClientsChanged: LaravelOrchClientsChangedEvent;
   articlePublished: LaravelArticlePublishedEvent;
   articleAudioReady: LaravelArticleAudioReadyEvent;
 };

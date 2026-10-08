@@ -4,16 +4,19 @@ namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Services\WorkLeases\WorkLeaseService;
+use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Log;
 
 /**
  * sys:init self-heal of the sentence quality floor (queue_center_contract
- * work_leases.sentence_quality). Sentence audio whose recorded provider is not
- * an accepted engine is not final: the row returns to the pool (has_audio
- * false, file kept; the next accepted report replaces it). Rows with audio but
- * no recorded provider are only counted. Idempotent.
+ * work_leases.sentence_quality.accepted_engines_by_language). Only floor
+ * languages are swept: sentence audio of a floor language whose recorded
+ * provider is not one of its engines is not final and returns to the pool
+ * (has_audio false, file kept; the next accepted report replaces it). Other
+ * languages accept any engine and are never touched (otherwise their CPU
+ * clips would be regenerated forever). Rows with audio but no recorded
+ * provider are only counted. Idempotent.
  */
 final class AppQyV1SentenceQualityRepair
 {
@@ -23,9 +26,13 @@ final class AppQyV1SentenceQualityRepair
     public function run(): array
     {
         $result = ['requeued' => 0, 'unknown_provider' => 0, 'by_provider' => []];
-        $accepted = array_map('strval', (array) AppQyV1SentenceAudioService::qualityRule('accepted_engines'));
+        $floorLanguages = QueueCenterContract::sentenceFloorLanguages();
 
         foreach (AppQyV1TableMaps::getSupportedLanguages() as $language) {
+            $accepted = QueueCenterContract::sentenceFloorEngines((string) $language);
+            if ($accepted === null || !in_array(strtolower((string) $language), $floorLanguages, true)) {
+                continue;
+            }
             try {
                 $db = LangSentence::for($language)->getConnection();
                 $table = '"' . AppQyV1TableMaps::getSentenceTableName($language) . '"';

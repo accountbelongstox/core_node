@@ -85,8 +85,12 @@
         },
         "assignments_request": {
             "from": "int: sentence seq the windows start at (the reader position)",
-            "windows": "[{sid, lane, language, count}] in play order; sid is a work node's short id or direct_sid (the app's direct pycore); count = pending clips of that lane and language the node takes, laid out one after another from `from`, per lane and language independently"
+            "windows": "[{sid, lane, language, count}] in play order; sid is a work node's short id or the device direct sid (direct_window_sid); count = pending clips of that lane and language the node takes, laid out one after another from `from`, per lane and language independently",
+            "device_id": "string, at most 16 chars: the posting app device; required for direct windows",
+            "direct_node_sid": "optional work node sid of the app's direct pycore when it is also a Laravel work node (its node ranges then never overlap the device's direct ranges)"
         },
+        "direct_window_sid": "direct_sid + ':' + device_id[0:6]. Laravel treats every window sid starting with direct_sid as a direct window (no lease: every node's claim skips its rows). An app posts direct windows only for the (lane, language) pairs its direct pycore can generate (lane_capability).",
+        "assignments_layout_rule": "Node windows are per plan (last writer wins; the relayout signature covers node windows only, so direct windows never force a node relayout). Direct windows are kept per (plan, device_id) with their own assignment_ttl_seconds heartbeat, so several devices each hold their direct range and do not thrash each other; a post with windows [] drops that device's direct ranges.",
         "assignments_rule": "App-led scheduling. While the app is open it computes the windows from the roster it knows (Laravel nodes with lanes, class and throughput, plus its direct pycore) and POSTs them; each POST is the plan heartbeat. Laravel resolves every window to a position range of the plan's pending clips and, for assignment_ttl_seconds after the last POST, leases a window's rows only to its node (the node claims them first, every other node's claim skips them; direct_sid windows are skipped by all nodes: the direct pycore generates them). When the heartbeat expires (the app closed) the ranges are dropped and the claims fall back to Laravel's own fair share. Ranges are re-laid out on a changed window set, a reader move of reprioritize_min_move or every assignment_relayout_seconds.",
         "assignments_response": "{fresh, expires_in, windows: [{sid, lane, assigned, generating, done}]}: per node and lane, summed over languages; assigned and done are cumulative over the plan (relayouts carry finished clips), generating is the live leases inside the node's current ranges. The app sizes a window as the node's items per hour x assignment_horizon_minutes (at least assignment_min_clips)",
         "plan_request": {
@@ -130,6 +134,8 @@
         "membership_sync_max_plans": 4,
         "local_head_items": 16,
         "direct_sid": "direct",
+        "device_id_max_chars": 16,
+        "direct_sid_device_chars": 6,
         "request_timeout_seconds": 30,
         "ensure_sync_wait_seconds": 8,
         "assignment_ttl_seconds": 90,
@@ -151,8 +157,40 @@
             "quality_engine": "qwen3tts",
             "quality_variant": "hq",
             "languages": ["en"],
-            "rule": "DISABLED (enabled=false): sentences are accepted only from the quality-floor engine (queue_center_contract work_leases.sentence_quality). When enabled, a plan whose missing sentences exceed missing_threshold runs the fast pass: any node whose sentence lane declares the fast engine (cpu or gpu, Colab-CPU included) may lease that plan's sentence rows with engine_hint = engine and delivers the base clip; once delivered, a gpu node whose lane declares quality_engine may lease the row again as an upgrade (variant_key = quality_variant, engine_hint = quality_engine) and delivers the quality variant next to the base clip. Clients play the clip that is ready: the quality variant when the server holds it, else the base."
+            "rule": "DISABLED (enabled=false): sentences of a floor language are accepted only from its quality-floor engine (queue_center_contract work_leases.sentence_quality.accepted_engines_by_language); other languages accept any engine. When enabled, a plan whose missing sentences exceed missing_threshold runs the fast pass: any node whose sentence lane declares the fast engine (cpu or gpu, Colab-CPU included) may lease that plan's sentence rows with engine_hint = engine and delivers the base clip; once delivered, a gpu node whose lane declares quality_engine may lease the row again as an upgrade (variant_key = quality_variant, engine_hint = quality_engine) and delivers the quality variant next to the base clip. Clients play the clip that is ready: the quality variant when the server holds it, else the base."
         }
+    },
+    "client_monitor": {
+        "purpose": "Latest-state telemetry of every open wordnew client for the laravel-manager orchestration monitor. Never outboxed, never an availability source (R7).",
+        "routes": {
+            "report": "POST app_qy_v1/orch_audio/clients/report",
+            "monitor": "GET work/monitor"
+        },
+        "auth": {
+            "report": "sanctum (the wordnew user)",
+            "monitor": "operator session or client key (like work/nodes)"
+        },
+        "report_seconds": 20,
+        "min_interval_seconds": 2,
+        "ttl_seconds": 90,
+        "max_tasks": 8,
+        "max_assignments": 16,
+        "max_windows": 48,
+        "report_request": {
+            "device_id": "string, at most 16 chars",
+            "instance_id": "string, at most 64 chars (one app run)",
+            "seq": "int, monotonic per instance",
+            "sent_at": "ISO-8601",
+            "platform": "native|web",
+            "app_version": "string",
+            "foreground": "bool",
+            "route": "{tab, item, changed_at}",
+            "channels": "{direct, relay, laravel, lan: bool, selected_pycore: {host, node_sid}, laravel_endpoint_id}",
+            "tasks": "[{task_id, plan_id|null, state, counts: {<kind>: {lane, total, queued, loading, done, missing, generating: {pycore, relay, laravel}}}, stages: {<stageId>: state}}] at most max_tasks",
+            "assignments": "[{plan_id, fresh, expires_in, direct_share: {<lane>: n}, windows: [{sid, lane, language, count, assigned, generating, done}]}]"
+        },
+        "report_response": "{accepted: bool, stale: bool}: stale = a seq not newer than the stored one of the same (device_id, instance_id), dropped",
+        "rule": "Laravel keeps one entry per (user, device_id, instance_id) in cache for ttl_seconds after its last report (latest wins, an older or equal seq is dropped as stale); a report inside min_interval_seconds of the previous one of the same key is accepted but not republished. A change emits the throttled realtime event orch_clients.changed (queue_center_contract realtime.orch_clients_changed). The monitor lists clients with user, last_seen_at and online (younger than ttl_seconds)."
     },
     "step_options": {
         "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: open item in docs_fix/DESIGN_AUDIO_ORCHESTRATION.md); phrases steps: after each phrase, read its Chinese meaning (a zh sentence clip of the meaning text)"

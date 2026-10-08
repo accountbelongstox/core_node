@@ -17,6 +17,8 @@ use Illuminate\Support\Collection;
  * - gpu_preferred: a cpu_only pycore claims only while no fresh gpu pycore of
  *   that execution type has spare lease capacity;
  * - cpu_ok: any pycore.
+ * A task type with per-language classes (compute_by_language) is held to its
+ * strictest class here: global tasks carry no language at this level.
  * Within the eligible set, a pycore whose in-flight count exceeds the least
  * loaded fresh peer by at least that peer's lease capacity is held back.
  * Workers without a compute class (browser workers) are not pycores and are
@@ -48,13 +50,13 @@ final class PycoreComputeRoster
         $worker = Worker::findByWorkerId($workerId);
         $class = $worker !== null ? self::classOf($worker) : null;
 
-        return $class === null || self::satisfies($class, QueueCenterContract::taskTypeCompute($taskType));
+        return $class === null || self::satisfies($class, QueueCenterContract::taskTypeComputeStrictest($taskType));
     }
 
     /** Whether a reported compute class can run $taskType (for a pycore not registered yet). */
     public static function classCanRun(string $class, string $taskType): bool
     {
-        return self::satisfies($class, QueueCenterContract::taskTypeCompute($taskType));
+        return self::satisfies($class, QueueCenterContract::taskTypeComputeStrictest($taskType));
     }
 
     /** Whether this worker may be offered tasks of $taskType now (class, GPU preference, load). */
@@ -62,7 +64,7 @@ final class PycoreComputeRoster
     {
         $worker = Worker::findByWorkerId($workerId);
         $class = $worker !== null ? self::classOf($worker) : null;
-        $required = QueueCenterContract::taskTypeCompute($taskType);
+        $required = QueueCenterContract::taskTypeComputeStrictest($taskType);
         $peers = null;
         $loads = [];
         $self = 0;
@@ -114,7 +116,7 @@ final class PycoreComputeRoster
 
     private static function computeAvailability(string $taskType): array
     {
-        $required = QueueCenterContract::taskTypeCompute($taskType);
+        $required = QueueCenterContract::taskTypeComputeStrictest($taskType);
         $registered = Worker::pycoresServing((string) QueueCenterContract::taskTypeExecution($taskType));
         $eligible = $registered->filter(static fn (Worker $worker): bool => self::satisfies((string) self::classOf($worker), $required));
         $lastSeen = $eligible->max(static fn (Worker $worker) => $worker->last_heartbeat_at);
@@ -135,7 +137,7 @@ final class PycoreComputeRoster
 
     private static function freshEligible(string $taskType): Collection
     {
-        $required = QueueCenterContract::taskTypeCompute($taskType);
+        $required = QueueCenterContract::taskTypeComputeStrictest($taskType);
 
         return Worker::pycoresServing((string) QueueCenterContract::taskTypeExecution($taskType))
             ->filter(static fn (Worker $worker): bool => self::isOnline($worker)
