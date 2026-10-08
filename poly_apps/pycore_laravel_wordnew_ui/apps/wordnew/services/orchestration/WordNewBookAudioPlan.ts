@@ -44,6 +44,7 @@ const PLAN_PATH = 'wfnew-orch/book-plans.json';
 /** Only the app shell keeps delivered clips on the device; a browser page re-fetches every ready id on each run. */
 const KEEP_DELIVERED = isNativeAppShell();
 const READY_WAKE_DEBOUNCE_MS = 1_000;
+const HEARTBEAT_SLACK_MS = 2_000;
 const RETRY_MIN_MS = 5_000;
 const RETRY_MAX_MS = 120_000;
 const WORD_STEP_TYPES: readonly string[] = ['words_new', 'words_all'];
@@ -123,6 +124,9 @@ interface LivePlan {
   postedWindows: number;
   /** The windows of the last post (what the monitor reports next to the server's figures). */
   postedList: WfNewBookPlanWindow[];
+  /** What the last post that reached the server stated, and when: an unchanged state is posted again only as the heartbeat. */
+  postedSignature: string;
+  postedAt: number;
   /** The plan heartbeat: the assignment is posted again on this timer while the plan is followed. */
   assignTimer: ReturnType<typeof setInterval> | null;
   releaseRoster: (() => void) | null;
@@ -255,6 +259,8 @@ class WordNewBookAudioPlanService {
         assignAgain: false,
         postedWindows: 0,
         postedList: [],
+        postedSignature: '',
+        postedAt: 0,
         assignTimer: null,
         releaseRoster: null,
         rosterNodes: null,
@@ -411,6 +417,9 @@ class WordNewBookAudioPlanService {
       if (roster.version > 0) console.warn('[BookPlan] assignment empty', { roster: roster.nodes.length, languages: live.languages });
       return;
     }
+    const signature = JSON.stringify([live.stored.planId, live.stored.position, direct?.nodeSid ?? '', windows]);
+    const heartbeatDue = Date.now() - live.postedAt >= AUDIO_ORCH_BOOK_PLAN.assignmentRefreshMs - HEARTBEAT_SLACK_MS;
+    if (signature === live.postedSignature && !heartbeatDue) return;
     try {
       const assignments = await within(
         wfNewApi.postBookAudioPlanAssignments(live.stored.planId, live.stored.position, windows, {
@@ -419,6 +428,8 @@ class WordNewBookAudioPlanService {
         }),
         AUDIO_ORCH_BOOK_PLAN.requestTimeoutMs,
       );
+      live.postedSignature = signature;
+      live.postedAt = Date.now();
       live.postedWindows = windows.length;
       live.postedList = windows;
       if (live.stored.status) live.stored = { ...live.stored, status: { ...live.stored.status, assignments } };
