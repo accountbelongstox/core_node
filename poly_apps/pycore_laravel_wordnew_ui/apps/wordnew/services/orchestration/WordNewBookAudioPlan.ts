@@ -17,6 +17,7 @@ import { AUDIO_ORCH_BOOK_PLAN } from '../../../../core/contracts/AudioOrchestrat
 import type { AudioLaneKey } from '../../../../core/contracts/QueueCenterTypes';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { pycoreApi } from '../../../../core/integrations/pycore';
+import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { Backoff } from '../../../../core/tasks/Backoff';
 import { orchPatternHasPhrases } from '../../../../shared/orchestration/orchPlanner';
 import type { OrchComposePlan, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
@@ -40,6 +41,8 @@ import { wordNewLaneCapability } from './WordNewLaneCapability';
 import { wordNewOrchPlaybackStore } from './WordNewOrchPlaybackStore';
 
 const PLAN_PATH = 'wfnew-orch/book-plans.json';
+/** Only the app shell keeps delivered clips on the device; a browser page re-fetches every ready id on each run. */
+const KEEP_DELIVERED = isNativeAppShell();
 const READY_WAKE_DEBOUNCE_MS = 1_000;
 const RETRY_MIN_MS = 5_000;
 const RETRY_MAX_MS = 120_000;
@@ -227,11 +230,18 @@ class WordNewBookAudioPlanService {
     if (!live) {
       const stored = document.tasks[task.id];
       const kept = stored && stored.planHash === task.planHash ? stored : null;
+      const settled = KEEP_DELIVERED ? kept : null;
       live = {
-        stored: { ...(kept ?? { planId: '', planHash: task.planHash, position: 0, cursor: 0 }), foreign: kept?.foreignSettled ?? 0, status: null },
+        stored: {
+          ...(kept ?? { planId: '', planHash: task.planHash, position: 0, cursor: 0 }),
+          cursor: settled?.cursor ?? 0,
+          foreign: settled?.foreignSettled ?? 0,
+          foreignSettled: settled?.foreignSettled ?? 0,
+          status: null,
+        },
         covered,
         ready: new Set(),
-        fetched: kept?.cursor ?? 0,
+        fetched: settled?.cursor ?? 0,
         snapshot: { planId: kept?.planId ?? '', status: null, undelivered: 0, scope: null },
         timer: null,
         wake: null,
@@ -253,6 +263,13 @@ class WordNewBookAudioPlanService {
     }
     live.covered = covered;
     live.languages = coveredLanguages(plan, covered);
+    if (!KEEP_DELIVERED) {
+      live.fetched = 0;
+      live.stored.cursor = 0;
+      live.stored.foreign = 0;
+      live.stored.foreignSettled = 0;
+      live.ready.clear();
+    }
     const position = await readingPosition(task.id, plan);
     const moved = Math.abs(position - live.stored.position) >= AUDIO_ORCH_BOOK_PLAN.reprioritizeMinMove;
     const phrases = includePhrases ? phraseClipCount(plan) : 0;
