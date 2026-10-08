@@ -30,6 +30,7 @@ import { laneOfKind } from '../orchestration/WordNewBookPlanAssigner';
 import { wordNewLaneCapability } from '../orchestration/WordNewLaneCapability';
 import { wordNewOrchComposer, type OrchComposeSession } from '../orchestration/WordNewOrchComposer';
 import { newOrchRandomId, orchClientDeviceId } from '../orchestration/WordNewOrchDeviceId';
+import { wordNewOrchTaskStore } from '../orchestration/WordNewOrchTaskStore';
 
 const ROUTE_DEBOUNCE_MS = 800;
 const CHANGE_DEBOUNCE_MS = 1_000;
@@ -93,6 +94,8 @@ class WordNewMonitorReporterService {
   private sentAt = 0;
   private sentVersion = -1;
   private throttleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Ids of the tasks that exist (not deleted here or on another device); null until the store answered. */
+  private liveTasks: ReadonlySet<string> | null = null;
 
   /** Idempotent: starts the triggers once. */
   start(): void {
@@ -114,6 +117,10 @@ class WordNewMonitorReporterService {
     wordNewLaneCapability.subscribe(() => this.schedule('change'));
     wfNewEndpoints.subscribe(() => this.schedule('change'));
     wordNewOrchComposer.subscribeAll(() => this.throttle());
+    wordNewOrchTaskStore.subscribe((tasks) => {
+      this.liveTasks = new Set(tasks.map((task) => task.id));
+      this.schedule('change');
+    });
     setInterval(() => { void this.send(); }, AUDIO_ORCH_CLIENT_MONITOR.reportMs);
     this.schedule('change');
   }
@@ -150,6 +157,7 @@ class WordNewMonitorReporterService {
     const link = wordNewPycoreLink.getSnapshot();
     const route = hashParts(this.route.hash);
     const tasks = [...wordNewOrchComposer.sessionEntries()]
+      .filter(([taskId]) => this.liveTasks === null || this.liveTasks.has(taskId))
       .sort(([leftId, left], [rightId, right]) => taskPriority(rightId, right, route.item) - taskPriority(leftId, left, route.item))
       .slice(0, AUDIO_ORCH_CLIENT_MONITOR.maxTasks)
       .map(([taskId, session]) => taskReport(taskId, session));
