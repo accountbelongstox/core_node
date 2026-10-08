@@ -615,6 +615,8 @@ export interface WorkMonitorPlan {
 
 /** `GET api/work/monitor`: wordnew clients, plans and nodes in one picture. */
 export interface WorkMonitorResponse {
+  /** The server's clock (ISO 8601): every other timestamp of the answer is compared with it. */
+  server_time?: string;
   revision?: { nodes?: number; clients?: number };
   clients: OrchClientReport[];
   nodes: WorkNode[];

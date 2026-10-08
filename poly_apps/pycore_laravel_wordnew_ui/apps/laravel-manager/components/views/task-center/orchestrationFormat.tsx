@@ -7,7 +7,15 @@ import type { WorkNode } from '../../../../../core/contracts/QueueCenterTypes';
 export const ORCH_CLIENT_TTL_SECONDS = 90;
 export const ORCH_LOAD_STALE_SECONDS = 90;
 
-export const nowMs = (): number => Date.now();
+let serverClockOffsetMs = 0;
+
+/** Server timestamps (last seen, layout applied, heartbeat) are compared with the server's clock, not this browser's. */
+export const syncServerClock = (serverTime: string | null | undefined): void => {
+  const ms = serverTime ? Date.parse(serverTime) : NaN;
+  if (Number.isFinite(ms)) serverClockOffsetMs = ms - Date.now();
+};
+
+export const nowMs = (): number => Date.now() + serverClockOffsetMs;
 
 export const nf = (value: number | null | undefined): string => (typeof value === 'number' ? value.toLocaleString() : '—');
 
