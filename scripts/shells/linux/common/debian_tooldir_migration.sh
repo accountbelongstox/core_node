@@ -290,7 +290,22 @@ tdm_migrate_node_secondary() {
         case "$bin" in
             "$TDM_OLD_DIR"/node/*)
                 sub="$(echo "$bin" | sed -E "s#${TDM_OLD_DIR}/node/([^/]+)/.*#\1#")"
-                tdm_relink "/usr/local/bin/$link" "$TDM_NEW_DIR/node/$sub/$(echo "$bin" | sed -E "s#.*${sub}/##")"
+                if [ -e "$TDM_NEW_DIR/node/$sub/$(echo "$bin" | sed -E "s#.*${sub}/##")" ]; then
+                    tdm_relink "/usr/local/bin/$link" "$TDM_NEW_DIR/node/$sub/$(echo "$bin" | sed -E "s#.*${sub}/##")"
+                else
+                    # Deliberately NOT auto-reinstalling here: a short/generic
+                    # global name like "pi" can collide with an unrelated real
+                    # npm package of the same name (verified the hard way -
+                    # "pnpm add -g pi" silently installed a decimal-places
+                    # calculator, not whatever this host's "pi" actually was,
+                    # which would have been worse than leaving it reported as
+                    # missing). This script has no authoritative record of
+                    # which package this name was ever supposed to resolve
+                    # to, so guessing is not a safe default - only a longer,
+                    # unambiguous package name (verify manually) is worth
+                    # trying by hand.
+                    tdm_fail "$link: relink target missing ($bin) - reinstall manually with the correct package (verify the name first; do not assume 'pnpm add -g $link' is the right one)"
+                fi
                 ;;
         esac
     done
@@ -335,22 +350,39 @@ tdm_migrate_pipx() {
         moved_venv="$(tdm_move_simple "$src_venv" "$dst_venv")"
         if [ -n "$moved_venv" ]; then
             tdm_fix_embedded_paths "$moved_venv" "$src_venv" "$moved_venv"
-            tdm_repair_foreign_venv_interpreter "$moved_venv"
-            tdm_relink "/usr/local/bin/pipx" "$moved_venv/bin/pipx"
+            # Prefer the apt-maintained system launcher: pipx_venv's own
+            # pip-installed copy is version-locked to python3.12 (gone from
+            # this host - same root cause class as certbot), while
+            # /usr/bin/pipx ships with the `pipx` apt package, always matches
+            # whatever pipx is actually installed, and needs no repair. This
+            # venv apparently only ever worked via an accidental cross-wire
+            # into a DIFFERENT venv's system-site-packages access - "fixing"
+            # that isolation (tdm_repair_foreign_venv_interpreter) breaks it,
+            # so it is deliberately NOT applied here.
+            if [ -x /usr/bin/pipx ] && /usr/bin/pipx --version >/dev/null 2>&1; then
+                tdm_relink "/usr/local/bin/pipx" "/usr/bin/pipx"
+            else
+                tdm_relink "/usr/local/bin/pipx" "$moved_venv/bin/pipx"
+            fi
         else
             tdm_fail "pipx (tool): move failed or destination collision ($dst_venv)"
         fi
     fi
     if [ -e "$src_home" ] || [ -e "$dst_home" ]; then
-        moved_home="$(tdm_move_simple "$src_home" "$dst_home")"
+        if [ -d "$dst_home/venvs" ] && [ -e "$src_home" ]; then
+            # Already migrated in a prior run - the only thing left at the
+            # old path is pipx's own disposable housekeeping (.cache, log
+            # files it writes on every invocation), not a real collision.
+            # Sweep it so this stops reporting a false failure on every
+            # re-run, and treat the destination as the migrated result.
+            tdm_log "  pipx_home already migrated (destination has venvs/); clearing disposable residue left at $src_home"
+            $USE_SUDO rm -rf "$src_home"
+            moved_home="$dst_home"
+        else
+            moved_home="$(tdm_move_simple "$src_home" "$dst_home")"
+        fi
         if [ -n "$moved_home" ]; then
             tdm_fix_embedded_paths "$moved_home" "$src_home" "$moved_home"
-            # Every individual pipx app venv under venvs/*, not just certbot -
-            # each one can independently end up with a foreign/broken interpreter.
-            local app_venv=""
-            for app_venv in "$moved_home"/venvs/*/; do
-                [ -d "$app_venv" ] && tdm_repair_foreign_venv_interpreter "${app_venv%/}"
-            done
             tdm_relink "/usr/local/bin/certbot" "$moved_home/venvs/certbot/bin/certbot"
             set_env_and_var "PIPX_HOME" "$moved_home"
             # pipx's own metadata can still flag a venv as broken (e.g. the
@@ -384,8 +416,12 @@ tdm_migrate_poetry() {
         return 1
     fi
     tdm_fix_embedded_paths "$moved" "$src" "$moved"
-    tdm_repair_foreign_venv_interpreter "$moved"
     tdm_relink "/usr/local/bin/poetry" "$moved/bin/poetry"
+    # Repair is tried only once the plain move+relink is proven insufficient,
+    # never unconditionally (see tdm_migrate_pipx for why: unconditionally
+    # "fixing" a venv's isolation can break one that only ever worked via an
+    # accidental cross-wire).
+    poetry --version >/dev/null 2>&1 || tdm_repair_foreign_venv_interpreter "$moved"
     if ! poetry --version >/dev/null 2>&1; then
         # Symlink/interpreter repair alone cannot fix a venv whose installed
         # packages are pinned under lib/python3.12/site-packages when 3.12
