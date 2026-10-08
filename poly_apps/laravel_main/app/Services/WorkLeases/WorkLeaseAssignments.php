@@ -13,13 +13,18 @@ use Illuminate\Support\Carbon;
  * book_plan.assignments_*). The app POSTs windows (node short id, lane,
  * language, clip count, laid out from the reader position); each POST is the plan heartbeat.
  * While it is fresh a node claims its own windows first and every other claim
- * skips them (direct_sid windows are the app's direct pycore's: all nodes skip
- * them); once it expires the claims fall back to the fair share.
+ * skips them (a window whose sid starts with direct_sid is a device's direct
+ * pycore window: all nodes skip it); once it expires the claims fall back to
+ * the fair share. Node ranges are kept per plan (last writer wins; the
+ * signature covers node windows only), direct ranges per (plan, device) with
+ * their own heartbeat.
  */
 final class WorkLeaseAssignments
 {
     private const LAYOUT_KEY = 'book_plan:assign:';
     private const PLANS_KEY = 'book_plan:assign:plans';
+    private const DIRECT_KEY = 'book_plan:assign:direct:';
+    private const DEVICES_KEY = 'book_plan:assign:devices:';
 
     /** @var array<string,array>|null fresh layouts by plan id, loaded once per instance */
     private ?array $fresh = null;
@@ -33,39 +38,97 @@ final class WorkLeaseAssignments
         return AudioOrchestrationContract::bookPlan($name);
     }
 
+    /** Whether a window sid is a direct pycore window (any sid starting with direct_sid). */
+    public static function isDirectSid(string $sid): bool
+    {
+        $prefix = (string) self::setting('direct_sid');
+
+        return $prefix !== '' && str_starts_with($sid, $prefix);
+    }
+
+    /** The direct window sid of one device: direct_sid + ':' + device_id[0:direct_sid_device_chars]. */
+    public static function directSid(string $deviceId): string
+    {
+        $prefix = (string) self::setting('direct_sid');
+        $deviceId = self::deviceId($deviceId);
+
+        return $deviceId === '' ? $prefix : $prefix . ':' . substr($deviceId, 0, (int) self::setting('direct_sid_device_chars'));
+    }
+
+    public static function deviceId(string $deviceId): string
+    {
+        return substr((string) preg_replace('/[^A-Za-z0-9_.-]/', '', $deviceId), 0, (int) self::setting('device_id_max_chars'));
+    }
+
     /**
-     * POST assignments. Null when the plan is unknown.
+     * POST assignments. Null when the plan is unknown. Node windows replace the
+     * plan's node layout (last writer wins; a post without node windows leaves
+     * another device's node layout alone), direct windows the posting device's
+     * direct layout (an empty set drops it).
      *
      * @param array<int,array{sid:string,lane:string,language:string,count:int}> $windows
      */
-    public function apply(string $planId, int $from, array $windows): ?array
+    public function apply(string $planId, int $from, array $windows, string $deviceId = '', string $directNodeSid = ''): ?array
     {
         $plan = $this->plans->plan($planId);
 
         if ($plan === null) {
             return null;
         }
-        $windows = $this->normalized($windows);
-        $signature = sha1(json_encode($windows));
+        $deviceId = self::deviceId($deviceId);
+        $windows = $this->normalized($windows, self::directSid($deviceId));
+        $nodeWindows = array_values(array_filter($windows, static fn (array $window): bool => !self::isDirectSid($window['sid'])));
+        $directWindows = array_values(array_filter($windows, static fn (array $window): bool => self::isDirectSid($window['sid'])));
         $now = time();
+        $ttl = (int) self::setting('assignment_ttl_seconds');
         $layout = $this->layout($planId);
-        $relayout = $layout === null
-            || $layout['signature'] !== $signature
-            || abs($from - (int) $layout['from']) >= (int) AppQyV1BookAudioPlanService::setting('reprioritize_min_move')
-            || $now - (int) $layout['applied_at'] >= (int) self::setting('assignment_relayout_seconds');
+        $direct = $this->directLayout($planId, $deviceId);
+        $nodeSignature = sha1(json_encode($nodeWindows));
+        $directSignature = sha1(json_encode($directWindows));
+        $minMove = (int) AppQyV1BookAudioPlanService::setting('reprioritize_min_move');
+        $relayoutSeconds = (int) self::setting('assignment_relayout_seconds');
+        $needs = static fn (?array $current, string $signature): bool => $current === null
+            || $current['signature'] !== $signature
+            || abs($from - (int) $current['from']) >= $minMove
+            || $now - (int) $current['applied_at'] >= $relayoutSeconds;
+        $writesNodes = $nodeWindows !== [] || $layout === null || (string) ($layout['device_id'] ?? '') === $deviceId;
+        $nodeRelayout = $writesNodes && $needs($layout, $nodeSignature);
+        $directRelayout = $directWindows !== [] && $needs($direct, $directSignature);
+        $ranges = $nodeRelayout || $directRelayout ? $this->resolve($plan, $from, $windows) : [];
 
-        if ($relayout) {
-            $layout = [
-                'plan_pk' => (int) $plan->id,
-                'from' => $from,
-                'signature' => $signature,
-                'applied_at' => $now,
-                'carry' => $this->carriedDone($plan, $layout),
-                'ranges' => $this->resolve($plan, $from, $windows),
-            ];
+        if ($writesNodes) {
+            if ($nodeRelayout) {
+                $layout = [
+                    'plan_pk' => (int) $plan->id,
+                    'from' => $from,
+                    'signature' => $nodeSignature,
+                    'applied_at' => $now,
+                    'carry' => $this->carriedDone($plan, $layout),
+                    'ranges' => array_values(array_filter($ranges, static fn (array $range): bool => !self::isDirectSid($range['sid']))),
+                ];
+            }
+            $layout['device_id'] = $deviceId;
+            $layout['expires_at'] = $now + $ttl;
+            $this->store($planId, $layout);
         }
-        $layout['expires_at'] = $now + (int) self::setting('assignment_ttl_seconds');
-        $this->store($planId, $layout);
+        if ($directWindows === []) {
+            $this->forgetDirect($planId, $deviceId);
+        } else {
+            if ($directRelayout) {
+                $direct = [
+                    'plan_pk' => (int) $plan->id,
+                    'from' => $from,
+                    'signature' => $directSignature,
+                    'applied_at' => $now,
+                    'carry' => $this->carriedDone($plan, $direct),
+                    'ranges' => array_values(array_filter($ranges, static fn (array $range): bool => self::isDirectSid($range['sid']))),
+                ];
+            }
+            $direct['device_id'] = $deviceId;
+            $direct['direct_node_sid'] = substr($directNodeSid, 0, 16);
+            $direct['expires_at'] = $now + $ttl;
+            $this->storeDirect($planId, $deviceId, $direct);
+        }
 
         return $this->summary($plan);
     }
@@ -73,40 +136,98 @@ final class WorkLeaseAssignments
     /** Assignment figures of one plan (the status `assignments` block). */
     public function summary(object $plan): array
     {
-        $layout = $this->layout((string) $plan->plan_id);
         $now = time();
+        $layouts = $this->planLayouts((string) $plan->plan_id);
 
-        if ($layout === null) {
+        if ($layouts === []) {
             return ['fresh' => false, 'expires_in' => 0, 'windows' => []];
         }
-        $counts = $this->counts($plan, $layout['ranges']);
         $windows = [];
+        $expiresAt = 0;
 
-        foreach ($layout['ranges'] as $index => $range) {
-            $key = $range['sid'] . '|' . $range['lane'];
-            $windows[$key] ??= ['sid' => $range['sid'], 'lane' => $range['lane'], 'assigned' => 0, 'generating' => 0, 'done' => 0];
-            $windows[$key]['assigned'] += $counts[$index]['total'];
-            $windows[$key]['generating'] += $counts[$index]['generating'];
-            $windows[$key]['done'] += $counts[$index]['ready'];
+        foreach ($layouts as $layout) {
+            $counts = $this->counts($plan, $layout['ranges']);
+            foreach ($layout['ranges'] as $index => $range) {
+                $key = $range['sid'] . '|' . $range['lane'];
+                $windows[$key] ??= ['sid' => $range['sid'], 'lane' => $range['lane'], 'assigned' => 0, 'generating' => 0, 'done' => 0];
+                $windows[$key]['assigned'] += $counts[$index]['total'];
+                $windows[$key]['generating'] += $counts[$index]['generating'];
+                $windows[$key]['done'] += $counts[$index]['ready'];
+            }
+            foreach ((array) ($layout['carry'] ?? []) as $key => $carried) {
+                [$sid, $lane] = explode('|', (string) $key, 2);
+                $windows[$key] ??= ['sid' => $sid, 'lane' => $lane, 'assigned' => 0, 'generating' => 0, 'done' => 0];
+                $windows[$key]['assigned'] += (int) $carried;
+                $windows[$key]['done'] += (int) $carried;
+            }
+            $expiresAt = max($expiresAt, (int) $layout['expires_at']);
         }
-        foreach ((array) $layout['carry'] as $key => $carried) {
-            [$sid, $lane] = explode('|', (string) $key, 2);
-            $windows[$key] ??= ['sid' => $sid, 'lane' => $lane, 'assigned' => 0, 'generating' => 0, 'done' => 0];
-            $windows[$key]['assigned'] += (int) $carried;
-            $windows[$key]['done'] += (int) $carried;
-        }
-        $fresh = (int) $layout['expires_at'] > $now;
+        $fresh = $expiresAt > $now;
         $current = $this->currentSids();
 
-        // Only the direct pycore and nodes of the current roster are shown: a node that left (or was merged into another id) drops out.
+        // Only direct pycores and nodes of the current roster are shown: a node that left (or was merged into another id) drops out.
         return [
             'fresh' => $fresh,
-            'expires_in' => $fresh ? (int) $layout['expires_at'] - $now : 0,
+            'expires_in' => $fresh ? $expiresAt - $now : 0,
             'windows' => array_values(array_filter(
                 $windows,
-                static fn (array $window): bool => $window['sid'] === (string) self::setting('direct_sid') || isset($current[$window['sid']])
+                static fn (array $window): bool => self::isDirectSid($window['sid']) || isset($current[$window['sid']])
             )),
         ];
+    }
+
+    /**
+     * Monitor view of one plan's layouts (work/monitor plans[].layout): newest
+     * applied_at, expires_in, the devices holding a fresh layout and the fresh
+     * ranges. Null when the plan holds no layout.
+     */
+    public function monitorLayout(string $planId): ?array
+    {
+        $now = time();
+        $layouts = $this->planLayouts($planId);
+
+        if ($layouts === []) {
+            return null;
+        }
+        $view = ['applied_at' => null, 'expires_in' => 0, 'device_ids' => [], 'ranges' => []];
+        $appliedAt = 0;
+
+        foreach ($layouts as $layout) {
+            $appliedAt = max($appliedAt, (int) ($layout['applied_at'] ?? 0));
+            if ((int) $layout['expires_at'] <= $now) {
+                continue;
+            }
+            $view['expires_in'] = max($view['expires_in'], (int) $layout['expires_at'] - $now);
+            $view['device_ids'][] = (string) ($layout['device_id'] ?? '');
+            foreach ($layout['ranges'] as $range) {
+                $view['ranges'][] = $range + [
+                    'device_id' => (string) ($layout['device_id'] ?? ''),
+                    'direct_node_sid' => isset($layout['direct_node_sid']) ? (string) $layout['direct_node_sid'] : null,
+                ];
+            }
+        }
+        $view['device_ids'] = array_values(array_unique($view['device_ids']));
+        $view['applied_at'] = $appliedAt > 0 ? Carbon::createFromTimestamp($appliedAt)->toIso8601String() : null;
+
+        return $view;
+    }
+
+    /** @return array<int,string> plan ids holding a layout that is fresh or expired less than $withinSeconds ago */
+    public function recentPlanIds(int $withinSeconds): array
+    {
+        $cutoff = time() - $withinSeconds;
+        $planIds = [];
+
+        foreach ((array) QueueCenterCacheStore::get()->get(self::PLANS_KEY, []) as $planId) {
+            foreach ($this->planLayouts((string) $planId) as $layout) {
+                if ((int) $layout['expires_at'] > $cutoff) {
+                    $planIds[] = (string) $planId;
+                    break;
+                }
+            }
+        }
+
+        return $planIds;
     }
 
     /**
@@ -151,7 +272,7 @@ final class WorkLeaseAssignments
 
     /**
      * SQL fragment (AND NOT EXISTS ...) keeping a lease statement off the rows
-     * of windows another node (or the direct pycore) owns right now.
+     * of windows another node (or a direct pycore) owns right now.
      *
      * @param string $rowRef SQL reference of the lane row inside the statement (quoted table name or its alias)
      */
@@ -191,7 +312,7 @@ final class WorkLeaseAssignments
         return $sids;
     }
 
-    /** @return array<string,array> plan id => layout, only the fresh ones */
+    /** @return array<string,array> plan id => {plan_pk, ranges} merged over the fresh node and direct layouts */
     private function freshLayouts(): array
     {
         if ($this->fresh !== null) {
@@ -201,13 +322,35 @@ final class WorkLeaseAssignments
         $this->fresh = [];
 
         foreach ((array) QueueCenterCacheStore::get()->get(self::PLANS_KEY, []) as $planId) {
-            $layout = $this->layout((string) $planId);
-            if ($layout !== null && (int) $layout['expires_at'] > $now) {
-                $this->fresh[(string) $planId] = $layout;
+            foreach ($this->planLayouts((string) $planId) as $layout) {
+                if ((int) $layout['expires_at'] <= $now) {
+                    continue;
+                }
+                $this->fresh[(string) $planId] ??= ['plan_pk' => (int) $layout['plan_pk'], 'ranges' => []];
+                array_push($this->fresh[(string) $planId]['ranges'], ...$layout['ranges']);
             }
         }
 
         return $this->fresh;
+    }
+
+    /** @return array<int,array> the plan's node layout and every device's direct layout (fresh or not) */
+    private function planLayouts(string $planId): array
+    {
+        $layouts = [];
+        $layout = $this->layout($planId);
+
+        if ($layout !== null) {
+            $layouts[] = $layout;
+        }
+        foreach ((array) QueueCenterCacheStore::get()->get(self::DEVICES_KEY . $planId, []) as $deviceId) {
+            $direct = $this->directLayout($planId, (string) $deviceId);
+            if ($direct !== null) {
+                $layouts[] = $direct;
+            }
+        }
+
+        return $layouts;
     }
 
     private function layout(string $planId): ?array
@@ -217,22 +360,62 @@ final class WorkLeaseAssignments
         return is_array($layout) ? $layout : null;
     }
 
+    private function directLayout(string $planId, string $deviceId): ?array
+    {
+        $layout = QueueCenterCacheStore::get()->get(self::DIRECT_KEY . $planId . ':' . $deviceId);
+
+        return is_array($layout) ? $layout : null;
+    }
+
     private function store(string $planId, array $layout): void
     {
-        $cache = QueueCenterCacheStore::get();
-        $ttl = (int) self::setting('assignment_carry_ttl_seconds');
-        $planIds = array_values(array_unique(array_merge((array) $cache->get(self::PLANS_KEY, []), [$planId])));
-
-        $cache->put(self::LAYOUT_KEY . $planId, $layout, $ttl);
-        $cache->put(self::PLANS_KEY, $planIds, $ttl);
+        QueueCenterCacheStore::get()->put(self::LAYOUT_KEY . $planId, $layout, (int) self::setting('assignment_carry_ttl_seconds'));
+        $this->remember(self::PLANS_KEY, $planId);
         $this->fresh = null;
     }
 
+    private function storeDirect(string $planId, string $deviceId, array $layout): void
+    {
+        QueueCenterCacheStore::get()->put(self::DIRECT_KEY . $planId . ':' . $deviceId, $layout, (int) self::setting('assignment_carry_ttl_seconds'));
+        $this->remember(self::DEVICES_KEY . $planId, $deviceId);
+        $this->remember(self::PLANS_KEY, $planId);
+        $this->fresh = null;
+    }
+
+    private function forgetDirect(string $planId, string $deviceId): void
+    {
+        $cache = QueueCenterCacheStore::get();
+        $devices = (array) $cache->get(self::DEVICES_KEY . $planId, []);
+
+        if (!in_array($deviceId, $devices, true)) {
+            return;
+        }
+        $cache->forget(self::DIRECT_KEY . $planId . ':' . $deviceId);
+        $cache->put(self::DEVICES_KEY . $planId, array_values(array_diff($devices, [$deviceId])), (int) self::setting('assignment_carry_ttl_seconds'));
+        $this->fresh = null;
+    }
+
+    /** Add one id to a cached id list (no-op when present). */
+    private function remember(string $key, string $id): void
+    {
+        $cache = QueueCenterCacheStore::get();
+        $ids = (array) $cache->get($key, []);
+
+        if (in_array($id, $ids, true)) {
+            return;
+        }
+        $ids[] = $id;
+        $cache->put($key, array_values($ids), (int) self::setting('assignment_carry_ttl_seconds'));
+    }
+
     /**
+     * Direct windows (sid starting with direct_sid) are rewritten to the posting
+     * device's direct sid.
+     *
      * @param array<int,array> $windows
      * @return array<int,array{sid:string,lane:string,language:string,count:int}>
      */
-    private function normalized(array $windows): array
+    private function normalized(array $windows, string $directSid): array
     {
         $normalized = [];
         $perGroup = [];
@@ -242,6 +425,7 @@ final class WorkLeaseAssignments
             $lane = (string) ($window['lane'] ?? '');
             $language = strtolower(substr((string) ($window['language'] ?? ''), 0, 20));
             $sid = substr((string) ($window['sid'] ?? ''), 0, 16);
+            $sid = self::isDirectSid($sid) ? $directSid : $sid;
             $group = $lane . '|' . $language;
             $count = max(0, min($max - ($perGroup[$group] ?? 0), (int) ($window['count'] ?? 0)));
             if ($sid === '' || $language === '' || !WorkLeaseLanes::isLane($lane) || $count <= 0) {
@@ -386,10 +570,18 @@ final class WorkLeaseAssignments
         $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
         $key = WorkLeaseLanes::keyColumn($lane);
         $now = now();
+        $notDirect = '';
+
+        // A device's direct range is never leased, even where another device's node range overlaps it.
+        foreach ($layout['ranges'] as $other) {
+            if ($other['lane'] === $lane && $other['language'] === $language && self::isDirectSid((string) $other['sid'])) {
+                $notDirect .= ' AND NOT (pc.position >= ' . (int) $other['from'] . ' AND pc.position < ' . (int) $other['to'] . ')';
+            }
+        }
         $rows = WorkLeaseLanes::connection($lane, $language)->select(
             "UPDATE {$table} SET tts_locked_by = ?, tts_locked_at = ?, tts_lease_id = ?, tts_lease_expires_at = ?"
             . " WHERE id IN (SELECT id FROM {$table} WHERE (" . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::FREE
-            . " AND {$key} IN (SELECT pc.content_key FROM {$this->plans->clipsTable()} pc WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.position >= ? AND pc.position < ?)"
+            . " AND {$key} IN (SELECT pc.content_key FROM {$this->plans->clipsTable()} pc WHERE pc.plan_pk = ? AND pc.lane = ? AND pc.language = ? AND pc.position >= ? AND pc.position < ?{$notDirect})"
             . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE SKIP LOCKED)'
             . ' RETURNING id, ' . WorkLeaseLanes::textColumn($lane) . ' AS text, ' . $key . ' AS content_key, tts_priority',
             [$workerId, $now, $leaseId, $expiresAt, $now, (int) $layout['plan_pk'], $lane, $language, (int) $range['from'], (int) $range['to'], $take]
