@@ -170,24 +170,43 @@ tdm_move_simple() {
 # bin/python3 (and bin/python) directly at a real, non-venv system
 # interpreter whenever the chain is found to end outside this venv.
 tdm_repair_foreign_venv_interpreter() {
-    local venv_dir="$1" py_bin="" target="" target_dir="" venv_real="" sys_py=""
+    local venv_dir="$1" py_bin="" venv_real="" actual_prefix="" sys_py=""
     [ -f "$venv_dir/pyvenv.cfg" ] || return 0
     venv_real="$(cd "$venv_dir" 2>/dev/null && pwd)"
     [ -n "$venv_real" ] || return 0
     py_bin="$venv_dir/bin/python3"
     [ -e "$py_bin" ] || py_bin="$venv_dir/bin/python"
     [ -e "$py_bin" ] || return 0
-    target="$(readlink -f "$py_bin" 2>/dev/null)"
-    [ -n "$target" ] || return 0
-    target_dir="$(cd "$(dirname "$target")/.." 2>/dev/null && pwd)"
-    if [ -f "$target_dir/pyvenv.cfg" ] && [ "$target_dir" != "$venv_real" ]; then
-        tdm_log "  [WARN] $venv_dir's own interpreter resolves into a DIFFERENT venv ($target) - repointing directly to the system python"
-        sys_py="$(command -v python3.13 2>/dev/null)"
-        [ -n "$sys_py" ] || sys_py="$(command -v python3 2>/dev/null)"
-        [ -n "$sys_py" ] || { tdm_log "  [WARN] no system python3 found to repoint to - leaving as-is"; return 1; }
-        # Resolve past /usr/bin/python3 -> python3.1x so pyvenv.cfg detection
-        # looks one level up from a REAL binary, never another wrapper/venv.
+    # Static symlink tracing (readlink -f) cannot see through a shell-script
+    # wrapper that "exec"s elsewhere (not a symlink) - the only reliable check
+    # is asking the interpreter itself, at runtime, what it believes its own
+    # prefix is. This is exactly how poetry_venv was found broken: its chain
+    # passes through a real (non-symlink) "/usr/local/bin/python" wrapper
+    # script that execs into an unrelated venv.
+    actual_prefix="$("$py_bin" -c 'import sys; print(sys.prefix)' 2>/dev/null)"
+    [ -n "$actual_prefix" ] || return 0
+    actual_prefix="$(cd "$actual_prefix" 2>/dev/null && pwd)"
+    if [ -n "$actual_prefix" ] && [ "$actual_prefix" != "$venv_real" ]; then
+        tdm_log "  [WARN] $venv_dir's own interpreter actually runs as a DIFFERENT venv (sys.prefix=$actual_prefix) - repointing directly to the system python"
+        # /usr/local/bin/python* is NOT safe to use as the escape target on
+        # this host - EVERY one of python/python3/python3.12/python3.13 under
+        # /usr/local/bin is itself one of these wrapper scripts (confirmed:
+        # all 127 bytes, all "exec ... _debian_13/python3_venv/bin/python3"),
+        # which is exactly how poetry_venv got broken in the first place.
+        # /usr/bin is the real, non-wrapped system install on Debian/Ubuntu.
+        sys_py="/usr/bin/python3"
+        [ -x "$sys_py" ] || sys_py="/usr/bin/python3.13"
+        if [ ! -x "$sys_py" ]; then
+            tdm_log "  [WARN] no real system python3 found under /usr/bin - leaving $venv_dir as-is"
+            return 1
+        fi
         sys_py="$(readlink -f "$sys_py" 2>/dev/null)"
+        # Verify the candidate itself isn't ALSO secretly a wrapper (belt and
+        # suspenders - a plain /usr install must report sys.prefix=/usr).
+        if [ "$("$sys_py" -c 'import sys; print(sys.prefix)' 2>/dev/null)" != "/usr" ]; then
+            tdm_log "  [WARN] candidate system python ($sys_py) is not a plain /usr install either - leaving $venv_dir as-is"
+            return 1
+        fi
         $USE_SUDO ln -sfn "$sys_py" "$venv_dir/bin/python3"
         $USE_SUDO ln -sfn python3 "$venv_dir/bin/python" 2>/dev/null
         tdm_log "  repointed $venv_dir/bin/python3 -> $sys_py (bypassing the foreign venv)"
@@ -291,12 +310,15 @@ tdm_migrate_python_system_venv() {
         return 1
     fi
     tdm_fix_embedded_paths "$moved" "$TDM_OLD_DIR/python3_venv" "$moved"
-    tdm_repair_foreign_venv_interpreter "$moved"
     tdm_relink "/usr/local/bin/python3.12" "$moved/bin/python3"
     [ "$(get_var "UV_PROJECT_ENVIRONMENT" 2>/dev/null)" = "$src" ] \
         && set_env_and_var "UV_PROJECT_ENVIRONMENT" "$moved"
     grep -q "^UV_PROJECT_ENVIRONMENT=\"$src\"" /etc/environment 2>/dev/null \
         && set_env_and_var "UV_PROJECT_ENVIRONMENT" "$moved"
+    # Repair is a LAST resort, tried only once the plain move+relink is
+    # proven insufficient - never unconditionally, so a venv that already
+    # works (however accidentally) is never put at risk of a regression.
+    python3.12 --version >/dev/null 2>&1 || tdm_repair_foreign_venv_interpreter "$moved"
     python3.12 --version >/dev/null 2>&1 \
         && tdm_ok "python3.12 venv migrated: $src -> $moved" \
         || tdm_fail "smoke test: python3.12 --version failed after migration"
@@ -364,9 +386,27 @@ tdm_migrate_poetry() {
     tdm_fix_embedded_paths "$moved" "$src" "$moved"
     tdm_repair_foreign_venv_interpreter "$moved"
     tdm_relink "/usr/local/bin/poetry" "$moved/bin/poetry"
+    if ! poetry --version >/dev/null 2>&1; then
+        # Symlink/interpreter repair alone cannot fix a venv whose installed
+        # packages are pinned under lib/python3.12/site-packages when 3.12
+        # no longer exists anywhere (same root cause class as the
+        # certbot/python3.12 incident - the package files are version-locked
+        # to a python minor that is simply gone, not just a bad path). The
+        # reliable fix is a fresh reinstall against whatever python actually
+        # exists now - pipx (fixed earlier in this same flow) does exactly
+        # that and replaces /usr/local/bin/poetry with its own, working shim.
+        tdm_log "  poetry still broken after relink/repoint (likely version-locked to a now-missing python minor) - reinstalling fresh via pipx"
+        if command -v pipx >/dev/null 2>&1; then
+            PIPX_HOME="${TDM_NEW_DIR}/pipx_home" PIPX_BIN_DIR=/usr/local/bin pipx install poetry --force >/dev/null 2>&1 \
+                && tdm_log "  poetry reinstalled via pipx" \
+                || tdm_log "  [WARN] pipx install poetry --force failed"
+        else
+            tdm_log "  [WARN] pipx not available to attempt a fresh reinstall"
+        fi
+    fi
     poetry --version >/dev/null 2>&1 \
-        && tdm_ok "poetry migrated: $src -> $moved" \
-        || tdm_fail "smoke test: poetry --version failed after migration"
+        && tdm_ok "poetry migrated/repaired: $src -> $moved" \
+        || tdm_fail "smoke test: poetry --version failed after migration and reinstall attempt - investigate manually"
 }
 
 tdm_migrate_uv() {
