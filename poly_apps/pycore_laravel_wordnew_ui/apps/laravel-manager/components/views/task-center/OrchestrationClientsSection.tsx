@@ -26,6 +26,7 @@ import {
   ORCH_CLIENT_TTL_SECONDS,
   SectionTitle,
   Th,
+  toMs,
   useAgeText,
 } from './orchestrationFormat';
 
@@ -110,6 +111,15 @@ const TaskBlock: React.FC<{ task: OrchClientTask }> = ({ task }) => {
   );
 };
 
+/** Seconds since the page changed: the device's own clock gives the span up to its report, the server's clock the rest. */
+const routeAge = (client: OrchClientReport, now: number): number => {
+  const changed = toMs(client.route?.changed_at);
+  const sent = toMs(client.sent_at);
+  const sinceReport = ageSeconds(client.last_seen_at ?? client.sent_at, now);
+  if (!Number.isFinite(changed) || !Number.isFinite(sent) || !Number.isFinite(sinceReport)) return ageSeconds(client.route?.changed_at, now);
+  return sinceReport + Math.max(0, Math.floor((sent - changed) / 1000));
+};
+
 const DeviceCard: React.FC<{ client: OrchClientReport; now: number }> = ({ client, now }) => {
   const { t: tr } = useTranslation();
   const ageText = useAgeText();
@@ -147,7 +157,7 @@ const DeviceCard: React.FC<{ client: OrchClientReport; now: number }> = ({ clien
           <b className="font-mono text-slate-700 dark:text-slate-200">{route?.tab || '—'}</b>
           {route?.item ? <span className="font-mono"> / {route.item}</span> : null}
           {route?.changed_at !== undefined && route?.changed_at !== null && (
-            <span> ({ageText(route.changed_at, now)})</span>
+            <span> ({formatAge(routeAge(client, now), tr('uiTask.shared.never'))})</span>
           )}
         </span>
         <span className="flex flex-wrap items-center gap-1">
