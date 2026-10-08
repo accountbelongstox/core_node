@@ -6,7 +6,7 @@ import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTe
 import type { TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 
-const LOG_SOURCES: TerminalLogSource[] = ['input', 'enter', 'schedule'];
+export const LOG_SOURCES: TerminalLogSource[] = ['input', 'enter', 'schedule'];
 const DEFAULT_LOG_SOURCE: TerminalLogSource = 'input';
 
 const SOURCE_STYLES: Record<TerminalLogSource, string> = {
