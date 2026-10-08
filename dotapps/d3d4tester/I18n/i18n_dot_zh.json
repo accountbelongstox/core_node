@@ -928,6 +928,7 @@
       "tab_ground": "周边掉落",
       "tab_npc": "附近 NPC",
       "tab_follow": "跟随队伍",
+      "starting": "插件刚启动：ROSBOT 启动后 30 秒内不读取游戏数据（避免干扰 ROSBOT 初始化）",
       "command_running": "插件正在执行：{0}（已 {1}）",
       "follow_town_portal_key": "跟丢回城键",
       "follow_town_portal_key_tip": "跟随时在野外跟丢队长，会把 D3 切到前台并按这个键回城（默认 t），之后在城里用队长的旗帜回去。",

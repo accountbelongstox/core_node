@@ -15,7 +15,8 @@ public static class RosbotBridgeText
     {
         if (!RosbotBridgePluginService.IsInstalled) return I18nKeys.RosbotBridgeNotInstalledHint;
         if (!fresh) return RosbotBridgePluginService.IsRosbotRunning ? I18nKeys.RosbotBridgeNotLoaded : I18nKeys.RosbotBridgeRosbotStopped;
-        return state!.InGame ? I18nKeys.RosbotBridgeLive : I18nKeys.RosbotBridgeNotInGame;
+        if (state!.Starting) return I18nKeys.RosbotBridgeStarting;
+        return state.InGame ? I18nKeys.RosbotBridgeLive : I18nKeys.RosbotBridgeNotInGame;
     }
 
     /// <summary>User-given level-area name with its SNO id, or the unnamed-area text.</summary>

@@ -28,7 +28,8 @@ public static class RosbotBridgePluginService
 {
     private const string LogTag = "[RosbotBridge]";
     private const double CommandPollSec = 0.5;
-    private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true, Converters = { new RosbotBridgeDateTimeConverter() } };
+    private static string? _lastReadError;
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
     private static readonly object NamesLock = new();
     private static Dictionary<int, string>? _areaNames;
@@ -135,9 +136,17 @@ public static class RosbotBridgePluginService
         try
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            return JsonSerializer.Deserialize<RosbotBridgeState>(stream, ReadOptions);
+            var state = JsonSerializer.Deserialize<RosbotBridgeState>(stream, ReadOptions);
+            _lastReadError = null;
+            return state;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (JsonException ex)
+        {
+            if (ex.Message != _lastReadError) ColorPrinter.Red($"{LogTag} state.json not readable (plugin / app field mismatch): {ex.Message}");
+            _lastReadError = ex.Message;
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
         }
