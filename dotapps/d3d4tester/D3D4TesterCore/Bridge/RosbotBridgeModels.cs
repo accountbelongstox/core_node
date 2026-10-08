@@ -1,7 +1,27 @@
 // PY-REF: none (DOT-only)
+using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DotApps.d3d4tester.Core.Bridge;
+
+/// <summary>
+/// Plugin date fields: ISO 8601 UTC, or "" / null for "not set" (the plugin's JsonWriter writes DateTime.MinValue as ""), read as
+/// default instead of failing the whole state.
+/// </summary>
+public sealed class RosbotBridgeDateTimeConverter : JsonConverter<DateTime>
+{
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return default;
+        string? text = reader.GetString();
+        return string.IsNullOrEmpty(text) ? default
+            : DateTime.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value == default ? "" : value.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture));
+}
 
 /// <summary>Area visit in the plugin's history.</summary>
 public sealed record RosbotBridgeAreaVisit([property: JsonPropertyName("sno")] int Sno, [property: JsonPropertyName("utc")] DateTime Utc);
@@ -36,6 +56,8 @@ public sealed record RosbotBridgeState(
     [property: JsonPropertyName("level_area_history")] IReadOnlyList<RosbotBridgeAreaVisit>? LevelAreaHistory)
 {
     [JsonPropertyName("repair_needed")] public bool RepairNeeded { get; init; }
+    /// <summary>The plugin was just enabled and does not read game data yet (ROSBOT's startup must not be disturbed).</summary>
+    [JsonPropertyName("starting")] public bool Starting { get; init; }
     /// <summary>Blood shard cap of the hero (ROSBOT LocalPlayer.MaxShard); 0 = unknown (older plugin).</summary>
     [JsonPropertyName("max_blood_shards")] public int MaxBloodShards { get; init; }
     /// <summary>The plugin holds this town visit (ROSBOT's town run or follow) until the app clears town_hold.txt.</summary>

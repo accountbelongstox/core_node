@@ -52,6 +52,7 @@ public static partial class I18nKeys
     public const string RosbotBridgeTabGround = "ui.rosbot_bridge.tab_ground";
     public const string RosbotBridgeTabNpc = "ui.rosbot_bridge.tab_npc";
     public const string RosbotBridgeTabFollow = "ui.rosbot_bridge.tab_follow";
+    public const string RosbotBridgeStarting = "ui.rosbot_bridge.starting";
     public const string RosbotBridgeCommandRunning = "ui.rosbot_bridge.command_running";
     public const string RosbotBridgeFollowTownPortalKey = "ui.rosbot_bridge.follow_town_portal_key";
     public const string RosbotBridgeFollowTownPortalKeyTip = "ui.rosbot_bridge.follow_town_portal_key_tip";

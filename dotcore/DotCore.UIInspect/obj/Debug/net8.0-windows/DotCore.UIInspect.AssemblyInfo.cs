@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.UIInspect")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3f2fd74b9be5b9d40020e8b2d67ae174ded64eff")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+83799fe840d7d233b4076b1a5128f295a91f4ed4")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.UIInspect")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.UIInspect")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

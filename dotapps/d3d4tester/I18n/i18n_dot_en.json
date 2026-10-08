@@ -928,6 +928,7 @@
       "tab_ground": "Drops nearby",
       "tab_npc": "NPCs nearby",
       "tab_follow": "Follow party",
+      "starting": "Plugin just started: no game data for 30 s after ROSBOT starts (keeps ROSBOT's startup undisturbed)",
       "command_running": "Plugin running: {0} (for {1})",
       "follow_town_portal_key": "Lost-leader town key",
       "follow_town_portal_key_tip": "When following and the leader is lost outside town, D3 is brought to the front and this key is pressed to go to town (default t); in town the leader's banner is used.",
