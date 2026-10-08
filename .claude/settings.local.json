@@ -287,7 +287,9 @@
       "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c\\\\n\"}' PycoreQueueTypes.ts)",
       "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c of $.\\\\n\"}' index.ts)",
       "Bash(php -l app/Services/WorkLeases/WorkLeaseService.php)",
-      "Bash(php -l app/Http/Controllers/WorkLeaseController.php)"
+      "Bash(php -l app/Http/Controllers/WorkLeaseController.php)",
+      "Bash(php -l app/Apps/AppQyV1/AppQyV1ApiInfo.php)",
+      "PowerShell($root = Resolve-Path \"D:\\\\programing\\\\core_node\"; $dd = Join-Path $root \"dd.cmd\"; & $dd gitsync -m \"Laravel: language-aware sentence engine policy, per-device direct windows, node load, orchestration monitor\" --notice-laravel 2>&1 | Select-Object -Last 60)"
     ],
     "deny": [],
     "ask": []

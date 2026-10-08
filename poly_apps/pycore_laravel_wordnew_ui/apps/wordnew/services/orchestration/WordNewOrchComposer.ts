@@ -49,6 +49,7 @@ import { orchPassageSignature } from '../../../../shared/orchestration/orchPassa
 import type { OrchStageCursor } from '../../../../shared/orchestration/orchClipResolver';
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { Backoff } from '../../../../core/tasks/Backoff';
+import { wfNewApi } from '../../api';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewChannels } from '../compute/WordNewCompute';
@@ -59,6 +60,7 @@ import { translateActive } from '../../WfNewLocales';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { scopeOrchClipSources, WORDNEW_ORCH_SCHEDULE, type OrchPlanScopeHolder } from './WordNewOrchClipSources';
 import { wordNewBookAudioPlan } from './WordNewBookAudioPlan';
+import { wordNewLaneCapability } from './WordNewLaneCapability';
 import { resetOrchCountsFloor } from './WordNewOrchCountsFloor';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import {
@@ -126,6 +128,19 @@ interface PhraseWatch {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
+/** Words of a task whose meaning the server did not have at lookup: asked again until they have one (G1c). */
+interface MeaningWatch {
+  /** When this wait began (it ends after `generation_watch_minutes`; a channel coming back resumes the task again). */
+  since: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  /** Words already asked in this pass over the pending words (a word with no meaning yet waits for the pass to come around). */
+  asked: Set<string>;
+}
+
+/** Words one meaning re-check asks the server about. */
+const MEANING_RECHECK_WORDS = 200;
+const WORD_STEP_TYPES: readonly string[] = ['words_new', 'words_all'];
+
 type Listener = () => void;
 type ReadyListener = (taskId: string, session: OrchComposeSession) => void;
 
@@ -154,6 +169,10 @@ class WordNewOrchComposerService {
   private readonly resumeAfterRun = new Set<string>();
   /** Tasks waiting for the server to extract the phrases of some of their sentences. */
   private readonly phraseWatch = new Map<string, PhraseWatch>();
+  /** Tasks with words still lacking a meaning: the pending re-check. */
+  private readonly meaningWatch = new Map<string, MeaningWatch>();
+  /** The capability signature of the direct and relay pycore last seen (a change re-plans which stage owns which clip). */
+  private capabilityKey = `${wordNewLaneCapability.signature('direct')}|${wordNewLaneCapability.signature('relay')}`;
   /** Tasks waiting for clips a backend generates: the pending re-check. */
   private readonly generationWatch = new Map<string, ReturnType<typeof setTimeout>>();
   /** Tasks waiting for clips: the `clip.ready` subscription that brings their re-check forward. */
@@ -184,6 +203,13 @@ class WordNewOrchComposerService {
       if (!selectedUrl || selectedUrl === this.pycoreSelected) return;
       if (this.pycoreSelected) resume();
       this.pycoreSelected = selectedUrl;
+    });
+    // A pycore that declares other lanes or languages changes which stage owns which clip (R4): unfinished tasks run again.
+    wordNewLaneCapability.subscribe(() => {
+      const key = `${wordNewLaneCapability.signature('direct')}|${wordNewLaneCapability.signature('relay')}`;
+      if (key === this.capabilityKey) return;
+      this.capabilityKey = key;
+      resume();
     });
     wfNewEndpoints.subscribe(() => {
       const id = wfNewEndpoints.getSnapshot().currentId;

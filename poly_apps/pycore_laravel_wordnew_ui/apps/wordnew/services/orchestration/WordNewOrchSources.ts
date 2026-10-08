@@ -434,6 +434,42 @@ class WordNewOrchSourcesService {
     };
   }
 
+  /**
+   * Words whose meaning was empty at lookup are asked again (a full lookup: the server translates a word it
+   * did not know yet): the ones that now have a meaning fill the kept read states, in memory and in the kept
+   * copy, so the next plan of the task reads their meaning clip. Returns how many gained a meaning.
+   */
+  async refreshMeanings(task: OrchComposeTask, words: readonly string[]): Promise<number> {
+    const remembered = this.memory.get(task.id);
+    if (!remembered || words.length === 0) return 0;
+    const target = task.config.book?.targetLanguage || 'zh';
+    const states = remembered.inputs.wordStates;
+    let gained = 0;
+    for (const batch of chunk([...words], WORD_STATE_BATCH, true)) {
+      const rows = await getSentenceWordTable(
+        batch.words.join(' '),
+        task.language,
+        target,
+        task.config.newOnlyMaxReadCount,
+        task.config.wordGroupId,
+        task.config.readState === 'real' ? null : task.config.virtualBatch || null,
+        true,
+      ).catch(() => []);
+      rows.forEach((row) => {
+        const word = row.word.trim().toLowerCase();
+        const state = states.get(word);
+        const meaning = shortMeaning(sentenceWordTranslations(row));
+        if (!state || state.meaning.trim() || !meaning) return;
+        states.set(word, { ...state, meaning, audioUrl: state.audioUrl ?? (row.audio_url && row.audio_status !== 'pending' ? row.audio_url : null) });
+        gained += 1;
+      });
+    }
+    if (gained > 0 && this.keep) {
+      await inputStore(task.id).save({ sourceKey: remembered.sourceKey, sentences: remembered.inputs.sentences, wordStates: [...states.values()], complete: true });
+    }
+    return gained;
+  }
+
   /** Kept input copies (cache registry item `orchInputs`). */
   async stats(): Promise<number> {
     if (!this.keep) return 0;
