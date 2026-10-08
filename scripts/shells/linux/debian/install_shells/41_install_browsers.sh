@@ -422,6 +422,13 @@ edge_ensure() {
         edge_remove
         return 0
     fi
+    # Same headless-skip idiom as Flutter/Android Studio/LibreOffice (59/61/63):
+    # a server/base install has no desktop session to browse from. Force with
+    # INSTALL_EDGE=true.
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "false" ] && [ "$INSTALL_EDGE" != "true" ]; then
+        browser_log "No desktop environment detected: skipping Microsoft Edge install (~604M). Set INSTALL_EDGE=true to force."
+        return 0
+    fi
     if ! browser_arch_supported; then
         browser_log "Microsoft Edge is unavailable for architecture '$SYS_ARCH'; skipping."
         return 0
