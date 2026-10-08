@@ -56,7 +56,23 @@ declare -a TDM_DONE=()
 declare -a TDM_SKIPPED=()
 declare -a TDM_FAILED=()
 
-tdm_log() { echo "[$TDM_SCRIPT_INDEX] $*"; }
+# Always stderr: several callers capture a helper's stdout via $(...) for its
+# return VALUE (e.g. tdm_move_simple's resolved destination path) - a log line
+# on stdout would silently corrupt that captured value. tdm_log on stderr is
+# still fully visible on an interactive terminal (stderr is not redirected).
+tdm_log() { echo "[$TDM_SCRIPT_INDEX] $*" >&2; }
+# Run a command as the "postgres" user. "$USE_SUDO -u postgres ..." is WRONG
+# when already root: USE_SUDO is then empty, so it literally tries to exec a
+# program named "-u" (command not found, exit 127) - this previously made a
+# perfectly healthy PostgreSQL start look like a failed verification.
+tdm_as_postgres() {
+    if [ "$(id -u)" -eq 0 ]; then
+        runuser -u postgres -- "$@"
+    else
+        sudo -u postgres "$@"
+    fi
+}
+
 tdm_ok()   { TDM_DONE+=("$1");    tdm_log "OK: $1"; }
 tdm_skip() { TDM_SKIPPED+=("$1"); tdm_log "SKIP: $1"; }
 tdm_fail() { TDM_FAILED+=("$1");  tdm_log "FAIL: $1"; }
@@ -128,6 +144,11 @@ tdm_move_simple() {
     if [ ! -e "$src" ]; then
         echo ""; return 1
     fi
+    if [ -d "$dst" ] && [ -z "$($USE_SUDO find "$dst" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+        # Empty placeholder directory (e.g. leftover install scaffolding) -
+        # safe to drop and reuse the name rather than treat as a collision.
+        $USE_SUDO rmdir "$dst" 2>/dev/null
+    fi
     if [ -e "$dst" ]; then
         tdm_log "  [WARN] destination already exists, refusing to overwrite: $dst (source left in place: $src)"
         echo ""; return 1
@@ -135,6 +156,60 @@ tdm_move_simple() {
     $USE_SUDO mkdir -p "$(dirname "$dst")"
     $USE_SUDO mv "$src" "$dst" || { echo ""; return 1; }
     echo "$dst"; return 0
+}
+
+# A venv's OWN bin/python(3) can resolve (through an external wrapper this
+# script does not own, e.g. a system-wide "/usr/local/bin/python" that execs
+# into a DIFFERENT venv) into a FOREIGN venv entirely - CPython then finds
+# the foreign venv's pyvenv.cfg instead of this one's, so THIS venv's own
+# site-packages are silently never on sys.path even though the files are all
+# present (seen on this host: poetry_venv's own interpreter chain ended up
+# inside _debian_13/python3_venv, so `poetry` reported "module not found"
+# despite poetry's package sitting right there in poetry_venv/lib/.../site-
+# packages). Self-heals unconditionally as part of the flow: repoints
+# bin/python3 (and bin/python) directly at a real, non-venv system
+# interpreter whenever the chain is found to end outside this venv.
+tdm_repair_foreign_venv_interpreter() {
+    local venv_dir="$1" py_bin="" target="" target_dir="" venv_real="" sys_py=""
+    [ -f "$venv_dir/pyvenv.cfg" ] || return 0
+    venv_real="$(cd "$venv_dir" 2>/dev/null && pwd)"
+    [ -n "$venv_real" ] || return 0
+    py_bin="$venv_dir/bin/python3"
+    [ -e "$py_bin" ] || py_bin="$venv_dir/bin/python"
+    [ -e "$py_bin" ] || return 0
+    target="$(readlink -f "$py_bin" 2>/dev/null)"
+    [ -n "$target" ] || return 0
+    target_dir="$(cd "$(dirname "$target")/.." 2>/dev/null && pwd)"
+    if [ -f "$target_dir/pyvenv.cfg" ] && [ "$target_dir" != "$venv_real" ]; then
+        tdm_log "  [WARN] $venv_dir's own interpreter resolves into a DIFFERENT venv ($target) - repointing directly to the system python"
+        sys_py="$(command -v python3.13 2>/dev/null)"
+        [ -n "$sys_py" ] || sys_py="$(command -v python3 2>/dev/null)"
+        [ -n "$sys_py" ] || { tdm_log "  [WARN] no system python3 found to repoint to - leaving as-is"; return 1; }
+        # Resolve past /usr/bin/python3 -> python3.1x so pyvenv.cfg detection
+        # looks one level up from a REAL binary, never another wrapper/venv.
+        sys_py="$(readlink -f "$sys_py" 2>/dev/null)"
+        $USE_SUDO ln -sfn "$sys_py" "$venv_dir/bin/python3"
+        $USE_SUDO ln -sfn python3 "$venv_dir/bin/python" 2>/dev/null
+        tdm_log "  repointed $venv_dir/bin/python3 -> $sys_py (bypassing the foreign venv)"
+    fi
+}
+
+# pipx tracks each app's interpreter path inside its own venv metadata; after
+# a move (or after the interpreter package itself got removed - see the
+# certbot/python3.12 incident) pipx can report "invalid interpreter" without
+# any filesystem error. Self-heals unconditionally: if `pipx list` flags
+# anything broken, rebuild every pipx app fresh against whatever python pipx
+# itself currently resolves to. No-op (fast) when nothing is broken.
+tdm_pipx_heal_if_broken() {
+    local home="$1" bin_dir="${2:-/usr/local/bin}" list_out=""
+    command -v pipx >/dev/null 2>&1 || return 0
+    list_out="$(PIPX_HOME="$home" PIPX_BIN_DIR="$bin_dir" pipx list 2>&1)"
+    if echo "$list_out" | grep -qi "invalid interpreter\|missing python interpreter\|missing python executable"; then
+        tdm_log "  pipx reports a broken interpreter after the move - self-healing via 'pipx reinstall-all'"
+        PIPX_HOME="$home" PIPX_BIN_DIR="$bin_dir" pipx reinstall-all >/dev/null 2>&1 \
+            && tdm_log "  pipx reinstall-all completed" \
+            || tdm_log "  [WARN] pipx reinstall-all reported errors - investigate manually"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -167,7 +242,7 @@ tdm_migrate_node_core() {
     done
 
     for link in "${links[@]}"; do
-        bin="$(readlink -f "/usr/local/bin/$link" 2>/dev/null)"
+        bin="$(readlink "/usr/local/bin/$link" 2>/dev/null)"
         case "$bin" in
             "$TDM_OLD_DIR"/node/*)
                 ver="$(echo "$bin" | sed -E "s#.*/node/([^/]+)/.*#\1#")"
@@ -192,7 +267,7 @@ tdm_migrate_node_secondary() {
         [ -n "$dst" ] && tdm_ok "node (secondary) moved: $src -> $dst"
     done
     for link in pi rebrowser-puppeteer; do
-        bin="$(readlink -f "/usr/local/bin/$link" 2>/dev/null)"
+        bin="$(readlink "/usr/local/bin/$link" 2>/dev/null)"
         case "$bin" in
             "$TDM_OLD_DIR"/node/*)
                 sub="$(echo "$bin" | sed -E "s#${TDM_OLD_DIR}/node/([^/]+)/.*#\1#")"
@@ -211,8 +286,12 @@ tdm_migrate_python_system_venv() {
     local src="$TDM_OLD_DIR/python3_venv" dst="$TDM_NEW_DIR/python3.12_venv" moved=""
     [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "python3.12 venv: nothing to migrate"; return 0; }
     moved="$(tdm_move_simple "$src" "$dst")"
-    [ -n "$moved" ] || { [ -e "$dst" ] || { tdm_fail "python3.12 venv move failed"; return 1; }; moved="$dst"; }
+    if [ -z "$moved" ]; then
+        tdm_fail "python3.12 venv: move failed or destination collision ($dst)"
+        return 1
+    fi
     tdm_fix_embedded_paths "$moved" "$TDM_OLD_DIR/python3_venv" "$moved"
+    tdm_repair_foreign_venv_interpreter "$moved"
     tdm_relink "/usr/local/bin/python3.12" "$moved/bin/python3"
     [ "$(get_var "UV_PROJECT_ENVIRONMENT" 2>/dev/null)" = "$src" ] \
         && set_env_and_var "UV_PROJECT_ENVIRONMENT" "$moved"
@@ -232,32 +311,58 @@ tdm_migrate_pipx() {
 
     if [ -e "$src_venv" ] || [ -e "$dst_venv" ]; then
         moved_venv="$(tdm_move_simple "$src_venv" "$dst_venv")"
-        [ -n "$moved_venv" ] || moved_venv="$dst_venv"
-        tdm_fix_embedded_paths "$moved_venv" "$src_venv" "$moved_venv"
-        tdm_relink "/usr/local/bin/pipx" "$moved_venv/bin/pipx"
+        if [ -n "$moved_venv" ]; then
+            tdm_fix_embedded_paths "$moved_venv" "$src_venv" "$moved_venv"
+            tdm_repair_foreign_venv_interpreter "$moved_venv"
+            tdm_relink "/usr/local/bin/pipx" "$moved_venv/bin/pipx"
+        else
+            tdm_fail "pipx (tool): move failed or destination collision ($dst_venv)"
+        fi
     fi
     if [ -e "$src_home" ] || [ -e "$dst_home" ]; then
         moved_home="$(tdm_move_simple "$src_home" "$dst_home")"
-        [ -n "$moved_home" ] || moved_home="$dst_home"
-        tdm_fix_embedded_paths "$moved_home" "$src_home" "$moved_home"
-        tdm_relink "/usr/local/bin/certbot" "$moved_home/venvs/certbot/bin/certbot"
-        set_env_and_var "PIPX_HOME" "$moved_home"
+        if [ -n "$moved_home" ]; then
+            tdm_fix_embedded_paths "$moved_home" "$src_home" "$moved_home"
+            # Every individual pipx app venv under venvs/*, not just certbot -
+            # each one can independently end up with a foreign/broken interpreter.
+            local app_venv=""
+            for app_venv in "$moved_home"/venvs/*/; do
+                [ -d "$app_venv" ] && tdm_repair_foreign_venv_interpreter "${app_venv%/}"
+            done
+            tdm_relink "/usr/local/bin/certbot" "$moved_home/venvs/certbot/bin/certbot"
+            set_env_and_var "PIPX_HOME" "$moved_home"
+            # pipx's own metadata can still flag a venv as broken (e.g. the
+            # interpreter package itself was removed system-wide, as happened
+            # to python3.12/certbot) independently of the path move above -
+            # self-heal unconditionally before judging success/failure.
+            tdm_pipx_heal_if_broken "$moved_home" "/usr/local/bin"
+        else
+            tdm_fail "pipx_home (certbot): move failed or destination collision ($dst_home)"
+        fi
     fi
 
-    pipx --version >/dev/null 2>&1 \
-        && tdm_ok "pipx migrated: $src_venv -> ${moved_venv:-$dst_venv}" \
-        || tdm_fail "smoke test: pipx --version failed after migration"
-    certbot --version >/dev/null 2>&1 \
-        && tdm_ok "certbot migrated: $src_home -> ${moved_home:-$dst_home}" \
-        || tdm_fail "smoke test: certbot --version failed after migration (SSL renewal at risk - investigate before relying on auto-renew)"
+    if [ -n "$moved_venv" ]; then
+        pipx --version >/dev/null 2>&1 \
+            && tdm_ok "pipx migrated: $src_venv -> $moved_venv" \
+            || tdm_fail "smoke test: pipx --version failed after migration"
+    fi
+    if [ -n "$moved_home" ]; then
+        certbot --version >/dev/null 2>&1 \
+            && tdm_ok "certbot migrated: $src_home -> $moved_home" \
+            || tdm_fail "smoke test: certbot --version failed after migration (SSL renewal at risk - investigate before relying on auto-renew)"
+    fi
 }
 
 tdm_migrate_poetry() {
     local src="$TDM_OLD_DIR/poetry_venv" dst="$TDM_NEW_DIR/poetry_venv" moved=""
     [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "poetry: nothing to migrate"; return 0; }
     moved="$(tdm_move_simple "$src" "$dst")"
-    [ -n "$moved" ] || moved="$dst"
+    if [ -z "$moved" ]; then
+        tdm_fail "poetry: move failed or destination collision ($dst)"
+        return 1
+    fi
     tdm_fix_embedded_paths "$moved" "$src" "$moved"
+    tdm_repair_foreign_venv_interpreter "$moved"
     tdm_relink "/usr/local/bin/poetry" "$moved/bin/poetry"
     poetry --version >/dev/null 2>&1 \
         && tdm_ok "poetry migrated: $src -> $moved" \
@@ -268,7 +373,10 @@ tdm_migrate_uv() {
     local src="$TDM_OLD_DIR/uv_bin" dst="$TDM_NEW_DIR/uv_bin" moved=""
     [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "uv: nothing to migrate"; return 0; }
     moved="$(tdm_move_simple "$src" "$dst")"
-    [ -n "$moved" ] || moved="$dst"
+    if [ -z "$moved" ]; then
+        tdm_fail "uv: move failed or destination collision ($dst)"
+        return 1
+    fi
     tdm_relink "/usr/local/bin/uv" "$moved/uv"
     uv --version >/dev/null 2>&1 \
         && tdm_ok "uv migrated: $src -> $moved" \
@@ -279,7 +387,10 @@ tdm_migrate_omp() {
     local src="$TDM_OLD_DIR/omp" dst="$TDM_NEW_DIR/omp" moved=""
     [ -e "$src" ] || [ -e "$dst" ] || { tdm_skip "oh-my-posh: nothing to migrate"; return 0; }
     moved="$(tdm_move_simple "$src" "$dst")"
-    [ -n "$moved" ] || moved="$dst"
+    if [ -z "$moved" ]; then
+        tdm_fail "oh-my-posh: move failed or destination collision ($dst)"
+        return 1
+    fi
     tdm_relink "/usr/local/bin/omp" "$moved/omp"
     omp --version >/dev/null 2>&1 \
         && tdm_ok "oh-my-posh migrated: $src -> $moved" \
@@ -384,7 +495,7 @@ tdm_migrate_postgresql() {
     tdm_log "  starting $unit on the new path ..."
     $USE_SUDO systemctl start "$unit"
     sleep 2
-    if $USE_SUDO systemctl is-active --quiet "$unit" && $USE_SUDO -u postgres pg_isready -q 2>/dev/null; then
+    if $USE_SUDO systemctl is-active --quiet "$unit" && tdm_as_postgres pg_isready -q 2>/dev/null; then
         tdm_log "  active and accepting connections: $unit"
     else
         tdm_fail "PostgreSQL: did not come up healthy on the new path - reverting postgresql.conf to the OLD path and restarting (old data untouched at $src_data; new copy left at $dst_data for inspection)"
