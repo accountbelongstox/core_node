@@ -32,6 +32,8 @@ public sealed class CoreNodeBridge : IPlugin
     private const int FilterReloadMs = 2000;
     private const int MaxAreaHistory = 20;
     private const int SlowWriteMs = 800;
+    /// <summary>After OnEnabled no ROSBOT API call for this long: ROSBOT initialises its game reader and starts its first task then.</summary>
+    private const int QuietStartMs = 30000;
     private const int SlowLogIntervalSec = 60;
     private const string LogTag = "[CoreNodeBridge] ";
 
@@ -58,6 +60,9 @@ public sealed class CoreNodeBridge : IPlugin
     private string _dir = ".";
     private List<EntityInfo> _ground = new();
     private DateTime _lastSlowLogUtc = DateTime.MinValue;
+    private DateTime _enabledUtc = DateTime.MaxValue;
+
+    private bool Quiet => DateTime.UtcNow - _enabledUtc < TimeSpan.FromMilliseconds(QuietStartMs);
 
     public string Author => "core_node";
     public Version Version => typeof(CoreNodeBridge).Assembly.GetName().Version;
@@ -90,6 +95,7 @@ public sealed class CoreNodeBridge : IPlugin
 
     public void OnEnabled()
     {
+        _enabledUtc = DateTime.UtcNow;
         _enabled = true;
         PluginsEvents.OnInTown += OnInTown;
         PluginsEvents.OnOpenRift += OnOpenRift;
@@ -151,6 +157,7 @@ public sealed class CoreNodeBridge : IPlugin
             _watch.Reload(_dir);
         }
         _commands.Poll();
+        if (Quiet) return;
         _townHold.Tick();
         _follow.Tick();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
@@ -233,6 +240,12 @@ public sealed class CoreNodeBridge : IPlugin
     private void WriteStateLocked(DateTime now)
     {
         _lastWriteUtc = now;
+        if (Quiet)
+        {
+            WriteFile(new JsonWriter().BeginObject().Prop("plugin_version", Version.ToString()).Prop("enabled", _enabled).Prop("starting", true)
+                .Prop("updated_utc", DateTime.UtcNow).EndObject().ToString());
+            return;
+        }
         var total = Stopwatch.StartNew();
         var sections = new List<string>();
         void Section(string name)
@@ -336,9 +349,22 @@ public sealed class CoreNodeBridge : IPlugin
                 Log($"slow state: {total.ElapsedMilliseconds}ms ({string.Join(", ", sections)})");
             }
 
+            WriteFile(json.ToString());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // the app may be reading the file; the next write retries
+        }
+    }
+
+    /// <summary>Atomic state.json write (caller holds _writeLock); the app may read the file at any time.</summary>
+    private void WriteFile(string text)
+    {
+        try
+        {
             string path = Path.Combine(_dir, StateFileName);
             string tmp = path + TempSuffix;
-            File.WriteAllText(tmp, json.ToString(), new UTF8Encoding(false));
+            File.WriteAllText(tmp, text, new UTF8Encoding(false));
             if (File.Exists(path)) File.Replace(tmp, path, null);
             else File.Move(tmp, path);
         }
