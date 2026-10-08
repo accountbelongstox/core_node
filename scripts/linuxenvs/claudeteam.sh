@@ -87,6 +87,9 @@ claudeDeviceProfileCommonPath=""
 claudeSettingsPresetPath=""
 sharedConfigHome=""
 sharedConfigOwner=""
+claudeCodeTmpDir=""
+claudeCodeTmpOwner=""
+effectiveUid=""
 
 # Root runs write root-owned files (credentials included) into the shared
 # config dir; hand ownership back to the real user so their own sessions keep
@@ -135,6 +138,25 @@ if [ -z "${CLAUDE_CONFIG_DIR:-}" ] && command -v ai_shared_login_real_home >/dev
 fi
 if [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then
     export CLAUDE_CONFIG_DIR="$HOME/.claude"
+fi
+
+if [ -z "${CLAUDE_CODE_TMPDIR:-}" ]; then
+    claudeCodeTmpDir="${XDG_CACHE_HOME:-$HOME/.cache}/core_node/claude-code-tmp"
+    mkdir -p "$claudeCodeTmpDir" || {
+        echo "[ERROR] Cannot create Claude Code temp directory: $claudeCodeTmpDir"
+        exit 1
+    }
+    effectiveUid="$(id -u)"
+    claudeCodeTmpOwner="$(stat -c '%u' "$claudeCodeTmpDir" 2>/dev/null)"
+    if [ "$claudeCodeTmpOwner" != "$effectiveUid" ]; then
+        echo "[ERROR] Claude Code temp directory is owned by uid ${claudeCodeTmpOwner:-unknown}, expected $effectiveUid: $claudeCodeTmpDir"
+        exit 1
+    fi
+    chmod 700 "$claudeCodeTmpDir" || {
+        echo "[ERROR] Cannot secure Claude Code temp directory: $claudeCodeTmpDir"
+        exit 1
+    }
+    export CLAUDE_CODE_TMPDIR="$claudeCodeTmpDir"
 fi
 
 # Launcher options are consumed; every other argument goes to claude unchanged.
