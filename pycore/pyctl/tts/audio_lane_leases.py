@@ -16,8 +16,8 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyutils.common.queue_center_contract import (
     MEDIA_CONTENT_ID_AUDIO_LANES,
-    SENTENCE_QUALITY_ENGINES,
     audio_dedup_key_from_task,
+    sentence_engine_accepted,
 )
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyctl.tts.audio_lane_language_focus import SENTENCE_LANE, SentenceLanguageFocus
@@ -65,19 +65,24 @@ class AudioLaneLeases:
 
     def capability(self) -> Dict[str, List[str]]:
         """Engines and languages this node declares for the lane. The sentence
-        lane declares only the quality-floor engines (work_leases.sentence_quality):
-        a node without one declares nothing and claims no sentence row. The
-        phrase lane declares the word-batch engine and its languages."""
+        lane declares a language only when one of its engines passes the quality
+        floor of that language (work_leases.sentence_quality): a CPU engine
+        declares the languages without a floor, never a floor language, and a
+        node with no such pair claims no sentence row. The phrase lane declares
+        the word-batch engine and its languages."""
         capability = lane_capability(
             lane_profile(self._lane),
             available=tts_engine_registry.available,
         )
         if self._lane == "sentence_audio":
-            engines = [engine for engine in capability["engines"] if engine in SENTENCE_QUALITY_ENGINES]
-            capability = {
-                "engines": engines,
-                "languages": sorted({language for engine in engines for language in tts_engine_languages(engine)}),
-            }
+            engines: List[str] = []
+            languages: set = set()
+            for engine in capability["engines"]:
+                speakable = [language for language in tts_engine_languages(engine) if sentence_engine_accepted(engine, language)]
+                if speakable:
+                    engines.append(engine)
+                    languages.update(speakable)
+            capability = {"engines": engines, "languages": sorted(languages)}
         if (
             self._lane == "sentence_audio"
             and FAST_PASS_ENABLED
@@ -115,7 +120,7 @@ class AudioLaneLeases:
         return not self._worker.intake_stopped() and self._book.claim_due(self._floor(), False)
 
     def _eligible(self) -> bool:
-        """A sentence lane leases only on a node that can run an accepted engine."""
+        """A sentence lane leases only on a node that can voice a language under the quality floor."""
         return self._lane != "sentence_audio" or bool(self.capability()["languages"])
 
     def _floor(self) -> int:
@@ -163,25 +168,31 @@ class AudioLaneLeases:
                 ColorPrint.yellow(f"{worker.log_prefix} work lease unavailable ({error}); working the held batch")
             return {"leased": 0, "error": error}
 
-    def _claim_languages(self, languages: List[str], base_url: str) -> List[str]:
+    def _claim_languages(self, languages: List[str], base_url: str, claiming: bool) -> List[str]:
         """Laravel fills a claim's budget language by language in the declared
         order, so a fixed order starves the later languages while the first
         has a gap. The word lane (many small rows, every node) rotates the
         order per claim; the sentence lane declares by node role
-        (SentenceLanguageFocus: Chinese on a GPU notebook, English first on
-        the desktop GPU node)."""
+        (SentenceLanguageFocus: the notebook_gpu languages on a GPU notebook,
+        the default languages first on the desktop GPU node). A read-only view
+        (``claiming`` False) neither rotates nor records anything."""
         if self._focus is not None:
-            return self._focus.declared(languages, base_url, self._worker.log_prefix)
-        if len(languages) < 2:
+            return self._focus.declared(languages, base_url, self._worker.log_prefix, claiming)
+        if len(languages) < 2 or not claiming:
             return languages
         shift = self._claim_rounds % len(languages)
         self._claim_rounds += 1
         return [*languages[shift:], *languages[:shift]]
 
+    def declared(self, base_url: str, claiming: bool = False) -> Dict[str, List[str]]:
+        """Engines and languages a claim of this lane declares: the one source
+        of the claim request and of the lane_capability RPC."""
+        capability = self.capability()
+        return {**capability, "languages": self._claim_languages(list(capability["languages"]), base_url, claiming)}
+
     def _claim(self, base_url: str) -> Dict[str, Any]:
         worker = self._worker
-        capability = self.capability()
-        capability = {**capability, "languages": self._claim_languages(list(capability["languages"]), base_url)}
+        capability = self.declared(base_url, claiming=True)
         open_keys = self._book.open_keys()
         plan_id = current_plan_hint()
         request = {

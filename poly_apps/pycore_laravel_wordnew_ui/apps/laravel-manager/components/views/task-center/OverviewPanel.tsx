@@ -35,7 +35,7 @@ import { InlineSpinner } from '../../common';
 import { RoleBadge, StatusBadge, formatUptime, formatLastRunAgo } from './shared';
 import CoverStatusCard from './CoverStatusCard';
 
-export type TaskCenterTab = 'overview' | 'scheduler' | 'queue' | 'workers' | 'assist' | 'dispatch' | 'assistDist';
+export type TaskCenterTab = 'overview' | 'scheduler' | 'queue' | 'workers' | 'assist' | 'dispatch' | 'assistDist' | 'orchestration';
 
 interface OverviewPanelProps {
   lang: Language;

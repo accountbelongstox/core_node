@@ -74,6 +74,8 @@ class AppQyV1BookAudioPlanCtl extends Controller
         }
         $validator = Validator::make($request->all(), [
             'from' => ['required', 'integer', 'min:0'],
+            'device_id' => ['nullable', 'string', 'max:' . (int) AppQyV1BookAudioPlanService::setting('device_id_max_chars')],
+            'direct_node_sid' => ['nullable', 'string', 'max:16'],
             'windows' => ['present', 'array', 'max:' . (int) AppQyV1BookAudioPlanService::setting('assignment_windows_max')],
             'windows.*.sid' => ['required', 'string', 'max:16'],
             'windows.*.lane' => ['required', 'string', 'in:' . implode(',', WorkLeaseLanes::lanes())],
@@ -83,7 +85,13 @@ class AppQyV1BookAudioPlanCtl extends Controller
         if ($validator->fails()) {
             return $this->failed(self::ERROR_VALIDATION_FAILED, __('audio_orchestration.book_plan_validation_failed'), ['errors' => $validator->errors()->toArray()], 422);
         }
-        $summary = $this->assignments->apply($planId, (int) $request->input('from'), (array) $request->input('windows'));
+        $summary = $this->assignments->apply(
+            $planId,
+            (int) $request->input('from'),
+            (array) $request->input('windows'),
+            (string) $request->input('device_id', ''),
+            (string) $request->input('direct_node_sid', '')
+        );
         if ($summary === null) {
             return $this->failed(self::ERROR_PLAN_NOT_FOUND, __('audio_orchestration.book_plan_not_found'), null, 404);
         }

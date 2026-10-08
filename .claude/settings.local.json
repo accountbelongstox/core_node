@@ -280,7 +280,14 @@
       "Bash(rm *)",
       "Bash(timeout 550 dd.sh gitsync -m \"resolve merge conflict: gitsync status keeps shared store/LAN/paged history plus per-node API\")",
       "Bash(timeout 550 dd.sh gitsync -m \"remove resolved gitsync merge conflict marker\")",
-      "Bash(timeout 500 dd.sh gitsync -m \"sync\")"
+      "Bash(timeout 500 dd.sh gitsync -m \"sync\")",
+      "Read(//d/programing/core_node/poly_apps/laravel_main/**)",
+      "Read(//d/programing/core_node/config/**)",
+      "Read(//d/programing/core_node/pycore/pyctl/laravel/**)",
+      "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c\\\\n\"}' PycoreQueueTypes.ts)",
+      "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c of $.\\\\n\"}' index.ts)",
+      "Bash(php -l app/Services/WorkLeases/WorkLeaseService.php)",
+      "Bash(php -l app/Http/Controllers/WorkLeaseController.php)"
     ],
     "deny": [],
     "ask": []

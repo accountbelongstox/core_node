@@ -19,7 +19,10 @@ import type {
   WfNewOrchAudioSentencePage,
   WfNewOrchClientPlaybackPage,
   WfNewOrchClientPlaybackRow,
+  WfNewBookPlanAssignmentDevice,
   WfNewBookPlanAssignments,
+  WfNewOrchClientReport,
+  WfNewOrchClientReportAnswer,
   WfNewBookPlanReadyPage,
   WfNewBookPlanWindow,
   WfNewBookPlanRequest,
@@ -266,7 +269,9 @@ export interface WfNewApi {
   /** Post (idempotent by plan hash) a book audio plan; the server answers its counters. */
   postBookAudioPlan(request: WfNewBookPlanRequest): Promise<WfNewBookPlanStatus>;
   getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus>;
-  postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[]): Promise<WfNewBookPlanAssignments>;
+  postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[], device: WfNewBookPlanAssignmentDevice): Promise<WfNewBookPlanAssignments>;
+  /** Latest-state client telemetry for the orchestration monitor (not queued: a failed post is replaced by the next report). */
+  postOrchClientReport(report: WfNewOrchClientReport): Promise<WfNewOrchClientReportAnswer>;
   /** Ready resource ids after `cursor` (ready sequence order). */
   getBookAudioPlanReady(planId: string, cursor: number, limit: number): Promise<WfNewBookPlanReadyPage>;
   /** Phrases of sentences (by sentence content id, at most 500 per call), in request order. */

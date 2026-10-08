@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, TypedDict
 from urllib.parse import quote
 
+from pycore.pyfoundations.text_parsing import normalize_language_code
 from pycore.pyutils.common.strtools.normalization import media_content_id
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -242,9 +243,25 @@ def realtime_head_key_valid(role: str, key: str) -> bool:
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
 # Multi-node work leases of the gap lanes (Laravel schedules, nodes claim).
 QUEUE_CENTER_WORK_LEASES: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["work_leases"])
-# Quality floor: the only engines whose sentence audio is accepted (work_leases.sentence_quality).
-SENTENCE_QUALITY_ENGINES = frozenset(QUEUE_CENTER_WORK_LEASES["sentence_quality"]["accepted_engines"])
+# Quality floor per sentence language (work_leases.sentence_quality): the only
+# engines whose sentence audio of a listed language is accepted; any other
+# language accepts every engine.
+_SENTENCE_FLOOR_ENGINES_BY_LANGUAGE: Dict[str, frozenset] = {
+    normalize_language_code(language): frozenset(str(engine).strip().lower() for engine in engines)
+    for language, engines in QUEUE_CENTER_WORK_LEASES["sentence_quality"]["accepted_engines_by_language"].items()
+}
 SENTENCE_QUALITY_REJECT_CODE = str(QUEUE_CENTER_WORK_LEASES["sentence_quality"]["reject_code"])
+
+
+def sentence_floor_engines(language: Optional[str]) -> Optional[frozenset]:
+    """Engines that may voice a sentence of ``language``; None = no floor (any engine)."""
+    return _SENTENCE_FLOOR_ENGINES_BY_LANGUAGE.get(normalize_language_code(language))
+
+
+def sentence_engine_accepted(engine: Optional[str], language: Optional[str]) -> bool:
+    """True when ``engine`` may voice a sentence of ``language`` under the quality floor."""
+    floor = sentence_floor_engines(language)
+    return floor is None or str(engine or "").strip().lower() in floor
 # Sentence languages a node declares on a claim (work_leases.sentence_language_focus).
 SENTENCE_LANGUAGE_FOCUS: Dict[str, Any] = dict(QUEUE_CENTER_WORK_LEASES["sentence_language_focus"])
 # W7 pycore -> Laravel resource delivery (server identity, diff, offset-v1
@@ -835,8 +852,9 @@ __all__ = [
     "AUDIO_BATCH_LANES",
     "MEDIA_CONTENT_ID_AUDIO_LANES",
     "SENTENCE_LANGUAGE_FOCUS",
-    "SENTENCE_QUALITY_ENGINES",
     "SENTENCE_QUALITY_REJECT_CODE",
+    "sentence_engine_accepted",
+    "sentence_floor_engines",
     "CALLBACK_QUEUE_ROLES",
     "QUEUE_CATEGORY_CATALOG",
     "QUEUE_CENTER_CONTROL_NAMES",

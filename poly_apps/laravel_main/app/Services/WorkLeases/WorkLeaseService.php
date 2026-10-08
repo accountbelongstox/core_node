@@ -48,6 +48,8 @@ final class WorkLeaseService
     private const RESURFACE_CURSOR_KEY = 'work_lease:resurface:cursor:';
     private const RESURFACE_COUNT_KEY = 'work_lease:resurface:count:';
     private const EXCLUDE_KEY = 'work_lease:exclude:';
+    private const LOAD_KEY = 'work_lease:load:';
+    private const LOAD_GPUS_MAX = 16;
     private const WANT_PRIORITY = 100;
     private const PROMOTE_PRIORITY = 1000;
     private const HOUR_SECONDS = 3600;
@@ -80,6 +82,7 @@ final class WorkLeaseService
         $this->sweepSentenceQuality(true);
         $wasOnline = $this->nodeOnline($workerId);
         Worker::touchWorkNode($workerId, $computeClass, $lanes, $seed, $this->identityOf($request));
+        $this->storeLoad($workerId, $request['load'] ?? null);
         if (!$wasOnline) {
             Worker::dropOfflineSiblings($workerId, $this->limit('node_hide_seconds'));
         }
@@ -157,11 +160,78 @@ final class WorkLeaseService
     }
 
     /** POST work_lease_renew: extends held leases (a lease without a held row is lost) plus the lane progress. */
-    public function renewWithProgress(string $workerId, array $leaseIds): array
+    public function renewWithProgress(string $workerId, array $leaseIds, mixed $load = null): array
     {
         $lanes = array_keys((array) (Worker::findByWorkerId($workerId)?->metadata['work_lanes'] ?? []));
 
+        $this->storeLoad($workerId, $load);
+
         return $this->renew($workerId, $leaseIds) + ['progress' => $this->progress($lanes)];
+    }
+
+    /**
+     * Node load (work_leases.load_schema): the newest snapshot a claim or renew
+     * carried, kept per worker without history; a malformed load is dropped.
+     */
+    private function storeLoad(string $workerId, mixed $load): void
+    {
+        $sanitized = self::sanitizedLoad($load);
+
+        if ($sanitized === null) {
+            return;
+        }
+        QueueCenterCacheStore::get()->put(
+            self::LOAD_KEY . $workerId,
+            ['load' => $sanitized, 'load_at' => now()->toIso8601String()],
+            $this->limit('node_hide_seconds')
+        );
+    }
+
+    /** @return array{load:array,load_at:string}|null */
+    private function storedLoad(string $workerId): ?array
+    {
+        $entry = QueueCenterCacheStore::get()->get(self::LOAD_KEY . $workerId);
+
+        return is_array($entry) && is_array($entry['load'] ?? null) ? $entry : null;
+    }
+
+    public static function sanitizedLoad(mixed $load): ?array
+    {
+        if (!is_array($load) || $load === []) {
+            return null;
+        }
+        $number = static fn ($value): ?float => is_numeric($value) ? round((float) $value, 1) : null;
+        $integer = static fn ($value): ?int => is_numeric($value) ? (int) $value : null;
+        $gpus = [];
+        $lanes = [];
+
+        foreach (array_slice(array_values(array_filter((array) ($load['gpus'] ?? []), 'is_array')), 0, self::LOAD_GPUS_MAX) as $gpu) {
+            $gpus[] = [
+                'index' => $integer($gpu['index'] ?? null) ?? count($gpus),
+                'name' => mb_substr((string) ($gpu['name'] ?? ''), 0, 80),
+                'util_percent' => $number($gpu['util_percent'] ?? null),
+                'mem_used_mb' => $integer($gpu['mem_used_mb'] ?? null),
+                'mem_total_mb' => $integer($gpu['mem_total_mb'] ?? null),
+            ];
+        }
+        foreach ((array) ($load['lanes'] ?? []) as $lane => $figures) {
+            if (!WorkLeaseLanes::isLane((string) $lane) || !is_array($figures)) {
+                continue;
+            }
+            $lanes[(string) $lane] = [
+                'in_flight' => $integer($figures['in_flight'] ?? null) ?? 0,
+                'part1' => $integer($figures['part1'] ?? null) ?? 0,
+                'part2' => $integer($figures['part2'] ?? null) ?? 0,
+            ];
+        }
+
+        return [
+            'sampled_at' => is_string($load['sampled_at'] ?? null) ? mb_substr($load['sampled_at'], 0, 40) : null,
+            'cpu_percent' => $number($load['cpu_percent'] ?? null),
+            'mem_percent' => $number($load['mem_percent'] ?? null),
+            'gpus' => $gpus,
+            'lanes' => $lanes,
+        ];
     }
 
     /** Extends held leases; a lease without a held row is lost. */
@@ -295,6 +365,7 @@ final class WorkLeaseService
         $heartbeat = null;
         $primary = $workers[0];
         $identity = [];
+        $load = null;
 
         foreach ($workers as $worker) {
             $metadata = $worker->metadata;
@@ -320,6 +391,10 @@ final class WorkLeaseService
                 $heartbeat = $worker->last_heartbeat_at;
             }
             $identity = array_merge((array) ($metadata['work_identity'] ?? []), array_filter($identity, static fn ($v): bool => $v !== ''));
+            $workerLoad = $this->storedLoad($workerId);
+            if ($workerLoad !== null && ($load === null || strcmp($workerLoad['load_at'], $load['load_at']) > 0)) {
+                $load = $workerLoad;
+            }
         }
 
         return [
@@ -340,6 +415,8 @@ final class WorkLeaseService
             'batch_size' => $batchSize,
             'eta_seconds' => $donePerHour > 0 ? (int) ceil($itemsLeased / $donePerHour * self::HOUR_SECONDS) : null,
             'last_heartbeat_at' => $heartbeat?->toIso8601String(),
+            'load' => $load['load'] ?? null,
+            'load_at' => $load['load_at'] ?? null,
         ];
     }
 

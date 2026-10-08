@@ -4,10 +4,12 @@
 
 Laravel splits a claim evenly over the open languages a node declares, so the
 declaration (not its order) routes the work: a GPU notebook node (Colab) takes
-only the notebook_gpu languages (Chinese), a desktop GPU node drops those while
-an online GPU notebook node serves them and keeps English first. A narrowed
-claim that returned no rows widens the next one to every language the engine
-speaks, but only when the narrowed languages hold no pending row.
+only the notebook_gpu languages, a desktop GPU node drops those while an
+online GPU notebook node serves them and keeps the default languages first. A
+node whose engines are below the quality floor declares only the languages
+outside it (see ``capability``). A narrowed claim that returned no rows widens
+the next one to every language the engine speaks, but only when the narrowed
+languages hold no pending row.
 """
 
 import time
@@ -39,8 +41,10 @@ class SentenceLanguageFocus:
         self._error_logged = ""
         self._declaration_logged = ""
 
-    def declared(self, languages: List[str], base_url: str, log_prefix: str) -> List[str]:
-        """The claim's languages: focus first, narrowed unless the last narrowed claim came back empty."""
+    def declared(self, languages: List[str], base_url: str, log_prefix: str, claiming: bool = True) -> List[str]:
+        """The claim's languages: focus first, narrowed unless the last narrowed claim came back empty.
+        A claim refreshes the peer languages and records the declaration; a read-only view
+        (``claiming`` False) uses the last known peers and changes no state."""
         notebook = bool(notebook_platform())
         focus = _NOTEBOOK_GPU_FOCUS if notebook else _DEFAULT_FOCUS
         ordered = [language for language in focus if language in languages] + [
@@ -51,11 +55,16 @@ class SentenceLanguageFocus:
             if notebook:
                 narrowed = [language for language in ordered if language in focus] or ordered
             else:
-                served = self._notebook_gpu_languages(base_url, log_prefix)
+                served = (
+                    self._notebook_gpu_languages(base_url, log_prefix)
+                    if claiming
+                    else self._served(time.monotonic())
+                )
                 narrowed = [language for language in ordered if language not in served] or ordered
-        self._restricted = len(narrowed) < len(ordered)
-        self._narrowed = narrowed
-        self._log_declaration(narrowed, ordered, log_prefix)
+        if claiming:
+            self._restricted = len(narrowed) < len(ordered)
+            self._narrowed = narrowed
+            self._log_declaration(narrowed, ordered, log_prefix)
         return narrowed
 
     def note_claim(self, leased: int, progress: Any) -> None:
@@ -108,8 +117,10 @@ class SentenceLanguageFocus:
             if node.get("online") and node.get("platform") and node.get("compute_class") == COMPUTE_CLASS_GPU
             for language in (node.get("lanes") or {}).get(SENTENCE_LANE) or []
         }
+        peers = dict(self._peer_seen)
         for language in declared & set(_NOTEBOOK_GPU_FOCUS):
-            self._peer_seen[language] = now
+            peers[language] = now
+        self._peer_seen = peers
         return self._served(now)
 
 

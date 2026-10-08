@@ -313,6 +313,24 @@ class AudioTaskQueue:
         count = max(1, int(limit or 1))
         return [dict(entry[-1]) for entry in self._smallest(count)]
 
+    def _part1_total(self) -> int:
+        """Part1 entries in the heap; runs only on the owner thread."""
+        if not self._part1_count_valid:
+            self._part1_count = sum(1 for entry in self._heap if entry[0] == PART1_RANK)
+            self._part1_count_valid = True
+        return self._part1_count
+
+    @serialized_method
+    def load_counts(self) -> Dict[str, int]:
+        """Cheap load figures: queued Part1 and Part2 entries and the popped
+        tasks still running (``in_flight``)."""
+        part1 = self._part1_total()
+        return {
+            "in_flight": max(0, len(self._active_keys) - len(self._heap)),
+            "part1": part1,
+            "part2": len(self._heap) - part1,
+        }
+
     @serialized_method
     def part_view(self, limit: int = 10) -> Dict[str, Any]:
         """Read-only whole-Queue view with the INTERNAL part split made visible.
@@ -324,10 +342,7 @@ class AudioTaskQueue:
         first), never a full scan per read.
         """
         count = max(1, int(limit or 1))
-        if not self._part1_count_valid:
-            self._part1_count = sum(1 for entry in self._heap if entry[0] == PART1_RANK)
-            self._part1_count_valid = True
-        part1 = self._part1_count
+        part1 = self._part1_total()
         walked_part1 = min(part1, _PART_VIEW_WALK_CAP)
         head = self._smallest(walked_part1 + count)
         return {
