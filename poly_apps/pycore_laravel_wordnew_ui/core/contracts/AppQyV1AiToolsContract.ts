@@ -14,6 +14,7 @@ const routeSuffix = (endpoint: string): string => endpoint.slice(APPQYV1_API_BAS
 
 export const APPQYV1_AI_TOOLS_ROUTES = {
   translationTranslate: '/ai_tools/translation/translate',
+  translationBatch: '/ai_tools/translation/batch',
   translationLanguages: '/ai_tools/translation/languages',
   translationQueueList: '/ai_tools/translation/queue/list',
   translationBatchAdd: '/ai_tools/translation/queue/batch/add',

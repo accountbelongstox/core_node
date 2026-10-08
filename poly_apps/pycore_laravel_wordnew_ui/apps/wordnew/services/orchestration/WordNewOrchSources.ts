@@ -23,6 +23,7 @@ import { orchPool } from '../../../../shared/orchestration/orchClipResolver';
 import type { OrchComposeInputs, OrchInputsProgress } from '../../../../shared/orchestration/orchComposer';
 import { tokenize } from '../../../../shared/orchestration/orchPlanner';
 import {
+  orchApplyPassageZh,
   orchArticleSentences,
   orchNextSeq,
   orchPassageKey,
@@ -211,7 +212,7 @@ async function withPassages(
     const heldBefore = kept.filter((sentence) => sentence.passage === key);
     const own = ref.store === 'article'
       ? orchArticleSentences(ref)
-      : heldBefore.length > 0 ? heldBefore : await promptSentencesOf(ref.id, NO_REPORT);
+      : orchApplyPassageZh(heldBefore.length > 0 ? heldBefore : await promptSentencesOf(ref.id, NO_REPORT), ref);
     sentences.push(...orchTagPassage(own, key, orchNextSeq(sentences)));
   }
   return sentences;
@@ -344,6 +345,15 @@ class WordNewOrchSourcesService {
   private remember(taskId: string, sourceKey: string, inputs: OrchComposeInputs): OrchComposeInputs {
     this.memory.set(taskId, { sourceKey, inputs });
     return inputs;
+  }
+
+  /**
+   * `sentences` with their short-passage part built again from the task's entries as they are now (an entry's
+   * translated Chinese lines may have arrived after the inputs were kept); prompt entries reuse their loaded
+   * sentences, so this asks no API.
+   */
+  withCurrentPassages(task: OrchComposeTask, sentences: ReadonlyArray<OrchComposeSentence>): Promise<OrchComposeSentence[]> {
+    return withPassages(task, sentences.filter((sentence) => !sentence.passage), sentences);
   }
 
   /**

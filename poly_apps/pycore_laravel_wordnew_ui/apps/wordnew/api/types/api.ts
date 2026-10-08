@@ -273,6 +273,8 @@ export interface WfNewApi {
   getPhrasesBySentences(language: string, contentIds: string[]): Promise<WfNewSentencePhrases[]>;
   /** A non-passive phrase audio request: the server promotes the phrase in its phrase lane. True when accepted. */
   requestPhraseAudio(text: string, language: string): Promise<boolean>;
+  /** Machine translations of `texts` into `targetLanguage`, in request order ('' where the server had none). */
+  translateTexts(texts: string[], targetLanguage: string): Promise<string[]>;
   /** The user's virtual read batches (max 20; Laravel prunes unreferenced, then stale ones). */
   getVirtualReadBatches(): Promise<WfNewVirtualReadBatchList>;
   /** Record reads of played words (dictionary ids) into a batch; idempotent per request key. */

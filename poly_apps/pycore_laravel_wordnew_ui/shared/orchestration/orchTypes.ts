@@ -54,6 +54,11 @@ export interface OrchComposePassageRef {
   text?: string;
   /** `article` entries: the Chinese reference text. */
   textZh?: string;
+  /**
+   * Chinese lines of the entry's sentences that have none (machine translation, by sentence content id),
+   * filled when the inputs load; a sentence the translation could not answer maps to ''.
+   */
+  zh?: Record<string, string>;
 }
 
 /** Everything that shapes the plan; `plan_hash` is computed from it. */
