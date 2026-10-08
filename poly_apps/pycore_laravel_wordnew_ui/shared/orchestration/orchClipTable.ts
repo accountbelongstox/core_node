@@ -40,6 +40,17 @@ export interface OrchClipTableCounts extends OrchResolveCounts {
   generatingBy: Record<OrchChannelId, number>;
 }
 
+/** States and the generating channel of one group of clips (see `OrchClipTable.tally`). */
+export interface OrchClipTableTally {
+  total: number;
+  queued: number;
+  loading: number;
+  done: number;
+  missing: number;
+  /** Missing clips a channel was asked to generate. */
+  generating: Record<OrchChannelId, number>;
+}
+
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
@@ -139,6 +150,29 @@ export class OrchClipTable {
       }
     }
     return counts;
+  }
+
+  /**
+   * Counts per group (`groupOf` maps an index to 0..groups-1; the monitor groups by clip kind): states, and for
+   * missing clips the channel asked to generate them. Bit operations only, no per-item objects.
+   */
+  tally(groupOf: (index: number) => number, groups: number): OrchClipTableTally[] {
+    const tallies: OrchClipTableTally[] = Array.from({ length: groups }, () => ({
+      total: 0, queued: 0, loading: 0, done: 0, missing: 0, generating: { pycore: 0, relay: 0, laravel: 0 },
+    }));
+    for (let index = 0; index < this.bytes.length; index += 1) {
+      const tally = tallies[groupOf(index)];
+      if (!tally) continue;
+      const byte = this.bytes[index];
+      const state = STATES[byte & STATE_MASK];
+      tally.total += 1;
+      tally[state] += 1;
+      if (state === 'missing') {
+        const generating = CHANNELS[(byte >> GENERATING_SHIFT) & STATE_MASK];
+        if (generating) tally.generating[generating] += 1;
+      }
+    }
+    return tallies;
   }
 
   /** Indices in `state`, plan order, at most `limit`. */
