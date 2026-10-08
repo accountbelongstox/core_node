@@ -289,7 +289,18 @@
       "Bash(php -l app/Services/WorkLeases/WorkLeaseService.php)",
       "Bash(php -l app/Http/Controllers/WorkLeaseController.php)",
       "Bash(php -l app/Apps/AppQyV1/AppQyV1ApiInfo.php)",
-      "PowerShell($root = Resolve-Path \"D:\\\\programing\\\\core_node\"; $dd = Join-Path $root \"dd.cmd\"; & $dd gitsync -m \"Laravel: language-aware sentence engine policy, per-device direct windows, node load, orchestration monitor\" --notice-laravel 2>&1 | Select-Object -Last 60)"
+      "PowerShell($root = Resolve-Path \"D:\\\\programing\\\\core_node\"; $dd = Join-Path $root \"dd.cmd\"; & $dd gitsync -m \"Laravel: language-aware sentence engine policy, per-device direct windows, node load, orchestration monitor\" --notice-laravel 2>&1 | Select-Object -Last 60)",
+      "Bash(timeout 400 cmd //c \"dd.cmd pycorerestart\")",
+      "Bash(perl -ne '$c++ if /\\\\r\\\\n$/; END{print \"$c of $.\\\\n\"}' WfNewApp.tsx)",
+      "Bash(timeout 60 node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/work/nodes?online=1\")",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/system/code-sync/status)",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/health)",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/system/code-sync/status --origin https://api.si.12gm.com)",
+      "Bash(node -e \"fetch\\('https://api.si.12gm.com/api/health'\\).then\\(r=>console.log\\(r.status\\)\\).catch\\(e=>console.log\\(e.cause||e\\)\\)\")",
+      "Bash(php -l poly_apps/laravel_main/app/Services/WorkLeases/WorkLeaseFastPass.php)",
+      "Bash(powershell -c \"\\(Get-CimInstance Win32_OperatingSystem\\).FreePhysicalMemory/1024\")",
+      "Bash(node -e \"console.log\\(require\\('./config/pycore_relay_contract.json'\\).public_urls\\)\")",
+      "Bash(time bun run D:/.tmp/claude/D--programing-core-node/5ed6cd49-f3e9-41b0-99be-3b0b6b853a5b/scratchpad/drill.ts)"
     ],
     "deny": [],
     "ask": []

@@ -13,7 +13,6 @@ import { AUDIO_ORCH_BOOK_PLAN } from '../../../../core/contracts/AudioOrchestrat
 import type { AudioLaneKey, WorkNode } from '../../../../core/contracts/QueueCenterTypes';
 import type { OrchResourceKind } from '../../../../core/integrations/pycore';
 import type { WfNewBookPlanWindow } from '../../api';
-import { workNodeHost } from '../WordNewPycoreNodes';
 
 /** Generation lanes the app-led assignment spreads (a plan without clips of a lane posts no window for it). */
 export const ASSIGNMENT_LANES: readonly AudioLaneKey[] = ['sentence_audio', 'word_audio', 'phrase_audio'];
@@ -63,6 +62,11 @@ export interface Assignment {
 /** What the direct pycore takes per lane when no assignment was computed (no node to spread over). */
 export function defaultDirectShare(): Record<AudioLaneKey, number> {
   return { sentence_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems, word_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems, phrase_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems };
+}
+
+/** First DNS label of a node's host label, lower case ('' when it has none): how a direct pycore without a node sid is matched to its work node. */
+export function workNodeHost(node: WorkNode): string {
+  return String(node.label ?? '').toLowerCase().split('.')[0];
 }
 
 const rateOf = (node: WorkNode, lane: AudioLaneKey): number => Math.max(1, Number(node.lane_rates?.[lane] ?? node.done_per_hour) || 0);
