@@ -18,7 +18,7 @@ public sealed record F3TestModeDisplay(double ElapsedSec, int TimeoutMinutes, in
 
 /// <summary>
 /// [F3] ROSBOT log timeout (flow timeout, not log tailing). Baseline: log mtime when the log is from the current run, else the
-/// in-memory started_at (set at E4 / after teleport), else F4. Test mode: count=1 and 50 % -> F4; count>=2 and elapsed>=recorded
+/// in-memory started_at (set at E4, after teleport and on every F3 entry, i.e. when ROSBOT was started or adopted), else F4. Test mode: count=1 and 50 % -> F4; count>=2 and elapsed>=recorded
 /// -> F7 then wait 50 % -> E2 1 s. Timeout with the process gone marks the exit (with duration in test mode).
 /// 1:1 Python d3utils/rosbot_flow_f3_log_timeout.py + rosbot_flow_f3_baseline.py.
 /// </summary>
@@ -124,6 +124,12 @@ public static class F3LogTimeout
         DateTime now = DateTime.UtcNow;
         DateTime? lastLog = LastLogUtc();
         DateTime? startedAt = RosbotStartedAtUtc;
+        if (startedAt == null)
+        {
+            ColorPrinter.Gray("[F3] no started_at (D3 + ROSBOT adopted, e.g. after an app restart) -> timeout measured from now");
+            SetRosbotStartedAt();
+            startedAt = RosbotStartedAtUtc;
+        }
         bool testMode = IsTestMode();
 
         DateTime? waitUntil = RosbotExitState.GetTestWait50PercentUntil();
@@ -159,24 +165,10 @@ public static class F3LogTimeout
             baseline = lastLog!.Value;
             baselineSrc = "log_mtime";
         }
-        else if (startedAt != null)
-        {
-            baseline = startedAt.Value;
-            baselineSrc = "started_at(no_log_yet)";
-        }
-        else if (lastLog != null)
-        {
-            SetShort("F3: stale log -> f4");
-            if (verbose)
-                ColorPrinter.Gray($"[F3] timeout check: last_log_ts from previous run ({FormatTs(lastLog)}), no started_at -> f4");
-            return F3Step.F4;
-        }
         else
         {
-            SetShort("F3: no log mtime -> f4");
-            if (verbose)
-                ColorPrinter.Gray($"[F3] timeout check: enabled={enabled} timeout={timeoutMinutes}min({timeoutSec}s) now={FormatTs(now)} started_at={FormatTs(startedAt)} last_log_ts={FormatTs(lastLog)} -> no log mtime, f4");
-            return F3Step.F4;
+            baseline = startedAt!.Value;
+            baselineSrc = "started_at(no_log_yet)";
         }
 
         double elapsed = (now - baseline).TotalSeconds;

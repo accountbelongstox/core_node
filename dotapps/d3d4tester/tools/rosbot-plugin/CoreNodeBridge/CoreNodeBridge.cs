@@ -42,6 +42,8 @@ public sealed class CoreNodeBridge : IPlugin
     private FollowMode _follow;
     private TownHold _townHold;
     private Timer _timer;
+    /// <summary>Writes state.json on its own thread so long commands (go_npc, salvage, banner walks) never let it go stale.</summary>
+    private Timer _stateTimer;
     private readonly object _writeLock = new();
     private int _ticking;
     private DateTime _lastScanUtc = DateTime.MinValue;
@@ -96,6 +98,7 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnGemUpdateFinish += OnRiftEnd;
         PluginsEvents.OnItemStash += OnItemStash;
         _timer = new Timer(_ => Tick(), null, TickMs, TickMs);
+        _stateTimer = new Timer(_ => WriteState(DateTime.UtcNow), null, WriteIntervalMs, WriteIntervalMs);
         WriteState(DateTime.UtcNow);
         Log("enabled");
     }
@@ -111,6 +114,8 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnItemStash -= OnItemStash;
         _timer?.Dispose();
         _timer = null;
+        _stateTimer?.Dispose();
+        _stateTimer = null;
         _townHold.Release("plugin disabled");
         WriteState(DateTime.UtcNow);
         Log("disabled");
@@ -153,7 +158,6 @@ public sealed class CoreNodeBridge : IPlugin
             _lastScanUtc = now;
             Scan(now);
         }
-        if ((now - _lastWriteUtc).TotalMilliseconds >= WriteIntervalMs) WriteState(now);
     }
 
     public void OnShutdown()
@@ -162,6 +166,8 @@ public sealed class CoreNodeBridge : IPlugin
         _townHold?.Release("plugin shut down");
         _timer?.Dispose();
         _timer = null;
+        _stateTimer?.Dispose();
+        _stateTimer = null;
         WriteState(DateTime.UtcNow);
     }
 
