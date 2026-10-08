@@ -354,6 +354,13 @@ chrome_ensure() {
         chrome_remove
         return 0
     fi
+    # Same headless-skip idiom as Flutter/Android Studio/LibreOffice (59/61/63):
+    # a server/base install has no desktop session to browse from. Force with
+    # INSTALL_CHROME=true.
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "false" ] && [ "$INSTALL_CHROME" != "true" ]; then
+        browser_log "No desktop environment detected: skipping Google Chrome install (~432M). Set INSTALL_CHROME=true to force."
+        return 0
+    fi
     if ! browser_arch_supported; then
         browser_log "Google Chrome is unavailable for architecture '$SYS_ARCH'; skipping (Chromium is not used as a substitute)."
         return 0
