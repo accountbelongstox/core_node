@@ -18,11 +18,9 @@ export interface PycoreLaneCapability {
   lanes: Record<string, PycoreLaneCapabilityLane>;
 }
 
-const ROUTE_KEY = 'queueCenterLaneCapability';
-
-/** Route of the capability RPC; '' while the pycore contract does not serve it. */
+/** Route of the capability RPC (config/pycore_rpc_contract.json). */
 export function pycoreLaneCapabilityRoute(): string {
-  return (PYCORE_HTTP_ROUTES as unknown as Readonly<Record<string, string | undefined>>)[ROUTE_KEY] ?? '';
+  return PYCORE_HTTP_ROUTES.queueCenterLaneCapability;
 }
 
 function textList(value: unknown): string[] {
@@ -47,8 +45,7 @@ export function parsePycoreLaneCapability(answer: unknown): PycoreLaneCapability
   };
 }
 
-/** Can a pycore with this capability generate `language` clips of `lane`? */
+/** Can a pycore with this capability generate `language` clips of `lane`? A lane declaring no language claims nothing (as Laravel reads the claim). */
 export function pycoreLaneCovers(capability: PycoreLaneCapability, lane: string, language: string): boolean {
-  const declared = capability.lanes[lane];
-  return Boolean(declared) && (declared.languages.length === 0 || declared.languages.includes(language));
+  return Boolean(capability.lanes[lane]?.languages.includes(language));
 }
