@@ -379,9 +379,12 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/status\")",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009142209-329c6e99f1da\")",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009143225-643a696a7a30\")",
+      "PowerShell($m = Invoke-RestMethod 'https://api.si.12gm.com/downloads/wordnew/manifest.json'; $m.files | Format-Table build_type, version, version_code, file, size, @{n='sha';e={$_.sha256.Substring\\(0,12\\)}} -AutoSize | Out-String -Width 200; foreach \\($u in 'https://api.si.12gm.com/wordnew.apk', 'http://192.168.1.151:9000/wordnew.apk'\\) { $tmp = Join-Path 'D:\\\\.tmp\\\\claude\\\\D--programing-core-node\\\\5ed6cd49-f3e9-41b0-99be-3b0b6b853a5b\\\\scratchpad' 'probe.apk'; curl.exe -s -o $tmp $u; \"$u -> \" + \\(Get-FileHash $tmp -Algorithm SHA256\\).Hash.Substring\\(0,12\\).ToLower\\(\\); Remove-Item $tmp -Confirm:$false })",
       "PowerShell($f = Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \".claude\\\\settings.local.json\"; try { Get-Content -Raw $f | ConvertFrom-Json | Out-Null; \"json-ok\" } catch { \"json-error: $\\($_.Exception.Message\\)\" })",
       "PowerShell($g = \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path; git -C $g add -- \".claude/settings.local.json\"; git -C $g diff --name-only --diff-filter=U; \"unmerged-left: $\\(\\(git -C $g diff --name-only --diff-filter=U | Measure-Object\\).Count\\)\")",
-      "PowerShell(& \\(Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \"dd.cmd\"\\) gitsync -m \"OpenWrt: router mode with bandwidth balancer, menu with LAN scan/SSH/diagnose, per-band Wi-Fi, idempotent check/repair; mcp-chrome wake only on start or rebuild\")"
+      "PowerShell(& \\(Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \"dd.cmd\"\\) gitsync -m \"OpenWrt: router mode with bandwidth balancer, menu with LAN scan/SSH/diagnose, per-band Wi-Fi, idempotent check/repair; mcp-chrome wake only on start or rebuild\")",
+      "PowerShell(git show origin/main:config/service_contract.json | Select-String 'conflict_ai_prompt\"'; git cat-file -e origin/main:docs_fix/GITSYNC_MERGE_CONFLICT.md; \"doc-exists-on-origin=$?\"; git show origin/main:docs_fix/README.md | Select-Object -First 1; git show origin/main:.claude/settings.local.json | Select-String -SimpleMatch -Pattern 'w32tm','Step175_LaravelMainStart','app-downloads/status?job_id=20261009143225' | ForEach-Object { $_.LineNumber })",
+      "PowerShell(Out-Null *)"
     ],
     "deny": [],
     "ask": []
