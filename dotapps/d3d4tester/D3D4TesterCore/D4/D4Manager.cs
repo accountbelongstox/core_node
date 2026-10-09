@@ -20,6 +20,8 @@ public sealed class D4Manager : GameWindowManager
 
     protected override string GameLabel => "D4";
 
+    protected override IReadOnlyList<string> ProcessNames => D4Constants.ProcessNames;
+
     public override IReadOnlyList<WindowFinder.WindowInfo> FindWindows() =>
         WindowFinder.FindWindowsByTitles(D4Constants.WindowTitles, WindowFinder.TitleMatchMode.EndsWith);
 }

@@ -145,7 +145,7 @@ public partial class D4Page : UserControl
         BtnStartD4.IsEnabled = false;
         try
         {
-            await Task.Run(LoginTryController.FixD4LicenseAndLaunch);
+            await Task.Run(D4LicenseFixController.Run);
         }
         catch (Exception ex)
         {
