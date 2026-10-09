@@ -55,6 +55,9 @@ public static class D4Constants
     public const double RandomDelayMaxMs = 500;
     public const int WindowActivationDelayMs = 50;
 
+    /// <summary>Diablo IV client process names (no extension): also covers a window whose title is not listed (license / error dialog).</summary>
+    public static readonly IReadOnlyList<string> ProcessNames = new[] { "Diablo IV" };
+
     /// <summary>Diablo IV window titles (DIABLO_IV_WINDOW_TITLES).</summary>
     public static readonly IReadOnlyList<string> WindowTitles = new[]
     {
