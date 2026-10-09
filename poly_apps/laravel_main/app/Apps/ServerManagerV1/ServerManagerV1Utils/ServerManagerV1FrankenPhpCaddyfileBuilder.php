@@ -135,6 +135,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $bindHost = ServiceContract::host('any');
 
         $mercureStanza = self::mercureStanza();
+        $downloadsStanza = self::appDownloadsStanza();
         // Server-SAPI ini floor through the official Caddyfile php_ini
         // directive; the scan-dir ini does not reach the FrankenPHP server
         // SAPI for max_execution_time. Byte-synced with fm_caddyfile_render.
@@ -179,6 +180,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
             . "\n"
+            . $downloadsStanza."\n"
             . self::octaneHttpsStanza($backend)
             . "}\n"
             . "\n"
@@ -186,6 +188,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . ":{$backend} {\n"
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
+            . "\n".$downloadsStanza."\n"
             . $mercureStanza
             . self::octanePhpServerStanza()
             . "}\n"
@@ -272,6 +275,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
                 'canonical' => false,
                 'error' => __('relay.mercure_keys_missing'),
             ];
+        }
+        $downloadsDir = self::appDownloadsDirectory();
+        if (!FileSystemManager::ensureDirectoryExists($downloadsDir)) {
+            return ['path' => $path, 'rendered' => false, 'canonical' => false,
+                'error' => __('relay.private_file_directory_failed', ['path' => $downloadsDir])];
         }
         $rendered = self::render();
 
@@ -477,6 +485,34 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     private static function caddyPath(string $path): string
     {
         return str_replace('\\', '/', $path);
+    }
+
+    /**
+     * Read-only app download mount (contract app_downloads), ahead of every
+     * PHP/Laravel handler. Byte-synced with fm_app_downloads_stanza.
+     */
+    public static function appDownloadsDirectory(): string
+    {
+        return rtrim(PathMapper::getCoreNodeRuntimeDir(), '/\\').DIRECTORY_SEPARATOR
+            .ServiceContract::string('app_downloads.dir_name');
+    }
+
+    private static function appDownloadsStanza(): string
+    {
+        $urlPrefix = rtrim(ServiceContract::string('app_downloads.url_prefix'), '/');
+        $manifestFile = ServiceContract::string('app_downloads.manifest_file');
+        $downloadsDir = self::caddyPath(self::appDownloadsDirectory());
+
+        return "\thandle_path {$urlPrefix}/* {\n"
+            . "\t\troot * {$downloadsDir}\n"
+            . "\t\t@app_download_manifest path */{$manifestFile}\n"
+            . "\t\t@app_download_apk path *.apk\n"
+            . "\t\theader @app_download_manifest Cache-Control \"no-cache\"\n"
+            . "\t\theader @app_download_manifest Access-Control-Allow-Origin \"*\"\n"
+            . "\t\theader @app_download_apk Content-Type \"application/vnd.android.package-archive\"\n"
+            . "\t\theader @app_download_apk Content-Disposition \"attachment\"\n"
+            . "\t\tfile_server\n"
+            . "\t}\n";
     }
 
     private static function octanePhpServerStanza(): string

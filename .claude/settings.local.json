@@ -349,7 +349,9 @@
       "PowerShell($cli = 'D:\\\\programing\\\\core_node\\\\ncore\\\\foundation\\\\common\\\\laravel_signed_cli.js'; $j = \\(node $cli request GET \"/api/work/nodes\" | Out-String | ConvertFrom-Json\\); $j.data.pool | Format-Table lane, language, gap, leased, free, reason_code -AutoSize | Out-String -Width 200)",
       "PowerShell($uiRoot = 'D:\\\\programing\\\\core_node\\\\poly_apps\\\\pycore_laravel_wordnew_ui'; $script = Join-Path \\(Join-Path \\(Join-Path $uiRoot 'scripts'\\) 'flavor'\\) 'build_desktop.py'; python $script --root $uiRoot --app wordnew --web yes --run no --open no --non-interactive 2>&1 | Select-Object -Last 6; $exe = Join-Path $uiRoot 'artifacts\\\\desktop\\\\wordnew\\\\WordNew-win32-x64\\\\WordNew.exe'; $p = Start-Process -FilePath $exe -ArgumentList '--remote-debugging-port=9333' -PassThru; Start-Sleep -Seconds 12; \"PID=$\\($p.Id\\)\")",
       "PowerShell(git *)",
-      "PowerShell(Remove-Item *)"
+      "PowerShell(Remove-Item *)",
+      "PowerShell(Test-Path *)",
+      "Bash(mkdir *)"
     ],
     "deny": [],
     "ask": []
