@@ -114,6 +114,8 @@
         "subtitle": "Team check, live game status and region debug images",
         "debug_button": "Debug Images",
         "start_d4": "Start D4",
+        "fix_license": "Fix License",
+        "fix_license_tooltip": "Fix \"Unable to find a valid license\" (315306): close D4, Battle.net and Agent, clear license caches, restart Battle.net in the configured region and launch D4. Safe to repeat.",
         "clear_log": "Clear",
         "log": {
           "started": "EXP Farming started",

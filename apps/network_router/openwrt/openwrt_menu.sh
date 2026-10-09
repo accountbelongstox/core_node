@@ -30,6 +30,7 @@ DEFAULT_AP_ADDRESS="192.168.50.1/24"
 DEFAULT_LAN_ADDRESS="192.168.50.1/24"
 WIFI_SETTINGS_FILE="/etc/openwrt-router/wifi.conf"
 WIFI_PROMPT_SECONDS=5
+CHECK_REPORT="/tmp/openwrt-menu-check.log"
 SSH_USER="root"
 # Routers reuse addresses like 192.168.1.1 and change keys on reflash, so they
 # get their own known_hosts instead of failing against the user's.
@@ -218,6 +219,25 @@ wifi_menu() {
     ask "Wi-Fi password for both, 8-63 characters" "$(wifi_setting WIFI_KEY)"
     key="$MENU_INPUT"
     run_script "$(mode_script)" wifi "$ssid_5g" "$ssid_24" "$key"
+}
+
+# Compares every setting of the active mode (network, DHCP, firewall, Wi-Fi,
+# services) without changing anything; a repair is offered and skips itself
+# after WIFI_PROMPT_SECONDS.
+network_check() {
+    echo
+    log "Checking every setting of $(current_mode) mode (nothing changes)"
+    run_script "$(mode_script)" check | tee "$CHECK_REPORT"
+    grep -q "every setting matches" "$CHECK_REPORT" && return 0
+    printf 'Repair these differences now? [y/N] (skips in %ss): ' "$WIFI_PROMPT_SECONDS"
+    if read -t "$WIFI_PROMPT_SECONDS" -r MENU_INPUT 2>/dev/null; then
+        case "$MENU_INPUT" in
+            y|Y|yes|YES) run_script "$(mode_script)" repair; return 0 ;;
+        esac
+    else
+        echo
+    fi
+    log "Differences kept; menu 1 or 4 (or 'repair') applies them"
 }
 
 # Applies the saved Wi-Fi idempotently, then offers a change that skips itself
@@ -617,8 +637,10 @@ if is_openwrt; then
         router) shift; run_script "$ROUTER_SCRIPT_NAME" "$@" ;;
         update) update_scripts $MANAGED_SCRIPTS ;;
         diagnose) router_diagnose ;;
+        check) run_script "$(mode_script)" check ;;
         "")
             wifi_startup
+            network_check
             router_menu
             ;;
         *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;

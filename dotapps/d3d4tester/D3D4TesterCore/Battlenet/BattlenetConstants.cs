@@ -250,6 +250,7 @@ public static class BattlenetConstants
 
     // ---------- Control tree / click. 1:1 Python battlenet_operation_base ----------
     public const string BattlenetExeName = "Battle.net.exe";
+    public const string AgentExeName = "Agent.exe";
     /// <summary>Process names (no extension): the client first, then the Blizzard update agent.</summary>
     public static readonly string[] ClientProcessNames = { "Battle.net", "Agent" };
     public const int ControlTreeMaxDepth = 25;

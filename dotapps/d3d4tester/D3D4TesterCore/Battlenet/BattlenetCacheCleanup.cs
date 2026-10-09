@@ -58,6 +58,23 @@ public static class BattlenetCacheCleanup
         return closed || deleted;
     }
 
+    /// <summary>
+    /// License / session caches only (Agent data cache, client cache and browser caches); keeps Agent product.db and Battle.net.config,
+    /// so installs and the login region survive. Missing folders are skipped. Caller closes Battle.net and Agent first.
+    /// </summary>
+    public static bool ClearLicenseCache()
+    {
+        string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        bool deleted = DeleteFolderIfExists(Path.Combine(programData, "Battle.net", "Agent", "data", "cache"), "ProgramData\\Battle.net\\Agent\\data\\cache")
+            | DeleteFolderIfExists(Path.Combine(ProgramDataBlizzard, "Battle.net", "Cache"), "ProgramData\\Blizzard Entertainment\\Battle.net\\Cache")
+            | DeleteFolderIfExists(Path.Combine(localAppData, "Battle.net", "Cache"), "LocalAppData\\Battle.net\\Cache")
+            | DeleteFolderIfExists(Path.Combine(localAppData, "Battle.net", "BrowserCaches"), "LocalAppData\\Battle.net\\BrowserCaches");
+        if (!deleted)
+            ColorPrinter.Gray("[BattlenetCacheCleanup] License caches already clean.");
+        return deleted;
+    }
+
     private static bool DeleteFolderIfExists(string fullPath, string label)
     {
         if (string.IsNullOrEmpty(fullPath) || !Directory.Exists(fullPath))
