@@ -3,6 +3,7 @@ import { wfNewEndpoints } from '../api/WfNewEndpoints';
 import { authedPostJSON, authedQueueablePostJSON } from '../api/WfNewApiTransport';
 import { normalizeEnglishWord } from './WordNewCommonWordFilter';
 import { wordNewQueueCenter } from './WordNewQueueCenter';
+import { heldClipAudio, noteAudioClip, wordClip } from '../runtime-store/WfNewAudioCache';
 import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
@@ -104,17 +105,24 @@ function uniqueWords(words: string[]): string[] {
     .filter((word) => word.trim() !== '');
 }
 
-function prioritizeMissing(
+/** Words the device store already holds are never asked of the queue (R14: a held clip is not requested again). */
+async function wordsWithoutHeldClip(words: string[], language: string): Promise<string[]> {
+  if (words.length === 0) return words;
+  const held = await heldClipAudio(words.map((word) => wordClip(word, language))).catch(() => new Map<number, string>());
+  return words.filter((_, index) => !held.has(index));
+}
+
+async function prioritizeMissing(
   rows: WordNewSentenceWordRow[],
   language: string,
   targetLanguage: string,
-): void {
+): Promise<void> {
   const translationWords = uniqueWords(rows
     .filter((row) => !Array.isArray(row.translations) || row.translations.length === 0)
     .map((row) => row.word));
-  const audioWords = uniqueWords(rows
+  const audioWords = await wordsWithoutHeldClip(uniqueWords(rows
     .filter((row) => !row.audio_url || row.audio_status !== 'ready')
-    .map((row) => row.word));
+    .map((row) => row.word)), language);
   const requests: Promise<unknown>[] = [];
   if (translationWords.length > 0) {
     requests.push(wordNewQueueCenter.prioritizeTranslations(translationWords, language, targetLanguage));
@@ -122,7 +130,7 @@ function prioritizeMissing(
   if (audioWords.length > 0) {
     requests.push(wordNewQueueCenter.moveWordsToHead(audioWords, language));
   }
-  if (requests.length > 0) void Promise.allSettled(requests);
+  if (requests.length > 0) await Promise.allSettled(requests);
 }
 
 export async function getSentenceWordTable(
@@ -159,7 +167,8 @@ export async function getSentenceWordTable(
       added_to_default_group: addedToTargetGroup,
     };
   });
-  if (includeMedia) prioritizeMissing(normalized, language, targetLanguage);
+  normalized.forEach((row: WordNewSentenceWordRow) => noteAudioClip(wordClip(row.word, language), row.audio_url));
+  if (includeMedia) void prioritizeMissing(normalized, language, targetLanguage);
   return normalized;
 }
 

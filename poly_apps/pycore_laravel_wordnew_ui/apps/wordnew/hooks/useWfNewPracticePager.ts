@@ -42,7 +42,7 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { getCachedWords, putCachedWords } from '../runtime-store/WfNewContentCache';
-import { collectAudioUrls, preloadAudio } from '../runtime-store/WfNewAudioCache';
+import { preloadWordAudio } from '../runtime-store/WfNewAudioCache';
 
 export interface WfNewPracticePager {
   /** The current page's words, ordered least-recently-read. */
@@ -91,7 +91,7 @@ const pagesFor = (total: number, perPage: number): number =>
 export function useWfNewPracticePager(
   gid: string | null | undefined,
   active: boolean,
-  opts?: { unreadOnly?: boolean; limit?: number },
+  opts?: { unreadOnly?: boolean; limit?: number; language?: string },
 ): WfNewPracticePager {
   const [words, setWords] = useState<Word[]>([]);
   const [page, setPage] = useState<number>(1);
@@ -197,7 +197,7 @@ export function useWfNewPracticePager(
     // Cache this page's words (translations included) locally and PRELOAD its
     // audio into the device cache — playback must never wait on a download.
     void putCachedWords(g, ordered);
-    preloadAudio(collectAudioUrls(ordered));
+    preloadWordAudio(ordered, optsRef.current?.language);
   }, [fetchPageWords]);
 
   // Reset + (re)load whenever the group or active flag changes.
@@ -237,7 +237,7 @@ export function useWfNewPracticePager(
     prefetchRef.current.set(next, ordered);
     // The next page is HIDDEN but its audio is already downloading — pressing
     // "next page" swaps in instantly and every clip plays from the cache.
-    preloadAudio(collectAudioUrls(ordered));
+    preloadWordAudio(ordered, optsRef.current?.language);
   }, [fetchPageWords]);
 
   /** Swap in the next page (consuming the prefetch buffer when present). */
@@ -263,7 +263,7 @@ export function useWfNewPracticePager(
       setPage(next);
       // Covers the no-prefetch path (prefetch hits are already preloaded and
       // dedup makes this a no-op).
-      preloadAudio(collectAudioUrls(ordered));
+      preloadWordAudio(ordered, optsRef.current?.language);
     } finally {
       advancingRef.current = false;
     }
@@ -297,7 +297,7 @@ export function useWfNewPracticePager(
           setWords(ordered);
           setPage(target);
           // Same no-prefetch cover as advance(); deduped when preloaded.
-          preloadAudio(collectAudioUrls(ordered));
+          preloadWordAudio(ordered, optsRef.current?.language);
         } finally {
           advancingRef.current = false;
         }

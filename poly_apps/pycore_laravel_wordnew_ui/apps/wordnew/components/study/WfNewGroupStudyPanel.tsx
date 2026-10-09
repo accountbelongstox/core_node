@@ -120,7 +120,10 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
   // all words.
   const isDefaultGroup = isDefaultVocabularyGroup(group);
   const dailyGoal = Math.max(1, Number(wfNewSettings.get('dailyGoal')) || 20);
-  const pagerOpts = isDefaultGroup ? { unreadOnly: true } : undefined;
+  const pagerOpts = useMemo(
+    () => ({ ...(isDefaultGroup ? { unreadOnly: true } : {}), language: group.language }),
+    [isDefaultGroup, group.language],
+  );
 
   // The panel mounts only when a shelf course is open (WfNewShelfTab renders it
   // solely in the deep-dive branch), so the pager is live for its whole lifetime.

@@ -11,6 +11,7 @@ import { Backoff } from '../../../core/tasks/Backoff';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 import { wordNewClipReady } from './WordNewClipReady';
+import { heldClipAudio, sentenceClip } from '../runtime-store/WfNewAudioCache';
 
 const POLL_INTERVAL_MS = Math.max(
   250,
@@ -248,9 +249,21 @@ class SentenceAudioScheduler {
         if (e.headOnly || (e.shouldContinue && !e.shouldContinue()) || now - e.startedAt > WATCH_MAX_MS) this.finish(e, null);
         else waiting.push(e);
       }
+      // A clip the device already holds is ready as it is (R14): it is not looked up on the network.
+      const held = waiting.length > 0
+        ? await heldClipAudio(waiting.map((e) => sentenceClip(e.text, e.lang))).catch(() => new Map<number, string>())
+        : new Map<number, string>();
+      const missing = waiting.filter((e, index) => {
+        const url = held.get(index);
+        if (!url || e.state !== 'waiting') return true;
+        found = true;
+        e.onStatus?.({ exists: true });
+        this.finish(e, url);
+        return false;
+      });
       const limit = QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit;
-      for (let offset = 0; offset < waiting.length && !this.destroyed; offset += limit) {
-        const batch = waiting.slice(offset, offset + limit);
+      for (let offset = 0; offset < missing.length && !this.destroyed; offset += limit) {
+        const batch = missing.slice(offset, offset + limit);
         const answers = await wfNewApi.lookupAudio(batch.map((e) => ({ kind: 'sentence' as const, language: e.lang, text: e.text })));
         batch.forEach((e, index) => {
           if (e.state !== 'waiting') return;

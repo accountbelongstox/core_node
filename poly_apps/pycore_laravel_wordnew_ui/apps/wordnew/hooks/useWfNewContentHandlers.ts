@@ -18,6 +18,8 @@ import { wordNewLearningStatsCenter } from '../services/WordNewLearningStatsCent
 import { wordNewWordGroups } from '../services/WordNewWordGroupCenter';
 import { wordNewCustomWords } from '../services/WordNewCustomWords';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
+import { awaitPlayableClip, wordClip } from '../runtime-store/WfNewAudioCache';
+import { CLIP_RESOLVE_WAIT_MS } from '../constants/uiTiming';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
 import { wordNewPageHeader, type WordNewTab } from '../routing/WordNewHashRoutes';
@@ -468,8 +470,8 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     addToast(nowFavorited ? trans('toast.added') : trans('toast.removed'), nowFavorited ? 'success' : 'warning');
   };
 
-  // Perform Speeches robustly with rates
-  const playPhoneticSpeech = (word: Word) => {
+  // Browser speech: the last tier of a word play (no clip anywhere); the word is asked of the queue.
+  const speakPhoneticFallback = (word: Word) => {
     wordNewQueueCenter.notifyMissingWord(word.text, 'en');
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -480,6 +482,21 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     } else {
       console.warn("SpeechSynthesis not robustly supported in host iframe.");
     }
+  };
+
+  // Click-to-sound, clip-first: the device store, the schedule's transfers and the payload file share the
+  // orchestration clip; speech only plays when nothing has it.
+  const playPhoneticSpeech = (word: Word) => {
+    const named = word.audioUrl && /^https?:\/\//i.test(word.audioUrl) ? word.audioUrl : null;
+    void awaitPlayableClip(wordClip(word.text, 'en'), named, CLIP_RESOLVE_WAIT_MS)
+      .then((src) => {
+        if (!src) {
+          speakPhoneticFallback(word);
+          return;
+        }
+        void new Audio(src).play().catch(() => speakPhoneticFallback(word));
+      })
+      .catch(() => speakPhoneticFallback(word));
   };
 
   const selectBookCourse = async (group: WordGroup) => {

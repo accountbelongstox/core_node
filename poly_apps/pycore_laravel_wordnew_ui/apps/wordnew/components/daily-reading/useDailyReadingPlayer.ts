@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DailyReadingRow } from './dailyReadingApi';
-import { ensureAudio, preloadAudio, resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
+import { ensureAudio, ensureClipAudio, playableClip, preloadAudio, resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
 import {
   getSentenceWordTable,
   mergeSentenceWordRuntimeState,
@@ -13,6 +13,7 @@ import { wordNewProgressCenter } from '../../services/WordNewProgressCenter';
 import { wordNewRecitationCenter } from '../../services/WordNewRecitationCenter';
 import { STORAGE_MANAGER_CHANGED_EVENT } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
+import { CLIP_FIRST_ITEM_WAIT_MS } from '../../constants/uiTiming';
 import { selectedDailyReadingWordGroupId } from './dailyReadingWordGroupStore';
 import { wfNewApi } from '../../api';
 import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
@@ -156,8 +157,11 @@ export function useDailyReadingPlayer(onArticleFinished?: (row: DailyReadingRow)
       clearInterval(speechProgressTimerRef.current);
       speechProgressTimerRef.current = null;
     }
+    // A clip the device holds (or a transfer stage has fetched) plays as audio even when the payload named no file.
+    const clipUrl = item.clip ? playableClip(item.clip, item.url) : undefined;
     if (
       item.speechText
+      && !clipUrl
       && typeof speechSynthesis !== 'undefined'
       && typeof SpeechSynthesisUtterance !== 'undefined'
     ) {
@@ -203,7 +207,7 @@ export function useDailyReadingPlayer(onArticleFinished?: (row: DailyReadingRow)
       }
       return;
     }
-    const url = item.url;
+    const url = clipUrl ?? item.url;
     if (!url) {
       completePlaybackItem(completionToken, false);
       return;
@@ -216,7 +220,7 @@ export function useDailyReadingPlayer(onArticleFinished?: (row: DailyReadingRow)
         completePlaybackItem(completionToken, false);
       }
     };
-    audio.src = resolveAudioSync(url) ?? url;
+    audio.src = clipUrl ?? resolveAudioSync(url) ?? url;
     audio.playbackRate = rate;
     audio.currentTime = 0;
     void audio.play().then(() => {
@@ -353,11 +357,14 @@ export function useDailyReadingPlayer(onArticleFinished?: (row: DailyReadingRow)
       setArticleWords(sequence.articleWords);
       const sentenceUrl = dailyReadingSentenceAudioUrl(row);
       if (sentenceUrl) preloadArticleResources(sentenceUrl, sequence.articleWords);
-      const firstAudioUrl = sequence.items[0]?.url;
-      if (firstAudioUrl) {
-        void ensureAudio(firstAudioUrl).catch(() => null).then(() => {
-          if (requestId === requestIdRef.current) playSequenceItem(0);
-        });
+      const firstItem = sequence.items[0];
+      const startFirst = (): void => {
+        if (requestId === requestIdRef.current) playSequenceItem(0);
+      };
+      if (firstItem?.clip) {
+        void ensureClipAudio(firstItem.clip, firstItem.url, { timeoutMs: CLIP_FIRST_ITEM_WAIT_MS }).catch(() => null).then(startFirst);
+      } else if (firstItem?.url) {
+        void ensureAudio(firstItem.url).catch(() => null).then(startFirst);
       } else {
         playSequenceItem(0);
       }
