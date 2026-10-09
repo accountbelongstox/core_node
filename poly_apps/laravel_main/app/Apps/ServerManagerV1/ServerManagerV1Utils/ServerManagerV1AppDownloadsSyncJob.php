@@ -77,6 +77,21 @@ class ServerManagerV1AppDownloadsSyncJob
         return $state === null ? null : self::publicState($state);
     }
 
+    /** The newest jobs, newest first. */
+    public static function recent(int $limit): array
+    {
+        $jobs = [];
+
+        foreach (array_slice(self::jobIds(), 0, $limit) as $jobId) {
+            $state = self::readState($jobId);
+            if ($state !== null) {
+                $jobs[] = self::publicState($state);
+            }
+        }
+
+        return $jobs;
+    }
+
     public static function execute(string $jobId): array
     {
         $state = self::readState($jobId);
