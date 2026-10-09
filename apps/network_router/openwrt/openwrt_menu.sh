@@ -29,6 +29,7 @@ MANAGED_SCRIPTS="$AP_SCRIPT_NAME $ROUTER_SCRIPT_NAME"
 DEFAULT_AP_ADDRESS="192.168.50.1/24"
 DEFAULT_LAN_ADDRESS="192.168.50.1/24"
 WIFI_SETTINGS_FILE="/etc/openwrt-router/wifi.conf"
+WIFI_PROMPT_SECONDS=5
 SSH_USER="root"
 # Routers reuse addresses like 192.168.1.1 and change keys on reflash, so they
 # get their own known_hosts instead of failing against the user's.
@@ -196,18 +197,39 @@ mode_script() {
     fi
 }
 
-wifi_menu() {
-    local ssid=""
-    local key=""
-    local current_ssid=""
-    local current_key=""
+wifi_setting() {
+    [ -f "$WIFI_SETTINGS_FILE" ] && sed -n "s/^$1='\(.*\)'$/\1/p" "$WIFI_SETTINGS_FILE"
+}
 
-    [ -f "$WIFI_SETTINGS_FILE" ] && current_ssid="$(sed -n "s/^WIFI_SSID='\(.*\)'$/\1/p" "$WIFI_SETTINGS_FILE")" && current_key="$(sed -n "s/^WIFI_KEY='\(.*\)'$/\1/p" "$WIFI_SETTINGS_FILE")"
-    ask "Wi-Fi name (empty keeps the current or default)" "$current_ssid"
-    ssid="$MENU_INPUT"
-    ask "Wi-Fi password, 8-63 characters (empty keeps the current or default)" "$current_key"
+wifi_menu() {
+    local ssid_5g=""
+    local ssid_24=""
+    local key=""
+
+    echo "Names: English letters, digits and - _ . only. Empty keeps the current (or default) value."
+    ask "5G Wi-Fi name" "$(wifi_setting WIFI_SSID_5G)"
+    ssid_5g="$MENU_INPUT"
+    ask "2.4G Wi-Fi name" "$(wifi_setting WIFI_SSID_24)"
+    ssid_24="$MENU_INPUT"
+    ask "Wi-Fi password for both, 8-63 characters" "$(wifi_setting WIFI_KEY)"
     key="$MENU_INPUT"
-    run_script "$(mode_script)" wifi "$ssid" "$key"
+    run_script "$(mode_script)" wifi "$ssid_5g" "$ssid_24" "$key"
+}
+
+# Applies the saved Wi-Fi idempotently, then offers a change that skips itself
+# after WIFI_PROMPT_SECONDS.
+wifi_startup() {
+    log "Checking Wi-Fi (idempotent: only differences change)"
+    run_script "$(mode_script)" wifi
+    printf 'Change Wi-Fi names/password? [y/N] (skips in %ss): ' "$WIFI_PROMPT_SECONDS"
+    if read -t "$WIFI_PROMPT_SECONDS" -r MENU_INPUT 2>/dev/null; then
+        case "$MENU_INPUT" in
+            y|Y|yes|YES) wifi_menu; return 0 ;;
+        esac
+    else
+        echo
+    fi
+    log "Wi-Fi settings kept"
 }
 
 router_menu() {
@@ -527,8 +549,7 @@ if is_openwrt; then
         update) update_scripts $MANAGED_SCRIPTS ;;
         diagnose) router_diagnose ;;
         "")
-            log "Checking Wi-Fi (idempotent: only differences change)"
-            run_script "$(mode_script)" wifi
+            wifi_startup
             router_menu
             ;;
         *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;

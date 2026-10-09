@@ -8,7 +8,7 @@
 #       DHCP address from the upstream router and NATs 192.168.50.0/24 to it, so
 #       hosts on 192.168.50.x open the upstream router (e.g. 192.168.1.1)
 #     with a gateway (natgateway host): static management address via it
-#   sh ap_mode.sh wifi [ssid] [password]   set and enable Wi-Fi on every radio
+#   sh ap_mode.sh wifi [ssid_5g] [ssid_24] [password]   5G and 2.4G Wi-Fi on every radio
 #   sh ap_mode.sh status
 #   sh ap_mode.sh restore                  undo with the newest backup
 
@@ -23,15 +23,21 @@ BALANCER_SERVICE="router-balance"
 BALANCER_SCRIPT="/usr/sbin/router-mode.sh"
 SETTINGS_DIR="/etc/openwrt-router"
 WIFI_SETTINGS_FILE="$SETTINGS_DIR/wifi.conf"
-WIFI_DEFAULT_SSID="LN"
+WIFI_DEFAULT_SSID_5G="LN"
+WIFI_DEFAULT_SSID_24="Samsung24"
 WIFI_DEFAULT_KEY_OCTAL="170151141157155151061062063"
 WIFI_ENCRYPTION="psk2"
 WIFI_COUNTRY=""
+WIFI_PACKAGE="wpad-basic-mbedtls"
+WIFI_CHECK_DELAY=90
+WIFI_CHECK_LOG="/tmp/openwrt-router-wifi-check.log"
+SELF_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 NETWORK_RESTART_DELAY=3
 LOG_PREFIX="[AP-MODE]"
 CHANGED=0
 ZONE_SECTION=""
-WIFI_SSID=""
+WIFI_SSID_5G=""
+WIFI_SSID_24=""
 WIFI_KEY=""
 
 log() {
@@ -225,6 +231,7 @@ apply_changes() {
     fi
     uci commit
     log "Settings committed; network restarts in ${NETWORK_RESTART_DELAY}s (SSH on the old address drops)"
+    schedule_wifi_check
     (sleep "$NETWORK_RESTART_DELAY"; /etc/init.d/network restart; wifi reload; for service in $services; do [ -x "/etc/init.d/$service" ] && "/etc/init.d/$service" enabled && "/etc/init.d/$service" restart; done) >/dev/null 2>&1 &
 }
 
@@ -232,24 +239,43 @@ decode_octal() {
     printf "$(echo "$1" | sed 's/[0-7][0-7][0-7]/\\&/g')"
 }
 
+pkg_install() {
+    if command -v apk >/dev/null 2>&1; then
+        apk update && apk add "$@"
+    else
+        opkg update && opkg install "$@"
+    fi
+}
+
 wifi_load_settings() {
-    WIFI_SSID="$WIFI_DEFAULT_SSID"
+    WIFI_SSID_5G="$WIFI_DEFAULT_SSID_5G"
+    WIFI_SSID_24="$WIFI_DEFAULT_SSID_24"
     WIFI_KEY="$(decode_octal "$WIFI_DEFAULT_KEY_OCTAL")"
     [ -f "$WIFI_SETTINGS_FILE" ] && . "$WIFI_SETTINGS_FILE"
 }
 
-wifi_save_settings() {
-    case "$1$2" in
-        *"'"*) log "Wi-Fi name and password must not contain a single quote"; return 1 ;;
+# SSIDs stay plain English: letters, digits and - _ . (1-32 characters).
+wifi_valid_ssid() {
+    case "$1" in
+        ""|*[!A-Za-z0-9_.-]*) return 1 ;;
     esac
-    if [ "${#2}" -lt 8 ] || [ "${#2}" -gt 63 ]; then
+    [ "${#1}" -le 32 ]
+}
+
+wifi_save_settings() {
+    wifi_valid_ssid "$1" && wifi_valid_ssid "$2" || { log "Wi-Fi names allow only English letters, digits and - _ . (1-32 characters)"; return 1; }
+    case "$3" in
+        *"'"*) log "Wi-Fi password must not contain a single quote"; return 1 ;;
+    esac
+    if [ "${#3}" -lt 8 ] || [ "${#3}" -gt 63 ]; then
         log "Wi-Fi password needs 8-63 characters"
         return 1
     fi
     mkdir -p "$SETTINGS_DIR"
-    printf "WIFI_SSID='%s'\nWIFI_KEY='%s'\n" "$1" "$2" > "$WIFI_SETTINGS_FILE"
-    WIFI_SSID="$1"
-    WIFI_KEY="$2"
+    printf "WIFI_SSID_5G='%s'\nWIFI_SSID_24='%s'\nWIFI_KEY='%s'\n" "$1" "$2" "$3" > "$WIFI_SETTINGS_FILE"
+    WIFI_SSID_5G="$1"
+    WIFI_SSID_24="$2"
+    WIFI_KEY="$3"
     log "Wi-Fi settings saved in $WIFI_SETTINGS_FILE"
 }
 
@@ -257,12 +283,37 @@ wifi_radios() {
     uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-device$/\1/p"
 }
 
-# Enables every radio with one SSID/password on the LAN; creates missing radio
-# sections and access-point interfaces.
+# 2g, 5g or 6g from the band option, else from the legacy hwmode.
+radio_band() {
+    local band=""
+
+    band="$(uci -q get "wireless.$1.band")"
+    [ -n "$band" ] && { echo "$band"; return 0; }
+    case "$(uci -q get "wireless.$1.hwmode")" in
+        11a|11ac|11ax) echo "5g" ;;
+        *) echo "2g" ;;
+    esac
+}
+
+ensure_wpad() {
+    if [ -x /usr/sbin/hostapd ] || [ -x /usr/sbin/wpad ]; then
+        echo "  = hostapd/wpad installed"
+        return 0
+    fi
+    echo "  * installing $WIFI_PACKAGE (Wi-Fi encryption needs hostapd/wpad)"
+    pkg_install "$WIFI_PACKAGE" || echo "  ! $WIFI_PACKAGE install failed: encrypted Wi-Fi will not start"
+}
+
+# Enables every radio: 2.4G gets WIFI_SSID_24, 5G/6G get WIFI_SSID_5G, all
+# share WIFI_KEY (6G needs WPA3/SAE). Creates missing radio sections and
+# access-point interfaces.
 setup_wifi() {
     local radios=""
     local radio=""
     local iface=""
+    local band=""
+    local ssid=""
+    local encryption=""
 
     step "Wi-Fi"
     radios="$(wifi_radios)"
@@ -275,9 +326,15 @@ setup_wifi() {
         echo "  = no Wi-Fi hardware or driver found; Wi-Fi skipped"
         return 0
     fi
-    [ -x /usr/sbin/hostapd ] || [ -x /usr/sbin/wpad ] || echo "  ! no hostapd/wpad: $WIFI_ENCRYPTION needs wpad-basic-mbedtls (or similar) installed"
+    ensure_wpad
     for radio in $radios; do
-        echo "  Radio $radio: band $(uci -q get "wireless.$radio.band" || uci -q get "wireless.$radio.hwmode"), channel $(uci -q get "wireless.$radio.channel")"
+        band="$(radio_band "$radio")"
+        case "$band" in
+            2g) ssid="$WIFI_SSID_24"; encryption="$WIFI_ENCRYPTION" ;;
+            6g) ssid="$WIFI_SSID_5G"; encryption="sae" ;;
+            *) ssid="$WIFI_SSID_5G"; encryption="$WIFI_ENCRYPTION" ;;
+        esac
+        echo "  Radio $radio: band $band, channel $(uci -q get "wireless.$radio.channel"), SSID $ssid"
         set_option "wireless.$radio.disabled" "0"
         [ -n "$WIFI_COUNTRY" ] && set_option "wireless.$radio.country" "$WIFI_COUNTRY"
         iface="$(uci show wireless | sed -n "s/^wireless\.\([^.]*\)\.device='$radio'$/\1/p" | head -n 1)"
@@ -288,19 +345,60 @@ setup_wifi() {
         fi
         set_option "wireless.$iface.mode" "ap"
         set_option "wireless.$iface.network" "lan"
-        set_option "wireless.$iface.ssid" "$WIFI_SSID"
-        set_option "wireless.$iface.encryption" "$WIFI_ENCRYPTION"
+        set_option "wireless.$iface.ssid" "$ssid"
+        set_option "wireless.$iface.encryption" "$encryption"
         set_option "wireless.$iface.key" "$WIFI_KEY"
         set_option "wireless.$iface.isolate" "0"
         set_option "wireless.$iface.disabled" "0"
     done
-    echo "  Wi-Fi: SSID '$WIFI_SSID', password '$WIFI_KEY', $WIFI_ENCRYPTION, on: $(echo $radios)"
+    echo "  Wi-Fi: 5G '$WIFI_SSID_5G', 2.4G '$WIFI_SSID_24', password '$WIFI_KEY'"
+}
+
+# Reports each enabled radio; with "fix", a radio still down moves to channel
+# auto (a fixed or DFS channel the regulatory domain refuses) and Wi-Fi reloads.
+wifi_check() {
+    local fix="$1"
+    local status=""
+    local radio=""
+    local up=""
+    local channel=""
+    local fixed=0
+
+    step "Wi-Fi check"
+    command -v ubus >/dev/null 2>&1 || { echo "  = no ubus; check skipped"; return 0; }
+    status="$(ubus call network.wireless status 2>/dev/null)"
+    for radio in $(wifi_radios); do
+        [ "$(uci -q get "wireless.$radio.disabled")" = "1" ] && { echo "  = $radio disabled"; continue; }
+        up="$(echo "$status" | jsonfilter -e "@.$radio.up" 2>/dev/null)"
+        channel="$(uci -q get "wireless.$radio.channel")"
+        if [ "$up" = "true" ]; then
+            echo "  = $radio up ($(radio_band "$radio"), channel $channel)"
+        elif [ "$fix" = "fix" ] && [ "$channel" != "auto" ]; then
+            uci set "wireless.$radio.channel=auto"
+            echo "  * $radio down on channel $channel; channel -> auto"
+            fixed=1
+        else
+            echo "  ! $radio down (channel $channel): DFS radar wait can take 60s; logread | grep -i $radio"
+        fi
+    done
+    if [ "$fixed" = "1" ]; then
+        uci commit wireless
+        wifi reload
+        echo "  * Wi-Fi reloaded"
+    fi
+}
+
+# A background check after Wi-Fi restarts, once DFS channels finished their
+# radar wait.
+schedule_wifi_check() {
+    (sleep "$WIFI_CHECK_DELAY"; sh "$SELF_PATH" wifi-check fix > "$WIFI_CHECK_LOG" 2>&1) >/dev/null 2>&1 &
+    log "Wi-Fi self-check in ${WIFI_CHECK_DELAY}s: $WIFI_CHECK_LOG"
 }
 
 wifi_command() {
     wifi_load_settings
-    if [ -n "$1" ] || [ -n "$2" ]; then
-        wifi_save_settings "${1:-$WIFI_SSID}" "${2:-$WIFI_KEY}" || return 1
+    if [ -n "$1" ] || [ -n "$2" ] || [ -n "$3" ]; then
+        wifi_save_settings "${1:-$WIFI_SSID_5G}" "${2:-$WIFI_SSID_24}" "${3:-$WIFI_KEY}" || return 1
     fi
     CHANGED=0
     setup_wifi
@@ -308,8 +406,10 @@ wifi_command() {
         uci commit wireless
         wifi reload
         log "Wi-Fi reloaded"
+        schedule_wifi_check
     else
         log "Wi-Fi unchanged"
+        wifi_check
     fi
 }
 
@@ -464,7 +564,8 @@ restore() {
 
 case "$1" in
     apply) apply "$2" "$3" ;;
-    wifi) wifi_command "$2" "$3" ;;
+    wifi) wifi_command "$2" "$3" "$4" ;;
+    wifi-check) wifi_check "$2" ;;
     status) status ;;
     restore) restore ;;
     *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
