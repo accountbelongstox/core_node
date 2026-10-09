@@ -374,7 +374,8 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/servermanager/v1/frankenphp/caddyfile)",
       "Bash(./dd.cmd gitsync *)",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/status\")",
-      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009142209-329c6e99f1da\")"
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009142209-329c6e99f1da\")",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009143225-643a696a7a30\")"
     ],
     "deny": [],
     "ask": []

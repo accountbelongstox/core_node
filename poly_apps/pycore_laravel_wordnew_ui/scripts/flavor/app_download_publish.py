@@ -203,9 +203,14 @@ def publish(app: dict, platform_id: str, build_type: str, source: Path, data_dir
         return {"status": STATUS_UNCHANGED, "path": directory / str(current["file"]), "entry": current, "pruned": []}
 
     versioned = render_name(str(CONTRACT["versioned_file"]), app_id, version, build_type, platform_id, ext)
-    latest = render_name(str(CONTRACT["latest_file"]), app_id, version, build_type, platform_id, ext)
+    shared_latest = render_name(str(CONTRACT["latest_file"]), app_id, version, build_type, platform_id, ext)
+    release_build = build_type == BUILD_TYPES[-1]
+    latest = shared_latest if release_build else \
+        render_name(str(CONTRACT["latest_file_non_release"]), app_id, version, build_type, platform_id, ext)
     atomic_copy(source, directory / versioned)
     atomic_copy(source, directory / latest)
+    if not release_build and not entries_current(manifest["files"], (platform_id, BUILD_TYPES[-1])):
+        atomic_copy(source, directory / shared_latest)
     entry = {
         "platform": platform_id,
         "build_type": build_type,
