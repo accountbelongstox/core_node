@@ -140,22 +140,33 @@ if [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then
     export CLAUDE_CONFIG_DIR="$HOME/.claude"
 fi
 
-if [ -z "${CLAUDE_CODE_TMPDIR:-}" ]; then
-    claudeCodeTmpDir="${XDG_CACHE_HOME:-$HOME/.cache}/core_node/claude-code-tmp"
-    mkdir -p "$claudeCodeTmpDir" || {
-        echo "[ERROR] Cannot create Claude Code temp directory: $claudeCodeTmpDir"
-        exit 1
-    }
-    effectiveUid="$(id -u)"
+# Per-uid private temp dir (root and the real user share XDG_CACHE_HOME, so one
+# shared name flips owner between them). A dir left owned by another uid is
+# repaired when root runs, otherwise a per-uid fallback under TMPDIR is used.
+claude_team_ensure_tmp_dir() {
+    claudeCodeTmpDir="$1"
+    mkdir -p "$claudeCodeTmpDir" 2>/dev/null || return 1
     claudeCodeTmpOwner="$(stat -c '%u' "$claudeCodeTmpDir" 2>/dev/null)"
     if [ "$claudeCodeTmpOwner" != "$effectiveUid" ]; then
-        echo "[ERROR] Claude Code temp directory is owned by uid ${claudeCodeTmpOwner:-unknown}, expected $effectiveUid: $claudeCodeTmpDir"
-        exit 1
+        [ "$effectiveUid" -eq 0 ] || return 1
+        chown -R "$effectiveUid" "$claudeCodeTmpDir" 2>/dev/null || return 1
+        claudeCodeTmpOwner="$(stat -c '%u' "$claudeCodeTmpDir" 2>/dev/null)"
+        [ "$claudeCodeTmpOwner" = "$effectiveUid" ] || return 1
     fi
-    chmod 700 "$claudeCodeTmpDir" || {
-        echo "[ERROR] Cannot secure Claude Code temp directory: $claudeCodeTmpDir"
-        exit 1
-    }
+    chmod 700 "$claudeCodeTmpDir" 2>/dev/null
+}
+
+if [ -z "${CLAUDE_CODE_TMPDIR:-}" ]; then
+    effectiveUid="$(id -u)"
+    claudeCodeTmpDir="${XDG_CACHE_HOME:-$HOME/.cache}/core_node/claude-code-tmp-$effectiveUid"
+    if ! claude_team_ensure_tmp_dir "$claudeCodeTmpDir"; then
+        echo "[WARN] Claude Code temp directory unusable ($claudeCodeTmpDir); falling back to ${TMPDIR:-/tmp}"
+        claudeCodeTmpDir="${TMPDIR:-/tmp}/core_node-claude-code-tmp-$effectiveUid"
+        claude_team_ensure_tmp_dir "$claudeCodeTmpDir" || {
+            echo "[ERROR] Cannot prepare a private Claude Code temp directory for uid $effectiveUid: $claudeCodeTmpDir"
+            exit 1
+        }
+    fi
     export CLAUDE_CODE_TMPDIR="$claudeCodeTmpDir"
 fi
 
