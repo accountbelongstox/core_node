@@ -1028,6 +1028,7 @@ status() {
         echo "  $iface: ssid '$(uci -q get "wireless.$iface.ssid")' key '$(uci -q get "wireless.$iface.key")' $(uci -q get "wireless.$iface.encryption") network $(uci -q get "wireless.$iface.network") disabled=$(uci -q get "wireless.$iface.disabled" || echo 0)"
     done
     command -v iwinfo >/dev/null 2>&1 && iwinfo 2>/dev/null | grep -E 'ESSID|Mode:' | sed 's/^/  /'
+    [ -f "$WIFI_CHECK_LOG" ] && sed 's/^/  /' "$WIFI_CHECK_LOG"
     step "Services"
     for iface in dnsmasq odhcpd firewall uhttpd dropbear "$SERVICE_NAME"; do
         [ -x "/etc/init.d/$iface" ] && echo "  $iface: $("/etc/init.d/$iface" enabled && echo enabled || echo disabled), $("/etc/init.d/$iface" running >/dev/null 2>&1 && echo running || echo stopped)"
