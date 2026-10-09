@@ -352,7 +352,7 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\accou\\.nuget\\packages": {},
+    "C:\\Users\\accou\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
@@ -361,7 +361,7 @@
       "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImagePreprocess\\DotCore.Utils.ImagePreprocess.csproj",
       "projectName": "DotCore.Utils.ImagePreprocess",
       "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImagePreprocess\\DotCore.Utils.ImagePreprocess.csproj",
-      "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
+      "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
       "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImagePreprocess\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,

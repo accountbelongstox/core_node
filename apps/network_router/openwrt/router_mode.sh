@@ -1,10 +1,14 @@
 #!/bin/sh
 # Turns an OpenWrt router (also one left in AP mode by ap_mode.sh) into a routing
-# gateway: WAN with NAT, LAN with its own /24, DHCP and DNS, plus a per-device
-# bandwidth balancer (service router-balance). Run on the router:
-#   sh router_mode.sh apply [lan_ip/24]   default 192.168.50.1/24
+# gateway: WAN with NAT, LAN with its own /24, DHCP and DNS, Wi-Fi on every
+# radio, plus a per-device bandwidth balancer (service router-balance). Every
+# command is idempotent and prints each setting it checks (= kept, * changed).
+# Hosts on the LAN reach the upstream router (e.g. 192.168.1.1) through NAT.
+# Run on the router:
+#   sh router_mode.sh apply [lan_ip/24]     default 192.168.50.1/24
+#   sh router_mode.sh wifi [ssid] [password]
 #   sh router_mode.sh status
-#   sh router_mode.sh restore             undo with the newest backup
+#   sh router_mode.sh restore               undo with the newest backup
 # The balancer measures the WAN rate (100 Mbit until measured), raises the limit
 # when the link saturates without delay, clamps it to the live rate when a busy
 # link shows latency congestion, guarantees each active device 10% (or an equal
@@ -14,6 +18,9 @@
 BACKUP_DIR="/root/router-mode-backups"
 CONFIGS="network dhcp wireless firewall"
 LAN_ADDRESS="192.168.50.1/24"
+BRIDGE_DEVICE="br-lan"
+UPLINK_INTERFACE="uplink"
+MGMT_NAT_NAME="ap_mgmt_masq"
 REQUIRED_PACKAGES="kmod-sched-core kmod-ifb"
 TC_PACKAGE="tc-tiny"
 INSTALL_PATH="/usr/sbin/router-mode.sh"
@@ -23,6 +30,14 @@ CONFIG_DIR="/etc/router-mode"
 CONFIG_FILE="$CONFIG_DIR/config"
 CAPACITY_FILE="$CONFIG_DIR/capacity"
 STATE_DIR="/tmp/router-mode"
+SETTINGS_DIR="/etc/openwrt-router"
+WIFI_SETTINGS_FILE="$SETTINGS_DIR/wifi.conf"
+WIFI_DEFAULT_SSID="LN"
+WIFI_DEFAULT_KEY_OCTAL="170151141157155151061062063"
+WIFI_ENCRYPTION="psk2"
+WIFI_COUNTRY=""
+NETWORK_RESTART_DELAY=3
+LOG_PREFIX="[ROUTER-MODE]"
 IFB_DEVICE="ifb-rmode"
 PING_TARGET="223.5.5.5"
 DEFAULT_CAPACITY_KBIT=100000
@@ -46,6 +61,10 @@ BASE_RTT_IDLE_PERCENT=20
 SAMPLE_SECONDS=5
 SAVE_MIN_SECONDS=600
 QUANTUM=1514
+CHANGED=0
+ZONE_SECTION=""
+WIFI_SSID=""
+WIFI_KEY=""
 CAP_DOWN=0
 CAP_UP=0
 BASE_RTT=""
@@ -54,70 +73,308 @@ KNOWN=""
 [ -f "$CONFIG_FILE" ] && . "$CONFIG_FILE"
 
 log() {
-    echo "[ROUTER-MODE] $*"
+    echo "$LOG_PREFIX $*"
+}
+
+step() {
+    echo
+    echo "$LOG_PREFIX == $* =="
+}
+
+set_option() {
+    local current=""
+
+    current="$(uci -q get "$1")"
+    if [ "$current" = "$2" ]; then
+        echo "  = $1='$2'"
+        return 0
+    fi
+    uci set "$1=$2"
+    echo "  * $1: '${current:-<unset>}' -> '$2'"
+    CHANGED=1
+}
+
+delete_option() {
+    if ! uci -q get "$1" >/dev/null; then
+        echo "  = $1 unset"
+        return 0
+    fi
+    uci -q delete "$1"
+    echo "  * $1 removed"
+    CHANGED=1
+}
+
+add_list_once() {
+    if uci -q show "$1" | grep -q "'$2'"; then
+        echo "  = $1 has '$2'"
+        return 0
+    fi
+    uci add_list "$1=$2"
+    echo "  * $1 += '$2'"
+    CHANGED=1
+}
+
+del_list_once() {
+    if ! uci -q show "$1" | grep -q "'$2'"; then
+        echo "  = $1 lacks '$2'"
+        return 0
+    fi
+    uci del_list "$1=$2"
+    echo "  * $1 -= '$2'"
+    CHANGED=1
+}
+
+ensure_section() {
+    if uci -q get "$1" >/dev/null; then
+        echo "  = $1 exists"
+        return 0
+    fi
+    uci set "$1=$2"
+    echo "  * $1 created ($2)"
+    CHANGED=1
+}
+
+delete_section() {
+    if ! uci -q get "$1" >/dev/null; then
+        echo "  = $1 absent"
+        return 0
+    fi
+    uci delete "$1"
+    echo "  * $1 removed"
+    CHANGED=1
+}
+
+config_checksum() {
+    (cd /etc/config && cat $CONFIGS 2>/dev/null) | md5sum | cut -d ' ' -f 1
+}
+
+latest_backup() {
+    ls -1 "$BACKUP_DIR"/config-*.tar.gz 2>/dev/null | tail -n 1
 }
 
 backup() {
     local stamp=""
+    local checksum=""
+    local latest=""
+
+    checksum="$(config_checksum)"
+    latest="$(latest_backup)"
+    if [ -n "$latest" ] && [ "$(cat "${latest%.tar.gz}.md5" 2>/dev/null)" = "$checksum" ]; then
+        log "Backup: current config already saved in $latest"
+        return 0
+    fi
     stamp="$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP_DIR"
     (cd /etc/config && tar -czf "$BACKUP_DIR/config-$stamp.tar.gz" $CONFIGS 2>/dev/null)
+    echo "$checksum" > "$BACKUP_DIR/config-$stamp.md5"
     log "Backup: $BACKUP_DIR/config-$stamp.tar.gz"
+}
+
+# Extracts the newest backup unless the config already matches it.
+restore_backup() {
+    local latest=""
+
+    latest="$(latest_backup)"
+    [ -n "$latest" ] || { log "No backup in $BACKUP_DIR"; return 1; }
+    if [ "$(cat "${latest%.tar.gz}.md5" 2>/dev/null)" = "$(config_checksum)" ]; then
+        log "Config already matches $latest; nothing to restore"
+        return 1
+    fi
+    tar -xzf "$latest" -C /etc/config
+    log "Restored $latest"
 }
 
 # The br-lan device section (DSA, OpenWrt 21.02+), empty on swconfig builds.
 br_lan_section() {
-    uci show network 2>/dev/null | sed -n "s/^network\.\([^.]*\)\.name='br-lan'$/\1/p" | head -n 1
+    uci show network 2>/dev/null | sed -n "s/^network\.\([^.]*\)\.name='$BRIDGE_DEVICE'$/\1/p" | head -n 1
 }
 
 wan_device() {
     uci -q get network.wan.device || uci -q get network.wan.ifname
 }
 
-lan_device() {
-    local device=""
-    device="$(ifstatus lan 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
-    echo "${device:-br-lan}"
-}
-
-wan_l3_device() {
-    ifstatus wan 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null
-}
-
 firewall_zone() {
     uci show firewall 2>/dev/null | sed -n "s/^firewall\.\([^.]*\)\.name='$1'$/\1/p" | head -n 1
 }
 
+firewall_section_named() {
+    local section=""
+
+    for section in $(uci show firewall 2>/dev/null | sed -n "s/^firewall\.\([^.]*\)\.name='$2'$/\1/p"); do
+        [ "$(uci -q get "firewall.$section")" = "$1" ] && { echo "$section"; return 0; }
+    done
+}
+
 ensure_zone() {
-    local name="$1"
-    local input="$2"
-    local forward="$3"
-    local zone=""
     local network=""
 
-    zone="$(firewall_zone "$name")"
-    if [ -z "$zone" ]; then
-        zone="$(uci add firewall zone)"
-        uci set "firewall.$zone.name=$name"
+    ZONE_SECTION="$(firewall_zone "$1")"
+    if [ -z "$ZONE_SECTION" ]; then
+        ZONE_SECTION="$(uci add firewall zone)"
+        echo "  * firewall zone $1 created"
+        CHANGED=1
+        set_option "firewall.$ZONE_SECTION.name" "$1"
+        set_option "firewall.$ZONE_SECTION.input" "${2:-REJECT}"
+        set_option "firewall.$ZONE_SECTION.output" "ACCEPT"
+        set_option "firewall.$ZONE_SECTION.forward" "${3:-REJECT}"
     fi
-    uci set "firewall.$zone.input=$input"
-    uci set "firewall.$zone.output=ACCEPT"
-    uci set "firewall.$zone.forward=$forward"
+    # Empty policies keep an existing zone as it is.
+    [ -n "$2" ] && set_option "firewall.$ZONE_SECTION.input" "$2"
+    [ -n "$3" ] && set_option "firewall.$ZONE_SECTION.forward" "$3"
     for network in $4; do
-        uci show "firewall.$zone.network" 2>/dev/null | grep -q "'$network'" || uci add_list "firewall.$zone.network=$network"
+        add_list_once "firewall.$ZONE_SECTION.network" "$network"
     done
-    echo "$zone"
 }
 
 ensure_lan_forwarding() {
     local section=""
 
     for section in $(uci show firewall 2>/dev/null | sed -n "s/^firewall\.\([^.]*\)=forwarding$/\1/p"); do
-        [ "$(uci -q get "firewall.$section.src")" = "lan" ] && [ "$(uci -q get "firewall.$section.dest")" = "wan" ] && return 0
+        if [ "$(uci -q get "firewall.$section.src")" = "lan" ] && [ "$(uci -q get "firewall.$section.dest")" = "wan" ]; then
+            echo "  = firewall forwarding lan -> wan exists"
+            return 0
+        fi
     done
     section="$(uci add firewall forwarding)"
     uci set "firewall.$section.src=lan"
     uci set "firewall.$section.dest=wan"
+    echo "  * firewall forwarding lan -> wan created"
+    CHANGED=1
+}
+
+service_enable() {
+    [ -x "/etc/init.d/$1" ] || { echo "  = service $1 not installed"; return 0; }
+    if "/etc/init.d/$1" enabled; then
+        echo "  = service $1 enabled"
+    else
+        "/etc/init.d/$1" enable
+        echo "  * service $1 enabled"
+    fi
+}
+
+# Commits and restarts the network in the background (an SSH session on the old
+# address drops), only when a setting changed.
+apply_changes() {
+    local services="$1"
+    local service=""
+
+    echo
+    if [ "$CHANGED" = "0" ]; then
+        log "No setting changed; network not restarted"
+        for service in $services; do
+            [ -x "/etc/init.d/$service" ] && "/etc/init.d/$service" enabled && ! "/etc/init.d/$service" running >/dev/null 2>&1 && "/etc/init.d/$service" start && log "Started $service"
+        done
+        return 0
+    fi
+    uci commit
+    log "Settings committed; network restarts in ${NETWORK_RESTART_DELAY}s (SSH on the old address drops)"
+    (sleep "$NETWORK_RESTART_DELAY"; /etc/init.d/network restart; wifi reload; for service in $services; do [ -x "/etc/init.d/$service" ] && "/etc/init.d/$service" enabled && "/etc/init.d/$service" restart; done) >/dev/null 2>&1 &
+}
+
+decode_octal() {
+    printf "$(echo "$1" | sed 's/[0-7][0-7][0-7]/\\&/g')"
+}
+
+wifi_load_settings() {
+    WIFI_SSID="$WIFI_DEFAULT_SSID"
+    WIFI_KEY="$(decode_octal "$WIFI_DEFAULT_KEY_OCTAL")"
+    [ -f "$WIFI_SETTINGS_FILE" ] && . "$WIFI_SETTINGS_FILE"
+}
+
+wifi_save_settings() {
+    case "$1$2" in
+        *"'"*) log "Wi-Fi name and password must not contain a single quote"; return 1 ;;
+    esac
+    if [ "${#2}" -lt 8 ] || [ "${#2}" -gt 63 ]; then
+        log "Wi-Fi password needs 8-63 characters"
+        return 1
+    fi
+    mkdir -p "$SETTINGS_DIR"
+    printf "WIFI_SSID='%s'\nWIFI_KEY='%s'\n" "$1" "$2" > "$WIFI_SETTINGS_FILE"
+    WIFI_SSID="$1"
+    WIFI_KEY="$2"
+    log "Wi-Fi settings saved in $WIFI_SETTINGS_FILE"
+}
+
+wifi_radios() {
+    uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-device$/\1/p"
+}
+
+# Enables every radio with one SSID/password on the LAN; creates missing radio
+# sections and access-point interfaces.
+setup_wifi() {
+    local radios=""
+    local radio=""
+    local iface=""
+
+    step "Wi-Fi"
+    radios="$(wifi_radios)"
+    if [ -z "$radios" ] && command -v wifi >/dev/null 2>&1; then
+        echo "  No radio in /etc/config/wireless; detecting hardware"
+        wifi config >/dev/null 2>&1
+        radios="$(wifi_radios)"
+    fi
+    if [ -z "$radios" ]; then
+        echo "  = no Wi-Fi hardware or driver found; Wi-Fi skipped"
+        return 0
+    fi
+    [ -x /usr/sbin/hostapd ] || [ -x /usr/sbin/wpad ] || echo "  ! no hostapd/wpad: $WIFI_ENCRYPTION needs wpad-basic-mbedtls (or similar) installed"
+    for radio in $radios; do
+        echo "  Radio $radio: band $(uci -q get "wireless.$radio.band" || uci -q get "wireless.$radio.hwmode"), channel $(uci -q get "wireless.$radio.channel")"
+        set_option "wireless.$radio.disabled" "0"
+        [ -n "$WIFI_COUNTRY" ] && set_option "wireless.$radio.country" "$WIFI_COUNTRY"
+        iface="$(uci show wireless | sed -n "s/^wireless\.\([^.]*\)\.device='$radio'$/\1/p" | head -n 1)"
+        if [ -z "$iface" ]; then
+            iface="default_$radio"
+            ensure_section "wireless.$iface" wifi-iface
+            set_option "wireless.$iface.device" "$radio"
+        fi
+        set_option "wireless.$iface.mode" "ap"
+        set_option "wireless.$iface.network" "lan"
+        set_option "wireless.$iface.ssid" "$WIFI_SSID"
+        set_option "wireless.$iface.encryption" "$WIFI_ENCRYPTION"
+        set_option "wireless.$iface.key" "$WIFI_KEY"
+        set_option "wireless.$iface.isolate" "0"
+        set_option "wireless.$iface.disabled" "0"
+    done
+    echo "  Wi-Fi: SSID '$WIFI_SSID', password '$WIFI_KEY', $WIFI_ENCRYPTION, on: $(echo $radios)"
+}
+
+wifi_command() {
+    wifi_load_settings
+    if [ -n "$1" ] || [ -n "$2" ]; then
+        wifi_save_settings "${1:-$WIFI_SSID}" "${2:-$WIFI_KEY}" || return 1
+    fi
+    CHANGED=0
+    setup_wifi
+    if [ "$CHANGED" = "1" ]; then
+        uci commit wireless
+        wifi reload
+        log "Wi-Fi reloaded"
+    else
+        log "Wi-Fi unchanged"
+    fi
+}
+
+lan_device() {
+    local device=""
+    device="$(ifstatus lan 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
+    echo "${device:-$BRIDGE_DEVICE}"
+}
+
+# OpenWrt 21.02+ may store the LAN address in CIDR form (192.168.1.1/24).
+lan_address() {
+    local address=""
+    address="$(uci -q get network.lan.ipaddr)"
+    echo "${address%%/*}"
+}
+
+wan_l3_device() {
+    ifstatus wan 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null
+}
+
+wan_address() {
+    ifstatus wan 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null
 }
 
 package_installed() {
@@ -132,9 +389,18 @@ install_packages() {
     local missing=""
     local package=""
 
-    command -v tc >/dev/null 2>&1 || missing="$TC_PACKAGE"
+    step "Balancer packages"
+    if command -v tc >/dev/null 2>&1; then
+        echo "  = tc installed"
+    else
+        missing="$TC_PACKAGE"
+    fi
     for package in $REQUIRED_PACKAGES; do
-        package_installed "$package" || missing="$missing $package"
+        if package_installed "$package"; then
+            echo "  = $package installed"
+        else
+            missing="$missing $package"
+        fi
     done
     [ -n "$missing" ] || return 0
     log "Installing:$missing"
@@ -145,11 +411,31 @@ install_packages() {
     fi || log "Package install failed:$missing; the balancer needs them"
 }
 
+write_if_changed() {
+    local target="$1"
+    local source="$2"
+
+    if cmp -s "$source" "$target"; then
+        echo "  = $target up to date"
+        rm -f "$source"
+        return 0
+    fi
+    mv "$source" "$target" || { echo "  ! cannot write $target"; return 1; }
+    chmod +x "$target"
+    echo "  * $target written"
+}
+
 install_balancer() {
-    [ "$(readlink -f "$0")" = "$INSTALL_PATH" ] || cp "$0" "$INSTALL_PATH"
-    chmod +x "$INSTALL_PATH"
+    local staged="/tmp/router-mode.staged"
+
+    step "Balancer service"
+    cp "$0" "$staged"
+    write_if_changed "$INSTALL_PATH" "$staged"
     mkdir -p "$CONFIG_DIR"
-    [ -f "$CONFIG_FILE" ] || cat > "$CONFIG_FILE" <<EOF
+    if [ -f "$CONFIG_FILE" ]; then
+        echo "  = $CONFIG_FILE kept"
+    else
+        cat > "$CONFIG_FILE" <<EOF
 PING_TARGET="$PING_TARGET"
 DEFAULT_CAPACITY_KBIT=$DEFAULT_CAPACITY_KBIT
 ACTIVE_SHARE_PERCENT=$ACTIVE_SHARE_PERCENT
@@ -158,7 +444,9 @@ SLOW_IDLE_FLOOR_KBIT=$SLOW_IDLE_FLOOR_KBIT
 SLOW_CAPACITY_KBIT=$SLOW_CAPACITY_KBIT
 CONGESTION_DELTA_MS=$CONGESTION_DELTA_MS
 EOF
-    cat > "$SERVICE_PATH" <<EOF
+        echo "  * $CONFIG_FILE written"
+    fi
+    cat > "$staged" <<EOF
 #!/bin/sh /etc/rc.common
 START=99
 USE_PROCD=1
@@ -176,82 +464,106 @@ stop_service() {
     /bin/sh $INSTALL_PATH shaper-stop
 }
 EOF
-    chmod +x "$SERVICE_PATH"
-    "$SERVICE_PATH" enable
+    write_if_changed "$SERVICE_PATH" "$staged"
+    service_enable "$SERVICE_NAME"
 }
 
 apply() {
     local address="${1:-$LAN_ADDRESS}"
     local ip="${address%/*}"
     local wan=""
+    local wan_ip=""
     local section=""
-    local iface=""
-    local service=""
+    local current=""
+    local nat=""
 
+    CHANGED=0
+    log "Router mode: LAN $ip/24 with DHCP, WAN by DHCP with NAT, Wi-Fi on, balancer on"
     backup
     install_packages
     wan="$(wan_device)"
     section="$(br_lan_section)"
 
-    if [ -n "$wan" ]; then
-        if [ -n "$section" ]; then
-            uci -q del_list "network.$section.ports=$wan"
-        else
-            uci set network.lan.ifname="$(uci -q get network.lan.ifname | tr ' ' '\n' | grep -vx "$wan" | tr '\n' ' ' | sed 's/ *$//')"
-        fi
-        log "WAN port $wan left br-lan"
+    step "WAN port"
+    if [ -z "$wan" ]; then
+        echo "  ! no WAN device in network.wan; set the WAN port in LuCI"
+    elif [ -n "$section" ]; then
+        del_list_once "network.$section.ports" "$wan"
     else
-        log "No network.wan device; set the WAN port in LuCI"
+        current="$(uci -q get network.lan.ifname)"
+        case " $current " in
+            *" $wan "*) set_option network.lan.ifname "$(echo "$current" | tr ' ' '\n' | grep -vx "$wan" | tr '\n' ' ' | sed 's/ *$//')" ;;
+            *) echo "  = network.lan.ifname lacks $wan" ;;
+        esac
     fi
     if uci -q get network.wan >/dev/null; then
-        [ "$(uci -q get network.wan.proto)" = "none" ] && uci set network.wan.proto='dhcp'
-        uci -q delete network.wan.auto
+        case "$(uci -q get network.wan.proto)" in
+            ""|none) set_option network.wan.proto "dhcp" ;;
+            *) echo "  = network.wan.proto='$(uci -q get network.wan.proto)'" ;;
+        esac
+        delete_option network.wan.auto
     fi
     if uci -q get network.wan6 >/dev/null; then
-        [ "$(uci -q get network.wan6.proto)" = "none" ] && uci set network.wan6.proto='dhcpv6'
-        uci -q delete network.wan6.auto
+        case "$(uci -q get network.wan6.proto)" in
+            ""|none) set_option network.wan6.proto "dhcpv6" ;;
+            *) echo "  = network.wan6.proto='$(uci -q get network.wan6.proto)'" ;;
+        esac
+        delete_option network.wan6.auto
     fi
 
-    uci set network.lan.proto='static'
-    uci set network.lan.ipaddr="$ip"
-    uci set network.lan.netmask='255.255.255.0'
-    uci -q delete network.lan.gateway
-    uci -q delete network.lan.dns
-    uci set network.lan.ip6assign='60'
+    step "LAN"
+    set_option network.lan.proto "static"
+    set_option network.lan.ipaddr "$ip"
+    set_option network.lan.netmask "255.255.255.0"
+    delete_option network.lan.gateway
+    delete_option network.lan.dns
+    set_option network.lan.ip6assign "60"
+    delete_section "network.$UPLINK_INTERFACE"
+    wan_ip="$(wan_address)"
+    if [ -n "$wan_ip" ] && [ "${wan_ip%.*}" = "${ip%.*}" ]; then
+        echo "  ! WAN address $wan_ip is in ${ip%.*}.0/24 too: pick another LAN subnet"
+    fi
 
-    uci -q get dhcp.lan >/dev/null || uci set dhcp.lan=dhcp
-    uci set dhcp.lan.interface='lan'
-    uci -q delete dhcp.lan.ignore
-    uci set dhcp.lan.start='100'
-    uci set dhcp.lan.limit='150'
-    uci set dhcp.lan.leasetime='12h'
-    uci set dhcp.lan.dhcpv6='server'
-    uci set dhcp.lan.ra='server'
+    step "DHCP"
+    ensure_section dhcp.lan dhcp
+    set_option dhcp.lan.interface "lan"
+    delete_option dhcp.lan.ignore
+    set_option dhcp.lan.start "100"
+    set_option dhcp.lan.limit "150"
+    set_option dhcp.lan.leasetime "12h"
+    set_option dhcp.lan.dhcpv6 "server"
+    set_option dhcp.lan.ra "server"
 
-    ensure_zone lan ACCEPT ACCEPT lan >/dev/null
-    section="$(ensure_zone wan REJECT REJECT "wan wan6")"
-    uci set "firewall.$section.masq=1"
-    uci set "firewall.$section.mtu_fix=1"
+    step "Firewall"
+    ensure_zone lan ACCEPT ACCEPT lan
+    del_list_once "firewall.$ZONE_SECTION.network" "$UPLINK_INTERFACE"
+    nat="$(firewall_section_named nat "$MGMT_NAT_NAME")"
+    if [ -n "$nat" ]; then
+        delete_section "firewall.$nat"
+    else
+        echo "  = firewall nat $MGMT_NAT_NAME absent"
+    fi
+    ensure_zone wan "" "" "wan wan6"
+    set_option "firewall.$ZONE_SECTION.masq" "1"
+    set_option "firewall.$ZONE_SECTION.mtu_fix" "1"
     ensure_lan_forwarding
     # Offloaded flows bypass the qdiscs the balancer shapes with.
-    uci -q delete firewall.@defaults[0].flow_offloading
-    uci -q delete firewall.@defaults[0].flow_offloading_hw
+    delete_option "firewall.@defaults[0].flow_offloading"
+    delete_option "firewall.@defaults[0].flow_offloading_hw"
 
-    for iface in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-iface$/\1/p"); do
-        uci set "wireless.$iface.network=lan"
-        uci set "wireless.$iface.isolate=0"
-        uci set "wireless.$iface.mode=ap"
-    done
-    uci commit
+    wifi_load_settings
+    setup_wifi
 
-    for service in dnsmasq odhcpd firewall; do
-        [ -x "/etc/init.d/$service" ] && "/etc/init.d/$service" enable
+    step "Services"
+    for current in dnsmasq odhcpd firewall; do
+        service_enable "$current"
     done
     install_balancer
 
-    log "Router mode set: LAN $ip/24 with DHCP, WAN $(uci -q get network.wan.proto) with NAT, balancer $SERVICE_NAME enabled"
-    log "Network restarts in 3s; reconnect to http://$ip from the LAN"
-    (sleep 3; /etc/init.d/network restart; wifi reload; for service in firewall dnsmasq odhcpd $SERVICE_NAME; do [ -x "/etc/init.d/$service" ] && "/etc/init.d/$service" restart; done) >/dev/null 2>&1 &
+    apply_changes "firewall dnsmasq odhcpd $SERVICE_NAME"
+    echo
+    log "Management: http://$ip and ssh root@$ip from the LAN or Wi-Fi"
+    log "LAN hosts reach the upstream router (e.g. http://192.168.1.1) through NAT"
 }
 
 uptime_seconds() {
@@ -517,7 +829,7 @@ daemon() {
 
     while true; do
         lan="$(lan_device)"
-        lan_ip="$(uci -q get network.lan.ipaddr)"
+        lan_ip="$(lan_address)"
         prefix="${lan_ip%.*}"
         # A network restart recreates br-lan without the shaper.
         tc qdisc show dev "$lan" 2>/dev/null | grep -q "htb 1:" || shaper_setup "$lan" "$lan_ip"
@@ -602,39 +914,52 @@ daemon() {
 
 status() {
     local iface=""
+    local radio=""
 
-    echo "LAN: $(uci -q get network.lan.proto) $(uci -q get network.lan.ipaddr)/$(uci -q get network.lan.netmask)"
-    echo "br-lan ports: $(uci -q get "network.$(br_lan_section).ports" || uci -q get network.lan.ifname)"
-    echo "WAN: proto $(uci -q get network.wan.proto) device $(wan_device) ($(wan_l3_device))"
-    echo "DHCP on LAN: $([ "$(uci -q get dhcp.lan.ignore)" = "1" ] && echo off || echo "on, start $(uci -q get dhcp.lan.start) limit $(uci -q get dhcp.lan.limit)")"
-    for iface in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-iface$/\1/p"); do
-        echo "Wi-Fi $iface: ssid $(uci -q get "wireless.$iface.ssid") network $(uci -q get "wireless.$iface.network")"
+    step "Network"
+    echo "  LAN: $(uci -q get network.lan.proto) $(uci -q get network.lan.ipaddr)/$(uci -q get network.lan.netmask)"
+    echo "  Bridge ports: $(uci -q get "network.$(br_lan_section).ports" || uci -q get network.lan.ifname)"
+    echo "  WAN: proto $(uci -q get network.wan.proto) device $(wan_device) ($(wan_l3_device)) address $(wan_address)"
+    ip -4 addr show 2>/dev/null | sed -n 's/^ *inet \([^ ]*\).* \([^ ]*\)$/  Address: \1 on \2/p'
+    ip -4 route show default 2>/dev/null | sed 's/^/  Route: /'
+    echo "  DHCP on LAN: $([ "$(uci -q get dhcp.lan.ignore)" = "1" ] && echo off || echo "on, start $(uci -q get dhcp.lan.start) limit $(uci -q get dhcp.lan.limit)")"
+    [ -f /tmp/dhcp.leases ] && awk '{print "  Lease: " $3 " " $2 " " $4}' /tmp/dhcp.leases
+    step "Wi-Fi"
+    for radio in $(wifi_radios); do
+        echo "  Radio $radio: disabled=$(uci -q get "wireless.$radio.disabled" || echo 0) band=$(uci -q get "wireless.$radio.band" || uci -q get "wireless.$radio.hwmode") channel=$(uci -q get "wireless.$radio.channel")"
     done
-    [ -x "$SERVICE_PATH" ] && echo "balancer: $("$SERVICE_PATH" enabled && echo enabled || echo disabled)"
-    cat "$STATE_DIR/status" 2>/dev/null
-    ls -1 "$BACKUP_DIR" 2>/dev/null | sed 's/^/backup: /'
+    for iface in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-iface$/\1/p"); do
+        echo "  $iface: ssid '$(uci -q get "wireless.$iface.ssid")' key '$(uci -q get "wireless.$iface.key")' $(uci -q get "wireless.$iface.encryption") network $(uci -q get "wireless.$iface.network") disabled=$(uci -q get "wireless.$iface.disabled" || echo 0)"
+    done
+    command -v iwinfo >/dev/null 2>&1 && iwinfo 2>/dev/null | grep -E 'ESSID|Mode:' | sed 's/^/  /'
+    step "Services"
+    for iface in dnsmasq odhcpd firewall uhttpd dropbear "$SERVICE_NAME"; do
+        [ -x "/etc/init.d/$iface" ] && echo "  $iface: $("/etc/init.d/$iface" enabled && echo enabled || echo disabled), $("/etc/init.d/$iface" running >/dev/null 2>&1 && echo running || echo stopped)"
+    done
+    step "Balancer"
+    cat "$STATE_DIR/status" 2>/dev/null | sed 's/^/  /' || echo "  no state yet"
+    step "Backups"
+    ls -1 "$BACKUP_DIR" 2>/dev/null | grep 'tar.gz$' | sed 's/^/  /'
 }
 
 restore() {
-    local latest=""
-
-    latest="$(ls -1 "$BACKUP_DIR"/config-*.tar.gz 2>/dev/null | tail -n 1)"
-    [ -n "$latest" ] || { log "No backup in $BACKUP_DIR"; return 1; }
     if [ -x "$SERVICE_PATH" ]; then
         "$SERVICE_PATH" stop
         "$SERVICE_PATH" disable
+        log "Stopped and disabled $SERVICE_NAME"
     fi
     shaper_stop
-    tar -xzf "$latest" -C /etc/config
-    log "Restored $latest and disabled $SERVICE_NAME; network restarts in 3s"
-    (sleep 3; /etc/init.d/network restart; wifi reload; /etc/init.d/firewall restart; /etc/init.d/dnsmasq restart) >/dev/null 2>&1 &
+    restore_backup || return 0
+    CHANGED=1
+    apply_changes "firewall dnsmasq odhcpd"
 }
 
 case "$1" in
     apply) apply "$2" ;;
+    wifi) wifi_command "$2" "$3" ;;
     status) status ;;
     restore) restore ;;
     daemon) daemon ;;
     shaper-stop) shaper_stop ;;
-    *) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

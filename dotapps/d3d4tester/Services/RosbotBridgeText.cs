@@ -14,7 +14,10 @@ public static class RosbotBridgeText
     public static string LiveStatusKey(RosbotBridgeState? state, bool fresh)
     {
         if (!RosbotBridgePluginService.IsInstalled) return I18nKeys.RosbotBridgeNotInstalledHint;
-        if (!fresh) return RosbotBridgePluginService.IsRosbotRunning ? I18nKeys.RosbotBridgeNotLoaded : I18nKeys.RosbotBridgeRosbotStopped;
+        if (!fresh)
+            return !RosbotBridgePluginService.IsRosbotRunning ? I18nKeys.RosbotBridgeRosbotStopped
+                : state is { Enabled: false } ? I18nKeys.RosbotBridgeNotBotting
+                : I18nKeys.RosbotBridgeNotLoaded;
         if (state!.Starting) return I18nKeys.RosbotBridgeStarting;
         return state.InGame ? I18nKeys.RosbotBridgeLive : I18nKeys.RosbotBridgeNotInGame;
     }

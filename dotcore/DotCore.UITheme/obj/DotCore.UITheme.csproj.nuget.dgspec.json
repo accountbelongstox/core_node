@@ -10,7 +10,7 @@
         "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\DotCore.UITheme.csproj",
         "projectName": "DotCore.UITheme",
         "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\DotCore.UITheme.csproj",
-        "packagesPath": "C:\\Users\\accou\\.nuget\\packages",
+        "packagesPath": "C:\\Users\\accou\\.nuget\\packages\\",
         "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,

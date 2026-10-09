@@ -54,7 +54,6 @@ Usage:
 
 import json
 import os
-import signal
 import socket
 import time
 from typing import Optional, Callable, Dict, Any
@@ -62,6 +61,7 @@ from typing import Optional, Callable, Dict, Any
 # THREAD_BUS Integration
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.process_manager import process_manager
 
 # Protocol/data layer (sibling) + PRIMARY-side TCP server mixin (sibling)
 from pycore.pyfoundations.singleton.protocol import (
@@ -75,6 +75,8 @@ from pycore.pyfoundations.singleton.server import _SingletonServerMixin
 # Re-export protocol types for backward compatibility (callers that imported
 # them from this module before the split keep working).
 BIND_RACE_RECHECK_SECONDS = 1.0
+TAKEOVER_EXIT_GRACE_SECONDS = 15.0
+TAKEOVER_BIND_POLL_SECONDS = 0.5
 
 __all__ = [
     'SingletonDetector',
@@ -445,22 +447,22 @@ class SingletonDetector(_SingletonServerMixin):
                     self._log("[SHUTDOWN] Attempting to shutdown existing instance...")
                     result = self.send_shutdown_to_existing(port)
 
+                    old_pid = response.get('pid')
                     if result['accepted']:
-                        # Old instance accepted shutdown. Poll until it releases
-                        # the port instead of relying on a fixed sleep.
-                        self._log("[SHUTDOWN] Shutdown accepted, waiting for old instance to stop...")
-                        takeover_started = time.monotonic()
-                        while time.monotonic() - takeover_started < self.takeover_timeout:
-                            if self._try_bind_port(port):
-                                self._log("[SUCCESS] Became PRIMARY instance (after shutdown)")
-                                return DetectionResult(
-                                    is_primary=True,
-                                    port=port,
-                                    existing_instance=False,
-                                    existing_port=None,
-                                    message=f"Became PRIMARY instance on port {port} (shutdown existing)"
-                                )
-                            time.sleep(0.5)
+                        # The old instance's exit (not its singleton port) is the takeover
+                        # signal: it still holds the RPC port and other resources until
+                        # the process is gone, so wait for that and end it when it hangs.
+                        self._log(f"[SHUTDOWN] Shutdown accepted, waiting for old instance PID {old_pid} to exit...")
+                        self._retire_old_instance(old_pid, existing_started, TAKEOVER_EXIT_GRACE_SECONDS)
+                        if self._bind_within(port, self.takeover_timeout):
+                            self._log("[SUCCESS] Became PRIMARY instance (after shutdown)")
+                            return DetectionResult(
+                                is_primary=True,
+                                port=port,
+                                existing_instance=False,
+                                existing_port=None,
+                                message=f"Became PRIMARY instance on port {port} (shutdown existing)"
+                            )
 
                         # The previous instance did not release the port in time.
                         self._log("[ERROR] Failed to bind port after shutdown", "ERROR")
@@ -480,71 +482,16 @@ class SingletonDetector(_SingletonServerMixin):
                         if 'No response' in reason:
                             self._log("[FORCE] Old instance has no callback (old code), attempting forceful takeover...")
 
-                            # Get old instance PID from response (if available)
-                            old_pid = response.get('pid') if response else None
-
-                            if old_pid:
-                                try:
-
-                                    self._log(f"[FORCE] Sending SIGTERM to old instance PID {old_pid}...")
-                                    os.kill(old_pid, signal.SIGTERM)
-
-                                    # Wait for graceful shutdown with port checking
-                                    max_wait = 5.0  # Maximum 5 seconds for graceful shutdown
-                                    start_wait = time.time()
-
-                                    while time.time() - start_wait < max_wait:
-                                        time.sleep(0.3)
-
-                                        # Check if process still exists
-                                        try:
-                                            os.kill(old_pid, 0)  # Signal 0 just checks existence
-                                        except ProcessLookupError:
-                                            self._log(f"[FORCE] Process {old_pid} exited gracefully")
-                                            break
-
-                                    # Give additional time for port release
-                                    time.sleep(0.5)
-
-                                    # Try binding again after SIGTERM
-                                    if self._try_bind_port(port):
-                                        self._log("[SUCCESS] Forcefully took over after SIGTERM")
-                                        return DetectionResult(
-                                            is_primary=True,
-                                            port=port,
-                                            existing_instance=False,
-                                            existing_port=None,
-                                            message=f"Became PRIMARY on port {port} (forceful takeover from old instance)"
-                                        )
-                                    else:
-                                        # SIGTERM didn't work, try SIGKILL
-                                        self._log(f"[FORCE] SIGTERM failed, sending SIGKILL to PID {old_pid}...", "WARNING")
-                                        os.kill(old_pid, signal.SIGKILL)
-                                        time.sleep(1.0)
-
-                                        if self._try_bind_port(port):
-                                            self._log("[SUCCESS] Forcefully took over after SIGKILL")
-                                            return DetectionResult(
-                                                is_primary=True,
-                                                port=port,
-                                                existing_instance=False,
-                                                existing_port=None,
-                                                message=f"Became PRIMARY on port {port} (SIGKILL old instance)"
-                                            )
-
-                                except ProcessLookupError:
-                                    self._log(f"[FORCE] Old instance PID {old_pid} already exited", "WARNING")
-                                    # Try binding one more time
-                                    if self._try_bind_port(port):
-                                        return DetectionResult(
-                                            is_primary=True,
-                                            port=port,
-                                            existing_instance=False,
-                                            existing_port=None,
-                                            message=f"Became PRIMARY on port {port} (old instance already exited)"
-                                        )
-                                except OSError as e:
-                                    self._log(f"[FORCE] Failed to forcefully kill old instance PID {old_pid}: {e}", "ERROR")
+                            if (self._retire_old_instance(old_pid, existing_started, 0.0)
+                                    and self._bind_within(port, self.takeover_timeout)):
+                                self._log("[SUCCESS] Forcefully took over from old instance")
+                                return DetectionResult(
+                                    is_primary=True,
+                                    port=port,
+                                    existing_instance=False,
+                                    existing_port=None,
+                                    message=f"Became PRIMARY on port {port} (forceful takeover from old instance)"
+                                )
 
                         return DetectionResult(
                             is_primary=False,
@@ -593,6 +540,25 @@ class SingletonDetector(_SingletonServerMixin):
             existing_port=None,
             message="No available ports in range"
         )
+
+    def _retire_old_instance(self, old_pid: Any, old_started: Any, grace: float) -> bool:
+        """Wait for the superseded instance to exit; terminate it after ``grace`` seconds."""
+        if not old_pid:
+            return False
+        expected_start = float(old_started) if old_started is not None else None
+        if process_manager.retire_process(int(old_pid), grace, expected_start):
+            self._log(f"[SHUTDOWN] Old instance PID {old_pid} exited")
+            return True
+        self._log(f"[ERROR] Old instance PID {old_pid} is still running", "ERROR")
+        return False
+
+    def _bind_within(self, port: int, timeout: float) -> bool:
+        deadline = time.monotonic() + timeout
+        while not self._try_bind_port(port):
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(TAKEOVER_BIND_POLL_SECONDS)
+        return True
 
     def send_shutdown_to_existing(self, existing_port: int) -> dict:
         """

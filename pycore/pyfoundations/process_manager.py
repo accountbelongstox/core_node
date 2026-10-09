@@ -9,7 +9,7 @@ import os
 import signal
 import time
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
@@ -25,6 +25,7 @@ from pycore.pyfoundations.third_party.api import (
 PROCESS_EXIT_WAIT_SECONDS = 3.0
 KILL_COMMAND_TIMEOUT_SECONDS = 5
 PROCESS_POLL_SECONDS = 0.2
+PROCESS_START_TOLERANCE_SECONDS = 1.0
 
 
 class ProcessManager:
@@ -209,6 +210,55 @@ class ProcessManager:
             ordered = level + ordered
             frontier = level
         return ordered
+
+    def is_same_process(self, pid: int, expected_start: Optional[float] = None) -> bool:
+        """True while ``pid`` runs and, when ``expected_start`` is given, is still the
+        process created at that time (a reused PID is a different process)."""
+        psutil = get_third_package_psutil()
+        if psutil is None:
+            return self.is_process_running_by_pid(pid)
+        try:
+            proc = psutil.Process(pid)
+            if proc.status() == psutil.STATUS_ZOMBIE:
+                return False
+            return expected_start is None or abs(proc.create_time() - float(expected_start)) <= PROCESS_START_TOLERANCE_SECONDS
+        except psutil.NoSuchProcess:
+            return False
+        except psutil.Error as exc:
+            ColorPrint.yellow(f"[PROC] Inspect PID {pid} failed: {exc}")
+            return True
+
+    def wait_process_exit(self, pid: int, timeout: float, expected_start: Optional[float] = None) -> bool:
+        """True once ``pid`` (the process created at ``expected_start``) has exited within ``timeout``."""
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        while self.is_same_process(pid, expected_start):
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(PROCESS_POLL_SECONDS)
+        return True
+
+    @staticmethod
+    def _is_own_ancestor(pid: int) -> bool:
+        psutil = get_third_package_psutil()
+        if psutil is None:
+            return True
+        try:
+            return any(parent.pid == pid for parent in psutil.Process().parents())
+        except psutil.Error as exc:
+            ColorPrint.yellow(f"[PROC] Listing own parents failed: {exc}")
+            return True
+
+    def retire_process(self, pid: int, grace: float, expected_start: Optional[float] = None) -> bool:
+        """Give ``pid`` ``grace`` seconds to exit by itself, then terminate it (its child
+        tree too unless this process descends from it). Never targets this process.
+        Returns True when that process is gone."""
+        if pid == os.getpid():
+            return False
+        if self.wait_process_exit(pid, grace, expected_start):
+            return True
+        ColorPrint.yellow(f"[KILL] PID {pid} still running {grace:.0f}s after the exit request; terminating it")
+        self.kill_process_tree(pid, force=True, include_children=not self._is_own_ancestor(pid))
+        return self.wait_process_exit(pid, PROCESS_EXIT_WAIT_SECONDS, expected_start)
 
     def kill_process_by_pid(self, pid: int, force: bool = True) -> bool:
         """Terminate one process by PID (graceful, then forced when ``force``)."""

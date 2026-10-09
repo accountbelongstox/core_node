@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DotCore.ScreenCapture")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+83799fe840d7d233b4076b1a5128f295a91f4ed4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f7707e3bf599385be77b74828a3edd0eedd0913a")]
 [assembly: System.Reflection.AssemblyProductAttribute("DotCore.ScreenCapture")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DotCore.ScreenCapture")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -358,7 +358,9 @@
       "PowerShell(Stop-Process *)",
       "Bash(sh openwrt_menu.sh scan)",
       "Bash(sh -n router_mode.sh)",
-      "Bash(sh -n openwrt_menu.sh)"
+      "Bash(sh -n openwrt_menu.sh)",
+      "Bash(sp=\"/e/_win10_dev/work/claude/D--programing-core-node/24e6e5b5-d60d-45d2-ad1d-2e2851764465/scratchpad\" && sed -i 's/lan_ip=\"$\\(uci -q get network.lan.ipaddr\\)\"/lan_ip=\"$\\(lan_address\\)\"/' \"$sp/router_new.sh\" && grep -n 'lan_ip=\"$\\(lan_address\\)\"' \"$sp/router_new.sh\" && sh -n \"$sp/router_new.sh\" && cp \"$sp/router_new.sh\" router_mode.sh && sh -n ap_mode.sh && sh -n router_mode.sh && echo syntax-ok && wc -l ap_mode.sh router_mode.sh)",
+      "Bash(sh -c 'decode_octal\\(\\) { printf \"$\\(echo \"$1\" | sed \"s/[0-7][0-7][0-7]/\\\\\\\\\\\\\\\\&/g\"\\)\"; }; decode_octal 170151141157155151061062063; echo')"
     ],
     "deny": [],
     "ask": []

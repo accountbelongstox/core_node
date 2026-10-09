@@ -925,6 +925,7 @@
       "not_installed_hint": "插件未安装：点“安装 / 更新插件”，或检查 ROSBOT 目录",
       "rosbot_stopped": "插件已安装，ROSBOT 未运行：启动 ROSBOT 后显示数据",
       "not_loaded": "ROSBOT 正在运行，但插件没有写数据：在 ROSBOT 插件列表勾选 CoreNode Bridge；若刚安装/更新，请重启 ROSBOT",
+      "not_botting": "插件已加载，ROSBOT 未在挂机（插件只在挂机时写数据）；若已在挂机，请在 ROSBOT 插件列表勾选 CoreNode Bridge",
       "tab_ground": "周边掉落",
       "tab_npc": "附近 NPC",
       "tab_follow": "跟随队伍",
