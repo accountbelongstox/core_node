@@ -368,7 +368,9 @@
       "WebFetch(domain:us.support.blizzard.com)",
       "Bash(pl=\"/e/_win10_dev/work/claude/D--programing-core-node/24e6e5b5-d60d-45d2-ad1d-2e2851764465/scratchpad/dryrun.pl\" && cp ap_mode.sh /tmp/ap_mode.bak && cp router_mode.sh /tmp/router_mode.bak && perl \"$pl\" ap_mode.sh && perl \"$pl\" router_mode.sh && sh -n ap_mode.sh && sh -n router_mode.sh && echo syntax-ok && git diff --stat -- . 2>/dev/null | tail -3)",
       "Bash(sh -n ap_mode.sh)",
-      "PowerShell($cfg = Join-Path $env:APPDATA 'Battle.net\\\\Battle.net.config'; $j = Get-Content -Path $cfg -Raw | ConvertFrom-Json; $j.PSObject.Properties.Name; 'Client.LoginSettings / Services:'; $j.Client | ConvertTo-Json -Depth 3 | Select-String -Pattern 'Region|Login|Address|Allowed' ; \\($j.PSObject.Properties | Where-Object { $_.Name -notin 'Client','Games','Services' } | ForEach-Object { $_.Name + ' => ' + \\($_.Value | ConvertTo-Json -Depth 4 -Compress\\) }\\) | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(600, $_.Length\\)\\) })"
+      "PowerShell($cfg = Join-Path $env:APPDATA 'Battle.net\\\\Battle.net.config'; $j = Get-Content -Path $cfg -Raw | ConvertFrom-Json; $j.PSObject.Properties.Name; 'Client.LoginSettings / Services:'; $j.Client | ConvertTo-Json -Depth 3 | Select-String -Pattern 'Region|Login|Address|Allowed' ; \\($j.PSObject.Properties | Where-Object { $_.Name -notin 'Client','Games','Services' } | ForEach-Object { $_.Name + ' => ' + \\($_.Value | ConvertTo-Json -Depth 4 -Compress\\) }\\) | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(600, $_.Length\\)\\) })",
+      "PowerShell(w32tm *)",
+      "Bash(E:/_win10_dev/python313/python.exe -I \"E:/_win10_dev/work/claude/D--programing-core-node/d0745796-4350-42f9-b1ad-a7775edc2621/scratchpad/winlist.py\" 23172)"
     ],
     "deny": [],
     "ask": []
