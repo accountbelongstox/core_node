@@ -379,7 +379,8 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/status\")",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009142209-329c6e99f1da\")",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009143225-643a696a7a30\")",
-      "PowerShell($f = Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \".claude\\\\settings.local.json\"; try { Get-Content -Raw $f | ConvertFrom-Json | Out-Null; \"json-ok\" } catch { \"json-error: $\\($_.Exception.Message\\)\" })"
+      "PowerShell($f = Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \".claude\\\\settings.local.json\"; try { Get-Content -Raw $f | ConvertFrom-Json | Out-Null; \"json-ok\" } catch { \"json-error: $\\($_.Exception.Message\\)\" })",
+      "PowerShell($g = \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path; git -C $g add -- \".claude/settings.local.json\"; git -C $g diff --name-only --diff-filter=U; \"unmerged-left: $\\(\\(git -C $g diff --name-only --diff-filter=U | Measure-Object\\).Count\\)\")"
     ],
     "deny": [],
     "ask": []
