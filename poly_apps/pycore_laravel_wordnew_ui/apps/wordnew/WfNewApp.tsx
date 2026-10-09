@@ -31,6 +31,7 @@ import { WfNewShelfTab } from './components/WfNewShelfTab';
 import { WfNewPracticeTab } from './components/WfNewPracticeTab';
 import { WfNewOrbs } from './components/WfNewOrbs';
 import { WfNewHeader } from './components/WfNewHeader';
+import { WordNewDownloadPage } from './components/download/WordNewDownloadPage';
 import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDailyReadingSection';
 
 import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
@@ -396,6 +397,7 @@ export const WfNewApp: React.FC = () => {
               onOpenCache={() => setActiveTab('cache')}
               onOpenLabs={() => setActiveTab('labs')}
               onOpenAbout={() => setActiveTab('about')}
+              onOpenDownload={() => setActiveTab('download')}
               onOpenAdmin={() => setActiveTab('admin')}
               onOpenProfile={() => setActiveTab('profile')}
               isSuperAdmin={!!superAdmin?.enabled}
@@ -413,7 +415,20 @@ export const WfNewApp: React.FC = () => {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
-              <WfNewAbout activeTheme={activeTheme} trans={trans} />
+              <WfNewAbout activeTheme={activeTheme} trans={trans} onOpenDownload={() => setActiveTab('download')} />
+            </motion.div>
+          )}
+
+          {/* ====== DOWNLOAD TAB ====== */}
+          {activeTab === 'download' && (
+            <motion.div
+              key="download"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <WordNewDownloadPage activeTheme={activeTheme} trans={trans} />
             </motion.div>
           )}
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Check, RefreshCw, Languages, GraduationCap, Compass, Sliders, Sun, Moon, Play,
-  Database, Trash2, Sparkles, ShieldCheck,
+  Database, Trash2, Sparkles, ShieldCheck, Download,
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import type { UserStats } from '../api/WfNewApiTypes';
@@ -53,6 +53,8 @@ interface WfNewSettingsProps {
   onOpenLabs: () => void;
   /** Navigate to the dedicated About page. */
   onOpenAbout: () => void;
+  /** Open the app download page (packages published by the builds). */
+  onOpenDownload: () => void;
   /** Open the super-admin console (loopback local-management mode). */
   onOpenAdmin: () => void;
   /** Open the full profile page from the settings profile card. */
@@ -81,7 +83,7 @@ const BLOCK_TITLE_CLASS = 'font-mono text-sm font-extrabold uppercase tracking-w
 export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   activeTheme, saveThemeChoice, lang, setLang, dark, toggleDark, userStats, setUserStats,
   setSpeechRate, onClearCache, onOpenLearningModel, onOpenPlaybackSettings,
-  onOpenCache, onOpenLabs, onOpenAbout, onOpenAdmin, onOpenProfile, isSuperAdmin, isLoggedIn,
+  onOpenCache, onOpenLabs, onOpenAbout, onOpenDownload, onOpenAdmin, onOpenProfile, isSuperAdmin, isLoggedIn,
   nickname, avatarUrl, trans,
 }) => {
   const [resetting, setResetting] = useState(false);
@@ -335,7 +337,15 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
       <div className={`rounded-3xl ${activeTheme.cardClass} shadow-sm overflow-hidden`}>
         <NavRow
           variant="row"
+          label={trans('download.title')}
+          hint={trans('download.entryHint')}
+          onClick={onOpenDownload}
+          icon={<Download className="h-5 w-5 shrink-0 text-indigo-500" />}
+        />
+        <NavRow
+          variant="row"
           label={trans('about.title')}
+          className="border-t border-zinc-100 dark:border-white/5"
           onClick={onOpenAbout}
           icon={<WfNewLogo size={32} className="shrink-0" />}
           badge={<span className="text-[11px] font-mono font-bold text-zinc-400">{trans('about.version')}</span>}
