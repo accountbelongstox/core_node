@@ -184,7 +184,7 @@ menu_header() {
     echo "  6) Restore from router mode backup"
     echo "  7) Update scripts"
     echo "  8) Diagnose network, web UI, Wi-Fi and Internet"
-    echo "  9) Set Wi-Fi name and password (all radios)"
+    echo "  9) Set Wi-Fi names (5G / 2.4G) and password"
     echo "  0) Exit"
 }
 
