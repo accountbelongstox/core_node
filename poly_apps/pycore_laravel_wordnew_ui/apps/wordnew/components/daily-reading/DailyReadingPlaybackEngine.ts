@@ -1,4 +1,5 @@
 import type { DailyReadingRow } from './dailyReadingApi';
+import { wordClip, type WordNewClipRef } from '../../runtime-store/WfNewAudioCache';
 import {
   sentenceWordKey,
   uniqueSentenceWordRows,
@@ -36,6 +37,8 @@ export interface DailyReadingSequenceItem {
   stepItemIndex: number;
   executionKey: string;
   url?: string;
+  /** The orchestration clip this item plays (device store first, then the schedule's transfers); speech is its last tier. */
+  clip?: WordNewClipRef;
   speechText?: string;
   speakLang?: string;
   wordRow?: WordNewSentenceWordRow;
@@ -163,8 +166,8 @@ export function buildDailyReadingSequenceItems(
             stepItemIndex,
             `word:${sentenceWordKey(word.word)}:${repeatIndex}`,
             word.audio_url
-              ? { url: word.audio_url, wordRow: word, wordIndex }
-              : { speechText: word.word, speakLang: 'en-US', wordRow: word, wordIndex },
+              ? { url: word.audio_url, clip: wordClip(word.word), wordRow: word, wordIndex }
+              : { speechText: word.word, speakLang: 'en-US', clip: wordClip(word.word), wordRow: word, wordIndex },
           );
           stepItemIndex += 1;
         }

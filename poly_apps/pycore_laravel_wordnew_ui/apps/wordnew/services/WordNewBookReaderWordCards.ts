@@ -1,4 +1,5 @@
-import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
+import { ensureClipAudio, playableClip, wordClip } from '../runtime-store/WfNewAudioCache';
+import { CLIP_RESOLVE_WAIT_MS } from '../constants/uiTiming';
 import { getSentenceWordTable } from './WordNewSentenceWordTable';
 import { wordNewProgressCenter } from './WordNewProgressCenter';
 import { speakBookText } from './WordNewBookReaderSpeech';
@@ -13,8 +14,9 @@ export async function playWordClip(
   word: string,
   shouldContinue: () => boolean = () => true,
 ): Promise<void> {
-  const url = audioUrl ? resolveAudioSync(audioUrl) ?? audioUrl : null;
-  if (!url || !/^https?:\/\//.test(url)) {
+  const ref = wordClip(word);
+  const url = playableClip(ref, audioUrl) ?? await ensureClipAudio(ref, null, { timeoutMs: CLIP_RESOLVE_WAIT_MS });
+  if (!url) {
     wordNewQueueCenter.notifyMissingWord(word, 'en');
     if (!shouldContinue()) return;
     await speakBookText(word, 'en', 0.9).catch(() => undefined);

@@ -384,7 +384,8 @@
       "PowerShell($g = \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path; git -C $g add -- \".claude/settings.local.json\"; git -C $g diff --name-only --diff-filter=U; \"unmerged-left: $\\(\\(git -C $g diff --name-only --diff-filter=U | Measure-Object\\).Count\\)\")",
       "PowerShell(& \\(Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \"dd.cmd\"\\) gitsync -m \"OpenWrt: router mode with bandwidth balancer, menu with LAN scan/SSH/diagnose, per-band Wi-Fi, idempotent check/repair; mcp-chrome wake only on start or rebuild\")",
       "PowerShell(git show origin/main:config/service_contract.json | Select-String 'conflict_ai_prompt\"'; git cat-file -e origin/main:docs_fix/GITSYNC_MERGE_CONFLICT.md; \"doc-exists-on-origin=$?\"; git show origin/main:docs_fix/README.md | Select-Object -First 1; git show origin/main:.claude/settings.local.json | Select-String -SimpleMatch -Pattern 'w32tm','Step175_LaravelMainStart','app-downloads/status?job_id=20261009143225' | ForEach-Object { $_.LineNumber })",
-      "PowerShell(Out-Null *)"
+      "PowerShell(Out-Null *)",
+      "Bash(time bun node_modules/typescript/bin/tsc --noEmit)"
     ],
     "deny": [],
     "ask": []

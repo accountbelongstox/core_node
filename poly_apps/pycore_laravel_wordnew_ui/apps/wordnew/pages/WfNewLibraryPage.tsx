@@ -41,7 +41,8 @@ import { buildWordCell } from '../utils/WordNewLibraryWordCell';
 import { WordNewLibraryWordRow, wordRowKey } from '../components/library/WordNewLibraryWordRow';
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
 import { useLibraryPriorityBoost } from '../hooks/usePriorityBoost';
-import { LIBRARY_MEDIA_RETRY_COUNT, LIBRARY_MEDIA_RETRY_MS } from '../constants/uiTiming';
+import { CLIP_RESOLVE_WAIT_MS, LIBRARY_MEDIA_RETRY_COUNT, LIBRARY_MEDIA_RETRY_MS } from '../constants/uiTiming';
+import { ensureClipAudio, heldClipAudio, wordClip } from '../runtime-store/WfNewAudioCache';
 import { WfNewPager } from '../components/WfNewPager';
 import { useActiveScrollFollow } from '../components/reader/useActiveScrollFollow';
 import { clamp } from '../../../core/utils/mathUtils';
@@ -211,8 +212,9 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     queueWordAudio(w, langRef.current, true);
   }, [queueWordAudio]);
 
-  /** Resolve an absolute MP3 url for a word (playback). Pick from ready
-   *  variants first; else poll the word-audio queue gateway. Stable callback
+  /** Resolve a playable url for a word (playback), clip-first: the device store, the schedule's transfers and the
+   *  payload's default file share the orchestration clip (WfNewAudioCache.ensureClipAudio); an accent variant file
+   *  keeps its own path key. Only a clip nothing holds waits on the word-audio queue gateway. Stable callback
    *  (reads media/variant via refs) so the playback engine is not rebuilt. */
   const resolveAudioUrl = useCallback(async (
     w: WfNewLibraryWord,
@@ -223,9 +225,12 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     const preferredAccent = mapUiAccent(wfNewSettings.get('voiceAccent'));
     const resolved = mediaByMd5Ref.current[w.md5 || `${w.index}-${w.word}`];
     const picked = pickWordAudioUrl(w.audioUrl ?? null, resolved, preferredAccent);
-    if (picked.url) return picked.url;
     const text = w.word?.trim();
+    const ref = wordClip(text ?? '', lang);
+    if (picked.url) return picked.variant ? picked.url : (await ensureClipAudio(ref, picked.url)) ?? picked.url;
     if (!text) return null;
+    const local = await ensureClipAudio(ref, null, { timeoutMs: CLIP_RESOLVE_WAIT_MS });
+    if (local) return local;
     const media = await wordNewQueueCenter.waitForWordAudio(text, lang, {
       shouldContinue,
       accent: preferredAccent,
@@ -233,7 +238,8 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     if (!media) return null;
     setMediaByMd5((prev) => ({ ...prev, [w.md5 || `${w.index}-${w.word}`]: media }));
     setCellStatus(key, 'ready');
-    return pickWordAudioUrl(null, media, preferredAccent).url;
+    const waited = pickWordAudioUrl(null, media, preferredAccent);
+    return waited.url && !waited.variant ? (await ensureClipAudio(ref, waited.url)) ?? waited.url : waited.url;
   }, [setCellStatus]);
 
   // Build the playback engine once; deps read latest via refs.
