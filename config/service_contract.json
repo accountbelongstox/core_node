@@ -208,6 +208,16 @@
         "ui_early_hints_link": "</web_access_config.json>; rel=preload; as=fetch; crossorigin",
         "pycore_keep_alive_seconds": 120
     },
+    "app_downloads": {
+        "dir_name": "downloads",
+        "url_prefix": "/downloads/",
+        "manifest_file": "manifest.json",
+        "latest_file": "{app}-latest.{ext}",
+        "versioned_file": "{app}-{version}-{build_type}.{ext}",
+        "keep_versions": 3,
+        "manifest": {"app": "flavor id", "name": "display name", "files": [{"platform": "android|windows|linux", "build_type": "debug|release", "version": "string", "file": "versioned file name", "latest": "latest file name", "size": "int bytes", "sha256": "hex", "built_at": "ISO-8601"}], "updated_at": "ISO-8601"},
+        "rule": "Downloads live in <core_node data dir>/<dir_name>/<app>/ (never in the repo). A build publishes idempotently: same sha256 as the manifest entry = no-op; otherwise copy to a temp name, rename over the versioned and latest files, then rewrite manifest.json the same way; keep the newest keep_versions per (platform, build_type). FrankenPHP (Windows and Linux Caddyfiles) serves the directory read-only at url_prefix with a file_server (no PHP, no directory listing), manifest.json with Cache-Control no-cache, .apk with Content-Type application/vnd.android.package-archive and Content-Disposition attachment."
+    },
     "paths": {
         "core_node_data_dir_name": "core_node",
         "pycore_dev_mcp": "/mcp",
