@@ -192,7 +192,7 @@ class ServerManagerV1FrankenPhpRuntime
         $script = '$service = Get-CimInstance Win32_Service | Where-Object { $_.Name -eq '
             .$quotedServiceName
             .' } | Select-Object -First 1; '
-            .'if ($null -eq $service) { ''{}'' } else { $service | Select-Object State, ProcessId | ConvertTo-Json -Compress }';
+            .'if ($null -eq $service) { \'{}\' } else { $service | Select-Object State, ProcessId | ConvertTo-Json -Compress }';
         $result = ServerManagerV1Utils::executeCommand(
             'powershell.exe',
             ['-NoProfile', '-NonInteractive', '-Command', $script],

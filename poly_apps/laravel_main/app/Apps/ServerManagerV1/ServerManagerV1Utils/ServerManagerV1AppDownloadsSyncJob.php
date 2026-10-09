@@ -29,7 +29,7 @@ class ServerManagerV1AppDownloadsSyncJob
     private const HTTP_PARTIAL = 206;
     private const RANGE_IGNORED = 'range_ignored';
 
-    public static function start(string $app, array $sourceBaseUrls, ?array $platforms): array
+    public static function start(string $app, array $sourceBaseUrls, ?array $platforms, bool $reloadCaddy = false): array
     {
         $lock = null;
         $active = null;
@@ -57,6 +57,7 @@ class ServerManagerV1AppDownloadsSyncJob
                 'app' => $app,
                 'source_base_urls' => $sourceBaseUrls,
                 'platforms' => ServerManagerV1AppDownloadsStore::platforms($platforms),
+                'reload_caddy' => $reloadCaddy,
                 'status' => 'pending',
                 'phase' => 'pending',
                 'created_at' => date(DATE_ATOM),
@@ -75,6 +76,21 @@ class ServerManagerV1AppDownloadsSyncJob
         $state = $jobId === null || $jobId === '' ? self::latestState() : self::readState($jobId);
 
         return $state === null ? null : self::publicState($state);
+    }
+
+    /** The newest jobs, newest first. */
+    public static function recent(int $limit): array
+    {
+        $jobs = [];
+
+        foreach (array_slice(self::jobIds(), 0, $limit) as $jobId) {
+            $state = self::readState($jobId);
+            if ($state !== null) {
+                $jobs[] = self::publicState($state);
+            }
+        }
+
+        return $jobs;
     }
 
     public static function execute(string $jobId): array
@@ -118,7 +134,7 @@ class ServerManagerV1AppDownloadsSyncJob
             $state['bytes_to_fetch'] = $plan['bytes'];
             $state['files_to_fetch'] = array_keys($plan['fetch']);
             if (ServerManagerV1AppDownloadsStore::isUnchanged($plan)) {
-                $state['caddyfile'] = self::ensureServing();
+                $state['caddyfile'] = self::ensureServing((bool) ($state['reload_caddy'] ?? false));
 
                 return self::complete($state, ['result' => 'unchanged', 'versions' => self::versions($manifest)]);
             }
@@ -148,7 +164,7 @@ class ServerManagerV1AppDownloadsSyncJob
             unset($state['downloading']);
             $state['fetched'] = $published['fetched'];
             $state['pruned'] = $published['pruned'];
-            $state['caddyfile'] = self::ensureServing();
+            $state['caddyfile'] = self::ensureServing((bool) ($state['reload_caddy'] ?? false));
         } catch (\Throwable $exception) {
             Log::error('App downloads sync job failed', ['job_id' => $jobId, 'message' => $exception->getMessage()]);
             $state['error_detail'] = $exception->getMessage();
@@ -272,9 +288,9 @@ class ServerManagerV1AppDownloadsSyncJob
 
     /**
      * The downloads mount and public aliases live in the canonical Caddyfile;
-     * re-render it and queue a FrankenPHP reload only when it was stale.
+     * re-render it and queue a FrankenPHP reload when it was stale or a reload was requested.
      */
-    private static function ensureServing(): array
+    private static function ensureServing(bool $forceReload): array
     {
         $ensure = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
         $report = [
@@ -286,7 +302,7 @@ class ServerManagerV1AppDownloadsSyncJob
         if (isset($ensure['error'])) {
             $report['error'] = (string) $ensure['error'];
         }
-        if ($report['rendered'] === true) {
+        if ($report['rendered'] === true || ($forceReload && $report['canonical'] === true)) {
             $reload = ServerManagerV1FrankenPhpReloadJob::queue(true);
             $report['reload_queued'] = ($reload['success'] ?? false) === true;
             $report['reload'] = $reload;
@@ -388,6 +404,9 @@ class ServerManagerV1AppDownloadsSyncJob
     private static function publicState(array $state): array
     {
         $state['phases'] = self::PHASES;
+        if (isset($state['caddyfile']['reload']['reload_job_id'])) {
+            $state['caddyfile']['reload_state'] = ServerManagerV1FrankenPhpReloadJob::status((string) $state['caddyfile']['reload']['reload_job_id']);
+        }
 
         return $state;
     }

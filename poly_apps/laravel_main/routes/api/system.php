@@ -31,6 +31,7 @@ Route::prefix('system/code-sync')->middleware('client.key')->group(function () {
 Route::prefix('system/app-downloads')->middleware('client.key')->group(function () {
     Route::post('/sync', [AppDownloadsController::class, 'sync']);
     Route::get('/status', [AppDownloadsController::class, 'status']);
+    Route::get('/sync/status', [AppDownloadsController::class, 'status']);
     Route::post('/upload', [AppDownloadsController::class, 'upload']);
     Route::post('/upload/commit', [AppDownloadsController::class, 'commit']);
 });

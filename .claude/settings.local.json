@@ -375,7 +375,11 @@
       "Bash(time node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json)",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/servermanager/v1/frankenphp/caddyfile)",
       "Bash(./dd.cmd gitsync *)",
-      "PowerShell(& \\(Join-Path \\(Resolve-Path 'D:\\\\programing\\\\core_node'\\).Path 'dd.cmd'\\) gitsync -m \"resolve merge conflict; simplify conflict AI prompt\")"
+      "PowerShell(& \\(Join-Path \\(Resolve-Path 'D:\\\\programing\\\\core_node'\\).Path 'dd.cmd'\\) gitsync -m \"resolve merge conflict; simplify conflict AI prompt\")",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/status\")",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009142209-329c6e99f1da\")",
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009143225-643a696a7a30\")",
+      "PowerShell($f = Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \".claude\\\\settings.local.json\"; try { Get-Content -Raw $f | ConvertFrom-Json | Out-Null; \"json-ok\" } catch { \"json-error: $\\($_.Exception.Message\\)\" })"
     ],
     "deny": [],
     "ask": []
