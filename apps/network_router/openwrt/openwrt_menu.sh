@@ -26,9 +26,9 @@ MENU_SCRIPT_NAME="openwrt_menu.sh"
 AP_SCRIPT_NAME="ap_mode.sh"
 ROUTER_SCRIPT_NAME="router_mode.sh"
 MANAGED_SCRIPTS="$AP_SCRIPT_NAME $ROUTER_SCRIPT_NAME"
-DEFAULT_AP_ADDRESS="192.168.50.2/24"
-DEFAULT_AP_GATEWAY="192.168.50.1"
-DEFAULT_LAN_ADDRESS="192.168.60.1/24"
+DEFAULT_AP_ADDRESS="192.168.50.1/24"
+DEFAULT_LAN_ADDRESS="192.168.50.1/24"
+WIFI_SETTINGS_FILE="/etc/openwrt-router/wifi.conf"
 SSH_USER="root"
 # Routers reuse addresses like 192.168.1.1 and change keys on reflash, so they
 # get their own known_hosts instead of failing against the user's.
@@ -128,6 +128,7 @@ run_script() {
         log "$name is missing; check the network and choose Update scripts"
         return 1
     fi
+    log "Running: sh $SCRIPT_DIR/$name $*"
     sh "$SCRIPT_DIR/$name" "$@"
 }
 
@@ -154,25 +155,59 @@ pause() {
     read -r MENU_INPUT || MENU_INPUT=""
 }
 
-menu_header() {
-    local mode="unknown"
-
-    if [ "$(uci -q get dhcp.lan.ignore)" = "1" ] && [ "$(uci -q get network.wan.proto)" = "none" ]; then
-        mode="AP"
-    elif [ "$(uci -q get network.wan.proto)" != "none" ] && [ -n "$(uci -q get network.wan.proto)" ]; then
-        mode="router"
+current_mode() {
+    if [ "$(uci -q get dhcp.lan.ignore)" = "1" ]; then
+        echo "AP"
+    else
+        echo "router"
     fi
+}
+
+wifi_summary() {
+    local iface=""
+
+    for iface in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-iface$/\1/p"); do
+        printf "%s(%s%s) " "$(uci -q get "wireless.$iface.ssid")" "$(uci -q get "wireless.$iface.device")" "$([ "$(uci -q get "wireless.$(uci -q get "wireless.$iface.device").disabled")" = "1" ] && echo ' off')"
+    done
+}
+
+menu_header() {
     echo "========== OpenWrt mode menu =========="
-    echo "Mode: $mode | LAN: $(uci -q get network.lan.ipaddr) | Scripts: $SCRIPT_DIR"
-    echo "  1) Switch to AP mode"
+    echo "Mode: $(current_mode) | LAN: $(uci -q get network.lan.ipaddr) | WAN: $(uci -q get network.wan.proto) | Scripts: $SCRIPT_DIR"
+    echo "Wi-Fi: $(wifi_summary)"
+    echo "  1) Switch to AP mode (management 192.168.50.1, upstream router serves DHCP)"
     echo "  2) AP mode status"
     echo "  3) Restore from AP mode backup"
-    echo "  4) Switch to router mode (DHCP + bandwidth balancer)"
+    echo "  4) Switch to router mode (LAN 192.168.50.1, DHCP, bandwidth balancer)"
     echo "  5) Router mode and balancer status"
     echo "  6) Restore from router mode backup"
     echo "  7) Update scripts"
     echo "  8) Diagnose network, web UI, Wi-Fi and Internet"
+    echo "  9) Set Wi-Fi name and password (all radios)"
     echo "  0) Exit"
+}
+
+# Both mode scripts carry the same Wi-Fi command; the active mode's runs it.
+mode_script() {
+    if [ "$(current_mode)" = "AP" ]; then
+        echo "$AP_SCRIPT_NAME"
+    else
+        echo "$ROUTER_SCRIPT_NAME"
+    fi
+}
+
+wifi_menu() {
+    local ssid=""
+    local key=""
+    local current_ssid=""
+    local current_key=""
+
+    [ -f "$WIFI_SETTINGS_FILE" ] && current_ssid="$(sed -n "s/^WIFI_SSID='\(.*\)'$/\1/p" "$WIFI_SETTINGS_FILE")" && current_key="$(sed -n "s/^WIFI_KEY='\(.*\)'$/\1/p" "$WIFI_SETTINGS_FILE")"
+    ask "Wi-Fi name (empty keeps the current or default)" "$current_ssid"
+    ssid="$MENU_INPUT"
+    ask "Wi-Fi password, 8-63 characters (empty keeps the current or default)" "$current_key"
+    key="$MENU_INPUT"
+    run_script "$(mode_script)" wifi "$ssid" "$key"
 }
 
 router_menu() {
@@ -183,13 +218,15 @@ router_menu() {
         menu_header
         printf 'Choose: '
         read -r MENU_INPUT || return 0
+        MENU_INPUT="$(printf '%s' "$MENU_INPUT" | tr -cd '0-9qQ')"
         case "$MENU_INPUT" in
+            "") continue ;;
             1)
-                ask "AP address/prefix" "$DEFAULT_AP_ADDRESS"
+                ask "AP management address/prefix" "$DEFAULT_AP_ADDRESS"
                 address="$MENU_INPUT"
-                ask "Upstream gateway" "$DEFAULT_AP_GATEWAY"
-                gateway="$MENU_INPUT"
-                confirm "Switch to AP mode at $address via $gateway?" && run_script "$AP_SCRIPT_NAME" apply "$address" "$gateway"
+                printf 'Static gateway (empty = DHCP from the upstream router + NAT, the default): '
+                read -r gateway || gateway=""
+                confirm "Switch to AP mode at $address${gateway:+ via $gateway}?" && run_script "$AP_SCRIPT_NAME" apply "$address" "$gateway"
                 ;;
             2) run_script "$AP_SCRIPT_NAME" status ;;
             3) confirm "Restore the newest AP mode backup?" && run_script "$AP_SCRIPT_NAME" restore ;;
@@ -202,6 +239,7 @@ router_menu() {
             6) confirm "Restore the newest router mode backup?" && run_script "$ROUTER_SCRIPT_NAME" restore ;;
             7) update_scripts $MANAGED_SCRIPTS ;;
             8) router_diagnose ;;
+            9) wifi_menu ;;
             0|q|Q) return 0 ;;
             *) log "Unknown choice: $MENU_INPUT" ;;
         esac
@@ -358,7 +396,7 @@ connect_host() {
     mkdir -p "$HOST_SCRIPT_DIR"
     log "Uploading $MENU_SCRIPT_NAME $MANAGED_SCRIPTS"
     if (cd "$SCRIPT_DIR" && tar -cf - "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS) | ssh $SSH_OPTIONS "$target" "mkdir -p $ROUTER_SCRIPT_DIR && tar -xf - -C $ROUTER_SCRIPT_DIR"; then
-        ssh -t $SSH_OPTIONS "$target" "sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME"
+        ssh -t $SSH_OPTIONS "$target" "sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME" || log "SSH session ended (a network restart after a mode switch drops it; reconnect on the new address)"
     else
         log "Upload failed; opening a plain SSH shell (run the commands shown above)"
         ssh $SSH_OPTIONS "$target"
@@ -443,6 +481,7 @@ router_diagnose() {
     local iface=""
 
     lan_ip="$(uci -q get network.lan.ipaddr)"
+    lan_ip="${lan_ip%%/*}"
     wan_ip="$(ifstatus wan 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)"
     echo "========== OpenWrt diagnosis =========="
     report INFO "$(sed -n "s/^DISTRIB_DESCRIPTION='\(.*\)'$/\1/p" /etc/openwrt_release)"
@@ -487,14 +526,24 @@ if is_openwrt; then
         router) shift; run_script "$ROUTER_SCRIPT_NAME" "$@" ;;
         update) update_scripts $MANAGED_SCRIPTS ;;
         diagnose) router_diagnose ;;
-        "") router_menu ;;
+        "")
+            log "Checking Wi-Fi (idempotent: only differences change)"
+            run_script "$(mode_script)" wifi
+            router_menu
+            ;;
         *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
     esac
 else
     ensure_scripts "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS || log "Some scripts are missing; the upload needs them"
     case "$1" in
         scan) scan_lan "$2" ;;
-        connect) [ -n "$2" ] && connect_host "$2" || log "Usage: sh $MENU_SCRIPT_NAME connect <ip>" ;;
+        connect)
+            if [ -n "$2" ]; then
+                connect_host "$2"
+            else
+                log "Usage: sh $MENU_SCRIPT_NAME connect <ip>"
+            fi
+            ;;
         update) update_scripts "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS ;;
         diagnose) host_diagnose "$2" ;;
         "") host_main ;;

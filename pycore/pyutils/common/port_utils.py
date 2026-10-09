@@ -7,6 +7,7 @@ Helps ensure clean takeover during singleton instance replacement.
 """
 
 import errno
+import os
 import re
 import socket
 import subprocess
@@ -198,6 +199,50 @@ def port_process_info(port: int) -> Optional[Dict[str, Any]]:
     except (psutil.Error, OSError) as e:
         ColorPrint.yellow(f"[PortUtils] inspect PID {pids[0]} on port {port} failed: {e}")
     return info
+
+
+def _program_identity(cmdline: List[str]) -> str:
+    """The script or ``-m`` module an interpreter command line runs ('' when none)."""
+    args = cmdline[1:]
+    for index, arg in enumerate(args):
+        if arg == "-m":
+            return args[index + 1] if index + 1 < len(args) else ""
+        if not arg.startswith("-"):
+            return os.path.basename(arg).lower()
+    return ""
+
+
+def retire_older_port_owners(port: int, grace: float) -> bool:
+    """End every OLDER process of this same program listening on ``port`` (it gets
+    ``grace`` seconds to exit by itself); other programs are left alone.
+    Returns True when an older instance was found and is now gone."""
+    psutil = get_third_package_psutil()
+    if psutil is None:
+        return False
+    try:
+        own = psutil.Process()
+        own_identity = _program_identity(own.cmdline())
+        own_started = own.create_time()
+    except psutil.Error as e:
+        ColorPrint.yellow(f"[PortUtils] inspect own process failed: {e}")
+        return False
+    retired = False
+    for pid in find_port_pids(port):
+        if pid == own.pid:
+            continue
+        try:
+            owner = psutil.Process(pid)
+            cmdline = owner.cmdline()
+            started = owner.create_time()
+        except psutil.Error as e:
+            ColorPrint.yellow(f"[PortUtils] inspect PID {pid} on port {port} failed: {e}")
+            continue
+        if not own_identity or _program_identity(cmdline) != own_identity or started >= own_started:
+            ColorPrint.yellow(f"[PortUtils] Port {port} held by PID {pid} ({' '.join(cmdline)}), not an older instance")
+            continue
+        ColorPrint.yellow(f"[PortUtils] Port {port} held by older instance PID {pid}; retiring it")
+        retired = process_manager.retire_process(pid, grace, started) or retired
+    return retired
 
 
 def kill_process_using_port(port: int, host: str = '0.0.0.0', force: bool = False) -> bool:

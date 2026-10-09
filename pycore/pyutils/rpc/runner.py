@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any, Callable, Optional
 
 from pycore.pyfoundations.network_constants import (
@@ -17,10 +18,16 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
+from pycore.pyutils.common.port_utils import retire_older_port_owners
 from pycore.pyutils.rpc.server import HttpServer
 
 
 uvicorn = get_third_package_uvicorn()
+
+HTTP_START_ATTEMPTS = 2
+HTTP_START_WAIT_SECONDS = 15.0
+HTTP_START_POLL_SECONDS = 0.1
+STALE_PORT_OWNER_GRACE_SECONDS = 5.0
 
 
 def http_event_loop() -> asyncio.AbstractEventLoop:
@@ -52,11 +59,6 @@ class HttpServerRunner:
         self._thread: Optional[Any] = None
         self._uvicorn_server: Optional[Any] = None
         self._cancel_filter = _CancelledErrorFilter()
-        self._start_signal = f"http.server.started.{id(self)}"
-
-        @self.server.app.on_event("startup")
-        async def mark_started() -> None:
-            THREAD_BUS.signal(self._start_signal, True)
 
     def start(self) -> None:
         if not self.listen:
@@ -66,7 +68,26 @@ class HttpServerRunner:
             ColorPrint.yellow("[HttpServerRunner] Server already running")
             return
         logging.getLogger("uvicorn.error").addFilter(self._cancel_filter)
-        THREAD_BUS.clear_signal(self._start_signal)
+        for attempt in range(1, HTTP_START_ATTEMPTS + 1):
+            retire_older_port_owners(self.server.port, STALE_PORT_OWNER_GRACE_SECONDS)
+            if self._serve():
+                return
+            ColorPrint.yellow(
+                f"[HttpServerRunner] Listening on port {self.server.port} failed "
+                f"(attempt {attempt}/{HTTP_START_ATTEMPTS})"
+            )
+        ColorPrint.red(
+            f"[HttpServerRunner] Port {self.server.port} unavailable; "
+            "shutting down instead of running without the RPC listener"
+        )
+        THREAD_BUS.request_shutdown(
+            reason=f"RPC port {self.server.port} unavailable",
+            execute_handlers=True,
+        )
+
+    def _serve(self) -> bool:
+        """Start uvicorn; True once it listens (or is still starting at the deadline).
+        uvicorn runs lifespan startup before binding, so only ``started`` proves the bind."""
         config = uvicorn.Config(
             app=self.server.app,
             host=self.server.host,
@@ -86,7 +107,14 @@ class HttpServerRunner:
             self._uvicorn_server.run,
             thread_name="HttpServerThread",
         )
-        THREAD_BUS.wait_signal(self._start_signal, timeout=5)
+        deadline = time.monotonic() + HTTP_START_WAIT_SECONDS
+        while time.monotonic() < deadline:
+            if self._uvicorn_server.started:
+                return True
+            if not self._thread.is_alive():
+                return False
+            time.sleep(HTTP_START_POLL_SECONDS)
+        return self._thread.is_alive()
 
     def stop(self) -> None:
         if self._uvicorn_server is None:

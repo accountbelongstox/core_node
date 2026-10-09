@@ -925,6 +925,7 @@
       "not_installed_hint": "Plugin not installed: click Install / update plugin, or check the ROSBOT folder",
       "rosbot_stopped": "Plugin installed, ROSBOT not running: data appears once ROSBOT runs",
       "not_loaded": "ROSBOT is running but the plugin writes no data: enable CoreNode Bridge in ROSBOT's plugin list; restart ROSBOT after installing or updating",
+      "not_botting": "Plugin loaded, ROSBOT is not botting (the plugin writes data only while ROSBOT bots); if it is botting, enable CoreNode Bridge in ROSBOT's plugin list",
       "tab_ground": "Drops nearby",
       "tab_npc": "NPCs nearby",
       "tab_follow": "Follow party",
