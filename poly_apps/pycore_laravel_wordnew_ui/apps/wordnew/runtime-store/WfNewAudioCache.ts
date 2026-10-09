@@ -8,12 +8,19 @@ import {
   type CapResourceExternalStore,
 } from '@/apps/wordnew/platform/capabilities';
 import { isNativeAppShell } from '../../../core/network/NativeShell';
-import { orchClipIdentity, orchClipIdentityOfUrl, type OrchClipIdentity } from '../../../shared/orchestration/orchClipIdentity';
+import {
+  orchClipIdentityOfUrl,
+  orchClipRefIdentity,
+  orchClipRefUsable,
+  type OrchClipIdentity,
+  type OrchClipRef,
+} from '../../../shared/orchestration/orchClipIdentity';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
 import { READER_AUDIO_DIR, wordNewOrchClipStore } from '../services/orchestration/WordNewOrchClipStore';
-import type { WordNewClipFetchOptions, WordNewClipRef } from '../services/orchestration/WordNewClipResolver';
+import type { WordNewClipFetchOptions } from '../services/orchestration/WordNewClipResolver';
 
-export type { WordNewClipFetchOptions, WordNewClipRef };
+export type { WordNewClipFetchOptions };
+export type WordNewClipRef = OrchClipRef;
 
 export const MAX_AUDIO_CACHE_BYTES = 20 * 1024 ** 3;
 
@@ -94,10 +101,6 @@ export const wordClip = (text: string, language = 'en'): WordNewClipRef => ({ ki
 
 export const sentenceClip = (text: string, language = 'en'): WordNewClipRef => ({ kind: 'sentence', language, text });
 
-const clipUsable = (ref: WordNewClipRef | null | undefined): ref is WordNewClipRef =>
-  !!ref && ref.text.trim() !== '' && ref.language.trim() !== '';
-
-const identityOfRef = (ref: WordNewClipRef): OrchClipIdentity => orchClipIdentity(ref.kind, ref.language, ref.text.trim());
 
 /**
  * A caller that knows what a URL is (kind, language, text) says so: from then on this cache keeps that file as the
@@ -105,19 +108,19 @@ const identityOfRef = (ref: WordNewClipRef): OrchClipIdentity => orchClipIdentit
  * the default file of a clip is noted: accent / voice variants are other audio than the clip and stay on their path keys.
  */
 export function noteAudioClip(ref: WordNewClipRef, url: string | null | undefined): void {
-  if (!url || !/^https?:\/\//i.test(url) || !clipUsable(ref)) return;
+  if (!url || !/^https?:\/\//i.test(url) || !orchClipRefUsable(ref)) return;
   if (notedIdentities.size >= CLIP_IDENTITY_LIMIT) {
     const oldest = notedIdentities.keys().next().value;
     if (oldest !== undefined) notedIdentities.delete(oldest);
   }
-  notedIdentities.set(pathAssetKey(url), identityOfRef(ref));
+  notedIdentities.set(pathAssetKey(url), orchClipRefIdentity(ref));
 }
 
 /** The URL is the default file of this clip (a Laravel sentence / phrase file proves it); a voice / accent variant file is other audio. */
 export function clipOwnsUrl(ref: WordNewClipRef, url: string | null | undefined): boolean {
-  if (!url || !clipUsable(ref)) return false;
+  if (!url || !orchClipRefUsable(ref)) return false;
   const proven = orchClipIdentityOfUrl(url);
-  return !!proven && proven.resourceId === identityOfRef(ref).resourceId;
+  return !!proven && proven.resourceId === orchClipRefIdentity(ref).resourceId;
 }
 
 /** The clip identity of an audio URL: the one a caller noted, else the one a Laravel sentence / phrase file URL proves. */
@@ -196,9 +199,9 @@ export async function ensureClipAudio(
   options: WordNewClipFetchOptions = {},
 ): Promise<string | null> {
   const remote = url && /^https?:\/\//i.test(url) ? url : null;
-  if (!clipUsable(ref)) return remote ? audioAssets.ensure(remote) : null;
+  if (!orchClipRefUsable(ref)) return remote ? audioAssets.ensure(remote) : null;
   noteAudioClip(ref, remote);
-  const id = identityOfRef(ref).resourceId;
+  const id = orchClipRefIdentity(ref).resourceId;
   const memo = clipPlayableUrls.get(id);
   if (memo) return memo;
   const work = remote
@@ -217,9 +220,9 @@ export async function ensureClipAudio(
  */
 export function playableClip(ref: WordNewClipRef, url?: string | null): string | undefined {
   const remote = url && /^https?:\/\//i.test(url) ? url : null;
-  if (!clipUsable(ref)) return remote ? resolveAudioSync(remote) : undefined;
+  if (!orchClipRefUsable(ref)) return remote ? resolveAudioSync(remote) : undefined;
   noteAudioClip(ref, remote);
-  const memo = clipPlayableUrls.get(identityOfRef(ref).resourceId);
+  const memo = clipPlayableUrls.get(orchClipRefIdentity(ref).resourceId);
   if (memo) return memo;
   if (remote) return resolveAudioSync(remote);
   void ensureClipAudio(ref).catch(() => null);
@@ -240,15 +243,15 @@ export async function heldClipAudio(refs: readonly WordNewClipRef[]): Promise<Ma
   const found = new Map<number, string>();
   const unknown: Array<{ index: number; ref: WordNewClipRef }> = [];
   refs.forEach((ref, index) => {
-    const memo = clipUsable(ref) ? clipPlayableUrls.get(identityOfRef(ref).resourceId) : undefined;
+    const memo = orchClipRefUsable(ref) ? clipPlayableUrls.get(orchClipRefIdentity(ref).resourceId) : undefined;
     if (memo) found.set(index, memo);
-    else if (clipUsable(ref)) unknown.push({ index, ref });
+    else if (orchClipRefUsable(ref)) unknown.push({ index, ref });
   });
   if (unknown.length === 0) return found;
   const held = await (await loadClipResolver()).heldMany(unknown.map(({ ref }) => ref));
   held.forEach((url, position) => {
     const { index, ref } = unknown[position];
-    clipPlayableUrls.set(identityOfRef(ref).resourceId, url);
+    clipPlayableUrls.set(orchClipRefIdentity(ref).resourceId, url);
     found.set(index, url);
   });
   return found;
