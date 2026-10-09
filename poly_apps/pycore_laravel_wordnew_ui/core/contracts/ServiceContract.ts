@@ -33,6 +33,14 @@ export const APP_DOWNLOADS = {
   urlPrefix: contractDocument.app_downloads.url_prefix,
   manifestFile: contractDocument.app_downloads.manifest_file,
 } as const;
+/** In-app update checks of the Android app (app_downloads.auto_update): schedule, source order and public origins. */
+export const APP_AUTO_UPDATE = {
+  checkOnStart: contractDocument.app_downloads.auto_update.check_on_start,
+  checkOnResumeMinMinutes: contractDocument.app_downloads.auto_update.check_on_resume_min_minutes,
+  checkIntervalMinutes: contractDocument.app_downloads.auto_update.check_interval_minutes,
+  sourceOrder: contractDocument.app_downloads.auto_update.source_order as readonly string[],
+  publicBaseUrls: contractDocument.app_downloads.auto_update.public_base_urls as readonly string[],
+} as const;
 export const WEB_ACCESS_CONFIG_FILE_NAME: string = contractDocument.files.web_access_config;
 /** Live tailnet machine list the UI server answers same-origin (tailscale status). */
 export const TAILNET_PEERS_FILE_NAME: string = contractDocument.files.tailnet_peers;

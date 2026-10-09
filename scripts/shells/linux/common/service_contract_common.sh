@@ -49,6 +49,17 @@ sc_list() {
     fi
 }
 
+# Print the string members of one contract object as "key value" lines.
+# Usage: sc_pairs <dot.path> (e.g. sc_pairs app_downloads.public_alias).
+sc_pairs() {
+    local key="$1"
+    if [ -n "$SERVICE_CONTRACT_NODE_BIN" ]; then
+        "$SERVICE_CONTRACT_NODE_BIN" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);if(v&&typeof v==="object"&&!Array.isArray(v)){Object.entries(v).filter(([k,x])=>typeof x==="string"&&x!=="").forEach(([k,x])=>process.stdout.write(k+" "+x+"\n"));}' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
+    elif command -v php >/dev/null 2>&1; then
+        SC_ARG_FILE="$SERVICE_CONTRACT_FILE" SC_ARG_KEY="$key" php_script_run '$c=json_decode(file_get_contents(getenv("SC_ARG_FILE")),true);foreach(explode(".",getenv("SC_ARG_KEY")) as $p){$c=is_array($c)&&array_key_exists($p,$c)?$c[$p]:null;}if(is_array($c)){foreach($c as $k=>$v){if(is_string($v)&&$v!==""){echo $k." ".$v."\n";}}}' 2>/dev/null
+    fi
+}
+
 # Print one REQUIRED value from the service contract. When the resolved value
 # is empty (broken file path, missing key, unavailable extractors) a [FAIL] is
 # emitted on stderr. Consumers inspect the resulting value before rendering.

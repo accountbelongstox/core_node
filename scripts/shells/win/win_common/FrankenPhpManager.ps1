@@ -75,6 +75,9 @@ $script:FrankenPhpTailscaleDomainSecretName = 'TAILSCALE_DOMAIN_1'
 $script:FrankenPhpAppDownloadsDirName = [string](Get-ServiceContractValue -ContractPath 'app_downloads.dir_name')
 $script:FrankenPhpAppDownloadsUrlPrefix = [string](Get-ServiceContractValue -ContractPath 'app_downloads.url_prefix')
 $script:FrankenPhpAppDownloadsManifestFile = [string](Get-ServiceContractValue -ContractPath 'app_downloads.manifest_file')
+$script:FrankenPhpAppDownloadsLatestFileTemplate = [string](Get-ServiceContractValue -ContractPath 'app_downloads.latest_file')
+$script:FrankenPhpAppDownloadsPublicAlias = Get-ServiceContractValue -ContractPath 'app_downloads.public_alias'
+$script:FrankenPhpAppDownloadsAliasExtension = 'apk'
 # Tailscale exe detection: reuses TailscaleCommon.ps1's Find-TailscaleExecutable
 # and its $script:TailscaleDefaultExePath constant (no local copy here).
 
@@ -733,8 +736,19 @@ function Get-FrankenPhpAppDownloadsHandlers {
     $urlPrefix = $script:FrankenPhpAppDownloadsUrlPrefix.TrimEnd('/')
     $manifestFile = $script:FrankenPhpAppDownloadsManifestFile
 
+    $aliasRewriteLines = @()
+    $aliasRewrites = ''
+    $aliasProperty = $null
+    $latestFile = ''
+
+    foreach ($aliasProperty in @($script:FrankenPhpAppDownloadsPublicAlias.PSObject.Properties)) {
+        $latestFile = $script:FrankenPhpAppDownloadsLatestFileTemplate.Replace('{app}', [string]$aliasProperty.Name).Replace('{ext}', $script:FrankenPhpAppDownloadsAliasExtension)
+        $aliasRewriteLines += ("`trewrite {0} {1}/{2}/{3}`n" -f [string]$aliasProperty.Value, $urlPrefix, [string]$aliasProperty.Name, $latestFile)
+    }
+    $aliasRewrites = ($aliasRewriteLines -join '')
+
     return @"
-	handle_path $urlPrefix/* {
+$aliasRewrites	handle_path $urlPrefix/* {
 		root * $downloadsPath
 		@downloads_manifest path */$manifestFile
 		@downloads_apk path *.apk

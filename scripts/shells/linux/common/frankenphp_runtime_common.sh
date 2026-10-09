@@ -784,9 +784,10 @@ EOF
 
 # Read-only app download mount (contract app_downloads): the data-dir downloads
 # tree is served at url_prefix by a plain file_server (no PHP, no browse) ahead
-# of every PHP/Laravel handler. SYNC CONTRACT:
-# ServerManagerV1FrankenPhpCaddyfileBuilder renders the identical block.
-# FM_APP_DOWNLOADS_STANZA = "" | the handle_path block.
+# of every PHP/Laravel handler, followed by one rewrite block per public_alias
+# (alias path -> <app>/<latest_file with public_alias_ext>). SYNC CONTRACT:
+# ServerManagerV1FrankenPhpCaddyfileBuilder renders the identical blocks.
+# FM_APP_DOWNLOADS_STANZA = "" | the handle_path block + alias handle blocks.
 fm_app_downloads_dir() {
     printf '%s/%s' "${CORE_NODE_DATA_DIR%/}" "$(sc_require app_downloads.dir_name)"
 }
@@ -803,10 +804,18 @@ fm_app_downloads_stanza() {
     local url_prefix=""
     local manifest_file=""
     local downloads_dir=""
+    local latest_template=""
+    local alias_ext=""
+    local alias_app=""
+    local alias_path=""
+    local alias_target=""
+    local alias_block=""
 
     FM_APP_DOWNLOADS_STANZA=""
     url_prefix="$(sc_require app_downloads.url_prefix)"
     manifest_file="$(sc_require app_downloads.manifest_file)"
+    latest_template="$(sc_require app_downloads.latest_file)"
+    alias_ext="$(sc_require app_downloads.public_alias_ext)"
     if [ -z "${CORE_NODE_DATA_DIR:-}" ] || [ -z "$url_prefix" ] || [ -z "$manifest_file" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] app_downloads contract or data dir is incomplete"
         return
@@ -814,6 +823,14 @@ fm_app_downloads_stanza() {
     downloads_dir="$(fm_app_downloads_dir)"
     printf -v FM_APP_DOWNLOADS_STANZA '\thandle_path %s/* {\n\t\troot * %s\n\t\t@app_download_manifest path */%s\n\t\t@app_download_apk path *.apk\n\t\theader @app_download_manifest Cache-Control "no-cache"\n\t\theader @app_download_manifest Access-Control-Allow-Origin "*"\n\t\theader @app_download_apk Content-Type "application/vnd.android.package-archive"\n\t\theader @app_download_apk Content-Disposition "attachment"\n\t\tfile_server\n\t}\n' \
         "${url_prefix%/}" "$downloads_dir" "$manifest_file"
+    while read -r alias_app alias_path; do
+        [ -n "$alias_app" ] && [ -n "$alias_path" ] || continue
+        alias_target="${latest_template//\{app\}/$alias_app}"
+        alias_target="${alias_target//\{ext\}/$alias_ext}"
+        printf -v alias_block '\thandle %s {\n\t\troot * %s\n\t\trewrite * /%s/%s\n\t\theader Content-Type "application/vnd.android.package-archive"\n\t\theader Content-Disposition "attachment"\n\t\tfile_server\n\t}\n' \
+            "$alias_path" "$downloads_dir" "$alias_app" "$alias_target"
+        FM_APP_DOWNLOADS_STANZA="${FM_APP_DOWNLOADS_STANZA}${alias_block}"
+    done < <(sc_pairs app_downloads.public_alias)
 }
 
 # Canonical Caddyfile render. The contract-owned internal TLS site is kept
