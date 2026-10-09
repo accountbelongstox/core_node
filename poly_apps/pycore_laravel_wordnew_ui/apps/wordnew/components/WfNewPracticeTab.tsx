@@ -77,7 +77,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
   const [immersive, setImmersive] = useState(true);
   const immersiveArmedRef = useRef(true);
 
-  const pager = useWfNewPracticePager(gid, practiceActive);
+  const pager = useWfNewPracticePager(gid, practiceActive, { language: selectedPracticeGroup?.language });
   const recite = useWfNewReciteController({
     gid,
     words: pager.words,

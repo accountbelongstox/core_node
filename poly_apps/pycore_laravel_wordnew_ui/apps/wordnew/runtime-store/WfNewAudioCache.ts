@@ -113,6 +113,13 @@ export function noteAudioClip(ref: WordNewClipRef, url: string | null | undefine
   notedIdentities.set(pathAssetKey(url), identityOfRef(ref));
 }
 
+/** The URL is the default file of this clip (a Laravel sentence / phrase file proves it); a voice / accent variant file is other audio. */
+export function clipOwnsUrl(ref: WordNewClipRef, url: string | null | undefined): boolean {
+  if (!url || !clipUsable(ref)) return false;
+  const proven = orchClipIdentityOfUrl(url);
+  return !!proven && proven.resourceId === identityOfRef(ref).resourceId;
+}
+
 /** The clip identity of an audio URL: the one a caller noted, else the one a Laravel sentence / phrase file URL proves. */
 function identityOfAudioUrl(url: string): OrchClipIdentity | null {
   const proven = orchClipIdentityOfUrl(url);
@@ -219,6 +226,15 @@ export function playableClip(ref: WordNewClipRef, url?: string | null): string |
   return undefined;
 }
 
+/**
+ * `playableClip`, and for a clip no file was named for, the clip by identity (device store, then the schedule's
+ * transfers) within `waitMs`: what an interactive play (a speaker button) hands to an audio element, or null when
+ * the caller should fall to its next tier (browser speech) and ask the queue to generate the clip.
+ */
+export async function awaitPlayableClip(ref: WordNewClipRef, url: string | null | undefined, waitMs: number): Promise<string | null> {
+  return playableClip(ref, url) ?? await ensureClipAudio(ref, null, { timeoutMs: waitMs });
+}
+
 /** The playable URLs of the clips the device already holds, by index into `refs` (no network). */
 export async function heldClipAudio(refs: readonly WordNewClipRef[]): Promise<Map<number, string>> {
   const found = new Map<number, string>();
@@ -287,6 +303,16 @@ export function collectAudioUrls(words: Array<{
     }
   }
   return [...urls];
+}
+
+/** Warm the cache for the words of a page: each word's default file as its clip, its voice files by URL. */
+export function preloadWordAudio(words: Array<{
+  text: string;
+  audioUrl?: string | null;
+  audioFiles?: Array<{ url?: string }>;
+}>, language = 'en'): void {
+  preloadClipAudio(words.map((word) => ({ ref: wordClip(word.text, language), url: word.audioUrl })));
+  preloadAudio(collectAudioUrls(words.map(({ audioFiles }) => ({ audioFiles }))));
 }
 
 export function preloadAudio(urls: string[]): void {

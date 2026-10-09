@@ -195,9 +195,15 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     if (!force && requestedWordKeys.current.has(key)) return;
     requestedWordKeys.current.add(key);
     setCellStatus(key, 'queued');
-    void wordNewQueueCenter.waitForWordAudio(text, lang, {
-      accent: mapUiAccent(wfNewSettings.get('voiceAccent')),
-    }).then((media) => {
+    // A clip the device already holds is ready as it is: it is not asked of the queue (R14).
+    void heldClipAudio([wordClip(text, lang)]).catch(() => new Map<number, string>()).then(async (held) => {
+      if (held.size > 0) {
+        setCellStatus(key, 'ready');
+        return;
+      }
+      const media = await wordNewQueueCenter.waitForWordAudio(text, lang, {
+        accent: mapUiAccent(wfNewSettings.get('voiceAccent')),
+      });
       if (!media) {
         requestedWordKeys.current.delete(key);
         return;

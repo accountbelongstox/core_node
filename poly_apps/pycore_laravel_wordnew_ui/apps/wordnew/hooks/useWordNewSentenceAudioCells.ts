@@ -8,7 +8,8 @@ import {
 } from '../services/WordNewBookReaderSentenceAudio';
 import { cellKeyOf, ttsStatusToCellState, type WordNewAudioCellState } from '../utils/WordNewAudioCellState';
 import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WordNewSentenceAudioPick';
-import { ensureAudio } from '../runtime-store/WfNewAudioCache';
+import { clipOwnsUrl, ensureAudio, ensureClipAudio, sentenceClip } from '../runtime-store/WfNewAudioCache';
+import { CLIP_RESOLVE_WAIT_MS } from '../constants/uiTiming';
 
 interface Options {
   verses: WfNewBookVerse[];
@@ -84,11 +85,18 @@ export function useWordNewSentenceAudioCells({
     const variantKey = variantByLangRef.current[lang] ?? '';
     const preferredAccent = readerPreferredAccent(wfNewSettings.get('voiceAccent'));
     const picked = pickSentenceAudioUrl(cell, { variantKey, preferredAccent });
-    if (picked.url) return (await ensureAudio(picked.url)) ?? picked.url;
+    const text = cell?.text?.trim() ?? '';
+    const ref = sentenceClip(text, lang);
+    // The default sentence file is the orchestration clip (device store, transfers, then the file); a variant file is other audio.
+    const local = async (url: string): Promise<string> => (
+      (clipOwnsUrl(ref, url) ? await ensureClipAudio(ref, url) : await ensureAudio(url)) ?? url
+    );
+    if (picked.url) return local(picked.url);
 
     const remoteUrl = resolvedAudioUrlsRef.current[cellKeyOf(verse.grain, verse.seq, lang)];
-    if (remoteUrl) return (await ensureAudio(remoteUrl)) ?? remoteUrl;
-    return null;
+    if (remoteUrl) return local(remoteUrl);
+    // No file named yet: the device store or a transfer stage may already hold the clip.
+    return text ? ensureClipAudio(ref, null, { timeoutMs: CLIP_RESOLVE_WAIT_MS }) : null;
   }, []);
 
   useEffect(() => {
