@@ -12,6 +12,7 @@ import sys
 import tarfile
 from pathlib import Path
 
+from app_download_publish import publish_and_report
 from brand_assets import sync as sync_brand_assets
 from brand_preflight import APP_ID_PATTERN, run_preflight
 from build_console import StepLog
@@ -177,7 +178,7 @@ def gradle_command(android_dir: Path, app: dict) -> list[str]:
     return [str(wrapper), f"-PcoreNodeVersionName={version}", f"-PcoreNodeVersionCode={code}"]
 
 
-def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str) -> Path:
+def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str, publish: bool = True) -> Path:
     output_root = android_dir / "app" / "build" / "outputs" / "apk" / build_type
     source_apks = sorted(output_root.rglob("*.apk")) if output_root.is_dir() else []
     if not source_apks:
@@ -190,6 +191,11 @@ def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str) -> P
         destination = artifact_dir / f"{app['id']}-{version}-{build_type}{suffix}.apk"
         shutil.copy2(source, destination)
         log(f"APK: {destination}")
+        if publish and index == 1:
+            try:
+                publish_and_report(app, "android", build_type, destination)
+            except OSError as error:
+                log(f"WARNING: could not publish the APK to the downloads directory: {error}")
     return artifact_dir
 
 
@@ -226,6 +232,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clean", choices=CHOICES, default="ask")
     parser.add_argument("--open", dest="open_output", choices=CHOICES, default="ask")
     parser.add_argument("--non-interactive", action="store_true")
+    parser.add_argument("--no-publish", action="store_true",
+                        help="do not publish the APK into the core_node downloads directory")
     parser.add_argument("--live-reload", action="store_true", help="load the app from a Vite dev server (HMR)")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--list-plain", action="store_true", help="print 'id<TAB>name<TAB>default-flag' per app, no log prefix")
@@ -264,7 +272,7 @@ def main() -> int:
     restore_ownership(root, owned_paths)
     try:
         open_item = build(root, script_dir, app, build_type, generate_assets, clean, args.non_interactive,
-                             args.live_reload)
+                             args.live_reload, not args.no_publish)
     finally:
         restore_ownership(root, owned_paths)
     if open_output:
@@ -276,7 +284,7 @@ BUILD_STEPS = 8
 
 
 def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_assets: bool, clean: bool,
-          non_interactive: bool, live_reload: bool) -> str | Path:
+          non_interactive: bool, live_reload: bool, publish: bool = True) -> str | Path:
     steps = StepLog("apk", BUILD_STEPS)
     python = sys.executable
     bun = executable("bun")
@@ -331,8 +339,9 @@ def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_ass
         run(gradle + ["clean"], android_dir, environment)
         run(gradle + [task], android_dir, environment)
 
-    steps.step("Collect the APK")
-    artifact_dir = collect_apks(root, android_dir, app, build_type)
+    publish = publish and not live_reload
+    steps.step("Collect the APK" + (" and publish it to the downloads directory" if publish else ""))
+    artifact_dir = collect_apks(root, android_dir, app, build_type, publish)
     return live_url or artifact_dir
 
 

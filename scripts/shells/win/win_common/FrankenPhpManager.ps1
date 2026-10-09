@@ -72,6 +72,9 @@ $script:FrankenPhpMkcertArchiveName = 'mkcert-{0}-windows-amd64.exe' -f $script:
 $script:FrankenPhpMkcertDownloadUrl = 'https://github.com/FiloSottile/mkcert/releases/latest/download/{0}' -f $script:FrankenPhpMkcertArchiveName
 $script:FrankenPhpMkcertToolPath = Join-Path $script:FrankenPhpBinDirectory 'mkcert.exe'
 $script:FrankenPhpTailscaleDomainSecretName = 'TAILSCALE_DOMAIN_1'
+$script:FrankenPhpAppDownloadsDirName = [string](Get-ServiceContractValue -ContractPath 'app_downloads.dir_name')
+$script:FrankenPhpAppDownloadsUrlPrefix = [string](Get-ServiceContractValue -ContractPath 'app_downloads.url_prefix')
+$script:FrankenPhpAppDownloadsManifestFile = [string](Get-ServiceContractValue -ContractPath 'app_downloads.manifest_file')
 # Tailscale exe detection: reuses TailscaleCommon.ps1's Find-TailscaleExecutable
 # and its $script:TailscaleDefaultExePath constant (no local copy here).
 
@@ -714,6 +717,36 @@ function Get-FrankenPhpLanCertificateDirectory {
     return (Join-Path $dataRoot 'certs\local')
 }
 
+function Get-FrankenPhpAppDownloadsDirectory {
+    $dataRoot = [string]$env:CORE_NODE_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($dataRoot)) {
+        $dataRoot = Join-Path $script:FrankenPhpWebRoot 'core_node'
+    }
+    return (Join-Path $dataRoot $script:FrankenPhpAppDownloadsDirName)
+}
+
+# Read-only static mount of the app downloads directory (contract
+# app_downloads): file_server without browse, no PHP, manifest no-cache + CORS,
+# .apk served as an attachment. Must precede every PHP/Laravel/UI handler.
+function Get-FrankenPhpAppDownloadsHandlers {
+    $downloadsPath = ConvertTo-FrankenPhpCaddyPath -Path (Get-FrankenPhpAppDownloadsDirectory)
+    $urlPrefix = $script:FrankenPhpAppDownloadsUrlPrefix.TrimEnd('/')
+    $manifestFile = $script:FrankenPhpAppDownloadsManifestFile
+
+    return @"
+	handle_path $urlPrefix/* {
+		root * $downloadsPath
+		@downloads_manifest path */$manifestFile
+		@downloads_apk path *.apk
+		header @downloads_manifest Cache-Control "no-cache"
+		header @downloads_manifest Access-Control-Allow-Origin "*"
+		header @downloads_apk Content-Type "application/vnd.android.package-archive"
+		header @downloads_apk Content-Disposition "attachment"
+		file_server
+	}
+"@
+}
+
 function Test-FrankenPhpPrivateIp {
     param([Parameter(Mandatory = $true)][string]$Address)
     return ($Address -match '^(10\.|127\.|0\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)')
@@ -1212,6 +1245,7 @@ function Ensure-FrankenPhpLanLocalRoute {
     $tailnetPycorePath = [string](Get-ServiceContractValue -ContractPath 'access.tailnet.pycore_path')
     $apiMount = ''
     $pycoreMount = ''
+    $downloadsHandlers = Get-FrankenPhpAppDownloadsHandlers
     $material = Get-FrankenPhpLanCertificateMaterial
     $tsDnsName = [string]$material.TsDnsName
     $tsApiDnsName = [string]$material.TsApiDnsName
@@ -1251,6 +1285,7 @@ function Ensure-FrankenPhpLanLocalRoute {
 https://$tsDnsName`:$httpsPort {
 $tsTlsLine$pycoreMount
 $apiMount
+$downloadsHandlers
 	handle {
 $uiHandlers
 	}
@@ -1381,6 +1416,7 @@ function Ensure-FrankenPhpDomainRoutes {
     $uiHints = [string](Get-ServiceContractValue -ContractPath 'http.ui_early_hints_link')
     $apiHandlers = Get-FrankenPhpReverseProxyHandlers -Upstream ("http://{0}:{1}" -f $loopback, $apiPort) -EarlyHintsLink $apiHints
     $uiHandlers = Get-FrankenPhpReverseProxyHandlers -Upstream ("http://{0}:{1}" -f $loopback, $uiPort) -EarlyHintsLink $uiHints
+    $downloadsHandlers = Get-FrankenPhpAppDownloadsHandlers
     $domain = ''
     $apiHost = ''
     $certificateDirectory = ''
@@ -1423,7 +1459,10 @@ $tlsLine$apiHandlers
 }
 
 $domain`:$httpsPort, www.$domain`:$httpsPort, $prefix.$domain`:$httpsPort, www.$prefix.$domain`:$httpsPort {
-$tlsLine$uiHandlers
+$tlsLine$downloadsHandlers
+	handle {
+$uiHandlers
+	}
 }
 
 http://$apiHost`:$httpPort {
@@ -1475,7 +1514,14 @@ function Ensure-FrankenPhpCaddyfile {
         ''
     }
     $corsOrigins = @($access.CorsOrigins) -join ' '
+    $downloadsHandlers = ''
     $content = ''
+
+    if (-not (Ensure-FrankenPhpDirectory -Path (Get-FrankenPhpAppDownloadsDirectory))) {
+        Write-FrankenPhpLog -Message "Downloads directory postcondition failed: $(Get-FrankenPhpAppDownloadsDirectory)" -Type 'Error'
+        return $false
+    }
+    $downloadsHandlers = Get-FrankenPhpAppDownloadsHandlers
 
     if ([string]::IsNullOrWhiteSpace([string]$publisherKey) -or [string]::IsNullOrWhiteSpace([string]$subscriberKey)) {
         Write-FrankenPhpLog -Message 'Mercure secret postcondition failed.' -Type 'Error'
@@ -1512,6 +1558,8 @@ https://$internalTlsHost`:$httpsPort {
 	root * $publicPath
 	encode zstd gzip
 
+$downloadsHandlers
+
 	route {
 		@mercure path /.well-known/mercure*
 		reverse_proxy @mercure http://$loopback`:$backendPort
@@ -1528,6 +1576,7 @@ https://$internalTlsHost`:$httpsPort {
 :$backendPort {
 	root * $publicPath
 	encode zstd gzip
+$downloadsHandlers
 	mercure {
 		transport $mercureTransport
 		publisher_jwt $publisherKey HS256

@@ -782,6 +782,40 @@ fm_caddy_tailnet_pycore_mount_render() {
 EOF
 }
 
+# Read-only app download mount (contract app_downloads): the data-dir downloads
+# tree is served at url_prefix by a plain file_server (no PHP, no browse) ahead
+# of every PHP/Laravel handler. SYNC CONTRACT:
+# ServerManagerV1FrankenPhpCaddyfileBuilder renders the identical block.
+# FM_APP_DOWNLOADS_STANZA = "" | the handle_path block.
+fm_app_downloads_dir() {
+    printf '%s/%s' "${CORE_NODE_DATA_DIR%/}" "$(sc_require app_downloads.dir_name)"
+}
+
+fm_app_downloads_dir_ensure() {
+    local downloads_dir=""
+
+    [ -n "${CORE_NODE_DATA_DIR:-}" ] || return 0
+    downloads_dir="$(fm_app_downloads_dir)"
+    [ -d "$downloads_dir" ] || mkdir -p "$downloads_dir"
+}
+
+fm_app_downloads_stanza() {
+    local url_prefix=""
+    local manifest_file=""
+    local downloads_dir=""
+
+    FM_APP_DOWNLOADS_STANZA=""
+    url_prefix="$(sc_require app_downloads.url_prefix)"
+    manifest_file="$(sc_require app_downloads.manifest_file)"
+    if [ -z "${CORE_NODE_DATA_DIR:-}" ] || [ -z "$url_prefix" ] || [ -z "$manifest_file" ]; then
+        echo "[$SCRIPT_INDEX] [ERROR] app_downloads contract or data dir is incomplete"
+        return
+    fi
+    downloads_dir="$(fm_app_downloads_dir)"
+    printf -v FM_APP_DOWNLOADS_STANZA '\thandle_path %s/* {\n\t\troot * %s\n\t\t@app_download_manifest path */%s\n\t\t@app_download_apk path *.apk\n\t\theader @app_download_manifest Cache-Control "no-cache"\n\t\theader @app_download_manifest Access-Control-Allow-Origin "*"\n\t\theader @app_download_apk Content-Type "application/vnd.android.package-archive"\n\t\theader @app_download_apk Content-Disposition "attachment"\n\t\tfile_server\n\t}\n' \
+        "${url_prefix%/}" "$downloads_dir" "$manifest_file"
+}
+
 # Canonical Caddyfile render. The contract-owned internal TLS site is kept
 # separate from public domain routes; one backend hub owns the Mercure
 # transport and HTTPS routes proxy the well-known path to it.
@@ -802,6 +836,8 @@ fm_caddyfile_render() {
     local octane_php_server_stanza=""
     local bind_host=""
     local php_ini_stanza=""
+    local downloads_https_stanza=""
+    local downloads_backend_stanza=""
     local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
@@ -818,6 +854,11 @@ fm_caddyfile_render() {
         "$(sc_require hosts.loopback)" "$backend_port" "$stream_close_delay" "$FRANKENPHP_REQUEST_BODY_TIMEOUT"
     fm_octane_php_server_stanza
     octane_php_server_stanza="$FM_OCTANE_PHP_SERVER_STANZA"
+    fm_app_downloads_stanza
+    if [ -n "$FM_APP_DOWNLOADS_STANZA" ]; then
+        downloads_https_stanza="${FM_APP_DOWNLOADS_STANZA}"$'\n'
+        downloads_backend_stanza=$'\n'"${FM_APP_DOWNLOADS_STANZA}"$'\n'
+    fi
 
     # Server-SAPI ini floor through the official Caddyfile php_ini directive:
     # the scan-dir ini demonstrably does not reach the FrankenPHP server SAPI
@@ -868,13 +909,13 @@ https://${internal_tls_host}:${https_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 
-${mercure_proxy}}
+${downloads_https_stanza}${mercure_proxy}}
 
 # Direct HTTP catch-all backend (LAN and local machine clients)
 :${backend_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
-${mercure_stanza}${octane_php_server_stanza}}${import_stanza}"
+${downloads_backend_stanza}${mercure_stanza}${octane_php_server_stanza}}${import_stanza}"
 
     FM_CADDYFILE_RENDERED="$rendered"
 }
@@ -899,6 +940,7 @@ fm_caddyfile_ensure() {
     if [ ! -d "$caddyfile_dir" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] Caddyfile directory was not created: $caddyfile_dir"
     else
+        fm_app_downloads_dir_ensure
         fm_caddyfile_render "$laravel_public_dir" "$https_port" "$admin_port" "$caddyfile_path"
         rendered="$FM_CADDYFILE_RENDERED"
         [ -f "$caddyfile_path" ] && existing="$(cat "$caddyfile_path")"

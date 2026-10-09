@@ -28,6 +28,11 @@ export const CORE_NODE_DATA_DIR_NAME: string = contractDocument.paths.core_node_
 export const GLOBAL_VAR_DIR_NAME: string = contractDocument.paths.global_var_dir_name;
 export const FRANKENPHP_ROOT_POSIX: string = contractDocument.paths.frankenphp_root_posix;
 export const FRANKENPHP_ROOT_WINDOWS_SUBPATH: string = contractDocument.paths.frankenphp_root_windows_subpath;
+/** App package downloads (app_downloads): URL prefix and manifest file name of the published packages. */
+export const APP_DOWNLOADS = {
+  urlPrefix: contractDocument.app_downloads.url_prefix,
+  manifestFile: contractDocument.app_downloads.manifest_file,
+} as const;
 export const WEB_ACCESS_CONFIG_FILE_NAME: string = contractDocument.files.web_access_config;
 /** Live tailnet machine list the UI server answers same-origin (tailscale status). */
 export const TAILNET_PEERS_FILE_NAME: string = contractDocument.files.tailnet_peers;
