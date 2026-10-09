@@ -367,7 +367,8 @@
       "WebFetch(domain:support.blizzard.com)",
       "WebFetch(domain:us.support.blizzard.com)",
       "Bash(pl=\"/e/_win10_dev/work/claude/D--programing-core-node/24e6e5b5-d60d-45d2-ad1d-2e2851764465/scratchpad/dryrun.pl\" && cp ap_mode.sh /tmp/ap_mode.bak && cp router_mode.sh /tmp/router_mode.bak && perl \"$pl\" ap_mode.sh && perl \"$pl\" router_mode.sh && sh -n ap_mode.sh && sh -n router_mode.sh && echo syntax-ok && git diff --stat -- . 2>/dev/null | tail -3)",
-      "Bash(sh -n ap_mode.sh)"
+      "Bash(sh -n ap_mode.sh)",
+      "PowerShell($step = Join-Path \\(Resolve-Path 'D:\\\\programing\\\\core_node\\\\scripts\\\\shells\\\\win\\\\install_powershells'\\).Path 'Step175_LaravelMainStart.ps1'; & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $step -CertificatesOnly 2>&1 | Select-Object -Last 40)"
     ],
     "deny": [],
     "ask": []

@@ -215,7 +215,27 @@
         "latest_file": "{app}-latest.{ext}",
         "versioned_file": "{app}-{version}-{build_type}.{ext}",
         "keep_versions": 3,
-        "manifest": {"app": "flavor id", "name": "display name", "files": [{"platform": "android|windows|linux", "build_type": "debug|release", "version": "string", "file": "versioned file name", "latest": "latest file name", "size": "int bytes", "sha256": "hex", "built_at": "ISO-8601"}], "updated_at": "ISO-8601"},
+        "manifest": {"app": "flavor id", "name": "display name", "files": [{"platform": "android|windows|linux", "build_type": "debug|release", "version": "string", "version_code": "int, android versionCode (monotonic per build)", "application_id": "android package id", "signer_sha256": "hex of the APK signing certificate", "file": "versioned file name", "latest": "latest file name", "size": "int bytes", "sha256": "hex", "built_at": "ISO-8601"}], "updated_at": "ISO-8601"},
+        "server_sync": {
+            "endpoint": "/api/system/app-downloads/sync",
+            "auth": "client key (laravel_signed_cli), same as other /api/system routes",
+            "request": {"app": "flavor id", "source_base_urls": ["builder origins that serve url_prefix (mesh / LAN)"], "upload": "fallback: chunked upload when the server cannot reach any source"},
+            "rule": "After a local publish the build asks the Laravel server to mirror the app's manifest and files into the server's own <data dir>/<dir_name>/<app>/ with the same idempotent publish rule (sha256 verified before rename, keep_versions). Idempotent: an unchanged manifest is a no-op."
+        },
+        "public_alias": {
+            "wordnew": "/wordnew.apk"
+        },
+        "public_alias_rule": "Each alias path is served by FrankenPHP as the app's newest android release file (fallback newest android file) from the manifest, on every host that serves url_prefix; it is a short custom download URL (e.g. https://api.si.12gm.com/wordnew.apk).",
+        "auto_update": {
+            "check_on_start": true,
+            "check_on_resume_min_minutes": 30,
+            "check_interval_minutes": 360,
+            "source_order": ["mesh", "public"],
+            "public_base_urls": ["https://api.si.12gm.com"],
+            "mesh_rule": "mesh sources are the headscale (*.mesh.*) origins the app already knows: the selected pycore host's mesh origin and the Laravel work-node roster hosts; tried before public_base_urls; first manifest that answers wins",
+            "channel_rule": "the app follows its own build_type; a candidate must have the same application_id and signer_sha256 as the installed app and a higher version_code",
+            "rule": "Android app only. Check manifests, download the APK into app-private cache (resume, sha256 verified), then hand it to the system package installer as an in-place update (same package and signing key keep all app data; never uninstall). The user confirms the install (Android requirement; 'install unknown apps' must be allowed once for the app). Never re-download a file whose sha256 is already cached; delete cached APKs after a successful update."
+        },
         "rule": "Downloads live in <core_node data dir>/<dir_name>/<app>/ (never in the repo). A build publishes idempotently: same sha256 as the manifest entry = no-op; otherwise copy to a temp name, rename over the versioned and latest files, then rewrite manifest.json the same way; keep the newest keep_versions per (platform, build_type). FrankenPHP (Windows and Linux Caddyfiles) serves the directory read-only at url_prefix with a file_server (no PHP, no directory listing), manifest.json with Cache-Control no-cache, .apk with Content-Type application/vnd.android.package-archive and Content-Disposition attachment."
     },
     "paths": {
