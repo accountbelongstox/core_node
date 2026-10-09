@@ -375,7 +375,8 @@
       "Bash(./dd.cmd gitsync *)",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/code-sync/status\")",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009142209-329c6e99f1da\")",
-      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009143225-643a696a7a30\")"
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009143225-643a696a7a30\")",
+      "PowerShell($m = Invoke-RestMethod 'https://api.si.12gm.com/downloads/wordnew/manifest.json'; $m.files | Format-Table build_type, version, version_code, file, size, @{n='sha';e={$_.sha256.Substring\\(0,12\\)}} -AutoSize | Out-String -Width 200; foreach \\($u in 'https://api.si.12gm.com/wordnew.apk', 'http://192.168.1.151:9000/wordnew.apk'\\) { $tmp = Join-Path 'D:\\\\.tmp\\\\claude\\\\D--programing-core-node\\\\5ed6cd49-f3e9-41b0-99be-3b0b6b853a5b\\\\scratchpad' 'probe.apk'; curl.exe -s -o $tmp $u; \"$u -> \" + \\(Get-FileHash $tmp -Algorithm SHA256\\).Hash.Substring\\(0,12\\).ToLower\\(\\); Remove-Item $tmp -Confirm:$false })"
     ],
     "deny": [],
     "ask": []
