@@ -29,7 +29,10 @@ DEFAULT_AP_ADDRESS="192.168.50.2/24"
 DEFAULT_AP_GATEWAY="192.168.50.1"
 DEFAULT_LAN_ADDRESS="192.168.60.1/24"
 SSH_USER="root"
-SSH_OPTIONS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=8"
+# Routers reuse addresses like 192.168.1.1 and change keys on reflash, so they
+# get their own known_hosts instead of failing against the user's.
+SSH_KNOWN_HOSTS="$HOST_SCRIPT_DIR/known_hosts"
+SSH_OPTIONS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$SSH_KNOWN_HOSTS -o ConnectTimeout=8"
 SSH_SCAN_TIMEOUT=2
 PING_TIMEOUT_MS=500
 SCAN_BATCH=64
@@ -307,7 +310,7 @@ print_remote_steps() {
     echo "----------------------------------------------------------------"
     echo "This uploads the scripts to $ROUTER_SCRIPT_DIR on $target and opens the menu there."
     echo "Each SSH step may ask for the router password (empty on a fresh OpenWrt)."
-    echo "If an automatic step fails, log in with:  ssh $target"
+    echo "If an automatic step fails, log in with:  ssh -o UserKnownHostsFile=$SSH_KNOWN_HOSTS $target"
     echo "then run on the router (it needs Internet):"
     echo "  mkdir -p $ROUTER_SCRIPT_DIR && wget -qO $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME $SCRIPTS_URL/$MENU_SCRIPT_NAME && sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME"
     echo "Later logins only need:  sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME"
@@ -320,6 +323,7 @@ connect_host() {
 
     print_remote_steps "$target"
     confirm "Continue with $target?" || return 0
+    mkdir -p "$HOST_SCRIPT_DIR"
     log "Uploading $MENU_SCRIPT_NAME $MANAGED_SCRIPTS"
     if (cd "$SCRIPT_DIR" && tar -cf - "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS) | ssh $SSH_OPTIONS "$target" "mkdir -p $ROUTER_SCRIPT_DIR && tar -xf - -C $ROUTER_SCRIPT_DIR"; then
         ssh -t $SSH_OPTIONS "$target" "sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME"
