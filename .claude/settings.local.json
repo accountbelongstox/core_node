@@ -355,7 +355,10 @@
       "Read(//d/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/**)",
       "Bash(timeout 280 npx tsc --noEmit -p tsconfig.json)",
       "PowerShell($uiRoot = 'D:\\\\programing\\\\core_node\\\\poly_apps\\\\pycore_laravel_wordnew_ui'; $mod = Join-Path \\(Join-Path \\(Join-Path $uiRoot 'scripts'\\) 'flavor'\\) 'app_download_publish.py'; $apk = Join-Path \\(Join-Path \\(Join-Path \\(Join-Path \\(Join-Path $uiRoot 'artifacts'\\) 'apk'\\) 'wordnew'\\) 'release'\\) 'wordnew-1.0.0-release.apk'; python $mod --app wordnew --name WordNew --version 1.0.0 --platform android --build-type release --file $apk; python $mod --app wordnew --name WordNew --version 1.0.0 --platform android --build-type release --file $apk; curl.exe -s -D - http://192.168.1.151:9000/downloads/wordnew/manifest.json; curl.exe -s -o NUL -r 0-1023 -D - http://192.168.1.151:9000/downloads/wordnew/wordnew-1.0.0-release.apk)",
-      "PowerShell(Stop-Process *)"
+      "PowerShell(Stop-Process *)",
+      "Bash(sh openwrt_menu.sh scan)",
+      "Bash(sh -n router_mode.sh)",
+      "Bash(sh -n openwrt_menu.sh)"
     ],
     "deny": [],
     "ask": []

@@ -2,7 +2,7 @@
 # Turns an OpenWrt router (also one left in AP mode by ap_mode.sh) into a routing
 # gateway: WAN with NAT, LAN with its own /24, DHCP and DNS, plus a per-device
 # bandwidth balancer (service router-balance). Run on the router:
-#   sh router_mode.sh apply [lan_ip/24]   default 192.168.60.1/24
+#   sh router_mode.sh apply [lan_ip/24]   default 192.168.50.1/24
 #   sh router_mode.sh status
 #   sh router_mode.sh restore             undo with the newest backup
 # The balancer measures the WAN rate (100 Mbit until measured), raises the limit
@@ -13,7 +13,7 @@
 
 BACKUP_DIR="/root/router-mode-backups"
 CONFIGS="network dhcp wireless firewall"
-LAN_ADDRESS="192.168.60.1/24"
+LAN_ADDRESS="192.168.50.1/24"
 REQUIRED_PACKAGES="kmod-sched-core kmod-ifb"
 TC_PACKAGE="tc-tiny"
 INSTALL_PATH="/usr/sbin/router-mode.sh"

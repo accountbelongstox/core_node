@@ -28,7 +28,7 @@ ROUTER_SCRIPT_NAME="router_mode.sh"
 MANAGED_SCRIPTS="$AP_SCRIPT_NAME $ROUTER_SCRIPT_NAME"
 DEFAULT_AP_ADDRESS="192.168.50.2/24"
 DEFAULT_AP_GATEWAY="192.168.50.1"
-DEFAULT_LAN_ADDRESS="192.168.60.1/24"
+DEFAULT_LAN_ADDRESS="192.168.50.1/24"
 SSH_USER="root"
 # Routers reuse addresses like 192.168.1.1 and change keys on reflash, so they
 # get their own known_hosts instead of failing against the user's.
