@@ -114,6 +114,14 @@ public abstract class GameWindowManager
         return ok;
     }
 
+    /// <summary>Kill every client process of this game by name, window or not (e.g. a license / error dialog). True when none is left.</summary>
+    public bool KillProcessesByName()
+    {
+        foreach (string name in ProcessNames)
+            ProcessUtil.KillProcessByExe(name + ".exe", logPrefix: LogPrefix);
+        return !IsProcessRunning();
+    }
+
     /// <summary>Bring the game window to front and wait the settle delay. 1:1 Python _activate_d3_window.</summary>
     public bool ActivateWindow()
     {
