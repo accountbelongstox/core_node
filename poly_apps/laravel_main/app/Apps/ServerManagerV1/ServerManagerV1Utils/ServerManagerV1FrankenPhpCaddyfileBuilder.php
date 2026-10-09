@@ -488,13 +488,13 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     }
 
     /**
-     * Read-only app download mount (contract app_downloads), ahead of every
-     * PHP/Laravel handler. Byte-synced with fm_app_downloads_stanza.
+     * Read-only app download mount (contract app_downloads) plus one rewrite
+     * block per public_alias, ahead of every PHP/Laravel handler.
+     * Byte-synced with fm_app_downloads_stanza.
      */
     public static function appDownloadsDirectory(): string
     {
-        return rtrim(PathMapper::getCoreNodeRuntimeDir(), '/\\').DIRECTORY_SEPARATOR
-            .ServiceContract::string('app_downloads.dir_name');
+        return ServerManagerV1AppDownloadsStore::directory();
     }
 
     private static function appDownloadsStanza(): string
@@ -512,7 +512,31 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t\theader @app_download_apk Content-Type \"application/vnd.android.package-archive\"\n"
             . "\t\theader @app_download_apk Content-Disposition \"attachment\"\n"
             . "\t\tfile_server\n"
-            . "\t}\n";
+            . "\t}\n"
+            . self::appDownloadAliasStanzas($downloadsDir);
+    }
+
+    private static function appDownloadAliasStanzas(string $downloadsDir): string
+    {
+        $latestTemplate = ServiceContract::string('app_downloads.latest_file');
+        $aliasExt = ServiceContract::string('app_downloads.public_alias_ext');
+        $stanzas = '';
+
+        foreach (ServiceContract::section('app_downloads.public_alias') as $app => $aliasPath) {
+            if (!is_string($aliasPath) || $aliasPath === '') {
+                continue;
+            }
+            $target = str_replace(['{app}', '{ext}'], [(string) $app, $aliasExt], $latestTemplate);
+            $stanzas .= "\thandle {$aliasPath} {\n"
+                . "\t\troot * {$downloadsDir}\n"
+                . "\t\trewrite * /{$app}/{$target}\n"
+                . "\t\theader Content-Type \"application/vnd.android.package-archive\"\n"
+                . "\t\theader Content-Disposition \"attachment\"\n"
+                . "\t\tfile_server\n"
+                . "\t}\n";
+        }
+
+        return $stanzas;
     }
 
     private static function octanePhpServerStanza(): string

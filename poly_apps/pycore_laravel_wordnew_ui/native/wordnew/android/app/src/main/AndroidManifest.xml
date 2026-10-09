@@ -9,6 +9,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <!-- AppUpdate: the build type the in-app updater follows (debug or release channel). -->
+        <meta-data android:name="core_node.build_type" android:value="${coreNodeBuildType}" />
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -59,4 +61,6 @@
     <!-- VoiceRecorder plugin and WebView getUserMedia: the microphone (the plugin manifest declares none). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- AppUpdate: hand a downloaded, signature-checked APK of this same app to the system installer (in-place update). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

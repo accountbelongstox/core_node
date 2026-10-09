@@ -35,6 +35,7 @@ android {
         if (coreNodeReleaseSigningReady) {
             release {
                 storeFile = file(coreNodeReleaseSigning.storeFile)
+                storeType = providers.environmentVariable('CORE_NODE_ANDROID_SIGNING_STORE_TYPE').orElse('pkcs12').get()
                 storePassword = coreNodeReleaseSigning.storePassword
                 keyAlias = coreNodeReleaseSigning.keyAlias
                 keyPassword = coreNodeReleaseSigning.keyPassword
@@ -42,7 +43,14 @@ android {
         }
     }
     buildTypes {
+        debug {
+            manifestPlaceholders = [coreNodeBuildType: 'debug']
+            if (coreNodeReleaseSigningReady) {
+                signingConfig = signingConfigs.release
+            }
+        }
         release {
+            manifestPlaceholders = [coreNodeBuildType: 'release']
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (coreNodeReleaseSigningReady) {

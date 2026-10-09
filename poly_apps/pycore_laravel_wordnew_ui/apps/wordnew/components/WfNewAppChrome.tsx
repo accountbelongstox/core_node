@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { wfNewApi } from '../api';
 import { useWfNewAppState, type WordNewTab } from '../hooks/useWfNewAppState';
@@ -9,6 +9,9 @@ import { WfNewGlobalSearch } from './search/WfNewGlobalSearch';
 import { useShell } from '../../../shell/ShellContext';
 import { WfNewWordDetailModal } from './WfNewWordDetailModal';
 import { WfNewOnboarding } from '../pages/WfNewOnboarding';
+import { appUpdateSupported } from '../platform/capabilities/CapAppUpdate';
+
+const WordNewUpdateBanner = lazy(() => import('./update/WordNewUpdateBanner'));
 
 interface WfNewAppChromeProps {
   dark: boolean;
@@ -69,6 +72,8 @@ export const WfNewAppChrome: React.FC<WfNewAppChromeProps> = ({ dark, state }) =
 
   return (
     <>
+      {appUpdateSupported() && <Suspense fallback={null}><WordNewUpdateBanner trans={trans} /></Suspense>}
+
       <WfNewGlobalSearch
         isOpen={isSearchOverlayOpen}
         onClose={() => setIsSearchOverlayOpen(false)}

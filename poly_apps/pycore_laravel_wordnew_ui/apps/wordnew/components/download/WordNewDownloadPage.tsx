@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Browser } from '@capacitor/browser';
 import {
-  BadgeCheck, Download, MonitorSmartphone, Monitor, PackageOpen, RefreshCw, Smartphone, Terminal, WifiOff,
+  Download, MonitorSmartphone, Monitor, PackageOpen, RefreshCw, Smartphone, Terminal, WifiOff,
   type LucideIcon,
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
@@ -11,9 +11,10 @@ import { formatBytes } from '../../../../core/utils/formatBytes';
 import { ActionButton } from '@/shared/ui/ActionButton';
 import { StateMessage } from '@/shared/ui/StateMessage';
 import {
-  compareVersions, downloadOrigins, fetchDownloads, fileUrl, groupByPlatform, installedVersion,
-  isAndroidAppShell, newestAndroid, type WordNewDownloadFile, type WordNewDownloadResult,
+  downloadOrigins, fetchDownloads, fileUrl, groupByPlatform, isAndroidAppShell, type WordNewDownloadFile, type WordNewDownloadResult,
 } from '../../services/download/WordNewDownloads';
+import { useWordNewAppUpdate } from '../../services/update/useWordNewAppUpdate';
+import { WordNewUpdateStatus } from '../update/WordNewUpdateStatus';
 import { WordNewDownloadQr } from './WordNewDownloadQr';
 
 const SHA_SHORT_LENGTH = 12;
@@ -85,10 +86,8 @@ export const WordNewDownloadPage: React.FC<WordNewDownloadPageProps> = ({ active
   }, [originsKey, attempt]);
 
   const groups = useMemo(() => (result?.state === 'ready' ? groupByPlatform(result.manifest) : []), [result]);
-  const installed = installedVersion();
   const androidShell = isAndroidAppShell();
-  const published = result?.state === 'ready' ? newestAndroid(result.manifest) : null;
-  const update = androidShell && published && installed ? compareVersions(installed, published.version) : null;
+  const appUpdate = useWordNewAppUpdate();
 
   return (
     <div className="space-y-6">
@@ -123,14 +122,9 @@ export const WordNewDownloadPage: React.FC<WordNewDownloadPageProps> = ({ active
             <ActionButton variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={reload} aria-label={trans('download.retry')} />
           </div>
 
-          {androidShell && published && update !== null && (
-            <div className={`flex items-center gap-3 rounded-3xl border p-4 shadow-sm ${update < 0 ? 'border-amber-500/30 bg-amber-500/10' : 'border-emerald-500/25 bg-emerald-500/10'}`}>
-              {update < 0 ? <Download className="h-5 w-5 shrink-0 text-amber-500" /> : <BadgeCheck className="h-5 w-5 shrink-0 text-emerald-500" />}
-              <p className="text-[12px] font-bold leading-relaxed text-indigo-950 dark:text-white">
-                {update < 0
-                  ? trans('download.updateAvailable', { latest: published.version, current: installed })
-                  : trans('download.upToDate', { current: installed })}
-              </p>
+          {androidShell && appUpdate.supported && (
+            <div className={`rounded-3xl border border-indigo-500/25 p-4 shadow-sm ${activeTheme.cardClass}`}>
+              <WordNewUpdateStatus update={appUpdate} trans={trans} variant="page" />
             </div>
           )}
 
