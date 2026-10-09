@@ -10,6 +10,7 @@
 #   sh openwrt_menu.sh scan [a.b.c]       list LAN hosts (default: the gateway's /24)
 #   sh openwrt_menu.sh connect <ip>       upload the scripts to <ip> and open the menu there
 # Both: sh openwrt_menu.sh update         download the scripts again
+#       sh openwrt_menu.sh diagnose [ip]  check addresses, router web UI/SSH, Wi-Fi, Internet
 # OPENWRT_SCRIPTS_URL overrides the download base URL.
 
 GITHUB_RAW_HOST="https://raw.githubusercontent.com"
@@ -35,6 +36,8 @@ SSH_KNOWN_HOSTS="$HOST_SCRIPT_DIR/known_hosts"
 SSH_OPTIONS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$SSH_KNOWN_HOSTS -o ConnectTimeout=8"
 SSH_SCAN_TIMEOUT=2
 PING_TIMEOUT_MS=500
+INTERNET_TARGETS="223.5.5.5 8.8.8.8 1.1.1.1"
+INTERNET_TIMEOUT_MS=2000
 SCAN_BATCH=64
 SCRIPT_DIR=""
 MENU_INPUT=""
@@ -168,6 +171,7 @@ menu_header() {
     echo "  5) Router mode and balancer status"
     echo "  6) Restore from router mode backup"
     echo "  7) Update scripts"
+    echo "  8) Diagnose network, web UI, Wi-Fi and Internet"
     echo "  0) Exit"
 }
 
@@ -197,6 +201,7 @@ router_menu() {
             5) run_script "$ROUTER_SCRIPT_NAME" status ;;
             6) confirm "Restore the newest router mode backup?" && run_script "$ROUTER_SCRIPT_NAME" restore ;;
             7) update_scripts $MANAGED_SCRIPTS ;;
+            8) router_diagnose ;;
             0|q|Q) return 0 ;;
             *) log "Unknown choice: $MENU_INPUT" ;;
         esac
@@ -213,10 +218,37 @@ default_gateway() {
 }
 
 ping_host() {
+    local timeout_ms="${2:-$PING_TIMEOUT_MS}"
+
     if is_windows_shell; then
-        ping -n 1 -w "$PING_TIMEOUT_MS" "$1" >/dev/null 2>&1
+        ping -n 1 -w "$timeout_ms" "$1" >/dev/null 2>&1
     else
-        ping -c 1 -W 1 "$1" >/dev/null 2>&1
+        ping -c 1 -W $(((timeout_ms + 999) / 1000)) "$1" >/dev/null 2>&1
+    fi
+}
+
+# Prints the first public target that answers within INTERNET_TIMEOUT_MS.
+internet_target() {
+    local target=""
+
+    for target in $INTERNET_TARGETS; do
+        if is_openwrt; then
+            ping -c 2 -W $((INTERNET_TIMEOUT_MS / 1000)) "$target" >/dev/null 2>&1 && { echo "$target"; return 0; }
+        else
+            ping_host "$target" "$INTERNET_TIMEOUT_MS" && { echo "$target"; return 0; }
+        fi
+    done
+    return 1
+}
+
+report_internet() {
+    local target=""
+
+    target="$(internet_target)"
+    if [ -n "$target" ]; then
+        report OK "Internet: $target reachable"
+    else
+        report FAIL "Internet: none of $INTERNET_TARGETS reachable"
     fi
 }
 
@@ -333,6 +365,112 @@ connect_host() {
     fi
 }
 
+report() {
+    printf '  [%s] %s\n' "$1" "$2"
+}
+
+local_addresses() {
+    if is_windows_shell; then
+        ipconfig 2>/dev/null | tr -d '\r' | sed -n 's/.*IPv4[^:]*: *\([0-9.]*\).*/\1/p'
+    else
+        ip -4 -o addr show 2>/dev/null | awk '{split($4, a, "/"); print a[1]}'
+    fi
+}
+
+http_probe() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -s -k -m 4 --noproxy '*' "$1" 2>/dev/null
+    else
+        wget -q -T 4 -O - "$1" 2>/dev/null
+    fi
+}
+
+host_diagnose() {
+    local target="$1"
+    local gateway=""
+    local prefix=""
+    local mac=""
+    local banner=""
+    local page=""
+    local scheme=""
+
+    gateway="$(default_gateway)"
+    [ -n "$target" ] || target="$gateway"
+    echo "========== Network diagnosis (this PC) =========="
+    report INFO "PC addresses: $(local_addresses | grep -v '^127\.' | tr '\n' ' ')"
+    if [ -z "$gateway" ]; then
+        report FAIL "No default gateway: check the cable or Wi-Fi link and DHCP"
+    else
+        report INFO "Default gateway: $gateway"
+    fi
+    [ -n "$target" ] || return 1
+    if local_addresses | grep -qx "$target"; then
+        report WARN "$target is this PC's own address, not the router; the router UI is http://$gateway/"
+        target="$gateway"
+    fi
+    prefix="${target%.*}"
+    ping_host "$target" && report OK "$target answers ping" || report WARN "$target does not answer ping (a firewall may drop it)"
+    mac="$(lan_neighbors "$prefix" | awk -v ip="$target" '$1 == ip {print $2; exit}')"
+    if [ -n "$mac" ]; then
+        report OK "$target is at MAC $mac"
+    else
+        report FAIL "$target does not answer ARP: it is not on this network segment"
+    fi
+    banner="$(ssh_banner "$target")"
+    case "$banner" in
+        *dropbear*) report OK "SSH: $banner (OpenWrt)" ;;
+        "") report WARN "SSH: no answer on port 22" ;;
+        *) report INFO "SSH: $banner (not OpenWrt's Dropbear)" ;;
+    esac
+    for scheme in http https; do
+        page="$(http_probe "$scheme://$target/")"
+        case "$page" in
+            *luci*|*LuCI*) report OK "$scheme://$target/ serves LuCI (OpenWrt web UI)" ;;
+            "") report WARN "$scheme://$target/ gives no page" ;;
+            *) report INFO "$scheme://$target/ serves a page that is not LuCI" ;;
+        esac
+    done
+    lan_neighbors "$prefix" | awk '{print $2}' | sort | uniq -d | grep -q . && report WARN "One MAC holds several addresses on $prefix.0/24"
+    report_internet
+    nslookup example.com >/dev/null 2>&1 && report OK "DNS: example.com resolves" || report FAIL "DNS: example.com does not resolve"
+}
+
+router_diagnose() {
+    local lan_ip=""
+    local wan_ip=""
+    local service=""
+    local radio=""
+    local iface=""
+
+    lan_ip="$(uci -q get network.lan.ipaddr)"
+    wan_ip="$(ifstatus wan 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)"
+    echo "========== OpenWrt diagnosis =========="
+    report INFO "$(sed -n "s/^DISTRIB_DESCRIPTION='\(.*\)'$/\1/p" /etc/openwrt_release)"
+    report INFO "LAN: $(uci -q get network.lan.proto) ${lan_ip:-no address} | WAN: $(uci -q get network.wan.proto) ${wan_ip:-no address}"
+    if [ -n "$lan_ip" ] && [ -n "$wan_ip" ] && [ "${lan_ip%.*}" = "${wan_ip%.*}" ]; then
+        report FAIL "LAN and WAN share ${lan_ip%.*}.0/24: routing breaks; move the LAN (router mode) or bridge the WAN (AP mode)"
+    fi
+    [ "$(uci -q get dhcp.lan.ignore)" = "1" ] && report INFO "DHCP on LAN: off (AP mode)" || report INFO "DHCP on LAN: on"
+    ip -4 route show default 2>/dev/null | grep -q . && report OK "Default route: $(ip -4 route show default | head -n 1)" || report FAIL "No default route"
+    for service in uhttpd dropbear dnsmasq odhcpd firewall router-balance; do
+        [ -x "/etc/init.d/$service" ] || continue
+        if "/etc/init.d/$service" running >/dev/null 2>&1; then
+            report OK "Service $service running"
+        else
+            report WARN "Service $service not running ($("/etc/init.d/$service" enabled && echo enabled || echo disabled))"
+        fi
+    done
+    netstat -ltn 2>/dev/null | grep -qE ':80 ' && report OK "Web UI listens on port 80" || report WARN "Nothing listens on port 80"
+    for radio in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-device$/\1/p"); do
+        [ "$(uci -q get "wireless.$radio.disabled")" = "1" ] && report WARN "Wi-Fi $radio disabled (uci set wireless.$radio.disabled=0; uci commit wireless; wifi reload)" || report OK "Wi-Fi $radio enabled"
+    done
+    for iface in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.]*\)=wifi-iface$/\1/p"); do
+        report INFO "SSID $(uci -q get "wireless.$iface.ssid") on $(uci -q get "wireless.$iface.device"): network $(uci -q get "wireless.$iface.network"), encryption $(uci -q get "wireless.$iface.encryption"), disabled $(uci -q get "wireless.$iface.disabled" || echo 0)"
+    done
+    report_internet
+    nslookup example.com 127.0.0.1 >/dev/null 2>&1 && report OK "DNS: local resolver works" || report WARN "DNS: local resolver does not answer"
+}
+
 host_main() {
     command -v ssh >/dev/null 2>&1 || { log "ssh is missing on this PC"; return 1; }
     scan_lan "$1" || return 1
@@ -348,8 +486,9 @@ if is_openwrt; then
         ap) shift; run_script "$AP_SCRIPT_NAME" "$@" ;;
         router) shift; run_script "$ROUTER_SCRIPT_NAME" "$@" ;;
         update) update_scripts $MANAGED_SCRIPTS ;;
+        diagnose) router_diagnose ;;
         "") router_menu ;;
-        *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+        *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
     esac
 else
     ensure_scripts "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS || log "Some scripts are missing; the upload needs them"
@@ -357,7 +496,8 @@ else
         scan) scan_lan "$2" ;;
         connect) [ -n "$2" ] && connect_host "$2" || log "Usage: sh $MENU_SCRIPT_NAME connect <ip>" ;;
         update) update_scripts "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS ;;
+        diagnose) host_diagnose "$2" ;;
         "") host_main ;;
-        *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+        *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
     esac
 fi
