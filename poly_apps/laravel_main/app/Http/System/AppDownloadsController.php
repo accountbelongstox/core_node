@@ -21,6 +21,7 @@ class AppDownloadsController extends Controller
     private const HTTP_UNPROCESSABLE = 422;
     private const HTTP_INSUFFICIENT_STORAGE = 507;
     private const HTTP_SERVER_ERROR = 500;
+    private const RECENT_MAX = 20;
     private const JOB_ID_RULE = 'nullable|string|regex:/^\d{14}-[a-f0-9]{12}$/';
     private const CONFLICT_CODES = ['busy', 'offset_mismatch', 'upload_busy'];
 
@@ -56,8 +57,18 @@ class AppDownloadsController extends Controller
 
     public function status(Request $request): JsonResponse
     {
-        $validated = $request->validate(['job_id' => self::JOB_ID_RULE]);
+        $validated = $request->validate([
+            'job_id' => self::JOB_ID_RULE,
+            'limit' => 'nullable|integer|min:1|max:'.self::RECENT_MAX,
+        ]);
         $job = ServerManagerV1AppDownloadsSyncJob::status($validated['job_id'] ?? null);
+
+        if (isset($validated['limit'])) {
+            return $this->success(
+                array_map(fn (array $recent): array => $this->localized($recent), ServerManagerV1AppDownloadsSyncJob::recent((int) $validated['limit'])),
+                __('app_downloads.messages.status_retrieved')
+            );
+        }
 
         if ($job === null) {
             return $this->error(__('app_downloads.errors.job_not_found'), self::HTTP_NOT_FOUND);
