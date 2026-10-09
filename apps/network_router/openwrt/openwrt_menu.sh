@@ -8,7 +8,7 @@
 # On a PC (Linux, or Git Bash on Windows):
 #   sh openwrt_menu.sh                    scan the LAN, pick a router, upload the scripts over SSH and open the menu there
 #   sh openwrt_menu.sh scan [a.b.c]       list LAN hosts (default: the gateway's /24)
-#   sh openwrt_menu.sh connect <ip>       upload the scripts to <ip> and open the menu there
+#   sh openwrt_menu.sh connect [ip]       find the OpenWrt (ip, gateway, 192.168.50.1, scan), upload the scripts and open the menu there
 # Both: sh openwrt_menu.sh update         download the scripts again
 #       sh openwrt_menu.sh diagnose [ip]  check addresses, router web UI/SSH, Wi-Fi, Internet
 # OPENWRT_SCRIPTS_URL overrides the download base URL.
@@ -36,6 +36,10 @@ SSH_USER="root"
 SSH_KNOWN_HOSTS="$HOST_SCRIPT_DIR/known_hosts"
 SSH_OPTIONS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$SSH_KNOWN_HOSTS -o ConnectTimeout=8"
 SSH_SCAN_TIMEOUT=2
+ROUTER_CANDIDATES="192.168.50.1 192.168.1.1"
+ROUTER_HOST=""
+ROUTER_KEY_NAME=""
+ROUTER_SSH_OPTIONS=""
 PING_TIMEOUT_MS=500
 INTERNET_TARGETS="223.5.5.5 8.8.8.8 1.1.1.1"
 INTERNET_TIMEOUT_MS=2000
@@ -396,13 +400,70 @@ pick_host() {
     esac
 }
 
+ssh_banner_label() {
+    local banner=""
+
+    banner="$(ssh_banner "$1")"
+    echo "${banner:-no SSH}"
+}
+
+# The wanted address when it runs OpenWrt's Dropbear SSH, else the gateway, the
+# usual OpenWrt addresses and finally a LAN scan (addresses move between modes,
+# and the upstream router may hold the old one).
+find_router() {
+    local wanted="$1"
+    local candidate=""
+    local banner=""
+    local seen=" "
+
+    ROUTER_HOST=""
+    for candidate in $wanted $(default_gateway) $ROUTER_CANDIDATES; do
+        case "$seen" in *" $candidate "*) continue ;; esac
+        seen="$seen$candidate "
+        banner="$(ssh_banner_label "$candidate")"
+        case "$banner" in
+            *dropbear*) log "$candidate: $banner (OpenWrt)"; ROUTER_HOST="$candidate"; break ;;
+            *) log "$candidate: $banner (not OpenWrt)" ;;
+        esac
+    done
+    if [ -z "$ROUTER_HOST" ]; then
+        log "No OpenWrt on the usual addresses; scanning the LAN"
+        scan_lan "" >/dev/null && ROUTER_HOST="$(first_candidate)"
+    fi
+    if [ -n "$wanted" ] && [ -n "$ROUTER_HOST" ] && [ "$ROUTER_HOST" != "$wanted" ]; then
+        log "$wanted is not OpenWrt; using $ROUTER_HOST"
+    fi
+}
+
+# Router host keys are stored per MAC address, so a key follows its router
+# across address changes and never clashes with the device that takes the old
+# address.
+router_ssh_options() {
+    local mac=""
+
+    mac="$(lan_neighbors "${1%.*}" | awk -v ip="$1" '$1 == ip {print $2; exit}' | tr -d ':-')"
+    ROUTER_KEY_NAME="${mac:+openwrt-$mac}"
+    ROUTER_KEY_NAME="${ROUTER_KEY_NAME:-$1}"
+    ROUTER_SSH_OPTIONS="$SSH_OPTIONS -o HostKeyAlias=$ROUTER_KEY_NAME"
+    log "SSH host key entry: $ROUTER_KEY_NAME"
+}
+
+# Only this tool's own known_hosts is touched; a changed key there means the
+# router was reflashed or reset.
+reset_changed_host_key() {
+    if ssh $ROUTER_SSH_OPTIONS -o BatchMode=yes -o PasswordAuthentication=no "$SSH_USER@$1" true 2>&1 | grep -q "HOST IDENTIFICATION HAS CHANGED"; then
+        ssh-keygen -R "$ROUTER_KEY_NAME" -f "$SSH_KNOWN_HOSTS" >/dev/null 2>&1
+        log "Host key of $ROUTER_KEY_NAME changed (router reflashed or reset); old entry removed from $SSH_KNOWN_HOSTS"
+    fi
+}
+
 print_remote_steps() {
     local target="$1"
 
     echo "----------------------------------------------------------------"
     echo "This uploads the scripts to $ROUTER_SCRIPT_DIR on $target and opens the menu there."
     echo "Each SSH step may ask for the router password (empty on a fresh OpenWrt)."
-    echo "If an automatic step fails, log in with:  ssh -o UserKnownHostsFile=$SSH_KNOWN_HOSTS $target"
+    echo "If an automatic step fails, log in with:  ssh $ROUTER_SSH_OPTIONS $target"
     echo "then run on the router (it needs Internet):"
     echo "  mkdir -p $ROUTER_SCRIPT_DIR && wget -qO $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME $SCRIPTS_URL/$MENU_SCRIPT_NAME && sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME"
     echo "Later logins only need:  sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME"
@@ -411,17 +472,25 @@ print_remote_steps() {
 }
 
 connect_host() {
-    local target="$SSH_USER@$1"
+    local target=""
 
+    find_router "$1"
+    if [ -z "$ROUTER_HOST" ]; then
+        log "No OpenWrt (Dropbear SSH) found: plug this PC into a router LAN port, or use OpenWrt failsafe"
+        return 1
+    fi
+    target="$SSH_USER@$ROUTER_HOST"
+    mkdir -p "$HOST_SCRIPT_DIR"
+    router_ssh_options "$ROUTER_HOST"
+    reset_changed_host_key "$ROUTER_HOST"
     print_remote_steps "$target"
     confirm "Continue with $target?" || return 0
-    mkdir -p "$HOST_SCRIPT_DIR"
     log "Uploading $MENU_SCRIPT_NAME $MANAGED_SCRIPTS"
-    if (cd "$SCRIPT_DIR" && tar -cf - "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS) | ssh $SSH_OPTIONS "$target" "mkdir -p $ROUTER_SCRIPT_DIR && tar -xf - -C $ROUTER_SCRIPT_DIR"; then
-        ssh -t $SSH_OPTIONS "$target" "sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME" || log "SSH session ended (a network restart after a mode switch drops it; reconnect on the new address)"
+    if (cd "$SCRIPT_DIR" && tar -cf - "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS) | ssh $ROUTER_SSH_OPTIONS "$target" "mkdir -p $ROUTER_SCRIPT_DIR && tar -xf - -C $ROUTER_SCRIPT_DIR"; then
+        ssh -t $ROUTER_SSH_OPTIONS "$target" "sh $ROUTER_SCRIPT_DIR/$MENU_SCRIPT_NAME" || log "SSH session ended (a network restart after a mode switch drops it; run connect again to find the new address)"
     else
         log "Upload failed; opening a plain SSH shell (run the commands shown above)"
-        ssh $SSH_OPTIONS "$target"
+        ssh $ROUTER_SSH_OPTIONS "$target"
     fi
 }
 
@@ -558,13 +627,7 @@ else
     ensure_scripts "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS || log "Some scripts are missing; the upload needs them"
     case "$1" in
         scan) scan_lan "$2" ;;
-        connect)
-            if [ -n "$2" ]; then
-                connect_host "$2"
-            else
-                log "Usage: sh $MENU_SCRIPT_NAME connect <ip>"
-            fi
-            ;;
+        connect) connect_host "$2" ;;
         update) update_scripts "$MENU_SCRIPT_NAME" $MANAGED_SCRIPTS ;;
         diagnose) host_diagnose "$2" ;;
         "") host_main ;;
