@@ -9,6 +9,8 @@
 #       hosts on 192.168.50.x open the upstream router (e.g. 192.168.1.1)
 #     with a gateway (natgateway host): static management address via it
 #   sh ap_mode.sh wifi [ssid_5g] [ssid_24] [password]   5G and 2.4G Wi-Fi on every radio
+#   sh ap_mode.sh check                    compare every setting with AP mode, change nothing
+#   sh ap_mode.sh repair                   re-apply AP mode on the current addresses
 #   sh ap_mode.sh status
 #   sh ap_mode.sh restore                  undo with the newest backup
 
@@ -35,6 +37,8 @@ SELF_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 NETWORK_RESTART_DELAY=3
 LOG_PREFIX="[AP-MODE]"
 CHANGED=0
+DRY_RUN=0
+DIFFS=0
 ZONE_SECTION=""
 WIFI_SSID_5G=""
 WIFI_SSID_24=""
@@ -49,6 +53,12 @@ step() {
     echo "$LOG_PREFIX == $* =="
 }
 
+report_diff() {
+    echo "  ! $* (differs)"
+    DIFFS=$((DIFFS + 1))
+    CHANGED=1
+}
+
 set_option() {
     local current=""
 
@@ -57,6 +67,7 @@ set_option() {
         echo "  = $1='$2'"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1: '${current:-<unset>}', expected '$2'"; return 0; }
     uci set "$1=$2"
     echo "  * $1: '${current:-<unset>}' -> '$2'"
     CHANGED=1
@@ -67,6 +78,7 @@ delete_option() {
         echo "  = $1 unset"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1='$(uci -q get "$1")', expected unset"; return 0; }
     uci -q delete "$1"
     echo "  * $1 removed"
     CHANGED=1
@@ -77,6 +89,7 @@ add_list_once() {
         echo "  = $1 has '$2'"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 lacks '$2'"; return 0; }
     uci add_list "$1=$2"
     echo "  * $1 += '$2'"
     CHANGED=1
@@ -87,6 +100,7 @@ del_list_once() {
         echo "  = $1 lacks '$2'"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 has '$2', expected without"; return 0; }
     uci del_list "$1=$2"
     echo "  * $1 -= '$2'"
     CHANGED=1
@@ -97,6 +111,7 @@ ensure_section() {
         echo "  = $1 exists"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 missing ($2)"; return 0; }
     uci set "$1=$2"
     echo "  * $1 created ($2)"
     CHANGED=1
@@ -107,6 +122,7 @@ delete_section() {
         echo "  = $1 absent"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 present, expected removed"; return 0; }
     uci delete "$1"
     echo "  * $1 removed"
     CHANGED=1
@@ -125,6 +141,7 @@ backup() {
     local checksum=""
     local latest=""
 
+    [ "$DRY_RUN" = "1" ] && return 0
     checksum="$(config_checksum)"
     latest="$(latest_backup)"
     if [ -n "$latest" ] && [ "$(cat "${latest%.tar.gz}.md5" 2>/dev/null)" = "$checksum" ]; then
@@ -161,6 +178,13 @@ wan_device() {
     uci -q get network.wan.device || uci -q get network.wan.ifname
 }
 
+# OpenWrt 21.02+ may store the LAN address in CIDR form (192.168.1.1/24).
+lan_address() {
+    local address=""
+    address="$(uci -q get network.lan.ipaddr)"
+    echo "${address%%/*}"
+}
+
 firewall_zone() {
     uci show firewall 2>/dev/null | sed -n "s/^firewall\.\([^.]*\)\.name='$1'$/\1/p" | head -n 1
 }
@@ -177,6 +201,10 @@ ensure_zone() {
     local network=""
 
     ZONE_SECTION="$(firewall_zone "$1")"
+    if [ -z "$ZONE_SECTION" ] && [ "$DRY_RUN" = "1" ]; then
+        report_diff "firewall zone $1 missing"
+        return 0
+    fi
     if [ -z "$ZONE_SECTION" ]; then
         ZONE_SECTION="$(uci add firewall zone)"
         echo "  * firewall zone $1 created"
@@ -199,6 +227,7 @@ service_enable() {
     if "/etc/init.d/$1" enabled; then
         echo "  = service $1 enabled"
     else
+        [ "$DRY_RUN" = "1" ] && { report_diff "service $1 disabled, expected enabled"; return 0; }
         "/etc/init.d/$1" enable
         echo "  * service $1 enabled"
     fi
@@ -206,8 +235,9 @@ service_enable() {
 
 service_disable() {
     [ -x "/etc/init.d/$1" ] || { echo "  = service $1 not installed"; return 0; }
-    "/etc/init.d/$1" stop >/dev/null 2>&1
     if "/etc/init.d/$1" enabled; then
+        [ "$DRY_RUN" = "1" ] && { report_diff "service $1 enabled, expected disabled"; return 0; }
+        "/etc/init.d/$1" stop >/dev/null 2>&1
         "/etc/init.d/$1" disable >/dev/null 2>&1
         echo "  * service $1 stopped and disabled"
     else
@@ -222,6 +252,14 @@ apply_changes() {
     local service=""
 
     echo
+    if [ "$DRY_RUN" = "1" ]; then
+        if [ "$DIFFS" = "0" ]; then
+            log "Check: every setting matches"
+        else
+            log "Check: $DIFFS setting(s) differ; 'repair' applies them"
+        fi
+        return 0
+    fi
     if [ "$CHANGED" = "0" ]; then
         log "No setting changed; network not restarted"
         for service in $services; do
@@ -300,6 +338,7 @@ ensure_wpad() {
         echo "  = hostapd/wpad installed"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "no hostapd/wpad, expected $WIFI_PACKAGE"; return 0; }
     echo "  * installing $WIFI_PACKAGE (Wi-Fi encryption needs hostapd/wpad)"
     pkg_install "$WIFI_PACKAGE" || echo "  ! $WIFI_PACKAGE install failed: encrypted Wi-Fi will not start"
 }
@@ -317,7 +356,7 @@ setup_wifi() {
 
     step "Wi-Fi"
     radios="$(wifi_radios)"
-    if [ -z "$radios" ] && command -v wifi >/dev/null 2>&1; then
+    if [ -z "$radios" ] && [ "$DRY_RUN" != "1" ] && command -v wifi >/dev/null 2>&1; then
         echo "  No radio in /etc/config/wireless; detecting hardware"
         wifi config >/dev/null 2>&1
         radios="$(wifi_radios)"
@@ -483,17 +522,21 @@ apply() {
         set_option "network.$UPLINK_INTERFACE.proto" "dhcp"
         set_option "network.$UPLINK_INTERFACE.device" "$BRIDGE_DEVICE"
         add_list_once "firewall.$ZONE_SECTION.network" "$UPLINK_INTERFACE"
-        if [ -z "$nat" ]; then
-            nat="$(uci add firewall nat)"
-            echo "  * firewall nat $MGMT_NAT_NAME created"
-            CHANGED=1
+        if [ -z "$nat" ] && [ "$DRY_RUN" = "1" ]; then
+            report_diff "firewall nat $MGMT_NAT_NAME missing"
+        else
+            if [ -z "$nat" ]; then
+                nat="$(uci add firewall nat)"
+                echo "  * firewall nat $MGMT_NAT_NAME created"
+                CHANGED=1
+            fi
+            set_option "firewall.$nat.name" "$MGMT_NAT_NAME"
+            set_option "firewall.$nat.family" "ipv4"
+            set_option "firewall.$nat.proto" "all"
+            set_option "firewall.$nat.src" "lan"
+            set_option "firewall.$nat.src_ip" "${ip%.*}.0/24"
+            set_option "firewall.$nat.target" "MASQUERADE"
         fi
-        set_option "firewall.$nat.name" "$MGMT_NAT_NAME"
-        set_option "firewall.$nat.family" "ipv4"
-        set_option "firewall.$nat.proto" "all"
-        set_option "firewall.$nat.src" "lan"
-        set_option "firewall.$nat.src_ip" "${ip%.*}.0/24"
-        set_option "firewall.$nat.target" "MASQUERADE"
     fi
 
     step "DHCP (the upstream router serves it)"
@@ -510,7 +553,7 @@ apply() {
     for service in odhcpd $BALANCER_SERVICE $PROXY_SERVICES; do
         service_disable "$service"
     done
-    [ -x "$BALANCER_SCRIPT" ] && sh "$BALANCER_SCRIPT" shaper-stop
+    [ "$DRY_RUN" != "1" ] && [ -x "$BALANCER_SCRIPT" ] && sh "$BALANCER_SCRIPT" shaper-stop
     service_enable firewall
     service_enable dnsmasq
 
@@ -567,7 +610,9 @@ case "$1" in
     apply) apply "$2" "$3" ;;
     wifi) wifi_command "$2" "$3" "$4" ;;
     wifi-check) wifi_check "$2" ;;
+    check) DRY_RUN=1; log "Check only: every setting is compared, nothing changes"; apply "$(lan_address)/24" "$(uci -q get network.lan.gateway)" ;;
+    repair) apply "$(lan_address)/24" "$(uci -q get network.lan.gateway)" ;;
     status) status ;;
     restore) restore ;;
-    *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

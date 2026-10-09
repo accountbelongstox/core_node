@@ -86,6 +86,8 @@ public partial class D4Page : UserControl
         LblExpFarmingSubtitle.Text = p.GetUiText(I18nKeys.D4PageSubtitle);
         TxtDebugButton.Text = p.GetUiText(I18nKeys.D4PageDebugButton);
         TxtStartD4.Text = p.GetUiText(I18nKeys.D4PageStartD4Button);
+        TxtFixD4License.Text = p.GetUiText(I18nKeys.D4PageFixLicenseButton);
+        BtnFixD4License.ToolTip = p.GetUiText(I18nKeys.D4PageFixLicenseTooltip);
         LblGameStatusTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusTitle);
         LblLogTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingLogTitle);
         TxtClearLog.Text = p.GetUiText(I18nKeys.D4PageClearLog);
@@ -132,6 +134,26 @@ public partial class D4Page : UserControl
         }
         finally
         {
+            BtnStartD4.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Fix "unable to find a valid license" then launch D4, off the UI thread; disabled while running (re-entry guard).</summary>
+    private async void BtnFixD4License_Click(object sender, RoutedEventArgs e)
+    {
+        BtnFixD4License.IsEnabled = false;
+        BtnStartD4.IsEnabled = false;
+        try
+        {
+            await Task.Run(LoginTryController.FixD4LicenseAndLaunch);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[D4Panel] Fix D4 license failed: {ex.Message}");
+        }
+        finally
+        {
+            BtnFixD4License.IsEnabled = true;
             BtnStartD4.IsEnabled = true;
         }
     }

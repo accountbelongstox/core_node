@@ -619,6 +619,7 @@ if is_openwrt; then
         diagnose) router_diagnose ;;
         "")
             wifi_startup
+            network_check
             router_menu
             ;;
         *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;

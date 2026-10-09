@@ -168,6 +168,12 @@
                 <TextBlock x:Name="TxtStartD4" VerticalAlignment="Center"/>
               </StackPanel>
             </Button>
+            <Button x:Name="BtnFixD4License" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0" Click="BtnFixD4License_Click">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE90F;" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtFixD4License" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
           </StackPanel>
           <ProgressBar Grid.Column="2" IsIndeterminate="True" Width="96" Height="4" Margin="16,0" HorizontalAlignment="Left" VerticalAlignment="Center"
                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>

@@ -8,6 +8,7 @@ using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.Services;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
+using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Ctl;
 
@@ -20,6 +21,7 @@ namespace DotApps.d3d4tester.Ctl;
 public static class LoginTryController
 {
     private const string LogPrefix = "[LoginTryScreenshotController]";
+    private const string D4LicenseLogPrefix = "[D4LicenseFix]";
     private const double BnRestartWaitAfterSec = 2.0;
     private static readonly TimeSpan ManualActionTimeout = TimeSpan.FromMinutes(5);
 
@@ -94,6 +96,22 @@ public static class LoginTryController
             return true;
         }
         return LaunchManually(GameLaunchTarget.D4, killGameFirst: false);
+    }
+
+    /// <summary>
+    /// D4 "unable to find a valid license" (error 315306) client-side fix, idempotent (each step skips what is already done): close D4,
+    /// close Battle.net + Agent, clear the license caches, then Battle.net ready in the configured region (B) + direct launch (D).
+    /// </summary>
+    public static bool FixD4LicenseAndLaunch()
+    {
+        ColorPrinter.Blue($"{D4LicenseLogPrefix} close D4 -> close Battle.net + Agent -> clear license caches -> Battle.net -> launch D4");
+        D4Manager.Instance.KillIfRunning();
+        BattlenetManager.Instance.Close(force: true);
+        ProcessUtil.KillProcessByExe(BattlenetConstants.AgentExeName, BattlenetConstants.KillWaitTimeoutSec, D4LicenseLogPrefix);
+        BattlenetCacheCleanup.ClearLicenseCache();
+        bool ok = LaunchManually(GameLaunchTarget.D4, killGameFirst: false);
+        ColorPrinter.Blue($"{D4LicenseLogPrefix} done, D4 launched={ok}");
+        return ok;
     }
 
     private static bool LaunchManually(GameLaunchTarget target, bool killGameFirst)

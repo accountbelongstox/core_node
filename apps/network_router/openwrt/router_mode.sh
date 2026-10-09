@@ -7,6 +7,8 @@
 # Run on the router:
 #   sh router_mode.sh apply [lan_ip/24]     default 192.168.50.1/24
 #   sh router_mode.sh wifi [ssid_5g] [ssid_24] [password]
+#   sh router_mode.sh check                 compare every setting with router mode, change nothing
+#   sh router_mode.sh repair                re-apply router mode on the current LAN address
 #   sh router_mode.sh status
 #   sh router_mode.sh restore               undo with the newest backup
 # The balancer measures the WAN rate (100 Mbit until measured), raises the limit
@@ -67,6 +69,8 @@ SAMPLE_SECONDS=5
 SAVE_MIN_SECONDS=600
 QUANTUM=1514
 CHANGED=0
+DRY_RUN=0
+DIFFS=0
 ZONE_SECTION=""
 WIFI_SSID_5G=""
 WIFI_SSID_24=""
@@ -87,6 +91,12 @@ step() {
     echo "$LOG_PREFIX == $* =="
 }
 
+report_diff() {
+    echo "  ! $* (differs)"
+    DIFFS=$((DIFFS + 1))
+    CHANGED=1
+}
+
 set_option() {
     local current=""
 
@@ -95,6 +105,7 @@ set_option() {
         echo "  = $1='$2'"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1: '${current:-<unset>}', expected '$2'"; return 0; }
     uci set "$1=$2"
     echo "  * $1: '${current:-<unset>}' -> '$2'"
     CHANGED=1
@@ -105,6 +116,7 @@ delete_option() {
         echo "  = $1 unset"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1='$(uci -q get "$1")', expected unset"; return 0; }
     uci -q delete "$1"
     echo "  * $1 removed"
     CHANGED=1
@@ -115,6 +127,7 @@ add_list_once() {
         echo "  = $1 has '$2'"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 lacks '$2'"; return 0; }
     uci add_list "$1=$2"
     echo "  * $1 += '$2'"
     CHANGED=1
@@ -125,6 +138,7 @@ del_list_once() {
         echo "  = $1 lacks '$2'"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 has '$2', expected without"; return 0; }
     uci del_list "$1=$2"
     echo "  * $1 -= '$2'"
     CHANGED=1
@@ -135,6 +149,7 @@ ensure_section() {
         echo "  = $1 exists"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 missing ($2)"; return 0; }
     uci set "$1=$2"
     echo "  * $1 created ($2)"
     CHANGED=1
@@ -145,6 +160,7 @@ delete_section() {
         echo "  = $1 absent"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$1 present, expected removed"; return 0; }
     uci delete "$1"
     echo "  * $1 removed"
     CHANGED=1
@@ -163,6 +179,7 @@ backup() {
     local checksum=""
     local latest=""
 
+    [ "$DRY_RUN" = "1" ] && return 0
     checksum="$(config_checksum)"
     latest="$(latest_backup)"
     if [ -n "$latest" ] && [ "$(cat "${latest%.tar.gz}.md5" 2>/dev/null)" = "$checksum" ]; then
@@ -215,6 +232,10 @@ ensure_zone() {
     local network=""
 
     ZONE_SECTION="$(firewall_zone "$1")"
+    if [ -z "$ZONE_SECTION" ] && [ "$DRY_RUN" = "1" ]; then
+        report_diff "firewall zone $1 missing"
+        return 0
+    fi
     if [ -z "$ZONE_SECTION" ]; then
         ZONE_SECTION="$(uci add firewall zone)"
         echo "  * firewall zone $1 created"
@@ -241,6 +262,7 @@ ensure_lan_forwarding() {
             return 0
         fi
     done
+    [ "$DRY_RUN" = "1" ] && { report_diff "firewall forwarding lan -> wan missing"; return 0; }
     section="$(uci add firewall forwarding)"
     uci set "firewall.$section.src=lan"
     uci set "firewall.$section.dest=wan"
@@ -253,6 +275,7 @@ service_enable() {
     if "/etc/init.d/$1" enabled; then
         echo "  = service $1 enabled"
     else
+        [ "$DRY_RUN" = "1" ] && { report_diff "service $1 disabled, expected enabled"; return 0; }
         "/etc/init.d/$1" enable
         echo "  * service $1 enabled"
     fi
@@ -265,6 +288,14 @@ apply_changes() {
     local service=""
 
     echo
+    if [ "$DRY_RUN" = "1" ]; then
+        if [ "$DIFFS" = "0" ]; then
+            log "Check: every setting matches"
+        else
+            log "Check: $DIFFS setting(s) differ; 'repair' applies them"
+        fi
+        return 0
+    fi
     if [ "$CHANGED" = "0" ]; then
         log "No setting changed; network not restarted"
         for service in $services; do
@@ -343,6 +374,7 @@ ensure_wpad() {
         echo "  = hostapd/wpad installed"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "no hostapd/wpad, expected $WIFI_PACKAGE"; return 0; }
     echo "  * installing $WIFI_PACKAGE (Wi-Fi encryption needs hostapd/wpad)"
     pkg_install "$WIFI_PACKAGE" || echo "  ! $WIFI_PACKAGE install failed: encrypted Wi-Fi will not start"
 }
@@ -360,7 +392,7 @@ setup_wifi() {
 
     step "Wi-Fi"
     radios="$(wifi_radios)"
-    if [ -z "$radios" ] && command -v wifi >/dev/null 2>&1; then
+    if [ -z "$radios" ] && [ "$DRY_RUN" != "1" ] && command -v wifi >/dev/null 2>&1; then
         echo "  No radio in /etc/config/wireless; detecting hardware"
         wifi config >/dev/null 2>&1
         radios="$(wifi_radios)"
@@ -503,6 +535,7 @@ install_packages() {
         fi
     done
     [ -n "$missing" ] || return 0
+    [ "$DRY_RUN" = "1" ] && { report_diff "packages missing:$missing"; return 0; }
     log "Installing:$missing"
     pkg_install $missing || log "Package install failed:$missing; the balancer needs them"
 }
@@ -516,6 +549,7 @@ write_if_changed() {
         rm -f "$source"
         return 0
     fi
+    [ "$DRY_RUN" = "1" ] && { report_diff "$target outdated"; rm -f "$source"; return 0; }
     mv "$source" "$target" || { echo "  ! cannot write $target"; return 1; }
     chmod +x "$target"
     echo "  * $target written"
@@ -530,6 +564,8 @@ install_balancer() {
     mkdir -p "$CONFIG_DIR"
     if [ -f "$CONFIG_FILE" ]; then
         echo "  = $CONFIG_FILE kept"
+    elif [ "$DRY_RUN" = "1" ]; then
+        report_diff "$CONFIG_FILE missing"
     else
         cat > "$CONFIG_FILE" <<EOF
 PING_TARGET="$PING_TARGET"
@@ -1055,9 +1091,11 @@ case "$1" in
     apply) apply "$2" ;;
     wifi) wifi_command "$2" "$3" "$4" ;;
     wifi-check) wifi_check "$2" ;;
+    check) DRY_RUN=1; log "Check only: every setting is compared, nothing changes"; apply "$(lan_address)/24" ;;
+    repair) apply "$(lan_address)/24" ;;
     status) status ;;
     restore) restore ;;
     daemon) daemon ;;
     shaper-stop) shaper_stop ;;
-    *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

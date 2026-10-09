@@ -7,6 +7,8 @@ public static partial class I18nKeys
     public const string D4PageSubtitle = "ui.d4_panel.exp_farming.subtitle";
     public const string D4PageDebugButton = "ui.d4_panel.exp_farming.debug_button";
     public const string D4PageStartD4Button = "ui.d4_panel.exp_farming.start_d4";
+    public const string D4PageFixLicenseButton = "ui.d4_panel.exp_farming.fix_license";
+    public const string D4PageFixLicenseTooltip = "ui.d4_panel.exp_farming.fix_license_tooltip";
     public const string D4PageClearLog = "ui.d4_panel.exp_farming.clear_log";
     public const string D4PageLogStarted = "ui.d4_panel.exp_farming.log.started";
     public const string D4PageLogStopped = "ui.d4_panel.exp_farming.log.stopped";
