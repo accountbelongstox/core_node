@@ -271,9 +271,16 @@ def sync_to_server(app_id: str, source_urls: list[str]) -> str:
                                 capture_output=True, text=True, timeout=SYNC_TIMEOUT_SECONDS, check=False, encoding="utf-8")
     except (OSError, subprocess.SubprocessError) as error:
         return f"failed: {error}"
-    text = (result.stdout or result.stderr or "").strip().replace(chr(10), " ")[:SYNC_MESSAGE_CHARS]
-    if result.returncode == 0:
-        return f"ok: {text}"
+    output = (result.stdout or "").strip()
+    text = (output or result.stderr or "").strip().replace(chr(10), " ")[:SYNC_MESSAGE_CHARS]
+    reply = next((line for line in output.splitlines() if line.lstrip().startswith("{")), "")
+    try:
+        document = json.loads(reply) if reply else {}
+    except ValueError:
+        document = {}
+    if document.get("success") is True:
+        data = document.get("data") or {}
+        return f"ok: job {data.get('job_id', '?')} {data.get('status', '')}".strip()
     missing = " (the server does not have this endpoint yet)" if "404" in text or "not found" in text.lower() else ""
     return f"failed{missing}: {text}"
 
