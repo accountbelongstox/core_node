@@ -381,7 +381,9 @@
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET \"/api/system/app-downloads/status?job_id=20261009143225-643a696a7a30\")",
       "PowerShell($f = Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \".claude\\\\settings.local.json\"; try { Get-Content -Raw $f | ConvertFrom-Json | Out-Null; \"json-ok\" } catch { \"json-error: $\\($_.Exception.Message\\)\" })",
       "PowerShell($g = \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path; git -C $g add -- \".claude/settings.local.json\"; git -C $g diff --name-only --diff-filter=U; \"unmerged-left: $\\(\\(git -C $g diff --name-only --diff-filter=U | Measure-Object\\).Count\\)\")",
-      "PowerShell(& \\(Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \"dd.cmd\"\\) gitsync -m \"OpenWrt: router mode with bandwidth balancer, menu with LAN scan/SSH/diagnose, per-band Wi-Fi, idempotent check/repair; mcp-chrome wake only on start or rebuild\")"
+      "PowerShell(& \\(Join-Path \\(Resolve-Path \"D:\\\\programing\\\\core_node\"\\).Path \"dd.cmd\"\\) gitsync -m \"OpenWrt: router mode with bandwidth balancer, menu with LAN scan/SSH/diagnose, per-band Wi-Fi, idempotent check/repair; mcp-chrome wake only on start or rebuild\")",
+      "PowerShell(git show origin/main:config/service_contract.json | Select-String 'conflict_ai_prompt\"'; git cat-file -e origin/main:docs_fix/GITSYNC_MERGE_CONFLICT.md; \"doc-exists-on-origin=$?\"; git show origin/main:docs_fix/README.md | Select-Object -First 1; git show origin/main:.claude/settings.local.json | Select-String -SimpleMatch -Pattern 'w32tm','Step175_LaravelMainStart','app-downloads/status?job_id=20261009143225' | ForEach-Object { $_.LineNumber })",
+      "PowerShell(Out-Null *)"
     ],
     "deny": [],
     "ask": []
