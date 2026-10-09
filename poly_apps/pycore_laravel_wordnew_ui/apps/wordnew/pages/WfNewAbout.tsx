@@ -8,11 +8,13 @@
  * All copy via trans() (proofread across en/zh/ja/ko); English-only in code.
  */
 import React from 'react';
-import { Sparkles, Repeat, BookOpen, FlaskConical } from 'lucide-react';
+import { Sparkles, Repeat, BookOpen, FlaskConical, Download } from 'lucide-react';
 import { WfNewLogo } from '../WfNewBrand';
 import type { ElementTheme } from '../WfNewThemes';
+import { NavRow } from '@/shared/ui/NavRow';
 interface WfNewAboutProps {
   activeTheme: ElementTheme;
+  onOpenDownload: () => void;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
@@ -23,7 +25,7 @@ const FEATURES: Array<{ Icon: React.ComponentType<{ className?: string }>; key: 
   { Icon: FlaskConical, key: 'f4' },
 ];
 
-export const WfNewAbout: React.FC<WfNewAboutProps> = ({ activeTheme, trans }) => (
+export const WfNewAbout: React.FC<WfNewAboutProps> = ({ activeTheme, trans, onOpenDownload }) => (
   <div className="space-y-6">
     {/* Brand hero */}
     <div className={`p-8 rounded-3xl ${activeTheme.cardClass} shadow-md flex flex-col items-center text-center gap-4`}>
@@ -38,6 +40,16 @@ export const WfNewAbout: React.FC<WfNewAboutProps> = ({ activeTheme, trans }) =>
       <p className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-prose">
         {trans('about.desc')}
       </p>
+    </div>
+
+    <div className={`rounded-3xl ${activeTheme.cardClass} shadow-sm overflow-hidden`}>
+      <NavRow
+        variant="row"
+        label={trans('download.title')}
+        hint={trans('download.entryHint')}
+        onClick={onOpenDownload}
+        icon={<Download className="h-5 w-5 shrink-0 text-indigo-500" />}
+      />
     </div>
 
     {/* The four pillars */}

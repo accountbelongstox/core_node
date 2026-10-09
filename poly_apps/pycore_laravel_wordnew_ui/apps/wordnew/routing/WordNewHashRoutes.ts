@@ -1,5 +1,5 @@
 import {
-  AudioLines, BarChart3, BookOpen, BrainCircuit, CalendarClock, Captions, FileText,
+  AudioLines, BarChart3, BookOpen, BrainCircuit, CalendarClock, Captions, Download, FileText,
   FlaskConical, Globe2, GraduationCap, HardDrive, Headphones, Info, Languages, Layers,
   LayoutGrid, Library, LibraryBig, LogIn, Newspaper, Settings, ShieldCheck,
   SlidersHorizontal, UserRound, Users, type LucideIcon,
@@ -19,13 +19,13 @@ export type WordNewTab =
   | 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman'
   | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'languages'
   | 'learning-model' | 'review-settings' | 'playback' | 'cache' | 'book-reader' | 'content-list' | 'library' | 'about'
-  | 'daily-reading' | 'orch-audio' | 'admin';
+  | 'daily-reading' | 'orch-audio' | 'download' | 'admin';
 
 export const WORDNEW_TABS: readonly WordNewTab[] = Object.freeze([
   'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
   'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
   'learning-model', 'review-settings', 'playback', 'cache', 'book-reader', 'content-list', 'about',
-  'daily-reading', 'orch-audio', 'admin',
+  'daily-reading', 'orch-audio', 'download', 'admin',
 ]);
 
 export interface WordNewPageHeader {
@@ -68,6 +68,7 @@ export function wordNewPageHeader(
     case 'languages': return { icon: Globe2, title: trans('lang.title'), subtitle: trans('lang.sub') };
     case 'settings': return { icon: Settings, title: trans('settings.title'), subtitle: trans('settings.sub') };
     case 'about': return { icon: Info, title: trans('about.title'), subtitle: trans('about.sub') };
+    case 'download': return { icon: Download, title: trans('download.title'), subtitle: trans('download.sub') };
     case 'admin': return { icon: ShieldCheck, title: trans('hdr.admin'), subtitle: trans('hdr.adminSub') };
     case 'daily-reading': return { icon: Newspaper, title: trans('home.dailyReading.title'), subtitle: trans('home.dailyReading.pageSubtitle') };
     case 'orch-audio': return { icon: AudioLines, title: trans('orchAudio.title'), subtitle: trans('orchAudio.subtitle') };

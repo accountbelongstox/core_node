@@ -11,7 +11,7 @@ import {
   TAILNET_API_PATH,
 } from '../../contracts/ServiceContract';
 import { tailnetDomainOf } from '../../contracts/MeshDomain';
-import { getTailnetServerPeers } from '../../network/TailnetDiscovery';
+import { getServiceUrlEntries, getTailnetServerPeers } from '../../network/TailnetDiscovery';
 import { StorageManager } from '../../persistence';
 import { isLoopbackHost, isPrivateHost } from '../../network/hostDetection';
 import { NETWORK_TIMEOUTS } from '../../config/NetworkTiming';
@@ -65,17 +65,56 @@ function getDomainApiEndpoints(): BackendApiEndpoint[] {
   }));
 }
 
-/** `https://<machine>.<tailnet domain>/laravel-api` of every tailnet machine (static in a build, live in dev). */
+/**
+ * The Laravel API of every contract tailnet machine (service_url_entries): listed
+ * before any discovery answered, so a phone that cannot list the tailnet itself
+ * still offers them (the health probe tells whether the mesh is reachable).
+ */
+function getContractTailnetApiEndpoints(): BackendApiEndpoint[] {
+  return getServiceUrlEntries().flatMap((entry): BackendApiEndpoint[] => {
+    try {
+      const parsed = new URL(entry.url);
+      const host = parsed.hostname.toLowerCase();
+      const basePath = parsed.pathname.replace(/\/+$/, '');
+      if (parsed.protocol !== 'https:' || !tailnetDomainOf(host) || basePath !== TAILNET_API_PATH) return [];
+      return [{
+        id: tailnetEndpointId(host),
+        url: host,
+        protocol: 'https',
+        basePath,
+        priority: 0,
+        isLocal: false,
+        description: entry.label,
+      }];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/**
+ * `https://<machine>.<tailnet domain>/laravel-api` of every contract and discovered tailnet machine
+ * (static in a build, live in dev). All rank after the root-domain APIs, which stay the default.
+ */
 function getTailnetApiEndpoints(): BackendApiEndpoint[] {
-  return getTailnetServerPeers().map((peer, index): BackendApiEndpoint => ({
+  const discovered = getTailnetServerPeers().map((peer): BackendApiEndpoint => ({
     id: tailnetEndpointId(peer.dnsName),
     url: peer.dnsName,
     protocol: 'https',
     basePath: TAILNET_API_PATH,
-    priority: TAILNET_PRIORITY_BASE + index,
+    priority: 0,
     isLocal: false,
     description: peer.dnsName.split('.')[0],
   }));
+  const seen = new Set<string>();
+  return [...getContractTailnetApiEndpoints(), ...discovered]
+    .filter((endpoint) => {
+      const key = endpointKey(endpoint);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((endpoint, index) => ({ ...endpoint, priority: TAILNET_PRIORITY_BASE + index }));
 }
 
 function getBuiltInEndpoints(): BackendApiEndpoint[] {

@@ -46,7 +46,7 @@ type Trans = (key: string, replacements?: Record<string, string | number>) => st
 const SEARCHABLE_TABS: readonly WordNewTab[] = Object.freeze([
   'home', 'shelf', 'practice', 'daily-reading', 'orch-audio', 'walkman', 'subtitles', 'bilingual',
   'stats', 'labs', 'social', 'settings', 'languages', 'learning-model', 'review-settings',
-  'playback', 'cache', 'about', 'profile', 'admin',
+  'playback', 'cache', 'about', 'download', 'profile', 'admin',
 ]);
 
 /** Pages offered as one-tap shortcuts while the query is empty. */
