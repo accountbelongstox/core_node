@@ -10,19 +10,13 @@
  */
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
-import type { OrchResourceKind } from '../../../../core/integrations/pycore';
-import { orchClipIdentity, type OrchClipIdentity } from '../../../../shared/orchestration/orchClipIdentity';
+import { orchClipRefIdentity, orchClipRefUsable, type OrchClipIdentity, type OrchClipRef } from '../../../../shared/orchestration/orchClipIdentity';
 import { resolveOrchClips } from '../../../../shared/orchestration/orchClipResolver';
 import type { OrchComposeResource } from '../../../../shared/orchestration/orchTypes';
 import { WORDNEW_ORCH_SCHEDULE } from './WordNewOrchClipSources';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 
-/** What a caller knows about a clip: its kind, language and text (the identity follows from them). */
-export interface WordNewClipRef {
-  kind: OrchResourceKind;
-  language: string;
-  text: string;
-}
+export type WordNewClipRef = OrchClipRef;
 
 export interface WordNewClipFetchOptions {
   /** Give up waiting after this long (the fetch itself goes on and lands in the store). */
@@ -46,16 +40,6 @@ const TRANSFER_SOURCES = WORDNEW_ORCH_SCHEDULE.sources.filter((_, index) => {
   return stage === 'device' || stage.startsWith('transfer:');
 });
 
-export const wordNewClipRef = (kind: OrchResourceKind, language: string, text: string): WordNewClipRef => ({ kind, language, text });
-
-export const wordNewWordClip = (text: string, language = 'en'): WordNewClipRef => wordNewClipRef('word', language, text);
-
-export const wordNewSentenceClip = (text: string, language = 'en'): WordNewClipRef => wordNewClipRef('sentence', language, text);
-
-/** Whether the ref can name a clip (a clip without text has no identity). */
-export const wordNewClipUsable = (ref: WordNewClipRef | null | undefined): ref is WordNewClipRef =>
-  !!ref && ref.text.trim() !== '' && ref.language.trim() !== '';
-
 class WordNewClipResolverClass {
   /** Playable URLs resolved so far (store URLs, page object URLs); dropped when the store moves or loses clips. */
   private readonly known = new Map<string, string>();
@@ -72,13 +56,9 @@ class WordNewClipResolverClass {
     wordNewOrchClipStore.onRootChanged(() => this.known.clear());
   }
 
-  identityOf(ref: WordNewClipRef): OrchClipIdentity {
-    return orchClipIdentity(ref.kind, ref.language, ref.text.trim());
-  }
-
   /** The playable URL already resolved in this session (no lookup), or undefined. */
   peek(ref: WordNewClipRef): string | undefined {
-    return wordNewClipUsable(ref) ? this.known.get(this.identityOf(ref).resourceId) : undefined;
+    return orchClipRefUsable(ref) ? this.known.get(orchClipRefIdentity(ref).resourceId) : undefined;
   }
 
   /**
@@ -86,8 +66,8 @@ class WordNewClipResolverClass {
    * null. The web keeps no store: only clips resolved in this page are known.
    */
   held(ref: WordNewClipRef): Promise<string | null> {
-    if (!wordNewClipUsable(ref)) return Promise.resolve(null);
-    const identity = this.identityOf(ref);
+    if (!orchClipRefUsable(ref)) return Promise.resolve(null);
+    const identity = orchClipRefIdentity(ref);
     const known = this.known.get(identity.resourceId);
     if (known) return Promise.resolve(known);
     if (!NATIVE) return Promise.resolve(null);
@@ -129,8 +109,8 @@ class WordNewClipResolverClass {
    * is the Laravel file the caller's payload already named; it seeds the Laravel stage). Null when no source has it.
    */
   async fetch(ref: WordNewClipRef, remoteUrl?: string | null, options: WordNewClipFetchOptions = {}): Promise<string | null> {
-    if (!wordNewClipUsable(ref)) return null;
-    const identity = this.identityOf(ref);
+    if (!orchClipRefUsable(ref)) return null;
+    const identity = orchClipRefIdentity(ref);
     const known = this.known.get(identity.resourceId);
     if (known) return known;
     const missingAt = this.missing.get(identity.resourceId);
