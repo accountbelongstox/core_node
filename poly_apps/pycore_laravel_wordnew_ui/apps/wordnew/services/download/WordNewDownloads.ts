@@ -2,12 +2,10 @@ import { APP_DOWNLOADS } from '../../../../core/contracts/ServiceContract';
 import { protocolFetch } from '../../../../core/network/ProtocolFetch';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { isDesktopAppShell } from '../../../../core/network/DesktopShell';
-import { FLAVOR_REGISTRY } from '../../../../shell/flavor';
 import type { WfNewEndpoint, WfNewEndpointSnapshot } from '../../api/WfNewApiTypes';
 
 export const WORDNEW_DOWNLOAD_APP = 'wordnew';
 const MANIFEST_TIMEOUT_MS = 8000;
-const VERSION_SEPARATOR = /[.\-+]/;
 const PLATFORM_ORDER = ['android', 'windows', 'linux'] as const;
 const ANDROID_PLATFORM = 'android';
 
@@ -134,21 +132,6 @@ export function fetchDownloads(origins: string[]): Promise<WordNewDownloadResult
   });
 }
 
-/** -1 / 0 / 1 comparing dotted numeric versions segment by segment (non-numeric segments compare as 0). */
-export function compareVersions(left: string, right: string): number {
-  const a = left.split(VERSION_SEPARATOR).map((part) => parseInt(part, 10) || 0);
-  const b = right.split(VERSION_SEPARATOR).map((part) => parseInt(part, 10) || 0);
-  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
-    const diff = (a[index] ?? 0) - (b[index] ?? 0);
-    if (diff) return diff < 0 ? -1 : 1;
-  }
-  return 0;
-}
-
-export function installedVersion(): string {
-  return FLAVOR_REGISTRY[WORDNEW_DOWNLOAD_APP]?.version ?? '';
-}
-
 /** The Android app shell (the only shell an APK update applies to). */
 export function isAndroidAppShell(): boolean {
   return isNativeAppShell() && !isDesktopAppShell();
@@ -185,9 +168,4 @@ export function groupByPlatform(manifest: WordNewDownloadManifest): WordNewDownl
     }
     return { platform, latest, older };
   });
-}
-
-/** The newest Android package, used for the in-app "update available" check. */
-export function newestAndroid(manifest: WordNewDownloadManifest): WordNewDownloadFile | null {
-  return newestFirst(manifest.files.filter((entry) => entry.platform === ANDROID_PLATFORM))[0] ?? null;
 }

@@ -61,7 +61,7 @@ export const WordNewUpdateStatus: React.FC<WordNewUpdateStatusProps> = ({ update
   } else if (page) {
     const failed = status === 'error';
     icon = failed ? <AlertTriangle className="h-5 w-5 shrink-0 text-rose-500" /> : <BadgeCheck className="h-5 w-5 shrink-0 text-emerald-500" />;
-    text = status === 'checking' ? trans('update.checking') : failed ? errorText(update, trans) : trans('update.upToDate', { current });
+    text = status === 'checking' || status === 'idle' ? trans('update.checking') : failed ? errorText(update, trans) : trans('update.upToDate', { current });
   } else {
     return null;
   }
