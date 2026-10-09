@@ -15,6 +15,10 @@ export interface WordNewDownloadFile {
   platform: string;
   build_type: string;
   version: string;
+  /** Android only: versionCode, package id and signing certificate (contract app_downloads.manifest). */
+  version_code?: number;
+  application_id?: string;
+  signer_sha256?: string;
   file: string;
   latest: string;
   size: number;
@@ -34,7 +38,7 @@ export type WordNewDownloadResult =
   | { state: 'notPublished' }
   | { state: 'unreachable' };
 
-type CandidateOutcome =
+export type CandidateOutcome =
   | { kind: 'ok'; origin: string; manifest: WordNewDownloadManifest }
   | { kind: 'missing' }
   | { kind: 'error' };
@@ -84,7 +88,8 @@ function parseManifest(value: unknown): WordNewDownloadManifest | null {
   };
 }
 
-async function fetchCandidate(origin: string): Promise<CandidateOutcome> {
+/** One origin's manifest: ok, missing (answered without one) or error (no answer). */
+export async function fetchCandidate(origin: string): Promise<CandidateOutcome> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), MANIFEST_TIMEOUT_MS);
   try {

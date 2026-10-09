@@ -10,8 +10,11 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
+from android_signing import apk_signer_sha256, ensure_signing
 from app_download_publish import publish_and_report
 from brand_assets import sync as sync_brand_assets
 from brand_preflight import APP_ID_PATTERN, run_preflight
@@ -24,6 +27,9 @@ CHOICES = ("ask", "yes", "no")
 CAPACITOR_ANDROID_TEMPLATE = Path("node_modules") / "@capacitor" / "cli" / "assets" / "android-template.tar.gz"
 GRADLE_WRAPPER_PREFIXES = ("gradlew", "gradle/wrapper/")
 GRADLE_POSIX_WRAPPER = "gradlew"
+VERSION_CODE_EPOCH = datetime(2026, 1, 1, tzinfo=timezone.utc)
+INT32_MAX = 2**31 - 1
+OUTPUT_METADATA = "output-metadata.json"
 BUILD_OUTPUTS = ("dist", "artifacts", "capacitor.config.json", "node_modules/.vite-native")
 
 
@@ -163,10 +169,12 @@ def repair_gradle_wrapper(root: Path, android_dir: Path) -> None:
         script.chmod(script.stat().st_mode | 0o111)
 
 
-def version_code(version: str) -> int:
-    parts = [int(part) if part.isdigit() else 0 for part in version.split(".")[:3]]
-    parts += [0] * (3 - len(parts))
-    return max(1, parts[0] * 10000 + parts[1] * 100 + parts[2])
+def build_version_code() -> int:
+    """Android versionCode of this build: seconds since 2026-01-01 UTC (int32 until 2094), so every build is higher."""
+    code = int(time.time() - VERSION_CODE_EPOCH.timestamp())
+    if not 0 < code <= INT32_MAX:
+        fail(f"The clock gives an invalid versionCode ({code}); check the system date.")
+    return code
 
 
 def gradle_command(android_dir: Path, app: dict) -> list[str]:
@@ -174,11 +182,26 @@ def gradle_command(android_dir: Path, app: dict) -> list[str]:
     if not wrapper.is_file():
         fail(f"Gradle wrapper is missing: {wrapper}")
     version = str(app.get("version") or "0.0.0")
-    code = int(app.get("versionCode") or version_code(version))
+    code = int(app["versionCode"])
     return [str(wrapper), f"-PcoreNodeVersionName={version}", f"-PcoreNodeVersionCode={code}"]
 
 
-def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str, publish: bool = True) -> Path:
+def apk_details(output_root: Path, apk: Path, app: dict, fallback_signer: str) -> dict:
+    details = {"version_code": int(app["versionCode"]), "application_id": str(app.get("appId") or ""),
+               "signer_sha256": apk_signer_sha256(apk, fallback_signer)}
+    metadata = output_root / OUTPUT_METADATA
+    try:
+        document = json.loads(metadata.read_text(encoding="utf-8"))
+        element = (document.get("elements") or [{}])[0]
+        details["application_id"] = str(document.get("applicationId") or details["application_id"])
+        details["version_code"] = int(element.get("versionCode") or details["version_code"])
+    except (OSError, ValueError, IndexError, AttributeError):
+        pass
+    return details
+
+
+def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str, publish: bool = True,
+                 server_sync: bool = True, fallback_signer: str = "") -> Path:
     output_root = android_dir / "app" / "build" / "outputs" / "apk" / build_type
     source_apks = sorted(output_root.rglob("*.apk")) if output_root.is_dir() else []
     if not source_apks:
@@ -192,8 +215,10 @@ def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str, publ
         shutil.copy2(source, destination)
         log(f"APK: {destination}")
         if publish and index == 1:
+            details = apk_details(output_root, destination, app, fallback_signer)
+            log(f"versionCode {details['version_code']}, signer SHA-256 {details['signer_sha256'] or 'unknown'}")
             try:
-                publish_and_report(app, "android", build_type, destination)
+                publish_and_report(app, "android", build_type, destination, details=details, server_sync=server_sync)
             except OSError as error:
                 log(f"WARNING: could not publish the APK to the downloads directory: {error}")
     return artifact_dir
@@ -234,6 +259,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--no-publish", action="store_true",
                         help="do not publish the APK into the core_node downloads directory")
+    parser.add_argument("--no-server-sync", action="store_true",
+                        help="do not ask the Laravel server to mirror the published app")
     parser.add_argument("--live-reload", action="store_true", help="load the app from a Vite dev server (HMR)")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--list-plain", action="store_true", help="print 'id<TAB>name<TAB>default-flag' per app, no log prefix")
@@ -272,7 +299,7 @@ def main() -> int:
     restore_ownership(root, owned_paths)
     try:
         open_item = build(root, script_dir, app, build_type, generate_assets, clean, args.non_interactive,
-                             args.live_reload, not args.no_publish)
+                             args.live_reload, not args.no_publish, not args.no_server_sync)
     finally:
         restore_ownership(root, owned_paths)
     if open_output:
@@ -284,11 +311,12 @@ BUILD_STEPS = 8
 
 
 def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_assets: bool, clean: bool,
-          non_interactive: bool, live_reload: bool, publish: bool = True) -> str | Path:
+          non_interactive: bool, live_reload: bool, publish: bool = True, server_sync: bool = True) -> str | Path:
     steps = StepLog("apk", BUILD_STEPS)
     python = sys.executable
     bun = executable("bun")
     app_id = str(app["id"])
+    app["versionCode"] = int(app.get("versionCode") or build_version_code())
 
     steps.step(f"Check brand inputs (app name, appId, logo) - flavors/{app_id}/flavor.json")
     app.update(run_preflight(root, app_id, non_interactive))
@@ -297,6 +325,9 @@ def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_ass
     environment = os.environ.copy()
     environment["VITE_APP_FLAVOR"] = app_id
     environment["VITE_BUILD_TARGET"] = "native"
+    signing = ensure_signing(root)
+    environment.update(signing.env)
+    steps.detail(f"signing: {signing.source}, certificate SHA-256 {signing.cert_sha256 or 'unknown'}; versionCode {app['versionCode']}")
     prepare = [python, str(script_dir / "flavor_build.py"), "--app", app_id, "--root", str(root)]
     live_url = ensure_live_server(root, app, bun, environment) if live_reload else ""
     if live_url:
@@ -341,7 +372,7 @@ def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_ass
 
     publish = publish and not live_reload
     steps.step("Collect the APK" + (" and publish it to the downloads directory" if publish else ""))
-    artifact_dir = collect_apks(root, android_dir, app, build_type, publish)
+    artifact_dir = collect_apks(root, android_dir, app, build_type, publish, server_sync, signing.cert_sha256)
     return live_url or artifact_dir
 
 

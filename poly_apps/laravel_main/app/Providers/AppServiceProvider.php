@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Model;
 use App\Support\DatabaseQueryMonitor;
 use App\Services\UserConfig\UserConfigService;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1AppDownloadsJobCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1CodeSyncJobCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeployCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeploySelfCommand;
@@ -108,6 +109,7 @@ class AppServiceProvider extends ServiceProvider
         // Register ServerManagerV1 CLI Commands
         if ($this->app->runningInConsole()) {
             $this->commands([
+                ServerManagerV1AppDownloadsJobCommand::class,
                 ServerManagerV1CodeSyncJobCommand::class,
                 ServerManagerV1DeployCommand::class,
                 ServerManagerV1DeploySelfCommand::class,

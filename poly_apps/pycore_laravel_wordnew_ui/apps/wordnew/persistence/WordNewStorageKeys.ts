@@ -21,6 +21,9 @@ export const WordNewStorageKeys = {
   /** Content-update check of held clips: the index position the next slice starts at, and when the last run ended. */
   WORDNEW_CLIP_UPDATE_CURSOR: 'wfnew.orch.clipUpdate.cursor',
   WORDNEW_CLIP_UPDATE_CHECKED_AT: 'wfnew.orch.clipUpdate.checkedAt',
+  /** In-app APK update (contract app_downloads.auto_update): when the last check ended, and the versionCode the user postponed. */
+  WORDNEW_APP_UPDATE_CHECKED_AT: 'wfnew.appUpdate.checkedAt',
+  WORDNEW_APP_UPDATE_DISMISSED_CODE: 'wfnew.appUpdate.dismissedCode',
   /** This device's orchestration id: random, generated once, never derived from a fingerprint. */
   WORDNEW_ORCH_DEVICE_ID: 'wfnew.orch.deviceId',
   WORDNEW_CUSTOM_WORDS: 'wfnew_custom_words',
