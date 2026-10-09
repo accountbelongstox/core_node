@@ -220,6 +220,7 @@
         "server_sync": {
             "endpoint": "/api/system/app-downloads/sync",
             "status_endpoint": "/api/system/app-downloads/status",
+            "status_endpoint_alias": "/api/system/app-downloads/sync/status",
             "upload_endpoint": "/api/system/app-downloads/upload",
             "upload_commit_endpoint": "/api/system/app-downloads/upload/commit",
             "auth": "client key (laravel_signed_cli), same as other /api/system routes",
