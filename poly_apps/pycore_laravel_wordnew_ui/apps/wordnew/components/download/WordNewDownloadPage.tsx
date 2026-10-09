@@ -13,6 +13,7 @@ import { StateMessage } from '@/shared/ui/StateMessage';
 import {
   downloadOrigins, fetchDownloads, fileUrl, groupByPlatform, isAndroidAppShell, type WordNewDownloadFile, type WordNewDownloadResult,
 } from '../../services/download/WordNewDownloads';
+import { wordNewAppUpdater } from '../../services/update/WordNewAppUpdater';
 import { useWordNewAppUpdate } from '../../services/update/useWordNewAppUpdate';
 import { WordNewUpdateStatus } from '../update/WordNewUpdateStatus';
 import { WordNewDownloadQr } from './WordNewDownloadQr';
@@ -88,6 +89,10 @@ export const WordNewDownloadPage: React.FC<WordNewDownloadPageProps> = ({ active
   const groups = useMemo(() => (result?.state === 'ready' ? groupByPlatform(result.manifest) : []), [result]);
   const androidShell = isAndroidAppShell();
   const appUpdate = useWordNewAppUpdate();
+
+  useEffect(() => {
+    if (androidShell && wordNewAppUpdater.getSnapshot().status === 'idle') void wordNewAppUpdater.check(false);
+  }, [androidShell]);
 
   return (
     <div className="space-y-6">

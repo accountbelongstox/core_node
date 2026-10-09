@@ -118,6 +118,8 @@ class ServerManagerV1AppDownloadsSyncJob
             $state['bytes_to_fetch'] = $plan['bytes'];
             $state['files_to_fetch'] = array_keys($plan['fetch']);
             if (ServerManagerV1AppDownloadsStore::isUnchanged($plan)) {
+                $state['caddyfile'] = self::ensureServing();
+
                 return self::complete($state, ['result' => 'unchanged', 'versions' => self::versions($manifest)]);
             }
             $disk = ServerManagerV1AppDownloadsStore::diskCheck($plan['bytes']);
@@ -146,6 +148,7 @@ class ServerManagerV1AppDownloadsSyncJob
             unset($state['downloading']);
             $state['fetched'] = $published['fetched'];
             $state['pruned'] = $published['pruned'];
+            $state['caddyfile'] = self::ensureServing();
         } catch (\Throwable $exception) {
             Log::error('App downloads sync job failed', ['job_id' => $jobId, 'message' => $exception->getMessage()]);
             $state['error_detail'] = $exception->getMessage();
@@ -265,6 +268,31 @@ class ServerManagerV1AppDownloadsSyncJob
         fclose($handle);
 
         return in_array($response->status(), [self::HTTP_OK, self::HTTP_PARTIAL], true) ? null : 'download_failed';
+    }
+
+    /**
+     * The downloads mount and public aliases live in the canonical Caddyfile;
+     * re-render it and queue a FrankenPHP reload only when it was stale.
+     */
+    private static function ensureServing(): array
+    {
+        $ensure = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
+        $report = [
+            'rendered' => $ensure['rendered'] ?? false,
+            'canonical' => $ensure['canonical'] ?? false,
+        ];
+        $reload = [];
+
+        if (isset($ensure['error'])) {
+            $report['error'] = (string) $ensure['error'];
+        }
+        if ($report['rendered'] === true) {
+            $reload = ServerManagerV1FrankenPhpReloadJob::queue(true);
+            $report['reload_queued'] = ($reload['success'] ?? false) === true;
+            $report['reload'] = $reload;
+        }
+
+        return $report;
     }
 
     private static function chainContains(\Throwable $exception, string $needle): bool
