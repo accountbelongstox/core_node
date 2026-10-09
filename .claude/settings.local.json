@@ -374,7 +374,8 @@
       "PowerShell($step = Join-Path \\(Resolve-Path 'D:\\\\programing\\\\core_node\\\\scripts\\\\shells\\\\win\\\\install_powershells'\\).Path 'Step175_LaravelMainStart.ps1'; & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $step -CertificatesOnly 2>&1 | Select-Object -Last 40)",
       "Bash(time node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json)",
       "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/servermanager/v1/frankenphp/caddyfile)",
-      "Bash(./dd.cmd gitsync *)"
+      "Bash(./dd.cmd gitsync *)",
+      "PowerShell(& \\(Join-Path \\(Resolve-Path 'D:\\\\programing\\\\core_node'\\).Path 'dd.cmd'\\) gitsync -m \"resolve merge conflict; simplify conflict AI prompt\")"
     ],
     "deny": [],
     "ask": []
