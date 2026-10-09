@@ -1,3 +1,4 @@
 - [Phone debug via CDP](phone_debug_cdp.md) — inspect live wordnew service state on the phone; gotchas
 - [Phrase extraction model selection](project_phrase_extraction_model_selection.md) — OpenRouter free-model selector, health, status endpoint; server checks left
 - [APK self-update](project_apk_self_update.md) — project keystore secrets, versionCode scheme, AppUpdate plugin, updater constraints
+- [Web runtime check via raw CDP](reference_web_runtime_check_cdp.md) — puppeteer is EPERM; headless Chrome + dev server 13054 + drill extraction
