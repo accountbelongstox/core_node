@@ -33,11 +33,13 @@ class AppDownloadsController extends Controller
             'source_base_urls.*' => ['required', 'string', 'max:255', 'url:http,https'],
             'platforms' => 'nullable|array',
             'platforms.*' => 'string|max:16',
+            'reload_caddy' => 'nullable|boolean',
         ]);
         $result = ServerManagerV1AppDownloadsSyncJob::start(
             $validated['app'],
             array_values(array_unique(array_map(static fn (string $url): string => rtrim($url, '/'), $validated['source_base_urls']))),
-            $validated['platforms'] ?? null
+            $validated['platforms'] ?? null,
+            (bool) ($validated['reload_caddy'] ?? false)
         );
 
         if (!$result['success']) {
