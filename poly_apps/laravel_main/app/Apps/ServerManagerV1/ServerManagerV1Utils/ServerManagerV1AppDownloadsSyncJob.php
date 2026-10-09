@@ -403,6 +403,9 @@ class ServerManagerV1AppDownloadsSyncJob
     private static function publicState(array $state): array
     {
         $state['phases'] = self::PHASES;
+        if (isset($state['caddyfile']['reload']['reload_job_id'])) {
+            $state['caddyfile']['reload_state'] = ServerManagerV1FrankenPhpReloadJob::status((string) $state['caddyfile']['reload']['reload_job_id']);
+        }
 
         return $state;
     }
