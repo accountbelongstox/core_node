@@ -371,7 +371,8 @@
       "PowerShell($step = Join-Path \\(Resolve-Path 'D:\\\\programing\\\\core_node\\\\scripts\\\\shells\\\\win\\\\install_powershells'\\).Path 'Step175_LaravelMainStart.ps1'; & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $step -CertificatesOnly 2>&1 | Select-Object -Last 40)",
       "PowerShell($cfg = Join-Path $env:APPDATA 'Battle.net\\\\Battle.net.config'; $j = Get-Content -Path $cfg -Raw | ConvertFrom-Json; $j.PSObject.Properties.Name; 'Client.LoginSettings / Services:'; $j.Client | ConvertTo-Json -Depth 3 | Select-String -Pattern 'Region|Login|Address|Allowed' ; \\($j.PSObject.Properties | Where-Object { $_.Name -notin 'Client','Games','Services' } | ForEach-Object { $_.Name + ' => ' + \\($_.Value | ConvertTo-Json -Depth 4 -Compress\\) }\\) | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(600, $_.Length\\)\\) })",
       "Bash(time node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json)",
-      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/servermanager/v1/frankenphp/caddyfile)"
+      "Bash(node ncore/foundation/common/laravel_signed_cli.js request GET /api/servermanager/v1/frankenphp/caddyfile)",
+      "Bash(./dd.cmd gitsync *)"
     ],
     "deny": [],
     "ask": []
