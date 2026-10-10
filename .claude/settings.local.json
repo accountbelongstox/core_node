@@ -409,7 +409,11 @@
       "PowerShell(Get-Content D:\\\\www\\\\core_node\\\\logs\\\\pycore_console.jsonl -Tail 20000 | Select-String -Pattern 'mesh' | Select-String -NotMatch 'consecutive server errors' | Select-Object -Last 10 | ForEach-Object { $o = $_.Line | ConvertFrom-Json; \\([DateTimeOffset]::FromUnixTimeMilliseconds\\($o.ts\\).LocalDateTime.ToString\\('HH:mm:ss'\\)\\) + ' ' + $o.message.Substring\\(0,[Math]::Min\\(400,$o.message.Length\\)\\) })",
       "PowerShell(Get-Content D:\\\\www\\\\core_node\\\\logs\\\\pycore_console.jsonl -Tail 30000 | Select-String -Pattern '-> \\(5\\\\d\\\\d|ERR\\)' | Select-Object -Last 12 | ForEach-Object { $o = $_.Line | ConvertFrom-Json; \\([DateTimeOffset]::FromUnixTimeMilliseconds\\($o.ts\\).LocalDateTime.ToString\\('HH:mm:ss'\\)\\) + ' ' + $o.message.Substring\\(0,[Math]::Min\\(300,$o.message.Length\\)\\) })",
       "Bash(S=\"E:/_win10_dev/work/claude/D--programing-core-node/536e95c4-05aa-4b8d-ae96-c93099e31f50/scratchpad\"; cd \"$S/drive\"; rm -f *.png; dotnet run -v q -- \"$S/drive\" \"D:/programing/core_node/dotapps/d3d4tester/PlannerData\" front snap back 2>&1 | grep -v \"warning\\\\|^+\" | tail -1)",
-      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' run9.log)"
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' run9.log)",
+      "Bash(tailscale netcheck *)",
+      "Bash(tailscale serve *)",
+      "Bash(journalctl -u tailscaled --since \"-6h\" --no-pager)",
+      "Bash(bash dd.sh gitsync -m \"pycore-manager: compact terminal card header, desktop header wrap, smaller jump tiles\")"
     ],
     "deny": [],
     "ask": []
