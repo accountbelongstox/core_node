@@ -1,0 +1,104 @@
+apply plugin: 'com.android.application'
+
+def coreNodeVersionName = providers.gradleProperty('coreNodeVersionName').orNull
+def coreNodeVersionCode = providers.gradleProperty('coreNodeVersionCode').orNull
+def coreNodeReleaseSigning = [
+    storeFile    : providers.environmentVariable('CORE_NODE_ANDROID_SIGNING_STORE_FILE').orNull,
+    storePassword: providers.environmentVariable('CORE_NODE_ANDROID_SIGNING_STORE_PASSWORD').orNull,
+    keyAlias     : providers.environmentVariable('CORE_NODE_ANDROID_SIGNING_KEY_ALIAS').orNull,
+    keyPassword  : providers.environmentVariable('CORE_NODE_ANDROID_SIGNING_KEY_PASSWORD').orNull,
+]
+def coreNodeReleaseSigningReady = coreNodeReleaseSigning.values().every { it }
+def coreNodeDebuggableRelease = providers.environmentVariable('CORE_NODE_ANDROID_DEBUGGABLE').orNull == '1'
+
+android {
+    namespace = "com.corenode.pycoremanager"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.corenode.pycoremanager"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        if (coreNodeVersionCode) {
+            versionCode = coreNodeVersionCode.toInteger()
+        }
+        if (coreNodeVersionName) {
+            versionName = coreNodeVersionName
+        }
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // The native plugins (ProtocolHttp, DeviceStorage, LanInfo, Immersive, ForegroundSync, AppUpdate) are
+    // shared with the wordnew app: one source, its own MainActivity excluded.
+    sourceSets {
+        main {
+            java {
+                srcDir '../../../wordnew/android/app/src/main/java'
+                exclude 'com/corenode/wordnew/MainActivity.java'
+            }
+        }
+    }
+    signingConfigs {
+        if (coreNodeReleaseSigningReady) {
+            release {
+                storeFile = file(coreNodeReleaseSigning.storeFile)
+                storeType = providers.environmentVariable('CORE_NODE_ANDROID_SIGNING_STORE_TYPE').orElse('pkcs12').get()
+                storePassword = coreNodeReleaseSigning.storePassword
+                keyAlias = coreNodeReleaseSigning.keyAlias
+                keyPassword = coreNodeReleaseSigning.keyPassword
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            manifestPlaceholders = [coreNodeBuildType: 'debug']
+            if (coreNodeReleaseSigningReady) {
+                signingConfig = signingConfigs.release
+            }
+        }
+        release {
+            manifestPlaceholders = [coreNodeBuildType: 'release']
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (coreNodeReleaseSigningReady) {
+                signingConfig = signingConfigs.release
+            } else if (coreNodeDebuggableRelease) {
+                signingConfig = signingConfigs.debug
+            }
+            debuggable = coreNodeDebuggableRelease
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "com.google.android.gms:play-services-cronet:18.1.1"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

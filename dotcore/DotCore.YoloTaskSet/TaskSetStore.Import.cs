@@ -58,8 +58,15 @@ public sealed record AnnotationImportResult(int Images, int Boxes, int Added, IR
 /// <summary>
 /// Annotated boxes to variants: every FrameStep-th image; a crop closer than MinHashDistance dHash bits to a kept crop of the same label
 /// is skipped (0 = keep all); at most MaxPerLabel crops per label, sampled evenly (0 = no cap); boxes with a side below MinSide are skipped.
+/// GroupLabels (with GroupRegion, source pixels): instead of one crop per box, a frame showing any group label gives one compound crop of
+/// GroupRegion carrying every group box inside it as labeled parts, stored under the first group label (list order) present.
 /// </summary>
-public sealed record AnnotationVariantOptions(int FrameStep = 1, int MinHashDistance = 0, int MaxPerLabel = 0, int MinSide = 0);
+public sealed record AnnotationVariantOptions(int FrameStep = 1, int MinHashDistance = 0, int MaxPerLabel = 0, int MinSide = 0,
+    IReadOnlyList<string>? GroupLabels = null, PixelRect? GroupRegion = null)
+{
+    /// <summary>Share of a part that must lie inside the group region to be carried.</summary>
+    public const double GroupInsideFraction = 0.8;
+}
 
 public sealed partial class TaskSetStore
 {
@@ -219,7 +226,9 @@ public sealed partial class TaskSetStore
         var images = all.Where((_, i) => i % step == 0).ToList();
         var failures = new List<ImportFileResult>();
         var createdTargets = new List<string>();
-        var crops = new Dictionary<string, List<(string Image, VariantRegion Region, byte[] Png, ulong? Hash, (int, int) Size)>>(StringComparer.OrdinalIgnoreCase);
+        var crops = new Dictionary<string, List<(string Image, VariantRegion Region, byte[] Png, ulong? Hash, (int, int) Size, List<ResourceBox>? Parts)>>(
+            StringComparer.OrdinalIgnoreCase);
+        var group = o.GroupLabels is { Count: > 0 } g && o.GroupRegion is { IsEmpty: false } ? g.Select(l => l.Trim()).ToList() : null;
         int boxes = 0, done = 0;
         foreach (var image in images)
         {
@@ -227,7 +236,7 @@ public sealed partial class TaskSetStore
             progress?.Report(new WorkProgress(done++, images.Count, image));
             var annotation = AnnotationIo.Load(image, annotationDir);
             var wanted = annotation?.Boxes.Where(b => !b.Difficult && b.Label.Trim().Length > 0 && (filter == null || filter.Contains(b.Label.Trim()))
-                && Math.Min(b.Width, b.Height) >= o.MinSide).ToList();
+                && Math.Min(b.Width, b.Height) >= o.MinSide && (group == null || group.Contains(b.Label.Trim(), StringComparer.OrdinalIgnoreCase))).ToList();
             if (wanted == null || wanted.Count == 0) continue;
             using var frame = TaskSetImageIo.ReadBgra(image);
             if (frame == null)
@@ -235,12 +244,13 @@ public sealed partial class TaskSetStore
                 failures.Add(new ImportFileResult(image, ImportOutcome.Failed, ImportFailure.Unreadable));
                 continue;
             }
-            foreach (var box in wanted)
+            var cuts = group == null
+                ? wanted.Select(b => (Label: b.Label.Trim(), Rect: b.RoundToPixels(), Parts: (List<ResourceBox>?)null)).ToList()
+                : GroupCut(wanted, group, o.GroupRegion!, frame.Width, frame.Height) is { } gc ? new() { gc } : new();
+            boxes += group == null ? cuts.Count : wanted.Count;
+            foreach (var (label, rect, parts) in cuts)
             {
-                boxes++;
-                var label = box.Label.Trim();
-                var rounded = box.RoundToPixels();
-                var region = new VariantRegion((int)rounded.XMin, (int)rounded.YMin, (int)(rounded.XMax - rounded.XMin), (int)(rounded.YMax - rounded.YMin));
+                var region = new VariantRegion((int)rect.XMin, (int)rect.YMin, (int)(rect.XMax - rect.XMin), (int)(rect.YMax - rect.YMin));
                 var png = VariantExtractor.Cut(frame, region, cutout, cutOptions);
                 if (png == null)
                 {
@@ -248,7 +258,7 @@ public sealed partial class TaskSetStore
                     continue;
                 }
                 if (!crops.TryGetValue(label, out var list)) crops[label] = list = new();
-                list.Add((image, region, png, o.MinHashDistance > 0 ? VariantExtractor.PerceptualHash(png) : null, (frame.Width, frame.Height)));
+                list.Add((image, region, png, o.MinHashDistance > 0 ? VariantExtractor.PerceptualHash(png) : null, (frame.Width, frame.Height), parts));
             }
         }
         int added = 0, duplicates = 0;
@@ -268,14 +278,34 @@ public sealed partial class TaskSetStore
             }
             foreach (var c in kept)
             {
-                AddVariantPngCore(set, target, c.Png, VariantExtractor.FormatSourceRef(c.Image, null, c.Region),
+                var variant = AddVariantPngCore(set, target, c.Png, VariantExtractor.FormatSourceRef(c.Image, null, c.Region),
                     Path.GetFileNameWithoutExtension(c.Image) + "_" + label, c.Size);
+                variant.Boxes = c.Parts;
                 added++;
             }
         }
         progress?.Report(new WorkProgress(done, images.Count));
         if (added > 0 || createdTargets.Count > 0) Save(set);
         return new AnnotationImportResult(images.Count, boxes, added, createdTargets, failures, duplicates);
+    }
+
+    /// <summary>
+    /// Compound crop of the group region (clamped to the frame): the group boxes mostly inside it become its parts (variant pixels);
+    /// stored under the first group label present. Null when no part remains.
+    /// </summary>
+    private static (string Label, AnnotationBox Rect, List<ResourceBox>? Parts)? GroupCut(IReadOnlyList<AnnotationBox> boxes, IReadOnlyList<string> group,
+        PixelRect region, int width, int height)
+    {
+        if (region.ClampTo(width, height) is not { } r) return null;
+        var parts = new List<ResourceBox>();
+        foreach (var b in boxes.Select(b => b.RoundToPixels()))
+        {
+            double x0 = Math.Max(b.XMin, r.X), y0 = Math.Max(b.YMin, r.Y), x1 = Math.Min(b.XMax, r.X + r.Width), y1 = Math.Min(b.YMax, r.Y + r.Height);
+            if (x1 <= x0 || y1 <= y0 || (x1 - x0) * (y1 - y0) < AnnotationVariantOptions.GroupInsideFraction * b.Width * b.Height) continue;
+            parts.Add(new ResourceBox { X = (int)x0 - r.X, Y = (int)y0 - r.Y, Width = (int)(x1 - x0), Height = (int)(y1 - y0), Label = b.Label.Trim() });
+        }
+        var label = group.FirstOrDefault(l => parts.Any(p => p.Label.Equals(l, StringComparison.OrdinalIgnoreCase)));
+        return label == null ? null : (label, new AnnotationBox(label, r.X, r.Y, r.X + r.Width, r.Y + r.Height), parts);
     }
 
     private List<ImportFileResult> AddManyCore(TaskSet set, IReadOnlyList<(TaskTarget? Target, TaskResourcePool Pool, string Path)> jobs,

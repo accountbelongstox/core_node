@@ -1,5 +1,5 @@
 /* =============================================================================
- * CapLanInfo - the device's local network (for LAN service discovery)
+ * LanInfo - the device's local network (for LAN service discovery)
  * =============================================================================
  * Native (Android, app plugin `LanInfo`): IPv4 addresses with prefix length and
  * the default gateway of the active network. Web: a browser cannot read its
@@ -7,8 +7,8 @@
  * otherwise the caller asks for a gateway.
  * ========================================================================== */
 import { registerPlugin } from '@capacitor/core';
-import { isNativeAppShell } from '../../../../core/network/NativeShell';
-import { isPrivateLanHost } from '../../../../core/integrations/pycore';
+import { isNativeAppShell } from './NativeShell';
+import { isPrivateIpv4 } from './LanDiscovery';
 
 export interface CapLanAddress {
   address: string;
@@ -33,7 +33,7 @@ const WEB_PREFIX_LENGTH = 24;
 export async function currentLanInfo(): Promise<CapLanInfo> {
   if (isNativeAppShell()) return nativeLanInfo.current();
   const host = typeof location === 'undefined' ? '' : location.hostname;
-  return isPrivateLanHost(host)
+  return isPrivateIpv4(host)
     ? { addresses: [{ address: host, prefixLength: WEB_PREFIX_LENGTH }], gateway: '', lan: true }
     : { addresses: [], gateway: '', lan: false };
 }

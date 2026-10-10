@@ -7,12 +7,18 @@
  * the page address's /24. The found machines become LAN endpoints (`setPycoreLanEndpoints`) -
  * the terminal node tabs and the target switcher list them - and their peers documents join the
  * tailnet discovery, so a machine that runs Tailscale / Headscale lists the tailnet even when
- * the UI's own machine does not.
+ * the UI's own machine does not. The native app has no page machine: it scans its own Wi-Fi
+ * segments (LanInfo plugin) and the tailnet peers through LanDiscovery.
  */
 import { ChangeSignal } from '../../events/ChangeSignal';
 import { protocolFetch } from '../../network/ProtocolFetch';
 import { LAN_MACHINES_ROUTE, TAILNET_PEERS_ROUTE } from '../../contracts/ServiceContract';
-import { addTailnetPublishers, refreshTailnetPeers } from '../../network/TailnetDiscovery';
+import { addTailnetPublishers, getTailnetPeers, refreshTailnetPeers } from '../../network/TailnetDiscovery';
+import { discoverServices, lanSegmentOf } from '../../network/LanDiscovery';
+import { currentLanInfo } from '../../network/LanInfo';
+import { isNativeAppShell } from '../../network/NativeShell';
+import { PYCORE_BACKEND_PORT, pycoreHttpProto } from './pycoreEndpoints';
+import { PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import { lanSegmentHosts, scanLanPycore, type LanSegment } from './PycoreLanScanner';
 import { pycoreLanSourceUrl, setPycoreLanEndpoints } from './pycoreTarget';
 
@@ -25,7 +31,7 @@ export interface LanMachine {
   self: boolean;
 }
 
-export type LanMachinesSource = 'pycore' | 'browser' | 'none';
+export type LanMachinesSource = 'pycore' | 'browser' | 'device' | 'none';
 
 export interface LanMachinesSnapshot {
   segments: LanSegment[];
@@ -95,6 +101,25 @@ async function scanFromBrowser(base: string): Promise<Omit<LanMachinesSnapshot, 
   return { segments: [segment], machines, scanning: false };
 }
 
+/** Native app: the device's own LAN segments plus the tailnet peers, probed for pycore. */
+async function scanFromDevice(): Promise<Omit<LanMachinesSnapshot, 'source' | 'updatedAt'>> {
+  const info = await currentLanInfo().catch(() => null);
+  const segments = info?.lan ? info.addresses.map((entry) => lanSegmentOf(entry.address, entry.prefixLength)) : [];
+  const found = await discoverServices({
+    ports: [PYCORE_BACKEND_PORT],
+    path: PYCORE_HTTP_PATHS.status,
+    scheme: pycoreHttpProto(),
+    segments,
+    tailnet: getTailnetPeers(),
+    match: (probe) => {
+      const body = probe.body as { is_http_service?: boolean; hostname?: string } | null;
+      return body?.is_http_service ? { hostname: String(body.hostname || '') } : null;
+    },
+  });
+  const machines = found.map((entry): LanMachine => ({ ip: entry.host, url: entry.url, hostname: entry.info.hostname, ms: entry.ms, self: false }));
+  return { segments, machines, scanning: false };
+}
+
 function publish(next: LanMachinesSnapshot): void {
   snapshot = next;
   setPycoreLanEndpoints(next.machines
@@ -119,8 +144,17 @@ function schedulePoll(): void {
 /** Ask for the LAN machines now (shared in-flight request); resolves with the last list when nothing answers. */
 export function refreshLanMachines(): Promise<LanMachinesSnapshot> {
   const base = pycoreLanSourceUrl();
-  if (!base) return Promise.resolve(snapshot);
   if (pending) return pending;
+  if (!base) {
+    if (!isNativeAppShell()) return Promise.resolve(snapshot);
+    pending = scanFromDevice()
+      .then((result) => {
+        publish({ ...result, source: 'device', updatedAt: Date.now() });
+        return snapshot;
+      })
+      .finally(() => { pending = null; });
+    return pending;
+  }
   pending = askPycore(base)
     .then(async (answer): Promise<LanMachinesSnapshot> => {
       const source: LanMachinesSource = answer ? 'pycore' : 'browser';
@@ -144,7 +178,7 @@ export const subscribeLanMachines = changes.subscribe;
 
 /** True when this page's machine can report a LAN (a loopback or LAN page). */
 export function isLanMachinesAvailable(): boolean {
-  return pycoreLanSourceUrl() !== null;
+  return pycoreLanSourceUrl() !== null || isNativeAppShell();
 }
 
 /** Restart the polling budget (a user-requested rescan). */

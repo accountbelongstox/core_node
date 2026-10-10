@@ -1,6 +1,6 @@
 /** Image intake for the image workbenches: file picker, drop and paste feed one decoded source with managed object URLs. */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isImageFile, loadImage, resizeImage } from './imageOps';
+import { isImageFile, loadImage, resizeImage } from '@/core/media/ImageOps';
 
 const PREVIEW_MAX_SIDE = 1600;
 

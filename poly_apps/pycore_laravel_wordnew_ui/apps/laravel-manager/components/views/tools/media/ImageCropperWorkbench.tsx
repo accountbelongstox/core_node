@@ -10,7 +10,7 @@ import { outputFileName, pickString } from './mediaFormat';
 import {
   ASPECT_PRESETS, IMAGE_MIMES, clampRect, cropImage, dragCropRect, encodeImage, fitAspect, supportsEncoding,
   type CropHandle, type ImageMime, type PixelRect,
-} from './imageOps';
+} from '@/core/media/ImageOps';
 import { useImageSource } from './useImageSource';
 
 const THUMB_MAX_SIDE = 200;

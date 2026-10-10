@@ -189,7 +189,10 @@ export default defineConfig(({ command }) => {
 
     return {
       cacheDir: useNativeCapacitor ? 'node_modules/.vite-native' : 'node_modules/.vite',
-      optimizeDeps: useNativeCapacitor ? { include: ['@capacitor/core', ...nativePluginDeps] } : {},
+      // libraw-wasm resolves its worker and wasm relative to its own module: never pre-bundled.
+      optimizeDeps: { exclude: ['libraw-wasm'], ...(useNativeCapacitor ? { include: ['@capacitor/core', ...nativePluginDeps] } : {}) },
+      // Module workers (libraw-wasm) keep their imports and import.meta.url.
+      worker: { format: 'es' },
       define: {
         __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
         __CORE_NODE_CLIENT_KEY__: JSON.stringify(compiledClientKey()),

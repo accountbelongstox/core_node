@@ -7,7 +7,7 @@ import { ImageStage } from './ImageStage';
 import { ImageOutputControls, DEFAULT_QUALITY } from './ImageOutputControls';
 import { useImageExport } from './useImageExport';
 import { outputFileName, isRecord, pickString } from './mediaFormat';
-import { encodeImage, flipImage, type ImageMime } from './imageOps';
+import { encodeImage, flipImage, type ImageMime } from '@/core/media/ImageOps';
 import { useImageSource } from './useImageSource';
 
 const FORMATS: readonly ImageMime[] = ['image/png', 'image/jpeg', 'image/webp'];

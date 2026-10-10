@@ -1,8 +1,10 @@
-/** Canvas image operations shared by the image workbenches (all run in the browser). */
+/** Canvas image operations shared by every app (image workbenches, upload compression); browser and WebView. */
 export type ImageMime = 'image/png' | 'image/jpeg' | 'image/webp';
 
 export interface PixelRect { x: number; y: number; width: number; height: number }
 export interface PixelSize { width: number; height: number }
+/** Anything drawable whose pixel size is known. */
+export type ImageSource = HTMLImageElement | HTMLCanvasElement | ImageBitmap;
 
 export const IMAGE_MIMES: readonly ImageMime[] = ['image/png', 'image/jpeg', 'image/webp'];
 export const MAX_IMAGE_PIXELS = 100_000_000;
@@ -49,7 +51,7 @@ export const loadImage = (url: string): Promise<HTMLImageElement> => new Promise
   img.src = url;
 });
 
-export const sourceSize = (source: HTMLImageElement | HTMLCanvasElement): PixelSize =>
+export const sourceSize = (source: ImageSource): PixelSize =>
   source instanceof HTMLImageElement
     ? { width: source.naturalWidth, height: source.naturalHeight }
     : { width: source.width, height: source.height };
@@ -107,8 +109,8 @@ export const cropImage = (source: HTMLImageElement | HTMLCanvasElement, rect: Pi
 };
 
 /** Downscales by repeated halving before the final draw so large reductions stay sharp. */
-export const resizeImage = (source: HTMLImageElement | HTMLCanvasElement, width: number, height: number): HTMLCanvasElement => {
-  let current: HTMLImageElement | HTMLCanvasElement = source;
+export const resizeImage = (source: ImageSource, width: number, height: number): HTMLCanvasElement => {
+  let current: ImageSource = source;
   let { width: cw, height: ch } = sourceSize(source);
   const targetW = Math.max(1, Math.round(width));
   const targetH = Math.max(1, Math.round(height));
@@ -124,7 +126,7 @@ export const resizeImage = (source: HTMLImageElement | HTMLCanvasElement, width:
   return canvas;
 };
 
-export const flattenCanvas = (source: HTMLCanvasElement | HTMLImageElement, background: string = JPEG_BACKGROUND): HTMLCanvasElement => {
+export const flattenCanvas = (source: ImageSource, background: string = JPEG_BACKGROUND): HTMLCanvasElement => {
   const { width, height } = sourceSize(source);
   const canvas = createCanvas(width, height);
   const ctx = context2d(canvas);

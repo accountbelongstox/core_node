@@ -376,8 +376,8 @@ export type {
 export { capImmersive } from './CapImmersive';
 export { acquireForegroundSync } from './CapForegroundSync';
 export type { CapForegroundSyncLease } from './CapForegroundSync';
-export { currentLanInfo } from './CapLanInfo';
-export type { CapLanAddress, CapLanInfo } from './CapLanInfo';
+export { currentLanInfo } from '../../../../core/network/LanInfo';
+export type { CapLanAddress, CapLanInfo } from '../../../../core/network/LanInfo';
 export { appUpdateSupported, capAppUpdate, updateErrorCode } from './CapAppUpdate';
 export type { CapInstalledApp, CapUpdateErrorCode, CapUpdateProgress } from './CapAppUpdate';
 

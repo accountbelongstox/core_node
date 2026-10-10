@@ -1,7 +1,7 @@
 /** Output format + quality controls shared by the image workbenches that export a raster file. */
 import React from 'react';
 import { Field, Segmented, Slider, useMediaT } from './MediaKit';
-import { supportsEncoding, type ImageMime } from './imageOps';
+import { supportsEncoding, type ImageMime } from '@/core/media/ImageOps';
 
 export const FORMAT_LABELS: Record<ImageMime, string> = { 'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/webp': 'WebP' };
 export const DEFAULT_QUALITY = 0.92;

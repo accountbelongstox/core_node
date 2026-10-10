@@ -9,7 +9,8 @@
   "mount": "shell",
   "platforms": [
     "web",
-    "android"
+    "android",
+    "desktop"
   ],
   "themeColor": "#0f172a",
   "backgroundColor": "#0f172a",

@@ -422,6 +422,7 @@ terminal: {
       },
       compression: {
         badge: 'Compressed on upload: show original and current image',
+        running: 'Compressing on this device before upload…',
         detail: '{{name}} compressed on upload: original {{original}} → current {{current}}. The original was discarded; only the current image is used.',
       },
       sentWithMissing: 'Sent, but {{count}} attachment(s) failed to upload and were left out; the AI was told they are missing.',
