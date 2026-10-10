@@ -60,6 +60,7 @@ public static class D3SkillSwitcher
     /// <summary>Cursor rest point outside every skill dialog (reference client px), so no tooltip covers what is read next.</summary>
     private static readonly (int X, int Y) CursorPark = (1040, 560);
     private const int ParkSettleMs = 250;
+    private const int CaptureRetryMs = 400;
     private const string DebugTimeFormat = "HHmmss_fff";
     /// <summary>Passive chooser, reference client px: the four slots on top and the grid of available passives.</summary>
     private static readonly (int X, int Y)[] PassiveTopSlots = { (390, 102), (487, 102), (584, 102), (681, 102) };
@@ -338,7 +339,8 @@ public static class D3SkillSwitcher
 
     /// <summary>
     /// Click the planned rune: OCR the rune row, assign words to the skill's rune names (plus "no rune") greedily by similarity; the
-    /// planned rune's word, else the single word left over when every other name found its word (elimination).
+    /// planned rune's word, else the single word left over when every other name found its word (elimination). The click goes to the
+    /// rune icon above the name (Word.IconAbove), not the name.
     /// </summary>
     private static void SelectRune(Shot shot, Chooser chooser, PlannerSkill target, string cls, string cacheDir)
     {
@@ -368,7 +370,7 @@ public static class D3SkillSwitcher
             return;
         }
         ColorPrinter.Gray($"{LogTag} rune '{target.RuneNameZh}' by {how}: '{pick.Text}'");
-        Click(shot, pick.Center);
+        Click(shot, pick.IconAbove);
         Thread.Sleep(AfterRuneClickMs);
     }
 
@@ -569,7 +571,19 @@ public static class D3SkillSwitcher
             (Client.X + (int)Math.Round(ClientWidth / 2.0 + (refPoint.X - RefClientWidth / 2) * Scale), Client.Y + (int)Math.Round(refPoint.Y * Scale));
     }
 
+    /// <summary>D3 capture with retries: a capture fails while the window is moved, restored or briefly replaced by another window.</summary>
     private static Shot? Capture()
+    {
+        for (int attempt = 1; attempt <= Attempts; attempt++)
+        {
+            if (CaptureOnce() is { } shot) return shot;
+            Thread.Sleep(CaptureRetryMs);
+        }
+        ColorPrinter.Yellow($"{LogTag} D3 window not captured after {Attempts} attempts");
+        return null;
+    }
+
+    private static Shot? CaptureOnce()
     {
         var hwnd = D3WindowFinder.FindWindows().FirstOrDefault()?.Hwnd ?? IntPtr.Zero;
         if (hwnd == IntPtr.Zero) return null;
@@ -620,7 +634,12 @@ public static class D3SkillSwitcher
     /// <summary>Key to D3 as window messages (D3 reads posted WM_KEYDOWN / WM_KEYUP; it ignores SendInput keys).</summary>
     private static void PressKey(Shot shot, uint vk) => WindowInputHelper.PressKey(shot.Hwnd, vk);
 
-    private sealed record Word(string Text, (int X, int Y) Center);
+    /// <summary>OCR word: text, center and top edge / height of its box (image px).</summary>
+    private sealed record Word(string Text, (int X, int Y) Center, int Top, int Height)
+    {
+        /// <summary>Rune icon above its name: one text height above the text's top edge (the name itself is not clickable).</summary>
+        public (int X, int Y) IconAbove => (Center.X, Top - Height);
+    }
 
     /// <summary>OCR an image area on an OcrUpscale enlargement (small game text); word centers in image px.</summary>
     private static List<Word> OcrArea(Shot shot, Rect area)
@@ -633,7 +652,8 @@ public static class D3SkillSwitcher
         {
             if (OcrBbox.FromPosition(w.Position) is not { } box) continue;
             var (x, y) = OcrBbox.Center(box);
-            words.Add(new Word(w.Text, (area.X + (int)(x / OcrUpscale), area.Y + (int)(y / OcrUpscale))));
+            words.Add(new Word(w.Text, (area.X + (int)(x / OcrUpscale), area.Y + (int)(y / OcrUpscale)),
+                area.Y + (int)(box.MinY / OcrUpscale), Math.Max(1, (int)((box.MaxY - box.MinY) / OcrUpscale))));
         }
         return words;
     }
