@@ -78,6 +78,12 @@ export interface CapStoredDoc<T = CapDoc> {
   updatedAt: number;
 }
 
+export interface CapCollectionStats {
+  count: number;
+  /** Approximate stored size of the ids and documents. */
+  bytes: number;
+}
+
 export interface CapRawResult {
   /** Rows for a SELECT. */
   rows: CapDoc[];
@@ -200,6 +206,11 @@ export class CapCollection<T extends CapDoc = CapDoc> {
     return this.backend.clear(this.name);
   }
 
+  /** Document count and approximate bytes without loading documents into the caller. */
+  stats(): Promise<CapCollectionStats> {
+    return this.backend.stats(this.name);
+  }
+
   /** Functional update of a single document (get -> mutate -> put). */
   async update(id: string, mutator: (current: T | null) => T): Promise<T> {
     const next = mutator(await this.get(id));
@@ -310,6 +321,12 @@ export class CapDatabase {
   /** Delete a key-value pair. */
   kvDelete(key: string): Promise<void> {
     return this.ensureOpen().delete('_kv', key);
+  }
+
+  /** Names and sizes of the key-value pairs (the reserved '_kv' collection). */
+  async kvEntries(): Promise<Array<{ key: string; bytes: number }>> {
+    const rows = await this.ensureOpen().all('_kv');
+    return rows.map((row) => ({ key: row.id, bytes: row.id.length + JSON.stringify(row.doc).length }));
   }
 
   // -- raw SQL (SQL backend only) ------------------------------------------ #

@@ -1,49 +1,21 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { KeyRound } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { cmAuthApi } from '../../auth/CmAuthApi';
 import { CmPasswordInput } from '../../auth/CmPasswordInput';
-import { useCmPasswordMinLength } from '../../contexts/useCmPolicy';
+import { useCmPasswordChange } from '../../shared/useCmPasswordChange';
 import { CmNotice, useCmNotice } from './CmStateViews';
-
-const HTTP_VALIDATION_STATUS = 422;
 
 /** Signed-in password change on the shared account API (`POST /user/change-password`). */
 export const CmPasswordChangeCard: React.FC = () => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const passwordMin = useCmPasswordMinLength();
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const tooShort = next !== '' && next.length < passwordMin;
-  const mismatch = confirm !== '' && confirm !== next;
-  const invalid = !current || next.length < passwordMin || confirm !== next;
-
-  const submit = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (busy || invalid) return;
-    setBusy(true);
-    notice.clear();
-    const response = await cmAuthApi.changePassword(current, next, confirm);
-    setBusy(false);
-    if (response.success) {
-      setCurrent('');
-      setNext('');
-      setConfirm('');
-      notice.success(t('settings.password.changed'));
-    } else {
-      notice.error(t(response.status === HTTP_VALIDATION_STATUS ? 'settings.password.currentIncorrect' : 'settings.password.failed'));
-    }
-  };
+  const { current, next, confirm, setCurrent, setNext, setConfirm, passwordMin, tooShort, mismatch, invalid, busy, submit } = useCmPasswordChange(notice);
 
   return (
     <section className="cm-section-card">
       <h2><KeyRound aria-hidden="true" /> {t('settings.password.title')}</h2>
       <p className="cm-section-card__lead">{t('settings.password.lead')}</p>
-      <form className="cm-settings-form" onSubmit={(event) => void submit(event)} noValidate>
+      <form className="cm-settings-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} noValidate>
         <CmNotice notice={notice.notice} onDismiss={notice.clear} />
         <label className="cm-stacked-field">
           <span>{t('settings.password.current')}</span>

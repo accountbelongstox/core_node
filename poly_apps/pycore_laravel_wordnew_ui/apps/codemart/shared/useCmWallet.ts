@@ -92,6 +92,7 @@ export function useCmWallet(): CmWalletModel {
   }, [load]);
 
   const reload = useCallback(async (): Promise<void> => {
+    setLoading(true);
     await load();
     await refresh();
   }, [load, refresh]);

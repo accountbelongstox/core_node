@@ -2,7 +2,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 import { stableIdentifier } from '../utils/stableHash';
-import type { CapDbBackendKind, CapDoc, CapRawResult, CapStoredDoc } from './CapDatabase';
+import type { CapCollectionStats, CapDbBackendKind, CapDoc, CapRawResult, CapStoredDoc } from './CapDatabase';
 export function safeIsNative(): boolean {
   try {
     return Capacitor.isNativePlatform();
@@ -29,6 +29,8 @@ export interface DbBackend {
   all(coll: string): Promise<CapStoredDoc[]>;
   count(coll: string): Promise<number>;
   clear(coll: string): Promise<void>;
+  /** Row count and approximate stored bytes; an absent collection reads as empty and is never created. */
+  stats(coll: string): Promise<CapCollectionStats>;
   // raw SQL (only when sqlAvailable)
   exec?(sql: string): Promise<CapRawResult>;
   query?(sql: string, params?: unknown[]): Promise<CapDoc[]>;
@@ -173,6 +175,14 @@ export class IndexedDbBackend implements DbBackend {
     await this.wrap(this.tx(coll, 'readwrite').clear());
   }
 
+  async stats(coll: string): Promise<CapCollectionStats> {
+    validateCollectionName(coll);
+    await this.ensureDatabase();
+    if (!this.db.objectStoreNames.contains(STORE_PREFIX + coll)) return { count: 0, bytes: 0 };
+    const rows = await this.all(coll);
+    return { count: rows.length, bytes: rows.reduce((n, r) => n + r.id.length + JSON.stringify(r.doc).length, 0) };
+  }
+
   async close(): Promise<void> {
     await this.reopenPromise?.catch(() => undefined);
     this.db?.close();
@@ -292,6 +302,15 @@ export class SqliteBackend implements DbBackend {
   async clear(coll: string): Promise<void> {
     await this.ensureCollection(coll);
     await this.db.run(`DELETE FROM ${this.table(coll)};`);
+  }
+
+  async stats(coll: string): Promise<CapCollectionStats> {
+    const table = this.table(coll);
+    const present = await this.db.query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;`, [table]);
+    if (!present?.values?.length) return { count: 0, bytes: 0 };
+    const res = await this.db.query(`SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(id) + LENGTH(doc)), 0) AS b FROM ${table};`);
+    const row = res?.values?.[0];
+    return { count: row?.n ?? 0, bytes: row?.b ?? 0 };
   }
 
   async exec(sql: string): Promise<CapRawResult> {

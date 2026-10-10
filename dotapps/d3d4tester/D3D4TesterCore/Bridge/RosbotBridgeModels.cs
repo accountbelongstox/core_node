@@ -151,6 +151,9 @@ public sealed record RosbotBridgeEntity(
     [property: JsonPropertyName("boss")] bool Boss,
     [property: JsonPropertyName("filter_match")] bool FilterMatch)
 {
+    /// <summary>Plugin InventorySlot name of backpack items.</summary>
+    public const string SlotBackpack = "Backpack";
+
     [JsonPropertyName("slot")] public string Slot { get; init; } = "";
     /// <summary>Backpack / stash grid cell (column, row), -1 when the plugin cannot read it.</summary>
     [JsonPropertyName("inv_x")] public int InvX { get; init; } = -1;

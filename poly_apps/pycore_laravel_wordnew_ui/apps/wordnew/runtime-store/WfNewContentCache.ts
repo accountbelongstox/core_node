@@ -38,6 +38,7 @@
  */
 import { capDb } from '@/apps/wordnew/platform/capabilities/CapDatabase';
 import type { WfNewContentGroup, WfNewContentKind, Word } from '../api/WfNewApiTypes';
+import { WordNewDeviceKvKeys } from '../persistence/WordNewStorageKeys';
 
 // CapDatabase doc shape (its CapDoc = Record<string, unknown>); we store typed
 // objects and cast at the boundary so callers keep full types.
@@ -170,7 +171,7 @@ function currentScopeCollections(): string[] {
 // CapDatabase has no "list collections" API, so to support clearAllCaches across
 // EVERY scope (and across reloads) we persist an index of every scoped collection
 // name we have ever written. The index lives in the DB's reserved _kv store.
-const SCOPE_INDEX_KEY = 'wfnew_scope_collection_index';
+const SCOPE_INDEX_KEY = WordNewDeviceKvKeys.SCOPE_COLLECTION_INDEX;
 let _indexLoaded = false;
 let _knownCollections = new Set<string>();
 

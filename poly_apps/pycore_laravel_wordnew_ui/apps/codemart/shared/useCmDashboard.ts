@@ -18,6 +18,7 @@ import {
   type CmDashboardPrimaryAction,
   type CmDashboardShortcut,
 } from './cmDashboardModel';
+import { cmUserDisplayName } from './cmAccount';
 import { useCmNotificationPresenter, type CmNotificationView } from './useCmNotifications';
 
 const STATE_KEY_SEPARATOR = ',';
@@ -111,7 +112,7 @@ export function useCmDashboard(): CmDashboardModel {
   const { reload: reloadReviews } = reviews;
   const { reload: reloadNotifications } = notifications;
 
-  const displayName = bootstrap?.user.name || bootstrap?.user.nickname || bootstrap?.user.username || '';
+  const displayName = cmUserDisplayName(bootstrap?.user);
   const heldRoles = roles.filter((role) => hasRole(role));
 
   const projectItems = useMemo<CmDashboardPreviewItem[]>(() => projects.items.map((project) => ({

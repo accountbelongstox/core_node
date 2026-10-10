@@ -11,6 +11,7 @@ import { CmIcon } from './components/CmImage';
 import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE, cmWorkspacePath } from './components/public-home/cmPublicRoutes';
 import { useCmBootstrap } from './contexts/CmBootstrapContext';
 import { CM_PAGES, type CmPageDef } from './cmPages';
+import { cmUserDisplayName } from './shared/cmAccount';
 
 const NOTIFICATIONS_PAGE_ID = 'notifications';
 const MAX_BADGE_COUNT = 99;
@@ -52,7 +53,7 @@ export const CmLayout: React.FC = () => {
       {unreadCount > 0 && <span className="cm-nav-badge">{formatBadge(unreadCount)}</span>}
     </Link>
   ) : null;
-  const userName = bootstrap?.user?.name || bootstrap?.user?.nickname || bootstrap?.user?.username || '';
+  const userName = cmUserDisplayName(bootstrap?.user);
   const isApplyEntry = (page: CmPageDef): boolean => cmIsApplyEntry(page, hasCapability);
   const visiblePages = CM_PAGES.filter((page) => cmCanOpenPage(page, hasCapability));
   const primaryPages = visiblePages.filter((page) => page.group === 'primary');

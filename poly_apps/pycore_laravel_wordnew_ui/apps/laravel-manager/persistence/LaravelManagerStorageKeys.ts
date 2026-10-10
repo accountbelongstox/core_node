@@ -1,3 +1,5 @@
+import { registerLocalDataGroups } from '../../../core/persistence/LocalDataRegistry';
+
 /** Laravel Manager-owned persistence registry. */
 const PREFIX = 'nexus_' as const;
 
@@ -22,4 +24,65 @@ export const LaravelManagerStorageKeys = {
   DATA_SYNC_PEER_AUTH: `${PREFIX}data_sync_peer_auth`,
   TOOL_FAVORITES: 'unified_tool_favorites',
   TOOL_HISTORY: 'unified_tool_history',
+  PROMPT_TEMPLATES: 'ai_prompts',
 } as const;
+
+const K = LaravelManagerStorageKeys;
+
+registerLocalDataGroups([
+  {
+    id: 'laravel.prompt_templates',
+    appId: 'laravel',
+    labelKey: 'common.local_data.groups.laravel_prompt_templates',
+    descriptionKey: 'common.local_data.groups.laravel_prompt_templates_desc',
+    clearable: true,
+    sources: [{ kind: 'localStorage', keys: [K.PROMPT_TEMPLATES] }],
+  },
+  {
+    id: 'laravel.tool_history',
+    appId: 'laravel',
+    labelKey: 'common.local_data.groups.laravel_tool_history',
+    descriptionKey: 'common.local_data.groups.laravel_tool_history_desc',
+    clearable: true,
+    sources: [{ kind: 'localStorage', keys: [K.TOOL_FAVORITES, K.TOOL_HISTORY] }],
+  },
+  {
+    id: 'laravel.server_cache',
+    appId: 'laravel',
+    labelKey: 'common.local_data.groups.laravel_server_cache',
+    descriptionKey: 'common.local_data.groups.laravel_server_cache_desc',
+    clearable: true,
+    sources: [{
+      kind: 'localStorage',
+      keys: [
+        K.SERVER_MANAGER_ACTIVE_TAB,
+        K.SERVER_MANAGER_NGINX_SITES,
+        K.SERVER_MANAGER_SSL_CERTS,
+        K.SERVER_MANAGER_FILE_CURRENT_PATH,
+        K.SERVER_MANAGER_FILE_ALLOWED_PATHS,
+        K.SERVER_MANAGER_UNIFIED_APPS,
+        K.SERVER_MANAGER_SCRIPTS,
+        K.SERVER_MANAGER_CERTBOT_STATUS,
+      ],
+    }],
+  },
+  {
+    id: 'laravel.connection',
+    appId: 'laravel',
+    labelKey: 'common.local_data.groups.laravel_connection',
+    descriptionKey: 'common.local_data.groups.laravel_connection_desc',
+    clearable: false,
+    sources: [{
+      kind: 'localStorage',
+      keys: [K.API_CONFIG, K.USER, K.USER_PREFERENCES, K.DATA_SYNC_ENDPOINTS, K.DATA_SYNC_PEER_AUTH],
+    }],
+  },
+  {
+    id: 'laravel.preferences',
+    appId: 'laravel',
+    labelKey: 'common.local_data.groups.laravel_preferences',
+    descriptionKey: 'common.local_data.groups.laravel_preferences_desc',
+    clearable: true,
+    sources: [{ kind: 'localStorage', keys: [K.APP_STATE, K.SETTINGS, K.LANGUAGE, K.THEME, K.NOTIFICATIONS] }],
+  },
+]);

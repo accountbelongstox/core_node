@@ -1,97 +1,33 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, CircleDollarSign, Flag, Layers, ListTodo, RefreshCw, Search, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import { cmApi } from '../api/CmApi';
-import type { CmTask } from '../api/CmApiTypes';
-import { cmErrorMessage } from '../api/cmErrors';
-import { useCmBootstrap } from '../contexts/CmBootstrapContext';
-import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { cmTaskPath, CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
-import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
-import { useCmPagedList } from '../components/workspace/useCmPagedList';
-
-
-interface CmMarketplaceTask extends CmTask {
-  milestone?: { id: number; project_id: number; title: string } | null;
-}
-
-interface CmMarketplaceFilters {
-  skills: string;
-  minBudget: string;
-  maxBudget: string;
-}
-
-const EMPTY_FILTERS: CmMarketplaceFilters = { skills: '', minBudget: '', maxBudget: '' };
-
-const extractTasks = (data: { tasks: CmTask[]; pagination: unknown }) => ({
-  items: (Array.isArray(data.tasks) ? data.tasks : []) as CmMarketplaceTask[],
-  totalPages: cmTotalPages(data.pagination as Parameters<typeof cmTotalPages>[0]),
-});
+import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { useCmMarketplace, type CmMarketplaceTask } from '../shared/useCmMarketplace';
 
 export const CmMarketplacePage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap, hasRole, refresh } = useCmBootstrap();
-  const canAccept = hasRole('developer', 'active');
-  const { currency } = useCmPolicy();
   const notice = useCmNotice();
-  const [keyword, setKeyword] = useState('');
-  const [appliedKeyword, setAppliedKeyword] = useState('');
-  const [draft, setDraft] = useState<CmMarketplaceFilters>(EMPTY_FILTERS);
-  const [filters, setFilters] = useState<CmMarketplaceFilters>(EMPTY_FILTERS);
-  const [acceptingId, setAcceptingId] = useState<number | null>(null);
-  const [acceptedId, setAcceptedId] = useState<number | null>(null);
+  const {
+    list, currency, canAccept, keyword, setKeyword, draft, setDraft, budgetInvalid, filtersActive,
+    applyFilters, resetFilters, acceptingId, acceptedId, accept,
+  } = useCmMarketplace(notice);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
-  const fetcher = useCallback((page: number) => {
-    const skillList = cmSplitList(filters.skills);
-    return cmApi.browseMarketplace({
-      page,
-      ...(appliedKeyword !== '' ? { keyword: appliedKeyword } : {}),
-      ...(skillList.length > 0 ? { skills: skillList.join(',') } : {}),
-      ...(filters.minBudget ? { min_budget: Number(filters.minBudget) } : {}),
-      ...(filters.maxBudget ? { max_budget: Number(filters.maxBudget) } : {}),
-    });
-  }, [filters, appliedKeyword]);
-  const list = useCmPagedList(fetcher, extractTasks, 'marketplace.loadFailed');
-
-  const budgetInvalid = draft.minBudget !== '' && draft.maxBudget !== '' && Number(draft.minBudget) > Number(draft.maxBudget);
-  const filtersActive = filters.skills !== '' || filters.minBudget !== '' || filters.maxBudget !== '' || appliedKeyword !== '';
-
-  const applyFilters = (event: React.FormEvent): void => {
+  const submitFilters = (event: React.FormEvent): void => {
     event.preventDefault();
-    if (budgetInvalid) return;
-    setFilters({ ...draft });
-    setAppliedKeyword(keyword.trim());
+    applyFilters();
   };
 
-  const resetFilters = (): void => {
-    setKeyword('');
-    setAppliedKeyword('');
-    setDraft(EMPTY_FILTERS);
-    setFilters(EMPTY_FILTERS);
-  };
-
-  const accept = async (task: CmMarketplaceTask): Promise<void> => {
-    setAcceptingId(task.id);
-    notice.clear();
-    setAcceptedId(null);
-    const response = await cmApi.acceptTask(task.id);
-    setAcceptingId(null);
+  const acceptTask = async (task: CmMarketplaceTask): Promise<void> => {
+    await accept(task);
     setConfirmingId(null);
-    if (response.success) {
-      notice.success(t('marketplace.acceptedTitle', { title: task.title }));
-      setAcceptedId(task.id);
-      await list.reload();
-      await refresh();
-    } else {
-      notice.error(cmErrorMessage(t, response, 'marketplace.acceptFailed'));
-    }
   };
 
   const visibleTasks = list.items;
@@ -108,7 +44,7 @@ export const CmMarketplacePage: React.FC = () => {
           </button>
         )}
       />
-      <form className="cm-marketplace-toolbar" onSubmit={applyFilters}>
+      <form className="cm-marketplace-toolbar" onSubmit={submitFilters}>
         <label>
           <span>{t('marketplace.searchLabel')}</span>
           <div>
@@ -197,7 +133,7 @@ export const CmMarketplacePage: React.FC = () => {
                       type="button"
                       className="cm-workspace-button is-primary"
                       disabled={acceptingId !== null}
-                      onClick={() => void accept(task)}
+                      onClick={() => void acceptTask(task)}
                     >
                       {acceptingId === task.id ? t('marketplace.accepting') : t('common.confirm')}
                     </button>

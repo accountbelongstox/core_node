@@ -105,7 +105,10 @@ import Portal from '@/shared/ui/Portal';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
-import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
+import {
+  PycoreManagerDeviceKvKeys,
+  PycoreManagerStorageKeys as StorageKeys,
+} from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
 import {
   emptyPcUiSessionNode,
   readPcUiSessionNode,
@@ -376,7 +379,7 @@ function readCachedDrafts(): Record<string, string> {
 
 // The device database (SQLite in the app, IndexedDB elsewhere) keeps a second copy that outlives cleared
 // WebView storage; drafts missing from localStorage are restored from it on start.
-const DRAFT_DEVICE_CACHE_KEY = 'pc.terminal.drafts';
+const DRAFT_DEVICE_CACHE_KEY = PycoreManagerDeviceKvKeys.TERMINAL_DRAFTS;
 
 const draftDeviceRestore = deviceKvGet<Record<string, string>>(DRAFT_DEVICE_CACHE_KEY).then((stored) => {
   if (!stored || typeof stored !== 'object') return;
