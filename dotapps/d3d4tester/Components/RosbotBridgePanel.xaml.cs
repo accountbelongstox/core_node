@@ -47,6 +47,7 @@ public partial class RosbotBridgePanel : UserControl
     private readonly DispatcherTimer _timer = new() { Interval = PollInterval };
     private readonly List<(string LabelKey, TextBlock Label, TextBlock Value)> _rows = new();
     private RosbotBridgeState? _state;
+    private RosbotBridgePluginAction _pluginAction;
     private bool _bound;
 
     private static readonly string[] RowKeys =
@@ -89,9 +90,7 @@ public partial class RosbotBridgePanel : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        BtnInstall.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeDesc);
         ChkAutoInstall.Content = p.GetUiText(I18nKeys.RosbotBridgeAutoInstall);
-        BtnInstall.Content = p.GetUiText(I18nKeys.RosbotBridgeInstall);
         BtnOpenDir.Content = p.GetUiText(I18nKeys.RosbotBridgeOpenDir);
         BtnSaveAreaName.Content = p.GetUiText(I18nKeys.RosbotBridgeSaveAreaName);
         LblHistory.Text = p.GetUiText(I18nKeys.RosbotBridgeHistory);
@@ -198,6 +197,7 @@ public partial class RosbotBridgePanel : UserControl
         var s = snapshot.RosbotBridge;
         _state = s;
         RefreshStandby(s);
+        RefreshPluginButton();
         var now = DateTime.UtcNow;
         TxtLiveStatus.Text = p.GetUiText(RosbotBridgeText.LiveStatusKey(s, snapshot.RosbotBridgeFresh));
         string[] values = s == null ? RowKeys.Select(_ => Empty).ToArray() : new[]
@@ -504,8 +504,30 @@ public partial class RosbotBridgePanel : UserControl
     private static string FormatDuration(TimeSpan t) =>
         t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";
 
+    /// <summary>
+    /// The single plugin button shows what is needed: install / update, restart ROSBOT to load or to update the plugin (warning style:
+    /// the installed plugin is not in use yet), or restarting (disabled). Refreshed every second with the live state.
+    /// </summary>
+    private void RefreshPluginButton()
+    {
+        var p = D3D4TesterI18n.Provider;
+        _pluginAction = RosbotBridgePluginService.PluginAction();
+        string key = I18nKeys.RosbotBridgePluginActionPrefix + _pluginAction.ToString().ToLowerInvariant();
+        BtnInstall.Content = p.GetUiText(key);
+        BtnInstall.ToolTip = p.GetUiText(key + I18nKeys.RosbotBridgePluginActionTipSuffix);
+        BtnInstall.IsEnabled = _pluginAction != RosbotBridgePluginAction.Restarting;
+        BtnInstall.SetResourceReference(StyleProperty, _pluginAction is RosbotBridgePluginAction.RestartToLoad or RosbotBridgePluginAction.RestartToUpdate
+            ? StyleWarningButton : _pluginAction == RosbotBridgePluginAction.UpToDate ? StyleSecondaryButton : StylePrimaryButton);
+    }
+
     private void BtnInstall_Click(object sender, RoutedEventArgs e)
     {
+        if (_pluginAction is RosbotBridgePluginAction.RestartToLoad or RosbotBridgePluginAction.RestartToUpdate)
+        {
+            RosbotBridgePluginService.RestartRosbotForPlugin(update: _pluginAction == RosbotBridgePluginAction.RestartToUpdate);
+            RefreshPluginButton();
+            return;
+        }
         BtnInstall.IsEnabled = false;
         _ = Task.Run(RosbotBridgePluginService.Install).ContinueWith(t => Dispatcher.InvokeAsync(() =>
         {
@@ -522,6 +544,7 @@ public partial class RosbotBridgePanel : UserControl
             };
             TxtLiveStatus.Text = p.GetUiText(key);
             RefreshInstallInfo();
+            RefreshPluginButton();
         }));
     }
 

@@ -36,7 +36,8 @@ internal sealed class CommandResult
 /// button and confirm), follow (target = selected player actor id, value = "mode,party slot,banner slot 0-4,pickup 0/1,revive 0/1" with mode nearest / selected /
 /// leader / slot, or "off"; FollowMode), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
 /// clicked in order, e.g. the map teleport the app runs right after ROSBOT starts), standby (value = on / off: TownStandby, ends
-/// follow mode; follow on ends standby). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
+/// follow mode; follow on ends standby), hold (value = on / off: PulseHold keeps ROSBOT's bot thread so ROSBOT runs no task while the
+/// API stays live; off also ends town standby), skills_check (value = maxroll skill set: SkillCheck). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -56,6 +57,8 @@ internal sealed class BridgeCommands
     public const string ActionFollow = "follow";
     public const string ActionUiSequence = "ui_sequence";
     public const string ActionStandby = "standby";
+    public const string ActionHold = "hold";
+    private const string HoldOff = "off";
     private const char UiSequenceSeparator = '|';
     private const string FollowOff = "off";
     private const string StandbyOff = "off";
@@ -89,13 +92,16 @@ internal sealed class BridgeCommands
     private DateTime _filterStamp = DateTime.MinValue;
     private List<string> _patterns = new();
 
-    public BridgeCommands(string dir, Action<string> log, FollowMode follow, TownStandby standby)
+    public BridgeCommands(string dir, Action<string> log, FollowMode follow, TownStandby standby, PulseHold hold)
     {
         _dir = dir;
         _log = log;
         _follow = follow;
         _standby = standby;
+        _hold = hold;
     }
+
+    private readonly PulseHold _hold;
 
     private readonly FollowMode _follow;
     private readonly TownStandby _standby;
@@ -308,6 +314,15 @@ internal sealed class BridgeCommands
                     result.Message = "follow " + (_follow.Enabled ? "on" : "off");
                     return result;
                 }
+                case ActionHold:
+                {
+                    bool on = !(cmd.TryGetValue("value", out var hold) && hold == HoldOff);
+                    _hold.Set(on);
+                    if (!on) _standby.Stop();
+                    result.Ok = !on || _hold.Requested;
+                    result.Message = "hold " + _hold.State;
+                    return result;
+                }
                 case ActionStandby:
                 {
                     if (cmd.TryGetValue("value", out var standby) && standby == StandbyOff) _standby.Stop();
@@ -341,6 +356,8 @@ internal sealed class BridgeCommands
                     result.Message = "clicked " + raw;
                     return result;
                 }
+                case SkillCheck.Action:
+                    return SkillCheck.Run(result, cmd.TryGetValue("value", out var skillSet) ? skillSet : "");
                 case ActionUiSequence:
                     return UiSequence(result, cmd.TryGetValue("value", out var sequence) ? sequence : "");
                 default:

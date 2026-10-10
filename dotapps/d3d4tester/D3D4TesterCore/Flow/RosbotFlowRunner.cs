@@ -3,6 +3,7 @@
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow_f1_d3_online.py
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow_f4_close_d3_send_f7.py
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core.Bridge;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Flow;
@@ -35,6 +36,8 @@ public static class RosbotFlowRunner
     private static bool _rosbotPausedByFlow;
     /// <summary>ROSBOT process the pause handled (paused by key, or found not botting); another one is checked again.</summary>
     private static int _pausedRosbotPid;
+    /// <summary>ROSBOT is held by the bridge plugin (its bot thread kept in the plugin), not paused with its key: no key on resume.</summary>
+    private static bool _rosbotHeldByPlugin;
     private static int _guardInstalled;
     private static int _guardBusy;
 
@@ -111,7 +114,7 @@ public static class RosbotFlowRunner
             RosbotManager.Instance.InvalidateLookupCache();
             Refresh();
             int pid = State.RosbotFoundPid;
-            if (_rosbotPausedByFlow && pid == _pausedRosbotPid) return false;
+            if ((_rosbotPausedByFlow || _rosbotHeldByPlugin) && pid == _pausedRosbotPid) return false;
             if (!RosbotDetection.IsBotting(State))
             {
                 ColorPrinter.Gray($"{LogTag} {why}: ROSBOT not botting ({State.RosbotExtendedStatus}), no pause key");
@@ -137,9 +140,18 @@ public static class RosbotFlowRunner
         TickDriver.Instance.RegisterEveryTick(_ =>
         {
             var s = State;
-            if (!s.RosbotFlowPaused || s.RosbotFoundPid <= 0 || s.RosbotFoundPid == _pausedRosbotPid || !RosbotDetection.IsBotting(s)) return;
+            bool holdLost = s.RosbotFlowPaused && _rosbotHeldByPlugin && s.RosbotBridgeFresh
+                && s.RosbotBridge is { HoldState: RosbotBridgeState.HoldStateOff or RosbotBridgeState.HoldStateUnsupported };
+            if (!holdLost && (!s.RosbotFlowPaused || s.RosbotFoundPid <= 0 || s.RosbotFoundPid == _pausedRosbotPid || !RosbotDetection.IsBotting(s))) return;
             if (Interlocked.Exchange(ref _guardBusy, 1) == 1) return;
-            ColorPrinter.Yellow($"{LogTag} control taken but a new ROSBOT #{s.RosbotFoundPid} is botting -> pause it");
+            if (holdLost)
+            {
+                lock (PauseLock) _rosbotHeldByPlugin = false;
+                _pausedRosbotPid = 0;
+                ColorPrinter.Yellow($"{LogTag} plugin hold ended ({s.RosbotBridge!.HoldState}) while control is taken -> pause ROSBOT with its key");
+            }
+            else
+                ColorPrinter.Yellow($"{LogTag} control taken but a new ROSBOT #{s.RosbotFoundPid} is botting -> pause it");
             Task.Run(() =>
             {
                 try
@@ -155,6 +167,30 @@ public static class RosbotFlowRunner
             });
         });
     }
+
+    /// <summary>
+    /// The bridge plugin holds ROSBOT (its bot thread kept in the plugin: no task runs, the plugin API stays live): take control without
+    /// ROSBOT's pause key. Resume sends no key (the app releases the hold); the pause guard falls back to the key if the hold ends.
+    /// </summary>
+    public static void PauseHeldByPlugin()
+    {
+        var state = RosbotFlowState.Instance;
+        lock (StateLock)
+        {
+            if (!state.Paused) state.SetPaused(true);
+        }
+        lock (PauseLock)
+        {
+            _rosbotHeldByPlugin = true;
+            _rosbotPausedByFlow = false;
+            _pausedRosbotPid = State.RosbotFoundPid;
+        }
+        Worker.Stop();
+        ColorPrinter.Yellow($"{LogTag} paused: ROSBOT held by the plugin (no pause key, plugin data stays live)");
+    }
+
+    /// <summary>Control is taken with the plugin holding ROSBOT.</summary>
+    public static bool HeldByPlugin => RosbotFlowState.Instance.Paused && _rosbotHeldByPlugin;
 
     /// <summary>
     /// Hand control to the plugin from the flow thread (follow mode right after ROSBOT started): ROSBOT was already paused with its key,
@@ -231,6 +267,7 @@ public static class RosbotFlowRunner
                     ColorPrinter.Blue($"{LogTag} ROSBOT resume key {(sent ? "sent" : "send failed")}");
                 }
                 _rosbotPausedByFlow = false;
+                _rosbotHeldByPlugin = false;
                 _pausedRosbotPid = 0;
                 RosbotRestartRequest.Clear();
                 F3LogTimeout.SetRosbotStartedAt();

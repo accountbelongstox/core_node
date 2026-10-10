@@ -237,7 +237,10 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         if (s.RosbotFlowPaused)
         {
             string paused = p.GetUiText(I18nKeys.MonitorMonitoringPaused);
-            if (s.RosbotBridgeFresh && s.RosbotBridge is { StandbyEnabled: true } bridge)
+            var bridge = s.RosbotBridgeFresh ? s.RosbotBridge : null;
+            if (bridge is { HoldState.Length: > 0 } && bridge.HoldState != Core.Bridge.RosbotBridgeState.HoldStateOff)
+                paused += BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeHoldStatePrefix + bridge.HoldState, bridge.HoldState);
+            if (bridge is { StandbyEnabled: true })
                 paused += BridgeHintSeparator + p.GetUiText(I18nKeys.RosbotBridgeStandbyStatePrefix + bridge.StandbyState, bridge.StandbyState);
             return (paused, WarningBrushKey);
         }

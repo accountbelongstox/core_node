@@ -37,6 +37,9 @@ public sealed class CoreNodeBridge : IPlugin
     private const int QuietStartMs = 30000;
     private const int SlowLogIntervalSec = 60;
     private const string LogTag = "[CoreNodeBridge] ";
+    private const int WatchIntervalMs = 2000;
+    /// <summary>ROSBOT pulses plugins only while it bots: a pulse this recent (and no hold) means ROSBOT is botting.</summary>
+    private const int BottingPulseMs = 3000;
 
     private readonly List<KeyValuePair<int, DateTime>> _areaHistory = new();
     private readonly PickupTracker _pickups = new();
@@ -45,6 +48,11 @@ public sealed class CoreNodeBridge : IPlugin
     private FollowMode _follow;
     private TownHold _townHold;
     private TownStandby _standby;
+    private PulseHold _hold;
+    /// <summary>Stall watchdog for API reads (PulseHold.CheckStall).</summary>
+    private Timer _watchTimer;
+    private DateTime _writeStartedUtc = DateTime.MinValue;
+    private Thread _writeThread;
     private Timer _timer;
     /// <summary>Writes state.json on its own thread so long commands (go_npc, salvage, banner walks) never let it go stale.</summary>
     private Timer _stateTimer;
@@ -86,7 +94,8 @@ public sealed class CoreNodeBridge : IPlugin
         _townHold = new TownHold(_dir, Log);
         _follow = new FollowMode(Log) { TownHold = _townHold };
         _standby = new TownStandby(Log) { TownHold = _townHold };
-        _commands = new BridgeCommands(_dir, Log, _follow, _standby);
+        _hold = new PulseHold(Log, () => _writeStartedUtc, () => _writeThread);
+        _commands = new BridgeCommands(_dir, Log, _follow, _standby, _hold);
         _follow.PickupHandler = _commands.PickupNearestMatching;
         _follow.CommandBusy = () => _commands.Busy;
         _commands.ReloadFilter();
@@ -108,6 +117,7 @@ public sealed class CoreNodeBridge : IPlugin
         PluginsEvents.OnItemStash += OnItemStash;
         _timer = new Timer(_ => Tick(), null, TickMs, TickMs);
         _stateTimer = new Timer(_ => WriteState(DateTime.UtcNow), null, WriteIntervalMs, WriteIntervalMs);
+        _watchTimer = new Timer(_ => _hold.CheckStall(), null, WatchIntervalMs, WatchIntervalMs);
         WriteState(DateTime.UtcNow);
         Log("enabled");
     }
@@ -125,12 +135,20 @@ public sealed class CoreNodeBridge : IPlugin
         _timer = null;
         _stateTimer?.Dispose();
         _stateTimer = null;
+        _watchTimer?.Dispose();
+        _watchTimer = null;
+        _hold.Release();
         _townHold.Release("plugin disabled");
         WriteState(DateTime.UtcNow);
         Log("disabled");
     }
 
-    public void OnPulse() => Tick();
+    /// <summary>ROSBOT's bot thread: the usual tick, then, while the app holds ROSBOT, stay here (PulseHold).</summary>
+    public void OnPulse()
+    {
+        Tick();
+        _hold.OnPulse(() => _enabled);
+    }
 
     /// <summary>Reload files, run a pending command, scan and write when due; skipped while a previous tick (e.g. a command) runs.</summary>
     private void Tick()
@@ -174,7 +192,10 @@ public sealed class CoreNodeBridge : IPlugin
     public void OnShutdown()
     {
         _enabled = false;
+        _hold?.Release();
         _townHold?.Release("plugin shut down");
+        _watchTimer?.Dispose();
+        _watchTimer = null;
         _timer?.Dispose();
         _timer = null;
         _stateTimer?.Dispose();
@@ -236,9 +257,21 @@ public sealed class CoreNodeBridge : IPlugin
             Log($"picked: {r.Name} [{r.InternalName}] gbid={r.Gbid} quality={r.Quality} ancient={r.AncientRank}");
     }
 
+    /// <summary>One write at a time; a caller finding a write in progress (e.g. stalled while ROSBOT is paused) skips instead of piling up.</summary>
     private void WriteState(DateTime now)
     {
-        lock (_writeLock) WriteStateLocked(now);
+        if (!Monitor.TryEnter(_writeLock)) return;
+        try
+        {
+            _writeThread = Thread.CurrentThread;
+            _writeStartedUtc = DateTime.UtcNow;
+            WriteStateLocked(now);
+        }
+        finally
+        {
+            _writeStartedUtc = DateTime.MinValue;
+            Monitor.Exit(_writeLock);
+        }
     }
 
     private void WriteStateLocked(DateTime now)
@@ -316,6 +349,10 @@ public sealed class CoreNodeBridge : IPlugin
                 .Prop("standby_enabled", _standby.Enabled)
                 .Prop("standby_state", _standby.State)
                 .Prop("standby_since_utc", _standby.SinceUtc)
+                .Prop("hold_state", _hold.State)
+                .Prop("hold_since_utc", _hold.SinceUtc)
+                .Prop("last_pulse_utc", _hold.LastPulseUtc)
+                .Prop("botting", _hold.State != PulseHold.StateHolding && (DateTime.UtcNow - _hold.LastPulseUtc).TotalMilliseconds < BottingPulseMs)
                 .Prop("ui_vendor_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.VendorDialog)), false))
                 .Prop("ui_salvage_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.SalvageDialog)), false))
                 .Prop("ui_inventory_open", inGame && WorldScanner.Safe(() => Context.HasUIElement(UiIds.Of(UiIds.InventoryDialog)), false));

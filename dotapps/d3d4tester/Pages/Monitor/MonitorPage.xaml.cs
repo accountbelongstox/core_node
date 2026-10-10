@@ -116,6 +116,8 @@ public partial class MonitorPage : UserControl
         TabDecompile.Header = T(I18nKeys.DecompileToolsTitle);
         BridgePanel.RefreshI18n();
         if (DecompileTools.IsLoaded) DecompileTools.RefreshI18n();
+        TabTemplates.Header = T(I18nKeys.TemplatesTitle);
+        if (TemplatesGallery.IsLoaded) TemplatesGallery.RefreshI18n();
 
         TabRecovery.Header = T(I18nKeys.MonitorRecoveryTitle);
         ChkRestartOnErrorPopup.Content = T(I18nKeys.MonitorRestartOnErrorPopup);

@@ -51,11 +51,17 @@ public static class RosbotPluginConstants
     public const string BridgeActionFollow = "follow";
     /// <summary>Plugin command: wait for and click UI elements in order (value = ids / paths separated by BridgeUiSequenceSeparator).</summary>
     public const string BridgeActionUiSequence = "ui_sequence";
+    /// <summary>Plugin command: hero level and which planned skills / runes / passives are active (same name as CoreNodeBridge SkillCheck.Action).</summary>
+    public const string BridgeActionSkillsCheck = "skills_check";
     public const string BridgeUiSequenceSeparator = "|";
     /// <summary>Plugin command: town standby on / off (TownStandby; value BridgeStandbyOn / BridgeStandbyOff).</summary>
     public const string BridgeActionStandby = "standby";
     public const string BridgeStandbyOn = "on";
     public const string BridgeStandbyOff = "off";
+    /// <summary>Plugin command: hold ROSBOT inside the plugin (PulseHold; value BridgeHoldOn / BridgeHoldOff, off also ends standby).</summary>
+    public const string BridgeActionHold = "hold";
+    public const string BridgeHoldOn = "on";
+    public const string BridgeHoldOff = "off";
     public const string BridgeFollowOff = "off";
     /// <summary>Follow targets (plugin FollowMode modes): nearest player, the selected player, the party leader, party slot 1-4.</summary>
     public const string BridgeFollowNearest = "nearest";

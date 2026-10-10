@@ -28,7 +28,7 @@ public static class KanaiFlow
         var shared = GameInterfaceData.Instance;
         if (!IsKanai(shared)) return false;
         ColorPrinter.Blue("[KanaiFlow] Running Kanai reforge operation...");
-        if (!KanaiOperations.ResetPanelToFirstPage(shared) || !KanaiOperations.NavigateToPage(shared, KanaiOperations.ReforgePageClicks)) return false;
+        if (!KanaiOperations.GoToReforgePage(shared)) return false;
         return KanaiRecipeHelper.RunReforge(shared, mode, cursor, helperDelayMs, shouldStop);
     }
 

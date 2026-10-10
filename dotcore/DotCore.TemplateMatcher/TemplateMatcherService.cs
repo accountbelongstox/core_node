@@ -205,6 +205,49 @@ public sealed class TemplateMatcherService
         };
     }
 
+    /// <summary>
+    /// Color (TM_CCOEFF_NORMED on BGR) match of a template resized to each width in <paramref name="templateWidthsPx"/> (aspect kept):
+    /// the best score over all sizes, Success when it reaches <paramref name="threshold"/>. For small icons whose on-screen size is
+    /// only known as a range (UI scaled with the window); color keeps similar-shaped icons apart.
+    /// </summary>
+    public TemplateMatchResult MatchMultiScale(Mat target, Mat template, IEnumerable<int> templateWidthsPx, double threshold = DefaultThreshold, string? templateName = null)
+    {
+        if (target == null || template == null || target.Empty() || template.Empty()) return Fail(templateName);
+        using var bgrTarget = ToBgr(target);
+        using var bgrTemplate = ToBgr(template);
+        TemplateMatchResult best = Fail(templateName);
+        foreach (int width in templateWidthsPx.Where(w => w > 0).Distinct())
+        {
+            int height = Math.Max(1, (int)Math.Round(bgrTemplate.Rows * (double)width / bgrTemplate.Cols));
+            if (width > bgrTarget.Cols || height > bgrTarget.Rows) continue;
+            using var sized = bgrTemplate.Resize(new OpenCvSharp.Size(width, height), 0, 0, InterpolationFlags.Area);
+            using var result = new Mat();
+            Cv2.MatchTemplate(bgrTarget, sized, result, TemplateMatchModes.CCoeffNormed);
+            Cv2.MinMaxLoc(result, out _, out double maxVal, out _, out OpenCvSharp.Point maxLoc);
+            if (maxVal <= best.Score) continue;
+            best = new TemplateMatchResult
+            {
+                Success = maxVal >= threshold,
+                X = maxLoc.X,
+                Y = maxLoc.Y,
+                Width = width,
+                Height = height,
+                Score = maxVal,
+                MatchThreshold = threshold,
+                TemplateName = templateName,
+                Center = new Point2f(maxLoc.X + width / 2f, maxLoc.Y + height / 2f),
+            };
+        }
+        return best;
+    }
+
+    private static Mat ToBgr(Mat image) => image.Channels() switch
+    {
+        4 => image.CvtColor(ColorConversionCodes.BGRA2BGR),
+        1 => image.CvtColor(ColorConversionCodes.GRAY2BGR),
+        _ => image.Clone(),
+    };
+
     private static TemplateMatchResult Fail(string? templateName) => new()
     {
         Success = false,

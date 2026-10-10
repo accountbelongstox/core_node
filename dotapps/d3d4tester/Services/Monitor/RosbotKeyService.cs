@@ -26,12 +26,8 @@ public static class RosbotKeyService
     /// <summary>ROSBOT [SettingsField] names without a Category, declared next to "Key" (same ini section).</summary>
     private static readonly string[] IniAnchorKeys = { "KeyEx", "TosAccepted", "LastScriptUsed", "LastLaunchWasLocal", "SceneVersion", "Seasons", "Exts", "LocalPickit", "LocalSkill", "DontPickit", "SeasonItems" };
 
-    private const string LeaseKeySwitch = "ROSBOT key switch";
-    private const int LeaseWaitMs = 20000;
-
     private static int _installed;
     private static int _fillRunning;
-    private static int _restartRunning;
     /// <summary>Key written before the running ROSBOT started; null when ROSBOT was started outside this app.</summary>
     private static volatile string? _startedKey;
 
@@ -94,39 +90,11 @@ public static class RosbotKeyService
 
     /// <summary>True when a running ROSBOT uses another key than the active one and no key restart is running (ask once per change).</summary>
     public static bool RestartNeeded =>
-        WriteBeforeStart && ActiveKey is { } key && Volatile.Read(ref _restartRunning) == 0
+        WriteBeforeStart && ActiveKey is { } key && !RosbotOnlyRestart.IsRunning
         && !string.Equals(key, _startedKey ?? CurrentKey, StringComparison.Ordinal) && RosbotManager.Instance.FindRosbotProcesses().Count > 0;
 
-    /// <summary>
-    /// Restart ROSBOT only, with the active key: the running flow (not paused) restarts it in its E block; otherwise ROSBOT is closed
-    /// (F7, leftovers killed) and started again. D3 is never touched; a missing D3 is the flow's [F1] job.
-    /// </summary>
-    public static void RestartRosbotWithActiveKey()
-    {
-        if (Interlocked.Exchange(ref _restartRunning, 1) == 1) return;
-        Task.Run(() =>
-        {
-            try
-            {
-                if (RosbotFlowRunner.IsRunning && !RosbotFlowRunner.IsPaused)
-                {
-                    MonitorLog.Info($"{LogTag} key switched -> flow restarts ROSBOT only");
-                    F3MonitorProcess.RequestRosbotRestart();
-                    return;
-                }
-                MonitorLog.Info($"{LogTag} key switched -> close ROSBOT and start it again (D3 kept)");
-                using var lease = GameControl.TryAcquire(LeaseKeySwitch, LeaseWaitMs);
-                var rosbot = RosbotManager.Instance;
-                rosbot.CloseGracefully();
-                rosbot.InvalidateLookupCache();
-                if (!rosbot.Start(autostart: true)) MonitorLog.Warn($"{LogTag} ROSBOT start after key switch failed");
-            }
-            finally
-            {
-                Interlocked.Exchange(ref _restartRunning, 0);
-            }
-        });
-    }
+    /// <summary>Restart ROSBOT only (RosbotOnlyRestart), so it starts with the active key.</summary>
+    public static void RestartRosbotWithActiveKey() => RosbotOnlyRestart.Restart("key switched");
 
     /// <summary>Add a key (trimmed, no duplicates); the first key added becomes active. False when empty or already listed.</summary>
     public static bool Add(string key)

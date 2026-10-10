@@ -9,6 +9,10 @@
 - `d4/small_map.jpg`：D4 小地图检测、D4 调试图像。
 - `armor_icons/`、`weapon_icons/`、`gem_icons/`、`armor_recipe_list/`、`weapon_recipe_list/`、`maxroll_d3planner/`：物品图标资源（`scripts/selenium_test/fetch_*` 抓取到这里）。
 
+## 清单
+
+每张图的状态（已使用 / 仅登记 / 参考 / 未知）、用途和使用代码见程序「控制中心 → 开发 → 模板图」（`Services/TemplateCatalogService` 是这份清单的唯一来源；新增模板图时在那里登记用途）。
+
 ## 来源
 
 - 源码树存在时 DOT 直接读取本目录（`SourcePaths` 用编译时写入的源码目录定位，构建输出在仓库外也能找到，改图无需重新编译）。
