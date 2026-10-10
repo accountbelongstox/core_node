@@ -14,11 +14,9 @@ import time
 from typing import Any, Callable, Optional
 
 from pycore.pyctl.terminal.terminal_prompt_detector import (
+    auto_choice,
     bash_command_prompt,
-    default_yes_prompt,
-    mode_switch_option,
     mode_switch_selected,
-    second_yes_prompt,
     selected_option,
     waiting_prompt,
 )
@@ -47,16 +45,15 @@ class PhysicalConfirmButtonHandler:
         current_text = text
         moved = False
         for attempt in range(1, MAX_ENTER_ATTEMPTS + 1):
-            use_second_yes = second_yes_prompt(current_text)
+            # Don't-ask-again Yes first, then an option named Continue (usually the last), else option 1.
             use_bash_command = bash_command_prompt(current_text)
             recover = mode_switch_selected(current_text)
-            if not use_second_yes and not use_bash_command and not recover and not default_yes_prompt(current_text):
+            target = auto_choice(current_text)
+            if target is None:
+                if recover or waiting_prompt(current_text):
+                    ColorPrint.yellow(f"[{LABEL}] skipped terminal={terminal_number}: the chosen option switches the permission mode")
                 break
-            target = 2 if use_second_yes else 1
             selected = selected_option(current_text) or 1
-            if mode_switch_option(current_text, target):
-                ColorPrint.yellow(f"[{LABEL}] skipped terminal={terminal_number}: option {target} switches the permission mode")
-                break
             if selected != target and moved:
                 ColorPrint.yellow(
                     f"[{LABEL}] skipped terminal={terminal_number}: selection is on option {selected} after one move; "
