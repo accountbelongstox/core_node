@@ -64,14 +64,17 @@ def find_minimap_roi(img):
 
 
 def extract_route_dots(minimap):
-    """Threshold near-white dots and filter components by area/circularity.
+    """Threshold bright dots, then keep only components with a dark outline
+    ring (route dots) and drop parchment highlights/UI glyphs.
     Returns (centers Nx2 int array, mask)."""
     hsv = cv2.cvtColor(minimap, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, DOT_HSV_LO, DOT_HSV_HI)
+    value = hsv[:, :, 2]
 
     mm_area = minimap.shape[0] * minimap.shape[1]
     area_min = max(3.0, mm_area * DOT_AREA_MIN_RATIO)
     area_max = mm_area * DOT_AREA_MAX_RATIO
+    ring_kernel = np.ones((DOT_RING_KERNEL, DOT_RING_KERNEL), np.uint8)
 
     n, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
     centers = []
@@ -84,6 +87,13 @@ def extract_route_dots(minimap):
             continue
         aspect = max(bw, bh) / min(bw, bh)
         if aspect > 2.0:  # dots are roughly round; drops text strokes etc.
+            continue
+        comp = (labels == i).astype(np.uint8)
+        ring = cv2.dilate(comp, ring_kernel) - comp
+        if ring.sum() == 0:
+            continue
+        contrast = value[comp.astype(bool)].mean() - value[ring.astype(bool)].mean()
+        if contrast < DOT_OUTLINE_CONTRAST:
             continue
         centers.append(centroids[i])
     if not centers:
@@ -152,8 +162,10 @@ def main():
         if roi is None:
             sys.exit("minimap not found; pass --roi x,y,w,h")
     x, y, w, h = roi
-    minimap = img[y : y + h, x : x + w]
-    print(f"minimap roi: x={x} y={y} w={w} h={h}")
+    map_h = int(h * (1 - COMPASS_STRIP_RATIO))
+    minimap = img[y : y + map_h, x : x + w]
+    roi = (x, y, w, map_h)
+    print(f"minimap roi: x={x} y={y} w={w} h={map_h}")
 
     centers, mask = extract_route_dots(minimap)
     print(f"route dots: {len(centers)}")
