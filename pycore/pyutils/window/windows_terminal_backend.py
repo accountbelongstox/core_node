@@ -93,14 +93,24 @@ LINUX_SHELL_TITLE_PATTERN = re.compile(r"(^|\s)[\w.-]+@[\w.-]+:|(^|\s)~(/|\s|$)|
 WINDOWS_TERMINAL_PASTE_KEYS = ("CTRL", "SHIFT", "V")
 CONSOLE_PASTE_COMMAND_ID = 0xFFF1
 # Windows Terminal: selectAll (Ctrl+Shift+A) covers the whole buffer and copy
-# (Ctrl+Shift+C) dismisses the selection. A classic console uses its Edit menu
-# Select All / Copy commands, which also cover the scrollback.
+# (Ctrl+Insert) dismisses the selection. A copy key with no selection is passed
+# through to the app: Ctrl+Shift+C (and Ctrl+C) then arrive as a real Ctrl+C, and
+# two captures in a row exit Claude Code; a passed-through Ctrl+Insert is inert.
+# A classic console uses its Edit menu Select All / Copy commands, which also
+# cover the scrollback.
+WINDOWS_TERMINAL_COPY_KEYS = ("CTRL", "INSERT")
+# Captures of one window are spaced so even a stray interrupt never lands twice
+# inside an agent's "press Ctrl+C again to exit" window.
+COPY_REPEAT_GUARD_SECONDS = 1.5
 CONSOLE_COPY_COMMAND_ID = 0xFFF0
 CONSOLE_SELECT_ALL_COMMAND_ID = 0xFFF5
 
 
 class WindowsTerminalBackend(TerminalWindowBackend):
     platform_name = "windows"
+
+    def __init__(self) -> None:
+        self._last_copy_at: Dict[str, float] = {}
 
     def _list_windows(self) -> List[Dict[str, Any]]:
         foreground = get_foreground_window()
@@ -236,8 +246,17 @@ class WindowsTerminalBackend(TerminalWindowBackend):
 
     def _copy_selection(self, window: Dict[str, Any]) -> bool:
         if self._is_terminal_host(window):
-            return super()._copy_selection(window)
+            return press_native_key_combo(list(WINDOWS_TERMINAL_COPY_KEYS))
         return self._console_command(window, CONSOLE_COPY_COMMAND_ID)
+
+    def copy_all(self, window_id: str) -> Dict[str, Any]:
+        wait = self._last_copy_at.get(window_id, 0.0) + COPY_REPEAT_GUARD_SECONDS - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            return super().copy_all(window_id)
+        finally:
+            self._last_copy_at[window_id] = time.monotonic()
 
     @staticmethod
     def _is_terminal_host(window: Dict[str, Any]) -> bool:

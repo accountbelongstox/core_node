@@ -49,6 +49,9 @@ public static partial class TaskSetSynthesizer
             var frames = VideoBackgrounds(taskSetDir, video, s, new List<TaskSetIssue>(), ct);
             backgrounds.AddRange(SampleEvenly(frames, s.ContaminationVideoFrames));
         }
+        // Shared segments are checked like videos: a few frames each; their annotated boxes count as known objects.
+        foreach (var segment in inspection.SegmentBackgrounds.GroupBy(b => b.Key[..b.Key.LastIndexOf('/')], StringComparer.Ordinal))
+            backgrounds.AddRange(SampleEvenly(segment.ToList(), s.ContaminationVideoFrames));
 
         var templates = new List<TemplateRef>();
         for (int t = 0; t < inspection.Variants.Count; t++)

@@ -9,7 +9,7 @@ using DotCore.Foundations;
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// "Test pathfinding" button: detect every town target (blacksmith, Kanai's cube, stash, waypoint) in the D3 frame with the YOLO NPC model,
+/// "Test pathfinding" button: detect every town target and NPC panel element in the D3 frame with the YOLO NPC model (enchant affixes read by OCR),
 /// then walk to navigation.target. A second click while running stops the walk.
 /// </summary>
 public static class TownNavigationTestService

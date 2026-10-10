@@ -62,6 +62,8 @@ public static class TaskSetFields
             new[] { (SynthesisSettings.ScaleModeNative, I18nKeys.YoloTaskSetScaleModeNative), (SynthesisSettings.ScaleModeRelative, I18nKeys.YoloTaskSetScaleModeRelative) }),
         new(I18nKeys.YoloTaskSetSynRelativeMin, TaskSetFieldKind.Double, s => s.RelativeMin, (s, v) => s.RelativeMin = (double)v),
         new(I18nKeys.YoloTaskSetSynRelativeMax, TaskSetFieldKind.Double, s => s.RelativeMax, (s, v) => s.RelativeMax = (double)v),
+        new(I18nKeys.YoloTaskSetSynRelativeSizing, TaskSetFieldKind.Choice, s => s.RelativeSizing, (s, v) => s.RelativeSizing = (string)v,
+            new[] { (SynthesisSettings.RelativeSizingRange, I18nKeys.YoloTaskSetRelativeSizingRange), (SynthesisSettings.RelativeSizingSource, I18nKeys.YoloTaskSetRelativeSizingSource) }),
         new(I18nKeys.YoloTaskSetSynOutputMaxSide, TaskSetFieldKind.Int, s => s.OutputMaxSide, (s, v) => s.OutputMaxSide = (int)v),
         new(I18nKeys.YoloTaskSetSynJpegQuality, TaskSetFieldKind.Int, s => s.JpegQuality, (s, v) => s.JpegQuality = (int)v),
         new(I18nKeys.YoloTaskSetSynVideoFrameInterval, TaskSetFieldKind.Int, s => s.VideoFrameInterval, (s, v) => s.VideoFrameInterval = (int)v, AffectsVideoEstimate: true),
@@ -84,6 +86,14 @@ public static class TaskSetFields
         new(I18nKeys.YoloTaskSetSynContaminationVideoFrames, TaskSetFieldKind.Int, s => s.ContaminationVideoFrames, (s, v) => s.ContaminationVideoFrames = (int)v),
         new(I18nKeys.YoloTaskSetSynHoldoutSplit, TaskSetFieldKind.Choice, s => s.HoldoutSplit, (s, v) => s.HoldoutSplit = (string)v,
             new[] { (SynthesisSettings.HoldoutSplitVal, I18nKeys.YoloTaskSetHoldoutVal), (SynthesisSettings.HoldoutSplitTest, I18nKeys.YoloTaskSetHoldoutTest) }),
+        new(I18nKeys.YoloTaskSetSynSegmentBlockFrames, TaskSetFieldKind.Int, s => s.SegmentBlockFrames, (s, v) => s.SegmentBlockFrames = (int)v),
+    };
+
+    /// <summary>Target placements (TargetPlacement.All) and their i18n keys.</summary>
+    public static readonly IReadOnlyList<(string Value, string TextKey)> Placements = new[]
+    {
+        (TargetPlacement.Anywhere, I18nKeys.YoloTaskSetPlacementAnywhere),
+        (TargetPlacement.Source, I18nKeys.YoloTaskSetPlacementSource),
     };
 
     /// <summary>Inference ROI hint anchors (InferenceRoiHint.Anchors plus "none" = no hint) and their i18n keys.</summary>

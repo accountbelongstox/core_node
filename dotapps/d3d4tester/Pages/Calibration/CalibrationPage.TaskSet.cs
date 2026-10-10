@@ -12,8 +12,9 @@ using DotCore.YoloTaskSet;
 namespace DotApps.d3d4tester.Pages.Calibration;
 
 /// <summary>
-/// Segment context menu bridge into the specific (task set) mode: recorded segments become common resources or scenes, and
-/// boxes annotated in the VOC annotator become variants. The task-set manager is flushed before and reloaded after each write.
+/// Segment context menu bridge into the specific (task set) mode: recorded segments are shared in place (frames and annotations as
+/// backgrounds / real images), copied as common resources or scenes, and boxes annotated in the VOC annotator become variants.
+/// The task-set manager is flushed before and reloaded after each write.
 /// </summary>
 public partial class CalibrationPage
 {
@@ -24,6 +25,7 @@ public partial class CalibrationPage
     };
 
     private static TaskSetStore TaskSets => new(TaskSetStore.DefaultRoot);
+    private readonly MenuItem _miSegmentLink = new();
     private readonly MenuItem _miSegmentToCommon = new();
     private readonly MenuItem _miSegmentToScenes = new();
     private readonly MenuItem _miSegmentToVariants = new();
@@ -33,21 +35,24 @@ public partial class CalibrationPage
     {
         int index = SegmentContextMenu.Items.IndexOf(MiSegmentOpenLabel) + 1;
         SegmentContextMenu.Items.Insert(index, new Separator());
-        SegmentContextMenu.Items.Insert(index + 1, _miSegmentToCommon);
-        SegmentContextMenu.Items.Insert(index + 2, _miSegmentToScenes);
-        SegmentContextMenu.Items.Insert(index + 3, _miSegmentToVariants);
+        SegmentContextMenu.Items.Insert(index + 1, _miSegmentLink);
+        SegmentContextMenu.Items.Insert(index + 2, _miSegmentToCommon);
+        SegmentContextMenu.Items.Insert(index + 3, _miSegmentToScenes);
+        SegmentContextMenu.Items.Insert(index + 4, _miSegmentToVariants);
+        _miSegmentLink.Click += async (_, _) => await LinkSegmentToTaskSetAsync();
         _miSegmentToCommon.Click += async (_, _) => await AddSegmentToTaskSetAsync(TaskResourcePool.Common);
         _miSegmentToScenes.Click += async (_, _) => await AddSegmentToTaskSetAsync(TaskResourcePool.Scenes);
         _miSegmentToVariants.Click += async (_, _) => await AddSegmentBoxesAsVariantsAsync();
         SegmentContextMenu.Opened += (_, _) =>
         {
-            foreach (var item in new[] { _miSegmentToCommon, _miSegmentToScenes, _miSegmentToVariants }) item.IsEnabled = !_taskSetBusy;
+            foreach (var item in new[] { _miSegmentLink, _miSegmentToCommon, _miSegmentToScenes, _miSegmentToVariants }) item.IsEnabled = !_taskSetBusy;
             _miSegmentToVariants.IsEnabled &= _contextRow != null && YoloSegmentLayout.SegmentHasLabeled(_contextRow.SegmentPath);
         };
     }
 
     private void ApplyTaskSetMenuTexts()
     {
+        _miSegmentLink.Header = T(I18nKeys.YoloTaskSetSegmentLink);
         _miSegmentToCommon.Header = T(I18nKeys.YoloTaskSetSegmentToCommon);
         _miSegmentToScenes.Header = T(I18nKeys.YoloTaskSetSegmentToScenes);
         _miSegmentToVariants.Header = T(I18nKeys.YoloTaskSetSegmentToVariants);
@@ -90,6 +95,19 @@ public partial class CalibrationPage
         {
             _taskSetBusy = false;
         }
+    }
+
+    /// <summary>Shares the segment in place: the task set reads its frames and annotations at generation time (nothing copied).</summary>
+    private async Task LinkSegmentToTaskSetAsync()
+    {
+        if (_contextRow == null || _taskSetBusy || await ListTaskSetsAsync() is not { } sets) return;
+        var segment = _contextRow.SegmentPath;
+        var pick = TaskSetPickerDialog.Show(Window.GetWindow(this), T(I18nKeys.YoloTaskSetSegmentPickTitle), T(I18nKeys.YoloTaskSetSegmentLinkPrompt), sets,
+            TaskSetPickTargets.None, ConfigBinding.GetValue(ConfigKeys.YoloTaskSetLastTaskSet, ""));
+        if (pick is not { } p) return;
+        var added = await WriteTaskSetAsync(p.Set.Id, set => TaskSets.AddSegmentSources(set, new[] { segment }));
+        if (added == null) return;
+        AppendLog(T(I18nKeys.YoloTaskSetSegmentLinked).Replace("{set}", p.Set.Name).Replace("{added}", added.Count.ToString()));
     }
 
     private async Task AddSegmentToTaskSetAsync(TaskResourcePool pool)
