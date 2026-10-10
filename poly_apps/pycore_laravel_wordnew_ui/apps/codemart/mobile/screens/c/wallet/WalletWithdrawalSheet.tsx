@@ -4,7 +4,7 @@ import type { CmWallet } from '../../../../api/CmApiTypes';
 import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat';
 import { useCmWithdrawalForm } from '../../../../shared/useCmWalletActions';
 import { MobileButton, MobileField, MobileSheet } from '../../../ui';
-import { useSheetFeedback } from '../parts/useSheetFeedback';
+import { useInlineFeedback } from '../parts/useInlineFeedback';
 
 interface WalletWithdrawalSheetProps {
   open: boolean;
@@ -17,7 +17,7 @@ interface WalletWithdrawalSheetProps {
 export const WalletWithdrawalSheet: React.FC<WalletWithdrawalSheetProps> = ({ open, wallet, onClose, onCreated }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { feedback, notice, clear } = useSheetFeedback();
+  const { feedback, notice, clear } = useInlineFeedback();
   const form = useCmWithdrawalForm(wallet, feedback, async () => {
     await onCreated();
     clear();

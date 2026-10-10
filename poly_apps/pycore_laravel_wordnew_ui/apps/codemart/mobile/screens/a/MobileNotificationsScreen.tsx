@@ -28,7 +28,7 @@ const MobileNotificationsScreen: React.FC = () => {
         <button type="button" className="cmm-a-notice__main" onClick={() => void open(notification)}>
           <span className="cmm-a-notice__title">
             {view.title}
-            {!read && <span className="cmm-visually-hidden">{t('notifications.unreadLabel')}</span>}
+            {!read && <span className="cmm-a-sr">{t('notifications.unreadLabel')}</span>}
           </span>
           {detail && <span className="cmm-a-notice__detail">{detail}</span>}
           <time className="cmm-a-notice__time" dateTime={view.createdAt ?? undefined}>{view.time}</time>

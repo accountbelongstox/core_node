@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  BookmarkPlus,
+  ClockArrowDown,
   Clock3,
   Crosshair,
   FileText,
@@ -20,7 +20,7 @@ import {
   Layers,
   LayoutGrid,
   Monitor,
-  Eraser,
+  Delete,
   History,
   Info,
   Loader2,
@@ -37,7 +37,7 @@ import {
   Trash2,
   X,
   ArrowLeft,
-  Zap,
+  OctagonX,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -2305,11 +2305,11 @@ const PcTerminalNodeView: React.FC<{
               aria-label={t('terminal.draftToHistory')}
               className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-500/20 text-sky-600 hover:bg-sky-500/10 disabled:opacity-50 dark:text-sky-400"
             >
-              <BookmarkPlus className="h-4 w-4" />
+              <ClockArrowDown className="h-4 w-4" />
             </button>
             {([
-              { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
-              { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
+              { key: 'clear', icon: Delete, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
+              { key: 'force', icon: OctagonX, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
             ] as const).map(({ key, icon: Icon, label, hint, tone }) => (
               <label key={key} title={`${label}: ${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
                 <input

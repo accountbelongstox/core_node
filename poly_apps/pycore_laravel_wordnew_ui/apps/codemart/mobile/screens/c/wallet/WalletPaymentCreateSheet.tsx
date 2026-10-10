@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmPaymentCreate } from '../../../../shared/useCmWalletActions';
 import { MobileButton, MobileField, MobileSheet } from '../../../ui';
-import { useSheetFeedback } from '../parts/useSheetFeedback';
+import { useInlineFeedback } from '../parts/useInlineFeedback';
 
 interface WalletPaymentCreateSheetProps {
   open: boolean;
@@ -13,7 +13,7 @@ interface WalletPaymentCreateSheetProps {
 /** Direct payment to another CodeMart user; wallet payments settle at once, other methods stay pending. */
 export const WalletPaymentCreateSheet: React.FC<WalletPaymentCreateSheetProps> = ({ open, onClose, onCreated }) => {
   const { t } = useTranslation('cm');
-  const { feedback, notice, clear } = useSheetFeedback();
+  const { feedback, notice, clear } = useInlineFeedback();
   const form = useCmPaymentCreate(feedback, onCreated);
 
   const close = (): void => {
@@ -52,7 +52,7 @@ export const WalletPaymentCreateSheet: React.FC<WalletPaymentCreateSheetProps> =
             </select>
           </MobileField>
         </div>
-        <MobileField label={`${t('wallet.paymentCreate.project')} (${t('common.optional')})`} error={!form.projectValid && t('wallet.paymentCreate.payeeInvalid')}>
+        <MobileField label={`${t('wallet.paymentCreate.project')} (${t('common.optional')})`}>
           <input className="cmm-input" inputMode="numeric" value={form.projectId} aria-invalid={!form.projectValid} onChange={(event) => form.setProjectId(event.target.value)} />
         </MobileField>
         <MobileField label={`${t('wallet.paymentCreate.description')} (${t('common.optional')})`} hint={form.gatewayHint ? t('wallet.paymentCreate.gatewayHint') : undefined}>
