@@ -5,7 +5,7 @@
   },
   "projects": {
     "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\CoreNodeBridge.csproj": {
-      "version": "1.20.0",
+      "version": "1.21.0",
       "restore": {
         "projectUniqueName": "D:\\programing\\core_node\\dotapps\\d3d4tester\\tools\\rosbot-plugin\\CoreNodeBridge\\CoreNodeBridge.csproj",
         "projectName": "CoreNodeBridge",

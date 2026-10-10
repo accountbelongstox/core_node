@@ -104,6 +104,7 @@ public static partial class I18nKeys
     public const string RosbotBridgeScriptScope = "ui.rosbot_bridge.script_scope";
     public const string RosbotBridgeAttackTest = "ui.rosbot_bridge.attack_test";
     public const string RosbotBridgeCastTest = "ui.rosbot_bridge.cast_test";
+    public const string RosbotBridgeTraceEventTip = "ui.rosbot_bridge.trace_event_tip";
     public const string RosbotBridgeCastTestTip = "ui.rosbot_bridge.cast_test_tip";
     public const string RosbotBridgePluginCast = "ui.rosbot_bridge.plugin_cast";
     public const string RosbotBridgePluginCastTip = "ui.rosbot_bridge.plugin_cast_tip";

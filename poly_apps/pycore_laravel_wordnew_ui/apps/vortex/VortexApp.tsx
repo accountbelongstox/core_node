@@ -660,7 +660,7 @@ export const VortexApp: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen pb-20 transition-colors duration-350 ${
+    <div className={`shell-safe-area min-h-screen pb-20 transition-colors duration-350 ${
       dark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       

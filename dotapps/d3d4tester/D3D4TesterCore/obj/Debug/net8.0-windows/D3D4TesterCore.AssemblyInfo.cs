@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("D3D4TesterCore")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+be6ad7dfd67ece9efbc15f7ab09e78969bb51aac")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+34488dbc20d2253c1ae8c7ab09ca69f5b43bc864")]
 [assembly: System.Reflection.AssemblyProductAttribute("D3D4TesterCore")]
 [assembly: System.Reflection.AssemblyTitleAttribute("D3D4TesterCore")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -204,6 +204,7 @@ configure_postgresql() {
         # Windows filesystem does not support chown).
         if [ "$IS_WSL" = false ]; then
             repair_private_tree "$POSTGRESQL_DATA_DIR" postgres postgres
+            safe_chown_R postgres:postgres "$POSTGRESQL_LOG_DIR"
         fi
         # Ensure config dir exists
         if [ ! -d "$cluster_dir" ]; then

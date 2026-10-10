@@ -334,6 +334,8 @@ public static class RosbotBridgePluginService
         if (!string.IsNullOrWhiteSpace(value)) lines.Add($"{CommandKeyValue}={value.Trim()}");
         lines.Add($"{CommandKeyAssist}={AssistEnabled}");
         lines.Add($"{CommandKeyCast}={PluginCastEnabled}");
+        if (action == RosbotPluginConstants.BridgeActionAttackTest && ConfigBinding.GetValue(ConfigKeys.BridgeTraceEvent, "") is { Length: > 0 } traceEvent)
+            lines.Add($"{CommandKeyEvent}={traceEvent.Trim()}");
         if (!WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeCommandFileName), lines)) return null;
         ColorPrinter.Blue($"{LogTag} command {id} {action} target='{target}' mode={mode} click={click} ui={uiId} assist={AssistEnabled}");
         if (rememberFollow && action == RosbotPluginConstants.BridgeActionFollow)
@@ -455,6 +457,7 @@ public static class RosbotBridgePluginService
     private const string CommandKeyValue = "value";
     private const string CommandKeyAssist = "assist";
     private const string CommandKeyCast = "cast";
+    private const string CommandKeyEvent = "event";
     private const string FilterKeyAuto = "auto";
     private const string TempSuffix = ".tmp";
 

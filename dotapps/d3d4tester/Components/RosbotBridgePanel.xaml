@@ -140,7 +140,8 @@
             <Button x:Name="BtnScriptScope" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnScriptScope_Click"/>
             <Button x:Name="BtnPowerApi" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnPowerApi_Click"/>
             <Button x:Name="BtnAttackTest" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnAttackTest_Click"/>
-            <Button x:Name="BtnCastTest" Style="{StaticResource SubtleButtonStyle}" Click="BtnCastTest_Click"/>
+            <Button x:Name="BtnCastTest" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnCastTest_Click"/>
+            <TextBox x:Name="TxtTraceEvent" Width="160" VerticalAlignment="Center"/>
           </WrapPanel>
           <TextBlock x:Name="LblTests" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
           <WrapPanel Margin="0,0,0,6">

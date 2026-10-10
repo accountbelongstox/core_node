@@ -93,7 +93,7 @@ export const PcLayout: React.FC = () => {
   return (
     <PcLaravelEndpointProvider>
       <PcTestPopupProvider>
-        <div className="fixed inset-0 flex overflow-hidden" data-end="pycore-manager">
+        <div className="shell-safe-area fixed inset-0 flex overflow-hidden" data-end="pycore-manager">
         <aside className="hidden md:flex w-56 shrink-0 h-full flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl overflow-hidden">
           {renderSidebarContent()}
         </aside>
@@ -103,7 +103,7 @@ export const PcLayout: React.FC = () => {
               className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
               onClick={() => setNavOpen(false)}
             />
-            <aside className="absolute inset-y-0 left-0 flex w-64 max-w-[82vw] flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+            <aside className="shell-safe-area absolute inset-y-0 left-0 flex w-64 max-w-[82vw] flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
               {renderSidebarContent(() => setNavOpen(false))}
             </aside>
           </div>

@@ -130,6 +130,8 @@ public static partial class ConfigKeys
     public const bool BridgeAssistDefault = false;
     /// <summary>Combat assist casts with ROSBOT's own cast entry (plugin RosCaster) when found, else the combat macro casts. Default on.</summary>
     public const string BridgePluginCast = "rosbot.bridge_plugin_cast";
+    /// <summary>Named event of a TTD recording: the plugin's cast / attack test waits for it before casting (empty = no wait).</summary>
+    public const string BridgeTraceEvent = "rosbot.bridge_trace_event";
     public const bool BridgePluginCastDefault = true;
     public const string BridgeFollowTownPortalKeyDefault = "t";
     /// <summary>
