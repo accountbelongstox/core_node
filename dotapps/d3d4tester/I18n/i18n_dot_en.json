@@ -1,5 +1,18 @@
 {
   "ui": {
+    "ocr_model": {
+      "tab": "OCR model",
+      "label": "OCR model (all dot apps)",
+      "bundled_suffix": " (bundled, fast)",
+      "download": "Download",
+      "load": "Load",
+      "open_dir": "Open the models folder",
+      "active": "In use by every dot app on this computer.",
+      "installed": "Downloaded, not in use: press Load.",
+      "not_installed": "Not downloaded (about {0:0} MB from the official PaddlePaddle source).",
+      "download_failed": "Download failed: {0}",
+      "hint": "Runs on the CPU. PP-OCRv5 mobile is bundled and fast; PP-OCRv5 server reads small game text (skill and rune names) more reliably but takes several seconds per read. Load reloads OCR at once; the choice is saved for all dot apps."
+    },
     "startup": {
       "shortcut_path": "Startup shortcut: {0}",
       "shortcut_path_missing": "Startup shortcut (not created): {0}"

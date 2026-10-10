@@ -340,6 +340,35 @@ function Invoke-AiCliNativeInstallerProcess {
 # Run the official installer of <Tool> from each catalog URL until one leaves
 # the native executable in place. Child process: official installers call
 # exit on failure, which would otherwise terminate the caller.
+# Move a plain directory standing where the official installer keeps a junction
+# (catalog NativeInstallerJunctionDirs) aside to <dir>.stale-<timestamp>, so the
+# installer can recreate the junction. Junctions and missing paths are left as is.
+function Move-AiCliNativeStaleJunctionDirs {
+    param([string]$Tool)
+
+    $junctionDir = ""
+    $junctionItem = $null
+    $stalePath = ""
+
+    foreach ($junctionDir in @(Get-AiToolField -Key $Tool -Field "NativeInstallerJunctionDirs")) {
+        if ([string]::IsNullOrWhiteSpace([string]$junctionDir)) {
+            continue
+        }
+        $junctionItem = Get-Item -LiteralPath $junctionDir -Force -ErrorAction SilentlyContinue
+        if (($null -eq $junctionItem) -or (-not $junctionItem.PSIsContainer) -or ($junctionItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            continue
+        }
+        $stalePath = Join-Path (Split-Path -Parent $junctionDir) ("{0}.stale-{1}" -f (Split-Path -Leaf $junctionDir), (Get-Date -Format "yyyyMMddHHmmss"))
+        try {
+            Move-Item -LiteralPath $junctionDir -Destination $stalePath -ErrorAction Stop
+            Write-Host "[REPAIR] Plain directory replaced by installer junction; moved aside: $junctionDir -> $stalePath" -ForegroundColor Yellow
+        }
+        catch {
+            Write-Host "[WARN] Cannot move aside $junctionDir (close running $Tool processes): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}
+
 function Invoke-AiCliNativeInstaller {
     param([string]$Tool)
 
@@ -374,6 +403,7 @@ function Invoke-AiCliNativeInstaller {
         $installerEnv["TMP"] = [string]$installerWorkDir
     }
 
+    Move-AiCliNativeStaleJunctionDirs -Tool $Tool
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     foreach ($envName in @($installerEnv.Keys)) {
         $savedEnv[$envName] = [Environment]::GetEnvironmentVariable($envName, "Process")
