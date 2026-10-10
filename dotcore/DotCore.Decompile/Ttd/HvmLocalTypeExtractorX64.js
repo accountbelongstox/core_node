@@ -58,6 +58,10 @@ function signatureDetails(address) {
         SignatureData: data };
 }
 
+function hasLocalSignatureBlob(details) {
+    return details.SignatureData.length >= 2 && details.SignatureData.substring(0, 2) === "07";
+}
+
 function parsePosition(value) {
     if (value === "Min Position") return [0, 0];
     if (value === "Max Position") return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
@@ -96,14 +100,25 @@ function invokeScript() {
     const getArgTypeAddress = __GET_ARG_TYPE_ADDRESS__;
     const getArgClassAddress = __GET_ARG_CLASS_ADDRESS__;
     const rangeInput = __JIT_RANGES__;
-    const ranges = rangeInput.map(range => ({
+    const jitCalls = host.currentSession.TTD.Calls("clrjit!CILJit::compileMethod");
+    const selectedRanges = rangeInput.map(range => ({
         Index: range.Index,
         Start: parsePosition(range.StartPosition),
         End: parsePosition(range.EndPosition),
         LocalsSignatureInfo: "",
         SignatureBytes: ""
     }));
-    const jitCalls = host.currentSession.TTD.Calls("clrjit!CILJit::compileMethod");
+    const selectedByIndex = {};
+    const ranges = [];
+    const jitCallCount = Number(jitCalls.Count());
+    for (const range of selectedRanges) selectedByIndex[range.Index] = range;
+    for (let index = 0; index < jitCallCount; index++) {
+        ranges.push({
+            Index: index,
+            Start: parsePosition(jitCalls[index].TimeStart.toString()),
+            End: parsePosition(jitCalls[index].TimeEnd.toString())
+        });
+    }
     const argTypeCalls = host.currentSession.TTD.Calls(getArgTypeAddress);
     const argClassCalls = host.currentSession.TTD.Calls(getArgClassAddress);
     const records = [];
@@ -112,7 +127,7 @@ function invokeScript() {
     const signatures = [];
     const methodSignatures = [];
 
-    for (const range of ranges) {
+    for (const range of selectedRanges) {
         try {
             jitCalls[range.Index].TimeStart.SeekTo();
             range.LocalsSignatureInfo = pointerText(host.currentThread.Registers.User.r8.add(0x98));
@@ -128,21 +143,24 @@ function invokeScript() {
     }
 
     const callCount = Number(argTypeCalls.Count());
-    host.diagnostics.debugLog(`Processing ${callCount} runtime getArgType calls for ${ranges.length} HVM methods.\n`);
+    host.diagnostics.debugLog(`Processing ${callCount} runtime getArgType calls for ${selectedRanges.length} HVM methods.\n`);
     for (let index = 0; index < callCount; index++) {
         const startText = argTypeCalls[index].TimeStart.toString();
-        const range = findRange(ranges, parsePosition(startText));
-        if (range === null) continue;
+        const containingRange = findRange(ranges, parsePosition(startText));
+        const range = containingRange === null ? null : selectedByIndex[containingRange.Index];
+        if (range === null || range === undefined) continue;
         try {
             argTypeCalls[index].TimeStart.SeekTo();
             const registers = host.currentThread.Registers.User;
             const signatureInfo = pointerText(registers.rdx);
             if (signatureInfo !== range.LocalsSignatureInfo) {
                 const observed = signatureBytes(registers.rdx);
+                const details = signatureDetails(registers.rdx);
                 signatures.push({ Kind: "Type", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
-                    Expected: range.SignatureBytes, Observed: observed,
-                    Details: signatureDetails(registers.rdx) });
-                if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
+                    StartPosition: startText, Expected: range.SignatureBytes, Observed: observed,
+                    Details: details });
+                if ((range.SignatureBytes === "" || observed !== range.SignatureBytes)
+                    && !hasLocalSignatureBlob(details)) continue;
             }
             const argumentPointer = registers.r8;
             const typeHandlePointer = registers.r9;
@@ -173,18 +191,21 @@ function invokeScript() {
     host.diagnostics.debugLog(`Processing ${classCallCount} runtime getArgClass calls.\n`);
     for (let index = 0; index < classCallCount; index++) {
         const startText = argClassCalls[index].TimeStart.toString();
-        const range = findRange(ranges, parsePosition(startText));
-        if (range === null) continue;
+        const containingRange = findRange(ranges, parsePosition(startText));
+        const range = containingRange === null ? null : selectedByIndex[containingRange.Index];
+        if (range === null || range === undefined) continue;
         try {
             argClassCalls[index].TimeStart.SeekTo();
             const registers = host.currentThread.Registers.User;
             const signatureInfo = pointerText(registers.rdx);
             if (signatureInfo !== range.LocalsSignatureInfo) {
                 const observed = signatureBytes(registers.rdx);
+                const details = signatureDetails(registers.rdx);
                 signatures.push({ Kind: "Class", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
-                    Expected: range.SignatureBytes, Observed: observed,
-                    Details: signatureDetails(registers.rdx) });
-                if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
+                    StartPosition: startText, Expected: range.SignatureBytes, Observed: observed,
+                    Details: details });
+                if ((range.SignatureBytes === "" || observed !== range.SignatureBytes)
+                    && !hasLocalSignatureBlob(details)) continue;
             }
             const argumentPointer = registers.r8;
             argClassCalls[index].TimeEnd.SeekTo();
