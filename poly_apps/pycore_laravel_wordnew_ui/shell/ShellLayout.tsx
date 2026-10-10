@@ -7,6 +7,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { ShellControls } from './ShellControls';
 import { ShellAiChatPanel } from './ShellAiChatPanel';
+import { ShellAppUpdateBanner } from './ShellAppPackages';
 import { SHELL_DOCK_GUTTER_CSS_VAR, shellDockRightGutterPx } from './shellChrome';
 
 export const ShellLayout: React.FC = () => {
@@ -18,6 +19,7 @@ export const ShellLayout: React.FC = () => {
       <Outlet />
       <ShellControls />
       <ShellAiChatPanel />
+      <ShellAppUpdateBanner />
     </div>
   );
 };

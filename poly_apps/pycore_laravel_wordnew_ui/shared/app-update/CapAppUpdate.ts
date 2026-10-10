@@ -8,8 +8,8 @@
  * ========================================================================== */
 import { registerPlugin } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
-import { isNativeAppShell } from '../../../../core/network/NativeShell';
-import { isDesktopAppShell } from '../../../../core/network/DesktopShell';
+import { isNativeAppShell } from '../../core/network/NativeShell';
+import { isDesktopAppShell } from '../../core/network/DesktopShell';
 
 export interface CapInstalledApp {
   applicationId: string;

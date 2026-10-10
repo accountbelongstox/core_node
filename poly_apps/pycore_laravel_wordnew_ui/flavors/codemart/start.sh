@@ -4,8 +4,10 @@
 #   1. backend  - laravel_main via FrankenPHP: 175_laravel_main_start.sh when not deployed/healthy,
 #                 otherwise data init only (sys:init, sys:codemartinit, codemart:admin-password) + workers restart
 #   2. UI       - ncore-nexus-dash on ports.nexus_dash_frontend (175 --ui-service) when not listening
-#   3. device   - scripts/start_build.sh --adb-* (pair/connect/mDNS + LAN and random-port scan)
-#   4. app      - scripts/start_build.sh --app codemart (debug APK build + adb install) when a device is online
+#   3. device   - scripts/start_build.sh --adb-* (pair/connect/mDNS + LAN and random-port scan; the scan also
+#                 runs with a device online unless --no-scan or --target/--pair-code is given)
+#   4. app      - scripts/start_build.sh --app codemart (debug APK build + adb install) when a device is online,
+#                 then live_debug.py attach --no-follow (launch + log collection)
 #   5. web      - MagicDNS URLs (mesh/tailscale helpers), curl-verified, xdg-open only with a display
 # Windows twin: start.ps1 (same flags).
 #
@@ -24,6 +26,7 @@ COMMON_DIR="${LINUX_SHELLS_DIR}/common"
 INSTALL_SHELLS_DIR="${LINUX_SHELLS_DIR}/debian/install_shells"
 STEP_LARAVEL_MAIN="${INSTALL_SHELLS_DIR}/175_laravel_main_start.sh"
 START_BUILD_SCRIPT="${APP_ROOT}/scripts/start_build.sh"
+LIVE_DEBUG_SCRIPT="${APP_ROOT}/scripts/flavor/live_debug.py"
 SERVICE_CONTRACT_COMMON="${COMMON_DIR}/service_contract_common.sh"
 FRANKENPHP_DOMAIN_COMMON="${COMMON_DIR}/frankenphp_domain_common.sh"
 TAILSCALE_COMMON="${COMMON_DIR}/tailscale_common.sh"
@@ -51,6 +54,10 @@ SECRET_FILE_REL=""
 SECRET_FILE=""
 PHP_BIN=""
 ADB_BIN=""
+PYTHON_BIN=""
+ONLINE_SERIAL=""
+HARDWARE_SERIALS=""
+HARDWARE_SERIAL=""
 HOST_DNS=""
 WEB_URL=""
 API_URL=""
@@ -258,11 +265,20 @@ resolve_adb() {
     if [ -x /usr/bin/adb ]; then ADB_BIN=/usr/bin/adb; else ADB_BIN="$(command -v adb 2>/dev/null)"; fi
 }
 
+# Counts physical devices: the same phone listed by IP and by mDNS serial is one device (ro.serialno).
 count_online() {
     ONLINE_COUNT=0
+    HARDWARE_SERIALS=""
     resolve_adb
     if [ -z "$ADB_BIN" ]; then return; fi
-    ONLINE_COUNT="$("$ADB_BIN" devices 2>/dev/null | awk 'NR > 1 && $2 == "device"' | wc -l)"
+    for ONLINE_SERIAL in $("$ADB_BIN" devices 2>/dev/null | awk 'NR > 1 && $2 == "device" {print $1}'); do
+        HARDWARE_SERIAL="$("$ADB_BIN" -s "$ONLINE_SERIAL" shell getprop ro.serialno 2>/dev/null | tr -d '\r\n ')"
+        [ -n "$HARDWARE_SERIAL" ] || HARDWARE_SERIAL="$ONLINE_SERIAL"
+        case " $HARDWARE_SERIALS " in
+            *" $HARDWARE_SERIAL "*) ;;
+            *) HARDWARE_SERIALS="${HARDWARE_SERIALS:+$HARDWARE_SERIALS }$HARDWARE_SERIAL"; ONLINE_COUNT=$((ONLINE_COUNT + 1)) ;;
+        esac
+    done
 }
 
 start_build_device() {
@@ -282,7 +298,10 @@ step_device() {
         start_build_device "${pair_args[@]}"
         count_online
     fi
-    if [ "$ONLINE_COUNT" -eq 0 ] && [ -z "$NO_SCAN" ]; then
+    if [ -z "$NO_SCAN" ] && [ -z "$TARGET" ] && [ -z "$PAIR_CODE" ]; then
+        start_build_device --adb-scan
+        count_online
+    elif [ "$ONLINE_COUNT" -eq 0 ] && [ -z "$NO_SCAN" ]; then
         start_build_device --adb-scan
         count_online
     fi
@@ -307,10 +326,15 @@ step_app() {
         record app WARN "skipped: no device online"
         return
     fi
-    if start_build_device --debug-apk; then
-        record app OK "debug APK built and installed on ${ONLINE_COUNT} device(s)"
-    else
+    if ! start_build_device --debug-apk; then
         record app FAIL "start_build.sh failed"
+        return
+    fi
+    PYTHON_BIN="$(command -v python3 2>/dev/null)"
+    if [ -n "$PYTHON_BIN" ] && "$PYTHON_BIN" "$LIVE_DEBUG_SCRIPT" attach --root "$APP_ROOT" --adb "$ADB_BIN" --app "$FLAVOR_ID" --no-follow --non-interactive; then
+        record app OK "debug APK installed and launched on ${ONLINE_COUNT} device(s)"
+    else
+        record app WARN "APK installed on ${ONLINE_COUNT} device(s); launch/attach failed"
     fi
 }
 
