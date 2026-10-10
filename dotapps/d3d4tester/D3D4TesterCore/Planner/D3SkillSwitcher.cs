@@ -44,7 +44,7 @@ public sealed record SkillSwitchStep(DateTime Time, SkillSwitchStage Stage, bool
 /// Redundancy: D3 drops a click that only activates it, and other programs may take the foreground meanwhile, so every click / key is
 /// followed by a fresh capture that must show the expected screen (<see cref="UiState"/>: game menu, skill chooser, passive chooser,
 /// skill pane, world) and is repeated up to Attempts times; opening / closing goes state by state (game menu -> Return, chooser -> Escape,
-/// pane -> Escape / S), never by a blind key count. Before every capture that reads the chooser the cursor is parked outside the
+/// pane -> Escape / S, the first S after one Escape that closes an open chat line), never by a blind key count. Before every capture that reads the chooser the cursor is parked outside the
 /// dialog: the tooltip of the icon just clicked would cover the rune row and the passive list. While switching, a small D3 window is
 /// enlarged to ExpandClientHeight (more room: larger text for OCR, tooltips cover less) and put back afterwards. Every step is reported
 /// to the optional progress callback with its capture.
@@ -169,16 +169,15 @@ public static class D3SkillSwitcher
         }
     }
 
-    /// <summary>Enlarge a D3 client below ExpandClientHeight to ExpandClientWidth x ExpandClientHeight (kept on screen); the old bounds, or null.</summary>
+    /// <summary>Enlarge a D3 client below ExpandClientHeight towards ExpandClientWidth x ExpandClientHeight inside its monitor's work area; the old bounds, or null.</summary>
     private static (int Left, int Top, int Width, int Height)? Expand(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero || WindowResizer.GetWindowBounds(hwnd) is not { } bounds || WindowInputHelper.GetWindowClientRectScreen(hwnd) is not { } client) return null;
         int clientHeight = client.Bottom - client.Top;
         if (clientHeight >= ExpandClientHeight) return null;
-        var (moved, _) = WindowResizer.ResizeWindowToClientSize(hwnd, ExpandClientWidth, ExpandClientHeight, keepPosition: true, ensureOnScreen: true);
-        if (!moved) return null;
+        if (WindowResizer.FitClientToMonitor(hwnd, ExpandClientWidth, ExpandClientHeight) is not { } size) return null;
         Thread.Sleep(AfterResizeMs);
-        Report(SkillSwitchStage.ExpandWindow, true, $"client {client.Right - client.Left}x{clientHeight} -> {ExpandClientWidth}x{ExpandClientHeight}");
+        Report(SkillSwitchStage.ExpandWindow, true, $"client {client.Right - client.Left}x{clientHeight} -> {size.Width}x{size.Height} (inside the monitor work area)");
         return bounds;
     }
 
@@ -265,6 +264,7 @@ public static class D3SkillSwitcher
     /// </summary>
     private static bool ToState(UiState wanted, string cls, string cacheDir)
     {
+        bool cleared = false;
         for (int step = 0; step < MaxStateSteps; step++)
         {
             if (Capture() is not { } shot) return false;
@@ -282,6 +282,11 @@ public static class D3SkillSwitcher
                     break;
                 case UiState.Pane:
                     PressKey(shot, VkEscape);
+                    break;
+                case UiState.World when !cleared:
+                    // an open chat line would swallow S: Escape closes it, or opens the game menu, which the next step closes
+                    PressKey(shot, VkEscape);
+                    cleared = true;
                     break;
                 case UiState.World:
                     PressKey(shot, VkS);
@@ -316,9 +321,11 @@ public static class D3SkillSwitcher
             {
                 if (point(shot) is not { } at)
                 {
-                    ColorPrinter.Yellow($"{LogTag} {what}: target not on screen");
-                    Report(stage, false, $"{what}: target not on screen", shot);
-                    return false;
+                    // a tooltip under the cursor may cover the target: move the cursor away and look again
+                    ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt}, target not on screen");
+                    Report(stage, false, $"{what}: attempt {attempt}, target not on screen (cursor parked, retry)", shot);
+                    Park(shot);
+                    continue;
                 }
                 Click(shot, at);
                 Thread.Sleep(AfterClickMs);
@@ -384,9 +391,14 @@ public static class D3SkillSwitcher
                     ColorPrinter.Yellow($"{LogTag} slot {slot}: skill chooser did not open (page arrows not found)");
                     return SkillSwitchOutcome.ChooserNotOpen;
                 }
-                if (FindInRow(shot, chooser, icon, target) is not null)
+                if (page == 0 && AssignedShows(shot, chooser, icon, target, out double assignedScore))
                 {
-                    if (!PickUntilAssigned(icon, target, cls, cacheDir)) return SkillSwitchOutcome.ChooserNotOpen;
+                    Report(SkillSwitchStage.PickSkill, true, $"{target.Id} ({target.NameZh}) already assigned to this slot (icon {assignedScore:F2}), rune only", shot);
+                    break;
+                }
+                if (FindInRow(shot, chooser, icon, target) is { } found)
+                {
+                    if (!PickUntilAssigned(found, icon, target)) return SkillSwitchOutcome.ChooserNotOpen;
                     break;
                 }
                 if (page == MaxPages - 1)
@@ -452,17 +464,23 @@ public static class D3SkillSwitcher
         Report(SkillSwitchStage.Rune, true, $"'{target.RuneNameZh}' by {how}: '{pick.Text}', icon click above the name; OCR [{string.Join(" | ", words.Select(w => w.Text))}]", shot, pick.IconAbove);
         Click(shot, pick.IconAbove);
         Thread.Sleep(AfterRuneClickMs);
+        Park(shot);
     }
 
     /// <summary>Click the planned icon in the current page's row until the assigned box shows it (fresh capture each attempt).</summary>
-    private static bool PickUntilAssigned(Mat icon, PlannerSkill target, string cls, string cacheDir)
+    /// <summary>
+    /// Click the planned icon until the assigned box shows it: the first click uses the point already found; later attempts look again
+    /// (a selected icon is framed and scores lower, so a failed re-find keeps the previous point). Every attempt is reported.
+    /// </summary>
+    private static bool PickUntilAssigned((int X, int Y) firstPoint, Mat icon, PlannerSkill target)
     {
+        var at = firstPoint;
         for (int attempt = 1; attempt <= Attempts; attempt++)
         {
             if (Capture() is not { } shot) return false;
             using (shot.Image)
             {
-                if (FindChooser(shot) is not { } chooser || FindInRow(shot, chooser, icon, target) is not { } at) return false;
+                if (attempt > 1 && FindChooser(shot) is { } again && FindInRow(shot, again, icon, target) is { } refound) at = refound;
                 Click(shot, at);
                 Thread.Sleep(AfterIconClickMs);
                 Park(shot);
@@ -470,15 +488,28 @@ public static class D3SkillSwitcher
             if (Capture() is not { } after) return false;
             using (after.Image)
             {
-                if (FindChooser(after) is not { } chooser) return false;
-                using var box = new Mat(after.Image, Band(after, chooser, AssignedTopFrac, AssignedBottomFrac));
-                var check = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(box, icon, Widths(after.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, target.Id);
-                Report(SkillSwitchStage.PickSkill, check.Success, $"{target.Id} ({target.NameZh}): attempt {attempt}, assigned box icon {check.Score:F2}", after);
-                if (check.Success) return true;
-                ColorPrinter.Yellow($"{LogTag} {target.Id}: attempt {attempt}, assigned box not updated (score {check.Score:F2})");
+                if (FindChooser(after) is not { } chooser)
+                {
+                    ColorPrinter.Yellow($"{LogTag} {target.Id}: chooser gone after the icon click");
+                    Report(SkillSwitchStage.PickSkill, false, $"{target.Id} ({target.NameZh}): chooser gone after the icon click", after);
+                    return false;
+                }
+                bool ok = AssignedShows(after, chooser, icon, target, out double score);
+                Report(SkillSwitchStage.PickSkill, ok, $"{target.Id} ({target.NameZh}): attempt {attempt} click ({at.X},{at.Y}), assigned box icon {score:F2}", after, at);
+                if (ok) return true;
+                ColorPrinter.Yellow($"{LogTag} {target.Id}: attempt {attempt}, assigned box not updated (score {score:F2})");
             }
         }
         return false;
+    }
+
+    /// <summary>The chooser's assigned-skill box shows the planned icon.</summary>
+    private static bool AssignedShows(Shot shot, Chooser chooser, Mat icon, PlannerSkill target, out double score)
+    {
+        using var box = new Mat(shot.Image, Band(shot, chooser, AssignedTopFrac, AssignedBottomFrac));
+        var check = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(box, icon, Widths(shot.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, target.Id);
+        score = check.Score;
+        return check.Success;
     }
 
     /// <summary>Click Accept until the chooser is gone (the expected screen shows).</summary>

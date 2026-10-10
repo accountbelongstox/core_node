@@ -70,6 +70,9 @@ public static class MaxrollD3PlannerClient
         return m.Success && long.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long id) ? id : null;
     }
 
+    /// <summary>Canonical planner page URL of a build id (https://maxroll.gg/d3/d3planner/&lt;id&gt;).</summary>
+    public static string PlannerUrl(long id) => string.Format(CultureInfo.InvariantCulture, PlannerUrlFormat, id);
+
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (JsonNode? Data, JsonNode? Zh)> CachedGameData = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Every rune of a class skill (letter, English, Chinese) from the cached game data; empty when unknown.</summary>
@@ -115,7 +118,7 @@ public static class MaxrollD3PlannerClient
         long id = long.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out long n) ? n : throw new ArgumentException(profilePath, nameof(profilePath));
         var profile = JsonNode.Parse(await File.ReadAllTextAsync(profilePath, ct).ConfigureAwait(false))!;
         var (data, zh) = await LoadGameDataAsync(cacheDir, ct).ConfigureAwait(false);
-        return Parse(id, url ?? string.Format(CultureInfo.InvariantCulture, PlannerUrlFormat, id), profile, data, zh);
+        return Parse(id, url ?? PlannerUrl(id), profile, data, zh);
     }
 
     private static async Task<(JsonNode Data, JsonNode? Zh)> LoadGameDataAsync(string cacheDir, CancellationToken ct)
