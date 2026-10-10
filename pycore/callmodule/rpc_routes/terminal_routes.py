@@ -27,6 +27,8 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_LAUNCHER_LAUNCH,
     UI_TERMINAL_LAUNCHER_RESTART,
     UI_TERMINAL_PERMISSION_MODE,
+    UI_TERMINAL_QUICK_COMMAND_RUN,
+    UI_TERMINAL_QUICK_COMMAND_STATUS,
     UI_TERMINAL_REMOVE,
     UI_TERMINAL_RENAME,
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
@@ -45,6 +47,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyctl.terminal.terminal_backup_history_service import terminal_backup_history_service
 from pycore.pyctl.terminal.terminal_backup_service import terminal_backup_service
 from pycore.pyctl.terminal.launcher_control_service import launcher_control_service
+from pycore.pyctl.terminal.terminal_quick_command_runner import terminal_quick_command_runner
 from pycore.pyctl.terminal.terminal_quick_commands import list_quick_commands
 from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
 from pycore.pyctl.terminal.terminal_rpc import (
@@ -247,6 +250,27 @@ def register_terminal_routes(server) -> None:
             "commands",
             request_id,
             list_quick_commands,
+            log_result=False,
+            quiet=True,
+        )
+
+    def quick_command_run_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = integer_param(params, "terminal_number")
+        command_id = str(params.get("command_id") or "")
+        shell_os = str(params.get("platform") or "").strip().lower()
+        return run_terminal_action(
+            "quick_command_run",
+            request_id,
+            lambda: terminal_quick_command_runner.start(window_id, terminal_number, command_id, shell_os),
+        )
+
+    def quick_command_status_handler(params, request_id, _context):
+        terminal_number = integer_param(params, "terminal_number")
+        return run_terminal_action(
+            "quick_command_status",
+            request_id,
+            lambda: terminal_quick_command_runner.status(terminal_number),
             log_result=False,
             quiet=True,
         )
@@ -596,6 +620,8 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_AGENT_CREATE, handler=agent_create_handler)
     server.post(path=UI_TERMINAL_AGENT_CLOSE, handler=agent_close_handler)
     server.post(path=UI_TERMINAL_PERMISSION_MODE, handler=permission_mode_handler)
+    server.post(path=UI_TERMINAL_QUICK_COMMAND_RUN, handler=quick_command_run_handler)
+    server.post(path=UI_TERMINAL_QUICK_COMMAND_STATUS, handler=quick_command_status_handler)
     server.post(path=UI_TERMINAL_RENAME, handler=rename_handler)
     server.post(path=UI_TERMINAL_REMOVE, handler=remove_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)

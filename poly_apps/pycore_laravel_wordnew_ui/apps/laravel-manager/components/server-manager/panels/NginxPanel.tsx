@@ -382,7 +382,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
           {nginxSites.loading && (
             <LoadingBlock />
           )}
-          {nginxSites.error && (
+          {nginxSites.error && nginxSites.error !== nginxStatus.error && (
             <AlertBox variant="error">{nginxSites.error}</AlertBox>
           )}
           {nginxSites.data && nginxSites.data.length > 0 && (
@@ -478,7 +478,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
               </div>
             </>
           )}
-          {nginxSites.data && nginxSites.data.length === 0 && !nginxSites.loading && (
+          {nginxSites.data && nginxSites.data.length === 0 && !nginxSites.loading && !nginxSites.error && (
             <div className={`${commonClasses.card} p-6 md:p-12 text-center`}>
               <Network className="w-12 h-12 mx-auto mb-4 text-slate-400" />
               <p className="text-slate-500 dark:text-slate-400">{t.nginx.no_sites}</p>

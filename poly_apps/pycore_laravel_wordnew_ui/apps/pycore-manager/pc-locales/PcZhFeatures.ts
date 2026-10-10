@@ -582,6 +582,25 @@ terminal: {
         restart: '已关闭 {{terminals}} 个终端，停止 {{apps}} 个应用并重新启动。',
       },
     },
+    agents: {
+      title: '虚拟智能体窗口',
+      kind: '智能体命令行',
+      hint: '新建一个不需要桌面的 AI 对话（VM 或服务器）。每条消息在后台运行命令行，并接着同一个对话继续。',
+      create: '新建智能体窗口',
+      missing: '{{kind}}（未安装 {{binary}}）',
+      created: '已新建 {{kind}} 窗口，发送消息即可开始。',
+      close: '关闭智能体窗口',
+      confirmClose: '关闭智能体窗口 #{{number}}？正在进行的回复会被停止，此对话不再在这里继续。',
+      closed: '智能体窗口已关闭。',
+      errors: {
+        unsupported: '智能体窗口没有桌面窗口，不支持此操作。请直接发送消息，或按 Esc / Ctrl+C 停止回复。',
+        kind: '未知的智能体类型。',
+        notFound: '该智能体窗口已不存在。',
+        busy: '智能体仍在回复。请稍候，或用强制运行停止后再发送。',
+        cliMissing: '本机未安装该智能体命令行。',
+        keyMissing: '该智能体的 API 密钥未设置。',
+      },
+    },
     commands: {
       title: '命令',
       noRecent: '暂无最近命令',
@@ -821,6 +840,7 @@ terminal: {
         xwayland: 'Xwayland',
         gnome_bridge: 'GNOME 桥接',
         portal: 'XDG 门户',
+        virtual: '智能体命令行',
         none: '仅查看',
       },
       capabilities: {

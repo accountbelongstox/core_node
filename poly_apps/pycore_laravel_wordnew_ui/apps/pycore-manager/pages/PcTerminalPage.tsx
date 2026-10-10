@@ -97,6 +97,7 @@ import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/Pyco
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import { PcTerminalLauncherBar } from '@/apps/pycore-manager/components/terminal/PcTerminalLauncherBar';
+import { PcTerminalAgentCreate } from '@/apps/pycore-manager/components/terminal/PcTerminalAgentCreate';
 import { PcTerminalSentSearch, type PcSentSearchHit } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
@@ -261,6 +262,12 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
+  terminal_virtual_unsupported: 'terminal.agents.errors.unsupported',
+  terminal_virtual_kind_invalid: 'terminal.agents.errors.kind',
+  terminal_virtual_not_found: 'terminal.agents.errors.notFound',
+  terminal_virtual_busy: 'terminal.agents.errors.busy',
+  agent_cli_missing: 'terminal.agents.errors.cliMissing',
+  agent_cli_key_missing: 'terminal.agents.errors.keyMissing',
 };
 
 interface ActionNotice {
@@ -1022,7 +1029,7 @@ const PcTerminalNodeView: React.FC<{
   const selectedActionable = Boolean(
     selectedWindow?.online
     && selectedWindow.controllable !== false
-    && snapshot?.supported
+    && (snapshot?.supported || selectedWindow.virtual)
     && !actionWindowId,
   );
   const previewWindow = useMemo(() => (
@@ -1342,6 +1349,39 @@ const PcTerminalNodeView: React.FC<{
       void refresh();
     }
   }, [errorTranslationKey, forgetTerminalLocalState, refresh, removingTerminals, t, terminalApi]);
+
+  const closeVirtualAgent = useCallback(async (windowInfo: TerminalWindowInfo) => {
+    if (removingTerminals) return;
+    if (!window.confirm(t('terminal.agents.confirmClose', { number: windowInfo.terminal_number }))) return;
+    setRemovingTerminals(true);
+    setActionNotice(null);
+    try {
+      const result = await terminalApi.closeTerminalAgent(windowInfo.id);
+      if (result.removed_terminal_numbers?.length) forgetTerminalLocalState(result.removed_terminal_numbers);
+      if (!mountedRef.current) return;
+      setActionNotice(result.success
+        ? { kind: 'success', translationKey: 'terminal.agents.closed' }
+        : { kind: 'error', translationKey: errorTranslationKey(result.error_code) });
+    } catch (error) {
+      if (mountedRef.current) setActionNotice({ kind: 'error', translationKey: errorTranslationKey(terminalRequestErrorCode(error)) });
+    } finally {
+      if (mountedRef.current) setRemovingTerminals(false);
+      void refresh();
+    }
+  }, [errorTranslationKey, forgetTerminalLocalState, refresh, removingTerminals, t, terminalApi]);
+
+  const renderVirtualCloseButton = (windowInfo: TerminalWindowInfo, iconClassName: string, buttonClassName: string) => (
+    <button
+      type="button"
+      onClick={() => void closeVirtualAgent(windowInfo)}
+      disabled={removingTerminals}
+      title={t('terminal.agents.close')}
+      aria-label={`${t('terminal.agents.close')}: #${windowInfo.terminal_number}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 ${buttonClassName}`}
+    >
+      <X className={iconClassName} />
+    </button>
+  );
 
   const renderRemoveOfflineBar = () => (
     <div className="col-span-full flex items-center justify-between gap-2">
@@ -2532,7 +2572,8 @@ const PcTerminalNodeView: React.FC<{
               windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
             }`} />
           </button>
-          {windowInfo.online && (
+          {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-4 w-4', 'h-8 w-8')}
+          {windowInfo.online && !windowInfo.virtual && (
             <button
               type="button"
               onClick={() => {
@@ -2561,7 +2602,7 @@ const PcTerminalNodeView: React.FC<{
               <Trash2 className="h-4 w-4" />
             </button>
           )}
-          {windowInfo.online && (
+          {windowInfo.online && !windowInfo.virtual && (
             <div className="basis-full">
               <PcTerminalCardCommands
                 shellOs={windowInfo.shell_os}
@@ -2650,6 +2691,12 @@ const PcTerminalNodeView: React.FC<{
                 })}
               </div>
               <PcTerminalLauncherBar
+                errorTranslationKey={errorTranslationKey}
+                onNotice={setActionNotice}
+                onDone={() => void refresh()}
+              />
+              <PcTerminalAgentCreate
+                kinds={snapshot?.agent_kinds ?? []}
                 errorTranslationKey={errorTranslationKey}
                 onNotice={setActionNotice}
                 onDone={() => void refresh()}
@@ -2766,7 +2813,8 @@ const PcTerminalNodeView: React.FC<{
                           windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
                         }`} />
                       </button>
-                      {windowInfo.online && (
+                      {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-2.5 w-2.5', 'h-4 w-4')}
+                      {windowInfo.online && !windowInfo.virtual && (
                         <button
                           type="button"
                           onClick={() => {

@@ -582,6 +582,25 @@ terminal: {
         restart: 'Closed {{terminals}} terminal(s), stopped {{apps}} app(s) and launched again.',
       },
     },
+    agents: {
+      title: 'Virtual agent windows',
+      kind: 'Agent CLI',
+      hint: 'A new AI conversation that needs no desktop (VM or server). Each message runs the CLI in the background and continues the same conversation.',
+      create: 'New agent window',
+      missing: '{{kind}} ({{binary}} not installed)',
+      created: 'Agent window {{kind}} created. Send it a message to start.',
+      close: 'Close agent window',
+      confirmClose: 'Close agent window #{{number}}? A running reply is stopped and the conversation is no longer continued here.',
+      closed: 'Agent window closed.',
+      errors: {
+        unsupported: 'Not available in an agent window: it has no desktop window. Send a message, or press Esc / Ctrl+C to stop the reply.',
+        kind: 'Unknown agent type.',
+        notFound: 'This agent window no longer exists.',
+        busy: 'The agent is still replying. Wait, or use force run to stop it and send.',
+        cliMissing: 'The agent CLI is not installed on this machine.',
+        keyMissing: 'The API key for this agent is not set.',
+      },
+    },
     commands: {
       title: 'Commands',
       noRecent: 'No recent command',
@@ -821,6 +840,7 @@ terminal: {
         xwayland: 'Xwayland',
         gnome_bridge: 'GNOME bridge',
         portal: 'XDG portal',
+        virtual: 'Agent CLI',
         none: 'View only',
       },
       capabilities: {

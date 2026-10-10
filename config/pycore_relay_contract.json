@@ -707,6 +707,18 @@
     },
     {
       "match": "exact",
+      "value": "ui/terminal/quick_command/run",
+      "profile": "terminal_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/quick_command/status",
+      "profile": "terminal_read",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
       "value": "ui/terminal/rename",
       "profile": "terminal_write",
       "methods": [ "POST" ]

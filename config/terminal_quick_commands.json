@@ -1,0 +1,39 @@
+{
+  "description": "Terminal quick-command library: the only commands the terminal UI can run as quick commands, and the interrupt policy applied before each one. A quick command is never sent as ordinary text: ui/terminal/quick_command/run takes a command id from this library, presses Ctrl+C several times so the running program exits, waits for the shell prompt, then types the command line of the terminal's shell OS.",
+  "interrupt": {
+    "ctrl_c_count": 4,
+    "interval_ms": 350,
+    "settle_ms": 800,
+    "poll_interval_ms": 700,
+    "stable_polls": 2,
+    "max_wait_ms": 20000,
+    "tail_lines": 4,
+    "prompt_suffixes": [">", "$", "#", "%", "❯", "➜"],
+    "rejected_prompt_suffixes": [">>>"]
+  },
+  "pinned": [
+    { "kind": "custom", "id": "claudeteam" },
+    { "kind": "preset", "id": "dd_gitsync" }
+  ],
+  "script_dirs": {
+    "windows": ["scripts", "winenvs"],
+    "linux": ["scripts", "linuxenvs"]
+  },
+  "script_suffixes": {
+    "windows": ".ps1",
+    "linux": ".sh"
+  },
+  "system": [
+    { "id": "clear_screen", "windows": "cls", "linux": "clear" },
+    { "id": "claude", "windows": "claude", "linux": "claude" },
+    { "id": "claude_continue", "windows": "claude --continue", "linux": "claude --continue" },
+    { "id": "claude_resume", "windows": "claude --resume", "linux": "claude --resume" },
+    { "id": "git_status", "windows": "git status", "linux": "git status" },
+    { "id": "git_pull", "windows": "git pull", "linux": "git pull" }
+  ],
+  "presets": [
+    { "id": "dd_gitsync", "entry": { "windows": "dd.cmd", "linux": "dd.sh" }, "arguments": ["gitsync"] },
+    { "id": "pyservice", "entry": { "windows": "pyservice.ps1", "linux": "pyservice.sh" }, "arguments": [] },
+    { "id": "pyservice_no_install", "entry": { "windows": "pyservice.ps1", "linux": "pyservice.sh" }, "arguments": ["--no-install"] }
+  ]
+}
