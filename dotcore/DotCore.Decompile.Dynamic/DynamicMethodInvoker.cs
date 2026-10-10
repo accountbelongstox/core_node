@@ -39,7 +39,8 @@ public sealed class DynamicMethodInvoker
     }
 
     public IReadOnlyList<DynamicMethodInvocationReport> InvokeStatics(string targetPath,
-        IEnumerable<int> methodTokens, TimeSpan? methodTimeout = null, Action? initialized = null)
+        IEnumerable<int> methodTokens, TimeSpan? methodTimeout = null, Action? initialized = null,
+        IEnumerable<int>? warmupTokens = null, Action<DynamicMethodInvocationReport>? warmupCompleted = null)
     {
         string fullTargetPath = Path.GetFullPath(targetPath);
         Assembly assembly;
@@ -63,6 +64,16 @@ public sealed class DynamicMethodInvoker
         assembly = Assembly.LoadFrom(fullTargetPath);
         module = assembly.ManifestModule;
         RuntimeHelpers.RunModuleConstructor(module.ModuleHandle);
+        foreach (int token in warmupTokens ?? Array.Empty<int>())
+        {
+            MethodBase method = ResolveMethod(module, token);
+            Task<DynamicMethodInvocationReport> task = Task.Run(() => InvokeStatic(fullTargetPath, method, token));
+            if (!task.Wait(timeout))
+                throw new TimeoutException($"Warmup token 0x{token:X8} exceeded {timeout.TotalSeconds:0.###} seconds.");
+            warmupCompleted?.Invoke(task.Result);
+            if (!task.Result.InvocationCompleted)
+                throw new InvalidOperationException($"Warmup token 0x{token:X8} failed: {task.Result.ExceptionType}: {task.Result.ExceptionMessage}");
+        }
         initialized?.Invoke();
         foreach (int token in tokens)
         {

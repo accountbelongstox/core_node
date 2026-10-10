@@ -21,6 +21,8 @@ internal sealed class SkillInfo
     public string Slot = "";
     public bool Ready;
     public bool OnCooldown;
+    /// <summary>ROSBOT's raw PowerCooldown flag (meaning unverified: in game it was true for every ready skill, generators included).</summary>
+    public bool CooldownFlag;
     public int CooldownMs;
     public bool ResourceOk;
     public int Charges;
@@ -30,8 +32,8 @@ internal sealed class SkillInfo
 /// <summary>
 /// Combat interfaces of ROSBOT's plugin API and research commands for plugin-driven combat.
 /// Skills: the hero's active skills (PowerId values with LocalPlayer.IsActiveSkill, re-listed every SkillListMs) and per tick their
-/// readiness from ROSBOT's reads (PowerCooldown / PowerCooldownLeft / HasEnoughResource / HasEnoughCharges / ChargeCount /
-/// IsCastChannel): Ready = off cooldown, enough resource and charges.
+/// readiness from ROSBOT's reads (PowerCooldownLeft / HasEnoughResource / HasEnoughCharges / ChargeCount / IsCastChannel): Ready = no
+/// cooldown left, enough resource and charges. PowerCooldown is published raw only: in game it was true for every skill with 0 ms left.
 /// attack_test (value "mode,click", default true,true): Interact with the nearest hostile monster within AttackTestRange and report its
 /// hit points before / after AttackTestWaitMs and whether the hero cast, i.e. whether ROSBOT's Interact attacks a monster; value "cast":
 /// the same with one rotation step of ROSBOT's own cast entry (RosCaster) instead.
@@ -80,12 +82,13 @@ internal sealed class CombatProbe
             var s = new SkillInfo
             {
                 Power = p.Id, Name = p.Name, Slot = p.Slot,
-                OnCooldown = WorldScanner.Safe(() => LocalPlayer.PowerCooldown(p.Id), false),
+                CooldownFlag = WorldScanner.Safe(() => LocalPlayer.PowerCooldown(p.Id), false),
                 CooldownMs = WorldScanner.Safe(() => LocalPlayer.PowerCooldownLeft(p.Id), 0),
                 ResourceOk = WorldScanner.Safe(() => LocalPlayer.HasEnoughResource(p.Id), true),
                 Charges = WorldScanner.Safe(() => LocalPlayer.ChargeCount(p.Id), 0),
                 Channel = WorldScanner.Safe(() => LocalPlayer.IsCastChannel(p.Id), false),
             };
+            s.OnCooldown = s.CooldownMs > 0;
             s.Ready = !s.OnCooldown && s.ResourceOk && WorldScanner.Safe(() => LocalPlayer.HasEnoughCharges(p.Id), true);
             return s;
         }).ToList();

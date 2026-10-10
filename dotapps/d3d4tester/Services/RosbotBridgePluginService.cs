@@ -122,11 +122,14 @@ public static class RosbotBridgePluginService
             await Task.Delay(TakeControlSettleMs).ConfigureAwait(false);
     }
 
-    /// <summary>Ask the plugin to hold ROSBOT and wait until it reports holding; false when not possible or not confirmed.</summary>
+    /// <summary>
+    /// Ask the plugin to hold ROSBOT and wait until it reports holding; false when not possible or not confirmed. Also with monitoring
+    /// already paused: a ROSBOT that still bots (it pulses the plugin, so it was not paused with its key) is held instead of left running.
+    /// </summary>
     private static async Task<bool> TryPluginHoldAsync()
     {
         var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
-        if (snapshot.RosbotFlowPaused || !snapshot.RosbotBridgeFresh
+        if (!snapshot.RosbotBridgeFresh
             || snapshot.RosbotBridge is not { InGame: true, Botting: true, HoldState: not RosbotBridgeState.HoldStateUnsupported })
             return false;
         if (await SendWhenFreeAsync(RosbotPluginConstants.BridgeActionHold, RosbotPluginConstants.BridgeHoldOn, rememberFollow: false).ConfigureAwait(false) == null)
