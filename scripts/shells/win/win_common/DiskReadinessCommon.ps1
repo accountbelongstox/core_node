@@ -757,6 +757,11 @@ function New-ProgramDrivePartition {
     }
     Write-ColorMessage -Message ("Creating program drive {0}: from the free space of {1}: (can take minutes)..." -f $targetLetter, $sourceLetter) -Type "Info"
     $shrinkableMB = Get-ShrinkableMB -Drive ('{0}:' -f $sourceLetter)
+    if ($shrinkableMB -lt $Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB) {
+        Write-ColorMessage -Message ("defrag {0}: {1}" -f $sourceLetter, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
+        Invoke-ShrinkDefrag -Drive ('{0}:' -f $sourceLetter)
+        $shrinkableMB = Get-ShrinkableMB -Drive ('{0}:' -f $sourceLetter)
+    }
     $sizeMB = Get-ProgramDriveCreateSizeMB -ShrinkableMB $shrinkableMB
     if ($sizeMB -le 0) {
         Write-ColorMessage -Message ("{0}: has no shrinkable space for {1}:" -f $sourceLetter, $targetLetter) -Type "Warning"
