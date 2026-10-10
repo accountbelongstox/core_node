@@ -57,6 +57,7 @@ public sealed class HvmContextDocument
 public sealed class HvmMethodMetadata
 {
     public string Handle { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
     public uint DefinitionToken { get; set; }
     public string ModuleHandle { get; set; } = string.Empty;
     public string ModulePath { get; set; } = string.Empty;
@@ -523,6 +524,7 @@ public sealed class HvmVirtualOperandResolver
         ModuleDefinition sourceModule;
         IMetadataMember? sourceMember;
         IMetadataMember? resolved;
+        string runtimeMemberName = string.Empty;
 
         if (string.Equals(mapping.Kind, "Type", StringComparison.OrdinalIgnoreCase)
             && mapping.TypeDescriptorKind != 0)
@@ -534,6 +536,7 @@ public sealed class HvmVirtualOperandResolver
                 return null;
             modulePath = method.ModulePath;
             definitionToken = method.DefinitionToken;
+            runtimeMemberName = method.Name;
         }
         else
         {
@@ -557,7 +560,8 @@ public sealed class HvmVirtualOperandResolver
                 }
             }
         }
-        cacheKey = modulePath + "|" + definitionToken.ToString("X8");
+        cacheKey = modulePath + "|" + definitionToken.ToString("X8")
+                   + (string.IsNullOrEmpty(runtimeMemberName) ? string.Empty : "|" + runtimeMemberName);
         if (cache.TryGetValue(cacheKey, out resolved)) return resolved;
         try
         {
@@ -567,7 +571,7 @@ public sealed class HvmVirtualOperandResolver
                 sourceModules.Add(modulePath, sourceModule);
             }
             sourceMember = sourceModule.LookupMember(new MetadataToken(definitionToken));
-            resolved = FindEquivalent(targetModule, sourceModule, sourceMember);
+            resolved = FindEquivalent(targetModule, sourceModule, sourceMember, runtimeMemberName);
             cache[cacheKey] = resolved;
             if (resolved == null) failures.Add($"No target reference matches {GetFullName(sourceMember) ?? cacheKey}.");
             return resolved;
@@ -581,35 +585,82 @@ public sealed class HvmVirtualOperandResolver
     }
 
     private static IMetadataMember? FindEquivalent(ModuleDefinition targetModule, ModuleDefinition sourceModule,
-        IMetadataMember? sourceMember)
+        IMetadataMember? sourceMember, string runtimeMemberName = "")
     {
+        MemberReference[] references;
+        List<MemberReference> definitionMatches;
+        string? fullName;
+        MemberReference? exact;
+        IMetadataMember? definition;
+        MemberReference? runtimeMatch;
+
         if (sourceMember == null) return null;
         if (string.Equals(sourceModule.Name, targetModule.Name, StringComparison.OrdinalIgnoreCase))
             return targetModule.LookupMember(sourceMember.MetadataToken);
         if (sourceMember is TypeDefinition sourceType)
             return targetModule.GetImportedTypeReferences().FirstOrDefault(item => item.FullName == sourceType.FullName);
-        string? fullName = GetFullName(sourceMember);
+        fullName = GetFullName(sourceMember);
         if (fullName != null && (sourceMember is MethodDefinition || sourceMember is FieldDefinition))
         {
-            MemberReference? exact = targetModule.GetImportedMemberReferences()
-                .FirstOrDefault(item => item.FullName == fullName);
+            references = targetModule.GetImportedMemberReferences().ToArray();
+            exact = references.FirstOrDefault(item => item.FullName == fullName);
             if (exact != null) return exact;
-            foreach (MemberReference reference in targetModule.GetImportedMemberReferences())
+            definitionMatches = new List<MemberReference>();
+            foreach (MemberReference reference in references)
             {
                 try
                 {
-                    IMetadataMember? definition = reference.Resolve();
+                    definition = reference.Resolve();
                     if (definition != null && definition.MetadataToken == sourceMember.MetadataToken
                         && string.Equals(GetModuleName(definition), sourceModule.Name,
                             StringComparison.OrdinalIgnoreCase))
-                        return reference;
+                        definitionMatches.Add(reference);
                 }
                 catch
                 {
                 }
             }
+            if (!string.IsNullOrEmpty(runtimeMemberName))
+            {
+                runtimeMatch = definitionMatches.FirstOrDefault(reference =>
+                    MatchesRuntimeGenericOwner(reference, runtimeMemberName));
+                if (runtimeMatch != null) return runtimeMatch;
+                if (runtimeMemberName.IndexOf("[[", StringComparison.Ordinal) >= 0
+                    && definitionMatches.Any(reference => reference.DeclaringType is TypeSpecification
+                        { Signature: GenericInstanceTypeSignature }))
+                    return null;
+            }
+            return definitionMatches.FirstOrDefault();
         }
         return null;
+    }
+
+    private static bool MatchesRuntimeGenericOwner(MemberReference reference, string runtimeMemberName)
+    {
+        string memberName;
+        string marker;
+        int memberIndex;
+        string runtimeOwner;
+        int argumentIndex;
+
+        if (reference.DeclaringType is not TypeSpecification
+            { Signature: GenericInstanceTypeSignature genericType })
+            return false;
+        memberName = reference.Name?.ToString() ?? string.Empty;
+        marker = "." + memberName + "(";
+        memberIndex = runtimeMemberName.LastIndexOf(marker, StringComparison.Ordinal);
+        if (memberIndex <= 0) return false;
+        runtimeOwner = runtimeMemberName.Substring(0, memberIndex);
+        if (!runtimeOwner.StartsWith(genericType.GenericType.FullName + "[[", StringComparison.Ordinal))
+            return false;
+        argumentIndex = genericType.GenericType.FullName.Length;
+        foreach (TypeSignature argument in genericType.TypeArguments)
+        {
+            argumentIndex = runtimeOwner.IndexOf(argument.FullName, argumentIndex, StringComparison.Ordinal);
+            if (argumentIndex < 0) return false;
+            argumentIndex += argument.FullName.Length;
+        }
+        return true;
     }
 
     private static string? GetFullName(IMetadataMember? member)

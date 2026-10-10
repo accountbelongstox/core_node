@@ -67,7 +67,7 @@ const MobileProjectCreateScreen: React.FC = () => {
   };
 
   return (
-    <MobileScreen title={t('projectCreate.title')}>
+    <MobileScreen title={t('projectCreate.title')} className="is-fill">
       {!canCreate && <MobileNotice>{t('projectCreate.noCapability')}</MobileNotice>}
       <div className="cmm-stack-tight">
         <div className="cmm-steps" role="list" aria-label={t('mobile.work.create.stepsLabel')}>

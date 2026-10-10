@@ -972,11 +972,28 @@ function Invoke-CnProgramDriveMigration {
         Set-GlobalVar -key 'CN_PROGRAM_PARTUUID' -value $cnPartitionGuid | Out-Null
     }
 
-    Set-CnToolCacheEnvironment
-    foreach ($cnMapping in @(Get-CnProgramDirectoryMappings)) {
-        Move-CnLegacyProgramDir -LegacyPath $cnMapping.Legacy -TargetPath $cnMapping.Target -SupersededRoots @($cnMapping.Superseded)
+    # One migration per machine: a second dd run waits here instead of copying
+    # onto the same E: files (which fails with "used by another process").
+    $cnMutex = [System.Threading.Mutex]::new($false, $Global:CN_PROGRAM_DRIVE_MIGRATION_MUTEX)
+    try {
+        try {
+            if (-not $cnMutex.WaitOne(0)) {
+                Write-Host '[PROGRAM-DRIVE] Another installer is migrating the program dirs; waiting for it to finish...' -ForegroundColor Yellow
+                $null = $cnMutex.WaitOne()
+            }
+        }
+        catch [System.Threading.AbandonedMutexException] {
+        }
+        Set-CnToolCacheEnvironment
+        foreach ($cnMapping in @(Get-CnProgramDirectoryMappings)) {
+            Move-CnLegacyProgramDir -LegacyPath $cnMapping.Legacy -TargetPath $cnMapping.Target -SupersededRoots @($cnMapping.Superseded)
+        }
+        Save-CnResolvedProgramDirs
     }
-    Save-CnResolvedProgramDirs
+    finally {
+        $cnMutex.ReleaseMutex()
+        $cnMutex.Dispose()
+    }
 }
 
 # Re-run safe: this file can be dot-sourced more than once per process (several
@@ -1055,7 +1072,8 @@ $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL = $__sccProgramDrivePrimary
 $Global:CN_PROGRAM_DRIVE_CREATE_MIN_MB = [long](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.min_mb')
 $Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB = [long](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.max_mb')
 $Global:CN_PROGRAM_DRIVE_CREATE_SMALL_RATIO = [double](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.small_ratio')
-$Global:CN_PROGRAM_DRIVE_CREATE_LABEL = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.label')
+$Global:CN_PROGRAM_DRIVE_MIGRATION_MUTEX = 'Global\core_node_program_drive_migration'
+$Global:CN_PROGRAM_DRIVE_CREATE_LABEL =[string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.label')
 
 # [Environment]::SystemDirectory (e.g. C:\Windows\System32) does not depend on
 # any environment variable, unlike $env:SystemDrive, which a caller that

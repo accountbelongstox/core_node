@@ -39,7 +39,7 @@ const MobileProfileScreen: React.FC = () => {
   const form = useCmProfile(feedback);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
-  const { profile, loading, loadError, loadRetryable, saving, heldRoles, hasDeveloperProfile, hasClientProfile, websiteInvalid, nameInvalid, client } = form;
+  const { profile, loading, loadError, loadRetryable, saving, hasDeveloperProfile, hasClientProfile, websiteInvalid, nameInvalid, client } = form;
 
   return (
     <MobileScreen title={t('nav.profile')} onRefresh={form.reload}>

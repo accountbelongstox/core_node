@@ -21,8 +21,8 @@
   --cmm-violet-soft: #eeebfb;
   --cmm-scrim: rgb(14 22 33 / 52%);
   --cmm-shadow: 0 8px 28px rgb(24 40 60 / 16%);
-  --cmm-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
-  --cmm-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --cmm-safe-top: var(--wf-safe-top, max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)));
+  --cmm-safe-bottom: var(--wf-safe-bottom, max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)));
   --cmm-appbar-h: 52px;
   --cmm-tabbar-h: 56px;
   --cmm-radius: 14px;
@@ -373,7 +373,7 @@ div.cmm-row { cursor: default; }
 .cmm-badge[data-tone="danger"] { background: var(--cmm-danger-soft); color: var(--cmm-danger); }
 .cmm-badge[data-tone="info"] { background: var(--cmm-info-soft); color: var(--cmm-info); }
 
-.cmm-chip-row { display: flex; gap: 10px; margin: 0 calc(var(--cmm-gutter) * -1); padding: 2px var(--cmm-gutter); overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; }
+.cmm-chip-row { display: flex; gap: 10px; margin: 0 calc(var(--cmm-gutter) * -1); padding: 2px var(--cmm-gutter); overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding: 0 var(--cmm-gutter); }
 .cmm-chip-row::-webkit-scrollbar { display: none; }
 
 .cmm-chip {
@@ -554,6 +554,10 @@ div.cmm-row { cursor: default; }
 
 /* Toasts clear the tab bar while the mobile frame is mounted. */
 body:has(.cmm-shell) [data-notify-viewport] { bottom: calc(var(--cmm-tabbar-h) + var(--cmm-safe-bottom) + 12px) !important; right: 12px !important; left: 12px !important; align-items: stretch !important; }
+
+/* The shell dock is hidden; the app switcher stays and is lifted above the tab bar and the FAB. */
+body:has(.cmm-shell) [data-shell-floating] { display: none !important; }
+body:has(.cmm-shell) [data-app-switcher] { bottom: calc(var(--cmm-tabbar-h) + var(--cmm-safe-bottom) + 84px) !important; }
 
 /* Web pages hosted in the frame until their mobile screen exists. */
 .cmm-web-fallback .cm-workspace-page { padding-top: 4px; }

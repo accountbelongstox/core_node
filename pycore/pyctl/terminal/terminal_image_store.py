@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Short-path store for terminal message attachments: images (<APP_DATA_DIR>/timg), voice recordings and documents."""
+"""Short-path store for terminal message attachments: images (<APP_DATA_DIR>/timg), voice recordings and files of any other format."""
 
 from __future__ import annotations
 
+import mimetypes
 import os
 import re
 import secrets
@@ -98,15 +99,13 @@ def detect_audio_type(data: bytes) -> Optional[tuple]:
     return None
 
 
-def document_file_name(original: str) -> Optional[str]:
-    """Sanitized ``stem.ext`` of an uploaded document name, or None when the extension is not allowed."""
+def document_file_name(original: str) -> str:
+    """Sanitized ``stem.ext`` (or ``stem`` without an extension) of an uploaded file name; every format is kept."""
     base = Path(str(original or "").replace("\\", "/")).name
     stem, extension = os.path.splitext(base)
     extension = DOCUMENT_NAME_RE.sub("", extension).lower().lstrip(".")
-    if extension not in TERMINAL_DOCUMENT_EXTENSIONS:
-        return None
     stem = DOCUMENT_NAME_RE.sub("_", stem).strip("._")[:DOCUMENT_MAX_STEM] or DOCUMENT_DEFAULT_STEM
-    return f"{stem}.{extension}"
+    return f"{stem}.{extension}" if extension else stem
 
 
 def is_disguised_executable(data: bytes, extension: str) -> bool:
@@ -157,8 +156,8 @@ class TerminalImageStore:
 
     def save(self, data: bytes, file_name: str = "") -> Dict[str, Any]:
         """Validate, compress an image on receipt (the original is dropped), write atomically under a short
-        generated name, then prune. Data that is neither image nor voice is stored as a document when
-        ``file_name`` has an allowed extension."""
+        generated name, then prune. Any other data, including an image pycore cannot decode, is stored as a
+        file under its sanitized ``file_name``."""
         if len(data) > TERMINAL_IMAGE_MAX_BYTES:
             return {"success": False, "error_code": ERROR_IMAGE_TOO_LARGE, "max_bytes": TERMINAL_IMAGE_MAX_BYTES}
         image = detect_image_type(data)
@@ -168,12 +167,8 @@ class TerminalImageStore:
         if is_image:
             compressed = compress_upload(data, image) or {}
             detected = (compressed["extension"], compressed["mime"]) if compressed else None
-        if detected is None and not is_image:
-            return self._save_document(data, file_name)
         if detected is None:
-            head = data[:HEAD_HEX_BYTES].hex()
-            ColorPrint.yellow(f"[TerminalImageStore] upload rejected: unsupported type bytes={len(data)} head={head}")
-            return {"success": False, "error_code": ERROR_IMAGE_UNSUPPORTED, "received_bytes": len(data), "head_hex": head}
+            return self._save_document(data, file_name)
         if compressed:
             data = compressed.pop("data")
             del compressed["extension"], compressed["mime"]
@@ -191,10 +186,7 @@ class TerminalImageStore:
 
     def _save_document(self, data: bytes, file_name: str) -> Dict[str, Any]:
         document_name = document_file_name(file_name)
-        if document_name is None or is_disguised_executable(data, document_name.rsplit(".", 1)[1]):
-            head = data[:HEAD_HEX_BYTES].hex()
-            ColorPrint.yellow(f"[TerminalImageStore] upload rejected: unsupported document name={file_name!r} bytes={len(data)} head={head}")
-            return {"success": False, "error_code": ERROR_DOCUMENT_UNSUPPORTED, "received_bytes": len(data), "head_hex": head}
+        mime = mimetypes.guess_type(document_name)[0] or DOCUMENT_MIME
         stamp = datetime.now(timezone.utc).strftime(NAME_TIME_FORMAT)
         name = f"{stamp}{secrets.token_hex(NAME_RANDOM_BYTES)}_{document_name}"
         path = self.document_directory / name
@@ -204,7 +196,7 @@ class TerminalImageStore:
             ColorPrint.yellow(f"[TerminalImageStore] write failed path={path}: {exc}")
             return {"success": False, "error_code": ERROR_IMAGE_WRITE_FAILED, "received_bytes": len(data), "error": str(exc)}
         self.prune()
-        return {"success": True, "path": str(path), "name": name, "bytes": len(data), "mime": DOCUMENT_MIME, "kind": "document"}
+        return {"success": True, "path": str(path), "name": name, "bytes": len(data), "mime": mime, "kind": "document"}
 
     def prune(self) -> None:
         prune_files(self.directory, TERMINAL_IMAGE_RETAIN_COUNT, TERMINAL_IMAGE_RETAIN_SECONDS, "TerminalImageStore")

@@ -15,7 +15,7 @@ export const cmEn = {
     sourceTitle: 'Original',
     sourceCaption: 'Low-resolution source ({{width}} x {{height}} px) every candidate is measured against.',
     rankingTitle: 'Ranking by similarity',
-    rankingHint: 'Score is the mean of IoU and SSIM on the binarized image after downscaling to the source size.',
+    rankingHint: 'Score is the mean of IoU and SSIM on the binarized image after downscaling to the source size. Scores within 0.01 of the best count as a tie, and the tied candidate with the simplest geometry becomes the embedded default.',
     pickTitle: 'Your pick',
     pickNone: 'Nothing picked yet.',
     pickHint: 'Tell the AI this candidate ID and it will embed it. Picking does not change the embedded assets.',
