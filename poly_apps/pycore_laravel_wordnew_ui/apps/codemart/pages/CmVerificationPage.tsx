@@ -324,6 +324,7 @@ const CmRoleRequest: React.FC<{ roles: string[]; onRequested: (message: string, 
 };
 
 const CmTestimonialForm: React.FC = () => {
+  const { testimonialMaxQuoteLength } = useCmPolicy();
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const { policyList } = useCmBootstrap();
@@ -384,7 +385,7 @@ const CmTestimonialForm: React.FC = () => {
               <span>{t(`verification.testimonialQuote.${locale}`, { defaultValue: locale })}</span>
               <textarea
                 rows={3}
-                maxLength={1000}
+                maxLength={testimonialMaxQuoteLength}
                 value={quotes[locale] ?? ''}
                 onChange={(event) => setQuotes((current) => ({ ...current, [locale]: event.target.value }))}
                 placeholder={t('verification.testimonialPlaceholder')}
