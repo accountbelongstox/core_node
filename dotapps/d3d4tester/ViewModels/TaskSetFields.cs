@@ -87,6 +87,8 @@ public static class TaskSetFields
         new(I18nKeys.YoloTaskSetSynHoldoutSplit, TaskSetFieldKind.Choice, s => s.HoldoutSplit, (s, v) => s.HoldoutSplit = (string)v,
             new[] { (SynthesisSettings.HoldoutSplitVal, I18nKeys.YoloTaskSetHoldoutVal), (SynthesisSettings.HoldoutSplitTest, I18nKeys.YoloTaskSetHoldoutTest) }),
         new(I18nKeys.YoloTaskSetSynSegmentBlockFrames, TaskSetFieldKind.Int, s => s.SegmentBlockFrames, (s, v) => s.SegmentBlockFrames = (int)v),
+        new(I18nKeys.YoloTaskSetSynSceneColorCast, TaskSetFieldKind.Double, s => s.SceneColorCast, (s, v) => s.SceneColorCast = (double)v),
+        new(I18nKeys.YoloTaskSetSynRealColorCopies, TaskSetFieldKind.Int, s => s.RealColorCopies, (s, v) => s.RealColorCopies = (int)v),
     };
 
     /// <summary>Target placements (TargetPlacement.All) and their i18n keys.</summary>

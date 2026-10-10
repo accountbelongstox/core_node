@@ -506,7 +506,9 @@
         "contamination_video_frames": "Video frames checked per video",
         "holdout_split": "Real annotated images go to",
         "relative_sizing": "Object size in relative mode",
-        "segment_block_frames": "Segment frames per split block"
+        "segment_block_frames": "Segment frames per split block",
+        "scene_color_cast": "Scene color cast (RGB channel gain ±, 0 = off)",
+        "real_color_copies": "Color-cast copies per real train image"
       },
       "issue": {
         "no_targets": "The task set has no targets.",

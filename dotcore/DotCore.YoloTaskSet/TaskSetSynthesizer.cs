@@ -37,6 +37,7 @@ public static partial class TaskSetSynthesizer
     private const int InpaintRadius = 3;
     private const int InpaintMargin = 2;
     private const int JpegSeedSalt = 0x5A17;
+    private const int ColorCastSeedSalt = 0x3C71;
     private const ulong FnvOffset = 14695981039346656037UL;
     private const ulong FnvPrime = 1099511628211UL;
     private const int SplitHashBuckets = 1_000_000;
@@ -266,6 +267,7 @@ public static partial class TaskSetSynthesizer
         try
         {
             using var rendered = Render(ctx, job);
+            VariantAugmenter.ApplyColorCast(rendered.Image, s.SceneColorCast, new Random(job.Seed ^ ColorCastSeedSalt));
             int quality = s.JpegQualityMin is { } qMin ? new Random(job.Seed ^ JpegSeedSalt).Next(qMin, s.JpegQuality + 1) : s.JpegQuality;
             File.WriteAllBytes(imagePath, TaskSetImageIo.Encode(rendered.Image, s.IsPng, quality));
             var annotation = new ImageAnnotation(imagePath, rendered.Image.Width, rendered.Image.Height, rendered.Boxes);
