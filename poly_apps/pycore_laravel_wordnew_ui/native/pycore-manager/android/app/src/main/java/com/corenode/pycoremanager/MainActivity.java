@@ -24,6 +24,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(TextRecognitionPlugin.class);
         registerPlugin(ShareReceiverPlugin.class);
         super.onCreate(savedInstanceState);
+        bridge.getWebView().setWebChromeClient(new GalleryChromeClient(bridge));
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
     }
 }
