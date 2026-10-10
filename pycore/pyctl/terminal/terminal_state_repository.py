@@ -42,6 +42,7 @@ from pycore.pyfoundations.time_utils import utc_now_iso
 LABEL = "TerminalStateRepository"
 SEARCH_HIT_SENT = "sent"
 SEARCH_HIT_DRAFT = "draft"
+LOG_STATUS_DRAFT = "draft"
 CHANGE_LOG = "log"
 CHANGE_DRAFT = "draft"
 
@@ -299,14 +300,55 @@ class TerminalStateRepository:
         if record is None:
             return None
 
-        log_id = str(time.time_ns())
         now = utc_now_iso()
+        log_id, log_values = self._insert_log(record, terminal_number, text, source, "pending", now)
+        if log_values["source"] == DEFAULT_LOG_SOURCE:
+            self._store.write_draft(terminal_number, text)
+            record["draft"] = str(len(text.encode("utf-8")))
+            self._notify_draft(terminal_number, record, text, now)
+        self._set_fields(record, {"updated_at": now})
+        return log_metadata(
+            terminal_number,
+            log_id,
+            log_values,
+        )
+
+    @serialized_method
+    @_transactional_store_method
+    def save_draft_to_history(self, terminal_number: int, text: str) -> Dict[str, Any]:
+        """Store the draft as an unsent history entry and clear the live draft."""
+        record = self._active_record(terminal_number)
+        if record is None:
+            return {"success": False, "error_code": "terminal_state_not_found"}
+        now = utc_now_iso()
+        log_id, log_values = self._insert_log(record, terminal_number, text, DEFAULT_LOG_SOURCE, LOG_STATUS_DRAFT, now)
+        self._store.write_draft(terminal_number, "")
+        record["draft"] = "0"
+        self._notify_draft(terminal_number, record, "", now)
+        self._set_fields(record, {"updated_at": now})
+        return {
+            "success": True,
+            "terminal_number": terminal_number,
+            "has_draft": False,
+            "log": log_metadata(terminal_number, log_id, log_values),
+        }
+
+    def _insert_log(
+        self,
+        record: Dict[str, Any],
+        terminal_number: int,
+        text: str,
+        source: str,
+        status: str,
+        now: str,
+    ) -> Tuple[str, Dict[str, str]]:
+        log_id = str(time.time_ns())
         log_values = {
             "date": now,
             "error_code": "",
             "preview": log_preview(text),
             "source": source if source in LOG_SOURCES else DEFAULT_LOG_SOURCE,
-            "status": "pending",
+            "status": status,
             "title": str(record.get("title") or ""),
         }
         self._store.insert_log(terminal_number, int(log_id), log_values, text)
@@ -319,16 +361,7 @@ class TerminalStateRepository:
             "values": dict(log_values),
             "content": text,
         })
-        if log_values["source"] == DEFAULT_LOG_SOURCE:
-            self._store.write_draft(terminal_number, text)
-            record["draft"] = str(len(text.encode("utf-8")))
-            self._notify_draft(terminal_number, record, text, now)
-        self._set_fields(record, {"updated_at": now})
-        return log_metadata(
-            terminal_number,
-            log_id,
-            log_values,
-        )
+        return log_id, log_values
 
     @serialized_method
     @_transactional_store_method

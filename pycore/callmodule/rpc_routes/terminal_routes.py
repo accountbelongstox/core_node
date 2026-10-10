@@ -19,6 +19,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_DESKTOP_KEY,
     UI_TERMINAL_DESKTOP_SCREENSHOT,
     UI_TERMINAL_DRAFT,
+    UI_TERMINAL_DRAFT_HISTORY,
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
     UI_TERMINAL_VOICE,
@@ -361,6 +362,15 @@ def register_terminal_routes(server) -> None:
             lambda: terminal_service.save_draft(terminal_number, text),
         )
 
+    def draft_history_handler(params, request_id, _context):
+        terminal_number = integer_param(params, "terminal_number")
+        text = str(params.get("text") or "")
+        return run_terminal_action(
+            "draft_history",
+            request_id,
+            lambda: terminal_service.save_draft_to_history(terminal_number, text),
+        )
+
     def view_handler(params, request_id, _context):
         terminal_number = integer_param(params, "terminal_number")
         expanded = bool_param(params, "text")
@@ -617,6 +627,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_BACKUPS_OPEN, handler=backups_open_handler)
     server.post(path=UI_TERMINAL_BACKUPS_DELETE, handler=backups_delete_handler)
     server.post(path=UI_TERMINAL_DRAFT, handler=draft_handler)
+    server.post(path=UI_TERMINAL_DRAFT_HISTORY, handler=draft_history_handler)
     server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_VOICE, handler=voice_handler)

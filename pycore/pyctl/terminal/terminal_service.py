@@ -445,6 +445,13 @@ class TerminalService:
             return self._failure("terminal_number_required")
         return self._state_repository.save_draft(terminal_number, text)
 
+    def save_draft_to_history(self, terminal_number: int, text: str) -> Dict[str, Any]:
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        if not text.strip():
+            return self._failure("terminal_text_required")
+        return self._state_repository.save_draft_to_history(terminal_number, text)
+
     @serialized_method
     def navigate_history(
         self,
