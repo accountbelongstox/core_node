@@ -5,6 +5,7 @@ using DotCore.TemplateMatcher;
 using DotCore.Utils;
 using DotCore.Utils.Ocr;
 using DotCore.Utils.Text;
+using DotCore.Utils.Window;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
@@ -20,6 +21,12 @@ public enum SkillSwitchOutcome { Done, Partial, NoGameWindow, LevelTooLow, Actio
 public sealed record SkillCheckResult(int Level, IReadOnlyList<bool?> Skills, IReadOnlyList<bool?> Passives);
 
 public sealed record SkillSwitchResult(SkillSwitchOutcome Outcome, int SkillsChanged, int PassivesChanged, int Mismatches, string Detail);
+
+/// <summary>Stage of a reported switch step (the UI names it through i18n).</summary>
+public enum SkillSwitchStage { Start, ExpandWindow, Screen, OpenChooser, PageFlip, PickSkill, Rune, Accept, Passives, PlacePassive, Verify, RestoreWindow, Finish }
+
+/// <summary>One reported step: stage, success (null = information), recognition detail (scores, OCR text) and the capture (PNG, click point marked).</summary>
+public sealed record SkillSwitchStep(DateTime Time, SkillSwitchStage Stage, bool? Ok, string Detail, byte[]? Png);
 
 /// <summary>
 /// Puts the hero's skills, runes and passives to a maxroll gear set through the D3 UI (ROSBOT has no skill API; both methods click the
@@ -38,7 +45,9 @@ public sealed record SkillSwitchResult(SkillSwitchOutcome Outcome, int SkillsCha
 /// followed by a fresh capture that must show the expected screen (<see cref="UiState"/>: game menu, skill chooser, passive chooser,
 /// skill pane, world) and is repeated up to Attempts times; opening / closing goes state by state (game menu -> Return, chooser -> Escape,
 /// pane -> Escape / S), never by a blind key count. Before every capture that reads the chooser the cursor is parked outside the
-/// dialog: the tooltip of the icon just clicked would cover the rune row and the passive list.
+/// dialog: the tooltip of the icon just clicked would cover the rune row and the passive list. While switching, a small D3 window is
+/// enlarged to ExpandClientHeight (more room: larger text for OCR, tooltips cover less) and put back afterwards. Every step is reported
+/// to the optional progress callback with its capture.
 /// Plugin method: skills_check first (level 70 required; a slot is skipped when its pane icon is the planned skill and the plugin reports
 /// that skill with the planned rune) and again at the end. Image method: every slot is set (runes cannot be read from icons) and the end
 /// check compares the pane icons.
@@ -61,6 +70,12 @@ public static class D3SkillSwitcher
     private static readonly (int X, int Y) CursorPark = (1040, 560);
     private const int ParkSettleMs = 250;
     private const int CaptureRetryMs = 400;
+    private const int ExpandClientWidth = 1600;
+    private const int ExpandClientHeight = 900;
+    private const int AfterResizeMs = 1500;
+    private const int ReportMaxWidth = 900;
+    private const int MarkRadius = 12;
+    private const string PngExtension = ".png";
     private const string DebugTimeFormat = "HHmmss_fff";
     /// <summary>Passive chooser, reference client px: the four slots on top and the grid of available passives.</summary>
     private static readonly (int X, int Y)[] PassiveTopSlots = { (390, 102), (487, 102), (584, 102), (681, 102) };
@@ -111,7 +126,63 @@ public static class D3SkillSwitcher
     /// <summary>When set, captures of failed recognitions are saved here (diagnostics).</summary>
     public static string? DebugDir { get; set; }
 
+    [ThreadStatic] private static Action<SkillSwitchStep>? _progress;
+
+    /// <summary>Report a step with an optional capture (click point circled, scaled down to ReportMaxWidth).</summary>
+    private static void Report(SkillSwitchStage stage, bool? ok, string detail, Shot? shot = null, (int X, int Y)? mark = null)
+    {
+        if (_progress is not { } progress) return;
+        byte[]? png = null;
+        if (shot != null && !shot.Image.IsDisposed)
+        {
+            using var copy = shot.Image.Clone();
+            if (mark is { } m) copy.Circle(new Point(m.X, m.Y), MarkRadius, Scalar.Red, 2);
+            double k = Math.Min(1.0, ReportMaxWidth / (double)copy.Cols);
+            using var small = k < 1.0 ? copy.Resize(new OpenCvSharp.Size(), k, k, InterpolationFlags.Area) : copy.Clone();
+            png = small.ImEncode(PngExtension);
+        }
+        try { progress(new SkillSwitchStep(DateTime.Now, stage, ok, detail, png)); }
+        catch (Exception ex) { ColorPrinter.Yellow($"{LogTag} progress handler: {ex.Message}"); }
+    }
+
     public static SkillSwitchResult Run(PlannerProfile profile, string cls, string cacheDir, SkillSwitchMethod method,
+        Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop, Action<SkillSwitchStep>? progress = null)
+    {
+        _progress = progress;
+        var hwnd = D3WindowFinder.FindWindows().FirstOrDefault()?.Hwnd ?? IntPtr.Zero;
+        var restore = Expand(hwnd);
+        try
+        {
+            Report(SkillSwitchStage.Start, null, $"{method}: " + string.Join(", ", profile.Skills.Select(s => $"{s.SlotIndex}:{s.NameZh}/{s.RuneNameZh}"))
+                + " | " + string.Join(", ", profile.Passives.Select(p => p.NameZh)));
+            return RunCore(profile, cls, cacheDir, method, pluginCheck, shouldStop);
+        }
+        finally
+        {
+            if (restore is { } bounds)
+            {
+                WindowResizer.SetWindowBounds(hwnd, bounds);
+                Thread.Sleep(AfterResizeMs);
+                Report(SkillSwitchStage.RestoreWindow, true, $"{bounds.Width}x{bounds.Height} at ({bounds.Left},{bounds.Top})");
+            }
+            _progress = null;
+        }
+    }
+
+    /// <summary>Enlarge a D3 client below ExpandClientHeight to ExpandClientWidth x ExpandClientHeight (kept on screen); the old bounds, or null.</summary>
+    private static (int Left, int Top, int Width, int Height)? Expand(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || WindowResizer.GetWindowBounds(hwnd) is not { } bounds || WindowInputHelper.GetWindowClientRectScreen(hwnd) is not { } client) return null;
+        int clientHeight = client.Bottom - client.Top;
+        if (clientHeight >= ExpandClientHeight) return null;
+        var (moved, _) = WindowResizer.ResizeWindowToClientSize(hwnd, ExpandClientWidth, ExpandClientHeight, keepPosition: true, ensureOnScreen: true);
+        if (!moved) return null;
+        Thread.Sleep(AfterResizeMs);
+        Report(SkillSwitchStage.ExpandWindow, true, $"client {client.Right - client.Left}x{clientHeight} -> {ExpandClientWidth}x{ExpandClientHeight}");
+        return bounds;
+    }
+
+    private static SkillSwitchResult RunCore(PlannerProfile profile, string cls, string cacheDir, SkillSwitchMethod method,
         Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop)
     {
         var skills = new PlannerSkill?[SlotCount];
@@ -163,6 +234,7 @@ public static class D3SkillSwitcher
     private static SkillSwitchResult Result(SkillSwitchOutcome outcome, int skills, int passives, int mismatches, string detail)
     {
         ColorPrinter.Blue($"{LogTag} {outcome}: {detail}");
+        Report(SkillSwitchStage.Finish, outcome == SkillSwitchOutcome.Done, $"{outcome}: {detail}");
         return new SkillSwitchResult(outcome, skills, passives, mismatches, detail);
     }
 
@@ -218,9 +290,11 @@ public static class D3SkillSwitcher
                     return false;
             }
             ColorPrinter.Gray($"{LogTag} screen {state} -> {wanted}");
+            Report(SkillSwitchStage.Screen, null, $"{state} -> {wanted}", shot);
             Thread.Sleep(AfterKeyMs);
         }
         ColorPrinter.Yellow($"{LogTag} could not reach {wanted} in {MaxStateSteps} steps");
+        Report(SkillSwitchStage.Screen, false, $"{wanted} not reached in {MaxStateSteps} steps");
         return false;
     }
 
@@ -232,7 +306,8 @@ public static class D3SkillSwitcher
     /// Click a point (computed on a fresh capture) until a fresh capture shows the expected screen, at most Attempts times; D3 drops a
     /// click that only activates its window, and another program may take the foreground in between.
     /// </summary>
-    private static bool ClickUntil(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir)
+    private static bool ClickUntil(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
+        SkillSwitchStage stage)
     {
         for (int attempt = 1; attempt <= Attempts; attempt++)
         {
@@ -242,14 +317,16 @@ public static class D3SkillSwitcher
                 if (point(shot) is not { } at)
                 {
                     ColorPrinter.Yellow($"{LogTag} {what}: target not on screen");
+                    Report(stage, false, $"{what}: target not on screen", shot);
                     return false;
                 }
                 Click(shot, at);
+                Thread.Sleep(AfterClickMs);
+                var state = State(cls, cacheDir);
+                Report(stage, state == expected, $"{what}: attempt {attempt} click ({at.X},{at.Y}) -> {state} (expected {expected})", shot, at);
+                if (state == expected) return true;
             }
-            Thread.Sleep(AfterClickMs);
-            var state = State(cls, cacheDir);
-            if (state == expected) return true;
-            ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt} shows {state}, expected {expected}");
+            ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt} did not show {expected}");
         }
         return false;
     }
@@ -290,7 +367,7 @@ public static class D3SkillSwitcher
     {
         using var icon = LoadImage(D3SkillIcons.SkillIconPath(cacheDir, cls, target.Id));
         if (icon == null) return SkillSwitchOutcome.SkillNotInList;
-        if (!ClickUntil(sh => sh.ToImage(PaneSlotClick[slot]), UiState.SkillChooser, $"slot {slot} box", cls, cacheDir))
+        if (!ClickUntil(sh => sh.ToImage(PaneSlotClick[slot]), UiState.SkillChooser, $"slot {slot} box", cls, cacheDir, SkillSwitchStage.OpenChooser))
             return SkillSwitchOutcome.ChooserNotOpen;
         Shot? shot = null;
         Chooser? chooser = null;
@@ -318,6 +395,7 @@ public static class D3SkillSwitcher
                     PressKey(shot, VkEscape);
                     return SkillSwitchOutcome.SkillNotInList;
                 }
+                Report(SkillSwitchStage.PageFlip, null, $"{target.Id} not on page {page + 1}, next page", shot, chooser.Next);
                 Click(shot, chooser.Next);
                 Thread.Sleep(AfterPageClickMs);
             }
@@ -366,10 +444,12 @@ public static class D3SkillSwitcher
         if (pick == null)
         {
             ColorPrinter.Yellow($"{LogTag} rune '{target.RuneNameZh}' / '{target.RuneNameEn}' not found in [{string.Join(", ", words.Select(w => w.Text))}]");
+            Report(SkillSwitchStage.Rune, false, $"'{target.RuneNameZh}' not found in OCR [{string.Join(" | ", words.Select(w => w.Text))}]", shot);
             SaveDebug(shot, $"rune_{target.Id}");
             return;
         }
         ColorPrinter.Gray($"{LogTag} rune '{target.RuneNameZh}' by {how}: '{pick.Text}'");
+        Report(SkillSwitchStage.Rune, true, $"'{target.RuneNameZh}' by {how}: '{pick.Text}', icon click above the name; OCR [{string.Join(" | ", words.Select(w => w.Text))}]", shot, pick.IconAbove);
         Click(shot, pick.IconAbove);
         Thread.Sleep(AfterRuneClickMs);
     }
@@ -393,6 +473,7 @@ public static class D3SkillSwitcher
                 if (FindChooser(after) is not { } chooser) return false;
                 using var box = new Mat(after.Image, Band(after, chooser, AssignedTopFrac, AssignedBottomFrac));
                 var check = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(box, icon, Widths(after.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, target.Id);
+                Report(SkillSwitchStage.PickSkill, check.Success, $"{target.Id} ({target.NameZh}): attempt {attempt}, assigned box icon {check.Score:F2}", after);
                 if (check.Success) return true;
                 ColorPrinter.Yellow($"{LogTag} {target.Id}: attempt {attempt}, assigned box not updated (score {check.Score:F2})");
             }
@@ -404,7 +485,7 @@ public static class D3SkillSwitcher
     private static bool AcceptUntil(UiState expected, string cls, string cacheDir) =>
         ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold) is { } b ? (b.CenterX, b.CenterY)
             : FuzzyText.Best(OcrArea(sh, new Rect(0, sh.Image.Rows / 2, sh.Image.Cols, sh.Image.Rows / 2)), w => w.Text, AcceptWords)?.Item.Center,
-            expected, "accept", cls, cacheDir);
+            expected, "accept", cls, cacheDir, SkillSwitchStage.Accept);
 
     /// <summary>Open chooser: page arrows (templates) -> icon row center line, row bounds and the next-page point (image px).</summary>
     private sealed record Chooser(int RowY, int Left, int Right, (int X, int Y) Next);
@@ -449,7 +530,7 @@ public static class D3SkillSwitcher
     private static int SetPassives(IReadOnlyList<PlannerNamed> planned, string cls, string cacheDir)
     {
         if (!ToState(UiState.Pane, cls, cacheDir)) return 0;
-        if (!ClickUntil(sh => sh.ToImage(PanePassiveSlot), UiState.PassiveChooser, "passive slot", cls, cacheDir)) return 0;
+        if (!ClickUntil(sh => sh.ToImage(PanePassiveSlot), UiState.PassiveChooser, "passive slot", cls, cacheDir, SkillSwitchStage.Passives)) return 0;
         string Path(string key) => D3SkillIcons.PassiveIconPath(cacheDir, cls, key);
         var plannedKeys = planned.Select(p => p.Id).ToList();
         List<string?> onTop;
@@ -461,6 +542,7 @@ public static class D3SkillSwitcher
         var missing = planned.Where(p => !onTop.Contains(p.Id)).ToList();
         var freeSlots = Enumerable.Range(0, PassiveTopSlots.Length).Where(i => onTop[i] == null).ToList();
         ColorPrinter.Gray($"{LogTag} passives on top: [{string.Join(", ", onTop.Select(k => k ?? "-"))}], missing: [{string.Join(", ", missing.Select(p => p.Id))}]");
+        Report(SkillSwitchStage.Passives, null, $"on top [{string.Join(", ", onTop.Select(k => k ?? "-"))}], missing [{string.Join(", ", missing.Select(p => p.NameZh))}]");
         if (missing.Count == 0)
         {
             ToState(UiState.Pane, cls, cacheDir);
@@ -514,10 +596,12 @@ public static class D3SkillSwitcher
             if (at is not { } point)
             {
                 ColorPrinter.Yellow($"{LogTag} passive {passive.Id} not found in the list (icon {m.Score:F2})");
+                Report(SkillSwitchStage.PlacePassive, false, $"{passive.NameZh}: not in the list (icon {m.Score:F2}, name not read)", now);
                 SaveDebug(now, $"passive_{passive.Id}");
                 return false;
             }
             ColorPrinter.Gray($"{LogTag} passive {passive.Id} by {how}");
+            Report(SkillSwitchStage.PlacePassive, null, $"{passive.NameZh} by {how}", now, point);
             Click(now, point);
             Thread.Sleep(AfterRuneClickMs);
             Park(now);
@@ -526,6 +610,7 @@ public static class D3SkillSwitcher
         using (after.Image)
         {
             bool placed = BestIconAt(after, PassiveTopSlots[slot], new[] { passive.Id }, Path).Score >= IconThreshold;
+            Report(SkillSwitchStage.PlacePassive, placed, $"{passive.NameZh} on top slot {slot}: {(placed ? "yes" : "no")}", after);
             if (placed) ColorPrinter.Green($"{LogTag} passive slot {slot} -> {passive.NameEn}");
             return placed;
         }
@@ -550,6 +635,7 @@ public static class D3SkillSwitcher
                 .Where(b => b.Score >= IconThreshold).Select(b => b.Key).ToHashSet();
             int passiveMismatches = keys.Count(k => !shown.Contains(k));
             if (passiveMismatches > 0) ColorPrinter.Yellow($"{LogTag} passives missing in the pane: {string.Join(", ", keys.Where(k => !shown.Contains(k)))}");
+            Report(SkillSwitchStage.Verify, skillMismatches + passiveMismatches == 0, $"skills off {skillMismatches}, passives missing [{string.Join(", ", keys.Where(k => !shown.Contains(k)))}]", pane);
             return skillMismatches + passiveMismatches;
         }
     }

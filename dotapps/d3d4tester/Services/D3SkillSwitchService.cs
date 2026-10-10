@@ -1,5 +1,7 @@
 // PY-REF: none (DOT-only)
 using System.Globalization;
+using System.IO;
+using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Flow;
@@ -17,6 +19,7 @@ namespace DotApps.d3d4tester.Services;
 public static class D3SkillSwitchService
 {
     private const string LogTag = "[SkillSwitch]";
+    private const string DebugSubdir = "skill_switch";
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CheckFlowTimeout = TimeSpan.FromSeconds(15);
     private const char PartSeparator = ';';
@@ -38,10 +41,11 @@ public static class D3SkillSwitchService
     public static bool PluginAvailable => GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh;
 
     /// <summary>Run the switch for the selected gear set; null when another run is going or no gear set is selected.</summary>
-    public static async Task<SkillSwitchResult?> RunAsync(SkillSwitchMethod method)
+    public static async Task<SkillSwitchResult?> RunAsync(SkillSwitchMethod method, Action<SkillSwitchStep>? progress = null)
     {
         if (D3PlannerService.Build is not { } build || D3PlannerService.Profile is not { } profile) return null;
         if (Interlocked.Exchange(ref _running, 1) == 1) return null;
+        D3SkillSwitcher.DebugDir = Path.Combine(ConfigPaths.DebugCaptureDir, DebugSubdir);
         try
         {
             string cacheDir = D3PlannerService.CacheDir;
@@ -56,7 +60,7 @@ public static class D3SkillSwitchService
             {
                 MonitorLog.Info($"{LogTag} {build.Name} / {profile.Name}: {method}");
                 var result = await Task.Run(() => D3SkillSwitcher.Run(profile, build.Class, cacheDir, method,
-                    method == SkillSwitchMethod.Plugin ? () => PluginCheck(build.Class, profile) : null, () => false)).ConfigureAwait(false);
+                    method == SkillSwitchMethod.Plugin ? () => PluginCheck(build.Class, profile) : null, () => false, progress)).ConfigureAwait(false);
                 MonitorLog.Info($"{LogTag} {result.Outcome}: {result.Detail}");
                 return result;
             }
