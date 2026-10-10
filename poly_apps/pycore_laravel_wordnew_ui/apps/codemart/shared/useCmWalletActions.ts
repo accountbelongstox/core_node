@@ -45,6 +45,7 @@ export interface CmWalletTopUpModel {
   canSubmit: boolean;
   busy: boolean;
   bankInfo: CmDepositBankInfo | null;
+  clearBankInfo: () => void;
   submit: () => Promise<void>;
 }
 
@@ -92,7 +93,7 @@ export function useCmWalletTopUp(feedback: CmFeedback, onCreated: CmAsyncAction)
     }
   };
 
-  return { methods, selectedMethod, setMethod, amount, setAmount, minAmount, maxAmount, amountInvalid, canSubmit, busy, bankInfo, submit };
+  return { methods, selectedMethod, setMethod, amount, setAmount, minAmount, maxAmount, amountInvalid, canSubmit, busy, bankInfo, clearBankInfo: () => setBankInfo(null), submit };
 }
 
 export interface CmDepositsModel {
@@ -117,6 +118,7 @@ export interface CmDepositsModel {
   canSubmit: boolean;
   busy: boolean;
   bankInfo: CmDepositBankInfo | null;
+  clearBankInfo: () => void;
   showBankInfo: (depositId: number) => Promise<void>;
   create: () => Promise<void>;
   checkStatus: (depositId: number) => Promise<void>;
@@ -249,6 +251,7 @@ export function useCmDeposits(feedback: CmFeedback, onChanged: CmAsyncAction): C
     canSubmit,
     busy,
     bankInfo,
+    clearBankInfo: () => setBankInfo(null),
     showBankInfo,
     create,
     checkStatus,

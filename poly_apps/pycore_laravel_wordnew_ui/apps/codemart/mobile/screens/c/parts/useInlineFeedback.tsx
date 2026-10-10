@@ -3,23 +3,23 @@ import { notify } from '../../../../../../shared/notify/notify';
 import type { CmFeedback } from '../../../../shared/cmFeedback';
 import { MobileNotice } from '../../../ui';
 
-type SheetNoticeTone = 'error' | 'info';
+type InlineNoticeTone = 'error' | 'info';
 
-interface SheetNotice {
-  tone: SheetNoticeTone;
+interface InlineNotice {
+  tone: InlineNoticeTone;
   text: string;
 }
 
-export interface SheetFeedback {
+export interface InlineFeedback {
   feedback: CmFeedback;
-  /** Inline notice for the sheet body (errors and hints stay visible above the toast layer). */
+  /** Inline notice for the sheet body (errors and hints stay next to the form that raised them). */
   notice: React.ReactNode;
   clear: () => void;
 }
 
-/** Feedback for a sheet form: errors and hints inline, success as a toast. */
-export function useSheetFeedback(): SheetFeedback {
-  const [notice, setNotice] = useState<SheetNotice | null>(null);
+/** Feedback for a form in a sheet or card: errors and hints inline, success as a toast. */
+export function useInlineFeedback(): InlineFeedback {
+  const [notice, setNotice] = useState<InlineNotice | null>(null);
   const clear = useCallback(() => setNotice(null), []);
   const feedback = useMemo<CmFeedback>(() => ({
     success: (text) => {

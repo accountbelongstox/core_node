@@ -8,6 +8,7 @@ import { CM_PUBLIC_ROUTE } from './components/public-home/cmPublicRoutes';
 import { CmBootstrapProvider } from './contexts/CmBootstrapContext';
 import { CmLayout } from './CmLayout';
 import { registerCmLocales } from './cm-locales';
+import { useCmFavicon } from './cmFavicon';
 import { CM_PAGES } from './cmPages';
 import { CM_PUBLIC_PAGES } from './cmPublicPages';
 import { CM_ADMIN_ROUTES } from './admin/cmAdminRouteTable';
@@ -63,6 +64,7 @@ const CmWebRoutes: React.FC = () => (
 
 const CmApp: React.FC = () => {
   const uiMode = useCmUiMode();
+  useCmFavicon();
   return (
     <CmBootstrapProvider>
       {uiMode === 'mobile' ? wrapPage(<CmMobileApp />) : <CmWebRoutes />}

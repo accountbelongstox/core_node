@@ -117,11 +117,17 @@ class DeliveryScheduler:
                 return False
             THREAD_BUS.clear_signal(wake)
             namespaces = deliverable_namespaces(kind, definition.fanout)
-            pause = max(delivery_breaker.pause_seconds(kind), server_schema_gate.paused_for_any(namespaces))
-            if pause > 0:
-                THREAD_BUS.wait_signal(wake, timeout=pause)
+            # A paused server holds back only its own rows; the other servers keep draining.
+            pauses = {
+                namespace: max(delivery_breaker.pause_seconds(kind, namespace), server_schema_gate.paused_seconds(namespace))
+                for namespace in namespaces
+            }
+            open_namespaces = [namespace for namespace, pause in pauses.items() if pause <= 0]
+            shortest_pause = min((pause for pause in pauses.values() if pause > 0), default=0.0)
+            if shortest_pause > 0 and not open_namespaces:
+                THREAD_BUS.wait_signal(wake, timeout=shortest_pause)
                 continue
-            ready = self._unique_identities(delivery_store.list_ready(kind, definition.batch_limit, namespaces))
+            ready = self._unique_identities(delivery_store.list_ready(kind, definition.batch_limit, open_namespaces))
             if ready:
                 if definition.deliver_batch is not None:
                     groups: Dict[str, List[Dict[str, Any]]] = {}
@@ -141,13 +147,13 @@ class DeliveryScheduler:
                 continue
             if delivery_store.end_drain(kind, namespaces):
                 return True
-            next_attempt = delivery_store.next_attempt_at(kind, namespaces)
+            next_attempt = delivery_store.next_attempt_at(kind, open_namespaces)
             timeout = (
                 min(DRAIN_IDLE_WAIT_SECONDS, max(0.5, next_attempt - _now()))
                 if next_attempt
                 else DRAIN_IDLE_WAIT_SECONDS
             )
-            THREAD_BUS.wait_signal(wake, timeout=timeout)
+            THREAD_BUS.wait_signal(wake, timeout=min(timeout, shortest_pause) if shortest_pause > 0 else timeout)
         return False
 
     @staticmethod
@@ -270,7 +276,7 @@ class DeliveryScheduler:
             delivery_store.defer(delivery_id, owner, SCHEMA_PENDING_CODE, paused or definition.retry_max_seconds, error)
             return {"delivery_id": delivery_id, "processed": True, "success": False, "paused": True, "error": error}
         if outcome.get("server_error") or status == OUTCOME_DONE:
-            delivery_breaker.note(definition.name, bool(outcome.get("server_error")))
+            delivery_breaker.note(definition.name, namespace, bool(outcome.get("server_error")))
         if status == OUTCOME_DONE:
             if not delivery_store.complete(delivery_id, owner):
                 return {"delivery_id": delivery_id, "processed": True, "success": False, "error": "delivery_ownership_changed"}
