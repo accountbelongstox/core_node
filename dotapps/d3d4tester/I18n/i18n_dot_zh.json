@@ -506,7 +506,9 @@
         "contamination_video_frames": "每个视频检查的帧数",
         "holdout_split": "真实标注图片用于",
         "relative_sizing": "相对模式下的目标尺寸",
-        "segment_block_frames": "录制段每个划分块的帧数"
+        "segment_block_frames": "录制段每个划分块的帧数",
+        "scene_color_cast": "场景偏色幅度（RGB 通道增益 ±，0 = 关闭）",
+        "real_color_copies": "每张真实训练图额外生成的偏色副本数"
       },
       "issue": {
         "no_targets": "任务集中还没有目标。",

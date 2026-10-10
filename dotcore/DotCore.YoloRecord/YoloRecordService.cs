@@ -170,6 +170,14 @@ public sealed class YoloRecordService
         OnLog?.Invoke($"Stopped. {_totalFrames} frames in {Path.Combine(SegmentPath ?? "", YoloSegmentLayout.RecordSubdir)}");
     }
 
+    private Mat Letterbox(Mat scaled)
+    {
+        var canvas = new Mat(new OpenCvSharp.Size(_width, _height), scaled.Type(), Scalar.All(0));
+        int x = (_width - scaled.Width) / 2, y = (_height - scaled.Height) / 2;
+        scaled.CopyTo(new Mat(canvas, new Rect(x, y, scaled.Width, scaled.Height)));
+        return canvas;
+    }
+
     private void WriteFrame(Bitmap bmp)
     {
         using var src = BitmapConverter.ToMat(bmp);
@@ -178,8 +186,13 @@ public sealed class YoloRecordService
             Cv2.CvtColor(src, bgr, ColorConversionCodes.BGRA2BGR);
         else
             src.CopyTo(bgr);
-        using var resized = new Mat();
-        Cv2.Resize(bgr, resized, new OpenCvSharp.Size(_width, _height));
+        // Keep the window aspect: fit inside FrameWidth x FrameHeight (a stretched frame would distort every object);
+        // the video writer needs a constant size, so video frames are letterboxed into it.
+        double fit = Math.Min(_width / (double)bgr.Width, _height / (double)bgr.Height);
+        var fitted = new OpenCvSharp.Size(Math.Max(1, (int)Math.Round(bgr.Width * fit)), Math.Max(1, (int)Math.Round(bgr.Height * fit)));
+        using var scaled = new Mat();
+        Cv2.Resize(bgr, scaled, fitted, 0, 0, fit < 1 ? InterpolationFlags.Area : InterpolationFlags.Linear);
+        using var resized = _videoWriter == null ? scaled.Clone() : Letterbox(scaled);
         lock (_sync)
         {
             if (_segmentRecordDir == null) return;

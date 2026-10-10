@@ -329,6 +329,15 @@ public sealed class SynthesisSettings
     /// <summary>Consecutive segment frames per split group (real images and segment backgrounds).</summary>
     [JsonPropertyName("segment_block_frames")] public int SegmentBlockFrames { get; set; } = 30;
 
+    /// <summary>
+    /// Scene color cast: each output image gets random per-channel gains in [1 - cast, 1 + cast] (mean gain 1), simulating lighting /
+    /// white-balance differences between recordings and the live client. 0 = off.
+    /// </summary>
+    [JsonPropertyName("scene_color_cast")] public double SceneColorCast { get; set; }
+
+    /// <summary>Extra color-cast copies of every real train image (segment frames); val images stay original.</summary>
+    [JsonPropertyName("real_color_copies")] public int RealColorCopies { get; set; }
+
     [JsonIgnore] public bool IsNative => ScaleMode == ScaleModeNative;
     [JsonIgnore] public bool SizesFromSource => !IsNative && RelativeSizing == RelativeSizingSource;
     [JsonIgnore] public bool UsesDpiSteps => IsNative && DpiSteps.Count > 0;
@@ -377,6 +386,8 @@ public sealed class SynthesisSettings
         s.HoldoutSplit = HoldoutSplits.Contains(s.HoldoutSplit) ? s.HoldoutSplit : HoldoutSplitVal;
         s.RelativeSizing = RelativeSizings.Contains(s.RelativeSizing) ? s.RelativeSizing : RelativeSizingRange;
         s.SegmentBlockFrames = Math.Clamp(s.SegmentBlockFrames, 1, 100_000);
+        s.SceneColorCast = Math.Clamp(s.SceneColorCast, 0, 0.9);
+        s.RealColorCopies = s.SceneColorCast > 0 ? Math.Clamp(s.RealColorCopies, 0, 20) : 0;
         return s;
     }
 }

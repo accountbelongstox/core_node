@@ -68,6 +68,15 @@ public static class VariantAugmenter
         }
     }
 
+    /// <summary>Scene color cast in place (8-bit BGR): per-channel gains in [1 - cast, 1 + cast], rescaled to mean gain 1.</summary>
+    public static void ApplyColorCast(Mat bgr, double cast, Random rng)
+    {
+        if (cast <= 0) return;
+        double b = 1 + Uniform(rng, -cast, cast), g = 1 + Uniform(rng, -cast, cast), r = 1 + Uniform(rng, -cast, cast);
+        double mean = (b + g + r) / 3;
+        Cv2.Multiply(bgr, new Scalar(b / mean, g / mean, r / mean), bgr);
+    }
+
     private static double Uniform(Random rng, double min, double max) => max <= min ? min : min + rng.NextDouble() * (max - min);
 
     private static void Replace(ref Mat current, Mat next)

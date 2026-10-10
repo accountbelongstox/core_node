@@ -301,6 +301,8 @@ public static partial class I18nKeys
     public const string YoloTaskSetSynHoldoutSplit = TsSyn + "holdout_split";
     public const string YoloTaskSetSynRelativeSizing = TsSyn + "relative_sizing";
     public const string YoloTaskSetSynSegmentBlockFrames = TsSyn + "segment_block_frames";
+    public const string YoloTaskSetSynSceneColorCast = TsSyn + "scene_color_cast";
+    public const string YoloTaskSetSynRealColorCopies = TsSyn + "real_color_copies";
 
     private const string TsEx = Ts + "extract.";
 

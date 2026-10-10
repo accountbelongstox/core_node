@@ -104,18 +104,15 @@ public static partial class TaskSetSynthesizer
         if (ctx.RealFrames.Count == 0) return outcomes;
         var s = ctx.Settings;
         var val = ValGroups(ctx.RealFrames.Select(f => f.Group).ToList(), s);
-        var counts = new int[ctx.Classes.Count];
         int index = 0;
         foreach (var frame in ctx.RealFrames)
         {
             ct.ThrowIfCancellationRequested();
             var split = val.Contains(frame.Group) ? YoloSplit.Val : YoloSplit.Train;
-            var stem = RealStemPrefix + (++index).ToString(StemNumberFormat, CultureInfo.InvariantCulture);
-            var imagePath = Path.Combine(dir, YoloDataYaml.SplitImagesDir(split), stem + s.OutputExtension);
-            var labelPath = Path.Combine(dir, YoloDataYaml.SplitLabelsDir(split), stem + AnnotationIo.YoloTxtExtension);
+            Mat? image = null;
             try
             {
-                using var image = TaskSetImageIo.ReadBgr(frame.ImagePath, 0);
+                image = TaskSetImageIo.ReadBgr(frame.ImagePath, 0);
                 if (image == null)
                 {
                     ColorPrinter.Yellow($"[YoloTaskSet] unreadable segment frame skipped: {frame.ImagePath}");
@@ -126,24 +123,51 @@ public static partial class TaskSetSynthesizer
                 if (masks.Count > 0) InpaintRects(image, masks);
                 var labeled = frame.Annotation.Boxes.Where(b => !b.Difficult && IndexOf(ctx.Classes, b.Label.Trim()) >= 0)
                     .Select(b => b with { Label = b.Label.Trim() }).ToList();
-                File.WriteAllBytes(imagePath, TaskSetImageIo.Encode(image, s.IsPng, s.JpegQuality));
-                var annotation = new ImageAnnotation(imagePath, image.Width, image.Height, labeled);
-                var lines = AnnotationIo.FormatYoloLines(annotation, ctx.Classes, skipDifficult: true);
-                File.WriteAllText(labelPath, lines.Count == 0 ? "" : string.Join("\n", lines) + "\n");
-                var classCounts = new int[ctx.Classes.Count];
-                foreach (var b in labeled) classCounts[IndexOf(ctx.Classes, b.Label)]++;
-                int minSide = labeled.Count == 0 ? 0 : labeled.Min(b => (int)Math.Min(b.Width, b.Height));
-                int maxSide = labeled.Count == 0 ? 0 : labeled.Max(b => (int)Math.Max(b.Width, b.Height));
-                outcomes.Add(new JobOutcome(split, frame.Key, classCounts, image.Width, image.Height, minSide, maxSide, false));
+                // Val keeps the recorded colors; train adds color-cast copies (scene_color_cast) of the same frame.
+                int copies = split == YoloSplit.Train ? s.RealColorCopies : 0;
+                for (int c = 0; c <= copies; c++)
+                {
+                    using var output = image.Clone();
+                    if (c > 0) VariantAugmenter.ApplyColorCast(output, s.SceneColorCast, new Random((int)(StableUnit(s.Seed, frame.Key) * SplitHashBuckets) ^ c));
+                    var stem = RealStemPrefix + (++index).ToString(StemNumberFormat, CultureInfo.InvariantCulture);
+                    outcomes.Add(WriteRealImage(ctx, dir, split, stem, output, labeled, frame.Key));
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OpenCVException)
             {
                 ColorPrinter.Yellow($"[YoloTaskSet] segment frame {frame.ImagePath} skipped: {ex.Message}");
-                TryDeleteFile(imagePath);
-                TryDeleteFile(labelPath);
+            }
+            finally
+            {
+                image?.Dispose();
             }
         }
         return outcomes;
+    }
+
+    private static JobOutcome WriteRealImage(Context ctx, string dir, YoloSplit split, string stem, Mat image, List<AnnotationBox> labeled, string key)
+    {
+        var s = ctx.Settings;
+        var imagePath = Path.Combine(dir, YoloDataYaml.SplitImagesDir(split), stem + s.OutputExtension);
+        var labelPath = Path.Combine(dir, YoloDataYaml.SplitLabelsDir(split), stem + AnnotationIo.YoloTxtExtension);
+        try
+        {
+            File.WriteAllBytes(imagePath, TaskSetImageIo.Encode(image, s.IsPng, s.JpegQuality));
+            var annotation = new ImageAnnotation(imagePath, image.Width, image.Height, labeled);
+            var lines = AnnotationIo.FormatYoloLines(annotation, ctx.Classes, skipDifficult: true);
+            File.WriteAllText(labelPath, lines.Count == 0 ? "" : string.Join("\n", lines) + "\n");
+        }
+        catch
+        {
+            TryDeleteFile(imagePath);
+            TryDeleteFile(labelPath);
+            throw;
+        }
+        var classCounts = new int[ctx.Classes.Count];
+        foreach (var b in labeled) classCounts[IndexOf(ctx.Classes, b.Label)]++;
+        int minSide = labeled.Count == 0 ? 0 : labeled.Min(b => (int)Math.Min(b.Width, b.Height));
+        int maxSide = labeled.Count == 0 ? 0 : labeled.Max(b => (int)Math.Max(b.Width, b.Height));
+        return new JobOutcome(split, key, classCounts, image.Width, image.Height, minSide, maxSide, false);
     }
 
     private static void InpaintRects(Mat image, IReadOnlyList<Rect> rects)
@@ -165,6 +189,6 @@ public static partial class TaskSetSynthesizer
     {
         var val = ValGroups(frames.Select(f => f.Group).ToList(), s);
         int v = frames.Count(f => val.Contains(f.Group));
-        return (frames.Count - v, v);
+        return ((frames.Count - v) * (1 + s.RealColorCopies), v);
     }
 }
