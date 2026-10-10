@@ -12,7 +12,6 @@ import type {
   CmPayment,
   CmRefund,
   CmWallet,
-  CmWalletTransaction,
   CmWithdrawal,
 } from '../api/CmApiTypes';
 import { cmErrorCode, cmErrorMessage } from '../api/cmErrors';
@@ -27,6 +26,7 @@ import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } fro
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmHumanize, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedList } from '../components/workspace/useCmPagedList';
+import { cmTransactionAmountStyle, useCmLedgerDescription, useCmWallet, useCmWalletTransactions } from '../shared/useCmWallet';
 
 const BANK_TRANSFER = 'bank_transfer';
 const PENDING_STATUS = 'pending';
@@ -41,7 +41,6 @@ const WITHDRAWAL_ACCOUNT_FIELDS: Record<string, readonly string[]> = {
 const HTTP_CREATED = 201;
 const HTTP_NOT_FOUND = 404;
 const TAB_QUERY_KEY = 'cm_wallet_tab';
-const LEDGER_KEY_PREFIX = 'wallet.ledger.';
 
 type CmWalletTab = typeof WALLET_TABS[number];
 
@@ -57,21 +56,10 @@ function extractPage<T>(data: CmListPage<T>) {
   return { items: Array.isArray(data.items) ? data.items : [], totalPages: cmTotalPages(data) };
 }
 
-const OUTGOING_DIRECTION = 'out';
-/** Freeze/unfreeze rows move money between available and frozen; the total balance does not change. */
-const HOLD_DIRECTIONS: Record<string, string> = { freeze: 'frozen', unfreeze: 'released' };
-const holdState = (transaction: CmWalletTransaction): string | null => (
-  HOLD_DIRECTIONS[String(transaction.metadata?.direction ?? '')] ?? null
-);
-const isOutgoing = (transaction: CmWalletTransaction): boolean => (
-  transaction.metadata?.direction === OUTGOING_DIRECTION || Number(transaction.amount) < 0
-);
-
 const fetchPayments = (page: number) => cmApi.getPayments(page);
 const fetchInvoices = (page: number) => cmApi.getInvoices(page);
 const fetchRefunds = (page: number) => cmApi.getRefunds(page);
 const fetchWithdrawals = (page: number) => cmApi.getWithdrawals(page);
-const fetchTransactions = (page: number) => cmApi.getWalletTransactions(page);
 
 /** Loading, error, and empty handling shared by every wallet table. */
 function CmListBody<T>({ list, emptyKey, children }: { list: CmPagedList<T>; emptyKey: string; children: React.ReactNode }): React.ReactElement {
@@ -115,6 +103,7 @@ const CmBankInstructions: React.FC<{ info: CmDepositBankInfo; currency: string }
   );
 };
 
+const BALANCE_ICONS = { available: WalletCards, frozen: Lock, balance: ShieldCheck } as const;
 const WALLET_TOP_UP_PURPOSE = 'wallet';
 
 /** Bank-transfer top-up of the wallet; an administrator confirms the transfer and the amount is credited. */
@@ -734,12 +723,8 @@ const CmWithdrawalsTab: React.FC<{ wallet: CmWallet | null; onChanged: () => Pro
 const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const list = useCmPagedList(fetchTransactions, extractPage<CmWalletTransaction>, 'wallet.transactionsLoadFailed');
-  const describe = (transaction: CmWalletTransaction): string | null => {
-    const code = transaction.description_code;
-    if (!code) return transaction.description;
-    return t(`${LEDGER_KEY_PREFIX}${code}`, { ...(transaction.description_params ?? {}), defaultValue: cmHumanize(code) });
-  };
+  const list = useCmWalletTransactions();
+  const describe = useCmLedgerDescription();
   return (
     <>
       <p className="cm-section-card__lead">{t('wallet.transactionsLead')}</p>
@@ -757,18 +742,16 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
           <tbody>
             {list.items.map((transaction) => {
               const description = describe(transaction);
-              const hold = holdState(transaction);
-              const amountClass = hold ? 'is-neutral' : (isOutgoing(transaction) ? 'is-negative' : 'is-positive');
-              const sign = hold ? '' : (isOutgoing(transaction) ? '−' : '+');
+              const { sign, tone, status } = cmTransactionAmountStyle(transaction);
               return (
                 <tr key={transaction.id}>
                   <td>
                     {t(`wallet.transactionTypes.${transaction.type}`, { defaultValue: transaction.type })}
                     {description && <small className="cm-cell-note">{description}</small>}
                   </td>
-                  <td className={`is-num ${amountClass}`}>{sign}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
+                  <td className={`is-num is-${tone}`}>{sign}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
                   <td className="is-num">{transaction.balance_after !== null ? format.money(transaction.balance_after, currency) : t('common.unavailable')}</td>
-                  <td><CmStatusBadge group="transaction" status={hold ?? transaction.status} /></td>
+                  <td><CmStatusBadge group="transaction" status={status} /></td>
                   <td>{format.dateTime(transaction.created_at) || t('common.unavailable')}</td>
                 </tr>
               );
@@ -792,12 +775,10 @@ function readStoredTab(): CmWalletTab {
 export const CmWalletPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap, hasCapability, refresh } = useCmBootstrap();
+  const { bootstrap, hasCapability } = useCmBootstrap();
   const [searchParams] = useSearchParams();
   const canWithdraw = hasCapability('finance.withdraw');
-  const [wallet, setWallet] = useState<CmWallet | null>(null);
-  const [walletError, setWalletError] = useState<string | null>(null);
-  const [walletLoading, setWalletLoading] = useState(true);
+  const { wallet, loading: walletLoading, error: walletError, currency: walletCurrency, balances: balanceValues, reload: onChanged } = useCmWallet();
   const [tab, setTabState] = useState<CmWalletTab>(readStoredTab);
   const tabs = WALLET_TABS.filter((item) => item !== WITHDRAW_TAB || canWithdraw);
   const activeTab = tabs.includes(tab) ? tab : tabs[0];
@@ -821,31 +802,7 @@ export const CmWalletPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const loadWallet = useCallback(async (): Promise<void> => {
-    const response = await cmApi.getWallet();
-    if (response.success && response.data) {
-      setWallet(response.data);
-      setWalletError(null);
-    } else {
-      setWalletError(cmErrorMessage(t, response, 'wallet.loadFailed'));
-    }
-    setWalletLoading(false);
-  }, [t]);
-
-  useEffect(() => {
-    void loadWallet();
-  }, [loadWallet]);
-
-  const onChanged = useCallback(async (): Promise<void> => {
-    await loadWallet();
-    await refresh();
-  }, [loadWallet, refresh]);
-
-  const balances = wallet ? [
-    { key: 'available', Icon: WalletCards, tone: 'green', value: wallet.available_balance },
-    { key: 'frozen', Icon: Lock, tone: 'amber', value: wallet.frozen_balance },
-    { key: 'balance', Icon: ShieldCheck, tone: 'blue', value: wallet.balance },
-  ] : [];
+  const balances = balanceValues.map((item) => ({ ...item, Icon: BALANCE_ICONS[item.key] }));
 
   return (
     <main className="cm-workspace-page">
@@ -854,7 +811,7 @@ export const CmWalletPage: React.FC = () => {
         titleKey="nav.wallet"
         purposeKey="wallet.description"
         actions={(
-          <button type="button" className="cm-workspace-button" onClick={() => { setWalletLoading(true); void onChanged(); }}>
+          <button type="button" className="cm-workspace-button" onClick={() => void onChanged()}>
             <RefreshCw aria-hidden="true" /> {t('common.refresh')}
           </button>
         )}
@@ -862,7 +819,7 @@ export const CmWalletPage: React.FC = () => {
       {walletLoading && !wallet ? (
         <CmLoadingState compact />
       ) : walletError && !wallet ? (
-        <CmErrorState message={walletError} onRetry={() => { setWalletLoading(true); void loadWallet(); }} />
+        <CmErrorState message={walletError} onRetry={() => void onChanged()} />
       ) : (
         <section className="cm-metric-grid" aria-label={t('wallet.balancesLabel')}>
           {balances.map((item) => {
@@ -888,7 +845,7 @@ export const CmWalletPage: React.FC = () => {
         ))}
       </nav>
       <section className="cm-section-card cm-wallet-panel" role="tabpanel">
-        {activeTab === 'transactions' && <CmTransactionsTab currency={wallet?.currency ?? bootstrap?.vocabulary.policy.currency ?? null} />}
+        {activeTab === 'transactions' && <CmTransactionsTab currency={walletCurrency} />}
         {activeTab === 'deposits' && <CmDepositsTab onChanged={onChanged} />}
         {activeTab === 'payments' && <CmPaymentsTab userId={bootstrap?.user.id ?? null} onChanged={onChanged} />}
         {activeTab === 'invoices' && <CmInvoicesTab />}

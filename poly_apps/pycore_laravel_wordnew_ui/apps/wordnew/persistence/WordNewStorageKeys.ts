@@ -1,3 +1,5 @@
+import { registerLocalDataGroups } from '../../../core/persistence/LocalDataRegistry';
+
 /** WordNew-owned persistence registry. Key values preserve installed data. */
 const PREFIX = 'nexus_' as const;
 
@@ -44,3 +46,127 @@ export const WordNewStorageKeys = {
 } as const;
 
 export type WordNewStorageKey = (typeof WordNewStorageKeys)[keyof typeof WordNewStorageKeys];
+
+/** Keys of the device KV store (SQLite in the app, IndexedDB on the web). */
+export const WordNewDeviceKvKeys = {
+  /** Names of every scoped content-cache collection ever written. */
+  SCOPE_COLLECTION_INDEX: 'wfnew_scope_collection_index',
+} as const;
+
+const K = WordNewStorageKeys;
+
+registerLocalDataGroups([
+  {
+    id: 'wordnew.content_cache',
+    appId: 'wordnew',
+    labelKey: 'common.local_data.groups.wordnew_content_cache',
+    descriptionKey: 'common.local_data.groups.wordnew_content_cache_desc',
+    clearable: true,
+    sources: [
+      {
+        kind: 'collections',
+        resolve: async () => {
+          const { deviceKvGet } = await import('../../../shared/persistence/DeviceKvCache');
+          const names = await deviceKvGet<string[]>(WordNewDeviceKvKeys.SCOPE_COLLECTION_INDEX);
+          return Array.isArray(names) ? names : [];
+        },
+      },
+      { kind: 'deviceKv', keys: [WordNewDeviceKvKeys.SCOPE_COLLECTION_INDEX] },
+    ],
+    clear: async () => {
+      const { clearAllContentCaches } = await import('../runtime-store/WfNewContentCache');
+      await clearAllContentCaches();
+    },
+  },
+  {
+    id: 'wordnew.learning_data',
+    appId: 'wordnew',
+    labelKey: 'common.local_data.groups.wordnew_learning_data',
+    descriptionKey: 'common.local_data.groups.wordnew_learning_data_desc',
+    clearable: false,
+    sources: [{
+      kind: 'localStorage',
+      keys: [
+        K.WORDNEW_SETTINGS,
+        K.WORDNEW_CUSTOM_WORDS,
+        K.WORDNEW_READING_PROGRESS,
+        K.WORDNEW_READING_TODAY,
+        K.WORDNEW_STUDY_PROGRESS,
+        K.WORDNEW_DAILY_READING_GUEST_READS,
+      ],
+    }],
+  },
+  {
+    id: 'wordnew.pending_sync',
+    appId: 'wordnew',
+    labelKey: 'common.local_data.groups.wordnew_pending_sync',
+    descriptionKey: 'common.local_data.groups.wordnew_pending_sync_desc',
+    clearable: false,
+    sources: [{ kind: 'localStorage', keys: [K.WORDNEW_API_QUEUE] }],
+  },
+  {
+    id: 'wordnew.device_identity',
+    appId: 'wordnew',
+    labelKey: 'common.local_data.groups.wordnew_device_identity',
+    descriptionKey: 'common.local_data.groups.wordnew_device_identity_desc',
+    clearable: false,
+    sources: [{
+      kind: 'localStorage',
+      keys: [
+        K.WORDNEW_CLIENT_ID,
+        K.WORDNEW_FINGERPRINT_VISITOR,
+        K.WORDNEW_SENTENCE_WORD_CLIENT_KEY,
+        K.WORDNEW_ORCH_DEVICE_ID,
+        K.WORDNEW_ORCH_CLIP_ROOT,
+        K.WORDNEW_MOCK_AUTH_USERS,
+      ],
+    }],
+  },
+  {
+    id: 'wordnew.preferences',
+    appId: 'wordnew',
+    labelKey: 'common.local_data.groups.wordnew_preferences',
+    descriptionKey: 'common.local_data.groups.wordnew_preferences_desc',
+    clearable: true,
+    sources: [{
+      kind: 'localStorage',
+      keys: [
+        K.WORDNEW_ADMIN_LANGUAGE,
+        K.WORDNEW_ADMIN_TAB,
+        K.WORDNEW_DAILY_READING_PLAYER,
+        K.WORDNEW_DAILY_READING_SCROLL_OFFSETS,
+        K.WORDNEW_DAILY_READING_WORD_GROUP,
+        K.WORDNEW_ORCH_AUDIO_PLAYER,
+        K.WORDNEW_CLIP_UPDATE_CURSOR,
+        K.WORDNEW_CLIP_UPDATE_CHECKED_AT,
+        K.WORDNEW_APP_UPDATE_CHECKED_AT,
+        K.WORDNEW_APP_UPDATE_DISMISSED_CODE,
+        K.WORDNEW_SUPER_TOAST,
+      ],
+    }],
+  },
+  {
+    id: 'wordnew.mock_data',
+    appId: 'wordnew',
+    labelKey: 'common.local_data.groups.wordnew_mock_data',
+    descriptionKey: 'common.local_data.groups.wordnew_mock_data_desc',
+    clearable: true,
+    sources: [{
+      kind: 'localStorage',
+      keys: [
+        K.WORDNEW_MOCK_PREFERENCES,
+        K.WORDNEW_MOCK_DEVICE_SETTINGS,
+        K.WORDNEW_MOCK_LANGUAGES,
+        K.WORDNEW_MOCK_FRIENDS,
+        K.WORDNEW_MOCK_CONVERSATIONS,
+        K.WORDNEW_MOCK_MESSAGES,
+        K.WORDNEW_MOCK_REQUESTS,
+        K.WORDNEW_MOCK_NOTIFICATIONS,
+        K.WORDNEW_MOCK_POSTS,
+        K.WORDNEW_MOCK_COMMENTS,
+        K.WORDNEW_MOCK_LIVE,
+        K.WORDNEW_MOCK_LIVE_CHAT,
+      ],
+    }],
+  },
+]);

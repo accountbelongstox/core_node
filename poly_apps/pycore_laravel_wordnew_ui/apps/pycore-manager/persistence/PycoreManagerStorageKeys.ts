@@ -1,3 +1,6 @@
+import { registerLocalDataGroups } from '../../../core/persistence/LocalDataRegistry';
+import { PROMPT_DERIVED_NEWEST_CACHE_KEY } from '../../../shared/prompt-derived/promptDerivedCacheKeys';
+
 /** Pycore Manager-owned runtime cache keys. */
 export const PycoreManagerCacheStorageKeys = {
   PYCORE_CACHE_QUEUE: 'pycore_queue_cache',
@@ -61,3 +64,115 @@ export const PycoreManagerStorageKeys = {
 export const PYCORE_MANAGER_SYNCED_STORAGE_KEYS = Object.freeze(
   Array.from(new Set(Object.values(PycoreManagerUiStorageKeys))),
 );
+
+/** Keys of the device KV store (SQLite in the app, IndexedDB on the web). */
+export const PycoreManagerDeviceKvKeys = {
+  TERMINAL_DRAFTS: 'pc.terminal.drafts',
+  PROMPT_DERIVED_NEWEST: PROMPT_DERIVED_NEWEST_CACHE_KEY,
+} as const;
+
+const TERMINAL_DRAFT_KEYS: readonly string[] = [PycoreManagerUiStorageKeys.PYCORE_TERMINAL_DRAFT_CACHE];
+const AGENT_HISTORY_KEYS: readonly string[] = [
+  PycoreManagerUiStorageKeys.PYCORE_AGENT_HISTORY_UI,
+  PycoreManagerUiStorageKeys.PYCORE_AGENT_HISTORY_RECORD_PAGE,
+];
+const TERMINAL_TOOL_KEYS: readonly string[] = [
+  PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULE_EDITOR,
+  PycoreManagerUiStorageKeys.PYCORE_TERMINAL_CAPTURE_OPEN_EDITOR,
+  PycoreManagerUiStorageKeys.PYCORE_TERMINAL_DISPATCH_ENABLED,
+  PycoreManagerUiStorageKeys.PYCORE_TERMINAL_DISPATCH_AGENT,
+  PycoreManagerUiStorageKeys.PYCORE_TERMINAL_RECENT_COMMAND,
+  PycoreManagerUiStorageKeys.PYCORE_TERMINAL_CHOICE_LABELS,
+];
+const CACHE_KEYS: readonly string[] = [
+  PycoreManagerUiStorageKeys.PYCORE_CACHE_SETTINGS,
+  PycoreManagerCacheStorageKeys.PYCORE_CACHE_QUEUE,
+  PycoreManagerCacheStorageKeys.PYCORE_CACHE_QUEUE_TS,
+];
+const SCHEDULE_KEYS: readonly string[] = [PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES];
+const SYNC_STATE_KEYS: readonly string[] = [PycoreManagerCacheStorageKeys.PYCORE_UI_STATE_PENDING_REVISION];
+const CLAIMED_KEYS = new Set<string>([
+  ...TERMINAL_DRAFT_KEYS,
+  ...AGENT_HISTORY_KEYS,
+  ...TERMINAL_TOOL_KEYS,
+  ...CACHE_KEYS,
+  ...SCHEDULE_KEYS,
+  ...SYNC_STATE_KEYS,
+]);
+
+registerLocalDataGroups([
+  {
+    id: 'pycore.terminal_drafts',
+    appId: 'pycore',
+    labelKey: 'common.local_data.groups.pycore_terminal_drafts',
+    descriptionKey: 'common.local_data.groups.pycore_terminal_drafts_desc',
+    clearable: true,
+    sources: [
+      { kind: 'localStorage', keys: TERMINAL_DRAFT_KEYS },
+      { kind: 'deviceKv', keys: [PycoreManagerDeviceKvKeys.TERMINAL_DRAFTS] },
+    ],
+  },
+  {
+    id: 'pycore.agent_history',
+    appId: 'pycore',
+    labelKey: 'common.local_data.groups.pycore_agent_history',
+    descriptionKey: 'common.local_data.groups.pycore_agent_history_desc',
+    clearable: true,
+    sources: [
+      { kind: 'localStorage', keys: AGENT_HISTORY_KEYS },
+      { kind: 'deviceKv', keys: [PycoreManagerDeviceKvKeys.PROMPT_DERIVED_NEWEST] },
+    ],
+  },
+  {
+    id: 'pycore.terminal_schedules',
+    appId: 'pycore',
+    labelKey: 'common.local_data.groups.pycore_terminal_schedules',
+    descriptionKey: 'common.local_data.groups.pycore_terminal_schedules_desc',
+    clearable: false,
+    sources: [{ kind: 'localStorage', prefixes: SCHEDULE_KEYS }],
+  },
+  {
+    id: 'pycore.terminal_tools',
+    appId: 'pycore',
+    labelKey: 'common.local_data.groups.pycore_terminal_tools',
+    descriptionKey: 'common.local_data.groups.pycore_terminal_tools_desc',
+    clearable: true,
+    sources: [{ kind: 'localStorage', keys: TERMINAL_TOOL_KEYS }],
+  },
+  {
+    id: 'pycore.cache',
+    appId: 'pycore',
+    labelKey: 'common.local_data.groups.pycore_cache',
+    descriptionKey: 'common.local_data.groups.pycore_cache_desc',
+    clearable: true,
+    sources: [{
+      kind: 'localStorage',
+      keys: CACHE_KEYS,
+      prefixes: [PycoreManagerCacheStorageKeys.PYCORE_TTL_CACHE_PREFIX],
+    }],
+  },
+  {
+    id: 'pycore.sync_state',
+    appId: 'pycore',
+    labelKey: 'common.local_data.groups.pycore_sync_state',
+    descriptionKey: 'common.local_data.groups.pycore_sync_state_desc',
+    clearable: false,
+    sources: [{ kind: 'localStorage', keys: SYNC_STATE_KEYS }],
+  },
+  {
+    id: 'pycore.ui_preferences',
+    appId: 'pycore',
+    labelKey: 'common.local_data.groups.pycore_ui_preferences',
+    descriptionKey: 'common.local_data.groups.pycore_ui_preferences_desc',
+    clearable: true,
+    sources: [{
+      kind: 'localStorage',
+      keys: [
+        ...Object.values(PycoreManagerUiStorageKeys).filter((key) => !CLAIMED_KEYS.has(key)),
+        PycoreManagerSessionStorageKeys.PYCORE_UI_SESSION,
+        PycoreManagerSessionStorageKeys.PYCORE_TERMINAL_COMPOSER_MODE,
+      ],
+      prefixes: [PycoreManagerSessionStorageKeys.PYCORE_TERMINAL_NAV_PREFIX],
+    }],
+  },
+]);

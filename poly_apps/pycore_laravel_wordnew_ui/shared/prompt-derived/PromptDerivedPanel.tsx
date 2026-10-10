@@ -26,10 +26,9 @@ const DERIVED_FEED_TOPICS: readonly string[] = [PYCORE_EVENT_TOPICS.agentHistory
 import { copyTextToSystemClipboard } from '../../core/browser/SystemClipboard';
 import '../cloud-clipboard/CloudClipboardLocales';
 import { deviceKvGet, deviceKvSet } from '../persistence/DeviceKvCache';
+import { PROMPT_DERIVED_NEWEST_CACHE_KEY } from './promptDerivedCacheKeys';
 
 const PAGE_SIZE = 20;
-/** Newest page kept on the device so the feed shows at once, offline included. */
-const NEWEST_PAGE_CACHE_KEY = 'prompts.derived.newest';
 
 const buttonClass = 'inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs hover:bg-slate-500/10 disabled:opacity-40';
 
@@ -61,7 +60,7 @@ const PromptDerivedPanel: React.FC = () => {
       if (res?.success && res.data) {
         setData(res.data);
         setPage(res.data.page);
-        if (res.data.page === 1) void deviceKvSet(NEWEST_PAGE_CACHE_KEY, res.data);
+        if (res.data.page === 1) void deviceKvSet(PROMPT_DERIVED_NEWEST_CACHE_KEY, res.data);
       }
     } finally {
       setLoading(false);
@@ -69,7 +68,7 @@ const PromptDerivedPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    void deviceKvGet<AgentHistoryPromptDerivedResponse['data']>(NEWEST_PAGE_CACHE_KEY)
+    void deviceKvGet<AgentHistoryPromptDerivedResponse['data']>(PROMPT_DERIVED_NEWEST_CACHE_KEY)
       .then((cached) => { if (cached) setData((current) => current ?? cached); });
     void load(1);
   }, [load]);
