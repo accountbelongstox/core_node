@@ -18,11 +18,18 @@ public static class D3ItemIcons
     private static readonly string[] WikiDirs = { "armor_icons", "weapon_icons", "gem_icons" };
     private static readonly string[] ImageExtensions = { ".png", ".jpg" };
     private static readonly HashSet<char> VariantSuffixes = new() { 'b', 'c', 'm', 'w' };
+    private const char SuffixStart = '(';
     private static readonly Lazy<Dictionary<string, string>> Index = new(BuildIndex);
 
-    /// <summary>Icon file for an English item / gem name, or null when the libraries have none.</summary>
-    public static string? FindPath(string? nameEn) =>
-        string.IsNullOrWhiteSpace(nameEn) ? null : Index.Value.GetValueOrDefault(Key(nameEn));
+    /// <summary>Icon file for an English item / gem name ("Bane of the Trapped (150)": the rank / quality suffix is ignored), or null when the libraries have none.</summary>
+    public static string? FindPath(string? nameEn)
+    {
+        if (string.IsNullOrWhiteSpace(nameEn)) return null;
+        string name = nameEn.Trim();
+        int suffix = name.IndexOf(SuffixStart);
+        if (suffix > 0) name = name[..suffix];
+        return Index.Value.GetValueOrDefault(Key(name));
+    }
 
     /// <summary>Number of names indexed (diagnostics).</summary>
     public static int Count => Index.Value.Count;
