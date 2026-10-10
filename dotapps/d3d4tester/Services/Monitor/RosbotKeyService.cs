@@ -3,6 +3,7 @@ using System.IO;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Flow;
 using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Services.Monitor;
@@ -13,6 +14,8 @@ namespace DotApps.d3d4tester.Services.Monitor;
 /// line is replaced in place, otherwise it is added to the section holding ROSBOT's other global fields. Without RoS-BoT.ini ROSBOT
 /// shows its KEY dialog ("Please, enter a key"; it saves the ini only after a key is accepted): whenever the state center reports
 /// that dialog, RosbotUiAutomation.TryFillKeyDialog types the active key (key provider) and presses OK.
+/// Switching the active key while ROSBOT runs with another key offers one ROSBOT-only restart (D3 kept): the running flow restarts
+/// ROSBOT through its E block, otherwise ROSBOT is closed and started again here; both write the new key in the before-start hook.
 /// </summary>
 public static class RosbotKeyService
 {
@@ -23,8 +26,14 @@ public static class RosbotKeyService
     /// <summary>ROSBOT [SettingsField] names without a Category, declared next to "Key" (same ini section).</summary>
     private static readonly string[] IniAnchorKeys = { "KeyEx", "TosAccepted", "LastScriptUsed", "LastLaunchWasLocal", "SceneVersion", "Seasons", "Exts", "LocalPickit", "LocalSkill", "DontPickit", "SeasonItems" };
 
+    private const string LeaseKeySwitch = "ROSBOT key switch";
+    private const int LeaseWaitMs = 20000;
+
     private static int _installed;
     private static int _fillRunning;
+    private static int _restartRunning;
+    /// <summary>Key written before the running ROSBOT started; null when ROSBOT was started outside this app.</summary>
+    private static volatile string? _startedKey;
 
     /// <summary>Result and time of the last write (before-start or Apply now); null before the first one.</summary>
     public static (IniSetResult Result, DateTime At)? LastApply { get; private set; }
@@ -73,6 +82,52 @@ public static class RosbotKeyService
 
     public static string? ActiveKey => ActiveIndex is var i and >= 0 ? Keys[i] : null;
 
+    /// <summary>Make a key active; false when it already was (nothing changed).</summary>
+    public static bool SetActive(int index)
+    {
+        string? before = ActiveKey;
+        if (index < 0 || index >= Keys.Count || index == ActiveIndex) return false;
+        ActiveIndex = index;
+        MonitorLog.Info($"{LogTag} active key {Mask(before ?? "")} -> {Mask(ActiveKey ?? "")}");
+        return !string.Equals(before, ActiveKey, StringComparison.Ordinal);
+    }
+
+    /// <summary>True when a running ROSBOT uses another key than the active one and no key restart is running (ask once per change).</summary>
+    public static bool RestartNeeded =>
+        WriteBeforeStart && ActiveKey is { } key && Volatile.Read(ref _restartRunning) == 0
+        && !string.Equals(key, _startedKey, StringComparison.Ordinal) && RosbotManager.Instance.FindRosbotProcesses().Count > 0;
+
+    /// <summary>
+    /// Restart ROSBOT only, with the active key: the running flow (not paused) restarts it in its E block; otherwise ROSBOT is closed
+    /// (F7, leftovers killed) and started again. D3 is never touched; a missing D3 is the flow's [F1] job.
+    /// </summary>
+    public static void RestartRosbotWithActiveKey()
+    {
+        if (Interlocked.Exchange(ref _restartRunning, 1) == 1) return;
+        Task.Run(() =>
+        {
+            try
+            {
+                if (RosbotFlowRunner.IsRunning && !RosbotFlowRunner.IsPaused)
+                {
+                    MonitorLog.Info($"{LogTag} key switched -> flow restarts ROSBOT only");
+                    F3MonitorProcess.RequestRosbotRestart();
+                    return;
+                }
+                MonitorLog.Info($"{LogTag} key switched -> close ROSBOT and start it again (D3 kept)");
+                using var lease = GameControl.TryAcquire(LeaseKeySwitch, LeaseWaitMs);
+                var rosbot = RosbotManager.Instance;
+                rosbot.CloseGracefully();
+                rosbot.InvalidateLookupCache();
+                if (!rosbot.Start(autostart: true)) MonitorLog.Warn($"{LogTag} ROSBOT start after key switch failed");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _restartRunning, 0);
+            }
+        });
+    }
+
     /// <summary>Add a key (trimmed, no duplicates); the first key added becomes active. False when empty or already listed.</summary>
     public static bool Add(string key)
     {
@@ -111,6 +166,7 @@ public static class RosbotKeyService
     private static void OnBeforeStart(string exePath)
     {
         if (!WriteBeforeStart || ActiveKey == null || Path.GetDirectoryName(exePath) is not { Length: > 0 } dir) return;
+        _startedKey = ActiveKey;
         Apply(Path.Combine(dir, ShellConstants.RosbotIniFileName));
     }
 

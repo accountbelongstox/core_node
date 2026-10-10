@@ -74,7 +74,4 @@ public static class AppConstants
     // ---------- Bag offset input (1:1 Python auxiliary_options_block _OFFSET_MIN/_OFFSET_MAX) ----------
     public const int BagOffsetMin = -500;
     public const int BagOffsetMax = 500;
-
-    // ---------- OAuth script ping (1:1 Python OAUTH_SCRIPT_PING_TIMEOUT_SEC) ----------
-    public const double OauthScriptPingTimeoutSec = 30.0;
 }

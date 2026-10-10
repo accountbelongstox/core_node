@@ -11,12 +11,10 @@ using DotCore.Utils;
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// Window monitor: D3 window size and OAuth script health for the status bar, plus the one-time full status refresh when
+/// Window monitor: D3 window size for the status bar, plus the one-time full status refresh when
 /// the flow is inactive (TickDriver tick % 10). The full refresh (BN + D3 + ROSBOT providers) is pluggable so the
 /// status-provider owners can install run_full_status_refresh; without it only the D3 window geometry is refreshed.
 /// 1:1 Python timers/window_monitor_timer.py + one_shot_tasks.do_window_monitor_initial_check + bottom_bar.on_window_status_update.
-/// Fixes Python bug: bottom bar read state["oauth_script_connected"] which was never written; here the ping state is
-/// pushed into GameInterfaceData every tick.
 /// </summary>
 public sealed class WindowMonitorService
 {
@@ -38,7 +36,7 @@ public sealed class WindowMonitorService
         lock (_lock) _fullStatusRefresh = refresh;
     }
 
-    /// <summary>Register the inactive-refresh callback (tick % 10) and the per-tick OAuth health update on the TickDriver.</summary>
+    /// <summary>Register the inactive-refresh callback (tick % 10) on the TickDriver.</summary>
     public void Register()
     {
         lock (_lock)
@@ -47,7 +45,6 @@ public sealed class WindowMonitorService
             _registered = true;
         }
         TickDriver.Instance.RegisterInactiveRefresh(OnInactiveRefreshTick);
-        TickDriver.Instance.RegisterEveryTick(OnEveryTick);
     }
 
     public void Unregister()
@@ -57,7 +54,6 @@ public sealed class WindowMonitorService
             if (!_registered) return;
             _registered = false;
         }
-        TickDriver.Instance.Unregister(OnEveryTick);
     }
 
     /// <summary>Startup / manual refresh: full status refresh, notify window callbacks, mark inactive refresh done. 1:1 do_window_monitor_initial_check.</summary>
@@ -131,16 +127,6 @@ public sealed class WindowMonitorService
         {
             ColorPrinter.Red($"[WindowMonitor] Battle.net probe failed: {ex.Message}");
         }
-    }
-
-    private void OnEveryTick(IFlowTick _)
-    {
-        if (ShutdownManager.IsShutdownRequested) return;
-        bool connected = OAuthCallbackState.IsScriptConnected(AppConstants.OauthScriptPingTimeoutSec);
-        var game = GameInterfaceData.Instance;
-        if (game.GetStateSnapshot().OauthScriptConnected == connected) return;
-        game.SetOauthScriptConnected(connected);
-        game.NotifyCallbacks();
     }
 
     private WindowFinder.WindowInfo? RunFullRefresh()

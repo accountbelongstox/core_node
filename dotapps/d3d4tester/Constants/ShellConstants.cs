@@ -2,7 +2,6 @@
 // PY-REF: pyapps/d3-check/ui/components/system_tray.py
 // PY-REF: pyapps/d3-check/main.py
 // PY-REF: pyapps/d3-check/d3utils/rosbot_update_manager.py
-// PY-REF: pyapps/d3-check/share/oauth_callback.py
 // PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
 namespace DotApps.d3d4tester.Constants;
 
@@ -38,9 +37,6 @@ public static class ShellConstants
     public const string ArgHost = "--host";
     public const string ArgPort = "--port";
     public const string HttpBridgeServerVersion = "1.0.0";
-
-    // ---------- OAuth callback (Python share/oauth_callback.py OAUTH_STEP1_VALID_SEC) ----------
-    public const double OauthStep1ValidSec = 120.0;
 
     // ---------- ROSBOT update (Python rosbot_update_manager / one_shot_tasks.do_rosbot_update) ----------
     public const int RosbotNestedZipMaxDepth = 5;

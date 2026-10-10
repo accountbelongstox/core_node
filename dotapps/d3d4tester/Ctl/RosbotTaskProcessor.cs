@@ -174,6 +174,19 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         else RequestPauseFlow();
     }
 
+    /// <summary>
+    /// ROSBOT's pause key (F6) typed by the user while monitoring and ROSBOT runs: ROSBOT toggled itself (the key is never held back),
+    /// so monitoring pauses / resumes with it and sends no key of its own.
+    /// </summary>
+    public void OnUserPauseKey()
+    {
+        var s = GameInterfaceData.Instance.GetStateSnapshot();
+        if (!s.RosbotFlowMasterEnabled || !RosbotDetection.IsOnline(s.RosbotExtendedStatus) || !AcceptToggle()) return;
+        if (s.RosbotFlowPaused) RosbotFlowRunner.ResumeByUserKey();
+        else RosbotFlowRunner.PauseByUserKey(RosbotDetection.IsBotting(s));
+        RequestStatusRefresh();
+    }
+
     /// <summary>Start / stop button (ROSBOT tab, Monitor tab, tray): stop when monitoring, else start; reads the same state snapshot the UI shows.</summary>
     public void ToggleFlow()
     {
@@ -192,10 +205,6 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         }
         return true;
     }
-
-    /// <summary>"Ensure Battle.net" button: flips the persisted guard switch; BattlenetGuardService applies it. 1:1 Python _ensure_battlenet_only.</summary>
-    public void ToggleEnsureBattlenetOnly() =>
-        ConfigBinding.SetValue(ConfigKeys.BattlenetEnsureNormal, !RosbotFlowState.Instance.BnOnlyEnabled);
 
     /// <summary>Apply the Battle.net guard (idempotent): on -> guard thread; off -> stop it.</summary>
     public void SetEnsureBattlenetOnly(bool enabled)

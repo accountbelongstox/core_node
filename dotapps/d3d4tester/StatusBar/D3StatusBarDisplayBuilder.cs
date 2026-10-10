@@ -167,9 +167,6 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string stageText = p.GetUiText(I18nKeys.StatusStage) + ": " + stageVal;
         var (monitoringText, monitoringBrushKey) = MonitoringStatus(s, p);
 
-        string oauthText = p.GetUiText(I18nKeys.StatusOauthScriptLabel) + ": " + (s.OauthScriptConnected ? p.GetUiText(I18nKeys.StatusOauthConnected) : p.GetUiText(I18nKeys.StatusOauthDisconnected));
-        string oauthBrushKey = s.OauthScriptConnected ? successKey : errorKey;
-
         string sizeFmt = p.GetUiText(I18nKeys.StatusWindowSizeFormat);
         string windowSizeText = sizeFmt.Contains("{width}") ? sizeFmt.Replace("{width}", s.WindowWidth.ToString()).Replace("{height}", s.WindowHeight.ToString()) : $"{s.WindowWidth}x{s.WindowHeight}";
         string windowSizeBrushKey = s.WindowWidth > 0 && s.WindowHeight > 0 ? successKey : errorKey;
@@ -212,8 +209,6 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
             StageBrushKey = stageBrushKey,
             MonitoringText = monitoringText,
             MonitoringBrushKey = monitoringBrushKey,
-            OauthText = oauthText,
-            OauthBrushKey = oauthBrushKey,
             WindowSizeText = windowSizeText,
             WindowSizeBrushKey = windowSizeBrushKey,
             TestModeText = testModeText,

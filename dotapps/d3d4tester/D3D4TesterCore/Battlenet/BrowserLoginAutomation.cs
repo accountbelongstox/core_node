@@ -139,8 +139,8 @@ public static class BrowserLoginAutomation
         var creds = BattlenetFlowHooks.GetLoginCredentials?.Invoke(region);
         if (creds is not { } c || string.IsNullOrEmpty(c.Account) || string.IsNullOrEmpty(c.Password))
         {
-            ColorPrinter.Yellow($"{LogTag} login form shown but no saved {region} credentials; open the credentials dialog");
-            BattlenetFlowHooks.ScheduleLoginCredentialsDialog?.Invoke(region);
+            ColorPrinter.Yellow($"{LogTag} login form shown but no saved {region} credentials; add the account on the Battle.net tab");
+            BattlenetFlowHooks.ScheduleLoginCredentialsPrompt?.Invoke(region);
             return PollResult.NeedCredentials;
         }
         var account = UIOperations.FindFirst(root, el => IsType(el, EditType) && !IsPasswordEdit(el));

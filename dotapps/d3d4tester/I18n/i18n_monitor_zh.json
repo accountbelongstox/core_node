@@ -290,6 +290,7 @@
         "ini_path": "ini：{0}",
         "no_ros_dir": "未设置 ROSBOT 目录",
         "add_failed": "钥匙为空或已在列表中。",
+        "restart_ask": "ROSBOT 正在使用另一个钥匙运行。现在退出 ROSBOT 并用当前钥匙重新启动吗？（D3 不重启）",
         "hint": "钥匙加密保存。ROSBOT 弹出 \"Please, enter a key\" 时，会直接填入使用中的钥匙并按确定（不经过键盘），ROSBOT 随后自己保存到 RoS-BoT.ini。每次启动前，若 RoS-BoT.ini 已存在，会把 Key= 改为使用中的钥匙。",
         "last_apply": "上次写入 {0}：{1}",
         "result_unchanged": "已是最新",

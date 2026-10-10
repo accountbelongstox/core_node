@@ -5,7 +5,6 @@ namespace DotApps.d3d4tester.Constants;
 public static partial class I18nKeys
 {
     public const string TabsBattlenetManagement = "ui.tabs.battlenet_management";
-    public const string AuxiliaryEnsureBattlenetNormal = "ui.auxiliary_panel.ensure_battlenet_normal";
     public const string BnPanelGuardTitle = "ui.battlenet_panel.guard_title";
     public const string BnPanelEnsureNormal = "ui.battlenet_panel.ensure_normal";
     public const string BnPanelGuardDesc = "ui.battlenet_panel.guard_desc";

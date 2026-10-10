@@ -64,8 +64,6 @@ public sealed class GameInterfaceStateSnapshot
     /// <summary>D3 window size for status bar (width x height).</summary>
     public int WindowWidth { get; init; }
     public int WindowHeight { get; init; }
-    /// <summary>OAuth script connected for status bar.</summary>
-    public bool OauthScriptConnected { get; init; }
     /// <summary>Path icons in bottom bar: config path exists and matches exe name. Set by UpdateFromPaths on background thread.</summary>
     public bool PathValidBn { get; init; }
     public bool PathValidD3 { get; init; }

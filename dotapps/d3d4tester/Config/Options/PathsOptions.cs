@@ -3,12 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DotApps.d3d4tester.Config.Options;
 
-/// <summary>Options for paths section (downloads_dir, tampermonkey_script).</summary>
+/// <summary>Options for paths section (downloads_dir).</summary>
 public sealed class PathsOptions
 {
     [ConfigurationKeyName("downloads_dir")]
     public string DownloadsDir { get; set; } = "";
-
-    [ConfigurationKeyName("tampermonkey_script")]
-    public string TampermonkeyScript { get; set; } = "";
 }
