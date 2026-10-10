@@ -131,8 +131,7 @@ public partial class RosbotLogBlock : UserControl
         string path = RosbotLogPaths.GetLogsFilePath();
         if (ShellOpen.OpenFileWithNotepad(path)) return;
         var p = D3D4TesterI18n.Provider;
-        MessageBox.Show(Window.GetWindow(this), p.GetUiText(I18nKeys.RosbotLogFileNotFound) + "
-" + path,
+        MessageBox.Show(Window.GetWindow(this), p.GetUiText(I18nKeys.RosbotLogFileNotFound) + Environment.NewLine + path,
             p.GetUiText(I18nKeys.RosbotWarning), MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
