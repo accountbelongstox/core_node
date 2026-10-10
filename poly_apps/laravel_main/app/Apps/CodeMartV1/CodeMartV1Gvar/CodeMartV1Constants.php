@@ -206,7 +206,10 @@ class CodeMartV1Constants
     // File Upload Limits
     public const MAX_ATTACHMENT_SIZE = 10240; // 10MB in KB
     public const MAX_KYC_IMAGE_SIZE = 5120; // 5MB in KB
-    public const ALLOWED_DOCUMENT_TYPES = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'];
+    public const ALLOWED_DOCUMENT_TYPES = [
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'json', 'xml',
+        'zip', 'gz', 'tar', '7z', 'rar', 'jpg', 'jpeg', 'png', 'gif', 'webp',
+    ];
     public const ALLOWED_IMAGE_TYPES = ['jpg', 'jpeg', 'png'];
 
     // Pagination
@@ -461,6 +464,7 @@ class CodeMartV1Constants
     public const ERROR_INVALID_PASSWORD = 'invalid_password';
     public const ERROR_INVALID_EMAIL_CHANGE_TOKEN = 'invalid_email_change_token';
     public const ERROR_AVATAR_INVALID = 'avatar_invalid';
+    public const ERROR_FILE_TYPE_NOT_ALLOWED = 'file_type_not_allowed';
 
     public static function getAllDepositStatuses(): array
     {

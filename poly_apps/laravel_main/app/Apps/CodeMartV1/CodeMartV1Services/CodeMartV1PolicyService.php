@@ -118,6 +118,7 @@ class CodeMartV1PolicyService
             'max_attachment_size_kb' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::MAX_ATTACHMENT_SIZE, 64, 1048576),
             'max_kyc_image_size_kb' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::MAX_KYC_IMAGE_SIZE, 64, 51200),
             'allowed_image_types' => self::options(self::GROUP_LIMITS, C::ALLOWED_IMAGE_TYPES, self::KNOWN_IMAGE_TYPES),
+            'allowed_document_types' => self::options(self::GROUP_LIMITS, C::ALLOWED_DOCUMENT_TYPES, C::ALLOWED_DOCUMENT_TYPES),
             'default_page_size' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::DEFAULT_PAGE_SIZE, 1, 200),
             'max_page_size' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::MAX_PAGE_SIZE, 1, 500),
             'throttle_public' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_public'][1], 1, 100000),
@@ -628,7 +629,7 @@ class CodeMartV1PolicyService
             'max_page_size' => (int) $v['max_page_size'],
             'max_attachment_size_kb' => (int) $v['max_attachment_size_kb'],
             'max_kyc_image_size_kb' => (int) $v['max_kyc_image_size_kb'],
-            'allowed_document_types' => C::ALLOWED_DOCUMENT_TYPES,
+            'allowed_document_types' => array_values($v['allowed_document_types']),
             'allowed_image_types' => array_values($v['allowed_image_types']),
             'review_dimensions' => [
                 C::REVIEW_DIMENSION_QUALITY,
