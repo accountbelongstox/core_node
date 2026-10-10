@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/image_matcher_registry.py
-// PY-REF: pyapps/d3-check/share/scaled_template_matcher_base.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/image_matcher_registry.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/scaled_template_matcher_base.py
 using System.Collections.Concurrent;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
@@ -198,7 +198,7 @@ public sealed class ImageMatcher
 }
 
 /// <summary>
-/// Shared ImageMatcher instances. 1:1 Python pyapps/d3-check/d3utils/image_matcher_registry.py
+/// Shared ImageMatcher instances. 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/image_matcher_registry.py
 /// (default singleton, per standard resolution, per (method, resolution)).
 /// </summary>
 public static class ImageMatcherRegistry

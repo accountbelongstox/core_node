@@ -1,6 +1,6 @@
-// PY-REF: pyapps/d3-check/providor/constants/d4.py
-// PY-REF: pyapps/d3-check/providor/providor_index.py
-// PY-REF: pyapps/d3-check/share/coordinate_helper.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/d4.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/providor_index.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/coordinate_helper.py
 using DotCore.Common;
 using DotCore.Common.Geometry;
 using DotCore.TemplateMatcher;
@@ -9,7 +9,7 @@ using OpenCvSharp;
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
-/// D4-only constants. 1:1 Python pyapps/d3-check/providor/constants/d4.py, providor_index.py (DIABLO_IV_WINDOW_TITLES, D4_TEMPLATE_CONFIGS),
+/// D4-only constants. 1:1 Python dotapps/d3d4tester/reference/py_d3check/providor/constants/d4.py, providor_index.py (DIABLO_IV_WINDOW_TITLES, D4_TEMPLATE_CONFIGS),
 /// share/coordinate_helper.py and the class constants of d4utils (team health, black screen, red portal, team formation).
 /// </summary>
 public static class D4Constants

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/main.py
-// PY-REF: pyapps/d3-check/d3utils/ui_control_operations.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/main.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/ui_control_operations.py
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;

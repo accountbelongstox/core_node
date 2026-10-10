@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/yolo_record.py
-// PY-REF: pyapps/d3-check/d3utils/yolo_train_flow.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_record.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_train_flow.py
 using DotCore.Utils;
 using DotCore.VocAnnotator;
 using OpenCvSharp;
@@ -8,7 +8,7 @@ namespace DotCore.YoloRecord;
 
 /// <summary>
 /// YOLO segment layout and file operations: project_path/segment_id/record/ (raw jpgs or video.avi, direct or in record/*/), segment_id/frames/ (exported for labeling).
-/// 1:1 Python pyapps/d3-check/d3utils/yolo_record.py (project/segment helpers, segment_info, compose, merge, delete, open dir).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_record.py (project/segment helpers, segment_info, compose, merge, delete, open dir).
 /// </summary>
 public static class YoloSegmentLayout
 {

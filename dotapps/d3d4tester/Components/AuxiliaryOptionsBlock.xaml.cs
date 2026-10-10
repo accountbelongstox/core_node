@@ -1,6 +1,6 @@
-// PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
-// PY-REF: pyapps/d3-check/timers/timer_manager.py
-// PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/auxiliary_options_block.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/timers/timer_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/timers/one_shot_tasks.py
 using System.Windows;
 using System.Windows.Controls;
 using DotApps.d3d4tester.Config;

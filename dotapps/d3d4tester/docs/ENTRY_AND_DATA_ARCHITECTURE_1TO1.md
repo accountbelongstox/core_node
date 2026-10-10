@@ -1,6 +1,6 @@
 # DOT d3d4tester Entry and Data Architecture 1:1 with Python main.py
 
-This document aligns **dotnet run --project dotapps/d3d4tester/d3d4tester.csproj** with **python pyapps/d3-check/main.py** by logic (not code), and states **data centralization** and **multi-app / sub-app** structure per [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) and [PYTHON_PYCORE.md](../../../development-guides/PYTHON_PYCORE.md).
+This document aligns **dotnet run --project dotapps/d3d4tester/d3d4tester.csproj** with **python dotapps/d3d4tester/reference/py_d3check/main.py** by logic (not code), and states **data centralization** and **multi-app / sub-app** structure per [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) and [PYTHON_PYCORE.md](../../../development-guides/PYTHON_PYCORE.md).
 
 ---
 
@@ -40,8 +40,8 @@ All config and shared app state go through the above; no duplicate stores. See [
 | Layer | Python | DOT |
 |-------|--------|-----|
 | Public class libraries | pycore/ (pyfoundations, pyutils, …) | dotcore/ (DotCore.Foundations, DotCore.Utils, DotCore.UIInspect, …). |
-| Sub-app library | pyapps/d3-check/: controller, d3utils, providor, share, ui, … | dotapps/d3d4tester/: Ctl/, Config/, Pages/, D3D4TesterCore/, … . **D3D4TesterCore** = sub-app lib (path scanner, GameInterfaceData, Battlenet ops, RosbotOperation). |
-| App entry | pyapps/d3-check/main.py | dotapps/d3d4tester/ App.xaml.cs + MainWindow. |
+| Sub-app library | dotapps/d3d4tester/reference/py_d3check/: controller, d3utils, providor, share, ui, … | dotapps/d3d4tester/: Ctl/, Config/, Pages/, D3D4TesterCore/, … . **D3D4TesterCore** = sub-app lib (path scanner, GameInterfaceData, Battlenet ops, RosbotOperation). |
+| App entry | dotapps/d3d4tester/reference/py_d3check/main.py | dotapps/d3d4tester/ App.xaml.cs + MainWindow. |
 | Dependency rule | App uses pycore; app does not use another pyapps app. | App references dotcore and D3D4TesterCore; D3D4TesterCore references only dotcore. No app-to-app refs. |
 
 Canonical: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [PYTHON_PYCORE.md](../../../development-guides/PYTHON_PYCORE.md).
@@ -50,7 +50,7 @@ Canonical: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md
 
 ## 4. Run commands
 
-- Python GUI: `python .\pyapps\d3-check\main.py`
+- Python GUI: `python .\dotapps\d3d4tester\reference\py_d3check\main.py`
 - DOT GUI: `dotnet run --project dotapps\d3d4tester\d3d4tester.csproj`
 
 Both start the GUI, load config, show the main window, and keep the process running with an event loop (Tk vs WPF) plus periodic timers.

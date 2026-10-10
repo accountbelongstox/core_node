@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/ui/components/debug_window.py
-// PY-REF: pyapps/d3-check/share/ui_registry.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/debug_window.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/ui_registry.py
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -41,7 +41,7 @@ public sealed class D4RegionImageItem : BaseViewModel
 /// <summary>
 /// D4 debug image window: region crops of the last tick (two columns), D3 bag recognition, pause/continue crop updates, refresh.
 /// Opening it sets debug_window_open and starts the D4 tick loop; closing clears it.
-/// 1:1 Python pyapps/d3-check/ui/components/debug_window.py (DebugWindow, get_debug_window, close_debug_window, update_debug_window_images_if_open).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/ui/components/debug_window.py (DebugWindow, get_debug_window, close_debug_window, update_debug_window_images_if_open).
 /// </summary>
 public partial class D4DebugWindow : WpfWindow
 {

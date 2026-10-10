@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/providor/providor_index.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/providor_index.py
 using Microsoft.Extensions.Configuration;
 
 namespace DotApps.d3d4tester.Config.Options;

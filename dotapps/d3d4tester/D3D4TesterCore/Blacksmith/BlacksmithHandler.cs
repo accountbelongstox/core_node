@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/controller/ctl_func/blacksmith_handler.py
-// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/ctl_func/blacksmith_handler.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
 using DotApps.d3d4tester.Core.Bag;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
@@ -10,7 +10,7 @@ namespace DotApps.d3d4tester.Core.Blacksmith;
 
 /// <summary>
 /// Blacksmith operations: sidebar tab (template match), salvage button, auto salvage by slots with line-quality hover.
-/// 1:1 Python pyapps/d3-check/controller/ctl_func/blacksmith_handler.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/ctl_func/blacksmith_handler.py.
 /// </summary>
 public sealed class BlacksmithHandler
 {

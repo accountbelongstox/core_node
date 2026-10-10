@@ -1,7 +1,7 @@
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_master_driver.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f0_entry.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f1_d3_online.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow_f4_close_d3_send_f7.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow/flow_master_driver.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow_f0_entry.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow_f1_d3_online.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow_f4_close_d3_send_f7.py
 using DotApps.d3d4tester.Constants;
 using DotCore.Foundations;
 

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/d3_start_game_and_teleport_waiter.py
-// PY-REF: pyapps/d3-check/share/scaled_template_matcher_base.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3_start_game_and_teleport_waiter.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/scaled_template_matcher_base.py
 using DotCore.ScreenCapture;
 
 namespace DotApps.d3d4tester.Core;

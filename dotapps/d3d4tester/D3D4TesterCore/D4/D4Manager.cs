@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/controller/d4func/screenshot_handler.py
-// PY-REF: pyapps/d3-check/d4utils/d4_battlenet_operation.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/screenshot_handler.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_battlenet_operation.py
 using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Core.D4;

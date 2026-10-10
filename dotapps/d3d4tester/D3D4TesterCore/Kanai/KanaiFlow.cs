@@ -1,12 +1,12 @@
-// PY-REF: pyapps/d3-check/d3utils/kanai/flow.py
-// PY-REF: pyapps/d3-check/controller/ctl_func/kanai_cube_handler.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/kanai/flow.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/ctl_func/kanai_cube_handler.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Kanai;
 
 /// <summary>
 /// Kanai flow entry; caller has captured, collected bag info and interface_type == kanai_cube.
-/// 1:1 Python pyapps/d3-check/d3utils/kanai/flow.py (kanai_cube_handler.py thin wrapper folded in).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/kanai/flow.py (kanai_cube_handler.py thin wrapper folded in).
 /// </summary>
 public static class KanaiFlow
 {

@@ -1,6 +1,6 @@
 # Python → C# Port Map (d3-check → d3d4tester)
 
-Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type names its source in its summary (`1:1 Python <path>`); generic parts go to dotcore ([DOT_PUBLIC_LIBRARY_PROGRESS.md](../../../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md) §2). Paths below are relative to `dotapps/d3d4tester/`; `Core/` = `D3D4TesterCore/`.
+Python d3-check is deprecated and its tree `pyapps/d3-check` is deleted; the code reference is the copy `dotapps/d3d4tester/reference/py_d3check/` (live code = reachable from `main.py`; the not-ported dead / dev code below is only in git history) and its images moved to `dotapps/d3d4tester/Templates/`. Each C# type names its source in its summary (`1:1 Python <path>`); generic parts go to dotcore ([DOT_PUBLIC_LIBRARY_PROGRESS.md](../../../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md) §2). Paths below are relative to `dotapps/d3d4tester/`; `Core/` = `D3D4TesterCore/`.
 
 ## Ported
 
@@ -69,7 +69,7 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | Battle.net client screen state | only the on_login / disconnected / normal triple | `IBattlenetOperation.ClassifyClientState` (shared in base, login screens per CN / Asia class) via `BattlenetClientStateDetector`, probed every 10 s, shown in the status bar; live-scan fixes: sleep = sleep message text (the `announcer` group is always present), D4 tab id `game-nav-btn-Fen`, Play button has no AutomationId (name prefix), "战网" removed from loading keywords, UI region by exact ids (old substring judge read D3CN as Asia, removed) |
 | Web login (B11) | `browser_login_ocr_flow` (Python browser automation: OCR + coordinate clicks; Tampermonkey userscript and OAuth callback removed) | `BrowserLoginAutomation` (UI Automation on the CN login popup and browsers; types saved credentials when the confirm page turns into a login form); OCR flow removed, Tampermonkey code removed (button, script path, OAuth bridge endpoints, status chip) |
 | Battle.net guard | manual "ensure Battle.net only" button | `BattlenetGuardService` (persisted, default on, Battle.net tab + automation checkbox) -> `BattlenetGuardRunner` running `BattlenetReadyProcess` (abnormal / login timeout restarts) + global region `battlenet.region` |
-| Template dir | `ROOT_DIR/images` | `SourcePaths.PythonImagesDir` (source dir stamped at build; artifacts live outside the repo), fallback app `Templates/` (ships `d4/small_map.jpg`) |
+| Template dir | `ROOT_DIR/images` | images moved to `dotapps/d3d4tester/Templates/` (same layout); `D3TemplatePaths` reads the source `Templates/` (source dir stamped at build; artifacts live outside the repo), fallback app `Templates/` copied by the build |
 | Defaults / config | `providor/template_config.json` (contains machine paths) | `Config/default_config.json` embedded (clean defaults + Python skill defaults + DOT keys), merged into the user config at start |
 | Battle.net region switch | manual | official `--setregion=CN|TW` restart (`BattlenetManager.RestartWithRegion`), enforced first by `BattlenetReadyProcess`; prompt on change in the Battle.net tab |
 | Accounts | single `battlenet_*_credentials` | `battlenet_accounts.<region>` list + active mirror into `battlenet_*_credentials`; switch = account menu Log Out (live-scanned) |
@@ -84,6 +84,6 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | Annotator | tk window: draw rectangles, save | Shared annotator: zoom/pan, move/resize, undo/redo, copy previous, keyboard shortcuts, filter/search, class add/rename/delete/reorder/color (propagated to every project annotation), AI pre-label with the exported ONNX, settings (`voc_annotator_config.json`) |
 
 ## Python reference copy and cross-references
-- `reference/py_d3check/` is the Python reference (D4 code plus its d3-check dependencies, restored model `d4_modules/progress_bar_detector.pt`), mirroring `pyapps/d3-check` paths; source commit in `reference/py_d3check/MANIFEST.txt`. Not built or run by the app.
-- C# side: each file starts with `// PY-REF: pyapps/d3-check/<path>` (or `// PY-REF: none (DOT-only)`).
+- `reference/py_d3check/` is the Python reference (D4 code plus its d3-check dependencies, restored model `d4_modules/progress_bar_detector.pt`), mirroring `dotapps/d3d4tester/reference/py_d3check` paths; source commit in `reference/py_d3check/MANIFEST.txt`. Not built or run by the app.
+- C# side: each file starts with `// PY-REF: dotapps/d3d4tester/reference/py_d3check/<path>` (or `// PY-REF: none (DOT-only)`).
 - Python side: each reference `.py` carries `# DOT-REF: dotapps/d3d4tester/<path>` (or `# DOT-REF: none ...`).

@@ -1,9 +1,9 @@
-// PY-REF: pyapps/d3-check/d3utils/ocr_helper.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/ocr_helper.py
 namespace DotCore.Utils.Ocr;
 
 /// <summary>
 /// Bounding-box helpers for OCR results. Bbox = (MinX, MinY, MaxX, MaxY) in image coordinates.
-/// 1:1 Python pyapps/d3-check/d3utils/ocr_helper.py (_position_to_bbox, bbox_center, bbox_first_char_center, bbox_left_center);
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/ocr_helper.py (_position_to_bbox, bbox_center, bbox_first_char_center, bbox_left_center);
 /// Union and SortByLine are generic additions for multi-box reading order.
 /// </summary>
 public static class OcrBbox

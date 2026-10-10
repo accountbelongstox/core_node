@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/panels/log_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/log_panel.py
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;

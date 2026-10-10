@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/ocr_helper.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/ocr_helper.py
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -9,7 +9,7 @@ namespace DotCore.Utils.Ocr;
 
 /// <summary>
 /// OCR helper: keyword-in-image check, get result, find keyword boxes. Engine null = OcrEngineRegistry default.
-/// 1:1 Python pyapps/d3-check/d3utils/ocr_helper.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/ocr_helper.py.
 /// </summary>
 public static class OcrHelper
 {

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/utils/_obsolete_window_ops.py
-// PY-REF: pyapps/d3-check/d3utils/macro_config_ops.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/utils/_obsolete_window_ops.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/macro_config_ops.py
 using System.Runtime.InteropServices;
 using DotCore.Utils.Input;
 

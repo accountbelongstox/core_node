@@ -1,6 +1,6 @@
-// PY-REF: pyapps/d3-check/d4utils/d4_black_screen_detector.py
-// PY-REF: pyapps/d3-check/d4utils/d4_team_health_detector.py
-// PY-REF: pyapps/d3-check/d4utils/d4_red_portal_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_black_screen_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_team_health_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_red_portal_detector.py
 using DotCore.Foundations;
 using OpenCvSharp;
 
@@ -11,7 +11,7 @@ public readonly record struct BrightnessStats(double Mean, double Min, double Ma
 
 /// <summary>
 /// BGR color-range matching with tolerance and black-region detection.
-/// 1:1 Python pyapps/d3-check/d4utils/d4_black_screen_detector.py (is_black_screen, get_brightness_stats),
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d4utils/d4_black_screen_detector.py (is_black_screen, get_brightness_stats),
 /// d4_team_health_detector.py (absolute per-channel tolerance) and d4_red_portal_detector.py (_calculate_color_range ratio tolerance, OR mask).
 /// </summary>
 public static class BgrColorMatch

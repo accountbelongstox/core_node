@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/kanai/operations.py
-// PY-REF: pyapps/d3-check/providor/constants/d3.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/kanai/operations.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/d3.py
 using DotApps.d3d4tester.Core.Bag;
 using DotCore.Foundations;
 
@@ -7,7 +7,7 @@ namespace DotApps.d3d4tester.Core.Kanai;
 
 /// <summary>
 /// Kanai Cube operations: right panel toggle, reset to first page, navigate, process rare items, upgrade/reforge.
-/// 1:1 Python pyapps/d3-check/d3utils/kanai/operations.py (KANAI_*_PAGE_CLICKS from providor/constants/d3.py).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/kanai/operations.py (KANAI_*_PAGE_CLICKS from providor/constants/d3.py).
 /// </summary>
 public static class KanaiOperations
 {

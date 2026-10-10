@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/providor/constants/common.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/common.py
 using System.Reflection;
 
 namespace DotApps.d3d4tester.Core;
@@ -11,29 +11,25 @@ namespace DotApps.d3d4tester.Core;
 public static class SourcePaths
 {
     public const string PyAppsDirName = "pyapps";
-    public const string PythonAppDirName = "d3-check";
-    public const string PythonImagesDirName = "images";
+    public const string DotAppsDirName = "dotapps";
+    public const string AppDirName = "d3d4tester";
     private const string SourceDirMetadataKey = "SourceDir";
 
     private static readonly Lazy<string?> RepoRootLazy = new(ResolveRepoRoot);
 
-    /// <summary>Repository root (contains pyapps/), or null when the app runs without its source tree.</summary>
+    /// <summary>Repository root (contains dotapps/), or null when the app runs without its source tree.</summary>
     public static string? RepoRoot => RepoRootLazy.Value;
 
     /// <summary>dotapps/d3d4tester source directory, or null without the source tree.</summary>
-    public static string? AppSourceDir => RepoRoot is { } root ? Path.Combine(root, "dotapps", "d3d4tester") : null;
-
-    /// <summary>pyapps/d3-check/images (Python TEMPLATE_DIR), or null when missing.</summary>
-    public static string? PythonImagesDir =>
-        RepoRoot is { } root && Path.Combine(root, PyAppsDirName, PythonAppDirName, PythonImagesDirName) is var dir && Directory.Exists(dir) ? dir : null;
+    public static string? AppSourceDir => RepoRoot is { } root ? Path.Combine(root, DotAppsDirName, AppDirName) : null;
 
     private static string? ResolveRepoRoot()
     {
         var stamped = typeof(SourcePaths).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(a => a.Key == SourceDirMetadataKey)?.Value;
-        if (!string.IsNullOrEmpty(stamped) && FindAncestorWith(stamped, PyAppsDirName) is { } fromSource)
+        if (!string.IsNullOrEmpty(stamped) && FindAncestorWith(stamped, DotAppsDirName) is { } fromSource)
             return fromSource;
-        return FindAncestorWith(AppContext.BaseDirectory, PyAppsDirName);
+        return FindAncestorWith(AppContext.BaseDirectory, DotAppsDirName);
     }
 
     private static string? FindAncestorWith(string start, string childDirName)

@@ -1,9 +1,9 @@
-// PY-REF: pyapps/d3-check/share/coordinate_helper.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/coordinate_helper.py
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// D4 game -> screen coordinate helpers (window offset + standard scaling, random points, title bar point, random delay).
-/// 1:1 Python pyapps/d3-check/share/coordinate_helper.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/share/coordinate_helper.py.
 /// </summary>
 public static class D4CoordinateHelper
 {

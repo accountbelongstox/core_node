@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/d3_scaled_template_matcher.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3_scaled_template_matcher.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.TemplateMatcher;
@@ -12,7 +12,7 @@ public sealed record D3StatesMatch(bool Disconnected, bool StartGameButton, bool
 
 /// <summary>
 /// D3 scaled template matcher (1300x800 standard, global scale, D3 template table, match-debug hook).
-/// 1:1 Python pyapps/d3-check/d3utils/d3_scaled_template_matcher.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/d3_scaled_template_matcher.py.
 /// </summary>
 public sealed class D3ScaledTemplateMatcher : ScaledTemplateMatcher
 {

@@ -19,25 +19,18 @@ $script:DISK_DFRGUI_EXE = Join-Path $script:DISK_SYSTEM32_DIR "dfrgui.exe"
 $script:DISK_POWERCFG_EXE =Join-Path $script:DISK_SYSTEM32_DIR "powercfg.exe"
 $script:DISK_BCDEDIT_EXE = Join-Path $script:DISK_SYSTEM32_DIR "bcdedit.exe"
 $script:DISK_FSUTIL_EXE = Join-Path $script:DISK_SYSTEM32_DIR "fsutil.exe"
-$script:DISK_ROBOCOPY_EXE = Join-Path $script:DISK_SYSTEM32_DIR "Robocopy.exe"
-$script:DISK_NTFS_PROVIDER = "Ntfs"
-$script:DISK_NTFS_ERROR_EVENT_IDS = @(55, 98, 137, 140)
-$script:DISK_NTFS_EVENT_DAYS = 30
 $script:DISK_SHRINK_EVENT_ID = 259
 $script:DISK_SHRINK_EVENT_MARKER = "The last unmovable file appears to be:"
-$script:DISK_LOST_SPACE_WARN_RATIO = 0.05
 $script:DISK_USN_MAX_SIZE = "0x2000000"
 $script:DISK_USN_ALLOCATION_DELTA = "0x800000"
 $script:DISK_SHRINK_DEFRAG_ARGUMENTS = @("/X", "/U", "/V")
-$script:DISK_ROBOCOPY_LIST_ARGUMENTS = @("/L", "/S", "/XJ", "/BYTES", "/NJH", "/NDL", "/NFL", "/NC", "/NS", "/NP", "/R:0", "/W:0")
-$script:DISK_ROBOCOPY_BYTES_LABEL = "Bytes :"
 $script:DISK_HIBERFIL = Join-Path $env:SystemDrive "hiberfil.sys"
 $script:DISK_STORAGE_NAMESPACE = "root/Microsoft/Windows/Storage"
 $script:DISK_ENCRYPTION_NAMESPACE = "root/cimv2/Security/MicrosoftVolumeEncryption"
 $script:DISK_INTERNAL_ENCRYPTABLE_TYPES = @(0, 1)
 $script:DISK_FILE_SYSTEMS = @("NTFS", "FAT", "FAT32", "exFAT")
 $script:DISK_FIXED_DRIVE_TYPE = 3
-$script:DISK_HEALTHY_STATUS = 0
+$script:DISK_HEALTHY_STATUS = @("0", "Healthy")
 $script:DISK_BITLOCKER_DECRYPTED = "FullyDecrypted"
 $script:DISK_UEFI_FIRMWARE = "UEFI"
 $script:DISK_FIRMWARE_BOOT_MANAGER = "{fwbootmgr}"
@@ -156,7 +149,7 @@ function Get-FixedDriveLetters {
 
 function Get-UnhealthyDriveLetters {
     Get-CimInstance -Namespace $script:DISK_STORAGE_NAMESPACE -ClassName MSFT_Volume | Where-Object {
-        ($null -ne $_.DriveLetter) -and ([int]$_.HealthStatus -ne $script:DISK_HEALTHY_STATUS)
+        ($null -ne $_.DriveLetter) -and ($script:DISK_HEALTHY_STATUS -notcontains [string]$_.HealthStatus)
     } | ForEach-Object { '{0}:' -f $_.DriveLetter }
 }
 
@@ -309,23 +302,6 @@ function Request-RepairRestart {
 #endregion
 
 #region NTFS after Linux
-function Get-NtfsVolumeFileBytes {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-    $sourceRoot = '{0}\' -f $Drive
-    $listTarget = Join-Path $env:TEMP ("ntfs-scan-{0}" -f [guid]::NewGuid().ToString("N"))
-    $bytesLine = $null
-
-    Write-ColorMessage -Message ("Listing every file on {0} (read-only, can take several minutes)..." -f $Drive) -Type "Info"
-    $output = & $script:DISK_ROBOCOPY_EXE $sourceRoot $listTarget @($script:DISK_ROBOCOPY_LIST_ARGUMENTS)
-    $bytesLine = @($output | Where-Object { $_.Trim().StartsWith($script:DISK_ROBOCOPY_BYTES_LABEL) }) | Select-Object -Last 1
-    if ($null -eq $bytesLine) {
-        return $null
-    }
-    return [int64](($bytesLine.Trim().Substring($script:DISK_ROBOCOPY_BYTES_LABEL.Length).Trim() -split '\s+')[0])
-}
-
 function Test-NtfsTransactionManagerOk {
     param(
         [Parameter(Mandatory = $true)] [string]$Drive
@@ -344,21 +320,14 @@ function Test-NtfsUsnJournalActive {
     return ($LASTEXITCODE -eq 0)
 }
 
-function Test-NtfsDirty {
+function Test-NtfsReadOnlyCheckClean {
     param(
         [Parameter(Mandatory = $true)] [string]$Drive
     )
 
-    return [bool](Get-CimInstance Win32_Volume | Where-Object { $_.DriveLetter -eq $Drive } | Select-Object -First 1).DirtyBitSet
-}
-
-function Get-NtfsErrorEvents {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-    $filter = @{ LogName = "System"; ProviderName = $script:DISK_NTFS_PROVIDER; Id = $script:DISK_NTFS_ERROR_EVENT_IDS; StartTime = (Get-Date).AddDays(-$script:DISK_NTFS_EVENT_DAYS) }
-
-    @(Get-WinEvent -FilterHashtable $filter -ErrorAction SilentlyContinue | Where-Object { $_.Message -like ('*{0}*' -f $Drive) })
+    Write-ColorMessage -Message ("chkdsk {0} (read-only check, no changes)..." -f $Drive) -Type "Info"
+    & $script:DISK_CHKDSK_EXE $Drive | Out-Null
+    return ($LASTEXITCODE -eq 0)
 }
 
 function Get-LastUnmovableFile {
@@ -376,140 +345,76 @@ function Get-LastUnmovableFile {
     if ($null -eq $markerLine) {
         return $null
     }
-    return [PSCustomObject]@{
-        Time = $shrinkEvent.TimeCreated
-        File = $markerLine.Substring($markerLine.IndexOf($script:DISK_SHRINK_EVENT_MARKER) + $script:DISK_SHRINK_EVENT_MARKER.Length).Trim()
-    }
+    return $markerLine.Substring($markerLine.IndexOf($script:DISK_SHRINK_EVENT_MARKER) + $script:DISK_SHRINK_EVENT_MARKER.Length).Trim()
 }
 
-function Get-NtfsHealthReport {
+function Show-NtfsVolumeSummary {
     param(
-        [Parameter(Mandatory = $true)] [string]$Drive,
-        [Parameter()] [switch]$CountFiles
+        [Parameter(Mandatory = $true)] [string]$Drive
     )
     $driveLetter = $Drive.TrimEnd(':')
     $volume = Get-Volume -DriveLetter $driveLetter
-    $usedBytes = $volume.Size - $volume.SizeRemaining
     $supported = Get-PartitionSupportedSize -DriveLetter $driveLetter -ErrorAction SilentlyContinue
-    $fileBytes = if ($CountFiles) { Get-NtfsVolumeFileBytes -Drive $Drive } else { $null }
-
-    return [PSCustomObject]@{
-        Drive            = $Drive
-        SizeGB           = [math]::Round($volume.Size / 1GB, 1)
-        UsedGB           = [math]::Round($usedBytes / 1GB, 1)
-        FreeGB           = [math]::Round($volume.SizeRemaining / 1GB, 1)
-        FileGB           = if ($null -ne $fileBytes) { [math]::Round($fileBytes / 1GB, 1) } else { $null }
-        LostGB           = if ($null -ne $fileBytes) { [math]::Round(($usedBytes - $fileBytes) / 1GB, 1) } else { $null }
-        LostSuspect      = ($null -ne $fileBytes) -and (($usedBytes - $fileBytes) -gt ($volume.Size * $script:DISK_LOST_SPACE_WARN_RATIO))
-        Dirty            = Test-NtfsDirty -Drive $Drive
-        TxfOk            = Test-NtfsTransactionManagerOk -Drive $Drive
-        UsnActive        = Test-NtfsUsnJournalActive -Drive $Drive
-        ErrorEvents      = @(Get-NtfsErrorEvents -Drive $Drive)
-        ShrinkableGB     = if ($null -ne $supported) { [math]::Round(($supported.SizeMax - $supported.SizeMin) / 1GB, 1) } else { $null }
-        LastUnmovable    = Get-LastUnmovableFile -Drive $Drive
-        RepairScheduled  = Test-DriveRepairScheduled -Drive $Drive
-    }
-}
-
-function Show-NtfsHealthReport {
-    param(
-        [Parameter(Mandatory = $true)] [PSCustomObject]$Report
-    )
+    $blocker = Get-LastUnmovableFile -Drive $Drive
 
     Write-Host ""
-    Write-ColorMessage -Message ("========== NTFS health: {0} ==========" -f $Report.Drive) -Type "Info"
-    Write-Host ("  Size {0} GB, used {1} GB, free {2} GB" -f $Report.SizeGB, $Report.UsedGB, $Report.FreeGB)
-    if ($null -ne $Report.FileGB) {
-        Write-Host ("  Files total {0} GB, used space not owned by any listed file: {1} GB" -f $Report.FileGB, $Report.LostGB)
-        if ($Report.LostSuspect) {
-            Write-ColorMessage -Message "  Used space is far above the file total: clusters are marked used without an owner (lost clusters / bitmap). chkdsk /f frees them." -Type "Error"
-        }
+    Write-ColorMessage -Message ("{0} size {1} GB, used {2} GB, free {3} GB" -f $Drive, [math]::Round($volume.Size / 1GB, 1), [math]::Round(($volume.Size - $volume.SizeRemaining) / 1GB, 1), [math]::Round($volume.SizeRemaining / 1GB, 1)) -Type "Info"
+    if ($null -ne $supported) {
+        Write-ColorMessage -Message ("{0} can shrink by {1} GB" -f $Drive, [math]::Round(($supported.SizeMax - $supported.SizeMin) / 1GB, 1)) -Type "Info"
     }
-    if ($Report.Dirty) { Write-ColorMessage -Message "  Dirty bit is set: Windows wants chkdsk." -Type "Error" }
-    if (-not $Report.TxfOk) { Write-ColorMessage -Message "  NTFS transaction manager (TxF) failed to start: its metadata was damaged, typically by a Linux NTFS driver." -Type "Error" }
-    if (-not $Report.UsnActive) { Write-ColorMessage -Message "  USN change journal is not active." -Type "Warning" }
-    foreach ($ntfsEvent in $Report.ErrorEvents) {
-        Write-ColorMessage -Message ("  NTFS event {0} at {1}" -f $ntfsEvent.Id, $ntfsEvent.TimeCreated) -Type "Warning"
+    if ($null -ne $blocker) {
+        Write-ColorMessage -Message ("Last shrink blocker: {0}" -f $blocker) -Type "Info"
     }
-    if ($null -ne $Report.ShrinkableGB) {
-        Write-Host ("  Shrinkable now: {0} GB" -f $Report.ShrinkableGB)
-    }
-    if ($null -ne $Report.LastUnmovable) {
-        Write-Host ("  Last shrink blocker ({0}): {1}" -f $Report.LastUnmovable.Time, $Report.LastUnmovable.File)
-    }
-    if ($Report.RepairScheduled) {
-        Write-ColorMessage -Message "  chkdsk is scheduled for the next Windows startup." -Type "Warning"
-    }
-    if ($Report.TxfOk -and (-not $Report.Dirty) -and (-not $Report.LostSuspect) -and ($Report.ErrorEvents.Count -eq 0)) {
-        Write-ColorMessage -Message "  No NTFS damage signs found by this check (run chkdsk read-only scan for a full check)." -Type "Success"
-    }
-}
-
-function Invoke-NtfsReadOnlyCheck {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-
-    Write-ColorMessage -Message ("chkdsk {0} (read-only, no changes)" -f $Drive) -Type "Info"
-    & $script:DISK_CHKDSK_EXE $Drive | Where-Object { $_ -notlike "*Progress:*" } | Out-Host
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message ("{0}: no errors found" -f $Drive) -Type "Success"
-    } else {
-        Write-ColorMessage -Message ("{0}: errors found (orphan records, index or bitmap damage); run the repair item." -f $Drive) -Type "Error"
-    }
-}
-
-function Reset-NtfsTransactionManager {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-
-    if (Test-NtfsTransactionManagerOk -Drive $Drive) {
-        Write-ColorMessage -Message ("{0} transaction manager is running" -f $Drive) -Type "Success"
-        return
-    }
-    & $script:DISK_FSUTIL_EXE resource setautoreset true ('{0}\' -f $Drive) | Out-Host
-    Write-ColorMessage -Message ("{0} transaction manager metadata resets at the next mount (restart or chkdsk dismount)" -f $Drive) -Type "Info"
-}
-
-function Enable-NtfsUsnJournal {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-
-    if (Test-NtfsUsnJournalActive -Drive $Drive) {
-        Write-ColorMessage -Message ("{0} USN journal is active" -f $Drive) -Type "Success"
-        return
-    }
-    & $script:DISK_FSUTIL_EXE usn createjournal ("m={0}" -f $script:DISK_USN_MAX_SIZE) ("a={0}" -f $script:DISK_USN_ALLOCATION_DELTA) $Drive | Out-Host
 }
 
 function Invoke-NtfsLinuxRepair {
     param(
         [Parameter(Mandatory = $true)] [PSCustomObject]$DriveInfo
     )
+    $drive = $DriveInfo.Drive
+    $result = $null
 
-    Reset-NtfsTransactionManager -Drive $DriveInfo.Drive
-    Show-ChkdskPromptHints
-    $result = Invoke-DriveRepair -DriveInfo $DriveInfo
-    Show-RepairResults -Results @($result)
-    if ($result.Pending) {
-        Write-ColorMessage -Message "After the restart, open this menu again and run 'After repair' to finish." -Type "Warning"
-        Request-RepairRestart -PendingDrives @($result.Drive)
+    Show-NtfsVolumeSummary -Drive $drive
+    if ($DriveInfo.Scheduled) {
+        Write-ColorMessage -Message ("{0} repair is already scheduled; restart Windows, then run this item again." -f $drive) -Type "Warning"
+        Request-RepairRestart -PendingDrives @($drive)
         return
     }
-    Enable-NtfsUsnJournal -Drive $DriveInfo.Drive
-    Show-NtfsHealthReport -Report (Get-NtfsHealthReport -Drive $DriveInfo.Drive)
-}
 
-function Invoke-NtfsShrinkPrepare {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
+    Write-ColorMessage -Message "[1/4] NTFS transaction manager (TxF)" -Type "Info"
+    if (Test-NtfsTransactionManagerOk -Drive $drive) {
+        Write-ColorMessage -Message "TxF is running" -Type "Success"
+    } else {
+        & $script:DISK_FSUTIL_EXE resource setautoreset true ('{0}\' -f $drive) | Out-Host
+        Write-ColorMessage -Message "TxF metadata resets at the next mount" -Type "Info"
+    }
 
-    Write-ColorMessage -Message ("defrag {0} {1} (consolidate free space toward the start)" -f $Drive, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
-    Start-Process -FilePath $script:DISK_DEFRAG_EXE -ArgumentList (@($Drive) + $script:DISK_SHRINK_DEFRAG_ARGUMENTS) -WorkingDirectory $env:SystemRoot -NoNewWindow -Wait | Out-Null
-    Show-NtfsHealthReport -Report (Get-NtfsHealthReport -Drive $Drive)
-    Write-ColorMessage -Message "If a page file, hibernation file or System Volume Information is the blocker, move or disable it, then run this item again." -Type "Info"
+    Write-ColorMessage -Message "[2/4] File system check" -Type "Info"
+    if ($DriveInfo.Dirty -or (-not (Test-NtfsReadOnlyCheckClean -Drive $drive))) {
+        Write-ColorMessage -Message ("{0} has file system errors (orphan records / lost clusters); repairing with chkdsk /f" -f $drive) -Type "Warning"
+        Show-ChkdskPromptHints
+        $result = Invoke-DriveRepair -DriveInfo $DriveInfo
+        Show-RepairResults -Results @($result)
+        if ($result.Pending) {
+            Write-ColorMessage -Message "After Windows restarts, run this item again to finish the remaining steps." -Type "Warning"
+            Request-RepairRestart -PendingDrives @($drive)
+            return
+        }
+    } else {
+        Write-ColorMessage -Message ("{0} file system is clean" -f $drive) -Type "Success"
+    }
+
+    Write-ColorMessage -Message "[3/4] USN change journal" -Type "Info"
+    if (Test-NtfsUsnJournalActive -Drive $drive) {
+        Write-ColorMessage -Message "USN journal is active" -Type "Success"
+    } else {
+        & $script:DISK_FSUTIL_EXE usn createjournal ("m={0}" -f $script:DISK_USN_MAX_SIZE) ("a={0}" -f $script:DISK_USN_ALLOCATION_DELTA) $drive | Out-Host
+    }
+
+    Write-ColorMessage -Message ("[4/4] defrag {0} {1} (consolidate free space for shrinking)" -f $drive, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
+    Start-Process -FilePath $script:DISK_DEFRAG_EXE -ArgumentList (@($drive) + $script:DISK_SHRINK_DEFRAG_ARGUMENTS) -WorkingDirectory $env:SystemRoot -NoNewWindow -Wait | Out-Null
+
+    Show-NtfsVolumeSummary -Drive $drive
+    Write-ColorMessage -Message "Done. Shrink the volume in Disk Management (diskmgmt.msc) if needed." -Type "Success"
 }
 #endregion

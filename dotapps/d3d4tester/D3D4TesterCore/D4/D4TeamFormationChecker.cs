@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d4utils/d4_team_formation_checker.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_team_formation_checker.py
 using DotCore.Foundations;
 using OpenCvSharp;
 
@@ -7,7 +7,7 @@ namespace DotApps.d3d4tester.Core.D4;
 /// <summary>
 /// Team check: press O, wait one tick, OCR the "Find Team" crop (task quest_text). Text starting with a "find" prefix = no team ->
 /// run auto team formation; otherwise has team. Press O to close. Writes HasTeam.
-/// 1:1 Python pyapps/d3-check/d4utils/d4_team_formation_checker.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d4utils/d4_team_formation_checker.py.
 /// Fixes Python bug: hardcoded CN prefix "寻找" -> keyword list (D4Constants.FindTeamOcrPrefixes, overridable).
 /// Fixes Python bug: the OCR read the region crop from before the panel opened; the frame is recaptured after the wait.
 /// </summary>

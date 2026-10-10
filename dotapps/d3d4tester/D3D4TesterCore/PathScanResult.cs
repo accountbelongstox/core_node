@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/path_scanner.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/path_scanner.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>

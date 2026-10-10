@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_asia.py
-// PY-REF: pyapps/d3-check/d4utils/d4_battlenet_operation.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/battlenet_operation_asia.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_battlenet_operation.py
 using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
 using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 

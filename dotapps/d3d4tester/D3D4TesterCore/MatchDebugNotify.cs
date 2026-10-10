@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/share/template_match_debug.py
-// PY-REF: pyapps/d3-check/d3utils/match_debug_notify.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/template_match_debug.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/match_debug_notify.py
 using System.Collections.Concurrent;
 using System.Drawing;
 using DotCore.TemplateMatcher;
@@ -64,7 +64,7 @@ public static class MatchDebugQueue
 
 /// <summary>
 /// After-match hook: when the debug UI is active, build an annotated match image and push it to <see cref="MatchDebugQueue"/>.
-/// 1:1 Python pyapps/d3-check/d3utils/match_debug_notify.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/match_debug_notify.py.
 /// </summary>
 public static class MatchDebugNotify
 {

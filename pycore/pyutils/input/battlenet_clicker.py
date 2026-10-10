@@ -17,7 +17,7 @@ from typing import List, Dict
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Battle.net desktop launcher "Play" button automation_id values.
-# Canonical source: pyapps/d3-check/providor/constants/d3.py START_GAME_AUTOMATION_IDS.
+# Canonical source: dotapps/d3d4tester/reference/py_d3check/providor/constants/d3.py START_GAME_AUTOMATION_IDS.
 # NOTE: the original click_handler.find_and_click_play_buttons referenced
 # PLAY_BUTTON_AUTOMATION_IDS but never defined it (latent NameError); it is
 # defined here so the moved method actually resolves.

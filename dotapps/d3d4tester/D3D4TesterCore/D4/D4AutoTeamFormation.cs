@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d4utils/d4_auto_team_formation.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_auto_team_formation.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.D4;
@@ -6,7 +6,7 @@ namespace DotApps.d3d4tester.Core.D4;
 /// <summary>
 /// Auto team formation (team panel already open): check need, click Find Team, min level 80, max level 120,
 /// activity dropdown row 5 of 7, re-enter 80/120, submit at the Confirm Team center ±3.
-/// 1:1 Python pyapps/d3-check/d4utils/d4_auto_team_formation.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d4utils/d4_auto_team_formation.py.
 /// Fixes Python bug: the need check read detected_regions['ocr_results'] (never set, always proceeded); it uses the checker's Find Team OCR text.
 /// Fixes Python bug: Find Team click used region_coords (never set, always failed); it clicks the standard Find Team region.
 /// </summary>

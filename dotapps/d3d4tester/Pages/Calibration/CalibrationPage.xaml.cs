@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/ui/panels/coordinate_calibration_panel.py
-// PY-REF: pyapps/d3-check/d3utils/yolo_train_flow.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/coordinate_calibration_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_train_flow.py
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
@@ -22,7 +22,7 @@ namespace DotApps.d3d4tester.Pages.Calibration;
 
 /// <summary>
 /// Calibration tab: client type, YOLO record/project/segment management, train flow, record log.
-/// 1:1 Python pyapps/d3-check/ui/panels/coordinate_calibration_panel.py (YOLO data panel variant; the history-panel fallback is not used because the YOLO lib is always present).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/ui/panels/coordinate_calibration_panel.py (YOLO data panel variant; the history-panel fallback is not used because the YOLO lib is always present).
 /// Fixes Python bug: the top "Open label" button called flow3_open_label_tool without images_dir and always failed; it now opens the latest segment frames.
 /// </summary>
 public partial class CalibrationPage : UserControl

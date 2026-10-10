@@ -1,7 +1,7 @@
-// PY-REF: pyapps/d3-check/d3utils/tick_driver.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_task_processor.py
-// PY-REF: pyapps/d3-check/share/values/task_status.py
-// PY-REF: pyapps/d3-check/threads/task_thread_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/tick_driver.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_task_processor.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/values/task_status.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/threads/task_thread_manager.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Flow;

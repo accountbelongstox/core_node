@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Fetch Fandom Diablo III wiki images to pyapps/d3-check/images with category subdirs.
+Fetch Fandom Diablo III wiki images to dotapps/d3d4tester/Templates with category subdirs.
 - Recursive category mode: start from Category:Diablo_III_weapon_icons and
   Category:Diablo_III_armor_icons, follow subcategory links until a page with
   .mw-gallery-traditional (Media in category) is found, then scroll and download.
@@ -20,7 +20,7 @@ if str(_REPO_ROOT) not in sys.path:
 from pycore.pyfoundations.third_party.api import get_third_package_selenium, get_third_package_webdriver_manager, get_third_package_requests
 from pycore.pyutils.pybrowser.utils.browser_finder import find_browser, find_driver
 
-BASE_IMAGES_DIR = _REPO_ROOT / "pyapps" / "d3-check" / "images"
+BASE_IMAGES_DIR = _REPO_ROOT / "dotapps" / "d3d4tester" / "Templates"
 WIKI_BASE = "https://diablo-archive.fandom.com/wiki/"
 WIKI_DOMAIN = "diablo-archive.fandom.com"
 SCROLL_PAUSE = 0.4

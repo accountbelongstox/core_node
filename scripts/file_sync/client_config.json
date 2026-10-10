@@ -7,7 +7,6 @@
   "watch_debounce_seconds": 0.35,
   "interval_seconds": 2.0,
   "exclude": [
-    "pyapps/d3-check",
     "pyapps/GameAISDK",
     "public/core_node_init",
     "oldapps",

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/game_window_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/game_window_detector.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
@@ -17,7 +17,7 @@ public sealed record GameWindowDetection((int Left, int Top, int Right, int Bott
 
 /// <summary>
 /// Locate the game window in a fullscreen screenshot via bottom-left (3 variants) and bottom-right anchor templates.
-/// 1:1 Python pyapps/d3-check/d3utils/game_window_detector.py. Use <see cref="Locate"/> as ScreenCaptureOptions.GameWindowLocator.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/game_window_detector.py. Use <see cref="Locate"/> as ScreenCaptureOptions.GameWindowLocator.
 /// </summary>
 public sealed class GameWindowDetector
 {

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d4utils/d4_small_map_detector.py
-// PY-REF: pyapps/d3-check/d4utils/d4_scaled_template_matcher.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_small_map_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_scaled_template_matcher.py
 using DotCore.Foundations;
 using DotCore.TemplateMatcher;
 using DotCore.Utils.ImagePreprocess;
@@ -9,7 +9,7 @@ namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// Town vs dungeon from the minimap: SIFT match of template d4_small_map (threshold 0.6) inside the Minimap crop.
-/// 1:1 Python pyapps/d3-check/d4utils/d4_small_map_detector.py + d4_scaled_template_matcher.py (via DotCore ScaledTemplateMatcher).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d4utils/d4_small_map_detector.py + d4_scaled_template_matcher.py (via DotCore ScaledTemplateMatcher).
 /// Fixes Python bug: the matcher read a non-existent minimap_region_image (always Dungeon); the Minimap is now cropped from the current frame.
 /// Fixes Python bug: template scale came from the D3 global scale; it now uses the D4 window size vs 1763x1126.
 /// Fixes Python bug: detection replaced detected_regions; the result is stored in D4InterfaceData.SmallMap only.

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/components/bottom_bar.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/bottom_bar.py
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using System.Text.RegularExpressions;

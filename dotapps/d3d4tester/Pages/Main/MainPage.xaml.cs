@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/panels/main_functions_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/main_functions_panel.py
 using System.Windows;
 using System.Windows.Controls;
 using DotApps.d3d4tester.Components;

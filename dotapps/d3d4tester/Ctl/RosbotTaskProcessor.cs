@@ -1,8 +1,8 @@
-// PY-REF: pyapps/d3-check/d3utils/rosbot_task_processor.py
-// PY-REF: pyapps/d3-check/threads/d3_extension_thread.py
-// PY-REF: pyapps/d3-check/d3utils/system_initializer.py
-// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
-// PY-REF: pyapps/d3-check/lifecycle/log_monitor.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_task_processor.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/threads/d3_extension_thread.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/system_initializer.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/rosbot_extension_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/lifecycle/log_monitor.py
 using System.Globalization;
 using System.Text.Json;
 using DotApps.d3d4tester.Config;

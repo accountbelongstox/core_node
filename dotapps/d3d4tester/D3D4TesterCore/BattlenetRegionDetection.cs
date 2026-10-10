@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/share/game_interface_data.py
-// PY-REF: pyapps/d3-check/d3utils/battlenet_status_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/battlenet_status_provider.py
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;

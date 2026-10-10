@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/main.py
-// PY-REF: pyapps/d3-check/d3utils/system_initializer.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/main.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/system_initializer.py
 using System;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -17,7 +17,7 @@ using DotCore.Utils;
 namespace DotApps.d3d4tester;
 
 /// <summary>
-/// Application entry. 1:1 with pyapps/d3-check/main.py: default = GUI + HTTP bridge on 127.0.0.1:8765;
+/// Application entry. 1:1 with dotapps/d3d4tester/reference/py_d3check/main.py: default = GUI + HTTP bridge on 127.0.0.1:8765;
 /// --http-bridge-only [--host H] [--port P] = bridge without GUI. Python: initialize_system -> i18n -> controller ->
 /// HTTPBridgeController.start -> controller.run; exit/restart go through ShutdownManager (restart after cleanup in App_Exit).
 /// </summary>

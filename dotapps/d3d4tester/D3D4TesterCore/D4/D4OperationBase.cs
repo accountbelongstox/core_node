@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d4utils/d4_operation_base.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_operation_base.py
 using DotCore.Foundations;
 using DotCore.Utils.Input;
 
@@ -7,7 +7,7 @@ namespace DotApps.d3d4tester.Core.D4;
 /// <summary>
 /// Base of D4 mouse/keyboard operations: one title-bar click to activate a windowed client per run, humanized clicks
 /// (standard -> screen, random 100–500 ms, cursor returned), key press, typing 50–100 ms per char, tick wait.
-/// 1:1 Python pyapps/d3-check/d4utils/d4_operation_base.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d4utils/d4_operation_base.py.
 /// Fixes Python bug: region helpers read detected_regions['region_coords'] (never set); they take standard regions instead.
 /// </summary>
 public abstract class D4OperationBase

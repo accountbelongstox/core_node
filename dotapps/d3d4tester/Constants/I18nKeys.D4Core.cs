@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/providor/i18n/i18n_d4_panel_en.json
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/i18n/i18n_d4_panel_en.json
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>D4 core keys: map switch state, location, team check outcomes, team health labels (1:1 Python team_health.*).</summary>

@@ -65,8 +65,8 @@ public static partial class I18nKeys
     public const string RosbotBridgeStandbyStart = "ui.rosbot_bridge.standby_start";
     public const string RosbotBridgeStandbyEnd = "ui.rosbot_bridge.standby_end";
     public const string RosbotBridgeStandbyTip = "ui.rosbot_bridge.standby_tip";
-    public const string RosbotBridgeStandbySent = "ui.rosbot_bridge.standby_sent";
-    public const string RosbotBridgeStandbyNotSent = "ui.rosbot_bridge.standby_not_sent";
+    /// <summary>Prefix + lowercase TownStandbyResult (intown, reviving, portalsent, portalnotsent).</summary>
+    public const string RosbotBridgeStandbyResultPrefix = "ui.rosbot_bridge.standby_result.";
     public const string RosbotBridgeStandbySince = "ui.rosbot_bridge.standby_since";
     public const string RosbotBridgeStandbyStatePrefix = "ui.rosbot_bridge.standby_state.";
     public const string RosbotBridgeMonstersNearby = "ui.rosbot_bridge.monsters_nearby";

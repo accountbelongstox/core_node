@@ -1,6 +1,6 @@
-// PY-REF: pyapps/d3-check/controller/d4func/exp_farming.py
-// PY-REF: pyapps/d3-check/controller/d4_controller.py
-// PY-REF: pyapps/d3-check/ui/panels/d4_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/exp_farming.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4_controller.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/d4_panel.py
 using DotCore.Foundations;
 using OpenCvSharp;
 
@@ -9,7 +9,7 @@ namespace DotApps.d3d4tester.Core.D4;
 /// <summary>
 /// D4 pipeline facade for the controller/UI: one method per step with typed results, the full exp-farming tick,
 /// the debug-window tick, the team check (Start button) and the Battle.net D4 launch.
-/// 1:1 Python pyapps/d3-check/controller/d4func/exp_farming.py (steps 1–4) and the step calls of controller/d4_controller.py
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4func/exp_farming.py (steps 1–4) and the step calls of controller/d4_controller.py
 /// and ui/panels/d4_panel.py (team check before start). Ticks are synchronous; call them from a background tick loop.
 /// </summary>
 public sealed class D4Pipeline
