@@ -279,9 +279,10 @@ public sealed partial class TaskSetStore
         }
     }
 
-    private TaskResource AddVariantPngCore(TaskSet set, TaskTarget target, byte[] png, string originalPath, string nameHint)
+    private TaskResource AddVariantPngCore(TaskSet set, TaskTarget target, byte[] png, string originalPath, string nameHint, (int Width, int Height)? sourceSize = null)
     {
         var resource = StorePng(set, png, originalPath, nameHint, TargetsSubdir, target.Id, VariantsSubdir);
+        (resource.SourceWidth, resource.SourceHeight) = sourceSize ?? SourceSizeOf(originalPath) ?? (0, 0);
         resource.Label = NextVariantLabel(set, target);
         target.Variants.Add(resource);
         return resource;
@@ -342,6 +343,8 @@ public sealed partial class TaskSetStore
         set.Distractors.RemoveAll(r => r == null);
         set.HoldoutSources ??= new List<HoldoutSource>();
         set.HoldoutSources.RemoveAll(h => h == null);
+        set.SegmentSources ??= new List<SegmentSource>();
+        set.SegmentSources.RemoveAll(s => s == null || string.IsNullOrWhiteSpace(s.SegmentDir));
         set.Augmentation ??= new AugmentationProfile();
         set.Synthesis ??= new SynthesisSettings();
         set.Synthesis.ScaleMode ??= SynthesisSettings.ScaleModeNative;
@@ -354,6 +357,8 @@ public sealed partial class TaskSetStore
             t.Scenes ??= new List<TaskResource>();
             t.Scenes.RemoveAll(r => r == null);
             if (t.Augmentation is { IsEmpty: true }) t.Augmentation = null;
+            t.Placement = TargetPlacement.All.Contains(t.Placement) ? t.Placement : TargetPlacement.Anywhere;
+            t.PlacementJitter = double.IsFinite(t.PlacementJitter) ? Math.Clamp(t.PlacementJitter, 0, 0.5) : 0;
         }
         foreach (var r in AllResources(set))
         {

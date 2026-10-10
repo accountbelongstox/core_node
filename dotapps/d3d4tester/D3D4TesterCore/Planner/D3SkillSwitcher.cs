@@ -317,7 +317,13 @@ public static class D3SkillSwitcher
             if (passives.Count > 0 && !passivesOk && !shouldStop())
             {
                 passivesChanged = SetPassives(passives, cls, cacheDir);
-                OpenPane(cls, cacheDir);
+            }
+            // the image check reads the pane: make sure it is open (something may have closed it meanwhile), one more try after a pause
+            if (method == SkillSwitchMethod.Image && !OpenPane(cls, cacheDir))
+            {
+                Thread.Sleep(AfterKeyMs);
+                if (!OpenPane(cls, cacheDir))
+                    return Result(SkillSwitchOutcome.Partial, skillsChanged, passivesChanged, 0, $"{skillsChanged} skill(s), {passivesChanged} passive(s) set, skill pane not open for the check");
             }
             int mismatches = Verify(method, pluginCheck, skills, passives, cls, cacheDir);
             var outcome = mismatches == 0 ? SkillSwitchOutcome.Done : SkillSwitchOutcome.Partial;
@@ -447,12 +453,13 @@ public static class D3SkillSwitcher
     /// click that only activates its window, and another program may take the foreground in between.
     /// </summary>
     private static bool ClickUntil(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
-        SkillSwitchStage stage, UiState? requires = null) =>
-        ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires)
-        || (FallBackToFullSearch($"{what}: {expected} not shown") && ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires));
+        SkillSwitchStage stage, UiState? requires = null, UiState? shownFor = null) =>
+        ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires, shownFor)
+        || (FallBackToFullSearch($"{what}: {expected} not shown") && ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires, shownFor));
 
+    /// <summary>One round of ClickUntil; shownFor = the screen the target belongs to: when it is gone (closed by something else) the round stops at once.</summary>
     private static bool ClickUntilOnce(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
-        SkillSwitchStage stage, UiState? requires)
+        SkillSwitchStage stage, UiState? requires, UiState? shownFor)
     {
         for (int attempt = 1; attempt <= Attempts; attempt++)
         {
@@ -463,6 +470,12 @@ public static class D3SkillSwitcher
             {
                 if (point(shot) is not { } at)
                 {
+                    if (shownFor is { } screen && State(shot, cls, cacheDir) is var now && now != screen)
+                    {
+                        ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt}, {screen} closed by something else ({now} shown)");
+                        Report(stage, false, $"{what}: {screen} closed by something else ({now} shown), step redone", shot);
+                        return false;
+                    }
                     // a tooltip under the cursor may cover the target: move the cursor away and look again
                     ColorPrinter.Yellow($"{LogTag} {what}: attempt {attempt}, target not on screen");
                     Report(stage, false, $"{what}: attempt {attempt}, target not on screen (cursor parked, retry)", shot);
@@ -790,10 +803,15 @@ public static class D3SkillSwitcher
     }
 
     /// <summary>Click Accept until the chooser is gone (the expected screen shows).</summary>
-    private static bool AcceptUntil(UiState expected, string dialog, string cls, string cacheDir) =>
-        ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold, dialog) is { } b ? (b.CenterX, b.CenterY)
-            : FuzzyText.Best(OcrArea(sh, new Rect(0, sh.Image.Rows / 2, sh.Image.Cols, sh.Image.Rows / 2)), w => w.Text, AcceptWords)?.Item.Center,
-            expected, "accept", cls, cacheDir, SkillSwitchStage.Accept);
+    /// <summary>Click Accept until the chooser is gone; the OCR fallback for the button runs only while its chooser is still shown.</summary>
+    private static bool AcceptUntil(UiState expected, string dialog, string cls, string cacheDir)
+    {
+        var shownFor = dialog == DialogPassiveChooser ? UiState.PassiveChooser : UiState.SkillChooser;
+        return ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold, dialog) is { } b ? (b.CenterX, b.CenterY)
+                : State(sh, cls, cacheDir) != shownFor ? null
+                : FuzzyText.Best(OcrArea(sh, new Rect(0, sh.Image.Rows / 2, sh.Image.Cols, sh.Image.Rows / 2)), w => w.Text, AcceptWords)?.Item.Center,
+            expected, "accept", cls, cacheDir, SkillSwitchStage.Accept, shownFor: shownFor);
+    }
 
     /// <summary>Open chooser: page arrows (templates) -> icon row center line, row bounds and the next-page point (image px).</summary>
     private sealed record Chooser(int RowY, int Left, int Right, (int X, int Y) Next);
