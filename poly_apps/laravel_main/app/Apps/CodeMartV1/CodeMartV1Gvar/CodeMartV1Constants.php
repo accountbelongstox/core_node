@@ -221,7 +221,9 @@ class CodeMartV1Constants
     public const PROJECT_MIN_BUDGET = 100;
 
     // Mobile app minimum OS versions, used when a published package carries none
-    public const APP_DEFAULT_MIN_OS = ['android' => '8.0', 'ios' => '15'];
+    public const APP_PLATFORM_ANDROID = 'android';
+    public const APP_PLATFORM_IOS = 'ios';
+    public const APP_DEFAULT_MIN_OS = [self::APP_PLATFORM_ANDROID => '8.0', self::APP_PLATFORM_IOS => '15'];
 
     // Platform Commission Rate
     public const PLATFORM_COMMISSION_RATE = 0.15; // 15%
@@ -410,6 +412,7 @@ class CodeMartV1Constants
     public const RESOURCE_TESTIMONIAL = 'testimonial';
     public const RESOURCE_REVIEWER_APPLICATION = 'reviewer_application';
     public const RESOURCE_CONTACT_MESSAGE = 'contact_message';
+    public const RESOURCE_POLICY = 'policy';
 
     // Machine error codes (the UI localizes these)
     public const ERROR_INVALID_REGISTRATION_CODE = 'invalid_registration_code';
@@ -470,7 +473,7 @@ class CodeMartV1Constants
             'account_number' => $bank['account_number'] ?? null,
             'branch' => $bank['branch'] ?? null,
             'swift_code' => $bank['swift_code'] ?? null,
-            'currency' => self::DEFAULT_CURRENCY,
+            'currency' => \App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService::currency(),
         ];
     }
 
@@ -550,12 +553,7 @@ class CodeMartV1Constants
 
     public static function getDepositAmount(string $role): int
     {
-        return match ($role) {
-            self::ROLE_DEVELOPER => self::DEPOSIT_DEVELOPER,
-            self::ROLE_ARCHITECT => self::DEPOSIT_DEVELOPER + self::DEPOSIT_ARCHITECT_ADDITIONAL,
-            self::ROLE_CLIENT => self::DEPOSIT_CLIENT,
-            default => 0,
-        };
+        return \App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService::depositAmount($role);
     }
 
     // Delivery flow: AI analysis extra states and project-side analysis_status.
@@ -718,6 +716,64 @@ class CodeMartV1Constants
     public const CODE_SCORE_SCALE = 100;
     public const REVIEWER_COMMENT_MIN_LENGTH = 20;
 
+    // Account rules
+    public const PASSWORD_MIN_LENGTH = 8;
+
+    // AI project estimate (the analysis timer task and the public estimate): currency and formula defaults.
+    public const AI_ESTIMATE_CURRENCY = 'CNY';
+    public const AI_ESTIMATE_HOURLY_RATE = 80;
+    public const AI_ESTIMATE_HOURS_PER_COMPLEXITY = 50;
+    public const AI_ESTIMATE_SENIOR_TEAM_THRESHOLD = 5;
+
+    // Public estimate formula defaults (hourly rates in the estimate currency, base effort in hours).
+    public const ESTIMATE_HOURLY_RATES = [
+        self::COMPLEXITY_SIMPLE => 180,
+        self::COMPLEXITY_MEDIUM => 260,
+        self::COMPLEXITY_COMPLEX => 360,
+        self::COMPLEXITY_VERY_COMPLEX => 480,
+    ];
+    public const ESTIMATE_BASE_HOURS = [
+        self::COMPLEXITY_SIMPLE => 80,
+        self::COMPLEXITY_MEDIUM => 240,
+        self::COMPLEXITY_COMPLEX => 640,
+        self::COMPLEXITY_VERY_COMPLEX => 1280,
+    ];
+    public const ESTIMATE_TEAM = [
+        self::COMPLEXITY_SIMPLE => [self::ROLE_DEVELOPER],
+        self::COMPLEXITY_MEDIUM => [self::ROLE_ARCHITECT, self::ROLE_DEVELOPER, self::ROLE_REVIEWER],
+        self::COMPLEXITY_COMPLEX => [self::ROLE_ARCHITECT, self::ROLE_DEVELOPER, self::ROLE_DEVELOPER, self::ROLE_REVIEWER],
+        self::COMPLEXITY_VERY_COMPLEX => [self::ROLE_ARCHITECT, self::ROLE_DEVELOPER, self::ROLE_DEVELOPER, self::ROLE_DEVELOPER, self::ROLE_REVIEWER],
+    ];
+    public const ESTIMATE_PLATFORM_FACTOR = 0.35;
+    public const ESTIMATE_FEATURE_FACTOR = 0.12;
+    public const ESTIMATE_RANGE_LOW = 0.85;
+    public const ESTIMATE_RANGE_HIGH = 1.25;
+    public const ESTIMATE_HOURLY_RATE_LOW = 0.9;
+    public const ESTIMATE_HOURLY_RATE_HIGH = 1.2;
+    public const ESTIMATE_WEEK_HOURS_FAST = 120;
+    public const ESTIMATE_WEEK_HOURS_SLOW = 100;
+    public const ESTIMATE_PLATFORMS_RANGE = [1, 6, 1];
+    public const ESTIMATE_FEATURES_RANGE = [1, 50, 5];
+
+    // Reviewer qualification exam defaults; expected ratings are the grading key and never leave the server.
+    public const REVIEWER_EXAM = [
+        [
+            'code_snippet_id' => 1,
+            'code' => "function calculateTotal(items) {\n  let total = 0;\n  for (let i = 0; i < items.length; i++) {\n    total += items[i].price;\n  }\n  return total;\n}",
+            'expected_ratings' => ['quality' => 4, 'readability' => 4, 'efficiency' => 4],
+        ],
+        [
+            'code_snippet_id' => 2,
+            'code' => 'function f(x) { var y = x * 2; var z = y + 10; return z; }',
+            'expected_ratings' => ['quality' => 2, 'readability' => 2, 'efficiency' => 3],
+        ],
+        [
+            'code_snippet_id' => 3,
+            'code' => 'const calculateDiscount = (price, percentage) => price * (1 - percentage / 100);',
+            'expected_ratings' => ['quality' => 5, 'readability' => 5, 'efficiency' => 5],
+        ],
+    ];
+
     // Delivery private storage (never the public disk).
     public const DELIVERY_PRIVATE_DISK = 'local';
     public const PROJECT_ATTACHMENT_DIR = 'codemart/projects';
@@ -761,6 +817,7 @@ class CodeMartV1Constants
         self::RESOURCE_TESTIMONIAL,
         self::RESOURCE_REVIEWER_APPLICATION,
         self::RESOURCE_CONTACT_MESSAGE,
+        self::RESOURCE_POLICY,
     ];
 
     public const ACTIVITY_ACTIONS = [
@@ -822,6 +879,10 @@ class CodeMartV1Constants
         'admin_testimonial_updated',
         'admin_reviewer_revoked',
         'admin_contact_message_handled',
+        'admin_policy_updated',
+        'email_change_requested',
+        'email_changed',
+        'avatar_updated',
     ];
 
     // Activity resource -> state group in vocabulary.states (from/to state labels).
@@ -1016,47 +1077,7 @@ class CodeMartV1Constants
                 'project' => self::PROJECT_TRANSITIONS,
                 'task' => self::TASK_TRANSITIONS,
             ],
-            'policy' => [
-                'currency' => self::DEFAULT_CURRENCY,
-                'supported_currencies' => self::SUPPORTED_CURRENCIES,
-                'deposit_amounts' => [
-                    self::ROLE_CLIENT => self::DEPOSIT_CLIENT,
-                    self::ROLE_DEVELOPER => self::DEPOSIT_DEVELOPER,
-                    self::ROLE_ARCHITECT => self::DEPOSIT_DEVELOPER + self::DEPOSIT_ARCHITECT_ADDITIONAL,
-                ],
-                'platform_commission_rate' => self::PLATFORM_COMMISSION_RATE,
-                'default_page_size' => self::DEFAULT_PAGE_SIZE,
-                'max_page_size' => self::MAX_PAGE_SIZE,
-                'max_attachment_size_kb' => self::MAX_ATTACHMENT_SIZE,
-                'max_kyc_image_size_kb' => self::MAX_KYC_IMAGE_SIZE,
-                'allowed_document_types' => self::ALLOWED_DOCUMENT_TYPES,
-                'allowed_image_types' => self::ALLOWED_IMAGE_TYPES,
-                'review_dimensions' => [
-                    self::REVIEW_DIMENSION_QUALITY,
-                    self::REVIEW_DIMENSION_READABILITY,
-                    self::REVIEW_DIMENSION_EFFICIENCY,
-                    self::REVIEW_DIMENSION_SECURITY,
-                ],
-                'rating_range' => [self::MIN_RATING, self::MAX_RATING],
-                'project_min_budget' => self::PROJECT_MIN_BUDGET,
-                'review_comment_min_length' => self::REVIEWER_COMMENT_MIN_LENGTH,
-                'reviewer_retry_days' => self::REVIEWER_RETRY_DAYS,
-                'payment_methods' => self::getAllPaymentMethods(),
-                'deposit_payment_methods' => self::DEPOSIT_PAYMENT_METHODS,
-                'withdrawal_methods' => self::WITHDRAWAL_METHODS,
-                'withdrawal_min_amount' => self::WITHDRAWAL_MIN_AMOUNT,
-                'wallet_top_up_min_amount' => self::DEPOSIT_MIN_AMOUNT,
-                'wallet_top_up_max_amount' => self::WALLET_TOP_UP_MAX_AMOUNT,
-                'payment_types' => self::PAYMENT_TYPES,
-                'payment_creatable_types' => self::PAYMENT_CREATABLE_TYPES,
-                'identity_types' => self::IDENTITY_TYPES,
-                'kyc_document_slots' => array_keys(self::KYC_FILE_COLUMNS),
-                'dispute_resolutions' => self::DISPUTE_RESOLUTIONS,
-                'supported_locales' => self::SUPPORTED_LOCALES,
-                'task_priorities' => self::TASK_PRIORITIES,
-                'complexities' => self::COMPLEXITIES,
-                'budget_types' => self::BUDGET_TYPES,
-            ],
+            'policy' => \App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService::bootstrapPolicy(),
         ];
     }
 }

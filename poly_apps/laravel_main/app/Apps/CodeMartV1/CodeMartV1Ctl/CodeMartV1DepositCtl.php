@@ -9,6 +9,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -67,7 +68,7 @@ class CodeMartV1DepositCtl extends Controller
         $primary = collect($roles)->first(fn (array $role): bool => (float) $role['required_amount'] > 0) ?? $roles[0];
 
         return $this->success([
-            'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
+            'currency' => CodeMartV1PolicyService::currency(),
             'roles' => $roles,
             'role_type' => $primary['role_type'],
             'required_deposit' => $primary['required_amount'],
@@ -92,9 +93,9 @@ class CodeMartV1DepositCtl extends Controller
         $validator = Validator::make($request->all(), [
             'role_type' => 'nullable|string|in:' . implode(',', [...CodeMartV1Constants::getAllRoles(), CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET]),
             'amount' => ($request->input('role_type') === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET
-                ? 'required|numeric|min:' . CodeMartV1Constants::DEPOSIT_MIN_AMOUNT . '|max:' . CodeMartV1Constants::WALLET_TOP_UP_MAX_AMOUNT
+                ? 'required|numeric|min:' . CodeMartV1PolicyService::int('deposit_min_amount') . '|max:' . CodeMartV1PolicyService::int('wallet_top_up_max_amount')
                 : 'nullable|numeric|min:0.01'),
-            'payment_method' => 'required|in:' . implode(',', CodeMartV1Constants::DEPOSIT_PAYMENT_METHODS),
+            'payment_method' => 'required|in:' . implode(',', CodeMartV1PolicyService::list('deposit_payment_methods')),
         ]);
 
         if ($validator->fails()) {
@@ -140,7 +141,7 @@ class CodeMartV1DepositCtl extends Controller
             return $this->codedError(CodeMartV1Constants::ERROR_DEPOSIT_ALREADY_PENDING, __('codemart.errors.deposit_already_pending'), $policy, 409);
         }
         $amount = $request->filled('amount') ? CodeMartV1FinanceService::money($request->input('amount')) : $remaining;
-        $minimum = min((float) $remaining, (float) CodeMartV1Constants::DEPOSIT_MIN_AMOUNT);
+        $minimum = min((float) $remaining, (float) CodeMartV1PolicyService::int('deposit_min_amount'));
         if ((float) $amount < $minimum || bccomp($amount, $remaining, 2) > 0) {
             return $this->codedError('deposit_amount_invalid', __('codemart.messages.deposit_amount_must_be_between_the_minimum'), [
                 'minimum' => CodeMartV1FinanceService::money($minimum),

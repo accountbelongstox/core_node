@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -68,7 +69,7 @@ class CodeMartV1WalletModel extends CodeMartV1Model
                 'balance' => 0,
                 'available_balance' => 0,
                 'frozen_balance' => 0,
-                'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
+                'currency' => CodeMartV1PolicyService::currency(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

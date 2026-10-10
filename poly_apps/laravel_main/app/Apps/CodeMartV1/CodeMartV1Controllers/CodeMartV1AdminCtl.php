@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Controllers;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1AdminService;
@@ -332,7 +333,7 @@ class CodeMartV1AdminCtl extends Controller
         $validator = Validator::make($request->all(), [
             'sort_order' => 'nullable|integer|min:0|max:100000',
             'quotes' => 'nullable|array',
-            'quotes.*' => 'nullable|string|max:' . CodeMartV1Constants::TESTIMONIAL_MAX_QUOTE_LENGTH,
+            'quotes.*' => 'nullable|string|max:' . CodeMartV1PolicyService::int('testimonial_max_quote_length'),
             'role_labels' => 'nullable|array',
             'role_labels.*' => 'nullable|string|max:100',
             'author_label' => 'nullable|string|max:100',
@@ -396,6 +397,26 @@ class CodeMartV1AdminCtl extends Controller
         }
 
         return $this->success($this->adminService->policy());
+    }
+
+    public function updatePolicy(Request $request): JsonResponse
+    {
+        $admin = $this->requireAdmin($request);
+        if (!$admin) {
+            return $this->adminDenied($request);
+        }
+
+        $validator = Validator::make($request->all(), ['settings' => 'required|array|min:1']);
+        if ($validator->fails()) {
+            return $this->validationFailed($validator->errors());
+        }
+
+        $result = $this->adminService->updatePolicy((int) $admin->id, (array) $request->input('settings'));
+        if (!$result['ok']) {
+            return $this->validationFailed($result['errors']);
+        }
+
+        return $this->success($this->adminService->policy(), __('codemart.policy.updated'));
     }
 
     public function activity(Request $request): JsonResponse

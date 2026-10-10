@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -48,10 +49,10 @@ class CodeMartV1CodeReviewModel extends CodeMartV1Model
     {
         $values = array_values(array_filter($ratings, static fn ($value): bool => $value !== null));
         $mean = $values === [] ? 0 : array_sum($values) / count($values);
-        if ($mean >= CodeMartV1Constants::REVIEW_RECOMMEND_APPROVE_MIN) {
+        if ($mean >= CodeMartV1PolicyService::float('review_recommend_approve_min')) {
             return CodeMartV1Constants::SUBMISSION_STATUS_APPROVED;
         }
-        if ($mean >= CodeMartV1Constants::REVIEW_RECOMMEND_REVISION_MIN) {
+        if ($mean >= CodeMartV1PolicyService::float('review_recommend_revision_min')) {
             return CodeMartV1Constants::SUBMISSION_STATUS_NEEDS_REVISION;
         }
 

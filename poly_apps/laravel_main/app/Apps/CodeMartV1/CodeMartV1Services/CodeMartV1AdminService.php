@@ -1144,36 +1144,66 @@ class CodeMartV1AdminService
 
     public function policy(): array
     {
+        $v = CodeMartV1PolicyService::all();
+
         return [
-            'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
+            'currency' => $v['default_currency'],
             'deposit_amounts' => [
                 CodeMartV1Constants::ROLE_CLIENT => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_CLIENT),
                 CodeMartV1Constants::ROLE_DEVELOPER => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_DEVELOPER),
                 CodeMartV1Constants::ROLE_ARCHITECT => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT),
                 CodeMartV1Constants::ROLE_REVIEWER => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_REVIEWER),
             ],
-            'architect_additional_deposit' => CodeMartV1Constants::DEPOSIT_ARCHITECT_ADDITIONAL,
-            'platform_commission_rate' => CodeMartV1Constants::PLATFORM_COMMISSION_RATE,
+            'architect_additional_deposit' => $v['deposit_architect_additional'],
+            'platform_commission_rate' => $v['platform_commission_rate'],
             'wallet_top_up' => [
-                'min_amount' => CodeMartV1Constants::DEPOSIT_MIN_AMOUNT,
-                'max_amount' => CodeMartV1Constants::WALLET_TOP_UP_MAX_AMOUNT,
+                'min_amount' => $v['deposit_min_amount'],
+                'max_amount' => $v['wallet_top_up_max_amount'],
             ],
             'architect_thresholds' => [
-                'min_projects' => CodeMartV1Constants::ARCHITECT_MIN_PROJECTS,
-                'min_code_score' => CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE,
-                'min_satisfaction' => CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION,
+                'min_projects' => $v['architect_min_projects'],
+                'min_code_score' => $v['architect_min_code_score'],
+                'min_satisfaction' => $v['architect_min_satisfaction'],
             ],
             'reviewer_thresholds' => [
-                'test_snippets' => CodeMartV1Constants::REVIEWER_TEST_SNIPPETS,
-                'min_similarity' => CodeMartV1Constants::REVIEWER_MIN_SIMILARITY,
-                'retry_days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS,
+                'test_snippets' => count(CodeMartV1PolicyService::reviewerExam()),
+                'min_similarity' => $v['reviewer_min_similarity'],
+                'retry_days' => $v['reviewer_retry_days'],
             ],
             'role_status_transitions' => CodeMartV1Constants::ROLE_STATUS_TRANSITIONS,
             'role_status_reason_required' => CodeMartV1Constants::ROLE_STATUS_REASON_REQUIRED,
             'admin_project_target_statuses' => CodeMartV1Constants::ADMIN_PROJECT_TARGET_STATUSES,
-            'max_kyc_image_size_kb' => CodeMartV1Constants::MAX_KYC_IMAGE_SIZE,
-            'max_attachment_size_kb' => CodeMartV1Constants::MAX_ATTACHMENT_SIZE,
-        ];
+            'max_kyc_image_size_kb' => $v['max_kyc_image_size_kb'],
+            'max_attachment_size_kb' => $v['max_attachment_size_kb'],
+        ] + CodeMartV1PolicyService::adminView();
+    }
+
+    /**
+     * Persist policy changes (key => value, null restores the default) and
+     * record the changed keys in the activity log.
+     */
+    public function updatePolicy(int $adminId, array $settings): array
+    {
+        $result = CodeMartV1PolicyService::update($settings);
+        if (!$result['ok']) {
+            return $result;
+        }
+
+        CodeMartV1DomainEventService::emit(
+            $adminId,
+            CodeMartV1Constants::RESOURCE_POLICY,
+            0,
+            'admin_policy_updated',
+            null,
+            null,
+            [],
+            null,
+            null,
+            null,
+            ['keys' => array_keys($settings)]
+        );
+
+        return $result;
     }
 
     private static function serializeActivity(CodeMartV1ActivityModel $row, array $actors): array

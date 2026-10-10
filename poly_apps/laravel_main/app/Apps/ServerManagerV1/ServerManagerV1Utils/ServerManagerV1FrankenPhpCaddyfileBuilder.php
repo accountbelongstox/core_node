@@ -35,18 +35,26 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     private const ENV_BINARY_PATH = 'FRANKENPHP_BINARY_PATH';
     private const ENV_DNS01_MODE = 'FRANKENPHP_DNS01_MODE';
     private const ENV_VARIANT = 'FRANKENPHP_VARIANT';
+    /** Windows-only config subdirectory: a dual-boot Debian rewrites the shared storage/frankenphp files. */
+    private const WINDOWS_CONFIG_DIRECTORY = 'windows';
 
     /** Bootstrap probe order for an unrecorded runtime only. */
     private const BINARY_CANDIDATES = ['/usr/local/bin/frankenphp', '/usr/bin/frankenphp'];
 
     /**
      * The contract Caddyfile path (mirrors
-     * laravel_runtime_frankenphp.sh FRANKENPHP_CADDYFILE).
+     * laravel_runtime_frankenphp.sh FRANKENPHP_CADDYFILE and, on Windows,
+     * FrankenPhpManager.ps1 $script:FrankenPhpCaddyfilePath).
      */
     public static function caddyfilePath(): string
     {
-        return PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'storage'
-            .DIRECTORY_SEPARATOR.'frankenphp'.DIRECTORY_SEPARATOR.'Caddyfile';
+        $directory = PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'storage'
+            .DIRECTORY_SEPARATOR.'frankenphp';
+        if (PHP_OS_FAMILY === 'Windows') {
+            $directory .= DIRECTORY_SEPARATOR.self::WINDOWS_CONFIG_DIRECTORY;
+        }
+
+        return $directory.DIRECTORY_SEPARATOR.'Caddyfile';
     }
 
     public static function routesDirectory(): string
