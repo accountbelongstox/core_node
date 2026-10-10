@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
 import { isHttpConnected } from '../../../core/integrations/pycore/PycoreEventClient';
 import {
   AlertTriangle,
@@ -98,7 +97,7 @@ import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/Pyco
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import { PcTerminalLauncherBar } from '@/apps/pycore-manager/components/terminal/PcTerminalLauncherBar';
-import { PcTerminalSentSearch } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
+import { PcTerminalSentSearch, type PcSentSearchHit } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
 import { createNodeTerminalScheduleSync, primaryTerminalScheduleSync } from '@/apps/pycore-manager/persistence/PcNodeScheduleSync';
@@ -596,8 +595,12 @@ function usePcNodeIdentity(nodeUrl: string | null): PcNodeIdentity {
   return identity;
 }
 
-/** searchSlot: the node-tab row element the sent-message search renders into; nodeUrl: the shown node, null is this machine. */
-const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: string | null }> = ({ searchSlot, nodeUrl }) => {
+/** nodeUrl: the shown node, null is this machine; sentPick: a sent message picked in the all-machine search, applied once this node's terminals are loaded. */
+const PcTerminalNodeView: React.FC<{
+  nodeUrl: string | null;
+  sentPick: PcSentSearchHit | null;
+  onSentPickApplied: () => void;
+}> = ({ nodeUrl, sentPick, onSentPickApplied }) => {
   const nodeIdentity = usePcNodeIdentity(nodeUrl);
   const { t, i18n } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
@@ -1648,10 +1651,11 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
     openTerminal(hit.terminal_number);
     setDraftFor(hit.terminal_number, hit.content);
   }, [openTerminal, setDraftFor, terminalExists]);
-  const sentSearchNameFor = useCallback((terminalNumber: number) => {
-    const windowInfo = snapshotRef.current?.windows.find((entry) => entry.terminal_number === terminalNumber);
-    return windowInfo ? terminalName(windowInfo, t('terminal.untitled')) : t('terminal.untitled');
-  }, [t]);
+  useEffect(() => {
+    if (!sentPick || sentPick.node.url !== nodeUrl || !snapshot) return;
+    onSentPickApplied();
+    pickSentMessage(sentPick);
+  }, [nodeUrl, onSentPickApplied, pickSentMessage, sentPick, snapshot]);
 
   // The composer on screen (the enlarged preview's or the side panel's): scrolled into view and focused, caret at the end.
   const focusComposer = useCallback(() => {
@@ -2608,10 +2612,6 @@ const PcTerminalNodeView: React.FC<{ searchSlot: HTMLElement | null; nodeUrl: st
 
   return (
     <PcTerminalNavActionsProvider value={navActions}>
-    {searchSlot && createPortal(
-      <PcTerminalSentSearch nameFor={sentSearchNameFor} formatDate={formatLogDate} onPick={pickSentMessage} />,
-      searchSlot,
-    )}
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-clip">

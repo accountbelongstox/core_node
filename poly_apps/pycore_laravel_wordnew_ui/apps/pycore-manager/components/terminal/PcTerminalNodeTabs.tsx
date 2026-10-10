@@ -47,6 +47,27 @@ function otherNodes(): PycoreEndpoint[] {
   return listPycoreEndpoints().filter((endpoint) => endpoint.kind !== 'relay' && endpoint.url !== targetUrl);
 }
 
+export interface PcSearchNode {
+  /** Backend URL; null is this machine (the selected pycore target). */
+  url: string | null;
+  label: string;
+  os?: string;
+}
+
+/** Every machine ever discovered (online or not, one entry per machine id), this machine first: the sent-message search asks them all. */
+export function listSearchNodes(thisMachineLabel: string): PcSearchNode[] {
+  const target = getPycoreTarget();
+  const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || thisMachineLabel;
+  return [
+    { url: null, label: thisLabel, os: getPycoreProbe(target.url)?.platform },
+    ...uniqueMachines(otherNodes(), target.url, null).map((node) => ({
+      url: node.url,
+      label: node.label,
+      os: getPycoreProbe(node.url)?.platform || node.os,
+    })),
+  ];
+}
+
 /** One tab per machine: a node whose machine id is this machine's or an earlier tab's (127.0.0.1 vs its LAN/tailnet URL) is dropped; the shown node always stays. */
 function uniqueMachines(nodes: PycoreEndpoint[], targetUrl: string, activeUrl: string | null): PycoreEndpoint[] {
   const seen = new Set<string>();

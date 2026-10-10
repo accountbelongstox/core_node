@@ -1,22 +1,31 @@
 /**
- * Search box over every message sent to this node's terminals: each keystroke searches again
- * (debounced, stale answers dropped) and lists the newest matches with their terminal and date.
- * Picking one hands it to the page, which opens that terminal with the message in its composer.
+ * Search box over every message sent to the terminals of every machine ever discovered (this machine
+ * and each other pycore, whichever tab is shown): each keystroke asks all of them in parallel
+ * (debounced, stale answers dropped), merges the newest matches with their machine, terminal and date,
+ * and reports machines that did not answer. Picking one hands it to the page, which switches to that
+ * machine and opens the terminal with the message in its composer.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { TerminalLogSearchHit } from '@/apps/pycore-manager/api';
-import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
+import { pycoreNodeClient, type TerminalLogSearchHit } from '@/apps/pycore-manager/api';
+import { listSearchNodes, type PcSearchNode } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
+import { PcOsIcon, pcOsKind } from '@/apps/pycore-manager/components/terminal/PcOsIcon';
 
 const SEARCH_DEBOUNCE_MS = 200;
+const NODE_SEARCH_TIMEOUT_MS = 5000;
+const MAX_RESULTS = 60;
 const SNIPPET_BEFORE_CHARS = 24;
 const SNIPPET_AFTER_CHARS = 72;
 
+/** A search hit with the machine it was sent on. */
+export interface PcSentSearchHit extends TerminalLogSearchHit {
+  node: PcSearchNode;
+}
+
 interface PcTerminalSentSearchProps {
-  nameFor: (terminalNumber: number) => string;
   formatDate: (value: string) => string;
-  onPick: (hit: TerminalLogSearchHit) => void;
+  onPick: (hit: PcSentSearchHit) => void;
 }
 
 function snippet(content: string, query: string): { before: string; match: string; after: string } {
@@ -32,13 +41,23 @@ function snippet(content: string, query: string): { before: string; match: strin
   };
 }
 
-export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ nameFor, formatDate, onPick }) => {
+function hitTime(hit: TerminalLogSearchHit): number {
+  const time = Date.parse(hit.date);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+/** Newest first across machines, capped. */
+function mergeHits(current: PcSentSearchHit[], incoming: PcSentSearchHit[]): PcSentSearchHit[] {
+  return [...current, ...incoming].sort((left, right) => hitTime(right) - hitTime(left)).slice(0, MAX_RESULTS);
+}
+
+export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ formatDate, onPick }) => {
   const { t } = useTranslation('pc');
-  const terminalApi = usePcTerminalApi();
   const [query, setQuery] = useState('');
-  const [hits, setHits] = useState<TerminalLogSearchHit[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [hits, setHits] = useState<PcSentSearchHit[]>([]);
+  const [pending, setPending] = useState(0);
+  const [unreachable, setUnreachable] = useState<string[]>([]);
+  const [nodeCount, setNodeCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const requestRef = useRef(0);
@@ -47,30 +66,37 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
   useEffect(() => {
     const needle = query.trim();
     const request = ++requestRef.current;
+    setHits([]);
+    setUnreachable([]);
+    setHighlighted(0);
     if (!needle) {
-      setHits([]);
-      setSearching(false);
-      setFailed(false);
+      setPending(0);
       return undefined;
     }
-    setSearching(true);
+    const nodes = listSearchNodes(t('terminal.nodes.thisMachine'));
+    setNodeCount(nodes.length);
+    setPending(nodes.length);
     const timer = window.setTimeout(() => {
-      terminalApi.searchTerminalLogs(needle)
-        .then((result) => {
-          if (request !== requestRef.current) return;
-          setHits(result?.results ?? []);
-          setFailed(!result?.success);
-          setHighlighted(0);
-        })
-        .catch(() => {
-          if (request === requestRef.current) setFailed(true);
-        })
-        .finally(() => {
-          if (request === requestRef.current) setSearching(false);
-        });
+      nodes.forEach((node) => {
+        pycoreNodeClient(node.url).terminal.searchTerminalLogs(needle, NODE_SEARCH_TIMEOUT_MS)
+          .then((result) => {
+            if (request !== requestRef.current) return;
+            if (!result?.success) {
+              setUnreachable((list) => [...list, node.label]);
+              return;
+            }
+            setHits((current) => mergeHits(current, (result.results ?? []).map((hit) => ({ ...hit, node }))));
+          })
+          .catch(() => {
+            if (request === requestRef.current) setUnreachable((list) => [...list, node.label]);
+          })
+          .finally(() => {
+            if (request === requestRef.current) setPending((count) => Math.max(0, count - 1));
+          });
+      });
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [query, terminalApi]);
+  }, [query, t]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -81,7 +107,7 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
-  const pick = useCallback((hit: TerminalLogSearchHit) => {
+  const pick = useCallback((hit: PcSentSearchHit) => {
     setOpen(false);
     onPick(hit);
   }, [onPick]);
@@ -103,6 +129,8 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
   };
 
   const needle = query.trim();
+  const searching = pending > 0;
+  const allFailed = !searching && nodeCount > 0 && unreachable.length >= nodeCount;
   return (
     <div ref={rootRef} className="relative w-full min-w-[7rem] sm:max-w-xs">
       <label className="flex h-7 items-center gap-1.5 rounded-lg border border-slate-500/20 bg-white/60 px-2 text-xs text-slate-700 focus-within:border-indigo-500 dark:bg-slate-900/60 dark:text-slate-200">
@@ -118,6 +146,7 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
           onKeyDown={onKeyDown}
           placeholder={t('terminal.sentSearch.placeholder')}
           aria-label={t('terminal.sentSearch.placeholder')}
+          title={t('terminal.sentSearch.scope')}
           className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-400 [&::-webkit-search-cancel-button]:hidden"
         />
         {query && (
@@ -140,13 +169,13 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
         >
           {hits.length === 0 ? (
             <p className="px-3 py-2 text-xs text-slate-500">
-              {t(searching ? 'terminal.sentSearch.searching' : failed ? 'terminal.sentSearch.failed' : 'terminal.sentSearch.empty')}
+              {t(searching ? 'terminal.sentSearch.searching' : allFailed ? 'terminal.sentSearch.failed' : 'terminal.sentSearch.empty')}
             </p>
           ) : hits.map((hit, index) => {
             const part = snippet(hit.content, needle);
             return (
               <button
-                key={`${hit.terminal_number}-${hit.id}`}
+                key={`${hit.node.url ?? 'primary'}-${hit.terminal_number}-${hit.id}`}
                 type="button"
                 role="option"
                 aria-selected={index === highlighted}
@@ -156,9 +185,13 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
                   index === highlighted ? 'bg-indigo-500/10' : 'hover:bg-slate-500/10'
                 }`}
               >
-                <span className="flex items-center gap-2 text-[10px]">
+                <span className="flex items-center gap-1.5 text-[10px]">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded bg-slate-500/10 px-1 text-slate-600 dark:text-slate-300">
+                    <PcOsIcon os={pcOsKind(hit.node.os)} />
+                    <span className="max-w-[7rem] truncate">{hit.node.label}</span>
+                  </span>
                   <span className="truncate font-semibold text-indigo-600 dark:text-indigo-300">
-                    {t('terminal.sentSearch.target', { number: hit.terminal_number, name: nameFor(hit.terminal_number) })}
+                    {t('terminal.sentSearch.target', { number: hit.terminal_number, name: hit.title || t('terminal.untitled') })}
                   </span>
                   <span className="ml-auto shrink-0 tabular-nums text-slate-400">{formatDate(hit.date)}</span>
                 </span>
@@ -170,6 +203,14 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ name
               </button>
             );
           })}
+          {(searching && hits.length > 0) && (
+            <p className="px-3 py-1 text-[10px] text-slate-400">{t('terminal.sentSearch.searchingMore', { count: pending })}</p>
+          )}
+          {(!allFailed && unreachable.length > 0) && (
+            <p className="px-3 py-1 text-[10px] text-slate-400" title={unreachable.join(', ')}>
+              {t('terminal.sentSearch.unreachable', { count: unreachable.length, names: unreachable.join(', ') })}
+            </p>
+          )}
         </div>
       )}
     </div>
