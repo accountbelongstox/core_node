@@ -102,7 +102,7 @@ $ServiceMode = $false
 $AsServiceChoice = $false
 $IncludeUiChoice = $false
 $CodemartInitDefault = "no"
-$IncludeUiDefault = "no"
+$IncludeUiDefault = "yes"
 $PwshExe = $null
 $ComposerInteractionArgs = @()
 $ArtisanInteractionArgs = @()
@@ -166,12 +166,13 @@ function Get-FrankenPhpRuntimeProfile {
         PhpIniScanDirectory   = Split-Path -Parent (Get-FrankenPhpPhpIniPath)
         DataDirectory         = $script:FrankenPhpDataDirectory
         CaddyConfigDirectory  = $script:FrankenPhpCaddyConfigDirectory
-        IsElevated            = Test-AdminPrivileges
+        WatchDirectives       = Get-FrankenPhpWatchDirectives
+        IsElevated           = Test-AdminPrivileges
     }
 }
 
 # Process environment the FrankenPHP service gets from Ensure-FrankenPhpWindowsService,
-# applied to this process for the foreground runtime (same Caddyfile, no watch directives).
+# applied to this process for the foreground runtime (same Caddyfile and watch directives).
 function Set-FrankenPhpForegroundEnvironment {
     param([Parameter(Mandatory = $true)][hashtable]$Runtime)
     $env:PHP_INI_SCAN_DIR = $Runtime.PhpIniScanDirectory
@@ -181,7 +182,7 @@ function Set-FrankenPhpForegroundEnvironment {
     $env:FRANKENPHP_VARIANT = "windows-native"
     $env:FRANKENPHP_DNS01_MODE = "external"
     $env:CADDY_SERVER_WORKER_DIRECTIVE = ""
-    $env:CADDY_SERVER_WATCH_DIRECTIVES = ""
+    $env:CADDY_SERVER_WATCH_DIRECTIVES = $Runtime.WatchDirectives
 }
 
 # Retired NSSM body (LARAVEL_SERVICE_RUN=1): it used to run `composer dev:win` and free
@@ -859,7 +860,7 @@ try {
             } elseif ($IncludeUiEnv -eq "yes") {
                 $IncludeUiChoice = $true
             } elseif (Test-Path -LiteralPath $UiStartPs1) {
-                $IncludeUiChoice = Read-YesNoDefaultNo "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
+                $IncludeUiChoice = Read-YesNoDefaultYes "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
             } else {
                 $IncludeUiChoice = $false
             }

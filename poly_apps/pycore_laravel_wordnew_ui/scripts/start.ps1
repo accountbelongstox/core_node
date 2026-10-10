@@ -95,7 +95,6 @@ $NssmServiceManagerScript = Join-Path $RepoRoot "scripts\shells\win\win_common\N
 $UiServiceName = "ncore-nexus-dash"
 $UiServiceDisplayName = "Nexus Dash (core_node)"
 $UiServiceDesc = "Nexus Dash frontend (pycore_laravel_wordnew_ui)"
-$ExistingUiService = Get-Service -Name $UiServiceName -ErrorAction SilentlyContinue
 $SelfScript = $PSCommandPath
 $CacheBaseDir = if ($Global:CORE_NODE_CACHE_DIR) { $Global:CORE_NODE_CACHE_DIR } elseif ($env:CORE_NODE_CACHE_DIR) { $env:CORE_NODE_CACHE_DIR } else { 'D:\www\cache' }
 $LogDir = Join-Path $CacheBaseDir 'pycore\logs'
@@ -362,9 +361,9 @@ if (-not $IsServiceRun) {
     } elseif ($AsServiceEnv -eq "yes") {
         $AsServiceChoice = $true
     } elseif ($NonInteractive) {
-        $AsServiceChoice = [bool]$ExistingUiService
+        $AsServiceChoice = $true
     } else {
-        $AsServiceChoice = Read-YesNoDefaultNo "Add the nexus-dash dashboard to a background Windows service (via NSSM)?"
+        $AsServiceChoice = Read-YesNoDefaultYes "Add the nexus-dash dashboard to a background Windows service (via NSSM)?"
     }
 
     if ($AsServiceChoice) {

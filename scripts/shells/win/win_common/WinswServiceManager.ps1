@@ -83,7 +83,7 @@ function Ensure-Winsw {
 # Minimal XML-attribute/text escaping for values interpolated into the generated config.
 function ConvertTo-WinswXmlText {
     param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
-    return $Text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace('"', "&quot;")
+    return $Text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace('"', "&quot;").Replace("`r", "&#13;").Replace("`n", "&#10;")
 }
 
 # Idempotent install-or-update + (re)start of a WinSW-wrapped service. Parameter names
