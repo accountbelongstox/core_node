@@ -218,7 +218,7 @@ public sealed class TemplateMatcherService
     }
 
     /// <summary>
-    /// <see cref="MatchMultiScale(Mat, Mat, IEnumerable{int}, double, string?)"/> with a cached <see cref="ScaledTemplate"/> (no reload or
+    /// Multi-scale match with a cached <see cref="ScaledTemplate"/> (no reload or
     /// resize per call); on a large target the sizes are matched in parallel, the result is the same as the sequential order.
     /// </summary>
     public TemplateMatchResult MatchMultiScale(Mat target, ScaledTemplate template, IEnumerable<int> templateWidthsPx, double threshold = DefaultThreshold, string? templateName = null)
