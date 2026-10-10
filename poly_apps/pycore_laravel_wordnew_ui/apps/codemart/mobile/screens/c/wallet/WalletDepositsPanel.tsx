@@ -6,7 +6,6 @@ import { useCmFormat } from '../../../../components/workspace/cmWorkspaceFormat'
 import { CM_BANK_TRANSFER, CM_DEPOSIT_PENDING, useCmDeposits } from '../../../../shared/useCmWalletActions';
 import {
   MobileButton,
-  MobileCard,
   MobileErrorState,
   MobileField,
   MobileList,
