@@ -91,7 +91,7 @@ public enum D3NavigationOutcome { NoModel, NoWindow, NotFound, Arrived, StepsExh
 /// Walk to a town target (blacksmith, Kanai's cube, stash, waypoint) with the YOLO NPC model: capture D3, detect, click the target
 /// (D3 click-to-move walks there and interacts on arrival), repeat until the target box is large enough (in reach) or steps run out.
 /// </summary>
-public sealed class D3TownNavigator
+public sealed partial class D3TownNavigator
 {
     private const string LogTag = "[TownNav]";
     private const double ArriveHeightRatio = 0.28;
