@@ -218,7 +218,7 @@ const LmDashboardContent: React.FC = () => {
 
   return (
     <div className={`
-      flex w-screen h-dvh overflow-hidden font-sans transition-colors duration-500
+      shell-safe-area flex w-screen h-dvh overflow-hidden font-sans transition-colors duration-500
       ${theme === 'dark' 
         ? 'bg-slate-900 text-slate-200 selection:bg-indigo-500/30 selection:text-indigo-200' 
         : 'bg-slate-50 text-slate-800 selection:bg-indigo-500/20 selection:text-indigo-600'}

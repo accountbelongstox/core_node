@@ -166,3 +166,14 @@ html.dark select:not([multiple]):not([size]) {
 .wf-safe-bottom {
   bottom: calc(1rem + var(--wf-safe-bottom));
 }
+/* App roots in the native shell: keep content clear of the status and navigation bars (0 on the web). */
+.shell-safe-area {
+  padding-top: var(--wf-safe-top);
+  padding-bottom: var(--wf-safe-bottom);
+}
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
