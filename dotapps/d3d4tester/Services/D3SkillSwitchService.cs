@@ -46,6 +46,7 @@ public static class D3SkillSwitchService
         if (D3PlannerService.Build is not { } build || D3PlannerService.Profile is not { } profile) return null;
         if (Interlocked.Exchange(ref _running, 1) == 1) return null;
         D3SkillSwitcher.DebugDir = Path.Combine(ConfigPaths.DebugCaptureDir, DebugSubdir);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             string cacheDir = D3PlannerService.CacheDir;
@@ -61,7 +62,7 @@ public static class D3SkillSwitchService
                 MonitorLog.Info($"{LogTag} {build.Name} / {profile.Name}: {method}");
                 var result = await Task.Run(() => D3SkillSwitcher.Run(profile, build.Class, cacheDir, method,
                     method == SkillSwitchMethod.Plugin ? () => PluginCheck(build.Class, profile) : null, () => false, progress)).ConfigureAwait(false);
-                MonitorLog.Info($"{LogTag} {result.Outcome}: {result.Detail}");
+                MonitorLog.Info($"{LogTag} {result.Outcome}: {result.Detail} (switch {result.Elapsed.TotalSeconds:F1} s)");
                 return result;
             }
             finally
@@ -71,6 +72,7 @@ public static class D3SkillSwitchService
         }
         finally
         {
+            MonitorLog.Info($"{LogTag} total time {watch.Elapsed.TotalSeconds:F1} s");
             Interlocked.Exchange(ref _running, 0);
         }
     }

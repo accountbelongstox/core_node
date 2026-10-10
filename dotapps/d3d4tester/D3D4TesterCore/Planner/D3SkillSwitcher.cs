@@ -1,5 +1,6 @@
 // PY-REF: none (DOT-only)
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.TemplateMatcher;
@@ -21,7 +22,11 @@ public enum SkillSwitchOutcome { Done, Partial, NoGameWindow, LevelTooLow, Actio
 /// <summary>Plugin skills_check answer: hero level (0 = unknown) and per target true / false / null (unknown) for skills (incl. rune) and passives.</summary>
 public sealed record SkillCheckResult(int Level, IReadOnlyList<bool?> Skills, IReadOnlyList<bool?> Passives);
 
-public sealed record SkillSwitchResult(SkillSwitchOutcome Outcome, int SkillsChanged, int PassivesChanged, int Mismatches, string Detail);
+public sealed record SkillSwitchResult(SkillSwitchOutcome Outcome, int SkillsChanged, int PassivesChanged, int Mismatches, string Detail)
+{
+    /// <summary>Run time from the start to the restored window.</summary>
+    public TimeSpan Elapsed { get; init; }
+}
 
 /// <summary>Stage of a reported switch step (the UI names it through i18n).</summary>
 public enum SkillSwitchStage { Start, ExpandWindow, Screen, OpenChooser, PageFlip, PickSkill, Rune, Accept, Passives, PlacePassive, Verify, RestoreWindow, Finish }
@@ -130,6 +135,8 @@ public static class D3SkillSwitcher
     private const string TemplateAccept = "skill_accept";
     private const string TemplateGameMenuReturn = "game_menu_return";
     private const double GameMenuThreshold = 0.88;
+    /// <summary>Extra room (reference client px) around a template's last hit, searched before the whole capture.</summary>
+    private const int HitMarginRefPx = 40;
     private const int Attempts = 3;
     private const int MaxStateSteps = 6;
     private static readonly string[] NoRuneNames = { "无符文", "No Rune" };
@@ -148,36 +155,52 @@ public static class D3SkillSwitcher
     /// </summary>
     private static readonly ConcurrentDictionary<string, (DateTime Stamp, ScaledTemplate? Template)> TemplateCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentBag<ScaledTemplate> RetiredTemplates = new();
+    /// <summary>Where each skill_switch template was last found in this run (image rect around the hit): searched first, the whole capture only when it is not there.</summary>
+    private static readonly ConcurrentDictionary<string, Rect> TemplateHits = new(StringComparer.Ordinal);
+
+    /// <summary>Progress steps are PNG-encoded and handed to the handler one after another off the switch thread (same order, same content).</summary>
+    [ThreadStatic] private static Task? _reportChain;
 
     /// <summary>Report a step with an optional capture (click point circled, scaled down to ReportMaxWidth).</summary>
     private static void Report(SkillSwitchStage stage, bool? ok, string detail, Shot? shot = null, (int X, int Y)? mark = null)
     {
         if (_progress is not { } progress) return;
-        byte[]? png = null;
+        var time = DateTime.Now;
+        Mat? small = null;
         if (shot != null && !shot.Image.IsDisposed)
         {
             using var copy = shot.Image.Clone();
             if (mark is { } m) copy.Circle(new Point(m.X, m.Y), MarkRadius, Scalar.Red, 2);
             double k = Math.Min(1.0, ReportMaxWidth / (double)copy.Cols);
-            using var small = k < 1.0 ? copy.Resize(new OpenCvSharp.Size(), k, k, InterpolationFlags.Area) : copy.Clone();
-            png = small.ImEncode(PngExtension);
+            small = k < 1.0 ? copy.Resize(new OpenCvSharp.Size(), k, k, InterpolationFlags.Area) : copy.Clone();
         }
-        try { progress(new SkillSwitchStep(DateTime.Now, stage, ok, detail, png)); }
-        catch (Exception ex) { ColorPrinter.Yellow($"{LogTag} progress handler: {ex.Message}"); }
+        _reportChain = (_reportChain ?? Task.CompletedTask).ContinueWith(_ =>
+        {
+            try
+            {
+                byte[]? png = null;
+                if (small != null)
+                    using (small) png = small.ImEncode(PngExtension);
+                progress(new SkillSwitchStep(time, stage, ok, detail, png));
+            }
+            catch (Exception ex) { ColorPrinter.Yellow($"{LogTag} progress handler: {ex.Message}"); }
+        }, TaskScheduler.Default);
     }
 
     public static SkillSwitchResult Run(PlannerProfile profile, string cls, string cacheDir, SkillSwitchMethod method,
         Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop, Action<SkillSwitchStep>? progress = null)
     {
+        var watch = Stopwatch.StartNew();
         _progress = progress;
         _plannedSkillKeys = profile.Skills.Select(s => s.Id).Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.Ordinal).ToArray();
         var hwnd = D3WindowFinder.FindWindows().FirstOrDefault()?.Hwnd ?? IntPtr.Zero;
         var restore = Expand(hwnd);
+        SkillSwitchResult result;
         try
         {
             Report(SkillSwitchStage.Start, null, $"{method}: " + string.Join(", ", profile.Skills.Select(s => $"{s.SlotIndex}:{s.NameZh}/{s.RuneNameZh}"))
                 + " | " + string.Join(", ", profile.Passives.Select(p => p.NameZh)));
-            return RunCore(profile, cls, cacheDir, method, pluginCheck, shouldStop);
+            result = RunCore(profile, cls, cacheDir, method, pluginCheck, shouldStop);
         }
         finally
         {
@@ -187,10 +210,16 @@ public static class D3SkillSwitcher
                 Thread.Sleep(AfterResizeMs);
                 Report(SkillSwitchStage.RestoreWindow, true, $"{bounds.Width}x{bounds.Height} at ({bounds.Left},{bounds.Top})");
             }
+            ColorPrinter.Blue($"{LogTag} total time {watch.Elapsed.TotalSeconds:F1} s");
+            Report(SkillSwitchStage.Finish, null, $"total time {watch.Elapsed.TotalSeconds:F1} s");
+            try { _reportChain?.Wait(); }
+            catch (AggregateException ex) { ColorPrinter.Yellow($"{LogTag} progress handler: {ex.InnerException?.Message}"); }
+            _reportChain = null;
             _progress = null;
             _plannedSkillKeys = null;
             ClearTemplates();
         }
+        return result with { Elapsed = watch.Elapsed };
     }
 
     /// <summary>Enlarge a D3 client below ExpandClientHeight towards ExpandClientWidth x ExpandClientHeight inside its monitor's work area; the old bounds, or null.</summary>
@@ -734,7 +763,10 @@ public static class D3SkillSwitcher
     {
         if (method == SkillSwitchMethod.Plugin && pluginCheck?.Invoke() is { } after)
             return after.Skills.Count(s => s == false) + after.Passives.Count(p => p == false);
-        int skillMismatches = Enumerable.Range(0, SlotCount).Count(slot => skills[slot] is { } s && !SlotShows(slot, s.Id, cls, cacheDir));
+        var offSlots = Enumerable.Range(0, SlotCount).Where(slot => skills[slot] is { } s && !SlotShows(slot, s.Id, cls, cacheDir)).ToList();
+        if (offSlots.Count > 0)
+            ColorPrinter.Yellow($"{LogTag} pane slots not showing the planned skill: {string.Join(", ", offSlots.Select(slot => $"{slot} {skills[slot]!.Id}"))}");
+        int skillMismatches = offSlots.Count;
         if (passives.Count == 0 || Capture() is not { } shot) return skillMismatches;
         using (shot.Image)
         {
@@ -905,8 +937,21 @@ public static class D3SkillSwitcher
         if (Template(Path.Combine(D3TemplatePaths.GetTemplateDir(), TemplateDir, name + D3TemplatePaths.TemplateExtension)) is not { } template) return null;
         var widths = Enumerable.Range(0, TemplateScaleSteps)
             .Select(i => (int)Math.Round(template.Cols * shot.Scale * (TemplateScaleMin + i * TemplateScaleStep))).ToList();
-        var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(shot.Image, template, widths, threshold, name);
-        return m.Success ? m : null;
+        var matcher = TemplateMatcherService.GetTemplateMatcher();
+        var image = new Rect(0, 0, shot.Image.Cols, shot.Image.Rows);
+        // the dialogs do not move during a run: look where this template was last found first (all sizes), the whole capture only when it is not there
+        if (TemplateHits.TryGetValue(name, out var last) && last.Intersect(image) is { Width: > 0, Height: > 0 } near)
+        {
+            using var area = new Mat(shot.Image, near);
+            var n = matcher.MatchMultiScale(area, template, widths, threshold, name);
+            if (n.Success)
+                return n with { X = n.X + near.X, Y = n.Y + near.Y, Center = n.Center is { } c ? new Point2f(c.X + near.X, c.Y + near.Y) : null };
+        }
+        var m = matcher.MatchMultiScale(shot.Image, template, widths, threshold, name);
+        if (!m.Success) return null;
+        int margin = Math.Max(m.Width, m.Height) + shot.Px(HitMarginRefPx);
+        TemplateHits[name] = new Rect(m.X - margin, m.Y - margin, m.Width + margin * 2, m.Height + margin * 2);
+        return m;
     }
 
     private static IEnumerable<string> SkillKeys(string cls, string cacheDir) => IconKeys(Path.GetDirectoryName(D3SkillIcons.SkillIconPath(cacheDir, cls, "_"))!);
@@ -960,6 +1005,7 @@ public static class D3SkillSwitcher
         foreach (var entry in TemplateCache.Values) entry.Template?.Dispose();
         TemplateCache.Clear();
         while (RetiredTemplates.TryTake(out var retired)) retired.Dispose();
+        TemplateHits.Clear();
     }
 
     /// <summary>Square icon crop of the game screen around a point (LearnIconRefPx reference px), for learning game art.</summary>
