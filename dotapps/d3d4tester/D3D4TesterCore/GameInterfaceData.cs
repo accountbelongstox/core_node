@@ -30,7 +30,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private bool _rosbotHasMainUi = false;
     private string _rosbotExtendedStatus = "not_found";
     private bool _rosbotRunning;
-    private bool _rosbotDisconnectedFromLog;
     private bool _rosbotFlowMasterEnabled;
     private bool _rosbotFlowPaused;
     private RosbotBridgeState? _rosbotBridge;
@@ -167,7 +166,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 RosbotHasMainUi = _rosbotHasMainUi,
                 RosbotExtendedStatus = _rosbotExtendedStatus,
                 RosbotRunning = _rosbotRunning,
-                RosbotDisconnectedFromLog = _rosbotDisconnectedFromLog,
                 RosbotFlowMasterEnabled = _rosbotFlowMasterEnabled,
                 RosbotFlowPaused = _rosbotFlowPaused,
                 RosbotBridge = _rosbotBridge,
@@ -267,30 +265,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 _rosbotRunning = running;
                 ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotStatus(running={running}).");
             }
-        }
-    }
-
-    /// <summary>Set ROSBOT disconnected-from-log flag. 1:1 Python set_rosbot_disconnected_from_log.</summary>
-    public void SetRosbotDisconnectedFromLog(bool disconnected)
-    {
-        lock (_lock)
-        {
-            if (_rosbotDisconnectedFromLog != disconnected)
-            {
-                _rosbotDisconnectedFromLog = disconnected;
-                ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotDisconnectedFromLog({disconnected}).");
-            }
-        }
-    }
-
-    /// <summary>Read and clear the disconnected-from-log flag (flow master consumes it once). 1:1 Python get_and_clear_rosbot_disconnected_from_log.</summary>
-    public bool GetAndClearRosbotDisconnectedFromLog()
-    {
-        lock (_lock)
-        {
-            bool v = _rosbotDisconnectedFromLog;
-            _rosbotDisconnectedFromLog = false;
-            return v;
         }
     }
 

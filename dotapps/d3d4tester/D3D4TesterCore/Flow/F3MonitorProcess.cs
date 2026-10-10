@@ -25,10 +25,9 @@ public sealed record F3Outcome(F3Exit Exit, string ReasonId = "", string Detail 
 
 /// <summary>
 /// [F3] D3 and ROSBOT run: one loop until something needs the flow again. Each poll: queued restart request, ROSBOT-only restart
-/// request, log session timeout, D3 gone, ROSBOT log timeout (F3LogTimeout), ROSBOT offline grace. ROSBOT's "WARN - Disconnected" is
-/// an exception in its own server check that ROSBOT handles while it keeps botting: the log analyzer only prints it (restarting ROSBOT
-/// mid-run made it leave the game). A session timeout with D3 fine restarts ROSBOT only (D3 kept); a full D3 + ROSBOT restart needs D3
-/// itself disconnected. D3 + ROSBOT refresh silently every
+/// request, D3 gone, ROSBOT log timeout (F3LogTimeout), ROSBOT offline grace. A real disconnect is ROSBOT writing no log until the
+/// timeout; what a log line says (ROSBOT's own "WARN - Disconnected", stack traces) never restarts anything: ROSBOT handles those
+/// itself, and restarting it mid-run made it leave the game. D3 + ROSBOT refresh silently every
 /// <see cref="FlowTimings.MonitorRefreshSec"/>; the status line is gray-refreshed in place.
 /// </summary>
 public static class F3MonitorProcess
@@ -46,9 +45,8 @@ public static class F3MonitorProcess
         DateTime nextRefresh = DateTime.MinValue;
         DateTime? rosbotGoneSince = null;
         Interlocked.Exchange(ref _rosbotRestartRequested, 0);
-        game.GetAndClearRosbotDisconnectedFromLog();
         F3LogTimeout.SetRosbotStartedAt();
-        ColorPrinter.Blue($"{LogTag} D3 + ROSBOT running -> monitor (log timeout, disconnect, restart requests)");
+        ColorPrinter.Blue($"{LogTag} D3 + ROSBOT running -> monitor (log timeout, restart requests)");
         while (true)
         {
             ctx.ThrowIfStopped();
@@ -68,13 +66,6 @@ public static class F3MonitorProcess
                 nextRefresh = now.AddSeconds(FlowTimings.MonitorRefreshSec);
                 RefreshSilently();
             }
-            if (game.GetAndClearRosbotDisconnectedFromLog())
-            {
-                if (!D3ShowsFine())
-                    return new F3Outcome(F3Exit.Restart, RosbotRestartRequest.ReasonLogDisconnect, CountRestart: true);
-                ColorPrinter.Yellow($"{LogTag} ROSBOT logged a session timeout but D3 is fine -> restart ROSBOT only");
-                return new F3Outcome(F3Exit.RosbotRestart, RosbotRestartRequest.ReasonLogDisconnect);
-            }
             var s = game.GetStateSnapshot();
             if (!s.D3Running)
                 return new F3Outcome(F3Exit.D3Gone);
@@ -90,11 +81,6 @@ public static class F3MonitorProcess
             ctx.Wait(FlowTimings.MonitorPollSec);
         }
     }
-
-    /// <summary>D3 runs and its screen is not the disconnected screen (C3 templates on a fresh capture).</summary>
-    public static bool D3ShowsFine() =>
-        GameInterfaceData.Instance.GetStateSnapshot().D3Running
-        && D3ScreenState.DetectD3AlreadyRunningState() != D3ScreenState.StateDisconnect;
 
     private static void RefreshSilently()
     {
