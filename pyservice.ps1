@@ -203,8 +203,12 @@ $workerExitCode = $null
 $workerHandoffExitCode = 3
 $uiResponse = $null
 $powerShellPath = $null
-$uiStartPath = $null
+$uiDir = Join-Path $PSScriptRoot 'poly_apps\pycore_laravel_wordnew_ui'
+$uiStartPath = Join-Path (Join-Path $uiDir 'scripts') 'start.ps1'
 $uiStartArguments = @()
+$uiServiceArguments = @()
+$uiServiceReady = $false
+$uiForegroundEnvironment = @{ AS_SERVICE = 'no' }
 $helpRequested = $false
 $pycoreServiceName = 'pycore'
 $pycoreLoginTaskName = 'PyCore_RPC_Server'
@@ -595,6 +599,15 @@ function Invoke-PycoreLoginTaskControl {
     return 0
 }
 
+# Dashboard frontend service (port $UiPort, Vite dev server with hot reload), idempotent through
+# the UI start.ps1 -Service: listening = no-op; stuck/stopped = port reserved + restart; absent = register.
+function Invoke-PycoreUiService {
+    $uiServiceArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $uiStartPath, '-Service', '-NoBackend', '-NonInteractive', '-Port', "$UiPort")
+    if ($UiBuild) { $uiServiceArguments = @($uiServiceArguments; '-Dist') }
+    & (Get-Process -Id $PID).Path @uiServiceArguments | Out-Host
+    return ($LASTEXITCODE -eq 0)
+}
+
 function Show-PycoreServiceStatus {
     $task = Get-ScheduledTask -TaskName $pycoreLoginTaskName -ErrorAction SilentlyContinue
     $taskInfo = $null
@@ -652,6 +665,10 @@ function Install-PycoreService {
         Write-Host ("[!] Logon task {0} registration failed." -f $pycoreLoginTaskName) -ForegroundColor Red
         return 1
     }
+    if (-not (Invoke-PycoreUiService)) {
+        Write-Host ("[!] Dashboard frontend service is not listening on port {0}." -f $UiPort) -ForegroundColor Red
+        return 1
+    }
     return [int](@(Invoke-PycoreLoginTaskControl -Action 'start')[-1])
 }
 
@@ -686,6 +703,10 @@ function Invoke-PycoreServiceControl {
             Write-Host ("[!] Logon task {0} is not registered. Register it with: .\pyservice.ps1 install" -f $pycoreLoginTaskName) -ForegroundColor Red
             return 1
         }
+    }
+    if (-not (Invoke-PycoreUiService)) {
+        Write-Host ("[!] Dashboard frontend service is not listening on port {0}." -f $UiPort) -ForegroundColor Red
+        return 1
     }
     return [int](@(Invoke-PycoreLoginTaskControl -Action $Action)[-1])
 }
@@ -861,18 +882,23 @@ try {
     # own dev server (pnpm); PySide6 loads it via PYCORE_UI_URL, which we export
     # here (pointing at the pycore-manager end) so the worker child inherits it.
     if (-not $NoUi -and $ServiceMode -eq '1') {
-        $uiDir = Join-Path $PSScriptRoot 'poly_apps\pycore_laravel_wordnew_ui'
-        $uiStartPath = Join-Path (Join-Path $uiDir 'scripts') 'start.ps1'
         $env:PORT = "$UiPort"
         $env:PYCORE_UI_PORT = "$UiPort"
         $env:PYCORE_API_BASE = "http://localhost:$Port"
         $env:PYCORE_UI_URL = "http://localhost:$UiPort/pycore-manager"
         $powerShellPath = (Get-Process -Id $PID).Path
-        $uiStartArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $uiStartPath, '-NoBackend', '-NonInteractive', '-Port', "$UiPort")
-        if ($UiBuild) { $uiStartArguments = @($uiStartArguments; '-Dist') }
-        Write-Host ("[..] Starting dashboard through {0} ..." -f $uiStartPath) -ForegroundColor Yellow
-        $uiProc = Start-Process -FilePath $powerShellPath -ArgumentList $uiStartArguments -WorkingDirectory $uiDir -WindowStyle Hidden -PassThru
-        Write-Host ("[i] Dashboard start dispatched asynchronously: {0}" -f $env:PYCORE_UI_URL) -ForegroundColor DarkGray
+        Write-Host ("[..] Ensuring the dashboard service through {0} -Service ..." -f $uiStartPath) -ForegroundColor Yellow
+        $uiServiceReady = Invoke-PycoreUiService
+        if ($uiServiceReady) {
+            Write-Host ("[OK] Dashboard service serves {0}" -f $env:PYCORE_UI_URL) -ForegroundColor Green
+        } else {
+            # No service (not elevated, or it failed): serve the dashboard from this session instead.
+            $uiStartArguments = @('-NoBackend', '-NonInteractive', '-Port', "$UiPort")
+            if ($UiBuild) { $uiStartArguments = @($uiStartArguments; '-Dist') }
+            $uiProc = Start-ChildScriptWithEnv -PwshExePath $powerShellPath -ScriptPath $uiStartPath -ScriptArgs $uiStartArguments `
+                -WorkingDirectory $uiDir -EnvironmentVars $uiForegroundEnvironment -Hidden
+            Write-Host ("[i] Dashboard service unavailable; foreground dashboard dispatched: {0}" -f $env:PYCORE_UI_URL) -ForegroundColor DarkYellow
+        }
     } elseif ($ServiceMode -eq '2') {
         Write-Host '[i] Relay UI intermediary mode: local dashboard launch is disabled.' -ForegroundColor DarkYellow
     } else {

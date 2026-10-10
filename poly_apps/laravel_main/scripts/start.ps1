@@ -76,7 +76,6 @@ $ArtisanServePattern = 'artisan\s+serve\b'
 $ArtisanWorkerLanePattern = 'artisan\s+(queue:listen|reverb:start|schedule:work)\b'
 $portConns = $null
 $portWaited = 0
-$testListener = $null
 $PgWinExportSql = $null
 $PgWinExportStale = $false
 $PgWinExportBinDir = $null
@@ -102,7 +101,7 @@ $ServiceMode = $false
 $AsServiceChoice = $false
 $IncludeUiChoice = $false
 $CodemartInitDefault = "no"
-$IncludeUiDefault = "no"
+$IncludeUiDefault = "yes"
 $PwshExe = $null
 $ComposerInteractionArgs = @()
 $ArtisanInteractionArgs = @()
@@ -166,12 +165,13 @@ function Get-FrankenPhpRuntimeProfile {
         PhpIniScanDirectory   = Split-Path -Parent (Get-FrankenPhpPhpIniPath)
         DataDirectory         = $script:FrankenPhpDataDirectory
         CaddyConfigDirectory  = $script:FrankenPhpCaddyConfigDirectory
-        IsElevated            = Test-AdminPrivileges
+        WatchDirectives       = Get-FrankenPhpWatchDirectives
+        IsElevated           = Test-AdminPrivileges
     }
 }
 
 # Process environment the FrankenPHP service gets from Ensure-FrankenPhpWindowsService,
-# applied to this process for the foreground runtime (same Caddyfile, no watch directives).
+# applied to this process for the foreground runtime (same Caddyfile and watch directives).
 function Set-FrankenPhpForegroundEnvironment {
     param([Parameter(Mandatory = $true)][hashtable]$Runtime)
     $env:PHP_INI_SCAN_DIR = $Runtime.PhpIniScanDirectory
@@ -181,7 +181,7 @@ function Set-FrankenPhpForegroundEnvironment {
     $env:FRANKENPHP_VARIANT = "windows-native"
     $env:FRANKENPHP_DNS01_MODE = "external"
     $env:CADDY_SERVER_WORKER_DIRECTIVE = ""
-    $env:CADDY_SERVER_WATCH_DIRECTIVES = ""
+    $env:CADDY_SERVER_WATCH_DIRECTIVES = $Runtime.WatchDirectives
 }
 
 # Retired NSSM body (LARAVEL_SERVICE_RUN=1): it used to run `composer dev:win` and free
@@ -795,32 +795,9 @@ try {
         Write-Host "  No previous session found on port $Port." -ForegroundColor DarkGray
     }
 
-    # (3) If port is still not bindable despite no listener, it is in the Windows
-    #     dynamic port range (Hyper-V/WSL2). Attempt netsh excludedportrange to
-    #     reserve it for application use (removes it from the dynamic range).
+    # (3) Keep the port out of the winnat dynamic blocks (Hyper-V/WSL2) with a persistent reservation.
     if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
-        try {
-            $testListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
-            $testListener.Start()
-            $testListener.Stop()
-            $testListener = $null
-        } catch {
-            $testListener = $null
-            Write-Host "  Port $Port blocked by Windows dynamic range (Hyper-V/WSL2). Attempting netsh reserve (needs admin)..." -ForegroundColor Yellow
-            netsh int ipv4 add excludedportrange protocol=tcp startport=$Port numberofports=1 2>&1 | Out-Null
-            try {
-                $testListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
-                $testListener.Start()
-                $testListener.Stop()
-                $testListener = $null
-                Write-Host "  Port $Port reserved and available." -ForegroundColor Green
-            } catch {
-                $testListener = $null
-                Write-Host "  *** Port $Port still blocked. Run once in an admin terminal, then re-run start.ps1:" -ForegroundColor Red
-                Write-Host "  ***   netsh int ipv4 add excludedportrange protocol=tcp startport=$Port numberofports=1" -ForegroundColor Red
-                Write-Host "  ***   OR: net stop winnat; net start winnat" -ForegroundColor Red
-            }
-        }
+        $null = Ensure-TcpPortReserved -Port $Port
     }
     Write-Host ""
 
@@ -859,7 +836,7 @@ try {
             } elseif ($IncludeUiEnv -eq "yes") {
                 $IncludeUiChoice = $true
             } elseif (Test-Path -LiteralPath $UiStartPs1) {
-                $IncludeUiChoice = Read-YesNoDefaultNo "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
+                $IncludeUiChoice = Read-YesNoDefaultYes "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
             } else {
                 $IncludeUiChoice = $false
             }
