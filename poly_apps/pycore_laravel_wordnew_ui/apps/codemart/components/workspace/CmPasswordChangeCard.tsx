@@ -3,7 +3,7 @@ import { KeyRound } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { cmAuthApi } from '../../auth/CmAuthApi';
 import { CmPasswordInput } from '../../auth/CmPasswordInput';
-import { CM_PASSWORD_MIN_LENGTH } from '../../api/cmPolicyDefaults';
+import { useCmPasswordMinLength } from '../../contexts/useCmPolicy';
 import { CmNotice, useCmNotice } from './CmStateViews';
 
 const HTTP_VALIDATION_STATUS = 422;
@@ -12,14 +12,15 @@ const HTTP_VALIDATION_STATUS = 422;
 export const CmPasswordChangeCard: React.FC = () => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
+  const passwordMin = useCmPasswordMinLength();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const tooShort = next !== '' && next.length < CM_PASSWORD_MIN_LENGTH;
+  const tooShort = next !== '' && next.length < passwordMin;
   const mismatch = confirm !== '' && confirm !== next;
-  const invalid = !current || next.length < CM_PASSWORD_MIN_LENGTH || confirm !== next;
+  const invalid = !current || next.length < passwordMin || confirm !== next;
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -51,7 +52,7 @@ export const CmPasswordChangeCard: React.FC = () => {
         <label className="cm-stacked-field">
           <span>{t('settings.password.next')}</span>
           <CmPasswordInput value={next} onChange={(event) => setNext(event.target.value)} autoComplete="new-password" aria-invalid={tooShort} />
-          {tooShort && <small className="cm-field-error">{t('publicAuth.errors.passwordLength', { min: CM_PASSWORD_MIN_LENGTH })}</small>}
+          {tooShort && <small className="cm-field-error">{t('publicAuth.errors.passwordLength', { min: passwordMin })}</small>}
         </label>
         <label className="cm-stacked-field">
           <span>{t('settings.password.confirm')}</span>
