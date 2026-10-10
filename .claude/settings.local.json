@@ -412,7 +412,8 @@
       "PowerShell($p = Resolve-Path \"scripts\\\\shells\\\\win\\\\win_common\\\\DiskReadinessCommon.ps1\"; $e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile\\($p, [ref]$null, [ref]$e\\); \"errors: {0}\" -f $e.Count; $e | ForEach-Object { $_.Message })",
       "PowerShell(Select-String *)",
       "Bash(S=\"E:/_win10_dev/work/claude/D--programing-core-node/536e95c4-05aa-4b8d-ae96-c93099e31f50/scratchpad\"; cd \"$S/drive\"; rm -f *.png; dotnet run -v q -- \"$S/drive\" \"D:/programing/core_node/dotapps/d3d4tester/PlannerData\" front snap back 2>&1 | grep -v \"warning\\\\|^+\" | tail -1)",
-      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' run9.log)"
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' run9.log)",
+      "PowerShell(cmd /c 'dd.cmd gitsync -m \"resolve merge conflict\"' 2>&1 | Select-Object -Last 15; git status -sb | Select-Object -First 3)"
     ],
     "deny": [],
     "ask": []
