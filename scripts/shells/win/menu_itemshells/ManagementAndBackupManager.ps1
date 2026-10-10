@@ -21,6 +21,7 @@ $script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "Use
 $script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
 $script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager.ps1"
 $script:DISK_OPTIMIZE_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskOptimizeManager.ps1"
+$script:NTFS_LINUX_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "NtfsLinuxRepairManager.ps1"
 $script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
 $script:FILE_RECOVERY_SCRIPT = Join-Path $script:PS_CURRENT_DIR "FileRecoveryManager.ps1"
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
@@ -134,6 +135,7 @@ function Show-SystemToolsMenu {
             } },
         @{ Text = "Repair disk (chkdsk /f)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT } },
         @{ Text = "Disk optimize (defrag HDD / TRIM SSD)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:DISK_OPTIMIZE_SCRIPT } },
+        @{ Text = "NTFS repair after Linux (lost space / TxF / shrink)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:NTFS_LINUX_REPAIR_SCRIPT } },
         @{ Text = "File recovery (winfr / DMDE)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:FILE_RECOVERY_SCRIPT } },
         @{ Text = "Repair Chrome crash (PUP + compat shim / 0xC0000409)"; Action = { Invoke-ChromeRepair } },
         @{ Text = "Linux dual boot readiness (Fast Startup)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT } },

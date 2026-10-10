@@ -17,8 +17,6 @@ public interface IStatusBarDisplay
     string MapBrushKey { get; }
     string StageText { get; }
     string StageBrushKey { get; }
-    string OauthText { get; }
-    string OauthBrushKey { get; }
     string WindowSizeText { get; }
     string WindowSizeBrushKey { get; }
     string TestModeText { get; }

@@ -29,7 +29,7 @@
 - [x] 卡奈升级 — `Kanai/KanaiFlow.RunUpgradeFlow`
 - [x] 卡奈转换 + 材料 — 在玩家打开的转换页：遗忘之魂=按分解保留规则的传奇、萃取水晶=稀有、奥术之尘=魔法，逐件右键/填充/转化/翻页 — `KanaiRecipeHelper.RunConvert`
 - [x] 丢弃装备 — 鼠标在背包内按辅助热键：按分解保留规则逐格悬停判定后拿起并丢到窗口中心 — `Core/Assistant/DropEquipment`
-- [x] 自动确保战网正常（DOT） — `Services/BattlenetGuardService`
+- [x] 自动确保战网正常（DOT） — 仅战网管理 TAB `ChkEnsureNormal` → `Services/BattlenetGuardService`
 - [x] 战网状态以右上角头像为准（Offline = 头像离线异常；Online/Away/Busy/Appear Offline = 正常）；只有头像菜单里的 BattleTag 文本与菜单名一致时才采信，BattleTag 显示在状态栏 — `BattlenetOperationBase.ReadAccountPresence`
 - [x] 广告/欢迎弹窗（`*-modal` + Close）自动识别并关闭 — `BattlenetPopupDismiss.TryCloseModal`
 - [x] D3/D4 页签与游戏页按钮状态识别（开始游戏 / 更新 / 未安装 / 免费试玩·购买 / 启动中），按选中页签或按钮里的游戏名归属，状态栏 D3、D4 两个徽章各带状态图标；每个游戏记住最后看到的状态 — `BattlenetOperationBase.DetectGameUi`、`GameInterfaceData.MergeGameUi`
@@ -53,11 +53,11 @@
 - [x] 日志超时重启 + 分钟数 — `F3LogTimeout.GetTimeoutConfig`
 - [x] 总重启次数 [R#] — `RosbotTaskProcessor.ProcessEveryTick`
 - [x] 启动/停止 ROSBOT（总流程） — `RosbotTaskProcessor.RequestStartFlow/RequestStopFlow`
-- [x] 确保战网 — 写 `battlenet.ensure_normal` → `BattlenetGuardService`
+- [x] 确保战网 — 仅战网管理 TAB（监控页按钮已移除），写 `battlenet.ensure_normal` → `BattlenetGuardService`
 - [x] 更新 ROSBOT — `Windows/RosbotUpdateInfoWindow.RunInteractiveUpdateAsync`
-- [x] 打开油猴脚本 — `RosbotPage.BtnOpenTampermonkey_Click`（网页登录已改为 UI 自动化，不再依赖油猴）
-- [x] 账号密码对话框（按区服） — `Windows/CredentialsDialog`
-- [x] 流程触发的凭据对话框 — `RosbotFlowController.SetShowCredentialsDialogAndWait`
+- [-] 打开油猴脚本 — 已删除；网页登录由 `BrowserLoginAutomation`（UI 自动化）完成
+- [x] 账号密码（按区服） — 仅战网管理 TAB「区服与账号」（`BattlenetAccountService`），无单独对话框
+- [x] 流程缺少凭据 — 切到战网管理 TAB「区服与账号」（`RosbotFlowController.SetCredentialsPromptPresenter`）
 - [x] ROSBOT 日志视图 / 最后日志时间 / 打开 logs.txt / 复制 — `RosbotPage`
 - [x] 日志分析：地图/阶段/掉线/启停 — `RosbotLogAnalyzer`
 - [x] 暂停/恢复测试 — 日志页按钮，1:1 Python `do_rosbot_test_pause_resume` — `Services/RosbotPauseResumeTestService`
@@ -102,7 +102,7 @@
 - [x] 系统资源（系统/本程序/战网/D3/D4/ROSBOT 的 CPU/内存/显存/GPU，可见时每秒） — `Components/ResourceMonitorBlock`、dotcore `SystemResourceSampler`
 
 ## 7. 状态栏
-- [x] 当前配置、战网（细分客户端状态 + 区服）、ROS、D3、地图、阶段、油猴、窗口尺寸、测试模式 — `StatusBar/D3StatusBarDisplayBuilder`
+- [x] 当前配置、战网（细分客户端状态 + 区服）、ROS、D3、地图、阶段、窗口尺寸、测试模式 — `StatusBar/D3StatusBarDisplayBuilder`
 - [x] 路径芯片 + ROS 版本、一键扫描（启动/区服变化/路径不符自动触发，5 秒节流） — `MainWindow`
 - [x] 扫描结果弹窗（全部未找到时列出缺失项；扫描异常弹错误框） — `MainWindow.ShowScanNothingFound`
 

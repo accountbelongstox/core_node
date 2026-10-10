@@ -27,7 +27,7 @@ public static class BattlenetConstants
     public const string CnBrowserConfirmWindowClassName = "Phoenix::LoginPopupWindow";
     public static readonly string[] CnBrowserLoginWindowTitleKeywords = { "战网登录", "战网", "Loading", "Login", "网易账号登录" };
 
-    // ---------- Web login automation (B11, BrowserLoginAutomation; replaces OCR clicks + Tampermonkey callback) ----------
+    // ---------- Web login automation (B11, BrowserLoginAutomation) ----------
     /// <summary>Page text after a successful web login.</summary>
     public static readonly string[] BrowserLoginSuccessKeywords = { "现在可以返回战网游戏或应用程序", "现在可以返回战网", "return to Battle.net" };
     /// <summary>EULA checkbox label.</summary>

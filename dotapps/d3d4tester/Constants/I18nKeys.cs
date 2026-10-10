@@ -76,11 +76,7 @@ public static partial class I18nKeys
     /// <summary>1:1 Python rosbot.log_file_not_found (body text when script/log file missing).</summary>
     public const string RosbotLogFileNotFound = "ui.rosbot.log_file_not_found";
 
-    /// <summary>Credentials dialog. 1:1 Python credentials.*</summary>
-    public const string CredentialsTitle = "ui.credentials.title";
-    public const string CredentialsRegionType = "ui.credentials.region_type";
-    public const string CredentialsRegionAsia = "ui.credentials.region_asia";
-    public const string CredentialsRegionCn = "ui.credentials.region_cn";
+    /// <summary>Account field labels (Battle.net tab). 1:1 Python credentials.*</summary>
     public const string CredentialsAccount = "ui.credentials.account";
     public const string CredentialsPassword = "ui.credentials.password";
 
