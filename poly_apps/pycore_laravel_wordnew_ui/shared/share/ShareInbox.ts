@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from 'react';
 import { registerLocalDataGroup } from '../../core/persistence/LocalDataRegistry';
 import { deviceKvGet, deviceKvSet } from '../persistence/DeviceKvCache';
-import { capShareReceiver, shareReceiverSupported, type SharedBatch, type SharedItem } from './CapShareReceiver';
+import { capShareReceiver, shareReceiverSupported, type ShareTarget, type SharedBatch, type SharedItem } from './CapShareReceiver';
 
 export const SHARE_INBOX_KV_KEY = 'share.inbox.v1';
 
@@ -22,14 +22,6 @@ export interface ShareInboxState {
   entries: readonly ShareInboxEntry[];
   pickerOpen: boolean;
 }
-
-export interface ShareTarget {
-  id: string;
-  label: string;
-}
-
-type TargetedBatch = SharedBatch & { targetId?: string };
-type TargetPublisher = (targets: ShareTarget[]) => Promise<unknown>;
 
 let state: ShareInboxState = { entries: [], pickerOpen: false };
 let started = false;
@@ -58,7 +50,7 @@ function commit(next: Partial<ShareInboxState>, save = true): void {
 function entriesOfBatches(batches: SharedBatch[], known: ReadonlyMap<string, ShareInboxEntry>): ShareInboxEntry[] {
   return batches.flatMap((batch) => batch.items.map((item): ShareInboxEntry => {
     const previous = known.get(item.id);
-    const targetId = (batch as TargetedBatch).targetId ?? previous?.targetId;
+    const targetId = batch.targetId ?? previous?.targetId;
     return { item, batchId: batch.batchId, ...(targetId ? { targetId } : {}), prompted: previous?.prompted ?? false };
   }));
 }
@@ -125,12 +117,9 @@ export async function clearShareInbox(): Promise<void> {
   await deviceKvSet(SHARE_INBOX_KV_KEY, null);
 }
 
-/** Publishes sharing shortcuts (Direct Share targets) when the native contract has them. */
-export async function publishShareTargets(targets: ShareTarget[]): Promise<void> {
-  if (!shareReceiverSupported()) return;
-  const publisher = (capShareReceiver as unknown as { publishShareTargets?: TargetPublisher }).publishShareTargets;
-  if (typeof publisher !== 'function') return;
-  await publisher.call(capShareReceiver, targets).catch(() => undefined);
+/** Publishes sharing shortcuts (Direct Share targets); a no-op off Android. */
+export function publishShareTargets(targets: ShareTarget[]): Promise<void> {
+  return capShareReceiver.publishShareTargets(targets);
 }
 
 registerLocalDataGroup({

@@ -87,10 +87,10 @@ const AUDIO_MIME = /^audio\//i;
 /** System recorders may hand over a recording without a type; its extension decides. */
 const AUDIO_EXTENSION = /\.(m4a|aac|amr|3gp|3gpp|ogg|oga|opus|webm|wav|mp3|flac)$/i;
 /** Documents travel as they are (no compression, no recognition); pycore stores them next to the images. */
-const DOCUMENT_MIME = /^(text\/|application\/(pdf|json|xml|rtf|msword|zip|x-zip|x-7z|x-rar|vnd\.rar|gzip|x-gzip|x-tar|epub\+zip|x-yaml|yaml|vnd\.(ms-|openxmlformats-|oasis\.opendocument)))/i;
-const DOCUMENT_EXTENSION = /\.(pdf|txt|md|markdown|csv|tsv|json|jsonl|xml|ya?ml|log|rtf|html?|epub|docx?|xlsx?|pptx?|odt|ods|odp|zip|7z|rar|tar|gz|tgz)$/i;
+const DOCUMENT_EXTENSIONS: readonly string[] = RELAY_CONTRACT.terminal_attachments.document_extensions;
+const DOCUMENT_EXTENSION = new RegExp(`\\.(${DOCUMENT_EXTENSIONS.join('|')})$`, 'i');
 /** `accept` of the document picker. */
-export const TERMINAL_DOCUMENT_ACCEPT = '.pdf,.txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.xml,.yaml,.yml,.log,.rtf,.html,.htm,.epub,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.zip,.7z,.rar,.tar,.gz,.tgz,application/pdf,text/*';
+export const TERMINAL_DOCUMENT_ACCEPT = [...DOCUMENT_EXTENSIONS.map((extension) => `.${extension}`), 'application/pdf', 'text/*'].join(',');
 const MIB = 1024 * 1024;
 const ERROR_KEYS = {
   notImage: 'terminal.images.notImage',
@@ -104,6 +104,7 @@ const UPLOAD_ERROR_KEYS: Record<string, string> = {
   terminal_image_unsupported_type: 'terminal.images.errors.unsupportedType',
   terminal_image_read_failed: 'terminal.images.errors.readFailed',
   terminal_image_write_failed: 'terminal.images.errors.writeFailed',
+  terminal_document_unsupported_type: 'terminal.images.errors.documentUnsupported',
 };
 
 const IMAGE_PLACEHOLDER = /\[Image #\d+\]/gi;
@@ -123,7 +124,7 @@ export function isTerminalAudioFile(file: File): boolean {
 
 export function isTerminalDocumentFile(file: File): boolean {
   if (isTerminalImageFile(file) || isTerminalAudioFile(file)) return false;
-  return DOCUMENT_MIME.test(file.type) || DOCUMENT_EXTENSION.test(file.name);
+  return DOCUMENT_EXTENSION.test(file.name);
 }
 
 export function isTerminalAttachmentFile(file: File): boolean {
