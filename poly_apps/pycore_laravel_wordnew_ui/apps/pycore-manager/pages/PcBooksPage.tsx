@@ -1377,7 +1377,7 @@ const PcBooksPage: React.FC = () => {
 
       {/* add dialog */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 pt-[max(1rem,var(--wf-safe-top))] pb-[max(1rem,var(--wf-safe-bottom))]"
           onClick={() => setShowAdd(false)}>
           <div className="w-full max-w-md rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
             onClick={(ev) => ev.stopPropagation()}>
@@ -1474,7 +1474,7 @@ const PcBooksPage: React.FC = () => {
           summary = t(L.charCount, { count: nf(totals.chars) });
         }
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 pt-[max(1rem,var(--wf-safe-top))] pb-[max(1rem,var(--wf-safe-bottom))]"
             onClick={() => setListView(null)}>
             <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
               onClick={(ev) => ev.stopPropagation()}>

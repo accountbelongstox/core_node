@@ -741,7 +741,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                 {t('db_manager.tables.fullscreen_placeholder')}
               </div>
               <Portal>
-                <div className={`fixed inset-0 ${OVERLAY_Z.modal} bg-slate-100 dark:bg-slate-950 p-3 flex flex-col`}>
+                <div className={`fixed inset-0 ${OVERLAY_Z.modal} bg-slate-100 dark:bg-slate-950 p-3 pt-[max(0.75rem,var(--wf-safe-top))] pb-[max(0.75rem,var(--wf-safe-bottom))] flex flex-col`}>
                   <div className={`${commonClasses.card} flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden`}>
                     {viewerInner}
                   </div>

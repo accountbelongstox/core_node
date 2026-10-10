@@ -1027,7 +1027,7 @@ const PcVideoExtractPage: React.FC = () => {
         </button>
       )}
       {panelOpen && (
-        <div className="fixed inset-0 z-40 flex items-start sm:items-center justify-center p-4 pointer-events-none">
+        <div className="fixed inset-0 z-40 flex items-start sm:items-center justify-center p-4 pt-[max(1rem,var(--wf-safe-top))] pb-[max(1rem,var(--wf-safe-bottom))] pointer-events-none">
           <div className="pointer-events-auto w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border shadow-2xl backdrop-blur-xl bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-white/10">
             <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b backdrop-blur-xl border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/90">
               <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100"><SlidersHorizontal className="w-4 h-4 text-rose-500" /> {t('videoExtract.page.options')}</h3>
@@ -1214,7 +1214,7 @@ const PcVideoExtractPage: React.FC = () => {
 
       {/* add dialog */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 pt-[max(1rem,var(--wf-safe-top))] pb-[max(1rem,var(--wf-safe-bottom))]"
           onClick={() => setShowAdd(false)}>
           <div className="w-full max-w-md rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
             onClick={(e) => e.stopPropagation()}>

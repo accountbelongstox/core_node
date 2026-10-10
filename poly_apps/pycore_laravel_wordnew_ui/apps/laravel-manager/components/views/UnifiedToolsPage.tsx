@@ -271,7 +271,7 @@ export function UnifiedToolsPage() {
           <Portal>
             <div className={`lg:hidden fixed inset-0 ${OVERLAY_Z.modal} flex`}>
               <div className="absolute inset-0 bg-black/50" onClick={() => setMobileNavOpen(false)} />
-              <aside className="relative w-72 max-w-[85%] h-full flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 shadow-xl animate-in slide-in-from-left duration-200">
+              <aside className="shell-safe-area relative w-72 max-w-[85%] h-full flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 shadow-xl animate-in slide-in-from-left duration-200">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-indigo-500" />

@@ -252,7 +252,7 @@ const PcBookSourceExplorer: React.FC<PcBookSourceExplorerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 pt-[max(0.75rem,var(--wf-safe-top))] pb-[max(0.75rem,var(--wf-safe-bottom))]"
       onClick={onClose}>
       <div className="w-full max-w-5xl max-h-[92vh] flex flex-col rounded-3xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
         onClick={(ev) => ev.stopPropagation()}>

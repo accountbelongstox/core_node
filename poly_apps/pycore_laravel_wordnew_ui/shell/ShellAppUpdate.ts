@@ -36,12 +36,15 @@ function laravelEndpointsCurrentFirst(): BackendApiEndpoint[] {
   return current ? [current, ...rest] : rest;
 }
 
-/** Mesh origins: the selected pycore host, then the Laravel tailnet endpoints (current first). */
+/**
+ * Mesh origins: the Laravel tailnet endpoints (current first; their own API host serves the downloads, then the
+ * machine host), then the selected pycore host.
+ */
 export function shellMeshOrigins(): string[] {
   const laravelHosts = laravelEndpointsCurrentFirst()
     .filter((endpoint) => endpoint.protocol === 'https' && !!tailnetDomainOf(endpoint.url))
-    .map((endpoint) => machineHostOf(endpoint.url));
-  return meshHostOrigins([selectedPycoreMeshHost(), ...laravelHosts]);
+    .flatMap((endpoint) => [endpoint.url.toLowerCase(), machineHostOf(endpoint.url)]);
+  return meshHostOrigins([...laravelHosts, selectedPycoreMeshHost()]);
 }
 
 export function shellUpdateSourceGroups(): AppUpdateSourceGroup[] {

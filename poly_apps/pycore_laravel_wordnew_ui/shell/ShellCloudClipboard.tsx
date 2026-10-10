@@ -43,7 +43,7 @@ export const ShellCloudClipboard: React.FC = () => {
 
   return <Portal lockScroll={false} container={expanded ? contentHost : null}>
     <aside hidden={!clipboard.open} aria-label={t('title')}
-      className={`${expanded ? 'absolute inset-0' : `fixed bottom-3 right-3 w-[calc(100vw-1.5rem)] ${clipboard.collapsed ? 'sm:w-80' : 'sm:w-[34rem]'} max-h-[calc(100dvh-1.5rem)] rounded-2xl`} ${OVERLAY_Z.clipboard} flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 shadow-2xl ${!clipboard.open ? 'hidden' : ''}`}>
+      className={`${expanded ? 'absolute inset-0' : `fixed bottom-[calc(0.75rem+var(--wf-safe-bottom))] right-3 w-[calc(100vw-1.5rem)] ${clipboard.collapsed ? 'sm:w-80' : 'sm:w-[34rem]'} max-h-[calc(100dvh-1.5rem-var(--wf-safe-top)-var(--wf-safe-bottom))] rounded-2xl`} ${OVERLAY_Z.clipboard} flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 shadow-2xl ${!clipboard.open ? 'hidden' : ''}`}>
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-3 py-2">
         {/* Collapsed: icon + title. Open: the two tabs replace the title (cloud
             clipboard and the AI-derived prompt feed opened by the corner toast). */}
