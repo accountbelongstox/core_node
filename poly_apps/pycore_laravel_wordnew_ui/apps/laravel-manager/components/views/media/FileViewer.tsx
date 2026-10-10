@@ -318,7 +318,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
           />
           {/* Floating Episode Controls - NO || allowed */}
           {showFloatingControls && (hasPrevious ? true : hasNext ? true : false) && (
-            <div className="absolute bottom-20 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute bottom-20 right-4 flex gap-2 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100">
               {hasPrevious && (
                 <button
                   onClick={playPreviousInPlaylist}

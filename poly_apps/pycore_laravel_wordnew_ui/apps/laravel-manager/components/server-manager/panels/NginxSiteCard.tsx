@@ -164,7 +164,7 @@ const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
           </div>
         )}
         <div>
-          <span className="text-slate-500 dark:text-slate-400">SSL:</span>
+          <span className="text-slate-500 dark:text-slate-400">{t.nginx.ssl_enabled}:</span>
           <p className="mt-1">{site.ssl_enabled ? t.nginx.enabled : t.nginx.disabled}</p>
         </div>
         {Array.isArray(site.server_names) && site.server_names.length > 0 && (
