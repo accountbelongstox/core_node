@@ -12,10 +12,12 @@ from pycore.pyfoundations.atomic_json_store import atomic_write_bytes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyctl.terminal.terminal_file_retention import prune_files
+from pycore.pyctl.terminal.terminal_image_archive import TerminalImageArchive
 from pycore.pyutils.common.relay_contract import relay_contract
 
 TERMINAL_IMAGE_DIR_NAME = "timg"
 TERMINAL_VOICE_DIR_NAME = "taud"
+TERMINAL_IMAGE_SENT_INDEX_NAME = "timg_sent.json"
 TERMINAL_IMAGE_MAX_BYTES = relay_contract.limit("terminal_image_upload_bytes")
 TERMINAL_IMAGE_RETAIN_COUNT = relay_contract.limit("terminal_image_retain_count")
 TERMINAL_IMAGE_RETAIN_SECONDS = relay_contract.limit("terminal_image_retain_seconds")
@@ -88,9 +90,14 @@ def detect_audio_type(data: bytes) -> Optional[tuple]:
 class TerminalImageStore:
     """Images live in ``directory``; voice recordings in ``voice_directory`` with their own short retention."""
 
-    def __init__(self, directory: Path, voice_directory: Path) -> None:
+    def __init__(self, directory: Path, voice_directory: Path, sent_index: Path) -> None:
         self.directory = directory
         self.voice_directory = voice_directory
+        self.archive = TerminalImageArchive(directory, sent_index)
+
+    def resolve_image(self, reference: str) -> Optional[Path]:
+        """Stored image for a sent name or path; an archived image is found under its original name."""
+        return self.archive.resolve(reference)
 
     def read_stream(self, stream: BinaryIO) -> Dict[str, Any]:
         """Read at most the cap (+1 byte to detect overflow); no total deadline."""
@@ -164,4 +171,5 @@ class TerminalImageStore:
 terminal_image_store = TerminalImageStore(
     APP_DATA_DIR / TERMINAL_IMAGE_DIR_NAME,
     APP_DATA_DIR / TERMINAL_VOICE_DIR_NAME,
+    APP_DATA_DIR / TERMINAL_IMAGE_SENT_INDEX_NAME,
 )

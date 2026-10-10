@@ -237,10 +237,10 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
     if (item) void uploadOne(item);
   }, [uploadOne]);
 
-  // Recordings upload as soon as they exist, so pycore reports their stored size before the send.
+  // Every attachment uploads as soon as it is added; the send only waits for the uploads still running.
   useEffect(() => {
     all.forEach((item) => {
-      if (item.kind === 'audio' && item.status === 'queued') void uploadOne(item);
+      if (item.status === 'queued') void uploadOne(item);
     });
   }, [all, uploadOne]);
 
