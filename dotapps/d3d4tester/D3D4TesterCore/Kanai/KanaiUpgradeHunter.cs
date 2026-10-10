@@ -1,7 +1,6 @@
 // PY-REF: none (DOT-only)
 using System.Diagnostics;
 using System.Globalization;
-using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core.Bag;
 using DotApps.d3d4tester.Core.Bridge;
 using DotApps.d3d4tester.Core.Planner;
@@ -256,7 +255,7 @@ public static class KanaiUpgradeHunter
     {
         var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
         if (snapshot.RosbotBridge is not { InventoryCellSupported: true } bridge || !snapshot.RosbotBridgeFresh) return null;
-        return bridge.CarriedItems.FirstOrDefault(e => e.Slot == RosbotPluginConstants.BridgeSlotBackpack && e.InvX == cell.Col && e.InvY == cell.Row);
+        return bridge.CarriedItems.FirstOrDefault(e => e.Slot == RosbotBridgeEntity.SlotBackpack && e.InvX == cell.Col && e.InvY == cell.Row);
     }
 
     private static string Fmt(double? v) => v is { } d ? d.ToString("0.##", CultureInfo.InvariantCulture) : "?";

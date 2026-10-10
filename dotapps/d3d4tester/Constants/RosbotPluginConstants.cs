@@ -97,7 +97,7 @@ public static class RosbotPluginConstants
     public const string BridgeSalvageMagic = "magic";
     public const string BridgeSalvageRare = "rare";
     /// <summary>Plugin InventorySlot names of the non-equipped item locations.</summary>
-    public const string BridgeSlotBackpack = "Backpack";
+    public const string BridgeSlotBackpack = DotApps.d3d4tester.Core.Bridge.RosbotBridgeEntity.SlotBackpack;
     public const string BridgeSlotStash = "Stash";
     /// <summary>
     /// ROSBOT's InventorySlot enum is one behind the live game for the vendor locations: vendor stock (e.g. Kadala's gamble items)

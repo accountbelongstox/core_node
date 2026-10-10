@@ -54,10 +54,10 @@ public sealed class GameAssistantController
     {
         if (Interlocked.Exchange(ref _testActionsRegistered, 1) == 1) return;
         TestActionRegistry.Register(I18nKeys.AuxDebugBlacksmith, RunDebugBagHoverWithSalvage);
-        TestActionRegistry.Register(I18nKeys.AuxDebugKanaiUpgrade, () => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceKanaiCube, KanaiFlow.RunUpgradeFlow));
+        TestActionRegistry.Register(I18nKeys.AuxDebugKanaiUpgrade, () => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceKanaiCube, RunUpgradeAllRares));
         TestActionRegistry.Register(I18nKeys.AuxDebugKanaiReforge, RunDebugReforge);
         TestActionRegistry.Register(I18nKeys.LogPanelItemReforge, RunDebugReforge);
-        TestActionRegistry.Register(I18nKeys.LogPanelYellowUpgrade, () => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceKanaiCube, KanaiFlow.RunUpgradeFlow));
+        TestActionRegistry.Register(I18nKeys.LogPanelYellowUpgrade, () => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceKanaiCube, RunUpgradeAllRares));
         TestActionRegistry.Register(I18nKeys.LogPanelBagTest, () => RunDebugPreview(_ => BagLayoutDetector.Instance.PrintBagMemoryState(GameInterfaceData.Instance.BagLayout)));
         TestActionRegistry.Register(I18nKeys.AuxDebugAutoSalvage, () => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceBlacksmith, () =>
             BlacksmithHandler.Instance.HandleAutoSalvageBySlots(KeepRule(Aux()), debugOnly: true)));
@@ -153,10 +153,15 @@ public sealed class GameAssistantController
         return (true, shared.InterfaceType ?? interfaceType);
     }
 
-    /// <summary>Priority reforge > upgrade > convert.</summary>
+    /// <summary>Priority armed upgrade hunt (cube upgrade window) > reforge > upgrade > convert.</summary>
     private static bool RunKanaiBranch(MacroAuxiliaryOptions aux, (int X, int Y)? cursor)
     {
         int delay = AssistantTiming.HelperDelayMs(aux.AnimationSpeed);
+        if (KanaiUpgradeService.Armed)
+        {
+            ColorPrinter.Blue($"{LogTag} Kanai upgrade hunt armed AND interface detected in image, upgrading rares until the targets drop...");
+            return KanaiUpgradeService.RunFromHotkey(ShouldStop);
+        }
         if (aux.KanaiReforge.Enabled)
         {
             ColorPrinter.Blue($"{LogTag} Kanai Reforge enabled in config AND interface detected in image, running reforge flow...");
@@ -165,7 +170,7 @@ public sealed class GameAssistantController
         if (aux.KanaiUpgrade.Enabled)
         {
             ColorPrinter.Blue($"{LogTag} Kanai Upgrade enabled in config AND interface detected in image, running upgrade flow...");
-            return KanaiFlow.RunUpgradeFlow();
+            return KanaiFlow.RunUpgradeFlow(D3PlannerService.CacheDir, delay, ShouldStop);
         }
         if (aux.KanaiConvert.Enabled)
         {
@@ -449,6 +454,9 @@ public sealed class GameAssistantController
             }
         });
     }
+
+    private static bool RunUpgradeAllRares() =>
+        KanaiFlow.RunUpgradeFlow(D3PlannerService.CacheDir, AssistantTiming.HelperDelayMs(Aux().AnimationSpeed), ShouldStop);
 
     private static void RunDebugReforge() => RunDebugInterfaceAction(D3InterfaceDetection.InterfaceKanaiCube, () =>
     {
