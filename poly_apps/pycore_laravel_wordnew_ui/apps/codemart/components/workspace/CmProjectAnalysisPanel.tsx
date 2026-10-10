@@ -54,6 +54,22 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   const translate = useRef(t);
   translate.current = t;
 
+  const loadRef = useRef<() => Promise<void>>(async () => undefined);
+
+  /** While an analysis runs, poll just that analysis (`GET /ai-analysis/{id}`); the full view reloads once it settles. */
+  const pollAnalysis = useCallback(async (analysisId: number): Promise<void> => {
+    const generation = generationRef.current;
+    const isCurrent = (): boolean => aliveRef.current && generation === generationRef.current;
+    const response = await cmApi.getAnalysisResult(analysisId);
+    if (!isCurrent()) return;
+    const stillActive = response.success && response.data !== null && activeStatesRef.current.includes(response.data.status);
+    if (stillActive) {
+      pollTimer.current = window.setTimeout(() => { void pollAnalysis(analysisId); }, ANALYSIS_POLL_MS);
+      return;
+    }
+    await loadRef.current();
+  }, []);
+
   const load = useCallback(async (): Promise<void> => {
     const generation = generationRef.current;
     const isCurrent = (): boolean => aliveRef.current && generation === generationRef.current;
@@ -77,8 +93,12 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
     }
     wasActive.current = active;
     if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
-    pollTimer.current = active ? window.setTimeout(() => { void load(); }, ANALYSIS_POLL_MS) : null;
-  }, [project.id]);
+    const activeId = response.data.analysis?.analysis_id ?? null;
+    pollTimer.current = active && activeId !== null
+      ? window.setTimeout(() => { void pollAnalysis(activeId); }, ANALYSIS_POLL_MS)
+      : null;
+  }, [project.id, pollAnalysis]);
+  loadRef.current = load;
 
   useEffect(() => {
     aliveRef.current = true;
@@ -124,7 +144,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
     setBusy(false);
     if (response.success) {
       idempotency.reset();
-      notice.success(t('analysis.acceptedWithAmount', { amount: format.money(response.data?.funding_amount ?? '', project.currency) }));
+      notice.success(t('analysis.acceptedWithAmount', { amount: format.money(response.data?.funding_amount ?? '', analysis.currency ?? project.currency) }));
       await load();
       await onProjectChanged();
     } else {
@@ -187,7 +207,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
           {analysis.status === COMPLETED_STATUS && (
             <>
               <dl className="cm-kv">
-                {analysis.estimated_cost !== null && <div><dt>{t('analysis.costLabel')}</dt><dd>{format.money(analysis.estimated_cost, project.currency)}</dd></div>}
+                {analysis.estimated_cost !== null && <div><dt>{t('analysis.costLabel')}</dt><dd>{format.money(analysis.estimated_cost, analysis.currency ?? project.currency)}</dd></div>}
                 {analysis.estimated_hours !== null && <div><dt>{t('analysis.hoursLabel')}</dt><dd>{t('analysis.hoursValue', { hours: cmFormatNumber(analysis.estimated_hours, format.language) })}</dd></div>}
                 {analysis.complexity_score !== null && <div><dt>{t('analysis.complexityLabel')}</dt><dd>{analysis.complexity_score}</dd></div>}
               </dl>

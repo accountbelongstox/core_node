@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, CalendarDays, CircleDollarSign, ExternalLink, Flag, MessageSquare, Pencil, RefreshCw, Send, Store, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, CircleDollarSign, ExternalLink, Flag, MessageSquare, Pencil, RefreshCw, Search, Send, Store, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
+import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import type { CmCodeReview, CmTask, CmTaskDetail } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
@@ -281,18 +282,53 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
   );
 };
 
-const extractTasks = (data: { my_tasks: CmTask[]; pagination: unknown }) => ({
-  items: (Array.isArray(data.my_tasks) ? data.my_tasks : []) as CmMyTask[],
-  totalPages: cmTotalPages(data.pagination as Parameters<typeof cmTotalPages>[0]),
-});
-const fetchTasks = (page: number) => cmApi.getMyTasks(page);
+const TASK_SCOPES = ['mine', 'visible'] as const;
+type CmTaskScope = typeof TASK_SCOPES[number];
+
+interface CmTaskSlice {
+  items: CmMyTask[];
+  totalPages: number;
+}
+
+/** Tasks assigned to the signed-in developer (`GET /marketplace/my-tasks`). */
+async function fetchMyTasks(page: number): Promise<APIResponse<CmTaskSlice>> {
+  const response = await cmApi.getMyTasks(page);
+  if (!response.success || !response.data) return { ...response, data: null };
+  return {
+    ...response,
+    data: {
+      items: (Array.isArray(response.data.my_tasks) ? response.data.my_tasks : []) as CmMyTask[],
+      totalPages: cmTotalPages(response.data.pagination as Parameters<typeof cmTotalPages>[0]),
+    },
+  };
+}
+
+/** Every task the account may see, filtered on the server (`GET /tasks`). */
+async function fetchVisibleTasks(page: number, status: string, search: string): Promise<APIResponse<CmTaskSlice>> {
+  const response = await cmApi.getTasks({ page, status, search });
+  if (!response.success || !response.data) return { ...response, data: null };
+  return {
+    ...response,
+    data: { items: (Array.isArray(response.data.items) ? response.data.items : []) as CmMyTask[], totalPages: cmTotalPages(response.data) },
+  };
+}
+
+const extractTasks = (data: CmTaskSlice): CmTaskSlice => data;
 
 export const CmTasksPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap, refresh } = useCmBootstrap();
+  const { bootstrap, refresh, states } = useCmBootstrap();
   const { currency } = useCmPolicy();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [scope, setScope] = useState<CmTaskScope>('mine');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const fetchTasks = useCallback(
+    (page: number) => (scope === 'mine' ? fetchMyTasks(page) : fetchVisibleTasks(page, statusFilter, search)),
+    [scope, statusFilter, search],
+  );
   const list = useCmPagedList(fetchTasks, extractTasks, 'tasks.loadFailed');
   const selectedId = Number.parseInt(searchParams.get(CM_TASK_QUERY_PARAM) ?? '', 10);
 
@@ -324,14 +360,42 @@ export const CmTasksPage: React.FC = () => {
           </>
         )}
       />
+      <nav className="cm-tabs cm-tabs--inline" role="tablist" aria-label={t('tasks.scope.label')}>
+        {TASK_SCOPES.map((item) => (
+          <button key={item} type="button" role="tab" aria-selected={scope === item} className={scope === item ? 'is-active' : ''} onClick={() => setScope(item)}>
+            {t(`tasks.scope.${item}`)}
+          </button>
+        ))}
+      </nav>
+      {scope === 'visible' && (
+        <form className="cm-marketplace-toolbar" onSubmit={(event) => { event.preventDefault(); setSearch(searchDraft.trim()); }}>
+          <label>
+            <span>{t('tasks.filters.search')}</span>
+            <div>
+              <Search aria-hidden="true" />
+              <input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder={t('tasks.filters.searchPlaceholder')} />
+            </div>
+          </label>
+          <label>
+            <span>{t('tasks.filters.status')}</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="">{t('tasks.filters.allStatuses')}</option>
+              {states('task').map((value) => <option key={value} value={value}>{t(`states.task.${value}`, { defaultValue: value })}</option>)}
+            </select>
+          </label>
+          <div className="cm-marketplace-toolbar__actions">
+            <button type="submit" className="cm-workspace-button is-primary" disabled={list.loading}><Search aria-hidden="true" /> {t('tasks.filters.apply')}</button>
+          </div>
+        </form>
+      )}
       {list.loading ? (
         <CmLoadingState />
       ) : list.error ? (
         <CmErrorState message={list.error} onRetry={list.retryable ? () => void list.reload() : undefined} />
       ) : list.items.length === 0 ? (
         <CmEmptyState
-          title={t('tasks.emptyTitle')}
-          body={t('tasks.emptyBody')}
+          title={t(scope === 'mine' ? 'tasks.emptyTitle' : 'tasks.filters.emptyTitle')}
+          body={t(scope === 'mine' ? 'tasks.emptyBody' : 'tasks.filters.emptyBody')}
           action={<Link to={CM_PROTECTED_ROUTE.marketplace} className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('tasks.findWork')}</Link>}
         />
       ) : (
