@@ -10,7 +10,7 @@ public static class SkeletonThinning
     public static Mat Thin(Mat binary)
     {
         int w = binary.Cols, h = binary.Rows;
-        using var src = binary.IsContinuous() ? binary.Clone() : binary.Clone();
+        using var src = binary.Clone();
         src.GetArray(out byte[] data);
         var px = new byte[data.Length];
         for (int i = 0; i < data.Length; i++) px[i] = data[i] != 0 ? (byte)1 : (byte)0;

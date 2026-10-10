@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:DotApps.d3d4tester.ViewModels"
+             xmlns:local="clr-namespace:DotApps.d3d4tester.Pages.D4"
              xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme">
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
@@ -96,6 +97,13 @@
       <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}"/>
       <Setter Property="Padding" Value="8,6"/>
     </Style>
+
+    <!-- Unselected sub-tab item -->
+    <Style x:Key="D4NavItemStyle" TargetType="Border">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}"/>
+      <Setter Property="Padding" Value="8,6"/>
+    </Style>
   </UserControl.Resources>
 
   <Grid Margin="{StaticResource PageMargin}">
@@ -108,24 +116,41 @@
     <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Width="168" Margin="0,0,12,0" VerticalAlignment="Stretch">
       <StackPanel>
         <TextBlock x:Name="LblD4Title" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
-        <Border Style="{StaticResource D4NavItemSelectedStyle}">
+        <Border x:Name="NavExpFarming" Style="{StaticResource D4NavItemSelectedStyle}" Cursor="Hand" MouseLeftButtonUp="NavExpFarming_Click">
           <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Border Width="3" Height="16" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
+            <Border x:Name="BarExpFarming" Width="3" Height="16" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
             <TextBlock Grid.Column="1" Style="{StaticResource IconTextStyle}" Text="&#xE7FC;" Margin="0,0,8,0" VerticalAlignment="Center"/>
             <TextBlock x:Name="LblNavExpFarming" Grid.Column="2" Style="{StaticResource BodyStrongTextStyle}" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+          </Grid>
+        </Border>
+        <Border x:Name="NavAgent" Style="{StaticResource D4NavItemStyle}" Cursor="Hand" Margin="0,4,0,0" MouseLeftButtonUp="NavAgent_Click">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border x:Name="BarAgent" Width="3" Height="16" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,8,0"
+                    Visibility="Hidden"/>
+            <TextBlock Grid.Column="1" Style="{StaticResource IconTextStyle}" Text="&#xE7B3;" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="LblNavAgent" Grid.Column="2" Style="{StaticResource BodyStrongTextStyle}" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"/>
           </Grid>
         </Border>
       </StackPanel>
     </Border>
 
+    <!-- Right: vision AI test (D4 vision agent) -->
+    <local:D4AgentView x:Name="AgentView" Grid.Column="1" Visibility="Collapsed"/>
+
     <!-- Right: EXP Farming content (1:1 Python _create_exp_farming_content) -->
-    <Grid Grid.Column="1">
+    <Grid x:Name="ExpFarmingContent" Grid.Column="1">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
