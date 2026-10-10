@@ -1,10 +1,7 @@
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/utils/_obsolete_d3keyhelper.ahk (oneButtonReforgeHelper, oneButtonUpgradeConvertHelper)
-using System.Drawing;
 using DotApps.d3d4tester.Core.Bag;
 using DotApps.d3d4tester.Core.Blacksmith;
 using DotCore.Foundations;
-using DotCore.ScreenCapture;
-using DotCore.Utils.Ocr;
 
 namespace DotApps.d3d4tester.Core.Kanai;
 

@@ -1,13 +1,13 @@
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/kanai/operations.py
 // PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/d3.py
-using DotApps.d3d4tester.Core.Bag;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.Kanai;
 
 /// <summary>
-/// Kanai Cube operations: right panel toggle, reset to first page, navigate, process rare items, upgrade/reforge.
-/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/kanai/operations.py (KANAI_*_PAGE_CLICKS from providor/constants/d3.py).
+/// Kanai Cube operations: right panel toggle, reset to first page, navigate to a recipe page (reforge confirmed by its footer).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/kanai/operations.py (KANAI_*_PAGE_CLICKS from providor/constants/d3.py);
+/// process_yellow_items / run_upgrade_operation are replaced by <see cref="KanaiUpgradeHunter"/>.
 /// </summary>
 public static class KanaiOperations
 {
@@ -17,14 +17,9 @@ public static class KanaiOperations
 
     private const double ToggleClickDurationSec = 0.1;
     private const double NavClickDurationSec = 0.1;
-    private const double ItemClickDurationSec = 0;
     private const int AfterToggleMs = 500;
     private const int BetweenTogglesMs = 300;
     private const int AfterPageClickMs = 300;
-    private const int AfterRightClickMs = 300;
-    private const int AfterPutMaterialMs = 300;
-    private const int ConversionWaitMs = 2000;
-    private const int AfterSecondConversionMs = 500;
 
     /// <summary>
     /// Read the recipe panel state from a fresh capture (opened when its header or page bar matches) into the shared state; null
@@ -111,55 +106,4 @@ public static class KanaiOperations
         return true;
     }
 
-    /// <summary>For each rare item: right-click -> put material -> conversion -> wait 2 s -> conversion. 1:1 process_yellow_items.</summary>
-    public static bool ProcessYellowItems(GameInterfaceData shared)
-    {
-        var layout = shared.BagLayout;
-        var bag = shared.BagCoordinates;
-        if (layout == null || bag == null) return false;
-        var (ox, oy) = shared.WindowOffset;
-        var (mx, my) = D3StandardCoordinates.GetScaledKanaiPutMaterialButton();
-        var (cx, cy) = D3StandardCoordinates.GetScaledConversionButton();
-        var rareItems = layout.Items.Where(kv => kv.Value.Quality == BagSlotValues.QualityRare).Select(kv => kv.Key).ToList();
-        if (rareItems.Count == 0)
-        {
-            ColorPrinter.Gray("[Kanai] No rare (yellow) items to process");
-            return true;
-        }
-        var click = StateAwareClickHandler.Instance;
-        foreach (var (row, col) in rareItems)
-        {
-            if (AssistantExecutionState.Instance.ShouldStopAssistant()) return false;
-            var (sx, sy) = bag.SlotCenter(row, col);
-            if (!click.RightClick(sx + ox, sy + oy, ItemClickDurationSec)) continue;
-            Thread.Sleep(AfterRightClickMs);
-            if (!click.LeftClick(mx + ox, my + oy, ItemClickDurationSec)) continue;
-            Thread.Sleep(AfterPutMaterialMs);
-            if (!click.LeftClick(cx + ox, cy + oy, ItemClickDurationSec)) continue;
-            Thread.Sleep(ConversionWaitMs);
-            if (!click.LeftClick(cx + ox, cy + oy, ItemClickDurationSec)) continue;
-            Thread.Sleep(AfterSecondConversionMs);
-        }
-        return true;
-    }
-
-    /// <summary>Validate -> reset panel -> navigate to upgrade page -> process rare items. 1:1 run_upgrade_operation.</summary>
-    public static bool RunUpgradeOperation(GameInterfaceData shared) => RunPageOperation(shared, UpgradePageClicks);
-
-    private static bool RunPageOperation(GameInterfaceData shared, int pageClicks)
-    {
-        if (shared.InterfaceType != D3InterfaceDetection.InterfaceKanaiCube)
-        {
-            ColorPrinter.Red("[Kanai] interface_type is not kanai_cube");
-            return false;
-        }
-        if (shared.BagLayout == null)
-        {
-            ColorPrinter.Red("[Kanai] No bag layout");
-            return false;
-        }
-        if (!ResetPanelToFirstPage(shared)) return false;
-        if (!NavigateToPage(shared, pageClicks)) return false;
-        return ProcessYellowItems(shared);
-    }
 }
