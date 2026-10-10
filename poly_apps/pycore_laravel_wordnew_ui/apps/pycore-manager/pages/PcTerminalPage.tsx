@@ -73,7 +73,7 @@ import { PcTerminalWatchProvider, usePcTerminalWatch } from '@/apps/pycore-manag
 import PcTerminalAgentDoneToasts from '@/apps/pycore-manager/components/terminal/PcTerminalAgentDoneToasts';
 import PcShareInbox from '@/apps/pycore-manager/components/share/PcShareInbox';
 import { recordTerminalCatalog } from '@/apps/pycore-manager/components/terminal/terminalCatalog';
-import { completeShareDelivery, shareDeliveryRequest } from '@/apps/pycore-manager/components/terminal/terminalShareDelivery';
+import { completeShareDelivery, recordRecentShareTarget, shareDeliveryRequest } from '@/apps/pycore-manager/components/terminal/terminalShareDelivery';
 import { agentDoneOpenRequest, ingestAgentDone, terminalName } from '@/apps/pycore-manager/components/terminal/terminalAgentDoneNotices';
 import { listTerminalTabNodes } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import PcPycoreRestartButton from '@/apps/pycore-manager/components/PcPycoreRestartButton';
@@ -744,13 +744,14 @@ const PcTerminalNodeView: React.FC<{
   const [operatedTerminalNumber, setOperatedTerminalNumber] = useState<number | null>(null);
   const operationTimerRef = useRef<number | null>(null);
   const touchOperation = useCallback((terminalNumber: number) => {
+    recordRecentShareTarget({ nodeUrl, terminalNumber });
     setOperatedTerminalNumber(terminalNumber);
     if (operationTimerRef.current !== null) window.clearTimeout(operationTimerRef.current);
     operationTimerRef.current = window.setTimeout(() => {
       operationTimerRef.current = null;
       setOperatedTerminalNumber(null);
     }, OPERATION_HOLD_MS);
-  }, []);
+  }, [nodeUrl]);
   useEffect(() => () => {
     if (operationTimerRef.current !== null) window.clearTimeout(operationTimerRef.current);
   }, []);

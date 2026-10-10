@@ -21,9 +21,9 @@ import type {
   WordTtsAutoStatus,
 } from '../../../core/integrations/pycore';
 
-import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
+import { PC_REQUEST_FAILED_CODE, pcFailureCode, pcLaravelFailureCode } from '../utils/pcErrorCodes';
 
-/** The coded reason of a rejected call (Laravel and relay errors carry `code`); never raw error text. */
+/** The coded reason of a rejected pycore call (relay errors carry `code`); never raw error text. */
 function rejectionCode(reason: unknown): string {
   const code = (reason as { code?: unknown } | null)?.code;
   return typeof code === 'string' && code ? code : PC_REQUEST_FAILED_CODE;
@@ -113,7 +113,7 @@ export class QueueCenterExchangeAPI {
     ]);
     const errors: Record<string, string> = {};
     const queueCenterOverview = queueCenterResult.status === 'fulfilled' ? queueCenterResult.value : null;
-    if (queueCenterResult.status === 'rejected') errors.queue_metrics = rejectionCode(queueCenterResult.reason);
+    if (queueCenterResult.status === 'rejected') errors.queue_metrics = pcLaravelFailureCode(queueCenterResult.reason);
     return {
       overview: this._unwrapOverview(overviewResult, errors),
       translation: this._unwrapTranslation(translationResult, errors),
@@ -225,7 +225,7 @@ export class QueueCenterExchangeAPI {
     errors: Record<string, string>,
   ): PcQueueOverview | null {
     if (result.status === 'rejected' || !result.value?.success) {
-      errors.overview = result.status === 'rejected' ? rejectionCode(result.reason) : pcFailureCode(result.value) || PC_REQUEST_FAILED_CODE;
+      errors.overview = result.status === 'rejected' ? pcLaravelFailureCode(result.reason) : pcFailureCode(result.value) || PC_REQUEST_FAILED_CODE;
       return null;
     }
     return (result.value as unknown) as PcQueueOverview;
@@ -236,7 +236,7 @@ export class QueueCenterExchangeAPI {
     errors: Record<string, string>,
   ): TranslationQueueResponse | null {
     if (result.status === 'rejected') {
-      errors.translation = rejectionCode(result.reason);
+      errors.translation = pcLaravelFailureCode(result.reason);
       return null;
     }
     return result.value;
@@ -247,7 +247,7 @@ export class QueueCenterExchangeAPI {
     errors: Record<string, string>,
   ): SentenceAudioQueueSnapshot | null {
     if (result.status === 'rejected') {
-      errors.sentence_queue = rejectionCode(result.reason);
+      errors.sentence_queue = pcLaravelFailureCode(result.reason);
       return null;
     }
     return result.value;

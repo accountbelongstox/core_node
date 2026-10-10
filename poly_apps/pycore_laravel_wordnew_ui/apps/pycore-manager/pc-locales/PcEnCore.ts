@@ -33,7 +33,7 @@ errorCodes: {
     LARAVEL_HTTP_ERROR: 'Laravel returned an error ({{detail}}).',
     LARAVEL_BAD_RESPONSE: 'Laravel returned an unexpected response.',
     LARAVEL_REQUEST_FAILED: 'The Laravel request failed.',
-    LARAVEL_LOGIN_REQUIRED: 'Sign in to Laravel to run this action.',
+    LARAVEL_LOGIN_REQUIRED: 'Sign in to Laravel to continue.',
     BOOK_SYNC_INTERRUPTED: 'The previous sync was interrupted. Retry to resume.',
     BOOKS_CACHE_WRITE_FAILED: 'The book list could not be saved locally.',
     BOOK_SENTENCE_PAGE_MISSING: 'Laravel returned no sentence page for this book.',

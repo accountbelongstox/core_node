@@ -48,6 +48,8 @@ interface ShareReceiverPlugin {
   clear(options: { ids?: string[] }): Promise<{ removed: number }>;
   /** Replaces the dynamic sharing shortcuts shown in the share sheet's top row (empty list removes them). */
   publishShareTargets(options: { targets: ShareTarget[] }): Promise<{ published: number }>;
+  /** Tells the share sheet ranking a target was used, so it is offered earlier next time. */
+  reportShareTargetUsed(options: { id: string }): Promise<{ reported: boolean }>;
   addListener(event: 'shareReceived', handler: (batch: SharedBatch) => void): Promise<PluginListenerHandle>;
 }
 
@@ -78,6 +80,11 @@ export const capShareReceiver = {
   async publishShareTargets(targets: ShareTarget[]): Promise<void> {
     if (!shareReceiverSupported()) return;
     await nativeShare.publishShareTargets({ targets }).catch(() => undefined);
+  },
+  /** Share sheet ranking signal for a published target; a no-op off Android. */
+  async reportShareTargetUsed(id: string): Promise<void> {
+    if (!shareReceiverSupported()) return;
+    await nativeShare.reportShareTargetUsed({ id }).catch(() => undefined);
   },
   /** Subscribes to shares that arrive while the app runs; returns the unsubscribe function. */
   onShare(handler: (batch: SharedBatch) => void): () => void {

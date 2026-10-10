@@ -5,7 +5,8 @@ import { LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../core/integrat
 import { serverSchemaGate } from '../../../core/integrations/laravel/ServerSchemaGate';
 import { RECONNECT_BACKOFF_MS } from '../../../core/config/NetworkTiming';
 import { Backoff } from '../../../core/tasks/Backoff';
-import { PC_REQUEST_FAILED_CODE } from '../utils/pcErrorCodes';
+import { subscribeAuthSession } from '../../../core/auth/AuthSession';
+import { LARAVEL_LOGIN_REQUIRED_CODE, pcLaravelFailureCode } from '../utils/pcErrorCodes';
 
 const MS_PER_SECOND = 1000;
 
@@ -13,7 +14,8 @@ const MS_PER_SECOND = 1000;
  * Laravel's work-lease roster (`work_nodes`). Laravel pushes `work_nodes.changed` (a revision only,
  * at most every 2 s): the roster is refetched when the revision moves and once after a (re)connect.
  * A failed read retries with backoff (every `retry_after_seconds` while the server schema is pending),
- * because no push arrives for a roster that could not be read.
+ * because no push arrives for a roster that could not be read; a read that needs a login waits for the
+ * shared auth session to change instead.
  */
 export function useWorkNodes(enabled = true) {
   const [data, setData] = useState<WorkNodesResponse | null>(null);
@@ -31,8 +33,9 @@ export function useWorkNodes(enabled = true) {
       setErrorCode(null);
       retryBackoff.current.reset();
     } catch (error: unknown) {
-      const code = (error as { code?: unknown } | null)?.code;
-      setErrorCode(typeof code === 'string' && code ? code : PC_REQUEST_FAILED_CODE);
+      const code = pcLaravelFailureCode(error);
+      setErrorCode(code);
+      if (code === LARAVEL_LOGIN_REQUIRED_CODE) return;
       const schema = serverSchemaGate.getSnapshot();
       const delayMs = schema.schema === 'pending' ? schema.retryAfterSeconds * MS_PER_SECOND : retryBackoff.current.next();
       retryTimer.current = window.setTimeout(() => { void loadRef.current(); }, delayMs);
@@ -51,11 +54,13 @@ export function useWorkNodes(enabled = true) {
       void load();
     });
     const offConnected = laravelRealtime.onConnected(() => { void load(); });
+    const offAuth = subscribeAuthSession(() => { void load(); });
     laravelRealtime.start();
     void load();
     return () => {
       offChanged();
       offConnected();
+      offAuth();
       laravelRealtime.stop();
       window.clearTimeout(retryTimer.current);
     };

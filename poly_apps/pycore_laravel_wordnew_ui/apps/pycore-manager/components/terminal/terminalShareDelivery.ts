@@ -6,7 +6,7 @@
 import { createPcExternalStore } from '@/apps/pycore-manager/api';
 import { StorageManager } from '@/core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
-import { removeFromShareInbox } from '@/shared/share/ShareInbox';
+import { removeFromShareInbox, reportShareTargetUsed } from '@/shared/share/ShareInbox';
 
 const TARGET_ID_PREFIX = 'pc-terminal';
 const TARGET_ID_SEPARATOR = '|';
@@ -50,8 +50,11 @@ export function readRecentShareTargets(): ShareTargetRef[] {
     : [];
 }
 
+/** The terminal last opened, drafted in, operated or shared to goes first; the share picker preselects it. */
 export function recordRecentShareTarget(target: ShareTargetRef): void {
-  const next = [target, ...readRecentShareTargets().filter((entry) => !sameShareTarget(entry, target))];
+  const recent = readRecentShareTargets();
+  if (recent[0] && sameShareTarget(recent[0], target)) return;
+  const next = [{ nodeUrl: target.nodeUrl, terminalNumber: target.terminalNumber }, ...recent.filter((entry) => !sameShareTarget(entry, target))];
   StorageManager.set(StorageKeys.PYCORE_SHARE_RECENT_TARGETS, next.slice(0, MAX_RECENT_SHARE_TARGETS));
 }
 
@@ -60,5 +63,6 @@ export function completeShareDelivery(request: ShareDeliveryRequest, delivered: 
   if (shareDeliveryRequest.get() === request) shareDeliveryRequest.set(null);
   if (!delivered) return;
   recordRecentShareTarget(request);
+  void reportShareTargetUsed(shareTargetId(request));
   void removeFromShareInbox(request.entryIds);
 }

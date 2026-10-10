@@ -411,7 +411,7 @@ terminal: {
       loading: '正在加载终端…',
       noTerminals: '这台机器上没有找到终端。',
       nodeUnreachable: '无法连接',
-      lastUsed: '上次使用',
+      lastUsed: '最近打开、起草或操作的终端',
       terminalOffline: '离线',
       pickTerminal: '请选择一个终端',
       confirm: '加入 #{{number}}',

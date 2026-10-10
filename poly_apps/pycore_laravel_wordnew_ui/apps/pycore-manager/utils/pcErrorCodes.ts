@@ -8,9 +8,10 @@
  */
 import i18n from '../../../core/i18n/UiI18n';
 import { isPycoreRelayError } from '../../../core/integrations/pycore/PycoreRelayError';
+import { clientKeyFailureCode } from '../../../core/integrations/laravel/ClientKeyFailure';
 
 const LARAVEL_LOGIN_STATUS = 401;
-const LARAVEL_LOGIN_REQUIRED_CODE = 'LARAVEL_LOGIN_REQUIRED';
+export const LARAVEL_LOGIN_REQUIRED_CODE = 'LARAVEL_LOGIN_REQUIRED';
 const LARAVEL_REQUEST_FAILED_CODE = 'LARAVEL_REQUEST_FAILED';
 const PC_NAMESPACE = 'pc';
 const ERROR_CODE_PREFIX = 'errorCodes';
@@ -91,16 +92,24 @@ export function pcCaughtErrorMessage(error: unknown, fallback: string = pcGeneri
 }
 
 /**
+ * Stable code of a failed browser call to Laravel: a session 401 (not a rejected client-key
+ * signature, which a login cannot fix) is LARAVEL_LOGIN_REQUIRED; else the answer's own code,
+ * else the fallback.
+ */
+export function pcLaravelFailureCode(error: unknown, fallback: string = PC_REQUEST_FAILED_CODE): string {
+  const failure = error as { status?: unknown; code?: unknown; payload?: unknown } | null;
+  if (Number(failure?.status) === LARAVEL_LOGIN_STATUS && !clientKeyFailureCode(failure?.payload)) return LARAVEL_LOGIN_REQUIRED_CODE;
+  return typeof failure?.code === 'string' && failure.code ? failure.code : fallback;
+}
+
+/**
  * Localized text for a failed browser call to a Laravel operator route
  * (`dashboard.auth` / `client.key_or_dashboard`). The shared Laravel transport
  * already opens the login window on 401 and localizes 403.
  */
 export function pcLaravelErrorMessage(error: unknown, fallback?: string): string {
-  const status = Number((error as { status?: unknown } | null)?.status);
   const fallbackText = fallback || pcErrorCodeMessage(LARAVEL_REQUEST_FAILED_CODE) || '';
-  if (status === LARAVEL_LOGIN_STATUS) return pcErrorCodeMessage(LARAVEL_LOGIN_REQUIRED_CODE) || fallbackText;
-  const code = (error as { code?: unknown } | null)?.code;
-  const coded = pcErrorCodeMessage(typeof code === 'string' ? code : null);
+  const coded = pcErrorCodeMessage(pcLaravelFailureCode(error, ''));
   if (coded) return coded;
   return error instanceof Error && error.message ? error.message : fallbackText;
 }

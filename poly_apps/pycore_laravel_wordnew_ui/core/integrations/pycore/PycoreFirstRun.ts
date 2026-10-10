@@ -10,6 +10,7 @@
 import { laravelApi } from '../laravel/LaravelAPI';
 import {
   getPycoreSelectedTarget,
+  getPycoreTarget,
   listPycoreEndpoints,
   rememberPycoreLanUrls,
   setPycoreTarget,
@@ -49,7 +50,7 @@ export interface PycoreFirstRunOptions {
   probe?: boolean;
   /** Checked before storing; false abandons the choice (a newer user choice was made). */
   isCurrent?: () => boolean;
-  /** Reload the page after storing (pages whose clients read the target once at start). */
+  /** Reload the page when the stored choice differs from the target in effect (clients that read it once at start). */
   reload?: boolean;
 }
 
@@ -126,7 +127,8 @@ export async function choosePycoreFirstRunTarget(options: PycoreFirstRunOptions 
   if (!first || (options.isCurrent && !options.isCurrent()) || getPycoreSelectedTarget()) {
     return getPycoreSelectedTarget()?.url ?? '';
   }
-  if (!setPycoreTarget(first.url, { reload: options.reload === true })) return '';
+  const reload = options.reload === true && first.url !== getPycoreTarget().url;
+  if (!setPycoreTarget(first.url, { reload })) return '';
   pycoreLink.retarget();
   return first.url;
 }

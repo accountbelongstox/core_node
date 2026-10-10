@@ -55,10 +55,6 @@ export const WalletDepositsPanel: React.FC<WalletDepositsPanelProps> = ({ onChan
     setSelected(null);
   };
 
-  const createDeposit = async (): Promise<void> => {
-    await deposits.create();
-  };
-
   const current = selected ? history.find((item) => item.id === selected.id) ?? selected : null;
   const bankTransferPending = current !== null && current.status === CM_DEPOSIT_PENDING && current.payment_method === CM_BANK_TRANSFER;
 
@@ -112,7 +108,7 @@ export const WalletDepositsPanel: React.FC<WalletDepositsPanelProps> = ({ onChan
         title={deposits.bankInfo ? t('wallet.bank.title') : t('wallet.depositCreateTitle')}
         footer={deposits.bankInfo
           ? <MobileButton variant="primary" block onClick={closeCreate}>{t('mobile.c.done')}</MobileButton>
-          : <MobileButton variant="primary" block loading={deposits.busy} disabled={!deposits.canSubmit} onClick={() => void createDeposit()}>{deposits.busy ? t('common.saving') : t('wallet.depositCreate')}</MobileButton>}
+          : <MobileButton variant="primary" block loading={deposits.busy} disabled={!deposits.canSubmit} onClick={() => void deposits.create()}>{deposits.busy ? t('common.saving') : t('wallet.depositCreate')}</MobileButton>}
       >
         {deposits.bankInfo ? <WalletBankInstructions untitled info={deposits.bankInfo} currency={currency} /> : (
           <div className="cmmc-form">

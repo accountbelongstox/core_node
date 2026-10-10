@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { Bell, ClipboardCheck, FolderKanban, House, ListChecks, Store, UserRound, Wallet, type LucideIcon } from 'lucide-react';
-import { CM_PROTECTED_ROUTE } from '../../components/public-home/cmPublicRoutes';
+import { Bell, ClipboardCheck, FolderKanban, House, ListChecks, ShieldCheck, Store, UserRound, Wallet, type LucideIcon } from 'lucide-react';
+import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE } from '../../components/public-home/cmPublicRoutes';
 import { useCmBootstrap } from '../../contexts/CmBootstrapContext';
 
 /** Tab slots between the fixed Home tab and the fixed Alerts and Me tabs. */
@@ -28,6 +28,7 @@ const HOME_TAB: TabTemplate = { id: 'home', pageId: 'dashboard', path: CM_PROTEC
 const ALERTS_TAB: TabTemplate = { id: 'notifications', pageId: 'notifications', path: CM_PROTECTED_ROUTE.notifications, labelKey: 'mobile.tabs.notifications', Icon: Bell };
 const ME_TAB: TabTemplate = { id: 'me', pageId: 'profile', path: CM_PROTECTED_ROUTE.profile, labelKey: 'mobile.tabs.me', Icon: UserRound };
 
+const ADMIN_TAB: TabTemplate = { id: 'admin', pageId: 'admin', path: CM_ADMIN_ROUTE.home, labelKey: 'mobile.tabs.admin', Icon: ShieldCheck };
 const PROJECTS_TAB: TabTemplate = { id: 'projects', pageId: 'projects', path: CM_PROTECTED_ROUTE.projects, labelKey: 'mobile.tabs.projects', Icon: FolderKanban };
 const MARKETPLACE_TAB: TabTemplate = { id: 'marketplace', pageId: 'marketplace', path: CM_PROTECTED_ROUTE.marketplace, labelKey: 'mobile.tabs.marketplace', Icon: Store };
 const TASKS_TAB: TabTemplate = { id: 'tasks', pageId: 'tasks', path: CM_PROTECTED_ROUTE.tasks, labelKey: 'mobile.tabs.tasks', Icon: ListChecks };
@@ -36,6 +37,7 @@ const WALLET_TAB: TabTemplate = { id: 'wallet', pageId: 'wallet', path: CM_PROTE
 
 /** Middle tab candidates in priority order, each with the capability that unlocks it. */
 const FLEX_CANDIDATES: ReadonlyArray<{ capability: string; tab: TabTemplate }> = [
+  { capability: 'admin.access', tab: ADMIN_TAB },
   { capability: 'project.create', tab: PROJECTS_TAB },
   { capability: 'task.browse', tab: MARKETPLACE_TAB },
   { capability: 'task.read', tab: TASKS_TAB },
