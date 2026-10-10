@@ -38,6 +38,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_SCROLL,
     UI_TERMINAL_TEXT,
     UI_TERMINAL_LOGS_SEARCH,
+    UI_TERMINAL_MESH_SEARCH,
     UI_TERMINAL_VIEW,
     UI_TERMINAL_VIEWER_DEMAND,
     UI_TERMINAL_IMAGE_UPLOAD,
@@ -541,6 +542,16 @@ def register_terminal_routes(server) -> None:
             quiet=True,
         )
 
+    def mesh_search_handler(params, request_id, _context):
+        query = str(params.get("query") or "")
+        return run_terminal_action(
+            "mesh_search",
+            request_id,
+            lambda: terminal_service.search_mesh(query),
+            log_result=False,
+            quiet=True,
+        )
+
     def screenshot_text_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
         digest = str(params.get("digest") or "")
@@ -636,4 +647,5 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_SCREENSHOT_TEXT, handler=screenshot_text_handler)
     server.post(path=UI_TERMINAL_TEXT, handler=text_handler)
     server.post(path=UI_TERMINAL_LOGS_SEARCH, handler=logs_search_handler)
+    server.post(path=UI_TERMINAL_MESH_SEARCH, handler=mesh_search_handler)
     server.get(path=UI_TERMINAL_DESKTOP_SCREENSHOT, handler=desktop_screenshot_handler)

@@ -52,6 +52,8 @@ export interface PcSearchNode {
   url: string | null;
   label: string;
   os?: string;
+  /** pycore machine id (from the node's /api/status probe), when known. */
+  machineId?: string;
 }
 
 /** Every machine ever discovered (online or not, one entry per machine id), this machine first: the sent-message search asks them all. */
@@ -59,11 +61,12 @@ export function listSearchNodes(thisMachineLabel: string): PcSearchNode[] {
   const target = getPycoreTarget();
   const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || thisMachineLabel;
   return [
-    { url: null, label: thisLabel, os: getPycoreProbe(target.url)?.platform },
+    { url: null, label: thisLabel, os: getPycoreProbe(target.url)?.platform, machineId: getPycoreProbe(target.url)?.machineId },
     ...uniqueMachines(otherNodes(), target.url, null).map((node) => ({
       url: node.url,
       label: node.label,
       os: getPycoreProbe(node.url)?.platform || node.os,
+      machineId: getPycoreProbe(node.url)?.machineId,
     })),
   ];
 }

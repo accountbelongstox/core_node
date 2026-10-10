@@ -16,6 +16,7 @@ from pycore.pyfoundations.system_launcher import open_file_with_notepad
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_capture_store import terminal_capture_store
 from pycore.pyctl.terminal.terminal_image_store import ERROR_IMAGE_MISSING, terminal_image_store
+from pycore.pyctl.terminal.terminal_mesh_sync import terminal_mesh_sync
 from pycore.pyctl.terminal.terminal_permission_mode import (
     CYCLE_KEY,
     SWITCH_TARGET_MODES,
@@ -672,12 +673,17 @@ class TerminalService:
         )
 
     def search_logs(self, query: str) -> Dict[str, Any]:
-        """Sent messages of every terminal containing query, newest first."""
+        """Sent messages and unsent drafts of every terminal containing query, newest first."""
         return {
             "success": True,
             "query": query,
             "results": self._state_repository.search_logs(query, TERMINAL_LOG_SEARCH_RESULTS),
         }
+
+    def search_mesh(self, query: str) -> Dict[str, Any]:
+        """Sent messages and drafts of every machine replicated through MeshSync (also machines that
+        are offline now), read from the selected Laravel server, newest first."""
+        return terminal_mesh_sync.search(query, TERMINAL_LOG_SEARCH_RESULTS)
 
     def read_text(
         self,

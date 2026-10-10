@@ -1,0 +1,1 @@
+- [Quick-command test commands](feedback_quick_command_test_commands.md) — only cls/git status in live tests; git_pull ran for real once
