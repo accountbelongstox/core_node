@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Copy, CornerDownLeft, Pencil, ScrollText, Search, Send, SquareTerminal, Timer, X } from 'lucide-react';
+import { Copy, CornerDownLeft, Pencil, ScrollText, Search, Send, SquareTerminal, Timer, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
-import type { TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
+import type { TerminalLogDeleteTarget, TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 import Portal from '@/shared/ui/Portal';
 
@@ -51,6 +51,8 @@ interface PcTerminalLogDialogProps {
   onReuse: (text: string) => void;
   /** Place the text in the composer and send it with the regular send. */
   onResend: (text: string) => void;
+  /** Deletes history entries everywhere they are stored; resolves to the deleted ids. */
+  onDelete: (terminalNumber: number, target: TerminalLogDeleteTarget) => Promise<string[]>;
   onClose: () => void;
 }
 
@@ -60,6 +62,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
   errorTranslationKey,
   onReuse,
   onResend,
+  onDelete,
   onClose,
 }) => {
   const { t } = useTranslation('pc');
@@ -70,6 +73,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
   const [content, setContent] = useState('');
   const [contentLoading, setContentLoading] = useState(false);
   const [copyState, setCopyState] = useState<'' | 'copied' | 'failed'>('');
+  const [deleting, setDeleting] = useState(false);
   const terminalNumber = windowInfo.terminal_number;
 
   const filteredLogs = useMemo(() => {
@@ -114,6 +118,17 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
 
   const copyContent = async () => {
     setCopyState(await copyTextToSystemClipboard(content) ? 'copied' : 'failed');
+  };
+
+  const remove = async (target: TerminalLogDeleteTarget) => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      const deletedIds = await onDelete(terminalNumber, target);
+      if (deletedIds.includes(selectedId)) setContent('');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -175,6 +190,17 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
               {source ? t(`terminal.logSource.${source}`) : t('terminal.logs.filterAll')}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => void remove({ all: true, source: sourceFilter || undefined })}
+            disabled={deleting || !windowInfo.logs.some((entry) => !sourceFilter || terminalLogSource(entry) === sourceFilter)}
+            className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            <Trash2 className="h-3 w-3" />
+            {t('terminal.logs.deleteAll', {
+              source: sourceFilter ? t(`terminal.logSource.${sourceFilter}`) : t('terminal.logs.filterAll'),
+            })}
+          </button>
         </div>
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:grid-rows-1">
           <div className="min-h-0 space-y-1.5 overflow-y-auto border-b border-slate-500/10 p-3 md:border-b-0 md:border-r">
@@ -242,6 +268,15 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
                   >
                     <Send className="h-3 w-3" />
                     {t('terminal.logs.reuseAndSend')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void remove({ logIds: [selectedLog.id] })}
+                    disabled={deleting}
+                    className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    {t('terminal.logs.delete')}
                   </button>
                 </div>
                 {copyState && (
