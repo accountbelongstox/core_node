@@ -45,6 +45,11 @@
       "yellow_upgrade": "黄装升级",
       "item_reforge": "重铸装备",
       "test_pathfinding": "测试寻路",
+      "town_repair": "YOLO 修理装备",
+      "town_salvage": "YOLO 分解装备（停在确认框）",
+      "town_enchant": "YOLO 读取附魔",
+      "town_kanai": "YOLO 打开卡奈魔盒",
+      "town_kadala": "YOLO 打开卡达拉",
       "log_level_descriptions": {
         "DEBUG": "显示所有日志信息",
         "INFO": "显示信息、警告、错误和严重错误",

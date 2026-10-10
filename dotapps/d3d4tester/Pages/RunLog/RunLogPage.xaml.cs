@@ -34,6 +34,7 @@ public partial class RunLogPage : UserControl
     private static readonly string[] TestButtonKeys =
     {
         I18nKeys.LogPanelBagTest, I18nKeys.LogPanelYellowUpgrade, I18nKeys.LogPanelItemReforge, I18nKeys.LogPanelTestPathfinding,
+        I18nKeys.LogPanelTownRepair, I18nKeys.LogPanelTownSalvage, I18nKeys.LogPanelTownEnchant, I18nKeys.LogPanelTownKanai, I18nKeys.LogPanelTownKadala,
         I18nKeys.AuxDebugBloodShard, I18nKeys.AuxDebugQuickPickup, I18nKeys.AuxDebugBlacksmith, I18nKeys.AuxDebugKanaiReforge,
         I18nKeys.AuxDebugKanaiUpgrade, I18nKeys.AuxDebugKanaiConvert, I18nKeys.AuxDebugAutoSalvage, I18nKeys.AuxDebugDropEquipment,
         I18nKeys.AuxDebugSoundFeedback, I18nKeys.AuxDebugSmartPause, I18nKeys.RosbotDebugBattlenetUi, I18nKeys.RosbotDebugRosbot,

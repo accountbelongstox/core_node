@@ -26,6 +26,11 @@ public static partial class I18nKeys
     public const string LogPanelTestPathfinding = "ui.log_panel.test_pathfinding";
     public const string LogPanelTestPathfindingStart = "ui.log_panel.test_pathfinding_start";
     public const string LogPanelTestPathfindingComplete = "ui.log_panel.test_pathfinding_complete";
+    public const string LogPanelTownRepair = "ui.log_panel.town_repair";
+    public const string LogPanelTownSalvage = "ui.log_panel.town_salvage";
+    public const string LogPanelTownEnchant = "ui.log_panel.town_enchant";
+    public const string LogPanelTownKanai = "ui.log_panel.town_kanai";
+    public const string LogPanelTownKadala = "ui.log_panel.town_kadala";
     public const string AuxDebugBloodShard = "ui.auxiliary_panel.debug_blood_shard";
     public const string AuxDebugQuickPickup = "ui.auxiliary_panel.debug_quick_pickup";
     public const string AuxDebugBlacksmith = "ui.auxiliary_panel.debug_blacksmith";

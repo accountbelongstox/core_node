@@ -42,3 +42,6 @@ D:\programing\core_node\dotcore\DotCore.UITheme\obj\Debug\net8.0-windows\ref\Dot
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.UITheme.deps.json
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.UITheme.dll
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.UITheme.pdb
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.UITheme.deps.json
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.UITheme.dll
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.UITheme.pdb

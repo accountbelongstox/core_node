@@ -75,18 +75,18 @@ internal static class RosCaster
         if (TryPotion(me, now)) return true;
         var position = WorldScanner.Safe(() => target.Position, LocalPlayer.Position);
         int acd = WorldScanner.Safe(() => target.AcdId, 0);
-        var candidates = skills.Where(s => s.Ready && SlotRank(s.Slot) >= 0 && !Locked(s.Power, now)).OrderBy(s => SlotRank(s.Slot));
+        var candidates = skills.Where(s => s.Ready && SlotRank(s.Slot) >= 0 && !IsLockedOut(s.Power, now)).OrderBy(s => SlotRank(s.Slot));
         foreach (var skill in candidates)
         {
             if (!WorldScanner.Safe(() => me.CanCast(skill.Power), false)) continue;
             string how = CastAt(me, skill, position, acd);
             if (how == null)
             {
-                Lock(skill.Power, now, FailBackoffMs);
+                LockOut(skill.Power, now, FailBackoffMs);
                 LastCast = $"{skill.Name} ({skill.Slot}) failed";
                 continue;
             }
-            if (skill.Slot != SlotLeft && skill.Slot != SlotRight) Lock(skill.Power, now, SlotLockoutMs);
+            if (skill.Slot != SlotLeft && skill.Slot != SlotRight) LockOut(skill.Power, now, SlotLockoutMs);
             LastCast = $"{skill.Name} ({skill.Slot}) {how}";
             return true;
         }
@@ -111,19 +111,19 @@ internal static class RosCaster
     {
         if (WorldScanner.Safe(() => LocalPlayer.CurrentHealthPct, 1d) >= PotionHealth) return false;
         int potion = WorldScanner.Safe(() => (int)Enum.Parse(typeof(PowerId), PotionPowerName), 0);
-        if (potion == 0 || Locked(potion, now) || !WorldScanner.Safe(() => me.CanCast(potion), false)) return false;
+        if (potion == 0 || IsLockedOut(potion, now) || !WorldScanner.Safe(() => me.CanCast(potion), false)) return false;
         bool sent = WorldScanner.Safe(() => { me.Cast(potion, LocalPlayer.Position, false, true); return true; }, false);
-        Lock(potion, now, PotionLockoutMs);
+        LockOut(potion, now, PotionLockoutMs);
         LastCast = $"{PotionPowerName} {(sent ? "Cast" : "failed")}";
         return sent;
     }
 
-    private static bool Locked(int power, DateTime now)
+    private static bool IsLockedOut(int power, DateTime now)
     {
         lock (LockedUntil) return LockedUntil.TryGetValue(power, out var until) && until > now;
     }
 
-    private static void Lock(int power, DateTime now, int ms)
+    private static void LockOut(int power, DateTime now, int ms)
     {
         lock (LockedUntil) LockedUntil[power] = now.AddMilliseconds(ms);
     }

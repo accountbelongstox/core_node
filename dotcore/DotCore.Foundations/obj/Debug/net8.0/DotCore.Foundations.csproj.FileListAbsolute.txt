@@ -28,3 +28,6 @@ E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.Foundations.deps.json
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.Foundations.dll
 E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\d3probe\bin_out\DotCore.Foundations.pdb
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.Foundations.deps.json
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.Foundations.dll
+E:\_win10_dev\work\claude\D--programing-core-node\a0705954-189c-4253-9e25-8e4722fec622\scratchpad\app_build\DotCore.Foundations.pdb

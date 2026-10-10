@@ -99,6 +99,7 @@ function invokeScript() {
                 throw new Error(`Invalid IL size ${ilSize}.`);
             }
             const ilBytes = bytesToHex(DebuggerApi.readBytes(ilAddress, ilSize));
+            const methodDescriptorBytes = bytesToHex(DebuggerApi.readBytes(methodHandle, 16));
             let methodLines = DebuggerApi.execute(`!dumpmd ${methodHandle.toString(16)}`);
             let tokenText;
             let methodName;
@@ -117,6 +118,7 @@ function invokeScript() {
                         ModuleName: targetModulePath,
                         ModuleHandle: moduleKey,
                         MethodHandle: methodHandle.toString(16),
+                        MethodDescriptorBytes: methodDescriptorBytes,
                         ILBytes: ilBytes,
                         ILSize: ilSize,
                         MaxStack: maxStack,
