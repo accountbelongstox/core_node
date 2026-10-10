@@ -39,5 +39,6 @@ public static partial class I18nKeys
     public const string RosbotDebugBattlenetUi = "ui.rosbot.debug_battlenet_ui";
     public const string RosbotDebugRosbot = "ui.rosbot.debug_rosbot";
     public const string RosbotDebugGameStatus = "ui.rosbot.debug_game_status";
+    public const string RosbotDebugBountyMap = "ui.rosbot.debug_bounty_map";
     public const string RosbotTestPauseResume = "ui.rosbot.test_pause_resume";
 }

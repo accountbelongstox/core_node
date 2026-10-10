@@ -271,7 +271,7 @@ public sealed class BagInfoCollector
             var path = D3TemplateConfig.GetTemplatePath(name);
             if (path != null && File.Exists(path))
             {
-                if (_matcher.MatchTemplate(gameWindow, name).TotalMatches > 0)
+                if (D3InterfaceDetection.IsKanaiRecipePanelOpened(gameWindow))
                 {
                     shared.KanaiRightPageOpened = true;
                     ColorPrinter.Green("[BagInfoCollector] Kanai's Cube right page is OPENED");

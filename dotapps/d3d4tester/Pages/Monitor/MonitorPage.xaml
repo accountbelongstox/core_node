@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:comp="clr-namespace:DotApps.d3d4tester.Components"
-             xmlns:decompile="clr-namespace:DotApps.d3d4tester.Pages.Decompile">
+             xmlns:decompile="clr-namespace:DotApps.d3d4tester.Pages.Decompile"
+             xmlns:templates="clr-namespace:DotApps.d3d4tester.Pages.Templates">
   <!-- Control center (monitor + test merged), no page scrolling: status + run controls always on top, grouped side navigation below -->
   <UserControl.Resources>
     <ResourceDictionary Source="/d3d4tester;component/Assets/Styles/CompactPage.xaml"/>
@@ -334,6 +335,10 @@
       <!-- Decompile tools (ILSpy, de4dot-cex, autoit-ripper, UPX) and their log -->
       <TabItem x:Name="TabDecompile">
         <decompile:DecompilePage x:Name="DecompileTools"/>
+      </TabItem>
+      <!-- Every template image with status, purpose and the code using it -->
+      <TabItem x:Name="TabTemplates">
+        <templates:TemplatesPage x:Name="TemplatesGallery"/>
       </TabItem>
     </TabControl>
   </Grid>

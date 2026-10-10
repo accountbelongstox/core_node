@@ -3,6 +3,32 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme"
              xmlns:comp="clr-namespace:DotApps.d3d4tester.Components">
+  <UserControl.Resources>
+    <!-- Gear cells: library icon (D3ItemIcons, empty when none) + text -->
+    <DataTemplate x:Key="ItemCellTemplate">
+      <StackPanel Orientation="Horizontal">
+        <Image Source="{Binding Icon}" Height="28" MaxWidth="28" Stretch="Uniform" Margin="0,0,4,0"/>
+        <TextBlock Text="{Binding Item}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+      </StackPanel>
+    </DataTemplate>
+    <DataTemplate x:Key="GemsCellTemplate">
+      <StackPanel Orientation="Horizontal">
+        <ItemsControl ItemsSource="{Binding GemIcons}" VerticalAlignment="Center">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Image Source="{Binding}" Width="20" Height="20" Margin="0,0,2,0"/>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding Gems}" VerticalAlignment="Center" Margin="2,0,0,0" TextTrimming="CharacterEllipsis"/>
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
   <!-- maxroll d3planner build: URL + load, cache folder, gear set, notify switches, paper dolls (worn in game | planned), then gear / skills / follower -->
   <DockPanel Margin="4">
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
@@ -53,9 +79,9 @@
           <ListView.View>
             <GridView>
               <GridViewColumn x:Name="ColSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
-              <GridViewColumn x:Name="ColItem" Width="130" DisplayMemberBinding="{Binding Item}"/>
+              <GridViewColumn x:Name="ColItem" Width="170" CellTemplate="{StaticResource ItemCellTemplate}"/>
               <GridViewColumn x:Name="ColHave" Width="120" DisplayMemberBinding="{Binding Have}"/>
-              <GridViewColumn x:Name="ColGems" Width="120" DisplayMemberBinding="{Binding Gems}"/>
+              <GridViewColumn x:Name="ColGems" Width="150" CellTemplate="{StaticResource GemsCellTemplate}"/>
               <GridViewColumn x:Name="ColAffixes" Width="260" DisplayMemberBinding="{Binding Affixes}"/>
             </GridView>
           </ListView.View>
@@ -122,8 +148,8 @@
             <ListView.View>
               <GridView>
                 <GridViewColumn x:Name="ColFollowerSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
-                <GridViewColumn x:Name="ColFollowerItem" Width="150" DisplayMemberBinding="{Binding Item}"/>
-                <GridViewColumn x:Name="ColFollowerGems" Width="120" DisplayMemberBinding="{Binding Gems}"/>
+                <GridViewColumn x:Name="ColFollowerItem" Width="190" CellTemplate="{StaticResource ItemCellTemplate}"/>
+                <GridViewColumn x:Name="ColFollowerGems" Width="150" CellTemplate="{StaticResource GemsCellTemplate}"/>
                 <GridViewColumn x:Name="ColFollowerAffixes" Width="260" DisplayMemberBinding="{Binding Affixes}"/>
               </GridView>
             </ListView.View>

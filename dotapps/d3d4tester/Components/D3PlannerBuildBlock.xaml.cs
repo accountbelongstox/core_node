@@ -158,8 +158,8 @@ public partial class D3PlannerBuildBlock : UserControl
         TxtFollower.Text = T(I18nKeys.RosbotBridgeBuildFollower) + LabelSeparator
             + (profile?.Follower is { } f ? Pick(f.NameEn, f.NameZh) : T(I18nKeys.RosbotBridgeBuildHaveNone));
         TxtFollowerSkills.Text = T(I18nKeys.RosbotBridgeBuildFollowerSkills) + LabelSeparator + JoinNames(profile?.FollowerSkills);
-        LstFollowerItems.ItemsSource = profile?.FollowerItems.Select(i => new FollowerRow(D3PlannerService.SlotName(i), PlannedText(i),
-            GemsText(i), string.Join(StatSeparator, i.Stats.Select(StatText)), AffixDetail(i, null))).ToList();
+        LstFollowerItems.ItemsSource = profile?.FollowerItems.Select(i => new FollowerRow(D3PlannerService.SlotName(i), ItemIcon(i), PlannedText(i),
+            GemsText(i), GemIcons(i), string.Join(StatSeparator, i.Stats.Select(StatText)), AffixDetail(i, null))).ToList();
     }
 
     /// <summary>Cached icon file as an image (loaded into memory, so the file stays free); null while it is not cached yet.</summary>
@@ -207,6 +207,22 @@ public partial class D3PlannerBuildBlock : UserControl
         string.Join(NameSeparator, names?.Select(n => Pick(n.NameEn, n.NameZh)) ?? Array.Empty<string>());
 
     private static string GemsText(PlannerItem item) => JoinNames(item.Gems);
+
+    /// <summary>Library icons already loaded (the gear list is rebuilt on every status change).</summary>
+    private static readonly Dictionary<string, ImageSource?> LibraryIcons = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Icon from the template icon libraries for an English item / gem name (D3ItemIcons); null when they have none.</summary>
+    private static ImageSource? LibraryIcon(string nameEn)
+    {
+        if (D3ItemIcons.FindPath(nameEn) is not { } path) return null;
+        if (!LibraryIcons.TryGetValue(path, out var icon)) LibraryIcons[path] = icon = LoadIcon(path);
+        return icon;
+    }
+
+    private static ImageSource? ItemIcon(PlannerItem item) => LibraryIcon(item.NameEn);
+
+    /// <summary>Icons of the socketed gems that the libraries have.</summary>
+    private static IReadOnlyList<ImageSource> GemIcons(PlannerItem item) => item.Gems.Select(g => LibraryIcon(g.NameEn)).OfType<ImageSource>().ToList();
 
     private static string StatText(PlannerStat st) =>
         $"{D3PlannerService.StatName(st)} {st.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)}{(st.Percent ? PercentSuffix : "")}";
@@ -303,7 +319,7 @@ public partial class D3PlannerBuildBlock : UserControl
         var results = s.Match?.Stats.ToDictionary(r => r.Stat, r => r) ?? new Dictionary<PlannerStat, PlannerStatResult>();
         string Stat(PlannerStat st) => $"{D3PlannerService.StatName(st)} {st.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)}{(st.Percent ? PercentSuffix : "")}";
         string Mark(PlannerStat st) => results.TryGetValue(st, out var r) ? r.Ok switch { true => MarkOk, false => MarkMissing, _ => MarkUnchecked } : "";
-        return new BuildRow(slot, name, have, GemsText(item),
+        return new BuildRow(slot, ItemIcon(item), name, have, GemsText(item), GemIcons(item),
             string.Join(StatSeparator, item.Stats.Select(Stat)),
             string.Join(LineSeparator, item.Stats.Select(st => Mark(st) + Stat(st))));
     }
@@ -349,11 +365,11 @@ public partial class D3PlannerBuildBlock : UserControl
         if (!_loadingProfiles && CmbProfile.SelectedIndex >= 0) D3PlannerService.SelectProfile(CmbProfile.SelectedIndex);
     }
 
-    private sealed record BuildRow(string Slot, string Item, string Have, string Gems, string Affixes, string Detail);
+    private sealed record BuildRow(string Slot, ImageSource? Icon, string Item, string Have, string Gems, IReadOnlyList<ImageSource> GemIcons, string Affixes, string Detail);
 
     private sealed record SkillRow(string Slot, ImageSource? Icon, string Skill, string Rune);
 
     private sealed record PassiveRow(ImageSource? Icon, string Name);
 
-    private sealed record FollowerRow(string Slot, string Item, string Gems, string Affixes, string Detail);
+    private sealed record FollowerRow(string Slot, ImageSource? Icon, string Item, string Gems, IReadOnlyList<ImageSource> GemIcons, string Affixes, string Detail);
 }

@@ -15,10 +15,21 @@ public static class GameStatusDebugService
     private const string LogPrefix = "[GameStatus]";
     private static int _running;
 
-    /// <summary>Register the RunLog debug button handler (idempotent).</summary>
-    public static void RegisterTestAction() => TestActionRegistry.Register(I18nKeys.RosbotDebugGameStatus, RunInBackground);
+    /// <summary>Register the RunLog debug button handlers (idempotent): status refresh, open map (bounty progress check).</summary>
+    public static void RegisterTestAction()
+    {
+        TestActionRegistry.Register(I18nKeys.RosbotDebugGameStatus, RunInBackground);
+        TestActionRegistry.Register(I18nKeys.RosbotDebugBountyMap, () => RunGuarded(() =>
+            ColorPrinter.Blue($"{LogPrefix} map open (bounty progress) = {D3ScreenState.EnsureBountyMapOpen()}")));
+    }
 
-    public static void RunInBackground()
+    public static void RunInBackground() => RunGuarded(() =>
+    {
+        RosbotTaskProcessor.Instance.RefreshAllGameStatus(d3Dynamic: true);
+        LogSnapshot();
+    });
+
+    private static void RunGuarded(Action action)
     {
         if (Interlocked.Exchange(ref _running, 1) == 1)
         {
@@ -29,8 +40,7 @@ public static class GameStatusDebugService
         {
             try
             {
-                RosbotTaskProcessor.Instance.RefreshAllGameStatus(d3Dynamic: true);
-                LogSnapshot();
+                action();
             }
             catch (Exception ex)
             {
