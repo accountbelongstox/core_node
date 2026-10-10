@@ -1700,6 +1700,7 @@ export const cmEn = {
       reviewers: 'Reviewer applications',
       contact: 'Contact messages',
       activity: 'Activity log',
+      brandGallery: 'Brand gallery',
     },
     metrics: {
       users: 'Total users',
