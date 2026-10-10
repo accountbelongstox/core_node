@@ -96,6 +96,7 @@ OPTIONAL_PACKAGES: Dict[str, str] = {
     "nltk": "nltk",
     "google.auth": "google-auth",
     "pynvml": "nvidia-ml-py",
+    "rawpy": "rawpy",
 }
 
 WINDOWS_ONLY_PACKAGES: Dict[str, str] = {

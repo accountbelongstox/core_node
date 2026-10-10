@@ -204,6 +204,11 @@ def get_third_package_numpy():
     return _lazy_import('numpy', 'import numpy')
 
 
+def get_third_package_rawpy():
+    """Get rawpy package (lazy load). LibRaw decoder for camera raw images such as DNG."""
+    return _lazy_import('rawpy', 'import rawpy')
+
+
 def get_third_package_matplotlib():
     """Get matplotlib package (lazy load). Used by SDKTool for pyplot/font_manager."""
     return _lazy_import('matplotlib', 'import matplotlib')

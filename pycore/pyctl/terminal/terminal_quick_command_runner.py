@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Runs a quick command of the library on one terminal: Ctrl+C several times so the running program
-exits, a wait for the shell prompt, then the command line typed and submitted (history kind "quick").
+"""Runs a quick command of the library on one terminal: an idle shell prompt (terminal_shell_state) gets one
+Ctrl+C that clears its input line, any other screen several spaced Ctrl+C so the running program exits; then
+a wait for a stable shell prompt and the command line typed and submitted (history kind "quick").
 One run per terminal at a time; the run is a background step list and its phase is readable by status()."""
 
 from __future__ import annotations
 
 import secrets
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_quick_commands import INTERRUPT_POLICY, resolve_quick_command
 from pycore.pyctl.terminal.terminal_service import ERROR_VIRTUAL_UNSUPPORTED, terminal_service
+from pycore.pyctl.terminal.terminal_shell_state import ShellState, terminal_shell_state
 from pycore.pyctl.terminal.terminal_virtual_agents import is_virtual_window
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyfoundations.time_utils import utc_now_ms
@@ -33,19 +35,6 @@ ERROR_WINDOW_REQUIRED = "terminal_window_id_required"
 ERROR_NUMBER_REQUIRED = "terminal_number_required"
 MS_PER_SECOND = 1000.0
 THREAD_NAME = "TerminalQuickCommandThread"
-
-
-def prompt_tail(text: str, policy: Dict[str, Any]) -> Optional[List[str]]:
-    """Last non-empty lines of the terminal text when the last one is a shell prompt, else None."""
-    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
-    if not lines:
-        return None
-    last = lines[-1]
-    if last.endswith(tuple(policy["rejected_prompt_suffixes"])):
-        return None
-    if not last.endswith(tuple(policy["prompt_suffixes"])):
-        return None
-    return lines[-int(policy["tail_lines"]):]
 
 
 class TerminalQuickCommandRunner:
@@ -153,29 +142,31 @@ class TerminalQuickCommandRunner:
 
     def _execute(self, window_id: str, terminal_number: int, run: Dict[str, Any]) -> Dict[str, Any]:
         policy = INTERRUPT_POLICY
-        interval_seconds = policy["interval_ms"] / MS_PER_SECOND
-        count = int(policy["ctrl_c_count"])
+        probe = self._classify(window_id, terminal_number, run)
+        idle = probe is not None and probe.idle
+        terminal_activity_log.info(
+            "quick_command.probe",
+            terminal_number=terminal_number,
+            run_id=run["run_id"],
+            state=probe.state if probe else None,
+            rule=probe.rule if probe else None,
+            line=probe.line if probe else None,
+        )
+        count = int(policy["idle_ctrl_c_count"] if idle else policy["ctrl_c_count"])
+        self._update(terminal_number, shell_idle=idle, ctrl_c_count=count)
         for index in range(count):
             if index:
-                time.sleep(interval_seconds)
-            pressed = terminal_service.press_key(window_id, KEY_CTRL_C)
-            terminal_activity_log.info(
-                "quick_command.ctrl_c",
-                terminal_number=terminal_number,
-                run_id=run["run_id"],
-                press=index + 1,
-                of=count,
-                success=pressed.get("success"),
-                error_code=pressed.get("error_code"),
-            )
+                time.sleep(policy["interval_ms"] / MS_PER_SECOND)
+            pressed = self._press_ctrl_c(window_id, terminal_number, run, index + 1, count)
             if not pressed.get("success"):
                 return pressed
             self._update(terminal_number, ctrl_c_sent=index + 1)
 
         self._update(terminal_number, phase=PHASE_WAITING)
-        idle = self._await_shell_prompt(window_id, terminal_number, run, policy)
-        if not idle.get("success"):
-            return idle
+        settle_ms = policy["idle_settle_ms"] if idle else policy["settle_ms"]
+        ready = self._await_shell_prompt(window_id, terminal_number, run, policy, settle_ms)
+        if not ready.get("success"):
+            return ready
 
         self._update(terminal_number, phase=PHASE_TYPING)
         typed = terminal_service.input_text(
@@ -183,8 +174,7 @@ class TerminalQuickCommandRunner:
             terminal_number,
             run["line"],
             source=SOURCE_QUICK,
-            clear_first=True,
-            shell_prompt=True,
+            shell_os=run["platform"],
         )
         terminal_activity_log.info(
             "quick_command.typed",
@@ -196,33 +186,57 @@ class TerminalQuickCommandRunner:
         )
         return typed
 
+    def _press_ctrl_c(self, window_id: str, terminal_number: int, run: Dict[str, Any], press: int, count: int) -> Dict[str, Any]:
+        pressed = terminal_service.press_key(window_id, KEY_CTRL_C)
+        terminal_activity_log.info(
+            "quick_command.ctrl_c",
+            terminal_number=terminal_number,
+            run_id=run["run_id"],
+            press=press,
+            of=count,
+            success=pressed.get("success"),
+            error_code=pressed.get("error_code"),
+        )
+        return pressed
+
+    def _classify(self, window_id: str, terminal_number: int, run: Dict[str, Any]) -> Optional[ShellState]:
+        exported = terminal_service.export_text(window_id, terminal_number)
+        if not exported.get("success"):
+            return None
+        return terminal_shell_state.classify(exported["text"], run["platform"])
+
     def _await_shell_prompt(
         self,
         window_id: str,
         terminal_number: int,
         run: Dict[str, Any],
         policy: Dict[str, Any],
+        settle_ms: float,
     ) -> Dict[str, Any]:
-        """Poll the exported text until the shell prompt shows and the tail stays unchanged; bounded by max_wait_ms."""
-        time.sleep(policy["settle_ms"] / MS_PER_SECOND)
+        """Poll until an idle prompt shows and the tail stays unchanged; a screen still busy gets another
+        spaced Ctrl+C every reinterrupt_polls polls (at most max_reinterrupts); bounded by max_wait_ms."""
+        time.sleep(settle_ms / MS_PER_SECOND)
         deadline = time.monotonic() + policy["max_wait_ms"] / MS_PER_SECOND
-        previous: Optional[List[str]] = None
+        previous: Optional[ShellState] = None
         stable = 0
         polls = 0
+        busy_polls = 0
+        reinterrupts = 0
         while True:
-            exported = terminal_service.export_text(window_id, terminal_number)
+            state = self._classify(window_id, terminal_number, run)
             polls += 1
             self._update(terminal_number, polls=polls)
-            tail = prompt_tail(exported["text"], policy) if exported.get("success") else None
-            stable = stable + 1 if tail is not None and tail == previous else 0
-            previous = tail
-            if tail is not None and stable + 1 >= int(policy["stable_polls"]):
+            idle = state is not None and state.idle
+            stable = stable + 1 if idle and previous is not None and state.tail == previous.tail else 0
+            previous = state
+            if idle and stable + 1 >= int(policy["stable_polls"]):
                 terminal_activity_log.info(
                     "quick_command.prompt_ready",
                     terminal_number=terminal_number,
                     run_id=run["run_id"],
                     polls=polls,
-                    prompt=tail[-1],
+                    rule=state.rule,
+                    prompt=state.line,
                 )
                 return {"success": True, "error_code": None}
             if time.monotonic() >= deadline:
@@ -231,13 +245,21 @@ class TerminalQuickCommandRunner:
                     terminal_number=terminal_number,
                     run_id=run["run_id"],
                     polls=polls,
-                    last_line=(previous or [""])[-1],
-                    export_error=exported.get("error_code"),
+                    state=state.state if state else None,
+                    rule=state.rule if state else None,
+                    last_line=state.line if state else "",
                 )
                 return {"success": False, "error_code": ERROR_IDLE_TIMEOUT}
+            busy_polls = 0 if idle else busy_polls + 1
+            if busy_polls >= int(policy["reinterrupt_polls"]) and reinterrupts < int(policy["max_reinterrupts"]):
+                busy_polls = 0
+                reinterrupts += 1
+                pressed = self._press_ctrl_c(window_id, terminal_number, run, reinterrupts, int(policy["max_reinterrupts"]))
+                if not pressed.get("success"):
+                    return pressed
             time.sleep(policy["poll_interval_ms"] / MS_PER_SECOND)
 
 
 terminal_quick_command_runner = TerminalQuickCommandRunner()
 
-__all__ = ["TerminalQuickCommandRunner", "prompt_tail", "terminal_quick_command_runner"]
+__all__ = ["TerminalQuickCommandRunner", "terminal_quick_command_runner"]

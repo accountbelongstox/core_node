@@ -82,6 +82,10 @@ CLEAR_INPUT_SETTLE_SECONDS = 0.15
 # A shell prompt (quick commands) of a Windows shell is cleared with Esc: PSReadLine
 # and cmd treat Ctrl+K / Ctrl+U as literal ^K / ^U characters.
 CLEAR_WINDOWS_SHELL_KEYS = (TERMINAL_KEY_ESCAPE,)
+# A shell command line is typed as characters where the backend can: a TUI killed by Ctrl+C can leave
+# bracketed paste / focus reporting on, and a shell without VT parsing (PSReadLine) then receives the
+# paste wrapped in escape sequences. It is submitted with one Enter after a short settle.
+SHELL_LINE_TYPE_SETTLE_SECONDS = 0.15
 SHELL_OS_WINDOWS = "windows"
 SHELL_OS_LINUX = "linux"
 # Force run: Ctrl+C stops the running command, then the input line is cleared.
@@ -390,7 +394,6 @@ class TerminalWindowBackend:
         content_length: int = 0,
         clear_first: bool = False,
         interrupt_first: bool = False,
-        shell_prompt: bool = False,
     ) -> Dict[str, Any]:
         window, blocked = self._input_window(window_id)
         if window is None:
@@ -401,7 +404,7 @@ class TerminalWindowBackend:
             if interrupt_first and not self._interrupt(window):
                 return failure("terminal_key_failed")
             clearing = clear_first or interrupt_first
-            if clearing and not self._clear_input(window, shell_prompt):
+            if clearing and not self._clear_input(window):
                 return failure("terminal_clear_failed")
             if clear_first and not interrupt_first and content_length <= 0:
                 return success(window)
@@ -409,12 +412,34 @@ class TerminalWindowBackend:
             # since a confirmation screen the Enters closed may have left input behind it.
             if not self._press_enters(window, PRE_SUBMIT_ENTER_PRESSES, PRE_SUBMIT_ENTER_INTERVAL_SECONDS):
                 return failure("terminal_enter_failed")
-            if clearing and not self._clear_input(window, shell_prompt):
+            if clearing and not self._clear_input(window):
                 return failure("terminal_clear_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
             time.sleep(paste_settle_seconds(content_length))
             return self._submit(window)
+
+    def submit_shell_line(self, window_id: str, text: str, shell_os: str) -> Dict[str, Any]:
+        """Clear the shell's input line, type the command line (the clipboard holds it for backends that
+        paste instead), then one Enter. No confirmation Enters: the target is a shell prompt."""
+        window, blocked = self._input_window(window_id)
+        if window is None:
+            return blocked
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            if not self._clear_input(window, shell_os):
+                return failure("terminal_clear_failed")
+            typed = self._type_text(window, text)
+            if typed is None:
+                if not self._paste(window):
+                    return failure("terminal_paste_failed")
+                time.sleep(paste_settle_seconds(len(text)))
+            elif not typed:
+                return failure("terminal_type_failed")
+            else:
+                time.sleep(SHELL_LINE_TYPE_SETTLE_SECONDS)
+            return self._press_enter(window)
 
     def prepare_input(
         self,
@@ -561,8 +586,12 @@ class TerminalWindowBackend:
         """Set the OS window title; backends without a native setter refuse."""
         return False
 
-    def _clear_input(self, window: Dict[str, Any], shell_prompt: bool = False) -> bool:
-        if shell_prompt and self._shell_os(window) == SHELL_OS_WINDOWS:
+    def _type_text(self, window: Dict[str, Any], text: str) -> Optional[bool]:
+        """Type text as characters; None when the backend cannot (the caller pastes the clipboard)."""
+        return None
+
+    def _clear_input(self, window: Dict[str, Any], shell_os: str = "") -> bool:
+        if shell_os == SHELL_OS_WINDOWS:
             if not self._keys(window, list(CLEAR_WINDOWS_SHELL_KEYS)):
                 return False
             time.sleep(CLEAR_INPUT_SETTLE_SECONDS)
@@ -709,8 +738,10 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         content_length: int = 0,
         clear_first: bool = False,
         interrupt_first: bool = False,
-        shell_prompt: bool = False,
     ) -> Dict[str, Any]:
+        return failure("unsupported_platform")
+
+    def submit_shell_line(self, window_id: str, text: str, shell_os: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:

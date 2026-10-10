@@ -150,6 +150,8 @@ export interface TerminalQuickCommand {
 /** Interrupt policy pycore applies before every quick command (config/terminal_quick_commands.json). */
 export interface TerminalQuickCommandInterruptPolicy {
   ctrl_c_count: number;
+  /** Ctrl+C presses when the terminal already shows an idle shell prompt (clears its input line). */
+  idle_ctrl_c_count: number;
   interval_ms: number;
   max_wait_ms: number;
 }
@@ -168,6 +170,9 @@ export interface TerminalQuickCommandRun {
   key?: string;
   line?: string;
   ctrl_c_sent?: number;
+  /** Ctrl+C presses this run planned: fewer when the shell prompt was idle. */
+  ctrl_c_count?: number;
+  shell_idle?: boolean;
 }
 
 export interface TerminalQuickCommands {
@@ -367,6 +372,15 @@ export interface TerminalImageUploadResult {
   name?: string;
   bytes?: number;
   mime?: string;
+  /** Images are compressed on receipt and only the result is kept; `original_*` describe the upload. */
+  compressed?: boolean;
+  original_bytes?: number;
+  original_width?: number;
+  original_height?: number;
+  width?: number;
+  height?: number;
+  /** Small JPEG data URL of the stored image, set when it was compressed. */
+  preview_url?: string;
   /** Set with `terminal_image_too_large`. */
   max_bytes?: number;
   /** Failure details: bytes pycore read, first bytes (hex) of an unsupported file, OS error text. */

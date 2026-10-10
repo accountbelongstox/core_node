@@ -8,7 +8,6 @@ name alone, and a scan knows what is archived without opening any file.
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import threading
@@ -19,6 +18,7 @@ from typing import Optional
 from pycore.pyfoundations.atomic_json_store import atomic_write_bytes, atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageOps
+from pycore.pyctl.terminal.terminal_image_compress import encode_jpeg_within, flatten_rgb
 from pycore.pyutils.common.relay_contract import relay_contract
 
 ARCHIVE_MAX_BYTES = relay_contract.limit("terminal_image_archive_bytes")
@@ -26,10 +26,7 @@ ARCHIVE_MIN_AGE_SECONDS = relay_contract.limit("terminal_image_archive_min_age_s
 ARCHIVE_MARKER = ".z"
 ARCHIVE_EXTENSION = ".jpg"
 ARCHIVE_START_SIDE = 1280
-ARCHIVE_MIN_SIDE = 64
 ARCHIVE_QUALITIES = (70, 55, 40, 30)
-ARCHIVE_SHRINK_FACTOR = 0.75
-ARCHIVE_BACKGROUND = (255, 255, 255)
 LABEL = "TerminalImageArchive"
 
 
@@ -47,25 +44,9 @@ def encode_within(source: Path, max_bytes: int) -> Optional[bytes]:
     image_module = get_third_package_PIL_Image()
     image_ops = get_third_package_PIL_ImageOps()
     with image_module.open(source) as opened:
-        image = image_ops.exif_transpose(opened)
-        if image.mode in ("RGBA", "LA", "P"):
-            image = image.convert("RGBA")
-            flat = image_module.new("RGB", image.size, ARCHIVE_BACKGROUND)
-            flat.paste(image, mask=image.getchannel("A"))
-            image = flat
-        else:
-            image = image.convert("RGB")
-    side = min(ARCHIVE_START_SIDE, max(image.size))
-    while side >= ARCHIVE_MIN_SIDE:
-        frame = image.copy()
-        frame.thumbnail((side, side), image_module.Resampling.LANCZOS)
-        for quality in ARCHIVE_QUALITIES:
-            buffer = io.BytesIO()
-            frame.save(buffer, format="JPEG", quality=quality, optimize=True)
-            if buffer.tell() <= max_bytes:
-                return buffer.getvalue()
-        side = int(side * ARCHIVE_SHRINK_FACTOR)
-    return None
+        image = flatten_rgb(image_ops.exif_transpose(opened))
+    encoded = encode_jpeg_within(image, max_bytes, ARCHIVE_QUALITIES, ARCHIVE_START_SIDE)
+    return encoded[0] if encoded else None
 
 
 class TerminalImageArchive:

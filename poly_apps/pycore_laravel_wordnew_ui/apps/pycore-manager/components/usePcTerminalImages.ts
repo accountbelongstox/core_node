@@ -16,9 +16,20 @@ export interface PcTerminalImage {
   displayPath: string;
   /** Size pycore stored, known once the upload finished. */
   storedBytes: number | null;
+  /** Set when pycore compressed the image on receipt; the original was discarded. */
+  compression: PcTerminalImageCompression | null;
   errorKey: string;
   errorParams: Record<string, number>;
   errorDetail: PcTerminalImageErrorDetail | null;
+}
+
+export interface PcTerminalImageCompression {
+  originalBytes: number;
+  originalWidth: number;
+  originalHeight: number;
+  bytes: number;
+  width: number;
+  height: number;
 }
 
 /** Everything known about a failed upload, shown in full under the attachments. */
@@ -131,6 +142,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         progress: 0,
         displayPath: '',
         storedBytes: null,
+        compression: null,
         errorKey: ok ? '' : ERROR_KEYS.notImage,
         errorParams: {},
         errorDetail: null,
@@ -179,11 +191,24 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         });
         return null;
       }
+      const compressed = Boolean(result.compressed && result.preview_url);
+      if (compressed) URL.revokeObjectURL(item.previewUrl);
       patch(item.id, {
         status: 'uploaded',
         progress: 1,
         displayPath: result.display_path,
         storedBytes: typeof result.bytes === 'number' ? result.bytes : null,
+        ...(compressed ? {
+          previewUrl: result.preview_url,
+          compression: {
+            originalBytes: result.original_bytes ?? item.file.size,
+            originalWidth: result.original_width ?? 0,
+            originalHeight: result.original_height ?? 0,
+            bytes: result.bytes ?? 0,
+            width: result.width ?? 0,
+            height: result.height ?? 0,
+          },
+        } : {}),
       });
       return result.display_path;
     } catch (error: any) {

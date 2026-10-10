@@ -36,6 +36,7 @@ from pycore.pyutils.window.ops import (
     set_window_text,
     set_window_topmost,
     show_window_without_activation,
+    type_native_text,
 )
 from pycore.pyutils.window.screen_capture import grab_screen_regions
 from pycore.pyutils.window.terminal_backend import (
@@ -219,6 +220,9 @@ class WindowsTerminalBackend(TerminalWindowBackend):
 
     def _set_title(self, window: Dict[str, Any], title: str) -> bool:
         return set_window_text(int(window["native_id"]), title)
+
+    def _type_text(self, window: Dict[str, Any], text: str) -> Optional[bool]:
+        return type_native_text(text)
 
     def _paste(self, window: Dict[str, Any]) -> bool:
         if self._is_terminal_host(window):
