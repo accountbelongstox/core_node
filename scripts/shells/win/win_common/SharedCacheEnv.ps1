@@ -485,6 +485,39 @@ function New-CnCopiedLinks {
     return $cnFailed
 }
 
+# Bytes still to copy: source files missing on the target or differing in size.
+function Get-CnPendingCopyBytes {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$Entries,
+        [Parameter(Mandatory = $true)]
+        [string]$TargetPath
+    )
+
+    $cnBytes = [long]0
+    $cnDestination = ''
+    $cnExisting = $null
+
+    foreach ($cnEntry in $Entries) {
+        $cnFiles = @($cnEntry)
+        if ($cnEntry -is [System.IO.DirectoryInfo]) {
+            $cnFiles = @(Get-ChildItem -LiteralPath $cnEntry.FullName -Recurse -Force -File -Attributes !ReparsePoint -ErrorAction SilentlyContinue)
+        }
+        foreach ($cnFile in $cnFiles) {
+            $cnDestination = Join-Path $TargetPath $cnFile.FullName.Substring($cnEntry.Parent.FullName.Length + 1)
+            if ($cnEntry -is [System.IO.FileInfo]) {
+                $cnDestination = Join-Path $TargetPath $cnFile.Name
+            }
+            $cnExisting = Get-Item -LiteralPath $cnDestination -Force -ErrorAction SilentlyContinue
+            if (-not $cnExisting -or $cnExisting.Length -ne $cnFile.Length) {
+                $cnBytes += $cnFile.Length
+            }
+        }
+    }
+    return $cnBytes
+}
+
 # True when every regular file under $Source exists under $Destination with
 # the same size (links are not compared). The gate before any D: deletion.
 function Test-CnCopyComplete {
@@ -791,6 +824,12 @@ function Move-CnLegacyProgramDir {
         # again over the live E: copy, only their D: leftovers are deleted.
         $cnMigrated = @(Get-CnMigratedNames -TargetPath $TargetPath)
         $cnToCopy = @($cnEntries | Where-Object { $cnMigrated -notcontains $_.Name })
+        $cnNeeded = Get-CnPendingCopyBytes -Entries $cnToCopy -TargetPath $TargetPath
+        $cnFree = [System.IO.DriveInfo]::new($TargetPath).AvailableFreeSpace
+        if ($cnNeeded -gt $cnFree) {
+            Write-Warning ('[PROGRAM-DRIVE] {0} needs {1:N1} GB but {2} has {3:N1} GB free; {0} stays live, nothing copied' -f $LegacyPath, ($cnNeeded / 1GB), [System.IO.Path]::GetPathRoot($TargetPath), ($cnFree / 1GB))
+            return
+        }
 
         foreach ($cnEntry in $cnToCopy) {
             Write-Host ('[PROGRAM-DRIVE] Copying {0} -> {1}' -f $cnEntry.FullName, (Join-Path $TargetPath $cnEntry.Name)) -ForegroundColor Cyan
