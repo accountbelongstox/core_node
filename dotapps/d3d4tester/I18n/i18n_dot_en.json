@@ -1269,6 +1269,7 @@
       "attack_test_tip": "Research: the plugin calls ROSBOT's Interact on the nearest monster within 40 yards and reports its hit points after 0.8 s and whether the hero cast, to check whether the plugin can attack by itself (see the command result). Takes control of ROSBOT first.",
       "cast_test": "Cast test",
       "cast_test_tip": "Research: the plugin casts once with ROSBOT's own cast entry (IPlayer.CastEx / Cast) at the nearest monster within 40 yards (first ready skill in bar order) and reports its hit points after 0.8 s. Takes control of ROSBOT first.",
+      "trace_event_tip": "Recording sync event name (optional): when set, Attack test / Cast test first open this named event inside ROSBOT's process, log the process id to ROSBOT's log and wait for the recorder to signal it (up to 60 s) before casting, so the TTD recording holds exactly this cast, for capturing the cast method bodies per ROSBOT_SOURCE_RECOVERY.md.",
       "plugin_cast": "Plugin casts",
       "plugin_cast_tip": "On by default: with combat assist the plugin casts with ROSBOT's own cast entry (bar slots 1-4, then right, then left; never the potion; only skills ROSBOT can cast now, off cooldown with enough resource) and the combat macro stays off. When ROSBOT's cast entry is not found or this is off, the combat macro presses the keys.",
       "cast_state": "cast: {0}",

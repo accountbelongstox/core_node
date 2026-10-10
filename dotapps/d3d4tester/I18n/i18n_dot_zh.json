@@ -1269,6 +1269,7 @@
       "attack_test_tip": "研究用：插件对 40 码内最近的怪调用 ROSBOT 的 Interact，0.8 秒后报告怪物生命变化和是否在施法，用来确认插件能否直接发起攻击（结果显示在命令结果里）。会先接管 ROSBOT。",
       "cast_test": "施法测试",
       "cast_test_tip": "研究用：插件用 ROSBOT 自己的施法入口（IPlayer.CastEx/Cast）对 40 码内最近的怪放一次技能（按技能栏顺序取第一个就绪的），0.8 秒后报告怪物生命变化。会先接管 ROSBOT。",
+      "trace_event_tip": "录制同步事件名（可空）：填写后，「攻击测试」「施法测试」会先在 ROSBOT 进程里打开这个命名事件、在 ROSBOT 日志写出进程号并等待录制端发信号（最多 60 秒），收到后才放技能，让 TTD 录制正好包含这次施法，用于按 ROSBOT_SOURCE_RECOVERY.md 抓取施法方法体。",
       "plugin_cast": "插件施法",
       "plugin_cast_tip": "默认开启：辅助战斗时由插件调用 ROSBOT 自己的施法入口放技能（技能栏 1-4 → 右键 → 左键，跳过药水；只放 ROSBOT 判断可放、冷却和资源都就绪的技能），此时不开战斗宏。找不到 ROSBOT 的施法入口或关闭此项时，改由战斗宏按键。",
       "cast_state": "施法：{0}",

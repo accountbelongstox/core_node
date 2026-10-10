@@ -36,7 +36,10 @@ internal sealed class SkillInfo
 /// cooldown left, enough resource and charges. PowerCooldown is published raw only: in game it was true for every skill with 0 ms left.
 /// attack_test (value "mode,click", default true,true): Interact with the nearest hostile monster within AttackTestRange and report its
 /// hit points before / after AttackTestWaitMs and whether the hero cast, i.e. whether ROSBOT's Interact attacks a monster; value "cast":
-/// the same with one rotation step of ROSBOT's own cast entry (RosCaster) instead.
+/// the same with one rotation step of ROSBOT's own cast entry (RosCaster) instead. With an "event" line (a named event of the TTD
+/// recording, the decompile collector's handshake) the test first opens that AutoReset event, logs its process id and waits up to
+/// TraceWaitMs for the recorder to signal it, so the recording holds exactly the cast (ROSBOT_SOURCE_RECOVERY.md, controlled
+/// invocation).
 /// power_api: every ROSBOT method taking a power (a parameter of an enum with a value named PowerProbeValue, e.g. PowerId /
 /// SNOPowerId) with its token, declaring type, static flag and signature into power_api.txt (read only, nothing is invoked).
 /// </summary>
@@ -52,6 +55,7 @@ internal sealed class CombatProbe
     private const string PowerProbeValue = "Walk";
     private const char ValueSeparator = ',';
     private const string CastTestValue = "cast";
+    private const int TraceWaitMs = 60000;
     private const BindingFlags AllMembers = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
     private readonly Stopwatch _sinceList = new();
@@ -94,8 +98,18 @@ internal sealed class CombatProbe
         }).ToList();
     }
 
-    public CommandResult AttackTest(CommandResult result, string value)
+    public CommandResult AttackTest(CommandResult result, string value, string traceEvent, Action<string> log)
     {
+        if (!string.IsNullOrWhiteSpace(traceEvent))
+        {
+            using var gate = new EventWaitHandle(false, EventResetMode.AutoReset, traceEvent.Trim());
+            log($"attack_test ready: process={Process.GetCurrentProcess().Id}, waiting for recorder event {traceEvent.Trim()}");
+            if (!gate.WaitOne(TraceWaitMs))
+            {
+                result.Message = $"recorder event {traceEvent.Trim()} not signaled within {TraceWaitMs / 1000}s, nothing cast";
+                return result;
+            }
+        }
         bool cast = string.Equals(value, CastTestValue, StringComparison.OrdinalIgnoreCase);
         var parts = (value ?? "").Split(ValueSeparator);
         bool mode = !(parts.Length > 0 && bool.TryParse(parts[0], out bool m)) || m;

@@ -62,6 +62,7 @@ internal sealed class BridgeCommands
     public const string ActionAssist = "assist";
     private const string AssistKey = "assist";
     private const string CastKey = "cast";
+    private const string TraceEventKey = "event";
     private const string AssistOff = "off";
     private const string HoldOff = "off";
     private const char UiSequenceSeparator = '|';
@@ -379,7 +380,8 @@ internal sealed class BridgeCommands
                 case ScriptProbe.Action:
                     return ScriptProbe.Run(result, _dir);
                 case CombatProbe.ActionAttackTest:
-                    return _probe.AttackTest(result, cmd.TryGetValue("value", out var attackValue) ? attackValue : "");
+                    return _probe.AttackTest(result, cmd.TryGetValue("value", out var attackValue) ? attackValue : "",
+                        cmd.TryGetValue(TraceEventKey, out var traceEvent) ? traceEvent : "", _log);
                 case CombatProbe.ActionPowerApi:
                     return CombatProbe.PowerApi(result, _dir);
                 case SkillCheck.Action:
