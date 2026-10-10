@@ -111,6 +111,10 @@ public static class D3SkillSwitcher
     private const double AssignedTopFrac = 0.37;
     private const double AssignedBottomFrac = 0.48;
     private const double OcrUpscale = 2.0;
+    /// <summary>PaddleOCR max_side_len: longer inputs are shrunk before recognition.</summary>
+    private const int OcrMaxSide = 960;
+    private const int OcrTileOverlap = 40;
+    private const double IconLeftHeights = 2.2;
     private const double NameMinSimilarity = 0.5;
     private const string TemplateDir = "skill_switch";
     private const string TemplatePagePrev = "skill_page_prev";
@@ -312,10 +316,12 @@ public static class D3SkillSwitcher
     /// click that only activates its window, and another program may take the foreground in between.
     /// </summary>
     private static bool ClickUntil(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
-        SkillSwitchStage stage)
+        SkillSwitchStage stage, UiState? requires = null)
     {
         for (int attempt = 1; attempt <= Attempts; attempt++)
         {
+            // a focus change (another window, a notification) can close D3's panel: restore the screen this click needs first
+            if (attempt > 1 && requires is { } needed && !ToState(needed, cls, cacheDir)) return false;
             if (Capture() is not { } shot) return false;
             using (shot.Image)
             {
@@ -374,7 +380,7 @@ public static class D3SkillSwitcher
     {
         using var icon = LoadImage(D3SkillIcons.SkillIconPath(cacheDir, cls, target.Id));
         if (icon == null) return SkillSwitchOutcome.SkillNotInList;
-        if (!ClickUntil(sh => sh.ToImage(PaneSlotClick[slot]), UiState.SkillChooser, $"slot {slot} box", cls, cacheDir, SkillSwitchStage.OpenChooser))
+        if (!ClickUntil(sh => sh.ToImage(PaneSlotClick[slot]), UiState.SkillChooser, $"slot {slot} box", cls, cacheDir, SkillSwitchStage.OpenChooser, UiState.Pane))
             return SkillSwitchOutcome.ChooserNotOpen;
         Shot? shot = null;
         Chooser? chooser = null;
@@ -432,6 +438,24 @@ public static class D3SkillSwitcher
     /// planned rune's word, else the single word left over when every other name found its word (elimination). The click goes to the
     /// rune icon above the name (Word.IconAbove), not the name.
     /// </summary>
+    /// <summary>
+    /// Typo-tolerant matching of OCR words to every known name of a list (all runes of a skill, all passives of a class): pairs by LCS
+    /// similarity, best first, each word and each name used once; the target's word ("read"), else by elimination the one word left over
+    /// when the target is the one name left unmatched ("elimination"). Null when neither applies.
+    /// </summary>
+    private static (Word Word, string How)? AssignByName(IReadOnlyList<Word> words, IReadOnlyList<(string Key, IReadOnlyCollection<string> Names)> names, string targetKey)
+    {
+        var pairs = (from w in words from n in names select (Word: w, n.Key, Score: n.Names.Max(x => FuzzyText.Similarity(w.Text, x))))
+            .Where(p => p.Score >= NameMinSimilarity).OrderByDescending(p => p.Score).ToList();
+        var assigned = new Dictionary<string, (Word Word, double Score)>();
+        var used = new HashSet<Word>();
+        foreach (var p in pairs)
+            if (!assigned.ContainsKey(p.Key) && used.Add(p.Word)) assigned[p.Key] = (p.Word, p.Score);
+        if (assigned.TryGetValue(targetKey, out var read)) return (read.Word, $"read {read.Score:F2}");
+        if (words.Except(used).ToList() is [var left] && names.Count(n => !assigned.ContainsKey(n.Key)) == 1) return (left, "elimination");
+        return null;
+    }
+
     private static void SelectRune(Shot shot, Chooser chooser, PlannerSkill target, string cls, string cacheDir)
     {
         var words = OcrArea(shot, Band(shot, chooser, RuneTopFrac, RuneBottomFrac)).Where(w => FuzzyText.Normalize(w.Text).Length > 0).ToList();
@@ -440,26 +464,15 @@ public static class D3SkillSwitcher
         var names = MaxrollD3PlannerClient.RuneNames(cacheDir, cls, target.Id)
             .Select(r => (r.Letter, Names: (IReadOnlyCollection<string>)new[] { r.Zh, r.En }.Where(n => n.Length > 0).ToArray())).ToList();
         names.Add(("", NoRuneNames));
-        var pairs = (from w in words from n in names select (Word: w, n.Letter, Score: n.Names.Max(x => FuzzyText.Similarity(w.Text, x))))
-            .Where(p => p.Score >= NameMinSimilarity).OrderByDescending(p => p.Score).ToList();
-        var assigned = new Dictionary<string, Word>();
-        var used = new HashSet<Word>();
-        foreach (var p in pairs)
-            if (!assigned.ContainsKey(p.Letter) && used.Add(p.Word)) assigned[p.Letter] = p.Word;
-        Word? pick = assigned.GetValueOrDefault(target.Rune);
-        string how = "read";
-        if (pick == null && words.Except(used).ToList() is [var left] && names.Count(n => !assigned.ContainsKey(n.Letter)) == 1)
-        {
-            pick = left;
-            how = "elimination";
-        }
-        if (pick == null)
+        var found = AssignByName(words, names.Select(n => (n.Letter, n.Names)).ToList(), target.Rune);
+        if (found is not { } hit)
         {
             ColorPrinter.Yellow($"{LogTag} rune '{target.RuneNameZh}' / '{target.RuneNameEn}' not found in [{string.Join(", ", words.Select(w => w.Text))}]");
             Report(SkillSwitchStage.Rune, false, $"'{target.RuneNameZh}' not found in OCR [{string.Join(" | ", words.Select(w => w.Text))}]", shot);
             SaveDebug(shot, $"rune_{target.Id}");
             return;
         }
+        var (pick, how) = hit;
         ColorPrinter.Gray($"{LogTag} rune '{target.RuneNameZh}' by {how}: '{pick.Text}'");
         Report(SkillSwitchStage.Rune, true, $"'{target.RuneNameZh}' by {how}: '{pick.Text}', icon click above the name; OCR [{string.Join(" | ", words.Select(w => w.Text))}]", shot, pick.IconAbove);
         Click(shot, pick.IconAbove);
@@ -561,7 +574,7 @@ public static class D3SkillSwitcher
     private static int SetPassives(IReadOnlyList<PlannerNamed> planned, string cls, string cacheDir)
     {
         if (!ToState(UiState.Pane, cls, cacheDir)) return 0;
-        if (!ClickUntil(sh => sh.ToImage(PanePassiveSlot), UiState.PassiveChooser, "passive slot", cls, cacheDir, SkillSwitchStage.Passives)) return 0;
+        if (!ClickUntil(sh => sh.ToImage(PanePassiveSlot), UiState.PassiveChooser, "passive slot", cls, cacheDir, SkillSwitchStage.Passives, UiState.Pane)) return 0;
         string Path(string key) => D3SkillIcons.PassiveIconPath(cacheDir, cls, key);
         var plannedKeys = planned.Select(p => p.Id).ToList();
         List<string?> onTop;
@@ -619,15 +632,23 @@ public static class D3SkillSwitcher
             var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(area, icon, Widths(now.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, passive.Id);
             (int X, int Y)? at = m.Success ? (grid.X + m.CenterX, grid.Y + m.CenterY) : null;
             string how = $"icon {m.Score:F2}";
-            if (at == null && FuzzyText.Best(OcrArea(now, grid), w => w.Text, new[] { passive.NameZh, passive.NameEn }) is { } label)
+            if (at == null)
             {
-                at = label.Item.Center;
-                how = $"name '{label.Item.Text}' ({label.Score:F2}), icon {m.Score:F2}";
+                // the game's art differs from maxroll's for some passives: find the name among all class passives, click the icon left of it
+                var words = OcrArea(now, grid).Where(w => FuzzyText.Normalize(w.Text).Length > 0).ToList();
+                var names = MaxrollD3PlannerClient.PassiveNames(cacheDir, cls)
+                    .Select(n => (n.Key, (IReadOnlyCollection<string>)new[] { n.Zh, n.En }.Where(x => x.Length > 0).ToArray())).ToList();
+                if (AssignByName(words, names, passive.Id) is { } hit)
+                {
+                    at = hit.Word.IconLeft;
+                    how = $"name '{hit.Word.Text}' by {hit.How}, icon {m.Score:F2}";
+                }
+                else how = $"icon {m.Score:F2}, OCR [{string.Join(" | ", words.Select(w => w.Text))}]";
             }
             if (at is not { } point)
             {
                 ColorPrinter.Yellow($"{LogTag} passive {passive.Id} not found in the list (icon {m.Score:F2})");
-                Report(SkillSwitchStage.PlacePassive, false, $"{passive.NameZh}: not in the list (icon {m.Score:F2}, name not read)", now);
+                Report(SkillSwitchStage.PlacePassive, false, $"{passive.NameZh}: not in the list ({how})", now);
                 SaveDebug(now, $"passive_{passive.Id}");
                 return false;
             }
@@ -752,25 +773,45 @@ public static class D3SkillSwitcher
     private static void PressKey(Shot shot, uint vk) => WindowInputHelper.PressKey(shot.Hwnd, vk);
 
     /// <summary>OCR word: text, center and top edge / height of its box (image px).</summary>
-    private sealed record Word(string Text, (int X, int Y) Center, int Top, int Height)
+    private sealed record Word(string Text, (int X, int Y) Center, int Left, int Top, int Height)
     {
         /// <summary>Rune icon above its name: one text height above the text's top edge (the name itself is not clickable).</summary>
         public (int X, int Y) IconAbove => (Center.X, Top - Height);
+
+        /// <summary>Passive list icon left of its name: IconLeftHeights text heights left of the text's left edge.</summary>
+        public (int X, int Y) IconLeft => (Left - (int)(Height * IconLeftHeights), Center.Y);
     }
 
-    /// <summary>OCR an image area on an OcrUpscale enlargement (small game text); word centers in image px.</summary>
+    /// <summary>
+    /// OCR an image area on an OcrUpscale enlargement (small game text); word centers in image px. The OCR engine shrinks inputs whose
+    /// longest side exceeds OcrMaxSide (PaddleOCR max_side_len), which would undo the enlargement, so a large area is read in
+    /// overlapping tiles of at most OcrMaxSide / OcrUpscale source px; words seen twice in an overlap are kept once.
+    /// </summary>
     private static List<Word> OcrArea(Shot shot, Rect area)
     {
         if (area.Width <= 0 || area.Height <= 0 || OcrEngineRegistry.Instance.Default() is not { } engine) return new List<Word>();
-        using var crop = new Mat(shot.Image, area);
-        using var big = crop.Resize(new OpenCvSharp.Size(), OcrUpscale, OcrUpscale, InterpolationFlags.Cubic);
+        int tile = (int)(OcrMaxSide / OcrUpscale);
         var words = new List<Word>();
-        foreach (var w in engine.Ocr(big)?.RawResult ?? Array.Empty<OcrWordBox>())
+        for (int ty = area.Y; ty < area.Bottom; ty += tile - OcrTileOverlap)
         {
-            if (OcrBbox.FromPosition(w.Position) is not { } box) continue;
-            var (x, y) = OcrBbox.Center(box);
-            words.Add(new Word(w.Text, (area.X + (int)(x / OcrUpscale), area.Y + (int)(y / OcrUpscale)),
-                area.Y + (int)(box.MinY / OcrUpscale), Math.Max(1, (int)((box.MaxY - box.MinY) / OcrUpscale))));
+            for (int tx = area.X; tx < area.Right; tx += tile - OcrTileOverlap)
+            {
+                var part = new Rect(tx, ty, Math.Min(tile, area.Right - tx), Math.Min(tile, area.Bottom - ty));
+                if (part.Width < OcrTileOverlap && tx > area.X || part.Height < OcrTileOverlap && ty > area.Y) continue;
+                using var crop = new Mat(shot.Image, part);
+                using var big = crop.Resize(new OpenCvSharp.Size(), OcrUpscale, OcrUpscale, InterpolationFlags.Cubic);
+                foreach (var w in engine.Ocr(big)?.RawResult ?? Array.Empty<OcrWordBox>())
+                {
+                    if (OcrBbox.FromPosition(w.Position) is not { } box) continue;
+                    var (x, y) = OcrBbox.Center(box);
+                    var word = new Word(w.Text, (part.X + (int)(x / OcrUpscale), part.Y + (int)(y / OcrUpscale)), part.X + (int)(box.MinX / OcrUpscale),
+                        part.Y + (int)(box.MinY / OcrUpscale), Math.Max(1, (int)((box.MaxY - box.MinY) / OcrUpscale)));
+                    if (words.Any(o => Math.Abs(o.Center.X - word.Center.X) < word.Height && Math.Abs(o.Center.Y - word.Center.Y) < word.Height)) continue;
+                    words.Add(word);
+                }
+                if (part.Right >= area.Right) break;
+            }
+            if (ty + tile >= area.Bottom) break;
         }
         return words;
     }

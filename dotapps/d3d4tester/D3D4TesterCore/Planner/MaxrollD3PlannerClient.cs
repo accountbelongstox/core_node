@@ -78,15 +78,25 @@ public static class MaxrollD3PlannerClient
     /// <summary>Every rune of a class skill (letter, English, Chinese) from the cached game data; empty when unknown.</summary>
     public static IReadOnlyList<(string Letter, string En, string Zh)> RuneNames(string cacheDir, string cls, string skill)
     {
-        var (data, zh) = CachedGameData.GetOrAdd(cacheDir, dir =>
-        {
-            JsonNode? Read(string path) => File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) : null;
-            return (Read(DataPath(dir)), Read(LocaleZhPath(dir))?["patch"]);
-        });
+        var (data, zh) = GameData(cacheDir);
         var zhRunes = zh?["skills"]?[cls]?[skill]?["runes"];
         return (data?["skills"]?[cls]?[skill]?["runes"]?.AsObject() ?? new JsonObject())
             .Select(kv => (kv.Key, Text(kv.Value), Text(zhRunes?[kv.Key]))).ToList();
     }
+
+    /// <summary>Every passive of a class (key, English, Chinese) from the cached game data; empty when unknown.</summary>
+    public static IReadOnlyList<(string Key, string En, string Zh)> PassiveNames(string cacheDir, string cls)
+    {
+        var (data, zh) = GameData(cacheDir);
+        return (data?["passives"]?[cls]?.AsObject() ?? new JsonObject())
+            .Select(kv => (kv.Key, Text(kv.Value?["name"]), Text(zh?["passives"]?[cls]?[kv.Key]?["name"]))).ToList();
+    }
+
+    private static (JsonNode? Data, JsonNode? Zh) GameData(string cacheDir) => CachedGameData.GetOrAdd(cacheDir, dir =>
+    {
+        JsonNode? Read(string path) => File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) : null;
+        return (Read(DataPath(dir)), Read(LocaleZhPath(dir))?["patch"]);
+    });
 
     /// <summary>Raw planner API answer of a build in the cache dir.</summary>
     public static string ProfilePath(string cacheDir, long id) =>
