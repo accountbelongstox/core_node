@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { useRecentCommand, type QuickCommandChoice } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
 import type { TerminalQuickCommandRun } from '@/apps/pycore-manager/api';
+import Portal from '@/shared/ui/Portal';
 
 export interface QuickCommandRequest extends QuickCommandChoice {
   windowId: string;
@@ -183,6 +184,7 @@ const PcTerminalQuickCommandDialog: React.FC<PcTerminalQuickCommandDialogProps> 
   const buttonClass = 'inline-flex min-w-[6rem] items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold';
 
   return (
+    <Portal>
     <div
       className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
       role="alertdialog"
@@ -259,5 +261,6 @@ const PcTerminalQuickCommandDialog: React.FC<PcTerminalQuickCommandDialogProps> 
         )}
       </div>
     </div>
+    </Portal>
   );
 };

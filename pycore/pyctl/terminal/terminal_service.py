@@ -230,7 +230,7 @@ class TerminalService:
         if pending_log is None:
             return self._failure("terminal_state_not_found")
         action = self._virtual.send(window_id, content, interrupt_first)
-        return self._complete_input(terminal_number, str(pending_log.get("id") or ""), action)
+        return self._complete_input(terminal_number, str(pending_log.get("id") or ""), action, content)
 
     def _publish_snapshot(self, snapshot: Dict[str, Any]) -> None:
         THREAD_BUS.trigger_event(
@@ -799,6 +799,7 @@ class TerminalService:
                 "error_code": error_code,
                 "clipboard_restored": clipboard_restored,
             },
+            content,
         )
 
     @serialized_method
@@ -1124,6 +1125,7 @@ class TerminalService:
         terminal_number: int,
         log_id: str,
         action: Dict[str, Any],
+        sent_text: str = "",
     ) -> Dict[str, Any]:
         success = bool(action.get("success"))
         error_code = action.get("error_code")
@@ -1133,6 +1135,9 @@ class TerminalService:
             success,
             str(error_code) if error_code else None,
         )
+        # A delivered message turns the earlier images into history: archive them, never this message's own.
+        if success:
+            terminal_image_store.archive.archive_history_async(sent_text)
         return {**action, "log": log_entry}
 
     def _attach_window_screenshot_resources(

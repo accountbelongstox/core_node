@@ -33,7 +33,7 @@ export function useWordNewOrchEdition(taskId: string, task: OrchComposeTask | nu
     const current = taskRef.current;
     if (!current) return undefined;
     let active = true;
-    void wordNewOrchEditionStore.open(current).then(() => { if (active) setOpened(current.id); });
+    void wordNewOrchEditionStore.open(current).catch(() => null).then(() => { if (active) setOpened(current.id); });
     return () => { active = false; };
   }, [taskId, planHash]);
 

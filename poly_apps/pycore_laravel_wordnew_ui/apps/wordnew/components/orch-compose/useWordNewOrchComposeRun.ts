@@ -6,7 +6,7 @@ import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTa
 import { wordNewOrchComposer } from '../../services/orchestration/WordNewOrchComposer';
 // Runs reaching `ready` publish playback editions whichever page is open.
 import '../../services/orchestration/WordNewOrchEditionStore';
-import { wordNewOrchPresetStore } from '../../services/orchestration/WordNewOrchPresetStore';
+import { wordNewOrchPresetStore, type OrchPresetDocument } from '../../services/orchestration/WordNewOrchPresetStore';
 
 export interface WordNewOrchComposeRun {
   /** undefined while loading, null when the task does not exist. */
@@ -39,7 +39,10 @@ export function useWordNewOrchComposeRun(taskId: string): WordNewOrchComposeRun 
   const planHash = task?.planHash;
   const presetId = task?.config.presetId ?? '';
   useEffect(() => {
-    void wordNewOrchPresetStore.load().then((document) => setBaseSettings(wordNewOrchPresetStore.settingsFor(document, presetId)));
+    const apply = (document: OrchPresetDocument): void => setBaseSettings(wordNewOrchPresetStore.settingsFor(document, presetId));
+    const off = wordNewOrchPresetStore.subscribe(apply);
+    void wordNewOrchPresetStore.load().then(apply);
+    return off;
   }, [presetId]);
 
   const compose = useCallback((current: OrchComposeTask, force: boolean): void => {

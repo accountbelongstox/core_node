@@ -9,6 +9,7 @@ import type { ElementTheme } from '../../WfNewThemes';
 import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { WfNewPager } from '../WfNewPager';
 import { OrchEmptyBox, OrchSearchField } from './orchPanels';
+import { WfNewCachedImage } from '../WfNewCachedImage';
 
 export interface OrchSourceListItem<T> {
   id: string;
@@ -103,7 +104,7 @@ export function WfNewOrchSourceList<T>({ adapter, selectedId, selectedIds, onSel
                   }`}
                 >
                   {item.imageUrl
-                    ? <img src={item.imageUrl} alt="" className="h-10 w-8 shrink-0 rounded object-cover" loading="lazy" />
+                    ? <WfNewCachedImage src={item.imageUrl} alt="" className="h-10 w-8 shrink-0 rounded object-cover" loading="lazy" />
                     : <span className="h-10 w-8 shrink-0 rounded bg-slate-100 dark:bg-white/5" aria-hidden />}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-semibold text-zinc-800 dark:text-zinc-100">{item.title}</span>

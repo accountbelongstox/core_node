@@ -230,6 +230,8 @@
     "terminal_image_upload_bytes": 20971520,
     "terminal_image_retain_count": 200,
     "terminal_image_retain_seconds": 604800,
+    "terminal_image_archive_bytes": 20480,
+    "terminal_image_archive_min_age_seconds": 600,
     "terminal_voice_retain_count": 200,
     "terminal_voice_retain_seconds": 3600,
     "terminal_voice_prune_interval_seconds": 300,

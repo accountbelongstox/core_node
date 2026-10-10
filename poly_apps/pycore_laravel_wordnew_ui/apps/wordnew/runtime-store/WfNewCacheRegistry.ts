@@ -7,8 +7,9 @@
  * Items today:
  *   books / subtitles / libraries / wordGroups / words — the CapDatabase Content
  *     Library cache (per kind, across ALL endpoint/user scopes).
- *   audio — the device media cache (WfNewAudioCache: every preloaded word
- *     audio clip; up to 20 GB on the Capacitor APP build).
+ *   staticFiles — the device static file library (WfNewStaticCache: images,
+ *     voice / accent variants and other audio by URL; up to 20 GB on the
+ *     Capacitor APP build). Clip files live in orchClips.
  *   serverResources — exact local-first API response resources.
  *   orchInputs — kept orchestration inputs (sentences + word states per task,
  *     and the phrases of their sentences; native only, the web reads the API directly).
@@ -27,7 +28,7 @@ import {
   clearContentByPrefix, CONTENT_PREFIX, contentCacheStats,
   type WfNewContentCacheStats,
 } from './WfNewContentCache';
-import { audioCacheStats, clearAudioCache } from './WfNewAudioCache';
+import { clearStaticCache, staticCacheStats } from './WfNewStaticCache';
 import { clearServerMirror, serverResourceStats } from './WfNewServerMirror';
 import { wordNewOrchClipStore } from '../services/orchestration/WordNewOrchClipStore';
 import { wordNewOrchPhraseStore } from '../services/orchestration/WordNewOrchPhraseStore';
@@ -35,11 +36,11 @@ import { wordNewOrchSources } from '../services/orchestration/WordNewOrchSources
 import { wordNewOrchProgressStore } from '../services/orchestration/WordNewOrchProgressStore';
 
 export type WfNewCacheItemId =
-  | 'books' | 'subtitles' | 'libraries' | 'wordGroups' | 'words' | 'serverResources' | 'audio' | 'orchInputs' | 'orchProgress' | 'orchClips';
+  | 'books' | 'subtitles' | 'libraries' | 'wordGroups' | 'words' | 'serverResources' | 'staticFiles' | 'orchInputs' | 'orchProgress' | 'orchClips';
 
 /** Display order of the cache items (also "all" = this list). */
 export const WFNEW_CACHE_ITEM_IDS: WfNewCacheItemId[] = [
-  'books', 'subtitles', 'libraries', 'wordGroups', 'words', 'serverResources', 'audio', 'orchInputs', 'orchProgress', 'orchClips',
+  'books', 'subtitles', 'libraries', 'wordGroups', 'words', 'serverResources', 'staticFiles', 'orchInputs', 'orchProgress', 'orchClips',
 ];
 
 export interface WfNewCacheItem {
@@ -72,9 +73,9 @@ const ITEM_CLEAR: Record<WfNewCacheItemId, () => Promise<string[]>> = {
     if (!cleared) throw new Error('Server resources clear failed.');
     return ['server-responses'];
   },
-  audio: async () => {
-    await clearAudioCache();
-    return ['wfnew-audio'];
+  staticFiles: async () => {
+    await clearStaticCache();
+    return ['wfnew-static'];
   },
   orchInputs: async () => {
     await wordNewOrchSources.clear();
@@ -96,7 +97,7 @@ const ITEM_CLEAR: Record<WfNewCacheItemId, () => Promise<string[]>> = {
 /** Per-item stats for the Cache Manager (counts + storage backend). NEVER throws. */
 export async function listWfNewCacheItems(): Promise<WfNewCacheOverview> {
   const s = await contentCacheStats();
-  const audio = await audioCacheStats();
+  const staticFiles = await staticCacheStats();
   const resources = await serverResourceStats();
   const orchClips = await wordNewOrchClipStore.stats();
   const orchInputs = await wordNewOrchSources.stats();
@@ -111,7 +112,7 @@ export async function listWfNewCacheItems(): Promise<WfNewCacheOverview> {
       { id: 'wordGroups', count: s.groups.word },
       { id: 'words', count: s.totalWords },
       { id: 'serverResources', count: resources.records },
-      { id: 'audio', count: audio.files },
+      { id: 'staticFiles', count: staticFiles.files },
       { id: 'orchInputs', count: orchInputs },
       { id: 'orchProgress', count: orchProgress },
       { id: 'orchClips', count: orchClips.clips },

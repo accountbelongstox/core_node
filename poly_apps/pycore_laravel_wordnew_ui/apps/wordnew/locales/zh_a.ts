@@ -230,7 +230,7 @@ export const zhLocaleA: Record<string, string> = {
     'cache.wordGroupsGroups': '已缓存词组',
     'cache.wordGroupsWithWords': '含已缓存单词的组',
     'cache.totalWords': '已缓存单词总数',
-    'cache.audio': '已缓存音频',
+    'cache.staticFiles': '已缓存静态资源（音频、图片）',
     'cache.refresh': '刷新',
     'cache.clearBtn': '清理缓存',
     'cache.clearing': '正在清除…',
