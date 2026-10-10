@@ -54,6 +54,8 @@ $Global:PG_UPGRADE_DONE_MARKER = "pg_upgrade_done"
 $Global:PG_UPGRADE_WORK_DIR  = Join-Path $Global:PG_LOG_DIR "pg_upgrade"
 $Global:PG_UPGRADE_PORT  = 50432
 $Global:PG_UPGRADED      = $false
+$Global:PG_CHECKSUM_DEFAULT_MAJOR = 18   # first major whose initdb enables data checksums by default
+$Global:PG_CHECKSUM_DISABLED_VERSION = "0"
 $Global:PG_LARAVEL_DB    = Join-Path $Global:PG_WEB_BASE "wwwroot\laravel_db"
 $Global:PG_SECRET_MIRROR = Join-Path $Global:PG_LARAVEL_DB ".core_node_secrets\POSTGRES_PASSWORD"
 $Global:PG_BINARIES_URL_FORMAT = "https://get.enterprisedb.com/postgresql/postgresql-{0}-1-windows-x64-binaries.zip"
@@ -182,6 +184,14 @@ function Get-PgDataMajor {
     $versionFile = Join-Path $DataDir "PG_VERSION"
     if (-not (Test-Path $versionFile)) { return "" }
     return ([System.IO.File]::ReadAllText($versionFile)).Trim()
+}
+
+function Test-PgDataChecksums {
+    # True when the cluster in DataDir has data checksums (pg_controldata of its own major's binaries).
+    param([string]$BinDir, [string]$DataDir = $Global:PG_DATA_DIR)
+    $line = & (Join-Path $BinDir "pg_controldata.exe") -D $DataDir 2>$null | Where-Object { $_ -like "Data page checksum version:*" } | Select-Object -First 1
+    if (-not $line) { return $false }
+    return (($line.Split(":")[-1]).Trim() -ne $Global:PG_CHECKSUM_DISABLED_VERSION)
 }
 
 function Test-PgPortOpen {
