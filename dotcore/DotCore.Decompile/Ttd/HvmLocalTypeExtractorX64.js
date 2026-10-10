@@ -158,9 +158,8 @@ function invokeScript() {
                 const details = signatureDetails(registers.rdx);
                 signatures.push({ Kind: "Type", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
                     StartPosition: startText, Expected: range.SignatureBytes, Observed: observed,
-                    Details: details });
-                if ((range.SignatureBytes === "" || observed !== range.SignatureBytes)
-                    && !hasLocalSignatureBlob(details)) continue;
+                    IsLocalSignatureBlob: hasLocalSignatureBlob(details), Details: details });
+                if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
             }
             const argumentPointer = registers.r8;
             const typeHandlePointer = registers.r9;
@@ -203,9 +202,8 @@ function invokeScript() {
                 const details = signatureDetails(registers.rdx);
                 signatures.push({ Kind: "Class", JitCallIndex: range.Index, SignatureInfo: signatureInfo,
                     StartPosition: startText, Expected: range.SignatureBytes, Observed: observed,
-                    Details: details });
-                if ((range.SignatureBytes === "" || observed !== range.SignatureBytes)
-                    && !hasLocalSignatureBlob(details)) continue;
+                    IsLocalSignatureBlob: hasLocalSignatureBlob(details), Details: details });
+                if (range.SignatureBytes === "" || observed !== range.SignatureBytes) continue;
             }
             const argumentPointer = registers.r8;
             argClassCalls[index].TimeEnd.SeekTo();
