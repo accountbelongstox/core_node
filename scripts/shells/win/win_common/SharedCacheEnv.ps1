@@ -1052,6 +1052,10 @@ $__sccKeptDataRootTemplate = [string](& $__sccGetContractValue -ContractPath 'pa
 $__sccDataDriveNamespace = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.namespaces.windows_data_drive')
 $__sccCoreNodeDataDirName = [string](& $__sccGetContractValue -ContractPath 'paths.core_node_data_dir_name')
 $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL = $__sccProgramDrivePrimary
+$Global:CN_PROGRAM_DRIVE_CREATE_MIN_MB = [long](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.min_mb')
+$Global:CN_PROGRAM_DRIVE_CREATE_MAX_MB = [long](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.max_mb')
+$Global:CN_PROGRAM_DRIVE_CREATE_SMALL_RATIO = [double](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.small_ratio')
+$Global:CN_PROGRAM_DRIVE_CREATE_LABEL = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_create.label')
 
 # [Environment]::SystemDirectory (e.g. C:\Windows\System32) does not depend on
 # any environment variable, unlike $env:SystemDrive, which a caller that
