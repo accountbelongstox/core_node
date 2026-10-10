@@ -1,0 +1,1 @@
+{ "extends": "./tsconfig.json", "include": ["apps/codemart/**/*.ts", "apps/codemart/**/*.tsx", "shell/**/*.ts", "shell/**/*.tsx"] }

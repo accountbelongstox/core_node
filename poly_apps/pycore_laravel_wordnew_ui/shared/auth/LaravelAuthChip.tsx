@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LogIn, Power, User } from 'lucide-react';
 import { requestAuthLogin } from '../../core/auth/AuthRequestCenter';
 import { authEndpointLabel } from '../../core/auth/AuthSession';
@@ -26,6 +26,7 @@ export const LaravelAuthChip: React.FC<LaravelAuthChipProps> = ({ onSignOut }) =
   const auth = useAuthSnapshot();
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const host = auth.namespace ? authEndpointLabel(auth.namespace) : '';
   const username = laravelUserLabel(auth.user);
   const initial = (username.charAt(0) || INITIAL_FALLBACK).toUpperCase();
@@ -40,6 +41,15 @@ export const LaravelAuthChip: React.FC<LaravelAuthChipProps> = ({ onSignOut }) =
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (!wrapperRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [menuOpen]);
 
   if (!auth.loggedIn) {
     return (
@@ -63,7 +73,7 @@ export const LaravelAuthChip: React.FC<LaravelAuthChipProps> = ({ onSignOut }) =
   }
 
   return (
-    <div className="relative flex items-center gap-1.5 sm:gap-2 shrink-0">
+    <div ref={wrapperRef} className="relative flex items-center gap-1.5 sm:gap-2 shrink-0">
       <div className={`hidden md:flex px-2.5 ${CHIP_CLASS}`} title={t('chip.signedIn', { host, user: username })}>
         <User size={13} className="text-indigo-500 dark:text-indigo-400 shrink-0" />
         <span className="text-slate-400 dark:text-slate-500 text-xs hidden lg:inline">{t('chip.loggedInAs')}</span>

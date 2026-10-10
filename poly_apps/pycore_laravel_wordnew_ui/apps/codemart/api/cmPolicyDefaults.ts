@@ -9,3 +9,6 @@ export const CM_POLICY_FALLBACK = {
   reviewCommentMinLength: 20,
   reviewerRetryDays: 7,
 } as const;
+
+/** Client-side minimum for a new account password (the shared account API enforces its own rules). */
+export const CM_PASSWORD_MIN_LENGTH = 8;

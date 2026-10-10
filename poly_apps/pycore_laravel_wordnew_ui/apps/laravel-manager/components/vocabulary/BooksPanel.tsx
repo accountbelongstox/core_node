@@ -26,6 +26,8 @@ import { NoticeBanner } from '@/shared/ui/NoticeBanner';
 import { bookDetectedLanguages, bookIsMonolingual } from '@/shared/books/bookLanguages';
 
 const LIST_LIMIT = 100;
+const INGEST_POLL_MS = 1500;
+const INGEST_POLL_MAX_FAILURES = 5;
 
 interface UploadedDoc {
   upload_id: string;
@@ -82,6 +84,7 @@ const BooksPanel: React.FC = () => {
   const [ingestingId, setIngestingId] = useState<string | null>(null);
   const [ingestProgress, setIngestProgress] = useState<IngestProgress | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollFailures = useRef(0);
 
   // Drill-down list modal
   const [listView, setListView] = useState<{ uploadId: string; kind: BookListKind; name: string } | null>(null);
@@ -225,6 +228,12 @@ const BooksPanel: React.FC = () => {
     async (taskId: string | number, uploadId: string) => {
       try {
         const r = await api.books.getTaskStatus(taskId);
+        if (!r.success && pollFailures.current < INGEST_POLL_MAX_FAILURES) {
+          pollFailures.current += 1;
+          pollTimer.current = setTimeout(() => void pollTask(taskId, uploadId), INGEST_POLL_MS);
+          return;
+        }
+        pollFailures.current = 0;
         const task = r.success && r.data ? r.data.task : null;
         if (!task) {
           setIngestProgress(null);
@@ -255,8 +264,14 @@ const BooksPanel: React.FC = () => {
           return;
         }
         // still running — poll again
-        pollTimer.current = setTimeout(() => void pollTask(taskId, uploadId), 1500);
+        pollTimer.current = setTimeout(() => void pollTask(taskId, uploadId), INGEST_POLL_MS);
       } catch (e: any) {
+        if (pollFailures.current < INGEST_POLL_MAX_FAILURES) {
+          pollFailures.current += 1;
+          pollTimer.current = setTimeout(() => void pollTask(taskId, uploadId), INGEST_POLL_MS);
+          return;
+        }
+        pollFailures.current = 0;
         setIngestProgress(null);
         setIngestingId(null);
         toast.error(e?.message || t('uiVocab.booksPanel.ingest_polling_failed'));
@@ -283,6 +298,7 @@ const BooksPanel: React.FC = () => {
         if (d.task_id != null) {
           // Async — poll for stage + progress.
           logInfo('books', `Ingest queued as task ${d.task_id}; polling...`);
+          pollFailures.current = 0;
           void pollTask(d.task_id, uploadId);
           return;
         }

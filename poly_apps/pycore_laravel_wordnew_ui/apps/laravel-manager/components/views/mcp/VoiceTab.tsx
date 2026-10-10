@@ -645,10 +645,10 @@ const VoiceTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                   if (audioRef.current) {
                     if (isPlaying) {
                       audioRef.current.pause();
+                      setIsPlaying(false);
                     } else {
-                      audioRef.current.play();
+                      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
                     }
-                    setIsPlaying(!isPlaying);
                   }
                 }}
                 className="p-3 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white"

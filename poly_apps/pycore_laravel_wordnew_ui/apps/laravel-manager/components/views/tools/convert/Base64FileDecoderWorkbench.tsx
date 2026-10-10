@@ -97,7 +97,7 @@ const Base64FileDecoderWorkbench: React.FC<ToolWorkbenchProps> = ({ tool, varian
               <div className="flex min-h-[8rem] flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700/60 dark:bg-slate-900/40">
                 {previewUrl && file.mime.startsWith('image/') && <img src={previewUrl} alt={effectiveName} className="max-h-72 max-w-full object-contain" />}
                 {previewUrl && file.mime.startsWith('audio/') && <audio controls src={previewUrl} className="w-full" />}
-                {previewUrl && file.mime.startsWith('video/') && <video controls src={previewUrl} className="max-h-72 max-w-full" />}
+                {previewUrl && file.mime.startsWith('video/') && <video controls playsInline src={previewUrl} className="max-h-72 max-w-full" />}
                 {!previewUrl && textPreview !== null && <pre className={`${MONO_CLASS} max-h-72 w-full overflow-auto whitespace-pre-wrap break-all text-slate-800 dark:text-slate-100`}>{textPreview}</pre>}
                 {!previewUrl && textPreview === null && (
                   <div className="flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400"><FileIcon className="h-10 w-10" /><span className="text-xs">{tc('file_decoder.no_preview')}</span></div>

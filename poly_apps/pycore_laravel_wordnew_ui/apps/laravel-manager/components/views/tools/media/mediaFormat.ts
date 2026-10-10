@@ -1,9 +1,9 @@
 /** Shared file helpers for the media workbenches: sizes, names, downloads and object-URL lifetime. */
 import { useEffect, useState } from 'react';
+import { offerBlobFile } from '@/core/browser/FileDownload';
 
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'];
 const BYTES_PER_UNIT = 1024;
-const REVOKE_DELAY_MS = 1000;
 const MIME_EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -30,15 +30,7 @@ export const savingsPercent = (before: number, after: number): number =>
   before > 0 ? Math.round((1 - after / before) * 1000) / 10 : 0;
 
 export const downloadBlob = (blob: Blob, fileName: string): void => {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.style.display = 'none';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
+  offerBlobFile(fileName, blob);
 };
 
 /** Object URL for a blob that is revoked when the blob changes or the component unmounts. */

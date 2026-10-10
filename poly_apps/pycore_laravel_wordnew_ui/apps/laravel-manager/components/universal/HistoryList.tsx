@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Clock, Trash2, Copy, CheckCircle, XCircle } from 'lucide-react';
 import { ToolHistoryItem } from '@/apps/laravel-manager/types';
 import { commonClasses } from '@/shared/styles/theme';
+import { useClipboard } from '@/apps/laravel-manager/hooks';
 import { AiBentoCard } from '@/shared/ui/AiToolUi';
 
 interface HistoryListProps {
@@ -26,6 +27,7 @@ const HistoryList: React.FC<HistoryListProps> = ({
   showOutput = true
 }) => {
   const { t } = useTranslation();
+  const { copy } = useClipboard();
   const displayItems = items.slice(0, maxItems);
 
   if (displayItems.length === 0) {
@@ -55,7 +57,7 @@ const HistoryList: React.FC<HistoryListProps> = ({
 
   const handleCopy = (item: ToolHistoryItem) => {
     const textToCopy = item.output ? JSON.stringify(item.output, null, 2) : JSON.stringify(item.input, null, 2);
-    navigator.clipboard.writeText(textToCopy);
+    void copy(textToCopy);
 
     if (onCopy) {
       onCopy(item);

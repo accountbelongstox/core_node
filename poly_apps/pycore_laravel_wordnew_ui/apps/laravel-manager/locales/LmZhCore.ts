@@ -94,6 +94,8 @@ dbSync: {
       pause: "暂停",
       resume: "继续",
       cancel: "取消",
+      confirmStart: "确定从 {{old}} 向 {{new}} 开始同步吗？接收服务器上的数据将被覆盖（会保留备份）。",
+      confirmCancel: "确定取消正在运行的同步会话吗？",
       receiverBlocked: "本机正在接收数据；传入会话结束前不能新建出站会话。",
       manifestDraftBlocked: "已有一个本机清单会话正在等待接收端。请先为其绑定地址，或在上方输入另一个接收端。",
       session: "同步会话",

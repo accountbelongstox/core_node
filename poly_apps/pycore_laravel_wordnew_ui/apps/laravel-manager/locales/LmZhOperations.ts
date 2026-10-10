@@ -631,7 +631,9 @@ server: {
         site_deleted: "FrankenPHP 站点已删除，并保留了可恢复备份",
         site_enabled: "FrankenPHP 站点已启用",
         site_disabled: "FrankenPHP 站点已禁用",
-        delete_confirm: "确定删除 FrankenPHP 站点 {site} 吗？其配置会移入可恢复备份目录。"
+        delete_confirm: "确定删除 FrankenPHP 站点 {site} 吗？其配置会移入可恢复备份目录。",
+        confirm_stop: "确定停止 FrankenPHP 吗？它承载的所有站点（可能包括本管理页）都会下线。",
+        confirm_restart: "确定重启 FrankenPHP 吗？连接会短暂中断。"
       },
       nginx: {
         sites: "Nginx 站点",
