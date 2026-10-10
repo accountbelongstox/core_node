@@ -7,7 +7,8 @@ import type {
   WfNewAdminWordRow, WfNewAdminWordsPage, WfNewAdminWordFilter,
   WfNewAdminWordSort, WfNewAdminWordEditable, WfNewAdminBatchAction,
 } from '../../api';
-import { ADMIN_SEARCH_DEBOUNCE_MS } from '../../constants/uiTiming';
+import { ADMIN_SEARCH_DEBOUNCE_MS, CLIP_RESOLVE_WAIT_MS } from '../../constants/uiTiming';
+import { awaitPlayableClip, wordClip } from '../../runtime-store/WfNewAudioCache';
 import { WfNewPager } from '../WfNewPager';
 import { WfNewAdminWordEditor } from './WfNewAdminWordEditor';
 import { WfNewAdminWordRow as WordRowView, WORD_HEAD_GRID, type SentenceSlot } from './WfNewAdminWordRow';
@@ -145,7 +146,13 @@ export const WfNewAdminWords: React.FC<AdminPanelProps> = ({ activeTheme, trans,
 
   const togglePlay = (row: WfNewAdminWordRow): void => {
     const url = wfNewAdminApi.absUrl(row.audio_url);
-    if (url) audio.toggle(row.md5, url);
+    if (!url) return;
+    if (audio.playingKey === row.md5) {
+      audio.stop();
+      return;
+    }
+    // The word's clip from the device store first (one library with every other page), then the row's file.
+    void awaitPlayableClip(wordClip(row.content, language), url, CLIP_RESOLVE_WAIT_MS).then((src) => audio.play(row.md5, src ?? url));
   };
 
   const loadSentences = useCallback((row: WfNewAdminWordRow): void => {

@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import type { Word } from '../../api/WfNewApiTypes';
 import { wfNewSettings } from '../../WfNewSettingsStore';
-import { awaitPlayableClip, wordClip } from '../../runtime-store/WfNewAudioCache';
-import { CLIP_RESOLVE_WAIT_MS } from '../../constants/uiTiming';
+import { wordClip } from '../../runtime-store/WfNewAudioCache';
+import { playClipOr } from '../../utils/WordNewClipSpeech';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
 import { studyT } from './WfNewStudyLocales';
 
@@ -28,15 +28,7 @@ export function useWfNewStudyActions({ gid, groupLanguage, lang, playPhoneticSpe
   const [largeFont, setLargeFont] = useState<boolean>(() => !!wfNewSettings.get('wmLargeFont'));
 
   const speakWord = useCallback((w: Word) => {
-    void awaitPlayableClip(wordClip(w.text, groupLanguage || 'en'), isAbsoluteUrl(w.audioUrl) ? w.audioUrl : null, CLIP_RESOLVE_WAIT_MS)
-      .then((src) => {
-        if (!src) {
-          playPhoneticSpeech(w);
-          return;
-        }
-        void new Audio(src).play().catch(() => playPhoneticSpeech(w));
-      })
-      .catch(() => playPhoneticSpeech(w));
+    playClipOr(wordClip(w.text, groupLanguage || 'en'), isAbsoluteUrl(w.audioUrl) ? w.audioUrl : null, () => playPhoneticSpeech(w));
   }, [groupLanguage, playPhoneticSpeech]);
 
   const markWord = useCallback((w: Word, known: boolean) => {
