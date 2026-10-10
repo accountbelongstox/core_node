@@ -52,6 +52,7 @@
               <RadioButton x:Name="RadioScreen" GroupName="Source" Margin="0,0,12,4"/>
               <RadioButton x:Name="RadioVideo" GroupName="Source" Margin="0,0,12,4"/>
               <RadioButton x:Name="RadioLive" GroupName="Source" Margin="0,0,12,4"/>
+              <RadioButton x:Name="RadioD3" GroupName="Source" Margin="0,0,12,4"/>
             </WrapPanel>
 
             <StackPanel x:Name="PanelImage">
@@ -76,6 +77,26 @@
                 <Button x:Name="BtnPickRegion" Style="{StaticResource ActionBtn}"/>
                 <Button x:Name="BtnCaptureScreen" Style="{StaticResource ActionBtn}"/>
               </WrapPanel>
+            </StackPanel>
+
+            <StackPanel x:Name="PanelD3">
+              <TextBlock x:Name="TxtD3Hint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+              <CheckBox x:Name="ChkD3ShowShot" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,8"/>
+              <Button x:Name="BtnD3Detect" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" Margin="0,0,8,8"/>
+              <DockPanel Margin="0,4,0,4">
+                <Button x:Name="BtnD3CopyJson" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}"/>
+                <TextBlock x:Name="LblD3Json" Style="{StaticResource Label}" VerticalAlignment="Center"/>
+              </DockPanel>
+              <TextBox x:Name="TxtD3Json" IsReadOnly="True" Height="200" TextWrapping="NoWrap" FontFamily="{StaticResource MonoFontFamily}"
+                       VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="{StaticResource FieldMargin}"/>
+              <TextBlock x:Name="LblD3History" Style="{StaticResource Label}"/>
+              <ListBox x:Name="LstD3History" Height="180" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
             </StackPanel>
 
             <StackPanel x:Name="PanelLive">

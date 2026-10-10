@@ -412,7 +412,8 @@
     "export_filter": "every_n",
     "export_every": 10,
     "export_low_confidence": 0.5,
-    "snapshot_hotkey": "ctrl+alt+s"
+    "snapshot_hotkey": "ctrl+alt+s",
+    "d3_show_shot": true
   },
   "yolo_taskset": {
     "last_task_set": ""

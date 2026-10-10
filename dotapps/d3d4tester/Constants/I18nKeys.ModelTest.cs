@@ -147,4 +147,16 @@ public static partial class I18nKeys
     public const string ModelTestExportProgress = Mt + "export_progress";
     public const string ModelTestExportDone = Mt + "export_done";
     public const string ModelTestExportNone = Mt + "export_none";
+
+    public const string ModelTestSourceD3 = Mt + "source_d3";
+    public const string ModelTestD3Hint = Mt + "d3_hint";
+    public const string ModelTestD3Detect = Mt + "d3_detect";
+    public const string ModelTestD3ShowShot = Mt + "d3_show_shot";
+    public const string ModelTestD3Json = Mt + "d3_json";
+    public const string ModelTestD3CopyJson = Mt + "d3_copy_json";
+    public const string ModelTestD3History = Mt + "d3_history";
+    public const string ModelTestD3HistoryItem = Mt + "d3_history_item";
+    public const string ModelTestD3NoPanel = Mt + "d3_no_panel";
+    public const string ModelTestD3NoWindow = Mt + "d3_no_window";
+    public const string ModelTestD3NoShot = Mt + "d3_no_shot";
 }

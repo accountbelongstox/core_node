@@ -111,7 +111,6 @@ function invokeScript() {
                 LocalsSignatureBytes: "",
                 ExceptionHandlers: []
             });
-            writeReport(outputPath, targetModulePath, methods, failures);
             if (methods.length % 25 === 0) {
                 DebuggerApi.log(`Captured ${methods.length} target methods at call ${index}/${callCount}.`);
             }

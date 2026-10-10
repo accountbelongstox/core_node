@@ -23,4 +23,5 @@ public static partial class ConfigKeys
     public const string YoloModelTestExportEvery = "yolo_model_test.export_every";
     public const string YoloModelTestExportLowConfidence = "yolo_model_test.export_low_confidence";
     public const string YoloModelTestSnapshotHotkey = "yolo_model_test.snapshot_hotkey";
+    public const string YoloModelTestD3ShowShot = "yolo_model_test.d3_show_shot";
 }

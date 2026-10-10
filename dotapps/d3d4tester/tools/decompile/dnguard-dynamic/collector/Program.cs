@@ -186,7 +186,7 @@ internal static class Program
             }
             if (args.Length < 2)
             {
-                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] | --prepare-only <target> <hex-token> | --invoke-static <target> <hex-token> | --invoke-static-many <target> <hex-token>... | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
+                Console.Error.WriteLine("Usage: DnGuardDynamicCollector <target> <output> [--prepare] [--token <hex-token>] [--tokens <hex-token,...>] [--delay <seconds>] | --catalog <target> <output> | --prepare-only <target> <hex-token> | --invoke-static <target> <hex-token> | --invoke-static-many <target> <hex-token>... | --invoke-static-many-delayed <target> <seconds> <hex-token>... | --invoke-static-many-event <target> <event-name> <hex-token>... | --merge-hvm <base> <output> <candidates...> | --resolve-hvm-operands <assembly> <context> <metadata> <jit-report> <locals-report> <output> [hex-token...] | --analyze-hvm <runtime> <report> | --snapshot-hvm <target> <directory> | --disassemble-hvm <runtime> <address> <count> <report>");
                 return 2;
             }
 
