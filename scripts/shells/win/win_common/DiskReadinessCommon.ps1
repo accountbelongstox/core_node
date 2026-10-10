@@ -33,10 +33,203 @@ $script:DISK_PAGE_FILE_NAMES = @("pagefile.sys", "swapfile.sys")
 $script:DISK_DISKMGMT_MSC = Join-Path $script:DISK_SYSTEM32_DIR "diskmgmt.msc"
 $script:DISK_LINUX_CACHE_DIRS = @(".pnpm-store", ".pnpm-store.shrink-rewrite", ".cache", ".npm", "~\.cache", "~\.npm", "~\.pnpm-store")
 $script:DISK_VSSADMIN_EXE = Join-Path $script:DISK_SYSTEM32_DIR "vssadmin.exe"
-$script:DISK_ROBOCOPY_EXE = Join-Path $script:DISK_SYSTEM32_DIR "robocopy.exe"
-$script:DISK_SHRINK_ROBOCOPY_ARGUMENTS = @("/E", "/MOVE", "/COPY:DAT", "/DCOPY:DAT", "/XJ", "/R:1", "/W:1", "/NFL", "/NDL", "/NP")
-$script:DISK_ROBOCOPY_FAILURE_CODE = 8
 $script:DISK_SHRINK_REWRITE_SUFFIX = ".shrink-rewrite"
+$script:DISK_NTFS_SECURITY_TYPE = "CoreNode.NtfsLegacySecurity"
+$script:DISK_NTFS_SECURITY_SOURCE = @'
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+namespace CoreNode
+{
+    public static class NtfsLegacySecurity
+    {
+        const uint GenericRead = 0x80000000;
+        const uint ShareAll = 7;
+        const uint OpenExisting = 3;
+        const uint BackupSemantics = 0x02000000;
+        const uint OpenReparsePoint = 0x00200000;
+        const uint ReadControl = 0x00020000;
+        const uint WriteDac = 0x00040000;
+        const uint WriteOwner = 0x00080000;
+        const uint AccessSystemSecurity = 0x01000000;
+        const uint FullSecurityInfo = 0xF;
+        const uint BaseSecurityInfo = 0x7;
+        const uint FsctlGetNtfsVolumeData = 0x00090064;
+        const uint FsctlGetNtfsFileRecord = 0x00090068;
+        const uint AttributeSecurityDescriptor = 0x50;
+        const uint AttributeEnd = 0xFFFFFFFF;
+        const ushort RecordInUse = 0x0001;
+        const int SectorSize = 512;
+        const long RecordNumberMask = 0x0000FFFFFFFFFFFF;
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct FileIdDescriptor { public int Size; public int Type; public long FileId; public long Padding; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct LuidAndAttributes { public long Luid; public uint Attributes; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct TokenPrivileges { public uint Count; public LuidAndAttributes Privilege; }
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern SafeFileHandle OpenFileById(SafeFileHandle hint, ref FileIdDescriptor id, uint access, uint share, IntPtr security, uint flags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool DeviceIoControl(SafeFileHandle device, uint code, byte[] input, int inputSize, byte[] output, int outputSize, out int returned, IntPtr overlapped);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool GetKernelObjectSecurity(SafeFileHandle handle, uint info, byte[] descriptor, int length, out int needed);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool SetKernelObjectSecurity(SafeFileHandle handle, uint info, byte[] descriptor);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern bool LookupPrivilegeValue(string system, string name, out long luid);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool AdjustTokenPrivileges(IntPtr token, bool disableAll, ref TokenPrivileges state, int length, IntPtr previous, IntPtr returned);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetCurrentProcess();
+
+        public static void EnablePrivileges(string[] names)
+        {
+            IntPtr token;
+            if (!OpenProcessToken(GetCurrentProcess(), 0x0028, out token)) throw new Win32Exception();
+            foreach (string name in names)
+            {
+                TokenPrivileges state = new TokenPrivileges();
+                state.Count = 1;
+                state.Privilege.Attributes = 2;
+                if (LookupPrivilegeValue(null, name, out state.Privilege.Luid))
+                {
+                    AdjustTokenPrivileges(token, false, ref state, 0, IntPtr.Zero, IntPtr.Zero);
+                }
+            }
+        }
+
+        static SafeFileHandle OpenVolume(string drive)
+        {
+            SafeFileHandle volume = CreateFile(@"\\.\" + drive, GenericRead, ShareAll, IntPtr.Zero, OpenExisting, 0, IntPtr.Zero);
+            if (volume.IsInvalid) throw new Win32Exception();
+            return volume;
+        }
+
+        static void ApplyFixups(byte[] record, int offset, int length)
+        {
+            int usaOffset = BitConverter.ToUInt16(record, offset + 4);
+            int usaCount = BitConverter.ToUInt16(record, offset + 6);
+            for (int sector = 1; sector < usaCount && sector * SectorSize <= length; sector++)
+            {
+                int tail = offset + sector * SectorSize - 2;
+                if (record[tail] == record[offset + usaOffset] && record[tail + 1] == record[offset + usaOffset + 1])
+                {
+                    record[tail] = record[offset + usaOffset + sector * 2];
+                    record[tail + 1] = record[offset + usaOffset + sector * 2 + 1];
+                }
+            }
+        }
+
+        static bool HasNonResidentSecurity(byte[] record, int offset, int length)
+        {
+            int position = offset + BitConverter.ToUInt16(record, offset + 0x14);
+            int end = offset + length;
+            while (position + 16 <= end)
+            {
+                uint type = BitConverter.ToUInt32(record, position);
+                int attributeLength = BitConverter.ToInt32(record, position + 4);
+                if (type == AttributeEnd || attributeLength <= 0) return false;
+                if (type == AttributeSecurityDescriptor) return record[position + 8] != 0;
+                position += attributeLength;
+            }
+            return false;
+        }
+
+        public static long[] FindNonResidentSecurity(string drive)
+        {
+            HashSet<long> found = new HashSet<long>();
+            using (SafeFileHandle volume = OpenVolume(drive))
+            {
+                byte[] volumeData = new byte[128];
+                int returned;
+                if (!DeviceIoControl(volume, FsctlGetNtfsVolumeData, null, 0, volumeData, volumeData.Length, out returned, IntPtr.Zero)) throw new Win32Exception();
+                int recordSize = BitConverter.ToInt32(volumeData, 48);
+                long recordCount = BitConverter.ToInt64(volumeData, 56) / recordSize;
+                byte[] input = new byte[8];
+                byte[] output = new byte[12 + recordSize];
+                for (long number = 0; number < recordCount; number++)
+                {
+                    BitConverter.GetBytes(number).CopyTo(input, 0);
+                    if (!DeviceIoControl(volume, FsctlGetNtfsFileRecord, input, 8, output, output.Length, out returned, IntPtr.Zero)) continue;
+                    if ((BitConverter.ToInt64(output, 0) & RecordNumberMask) != number) continue;
+                    int length = BitConverter.ToInt32(output, 8);
+                    if (length < 0x30 || output[12] != (byte)'F' || output[13] != (byte)'I') continue;
+                    if ((BitConverter.ToUInt16(output, 12 + 0x16) & RecordInUse) == 0) continue;
+                    ApplyFixups(output, 12, length);
+                    if (!HasNonResidentSecurity(output, 12, length)) continue;
+                    long baseReference = BitConverter.ToInt64(output, 12 + 0x20);
+                    long sequence = BitConverter.ToUInt16(output, 12 + 0x10);
+                    found.Add(baseReference != 0 ? baseReference : ((sequence << 48) | number));
+                }
+            }
+            long[] result = new long[found.Count];
+            found.CopyTo(result);
+            return result;
+        }
+
+        static bool RewriteHandle(SafeFileHandle handle, uint info)
+        {
+            int needed;
+            GetKernelObjectSecurity(handle, info, null, 0, out needed);
+            if (needed <= 0) return false;
+            byte[] descriptor = new byte[needed];
+            if (!GetKernelObjectSecurity(handle, info, descriptor, needed, out needed)) return false;
+            return SetKernelObjectSecurity(handle, info, descriptor);
+        }
+
+        static bool RewriteById(SafeFileHandle hint, long fileId)
+        {
+            FileIdDescriptor descriptor = new FileIdDescriptor();
+            descriptor.Size = Marshal.SizeOf(typeof(FileIdDescriptor));
+            descriptor.FileId = fileId;
+            uint flags = BackupSemantics | OpenReparsePoint;
+            using (SafeFileHandle handle = OpenFileById(hint, ref descriptor, ReadControl | WriteDac | WriteOwner | AccessSystemSecurity, ShareAll, IntPtr.Zero, flags))
+            {
+                if (!handle.IsInvalid) return RewriteHandle(handle, FullSecurityInfo);
+            }
+            using (SafeFileHandle handle = OpenFileById(hint, ref descriptor, ReadControl | WriteDac | WriteOwner, ShareAll, IntPtr.Zero, flags))
+            {
+                return !handle.IsInvalid && RewriteHandle(handle, BaseSecurityInfo);
+            }
+        }
+
+        public static int[] RewriteSecurity(string drive, long[] fileIds)
+        {
+            int converted = 0;
+            int failed = 0;
+            using (SafeFileHandle hint = CreateFile(drive + @"\", 0, ShareAll, IntPtr.Zero, OpenExisting, BackupSemantics, IntPtr.Zero))
+            {
+                if (hint.IsInvalid) throw new Win32Exception();
+                foreach (long fileId in fileIds)
+                {
+                    if (RewriteById(hint, fileId)) converted++; else failed++;
+                }
+            }
+            return new int[] { converted, failed };
+        }
+    }
+}
+'@
+$script:DISK_SECURITY_PRIVILEGES = @("SeBackupPrivilege", "SeRestorePrivilege", "SeSecurityPrivilege", "SeTakeOwnershipPrivilege")
 $script:DISK_SECURITY_DESCRIPTOR_STREAM = '$SECURITY_DESCRIPTOR'
 $script:DISK_RECYCLE_BIN_DIR = '$RECYCLE.BIN'
 $script:DISK_SYSTEM_VOLUME_INFO_DIR = "System Volume Information"
@@ -424,7 +617,9 @@ function Invoke-NtfsLinuxRepair {
     Write-ColorMessage -Message "[4/5] Linux cache folders" -Type "Info"
     Remove-LinuxCacheDirs -Drive $drive
 
-    Write-ColorMessage -Message "[5/5] Clear shrink blockers (Linux-written files, then defrag)" -Type "Info"
+    Write-ColorMessage -Message "[5/5] Clear shrink blockers (Linux-written security descriptors, then defrag)" -Type "Info"
+    Restore-ShrinkRewriteLeftovers -Drive $drive
+    Convert-NtfsLegacySecurity -Drive $drive | Out-Null
     Invoke-ShrinkBlockerCleanup -Drive $drive
     Enable-NtfsUsnJournal -Drive $drive
 
@@ -502,33 +697,62 @@ function Remove-LinuxCacheDirs {
     }
 }
 
-function Invoke-NtfsPathRewrite {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Path
-    )
-    $rewritePath = '{0}{1}' -f $Path, $script:DISK_SHRINK_REWRITE_SUFFIX
-    $process = $null
+function Import-NtfsLegacySecurity {
+    if ($null -eq ($script:DISK_NTFS_SECURITY_TYPE -as [type])) {
+        Add-Type -TypeDefinition $script:DISK_NTFS_SECURITY_SOURCE
+    }
+    [CoreNode.NtfsLegacySecurity]::EnablePrivileges($script:DISK_SECURITY_PRIVILEGES)
+}
 
-    if (Test-Path -LiteralPath $rewritePath) {
-        Write-ColorMessage -Message ("{0} exists from an interrupted rewrite; merge or remove it first." -f $rewritePath) -Type "Error"
-        return $false
+function Convert-NtfsLegacySecurity {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Drive
+    )
+    $fileIds = @()
+    $result = $null
+
+    Import-NtfsLegacySecurity
+    Write-ColorMessage -Message ("Scanning the MFT of {0} for Linux-written security descriptors (can take minutes)..." -f $Drive) -Type "Info"
+    $fileIds = [CoreNode.NtfsLegacySecurity]::FindNonResidentSecurity($Drive)
+    if ($fileIds.Count -eq 0) {
+        Write-ColorMessage -Message "No Linux-written security descriptor found" -Type "Success"
+        return 0
     }
-    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
-        Copy-Item -LiteralPath $Path -Destination $rewritePath -Force
-        Move-Item -LiteralPath $rewritePath -Destination $Path -Force
-        return $true
+    Write-ColorMessage -Message ("{0} files and folders keep their own security descriptor, which Windows cannot move; storing the same permissions the Windows way..." -f $fileIds.Count) -Type "Warning"
+    $result = [CoreNode.NtfsLegacySecurity]::RewriteSecurity($Drive, $fileIds)
+    Write-ColorMessage -Message ("Converted {0}, failed {1}" -f $result[0], $result[1]) -Type $(if ($result[1] -eq 0) { "Success" } else { "Warning" })
+    return $result[0]
+}
+
+function Restore-ShrinkRewriteLeftovers {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Drive
+    )
+    $driveRoot = '{0}\' -f $Drive
+    $rewriteDirs = @(Get-ChildItem -LiteralPath $driveRoot -Force -Directory -Filter ('*{0}' -f $script:DISK_SHRINK_REWRITE_SUFFIX) -ErrorAction SilentlyContinue)
+    $originalPath = $null
+    $targetPath = $null
+    $relativePath = $null
+    $restored = 0
+    $kept = 0
+
+    foreach ($rewriteDir in $rewriteDirs) {
+        $originalPath = $rewriteDir.FullName.Substring(0, $rewriteDir.FullName.Length - $script:DISK_SHRINK_REWRITE_SUFFIX.Length)
+        $restored = 0
+        $kept = 0
+        foreach ($file in @(Get-ChildItem -LiteralPath $rewriteDir.FullName -Recurse -Force -File -ErrorAction SilentlyContinue)) {
+            $relativePath = $file.FullName.Substring($rewriteDir.FullName.Length).TrimStart('\')
+            $targetPath = Join-Path $originalPath $relativePath
+            if (Test-Path -LiteralPath $targetPath) {
+                $kept++
+                continue
+            }
+            New-Item -ItemType Directory -Path (Split-Path $targetPath -Parent) -Force | Out-Null
+            Move-Item -LiteralPath $file.FullName -Destination $targetPath
+            $restored++
+        }
+        Write-ColorMessage -Message ("Interrupted rewrite {0}: restored {1} files to {2}; {3} already exist there and stay in {0}" -f $rewriteDir.FullName, $restored, $originalPath, $kept) -Type "Warning"
     }
-    $process = Start-Process -FilePath $script:DISK_ROBOCOPY_EXE -ArgumentList (@($Path, $rewritePath) + $script:DISK_SHRINK_ROBOCOPY_ARGUMENTS) -NoNewWindow -Wait -PassThru
-    if ($process.ExitCode -ge $script:DISK_ROBOCOPY_FAILURE_CODE) {
-        Write-ColorMessage -Message ("robocopy failed with exit code {0}" -f $process.ExitCode) -Type "Error"
-    }
-    if (Test-Path -LiteralPath $Path) {
-        Write-ColorMessage -Message ("Some files of {0} could not be moved (in use or Linux symlinks); moving the rewritten files back." -f $Path) -Type "Warning"
-        Start-Process -FilePath $script:DISK_ROBOCOPY_EXE -ArgumentList (@($rewritePath, $Path) + $script:DISK_SHRINK_ROBOCOPY_ARGUMENTS) -NoNewWindow -Wait | Out-Null
-        return $true
-    }
-    Rename-Item -LiteralPath $rewritePath -NewName (Split-Path $Path -Leaf)
-    return $true
 }
 
 function Resolve-ShrinkBlocker {
@@ -540,7 +764,6 @@ function Resolve-ShrinkBlocker {
     $segments = @($blockerParts[0].TrimStart('\') -split '\\')
     $stream = if ($blockerParts.Count -gt 1) { $blockerParts[1] } else { "" }
     $topName = $segments[0]
-    $rewritePath = Join-Path ('{0}\' -f $Drive) $topName
     $pageFileSettings = @()
 
     if ($topName -eq $script:DISK_RECYCLE_BIN_DIR) {
@@ -580,8 +803,7 @@ function Resolve-ShrinkBlocker {
     if ($stream -ne $script:DISK_SECURITY_DESCRIPTOR_STREAM) {
         return $script:DISK_SHRINK_UNRESOLVED
     }
-    Write-ColorMessage -Message ("Linux-written files keep their own security descriptor, which Windows cannot move; rewriting {0} through Windows." -f $rewritePath) -Type "Warning"
-    if (Invoke-NtfsPathRewrite -Path $rewritePath) {
+    if ((Convert-NtfsLegacySecurity -Drive $Drive) -gt 0) {
         return $script:DISK_SHRINK_RESOLVED
     }
     return $script:DISK_SHRINK_UNRESOLVED
