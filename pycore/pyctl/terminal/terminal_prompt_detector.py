@@ -26,6 +26,10 @@ QUESTION_PATTERN = re.compile(
 )
 SELECTED_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*1\s*[.)]\s*yes\b", re.IGNORECASE)
 OPTION_YES_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*1\s*[.)]\s*yes\b", re.IGNORECASE)
+OPTION_FIRST_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*1\s*[.)]\s*\S", re.IGNORECASE)
+SELECTED_OPTION_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*[1-9]\s*[.)]\s*\S", re.IGNORECASE)
+ANY_QUESTION_PATTERN = re.compile(r"\?\s*$")
+CONTINUE_OPTION_PATTERN = re.compile(r"\bcontinue\b", re.IGNORECASE)
 OPTION_NEXT_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)?\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
 SELECTED_OTHER_PATTERN = re.compile(r"^(?:❯|›|>|▶|►|➜|→|\*)\s*[2-9]\s*[.)]\s*\S", re.IGNORECASE)
 SECOND_YES_DONT_ASK_PATTERN = re.compile(
@@ -62,13 +66,13 @@ def tail_lines(text: str, count: int = TAIL_LINE_COUNT, char_limit: int = TAIL_C
 
 
 def _anchors_prompt(line: str) -> bool:
-    return bool(OPTION_YES_PATTERN.match(line) or OPTION_NEXT_PATTERN.match(line) or HINT_PATTERN.search(line))
+    return bool(OPTION_FIRST_PATTERN.match(line) or OPTION_NEXT_PATTERN.match(line) or HINT_PATTERN.search(line))
 
 
 def prompt_lines(text: str) -> List[str]:
-    """Lines of the prompt at the bottom: from just above the last "1. Yes" to the end when an option or hint closes it; a "1. Yes" followed by other output is stale and left out of the short tail."""
+    """Lines of the prompt at the bottom: from just above the last option "1." to the end when an option or hint closes it; a "1." followed by other output is stale and left out of the short tail."""
     lines = tail_lines(text or "", PROMPT_SCAN_LINE_COUNT, PROMPT_SCAN_CHAR_LIMIT)
-    yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
+    yes_positions = [index for index, line in enumerate(lines) if OPTION_FIRST_PATTERN.match(line)]
     if not yes_positions:
         return lines[-TAIL_LINE_COUNT:]
     block = lines[max(0, yes_positions[-1] - PROMPT_LOOKBACK_LINES):]
@@ -110,9 +114,9 @@ def default_yes_prompt(text: str) -> bool:
 
 
 def prompt_options(text: str) -> Dict[int, Tuple[str, bool]]:
-    """Options of the bottom prompt from its "1. Yes": number -> (text incl. wrapped continuation lines, selected)."""
+    """Options of the bottom prompt from its "1.": number -> (text incl. wrapped continuation lines, selected)."""
     lines = prompt_lines(text)
-    yes_positions = [index for index, line in enumerate(lines) if OPTION_YES_PATTERN.match(line)]
+    yes_positions = [index for index, line in enumerate(lines) if OPTION_FIRST_PATTERN.match(line)]
     options: Dict[int, Tuple[str, bool]] = {}
     current: Optional[int] = None
     for line in lines[yes_positions[-1]:] if yes_positions else []:
@@ -178,11 +182,37 @@ def bash_command_prompt(text: str) -> bool:
     )
 
 
+def choice_prompt(text: str) -> bool:
+    """Any numbered choice waiting at the bottom (its option 1 need not be Yes): options 1..n in order closing the
+    tail, a selection marker or key hint, and a second signal (question line or several options)."""
+    lines = prompt_lines(text)
+    options = prompt_options(text)
+    if not lines or not options or sorted(options) != list(range(1, len(options) + 1)) or not _anchors_prompt(lines[-1]):
+        return False
+    selected = any(SELECTED_OPTION_PATTERN.match(line) for line in lines)
+    hint = any(HINT_PATTERN.search(line) for line in lines)
+    if not (selected or hint):
+        return False
+    question = any(ANY_QUESTION_PATTERN.search(line) or QUESTION_PATTERN.search(line) for line in lines)
+    return sum([selected, hint, question, len(options) >= 2]) >= MIN_SIGNAL_COUNT
+
+
+def auto_choice(text: str) -> Optional[int]:
+    """Option the confirm button takes: the don't-ask-again Yes (2) when offered, else an option named Continue
+    (the last one when several), else option 1. Never an option that switches the permission mode."""
+    second_yes = second_yes_prompt(text)
+    if not (second_yes or choice_prompt(text) or default_yes_prompt(text) or bash_command_prompt(text)):
+        return None
+    continues = [number for number, (line, _selected) in prompt_options(text).items() if CONTINUE_OPTION_PATTERN.search(line)]
+    target = 2 if second_yes else (continues[-1] if continues else 1)
+    return None if mode_switch_option(text, target) else target
+
+
 def waiting_prompt(text: str) -> Optional[str]:
     digest = confirmation_prompt(text)
     if digest:
         return digest
-    if second_yes_prompt(text) or bash_command_prompt(text):
+    if second_yes_prompt(text) or bash_command_prompt(text) or choice_prompt(text):
         return hashlib.sha256("\n".join(prompt_lines(text)).encode("utf-8", "replace")).hexdigest()
     return None
 
