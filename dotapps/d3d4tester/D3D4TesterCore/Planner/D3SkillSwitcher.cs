@@ -113,7 +113,10 @@ public static class D3SkillSwitcher
     private const double OcrUpscale = 2.0;
     /// <summary>PaddleOCR max_side_len: longer inputs are shrunk before recognition.</summary>
     private const int OcrMaxSide = 960;
-    private const int OcrTileOverlap = 40;
+    /// <summary>Tile overlap wider than a skill / passive name, so every name is whole in at least one tile.</summary>
+    private const int OcrTileOverlap = 120;
+    /// <summary>Two reads on one line whose left edges are closer than this many text heights are the same word.</summary>
+    private const double OcrSameWordHeights = 3.0;
     private const double IconLeftHeights = 2.2;
     /// <summary>Passive list icon size in reference client px (learned crops).</summary>
     private const int LearnIconRefPx = 34;
@@ -823,8 +826,11 @@ public static class D3SkillSwitcher
                     var (x, y) = OcrBbox.Center(box);
                     var word = new Word(w.Text, (part.X + (int)(x / OcrUpscale), part.Y + (int)(y / OcrUpscale)), part.X + (int)(box.MinX / OcrUpscale),
                         part.Y + (int)(box.MinY / OcrUpscale), Math.Max(1, (int)((box.MaxY - box.MinY) / OcrUpscale)));
-                    if (words.Any(o => Math.Abs(o.Center.X - word.Center.X) < word.Height && Math.Abs(o.Center.Y - word.Center.Y) < word.Height)) continue;
-                    words.Add(word);
+                    // the same text read in two overlapping tiles: keep the longer read (a tile edge may have cut the other one)
+                    int same = words.FindIndex(o => Math.Abs(o.Center.Y - word.Center.Y) < word.Height
+                        && o.Left < word.Left + word.Height * OcrSameWordHeights && word.Left < o.Left + o.Height * OcrSameWordHeights);
+                    if (same < 0) words.Add(word);
+                    else if (FuzzyText.Normalize(word.Text).Length > FuzzyText.Normalize(words[same].Text).Length) words[same] = word;
                 }
                 if (part.Right >= area.Right) break;
             }

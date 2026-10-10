@@ -15,6 +15,9 @@ using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Services;
 
+/// <summary>Result of adding a build: the build as kept (null when every gear set duplicates one already listed) and the duplicate gear sets left out.</summary>
+public sealed record PlannerLoadResult(PlannerBuild? Build, int DuplicateProfiles);
+
 /// <summary>A planner item that just dropped or was picked up: localized title / message and the match.</summary>
 public sealed record PlannerAlert(string Title, string Message, PlannerMatch Match);
 
@@ -169,7 +172,7 @@ public static class D3PlannerService
                     if (index >= 0) builds[index] = build with { LoadedUtc = builds[index].LoadedUtc };
                     else builds.Add(build);
                 }
-                _builds = builds;
+                _builds = Dedupe(builds);
                 _watchWritten = false;
             }
             int downloaded = await LoadListedBuildsAsync().ConfigureAwait(false);
@@ -217,7 +220,9 @@ public static class D3PlannerService
                 lock (Lock)
                 {
                     if (_builds.Any(b => b.Id == build.Id)) continue;
-                    _builds = _builds.Append(build).ToList();
+                    var builds = Dedupe(_builds.Append(build));
+                    if (!builds.Any(b => b.Id == build.Id)) continue;
+                    _builds = builds;
                     _watchWritten = false;
                 }
                 added++;
@@ -295,35 +300,72 @@ public static class D3PlannerService
         File.Copy(source, target);
     }
 
-    /// <summary>Add the build behind a maxroll d3planner URL (or id), or refresh it when already listed, select it and watch it. Throws when unreadable.</summary>
-    public static async Task<PlannerBuild> LoadAsync(string url)
+    /// <summary>
+    /// Add the build behind a maxroll d3planner URL (or id), or refresh it when already listed, select it and watch it. Gear sets that
+    /// duplicate one already listed (PlannerProfileDedupe: every skill, rune, passive, item, Kanai power and follower equal) are left
+    /// out; a build made only of duplicates is not added (its download is deleted, its URL not listed). Throws when unreadable.
+    /// </summary>
+    public static async Task<PlannerLoadResult> LoadAsync(string url)
     {
         var build = await MaxrollD3PlannerClient.LoadAsync(url, CacheDir).ConfigureAwait(false);
-        int index;
+        int index, duplicates;
+        bool wasListed;
+        PlannerBuild? kept;
         lock (Lock)
         {
             var builds = _builds.ToList();
             index = builds.FindIndex(b => b.Id == build.Id);
-            if (index >= 0) builds[index] = build;
-            else
+            wasListed = index >= 0;
+            if (wasListed) builds[index] = build;
+            else builds.Add(build);
+            var deduped = PlannerProfileDedupe.Apply(builds, out var removed);
+            duplicates = removed.GetValueOrDefault(build.Id);
+            kept = deduped.FirstOrDefault(b => b.Id == build.Id);
+            if (kept != null)
             {
-                builds.Add(build);
-                index = builds.Count - 1;
+                _builds = deduped;
+                index = deduped.IndexOf(kept);
+                SeenGround.Clear();
+                _watchWritten = false;
             }
-            _builds = builds;
-            SeenGround.Clear();
-            _watchWritten = false;
+        }
+        if (kept == null)
+        {
+            if (!wasListed) DeleteCachedProfile(build.Id);
+            MonitorLog.Info($"{LogTag} build {build.Id} '{build.Name}' not added: all {build.Profiles.Count} gear set(s) duplicate listed ones");
+            return new PlannerLoadResult(null, duplicates);
         }
         await SaveAsync().ConfigureAwait(false);
         SyncBuildUrls();
-        await EnsureIconsAsync(new[] { build }).ConfigureAwait(false);
+        await EnsureIconsAsync(new[] { kept }).ConfigureAwait(false);
         ConfigBinding.SetValue(ConfigKeys.D3PlannerUrl, url.Trim());
         ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, index);
-        ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, build.ActiveProfile);
-        MonitorLog.Info($"{LogTag} build {build.Id} '{build.Name}' ({build.Class}) loaded: {build.Profiles.Count} gear set(s), {_builds.Count} build(s) watched");
+        ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, kept.ActiveProfile);
+        MonitorLog.Info($"{LogTag} build {kept.Id} '{kept.Name}' ({kept.Class}) loaded: {kept.Profiles.Count} gear set(s), {duplicates} duplicate(s) left out, {_builds.Count} build(s) watched");
         WriteWatch();
         BuildChanged?.Invoke();
-        return build;
+        return new PlannerLoadResult(kept, duplicates);
+    }
+
+    /// <summary>Duplicate gear sets removed in list order (PlannerProfileDedupe); removals are logged.</summary>
+    private static List<PlannerBuild> Dedupe(IEnumerable<PlannerBuild> builds)
+    {
+        var result = PlannerProfileDedupe.Apply(builds, out var removed);
+        foreach (var (id, count) in removed)
+            MonitorLog.Info($"{LogTag} build {id}: {count} duplicate gear set(s) left out" + (result.Any(b => b.Id == id) ? "" : ", build not listed"));
+        return result;
+    }
+
+    private static void DeleteCachedProfile(long id)
+    {
+        try
+        {
+            File.Delete(MaxrollD3PlannerClient.ProfilePath(CacheDir, id));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ColorPrinter.Yellow($"{LogTag} cached build {id} not deleted: {ex.Message}");
+        }
     }
 
     public static void SelectBuild(int index)
@@ -352,14 +394,7 @@ public static class D3PlannerService
         }
         _ = SaveAsync();
         SyncBuildUrls(removedId: id);
-        try
-        {
-            File.Delete(MaxrollD3PlannerClient.ProfilePath(CacheDir, id));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            ColorPrinter.Yellow($"{LogTag} cached build {id} not deleted: {ex.Message}");
-        }
+        DeleteCachedProfile(id);
         ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, Math.Max(0, Math.Min(index, _builds.Count - 1)));
         if (Build is { } b) ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, b.ActiveProfile);
         MonitorLog.Info($"{LogTag} build '{name}' removed, {_builds.Count} left");
