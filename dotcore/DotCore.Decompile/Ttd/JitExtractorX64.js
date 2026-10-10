@@ -96,15 +96,29 @@ function invokeScript() {
             if (ilSize <= 0 || ilSize > 0x1000000) {
                 throw new Error(`Invalid IL size ${ilSize}.`);
             }
-            const methodLines = DebuggerApi.execute(`!dumpmd ${methodHandle.toString(16)}`);
-            const tokenText = field(methodLines, "mdToken:");
-            const methodName = field(methodLines, "Method Name:");
+            const ilBytes = bytesToHex(DebuggerApi.readBytes(ilAddress, ilSize));
+            let methodLines = DebuggerApi.execute(`!dumpmd ${methodHandle.toString(16)}`);
+            let tokenText;
+            let methodName;
+            try {
+                tokenText = field(methodLines, "mdToken:");
+                methodName = field(methodLines, "Method Name:");
+            } catch (error) {
+                try {
+                    calls[index].TimeEnd.SeekTo();
+                    methodLines = DebuggerApi.execute(`!dumpmd ${methodHandle.toString(16)}`);
+                    tokenText = field(methodLines, "mdToken:");
+                    methodName = field(methodLines, "Method Name:");
+                } finally {
+                    calls[index].TimeStart.SeekTo();
+                }
+            }
             methods.push({
                 CallIndex: index,
                 ModuleName: targetModulePath,
                 MethodName: methodName,
                 MethodToken: parseInt(tokenText, 16),
-                ILBytes: bytesToHex(DebuggerApi.readBytes(ilAddress, ilSize)),
+                ILBytes: ilBytes,
                 ILSize: ilSize,
                 MaxStack: maxStack,
                 ExceptionHandlerCount: exceptionHandlerCount,
