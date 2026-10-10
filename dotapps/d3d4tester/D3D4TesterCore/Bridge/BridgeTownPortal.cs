@@ -8,10 +8,9 @@ namespace DotApps.d3d4tester.Core.Bridge;
 
 /// <summary>
 /// The single town portal key path (the plugin API cannot cast the portal): bring D3 to the front and press the configured key
-/// (rosbot.bridge_follow_town_portal_key, default t) under the GameControl lease. Used by the trigger action "town portal" and, driven by
-/// the 1 s TickDriver, whenever the bridge plugin reports needs_town: follow mode lost its target outside town (at most once per
-/// FollowRetryMs; in town the plugin then uses the target's banner) or town standby is still outside town (once per StandbyRetryMs,
-/// a cast interrupted by a hit is simply pressed again).
+/// (rosbot.bridge_follow_town_portal_key, default t) under the GameControl lease. Used by one-click return to town, the trigger action
+/// "town portal" and, driven by the 1 s TickDriver, follow mode when the plugin lost the target outside town (needs_town, at most once
+/// per FollowRetryMs; in town the plugin then uses the target's banner).
 /// </summary>
 public static class BridgeTownPortal
 {
@@ -19,10 +18,8 @@ public static class BridgeTownPortal
     /// <summary>Plugin follow / standby state: the hero must go to town.</summary>
     public const string StateNeedsTown = "needs_town";
     private const int FollowRetryMs = 15000;
-    private const int StandbyRetryMs = 6000;
     private const int LeaseWaitMs = 5000;
     private const string LeaseFollow = "follow town portal";
-    private const string LeaseStandby = "standby town portal";
 
     private static DateTime _lastPressUtc = DateTime.MinValue;
     private static int _installed;
@@ -57,12 +54,10 @@ public static class BridgeTownPortal
     {
         var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
         if (!snapshot.RosbotBridgeFresh || snapshot.RosbotBridge is not { InGame: true, Dead: false } bridge) return;
-        bool standby = bridge is { StandbyEnabled: true, StandbyState: StateNeedsTown };
-        bool follow = bridge is { FollowEnabled: true, FollowState: StateNeedsTown };
-        if (!standby && !follow) return;
+        if (bridge is not { FollowEnabled: true, FollowState: StateNeedsTown }) return;
         var now = DateTime.UtcNow;
-        if ((now - _lastPressUtc).TotalMilliseconds < (standby ? StandbyRetryMs : FollowRetryMs)) return;
+        if ((now - _lastPressUtc).TotalMilliseconds < FollowRetryMs) return;
         _lastPressUtc = now;
-        Press(standby ? LeaseStandby : LeaseFollow, 0);
+        Press(LeaseFollow, 0);
     }
 }

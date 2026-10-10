@@ -33,6 +33,10 @@ public static class RosbotFlowRunner
     private static readonly object PauseLock = new();
     private static readonly object StateLock = new();
     private static bool _rosbotPausedByFlow;
+    /// <summary>ROSBOT process the pause handled (paused by key, or found not botting); another one is checked again.</summary>
+    private static int _pausedRosbotPid;
+    private static int _guardInstalled;
+    private static int _guardBusy;
 
     private static GameInterfaceStateSnapshot State => GameInterfaceData.Instance.GetStateSnapshot();
 
@@ -68,37 +72,87 @@ public static class RosbotFlowRunner
 
     /// <summary>
     /// Pause (take control): with or without monitoring. Halts the flow at its current step when monitoring runs, then presses ROSBOT's
-    /// pause key when ROSBOT is botting. The returned task completes once the key was sent (or not needed).
+    /// pause key when ROSBOT is botting. Already paused: ROSBOT is checked again and paused when it bots anyway (a ROSBOT process started
+    /// meanwhile starts unpaused), so every take-control really stops ROSBOT. The task completes once the key was sent (or not needed);
+    /// its result is true when a key was sent.
     /// </summary>
-    public static Task Pause()
+    public static Task<bool> Pause()
     {
         var state = RosbotFlowState.Instance;
+        bool already;
         lock (StateLock)
         {
-            if (state.Paused) return Task.CompletedTask;
-            state.SetPaused(true);
+            already = state.Paused;
+            if (!already) state.SetPaused(true);
         }
-        Worker.Stop();
-        ColorPrinter.Yellow($"{LogTag} paused (control taken)");
+        if (!already)
+        {
+            Worker.Stop();
+            ColorPrinter.Yellow($"{LogTag} paused (control taken)");
+        }
         return Task.Run(() =>
         {
-            if (!Worker.WaitStopped(StepFinishWaitMs)) ColorPrinter.Yellow($"{LogTag} flow step still running after {StepFinishWaitMs / 1000}s");
+            if (!already && !Worker.WaitStopped(StepFinishWaitMs)) ColorPrinter.Yellow($"{LogTag} flow step still running after {StepFinishWaitMs / 1000}s");
             using var lease = GameControl.TryAcquire(LeasePause, LeaseWaitMs);
-            lock (PauseLock)
+            return PauseRosbotIfBotting(already ? "re-check" : "pause");
+        });
+    }
+
+    /// <summary>
+    /// While control is taken: press the pause key for a botting ROSBOT that the pause did not stop (the same process keeps its "paused
+    /// by flow" mark, so the key is never toggled twice). Caller holds the GameControl lease. True when the key was sent.
+    /// </summary>
+    private static bool PauseRosbotIfBotting(string why)
+    {
+        var state = RosbotFlowState.Instance;
+        lock (PauseLock)
+        {
+            if (!state.Paused) return false;
+            RosbotManager.Instance.InvalidateLookupCache();
+            Refresh();
+            int pid = State.RosbotFoundPid;
+            if (_rosbotPausedByFlow && pid == _pausedRosbotPid) return false;
+            if (!RosbotDetection.IsBotting(State))
             {
-                if (!state.Paused || _rosbotPausedByFlow) return;
-                RosbotInterruptGuard.WaitSafe(LeasePause, TaskStartWaitMs, () => !state.Paused);
-                if (!state.Paused) return;
-                RosbotManager.Instance.InvalidateLookupCache();
-                Refresh();
-                if (!RosbotDetection.IsBotting(State))
-                {
-                    ColorPrinter.Gray($"{LogTag} ROSBOT not botting ({State.RosbotExtendedStatus}), no pause key");
-                    return;
-                }
-                _rosbotPausedByFlow = RosbotManager.SendPauseToggleToSystem();
-                ColorPrinter.Yellow($"{LogTag} ROSBOT pause key {(_rosbotPausedByFlow ? "sent" : "send failed")}");
+                ColorPrinter.Gray($"{LogTag} {why}: ROSBOT not botting ({State.RosbotExtendedStatus}), no pause key");
+                _pausedRosbotPid = pid;
+                return false;
             }
+            RosbotInterruptGuard.WaitSafe(LeasePause, TaskStartWaitMs, () => !state.Paused);
+            if (!state.Paused) return false;
+            _rosbotPausedByFlow = RosbotManager.SendPauseToggleToSystem();
+            _pausedRosbotPid = pid;
+            ColorPrinter.Yellow($"{LogTag} {why}: ROSBOT #{pid} pause key {(_rosbotPausedByFlow ? "sent" : "send failed")}");
+            return _rosbotPausedByFlow;
+        }
+    }
+
+    /// <summary>
+    /// Pause guard on the 1 s TickDriver: while control is taken, a ROSBOT process other than the one the pause handled (ROSBOT exited
+    /// and was started again) is paused once when it bots, so a taken control never lets a new ROSBOT run tasks.
+    /// </summary>
+    public static void InstallPauseGuard()
+    {
+        if (Interlocked.Exchange(ref _guardInstalled, 1) == 1) return;
+        TickDriver.Instance.RegisterEveryTick(_ =>
+        {
+            var s = State;
+            if (!s.RosbotFlowPaused || s.RosbotFoundPid <= 0 || s.RosbotFoundPid == _pausedRosbotPid || !RosbotDetection.IsBotting(s)) return;
+            if (Interlocked.Exchange(ref _guardBusy, 1) == 1) return;
+            ColorPrinter.Yellow($"{LogTag} control taken but a new ROSBOT #{s.RosbotFoundPid} is botting -> pause it");
+            Task.Run(() =>
+            {
+                try
+                {
+                    using var lease = GameControl.TryAcquire(LeasePause, LeaseWaitMs);
+                    lock (PauseLock) if (_pausedRosbotPid != s.RosbotFoundPid) _rosbotPausedByFlow = false;
+                    PauseRosbotIfBotting("guard");
+                }
+                finally
+                {
+                    Volatile.Write(ref _guardBusy, 0);
+                }
+            });
         });
     }
 
@@ -114,7 +168,11 @@ public static class RosbotFlowRunner
             if (state.Paused) return;
             state.SetPaused(true);
         }
-        lock (PauseLock) _rosbotPausedByFlow = true;
+        lock (PauseLock)
+        {
+            _rosbotPausedByFlow = true;
+            _pausedRosbotPid = State.RosbotFoundPid;
+        }
         ColorPrinter.Yellow($"{LogTag} paused: control handed to the plugin (ROSBOT paused)");
         Worker.Stop();
     }
@@ -131,7 +189,11 @@ public static class RosbotFlowRunner
             if (state.Paused) return;
             state.SetPaused(true);
         }
-        lock (PauseLock) _rosbotPausedByFlow = rosbotWasBotting;
+        lock (PauseLock)
+        {
+            _rosbotPausedByFlow = rosbotWasBotting;
+            _pausedRosbotPid = State.RosbotFoundPid;
+        }
         ColorPrinter.Yellow($"{LogTag} paused by the user's ROSBOT pause key (F6)");
         Worker.Stop();
     }
@@ -161,12 +223,15 @@ public static class RosbotFlowRunner
                     ColorPrinter.Gray($"{LogTag} resume skipped: no longer paused");
                     return;
                 }
-                if (_rosbotPausedByFlow)
+                if (_rosbotPausedByFlow && State.RosbotFoundPid != _pausedRosbotPid)
+                    ColorPrinter.Gray($"{LogTag} ROSBOT #{_pausedRosbotPid} the pause stopped is gone, no resume key");
+                else if (_rosbotPausedByFlow)
                 {
                     bool sent = RosbotManager.SendPauseToggleToSystem();
                     ColorPrinter.Blue($"{LogTag} ROSBOT resume key {(sent ? "sent" : "send failed")}");
                 }
                 _rosbotPausedByFlow = false;
+                _pausedRosbotPid = 0;
                 RosbotRestartRequest.Clear();
                 F3LogTimeout.SetRosbotStartedAt();
                 state.SetPaused(false);

@@ -33,6 +33,8 @@ public static class RosbotBridgePluginService
     private const double CommandFreeWaitSec = 15.0;
     /// <summary>Time for ROSBOT to stop its current action after the pause key before a command is written.</summary>
     public const int TakeControlSettleMs = 1500;
+    private const string LeaseReturnToTown = "return to town";
+    private const int TownPortalLeaseWaitMs = 10000;
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true, Converters = { new RosbotBridgeDateTimeConverter() } };
     private static string? _lastReadError;
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
@@ -62,6 +64,7 @@ public static class RosbotBridgePluginService
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
         TickDriver.Instance.RegisterEveryTick(_ => PublishState());
         RosbotFlowRunner.Resumed += ReleasePluginControlOnResume;
+        RosbotManager.Instance.AddBeforeStartHook(_ => AutoInstallIfEnabled());
         D3D4TesterConfigChangeHub.Notifier.Subscribe(key =>
         {
             if (key is ConfigKeys.RosSettingsRosDirectory or ConfigKeys.RosbotBridgePluginAutoInstall) _ = Task.Run(AutoInstallIfEnabled);
@@ -90,30 +93,28 @@ public static class RosbotBridgePluginService
 
     /// <summary>
     /// Take control for the app / panel: monitoring flow halted and a botting ROSBOT paused with its own pause key (never stopped, so the
-    /// game is not left), then a short settle so ROSBOT ends its current action. No-op wait when control is already taken.
+    /// game is not left; checked again when control is already taken, a restarted ROSBOT bots unpaused), then a short settle when a key
+    /// was sent so ROSBOT ends its current action.
     /// </summary>
     public static async Task TakeControlAsync()
     {
-        if (RosbotFlowState.Instance.Paused) return;
-        await RosbotTaskProcessor.Instance.RequestPauseFlow().ConfigureAwait(false);
-        await Task.Delay(TakeControlSettleMs).ConfigureAwait(false);
+        if (await RosbotTaskProcessor.Instance.RequestPauseFlow().ConfigureAwait(false))
+            await Task.Delay(TakeControlSettleMs).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// One-click return to town and stand by: take control (TakeControlAsync), then the plugin's town standby brings the hero home
-    /// (revive in town when dead, the town portal key via BridgeTownPortal outside town) and keeps it idle there for the panel's
-    /// commands. Ends with Resume monitoring. Returns the command id, null when the plugin is not live or the command was not taken.
+    /// One-click return to town: take control (TakeControlAsync: no more tasks, the game is kept), then press the town portal key in D3
+    /// at once, wherever the hero is. With the plugin live it also switches to town standby (dead: revive in town; follow mode ends; the
+    /// hero stays idle for the panel's commands). Resume monitoring hands control back. Returns true when the town portal key was sent.
     /// </summary>
-    public static async Task<long?> EnterTownStandbyAsync()
+    public static async Task<bool> EnterTownStandbyAsync()
     {
-        if (!GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
-        {
-            ColorPrinter.Yellow($"{LogTag} town standby not started: plugin not live");
-            return null;
-        }
-        ColorPrinter.Blue($"{LogTag} town standby: take control (ROSBOT paused, game kept) -> plugin brings the hero to town");
+        ColorPrinter.Blue($"{LogTag} return to town: take control (ROSBOT paused, game kept) -> town portal key");
         await TakeControlAsync().ConfigureAwait(false);
-        return await SendWhenFreeAsync(RosbotPluginConstants.BridgeActionStandby, RosbotPluginConstants.BridgeStandbyOn, rememberFollow: false).ConfigureAwait(false);
+        bool sent = BridgeTownPortal.Press(LeaseReturnToTown, TownPortalLeaseWaitMs);
+        if (GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
+            await SendWhenFreeAsync(RosbotPluginConstants.BridgeActionStandby, RosbotPluginConstants.BridgeStandbyOn, rememberFollow: false).ConfigureAwait(false);
+        return sent;
     }
 
     /// <summary>Send once command.txt is free (an earlier command is waited out up to CommandFreeWaitSec); null when it never frees.</summary>

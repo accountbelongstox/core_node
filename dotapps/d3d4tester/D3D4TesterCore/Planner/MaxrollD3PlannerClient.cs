@@ -11,8 +11,10 @@ namespace DotApps.d3d4tester.Core.Planner;
 /// Reads a maxroll.gg D3 planner build. The planner page is a JS app without the build in its HTML: the build comes from the planner
 /// API (planners.maxroll.gg/profiles/d3/{id}; its "data" field is a JSON string with the gear profiles), item / stat / slot definitions
 /// from the planner's game data (d3planner-assets.maxroll.gg/d3planner/data.json) and Chinese names from its zhCN locale patch. Game
-/// data is cached on disk for GameDataMaxAge. Stats map to D3 attributes by the "id" maxroll stores ("Crit_Damage_Percent",
-/// "Resistance#Fire"); element / resource parameters become D3 enum indexes; percent stats are divided by 100 (attribute units).
+/// data is cached for GameDataMaxAge. Cache layout under the cache dir: profiles/&lt;id&gt;.json (the raw planner API answer, every field
+/// kept), game/ (game data + zhCN locale); a cached profile parses again without network. Stats map to D3 attributes by the "id"
+/// maxroll stores ("Crit_Damage_Percent", "Resistance#Fire"); element / resource parameters become D3 enum indexes; percent stats are
+/// divided by 100 (attribute units). Besides gear: skill bar with runes, passives, paragon level, gems, follower gear and skills.
 /// </summary>
 public static class MaxrollD3PlannerClient
 {
@@ -20,9 +22,14 @@ public static class MaxrollD3PlannerClient
     private const string AssetsBase = "https://d3planner-assets.maxroll.gg/d3planner/";
     private const string DataFileName = "data.json";
     private const string LocaleZhFileName = "locale/zhCN.json";
-    private const string DataCacheName = "maxroll_d3_data.json";
-    private const string LocaleZhCacheName = "maxroll_d3_zhCN.json";
-    private static readonly TimeSpan GameDataMaxAge = TimeSpan.FromDays(1);
+    public const string DataCacheName = "maxroll_d3_data.json";
+    public const string LocaleZhCacheName = "maxroll_d3_zhCN.json";
+    public const string ProfilesDirName = "profiles";
+    public const string GameDirName = "game";
+    public const string ProfileFileExtension = ".json";
+    private const string PlannerUrlFormat = "https://maxroll.gg/d3/d3planner/{0}";
+    /// <summary>Game data changes with patches only; a long age keeps the cached copy (it travels with the code) stable.</summary>
+    private static readonly TimeSpan GameDataMaxAge = TimeSpan.FromDays(30);
     private static readonly Regex PlannerUrlId = new(@"d3planner(?:-ptr)?/(\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex PlainId = new(@"^\s*(\d+)\s*$", RegexOptions.CultureInvariant);
     private const char ParameterSeparator = '#';
@@ -37,6 +44,8 @@ public static class MaxrollD3PlannerClient
     private const char CodeSeparator = '_';
     private const double PercentDivisor = 100.0;
     private const string GemTierFormat = "00";
+    private const string GemRankFormat = "{0} ({1})";
+    private const string GemQualityFormat = "{0} {1}";
     private static readonly string[] ItemListNames = { "items", "potions", "extraItems" };
 
     /// <summary>maxroll attribute ids that ROSBOT's AttributeId enum names differently.</summary>
@@ -61,16 +70,48 @@ public static class MaxrollD3PlannerClient
         return m.Success && long.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long id) ? id : null;
     }
 
+    /// <summary>Raw planner API answer of a build in the cache dir.</summary>
+    public static string ProfilePath(string cacheDir, long id) =>
+        Path.Combine(cacheDir, ProfilesDirName, id.ToString(CultureInfo.InvariantCulture) + ProfileFileExtension);
+
+    public static string DataPath(string cacheDir) => Path.Combine(cacheDir, GameDirName, DataCacheName);
+
+    public static string LocaleZhPath(string cacheDir) => Path.Combine(cacheDir, GameDirName, LocaleZhCacheName);
+
+    /// <summary>Download the build (raw answer saved to profiles/), make sure the game data is cached, parse.</summary>
     public static async Task<PlannerBuild> LoadAsync(string urlOrId, string cacheDir, CancellationToken ct = default)
     {
         long id = ParseId(urlOrId) ?? throw new ArgumentException(urlOrId, nameof(urlOrId));
         var profileTask = HttpFileCache.GetStringAsync(string.Format(CultureInfo.InvariantCulture, ProfileUrlFormat, id), ct);
-        var dataTask = HttpFileCache.GetCachedAsync(AssetsBase + DataFileName, Path.Combine(cacheDir, DataCacheName), GameDataMaxAge, ct);
-        var zhTask = HttpFileCache.GetCachedAsync(AssetsBase + LocaleZhFileName, Path.Combine(cacheDir, LocaleZhCacheName), GameDataMaxAge, ct);
-        await Task.WhenAll(profileTask, dataTask, (Task)zhTask).ConfigureAwait(false);
+        var gameTask = LoadGameDataAsync(cacheDir, ct);
+        await Task.WhenAll(profileTask, gameTask).ConfigureAwait(false);
+        var profile = JsonNode.Parse(profileTask.Result)!;
+        string path = ProfilePath(cacheDir, id);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, profileTask.Result, ct).ConfigureAwait(false);
+        var (data, zh) = gameTask.Result;
+        return Parse(id, urlOrId.Trim(), profile, data, zh);
+    }
+
+    /// <summary>Parse a cached raw profile (profiles/&lt;id&gt;.json) with the cached game data; network only when the game data is missing.</summary>
+    public static async Task<PlannerBuild> LoadCachedAsync(string profilePath, string cacheDir, string? url = null, CancellationToken ct = default)
+    {
+        string name = Path.GetFileNameWithoutExtension(profilePath);
+        long id = long.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out long n) ? n : throw new ArgumentException(profilePath, nameof(profilePath));
+        var profile = JsonNode.Parse(await File.ReadAllTextAsync(profilePath, ct).ConfigureAwait(false))!;
+        var (data, zh) = await LoadGameDataAsync(cacheDir, ct).ConfigureAwait(false);
+        return Parse(id, url ?? string.Format(CultureInfo.InvariantCulture, PlannerUrlFormat, id), profile, data, zh);
+    }
+
+    private static async Task<(JsonNode Data, JsonNode? Zh)> LoadGameDataAsync(string cacheDir, CancellationToken ct)
+    {
+        Directory.CreateDirectory(Path.Combine(cacheDir, GameDirName));
+        var dataTask = HttpFileCache.GetCachedAsync(AssetsBase + DataFileName, DataPath(cacheDir), GameDataMaxAge, ct);
+        var zhTask = HttpFileCache.GetCachedAsync(AssetsBase + LocaleZhFileName, LocaleZhPath(cacheDir), GameDataMaxAge, ct);
+        await Task.WhenAll(dataTask, zhTask).ConfigureAwait(false);
         var data = JsonNode.Parse(await File.ReadAllTextAsync(dataTask.Result ?? throw new IOException(DataFileName), ct).ConfigureAwait(false))!;
         var zh = zhTask.Result is { } zhPath ? JsonNode.Parse(await File.ReadAllTextAsync(zhPath, ct).ConfigureAwait(false))?["patch"] : null;
-        return Parse(id, urlOrId.Trim(), JsonNode.Parse(profileTask.Result)!, data, zh);
+        return (data, zh);
     }
 
     /// <summary>
@@ -80,8 +121,9 @@ public static class MaxrollD3PlannerClient
     public static async Task<IReadOnlyDictionary<int, (string En, string Zh)>> LoadItemNamesAsync(string cacheDir, CancellationToken ct = default)
     {
         var names = new Dictionary<int, (string En, string Zh)>();
-        string? dataPath = await HttpFileCache.GetCachedAsync(AssetsBase + DataFileName, Path.Combine(cacheDir, DataCacheName), GameDataMaxAge, ct).ConfigureAwait(false);
-        string? zhPath = await HttpFileCache.GetCachedAsync(AssetsBase + LocaleZhFileName, Path.Combine(cacheDir, LocaleZhCacheName), GameDataMaxAge, ct).ConfigureAwait(false);
+        Directory.CreateDirectory(Path.Combine(cacheDir, GameDirName));
+        string? dataPath = await HttpFileCache.GetCachedAsync(AssetsBase + DataFileName, DataPath(cacheDir), GameDataMaxAge, ct).ConfigureAwait(false);
+        string? zhPath = await HttpFileCache.GetCachedAsync(AssetsBase + LocaleZhFileName, LocaleZhPath(cacheDir), GameDataMaxAge, ct).ConfigureAwait(false);
         if (dataPath == null) return names;
         var data = JsonNode.Parse(await File.ReadAllTextAsync(dataPath, ct).ConfigureAwait(false));
         var zhPatch = zhPath != null ? JsonNode.Parse(await File.ReadAllTextAsync(zhPath, ct).ConfigureAwait(false))?["patch"] : null;
@@ -123,27 +165,115 @@ public static class MaxrollD3PlannerClient
         var items = new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in data["items"]!.AsArray())
             if (item?["id"]?.GetValue<string>() is { } itemId) items[itemId] = item;
+        string cls = Text(profile["class"]) is { Length: > 0 } c ? c : Text(body["class"]);
         var profiles = new List<PlannerProfile>();
         foreach (var p in body["profiles"]?.AsArray() ?? new JsonArray())
         {
             if (p == null) continue;
-            var planned = new List<PlannerItem>();
-            foreach (var (slot, node) in p["items"]?.AsObject() ?? new JsonObject())
-            {
-                if (node?["id"]?.GetValue<string>() is not { Length: > 0 } itemId) continue;
-                planned.Add(BuildItem(slot, itemId, AncientRank(node["ancient"]), node["stats"]?.AsObject(), items, data, zh));
-            }
+            string profileClass = Text(p["class"]) is { Length: > 0 } pc ? pc : cls;
             var kanai = new List<PlannerItem>();
             foreach (var (slot, node) in p["kanai"]?.AsObject() ?? new JsonObject())
                 if (node is JsonValue kv && kv.TryGetValue(out string? itemId) && itemId.Length > 0)
                     kanai.Add(BuildItem(KanaiSlotPrefix + slot, itemId, 0, null, items, data, zh));
-            profiles.Add(new PlannerProfile(Text(p["name"]), planned, kanai));
+            string follower = Text(p["follower"]);
+            profiles.Add(new PlannerProfile(Text(p["name"]), GearItems(p["items"], items, data, zh), kanai)
+            {
+                Skills = Skills(p["skills"], profileClass, data, zh),
+                Passives = Named(p["passives"], key => (data["passives"]?[profileClass]?[key], zh?["passives"]?[profileClass]?[key])),
+                ParagonLevel = p["paragon"]?["level"] is JsonValue lv && lv.TryGetValue(out int level) ? level : 0,
+                Follower = follower.Length > 0 ? new PlannerNamed(follower, ClassName(data, follower), ClassNameZh(zh, follower)) : null,
+                FollowerItems = GearItems(p["followerItems"], items, data, zh),
+                FollowerSkills = Named(p["followerSkills"], key => (data["followerSkills"]?[key], zh?["followerSkills"]?[key])),
+            });
         }
         int active = body["activeProfile"] is JsonValue a && a.TryGetValue(out int ap) ? ap : 0;
         string name = Text(profile["name"]) is { Length: > 0 } n ? n : Text(body["name"]);
-        return new PlannerBuild(id, url, name, Text(profile["class"]) is { Length: > 0 } c ? c : Text(body["class"]),
-            profiles, Math.Clamp(active, 0, Math.Max(0, profiles.Count - 1)), DateTime.UtcNow);
+        return new PlannerBuild(id, url, name, cls, profiles, Math.Clamp(active, 0, Math.Max(0, profiles.Count - 1)), DateTime.UtcNow)
+        {
+            ClassZh = ClassNameZh(zh, cls),
+        };
     }
+
+    /// <summary>Gear of one equipment object (hero "items" or "followerItems"): slot -> item with ancient rank, affixes and gems.</summary>
+    private static List<PlannerItem> GearItems(JsonNode? gear, Dictionary<string, JsonNode> items, JsonNode data, JsonNode? zh)
+    {
+        var planned = new List<PlannerItem>();
+        foreach (var (slot, node) in gear?.AsObject() ?? new JsonObject())
+        {
+            if (node?["id"]?.GetValue<string>() is not { Length: > 0 } itemId) continue;
+            planned.Add(BuildItem(slot, itemId, AncientRank(node["ancient"]), node["stats"]?.AsObject(), items, data, zh) with
+            {
+                Gems = Gems(node["gems"], data, zh),
+            });
+        }
+        return planned;
+    }
+
+    /// <summary>Skill bar: [skill key, rune letter] per slot in bar order, names from the class skill table.</summary>
+    private static List<PlannerSkill> Skills(JsonNode? bar, string cls, JsonNode data, JsonNode? zh)
+    {
+        var skills = new List<PlannerSkill>();
+        int slot = 0;
+        foreach (var entry in bar?.AsArray() ?? new JsonArray())
+        {
+            int index = slot++;
+            if (entry is not JsonArray pair || pair.Count == 0 || Text(pair[0]) is not { Length: > 0 } key) continue;
+            string rune = pair.Count > 1 ? Text(pair[1]) : "";
+            var def = data["skills"]?[cls]?[key];
+            var zhDef = zh?["skills"]?[cls]?[key];
+            skills.Add(new PlannerSkill(index, key, Text(def?["name"]) is { Length: > 0 } en ? en : key, Text(zhDef?["name"]),
+                rune, Text(def?["runes"]?[rune]), Text(zhDef?["runes"]?[rune])));
+        }
+        return skills;
+    }
+
+    /// <summary>Keys of a string array with English / Chinese names from (definition, zh patch) nodes; the key when unknown.</summary>
+    private static List<PlannerNamed> Named(JsonNode? keys, Func<string, (JsonNode? Def, JsonNode? Zh)> lookup)
+    {
+        var named = new List<PlannerNamed>();
+        foreach (var k in keys?.AsArray() ?? new JsonArray())
+        {
+            if (Text(k) is not { Length: > 0 } key) continue;
+            var (def, zhDef) = lookup(key);
+            named.Add(new PlannerNamed(key, Text(def?["name"]) is { Length: > 0 } en ? en : key, Text(zhDef?["name"])));
+        }
+        return named;
+    }
+
+    /// <summary>
+    /// Gems of an item: [quality index, color] for normal gems (quality name + color name, Chinese from the color's names list), or
+    /// [legendary gem key, rank].
+    /// </summary>
+    private static List<PlannerNamed> Gems(JsonNode? gems, JsonNode data, JsonNode? zh)
+    {
+        var result = new List<PlannerNamed>();
+        var qualities = data["gemQualities"]?.AsArray() ?? new JsonArray();
+        foreach (var g in gems?.AsArray() ?? new JsonArray())
+        {
+            if (g is not JsonArray pair || pair.Count < 2) continue;
+            if (pair[0] is JsonValue qv && qv.TryGetValue(out int quality))
+            {
+                string color = Text(pair[1]);
+                int q = Math.Clamp(quality, 0, Math.Max(0, qualities.Count - 1));
+                var zhNames = zh?["gemColors"]?[color]?["names"]?.AsArray();
+                string en = string.Format(CultureInfo.InvariantCulture, GemQualityFormat, Text(qualities.Count > 0 ? qualities[q] : null), Text(data["gemColors"]?[color]?["name"])).Trim();
+                result.Add(new PlannerNamed(color, en.Length > 0 ? en : color, zhNames != null && q < zhNames.Count ? Text(zhNames[q]) : ""));
+                continue;
+            }
+            string key = Text(pair[0]);
+            if (key.Length == 0) continue;
+            string rank = pair[1] is JsonValue rv && rv.TryGetValue(out int r) ? r.ToString(CultureInfo.InvariantCulture) : "";
+            string gemEn = Text(data["legendaryGems"]?[key]?["name"]) is { Length: > 0 } ln ? ln : key;
+            string gemZh = Text(zh?["legendaryGems"]?[key]?["name"]);
+            result.Add(new PlannerNamed(key, string.Format(CultureInfo.InvariantCulture, GemRankFormat, gemEn, rank),
+                gemZh.Length > 0 ? string.Format(CultureInfo.InvariantCulture, GemRankFormat, gemZh, rank) : ""));
+        }
+        return result;
+    }
+
+    private static string ClassName(JsonNode data, string key) => Text(data["classes"]?[key]?["name"]) is { Length: > 0 } n ? n : key;
+
+    private static string ClassNameZh(JsonNode? zh, string key) => Text(zh?["classes"]?[key]?["name"]);
 
     private static PlannerItem BuildItem(string slot, string itemId, int ancientRank, JsonObject? stats,
         Dictionary<string, JsonNode> items, JsonNode data, JsonNode? zh)

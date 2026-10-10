@@ -38,7 +38,7 @@ Reference: **PY** `pyapps/d3-check/share/asia_credentials.py`, `pycore/pyutils/s
 | Get credentials (for login) | `get_credentials(region)` → `(email, password)` or None; decrypts password | `AsiaCredentialsService.GetCredentials(region)` → `(email, password)?`; decrypts |
 | Save credentials | `save_credentials(region, email, password)`; encrypts password, writes config | `AsiaCredentialsService.SaveCredentials(region, email, password)`; same |
 | Load for dialog (per region) | `_load_credentials_into_vars(region, var_email, var_password)`; decrypt then set UI vars | `AsiaCredentialsService.LoadCredentialsForUi(region)` → `(email, password)`; dialog calls when region changes |
-| Region constants | `REGION_ASIA = "asia"`, `REGION_CN = "cn"` | `AsiaCredentialsService.RegionAsia`, `AsiaCredentialsService.RegionCn` |
+| Region constants | `REGION_ASIA = "asia"`, `REGION_CN = "cn"` | `BattlenetConstants.RegionAsia`, `BattlenetConstants.RegionCn` |
 
 ---
 
@@ -64,7 +64,7 @@ Reference: **PY** `pyapps/d3-check/share/asia_credentials.py`, `pycore/pyutils/s
 | Resolve region (no UI) | `ensure_battlenet_region_from_config()`: 1) read Battle.net.config (Services.LastLoginRegion) → "cn" or "asia"; 2) else `ros_settings.battlenet_region_cache` | `BattlenetStatusProvider.EnsureBattlenetRegionFromConfig()` (startup and on demand; the only writer of the region) over `BattlenetRegionDetection.DetectRegion()`; readers use `GameInterfaceData` / `BattlenetOperationFactory.ResolveRegion` |
 | Set in game data | `game_data.set_battlenet_region(config_region)` | `GameInterfaceData.Instance.SetBattlenetRegion(region)` |
 | Write cache | `set_config_value_async("ros_settings.battlenet_region_cache", config_region)` when read from file | `D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, region)` |
-| Use in login | Asia flow uses `get_asia_credentials()` / `get_credentials("asia")`; region from config/cache | Asia flow uses `AsiaCredentialsService.GetCredentials(AsiaCredentialsService.RegionAsia)`; region from EnsureBattlenetRegionBeforeStart |
+| Use in login | Asia flow uses `get_asia_credentials()` / `get_credentials("asia")`; region from config/cache | Asia client login and web login both use `BattlenetFlowHooks.GetLoginCredentials(region)` (→ `AsiaCredentialsService.GetCredentials`); region from `BattlenetOperationFactory.ResolveRegion` |
 
 **Python:** `d3utils/battlenet_status_provider.py` (`ensure_battlenet_region_from_config`), `share/game_interface_data.py` (battlenet_region).  
 **DOT:** `Ctl/BattlenetStatusProvider.cs` (EnsureBattlenetRegionFromConfig), `D3D4TesterCore/BattlenetRegionDetection.cs`, `D3D4TesterCore/GameInterfaceData.cs`.

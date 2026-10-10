@@ -399,21 +399,16 @@ public partial class RosbotBridgePanel : UserControl
         var p = D3D4TesterI18n.Provider;
         if (_state?.StandbyEnabled == true)
         {
-            RosbotTaskProcessor.Instance.RequestResumeFlow();
-            return;
-        }
-        if (!GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
-        {
-            TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgePluginNotRunning);
+            if (RosbotFlowState.Instance.Paused) RosbotTaskProcessor.Instance.RequestResumeFlow();
+            else Send(RosbotPluginConstants.BridgeActionStandby, value: RosbotPluginConstants.BridgeStandbyOff);
             return;
         }
         BtnStandby.IsEnabled = false;
         TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
         try
         {
-            long? id = await RosbotBridgePluginService.EnterTownStandbyAsync();
-            TxtCommandResult.Text = id == null ? p.GetUiText(I18nKeys.RosbotBridgeCommandBusy)
-                : string.Format(p.GetUiText(I18nKeys.RosbotBridgeCommandSent), RosbotPluginConstants.BridgeActionStandby);
+            bool sent = await RosbotBridgePluginService.EnterTownStandbyAsync();
+            TxtCommandResult.Text = string.Format(p.GetUiText(sent ? I18nKeys.RosbotBridgeStandbySent : I18nKeys.RosbotBridgeStandbyNotSent), BridgeTownPortal.Key);
         }
         finally
         {
@@ -430,14 +425,13 @@ public partial class RosbotBridgePanel : UserControl
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgePluginNotRunning);
             return;
         }
-        if (GameActions.Contains(action) && ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault)
-            && !RosbotFlowState.Instance.Paused)
+        if (GameActions.Contains(action) && ConfigBinding.GetValue(ConfigKeys.BridgeTakeControl, ConfigKeys.BridgeTakeControlDefault))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeHoldTaken);
             await RosbotBridgePluginService.TakeControlAsync();
         }
         if (action is not (RosbotPluginConstants.BridgeActionPickupFilter or RosbotPluginConstants.BridgeActionClickUi or RosbotPluginConstants.BridgeActionSalvageAll
-                or RosbotPluginConstants.BridgeActionFollow)
+                or RosbotPluginConstants.BridgeActionFollow or RosbotPluginConstants.BridgeActionUiSequence or RosbotPluginConstants.BridgeActionStandby)
             && string.IsNullOrWhiteSpace(target))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeSelectTarget);

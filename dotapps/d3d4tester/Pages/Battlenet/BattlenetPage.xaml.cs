@@ -63,8 +63,7 @@ public partial class BattlenetPage : UserControl
             ConfigBinding.BindCheckBox(ChkLoginRestart, ConfigKeys.BattlenetLoginRestartEnabled, true);
             ConfigBinding.BindIntTextBox(TxtLoginTimeout, ConfigKeys.BattlenetLoginTimeoutSec, TimeoutMinSec, TimeoutMaxSec, C.LoginTimeoutSecDefault);
             ConfigBinding.BindCheckBox(ChkRegionPrompt, ConfigKeys.BattlenetRegionSwitchPrompt, true);
-            string current = GameInterfaceData.Instance.GetStateSnapshot().BattlenetUiRegion
-                             ?? GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion ?? C.RegionAsia;
+            string current = BattlenetOperationFactory.ResolveRegion() ?? C.RegionAsia;
             string stored = ConfigBinding.GetValue(ConfigKeys.BattlenetRegion, current) ?? current;
             int regionIndex = Array.IndexOf(RegionValues, stored);
             CmbRegion.SelectedIndex = regionIndex >= 0 ? regionIndex : Array.IndexOf(RegionValues, current);

@@ -12,6 +12,9 @@
   <ItemGroup>
     <Compile Remove="D3D4TesterCore\**\*.cs" />
     <Compile Remove="tools\**\*.cs" />
+    <!-- Planner cache written at runtime and versioned with the code: no build item, no dotnet watch restart -->
+    <None Remove="PlannerData\**" />
+    <Watch Remove="PlannerData\**" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="I18n\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
@@ -68,5 +71,11 @@
     </ItemGroup>
     <Copy SourceFiles="@(RecoveryToolFiles)" DestinationFolder="$(TargetDir)tools\compatibility" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(DynamicCollectorFiles)" DestinationFolder="$(TargetDir)tools\dynamic" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyBundledToolsToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <BundledToolFiles Include="$(TargetDir)tools\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BundledToolFiles)" DestinationFiles="@(BundledToolFiles->'$(PublishDir)tools\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 </Project>

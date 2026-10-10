@@ -4,8 +4,8 @@ using System.Collections.Concurrent;
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Region-specific Battle.net operation, singleton per region. Region: explicit "asia"/"cn", else GameInterfaceData, else config
-/// ros_settings.battlenet_region_cache; unknown falls back to Asia. 1:1 Python d3utils/battlenet_operation.py.
+/// Region-specific Battle.net operation, singleton per region. Region: explicit "asia"/"cn", else ResolveRegion; unknown falls
+/// back to Asia. 1:1 Python d3utils/battlenet_operation.py.
 /// </summary>
 public static class BattlenetOperationFactory
 {
@@ -28,11 +28,16 @@ public static class BattlenetOperationFactory
         return op is BattlenetOperationAsia asia ? asia.AsiaOps : new BattlenetAsiaOps(op);
     }
 
-    /// <summary>GameInterfaceData region first, then config cache. 1:1 Python _resolve_battlenet_region.</summary>
+    /// <summary>
+    /// The one region resolver for the running client and its account: the region the client UI shows, then the user's global
+    /// choice, then GameInterfaceData, then the config cache; null when all are unknown. 1:1 Python _resolve_battlenet_region
+    /// (+ DOT UI region and global choice first).
+    /// </summary>
     public static string? ResolveRegion()
     {
-        string? r = GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion;
-        if (IsKnown(r)) return r;
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        foreach (string? r in new[] { snapshot.BattlenetUiRegion, BattlenetManager.Instance.GetConfiguredRegion(), snapshot.BattlenetRegion })
+            if (IsKnown(r)) return r;
         string? cached = BattlenetFlowHooks.RegionCacheProvider?.Invoke();
         return IsKnown(cached) ? cached : null;
     }

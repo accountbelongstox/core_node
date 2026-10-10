@@ -68,7 +68,7 @@ public sealed class RosbotUpdateManager
 
     private static string TempBaseDir => Path.Combine(GameToolsBase, TempBaseDirName);
 
-    public string? GetBattlenetRegion() => GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion;
+    public string? GetBattlenetRegion() => BattlenetOperationFactory.ResolveRegion();
 
     /// <summary>Downloads directory for ROSBOT zip. 1:1 Python get_downloads_dir.</summary>
     public string GetDownloadsDir()

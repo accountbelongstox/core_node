@@ -65,6 +65,8 @@ public static partial class I18nKeys
     public const string RosbotBridgeStandbyStart = "ui.rosbot_bridge.standby_start";
     public const string RosbotBridgeStandbyEnd = "ui.rosbot_bridge.standby_end";
     public const string RosbotBridgeStandbyTip = "ui.rosbot_bridge.standby_tip";
+    public const string RosbotBridgeStandbySent = "ui.rosbot_bridge.standby_sent";
+    public const string RosbotBridgeStandbyNotSent = "ui.rosbot_bridge.standby_not_sent";
     public const string RosbotBridgeStandbySince = "ui.rosbot_bridge.standby_since";
     public const string RosbotBridgeStandbyStatePrefix = "ui.rosbot_bridge.standby_state.";
     public const string RosbotBridgeMonstersNearby = "ui.rosbot_bridge.monsters_nearby";
@@ -162,6 +164,20 @@ public static partial class I18nKeys
     public const string RosbotBridgeBuildEventPickup = "ui.rosbot_bridge.build_event_pickup";
     public const string RosbotBridgeBuildNotifyMessage = "ui.rosbot_bridge.build_notify_message";
     public const string RosbotBridgeBuildHint = "ui.rosbot_bridge.build_hint";
+    public const string RosbotBridgeBuildCacheDir = "ui.rosbot_bridge.build_cache_dir";
+    public const string RosbotBridgeBuildOpenCache = "ui.rosbot_bridge.build_open_cache";
+    public const string RosbotBridgeBuildTabGear = "ui.rosbot_bridge.build_tab_gear";
+    public const string RosbotBridgeBuildTabSkills = "ui.rosbot_bridge.build_tab_skills";
+    public const string RosbotBridgeBuildTabFollower = "ui.rosbot_bridge.build_tab_follower";
+    public const string RosbotBridgeBuildColGems = "ui.rosbot_bridge.build_col_gems";
+    public const string RosbotBridgeBuildColSkill = "ui.rosbot_bridge.build_col_skill";
+    public const string RosbotBridgeBuildColRune = "ui.rosbot_bridge.build_col_rune";
+    /// <summary>Prefix + skill bar index 0..5 (left mouse, right mouse, keys 1-4).</summary>
+    public const string RosbotBridgeBuildSkillSlotPrefix = "ui.rosbot_bridge.build_skill_slot_";
+    public const string RosbotBridgeBuildPassives = "ui.rosbot_bridge.build_passives";
+    public const string RosbotBridgeBuildParagon = "ui.rosbot_bridge.build_paragon";
+    public const string RosbotBridgeBuildFollower = "ui.rosbot_bridge.build_follower";
+    public const string RosbotBridgeBuildFollowerSkills = "ui.rosbot_bridge.build_follower_skills";
     public const string RosbotBridgeMoveTo = "ui.rosbot_bridge.move_to";
     public const string RosbotBridgePickup = "ui.rosbot_bridge.pickup";
     public const string RosbotBridgePickupMatching = "ui.rosbot_bridge.pickup_matching";
