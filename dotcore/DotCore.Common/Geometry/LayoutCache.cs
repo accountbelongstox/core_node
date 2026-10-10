@@ -15,6 +15,8 @@ public sealed class LayoutCache
 {
     /// <summary>Default tolerance (reference units) under which a re-learned position counts as unchanged.</summary>
     public const double DefaultTolerance = 2.0;
+    public const int DefaultMaxVariants = 4;
+    private const char VariantSeparator = '#';
     private const int Decimals = 2;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -81,6 +83,42 @@ public sealed class LayoutCache
         if (changed) Interlocked.Exchange(ref _dirty, 1);
         return changed;
     }
+
+    /// <summary>Every stored position of a key that may sit at several places: key, key#2, key#3, ...</summary>
+    public IReadOnlyList<RefRect> Variants(string key)
+    {
+        var list = new List<RefRect>();
+        if (_entries.TryGetValue(key, out var first)) list.Add(first);
+        for (int i = 2; _entries.TryGetValue(VariantKey(key, i), out var more); i++) list.Add(more);
+        return list;
+    }
+
+    /// <summary>
+    /// Learn one more place of a multi-place key: updates the variant within sameTolerance of the rect, else adds the next variant
+    /// (up to maxVariants; when full the last one is replaced). True when something changed.
+    /// </summary>
+    public bool LearnVariant(string key, RefRect rect, double sameTolerance, int maxVariants = DefaultMaxVariants)
+    {
+        var variants = Variants(key);
+        for (int i = 0; i < variants.Count; i++)
+            if (variants[i].IsNear(rect, sameTolerance)) return Learn(VariantKey(key, i + 1), rect);
+        int slot = Math.Min(variants.Count + 1, Math.Max(1, maxVariants));
+        return Learn(VariantKey(key, slot), rect, 0);
+    }
+
+    /// <summary>Copy the entries of another cache (same frame) that pass the filter and are not stored here yet; number copied.</summary>
+    public int Import(LayoutCache other, Func<string, bool>? keyFilter = null)
+    {
+        if (other.Frame != Frame) return 0;
+        int copied = 0;
+        foreach (var (key, rect) in other._entries)
+            if ((keyFilter == null || keyFilter(key)) && _entries.TryAdd(key, rect)) copied++;
+        if (copied > 0) Interlocked.Exchange(ref _dirty, 1);
+        return copied;
+    }
+
+    /// <summary>Key of the n-th place (1 = the key itself).</summary>
+    public static string VariantKey(string key, int n) => n <= 1 ? key : key + VariantSeparator + n.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public bool Forget(string key)
     {

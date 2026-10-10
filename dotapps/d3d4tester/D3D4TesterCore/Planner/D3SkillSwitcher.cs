@@ -58,9 +58,10 @@ public sealed record SkillSwitchStep(DateTime Time, SkillSwitchStage Stage, bool
 /// Plugin method: skills_check first (level 70 required; a slot is skipped when its pane icon is the planned skill and the plugin reports
 /// that skill with the planned rune) and again at the end. Image method: every slot is set (runes cannot be read from icons) and the end
 /// check compares the pane icons.
-/// Learned layout (<see cref="LayoutCache"/>, PlannerData/skill_switch_layout.json, reference units): template hits, every rune label read
-/// and every skill icon seen on a chooser page are stored once and tried first on later runs; a cached position is used only when the
-/// fresh capture confirms it (icon match / OCR reads the planned rune), otherwise the full recognition runs and re-learns it.
+/// Shared calibrated layout (<see cref="D3UiLayout"/>, Templates/d3_ui_layout.json, reference units): the chooser arrows, Accept and the
+/// game menu button are calibrated once per dialog and then found and ruled out at their cached places only (whole captures again for
+/// the rest of a run after a step fails); every rune label read and every skill icon seen on a chooser page are stored once and used
+/// when the fresh capture confirms them (icon match / OCR reads the planned rune), otherwise the full recognition runs and re-learns.
 /// </summary>
 public static class D3SkillSwitcher
 {
@@ -69,8 +70,6 @@ public static class D3SkillSwitcher
     private const int PassiveCount = 4;
     private const string LogTag = "[SkillSwitch]";
 
-    private const double RefClientWidth = 1072.0;
-    private const double RefClientHeight = 603.0;
     /// <summary>Skill pane, reference client px: box click points and icon centers per maxroll slot (LMB, RMB, 1-4).</summary>
     private static readonly (int X, int Y)[] PaneSlotClick = { (435, 109), (642, 109), (435, 212), (642, 212), (435, 292), (642, 292) };
     private static readonly (int X, int Y)[] PaneSlotIcon = { (354, 109), (562, 109), (354, 212), (562, 212), (354, 292), (562, 292) };
@@ -140,14 +139,15 @@ public static class D3SkillSwitcher
     private const string TemplateGameMenuReturn = "game_menu_return";
     private const double GameMenuThreshold = 0.88;
     /// <summary>Extra room (reference client px) around a template's last hit, searched before the whole capture.</summary>
-    private const int HitMarginRefPx = 40;
+    private const string DialogGameMenu = "game_menu";
+    private const string DialogSkillChooser = "skill_chooser";
+    private const string DialogPassiveChooser = "passive_chooser";
     /// <summary>Extra room (reference client px) around a cached rune label / skill icon.</summary>
     private const int CachedMarginRefPx = 8;
     /// <summary>Score a non-planned icon needs to be learned in the background (stricter than IconThreshold: no look-alike is learned).</summary>
     private const double LearnIconThreshold = 0.85;
     private const string HowElimination = "elimination";
-    private const string LayoutFileName = "skill_switch_layout.json";
-    private const string LayoutTemplatePrefix = "template/";
+    private const string LegacyLayoutFileName = "skill_switch_layout.json";
     private const string LayoutRunePrefix = "rune/";
     private const string LayoutSkillPrefix = "skill/";
     private const string LayoutNoRune = "none";
@@ -170,14 +170,16 @@ public static class D3SkillSwitcher
     private static readonly ConcurrentDictionary<string, (DateTime Stamp, ScaledTemplate? Template)> TemplateCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentBag<ScaledTemplate> RetiredTemplates = new();
 
-    /// <summary>The 1072x603 reference client: D3 scales its UI with the client height and centers it horizontally.</summary>
-    private static readonly ReferenceFrame UiFrame = new(RefClientWidth, RefClientHeight, ScaleMode.HeightCentered);
+    /// <summary>The 1072x603 reference client of the shared D3 layout.</summary>
+    private static ReferenceFrame UiFrame => D3UiLayout.Frame;
     /// <summary>
-    /// Positions learned on screen, in reference units (<see cref="UiFrame"/>), kept in the planner cache (versioned with the code):
-    /// template hits (absolute), every rune label and every skill icon of a visited chooser page (relative to the chooser anchor).
-    /// Each is only a fast path: it is checked on the fresh capture, and the full recognition runs (and re-learns) when it does not hold.
+    /// The shared D3 layout (<see cref="D3UiLayout.Shared"/>) while a switch runs: calibrated button places (absolute), every rune label
+    /// and every skill icon of a visited chooser page (relative to the chooser anchor). Rune / icon entries are a fast path checked on
+    /// the fresh capture; the full recognition runs (and re-learns) when they do not hold.
     /// </summary>
     private static LayoutCache? _layout;
+    /// <summary>Set for the rest of a run after a step failed with the calibrated button places only (see FallBackToFullSearch).</summary>
+    private static bool _fullSearch;
     /// <summary>Background learning of all skill icons of a chooser page; finished before the run ends.</summary>
     private static readonly ConcurrentBag<Task> LearnTasks = new();
 
@@ -216,9 +218,13 @@ public static class D3SkillSwitcher
         var watch = Stopwatch.StartNew();
         _progress = progress;
         _plannedSkillKeys = profile.Skills.Select(s => s.Id).Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.Ordinal).ToArray();
-        _layout = LayoutCache.Load(Path.Combine(cacheDir, LayoutFileName), UiFrame);
-        if (_layout.LoadError is { } loadError) ColorPrinter.Yellow($"{LogTag} layout cache {_layout.FilePath} not used: {loadError}");
-        else ColorPrinter.Gray($"{LogTag} layout cache: {_layout.Count} learned position(s)");
+        _fullSearch = false;
+        _layout = D3UiLayout.Shared;
+        // rune / skill icon positions learned before the layout was shared (button places are calibrated per dialog now)
+        if (Path.Combine(cacheDir, LegacyLayoutFileName) is var legacy && File.Exists(legacy)
+            && _layout.Import(LayoutCache.Load(legacy, UiFrame), k => !k.StartsWith(D3UiLayout.TemplatePrefix, StringComparison.Ordinal)) is > 0 and var imported)
+            ColorPrinter.Gray($"{LogTag} {imported} learned position(s) imported from {legacy}");
+        ColorPrinter.Gray($"{LogTag} layout: {_layout.Count} calibrated / learned position(s)");
         var hwnd = D3WindowFinder.FindWindows().FirstOrDefault()?.Hwnd ?? IntPtr.Zero;
         var restore = Expand(hwnd);
         SkillSwitchResult result;
@@ -337,9 +343,9 @@ public static class D3SkillSwitcher
 
     private static UiState State(Shot shot, string cls, string cacheDir)
     {
-        if (MatchTemplate(shot, TemplateGameMenuReturn, GameMenuThreshold) != null) return UiState.GameMenu;
+        if (MatchTemplate(shot, TemplateGameMenuReturn, GameMenuThreshold, DialogGameMenu) != null) return UiState.GameMenu;
         if (FindChooser(shot) != null) return UiState.SkillChooser;
-        if (MatchTemplate(shot, TemplateAccept, AcceptThreshold) != null) return UiState.PassiveChooser;
+        if (MatchTemplate(shot, TemplateAccept, AcceptThreshold, DialogPassiveChooser) != null) return UiState.PassiveChooser;
         var all = SkillKeys(cls, cacheDir).ToList();
         var planned = (_plannedSkillKeys ?? Array.Empty<string>()).Where(all.Contains).ToList();
         var keys = planned.Concat(all.Except(planned)).ToList();
@@ -354,7 +360,23 @@ public static class D3SkillSwitcher
     /// Bring D3 to the wanted screen one step at a time (idempotent): game menu -> Return (Escape when its button is not found),
     /// chooser -> Escape (back to the pane), pane -> Escape (world) or world -> S (pane). False when it is not reached in MaxStateSteps.
     /// </summary>
-    private static bool ToState(UiState wanted, string cls, string cacheDir)
+    private static bool ToState(UiState wanted, string cls, string cacheDir) =>
+        ToStateOnce(wanted, cls, cacheDir) || (FallBackToFullSearch($"{wanted} not reached") && ToStateOnce(wanted, cls, cacheDir));
+
+    /// <summary>
+    /// Calibrated buttons are looked for only at their cached places; when a step fails with that, the rest of the run searches whole
+    /// captures again (re-calibrating) and the step is retried once. False when that already happened.
+    /// </summary>
+    private static bool FallBackToFullSearch(string why)
+    {
+        if (_fullSearch) return false;
+        _fullSearch = true;
+        ColorPrinter.Yellow($"{LogTag} {why} with the calibrated layout: searching whole captures for the rest of the run");
+        Report(SkillSwitchStage.Screen, null, $"{why} with the calibrated layout: whole-capture search, retry");
+        return true;
+    }
+
+    private static bool ToStateOnce(UiState wanted, string cls, string cacheDir)
     {
         bool cleared = false;
         for (int step = 0; step < MaxStateSteps; step++)
@@ -366,7 +388,7 @@ public static class D3SkillSwitcher
             switch (state)
             {
                 case UiState.GameMenu:
-                    if (MatchTemplate(shot, TemplateGameMenuReturn, GameMenuThreshold) is { } ret) Click(shot, (ret.CenterX, ret.CenterY));
+                    if (MatchTemplate(shot, TemplateGameMenuReturn, GameMenuThreshold, DialogGameMenu) is { } ret) Click(shot, (ret.CenterX, ret.CenterY));
                     else PressKey(shot, VkEscape);
                     break;
                 case UiState.SkillChooser or UiState.PassiveChooser:
@@ -404,7 +426,12 @@ public static class D3SkillSwitcher
     /// click that only activates its window, and another program may take the foreground in between.
     /// </summary>
     private static bool ClickUntil(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
-        SkillSwitchStage stage, UiState? requires = null)
+        SkillSwitchStage stage, UiState? requires = null) =>
+        ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires)
+        || (FallBackToFullSearch($"{what}: {expected} not shown") && ClickUntilOnce(point, expected, what, cls, cacheDir, stage, requires));
+
+    private static bool ClickUntilOnce(Func<Shot, (int X, int Y)?> point, UiState expected, string what, string cls, string cacheDir,
+        SkillSwitchStage stage, UiState? requires)
     {
         for (int attempt = 1; attempt <= Attempts; attempt++)
         {
@@ -525,7 +552,7 @@ public static class D3SkillSwitcher
             if (shot == null) return SkillSwitchOutcome.NoGameWindow;
             chooser = FindChooser(shot) ?? chooser!;
             if (target.Rune.Length > 0) SelectRune(shot, chooser, target, cls, cacheDir);
-            if (!AcceptUntil(UiState.Pane, cls, cacheDir)) return SkillSwitchOutcome.ChooserNotOpen;
+            if (!AcceptUntil(UiState.Pane, DialogSkillChooser, cls, cacheDir)) return SkillSwitchOutcome.ChooserNotOpen;
             ColorPrinter.Green($"{LogTag} slot {slot}: {target.NameEn} / {target.RuneNameEn}");
             return SkillSwitchOutcome.Done;
         }
@@ -692,15 +719,7 @@ public static class D3SkillSwitcher
         try { Task.WaitAll(LearnTasks.ToArray()); }
         catch (AggregateException ex) { ColorPrinter.Yellow($"{LogTag} skill icon learning: {ex.InnerException?.Message}"); }
         LearnTasks.Clear();
-        if (_layout is not { } layout) return;
-        try
-        {
-            if (layout.Save()) ColorPrinter.Gray($"{LogTag} layout cache saved: {layout.Count} position(s) in {layout.FilePath}");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            ColorPrinter.Yellow($"{LogTag} layout cache not saved: {ex.Message}");
-        }
+        D3UiLayout.Save();
         _layout = null;
     }
 
@@ -750,8 +769,8 @@ public static class D3SkillSwitcher
     }
 
     /// <summary>Click Accept until the chooser is gone (the expected screen shows).</summary>
-    private static bool AcceptUntil(UiState expected, string cls, string cacheDir) =>
-        ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold) is { } b ? (b.CenterX, b.CenterY)
+    private static bool AcceptUntil(UiState expected, string dialog, string cls, string cacheDir) =>
+        ClickUntil(sh => MatchTemplate(sh, TemplateAccept, AcceptThreshold, dialog) is { } b ? (b.CenterX, b.CenterY)
             : FuzzyText.Best(OcrArea(sh, new Rect(0, sh.Image.Rows / 2, sh.Image.Cols, sh.Image.Rows / 2)), w => w.Text, AcceptWords)?.Item.Center,
             expected, "accept", cls, cacheDir, SkillSwitchStage.Accept);
 
@@ -760,8 +779,8 @@ public static class D3SkillSwitcher
 
     private static Chooser? FindChooser(Shot shot)
     {
-        var prev = MatchTemplate(shot, TemplatePagePrev, ArrowThreshold);
-        var next = MatchTemplate(shot, TemplatePageNext, ArrowThreshold);
+        var prev = MatchTemplate(shot, TemplatePagePrev, ArrowThreshold, DialogSkillChooser);
+        var next = MatchTemplate(shot, TemplatePageNext, ArrowThreshold, DialogSkillChooser);
         if (prev is not { } p || next is not { } n || n.CenterX <= p.CenterX) return null;
         return new Chooser((p.CenterY + n.CenterY) / 2, p.X + p.Width, n.X, (n.CenterX, n.CenterY));
     }
@@ -833,7 +852,7 @@ public static class D3SkillSwitcher
                 ColorPrinter.Yellow($"{LogTag} passive {passive.Id}: attempt {attempt} not on top slot {slot}");
             }
         }
-        if (!AcceptUntil(UiState.Pane, cls, cacheDir)) ToState(UiState.Pane, cls, cacheDir);
+        if (!AcceptUntil(UiState.Pane, DialogPassiveChooser, cls, cacheDir)) ToState(UiState.Pane, cls, cacheDir);
         return changed;
     }
 
@@ -917,8 +936,10 @@ public static class D3SkillSwitcher
         if (method == SkillSwitchMethod.Plugin && pluginCheck?.Invoke() is { } after)
             return after.Skills.Count(s => s == false) + after.Passives.Count(p => p == false);
         var offSlots = Enumerable.Range(0, SlotCount).Where(slot => skills[slot] is { } s && !SlotShows(slot, s.Id, cls, cacheDir)).ToList();
-        if (offSlots.Count > 0)
-            ColorPrinter.Yellow($"{LogTag} pane slots not showing the planned skill: {string.Join(", ", offSlots.Select(slot => $"{slot} {skills[slot]!.Id}"))}");
+        if (offSlots.Count > 0 && Capture() is { } diagnose)
+            using (diagnose.Image)
+                ColorPrinter.Yellow($"{LogTag} pane slots not showing the planned skill: " + string.Join(", ", offSlots.Select(slot =>
+                    $"{slot} {skills[slot]!.Id} (icon {BestIconAt(diagnose, PaneSlotIcon[slot], new[] { skills[slot]!.Id }, k => D3SkillIcons.SkillIconPath(cacheDir, cls, k)).Score:F2})")));
         int skillMismatches = offSlots.Count;
         if (passives.Count == 0 || Capture() is not { } shot) return skillMismatches;
         using (shot.Image)
@@ -964,32 +985,24 @@ public static class D3SkillSwitcher
     /// </summary>
     private sealed record Shot(Mat Image, (int X, int Y) Offset, IntPtr Hwnd, (int X, int Y) Client, int ClientWidth, int ClientHeight)
     {
-        public double Scale => UiFrame.Scale(ClientWidth, ClientHeight).Y;
+        /// <summary>The client inside the image (shared D3 layout geometry).</summary>
+        public D3ClientArea Area => new(Client.X, Client.Y, ClientWidth, ClientHeight);
+
+        public double Scale => Area.Scale;
 
         public int Px(int refPx) => Math.Max(1, (int)Math.Round(refPx * Scale));
 
-        /// <summary>Reference client point -> image point (UI scales with the height, centered horizontally: <see cref="UiFrame"/>).</summary>
-        public (int X, int Y) ToImage((int X, int Y) refPoint)
-        {
-            var (x, y) = UiFrame.ToPixel(new RefPoint(refPoint.X, refPoint.Y), ClientWidth, ClientHeight);
-            return (Client.X + x, Client.Y + y);
-        }
+        /// <summary>Reference client point -> image point (UI scales with the height, centered horizontally: <see cref="D3UiLayout.Frame"/>).</summary>
+        public (int X, int Y) ToImage((int X, int Y) refPoint) => Area.ToImage(new RefPoint(refPoint.X, refPoint.Y));
 
         /// <summary>Reference client rectangle -> image rectangle (clipped to the image).</summary>
-        public Rect ToImage(RefRect refRect)
-        {
-            var a = UiFrame.ToActual(refRect, ClientWidth, ClientHeight);
-            return new Rect(Client.X + (int)Math.Round(a.X), Client.Y + (int)Math.Round(a.Y), (int)Math.Round(a.Width), (int)Math.Round(a.Height))
-                .Intersect(new Rect(0, 0, Image.Cols, Image.Rows));
-        }
+        public Rect ToImage(RefRect refRect) => Area.ToImage(refRect, Image.Cols, Image.Rows);
 
         /// <summary>Image point -> reference client point.</summary>
-        public RefPoint ToRef((int X, int Y) imagePoint) =>
-            UiFrame.ToReference(new RefPoint(imagePoint.X - Client.X, imagePoint.Y - Client.Y), ClientWidth, ClientHeight);
+        public RefPoint ToRef((int X, int Y) imagePoint) => Area.ToRef(imagePoint);
 
         /// <summary>Image rectangle -> reference client rectangle.</summary>
-        public RefRect ToRef(Rect imageRect) =>
-            UiFrame.ToReference(new RefRect(imageRect.X - Client.X, imageRect.Y - Client.Y, imageRect.Width, imageRect.Height), ClientWidth, ClientHeight);
+        public RefRect ToRef(Rect imageRect) => Area.ToRef(imageRect);
     }
 
     /// <summary>D3 capture with retries: a capture fails while the window is moved, restored or briefly replaced by another window.</summary>
@@ -1103,28 +1116,16 @@ public static class D3SkillSwitcher
     }
 
 
-    /// <summary>Template from Templates/skill_switch scaled with the client height; null below the threshold.</summary>
-    private static TemplateMatchResult? MatchTemplate(Shot shot, string name, double threshold)
+    /// <summary>
+    /// Template from Templates/skill_switch scaled with the client height, located through the shared calibrated layout
+    /// (<see cref="D3UiLayout.Locate"/>: cached places only once calibrated, whole capture after a fallback); null below the threshold.
+    /// </summary>
+    private static TemplateMatchResult? MatchTemplate(Shot shot, string name, double threshold, string dialog)
     {
         if (Template(Path.Combine(D3TemplatePaths.GetTemplateDir(), TemplateDir, name + D3TemplatePaths.TemplateExtension)) is not { } template) return null;
         var widths = Enumerable.Range(0, TemplateScaleSteps)
             .Select(i => (int)Math.Round(template.Cols * shot.Scale * (TemplateScaleMin + i * TemplateScaleStep))).ToList();
-        var matcher = TemplateMatcherService.GetTemplateMatcher();
-        var image = new Rect(0, 0, shot.Image.Cols, shot.Image.Rows);
-        string key = LayoutTemplatePrefix + name;
-        // the dialogs sit at fixed reference positions: look where this template was last found first (all sizes), the whole capture only when it is not there
-        if (_layout?.TryGet(key, out var last) == true
-            && shot.ToImage(last.Inflate(Math.Max(last.Width, last.Height) + HitMarginRefPx)) is { Width: > 0, Height: > 0 } near)
-        {
-            using var area = new Mat(shot.Image, near);
-            var n = matcher.MatchMultiScale(area, template, widths, threshold, name);
-            if (n.Success)
-                return n with { X = n.X + near.X, Y = n.Y + near.Y, Center = n.Center is { } c ? new Point2f(c.X + near.X, c.Y + near.Y) : null };
-        }
-        var m = matcher.MatchMultiScale(shot.Image, template, widths, threshold, name);
-        if (!m.Success) return null;
-        _layout?.Learn(key, shot.ToRef(new Rect(m.X, m.Y, m.Width, m.Height)));
-        return m;
+        return D3UiLayout.Locate(shot.Image, shot.Area, template, widths, threshold, D3UiLayout.TemplateKey(name, dialog), _fullSearch);
     }
 
     private static IEnumerable<string> SkillKeys(string cls, string cacheDir) => IconKeys(Path.GetDirectoryName(D3SkillIcons.SkillIconPath(cacheDir, cls, "_"))!);
