@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import type { Word } from '../../api/WfNewApiTypes';
 import { wfNewSettings } from '../../WfNewSettingsStore';
-import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
+import { awaitPlayableClip, wordClip } from '../../runtime-store/WfNewAudioCache';
+import { CLIP_RESOLVE_WAIT_MS } from '../../constants/uiTiming';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
 import { studyT } from './WfNewStudyLocales';
 
@@ -27,16 +28,16 @@ export function useWfNewStudyActions({ gid, groupLanguage, lang, playPhoneticSpe
   const [largeFont, setLargeFont] = useState<boolean>(() => !!wfNewSettings.get('wmLargeFont'));
 
   const speakWord = useCallback((w: Word) => {
-    if (isAbsoluteUrl(w.audioUrl)) {
-      try {
-        void new Audio(resolveAudioSync(w.audioUrl) ?? w.audioUrl).play().catch(() => playPhoneticSpeech(w));
-        return;
-      } catch {
-        /* fall through */
-      }
-    }
-    playPhoneticSpeech(w);
-  }, [playPhoneticSpeech]);
+    void awaitPlayableClip(wordClip(w.text, groupLanguage || 'en'), isAbsoluteUrl(w.audioUrl) ? w.audioUrl : null, CLIP_RESOLVE_WAIT_MS)
+      .then((src) => {
+        if (!src) {
+          playPhoneticSpeech(w);
+          return;
+        }
+        void new Audio(src).play().catch(() => playPhoneticSpeech(w));
+      })
+      .catch(() => playPhoneticSpeech(w));
+  }, [groupLanguage, playPhoneticSpeech]);
 
   const markWord = useCallback((w: Word, known: boolean) => {
     wfNewStudyProgress.mark(gid, w, known, groupLanguage);

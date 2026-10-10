@@ -30,6 +30,8 @@ export interface WordNewWordAudioPick {
   accent: WfNewWordAccent | 'unknown' | null;
   /** True when the picked url is NOT the preferred accent (tier 2). */
   isFallback: boolean;
+  /** True when the url is an accent variant file: another audio than the word's orchestration clip (its default file). */
+  variant: boolean;
 }
 
 /**
@@ -44,18 +46,18 @@ export function pickWordAudioUrl(
   // Tier 1: preferred accent — a ready variant, or the served url when tagged so.
   const variants = media?.audioVariants ?? [];
   const exact = variants.find((v) => v.accent === preferred && v.status === 'ready' && v.url);
-  if (exact?.url) return { url: exact.url, accent: preferred, isFallback: false };
+  if (exact?.url) return { url: exact.url, accent: preferred, isFallback: false, variant: true };
   if (media?.audioUrl && media.audioAccent === preferred && !media.accentFallback) {
-    return { url: media.audioUrl, accent: preferred, isFallback: false };
+    return { url: media.audioUrl, accent: preferred, isFallback: false, variant: false };
   }
   // Tier 2: any accent — the served url, any ready variant, or the page payload.
   if (media?.audioUrl) {
-    return { url: media.audioUrl, accent: media.audioAccent ?? 'unknown', isFallback: true };
+    return { url: media.audioUrl, accent: media.audioAccent ?? 'unknown', isFallback: true, variant: false };
   }
   const anyReady = variants.find((v) => v.status === 'ready' && v.url);
-  if (anyReady?.url) return { url: anyReady.url, accent: anyReady.accent, isFallback: true };
-  if (baseUrl) return { url: baseUrl, accent: 'unknown', isFallback: true };
-  return { url: null, accent: null, isFallback: false };
+  if (anyReady?.url) return { url: anyReady.url, accent: anyReady.accent, isFallback: true, variant: true };
+  if (baseUrl) return { url: baseUrl, accent: 'unknown', isFallback: true, variant: false };
+  return { url: null, accent: null, isFallback: false, variant: false };
 }
 
 /**

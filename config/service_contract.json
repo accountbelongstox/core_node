@@ -220,6 +220,7 @@
         "server_sync": {
             "endpoint": "/api/system/app-downloads/sync",
             "status_endpoint": "/api/system/app-downloads/status",
+            "status_endpoint_alias": "/api/system/app-downloads/sync/status",
             "upload_endpoint": "/api/system/app-downloads/upload",
             "upload_commit_endpoint": "/api/system/app-downloads/upload/commit",
             "auth": "client key (laravel_signed_cli), same as other /api/system routes",
@@ -485,7 +486,7 @@
         "conflict_doc": "docs_fix/GITSYNC_MERGE_CONFLICT.md",
         "conflict_readme": "docs_fix/README.md",
         "conflict_readme_marker": "<!-- GITSYNC_MERGE_CONFLICT -->",
-        "conflict_ai_prompt": "The core_node repository at {repo} has an unresolved git merge conflict from gitsync. {context}Resolve every conflicted file, protecting the work other AIs contributed: unless the local side is the newer update for that file, prefer the remote/other AI's latest logic and results; check the newest docs_fix records (e.g. docs_fix/PROGRESS_*.md) and `git log` on both sides when unsure. Keep both sides' intended changes whenever they do not collide. Then git add the files, finish the merge with git commit --no-edit, and run the project's gitsync to push.{cleanup}",
+        "conflict_ai_prompt": "The core_node repository at {repo} has an unresolved git merge conflict from gitsync. {context}Resolve every conflicted file so that all features from both the remote and this machine are kept. Then git add the files, finish the merge with git commit --no-edit, and run the project's gitsync to push.{cleanup}",
         "conflict_ai_prompt_doc": "Read {doc} first. ",
         "conflict_ai_prompt_cleanup": " Then delete {doc} and the first line of {readme} that starts with {marker}.",
         "conflict_ai_prompt_files": "Conflicted files:",

@@ -53,6 +53,15 @@ export function orchClipIdentity(kind: OrchResourceKind, language: string, text:
   return { kind, language, text, contentId, resourceId: sha256Hex(`${kind}:${language}:${contentId}`) };
 }
 
+/** What a caller knows about a clip (its kind, language and text); the identity follows from it. */
+export type OrchClipRef = Pick<OrchClipIdentity, 'kind' | 'language' | 'text'>;
+
+/** Whether the ref can name a clip (a clip without text or language has no identity). */
+export const orchClipRefUsable = (ref: OrchClipRef | null | undefined): ref is OrchClipRef =>
+  !!ref && ref.text.trim() !== '' && ref.language.trim() !== '';
+
+export const orchClipRefIdentity = (ref: OrchClipRef): OrchClipIdentity => orchClipIdentity(ref.kind, ref.language, ref.text.trim());
+
 /**
  * The identity a clip URL proves by itself: a Laravel sentence / phrase file URL names its language and content id,
  * so the resource id follows without the text (the identity text stays empty). Word file URLs carry a voice hash,

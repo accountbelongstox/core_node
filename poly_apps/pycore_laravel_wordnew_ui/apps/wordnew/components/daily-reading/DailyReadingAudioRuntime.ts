@@ -1,6 +1,6 @@
 import type { DailyReadingRow } from './dailyReadingApi';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
-import { ensureAudio, preloadAudioTracked } from '../../runtime-store/WfNewAudioCache';
+import { ensureAudio, preloadClipAudioTracked, wordClip } from '../../runtime-store/WfNewAudioCache';
 import {
   sentenceWordTranslations,
   uniqueSentenceWordRows,
@@ -46,21 +46,18 @@ export function preloadDailyReadingResources(
   callbacks: DailyReadingPreloadCallbacks,
 ): DailyReadingResourceStatus {
   const uniqueWords = uniqueSentenceWordRows(words);
-  const wordsWithAudio = uniqueWords.filter((word) => !!word.audio_url);
-  const wordCountByAudioUrl = new Map<string, number>();
-  for (const word of wordsWithAudio) {
-    const url = word.audio_url as string;
-    wordCountByAudioUrl.set(url, (wordCountByAudioUrl.get(url) ?? 0) + 1);
-  }
 
   void ensureAudio(sentenceUrl)
     .then((localUrl) => {
       if (localUrl) callbacks.onArticleReady();
     })
     .catch(() => undefined);
-  void preloadAudioTracked(wordCountByAudioUrl.keys(), (url, ready) => {
-    if (ready) callbacks.onWordsReady(wordCountByAudioUrl.get(url) ?? 1);
-  }).catch(() => undefined);
+  void preloadClipAudioTracked(
+    uniqueWords.map((word) => ({ ref: wordClip(word.word), url: word.audio_url })),
+    (_index, ready) => {
+      if (ready) callbacks.onWordsReady(1);
+    },
+  ).catch(() => undefined);
 
   return {
     articleAudioReady: 0,

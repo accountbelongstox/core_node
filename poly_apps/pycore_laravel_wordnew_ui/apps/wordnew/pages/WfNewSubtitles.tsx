@@ -20,11 +20,11 @@ import {
   type WfNewDictWord,
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
-import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
+import { awaitPlayableClip, resolveAudioSync, wordClip } from '../runtime-store/WfNewAudioCache';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { formatClock } from '../../../core/utils/formatters';
 import { cancelSpeech, speakText } from '../utils/WordNewSpeech';
-import { SUBTITLE_DETAIL_PAGE_SIZE, SUBTITLE_GROUPS_PAGE_SIZE } from '../constants/uiTiming';
+import { CLIP_RESOLVE_WAIT_MS, SUBTITLE_DETAIL_PAGE_SIZE, SUBTITLE_GROUPS_PAGE_SIZE } from '../constants/uiTiming';
 
 interface WfNewSubtitlesProps {
   activeTheme: ElementTheme;
@@ -353,19 +353,20 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
 
   const playWordAudio = (w: WfNewDictWord) => {
     const language = wfNewSettings.get('wordListLanguage') || 'en';
-    if (w.audioUrl) {
+    const fallback = (): void => {
+      wordNewQueueCenter.notifyMissingWord(w.content, language);
+      speakWord(w.content);
+    };
+    // Clip-first: the device store / the schedule's transfers / the payload file; browser speech is the last tier.
+    void awaitPlayableClip(wordClip(w.content, language), w.audioUrl, CLIP_RESOLVE_WAIT_MS).then((src) => {
       const el = wordAudioRef.current;
-      if (el) {
-        el.src = resolveAudioSync(w.audioUrl) ?? w.audioUrl;
-        el.play().catch(() => {
-          wordNewQueueCenter.notifyMissingWord(w.content, language);
-          speakWord(w.content);
-        });
+      if (!el || !src) {
+        fallback();
         return;
       }
-    }
-    wordNewQueueCenter.notifyMissingWord(w.content, language);
-    speakWord(w.content);
+      el.src = src;
+      el.play().catch(fallback);
+    });
   };
 
   const activeGroup = groups.find((g) => g.sourceKey === activeSource);

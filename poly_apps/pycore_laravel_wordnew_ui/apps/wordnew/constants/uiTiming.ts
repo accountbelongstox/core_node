@@ -16,3 +16,7 @@ export const WALKMAN_STEP_PAUSE_MS = 1000;
 export const WALKMAN_NEXT_WORD_MS = 1200;
 export const SUBTITLE_GROUPS_PAGE_SIZE = 200;
 export const SUBTITLE_DETAIL_PAGE_SIZE = 500;
+/** How long an interactive play waits for a clip by identity (device store, then the schedule's transfers) before its next tier (browser speech). */
+export const CLIP_RESOLVE_WAIT_MS = 1500;
+/** How long the first item of a playing sequence waits for its clip before the next tier plays. */
+export const CLIP_FIRST_ITEM_WAIT_MS = 2500;

@@ -12,8 +12,10 @@ import type { ElementTheme } from '../WfNewThemes';
 import type { Word } from '../api/WfNewApiTypes';
 import { wfNewApi } from '../api';
 import { WALKMAN_NATIVE_BEAT_MS, WALKMAN_NEXT_WORD_MS, WALKMAN_STEP_PAUSE_MS } from '../constants/uiTiming';
-import { logWarn } from '../../../core/logstore/logStore';
-import { cancelSpeech, isSpeechAvailable, speakText } from '../utils/WordNewSpeech';
+import { cancelSpeech } from '../utils/WordNewSpeech';
+import { playClipOrSpeak, type ClipSpeechHandle } from '../utils/WordNewClipSpeech';
+import { sentenceClip, wordClip } from '../runtime-store/WfNewAudioCache';
+import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 
 const WALKMAN_RATE_MIN = 0.5;
 const WALKMAN_RATE_MAX = 1.6;
@@ -67,22 +69,26 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   const [isSpeakingDefinition, setIsSpeakingDefinition] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const utteranceRef = useRef<ClipSpeechHandle | null>(null);
   const activeWord = activeWordsPool[currentIndex];
 
-  // Speech helper supporting dual language queue
-  const speakCurrentStep = () => {
-    if (!isSpeechAvailable()) {
-      logWarn('wordnew-walkman', 'speechSynthesis not functional on this platform');
-      return;
-    }
-
+  const stopUtterance = () => {
+    utteranceRef.current?.cancel();
+    utteranceRef.current = null;
     cancelSpeech();
+  };
+
+  // Dual language queue, clip-first: each utterance is the word / meaning clip when any source has it (device store,
+  // pycore, Laravel), browser speech otherwise.
+  const speakCurrentStep = () => {
+    stopUtterance();
     if (!activeWord) return;
 
     const speakTranslation = () => {
       timerRef.current = setTimeout(() => {
-        const zhText = activeWord.translation.replace(/[^\u4e00-\u9fa5]/g, ' ');
-        speakText(zhText, {
+        const zhText = activeWord.translation.replace(/[^一-龥]/g, ' ');
+        utteranceRef.current = playClipOrSpeak(zhText, {
+          clip: sentenceClip(activeWord.translation.trim(), 'zh'),
           lang: 'zh',
           rate: 1.0,
           onStart: () => setIsSpeakingDefinition(true),
@@ -92,9 +98,12 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
       }, WALKMAN_NATIVE_BEAT_MS);
     };
 
-    speakText(activeWord.text, {
+    utteranceRef.current = playClipOrSpeak(activeWord.text, {
+      clip: wordClip(activeWord.text, 'en'),
+      url: activeWord.audioUrl,
       lang: 'en',
       rate: playRate,
+      onMissing: () => wordNewQueueCenter.notifyMissingWord(activeWord.text, 'en'),
       onStart: () => setIsSpeakingDefinition(false),
       onEnd: () => {
         if (speakChinese && activeWord.translation) speakTranslation();
@@ -159,7 +168,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
     if (isPlaying) {
       speakCurrentStep();
     } else {
-      cancelSpeech();
+      stopUtterance();
       setIsSpeakingDefinition(false);
     }
 
@@ -171,7 +180,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   // Handle unmount speech cancel
   useEffect(() => {
     return () => {
-      cancelSpeech();
+      stopUtterance();
     };
   }, []);
 
@@ -180,7 +189,15 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
     setCurrentRepeatIteration(0);
     if (!isPlaying) {
       // Speak once manually
-      speakText(activeWordsPool[idx].text, { lang: 'en', rate: playRate });
+      const picked = activeWordsPool[idx];
+      stopUtterance();
+      utteranceRef.current = playClipOrSpeak(picked.text, {
+        clip: wordClip(picked.text, 'en'),
+        url: picked.audioUrl,
+        lang: 'en',
+        rate: playRate,
+        onMissing: () => wordNewQueueCenter.notifyMissingWord(picked.text, 'en'),
+      });
     }
   };
 
@@ -367,7 +384,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 setIsPlaying(false);
                 setCurrentIndex(0);
                 setCurrentRepeatIteration(0);
-                cancelSpeech();
+                stopUtterance();
                 addToast(trans('walkman.stopped'), "warning");
               }}
               className="py-3 bg-zinc-900 hover:bg-zinc-800 active:translate-y-0.5 text-zinc-300 rounded-xl border-b-4 border-zinc-950 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"

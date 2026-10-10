@@ -20,7 +20,8 @@ import type { Word } from '../../api';
 import { wfNewSettings } from '../../WfNewSettingsStore';
 import { accentToBcp47, mapUiAccent, resolvePracticeVoice } from '../../hooks/wordNewWordAudioFallback';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
-import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
+import { awaitPlayableClip, wordClip } from '../../runtime-store/WfNewAudioCache';
+import { CLIP_RESOLVE_WAIT_MS } from '../../constants/uiTiming';
 import { wordNewQueueCenter } from '../../services/WordNewQueueCenter';
 import { clamp } from '../../../../core/utils/mathUtils';
 
@@ -129,38 +130,46 @@ export function useWfNewReciteController(opts: ReciteOptions): ReciteApi {
         wordNewQueueCenter.notifyMissingWord(word.text, language || 'en');
       };
 
-      if (isAbsoluteUrl(word.audioUrl)) {
-        try {
-          // Play the LOCALLY CACHED clip when preloaded (the pager preloads the
-          // current + next page's audio); resolveAudioSync falls back to the
-          // remote URL and caches it in the background for the next play.
-          const audio = new Audio(resolveAudioSync(word.audioUrl) ?? word.audioUrl);
-          audio.playbackRate = speed > 0 ? speed : 1;
-          audioRef.current = audio;
-          // Capture the real clip duration once metadata loads (natural length,
-          // not speed-adjusted) so the loop can report play_time for this word.
-          audio.onloadedmetadata = () => {
-            if (Number.isFinite(audio.duration) && audio.duration > 0) {
-              capturedDuration = audio.duration;
-            }
-          };
-          audio.onended = finish;
-          audio.onerror = () => {
-            // Real file failed — fall back to speech synthesis once.
+      // Clip-first: the pager's preload (device store / transfers / payload file) makes this a local copy; browser
+      // speech is the last tier when nothing has the clip.
+      void awaitPlayableClip(wordClip(word.text, language || 'en'), isAbsoluteUrl(word.audioUrl) ? word.audioUrl : null, CLIP_RESOLVE_WAIT_MS)
+        .then((src) => {
+          if (done) return;
+          if (!src) {
             queueMissingAudio();
             speak(word.text, speed, finish);
-          };
-          void audio.play().catch(() => {
+            return;
+          }
+          try {
+            const audio = new Audio(src);
+            audio.playbackRate = speed > 0 ? speed : 1;
+            audioRef.current = audio;
+            // Capture the real clip duration once metadata loads (natural length,
+            // not speed-adjusted) so the loop can report play_time for this word.
+            audio.onloadedmetadata = () => {
+              if (Number.isFinite(audio.duration) && audio.duration > 0) {
+                capturedDuration = audio.duration;
+              }
+            };
+            audio.onended = finish;
+            audio.onerror = () => {
+              // Real file failed - fall back to speech synthesis once.
+              queueMissingAudio();
+              speak(word.text, speed, finish);
+            };
+            void audio.play().catch(() => {
+              queueMissingAudio();
+              speak(word.text, speed, finish);
+            });
+          } catch {
             queueMissingAudio();
             speak(word.text, speed, finish);
-          });
-          return;
-        } catch {
-          /* fall through to speech */
-        }
-      }
-      queueMissingAudio();
-      speak(word.text, speed, finish);
+          }
+        })
+        .catch(() => {
+          queueMissingAudio();
+          speak(word.text, speed, finish);
+        });
     });
   }, [language]);
 
