@@ -6,7 +6,7 @@ import { recognizeImageText, textRecognitionErrorCode, textRecognitionSupported 
 
 export type PcTerminalImageStatus = 'queued' | 'compressing' | 'uploading' | 'uploaded' | 'error';
 
-export type PcTerminalAttachmentKind = 'image' | 'audio';
+export type PcTerminalAttachmentKind = 'image' | 'audio' | 'file';
 
 export type PcTerminalImageOcrStatus = 'running' | 'done' | 'empty' | 'error';
 
@@ -86,6 +86,11 @@ const UPLOAD_COMPRESS_POLICY: ImageCompressPolicy = {
 const AUDIO_MIME = /^audio\//i;
 /** System recorders may hand over a recording without a type; its extension decides. */
 const AUDIO_EXTENSION = /\.(m4a|aac|amr|3gp|3gpp|ogg|oga|opus|webm|wav|mp3|flac)$/i;
+/** Documents travel as they are (no compression, no recognition); pycore stores them next to the images. */
+const DOCUMENT_MIME = /^(text\/|application\/(pdf|json|xml|rtf|msword|zip|x-zip|x-7z|x-rar|vnd\.rar|gzip|x-gzip|x-tar|epub\+zip|x-yaml|yaml|vnd\.(ms-|openxmlformats-|oasis\.opendocument)))/i;
+const DOCUMENT_EXTENSION = /\.(pdf|txt|md|markdown|csv|tsv|json|jsonl|xml|ya?ml|log|rtf|html?|epub|docx?|xlsx?|pptx?|odt|ods|odp|zip|7z|rar|tar|gz|tgz)$/i;
+/** `accept` of the document picker. */
+export const TERMINAL_DOCUMENT_ACCEPT = '.pdf,.txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.xml,.yaml,.yml,.log,.rtf,.html,.htm,.epub,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.zip,.7z,.rar,.tar,.gz,.tgz,application/pdf,text/*';
 const MIB = 1024 * 1024;
 const ERROR_KEYS = {
   notImage: 'terminal.images.notImage',
@@ -116,8 +121,18 @@ export function isTerminalAudioFile(file: File): boolean {
   return AUDIO_MIME.test(file.type) || (!file.type && AUDIO_EXTENSION.test(file.name));
 }
 
+export function isTerminalDocumentFile(file: File): boolean {
+  if (isTerminalImageFile(file) || isTerminalAudioFile(file)) return false;
+  return DOCUMENT_MIME.test(file.type) || DOCUMENT_EXTENSION.test(file.name);
+}
+
 export function isTerminalAttachmentFile(file: File): boolean {
-  return isTerminalImageFile(file) || isTerminalAudioFile(file);
+  return isTerminalImageFile(file) || isTerminalAudioFile(file) || isTerminalDocumentFile(file);
+}
+
+function attachmentKindOf(file: File): PcTerminalAttachmentKind {
+  if (isTerminalAudioFile(file)) return 'audio';
+  return isTerminalDocumentFile(file) ? 'file' : 'image';
 }
 
 export function usePcTerminalImages(windowId: string | undefined): PcTerminalImages {
@@ -167,9 +182,9 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
       return {
         id: `img-${counter.current}`,
         windowId,
-        kind: isTerminalAudioFile(file) ? 'audio' : 'image',
+        kind: attachmentKindOf(file),
         file,
-        previewUrl: ok ? URL.createObjectURL(file) : '',
+        previewUrl: ok && !isTerminalDocumentFile(file) ? URL.createObjectURL(file) : '',
         status: ok ? 'queued' : 'error',
         progress: 0,
         displayPath: '',

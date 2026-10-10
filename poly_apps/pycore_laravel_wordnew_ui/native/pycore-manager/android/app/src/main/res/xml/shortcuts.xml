@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Direct Share: dynamic sharing shortcuts published by ShareReceiver.publishShareTargets use this category. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <share-target android:targetClass="com.corenode.pycoremanager.MainActivity">
+        <data android:mimeType="image/*" />
+        <data android:mimeType="audio/*" />
+        <data android:mimeType="video/*" />
+        <data android:mimeType="application/*" />
+        <data android:mimeType="text/*" />
+        <data android:mimeType="*/*" />
+        <category android:name="com.corenode.pycoremanager.category.SHARE_TARGET" />
+    </share-target>
+</shortcuts>

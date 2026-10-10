@@ -44,6 +44,7 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_LOG_ERRORS_ONLY: 'pc.log.errorsOnly',
   PYCORE_TERMINAL_RECENT_COMMAND: 'pc.terminal.recentCommand',
   PYCORE_TERMINAL_CHOICE_LABELS: 'pc.terminal.choiceLabels',
+  PYCORE_SHARE_RECENT_TARGETS: 'pc.share.recentTargets.v1',
 } as const;
 
 /** Per-device UI session (last page, node, terminal, focus); never synced to the backend. */

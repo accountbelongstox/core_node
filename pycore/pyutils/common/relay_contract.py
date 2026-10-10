@@ -250,6 +250,9 @@ class RelayContract:
     def limit(self, name: str) -> int:
         return int(self.document["limits"][name])
 
+    def terminal_document_extensions(self) -> List[str]:
+        return [str(extension).lower() for extension in self.document["terminal_attachments"]["document_extensions"]]
+
     def rate_limit(self, name: str) -> int:
         return int(self.document["rate_limits"][name])
 
