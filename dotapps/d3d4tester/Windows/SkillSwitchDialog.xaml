@@ -1,0 +1,31 @@
+<Window x:Class="DotApps.d3d4tester.Windows.SkillSwitchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="480" SizeToContent="Height" MinWidth="380"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Style="{StaticResource DialogWindowStyle}">
+  <!-- Skill switch: choose the method (ROSBOT plugin / image only), requirements, start -->
+  <Grid Margin="20,4,20,20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+      <StackPanel>
+        <TextBlock x:Name="TxtTarget" Style="{StaticResource BodyStrongTextStyle}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+        <RadioButton x:Name="RadioPlugin" GroupName="SkillSwitchMethod" Margin="0,0,0,2"/>
+        <TextBlock x:Name="TxtPluginDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="22,0,0,10"/>
+        <RadioButton x:Name="RadioImage" GroupName="SkillSwitchMethod" Margin="0,0,0,2"/>
+        <TextBlock x:Name="TxtImageDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="22,0,0,0"/>
+      </StackPanel>
+    </Border>
+    <Border Grid.Row="1" Style="{StaticResource StatusChipWarningStyle}" Margin="0,0,0,16" HorizontalAlignment="Stretch">
+      <TextBlock x:Name="TxtRequirements" TextWrapping="Wrap"/>
+    </Border>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button x:Name="BtnStart" MinWidth="96" Margin="0,0,8,0" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Click="BtnStart_Click"/>
+      <Button x:Name="BtnCancel" MinWidth="96" IsCancel="True"/>
+    </StackPanel>
+  </Grid>
+</Window>

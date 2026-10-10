@@ -64,13 +64,43 @@
       <!-- Skill bar with runes, passives, Kanai's Cube powers, paragon level -->
       <TabItem x:Name="TabSkills">
         <DockPanel Margin="2,4,2,2">
-          <TextBlock x:Name="TxtPassives" DockPanel.Dock="Bottom" TextWrapping="Wrap" Margin="0,6,0,0"/>
+          <!-- One-click switch (method chosen in a dialog) and its last result -->
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+            <Button x:Name="BtnSwitchSkills" DockPanel.Dock="Left" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,8,0" Click="BtnSwitchSkills_Click"/>
+            <TextBlock x:Name="TxtSwitchStatus" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+          </DockPanel>
           <TextBlock x:Name="TxtKanai" DockPanel.Dock="Bottom" TextWrapping="Wrap" Margin="0,4,0,0"/>
           <TextBlock x:Name="TxtParagon" DockPanel.Dock="Bottom" Style="{StaticResource CaptionTextStyle}" Margin="0,4,0,0"/>
+          <!-- Passives: icon + name -->
+          <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+            <TextBlock x:Name="LblPassives" DockPanel.Dock="Left" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ItemsControl x:Name="LstPassives">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
+                    <Image Source="{Binding Icon}" Width="28" Height="28" Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </DockPanel>
           <ListView x:Name="LstSkills">
             <ListView.View>
               <GridView>
-                <GridViewColumn x:Name="ColSkillSlot" Width="70" DisplayMemberBinding="{Binding Slot}"/>
+                <GridViewColumn x:Name="ColSkillSlot" Width="80" DisplayMemberBinding="{Binding Slot}"/>
+                <GridViewColumn x:Name="ColSkillIcon" Width="44">
+                  <GridViewColumn.CellTemplate>
+                    <DataTemplate>
+                      <Image Source="{Binding Icon}" Width="32" Height="32"/>
+                    </DataTemplate>
+                  </GridViewColumn.CellTemplate>
+                </GridViewColumn>
                 <GridViewColumn x:Name="ColSkillName" Width="160" DisplayMemberBinding="{Binding Skill}"/>
                 <GridViewColumn x:Name="ColSkillRune" Width="180" DisplayMemberBinding="{Binding Rune}"/>
               </GridView>
