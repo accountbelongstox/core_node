@@ -195,7 +195,8 @@ public static class KanaiUpgradeHunter
         if (ranked.Count == 0 || ranked[0].Score < KanaiBagRecognizer.MinScore) ranked = KanaiBagRecognizer.RankEquipment(crop, item.Tall, catalog.Equipment);
         if (ranked.Count == 0 || ranked[0].Score < KanaiBagRecognizer.MinScore) return new KanaiLegendaryCell(item.Row, item.Col, item.Tall, null, ranked.FirstOrDefault()?.Score ?? 0, null);
         double floor = Math.Max(KanaiBagRecognizer.MinScore, ranked[0].Score - KanaiBagRecognizer.TieMargin);
-        var target = wanted.FirstOrDefault(w => w.Item != null && ranked.Any(r => r.Score >= floor && r.Item?.Id == w.Item.Id));
+        var target = wanted.FirstOrDefault(w => w.Item != null
+            && ranked.Any(r => r.Score >= floor && string.Equals(r.Item?.NameEn, w.Item.NameEn, StringComparison.OrdinalIgnoreCase)));
         return new KanaiLegendaryCell(item.Row, item.Col, item.Tall, ranked[0].Item, ranked[0].Score, target?.Target.Key);
     }
 
