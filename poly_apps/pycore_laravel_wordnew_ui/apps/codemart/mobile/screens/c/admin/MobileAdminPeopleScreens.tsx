@@ -222,7 +222,7 @@ export const MobileAdminUserDetailScreen: React.FC = () => {
           )}
 
           <section className="cmm-section">
-            <MobileSectionHeader title={t('admin.userDetail.kyc')} actionLabel={t('admin.nav.kyc')} actionTo={CM_ADMIN_ROUTE.kyc} />
+            <MobileSectionHeader title={t('admin.userDetail.kyc')} actionLabel={t('admin.userDetail.reviewKyc')} actionTo={CM_ADMIN_ROUTE.kyc} />
             {detail.kyc.length === 0 ? (
               <p className="cmm-muted">{t('admin.userDetail.noKyc')}</p>
             ) : (

@@ -1,1 +1,0 @@
-{ "extends": "./tsconfig.json", "exclude": ["node_modules", "node_modules.pre_program_drive*", "native", "artifacts", "dist"] }
