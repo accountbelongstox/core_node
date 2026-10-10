@@ -111,7 +111,8 @@ class LaravelDeliveryOutbox:
         """Persist one delivery per target server (idempotent by
         ``delivery_id`` inside each namespace); returns the active server's
         row. A record with ``base_url`` belongs to that endpoint's server; a
-        record without one fans out to ``target_namespaces()``. An optional
+        record without one goes to ``target_namespaces()`` (every online
+        server for a ``fanout`` kind). An optional
         payload file is retained as an immutable copy first. ``only_new``
         leaves an existing row untouched."""
         staged = copy.deepcopy(record)
@@ -123,7 +124,8 @@ class LaravelDeliveryOutbox:
         elif staged.get("base_url") or staged.get("pin_base_url"):
             namespaces = [laravel_endpoint_manager.delivery_namespace(str(staged.get("base_url") or ""))]
         else:
-            namespaces = target_namespaces()
+            definition = delivery_store.definition(kind)
+            namespaces = target_namespaces(bool(definition and definition.fanout))
         rows = [delivery_store.put(staged, name, only_new) for name in namespaces]
         if kick:
             delivery_scheduler.kick(kind)

@@ -40,6 +40,8 @@ from pycore.pyfoundations.time_utils import utc_now_iso
 
 
 LABEL = "TerminalStateRepository"
+SEARCH_HIT_SENT = "sent"
+SEARCH_HIT_DRAFT = "draft"
 
 
 def _transactional_store_method(
@@ -348,30 +350,46 @@ class TerminalStateRepository:
         )
 
     def search_logs(self, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Sent messages containing query, newest first; a text sent again is listed once, at its newest send."""
+        """Sent messages and unsent drafts containing query, newest first; a text sent again is
+        listed once, at its newest send, and a draft is listed apart from the sends of its text."""
         needle = query.strip()
         if not needle or limit <= 0:
             return []
-        results: List[Dict[str, Any]] = []
+        sent: List[Dict[str, Any]] = []
         seen_contents = set()
         for entry in self._reader.matching_logs(needle):
             content = str(entry["content"])
             if content in seen_contents:
                 continue
             seen_contents.add(content)
-            results.append(
+            sent.append(
                 {
                     **log_metadata(
                         int(entry["terminal_number"]),
                         str(entry["log_id"]),
                         entry,
                     ),
+                    "kind": SEARCH_HIT_SENT,
                     "content": content,
                 }
             )
-            if len(results) >= limit:
+            if len(sent) >= limit:
                 break
-        return results
+        drafts = [
+            {
+                "id": SEARCH_HIT_DRAFT,
+                "terminal_number": int(entry["terminal_number"]),
+                "title": str(entry["custom_title"] or entry["title"] or ""),
+                "date": str(entry["updated_at"] or ""),
+                "status": SEARCH_HIT_DRAFT,
+                "kind": SEARCH_HIT_DRAFT,
+                "success": False,
+                "error_code": None,
+                "content": str(entry["draft"]),
+            }
+            for entry in self._reader.matching_drafts(needle)[:limit]
+        ]
+        return sorted(drafts + sent, key=lambda hit: str(hit["date"]), reverse=True)[:limit]
 
     @serialized_method
     @_transactional_store_method

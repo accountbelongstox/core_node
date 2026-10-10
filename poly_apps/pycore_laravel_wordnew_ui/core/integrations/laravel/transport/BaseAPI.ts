@@ -4,7 +4,7 @@ import { htmlErrorManager } from './HtmlErrorEvents';
 import { unwrapLaravelData } from './LaravelEnvelope';
 import { appendLog } from '../../../logstore/logStore';
 import { clearCoordinatedRequests, coordinateRequest } from '../../../network/RequestCoordinator';
-import { getAuthHeader, setActiveAuthNamespace, setAuthToken } from '../../../auth/AuthSession';
+import { clearAuthSession, getAuthHeader, setActiveAuthNamespace, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
 import { isUploadBody, progressUpload } from '../../../network/ProgressUpload';
@@ -475,6 +475,12 @@ export class BaseAPI {
         serverSchemaGate.observeHttp(response.status, data);
         const clientKeyCode = response.status === 401 ? clientKeyFailureCode(data) : null;
         if (response.status === 401 && !clientKeyCode) {
+          // The server refused the session token this request carried: end that stale session
+          // so the UI stops showing a signed-in user (a token replaced meanwhile is kept).
+          const sentAuth = requestHeaders.Authorization;
+          if (!this.authTokenResolver && authBase && sentAuth && sentAuth === getAuthHeader(authBase)) {
+            clearAuthSession(authBase);
+          }
           if (this.unauthorizedHandler) this.unauthorizedHandler();
           else requestGlobalLogin({ baseUrl: authBase ?? this.baseURL });
         }

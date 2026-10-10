@@ -89,7 +89,8 @@ import { pickIdleAgentTerminal, useTerminalDispatchSetting } from '@/apps/pycore
 import { PcTerminalDispatchToggle } from '@/apps/pycore-manager/components/PcTerminalDispatchToggle';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
-import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
+import { PcTerminalQuickCommands, type QuickCommandChoice } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
+import { useQuickCommandRun } from '@/apps/pycore-manager/components/PcTerminalQuickCommandRun';
 import { PcTerminalCardCommands } from '@/apps/pycore-manager/components/PcTerminalCardCommands';
 import { PcTerminalChoicePicker } from '@/apps/pycore-manager/components/PcTerminalChoicePicker';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
@@ -97,6 +98,7 @@ import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/Pyco
 import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import { PcTerminalLauncherBar } from '@/apps/pycore-manager/components/terminal/PcTerminalLauncherBar';
+import { PcTerminalAgentCreate } from '@/apps/pycore-manager/components/terminal/PcTerminalAgentCreate';
 import { PcTerminalSentSearch, type PcSentSearchHit } from '@/apps/pycore-manager/components/terminal/PcTerminalSentSearch';
 import PcTerminalDesktopView from '@/apps/pycore-manager/components/terminal/PcTerminalDesktopView';
 import PcTerminalFrameView from '@/apps/pycore-manager/components/terminal/PcTerminalFrameView';
@@ -261,6 +263,18 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
+  terminal_virtual_unsupported: 'terminal.agents.errors.unsupported',
+  quick_command_unknown: 'terminal.commands.quick.errors.unknown',
+  quick_command_platform_invalid: 'terminal.commands.quick.errors.platformInvalid',
+  quick_command_platform_unavailable: 'terminal.commands.quick.errors.platformUnavailable',
+  quick_command_busy: 'terminal.commands.quick.errors.busy',
+  quick_command_idle_timeout: 'terminal.commands.quick.errors.idleTimeout',
+  quick_command_run_failed: 'terminal.commands.quick.errors.runFailed',
+  terminal_virtual_kind_invalid: 'terminal.agents.errors.kind',
+  terminal_virtual_not_found: 'terminal.agents.errors.notFound',
+  terminal_virtual_busy: 'terminal.agents.errors.busy',
+  agent_cli_missing: 'terminal.agents.errors.cliMissing',
+  agent_cli_key_missing: 'terminal.agents.errors.keyMissing',
 };
 
 interface ActionNotice {
@@ -1022,7 +1036,7 @@ const PcTerminalNodeView: React.FC<{
   const selectedActionable = Boolean(
     selectedWindow?.online
     && selectedWindow.controllable !== false
-    && snapshot?.supported
+    && (snapshot?.supported || selectedWindow.virtual)
     && !actionWindowId,
   );
   const previewWindow = useMemo(() => (
@@ -1342,6 +1356,39 @@ const PcTerminalNodeView: React.FC<{
       void refresh();
     }
   }, [errorTranslationKey, forgetTerminalLocalState, refresh, removingTerminals, t, terminalApi]);
+
+  const closeVirtualAgent = useCallback(async (windowInfo: TerminalWindowInfo) => {
+    if (removingTerminals) return;
+    if (!window.confirm(t('terminal.agents.confirmClose', { number: windowInfo.terminal_number }))) return;
+    setRemovingTerminals(true);
+    setActionNotice(null);
+    try {
+      const result = await terminalApi.closeTerminalAgent(windowInfo.id);
+      if (result.removed_terminal_numbers?.length) forgetTerminalLocalState(result.removed_terminal_numbers);
+      if (!mountedRef.current) return;
+      setActionNotice(result.success
+        ? { kind: 'success', translationKey: 'terminal.agents.closed' }
+        : { kind: 'error', translationKey: errorTranslationKey(result.error_code) });
+    } catch (error) {
+      if (mountedRef.current) setActionNotice({ kind: 'error', translationKey: errorTranslationKey(terminalRequestErrorCode(error)) });
+    } finally {
+      if (mountedRef.current) setRemovingTerminals(false);
+      void refresh();
+    }
+  }, [errorTranslationKey, forgetTerminalLocalState, refresh, removingTerminals, t, terminalApi]);
+
+  const renderVirtualCloseButton = (windowInfo: TerminalWindowInfo, iconClassName: string, buttonClassName: string) => (
+    <button
+      type="button"
+      onClick={() => void closeVirtualAgent(windowInfo)}
+      disabled={removingTerminals}
+      title={t('terminal.agents.close')}
+      aria-label={`${t('terminal.agents.close')}: #${windowInfo.terminal_number}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 ${buttonClassName}`}
+    >
+      <X className={iconClassName} />
+    </button>
+  );
 
   const renderRemoveOfflineBar = () => (
     <div className="col-span-full flex items-center justify-between gap-2">
@@ -1835,46 +1882,19 @@ const PcTerminalNodeView: React.FC<{
     sendDraft();
   }, [focusComposer, sendDraft, updateSelectedDraft]);
 
-  // Commands send at once; the panel's one-shot options (clear first / Ctrl+C first) apply.
-  const runQuickCommand = useCallback(async (command: string) => {
-    if (!selectedWindow || !selectedWindow.online) return false;
-    const options = takeSendOnce();
-    const result = await runAction(
-      selectedWindow.id,
-      () => terminalApi.inputTerminalText(
-        selectedWindow.id,
-        selectedWindow.terminal_number,
-        command,
-        options.clear,
-        options.force,
-        true,
-      ),
-      options.force ? 'terminal.commands.forceSent' : 'terminal.commands.sent',
-    );
-    if (result?.success) frames.thaw(selectedWindow.terminal_number);
-    return Boolean(result?.success);
-  }, [runAction, selectedWindow, takeSendOnce]);
-
-  // Card title commands run on that card's terminal; restart presses Ctrl+C several times before the command.
-  const runCardCommand = useCallback(async (windowInfo: TerminalWindowInfo, command: string, restart: boolean) => {
-    if (!windowInfo.online) return false;
+  // Quick commands are library entries, never text: the dialog asks y/n, then pycore presses Ctrl+C, waits for the prompt and types.
+  const quickRun = useQuickCommandRun({
+    errorTranslationKey,
+    onFinished: (request, success) => {
+      if (success) frames.thaw(request.terminalNumber);
+      void refresh(false);
+    },
+  });
+  const askQuickCommand = useCallback((windowInfo: TerminalWindowInfo, choice: QuickCommandChoice) => {
+    if (!windowInfo.online) return;
     selectTerminal(windowInfo.terminal_number);
-    const result = await runAction(
-      windowInfo.id,
-      () => terminalApi.inputTerminalText(
-        windowInfo.id,
-        windowInfo.terminal_number,
-        command,
-        false,
-        false,
-        true,
-        restart,
-      ),
-      restart ? 'terminal.commands.restartSent' : 'terminal.commands.sent',
-    );
-    if (result?.success) frames.thaw(windowInfo.terminal_number);
-    return Boolean(result?.success);
-  }, [runAction, selectTerminal]);
+    quickRun.ask({ ...choice, windowId: windowInfo.id, terminalNumber: windowInfo.terminal_number });
+  }, [quickRun.ask, selectTerminal]);
 
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
@@ -2180,8 +2200,8 @@ const PcTerminalNodeView: React.FC<{
         <PcTerminalQuickCommands
           shellOs={selectedWindow?.shell_os}
           disabled={!selectedActionable}
-          busy={actionWindowId === selectedWindow?.id}
-          onRun={runQuickCommand}
+          busy={actionWindowId === selectedWindow?.id || quickRun.activeTerminalNumber === selectedWindow?.terminal_number}
+          onRun={(choice) => { if (selectedWindow) askQuickCommand(selectedWindow, choice); }}
         />
         <PcTerminalChoicePicker
           disabled={!selectedActionable}
@@ -2532,7 +2552,8 @@ const PcTerminalNodeView: React.FC<{
               windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
             }`} />
           </button>
-          {windowInfo.online && (
+          {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-4 w-4', 'h-8 w-8')}
+          {windowInfo.online && !windowInfo.virtual && (
             <button
               type="button"
               onClick={() => {
@@ -2561,13 +2582,13 @@ const PcTerminalNodeView: React.FC<{
               <Trash2 className="h-4 w-4" />
             </button>
           )}
-          {windowInfo.online && (
+          {windowInfo.online && !windowInfo.virtual && (
             <div className="basis-full">
               <PcTerminalCardCommands
                 shellOs={windowInfo.shell_os}
                 disabled={!snapshot?.supported || windowInfo.controllable === false}
-                busy={busy}
-                onRun={(command, restart) => runCardCommand(windowInfo, command, restart)}
+                busy={busy || quickRun.activeTerminalNumber === windowInfo.terminal_number}
+                onRun={(choice) => askQuickCommand(windowInfo, choice)}
               />
             </div>
           )}
@@ -2650,6 +2671,12 @@ const PcTerminalNodeView: React.FC<{
                 })}
               </div>
               <PcTerminalLauncherBar
+                errorTranslationKey={errorTranslationKey}
+                onNotice={setActionNotice}
+                onDone={() => void refresh()}
+              />
+              <PcTerminalAgentCreate
+                kinds={snapshot?.agent_kinds ?? []}
                 errorTranslationKey={errorTranslationKey}
                 onNotice={setActionNotice}
                 onDone={() => void refresh()}
@@ -2766,7 +2793,8 @@ const PcTerminalNodeView: React.FC<{
                           windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
                         }`} />
                       </button>
-                      {windowInfo.online && (
+                      {windowInfo.virtual && renderVirtualCloseButton(windowInfo, 'h-2.5 w-2.5', 'h-4 w-4')}
+                      {windowInfo.online && !windowInfo.virtual && (
                         <button
                           type="button"
                           onClick={() => {
@@ -3097,6 +3125,8 @@ const PcTerminalNodeView: React.FC<{
           </div>
         </div>
       )}
+
+      {quickRun.dialog}
 
       {logDialogOpen && selectedWindow && (
         <PcTerminalLogDialog
