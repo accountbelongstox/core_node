@@ -69,6 +69,8 @@ public static partial class I18nKeys
     public const string RosbotBridgeStandbyResultPrefix = "ui.rosbot_bridge.standby_result.";
     public const string RosbotBridgeStandbySince = "ui.rosbot_bridge.standby_since";
     public const string RosbotBridgeStandbyStatePrefix = "ui.rosbot_bridge.standby_state.";
+    /// <summary>Prefix + plugin hold state (requested, holding, unsupported).</summary>
+    public const string RosbotBridgeHoldStatePrefix = "ui.rosbot_bridge.hold_state.";
     public const string RosbotBridgeMonstersNearby = "ui.rosbot_bridge.monsters_nearby";
     public const string RosbotBridgeHoldTip = "ui.rosbot_bridge.hold_tip";
     public const string RosbotBridgeHoldTaken = "ui.rosbot_bridge.hold_taken";

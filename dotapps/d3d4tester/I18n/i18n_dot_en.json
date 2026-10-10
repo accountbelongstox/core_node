@@ -1068,6 +1068,12 @@
         "portalsent": "ROSBOT paused, town portal key ({0}) pressed; kept until the hero is in town",
         "portalnotsent": "ROSBOT paused, but the town portal key ({0}) was not sent: D3 window not found or input busy"
       },
+      "hold_state": {
+        "off": "not held by the plugin",
+        "requested": "plugin hold pending",
+        "holding": "ROSBOT held by the plugin (live data)",
+        "unsupported": "plugin hold unsupported, paused with F6"
+      },
       "standby_since": "since {0}",
       "standby_state": {
         "off": "Not standing by",

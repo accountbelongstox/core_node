@@ -1068,6 +1068,12 @@
         "portalsent": "ROSBOT 已暂停，已按回城键（{0}），进城前会继续确保",
         "portalnotsent": "ROSBOT 已暂停，但回城键（{0}）没有发出：D3 窗口未找到或输入被占用"
       },
+      "hold_state": {
+        "off": "未由插件暂停",
+        "requested": "插件暂停中（等待 ROSBOT）",
+        "holding": "ROSBOT 由插件暂停（数据实时）",
+        "unsupported": "插件暂停不可用，已改用 F6 暂停"
+      },
       "standby_since": "{0} 起",
       "standby_state": {
         "off": "未待命",

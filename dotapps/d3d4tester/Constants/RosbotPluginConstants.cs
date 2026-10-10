@@ -56,6 +56,10 @@ public static class RosbotPluginConstants
     public const string BridgeActionStandby = "standby";
     public const string BridgeStandbyOn = "on";
     public const string BridgeStandbyOff = "off";
+    /// <summary>Plugin command: hold ROSBOT inside the plugin (PulseHold; value BridgeHoldOn / BridgeHoldOff, off also ends standby).</summary>
+    public const string BridgeActionHold = "hold";
+    public const string BridgeHoldOn = "on";
+    public const string BridgeHoldOff = "off";
     public const string BridgeFollowOff = "off";
     /// <summary>Follow targets (plugin FollowMode modes): nearest player, the selected player, the party leader, party slot 1-4.</summary>
     public const string BridgeFollowNearest = "nearest";
