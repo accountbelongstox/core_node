@@ -12,6 +12,7 @@ from pycore.pyfoundations.atomic_json_store import atomic_write_bytes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyctl.terminal.terminal_file_retention import prune_files
+from pycore.pyctl.terminal.terminal_image_archive import TerminalImageArchive
 from pycore.pyutils.common.relay_contract import relay_contract
 
 TERMINAL_IMAGE_DIR_NAME = "timg"
@@ -91,6 +92,11 @@ class TerminalImageStore:
     def __init__(self, directory: Path, voice_directory: Path) -> None:
         self.directory = directory
         self.voice_directory = voice_directory
+        self.archive = TerminalImageArchive(directory)
+
+    def resolve_image(self, reference: str) -> Optional[Path]:
+        """Stored image for a sent name or path; an archived image is found under its original name."""
+        return self.archive.resolve(reference)
 
     def read_stream(self, stream: BinaryIO) -> Dict[str, Any]:
         """Read at most the cap (+1 byte to detect overflow); no total deadline."""
