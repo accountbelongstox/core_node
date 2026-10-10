@@ -110,8 +110,7 @@ public sealed partial class TaskSetStore
         {
             var frames = SegmentFramesDir(ResolveSegmentDir(source));
             if (!Directory.Exists(frames)) continue;
-            results.Add(AddVariantsFromAnnotations(set, frames, frames, classFilter, cutout, null, progress, ct,
-                options with { FrameStep = Math.Max(options.FrameStep, source.EffectiveFrameStep) }));
+            results.Add(AddVariantsFromAnnotations(set, frames, frames, classFilter, cutout, null, progress, ct, options));
         }
         return results;
     }

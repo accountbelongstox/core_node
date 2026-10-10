@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import type { ToolDefinition } from '@/apps/laravel-manager/types';
 import { useToolRun } from '../toolRunner';
 import { useMediaT } from './MediaKit';
-import { ImageTooLargeError } from './imageOps';
+import { ImageTooLargeError } from '@/core/media/ImageOps';
 import { downloadBlob } from './mediaFormat';
 
 export interface ImageRunSummary {

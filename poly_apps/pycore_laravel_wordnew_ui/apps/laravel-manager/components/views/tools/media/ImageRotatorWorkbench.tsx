@@ -7,7 +7,7 @@ import { ImageStage } from './ImageStage';
 import { ImageOutputControls, DEFAULT_QUALITY } from './ImageOutputControls';
 import { useImageExport } from './useImageExport';
 import { outputFileName, pickNumber, pickString } from './mediaFormat';
-import { encodeImage, rotateImage, rotatedBounds, type ImageMime } from './imageOps';
+import { encodeImage, rotateImage, rotatedBounds, type ImageMime } from '@/core/media/ImageOps';
 import { useImageSource } from './useImageSource';
 
 const ANGLE_MIN = -180;

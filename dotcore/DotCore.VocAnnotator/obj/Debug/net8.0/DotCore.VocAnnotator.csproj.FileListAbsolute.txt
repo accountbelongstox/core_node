@@ -30,3 +30,6 @@ D:\programing\core_node\dotcore\DotCore.VocAnnotator\obj\Debug\net8.0\DotCore.Vo
 D:\programing\core_node\dotcore\DotCore.VocAnnotator\obj\Debug\net8.0\refint\DotCore.VocAnnotator.dll
 D:\programing\core_node\dotcore\DotCore.VocAnnotator\obj\Debug\net8.0\DotCore.VocAnnotator.pdb
 D:\programing\core_node\dotcore\DotCore.VocAnnotator\obj\Debug\net8.0\ref\DotCore.VocAnnotator.dll
+E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\tsharness\bin_out\DotCore.VocAnnotator.deps.json
+E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\tsharness\bin_out\DotCore.VocAnnotator.dll
+E:\_win10_dev\work\claude\D--programing-core-node\25619000-ab9f-4d6e-9780-8adfad398a49\scratchpad\tsharness\bin_out\DotCore.VocAnnotator.pdb

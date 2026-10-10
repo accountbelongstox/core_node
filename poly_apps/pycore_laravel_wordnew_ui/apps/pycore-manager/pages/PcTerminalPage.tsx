@@ -122,6 +122,7 @@ import {
   pcTerminalIdentityOf,
 } from '@/apps/pycore-manager/persistence/PcUiSessionTerminal';
 import { StorageManager } from '../../../core/persistence';
+import { deviceKvGet, deviceKvSet } from '../../../shared/persistence/DeviceKvCache';
 import type {
   TerminalActionResult,
   TerminalDesktopIntegrationAction,
@@ -372,6 +373,17 @@ function readCachedDrafts(): Record<string, string> {
   ) as Record<string, string>;
 }
 
+// The device database (SQLite in the app, IndexedDB elsewhere) keeps a second copy that outlives cleared
+// WebView storage; drafts missing from localStorage are restored from it on start.
+const DRAFT_DEVICE_CACHE_KEY = 'pc.terminal.drafts';
+
+const draftDeviceRestore = deviceKvGet<Record<string, string>>(DRAFT_DEVICE_CACHE_KEY).then((stored) => {
+  if (!stored || typeof stored !== 'object') return;
+  const drafts = readCachedDrafts();
+  const missing = Object.entries(stored).filter(([key, text]) => typeof text === 'string' && text !== '' && !(key in drafts));
+  if (missing.length) StorageManager.set(DRAFT_CACHE_STORAGE_KEY, { ...drafts, ...Object.fromEntries(missing) });
+});
+
 function writeCachedDraft(terminalNumber: number, text: string | null): void {
   const key = terminalDraftKey(terminalNumber);
   const drafts = readCachedDrafts();
@@ -384,6 +396,7 @@ function writeCachedDraft(terminalNumber: number, text: string | null): void {
   }
   if (Object.keys(drafts).length === 0) StorageManager.remove(DRAFT_CACHE_STORAGE_KEY);
   else StorageManager.set(DRAFT_CACHE_STORAGE_KEY, drafts);
+  void draftDeviceRestore.then(() => deviceKvSet(DRAFT_DEVICE_CACHE_KEY, Object.keys(drafts).length ? drafts : null));
 }
 
 function terminalRequestErrorCode(error: unknown): string {

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
+import { RELAY_CONTRACT } from '@/core/contracts/RelayContract';
+import { compressImageFile, type ImageCompressPolicy } from '@/core/media/ImageProcessor';
 
-export type PcTerminalImageStatus = 'queued' | 'uploading' | 'uploaded' | 'error';
+export type PcTerminalImageStatus = 'queued' | 'compressing' | 'uploading' | 'uploaded' | 'error';
 
 export type PcTerminalAttachmentKind = 'image' | 'audio';
 
@@ -64,6 +66,11 @@ export interface PcTerminalUploadResult {
 }
 
 const IMAGE_MIME = /^image\//i;
+/** Same targets pycore applies on receipt: images are compressed on the device before they are uploaded. */
+const UPLOAD_COMPRESS_POLICY: ImageCompressPolicy = {
+  maxShortSide: RELAY_CONTRACT.limits.terminal_image_compress_short_side,
+  maxBytes: RELAY_CONTRACT.limits.terminal_image_compress_bytes,
+};
 const AUDIO_MIME = /^audio\//i;
 /** System recorders may hand over a recording without a type; its extension decides. */
 const AUDIO_EXTENSION = /\.(m4a|aac|amr|3gp|3gpp|ogg|oga|opus|webm|wav|mp3|flac)$/i;
@@ -169,9 +176,30 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
   const startUpload = useCallback(async (item: PcTerminalImage): Promise<string | null> => {
     const abort = new AbortController();
     aborts.current.set(item.id, abort);
-    patch(item.id, { status: 'uploading', progress: 0, errorKey: '', errorParams: {}, errorDetail: null });
+    patch(item.id, { status: item.kind === 'image' ? 'compressing' : 'uploading', progress: 0, errorKey: '', errorParams: {}, errorDetail: null });
     try {
-      const result = await terminalApi.uploadTerminalImage(item.windowId, item.file, {
+      // A file the device cannot decode (rare raw variants) goes as it is; pycore compresses it on receipt.
+      const local = item.kind === 'image' ? await compressImageFile(item.file, UPLOAD_COMPRESS_POLICY) : null;
+      if (abort.signal.aborted) return null;
+      const localPreview = local?.compressed ? URL.createObjectURL(local.file) : '';
+      if (localPreview) URL.revokeObjectURL(item.previewUrl);
+      patch(item.id, {
+        status: 'uploading',
+        // The original is dropped once compressed: a retry or resend uses the compressed file.
+        ...(localPreview ? {
+          file: local!.file,
+          previewUrl: localPreview,
+          compression: {
+            originalBytes: local!.original.bytes,
+            originalWidth: local!.original.width,
+            originalHeight: local!.original.height,
+            bytes: local!.result.bytes,
+            width: local!.result.width,
+            height: local!.result.height,
+          },
+        } : {}),
+      });
+      const result = await terminalApi.uploadTerminalImage(item.windowId, local?.file ?? item.file, {
         signal: abort.signal,
         onProgress: (fraction) => patch(item.id, { progress: fraction }),
       });
@@ -192,7 +220,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
         return null;
       }
       const compressed = Boolean(result.compressed && result.preview_url);
-      if (compressed) URL.revokeObjectURL(item.previewUrl);
+      if (compressed) URL.revokeObjectURL(allRef.current.find((entry) => entry.id === item.id)?.previewUrl ?? item.previewUrl);
       patch(item.id, {
         status: 'uploaded',
         progress: 1,
@@ -272,7 +300,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
   const items = all.filter((item) => item.windowId === windowId);
   return {
     items,
-    busy: items.some((item) => item.status === 'uploading'),
+    busy: items.some((item) => item.status === 'uploading' || item.status === 'compressing'),
     addFiles,
     remove,
     retry,

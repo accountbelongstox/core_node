@@ -422,6 +422,7 @@ terminal: {
       },
       compression: {
         badge: '上传时已压缩：查看原图与当前图',
+        running: '正在本机压缩，完成后上传…',
         detail: '{{name}} 上传时已压缩：原图 {{original}} → 当前图 {{current}}。原图已丢弃，只使用当前图。',
       },
       sentWithMissing: '已发送，但有 {{count}} 个附件上传失败未附带；已告知 AI 这些图片缺失。',

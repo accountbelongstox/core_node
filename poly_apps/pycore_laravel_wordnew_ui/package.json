@@ -40,6 +40,7 @@
     "framer-motion": "^11.18.2",
     "hls.js": "^1.5.17",
     "i18next": "^25.8.18",
+    "libraw-wasm": "1.6.0",
     "lucide-react": "^0.555.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

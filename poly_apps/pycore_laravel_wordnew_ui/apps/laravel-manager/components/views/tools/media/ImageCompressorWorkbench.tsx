@@ -9,7 +9,7 @@ import { SizeBars } from './SizeBars';
 import { useEncodedPreview } from './useEncodedPreview';
 import { useImageExport } from './useImageExport';
 import { formatBytes, outputFileName, pickNumber, pickString, useObjectUrl } from './mediaFormat';
-import { encodeImage, fitQualityToSize, resizeImage, supportsEncoding, type ImageMime } from './imageOps';
+import { encodeImage, fitQualityToSize, resizeImage, supportsEncoding, type ImageMime } from '@/core/media/ImageOps';
 import { useImageSource } from './useImageSource';
 
 const FORMATS: readonly ImageMime[] = ['image/jpeg', 'image/webp', 'image/png'];

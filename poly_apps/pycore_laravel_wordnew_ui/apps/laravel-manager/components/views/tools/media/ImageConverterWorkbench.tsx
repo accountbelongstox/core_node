@@ -9,7 +9,7 @@ import { SizeBars } from './SizeBars';
 import { useEncodedPreview } from './useEncodedPreview';
 import { useImageExport } from './useImageExport';
 import { outputFileName, pickString, useObjectUrl } from './mediaFormat';
-import { IMAGE_MIMES, encodeImage, supportsEncoding, type ImageMime } from './imageOps';
+import { IMAGE_MIMES, encodeImage, supportsEncoding, type ImageMime } from '@/core/media/ImageOps';
 import { useImageSource } from './useImageSource';
 
 const QUALITY_MIN = 1;

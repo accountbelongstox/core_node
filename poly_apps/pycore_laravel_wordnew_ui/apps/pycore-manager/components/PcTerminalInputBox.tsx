@@ -209,6 +209,11 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                     <Shrink className="h-3 w-3" />
                   </button>
                 )}
+                {item.status === 'compressing' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40" title={t('terminal.images.compression.running')}>
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  </div>
+                )}
                 {item.status === 'uploading' && (
                   <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900/40">
                     <div className="h-full bg-indigo-500" style={{ width: `${Math.round(item.progress * 100)}%` }} />
