@@ -28,6 +28,7 @@ import type {
   AutostartStatus, AutostartTarget, PycoreHealthState, TtsSettings,
 } from '@/apps/pycore-manager/api';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
+import { ShellAppPackages } from '../../../shell/ShellAppPackages';
 import PcPycoreRestartButton from '../components/PcPycoreRestartButton';
 import { pycoreNodeClient } from '@/apps/pycore-manager/api';
 import { useShell } from '../../../shell/ShellContext';
@@ -306,6 +307,9 @@ const PcSettingsPage: React.FC = () => {
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {/* App update check in the Android app; APK downloads on the web. */}
+      <ShellAppPackages />
 
       {/* Global shell preferences — same shared state as the top bar widgets
           and the floating ShellControls dock. */}
