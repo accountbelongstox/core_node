@@ -25,6 +25,10 @@ $script:DISK_USN_MAX_SIZE = "0x2000000"
 $script:DISK_USN_ALLOCATION_DELTA = "0x800000"
 $script:DISK_SHRINK_DEFRAG_ARGUMENTS = @("/X", "/U", "/V")
 $script:DISK_SHRINK_MAX_PASSES = 20
+$script:DISK_SHRINK_FREE_TOLERANCE_MB = 1024
+$script:DISK_DISKPART_EXE = Join-Path $script:DISK_SYSTEM32_DIR "diskpart.exe"
+$script:DISK_DISKPART_QUERY_FILE = "core_node_shrink_querymax.txt"
+$script:DISK_DISKPART_RECLAIMABLE_PATTERN = '\((\d+)\s*MB\)'
 $script:DISK_SHRINK_RESOLVED = "resolved"
 $script:DISK_SHRINK_RESTART = "restart"
 $script:DISK_SHRINK_UNRESOLVED = "unresolved"
@@ -707,14 +711,19 @@ function Get-ShrinkableMB {
     param(
         [Parameter(Mandatory = $true)] [string]$Drive
     )
-    $driveLetter = $Drive.TrimEnd(':')
-    $partition = $null
-    $supported = $null
+    $scriptPath = Join-Path $env:TEMP $script:DISK_DISKPART_QUERY_FILE
+    $output = $null
+    $match = $null
 
-    Update-HostStorageCache
-    $partition = Get-Partition -DriveLetter $driveLetter
-    $supported = Get-PartitionSupportedSize -DriveLetter $driveLetter
-    return [math]::Floor(($partition.Size - $supported.SizeMin) / 1MB)
+    Set-Content -LiteralPath $scriptPath -Value @(("select volume {0}" -f $Drive.TrimEnd(':')), "shrink querymax") -Encoding Ascii
+    $output = (& $script:DISK_DISKPART_EXE /s $scriptPath) -join "`n"
+    Remove-Item -LiteralPath $scriptPath -Force
+    $match = [regex]::Match($output, $script:DISK_DISKPART_RECLAIMABLE_PATTERN)
+    if (-not $match.Success) {
+        Write-ColorMessage -Message $output -Type "Error"
+        return 0
+    }
+    return [long]$match.Groups[1].Value
 }
 
 function Get-DrivePageFileSettings {
@@ -878,7 +887,7 @@ function Invoke-ShrinkBlockerCleanup {
     Write-ColorMessage -Message ("Querying the shrinkable size of {0} (can take minutes)..." -f $Drive) -Type "Info"
     $shrinkableMB = Get-ShrinkableMB -Drive $Drive
     Write-ColorMessage -Message ("{0} can shrink by {1} of {2} MB free" -f $Drive, $shrinkableMB, $freeMB) -Type "Info"
-    while ((-not $stalled) -and ($pass -lt $script:DISK_SHRINK_MAX_PASSES)) {
+    while ((-not $stalled) -and ($pass -lt $script:DISK_SHRINK_MAX_PASSES) -and (($freeMB - $shrinkableMB) -gt $script:DISK_SHRINK_FREE_TOLERANCE_MB)) {
         $pass++
         $previousMB = $shrinkableMB
         $blocker = Get-LastUnmovableFile -Drive $Drive
@@ -899,6 +908,9 @@ function Invoke-ShrinkBlockerCleanup {
         $shrinkableMB = Get-ShrinkableMB -Drive $Drive
         $stalled = ($status -eq $script:DISK_SHRINK_UNRESOLVED) -and ($shrinkableMB -le $previousMB)
         Write-ColorMessage -Message ("{0} can shrink by {1} of {2} MB free" -f $Drive, $shrinkableMB, $freeMB) -Type "Info"
+    }
+    if (($freeMB - $shrinkableMB) -le $script:DISK_SHRINK_FREE_TOLERANCE_MB) {
+        Write-ColorMessage -Message ("All free space of {0} can be shrunk" -f $Drive) -Type "Success"
     }
 }
 #endregion
