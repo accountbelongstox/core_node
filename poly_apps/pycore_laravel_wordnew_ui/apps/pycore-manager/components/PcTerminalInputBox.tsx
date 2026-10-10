@@ -473,7 +473,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         className="block w-full resize-y bg-transparent px-3 pb-1 pt-1 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
       />
       <div className="flex flex-wrap items-center gap-1.5 px-1.5 pb-1.5">
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {leading}
           {mode === 'voice' && (
             <>

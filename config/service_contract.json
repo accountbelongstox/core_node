@@ -287,6 +287,13 @@
             },
             "program_drive_primary": "E:",
             "program_drive_fallback": "D:",
+            "program_drive_create": {
+                "purpose": "Step 1 creates the program drive when it is missing, by shrinking the data drive: min(max_mb, shrinkable); below min_mb it takes small_ratio of the shrinkable space",
+                "min_mb": 102400,
+                "max_mb": 512000,
+                "small_ratio": 0.8,
+                "label": "programs"
+            },
             "program_partuuid": null,
             "program_partuuid_source": "detected per machine (the E: NTFS volume PARTUUID), stored in global vars, never committed",
             "linux_mounts_program_drive": false,
