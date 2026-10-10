@@ -80,6 +80,7 @@ class CodeMartV1PolicyService
             'payment_methods' => self::options(self::GROUP_FINANCE, C::getAllPaymentMethods(), self::KNOWN_PAYMENT_METHODS),
             'deposit_payment_methods' => self::options(self::GROUP_FINANCE, C::DEPOSIT_PAYMENT_METHODS, self::KNOWN_DEPOSIT_METHODS),
             'withdrawal_methods' => self::options(self::GROUP_FINANCE, C::WITHDRAWAL_METHODS, C::WITHDRAWAL_METHODS),
+            'deposit_bank_transfer' => self::textMap(self::GROUP_FINANCE, self::bankTransferDefaults(), C::BANK_TRANSFER_FIELDS, 200),
 
             // Projects
             'project_min_budget' => self::num(self::GROUP_PROJECTS, self::TYPE_INT, C::PROJECT_MIN_BUDGET, 1, self::MAX_MONEY),
@@ -109,11 +110,15 @@ class CodeMartV1PolicyService
 
             // Accounts
             'password_min_length' => self::num(self::GROUP_ACCOUNTS, self::TYPE_INT, C::PASSWORD_MIN_LENGTH, 6, 64),
+            'otp_expiry_minutes' => self::num(self::GROUP_ACCOUNTS, self::TYPE_INT, C::OTP_EXPIRY_MINUTES, 1, 120),
+            'otp_max_attempts' => self::num(self::GROUP_ACCOUNTS, self::TYPE_INT, C::OTP_MAX_ATTEMPTS, 1, 20),
+            'email_change_ttl_hours' => self::num(self::GROUP_ACCOUNTS, self::TYPE_INT, C::EMAIL_CHANGE_TTL_HOURS, 1, 168),
 
             // Limits and formats
             'max_attachment_size_kb' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::MAX_ATTACHMENT_SIZE, 64, 1048576),
             'max_kyc_image_size_kb' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::MAX_KYC_IMAGE_SIZE, 64, 51200),
             'allowed_image_types' => self::options(self::GROUP_LIMITS, C::ALLOWED_IMAGE_TYPES, self::KNOWN_IMAGE_TYPES),
+            'allowed_document_types' => self::options(self::GROUP_LIMITS, C::ALLOWED_DOCUMENT_TYPES, C::ALLOWED_DOCUMENT_TYPES),
             'default_page_size' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::DEFAULT_PAGE_SIZE, 1, 200),
             'max_page_size' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::MAX_PAGE_SIZE, 1, 500),
             'throttle_public' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_public'][1], 1, 100000),
@@ -201,6 +206,28 @@ class CodeMartV1PolicyService
             'group' => $group, 'type' => self::TYPE_LIST, 'default' => array_values($default), 'options' => array_values($options),
             'rules' => ['' => 'required|array|min:1', '*' => 'required|in:' . implode(',', $options) . '|distinct'],
         ];
+    }
+
+    private static function textMap(string $group, array $default, array $keys, int $maxLength): array
+    {
+        $rules = ['' => 'required|array'];
+        foreach ($keys as $key) {
+            $rules[$key] = 'nullable|string|max:' . $maxLength;
+        }
+
+        return ['group' => $group, 'type' => self::TYPE_MAP, 'default' => $default, 'keys' => $keys, 'rules' => $rules];
+    }
+
+    /** Bank-transfer instructions from config/services.php (runtime configuration), blank when unset. */
+    private static function bankTransferDefaults(): array
+    {
+        $bank = (array) config('services.codemart_bank_transfer', []);
+        $defaults = [];
+        foreach (C::BANK_TRANSFER_FIELDS as $field) {
+            $defaults[$field] = trim((string) ($bank[$field] ?? ''));
+        }
+
+        return $defaults;
     }
 
     private static function tierMap(array $default, int|float $min, int|float $max, array $tiers): array
@@ -602,7 +629,7 @@ class CodeMartV1PolicyService
             'max_page_size' => (int) $v['max_page_size'],
             'max_attachment_size_kb' => (int) $v['max_attachment_size_kb'],
             'max_kyc_image_size_kb' => (int) $v['max_kyc_image_size_kb'],
-            'allowed_document_types' => C::ALLOWED_DOCUMENT_TYPES,
+            'allowed_document_types' => array_values($v['allowed_document_types']),
             'allowed_image_types' => array_values($v['allowed_image_types']),
             'review_dimensions' => [
                 C::REVIEW_DIMENSION_QUALITY,

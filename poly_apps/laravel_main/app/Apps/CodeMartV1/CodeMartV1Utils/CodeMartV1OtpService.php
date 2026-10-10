@@ -3,6 +3,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PhoneVerificationModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Support\RuntimeConfigurationStore;
 use App\Utils\SecretStore;
 use Illuminate\Support\Facades\Log;
@@ -11,8 +12,6 @@ use Illuminate\Support\Str;
 class CodeMartV1OtpService
 {
     private const OTP_LENGTH = 6;
-    private const OTP_EXPIRY_MINUTES = 10;
-    private const MAX_ATTEMPTS = 5;
 
     public function generateOtp(): string
     {
@@ -47,6 +46,7 @@ class CodeMartV1OtpService
     public function createOtpRecord(int $userId, string $phone): array
     {
         $otp = $this->generateOtp();
+        $expiryMinutes = CodeMartV1PolicyService::int('otp_expiry_minutes');
 
         $phoneVerification = CodeMartV1PhoneVerificationModel::storeOtp(
             $userId,
@@ -54,14 +54,14 @@ class CodeMartV1OtpService
                 'phone' => $phone,
                 'otp_code' => $otp,
                 'otp_attempts' => 0,
-                'otp_expires_at' => now()->addMinutes(self::OTP_EXPIRY_MINUTES),
+                'otp_expires_at' => now()->addMinutes($expiryMinutes),
                 'verified_at' => null,
             ]
         );
 
         return [
             'phone' => $phone,
-            'expires_in_seconds' => self::OTP_EXPIRY_MINUTES * 60,
+            'expires_in_seconds' => $expiryMinutes * 60,
             'delivered' => $this->sendOtpSms($phone, $otp),
         ];
     }
@@ -78,7 +78,7 @@ class CodeMartV1OtpService
             return false;
         }
 
-        if ($phoneVerification->otp_attempts >= self::MAX_ATTEMPTS) {
+        if ($phoneVerification->otp_attempts >= CodeMartV1PolicyService::int('otp_max_attempts')) {
             return false;
         }
 

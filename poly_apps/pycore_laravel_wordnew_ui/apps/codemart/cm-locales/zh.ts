@@ -404,32 +404,6 @@ export const cmZh: CmTranslationDict = {
         body: '为交付物打分并给出评审建议。',
       },
       wallet: {
-    paymentCreate: {
-      toggle: '发起付款',
-      lead: '直接向另一位 CodeMart 用户付款。钱包付款立即到账；其他方式只记录为待处理，直到支付网关结算。',
-      payee: '收款用户编号',
-      payeeInvalid: '请输入收款用户的数字编号。',
-      project: '项目编号',
-      description: '备注',
-      submit: '发送付款',
-      sentWallet: '付款 #{{id}} 已从你的钱包发出。',
-      sentPending: '付款 #{{id}} 已记录，结算前保持待处理。',
-      replayed: '付款 #{{id}} 已创建过，没有重复付款。',
-      gatewayHint: '该方式不会自动结算，付款会保持待处理。',
-      failed: '付款创建失败。',
-    },
-    paymentDetail: {
-      open: '详情',
-      title: '付款 #{{id}}',
-      payer: '付款人',
-      payee: '收款人',
-      loadFailed: '无法加载这笔付款。',
-    },
-    depositStatus: {
-      check: '查看状态',
-      result: '保证金 #{{id}} 当前状态：{{status}}。',
-      failed: '无法获取保证金状态。',
-    },
         title: '钱包',
         body: '余额、保证金、付款、发票、退款和提现。',
       },
@@ -682,6 +656,7 @@ export const cmZh: CmTranslationDict = {
     fileUrlsPlaceholder: '每行一个链接（https://...）',
     invalidUrls: '以下链接无效：{{urls}}',
     uploads: '文件',
+    uploadWrongType: '不允许的文件类型：{{files}}。允许的类型：{{types}}。',
     submit: '提交评审',
     submitting: '正在提交...',
     submitEmptyHint: '请先填写说明、添加链接或上传文件。',
@@ -780,6 +755,32 @@ export const cmZh: CmTranslationDict = {
     acceptFailed: '无法承接该项目。',
   },
   wallet: {
+    paymentCreate: {
+      toggle: '发起付款',
+      lead: '直接向另一位 CodeMart 用户付款。钱包付款立即到账；其他方式只记录为待处理，直到支付网关结算。',
+      payee: '收款用户编号',
+      payeeInvalid: '请输入收款用户的数字编号。',
+      project: '项目编号',
+      description: '备注',
+      submit: '发送付款',
+      sentWallet: '付款 #{{id}} 已从你的钱包发出。',
+      sentPending: '付款 #{{id}} 已记录，结算前保持待处理。',
+      replayed: '付款 #{{id}} 已创建过，没有重复付款。',
+      gatewayHint: '该方式不会自动结算，付款会保持待处理。',
+      failed: '付款创建失败。',
+    },
+    paymentDetail: {
+      open: '详情',
+      title: '付款 #{{id}}',
+      payer: '付款人',
+      payee: '收款人',
+      loadFailed: '无法加载这笔付款。',
+    },
+    depositStatus: {
+      check: '查看状态',
+      result: '保证金 #{{id}} 当前状态：{{status}}。',
+      failed: '无法获取保证金状态。',
+    },
     topUp: {
       title: '充值',
       lead: '通过银行转账为钱包充值，用于向项目托管注资。按下方显示的附言完成转账后，管理员确认到账，金额就会计入余额。',
@@ -1311,6 +1312,11 @@ export const cmZh: CmTranslationDict = {
       keys: {
         android: '安卓',
         ios: 'iOS',
+        bank_name: '开户银行',
+        account_name: '户名',
+        account_number: '账号',
+        branch: '开户支行',
+        swift_code: 'SWIFT 代码',
       },
       options: {
         allowed_image_types: {
@@ -1422,6 +1428,10 @@ export const cmZh: CmTranslationDict = {
           label: '提现方式',
           hint: '用户申请提现时可选的方式。',
         },
+        deposit_bank_transfer: {
+          label: '银行转账信息',
+          hint: '用户通过银行转账缴纳保证金或充值钱包时看到的收款账户。留空的项不会显示。',
+        },
         project_min_budget: {
           label: '项目最低预算',
           hint: '客户为项目设置预算时允许的最低金额。',
@@ -1466,6 +1476,18 @@ export const cmZh: CmTranslationDict = {
           label: '密码最小长度',
           hint: '注册新账号时密码的最小长度。',
         },
+        otp_expiry_minutes: {
+          label: '手机验证码有效期（分钟）',
+          hint: '手机验证码从发送起保持有效的时间。',
+        },
+        otp_max_attempts: {
+          label: '手机验证码尝试次数',
+          hint: '输错多少次后必须重新获取验证码。',
+        },
+        email_change_ttl_hours: {
+          label: '修改邮箱链接有效期（小时）',
+          hint: '新邮箱的确认链接保持有效的时间。',
+        },
         max_attachment_size_kb: {
           label: '附件大小上限（KB）',
           hint: '单个项目附件或任务交付文件的最大体积。',
@@ -1477,6 +1499,10 @@ export const cmZh: CmTranslationDict = {
         allowed_image_types: {
           label: '允许的图片类型',
           hint: '实名认证证件图片接受的格式。',
+        },
+        allowed_document_types: {
+          label: '允许的附件和交付物文件类型',
+          hint: '项目附件和任务交付物上传允许的文件扩展名。',
         },
         default_page_size: {
           label: '默认分页大小',
@@ -2345,6 +2371,7 @@ export const cmZh: CmTranslationDict = {
     uploading: '正在上传 {{progress}}%',
     uploaded: '附件已上传。',
     tooLarge: '文件过大，最大允许 {{size}} MB。',
+    wrongType: '不允许上传这种类型的文件。允许的类型：{{types}}。',
     uploadFailed: '附件上传失败。',
     downloadFailed: '附件下载失败。',
     loadFailed: '无法加载附件。',
@@ -2466,6 +2493,7 @@ export const cmZh: CmTranslationDict = {
     attachment_not_found: '未找到附件。',
     file_not_found: '未找到文件。',
     file_store_failed: '文件保存失败。',
+    file_type_not_allowed: '不允许上传这种类型的文件。',
     invalid_task_transition: '不允许此任务状态变更。',
     state_conflict: '记录已被更新，请刷新后重试。',
     project_invalid_state: '项目当前状态不允许此操作。',
@@ -2493,6 +2521,12 @@ export const cmZh: CmTranslationDict = {
     title: '项目估价',
     lead: '根据本站配置的计价政策，快速算出预算、工期和团队区间。',
     complexity: '项目复杂度',
+    currencyLabel: '币种',
+    currencyNames: {
+      CNY: '人民币（CNY）',
+      USD: '美元（USD）',
+      EUR: '欧元（EUR）',
+    },
     complexities: {
       simple: '简单',
       medium: '中等',

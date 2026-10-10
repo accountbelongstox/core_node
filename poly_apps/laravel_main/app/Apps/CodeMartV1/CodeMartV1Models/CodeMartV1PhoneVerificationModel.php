@@ -1,6 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -34,7 +35,7 @@ class CodeMartV1PhoneVerificationModel extends CodeMartV1Model
 
     public function canRetryOtp(): bool
     {
-        return $this->otp_attempts < 5 && !$this->isOtpExpired();
+        return $this->otp_attempts < CodeMartV1PolicyService::int('otp_max_attempts') && !$this->isOtpExpired();
     }
 
     public function isVerified(): bool

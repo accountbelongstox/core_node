@@ -36,7 +36,7 @@
 - AI 估价币种：RMB（CNY）。
 - 测试数据不清理。
 - 后端已有但前端没接的功能全部接入前端。
-- 进行中：codemart-lead 子代理（Claude 会话 `540ccf45`），完成后更新本清单。
+- 已完成（2026-10-11，codemart-lead）：管理后台可编辑全部平台规则（含评审资格考试、下载列表、银行转账信息、验证码和改邮箱有效期）；AI 估价币种为 CNY；`POST /payments`、`GET /payments/{id}`、`GET /deposits/{id}/status`、`GET /tasks`、`GET /ai-analysis/{id}`、头像上传、修改邮箱均已接入前端。本地 Laravel 的数据库当时未启动，`test:codemart:flows` 待数据库就绪后运行。
 
 ## 必须由用户决定（Kimi 不要做）
 - 关闭线上 demo 数据（`CODEMART_SEED_DEMO`），以及去掉 demo 管理员的全部权限（`rolelevel=10`）。
