@@ -295,16 +295,10 @@ try {
     } elseif (-not (Test-Path -LiteralPath $UiStart -PathType Leaf)) {
         Set-StepResult -Key "ui" -Status "FAIL" -Detail "UI start script not found: $UiStart"
     } else {
-        if ($IsElevated) {
-            Write-Info "Starting the nexus-dash service..."
-            $UiArguments = @("-Service", "-NoBackend", "-NonInteractive")
-            Invoke-ChildScript -ScriptPath $UiStart -ScriptArguments $UiArguments
-            if ($LastChildExit -ne 0) { Write-Warn "UI start.ps1 -Service exited with $LastChildExit." }
-        } else {
-            Write-Info "Not elevated: starting the nexus-dash dev server in a hidden window..."
-            $ChildProcess = Start-ChildScriptWithEnv -PwshExePath $PowerShellExe -ScriptPath $UiStart `
-                -ScriptArgs @("-NoBackend", "-NonInteractive") -WorkingDirectory $UiScriptsDir -Hidden
-        }
+        # The pycore dashboard runs in the user session, never as a Windows service.
+        Write-Info "Starting the nexus-dash dev server in a hidden window..."
+        $ChildProcess = Start-ChildScriptWithEnv -PwshExePath $PowerShellExe -ScriptPath $UiStart `
+            -ScriptArgs @("-NoBackend", "-NonInteractive") -WorkingDirectory $UiScriptsDir -Hidden
         if (Wait-TcpPortListening -Port $UiPort -TimeoutSeconds $UiWaitSeconds) {
             $UiHealthy = Test-HttpOk -Url $UiHealthUrl -TimeoutSeconds 15
         }
