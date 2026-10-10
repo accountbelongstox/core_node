@@ -133,5 +133,27 @@ class TerminalStateReader:
         entries.sort(key=lambda entry: str(entry["updated_at"]), reverse=True)
         return entries
 
+    @serialized_method
+    def logs_page(self, after_terminal: int, after_log: int, limit: int) -> List[Dict[str, Any]]:
+        """Log entries after the ``(terminal_number, log_id)`` keyset cursor, in key order."""
+        rows = self._connection.execute(
+            f"""
+            SELECT {LOG_ROW_JSON_COLUMNS} FROM {LOG_TABLE}
+            WHERE (terminal_number, log_id) > (?, ?)
+            ORDER BY terminal_number, log_id
+            LIMIT ?
+            """,
+            (after_terminal, after_log, limit),
+        ).fetchall()
+        return [dict(zip(LOG_ROW_COLUMNS, row)) for row in rows]
+
+    @serialized_method
+    def drafts(self) -> List[Dict[str, Any]]:
+        """Unsent drafts of every active terminal."""
+        rows = self._connection.execute(
+            f"SELECT {DRAFT_ROW_JSON_COLUMNS} FROM {ACTIVE_TERMINAL_VIEW} WHERE {DRAFT_BYTES_COLUMN} > 0"
+        ).fetchall()
+        return [dict(zip(DRAFT_ROW_COLUMNS, row)) for row in rows]
+
 
 __all__ = ["TerminalStateReader"]
