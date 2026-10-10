@@ -500,8 +500,8 @@ terminal: {
       agentNote: '[Voice message] Listen to the audio file below; it is my instruction, spoken in Chinese with some English words and a Guizhou accent. Understand it directly as AI audio understanding, not by transcribing it with a system tool. You may state your understanding briefly, then start the task right away and do not stop; if your understanding is wrong I will correct you afterwards.',
     },
     sentSearch: {
-      placeholder: 'Search sent messages on all machines',
-      scope: 'Searches the sent messages of every machine ever discovered, not only the shown tab.',
+      placeholder: 'Search sent messages and drafts on all machines',
+      scope: 'Searches the sent messages and unsent drafts of every machine ever discovered (live), of machines offline now (replicated to every Laravel server through MeshSync) and drafts kept in this browser, not only the shown tab.',
       clear: 'Clear the search',
       results: 'Sent messages found',
       searching: 'Searching…',
@@ -511,6 +511,11 @@ terminal: {
       unreachable: '{{count}} machine(s) did not answer (offline?): {{names}}',
       target: '#{{number}} · {{name}}',
       missing: 'That terminal no longer exists on this node.',
+      draft: 'Draft',
+      localDraft: 'Draft (this browser)',
+      offline: 'offline',
+      offlineHint: 'This machine is not reachable now; the text comes from the MeshSync replica. Picking it puts the text into the selected terminal here.',
+      noTerminal: 'Select a terminal first: the picked text goes into its composer.',
     },
     nodes: {
       title: 'Pycore nodes',
