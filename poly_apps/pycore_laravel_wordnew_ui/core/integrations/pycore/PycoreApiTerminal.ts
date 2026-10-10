@@ -554,8 +554,8 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       timeoutMs,
     ) as Promise<TerminalTextResult>,
     /** Sent messages of every terminal containing `query`, newest first (contract-limited count). */
-    searchTerminalLogs: (query: string) =>
-      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalLogsSearch, { query }) as Promise<TerminalLogSearchResult>,
+    searchTerminalLogs: (query: string, timeoutMs?: number) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalLogsSearch, { query }, timeoutMs) as Promise<TerminalLogSearchResult>,
     activateTerminal: (windowId: string) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
         window_id: windowId,

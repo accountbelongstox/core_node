@@ -26,6 +26,8 @@ AGENT_DEEPSEEK = "deepseek"
 AGENT_AGYYOLO = "agyyolo"
 # Prompt read from stdin by the CLIs that accept it ("-" or a piped -p).
 STDIN_PROMPT = "-"
+# agy -p takes the prompt as its own value; it is attached to the flag.
+PRINT_PROMPT_PREFIX = "--print="
 # Executables installed by the per-user installers may be missing from a service PATH.
 EXTRA_BINARY_DIRS = (
     Path.home() / ".local" / "bin",
@@ -126,7 +128,7 @@ def build_turn_command(kind: str, conversation_id: str, prompt: str) -> Tuple[Op
     argv = [executable, "--output-format", "json", *AGY_YOLO_FLAGS]
     if conversation_id:
         argv += ["--conversation", conversation_id]
-    argv.append(f"--print={prompt}")
+    argv.append(f"{PRINT_PROMPT_PREFIX}{prompt}")
     return argv, {}, ""
 
 
@@ -198,6 +200,7 @@ __all__ = [
     "AgentTurnResult",
     "ERROR_CLI_FAILED",
     "ERROR_NO_REPLY",
+    "PRINT_PROMPT_PREFIX",
     "agent_kinds",
     "build_turn_command",
     "parse_turn_output",

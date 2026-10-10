@@ -1174,6 +1174,14 @@
       "path": "ui/terminal/view",
       "method": "POST"
     },
+    "terminalAgentClose": {
+      "path": "ui/terminal/agent/close",
+      "method": "POST"
+    },
+    "terminalAgentCreate": {
+      "path": "ui/terminal/agent/create",
+      "method": "POST"
+    },
     "terminalLauncherKill": {
       "path": "ui/terminal/launcher/kill",
       "method": "POST"
