@@ -1689,7 +1689,7 @@ const PcTerminalNodeView: React.FC<{
     if (selectedWindow) setDraftFor(selectedWindow.terminal_number, text);
   }, [setDraftFor, selectedWindow]);
 
-  // A sent message picked in the search: open its terminal with that message in the composer.
+  // A message or draft picked in the search: open its terminal with that text in the composer.
   const pickSentMessage = useCallback((hit: TerminalLogSearchHit) => {
     if (!terminalExists(hit.terminal_number)) {
       setActionNotice({ kind: 'error', translationKey: 'terminal.sentSearch.missing' });
@@ -1698,11 +1698,6 @@ const PcTerminalNodeView: React.FC<{
     openTerminal(hit.terminal_number);
     setDraftFor(hit.terminal_number, hit.content);
   }, [openTerminal, setDraftFor, terminalExists]);
-  useEffect(() => {
-    if (!sentPick || sentPick.node.url !== nodeUrl || !snapshot) return;
-    onSentPickApplied();
-    pickSentMessage(sentPick);
-  }, [nodeUrl, onSentPickApplied, pickSentMessage, sentPick, snapshot]);
 
   // The composer on screen (the enlarged preview's or the side panel's): scrolled into view and focused, caret at the end.
   const focusComposer = useCallback(() => {
@@ -1715,6 +1710,25 @@ const PcTerminalNodeView: React.FC<{
       composer.setSelectionRange(composer.value.length, composer.value.length);
     });
   }, []);
+
+  // Applied once this node's terminals are loaded. A hit of a machine that is offline now cannot open
+  // its terminal: its text goes into the composer of the terminal selected here.
+  useEffect(() => {
+    if (!sentPick || !snapshot) return;
+    if (sentPick.offline) {
+      onSentPickApplied();
+      if (!selectedWindow) {
+        setActionNotice({ kind: 'error', translationKey: 'terminal.sentSearch.noTerminal' });
+        return;
+      }
+      updateSelectedDraft(sentPick.content);
+      focusComposer();
+      return;
+    }
+    if (sentPick.node.url !== nodeUrl) return;
+    onSentPickApplied();
+    pickSentMessage(sentPick);
+  }, [focusComposer, nodeUrl, onSentPickApplied, pickSentMessage, selectedWindow, sentPick, snapshot, updateSelectedDraft]);
 
   const reuseLogContent = useCallback((text: string) => {
     updateSelectedDraft(text);
@@ -3154,7 +3168,7 @@ const PcTerminalPage: React.FC = () => {
   }, []);
   const pickSentHit = useCallback((hit: PcSentSearchHit) => {
     setSentPick(hit);
-    selectNode(hit.node.url);
+    if (!hit.offline) selectNode(hit.node.url);
   }, [selectNode]);
   const clearSentPick = useCallback(() => setSentPick(null), []);
 
@@ -3165,7 +3179,12 @@ const PcTerminalPage: React.FC = () => {
           <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={selectNode} />
         </div>
         <div className="min-w-0 flex-1">
-          <PcTerminalSentSearch formatDate={formatLogDate} onPick={pickSentHit} />
+          <PcTerminalSentSearch
+            activeNodeUrl={nodeUrl}
+            readLocalDrafts={readCachedDrafts}
+            formatDate={formatLogDate}
+            onPick={pickSentHit}
+          />
         </div>
         <PcPycoreRestartButton key={nodeUrl ?? 'primary'} http={pycoreNodeClient(nodeUrl).http} compact />
       </div>

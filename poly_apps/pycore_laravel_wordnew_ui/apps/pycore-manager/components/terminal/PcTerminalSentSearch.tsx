@@ -1,29 +1,46 @@
 /**
- * Search box over every message sent to the terminals of every machine ever discovered (this machine
- * and each other pycore, whichever tab is shown): each keystroke asks all of them in parallel
- * (debounced, stale answers dropped), merges the newest matches with their machine, terminal and date,
- * and reports machines that did not answer. Picking one hands it to the page, which switches to that
- * machine and opens the terminal with the message in its composer.
+ * Global search box over every sent message and every unsent draft, whichever tab is shown:
+ *  - every machine ever discovered (this machine and each other pycore) is asked live, in parallel;
+ *  - MeshSync (the records every machine replicates to all Laravel servers) covers machines that are
+ *    offline now;
+ *  - drafts still only in this browser's cache are matched locally.
+ * Each keystroke searches again (debounced, stale answers dropped); hits are merged newest first, one per
+ * machine / terminal / message (a live answer replaces its replicated copy). Picking one hands it to the
+ * page, which opens the terminal on that machine with the text in its composer.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreNodeClient, type TerminalLogSearchHit } from '@/apps/pycore-manager/api';
+import { getPycoreProbe, pycoreNodeClient, type TerminalLogSearchHit } from '@/apps/pycore-manager/api';
 import { listSearchNodes, type PcSearchNode } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import { PcOsIcon, pcOsKind } from '@/apps/pycore-manager/components/terminal/PcOsIcon';
 
 const SEARCH_DEBOUNCE_MS = 200;
 const NODE_SEARCH_TIMEOUT_MS = 5000;
+const MESH_SEARCH_TIMEOUT_MS = 8000;
 const MAX_RESULTS = 60;
 const SNIPPET_BEFORE_CHARS = 24;
 const SNIPPET_AFTER_CHARS = 72;
+const PROBE_UP = 'up';
+const LOCAL_DRAFT_ID = 'local';
+/** Answer priority when the same message comes from several places: live node > browser cache > replica. */
+const ORIGIN_RANK = { live: 3, local: 2, mesh: 1 } as const;
 
-/** A search hit with the machine it was sent on. */
+type PcSentSearchOrigin = keyof typeof ORIGIN_RANK;
+
+/** A search hit with the machine it was written on. */
 export interface PcSentSearchHit extends TerminalLogSearchHit {
   node: PcSearchNode;
+  /** The machine is not reachable now: the hit comes from the MeshSync replica. */
+  offline: boolean;
+  origin: PcSentSearchOrigin;
 }
 
 interface PcTerminalSentSearchProps {
+  /** Backend URL of the shown tab (null = this machine): owner of drafts found in the browser cache. */
+  activeNodeUrl: string | null;
+  /** Drafts mirrored in this browser, keyed by terminal number. */
+  readLocalDrafts: () => Record<string, string>;
   formatDate: (value: string) => string;
   onPick: (hit: PcSentSearchHit) => void;
 }
@@ -46,12 +63,40 @@ function hitTime(hit: TerminalLogSearchHit): number {
   return Number.isNaN(time) ? 0 : time;
 }
 
-/** Newest first across machines, capped. */
-function mergeHits(current: PcSentSearchHit[], incoming: PcSentSearchHit[]): PcSentSearchHit[] {
-  return [...current, ...incoming].sort((left, right) => hitTime(right) - hitTime(left)).slice(0, MAX_RESULTS);
+function hitKey(hit: PcSentSearchHit): string {
+  const machine = hit.node.machineId || hit.node.url || '';
+  const kind = hit.kind ?? 'sent';
+  return `${machine}|${kind}|${hit.terminal_number}|${kind === 'draft' ? '' : hit.id}`;
 }
 
-export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ formatDate, onPick }) => {
+/** One hit per message (the best source wins), newest first across machines, capped. */
+function mergeHits(current: PcSentSearchHit[], incoming: PcSentSearchHit[]): PcSentSearchHit[] {
+  const merged = new Map<string, PcSentSearchHit>();
+  [...current, ...incoming].forEach((hit) => {
+    const key = hitKey(hit);
+    const kept = merged.get(key);
+    if (!kept || ORIGIN_RANK[hit.origin] > ORIGIN_RANK[kept.origin]) merged.set(key, hit);
+  });
+  return [...merged.values()].sort((left, right) => hitTime(right) - hitTime(left)).slice(0, MAX_RESULTS);
+}
+
+function nodeOnline(node: PcSearchNode): boolean {
+  return node.url === null || getPycoreProbe(node.url)?.state === PROBE_UP;
+}
+
+/** The discovered node of a replicated hit's machine, or a stand-in for a machine not discovered now. */
+function meshNode(hit: TerminalLogSearchHit, nodes: PcSearchNode[]): PcSearchNode {
+  const machine = hit.machine;
+  const known = machine?.machine_id ? nodes.find((node) => node.machineId === machine.machine_id) : undefined;
+  return known ?? {
+    url: null,
+    label: machine?.machine_name || machine?.machine_id || '',
+    os: machine?.platform,
+    machineId: machine?.machine_id,
+  };
+}
+
+export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ activeNodeUrl, readLocalDrafts, formatDate, onPick }) => {
   const { t } = useTranslation('pc');
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<PcSentSearchHit[]>([]);
@@ -62,6 +107,8 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ form
   const [highlighted, setHighlighted] = useState(0);
   const requestRef = useRef(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const readLocalDraftsRef = useRef(readLocalDrafts);
+  readLocalDraftsRef.current = readLocalDrafts;
 
   useEffect(() => {
     const needle = query.trim();
@@ -74,29 +121,62 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ form
       return undefined;
     }
     const nodes = listSearchNodes(t('terminal.nodes.thisMachine'));
+    const activeNode = nodes.find((node) => node.url === activeNodeUrl) ?? nodes[0];
+    const lowerNeedle = needle.toLowerCase();
+    const localHits: PcSentSearchHit[] = Object.entries(readLocalDraftsRef.current())
+      .filter(([, text]) => text.toLowerCase().includes(lowerNeedle))
+      .map(([terminalNumber, text]) => ({
+        id: LOCAL_DRAFT_ID,
+        terminal_number: Number(terminalNumber),
+        title: '',
+        date: '',
+        status: 'draft',
+        kind: 'draft',
+        success: false,
+        content: text,
+        node: activeNode,
+        offline: false,
+        origin: 'local',
+      }));
+    const settle = (incoming: PcSentSearchHit[]) => {
+      if (request === requestRef.current) setHits((current) => mergeHits(current, incoming));
+    };
+    const fail = (label: string) => {
+      if (request === requestRef.current) setUnreachable((list) => [...list, label]);
+    };
+    const done = () => {
+      if (request === requestRef.current) setPending((count) => Math.max(0, count - 1));
+    };
     setNodeCount(nodes.length);
-    setPending(nodes.length);
+    setPending(nodes.length + 1);
+    settle(localHits);
     const timer = window.setTimeout(() => {
       nodes.forEach((node) => {
         pycoreNodeClient(node.url).terminal.searchTerminalLogs(needle, NODE_SEARCH_TIMEOUT_MS)
           .then((result) => {
-            if (request !== requestRef.current) return;
             if (!result?.success) {
-              setUnreachable((list) => [...list, node.label]);
+              fail(node.label);
               return;
             }
-            setHits((current) => mergeHits(current, (result.results ?? []).map((hit) => ({ ...hit, node }))));
+            settle((result.results ?? []).map((hit) => ({ ...hit, node, offline: false, origin: 'live' })));
           })
-          .catch(() => {
-            if (request === requestRef.current) setUnreachable((list) => [...list, node.label]);
-          })
-          .finally(() => {
-            if (request === requestRef.current) setPending((count) => Math.max(0, count - 1));
-          });
+          .catch(() => fail(node.label))
+          .finally(done);
       });
+      pycoreNodeClient(null).terminal.searchTerminalMesh(needle, MESH_SEARCH_TIMEOUT_MS)
+        .then((result) => {
+          if (!result?.success) return;
+          settle((result.results ?? []).map((hit) => {
+            const node = meshNode(hit, nodes);
+            const discovered = nodes.includes(node);
+            return { ...hit, node, offline: !discovered || !nodeOnline(node), origin: 'mesh' };
+          }));
+        })
+        .catch(() => undefined)
+        .finally(done);
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [query, t]);
+  }, [activeNodeUrl, query, t]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -175,7 +255,7 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ form
             const part = snippet(hit.content, needle);
             return (
               <button
-                key={`${hit.node.url ?? 'primary'}-${hit.terminal_number}-${hit.id}`}
+                key={`${hitKey(hit)}-${hit.origin}`}
                 type="button"
                 role="option"
                 aria-selected={index === highlighted}
@@ -186,14 +266,25 @@ export const PcTerminalSentSearch: React.FC<PcTerminalSentSearchProps> = ({ form
                 }`}
               >
                 <span className="flex items-center gap-1.5 text-[10px]">
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded bg-slate-500/10 px-1 text-slate-600 dark:text-slate-300">
+                  <span
+                    className={`inline-flex shrink-0 items-center gap-1 rounded px-1 ${
+                      hit.offline ? 'bg-slate-500/10 text-slate-400' : 'bg-slate-500/10 text-slate-600 dark:text-slate-300'
+                    }`}
+                    title={hit.offline ? t('terminal.sentSearch.offlineHint') : undefined}
+                  >
                     <PcOsIcon os={pcOsKind(hit.node.os)} />
                     <span className="max-w-[7rem] truncate">{hit.node.label}</span>
+                    {hit.offline && <span>{t('terminal.sentSearch.offline')}</span>}
                   </span>
+                  {hit.kind === 'draft' && (
+                    <span className="shrink-0 rounded bg-amber-500/15 px-1 font-semibold text-amber-700 dark:text-amber-300">
+                      {t(hit.origin === 'local' ? 'terminal.sentSearch.localDraft' : 'terminal.sentSearch.draft')}
+                    </span>
+                  )}
                   <span className="truncate font-semibold text-indigo-600 dark:text-indigo-300">
                     {t('terminal.sentSearch.target', { number: hit.terminal_number, name: hit.title || t('terminal.untitled') })}
                   </span>
-                  <span className="ml-auto shrink-0 tabular-nums text-slate-400">{formatDate(hit.date)}</span>
+                  {hit.date && <span className="ml-auto shrink-0 tabular-nums text-slate-400">{formatDate(hit.date)}</span>}
                 </span>
                 <span className="mt-0.5 line-clamp-2 break-all text-xs text-slate-700 dark:text-slate-200">
                   {part.before}

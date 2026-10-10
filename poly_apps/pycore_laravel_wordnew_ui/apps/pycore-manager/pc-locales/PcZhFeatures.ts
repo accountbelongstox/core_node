@@ -500,8 +500,8 @@ terminal: {
       agentNote: '[Voice message] Listen to the audio file below; it is my instruction, spoken in Chinese with some English words and a Guizhou accent. Understand it directly as AI audio understanding, not by transcribing it with a system tool. You may state your understanding briefly, then start the task right away and do not stop; if your understanding is wrong I will correct you afterwards.',
     },
     sentSearch: {
-      placeholder: '搜索所有机器已发送的文字',
-      scope: '搜索所有发现过的机器上已发送的消息，不只是当前标签页的机器。',
+      placeholder: '搜索所有机器的已发送文字和草稿',
+      scope: '全局搜索：所有发现过的机器（实时）、当前离线的机器（经 MeshSync 同步到每台 Laravel 服务器的副本）上已发送的消息和未发送的草稿，以及本浏览器保存的草稿，不只是当前标签页的机器。',
       clear: '清空搜索',
       results: '找到的已发送消息',
       searching: '搜索中…',
@@ -511,6 +511,11 @@ terminal: {
       unreachable: '{{count}} 台机器未响应（可能离线）：{{names}}',
       target: '#{{number}} · {{name}}',
       missing: '该终端在这个节点上已不存在。',
+      draft: '草稿',
+      localDraft: '草稿（本浏览器）',
+      offline: '离线',
+      offlineHint: '这台机器当前不可达，文字来自 MeshSync 副本。选中后会把文字放进这里当前选中终端的输入框。',
+      noTerminal: '请先选中一个终端：选中的文字会放进它的输入框。',
     },
     nodes: {
       title: 'Pycore 节点',
