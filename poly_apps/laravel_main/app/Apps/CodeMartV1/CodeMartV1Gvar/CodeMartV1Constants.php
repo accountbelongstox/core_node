@@ -375,15 +375,24 @@ class CodeMartV1Constants
     public const DEFAULT_LOCALE = 'en';
     public const SUPPORTED_LOCALES = ['en', 'zh'];
 
-    // Rate limits (Laravel throttle middleware "attempts,minutes,prefix"); the
-    // prefix gives each group its own per-IP bucket instead of one shared one.
-    public const THROTTLE_PUBLIC = 'throttle:120,1,codemart_public';
-    public const THROTTLE_REGISTER = 'throttle:10,1,codemart_register';
-    public const THROTTLE_CONTACT = 'throttle:5,1,codemart_contact';
-    // Authenticated route: the bucket is per user, not per IP.
-    public const THROTTLE_EMAIL_RESEND = 'throttle:3,10,codemart_email_resend';
-    public const THROTTLE_EMAIL_CHANGE = 'throttle:5,10,codemart_email_change';
-    public const THROTTLE_AVATAR = 'throttle:10,10,codemart_avatar';
+    // Rate limits: named limiters (CodeMartV1RateLimiters) so each group has its own bucket;
+    // the attempts per window are operator policy values.
+    public const THROTTLE_PUBLIC = 'throttle:codemart_public';
+    public const THROTTLE_REGISTER = 'throttle:codemart_register';
+    public const THROTTLE_CONTACT = 'throttle:codemart_contact';
+    // Authenticated routes: the bucket is per user, not per IP.
+    public const THROTTLE_EMAIL_RESEND = 'throttle:codemart_email_resend';
+    public const THROTTLE_EMAIL_CHANGE = 'throttle:codemart_email_change';
+    public const THROTTLE_AVATAR = 'throttle:codemart_avatar';
+    // Named limiter => [policy key, attempts default, decay minutes, per user]; the policy key holds the attempts.
+    public const THROTTLE_LIMITERS = [
+        'codemart_public' => ['throttle_public', 120, 1, false],
+        'codemart_register' => ['throttle_register', 10, 1, false],
+        'codemart_contact' => ['throttle_contact', 5, 1, false],
+        'codemart_email_resend' => ['throttle_email_resend', 3, 10, true],
+        'codemart_email_change' => ['throttle_email_change', 5, 10, true],
+        'codemart_avatar' => ['throttle_avatar', 10, 10, true],
+    ];
 
     // Email verification resend results (data.result); throttling is the standard 429.
     public const EMAIL_RESEND_SENT = 'sent';

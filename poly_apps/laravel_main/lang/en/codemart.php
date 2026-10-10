@@ -240,6 +240,12 @@ return [
         'range_invalid' => 'The range needs minimum, maximum and default values with the default inside the range.',
         'team_tier_missing' => 'Every complexity needs at least one team member.',
         'fields' => [
+            'throttle_public' => 'Public requests per minute',
+            'throttle_register' => 'Registrations per minute',
+            'throttle_contact' => 'Contact messages per minute',
+            'throttle_email_resend' => 'Verification emails per 10 minutes',
+            'throttle_email_change' => 'Email change requests per 10 minutes',
+            'throttle_avatar' => 'Avatar uploads per 10 minutes',
             'platform_commission_rate' => 'Platform commission rate',
             'deposit_client' => 'Client deposit',
             'deposit_developer' => 'Developer deposit',

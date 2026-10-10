@@ -240,6 +240,12 @@ return [
         'range_invalid' => '范围需要最小值、最大值和默认值，且默认值在范围内。',
         'team_tier_missing' => '每个复杂度至少需要一名团队成员。',
         'fields' => [
+            'throttle_public' => '公开接口每分钟请求数',
+            'throttle_register' => '每分钟注册次数',
+            'throttle_contact' => '每分钟留言次数',
+            'throttle_email_resend' => '每 10 分钟验证邮件发送次数',
+            'throttle_email_change' => '每 10 分钟更换邮箱请求次数',
+            'throttle_avatar' => '每 10 分钟头像上传次数',
             'platform_commission_rate' => '平台佣金率',
             'deposit_client' => '客户保证金',
             'deposit_developer' => '开发者保证金',

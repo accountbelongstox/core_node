@@ -116,6 +116,12 @@ class CodeMartV1PolicyService
             'allowed_image_types' => self::options(self::GROUP_LIMITS, C::ALLOWED_IMAGE_TYPES, self::KNOWN_IMAGE_TYPES),
             'default_page_size' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::DEFAULT_PAGE_SIZE, 1, 200),
             'max_page_size' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::MAX_PAGE_SIZE, 1, 500),
+            'throttle_public' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_public'][1], 1, 100000),
+            'throttle_register' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_register'][1], 1, 100000),
+            'throttle_contact' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_contact'][1], 1, 100000),
+            'throttle_email_resend' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_email_resend'][1], 1, 1000),
+            'throttle_email_change' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_email_change'][1], 1, 1000),
+            'throttle_avatar' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::THROTTLE_LIMITERS['codemart_avatar'][1], 1, 1000),
             'testimonial_max_quote_length' => self::num(self::GROUP_LIMITS, self::TYPE_INT, C::TESTIMONIAL_MAX_QUOTE_LENGTH, 50, 5000),
 
             // Estimate formula (public estimate and AI analysis)
