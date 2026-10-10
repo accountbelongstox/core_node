@@ -269,7 +269,7 @@ export class McpV1API extends LmBaseAPI {
   }
 
   async vsGetQueueByGroup(group?: string): Promise<APIResponse> {
-    const url = group ? `/voice-subtitle/queue/group/${group}` : '/voice-subtitle/queue/group';
+    const url = group ? `/voice-subtitle/queue/group/${encodeURIComponent(group)}` : '/voice-subtitle/queue/group';
     return this.get(url);
   }
 

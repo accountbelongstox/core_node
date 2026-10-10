@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
-import { useToast } from '../admin';
+import { ConfirmModal, useToast } from '../admin';
 import { appendLog } from '@/core/logstore/logStore';
 import type { AiImageHistoryEntry } from '@/apps/laravel-manager/api';
 import ToolWrapper from '@/shared/ui/ToolWrapper';
@@ -57,6 +57,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [clearing, setClearing] = useState(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [active, setActive] = useState<AiImageHistoryEntry | null>(null);
 
   const load = useCallback(async () => {
@@ -100,6 +101,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
 
   const clearAll = useCallback(async () => {
     if (clearing || entries.length === 0) return;
+    setConfirmClearOpen(false);
     setClearing(true);
     appendLog('info', 'ai', 'Image history: clearing all…');
     try {
@@ -146,7 +148,7 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
             {t('uiAi.image_history.refresh')}
           </button>
           <button
-            onClick={() => void clearAll()}
+            onClick={() => setConfirmClearOpen(true)}
             disabled={clearing || entries.length === 0}
             title={t('uiAi.image_history.clear_all_title')}
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
@@ -239,6 +241,15 @@ const AiImageHistoryPanel: React.FC<{ onReuse?: () => void }> = ({ onReuse }) =>
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={confirmClearOpen}
+        onClose={() => setConfirmClearOpen(false)}
+        onConfirm={() => void clearAll()}
+        message={t('uiAi.image_history.clear_all_confirm', { count: entries.length })}
+        confirmText={t('uiAi.image_history.clear_all')}
+        variant="danger"
+      />
 
       {/* Enlarge / reuse lightbox — portaled to <body> per the overlay convention. */}
       {active && (

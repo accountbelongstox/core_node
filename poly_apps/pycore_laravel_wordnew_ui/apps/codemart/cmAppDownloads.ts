@@ -13,8 +13,8 @@ export interface CmAppDownload {
   platform: CmAppPlatform;
   version: string;
   url: string;
-  /** Free-form requirement line rendered as-is per locale key instead. */
-  minOsKey: string;
+  /** Minimum OS version number, served by the backend per package. */
+  minOs: string;
 }
 
 export const CM_APP_FALLBACK_VERSION = CM_APP_VERSION;

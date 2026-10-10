@@ -103,6 +103,7 @@ export interface CmAppDownloadEntry {
   platform: 'android' | 'ios';
   version: string;
   url: string;
+  min_os: string;
 }
 
 export interface CmPasswordResetPayload {
@@ -261,7 +262,7 @@ function normalizeAppDownload(value: unknown): CmAppDownloadEntry | null {
   const platform = asText(source.platform);
   const url = asText(source.url);
   if ((platform !== 'android' && platform !== 'ios') || !url) return null;
-  return { platform, version: asText(source.version) ?? '', url };
+  return { platform, version: asText(source.version) ?? '', url, min_os: asText(source.min_os) ?? '' };
 }
 
 function withData<T>(response: APIResponse<unknown>, data: T | null): APIResponse<T> {

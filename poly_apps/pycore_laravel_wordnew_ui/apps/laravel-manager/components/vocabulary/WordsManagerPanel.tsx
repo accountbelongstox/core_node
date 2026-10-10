@@ -39,6 +39,7 @@ import {
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { ConfirmModal, useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '@/core/logstore/logStore';
+import { playSharedAudio } from '@/apps/laravel-manager/utils/audioPlayback';
 import WordDetailModal from './WordDetailModal';
 import VocabularyCleanupModal, { type VocabularyCleanupKind } from './VocabularyCleanupModal';
 import VocabularyStorageSummary from './VocabularyStorageSummary';
@@ -84,16 +85,16 @@ const audioName = (u: string): string => {
   try { return decodeURIComponent(u.split('?')[0].split('/').pop() || u); } catch { return u; }
 };
 
-// Fallback one-shot play when the shared <audio> element is unavailable.
-const playAudio = (url?: string | null) => {
+const playAudio = (url: string | null | undefined, onError: () => void) => {
   if (!url) return;
-  try { void new Audio(url).play(); } catch { /* ignore */ }
+  playSharedAudio(url).catch(onError);
 };
 
 const WordsManagerPanel: React.FC = () => {
   const toast = useToast();
   const { lang } = useUnifiedApp();
   const text = TRANSLATIONS[lang].vocabulary.words_manager;
+  const notifyAudioError = useCallback(() => toast.error(TRANSLATIONS[lang].vocabulary.audio_play_failed), [toast, lang]);
 
   // --- query state -------------------------------------------------------- #
   const [language, setLanguage] = useState('english');
@@ -283,11 +284,11 @@ const WordsManagerPanel: React.FC = () => {
     if (!r.audio_url) return;
     const src = mediaUrl(r.audio_url);
     const el = audioRef.current;
-    if (!el) { playAudio(src); return; }
+    if (!el) { playAudio(src, notifyAudioError); return; }
     if (playingMd5 === r.md5) { el.pause(); setPlayingMd5(null); return; }
     el.src = src;
-    void el.play().then(() => setPlayingMd5(r.md5)).catch(() => setPlayingMd5(null));
-  }, [playingMd5]);
+    void el.play().then(() => setPlayingMd5(r.md5)).catch(() => { setPlayingMd5(null); notifyAudioError(); });
+  }, [playingMd5, notifyAudioError]);
 
   return (
     <div className="space-y-4">

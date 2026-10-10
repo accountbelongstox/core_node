@@ -6,6 +6,7 @@ import { cmApi } from '../api/CmApi';
 import type { CmCodeReview, CmTask, CmTaskDetail } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
@@ -22,7 +23,6 @@ const REVIEW_STATUS = 'review';
 const IN_PROGRESS_STATUS = 'in_progress';
 const MANAGER_ROLE = 'manager';
 const URL_PATTERN = /^https?:\/\/\S+$/i;
-const DEFAULT_CURRENCY = 'CNY';
 
 interface CmMyTask extends CmTask {
   milestone?: { id: number; project_id: number; title: string } | null;
@@ -98,7 +98,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { bootstrap } = useCmBootstrap();
-  const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
+  const { currency } = useCmPolicy();
   const notice = useCmNotice();
   const [task, setTask] = useState<CmTaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -291,7 +291,7 @@ export const CmTasksPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { bootstrap, refresh } = useCmBootstrap();
-  const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
+  const { currency } = useCmPolicy();
   const [searchParams, setSearchParams] = useSearchParams();
   const list = useCmPagedList(fetchTasks, extractTasks, 'tasks.loadFailed');
   const selectedId = Number.parseInt(searchParams.get(CM_TASK_QUERY_PARAM) ?? '', 10);

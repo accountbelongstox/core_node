@@ -63,10 +63,19 @@ const AssistQueuePanel: React.FC = () => {
   }, [tr]);
 
   useEffect(() => {
+    let cancelled = false;
     void load();
-    const tick = () => { timer.current = setTimeout(async () => { await load(); tick(); }, POLL_MS); };
+    const tick = () => {
+      timer.current = setTimeout(async () => {
+        await load();
+        if (!cancelled) tick();
+      }, POLL_MS);
+    };
     tick();
-    return () => { if (timer.current) clearTimeout(timer.current); };
+    return () => {
+      cancelled = true;
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, [load]);
 
   const retryCovers = useCallback(async () => {

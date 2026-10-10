@@ -17,6 +17,6 @@
   "launcher.grid.startup_cells": "  [{first}-{last}] {command}",
   "launcher.grid.startup_cell": "  [{cell}] {command}",
   "launcher.grid.startup_rest": "  [{cell}+] plain shell",
-  "launcher.grid.menu_cross_device": "  [1] - Plain ClaudeTeam Launch (grid cells run claudeteam without parameters)",
-  "launcher.grid.mode_cross_device": "\n[Launcher] Mode: Plain ClaudeTeam (claudeteam cells start without parameters)"
+  "launcher.grid.menu_cross_device": "  [1] - Manual ClaudeTeam Launch (grid cells run claudeteam --permission-mode manual)",
+  "launcher.grid.mode_cross_device": "\n[Launcher] Mode: Manual ClaudeTeam (claudeteam cells start in manual permission mode)"
 }

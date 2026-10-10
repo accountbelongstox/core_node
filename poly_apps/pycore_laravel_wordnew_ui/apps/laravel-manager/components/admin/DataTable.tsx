@@ -147,14 +147,14 @@ export function DataTable<T = any>({
     const endIndex = Math.min(page * pageSize, total);
 
     return (
-      <div className="flex items-center justify-between px-4 py-3 border-t">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-t">
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">
             {t('uiCommon.data_table.showing', { start: startIndex, end: endIndex, total })}
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">{t('uiCommon.data_table.rows_per_page')}</span>
             <select
@@ -169,7 +169,7 @@ export function DataTable<T = any>({
             </select>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               onClick={() => onPageChange(1)}
               disabled={page === 1}

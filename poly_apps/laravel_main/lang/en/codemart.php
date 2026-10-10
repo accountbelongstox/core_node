@@ -126,7 +126,7 @@ return [
         'no_administrator_confirmed_architect_deposit_found' => 'No administrator-confirmed architect deposit found',
         'confirmed_deposits_do_not_cover_the_architect' => 'Confirmed deposits do not cover the architect requirement',
         'you_are_already_a_reviewer' => 'You are already a reviewer',
-        'you_can_only_apply_once_every_7' => 'You can only apply once every 7 days',
+        'you_can_only_apply_once_every_n_days' => 'You can only apply once every :days days',
         'application_not_found_or_already_processed' => 'Application not found or already processed',
         'only_active_reviewers_can_access_review_tasks' => 'Only active reviewers can access review tasks',
         'only_active_reviewers_can_submit_reviews' => 'Only active reviewers can submit reviews',

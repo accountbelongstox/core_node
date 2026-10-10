@@ -7,6 +7,7 @@ import { cmApi } from '../api/CmApi';
 import type { CmProject, CmRegistrationStatus } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
@@ -23,7 +24,6 @@ const KYC_NOT_STARTED_STATUS = 'not_started';
 const KYC_PENDING_STATUS = 'pending';
 const KYC_REJECTED_STATUS = 'rejected';
 const ID_CARD = 'ID_CARD';
-const DEFAULT_CURRENCY = 'CNY';
 const EMAIL_RESEND_SENT = 'sent';
 const EMAIL_RESEND_ALREADY_VERIFIED = 'already_verified';
 const HTTP_TOO_MANY_REQUESTS = 429;
@@ -283,7 +283,7 @@ const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: (message: string) =>
 const CmRoleRequest: React.FC<{ roles: string[]; onRequested: (message: string, depositNeeded: boolean) => Promise<void> }> = ({ roles, onRequested }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap } = useCmBootstrap();
+  const { currency } = useCmPolicy();
   const notice = useCmNotice();
   const [busyRole, setBusyRole] = useState<string | null>(null);
 
@@ -296,7 +296,7 @@ const CmRoleRequest: React.FC<{ roles: string[]; onRequested: (message: string, 
       const roleLabel = t(`roles.${response.data.role_type}`, { defaultValue: response.data.role_type });
       const depositNeeded = response.data.next_step === 'deposit';
       await onRequested(depositNeeded
-        ? t('verification.roleRequestedDeposit', { role: roleLabel, amount: format.money(response.data.deposit_amount ?? 0, bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY) })
+        ? t('verification.roleRequestedDeposit', { role: roleLabel, amount: format.money(response.data.deposit_amount ?? 0, currency) })
         : t('verification.roleRequested', { role: roleLabel, status: t(`states.role.${response.data.role_status}`, { defaultValue: response.data.role_status }) }), depositNeeded);
     } else {
       notice.error(cmErrorMessage(t, response, 'verification.roleRequestFailed'));
@@ -430,6 +430,7 @@ export const CmVerificationPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { bootstrap, loading, error, refresh, hasCapability } = useCmBootstrap();
+  const { currency } = useCmPolicy();
   const [registration, setRegistration] = useState<CmRegistrationStatus | null>(null);
 
   const loadRegistration = useCallback(async (): Promise<void> => {
@@ -473,7 +474,6 @@ export const CmVerificationPage: React.FC = () => {
   const kycPending = kycStatus === KYC_PENDING_STATUS;
   const kycOpen = !kycPending && onboarding.steps.find((step) => step.key === KYC_STEP)?.completed !== true;
   const requestableRoles = onboarding.requestable_roles ?? [];
-  const currency = bootstrap.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
   const roles = registration?.roles ?? bootstrap.roles;
 
   return (

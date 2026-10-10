@@ -11,8 +11,8 @@ export function clientKeyFailureCode(body: unknown): string | null {
 }
 
 /** Localized text of one shared `common` message (for example `upload_failed`). */
-export function commonMessage(key: string): string {
-  return String(i18n.t(`${COMMON_NAMESPACE_PREFIX}${key}`));
+export function commonMessage(key: string, options?: Record<string, unknown>): string {
+  return String(i18n.t(`${COMMON_NAMESPACE_PREFIX}${key}`, options));
 }
 
 /** Localized text of one client-key rejection. */

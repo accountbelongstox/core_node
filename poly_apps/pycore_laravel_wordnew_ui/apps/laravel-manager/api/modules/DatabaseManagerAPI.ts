@@ -1,4 +1,5 @@
 import { LmBaseAPI } from '../LmBaseAPI';
+import { offerBlobFile } from '../../../../core/browser/FileDownload';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 import type { APIResponse } from '../../types';
 import i18n from '../../i18n';
@@ -593,14 +594,7 @@ export class DatabaseManagerAPI extends LmBaseAPI {
     }
 
     const blob = await response.blob();
-    const objectUrl = window.URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    window.URL.revokeObjectURL(objectUrl);
+    offerBlobFile(filename, blob);
   }
 }
 

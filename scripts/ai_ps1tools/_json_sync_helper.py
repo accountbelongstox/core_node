@@ -163,7 +163,7 @@ def merge_entries(settings, entries, target, root_key):
 def replace_with_retry(tmp_path, real_path):
     for attempt in range(1, REPLACE_RETRIES + 1):
         try:
-            replace_with_retry(tmp_path, real_path)
+            os.replace(tmp_path, real_path)
             return
         except PermissionError:
             if attempt >= REPLACE_RETRIES:
@@ -204,7 +204,7 @@ def write_json_atomic(config_path, data, st):
                     os.chmod(tmp_path, mode)
                 if is_root and hasattr(os, "fchown"):
                     os.fchown(f.fileno(), st.st_uid, st.st_gid)
-        os.replace(tmp_path, real_path)
+        replace_with_retry(tmp_path, real_path)
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

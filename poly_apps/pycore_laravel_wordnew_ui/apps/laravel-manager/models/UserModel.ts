@@ -195,7 +195,7 @@ export class UserModel {
    * Loopback debug bypass: bind the highest-privilege server UnifiedUser into local
    * state without a Sanctum token (backend dashboard.auth grants access).
    */
-  async bootstrapLoopbackSession(): Promise<boolean> {
+  async bootstrapLoopbackSession(endpoint?: string): Promise<boolean> {
     try {
       const [profileRes, prefsRes] = await Promise.all([
         api.auth.getUserProfile(),
@@ -207,12 +207,14 @@ export class UserModel {
         return false;
       }
 
-      setAuthUser({ ...UnifiedUser });
+      if (endpoint && getSharedBaseURL() !== endpoint) return false;
 
       if (prefsRes.success && prefsRes.data) {
         this.preferences = { ...this.preferences, ...prefsRes.data };
         this.savePreferences();
       }
+
+      setAuthUser({ ...UnifiedUser }, endpoint);
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(AUTH_SESSION_CHANGED_EVENT));

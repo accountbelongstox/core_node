@@ -41,7 +41,8 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->applicationStarted($recentApplication, (array) json_decode((string) $recentApplication->test_cases, true));
         }
         if ($recentApplication) {
-            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_RETRY_TOO_SOON, __('codemart.messages.you_can_only_apply_once_every_7'), [
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_RETRY_TOO_SOON, __('codemart.messages.you_can_only_apply_once_every_n_days', ['days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS]), [
+                'retry_days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS,
                 'retry_at' => $recentApplication->created_at?->copy()->addDays(CodeMartV1Constants::REVIEWER_RETRY_DAYS)->toIso8601String(),
             ], 409);
         }

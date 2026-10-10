@@ -8,6 +8,8 @@ import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Gl
 import { commonClasses } from '@/shared/styles/theme';
 import { InlineSpinner, LoadingBlock, AlertBox, Field } from '../common';
 import { useUserRole } from '@/apps/laravel-manager/hooks/useUserRole';
+import { useLocalStorage } from '@/apps/laravel-manager/hooks/useLocalStorage';
+import { LaravelManagerStorageKeys } from '@/apps/laravel-manager/persistence/LaravelManagerStorageKeys';
 import { normalizeLaravelUser, resolveRoleLevel, resolveRoleName } from '@/apps/laravel-manager/auth/UserIdentity';
 import { api } from '@/apps/laravel-manager/api';
 import { ServerConfig, EnvironmentInfo } from '@/apps/laravel-manager/api';
@@ -185,7 +187,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   // useState here shadowed them (duplicate declaration → build error) and was
   // disconnected from the real theme, so it is removed.
   const [language, setLanguage] = useState<string>('en');
-  const [notifications, setNotifications] = useState({ email: true, push: false, sms: false });
+  const [notifications, setNotifications] = useLocalStorage(LaravelManagerStorageKeys.NOTIFICATIONS, { email: true, push: false, sms: false });
 
   const currentLang = langProp || lang;
   const t = TRANSLATIONS[currentLang].settings;
@@ -223,12 +225,14 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         api.systemConfig.getEnvironment()
       ]);
 
-      if (configRes.success && configRes.data) {
-        setServerConfig(configRes.data);
-        setServerConfigForm({
-          app: configRes.data.app
-        });
+      if (!configRes.success || !configRes.data) {
+        throw new Error(configRes.error || tr('uiSettings.server.load_failed'));
       }
+
+      setServerConfig(configRes.data);
+      setServerConfigForm({
+        app: configRes.data.app
+      });
 
       if (envRes.success && envRes.data) {
         setEnvironmentInfo(envRes.data);
@@ -267,15 +271,16 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       }
 
       const profile = normalizeLaravelUser(profileRes.data);
-      if (profile) {
-        setUserProfile(profile);
-        setUserProfileForm({
-          nickname: profile.nickname || '',
-          name: profile.name || '',
-          bio: profile.bio || '',
-          location: profile.location || '',
-        });
+      if (!profile) {
+        throw new Error(tr('uiSettings.user.load_profile_failed'));
       }
+      setUserProfile(profile);
+      setUserProfileForm({
+        nickname: profile.nickname || '',
+        name: profile.name || '',
+        bio: profile.bio || '',
+        location: profile.location || '',
+      });
 
       if (prefsRes.data) {
         setUserPreferences(prefsRes.data);

@@ -53,7 +53,7 @@ export function HtmlErrorModal({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-5xl h-[90dvh] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         <div className="h-1 w-full bg-gradient-to-r from-transparent via-rose-500 to-transparent opacity-75" />
 
         {/* Header */}

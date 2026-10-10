@@ -7,6 +7,7 @@ import { cmApi } from '../api/CmApi';
 import type { CmArchitectEligibility, CmArchitectProject, CmArchitectTasks } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CM_PROTECTED_ROUTE, cmProjectPath } from '../components/public-home/cmPublicRoutes';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
@@ -14,7 +15,6 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmFormatNumber, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 
 const PENDING_STATUS = 'pending';
-const DEFAULT_CURRENCY = 'CNY';
 const ARCHITECT_METRIC_STAT_KEYS: Record<string, string> = {
   min_completed_projects: 'completed_projects',
   min_avg_code_score: 'avg_code_score',
@@ -52,7 +52,7 @@ export const CmArchitectPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { bootstrap, refresh } = useCmBootstrap();
-  const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
+  const { currency } = useCmPolicy();
   const notice = useCmNotice();
   const [eligibility, setEligibility] = useState<CmArchitectEligibility | null>(null);
   const [assignments, setAssignments] = useState<CmArchitectTasks | null>(null);
