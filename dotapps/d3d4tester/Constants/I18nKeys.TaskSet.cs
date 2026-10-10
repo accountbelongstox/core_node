@@ -188,6 +188,35 @@ public static partial class I18nKeys
     public const string YoloTaskSetSegmentExtracting = Ts + "segment_extracting";
     public const string YoloTaskSetSegmentAdded = Ts + "segment_added";
     public const string YoloTaskSetSegmentVariantsAdded = Ts + "segment_variants_added";
+    public const string YoloTaskSetSegmentLink = Ts + "segment_link";
+    public const string YoloTaskSetSegmentLinkPrompt = Ts + "segment_link_prompt";
+    public const string YoloTaskSetSegmentLinked = Ts + "segment_linked";
+
+    private const string TsSegments = Ts + "segments.";
+
+    public const string YoloTaskSetSectionSegments = TsSegments + "section";
+    public const string YoloTaskSetSegmentsHint = TsSegments + "hint";
+    public const string YoloTaskSetSegmentsAdd = TsSegments + "add";
+    public const string YoloTaskSetSegmentsFolderTitle = TsSegments + "folder_title";
+    public const string YoloTaskSetSegmentsNone = TsSegments + "none_found";
+    public const string YoloTaskSetSegmentsBackgrounds = TsSegments + "backgrounds";
+    public const string YoloTaskSetSegmentsRealImages = TsSegments + "real_images";
+    public const string YoloTaskSetSegmentsFrameStep = TsSegments + "frame_step";
+    public const string YoloTaskSetSegmentsCounting = TsSegments + "counting";
+    public const string YoloTaskSetSegmentsCount = TsSegments + "count";
+    public const string YoloTaskSetSegmentsEmpty = TsSegments + "empty";
+    public const string YoloTaskSetSegmentsExtract = TsSegments + "extract";
+    public const string YoloTaskSetSegmentsExtractConfirm = TsSegments + "extract_confirm";
+    public const string YoloTaskSetSegmentsExtractDone = TsSegments + "extract_done";
+    public const string YoloTaskSetSegmentsStatusExtracting = TsSegments + "status_extracting";
+
+    public const string YoloTaskSetPlacement = Ts + "placement";
+    public const string YoloTaskSetPlacementAnywhere = Ts + "placement_anywhere";
+    public const string YoloTaskSetPlacementSource = Ts + "placement_source";
+    public const string YoloTaskSetPlacementJitter = Ts + "placement_jitter";
+    public const string YoloTaskSetRelativeSizingRange = Ts + "relative_sizing_range";
+    public const string YoloTaskSetRelativeSizingSource = Ts + "relative_sizing_source";
+    public const string YoloTaskSetResultReal = Ts + "result_real";
 
     public const string YoloTaskSetHitShow = Ts + "hit_show";
     public const string YoloTaskSetHitLabel = Ts + "hit_label";
@@ -271,6 +300,8 @@ public static partial class I18nKeys
     public const string YoloTaskSetSynContaminationThreshold = TsSyn + "contamination_threshold";
     public const string YoloTaskSetSynContaminationVideoFrames = TsSyn + "contamination_video_frames";
     public const string YoloTaskSetSynHoldoutSplit = TsSyn + "holdout_split";
+    public const string YoloTaskSetSynRelativeSizing = TsSyn + "relative_sizing";
+    public const string YoloTaskSetSynSegmentBlockFrames = TsSyn + "segment_block_frames";
 
     private const string TsEx = Ts + "extract.";
 

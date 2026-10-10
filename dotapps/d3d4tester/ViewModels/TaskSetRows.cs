@@ -129,6 +129,54 @@ public sealed class TaskSetHoldoutRow : BaseViewModel
     public string Detail { get => _detail; set => SetProperty(ref _detail, value); }
 }
 
+/// <summary>Recorded segment shared in place; the use toggles and frame step write through to the source and report the edit.</summary>
+public sealed class TaskSetSegmentRow : BaseViewModel
+{
+    private readonly Action _changed;
+    private string _detail = "";
+
+    public TaskSetSegmentRow(SegmentSource source, string fullPath, Action changed) => (Source, FullPath, _changed) = (source, fullPath, changed);
+
+    public SegmentSource Source { get; }
+
+    public string FullPath { get; }
+
+    public string Name => System.IO.Path.GetFileName(FullPath.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+
+    public string Detail { get => _detail; set => SetProperty(ref _detail, value); }
+
+    public bool Backgrounds
+    {
+        get => Source.Backgrounds;
+        set => Change(Source.Backgrounds != value, () => Source.Backgrounds = value);
+    }
+
+    public bool RealImages
+    {
+        get => Source.RealImages;
+        set => Change(Source.RealImages != value, () => Source.RealImages = value);
+    }
+
+    public string FrameStep
+    {
+        get => Source.EffectiveFrameStep.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        set
+        {
+            if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var step)) return;
+            step = Math.Clamp(step, 1, 1000);
+            Change(Source.FrameStep != step, () => Source.FrameStep = step);
+        }
+    }
+
+    private void Change(bool changed, Action apply)
+    {
+        if (!changed) return;
+        apply();
+        RaisePropertyChanged(string.Empty);
+        _changed();
+    }
+}
+
 /// <summary>Generated dataset under {set}/_datasets (History tab).</summary>
 public sealed class TaskSetDatasetRow : BaseViewModel
 {

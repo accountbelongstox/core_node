@@ -69,6 +69,12 @@ public static partial class TaskSetSynthesizer
             var info = new FileInfo(TaskSetStore.ResolveResourcePath(taskSetDir, r));
             text.Append('|').Append(info.Exists ? info.LastWriteTimeUtc.Ticks : 0).Append(':').Append(info.Exists ? info.Length : 0);
         }
+        foreach (var source in set.SegmentSources)
+        {
+            var frames = new DirectoryInfo(TaskSetStore.SegmentFramesDir(TaskSetStore.ResolveSegmentDir(source)));
+            var files = frames.Exists ? frames.EnumerateFiles().ToList() : new List<FileInfo>();
+            text.Append('|').Append(files.Count).Append(':').Append(files.Count == 0 ? 0 : files.Max(f => f.LastWriteTimeUtc.Ticks));
+        }
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
     }
 
@@ -134,14 +140,17 @@ public static partial class TaskSetSynthesizer
         var classes = set.Targets.Select(t => t.Name.Trim()).ToList();
         Func<int, bool> hasVal = _ => true;
         int holdout = 0, bgWidth = 0, bgHeight = 0, maxObject = 0;
+        (int Train, int Val) real = (0, 0);
         if (taskSetDir != null)
         {
             var inspection = Inspect(set, taskSetDir);
-            int commonVal = ValGroups(inspection.CommonImages.Select(b => b.Group).Concat(inspection.CommonVideos.Select(v => v.Id)).ToList(), s).Count;
+            int commonVal = ValGroups(inspection.CommonImages.Select(b => b.Group).Concat(inspection.CommonVideos.Select(v => v.Id))
+                .Concat(inspection.SegmentBackgrounds.Select(b => b.Group)).ToList(), s).Count;
             var targetVal = inspection.Scenes.Select(sc => ValGroups(sc.Select(b => b.Group).ToList(), s).Count + commonVal > 0).ToArray();
             hasVal = t => t < 0 ? targetVal.Any(v => v) : targetVal[t];
             holdout = inspection.Holdout.Count;
-            var images = inspection.Scenes.SelectMany(x => x).Concat(inspection.CommonImages).ToList();
+            real = RealSplitCounts(inspection.RealFrames, s);
+            var images = inspection.Scenes.SelectMany(x => x).Concat(inspection.CommonImages).Concat(inspection.SegmentBackgrounds).ToList();
             bgWidth = images.Select(b => b.Width).DefaultIfEmpty(0).Max();
             bgHeight = images.Select(b => b.Height).DefaultIfEmpty(0).Max();
             double bgScale = images.Select(b => b.Resource.EffectivePixelScale).DefaultIfEmpty(1).Max();
@@ -153,7 +162,10 @@ public static partial class TaskSetSynthesizer
                     if (TaskSetImageIo.ReadSize(v.Path) is { } size)
                         maxObject = Math.Max(maxObject, s.IsNative
                             ? (int)Math.Ceiling(Math.Max(size.Width, size.Height) * factor * bgScale / v.Resource.EffectivePixelScale)
-                            : (int)Math.Ceiling(Math.Min(s.OutputMaxSide, Math.Min(bgWidth, bgHeight)) * s.RelativeMax * p.ScaleMax));
+                            : s.SizesFromSource && v.Resource.HasSourceSize
+                                ? (int)Math.Ceiling(Math.Max(size.Width, size.Height) * p.ScaleMax * Math.Min(bgWidth, bgHeight)
+                                    / Math.Max(1, Math.Min(v.Resource.SourceWidth, v.Resource.SourceHeight)))
+                                : (int)Math.Ceiling(Math.Min(s.OutputMaxSide, Math.Min(bgWidth, bgHeight)) * s.RelativeMax * p.ScaleMax));
             }
         }
         var (jobs, _) = PlanJobs(set, s, hasVal);
@@ -173,8 +185,8 @@ public static partial class TaskSetSynthesizer
         {
             width = height = s.OutputMaxSide;
         }
-        return new TaskSetEstimate(classes, jobs.Count(j => j.Split == YoloSplit.Train), jobs.Count(j => j.Split == YoloSplit.Val),
-            jobs.Count(j => j.IsNegative), holdout, width, height, Math.Max(width, height), maxObject, s.ScaleMode);
+        return new TaskSetEstimate(classes, jobs.Count(j => j.Split == YoloSplit.Train) + real.Train, jobs.Count(j => j.Split == YoloSplit.Val) + real.Val,
+            jobs.Count(j => j.IsNegative), holdout, width, height, Math.Max(width, height), maxObject, s.ScaleMode, real.Train, real.Val);
     }
 
     /// <summary>The "inference" block of a dataset's synthesis_manifest.json, or null (no manifest, general-mode dataset, older format).</summary>

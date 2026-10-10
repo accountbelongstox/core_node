@@ -105,6 +105,8 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
 
     public ObservableCollection<TaskSetHoldoutRow> Holdouts { get; } = new();
 
+    public ObservableCollection<TaskSetSegmentRow> Segments { get; } = new();
+
     public ObservableCollection<TaskSetDatasetRow> Datasets { get; } = new();
 
     public ObservableCollection<TaskSetRunRow> Runs { get; } = new();
@@ -155,7 +157,8 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
         if (_set == null) return "";
         var dir = Store.GetDir(_set.Id);
         return hit.Frame != null ? Path.Combine(TaskSetStore.FrameCacheDir(dir, hit.ResourceId), hit.Frame)
-            : FindResource(hit.ResourceId) is { } r ? Store.ResourcePath(_set, r) : "";
+            : FindResource(hit.ResourceId) is { } r ? Store.ResourcePath(_set, r)
+            : Path.IsPathRooted(hit.ResourceFile) ? hit.ResourceFile : "";
     }
 
     public PreviewResult? Preview { get => _preview; private set => SetProperty(ref _preview, value); }
@@ -322,6 +325,7 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
         SetValidation(_issues, _hits);
         foreach (var row in Datasets) DescribeDataset(row);
         SyncHoldouts();
+        SyncSegments();
         foreach (var row in Runs) DescribeRun(row);
         RaisePropertyChanged(nameof(StatusText));
     }
@@ -369,6 +373,7 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
         SyncResources(TaskResourcePool.Common);
         SyncResources(TaskResourcePool.Distractors);
         SyncHoldouts();
+        SyncSegments();
         SetStatus(ChipIdle, () => T(I18nKeys.YoloTaskSetStatusIdle));
         StateChanged?.Invoke();
         await RefreshHistoryAsync();
@@ -915,6 +920,95 @@ public sealed class TaskSetManagerViewModel : BaseViewModel
         Issues = null;
         ScheduleSave();
         SyncHoldouts();
+    }
+
+    // ---------- shared recorded segments (frames and annotations used in place) ----------
+
+    /// <summary>Rows of the linked segments with their annotation counts (counted in the background).</summary>
+    public void SyncSegments()
+    {
+        Segments.Clear();
+        if (_set is not { } set) return;
+        foreach (var source in set.SegmentSources)
+        {
+            var row = new TaskSetSegmentRow(source, TaskSetStore.ResolveSegmentDir(source), OnSegmentEdited) { Detail = T(I18nKeys.YoloTaskSetSegmentsCounting) };
+            Segments.Add(row);
+            _ = CountSegmentAsync(row);
+        }
+    }
+
+    private void OnSegmentEdited()
+    {
+        Issues = null;
+        ScheduleSave();
+        foreach (var row in Segments) _ = CountSegmentAsync(row);
+    }
+
+    private static async Task CountSegmentAsync(TaskSetSegmentRow row)
+    {
+        var scan = await Task.Run(() =>
+        {
+            try
+            {
+                return TaskSetStore.ScanSegment(row.Source);
+            }
+            catch (Exception ex) when (TaskSetUiErrors.IsHandled(ex))
+            {
+                return null;
+            }
+        });
+        row.Detail = scan == null || scan.Annotated == 0 ? T(I18nKeys.YoloTaskSetSegmentsEmpty)
+            : T(I18nKeys.YoloTaskSetSegmentsCount)
+                .Replace("{annotated}", N(scan.Annotated))
+                .Replace("{images}", N(scan.Images))
+                .Replace("{boxes}", N(scan.Boxes))
+                .Replace("{labels}", string.Join(", ", scan.Labels.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + " " + N(kv.Value))));
+    }
+
+    /// <summary>Links the segments below the folders (a project folder adds all its segments); returns how many were added.</summary>
+    public async Task<int> AddSegmentsAsync(IReadOnlyList<string> dirs)
+    {
+        if (_set is not { } set || dirs.Count == 0) return 0;
+        await FlushSaveAsync();
+        var added = await RunAsync(() => Store.AddSegmentSources(set, dirs), busy: true);
+        Issues = null;
+        SyncSegments();
+        RefreshSetRows();
+        return added?.Count ?? 0;
+    }
+
+    public async Task RemoveSegmentsAsync(IReadOnlyList<TaskSetSegmentRow> rows)
+    {
+        if (_set is not { } set || rows.Count == 0) return;
+        await FlushSaveAsync();
+        await RunAsync(() =>
+        {
+            Store.RemoveSegmentSources(set, rows.Select(r => r.Source));
+            return true;
+        }, busy: true);
+        Issues = null;
+        SyncSegments();
+    }
+
+    /// <summary>Annotated boxes of every linked segment become deduplicated variants of the same-named targets (created when missing).</summary>
+    public async Task<(int Segments, int Added, int Duplicates, IReadOnlyList<string> Created)?> ExtractSegmentVariantsAsync(VariantCutout cutout,
+        AnnotationVariantOptions options)
+    {
+        if (_set is not { } set || set.SegmentSources.Count == 0) return null;
+        await FlushSaveAsync();
+        var results = await RunJobAsync(I18nKeys.YoloTaskSetSegmentsStatusExtracting, (progress, ct) =>
+            Store.AddVariantsFromSegments(set, null, cutout, options, progress, ct));
+        AfterStructureChange(_target?.Id);
+        if (results == null) return null;
+        return (results.Count, results.Sum(r => r.Added), results.Sum(r => r.Duplicates), results.SelectMany(r => r.CreatedTargets).Distinct().ToList());
+    }
+
+    public void SetPlacement(string placement)
+    {
+        if (_target == null || !TargetPlacement.All.Contains(placement) || _target.Placement == placement) return;
+        _target.Placement = placement;
+        Issues = null;
+        ScheduleSave();
     }
 
     // ---------- validate, preview, generate ----------

@@ -207,6 +207,8 @@
               <CheckBox x:Name="ChkIptInherit" Style="{StaticResource Check}"/>
               <TextBox x:Name="TxtIpt" Style="{StaticResource NumberBox}"/>
               <TextBlock x:Name="TxtIptGlobal" Style="{StaticResource Hint}"/>
+              <TextBlock x:Name="LblPlacement" Style="{StaticResource Label}" Margin="12,0,12,8"/>
+              <ComboBox x:Name="CboPlacement" Style="{StaticResource ChoiceBox}"/>
             </WrapPanel>
             <TabControl x:Name="TabsTarget">
               <TabItem x:Name="TabVariants">
@@ -292,6 +294,33 @@
                 <ListBox.ContextMenu>
                   <ContextMenu x:Name="MenuDistractors"/>
                 </ListBox.ContextMenu>
+              </ListBox>
+            </DockPanel>
+          </TabItem>
+          <TabItem x:Name="TabSegments">
+            <DockPanel Margin="0,8,0,0">
+              <TextBlock x:Name="TxtSegmentsHint" DockPanel.Dock="Top" Style="{StaticResource Hint}"/>
+              <WrapPanel DockPanel.Dock="Top">
+                <Button x:Name="BtnSegmentsAdd" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnSegmentsExtract" Style="{StaticResource Btn}"/>
+                <Button x:Name="BtnSegmentsRemove" Style="{StaticResource DangerButtonStyle}" Margin="0,0,8,8"/>
+              </WrapPanel>
+              <ListBox x:Name="LstSegments" SelectionMode="Extended" HorizontalContentAlignment="Stretch"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Margin="0,4">
+                      <TextBlock Text="{Binding Name}" ToolTip="{Binding FullPath}" Style="{StaticResource BodyStrongTextStyle}" TextTrimming="CharacterEllipsis"/>
+                      <TextBlock Text="{Binding Detail}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"/>
+                      <WrapPanel Margin="0,4,0,0">
+                        <CheckBox IsChecked="{Binding Backgrounds}" Content="{DynamicResource SegmentBackgroundsText}" Margin="0,0,12,0"/>
+                        <CheckBox IsChecked="{Binding RealImages}" Content="{DynamicResource SegmentRealImagesText}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{DynamicResource SegmentFrameStepText}" Style="{StaticResource FieldLabelTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Text="{Binding FrameStep, UpdateSourceTrigger=LostFocus}" Width="48" TextAlignment="Right"/>
+                      </WrapPanel>
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
               </ListBox>
             </DockPanel>
           </TabItem>

@@ -575,11 +575,19 @@ public static partial class TaskSetSynthesizer
             if (!job.IsNegative)
             {
                 int objects = rng.Next(s.MinObjectsPerImage, s.MaxObjectsPerImage + 1);
+                var picks = new List<int>(objects);
                 for (int o = 0; o < objects; o++)
                 {
                     int targetIndex = job.TargetIndex;
                     if (o > 0 && ctx.Classes.Count > 1 && rng.NextDouble() < s.CrossTargetProbability)
                         targetIndex = (job.TargetIndex + 1 + rng.Next(ctx.Classes.Count - 1)) % ctx.Classes.Count;
+                    picks.Add(targetIndex);
+                }
+                // Source-anchored targets (UI overlays) are pasted last so world objects never cover them; one per target and image.
+                var ordered = picks.Where(t => !ctx.Set.Targets[t].PlacesAtSource)
+                    .Concat(picks.Where(t => ctx.Set.Targets[t].PlacesAtSource).Distinct()).ToList();
+                foreach (int targetIndex in ordered)
+                {
                     var variants = ctx.VariantsFor(targetIndex, job.Split);
                     if (variants.Count == 0) continue;
                     var target = ctx.Set.Targets[targetIndex];
@@ -678,16 +686,7 @@ public static partial class TaskSetSynthesizer
                 Box = new AnnotationBox(classes[classIndex], clipped.X, clipped.Y, clipped.Right, clipped.Bottom),
             });
         }
-        if (masks.Count == 0) return;
-        using var mask = new Mat(image.Size(), MatType.CV_8UC1, Scalar.All(0));
-        foreach (var m in masks)
-        {
-            var grown = new Rect(m.X - InpaintMargin, m.Y - InpaintMargin, m.Width + 2 * InpaintMargin, m.Height + 2 * InpaintMargin) & bounds;
-            Cv2.Rectangle(mask, grown, Scalar.All(byte.MaxValue), -1);
-        }
-        using var repaired = new Mat();
-        Cv2.Inpaint(image, mask, repaired, InpaintRadius, InpaintMethod.Telea);
-        repaired.CopyTo(image);
+        if (masks.Count > 0) InpaintRects(image, masks);
     }
 
     /// <summary>Augments and places one variant (label null = unlabeled distractor). Size: §4 scale modes plus the pixel-scale ratio (S3).</summary>
@@ -937,8 +936,18 @@ public static partial class TaskSetSynthesizer
     }
 
     private static void WriteManifest(Context ctx, string outputDir, List<Job> jobs, JobOutcome[] outcomes, List<TaskSetIssue> warnings,
-        SynthesisInferenceInfo inference, int holdout, YoloSplit holdoutSplit, int movedToTrain)
+        SynthesisInferenceInfo inference, int holdout, YoloSplit holdoutSplit, int movedToTrain, IReadOnlyList<JobOutcome> real)
     {
+        object RealCounts(YoloSplit split)
+        {
+            var o = real.Where(x => x.Split == split).ToList();
+            return new
+            {
+                images = o.Count,
+                instances = ctx.Classes.Select((c, i) => (c, n: o.Sum(x => x.ClassCounts[i]))).ToDictionary(x => x.c, x => x.n, StringComparer.Ordinal),
+            };
+        }
+
         object SplitCounts(YoloSplit split)
         {
             var o = outcomes.Where(x => x.Split == split && !x.Failed).ToList();
@@ -986,6 +995,13 @@ public static partial class TaskSetSynthesizer
                 split = YoloDataYaml.SplitName(holdoutSplit),
                 sources = ctx.Set.HoldoutSources.Select(h => new { images_dir = h.ImagesDir, annotation_dir = h.AnnotationDir }),
             },
+            real = new
+            {
+                segments = ctx.Set.SegmentSources.Select(x => new { segment_dir = x.SegmentDir, backgrounds = x.Backgrounds, real_images = x.RealImages, frame_step = x.FrameStep }),
+                train = RealCounts(YoloSplit.Train),
+                val = RealCounts(YoloSplit.Val),
+            },
+            placement = ctx.Set.Targets.Where(t => t.PlacesAtSource).Select(t => new { target = t.Name, placement = t.Placement, jitter = t.PlacementJitter }),
             distractors = ctx.Distractors.Select(d => d.Resource.File),
             backgrounds = membership.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => new
             {
