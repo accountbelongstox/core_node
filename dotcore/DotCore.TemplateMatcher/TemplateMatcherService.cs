@@ -213,18 +213,39 @@ public sealed class TemplateMatcherService
     public TemplateMatchResult MatchMultiScale(Mat target, Mat template, IEnumerable<int> templateWidthsPx, double threshold = DefaultThreshold, string? templateName = null)
     {
         if (target == null || template == null || target.Empty() || template.Empty()) return Fail(templateName);
-        using var bgrTarget = ToBgr(target);
-        using var bgrTemplate = ToBgr(template);
-        TemplateMatchResult best = Fail(templateName);
-        foreach (int width in templateWidthsPx.Where(w => w > 0).Distinct())
+        using var scaled = new ScaledTemplate(template);
+        return MatchMultiScale(target, scaled, templateWidthsPx, threshold, templateName);
+    }
+
+    /// <summary>
+    /// <see cref="MatchMultiScale(Mat, Mat, IEnumerable{int}, double, string?)"/> with a cached <see cref="ScaledTemplate"/> (no reload or
+    /// resize per call); on a large target the sizes are matched in parallel, the result is the same as the sequential order.
+    /// </summary>
+    public TemplateMatchResult MatchMultiScale(Mat target, ScaledTemplate template, IEnumerable<int> templateWidthsPx, double threshold = DefaultThreshold, string? templateName = null)
+    {
+        if (target == null || template == null || target.Empty() || template.Empty) return Fail(templateName);
+        using var converted = target.Channels() == 3 ? null : ScaledTemplate.ToBgr(target);
+        var bgrTarget = converted ?? target;
+        var widths = templateWidthsPx.Where(w => w > 0).Distinct()
+            .Where(w => w <= bgrTarget.Cols && template.HeightFor(w) <= bgrTarget.Rows).ToArray();
+        var scores = new (double Score, OpenCvSharp.Point Loc)[widths.Length];
+        void MatchWidth(int i)
         {
-            int height = Math.Max(1, (int)Math.Round(bgrTemplate.Rows * (double)width / bgrTemplate.Cols));
-            if (width > bgrTarget.Cols || height > bgrTarget.Rows) continue;
-            using var sized = bgrTemplate.Resize(new OpenCvSharp.Size(width, height), 0, 0, InterpolationFlags.Area);
             using var result = new Mat();
-            Cv2.MatchTemplate(bgrTarget, sized, result, TemplateMatchModes.CCoeffNormed);
+            Cv2.MatchTemplate(bgrTarget, template.Sized(widths[i]), result, TemplateMatchModes.CCoeffNormed);
             Cv2.MinMaxLoc(result, out _, out double maxVal, out _, out OpenCvSharp.Point maxLoc);
+            scores[i] = (maxVal, maxLoc);
+        }
+        if (widths.Length > 1 && (long)bgrTarget.Rows * bgrTarget.Cols >= TemplateMatcherConstants.ParallelMinTargetPixels)
+            Parallel.For(0, widths.Length, MatchWidth);
+        else
+            for (int i = 0; i < widths.Length; i++) MatchWidth(i);
+        TemplateMatchResult best = Fail(templateName);
+        for (int i = 0; i < widths.Length; i++)
+        {
+            var (maxVal, maxLoc) = scores[i];
             if (maxVal <= best.Score) continue;
+            int width = widths[i], height = template.HeightFor(width);
             best = new TemplateMatchResult
             {
                 Success = maxVal >= threshold,
@@ -240,13 +261,6 @@ public sealed class TemplateMatcherService
         }
         return best;
     }
-
-    private static Mat ToBgr(Mat image) => image.Channels() switch
-    {
-        4 => image.CvtColor(ColorConversionCodes.BGRA2BGR),
-        1 => image.CvtColor(ColorConversionCodes.GRAY2BGR),
-        _ => image.Clone(),
-    };
 
     private static TemplateMatchResult Fail(string? templateName) => new()
     {

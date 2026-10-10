@@ -43,6 +43,7 @@ X11_COOKIE_AUTH_NAME = b"MIT-MAGIC-COOKIE-1"
 X11_NO_COOKIE = ("", "")
 x11_activity_log = ActivityLog("X11Display")
 _XLIB_ORIGINAL_GET_AUTH: Dict[str, Any] = {}
+_XLIB_ORIGINAL_BASE_DISPLAY_INIT: Dict[str, Any] = {}
 
 
 class X11Connector:
@@ -62,6 +63,7 @@ class X11Connector:
     def open_display(self, display_name: str, cookie: Tuple[Any, Any]) -> Tuple[Any, Optional[str]]:
         """(display, None) on success, else (None, error text)."""
         install_xlib_auth_hook()
+        install_xlib_resource_class_isolation()
         xlib_display = get_third_package_Xlib_module('display')
         xlib_error = get_third_package_Xlib_module('error')
         self._cookie = cookie
@@ -108,8 +110,27 @@ def install_xlib_auth_hook() -> None:
     xlib_unix_connect.get_auth = _session_get_auth
 
 
+def _isolated_base_display_init(self: Any, *args: Any, **keys: Any) -> None:
+    """python-xlib keeps resource_classes on the _BaseDisplay class, so every
+    connect subclasses the previous connect's extension classes: none is ever
+    freed and the MRO chain grows per connect. Each display gets its own copy
+    of the base table, so its classes die with it."""
+    self.resource_classes = get_third_package_Xlib_module('display')._resource_baseclasses.copy()
+    _XLIB_ORIGINAL_BASE_DISPLAY_INIT["init"](self, *args, **keys)
+
+
+def install_xlib_resource_class_isolation() -> None:
+    """Give every Xlib display a private resource class table (idempotent)."""
+    xlib_display = get_third_package_Xlib_module('display')
+    if xlib_display is None or xlib_display._BaseDisplay.__init__ is _isolated_base_display_init:
+        return
+    _XLIB_ORIGINAL_BASE_DISPLAY_INIT["init"] = xlib_display._BaseDisplay.__init__
+    xlib_display._BaseDisplay.__init__ = _isolated_base_display_init
+
+
 if importlib.util.find_spec("Xlib") is not None:
     install_xlib_auth_hook()
+    install_xlib_resource_class_isolation()
 
 
 @dataclass(frozen=True)

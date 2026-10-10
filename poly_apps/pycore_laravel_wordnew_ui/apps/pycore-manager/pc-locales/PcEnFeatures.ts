@@ -408,7 +408,8 @@ terminal: {
       notImage: 'Only image or audio files can be attached.',
       uploadFailed: 'Image upload failed.',
       uploadStalled: 'Image upload stalled with no progress.',
-      sendBlocked: 'Some images were not uploaded. Retry or remove them, then send again.',
+      sentWithMissing: 'Sent, but {{count}} attachment(s) failed to upload and were left out; the AI was told they are missing.',
+      agentMissingNote: '[{{count}} attached image(s) failed to upload and did not reach you; only the text below was sent.]',
       pull: {
         action: 'Pull images from the clipboard now (on phones, opens the gallery when the clipboard has none)',
         empty: 'The clipboard has no image.',
