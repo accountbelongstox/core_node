@@ -33,7 +33,7 @@ function field(lines, prefix) {
             return trimmed.substring(prefix.length).trim();
         }
     }
-    throw new Error(`Field '${prefix}' was not found.`);
+    throw new Error(`Field '${prefix}' was not found. Debugger output: ${lines.join(" | ")}`);
 }
 
 function bytesToHex(bytes) {
