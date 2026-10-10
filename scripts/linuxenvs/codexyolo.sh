@@ -8,18 +8,12 @@ script_dir_path=""
 script_source_path=""
 scripts_dir_path=""
 core_node_path=""
-mcp_chrome_path=""
-mcp_chrome_node_modules_path=""
-mcp_chrome_shared_artifact_path=""
-mcp_chrome_native_artifact_path=""
-mcp_chrome_extension_manifest_path=""
-mcp_chrome_register_script_path=""
 mcp_chrome_linux_common_dir=""
 mcp_chrome_gvar_common_path=""
 mcp_chrome_service_contract_common_path=""
+ai_cli_provision_common_path=""
 mcp_chrome_url=""
 mcp_chrome_port=""
-mcp_chrome_needs_build=0
 mcp_chrome_enabled=0
 model="gpt-5.6-sol"
 reasoning_effort="high"
@@ -39,17 +33,13 @@ script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
 scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
 codex_install_script_path="$scripts_dir_path/shells/linux/debian/install_shells/99_install_ai_tools.sh"
-mcp_chrome_path="$core_node_path/apps/mcp-chrome"
-mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
-mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
-mcp_chrome_native_artifact_path="$mcp_chrome_path/app/native-server/dist/index.js"
-mcp_chrome_register_script_path="$mcp_chrome_path/scripts/register-local-dev.cjs"
 mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
 mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
 mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
+ai_cli_provision_common_path="$mcp_chrome_linux_common_dir/ai_cli_provision_common.sh"
 source "$mcp_chrome_gvar_common_path"
 source "$mcp_chrome_service_contract_common_path"
-mcp_chrome_extension_manifest_path="$mcp_chrome_path/$(sc_require mcp_chrome.build_output_dir)/$(sc_require mcp_chrome.extension_dir)/manifest.json"
+source "$ai_cli_provision_common_path"
 mcp_chrome_port="$(sc_require ports.mcp_chrome)"
 mcp_chrome_url="http://$(sc_require hosts.loopback):${mcp_chrome_port}/mcp"
 if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
@@ -145,46 +135,11 @@ elif [ "$version_gap_large" = "1" ]; then
 fi
 
 if [ "$mcp_chrome_enabled" -eq 1 ]; then
-if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
-    [ ! -f "$mcp_chrome_native_artifact_path" ] ||
-    [ ! -f "$mcp_chrome_extension_manifest_path" ]; then
-    mcp_chrome_needs_build=1
-fi
-
-if ! command -v node >/dev/null 2>&1; then
-    echo "[ERROR] node is required to install Chrome MCP."
-    exit 1
-fi
-if ! command -v bun >/dev/null 2>&1; then
-    echo "[ERROR] bun is required to install Chrome MCP."
-    exit 1
-fi
-
-echo "[INFO] Ensuring Chrome MCP is installed..."
-if [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; then
-    echo "[INFO] Installing Chrome MCP dependencies..."
-    (
-        cd "$mcp_chrome_path"
-        bun install
-    )
-fi
-if [ "$mcp_chrome_needs_build" -eq 1 ]; then
-    echo "[INFO] Building missing Chrome MCP artifacts..."
-    (
-        cd "$mcp_chrome_path"
-        bun run build:all
-    )
-fi
-(
-    cd "$mcp_chrome_path"
-    node "$mcp_chrome_register_script_path"
-)
-
+ai_cli_mcp_chrome_service_ensure
 codex mcp add chrome --url "$mcp_chrome_url"
 echo "[INFO] Chrome MCP registered in Codex."
-echo "[INFO] Chrome MCP supervisor startup skipped."
 else
-    echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
+    echo "[INFO] No desktop environment; skipping Chrome MCP setup."
 fi
 
 echo "[INFO] Model: $model ($reasoning_effort)"

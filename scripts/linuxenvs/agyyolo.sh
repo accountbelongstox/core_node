@@ -4,26 +4,12 @@ script_dir_path=""
 script_source_path=""
 scripts_dir_path=""
 core_node_path=""
-mcp_chrome_path=""
-mcp_chrome_node_modules_path=""
-mcp_chrome_shared_artifact_path=""
-mcp_chrome_native_artifact_path=""
-mcp_chrome_extension_manifest_path=""
-mcp_chrome_register_script_path=""
-mcp_chrome_supervisor_script_path=""
-mcp_chrome_dev_log_path=""
 mcp_chrome_linux_common_dir=""
 mcp_chrome_gvar_common_path=""
-mcp_chrome_venv_python_common_path=""
 mcp_chrome_service_contract_common_path=""
-mcp_chrome_python_path=""
+ai_cli_provision_common_path=""
 mcp_chrome_url=""
 mcp_chrome_port=""
-mcp_chrome_port_ready=0
-mcp_chrome_port_wait_count=0
-mcp_chrome_needs_build=0
-mcp_chrome_installed=0
-mcp_chrome_just_installed=0
 mcp_chrome_enabled=0
 agy_bin=""
 agy_candidate=""
@@ -45,26 +31,17 @@ scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
 agy_install_script_path="$scripts_dir_path/shells/linux/debian/install_shells/99_install_ai_tools.sh"
 
-mcp_chrome_path="$core_node_path/apps/mcp-chrome"
-mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
-mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
-mcp_chrome_native_artifact_path="$mcp_chrome_path/app/native-server/dist/index.js"
-mcp_chrome_register_script_path="$mcp_chrome_path/scripts/register-local-dev.cjs"
-mcp_chrome_supervisor_script_path="$mcp_chrome_path/scripts/service_supervisor.py"
-mcp_chrome_dev_log_path="/tmp/mcp-chrome-agyyolo.log"
 mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
 mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
-mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
 mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
+ai_cli_provision_common_path="$mcp_chrome_linux_common_dir/ai_cli_provision_common.sh"
 
 source "$mcp_chrome_gvar_common_path"
-source "$mcp_chrome_venv_python_common_path"
 source "$mcp_chrome_service_contract_common_path"
-mcp_chrome_extension_manifest_path="$mcp_chrome_path/$(sc_require mcp_chrome.build_output_dir)/$(sc_require mcp_chrome.extension_dir)/manifest.json"
+source "$ai_cli_provision_common_path"
 
 mcp_chrome_port="$(sc_require ports.mcp_chrome)"
 mcp_chrome_url="http://$(sc_require hosts.loopback):${mcp_chrome_port}/mcp"
-mcp_chrome_python_path="$VENV_PYTHON3"
 if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
     mcp_chrome_enabled=1
 fi
@@ -130,44 +107,13 @@ if [ "$mcp_chrome_enabled" -eq 1 ]; then
     agy_config_dir="$HOME/.gemini/config"
     agy_mcp_config_path="$agy_config_dir/mcp_config.json"
 
-    if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
-       [ ! -f "$mcp_chrome_native_artifact_path" ] ||
-       [ ! -f "$mcp_chrome_extension_manifest_path" ]; then
-        mcp_chrome_needs_build=1
-    fi
+    ai_cli_mcp_chrome_service_ensure
 
-    if [ -f "$agy_mcp_config_path" ] && [ "$mcp_chrome_needs_build" -eq 0 ] &&
-        grep -q '"chrome"' "$agy_mcp_config_path" 2>/dev/null; then
-        mcp_chrome_installed=1
-    fi
+    # Register in agy via CLI and configuration file
+    "$agy_bin" mcp add chrome "$mcp_chrome_url" >/dev/null 2>&1 || true
 
-    if [ "$mcp_chrome_installed" -eq 1 ]; then
-        echo "[INFO] Chrome MCP already installed and configured."
-    else
-        mcp_chrome_just_installed=1
-        if ! command -v node >/dev/null 2>&1; then
-            echo "[ERROR] node is required for Chrome MCP."
-            exit 1
-        fi
-
-        if [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; then
-            echo "[INFO] Ensuring Chrome MCP dependencies and artifacts..."
-            if command -v bun >/dev/null 2>&1; then
-                (cd "$mcp_chrome_path" && bun install && [ "$mcp_chrome_needs_build" -eq 1 ] && bun run build:all)
-            elif command -v pnpm >/dev/null 2>&1; then
-                (cd "$mcp_chrome_path" && pnpm install && [ "$mcp_chrome_needs_build" -eq 1 ] && pnpm run build:all)
-            elif command -v npm >/dev/null 2>&1; then
-                (cd "$mcp_chrome_path" && npm install && [ "$mcp_chrome_needs_build" -eq 1 ] && npm run build:all)
-            fi
-        fi
-
-        (cd "$mcp_chrome_path" && node "$mcp_chrome_register_script_path")
-
-        # Register in agy via CLI and configuration file
-        "$agy_bin" mcp add chrome "$mcp_chrome_url" >/dev/null 2>&1 || true
-
-        mkdir -p "$agy_config_dir"
-        node - "$agy_mcp_config_path" "$mcp_chrome_url" <<'NODE'
+    mkdir -p "$agy_config_dir"
+    node - "$agy_mcp_config_path" "$mcp_chrome_url" <<'NODE'
 const fs = require("node:fs");
 const configPath = process.argv[2];
 const chromeUrl = process.argv[3];
@@ -186,35 +132,7 @@ config.mcpServers.chrome = {
 };
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 NODE
-        echo "[INFO] Chrome MCP registered in Antigravity: $mcp_chrome_url"
-    fi
-
-    # Ensure the singleton Chrome MCP supervisor is running
-    if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
-        mcp_chrome_port_ready=1
-    fi
-    if [ "$mcp_chrome_port_ready" -eq 0 ]; then
-        echo "[INFO] Starting the singleton Chrome MCP supervisor..."
-        if [ "$mcp_chrome_needs_build" -eq 1 ]; then
-            "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev --recover-on-start >"$mcp_chrome_dev_log_path" 2>&1 &
-        else
-            "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev >"$mcp_chrome_dev_log_path" 2>&1 &
-        fi
-        if [ "$mcp_chrome_just_installed" -eq 1 ]; then
-            while [ "$mcp_chrome_port_ready" -eq 0 ] && [ "$mcp_chrome_port_wait_count" -lt 20 ]; do
-                sleep 0.5
-                if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
-                    mcp_chrome_port_ready=1
-                fi
-                mcp_chrome_port_wait_count=$((mcp_chrome_port_wait_count + 1))
-            done
-        fi
-    fi
-    if [ "$mcp_chrome_port_ready" -eq 1 ]; then
-        echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
-    else
-        echo "[INFO] Chrome MCP supervisor initialized ($mcp_chrome_url)."
-    fi
+    echo "[INFO] Chrome MCP registered in Antigravity: $mcp_chrome_url"
 else
     echo "[INFO] No desktop environment; skipping Chrome MCP setup."
 fi

@@ -18,7 +18,9 @@
 # Both steps are no-ops when the CLI is present and current. The launcher stops
 # with an error when the CLI is still missing, instead of exec'ing a missing command.
 # For claude, a third idempotent step (ai_cli_chrome_mcp_ensure) makes sure
-# ~/.claude.json carries the chrome MCP entry.
+# ~/.claude.json carries the chrome MCP entry. ai_cli_mcp_chrome_service_ensure
+# (every launcher) keeps the mcp-chrome hot-reload background service installed and
+# running without recompiling unchanged sources.
 #
 # ai_cli_ultracode_prompt asks whether to enable Claude Code ultracode, defaulting
 # to Y and auto-accepting after AI_CLI_ULTRACODE_TIMEOUT_SECONDS; the resulting
@@ -236,26 +238,45 @@ ai_cli_provision() {
     return 0
 }
 
+# Desktop host check shared by the mcp-chrome steps; headless hosts skip them silently.
+ai_cli_has_desktop() {
+    [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] || [ "$(systemctl get-default 2>/dev/null || true)" = "graphical.target" ]
+}
+
+# Idempotent mcp-chrome background service for every AI launcher (Windows counterpart:
+# Invoke-AiCliChromeServiceEnsure): start.sh --ensure leaves an active unit alone, starts
+# an inactive one, and installs a missing one, compiling only changed sources. The unit
+# owns hot reload afterwards, so launchers never compile.
+ai_cli_mcp_chrome_service_ensure() {
+    local start_script="$AI_CLI_CORE_NODE_DIR/apps/mcp-chrome/scripts/start.sh"
+
+    if ! ai_cli_has_desktop || [ ! -f "$start_script" ]; then
+        return 0
+    fi
+    if ! bash "$start_script" --ensure; then
+        echo "[WARN] Chrome MCP: background service ensure failed; see the output above."
+    fi
+    return 0
+}
+
 # Idempotent "Claude can reach Chrome" step (Windows counterpart:
 # Invoke-AiCliChromeMcpEnsure). Desktop hosts only; headless hosts skip silently.
 # Fast path: ~/.claude.json already holds the chrome http entry and the mcp-chrome
 # endpoint answers -> one line. Otherwise the entry is merged (mcp_sync_engine.sh)
-# and a missing service prints the single install command; no build runs here.
+# and the background service is ensured (ai_cli_mcp_chrome_service_ensure).
 ai_cli_chrome_mcp_ensure() {
     local engine="$AI_CLI_CORE_NODE_DIR/scripts/ai_shtools/mcp_sync_engine.sh"
     local start_script="$AI_CLI_CORE_NODE_DIR/apps/mcp-chrome/scripts/start.sh"
-    local service_name=""
     local entry_state=""
     local endpoint_ready=0
 
-    if [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && [ "$(systemctl get-default 2>/dev/null || true)" != "graphical.target" ]; then
+    if ! ai_cli_has_desktop; then
         return 0
     fi
     if [ ! -f "$start_script" ] || [ ! -f "$engine" ]; then
         return 0
     fi
     . "$engine"
-    service_name="$(sc_require mcp_chrome.service_name)"
     entry_state="$(mcp_ensure_claude_chrome)"
     case "$entry_state" in
         written) echo "[INFO] Chrome MCP entry written to $(mcp_config_path_for claude)" ;;
@@ -267,11 +288,8 @@ ai_cli_chrome_mcp_ensure() {
     fi
     if [ "$entry_state" != "failed" ] && [ "$endpoint_ready" = "1" ]; then
         echo "[INFO] Chrome MCP ready: $MCP_CHROME_URL"
-    elif systemctl cat "$service_name" >/dev/null 2>&1; then
-        echo "[WARN] Chrome MCP endpoint $MCP_CHROME_URL is not answering; run: sudo systemctl restart $service_name"
     else
-        echo "[INFO] Chrome MCP service is not installed; install it once with:"
-        echo "       MCP_CHROME_AS_SERVICE=yes bash \"$start_script\""
+        ai_cli_mcp_chrome_service_ensure
     fi
     return 0
 }

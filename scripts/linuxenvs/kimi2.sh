@@ -10,13 +10,12 @@
 #   -> upgrade prompt [y/N] -> model selection [1-4] (default 1, 5s timeout)
 #   -> kimi provider catalog add kimi-for-coding (non-interactive provider setup)
 #   -> config.toml default_permission_mode = "auto" (no approve prompts)
-#   -> Chrome MCP install prompt [Y/n] (desktop only; skipped when installed)
+#   -> Chrome MCP service ensure + registration in mcp.json (desktop only; no prompt)
 #   -> launch kimi --auto.
 # Secrets: KIMI_API_KEY_2 (required),
 #   KIMI_BASE_URL_2 (optional --base-url override).
 
 model_pick=""
-mcp_install_choice=""
 kimi_install_script_path=""
 ai_cli_provision_common_path=""
 script_dir_path=""
@@ -32,27 +31,11 @@ kimi_api_key=""
 kimi_base_url=""
 kimi_model="k3-256k"
 kimi_model_label="kimi k3 256K"
-mcp_chrome_path=""
-mcp_chrome_node_modules_path=""
-mcp_chrome_shared_artifact_path=""
-mcp_chrome_native_artifact_path=""
-mcp_chrome_extension_manifest_path=""
-mcp_chrome_register_script_path=""
-mcp_chrome_supervisor_script_path=""
-mcp_chrome_dev_log_path=""
 mcp_chrome_linux_common_dir=""
 mcp_chrome_gvar_common_path=""
-mcp_chrome_venv_python_common_path=""
 mcp_chrome_service_contract_common_path=""
-mcp_chrome_python_path=""
 mcp_chrome_url=""
 mcp_chrome_port=""
-mcp_chrome_port_ready=0
-mcp_chrome_port_wait_count=0
-mcp_chrome_needs_build=0
-mcp_chrome_installed=0
-mcp_chrome_setup=0
-mcp_chrome_just_installed=0
 mcp_chrome_enabled=0
 kimi_args=(--auto)
 
@@ -64,24 +47,13 @@ script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
 scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
 kimi_install_script_path="$scripts_dir_path/shells/linux/debian/install_shells/99_install_ai_tools.sh"
-mcp_chrome_path="$core_node_path/apps/mcp-chrome"
-mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
-mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
-mcp_chrome_native_artifact_path="$mcp_chrome_path/app/native-server/dist/index.js"
-mcp_chrome_register_script_path="$mcp_chrome_path/scripts/register-local-dev.cjs"
-mcp_chrome_supervisor_script_path="$mcp_chrome_path/scripts/service_supervisor.py"
-mcp_chrome_dev_log_path="/tmp/mcp-chrome-kimi2.log"
 mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
 mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
-mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
 mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
 source "$mcp_chrome_gvar_common_path"
-source "$mcp_chrome_venv_python_common_path"
 source "$mcp_chrome_service_contract_common_path"
-mcp_chrome_extension_manifest_path="$mcp_chrome_path/$(sc_require mcp_chrome.build_output_dir)/$(sc_require mcp_chrome.extension_dir)/manifest.json"
 mcp_chrome_port="$(sc_require ports.mcp_chrome)"
 mcp_chrome_url="http://$(sc_require hosts.loopback):${mcp_chrome_port}/mcp"
-mcp_chrome_python_path="$VENV_PYTHON3"
 if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
     mcp_chrome_enabled=1
 fi
@@ -220,62 +192,10 @@ fi
 echo "[INFO] Permission mode: auto (Never Ask; approve prompts disabled) in $kimi_config_toml_path"
 
 if [ "$mcp_chrome_enabled" -eq 1 ]; then
-# Chrome MCP (apps/mcp-chrome): skip silently when already installed,
-# otherwise offer install [Y/n] (default Y); first install builds artifacts.
-if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
-    [ ! -f "$mcp_chrome_native_artifact_path" ] ||
-    [ ! -f "$mcp_chrome_extension_manifest_path" ]; then
-    mcp_chrome_needs_build=1
-fi
-if [ -f "$kimi_mcp_config_path" ] && [ "$mcp_chrome_needs_build" -eq 0 ] &&
-    grep -q '"chrome"' "$kimi_mcp_config_path" 2>/dev/null; then
-    mcp_chrome_installed=1
-fi
-if [ "$mcp_chrome_installed" -eq 1 ]; then
-    echo "[INFO] Chrome MCP already installed; skipping install prompt."
-    mcp_chrome_setup=1
-else
-    printf '\033[33mInstall Chrome MCP (apps/mcp-chrome)? [Y/n]: \033[0m'
-    read -r mcp_install_choice || mcp_install_choice=""
-    if [ -z "$mcp_install_choice" ] || [ "$mcp_install_choice" = "y" ] || [ "$mcp_install_choice" = "Y" ]; then
-        if ! command -v node >/dev/null 2>&1; then
-            echo "[ERROR] node is required to install Chrome MCP."
-            exit 1
-        fi
-        if { [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; } &&
-            ! command -v pnpm >/dev/null 2>&1; then
-            echo "[ERROR] pnpm is required to install Chrome MCP."
-            exit 1
-        fi
-        echo "[INFO] Ensuring Chrome MCP is installed..."
-        if [ ! -d "$mcp_chrome_node_modules_path" ]; then
-            echo "[INFO] Installing Chrome MCP dependencies..."
-            (
-                cd "$mcp_chrome_path"
-                pnpm install
-            )
-        fi
-        if [ "$mcp_chrome_needs_build" -eq 1 ]; then
-            echo "[INFO] Building missing Chrome MCP artifacts..."
-            (
-                cd "$mcp_chrome_path"
-                pnpm run build:all
-            )
-        fi
-        (
-            cd "$mcp_chrome_path"
-            node "$mcp_chrome_register_script_path"
-        )
-        mcp_chrome_setup=1
-        mcp_chrome_just_installed=1
-    else
-        echo "[INFO] Chrome MCP install skipped."
-    fi
-fi
+ai_cli_mcp_chrome_service_ensure
 
-if [ "$mcp_chrome_setup" -eq 1 ]; then
-    mkdir -p "$kimi_code_home_path"
-    node - "$kimi_mcp_config_path" "$mcp_chrome_url" <<'NODE'
+mkdir -p "$kimi_code_home_path"
+node - "$kimi_mcp_config_path" "$mcp_chrome_url" <<'NODE'
 const fs = require("node:fs");
 const configPath = process.argv[2];
 const chromeUrl = process.argv[3];
@@ -287,36 +207,9 @@ config.mcpServers ??= {};
 config.mcpServers.chrome = { url: chromeUrl };
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 NODE
-    echo "[INFO] Chrome MCP registered in Kimi Code: $kimi_mcp_config_path"
-
-    if [ "$mcp_chrome_just_installed" -eq 1 ]; then
-        if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
-            mcp_chrome_port_ready=1
-        fi
-        echo "[INFO] Ensuring the singleton Chrome MCP supervisor is running..."
-        if [ "$mcp_chrome_needs_build" -eq 1 ] || [ "$mcp_chrome_port_ready" -eq 0 ]; then
-            "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev --recover-on-start >"$mcp_chrome_dev_log_path" 2>&1 &
-        else
-            "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev >"$mcp_chrome_dev_log_path" 2>&1 &
-        fi
-        while [ "$mcp_chrome_port_ready" -eq 0 ] && [ "$mcp_chrome_port_wait_count" -lt 60 ]; do
-            sleep 0.5
-            if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
-                mcp_chrome_port_ready=1
-            fi
-            mcp_chrome_port_wait_count=$((mcp_chrome_port_wait_count + 1))
-        done
-        if [ "$mcp_chrome_port_ready" -eq 1 ]; then
-            echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
-        else
-            echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
-        fi
-    else
-        echo "[INFO] Chrome MCP already installed; skipping supervisor start."
-    fi
-fi
+echo "[INFO] Chrome MCP registered in Kimi Code: $kimi_mcp_config_path"
 else
-    echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
+    echo "[INFO] No desktop environment; skipping Chrome MCP setup."
 fi
 
 echo "[INFO] Launch: kimi --auto (Never Ask mode; provider kimi-for-coding, model $kimi_model); extra args: $#"
