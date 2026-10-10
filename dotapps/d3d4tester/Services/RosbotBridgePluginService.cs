@@ -62,6 +62,7 @@ public static class RosbotBridgePluginService
         if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
         TickDriver.Instance.RegisterEveryTick(_ => PublishState());
         RosbotFlowRunner.Resumed += ReleasePluginControlOnResume;
+        RosbotManager.Instance.AddBeforeStartHook(_ => AutoInstallIfEnabled());
         D3D4TesterConfigChangeHub.Notifier.Subscribe(key =>
         {
             if (key is ConfigKeys.RosSettingsRosDirectory or ConfigKeys.RosbotBridgePluginAutoInstall) _ = Task.Run(AutoInstallIfEnabled);

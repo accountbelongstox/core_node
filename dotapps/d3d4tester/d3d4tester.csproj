@@ -69,4 +69,10 @@
     <Copy SourceFiles="@(RecoveryToolFiles)" DestinationFolder="$(TargetDir)tools\compatibility" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(DynamicCollectorFiles)" DestinationFolder="$(TargetDir)tools\dynamic" SkipUnchangedFiles="true" />
   </Target>
+  <Target Name="CopyBundledToolsToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <BundledToolFiles Include="$(TargetDir)tools\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BundledToolFiles)" DestinationFiles="@(BundledToolFiles->'$(PublishDir)tools\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

@@ -20,6 +20,12 @@ public sealed record PlannerStat(
     public string? WatchKey => Attribute == null ? null : Parameter is { } p ? $"{Attribute}#{p}" : Attribute;
 }
 
+/// <summary>A named planner entry (passive, follower skill, gem): maxroll key and English / Chinese names.</summary>
+public sealed record PlannerNamed(string Id, string NameEn, string NameZh);
+
+/// <summary>An active skill on a skill bar slot (0 = left mouse ... 5 = action key 4) with its rune.</summary>
+public sealed record PlannerSkill(int SlotIndex, string Id, string NameEn, string NameZh, string Rune, string RuneNameEn, string RuneNameZh);
+
 /// <summary>A planned item in one slot: item ids (main + alternates), GBIDs, names, required ancient rank (0 / 1 ancient / 2 primal), affixes.</summary>
 public sealed record PlannerItem(
     string Slot,
@@ -31,13 +37,32 @@ public sealed record PlannerItem(
     string NameEn,
     string NameZh,
     int AncientRank,
-    IReadOnlyList<PlannerStat> Stats);
+    IReadOnlyList<PlannerStat> Stats)
+{
+    /// <summary>Socketed gems (normal gem with its quality, or legendary gem with its rank).</summary>
+    public IReadOnlyList<PlannerNamed> Gems { get; init; } = Array.Empty<PlannerNamed>();
+}
 
-/// <summary>One gear profile of the build (maxroll lets a build hold several).</summary>
-public sealed record PlannerProfile(string Name, IReadOnlyList<PlannerItem> Items, IReadOnlyList<PlannerItem> Kanai);
+/// <summary>
+/// One gear profile of the build (maxroll lets a build hold several): hero gear and Kanai's Cube, skill bar, passives, paragon level,
+/// and the follower (type, gear, skills).
+/// </summary>
+public sealed record PlannerProfile(string Name, IReadOnlyList<PlannerItem> Items, IReadOnlyList<PlannerItem> Kanai)
+{
+    public IReadOnlyList<PlannerSkill> Skills { get; init; } = Array.Empty<PlannerSkill>();
+    public IReadOnlyList<PlannerNamed> Passives { get; init; } = Array.Empty<PlannerNamed>();
+    public int ParagonLevel { get; init; }
+    public PlannerNamed? Follower { get; init; }
+    public IReadOnlyList<PlannerItem> FollowerItems { get; init; } = Array.Empty<PlannerItem>();
+    public IReadOnlyList<PlannerNamed> FollowerSkills { get; init; } = Array.Empty<PlannerNamed>();
+}
 
 /// <summary>A maxroll d3planner build: id, source URL, name, class and its profiles.</summary>
-public sealed record PlannerBuild(long Id, string Url, string Name, string Class, IReadOnlyList<PlannerProfile> Profiles, int ActiveProfile, DateTime LoadedUtc);
+public sealed record PlannerBuild(long Id, string Url, string Name, string Class, IReadOnlyList<PlannerProfile> Profiles, int ActiveProfile, DateTime LoadedUtc)
+{
+    /// <summary>Chinese class name from the planner locale (empty when unknown).</summary>
+    public string ClassZh { get; init; } = "";
+}
 
 /// <summary>One item seen in game (bridge plugin): identity fields and the watched affix values.</summary>
 public sealed record ObservedItem(int Gbid, string InternalName, string Name, int AncientRank, IReadOnlyDictionary<string, double>? Attrs);

@@ -170,7 +170,6 @@
       "select_battlenet_executable": "选择战网可执行文件",
       "select_d3_executable": "选择暗黑3可执行文件",
       "battlenet_status": "战网",
-      "battlenet_region_label": "战网区域",
       "is_asia_server_label": "是否亚服",
       "is_asia_yes": "是",
       "is_asia_no": "否",

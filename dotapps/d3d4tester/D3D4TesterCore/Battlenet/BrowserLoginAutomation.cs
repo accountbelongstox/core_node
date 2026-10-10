@@ -55,8 +55,7 @@ public static class BrowserLoginAutomation
     private static List<(IntPtr Hwnd, string Region)> FindTargets()
     {
         var targets = new List<(IntPtr, string)>();
-        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
-        string accountRegion = snapshot.BattlenetUiRegion ?? BattlenetManager.Instance.GetConfiguredRegion() ?? snapshot.BattlenetRegion ?? C.RegionAsia;
+        string accountRegion = BattlenetOperationFactory.ResolveRegion() ?? C.RegionAsia;
         foreach (var w in BattlenetManager.Instance.FindWindows())
         {
             if (w.ClassName == C.CnBrowserConfirmWindowClassName || w.ClassName == C.LoginWindowClassName)

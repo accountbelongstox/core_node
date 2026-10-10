@@ -62,7 +62,7 @@
 
 ### 2.3 为何「大量功能未完成」
 
-- **Python 端**：ROSBOT 流程为 tick 驱动（1s 定时器、2s 步长）、扩展线程（D3ExtensionThread）收 CMD_START_ROSBOT/CMD_STOP_ROSBOT、B/D/C/E/F 块由 `rosbot_flow_battlenet`、`flow_c_d3_direct`、`flow_e_rosbot_run`、`flow_master_driver` 等分步执行；F3 日志超时、F4 关 D3 发 F7、凭证弹窗调度、油猴/国服 B10/B11 等均在该架构下实现。
+- **Python 端**：ROSBOT 流程为 tick 驱动（1s 定时器、2s 步长）、扩展线程（D3ExtensionThread）收 CMD_START_ROSBOT/CMD_STOP_ROSBOT、B/D/C/E/F 块由 `rosbot_flow_battlenet`、`flow_c_d3_direct`、`flow_e_rosbot_run`、`flow_master_driver` 等分步执行；F3 日志超时、F4 关 D3 发 F7、凭证弹窗调度、国服 B10/B11（浏览器 OCR 自动化）等均在该架构下实现。
 - **DOT 端（流程驱动）**：启动 / 停止监控 = `RosbotFlowRunner.Start/Stop`（独立线程按流程顺序执行 F1 → B → D → C → E → F3，停止即取消当前步骤），各段为 `BattlenetReadyProcess` / `GameLaunchProcess` / `D3DirectProcess` / `RosbotRunFlow` / `F3MonitorProcess`（`F3LogTimeout`），见 `ROSBOT_FLOW_MERMAID.md`。
 
 ---
@@ -78,7 +78,7 @@
 
 | 位置 | 内容 |
 |------|------|
-| `RosbotPage.xaml.cs` | `BtnStartRosbot_Click`：当前 snapshot 与路径（START/STOP）；`EnsureBattlenetRegionBeforeStart` 为 null 时；设置 `RosbotFlowMasterEnabled=true` 时；`DoRunRosbotAfterWakeAsync` 进入/返回/异常；`UpdateRosbotControlFromState` 的 `RosbotFlowMasterEnabled`/`EnsureBattlenetOnlyEnabled`；`BtnEnsureBattlenet_Click`、`BtnUpdateRosbot`、`BtnSetAccountPassword`、`BtnOpenTampermonkey` 点击与结果。 |
+| `RosbotPage.xaml.cs` | `BtnStartRosbot_Click`：当前 snapshot 与路径（START/STOP）；`EnsureBattlenetRegionBeforeStart` 为 null 时；设置 `RosbotFlowMasterEnabled=true` 时；`DoRunRosbotAfterWakeAsync` 进入/返回/异常；`UpdateRosbotControlFromState` 的 `RosbotFlowMasterEnabled`/`EnsureBattlenetOnlyEnabled`；`BtnEnsureBattlenet_Click`、`BtnUpdateRosbot`点击与结果（账号密码只在战网管理页「区服与账号」）。 |
 | `RosbotFlowController.cs` | `RunAsync()`：入口、`EnsureRegion()` 结果、F1 D3 online、进入 B 块、B16 结果、进入 D 块、进入 E 块、返回值；`StopRosbot()`：入口、killed 数量、异常。 |
 | `GameInterfaceData.cs` | `SetRosbotFlowMasterEnabled(enabled)`、`SetRosbotStatus(running)` 在**值变化时**打 DEBUG。 |
 

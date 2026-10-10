@@ -399,7 +399,8 @@ public partial class RosbotBridgePanel : UserControl
         var p = D3D4TesterI18n.Provider;
         if (_state?.StandbyEnabled == true)
         {
-            RosbotTaskProcessor.Instance.RequestResumeFlow();
+            if (RosbotFlowState.Instance.Paused) RosbotTaskProcessor.Instance.RequestResumeFlow();
+            else Send(RosbotPluginConstants.BridgeActionStandby, value: RosbotPluginConstants.BridgeStandbyOff);
             return;
         }
         if (!GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh)
@@ -437,7 +438,7 @@ public partial class RosbotBridgePanel : UserControl
             await RosbotBridgePluginService.TakeControlAsync();
         }
         if (action is not (RosbotPluginConstants.BridgeActionPickupFilter or RosbotPluginConstants.BridgeActionClickUi or RosbotPluginConstants.BridgeActionSalvageAll
-                or RosbotPluginConstants.BridgeActionFollow)
+                or RosbotPluginConstants.BridgeActionFollow or RosbotPluginConstants.BridgeActionUiSequence or RosbotPluginConstants.BridgeActionStandby)
             && string.IsNullOrWhiteSpace(target))
         {
             TxtCommandResult.Text = p.GetUiText(I18nKeys.RosbotBridgeSelectTarget);

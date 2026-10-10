@@ -129,7 +129,6 @@ pyapps/d3-check/d3utils/rosbot_flow/flow_d_launch_from_bn.py
 pyapps/d3-check/d3utils/rosbot_flow/flow_e_rosbot_run.py
 pyapps/d3-check/d3utils/rosbot_flow/flow_f1c_f1d.py
 pyapps/d3-check/d3utils/rosbot_flow/flow_master_driver.py
-pyapps/d3-check/d3utils/rosbot_flow/flow_tm_backend.py
 pyapps/d3-check/d3utils/rosbot_flow/__init__.py
 pyapps/d3-check/d3utils/rosbot_flow_rosbot_exit_state.py
 pyapps/d3-check/d3utils/rosbot_flow_state.py
@@ -206,7 +205,6 @@ pyapps/d3-check/share/coordinate_helper.py
 pyapps/d3-check/share/d4_ocr_config.py
 pyapps/d3-check/share/game_interface_data.py
 pyapps/d3-check/share/__init__.py
-pyapps/d3-check/share/oauth_callback.py
 pyapps/d3-check/share/project_path.py
 pyapps/d3-check/share/scaled_template_matcher_base.py
 pyapps/d3-check/share/template_match_debug.py
