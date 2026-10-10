@@ -11,7 +11,7 @@ namespace CoreNodeBridge;
 /// Town work the app does with mouse and keyboard (equip build items from the backpack) before ROSBOT's town run salvages them. The
 /// app writes town_hold.txt: "1" = it has work at the next town visit, anything else = none / done. Once per town visit (a visit ends
 /// when the hero leaves town) a hold starts: on ROSBOT's in-town event the event thread is blocked (ROSBOT waits, the plugin timer keeps
-/// publishing state); follow mode in town waits before taking a banner. The hold ends when the app clears the file, the hero leaves
+/// publishing state); follow mode in town waits before taking a banner; town standby holds while it idles in town. The hold ends when the app clears the file, the hero leaves
 /// town, the plugin is disabled, or after MaxHoldMs (Wait checks the deadline itself, so ROSBOT is never blocked longer).
 /// </summary>
 internal sealed class TownHold
@@ -19,6 +19,7 @@ internal sealed class TownHold
     public const string FileName = "town_hold.txt";
     public const string ReasonTownRun = "town_run";
     public const string ReasonFollow = "follow";
+    public const string ReasonStandby = "standby";
     private const string On = "1";
     private const int MaxHoldMs = 90000;
     private const int WaitSliceMs = 200;

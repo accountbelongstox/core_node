@@ -21,7 +21,8 @@ public static class RosbotBridgeStartActions
     private const double InGameWaitSec = 90.0;
     private const double InGamePollSec = 2.0;
     private const double PauseSettleSec = 1.5;
-    private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(45);
+    /// <summary>Longer than the plugin's own 60 s command timeout, so its result (ok or timeout) always arrives before the app gives up.</summary>
+    private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(65);
 
     /// <summary>Run after ROSBOT is online (started this cycle when freshStart). Throws OperationCanceledException when the flow stops.</summary>
     public static void Run(FlowContext ctx, bool freshStart)

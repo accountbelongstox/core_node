@@ -878,7 +878,7 @@
     },
     "rosbot_bridge": {
       "title": "ROSBOT plugin: CoreNode Bridge (current map)",
-      "desc": "This app's own ROSBOT plugin, installed to ROSBOT's pluginsCoreNodeBridge. While ROSBOT runs it writes the current map (level area SNO), scene, world, town / rift / greater rift level, paragon, health, blood shards, keys, current sequence and recent maps to state.json once per second; this panel reads it every second. Enable CoreNode Bridge once in ROSBOT's plugin list; after updating the plugin restart ROSBOT to load it. Maps only have numeric ids; name the current map below.",
+      "desc": "This app's own ROSBOT plugin, installed to ROSBOT's plugins\\CoreNodeBridge. While ROSBOT runs it writes the current map (level area SNO), scene, world, town / rift / greater rift level, paragon, health, blood shards, keys, current sequence and recent maps to state.json once per second; this panel reads it every second. Enable CoreNode Bridge once in ROSBOT's plugin list; after updating the plugin restart ROSBOT to load it. Maps only have numeric ids; name the current map below.",
       "auto_install": "Install / update in the current ROSBOT automatically (at start and when the ROSBOT path changes)",
       "install": "Install / update plugin",
       "open_dir": "Open plugin folder",

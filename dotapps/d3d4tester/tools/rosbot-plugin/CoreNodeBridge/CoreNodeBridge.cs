@@ -156,8 +156,8 @@ public sealed class CoreNodeBridge : IPlugin
             _commands.ReloadFilter();
             _watch.Reload(_dir);
         }
-        _commands.Poll();
         if (Quiet) return;
+        _commands.Poll();
         _townHold.Tick();
         _follow.Tick();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)

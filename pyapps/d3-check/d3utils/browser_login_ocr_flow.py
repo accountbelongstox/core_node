@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Browser login OCR flow (CN, no Tampermonkey).
+Browser login OCR flow (CN): Python automation of the browser login page.
 Flow: find browser by BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS -> activate to front + wait ->
 center 80% region capture (ImageGrab) -> OCR -> button bbox + offset -> click.
 """
@@ -31,7 +31,7 @@ from d3utils.ocr_helper import (
 Image = get_third_package_PIL_Image()
 ImageGrab = get_third_package_PIL_ImageGrab()
 
-# Page text to match (same as Tampermonkey script)
+# Page text to match
 EULA_LABEL_SUBSTR = "我接受暴雪战网最终用户许可协议"
 AGREE_BTN_SUBSTR = "同意"
 CANCEL_BTN_SUBSTR = "取消"
@@ -171,13 +171,12 @@ def _click_in_window(
 def run_one_poll(
     deadline: float,
     clicker: Optional[ClickHandler] = None,
-    notify_oauth_done=None,
 ) -> str:
     """
     One poll: find browser by BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS; if not found wait this tick (return continue);
     if found: activate to front + wait -> capture center 80% (ImageGrab) -> OCR -> click at bbox_center + rect offset.
     Returns:
-      "success"  - detected success text or clicked through; caller should call notify_oauth_done if needed
+      "success"  - detected success text or clicked through
       "timeout"  - time.time() >= deadline; flow should go to BN_Exit
       "continue" - no browser yet (wait by title) or no clickable element this round
     """
@@ -211,8 +210,6 @@ def run_one_poll(
     text_flat = (result.get("text") or "")
     if SUCCESS_TEXT_SUBSTR in text_flat:
         ColorPrint.blue("[BrowserLoginOCR] Success text found, consider OAuth done")
-        if notify_oauth_done:
-            notify_oauth_done()
         return "success"
     clk = clicker or get_click_handler()
     # B11 real-time OCR: use constants 登录/同意/EULA to get position, click when found (CN browser OAuth)
@@ -288,16 +285,15 @@ def run_one_poll(
 def run_browser_login_ocr_flow(
     timeout_sec: float = BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC,
     poll_interval_sec: float = POLL_INTERVAL_SEC,
-    notify_oauth_done=None,
 ) -> bool:
     """
     Block until success or timeout. Polls every poll_interval_sec; each poll runs run_one_poll.
-    Returns True if success (notify_oauth_done called), False on timeout.
+    Returns True if success, False on timeout.
     """
     deadline = time.time() + timeout_sec
     clicker = get_click_handler()
     while time.time() < deadline:
-        status = run_one_poll(deadline, clicker=clicker, notify_oauth_done=notify_oauth_done)
+        status = run_one_poll(deadline, clicker=clicker)
         if status == "success":
             return True
         if status == "timeout":

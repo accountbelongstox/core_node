@@ -231,10 +231,10 @@ public static class BattlenetReadyProcess
     private static bool TryAsiaLogin(bool activate)
     {
         if (BattlenetFlowHooks.IsCredentialsPromptPending()) return false;
-        var creds = BattlenetFlowHooks.GetAsiaCredentials?.Invoke();
+        var creds = BattlenetFlowHooks.GetLoginCredentials?.Invoke(C.RegionAsia);
         if (creds == null)
         {
-            BattlenetFlowHooks.ScheduleCredentialsPrompt?.Invoke();
+            BattlenetFlowHooks.ScheduleLoginCredentialsPrompt?.Invoke(C.RegionAsia);
             ColorPrinter.Gray($"{LogTag} Asia login: no saved credentials, Battle.net accounts shown");
             return false;
         }
@@ -245,7 +245,7 @@ public static class BattlenetReadyProcess
             Thread.Sleep(C.ActivateSettleMs);
         }
         if (!op.IsOnAsiaLoginScreen()) return false;
-        bool ok = op.PerformAsiaLoginFillAndSubmit(creds.Value.Email, creds.Value.Password);
+        bool ok = op.PerformAsiaLoginFillAndSubmit(creds.Value.Account, creds.Value.Password);
         if (ok) ColorPrinter.Blue($"{LogTag} Asia login: fill + submit done");
         return ok;
     }

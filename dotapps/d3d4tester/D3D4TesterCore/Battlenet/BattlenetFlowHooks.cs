@@ -15,19 +15,13 @@ public static class BattlenetFlowHooks
     /// <summary>Config ros_settings.battlenet_region_cache.</summary>
     public static Func<string?>? RegionCacheProvider { get; set; }
 
-    /// <summary>Stored Asia credentials (email, password) or null. 1:1 get_asia_credentials.</summary>
-    public static Func<(string Email, string Password)?>? GetAsiaCredentials { get; set; }
-
     /// <summary>True while the Battle.net accounts were shown and the credentials are still missing. 1:1 is_asia_credentials_dialog_pending.</summary>
     public static Func<bool>? CredentialsPromptPending { get; set; }
 
-    /// <summary>Show the Battle.net accounts once (non-blocking) for the Asia login. 1:1 schedule_asia_credentials_dialog.</summary>
-    public static Action? ScheduleCredentialsPrompt { get; set; }
-
-    /// <summary>Saved (encrypted at rest) login credentials for a region ("cn" / "asia"), or null. Used by web login automation.</summary>
+    /// <summary>Saved (encrypted at rest) login credentials for a region ("cn" / "asia"), or null; Asia client login and web login share it. 1:1 get_asia_credentials.</summary>
     public static Func<string, (string Account, string Password)?>? GetLoginCredentials { get; set; }
 
-    /// <summary>Show the Battle.net accounts once (non-blocking) for a region without saved credentials.</summary>
+    /// <summary>Show the Battle.net accounts once (non-blocking) for a region without saved credentials. 1:1 schedule_asia_credentials_dialog.</summary>
     public static Action<string>? ScheduleLoginCredentialsPrompt { get; set; }
 
     public static bool IsCredentialsPromptPending() => CredentialsPromptPending?.Invoke() ?? false;

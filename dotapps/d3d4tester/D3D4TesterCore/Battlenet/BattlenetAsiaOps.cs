@@ -17,7 +17,8 @@ public sealed class BattlenetAsiaOps
     private const int LogSampleCount = 50;
     private const int LogSampleShown = 20;
 
-    private static readonly FieldInputOptions FieldOptions = new()
+    /// <summary>Login field typing shared by the Asia client login and the web login (BrowserLoginAutomation).</summary>
+    internal static readonly FieldInputOptions FieldOptions = new()
     {
         ClearMode = FieldClearMode.Replace,
         IntervalMinSec = C.AsiaFieldInputIntervalMinSec,

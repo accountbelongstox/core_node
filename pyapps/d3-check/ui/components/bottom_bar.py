@@ -56,7 +56,6 @@ class BottomBar:
         self.d3_status = var_str(parent, "-")
         self.map_status = var_str(parent, "-")
         self.stage_status = var_str(parent, "-")
-        self.oauth_status = var_str(parent, "-")
         self.test_mode_status = var_str(parent, "")
 
         self._value_labels = {}
@@ -102,7 +101,6 @@ class BottomBar:
             "d3": self.d3_status,
             "map": self.map_status,
             "stage": self.stage_status,
-            "oauth": self.oauth_status,
             "window_size": self.window_size,
             "test_mode": self.test_mode_status,
         }
@@ -346,17 +344,11 @@ class BottomBar:
         self.stage_status.set(i18n.get_ui_text(f"rosbot.stage_{game_stage}"))
         stage_fg = C['success'] if game_stage != "unknown" else C['warning']
 
-        oauth_connected = state.get("oauth_script_connected", False)
-        self.oauth_status.set(
-            i18n.get_ui_text("rosbot.oauth_script_connected" if oauth_connected else "rosbot.oauth_script_disconnected")
-        )
-        oauth_fg = C['success'] if oauth_connected else C['error']
-
         region_fg = C['success'] if region_key in ("asia", "cn") else C['warning']
 
         fg_map = {
             "battlenet": bn_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,
-            "stage": stage_fg, "oauth": oauth_fg,
+            "stage": stage_fg,
         }
         for key, lb in (self._value_labels or {}).items():
             if key in fg_map:

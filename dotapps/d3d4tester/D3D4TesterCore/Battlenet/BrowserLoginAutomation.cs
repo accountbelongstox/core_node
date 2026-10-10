@@ -29,13 +29,6 @@ public static class BrowserLoginAutomation
     private const double SecuritySubmitCooldownSec = 60.0;
     private static DateTime _lastSecuritySubmitUtc = DateTime.MinValue;
 
-    private static readonly FieldInputOptions FieldOptions = new()
-    {
-        ClearMode = FieldClearMode.Replace,
-        IntervalMinSec = C.AsiaFieldInputIntervalMinSec,
-        IntervalMaxSec = C.AsiaFieldInputIntervalMaxSec,
-        AfterFocusDelaySec = C.AsiaFieldAfterFocusSec,
-    };
 
     /// <summary>One poll over every login window (Battle.net CN popup first, then browsers).</summary>
     public static PollResult RunOnePoll()
@@ -168,7 +161,7 @@ public static class BrowserLoginAutomation
             },
             focusXy: null,
             preferSetValue: false,
-            options: FieldOptions);
+            options: BattlenetAsiaOps.FieldOptions);
 
     private static PollResult Invoke(IntPtr hwnd, AutomationElement element, string what)
     {

@@ -18,7 +18,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import (
     BN_FLOW_WAIT_AFTER_START_SEC,
     BN_FLOW_POLL_TIMEOUT_SEC,
-    BN_FLOW_OAUTH_WAIT_SEC,
     BN_FLOW_EXIT_WAIT_SEC,
     BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC,
 )
@@ -28,7 +27,6 @@ from share.asia_credentials import (
     is_asia_credentials_dialog_pending,
     schedule_asia_credentials_dialog,
 )
-from share.oauth_callback import reset_oauth_done, notify_oauth_done
 from d3utils.tick_driver import get_flow_tick_from_global
 from d3utils.browser_login_ocr_flow import run_one_poll
 from d3utils.battlenet_manager import get_battlenet_manager
@@ -252,13 +250,11 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
                 ColorPrint.yellow("[BNFlow] flow B10→B11 | reason: agree/NetEase failed, still go B11 wait OAuth return")
             else:
                 ColorPrint.blue("[BNFlow] flow B10→B11 | reason: agree/NetEase done, same-tick try browser OCR")
-            reset_oauth_done()
-            ctx.set_oauth_wait_until(now + BN_FLOW_OAUTH_WAIT_SEC)
             ctx.set_browser_fallback_deadline(0.0)
             ctx.set_b11_deadline_tick(0)
             current_tick = get_flow_tick_from_global()
             ctx.set_b11_deadline_tick(current_tick + B11_MAX_TICKS)
-            status = run_one_poll(float("inf"), notify_oauth_done=notify_oauth_done)
+            status = run_one_poll(float("inf"))
             if status == "success":
                 ColorPrint.green("[BNFlow] flow B10→B12 same-tick | reason: browser OCR success right after agree")
                 ctx.set_b11_deadline_tick(0)
@@ -269,7 +265,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             return False, ""
 
             # ----- [B11] BN_Login2 -----
-        # No Tampermonkey: find browser -> center region -> OCR login/agree buttons -> wait until success or tick-based timeout.
+        # Python browser automation: find browser -> center region -> OCR login/agree buttons -> wait until success or tick-based timeout.
         if ctx.get_current_step() == BNNode.BN_Login2:
             _save_ui_snapshot("B11", "B11_browser_ocr")
             if op.is_login_failed_screen():
@@ -287,7 +283,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
                 ctx.set_b11_deadline_tick(0)
                 ctx.set_current_step(BNNode.BN_Exit)
                 continue
-            status = run_one_poll(float("inf"), notify_oauth_done=notify_oauth_done)  # timeout decided by tick above, not by run_one_poll
+            status = run_one_poll(float("inf"))  # timeout decided by tick above, not by run_one_poll
             if status == "success":
                 ColorPrint.green("[BNFlow] flow B11→B12 continue | reason: browser OCR success, confirmed")
                 ctx.set_b11_deadline_tick(0)

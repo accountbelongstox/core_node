@@ -18,7 +18,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, queue_config_save, load_config
 from controller.d3_macro_controller import D3MacroController
-from share.oauth_callback import notify_oauth_done, notify_ping, get_and_consume_step1_received
 
 try:
     from d3utils.yolo_record import (
@@ -81,10 +80,6 @@ class HTTPBridgeController:
         self._post_handlers['/api/config/update'] = self._handle_config_update
         self._post_handlers['/api/config/switch'] = self._handle_config_switch
         self._post_handlers['/api/config/save'] = self._handle_config_save
-        self._post_handlers['/api/login-try/oauth-done'] = self._handle_login_try_oauth_done
-        self._get_handlers['/api/login-try/oauth-done'] = self._handle_login_try_oauth_done_get
-        self._get_handlers['/api/login-try/oauth-ping'] = self._handle_login_try_oauth_ping
-        self._get_handlers['/api/login-try/oauth-step1-received'] = self._handle_login_try_oauth_step1_received
 
         # YOLO recording (DOT client calls Python to run GameAISDK video recording)
         self._get_handlers['/api/yolo/record/status'] = self._handle_yolo_record_status
@@ -217,40 +212,6 @@ class HTTPBridgeController:
                 'success': False,
                 'error': str(e)
             }
-
-    def _handle_login_try_oauth_done(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-        """POST /api/login-try/oauth-done: Tampermonkey notifies web that login completed."""
-        try:
-            notify_oauth_done()
-            return {'success': True, 'message': 'oauth_done'}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
-
-    def _handle_login_try_oauth_done_get(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
-        """GET /api/login-try/oauth-done (same)."""
-        try:
-            notify_oauth_done()
-            return {'success': True, 'message': 'oauth_done'}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
-
-    def _handle_login_try_oauth_ping(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
-        """GET /api/login-try/oauth-ping: Tampermonkey health ping (no oauth_done). UI shows script connected."""
-        try:
-            notify_ping()
-            return {'success': True, 'message': 'pong'}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
-
-    def _handle_login_try_oauth_step1_received(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
-        """GET /api/login-try/oauth-step1-received: flow/end page (account.battlenet.com.cn) queries whether step1 (oauth-done) was just submitted; consumed once."""
-        try:
-            received, at = get_and_consume_step1_received()
-            if received and at is not None:
-                return {'success': True, 'received': True, 'at': at}
-            return {'success': True, 'received': False}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
 
     def _handle_yolo_record_status(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
         """GET /api/yolo/record/status: whether Python is currently recording (GameAISDK)."""

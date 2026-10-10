@@ -5,7 +5,7 @@ Share = shared area: data area (values/) and common utilities (common/). See PRO
 Data directory must be named values; do not use data/store/cache etc. that may be gitignored.
 
 - Data area share/values/: shared data and data access API only, no run_*/do_*.
-  Examples: game_interface_data, project_path, oauth_callback, asia_credentials, template_match_debug.
+  Examples: game_interface_data, project_path, asia_credentials, template_match_debug.
 - Common utilities share/common/: shared helpers and base classes for both games.
   Examples: scaled_template_matcher_base, coordinate_helper, battlenet_ui_common, battlenet_window_finder.
 

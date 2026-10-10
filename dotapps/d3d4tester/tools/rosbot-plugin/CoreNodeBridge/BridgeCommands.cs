@@ -34,8 +34,8 @@ internal sealed class CommandResult
 /// salvage_all (value = normal / magic / rare: with the blacksmith window open, open its salvage page, press that salvage-all
 /// button and confirm), follow (target = selected player actor id, value = "mode,party slot,banner slot 0-4,pickup 0/1,revive 0/1" with mode nearest / selected /
 /// leader / slot, or "off"; FollowMode), ui_sequence (value = UI ids / paths separated by '|': each one is waited for (UiWaitMs) and
-/// clicked in order, e.g. the map teleport the app runs right after ROSBOT starts). Commands run on the plugin's tick; walking is
-/// bounded by GoNpcTimeoutMs.
+/// clicked in order, e.g. the map teleport the app runs right after ROSBOT starts), standby (value = on / off: TownStandby, ends
+/// follow mode; follow on ends standby). Commands run on the plugin's tick; walking is bounded by GoNpcTimeoutMs.
 /// The pickup filter (pickup_filter.txt: "auto=true|false" then one name fragment per line) is also applied automatically when
 /// a rift ends (OnGemUpdateFinish) while auto is on.
 /// </summary>
@@ -52,8 +52,10 @@ internal sealed class BridgeCommands
     public const string ActionSalvageAll = "salvage_all";
     public const string ActionFollow = "follow";
     public const string ActionUiSequence = "ui_sequence";
+    public const string ActionStandby = "standby";
     private const char UiSequenceSeparator = '|';
     private const string FollowOff = "off";
+    private const string StandbyOff = "off";
     private const char FollowValueSeparator = ',';
     private const string FollowPickupOn = "1";
     private const string QualityNormal = "normal";
@@ -84,14 +86,16 @@ internal sealed class BridgeCommands
     private DateTime _filterStamp = DateTime.MinValue;
     private List<string> _patterns = new();
 
-    public BridgeCommands(string dir, Action<string> log, FollowMode follow)
+    public BridgeCommands(string dir, Action<string> log, FollowMode follow, TownStandby standby)
     {
         _dir = dir;
         _log = log;
         _follow = follow;
+        _standby = standby;
     }
 
     private readonly FollowMode _follow;
+    private readonly TownStandby _standby;
     private readonly object _workerLock = new();
     private Thread _worker;
     private CommandResult _running;
@@ -197,25 +201,32 @@ internal sealed class BridgeCommands
         catch (IOException) { }
     }
 
-    public bool MatchesFilter(EntityInfo item) =>
-        _patterns.Any(p => Contains(item.Name, p) || Contains(item.InternalName, p));
+    public bool MatchesFilter(EntityInfo item) => MatchesFilter(item.Name, item.InternalName);
 
-    /// <summary>Pick up every ground item that matches the filter (nearest first, bounded in time).</summary>
+    private bool MatchesFilter(string name, string internalName) =>
+        _patterns.Any(p => Contains(name, p) || Contains(internalName, p));
+
+    /// <summary>Nearest valid ground item within range that matches the pickup filter and is not excluded, or null.</summary>
+    private IActor NearestMatching(float range, ICollection<uint> exclude) =>
+        _patterns.Count == 0 ? null
+        : WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>())
+            .Where(a => WorldScanner.Safe(() => a.IsValid && a.IsItem, false) && WorldScanner.Safe(() => a.Distance, float.MaxValue) <= range)
+            .Where(a => exclude == null || !exclude.Contains(WorldScanner.Safe(() => a.RActorId, 0u)))
+            .Where(a => MatchesFilter(WorldScanner.Safe(() => a.Name, ""), WorldScanner.Safe(() => a.InternalName, "")))
+            .OrderBy(a => WorldScanner.Safe(() => a.Distance, float.MaxValue))
+            .FirstOrDefault();
+
     /// <summary>Pick up the nearest ground item within range that matches the pickup filter (one item, Pickup's own time bound).</summary>
     public bool PickupNearestMatching(float range)
     {
-        if (_patterns.Count == 0) return false;
-        var target = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>())
-            .Where(a => WorldScanner.Safe(() => a.IsValid && a.IsItem, false) && WorldScanner.Safe(() => a.Distance, float.MaxValue) <= range)
-            .Where(a => _patterns.Any(p => Contains(WorldScanner.Safe(() => a.Name, ""), p) || Contains(WorldScanner.Safe(() => a.InternalName, ""), p)))
-            .OrderBy(a => WorldScanner.Safe(() => a.Distance, float.MaxValue))
-            .FirstOrDefault();
+        var target = NearestMatching(range, null);
         if (target == null) return false;
         bool ok = Pickup(target);
         _log($"follow pickup: {WorldScanner.Safe(() => target.Name, "")} {(ok ? "picked" : "not picked")}");
         return ok;
     }
 
+    /// <summary>Pick up every ground item that matches the filter (nearest first, each tried once, bounded by FilterBudgetMs).</summary>
     public (int Picked, int Matched) PickupMatching()
     {
         var sw = Stopwatch.StartNew();
@@ -223,14 +234,10 @@ internal sealed class BridgeCommands
         int picked = 0, matched = 0;
         while (sw.ElapsedMilliseconds < FilterBudgetMs)
         {
-            var target = WorldScanner.Safe(() => Context.Actors, Array.Empty<IActor>())
-                .Where(a => WorldScanner.Safe(() => a.IsValid && a.IsItem, false) && !tried.Contains(WorldScanner.Safe(() => a.RActorId, 0u)))
-                .Where(a => _patterns.Any(p => Contains(WorldScanner.Safe(() => a.Name, ""), p) || Contains(WorldScanner.Safe(() => a.InternalName, ""), p)))
-                .OrderBy(a => WorldScanner.Safe(() => a.Distance, float.MaxValue))
-                .FirstOrDefault();
+            var target = NearestMatching(float.MaxValue, tried);
             if (target == null) break;
             matched++;
-            tried.Add(target.RActorId);
+            tried.Add(WorldScanner.Safe(() => target.RActorId, 0u));
             if (Pickup(target)) picked++;
         }
         return (picked, matched);
@@ -284,11 +291,27 @@ internal sealed class BridgeCommands
                     var parts = (mode ?? "").Split(FollowValueSeparator);
                     string Part(int i) => parts.Length > i ? parts[i] : "";
                     if (mode == FollowOff) _follow.Stop();
-                    else _follow.Start(Part(0), uint.TryParse(target, out uint selected) ? selected : 0u,
-                        int.TryParse(Part(1), out int slot) ? slot : 0, int.TryParse(Part(2), out int banner) ? banner : 0, Part(3) == FollowPickupOn,
-                        Part(4) == FollowPickupOn);
+                    else
+                    {
+                        _standby.Stop();
+                        _follow.Start(Part(0), uint.TryParse(target, out uint selected) ? selected : 0u,
+                            int.TryParse(Part(1), out int slot) ? slot : 0, int.TryParse(Part(2), out int banner) ? banner : 0, Part(3) == FollowPickupOn,
+                            Part(4) == FollowPickupOn);
+                    }
                     result.Ok = true;
                     result.Message = "follow " + (_follow.Enabled ? "on" : "off");
+                    return result;
+                }
+                case ActionStandby:
+                {
+                    if (cmd.TryGetValue("value", out var standby) && standby == StandbyOff) _standby.Stop();
+                    else
+                    {
+                        if (_follow.Enabled) _follow.Stop();
+                        _standby.Start();
+                    }
+                    result.Ok = true;
+                    result.Message = "standby " + (_standby.Enabled ? _standby.State : TownStandby.StateOff);
                     return result;
                 }
                 case ActionGoNpc:
@@ -538,8 +561,9 @@ internal sealed class BridgeCommands
         while (sw.ElapsedMilliseconds < PickupTimeoutMs)
         {
             if (!WorldScanner.Safe(() => actor.IsValid && actor.IsItem, false)) return true;
-            if (WorldScanner.Safe(() => actor.Distance, float.MaxValue) <= PickupReach) LocalPlayer.PickupItem(actor);
-            else LocalPlayer.MoveTo(actor);
+            if (WorldScanner.Safe(() => actor.Distance, float.MaxValue) <= PickupReach) WorldScanner.Safe(() => LocalPlayer.PickupItem(actor), false);
+            else WorldScanner.Safe(() => LocalPlayer.MoveTo(actor), false);
+            Thread.Sleep(StepPauseMs);
         }
         _log($"pickup timed out: {WorldScanner.Safe(() => actor.Name, "")}");
         return false;
