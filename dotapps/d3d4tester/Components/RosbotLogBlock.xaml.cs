@@ -12,6 +12,7 @@ using DotApps.d3d4tester.Pages.RunLog;
 using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.Ui;
 using DotCore.Foundations;
+using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Components;
 
@@ -125,8 +126,15 @@ public partial class RosbotLogBlock : UserControl
     }
 
     /// <summary>Open ROSBOT logs.txt in Notepad. 1:1 Python _open_rosbot_log_file.</summary>
-    private void BtnOpenLogFile_Click(object sender, RoutedEventArgs e) =>
-        RosbotControlBlock.OpenWithNotepadOrWarn(this, RosbotLogPaths.GetLogsFilePath());
+    private void BtnOpenLogFile_Click(object sender, RoutedEventArgs e)
+    {
+        string path = RosbotLogPaths.GetLogsFilePath();
+        if (ShellOpen.OpenFileWithNotepad(path)) return;
+        var p = D3D4TesterI18n.Provider;
+        MessageBox.Show(Window.GetWindow(this), p.GetUiText(I18nKeys.RosbotLogFileNotFound) + "
+" + path,
+            p.GetUiText(I18nKeys.RosbotWarning), MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
 
     /// <summary>Copy selection, else the whole log. 1:1 Python _copy_rosbot_log_to_clipboard.</summary>
     private void MiCopyLog_Click(object sender, RoutedEventArgs e)

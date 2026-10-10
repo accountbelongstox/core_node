@@ -290,6 +290,7 @@
         "ini_path": "ini: {0}",
         "no_ros_dir": "ROSBOT folder not set",
         "add_failed": "The key is empty or already in the list.",
+        "restart_ask": "ROSBOT is running with another key. Close ROSBOT and start it again with the active key now? (D3 keeps running)",
         "hint": "Keys are stored encrypted. When ROSBOT asks for a key (\"Please, enter a key\") the active key is filled in and OK is pressed, without the keyboard; ROSBOT then saves it in RoS-BoT.ini. Before every start an existing RoS-BoT.ini gets the active key as Key=.",
         "last_apply": "Last write {0}: {1}",
         "result_unchanged": "already up to date",

@@ -12,8 +12,7 @@ using DotCore.YoloRecord;
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// Local HTTP bridge on 127.0.0.1:8765 for the browser userscript and tools: status/config/macro endpoints,
-/// OAuth login-try callbacks (oauth-done / oauth-ping / oauth-step1-received) and native YOLO record endpoints
+/// Local HTTP bridge on 127.0.0.1:8765 for tools: status/config/macro endpoints and native YOLO record endpoints
 /// (DotCore.YoloRecord replaces the Python GameAISDK session). Hosted by DotCore LocalJsonHttpHost.
 /// 1:1 Python controller/http_bridge_controller.py.
 /// </summary>
@@ -85,10 +84,6 @@ public sealed class D3D4TesterHttpBridge : IDisposable
         _host.MapPost("/api/config/update", HandleConfigUpdate);
         _host.MapPost("/api/config/switch", HandleConfigSwitch);
         _host.MapPost("/api/config/save", HandleConfigSave);
-        _host.MapPost("/api/login-try/oauth-done", HandleOauthDone);
-        _host.MapGet("/api/login-try/oauth-done", HandleOauthDone);
-        _host.MapGet("/api/login-try/oauth-ping", HandleOauthPing);
-        _host.MapGet("/api/login-try/oauth-step1-received", HandleOauthStep1Received);
 
         _host.MapGet("/api/yolo/record/status", HandleYoloRecordStatus);
         _host.MapPost("/api/yolo/record/start", HandleYoloRecordStart);
@@ -194,26 +189,6 @@ public sealed class D3D4TesterHttpBridge : IDisposable
             return Message("Configuration saved successfully");
         }
         catch (Exception ex) { return Error(ex.Message); }
-    }
-
-    private object HandleOauthDone(JsonObject _)
-    {
-        OAuthCallbackState.NotifyOauthDone();
-        return Message("oauth_done");
-    }
-
-    private object HandleOauthPing(JsonObject _)
-    {
-        OAuthCallbackState.NotifyPing();
-        return Message("pong");
-    }
-
-    private object HandleOauthStep1Received(JsonObject _)
-    {
-        var (received, at) = OAuthCallbackState.GetAndConsumeStep1Received();
-        var result = new JsonObject { [KeySuccess] = true, ["received"] = received };
-        if (received && at.HasValue) result["at"] = at.Value;
-        return result;
     }
 
     private object HandleYoloRecordStatus(JsonObject _) => Ok(new JsonObject { ["recording"] = YoloCalibrationData.Recorder.IsRecording });

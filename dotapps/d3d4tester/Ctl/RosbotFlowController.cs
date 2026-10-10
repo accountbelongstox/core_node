@@ -26,14 +26,14 @@ public static class RosbotFlowController
         InstallHooks();
     }
 
-    /// <summary>Set the UI-thread presenter for the credentials dialog (MainWindow OnLoaded); also installs the Battle.net flow hooks.</summary>
-    public static void SetShowCredentialsDialogAndWait(Func<string, bool>? showAndWait)
+    /// <summary>Set the presenter that shows the Battle.net tab accounts (MainWindow OnLoaded); also installs the Battle.net flow hooks.</summary>
+    public static void SetCredentialsPromptPresenter(Action<string>? presenter)
     {
-        AsiaCredentialsService.SetDialogPresenter(showAndWait);
+        AsiaCredentialsService.SetPromptPresenter(presenter);
         InstallHooks();
     }
 
-    /// <summary>Wire Core Battle.net flow hooks to app services (config, credentials dialog, OAuth bridge, event hub, status provider). Idempotent.</summary>
+    /// <summary>Wire Core Battle.net flow hooks to app services (config, credentials, accounts prompt). Idempotent.</summary>
     public static void InstallHooks()
     {
         lock (HooksLock)
@@ -43,12 +43,10 @@ public static class RosbotFlowController
         }
         BattlenetFlowHooks.RegionCacheProvider = () => ConfigOptionsProvider.GetOptions<RosSettingsOptions>().BattlenetRegionCache;
         BattlenetFlowHooks.GetAsiaCredentials = () => AsiaCredentialsService.GetCredentials(BattlenetConstants.RegionAsia) is { } c ? (c.email, c.password) : null;
-        BattlenetFlowHooks.CredentialsDialogPending = () => AsiaCredentialsService.IsDialogPending;
-        BattlenetFlowHooks.ScheduleCredentialsDialog = () => AsiaCredentialsService.ScheduleCredentialsDialog(BattlenetConstants.RegionAsia);
+        BattlenetFlowHooks.CredentialsPromptPending = () => AsiaCredentialsService.IsPromptPending;
+        BattlenetFlowHooks.ScheduleCredentialsPrompt = () => AsiaCredentialsService.ScheduleCredentialsPrompt(BattlenetConstants.RegionAsia);
         BattlenetFlowHooks.GetLoginCredentials = region => AsiaCredentialsService.GetCredentials(region) is { } c ? (c.email, c.password) : null;
-        BattlenetFlowHooks.ScheduleLoginCredentialsDialog = region => AsiaCredentialsService.ScheduleCredentialsDialog(region);
-        BattlenetFlowHooks.ResetOauthDone = OAuthCallbackState.ResetOauthDone;
-        BattlenetFlowHooks.NotifyOauthDone = OAuthCallbackState.NotifyOauthDone;
+        BattlenetFlowHooks.ScheduleLoginCredentialsPrompt = AsiaCredentialsService.ScheduleCredentialsPrompt;
     }
 
 

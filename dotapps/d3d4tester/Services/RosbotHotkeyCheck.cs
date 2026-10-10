@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.Services.Monitor;
 using DotCore.Foundations;
 using DotCore.Utils;
@@ -13,7 +14,7 @@ namespace DotApps.d3d4tester.Services;
 /// program holding one of them first leaves that ROSBOT key dead. CheckBeforeRosbotStart probes them while no ROSBOT runs and warns
 /// with the taken keys. Function-key presses seen by the app's pass-through keyboard hook are logged with physical / injected and the
 /// foreground process; an F-key scan code arriving as another virtual key (keyboard F Lock / Fn mapping) is flagged, because ROSBOT then
-/// never receives the F key.
+/// never receives the F key. A physical F6 (ROSBOT's pause key, passed on to ROSBOT untouched) pauses / resumes monitoring with ROSBOT.
 /// </summary>
 public static class RosbotHotkeyCheck
 {
@@ -58,6 +59,7 @@ public static class RosbotHotkeyCheck
             return;
         }
         ColorPrinter.Gray($"{LogTag} {source} {name} (scan 0x{scan:X2}), foreground {foreground}");
+        if (!injected && vk == RosbotConstants.VkF6) RosbotTaskProcessor.Instance.OnUserPauseKey();
     }
 
     private static string ForegroundProcess()

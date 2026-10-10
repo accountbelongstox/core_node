@@ -188,7 +188,7 @@ public static class InMemoryCentersCatalog
             Key: "ctl.rosbot_flow_controller",
             TypeName: "DotApps.d3d4tester.Ctl.RosbotFlowController",
             Kind: InMemoryCenterKind.State,
-            Access: "RosbotFlowController.InstallHooks/StopRosbot/SetShowCredentialsDialogAndWait; flow runs from RosbotTaskProcessor (1 s tick, BN-only, flow master)",
+            Access: "RosbotFlowController.InstallHooks/StopRosbot/SetCredentialsPromptPresenter; flow runs from RosbotTaskProcessor (1 s tick, BN-only, flow master)",
             ThreadingContract: "Hooks installed once; NotifyCallbacks via GameInterfaceData marshal to UI.",
             Responsibility: "Battle.net flow hook wiring and ROSBOT stop; no flow state of its own."),
         new Center(

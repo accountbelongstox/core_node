@@ -1,11 +1,8 @@
 <UserControl x:Class="DotApps.d3d4tester.Components.RosbotControlBlock"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- ROSBOT control panel (Python control_frame); Start / Stop is the Monitor toggle -->
+  <!-- ROSBOT control panel (Python control_frame); Start / Stop is the Monitor toggle, Battle.net guard and accounts live on the Battle.net tab -->
   <WrapPanel>
-    <Button x:Name="BtnEnsureBattlenet" Margin="0,0,6,0" Click="BtnEnsureBattlenet_Click"/>
-    <Button x:Name="BtnUpdateRosbot" Margin="0,0,6,0" Click="BtnUpdateRosbot_Click"/>
-    <Button x:Name="BtnOpenTampermonkey" Margin="0,0,6,0" Click="BtnOpenTampermonkey_Click"/>
-    <Button x:Name="BtnSetAccountPassword" Click="BtnSetAccountPassword_Click"/>
+    <Button x:Name="BtnUpdateRosbot" Click="BtnUpdateRosbot_Click"/>
   </WrapPanel>
 </UserControl>

@@ -283,6 +283,9 @@ public partial class BattlenetPage : UserControl
             });
     }
 
+    /// <summary>Select the region and accounts sub-tab (missing credentials are entered here only).</summary>
+    public void ShowAccounts() => TabsBattlenet.SelectedItem = TabRegion;
+
     private static string RegionName(string region) =>
         D3D4TesterI18n.Provider.GetUiText(region == C.RegionCn ? I18nKeys.StatusServerCn : I18nKeys.StatusServerAsia);
 

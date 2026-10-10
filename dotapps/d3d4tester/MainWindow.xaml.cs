@@ -118,18 +118,12 @@ public partial class MainWindow : Window, IMainWindowHost
         UiRegistry.RegisterMainUi(this, this);
         EventCenter.RegisterMainThreadHandlers(this);
         ShutdownManager.RegisterUi(this);
-        // Flow-triggered credentials dialog: B10a calls this when Asia credentials are missing; show on UI thread and block until closed. 1:1 Python schedule_battlenet_credentials_dialog.
-        RosbotFlowController.SetShowCredentialsDialogAndWait(region =>
+        // Missing credentials (flow B10a / web login form): show the accounts on the Battle.net tab, the only place to enter them.
+        RosbotFlowController.SetCredentialsPromptPresenter(_ => Dispatcher.BeginInvoke(() =>
         {
-            bool? result = null;
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                var d = new CredentialsDialog(region) { Owner = this };
-                result = d.ShowDialog();
-                ColorPrinter.Gray($"[DEBUG][MainWindow] CredentialsDialog ShowDialog returned {result}");
-            });
-            return result == true;
-        });
+            TabMain.SelectedItem = TabBattlenet;
+            if (GetPage(AppConstants.PanelKeyBattlenet) is BattlenetPage page) page.ShowAccounts();
+        }));
         GameInterfaceData.Instance.SetMarshalToUi(a =>
         {
             if (Dispatcher.CheckAccess())
@@ -468,7 +462,6 @@ public partial class MainWindow : Window, IMainWindowHost
         ApplyChip(ChipD3, TxtStatusD3, d.D3Text, d.D3BrushKey);
         ApplyChip(ChipMap, TxtStatusMap, d.MapText, d.MapBrushKey);
         ApplyChip(ChipStage, TxtStatusStage, d.StageText, d.StageBrushKey);
-        ApplyChip(ChipOauth, TxtStatusOauth, d.OauthText, d.OauthBrushKey);
         TxtStatusWindowSize.Text = d.WindowSizeText;
         TxtStatusWindowSize.SetResourceReference(TextBlock.ForegroundProperty, d.WindowSizeBrushKey);
         TxtTestMode.Text = d.TestModeText;

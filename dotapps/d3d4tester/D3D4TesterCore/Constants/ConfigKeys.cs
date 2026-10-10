@@ -72,8 +72,6 @@ public static partial class ConfigKeys
 
     /// <summary>Downloads directory for ROSBOT zip (Python paths.downloads_dir). Fallback: user Downloads.</summary>
     public const string PathsDownloadsDir = "paths.downloads_dir";
-    /// <summary>Tampermonkey script path. 1:1 Python TAMPERMONKEY_SCRIPT_PATH (providor/constants/common.py). Default: {repo}/scripts/d3check_oauth_login_tampermonkey.user.js.</summary>
-    public const string PathsTampermonkeyScript = "paths.tampermonkey_script";
 
     // ---------- ros_settings, battlenet, d3, rosbot ----------
     public const string RosSettingsRosDirectory = "ros_settings.ros_directory";
