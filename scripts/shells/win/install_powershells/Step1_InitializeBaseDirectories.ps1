@@ -1,6 +1,7 @@
 # Import variable management functions and global variables
 . (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
 . (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "DiskReadinessCommon.ps1")
 
 $STEP_NUMBER = 1
 
@@ -230,6 +231,9 @@ function Test-AndInstallWinGet {
 }
 
 Test-SystemRequirements
+if (New-ProgramDrivePartition -SourceDrive $Global:WINDOWS_DATA_DRIVE_ROOT -TargetDrive $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL) {
+    . (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "SharedCacheEnv.ps1")
+}
 Invoke-CnProgramDriveMigration
 # Reload so LANG_COMPILER_DIR, APP_INSTALL_DIR and every dir derived from them
 # follow the migration (the old D: dirs must not be recreated below).
