@@ -19,7 +19,7 @@ public enum D4AgentFailure
 
 /// <summary>
 /// D4 vision agent (automated gameplay test): a closed loop of capture (live window or recorded video) -> YOLO detection + tracking ->
-/// HUD vitals and minimap tracking -> state machine decision -> Windows input, re-observing after every action. Video sources and
+/// HUD vitals, minimap tracking and pinned-route guidance -> state machine decision -> Windows input, re-observing after every action. Video sources and
 /// observe mode never send input (watch-only first, as the rollout plan requires). Runs on its own <see cref="FlowThread"/>;
 /// every session writes an evaluation log (<see cref="D4AgentSessionLog"/>). The model is the configured path or the registry's
 /// current "d4_agent" model.
@@ -147,6 +147,7 @@ public sealed class D4VisionAgent
             MaxMisses: D4AgentConstants.TrackerMaxMisses, HighConfidence: s.Confidence, LowConfidence: s.Confidence / 2));
         var vitals = new D4VitalsReader();
         using var map = new D4MinimapTracker(s);
+        var routeGuide = new D4RouteGuide(s);
         var brain = new D4AgentBrain(s, map);
         var actuator = new D4AgentActuator();
         using var log = new D4AgentSessionLog(s, lease.ModelPath);
@@ -192,7 +193,8 @@ public sealed class D4VisionAgent
                 var tracks = tracker.Update(detections);
                 var observation = new D4Observation(frames, frame.Timestamp, new Size(frame.Image.Width, frame.Image.Height), detections, tracks,
                     vitals.Read(frame), map.Update(frame),
-                    new Point((int)(frame.Image.Width * D4AgentConstants.PlayerAnchorX), (int)(frame.Image.Height * D4AgentConstants.PlayerAnchorY)));
+                    new Point((int)(frame.Image.Width * D4AgentConstants.PlayerAnchorX), (int)(frame.Image.Height * D4AgentConstants.PlayerAnchorY)),
+                    routeGuide.Update(frame));
                 var decision = brain.Decide(observation);
                 bool acted = s.MayAct && actuator.Execute(decision, frame);
                 if (acted)

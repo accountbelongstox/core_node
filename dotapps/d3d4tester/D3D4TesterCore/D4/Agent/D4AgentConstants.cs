@@ -88,6 +88,13 @@ public static class D4AgentConstants
     public const int FrontierMinSize = 4;
     public const int PathLookaheadCells = 6;
     public const int FrontierCandidates = 6;
+    public const int WalkableOpenKernel = 3;
+
+    /// <summary>Pinned route: the agent walks toward this waypoint index (clamped) via an A* path on the current minimap.</summary>
+    public const int RouteLookaheadWaypoint = 2;
+    public const int RouteCellPixels = 3;
+    public const int RouteObstacleInflatePixels = 1;
+    public const int RouteGoalSnapCells = 4;
 
     /// <summary>Screen distance of a move click from the hero as a fraction of the client height.</summary>
     public const double MoveClickRadiusRatio = 0.22;

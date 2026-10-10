@@ -19,6 +19,13 @@ public static class MinimapRouteAnnotator
     public static Mat Draw(Mat bgr, MinimapRouteResult result)
     {
         var vis = bgr.Clone();
+        DrawInto(vis, result);
+        return vis;
+    }
+
+    /// <summary>Draw <paramref name="result"/> in place onto <paramref name="vis"/>.</summary>
+    public static void DrawInto(Mat vis, MinimapRouteResult result)
+    {
         if (result.MapRect is { } map) Cv2.Rectangle(vis, map, RectColor, 2);
         foreach (var dot in result.Dots) Cv2.Circle(vis, dot, 3, DotColor, -1);
         var path = result.OrderedPath;
@@ -32,6 +39,5 @@ public static class MinimapRouteAnnotator
             if (result.HeadingDegrees is { } heading)
                 Cv2.PutText(vis, $"{heading:F1} deg", new Point(player.X + 6, player.Y + 14), HersheyFonts.HersheySimplex, 0.4, PlayerColor, 1);
         }
-        return vis;
     }
 }

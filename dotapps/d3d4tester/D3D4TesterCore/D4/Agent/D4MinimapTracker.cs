@@ -1,5 +1,6 @@
 // PY-REF: none (DOT-only)
 using DotCore.Common.Navigation;
+using DotCore.MinimapNav;
 using OpenCvSharp;
 
 namespace DotApps.d3d4tester.Core.D4.Agent;
@@ -20,6 +21,7 @@ public sealed class D4MinimapTracker : IDisposable
     private readonly bool[] _blocked = new bool[Size * Size];
     private readonly List<(GridPoint Cell, DateTime UntilUtc)> _skippedFrontiers = new();
     private readonly D4AgentSettings _settings;
+    private readonly MinimapNavOptions _walkable;
     private Mat? _previous;
     private Mat? _window;
     private Mat? _lastMask;
@@ -27,7 +29,11 @@ public sealed class D4MinimapTracker : IDisposable
     private int _minX = Size, _minY = Size, _maxX = -1, _maxY = -1;
     private int _frontierCount;
 
-    public D4MinimapTracker(D4AgentSettings settings) => _settings = settings;
+    public D4MinimapTracker(D4AgentSettings settings)
+    {
+        _settings = settings;
+        _walkable = D4RouteGuide.NavOptions(settings, obstacleInflatePixels: 0);
+    }
 
     public Point2d Position => _position;
 
@@ -134,16 +140,7 @@ public sealed class D4MinimapTracker : IDisposable
         return _free[i] >= _seen[i] * D4AgentConstants.MapFreeVoteRatio ? GridCellState.Free : GridCellState.Blocked;
     }
 
-    private Mat WalkableMask(Mat minimap)
-    {
-        using var hsv = new Mat();
-        Cv2.CvtColor(minimap, hsv, ColorConversionCodes.BGR2HSV);
-        var mask = new Mat();
-        Cv2.InRange(hsv, new Scalar(0, 0, _settings.WalkableValueMin), new Scalar(180, _settings.WalkableSaturationMax, _settings.WalkableValueMax), mask);
-        using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(3, 3));
-        Cv2.MorphologyEx(mask, mask, MorphTypes.Open, kernel);
-        return mask;
-    }
+    private Mat WalkableMask(Mat minimap) => WalkableGrid.WalkableMask(minimap, _walkable);
 
     /// <summary>Votes one sample per cell inside the round minimap; the hero's own cell neighbourhood always counts as free.</summary>
     private void Integrate(Mat mask)

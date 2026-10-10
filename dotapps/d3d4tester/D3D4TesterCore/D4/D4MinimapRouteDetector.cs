@@ -36,9 +36,8 @@ public sealed class D4MinimapRouteDetector
         bool windowed = data.IsWindowedMode();
         var start = D4StandardCoords.Scale(D4StandardCoords.Minimap.Start, size, windowed);
         var end = D4StandardCoords.Scale(D4StandardCoords.Minimap.End, size, windowed);
-        var fallback = new Rect(start.X, start.Y, end.X - start.X, end.Y - start.Y);
 
-        var result = MinimapRouteRecognizer.RecognizeAuto(gameWindowBgr, D4Constants.MinimapRoute, fallback);
+        var result = Recognize(gameWindowBgr, new Rect(start.X, start.Y, end.X - start.X, end.Y - start.Y));
         if (!result.Success)
             ColorPrinter.Yellow($"{LogPrefix} Route recognition failed: {result.Error}");
         else if (!result.HasRoute)
@@ -58,6 +57,10 @@ public sealed class D4MinimapRouteDetector
         }
         return Store(data, result);
     }
+
+    /// <summary>Recognize the route in a game window frame without storing it; <paramref name="minimapRegion"/> is the scaled standard Minimap region.</summary>
+    public MinimapRouteResult Recognize(Mat gameWindowBgr, Rect minimapRegion) =>
+        MinimapRouteRecognizer.RecognizeAuto(gameWindowBgr, D4Constants.MinimapRoute, minimapRegion);
 
     private static MinimapRouteResult Store(D4InterfaceData data, MinimapRouteResult result)
     {
