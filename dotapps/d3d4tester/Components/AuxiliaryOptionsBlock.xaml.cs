@@ -9,6 +9,7 @@ using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core.Assistant;
 using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
+using DotApps.d3d4tester.Windows;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Components;
@@ -58,6 +59,8 @@ public partial class AuxiliaryOptionsBlock : UserControl
     };
 
     private readonly List<(FeatureSpec Spec, CheckBox Check, ComboBox? Combo)> _cells = new();
+    /// <summary>Opens the cube upgrade window (targets, hotkey hunt) next to the "upgrade rares" switch.</summary>
+    private Button? _kanaiTargets;
     private bool _built;
 
     public AuxiliaryOptionsBlock()
@@ -87,6 +90,11 @@ public partial class AuxiliaryOptionsBlock : UserControl
         LblAutomationTitle.Text = p.GetUiText(I18nKeys.AutomationOptions);
         TxtStartD3.Text = p.GetUiText(I18nKeys.ButtonAreaStartD3);
         LblAnimationSpeed.Text = p.GetUiText(I18nKeys.MainFunctionsPanelAnimationSpeedLabel);
+        if (_kanaiTargets != null)
+        {
+            _kanaiTargets.Content = p.GetUiText(I18nKeys.KanaiUpgradeOpen);
+            _kanaiTargets.ToolTip = p.GetUiText(I18nKeys.KanaiUpgradeOpenTip);
+        }
         for (int i = 0; i < CboAnimationSpeed.Items.Count && i < AnimationSpeedItemKeys.Length; i++)
             if (CboAnimationSpeed.Items[i] is ComboBoxItem item)
                 item.Content = p.GetUiText(AnimationSpeedItemKeys[i]);
@@ -138,6 +146,13 @@ public partial class AuxiliaryOptionsBlock : UserControl
             DockPanel.SetDock(check, Dock.Left);
             cell.Children.Add(check);
             ConfigBinding.BindCheckBox(check, spec.ConfigKey, spec.Default);
+            if (spec.ConfigKey == ConfigKeys.AuxiliaryKanaiUpgradeEnabled)
+            {
+                _kanaiTargets = new Button { Style = (Style)FindResource("SubtleButtonStyle"), Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                _kanaiTargets.Click += (_, _) => KanaiUpgradeWindow.ShowFor(Window.GetWindow(this));
+                DockPanel.SetDock(_kanaiTargets, Dock.Right);
+                cell.Children.Add(_kanaiTargets);
+            }
             ComboBox? combo = null;
             if (spec.Menu != null)
             {

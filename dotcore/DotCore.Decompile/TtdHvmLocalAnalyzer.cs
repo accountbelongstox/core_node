@@ -71,6 +71,8 @@ public static class TtdHvmLocalAnalyzer
             await File.WriteAllTextAsync(commandPath, commands, new UTF8Encoding(false), token).ConfigureAwait(false);
             exitCode = await ToolProcess.RunAsync(fullCdbPath, new[] { "-z", fullTracePath, "-cf", commandPath },
                 log, Path.GetDirectoryName(fullTracePath), token: token).ConfigureAwait(false);
+            if (!File.Exists(fullOutputPath))
+                throw new IOException($"TTD local extraction did not produce a report (debugger exit code {exitCode}). Inspect the replay log for errors.");
             if (File.Exists(fullOutputPath))
             {
                 using JsonDocument output = JsonDocument.Parse(await File.ReadAllTextAsync(fullOutputPath, token).ConfigureAwait(false));
