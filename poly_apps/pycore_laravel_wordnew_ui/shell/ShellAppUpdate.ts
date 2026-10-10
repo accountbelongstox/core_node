@@ -13,6 +13,8 @@ import {
   type AppUpdateSourceGroup,
 } from '@/shared/app-update/AppUpdateSources';
 import { tailnetDomainOf } from '../core/contracts/MeshDomain';
+import { TAILNET_API_LABEL } from '../core/contracts/ServiceContract';
+import { getTailnetServerPeers } from '../core/network/TailnetDiscovery';
 import { isNativeAppShell } from '../core/network/NativeShell';
 import { apiManager } from '../core/integrations/laravel/ApiManager';
 import type { BackendApiEndpoint } from '../core/integrations/laravel/LaravelEndpoints';
@@ -38,13 +40,17 @@ function laravelEndpointsCurrentFirst(): BackendApiEndpoint[] {
 
 /**
  * Mesh origins: the Laravel tailnet endpoints (current first; their own API host serves the downloads, then the
- * machine host), then the selected pycore host.
+ * machine host), the online tailnet servers, then the selected pycore host.
  */
 export function shellMeshOrigins(): string[] {
   const laravelHosts = laravelEndpointsCurrentFirst()
     .filter((endpoint) => endpoint.protocol === 'https' && !!tailnetDomainOf(endpoint.url))
     .flatMap((endpoint) => [endpoint.url.toLowerCase(), machineHostOf(endpoint.url)]);
-  return meshHostOrigins([...laravelHosts, selectedPycoreMeshHost()]);
+  // Every online tailnet server: its Laravel API host serves the downloads (a phone cannot list the tailnet itself).
+  const serverHosts = getTailnetServerPeers()
+    .filter((peer) => peer.online)
+    .flatMap((peer) => [`${TAILNET_API_LABEL}.${peer.dnsName}`, peer.dnsName]);
+  return meshHostOrigins([...laravelHosts, ...serverHosts, selectedPycoreMeshHost()]);
 }
 
 export function shellUpdateSourceGroups(): AppUpdateSourceGroup[] {
