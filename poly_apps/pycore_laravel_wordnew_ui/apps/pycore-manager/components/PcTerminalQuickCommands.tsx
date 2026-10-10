@@ -3,17 +3,30 @@ import { ChevronDown, ChevronUp, Loader2, RefreshCw, Search, SquareTerminal } fr
 import { useTranslation } from 'react-i18next';
 
 import { usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
-import type { TerminalQuickCommand, TerminalQuickCommands, TerminalShellOs } from '@/apps/pycore-manager/api';
+import type {
+  TerminalQuickCommand,
+  TerminalQuickCommandInterruptPolicy,
+  TerminalQuickCommands,
+  TerminalShellOs,
+} from '@/apps/pycore-manager/api';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
+
+/** What a quick-command button picked: a library entry and the command line of the shell it runs in. */
+export interface QuickCommandChoice {
+  entry: TerminalQuickCommand;
+  platform: TerminalShellOs;
+  line: string;
+  interrupt: TerminalQuickCommandInterruptPolicy;
+}
 
 interface PcTerminalQuickCommandsProps {
   /** Shell OS of the selected terminal as pycore detected it; the inline toggle can override it. */
   shellOs?: TerminalShellOs;
   disabled: boolean;
   busy: boolean;
-  /** Sends the command line at once (the panel's one-shot options apply). */
-  onRun: (command: string) => Promise<boolean>;
+  /** Asks to run the library command; it is confirmed and run by pycore's quick-command route, never sent as text. */
+  onRun: (choice: QuickCommandChoice) => void;
 }
 
 /** The recent command is a logical reference shared by every node and terminal; each node maps it to its own command line. */
@@ -31,11 +44,6 @@ const catalogRequests = new Map<string, Promise<TerminalQuickCommands | null>>()
 const RECENT_COMMAND_EVENT = 'pc-terminal-recent-command';
 
 const SHELL_OSES: readonly TerminalShellOs[] = ['windows', 'linux'];
-/** Always one tap away in the collapsed row (kind + id), when the node offers them. */
-const PINNED_COMMANDS: ReadonlyArray<{ kind: TerminalQuickCommand['kind']; id: string }> = [
-  { kind: 'custom', id: 'claudeteam' },
-  { kind: 'preset', id: 'dd_gitsync' },
-];
 
 /** The entry's command line for a shell OS; null when that OS has no such command. */
 export function lineFor(entry: TerminalQuickCommand, os: TerminalShellOs, hostOs: string | undefined): string | null {
@@ -61,7 +69,7 @@ export function readRecent(): RecentCommandRef | null {
 }
 
 export function entryId(entry: TerminalQuickCommand): string {
-  return entry.id || entry.command || '';
+  return entry.id;
 }
 
 function writeRecent(ref: RecentCommandRef): void {
@@ -117,7 +125,7 @@ export function useQuickCommandCatalog() {
   }, [catalog, load, loadFailed, loading]);
 
   const allEntries = useMemo(
-    () => (catalog ? [...(catalog.preset ?? []), ...catalog.system, ...catalog.custom] : []),
+    () => (catalog ? [...catalog.preset, ...catalog.system, ...catalog.custom] : []),
     [catalog],
   );
   const findEntry = useCallback(
@@ -126,9 +134,12 @@ export function useQuickCommandCatalog() {
     ),
     [allEntries],
   );
+  // The node pins its own keys (config/terminal_quick_commands.json): always one tap away in the collapsed row.
   const pinned = useMemo(
-    () => PINNED_COMMANDS.map((ref) => findEntry(ref)).filter((entry): entry is TerminalQuickCommand => entry !== null),
-    [findEntry],
+    () => (catalog?.pinned ?? [])
+      .map((key) => allEntries.find((entry) => entry.key === key))
+      .filter((entry): entry is TerminalQuickCommand => entry !== undefined),
+    [allEntries, catalog],
   );
   return { catalog, loading, loadFailed, load, findEntry, pinned };
 }
@@ -138,7 +149,7 @@ export function commandLabel(entry: TerminalQuickCommand, os: TerminalShellOs, h
   return lineFor(entry, os, hostOs) ?? entryId(entry);
 }
 
-/** Quick commands: a tap sends at once; pinned and recent commands stay in the collapsed row, the list holds every command. */
+/** Quick commands: a tap asks for confirmation; pinned and recent commands stay in the collapsed row, the list holds every command. */
 export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = ({
   shellOs, disabled, busy, onRun,
 }) => {
@@ -146,7 +157,7 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
   const { catalog, loading, loadFailed, load, findEntry, pinned } = useQuickCommandCatalog();
   const [expanded, setExpanded] = useState(false);
   const [filter, setFilter] = useState('');
-  const [recent, rememberRecent] = useRecentCommand();
+  const [recent] = useRecentCommand();
   const [unavailable, setUnavailable] = useState('');
   const [osOverride, setOsOverride] = useState<TerminalShellOs | null>(null);
   const hostOs = catalog?.platform;
@@ -168,26 +179,26 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
   const systemCommands = useMemo(() => (catalog?.system ?? []).filter(matches), [catalog, matches]);
   const customCommands = useMemo(() => (catalog?.custom ?? []).filter(matches), [catalog, matches]);
 
-  const run = async (entry: TerminalQuickCommand) => {
+  const run = (entry: TerminalQuickCommand, list: TerminalQuickCommands | null = catalog) => {
     const line = lineFor(entry, activeOs, hostOs);
-    if (!line) {
+    if (!line || !list) {
       setUnavailable(commandLabel(entry, activeOs, hostOs));
       return;
     }
     setUnavailable('');
-    if (await onRun(line)) rememberRecent(entry, line);
+    onRun({ entry, platform: activeOs, line, interrupt: list.interrupt });
   };
 
   // The recent reference resolves against this node's list, so it runs the node's own command line.
   const runRecent = async () => {
     if (!recent) return;
     const list = catalog ?? await load();
-    const entry = list ? findEntry(recent, [...(list.preset ?? []), ...list.system, ...list.custom]) : null;
+    const entry = list ? findEntry(recent, [...list.preset, ...list.system, ...list.custom]) : null;
     if (!entry) {
       setUnavailable(recent.label || recent.id);
       return;
     }
-    await run(entry);
+    run(entry, list);
   };
 
   const chip = (entry: TerminalQuickCommand, tone: string) => {
@@ -196,7 +207,7 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
       <button
         key={`${entry.kind}:${entryId(entry)}`}
         type="button"
-        onClick={() => void run(entry)}
+        onClick={() => run(entry)}
         disabled={disabled || busy || line === null}
         title={line ?? t('terminal.commands.noLineForShell', { os: t(`terminal.commands.shellOs.${activeOs}`) })}
         className={`${chipClass} ${tone}`}

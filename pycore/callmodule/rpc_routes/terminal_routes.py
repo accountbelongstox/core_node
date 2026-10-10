@@ -163,8 +163,6 @@ def register_terminal_routes(server) -> None:
         text = str(params.get("text") or "")
         clear_first = bool_param(params, "clear_first")
         interrupt_first = bool_param(params, "interrupt_first")
-        shell_prompt = bool_param(params, "shell_prompt")
-        restart_first = bool_param(params, "restart_first")
         return run_terminal_action(
             "input",
             request_id,
@@ -174,8 +172,6 @@ def register_terminal_routes(server) -> None:
                 text,
                 clear_first=clear_first,
                 interrupt_first=interrupt_first,
-                shell_prompt=shell_prompt,
-                restart_first=restart_first,
             ),
         )
 

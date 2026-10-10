@@ -63,7 +63,7 @@ export interface TerminalTextResult {
   refresh_skip_code?: string | null;
 }
 
-export type TerminalLogSource = 'input' | 'enter' | 'schedule';
+export type TerminalLogSource = 'input' | 'enter' | 'schedule' | 'quick';
 
 export interface TerminalLogEntry {
   id: string;
@@ -129,8 +129,32 @@ export interface TerminalQuickCommand {
   /** Command line per shell OS: a host can show terminals of the other OS (e.g. WSL on Windows). */
   commands?: Partial<Record<TerminalShellOs, string | null>>;
   /** Stable, OS-neutral id: preset/system names are mapped from it, scripts use their name. */
-  id?: string;
-  script?: string;
+  id: string;
+  /** Library address (kind:id): the only value pycore accepts to run the command. */
+  key: string;
+}
+
+/** Interrupt policy pycore applies before every quick command (config/terminal_quick_commands.json). */
+export interface TerminalQuickCommandInterruptPolicy {
+  ctrl_c_count: number;
+  interval_ms: number;
+  max_wait_ms: number;
+}
+
+export type TerminalQuickCommandState = 'idle' | 'running' | 'done' | 'failed';
+export type TerminalQuickCommandPhase = 'interrupting' | 'waiting' | 'typing' | 'done';
+
+/** Run state of the latest quick command of one terminal; the run itself continues in pycore. */
+export interface TerminalQuickCommandRun {
+  success: boolean;
+  error_code?: string | null;
+  state: TerminalQuickCommandState;
+  terminal_number: number;
+  phase?: TerminalQuickCommandPhase;
+  run_id?: string;
+  key?: string;
+  line?: string;
+  ctrl_c_sent?: number;
 }
 
 export interface TerminalQuickCommands {
@@ -138,7 +162,10 @@ export interface TerminalQuickCommands {
   error_code?: string | null;
   platform: string;
   script_dir: string;
-  preset?: TerminalQuickCommand[];
+  interrupt: TerminalQuickCommandInterruptPolicy;
+  /** Keys of the commands kept in the collapsed row. */
+  pinned: string[];
+  preset: TerminalQuickCommand[];
   system: TerminalQuickCommand[];
   custom: TerminalQuickCommand[];
 }
@@ -680,15 +707,11 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       text: string,
       clearFirst = false,
       interruptFirst = false,
-      shellPrompt = false,
-      restartFirst = false,
     ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,
       terminal_number: terminalNumber,
       clear_first: clearFirst ? '1' : '0',
       interrupt_first: interruptFirst ? '1' : '0',
-      shell_prompt: shellPrompt ? '1' : '0',
-      restart_first: restartFirst ? '1' : '0',
     }) as Promise<TerminalActionResult>,
     /** Types recordings through the agent's own hold-to-talk dictation, appends text and submits. */
     dictateTerminalVoice: (
@@ -709,6 +732,18 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       PYCORE_HTTP_ROUTES.terminalCommands,
       {},
     ) as Promise<TerminalQuickCommands>,
+    /** Starts a library command: pycore presses Ctrl+C, waits for the shell prompt and types it; follow it with the status. */
+    runTerminalQuickCommand: (windowId: string, terminalNumber: number, commandKey: string, platform: TerminalShellOs) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalQuickCommandRun, {
+        window_id: windowId,
+        terminal_number: terminalNumber,
+        command_id: commandKey,
+        platform,
+      }) as Promise<TerminalQuickCommandRun>,
+    terminalQuickCommandStatus: (terminalNumber: number) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalQuickCommandStatus, {
+        terminal_number: terminalNumber,
+      }) as Promise<TerminalQuickCommandRun>,
     uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
       const form = new FormData();
       form.append('file', file, file.name);

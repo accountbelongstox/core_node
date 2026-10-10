@@ -713,7 +713,6 @@ class TerminalService:
         interrupt_first: bool = False,
         activate_window: bool = True,
         shell_prompt: bool = False,
-        restart_first: bool = False,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -721,10 +720,10 @@ class TerminalService:
             return self._failure("terminal_number_required")
         if is_virtual_window(window_id):
             if not text.strip():
-                if interrupt_first or restart_first:
+                if interrupt_first:
                     return self._virtual.cancel(window_id)
                 return {"success": True, "error_code": None}
-            return self._send_virtual(window_id, terminal_number, text, source, interrupt_first or restart_first)
+            return self._send_virtual(window_id, terminal_number, text, source, interrupt_first)
         content = text if text else EMPTY_INPUT_TEXT
 
         pending_log = self._state_repository.begin_submission(
@@ -753,7 +752,7 @@ class TerminalService:
             activation = self._backend.activate(window_id) if activate_window else {"success": True}
             action = (
                 self._backend.paste_and_submit(
-                    window_id, len(text), clear_first, interrupt_first, shell_prompt, restart_first,
+                    window_id, len(text), clear_first, interrupt_first, shell_prompt,
                 )
                 if activation.get("success")
                 else activation
