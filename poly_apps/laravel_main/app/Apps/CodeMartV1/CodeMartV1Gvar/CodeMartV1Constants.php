@@ -402,6 +402,9 @@ class CodeMartV1Constants
     // UI page that completes an email change from the mailed link (query: email_change_token).
     public const EMAIL_CHANGE_UI_PATH = '/codemart/settings';
     public const EMAIL_CHANGE_TTL_HOURS = 24;
+    public const OTP_EXPIRY_MINUTES = 10;
+    public const OTP_MAX_ATTEMPTS = 5;
+    public const BANK_TRANSFER_FIELDS = ['bank_name', 'account_name', 'account_number', 'branch', 'swift_code'];
     // Avatar upload: accepted extensions and the byte cap come from the shared AvatarService contract.
     public const AVATAR_ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png'];
 
@@ -481,21 +484,20 @@ class CodeMartV1Constants
     }
 
     /**
-     * Bank-transfer deposit instructions. Values come from configuration
-     * (config/services.php codemart_bank_transfer); labels are localized by the UI.
+     * Bank-transfer deposit instructions: the operator-editable policy value
+     * (defaults from config/services.php codemart_bank_transfer); labels are localized by the UI.
      */
     public static function depositBankTransferInfo(): array
     {
-        $bank = (array) config('services.codemart_bank_transfer', []);
+        $bank = (array) \App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService::value('deposit_bank_transfer');
 
-        return [
-            'bank_name' => $bank['bank_name'] ?? null,
-            'account_name' => $bank['account_name'] ?? null,
-            'account_number' => $bank['account_number'] ?? null,
-            'branch' => $bank['branch'] ?? null,
-            'swift_code' => $bank['swift_code'] ?? null,
-            'currency' => \App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService::currency(),
-        ];
+        $info = [];
+        foreach (self::BANK_TRANSFER_FIELDS as $field) {
+            $value = trim((string) ($bank[$field] ?? ''));
+            $info[$field] = $value === '' ? null : $value;
+        }
+
+        return $info + ['currency' => \App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService::currency()];
     }
 
     public static function getAllRoles(): array
