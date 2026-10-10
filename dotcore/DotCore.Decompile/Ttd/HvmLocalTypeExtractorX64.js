@@ -128,7 +128,7 @@ function invokeScript() {
     }
 
     const callCount = Number(argTypeCalls.Count());
-    host.diagnostics.debugLog(`Processing ${callCount} CLR getArgType calls for ${ranges.length} HVM methods.\n`);
+    host.diagnostics.debugLog(`Processing ${callCount} runtime getArgType calls for ${ranges.length} HVM methods.\n`);
     for (let index = 0; index < callCount; index++) {
         const startText = argTypeCalls[index].TimeStart.toString();
         const range = findRange(ranges, parsePosition(startText));
@@ -170,7 +170,7 @@ function invokeScript() {
     }
 
     const classCallCount = Number(argClassCalls.Count());
-    host.diagnostics.debugLog(`Processing ${classCallCount} CLR getArgClass calls.\n`);
+    host.diagnostics.debugLog(`Processing ${classCallCount} runtime getArgClass calls.\n`);
     for (let index = 0; index < classCallCount; index++) {
         const startText = argClassCalls[index].TimeStart.toString();
         const range = findRange(ranges, parsePosition(startText));

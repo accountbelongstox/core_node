@@ -534,7 +534,7 @@ terminal: {
       switchToText: 'Switch back to typing',
       record: 'Record a voice message',
       stop: 'Stop recording ({{duration}})',
-      systemRecorder: 'System recorder',
+      audioFile: 'Record or choose an audio file',
       sizeLocal: 'Recording size (uploading)',
       sizeStored: 'Size stored by pycore',
       recordings: 'Voice recordings',

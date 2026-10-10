@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Aperture, Camera, Check, ClipboardPaste, Copy, CornerDownLeft, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, ScanText, Shrink, Square, X } from 'lucide-react';
+import { Aperture, AudioLines, Check, ClipboardPaste, Copy, CornerDownLeft, FileAudio, ImagePlus, Keyboard, Loader2, Mic, MonitorDown, RefreshCw, ScanText, Shrink, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
@@ -25,6 +25,7 @@ const PULL_HINT_MS = 4000;
 const COPIED_FLASH_MS = 1500;
 const CAMERA_CANCELLED = /cancel/i;
 const CAMERA_DENIED = /denied|permission/i;
+const CAMERA_BUTTON_VISIBLE = false;
 
 export interface PcTerminalInputSession {
   slot: string;
@@ -92,7 +93,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const [ocrCopied, setOcrCopied] = useState(false);
   const pullHintTimer = useRef<number | undefined>(undefined);
   const ocrCopiedTimer = useRef<number | undefined>(undefined);
-  const cameraSupported = isNativeAppShell() && !isDesktopAppShell();
+  const cameraSupported = CAMERA_BUTTON_VISIBLE && isNativeAppShell() && !isDesktopAppShell();
   const isMobile = useIsMobile();
   const toggleMode = () => {
     const next: ComposerMode = mode === 'voice' ? 'text' : 'voice';
@@ -458,8 +459,8 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                   type="button"
                   onClick={() => recorderInputRef.current?.click()}
                   disabled={!hasWindow}
-                  title={t('terminal.voice.systemRecorder')}
-                  aria-label={t('terminal.voice.systemRecorder')}
+                  title={t('terminal.voice.audioFile')}
+                  aria-label={t('terminal.voice.audioFile')}
                   className={iconButton}
                 >
                   <FileAudio className="h-4 w-4" />
@@ -479,7 +480,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             aria-pressed={mode === 'voice'}
             className={iconButton}
           >
-            {mode === 'voice' ? <Keyboard className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {mode === 'voice' ? <Keyboard className="h-4 w-4" /> : <AudioLines className="h-4 w-4" />}
           </button>
           <button
             type="button"
@@ -522,7 +523,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
               aria-label={t('terminal.images.liveScreenshot.action')}
               className={iconButton}
             >
-              {capturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+              {capturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <MonitorDown className="h-4 w-4" />}
             </button>
           )}
           <input
@@ -540,7 +541,6 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             ref={recorderInputRef}
             type="file"
             accept="audio/*"
-            capture
             hidden
             onChange={(event) => {
               images.addFiles(attachmentFiles(event.target.files));
