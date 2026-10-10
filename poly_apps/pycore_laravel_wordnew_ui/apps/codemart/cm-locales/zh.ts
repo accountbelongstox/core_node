@@ -656,6 +656,7 @@ export const cmZh: CmTranslationDict = {
     fileUrlsPlaceholder: '每行一个链接（https://...）',
     invalidUrls: '以下链接无效：{{urls}}',
     uploads: '文件',
+    uploadWrongType: '不允许的文件类型：{{files}}。允许的类型：{{types}}。',
     submit: '提交评审',
     submitting: '正在提交...',
     submitEmptyHint: '请先填写说明、添加链接或上传文件。',
@@ -1498,6 +1499,10 @@ export const cmZh: CmTranslationDict = {
         allowed_image_types: {
           label: '允许的图片类型',
           hint: '实名认证证件图片接受的格式。',
+        },
+        allowed_document_types: {
+          label: '允许的附件和交付物文件类型',
+          hint: '项目附件和任务交付物上传允许的文件扩展名。',
         },
         default_page_size: {
           label: '默认分页大小',
@@ -2366,6 +2371,7 @@ export const cmZh: CmTranslationDict = {
     uploading: '正在上传 {{progress}}%',
     uploaded: '附件已上传。',
     tooLarge: '文件过大，最大允许 {{size}} MB。',
+    wrongType: '不允许上传这种类型的文件。允许的类型：{{types}}。',
     uploadFailed: '附件上传失败。',
     downloadFailed: '附件下载失败。',
     loadFailed: '无法加载附件。',
@@ -2487,6 +2493,7 @@ export const cmZh: CmTranslationDict = {
     attachment_not_found: '未找到附件。',
     file_not_found: '未找到文件。',
     file_store_failed: '文件保存失败。',
+    file_type_not_allowed: '不允许上传这种类型的文件。',
     invalid_task_transition: '不允许此任务状态变更。',
     state_conflict: '记录已被更新，请刷新后重试。',
     project_invalid_state: '项目当前状态不允许此操作。',

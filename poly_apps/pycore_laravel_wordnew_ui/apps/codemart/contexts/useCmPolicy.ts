@@ -17,6 +17,7 @@ export interface CmPolicyValues {
   walletTopUpMaxAmount: number;
   maxAttachmentKb: number;
   maxKycImageKb: number;
+  allowedDocumentTypes: string[];
   paymentMethods: string[];
   paymentCreatableTypes: string[];
 }
@@ -40,6 +41,7 @@ export function useCmPolicy(): CmPolicyValues {
   const walletTopUpMaxAmount = policy?.wallet_top_up_max_amount ?? CM_POLICY_FALLBACK.walletTopUpMaxAmount;
   const maxAttachmentKb = policy?.max_attachment_size_kb ?? CM_POLICY_FALLBACK.maxAttachmentKb;
   const maxKycImageKb = policy?.max_kyc_image_size_kb ?? CM_POLICY_FALLBACK.maxKycImageKb;
+  const allowedDocumentTypes = policy?.allowed_document_types ?? EMPTY_LIST;
   const paymentMethods = policy?.payment_methods ?? EMPTY_LIST;
   const paymentCreatableTypes = policy?.payment_creatable_types ?? EMPTY_LIST;
   return useMemo(
@@ -57,13 +59,14 @@ export function useCmPolicy(): CmPolicyValues {
       walletTopUpMaxAmount,
       maxAttachmentKb,
       maxKycImageKb,
+      allowedDocumentTypes,
       paymentMethods,
       paymentCreatableTypes,
     }),
     [
       currency, aiEstimateCurrency, projectMinBudget, reviewCommentMinLength, reviewerRetryDays, reviewerPassScore,
       reviewerExamCount, passwordMinLength, testimonialMaxQuoteLength, walletTopUpMinAmount, walletTopUpMaxAmount, maxAttachmentKb,
-      maxKycImageKb, paymentMethods, paymentCreatableTypes,
+      maxKycImageKb, allowedDocumentTypes, paymentMethods, paymentCreatableTypes,
     ],
   );
 }

@@ -2007,7 +2007,7 @@ const PcTerminalNodeView: React.FC<{
     const confirmKey = target.all ? 'terminal.logs.deleteAllConfirm' : 'terminal.logs.deleteConfirm';
     if (!window.confirm(t(confirmKey, {
       count: target.logIds?.length ?? 0,
-      source: target.source ? t(`terminal.logSource.${target.source}`) : '',
+      source: t(target.source ? `terminal.logSource.${target.source}` : 'terminal.logs.filterAll'),
     }))) return [];
     setActionNotice(null);
     try {
@@ -2399,6 +2399,7 @@ const PcTerminalNodeView: React.FC<{
         onOpenLogs={() => setLogDialogOpen(true)}
         onReuse={reuseLogContent}
         onResend={resendLogContent}
+        onDelete={deleteLogs}
       />
       {selectedWindow && (
         <div className="rounded-xl border border-slate-500/15 bg-white/40 dark:bg-slate-950/20">
@@ -3347,6 +3348,7 @@ const PcTerminalNodeView: React.FC<{
           errorTranslationKey={errorTranslationKey}
           onReuse={reuseLogContent}
           onResend={resendLogContent}
+          onDelete={deleteLogs}
           onClose={closeLogDialog}
         />
       )}
@@ -3399,4 +3401,4 @@ const PcTerminalPage: React.FC = () => {
   );
 };
 
-expo
+export default PcTerminalPage;

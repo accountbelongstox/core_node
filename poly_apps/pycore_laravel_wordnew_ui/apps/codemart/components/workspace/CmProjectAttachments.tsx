@@ -7,7 +7,7 @@ import { cmErrorMessage } from '../../api/cmErrors';
 import { useCmPolicy } from '../../contexts/useCmPolicy';
 import { CmPager } from './CmPager';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
-import { cmFormatNumber, cmTotalPages, useCmFormat } from './cmWorkspaceFormat';
+import { cmFileAccept, cmFileTypeAllowed, cmFormatNumber, cmTotalPages, useCmFormat } from './cmWorkspaceFormat';
 import { useCmPagedList } from './useCmPagedList';
 
 const BYTES_PER_KB = 1024;
@@ -37,7 +37,7 @@ export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: bool
   const notice = useCmNotice();
   const fetcher = useCallback((page: number) => cmApi.getProjectAttachments(projectId, page), [projectId]);
   const list = useCmPagedList(fetcher, extractAttachments, 'attachments.loadFailed');
-  const { maxAttachmentKb } = useCmPolicy();
+  const { maxAttachmentKb, allowedDocumentTypes } = useCmPolicy();
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -49,6 +49,10 @@ export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: bool
     notice.clear();
     if (file.size > maxAttachmentKb * BYTES_PER_KB) {
       notice.error(t('attachments.tooLarge', { size: Math.round(maxAttachmentKb / KB_PER_MB) }));
+      return;
+    }
+    if (!cmFileTypeAllowed(file.name, allowedDocumentTypes)) {
+      notice.error(t('attachments.wrongType', { types: allowedDocumentTypes.join(', ') }));
       return;
     }
     setProgress(0);
@@ -115,7 +119,7 @@ export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: bool
         <form className="cm-upload-row" onSubmit={(event) => void upload(event)}>
           <label>
             <span>{t('attachments.choose')}</span>
-            <input key={inputKey} type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            <input key={inputKey} type="file" accept={cmFileAccept(allowedDocumentTypes)} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           </label>
           <button type="submit" className="cm-workspace-button is-primary" disabled={!file || progress !== null}>
             <Upload aria-hidden="true" /> {progress !== null ? t('attachments.uploading', { progress }) : t('attachments.upload')}

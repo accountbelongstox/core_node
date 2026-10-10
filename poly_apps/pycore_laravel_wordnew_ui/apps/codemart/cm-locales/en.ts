@@ -654,6 +654,7 @@ export const cmEn = {
     fileUrlsPlaceholder: 'One link per line (https://...)',
     invalidUrls: 'These are not valid links: {{urls}}',
     uploads: 'Files',
+    uploadWrongType: 'File type not allowed: {{files}}. Allowed types: {{types}}.',
     submit: 'Submit for review',
     submitting: 'Submitting...',
     submitEmptyHint: 'Add a note, a link, or a file first.',
@@ -1496,6 +1497,10 @@ export const cmEn = {
         allowed_image_types: {
           label: 'Allowed image types',
           hint: 'Image formats accepted for identity documents.',
+        },
+        allowed_document_types: {
+          label: 'Allowed attachment and submission file types',
+          hint: 'File extensions accepted for project attachments and task submission uploads.',
         },
         default_page_size: {
           label: 'Default page size',
@@ -2364,6 +2369,7 @@ export const cmEn = {
     uploading: 'Uploading {{progress}}%',
     uploaded: 'Attachment uploaded.',
     tooLarge: 'The file is too large. The maximum size is {{size}} MB.',
+    wrongType: 'This file type is not allowed. Allowed types: {{types}}.',
     uploadFailed: 'The attachment could not be uploaded.',
     downloadFailed: 'The attachment could not be downloaded.',
     loadFailed: 'Attachments could not be loaded.',
@@ -2485,6 +2491,7 @@ export const cmEn = {
     attachment_not_found: 'Attachment not found.',
     file_not_found: 'File not found.',
     file_store_failed: 'The file could not be stored.',
+    file_type_not_allowed: 'This file type is not allowed.',
     invalid_task_transition: 'This task status change is not allowed.',
     state_conflict: 'The record changed meanwhile. Refresh and try again.',
     project_invalid_state: 'The project is not in a state that allows this action.',

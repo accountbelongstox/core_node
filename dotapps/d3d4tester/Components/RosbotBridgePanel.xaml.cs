@@ -82,6 +82,7 @@ public partial class RosbotBridgePanel : UserControl
                 ConfigBinding.BindCheckBox(ChkAssist, ConfigKeys.BridgeAssist, ConfigKeys.BridgeAssistDefault);
                 ConfigBinding.BindCheckBox(ChkPluginCast, ConfigKeys.BridgePluginCast, ConfigKeys.BridgePluginCastDefault);
                 ConfigBinding.BindCheckBox(ChkDebugFull, ConfigKeys.RosbotDebugLevelFull, ConfigKeys.RosbotDebugLevelFullDefault);
+                ConfigBinding.BindTextBox(TxtTraceEvent, ConfigKeys.BridgeTraceEvent);
                 ConfigBinding.BindTextBox(TxtTownPortalKey, ConfigKeys.BridgeFollowTownPortalKey, ConfigKeys.BridgeFollowTownPortalKeyDefault);
                 var (auto, patterns) = RosbotBridgePluginService.LoadPickupFilter();
                 ChkFilterAuto.IsChecked = auto;
@@ -133,6 +134,7 @@ public partial class RosbotBridgePanel : UserControl
         BtnAttackTest.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeAttackTestTip);
         BtnCastTest.Content = p.GetUiText(I18nKeys.RosbotBridgeCastTest);
         BtnCastTest.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeCastTestTip);
+        TxtTraceEvent.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeTraceEventTip);
         ChkDebugFull.Content = p.GetUiText(I18nKeys.RosbotBridgeDebugFull);
         ChkDebugFull.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeDebugFullTip);
         TxtUiId.ToolTip = p.GetUiText(I18nKeys.RosbotBridgeUiIdHint);

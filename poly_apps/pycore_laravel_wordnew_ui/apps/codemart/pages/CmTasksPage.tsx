@@ -15,7 +15,7 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { CmSubmissionsPanel } from '../components/workspace/CmSubmissionsPanel';
 import { CmTaskForm } from '../components/workspace/CmMilestoneCard';
 import { CmTransitionBar } from '../components/workspace/CmTransitionBar';
-import { cmSplitList, cmTotalPages, cmUserLabel, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { cmFileAccept, cmFileTypeAllowed, cmSplitList, cmTotalPages, cmUserLabel, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList } from '../components/workspace/useCmPagedList';
 import { CM_PROTECTED_ROUTE, CM_TASK_QUERY_PARAM, cmProjectPath } from '../components/public-home/cmPublicRoutes';
 
@@ -45,13 +45,15 @@ const CmTaskSubmitForm: React.FC<{ taskId: number; onSubmitted: () => Promise<vo
   const [uploads, setUploads] = useState<File[]>([]);
   const [inputKey, setInputKey] = useState(0);
   const [busy, setBusy] = useState(false);
+  const { allowedDocumentTypes } = useCmPolicy();
   const urls = cmSplitList(fileUrls);
   const invalidUrls = urls.filter((url) => !URL_PATTERN.test(url));
   const hasContent = note.trim() !== '' || urls.length > 0 || uploads.length > 0;
+  const rejectedUploads = uploads.filter((file) => !cmFileTypeAllowed(file.name, allowedDocumentTypes));
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (busy || !hasContent || invalidUrls.length > 0) return;
+    if (busy || !hasContent || invalidUrls.length > 0 || rejectedUploads.length > 0) return;
     setBusy(true);
     notice.clear();
     const response = await cmApi.submitTask(taskId, note.trim(), urls, uploads);
@@ -82,10 +84,11 @@ const CmTaskSubmitForm: React.FC<{ taskId: number; onSubmitted: () => Promise<vo
       </label>
       <label className="cm-stacked-field">
         <span>{t('tasks.uploads')} <small className="cm-field-hint">{t('common.optional')}</small></span>
-        <input key={inputKey} type="file" multiple onChange={(event) => setUploads(Array.from(event.target.files ?? []))} />
+        <input key={inputKey} type="file" multiple accept={cmFileAccept(allowedDocumentTypes)} onChange={(event) => setUploads(Array.from(event.target.files ?? []))} aria-invalid={rejectedUploads.length > 0} />
+        {rejectedUploads.length > 0 && <small className="cm-field-error">{t('tasks.uploadWrongType', { files: rejectedUploads.map((file) => file.name).join(', '), types: allowedDocumentTypes.join(', ') })}</small>}
       </label>
       <div className="cm-table-actions">
-        <button type="submit" className="cm-workspace-button is-primary" disabled={busy || !hasContent || invalidUrls.length > 0}>
+        <button type="submit" className="cm-workspace-button is-primary" disabled={busy || !hasContent || invalidUrls.length > 0 || rejectedUploads.length > 0}>
           {busy ? t('tasks.submitting') : t('tasks.submit')}
         </button>
         {!hasContent && <small className="cm-field-hint">{t('tasks.submitEmptyHint')}</small>}
