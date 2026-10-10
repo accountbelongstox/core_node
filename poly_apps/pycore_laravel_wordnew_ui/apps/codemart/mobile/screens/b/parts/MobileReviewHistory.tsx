@@ -25,7 +25,7 @@ export const MobileReviewHistory: React.FC<{ reviews: CmCodeReview[] | undefined
               <MobileStatusBadge group="submission" status={review.recommendation ?? review.status} />
             </div>
             <div className="cmm-entity__meta">
-              <span>{cmUserLabel(review.reviewer, t('common.unavailable'))}</span>
+              {review.reviewer && <span>{cmUserLabel(review.reviewer, '')}</span>}
               {scores.length > 0 && <span>{scores.join(' · ')}</span>}
               <span>{format.dateTime(review.created_at)}</span>
             </div>

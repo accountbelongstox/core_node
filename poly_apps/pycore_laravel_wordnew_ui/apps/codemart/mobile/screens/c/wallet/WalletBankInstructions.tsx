@@ -9,15 +9,15 @@ import { MobileCopyValue } from '../parts/MobileCopyValue';
 
 const COPYABLE_FIELDS: readonly string[] = ['account_number', 'swift_code'];
 
-/** Bank-transfer instructions of a pending deposit: account details and the payment reference to quote. */
-export const WalletBankInstructions: React.FC<{ info: CmDepositBankInfo; currency: string }> = ({ info, currency }) => {
+/** Bank-transfer instructions of a pending deposit: account details and the payment reference to quote; `untitled` when a sheet title already says it. */
+export const WalletBankInstructions: React.FC<{ info: CmDepositBankInfo; currency: string; untitled?: boolean }> = ({ info, currency, untitled = false }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const configured = Boolean(info.bank.bank_name && info.bank.account_number);
 
   return (
     <section className="cmmc-bank" aria-label={t('wallet.bank.title')}>
-      <h3><Landmark aria-hidden="true" /> {t('wallet.bank.title')}</h3>
+      {!untitled && <h3><Landmark aria-hidden="true" /> {t('wallet.bank.title')}</h3>}
       <p className="cmm-muted">{t('wallet.bank.instructions', { amount: format.money(info.amount, currency), reference: info.reference })}</p>
       {configured ? (
         <dl className="cmmc-kv">

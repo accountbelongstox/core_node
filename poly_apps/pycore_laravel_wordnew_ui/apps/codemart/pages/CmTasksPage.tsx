@@ -142,6 +142,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
             {task.access.can_submit && <CmTaskSubmitForm taskId={task.id} onSubmitted={detail.reload} />}
             {!task.access.can_submit && task.status === CM_TASK_REVIEW_STATUS && <CmNotice notice={{ tone: 'info', text: t('tasks.inReview') }} />}
             <CmSubmissionsPanel
+              key={`${task.status}-${(task.submissions ?? []).length}`}
               taskId={task.id}
               taskStatus={task.status}
               canReview={detail.canDecide}
