@@ -1,17 +1,22 @@
 // PY-REF: none (DOT-only)
 using System.Collections.Concurrent;
+using System.IO;
 using System.Text.Json.Nodes;
 
 namespace DotApps.d3d4tester.Core.Planner;
 
 /// <summary>
 /// A legendary or set item of the maxroll game data: ids (main + alternates), English / Chinese names, item type (belt, ring, axe2h,
-/// ...) and its paper doll slot, and the wiki icon (inventory layout) used to recognize it on screen.
+/// ...) and its paper doll slot, the wiki icon and the maxroll icon file (both in the inventory layout; the maxroll one may not be
+/// downloaded yet) used to recognize it on screen, and its item type group (wiki folder; the type's group when it has no wiki icon).
 /// </summary>
-public sealed record D3CatalogItem(string Id, IReadOnlyList<string> Ids, string NameEn, string NameZh, string Type, string Slot, bool IsSet, string? WikiIcon)
+public sealed record D3CatalogItem(string Id, IReadOnlyList<string> Ids, string NameEn, string NameZh, string Type, string Slot, bool IsSet,
+    string? WikiIcon, string? MaxrollIcon)
 {
-    /// <summary>Icon group (item type folder of the wiki library); empty without an icon.</summary>
-    public string Group => WikiIcon is { } path ? D3ItemIcons.GroupOf(path) : "";
+    public string Group { get; init; } = "";
+
+    /// <summary>Icon to match on screen: the maxroll icon when downloaded (current game art), else the wiki icon; null when neither.</summary>
+    public string? RecognitionIcon => MaxrollIcon != null && File.Exists(MaxrollIcon) ? MaxrollIcon : WikiIcon;
 }
 
 /// <summary>A non-gear item of the game data (gem, legendary gem, potion, material, key): names only; never transmuted.</summary>
@@ -38,13 +43,13 @@ public sealed class D3ItemCatalog
     private readonly Dictionary<string, List<D3CatalogItem>> _byType = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _groupOfType = new(StringComparer.Ordinal);
 
-    private D3ItemCatalog(JsonNode? data, JsonNode? zh)
+    private D3ItemCatalog(JsonNode? data, JsonNode? zh, string cacheDir)
     {
         var zhItems = zh?["itemById"];
         var types = data?["itemTypes"]?.AsObject() ?? new JsonObject();
         foreach (var (type, def) in types)
             TypeNames[type] = (Text(def?["name"]), Text(zh?["itemTypes"]?[type]?["name"]));
-        var equipment = new List<D3CatalogItem>();
+        var raw = new List<D3CatalogItem>();
         foreach (var node in data?["items"]?.AsArray() ?? new JsonArray())
         {
             string quality = Text(node?["quality"]);
@@ -54,19 +59,32 @@ public sealed class D3ItemCatalog
                 if (Text(alt) is { Length: > 0 } a) ids.Add(a);
             string type = Text(node["type"]);
             string nameEn = Text(node["name"]);
-            var item = new D3CatalogItem(id, ids, nameEn, Text(zhItems?[id]?["name"]), type, Text(types[type]?["slot"]), quality == QualitySet,
-                D3ItemIcons.FindWikiPath(nameEn));
-            equipment.Add(item);
-            foreach (var i in ids) _byId.TryAdd(i, item);
-            _byName.TryAdd(D3ItemIcons.Key(nameEn), item);
+            string? wiki = D3ItemIcons.FindWikiPath(nameEn);
+            string? maxroll = D3MaxrollItemIcons.FirstIcon(data!, node) is { } icon ? D3MaxrollItemIcons.PathOf(cacheDir, icon) : null;
+            raw.Add(new D3CatalogItem(id, ids, nameEn, Text(zhItems?[id]?["name"]), type, Text(types[type]?["slot"]), quality == QualitySet, wiki, maxroll)
+            {
+                Group = wiki != null ? D3ItemIcons.GroupOf(wiki) : "",
+            });
+        }
+        foreach (var byType in raw.GroupBy(i => i.Type))
+            if (byType.Where(i => i.Group.Length > 0).GroupBy(i => i.Group).OrderByDescending(g => g.Count()).FirstOrDefault() is { } best)
+                _groupOfType[byType.Key] = best.Key;
+        foreach (var bySlot in raw.GroupBy(i => i.Slot))
+        {
+            var slotGroup = bySlot.Where(i => i.Group.Length > 0).GroupBy(i => i.Group).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+            foreach (var type in bySlot.Select(i => i.Type).Distinct())
+                if (!_groupOfType.ContainsKey(type) && slotGroup != null) _groupOfType[type] = slotGroup;
+        }
+        var equipment = raw.Select(i => i.Group.Length > 0 ? i : i with { Group = _groupOfType.GetValueOrDefault(i.Type, "") }).ToList();
+        foreach (var item in equipment)
+        {
+            foreach (var i in item.Ids) _byId.TryAdd(i, item);
+            _byName.TryAdd(D3ItemIcons.Key(item.NameEn), item);
             if (item.NameZh.Length > 0) _byName.TryAdd(item.NameZh, item);
-            if (!_byType.TryGetValue(type, out var list)) _byType[type] = list = new List<D3CatalogItem>();
+            if (!_byType.TryGetValue(item.Type, out var list)) _byType[item.Type] = list = new List<D3CatalogItem>();
             list.Add(item);
         }
         Equipment = equipment;
-        foreach (var (type, items) in _byType)
-            if (items.Where(i => i.Group.Length > 0).GroupBy(i => i.Group).OrderByDescending(g => g.Count()).FirstOrDefault() is { } best)
-                _groupOfType[type] = best.Key;
         var others = new List<D3CatalogOther>();
         foreach (var (key, gem) in data?["legendaryGems"]?.AsObject() ?? new JsonObject())
             others.Add(new D3CatalogOther(Text(gem?["id"]), Text(gem?["name"]), Text(zh?["legendaryGems"]?[key]?["name"]), KindLegendaryGem));
@@ -83,7 +101,7 @@ public sealed class D3ItemCatalog
     public static D3ItemCatalog For(string cacheDir) => Catalogs.GetOrAdd(cacheDir, dir => new Lazy<D3ItemCatalog>(() =>
     {
         var (data, zh) = MaxrollD3PlannerClient.GameData(dir);
-        return new D3ItemCatalog(data, zh);
+        return new D3ItemCatalog(data, zh, dir);
     })).Value;
 
     /// <summary>Every legendary and set item.</summary>
@@ -107,7 +125,7 @@ public sealed class D3ItemCatalog
     /// <summary>Legendary and set items of one type: the possible results of upgrading a rare of that type.</summary>
     public IReadOnlyList<D3CatalogItem> OfType(string type) => _byType.TryGetValue(type, out var list) ? list : Array.Empty<D3CatalogItem>();
 
-    /// <summary>Icon group (wiki folder) most items of the type use; null when none has an icon.</summary>
+    /// <summary>Icon group (wiki folder) most items of the type use (else of its slot: voodoo masks -> helms); null when unknown.</summary>
     public string? GroupOfType(string type) => _groupOfType.GetValueOrDefault(type);
 
     /// <summary>Item types whose icons live in the group (a recognized rare's possible types).</summary>

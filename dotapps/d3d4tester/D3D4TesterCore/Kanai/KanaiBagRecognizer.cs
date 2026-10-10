@@ -21,9 +21,10 @@ public sealed record KanaiIconGuess(string Path, string Group, double Score, D3C
 }
 
 /// <summary>
-/// Recognizes bag items by their art (<see cref="MaskedIconMatcher"/> on the wiki icons, which keep the inventory layout): a rare
-/// against every icon of its footprint (its item type group, and gems / consumables to skip), a legendary against the legendary / set
-/// items it can be. Crops are the item's cells plus a small margin, taken from the window image the bag coordinates refer to.
+/// Recognizes bag items by their art (<see cref="MaskedIconMatcher"/> on icons in the inventory layout): a rare against every wiki
+/// icon of its footprint (base items included; the folder gives its item type group, gem icons mark gems / consumables to skip), a
+/// legendary against the legendary / set items it can be (maxroll icon, else wiki icon). Crops are the item's cells plus a small
+/// margin, taken from the window image the bag coordinates refer to.
 /// </summary>
 public static class KanaiBagRecognizer
 {
@@ -66,11 +67,15 @@ public static class KanaiBagRecognizer
         return new KanaiIconGuess(best.Item.Path, best.Item.Group, best.Score, catalog.ByName(best.Item.Key));
     }
 
-    /// <summary>Best legendary / set guesses (best first) among the candidates of the item's footprint.</summary>
+    /// <summary>
+    /// Best legendary / set guesses (best first) among the candidates of the item's footprint; items listed under several ids (legacy
+    /// and current versions) are scored once.
+    /// </summary>
     public static IReadOnlyList<KanaiIconGuess> RankEquipment(Mat crop, bool tall, IEnumerable<D3CatalogItem> candidates)
     {
-        var fitting = candidates.Where(c => c.WikiIcon != null && MaskedIcon.Load(c.WikiIcon) is { } i && i.Aspect > TallAspect == tall);
-        return MaskedIconMatcher.Rank(crop, fitting, c => MaskedIcon.Load(c.WikiIcon!), TopGuesses)
-            .Select(r => new KanaiIconGuess(r.Item.WikiIcon!, r.Item.Group, r.Score, r.Item)).ToList();
+        var fitting = candidates.DistinctBy(c => c.NameEn, StringComparer.OrdinalIgnoreCase).Select(c => (Item: c, Path: c.RecognitionIcon))
+            .Where(c => c.Path != null && MaskedIcon.Load(c.Path) is { } i && i.Aspect > TallAspect == tall).ToList();
+        return MaskedIconMatcher.Rank(crop, fitting, c => MaskedIcon.Load(c.Path!), TopGuesses)
+            .Select(r => new KanaiIconGuess(r.Item.Path!, r.Item.Item.Group, r.Score, r.Item.Item)).ToList();
     }
 }

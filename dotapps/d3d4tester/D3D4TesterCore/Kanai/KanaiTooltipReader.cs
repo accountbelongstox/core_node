@@ -19,6 +19,8 @@ public sealed record KanaiTooltip(string Tier, IReadOnlyList<string> Lines)
     /// <summary>Share of a stat name's characters that must appear in order in a line.</summary>
     private const double StatNameCoverage = 0.8;
     private static readonly Regex Number = new(@"\d+(?:[.,]\d+)*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    /// <summary>Words planner stat names add that tooltips word differently ("火焰伤害加成" vs "火焰技能伤害提高 20%").</summary>
+    private static readonly string[] StatNameFillers = { "加成", "提高", "增加", "Increase", "Bonus" };
 
     public string Text => string.Join('\n', Lines);
 
@@ -32,14 +34,18 @@ public sealed record KanaiTooltip(string Tier, IReadOnlyList<string> Lines)
         return texts.SelectMany(t => names.Where(n => n.Length > 0).Select(n => FuzzyText.Similarity(t, n))).DefaultIfEmpty(0).Max();
     }
 
-    /// <summary>Value of an affix: the first number on the line that shows its name (Chinese or English); null when no line does.</summary>
+    /// <summary>
+    /// Value of an affix: the first number on the line that shows its name (Chinese or English, without filler words such as 加成 /
+    /// Bonus; at least <see cref="StatNameCoverage"/> of its characters in order); null when no line does.
+    /// </summary>
     public double? StatValue(PlannerStat stat)
     {
+        var names = new[] { stat.NameZh, stat.NameEn }.Select(n => FuzzyText.Normalize(StatNameFillers.Aggregate(n, (s, f) => s.Replace(f, "", StringComparison.OrdinalIgnoreCase))))
+            .Where(n => n.Length > 0).ToList();
         foreach (var line in Lines)
         {
             string norm = FuzzyText.Normalize(line);
-            bool named = new[] { stat.NameZh, stat.NameEn }.Select(FuzzyText.Normalize)
-                .Any(n => n.Length > 0 && FuzzyText.Lcs(n, norm) >= Math.Ceiling(n.Length * StatNameCoverage));
+            bool named = names.Any(n => FuzzyText.Lcs(n, norm) >= Math.Ceiling(n.Length * StatNameCoverage));
             if (!named || Number.Match(line) is not { Success: true } m) continue;
             if (double.TryParse(m.Value.Replace(",", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out double v)) return v;
         }
