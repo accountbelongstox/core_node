@@ -2931,3 +2931,7 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
   .cm-access-notice h1 { font-size: 20px; }
   .cm-access-notice__action { width: 100%; }
 }
+
+/* Back to the mobile app from a web page opened inside the native app. */
+.cm-chrome-controls__app { display: inline-flex; width: auto; align-items: center; gap: 6px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.cm-chrome-controls__app svg { flex: none; }

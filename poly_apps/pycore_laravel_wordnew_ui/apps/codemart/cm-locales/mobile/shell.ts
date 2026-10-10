@@ -25,6 +25,7 @@ export const cmMobileShell = defineMobileLocale(
       preferences: 'Settings',
       useWebVersion: 'Use the web version',
       version: 'Version {{version}}',
+      backToApp: 'Back to app',
     },
     ui: {
       close: 'Close',
@@ -63,6 +64,7 @@ export const cmMobileShell = defineMobileLocale(
       preferences: '设置',
       useWebVersion: '使用网页版界面',
       version: '版本 {{version}}',
+      backToApp: '返回应用',
     },
     ui: {
       close: '关闭',

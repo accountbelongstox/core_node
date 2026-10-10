@@ -132,11 +132,3 @@
 /* A form screen whose action bar sits at the bottom of the viewport even when the content is short. */
 .cmm-screen.is-fill { min-height: calc(100dvh - var(--cmm-appbar-h) - var(--cmm-tabbar-h) - var(--cmm-safe-top) - var(--cmm-safe-bottom) - 36px); }
 .cmm-screen.is-fill > .cmm-stickybar { margin-top: auto; }
-
-.cmm-field-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.cmm-field-pair .cmm-input { min-width: 0; }
-.cmm-input[type="date"] { min-width: 0; }
-
-.cmm-sheet__body > .cmm-notice,
-.cmm-sheet__body > .cmm-rating,
-.cmm-sheet__body > .cmm-radio-list,
