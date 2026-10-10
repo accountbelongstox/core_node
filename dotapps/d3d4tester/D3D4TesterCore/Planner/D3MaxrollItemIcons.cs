@@ -96,4 +96,5 @@ public static class D3MaxrollItemIcons
         return null;
     }
 
-    private static string Text(JsonNode? node) => node is JsonValue v && v.TryGetValue(out string? s) ? s
+    private static string Text(JsonNode? node) => node is JsonValue v && v.TryGetValue(out string? s) ? s : "";
+}

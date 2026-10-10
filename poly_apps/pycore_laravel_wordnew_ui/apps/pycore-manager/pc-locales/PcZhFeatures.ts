@@ -433,6 +433,27 @@ terminal: {
         permission: '浏览器拒绝了剪贴板访问。',
         unsupported: '此浏览器无法读取剪贴板。',
       },
+      camera: {
+        action: '用相机拍照并作为附件',
+        failed: '无法拍摄相机照片。',
+        permission: '相机权限被拒绝，请在应用设置中允许。',
+      },
+      ocr: {
+        title: '图片中识别出的文字',
+        badge: {
+          running: '正在本机识别文字…',
+          done: '查看识别出的文字',
+          empty: '图片中未识别到文字',
+          error: '文字识别失败',
+        },
+        copy: '复制',
+        copied: '已复制',
+        insert: '插入到消息',
+        close: '关闭',
+        running: '正在本机识别文字…',
+        empty: '这张图片中没有识别到文字。',
+        failed: '文字识别失败（{{code}}）。',
+      },
       liveScreenshot: {
         action: '一键拉取此终端窗口的实时截图到消息中',
         failed: '无法获取终端实时截图。',

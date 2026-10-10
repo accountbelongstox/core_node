@@ -188,9 +188,20 @@ public static class D3PlannerService
         }
     }
 
-    /// <summary>Skill / passive icons of every build class in the cache (cut once from maxroll's sprite sheets); failures only logged.</summary>
+    /// <summary>
+    /// Skill / passive icons of every build class in the cache (cut once from maxroll's sprite sheets) and maxroll's item icons (items,
+    /// gems, potions, materials: downloaded once, for the cube upgrade recognition); failures only logged.
+    /// </summary>
     private static async Task EnsureIconsAsync(IEnumerable<PlannerBuild> builds)
     {
+        try
+        {
+            await D3MaxrollItemIcons.EnsureAsync(CacheDir).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException or TaskCanceledException)
+        {
+            ColorPrinter.Yellow($"{LogTag} item icons not cached: {ex.Message}");
+        }
         foreach (string cls in builds.Select(b => b.Class).Where(c => c.Length > 0).Distinct(StringComparer.Ordinal))
         {
             try

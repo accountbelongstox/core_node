@@ -8,21 +8,14 @@ import React, {
 import { isHttpConnected } from '../../../core/integrations/pycore/PycoreEventClient';
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowDownToLine,
-  ArrowUp,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   BookmarkPlus,
-  ChevronsDown,
-  ChevronsUp,
   Clock3,
-  CornerDownLeft,
   Crosshair,
   FileText,
-  Hand,
   ImageIcon,
   Layers,
   LayoutGrid,
@@ -90,6 +83,7 @@ import { pickIdleAgentTerminal, useTerminalDispatchSetting } from '@/apps/pycore
 import { PcTerminalDispatchToggle } from '@/apps/pycore-manager/components/PcTerminalDispatchToggle';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
+import { PcTerminalQuickKeys } from '@/apps/pycore-manager/components/PcTerminalQuickKeys';
 import { PcTerminalQuickCommands, type QuickCommandChoice } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
 import { useQuickCommandRun } from '@/apps/pycore-manager/components/PcTerminalQuickCommandRun';
 import { PcTerminalCardCommands } from '@/apps/pycore-manager/components/PcTerminalCardCommands';
@@ -177,15 +171,6 @@ const JUMP_BAR_LEVELS: readonly { chars: number | null; minWidthPx: number }[] =
   { chars: 0, minWidthPx: 26 },
 ];
 const TITLE_LEADING_SYMBOLS = /^[^\p{L}\p{N}]+/u;
-/** Keys sent as-is from the quick-key row, in display order. */
-const TERMINAL_QUICK_KEYS: readonly TerminalKeyAction[] = ['escape', 'ctrl_c', 'tab', 'shift_tab'];
-/** Keyboard glyphs shown on the icon toolbar (key symbols, not language text). */
-const TERMINAL_KEY_GLYPHS: Record<TerminalKeyAction, string> = {
-  escape: 'Esc',
-  ctrl_c: '^C',
-  tab: '⇥',
-  shift_tab: '⇤',
-};
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -2325,52 +2310,16 @@ const PcTerminalNodeView: React.FC<{
       />
       {/* One compact panel: keys, commands and choice answers; send lives in the composer toolbar. */}
       <div className="space-y-1.5 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
-        <div
-          className="grid grid-cols-6 gap-0.5 sm:grid-cols-12"
-          role="toolbar"
-          aria-label={t('terminal.quickKeys')}
-        >
-          {([
-            { id: 'activate', label: t('terminal.activate'), icon: MousePointer2, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => { if (selectedWindow) void activate(selectedWindow.id); } },
-            { id: 'enter', label: t('terminal.sendEnterHint'), icon: CornerDownLeft, tone: 'text-slate-600 hover:bg-slate-500/10 dark:text-slate-300', onClick: () => void sendEnter() },
-            ...TERMINAL_QUICK_KEYS.map((key) => ({
-              id: key,
-              label: t(`terminal.keyHints.${key}`),
-              glyph: TERMINAL_KEY_GLYPHS[key],
-              tone: 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
-              onClick: () => pressKey(key),
-            })),
-            {
-              id: 'manualMode',
-              label: selectedWindow?.permission_mode
-                ? t('terminal.permissionMode.switchHint', { mode: t(`terminal.permissionMode.modes.${selectedWindow.permission_mode.mode}`) })
-                : t('terminal.permissionMode.switchHintUnknown'),
-              icon: Hand,
-              tone: selectedWindow?.permission_mode?.mode === 'manual'
-                ? 'text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400'
-                : 'text-rose-500 hover:bg-rose-500/10',
-              onClick: switchToManualMode,
-            },
-            { id: 'previousCommand', label: t('terminal.previousCommand'), icon: ArrowUp, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('up') },
-            { id: 'nextCommand', label: t('terminal.nextCommand'), icon: ArrowDown, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('down') },
-            { id: 'pageUp', label: t('terminal.pageUp'), icon: ChevronsUp, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_up') },
-            { id: 'pageDown', label: t('terminal.pageDown'), icon: ChevronsDown, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_down') },
-            { id: 'scrollBottom', label: t('terminal.scrollBottom'), icon: ArrowDownToLine, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('bottom') },
-          ] as Array<{ id: string; label: string; icon?: React.ComponentType<{ className?: string }>; glyph?: string; tone: string; onClick: () => void }>)
-            .map(({ id, label, icon: Icon, glyph, tone, onClick }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={onClick}
-                disabled={!selectedActionable}
-                title={label}
-                aria-label={label}
-                className={`flex h-7 items-center justify-center rounded-md font-mono text-[11px] font-bold disabled:opacity-40 ${tone}`}
-              >
-                {Icon ? <Icon className="h-3.5 w-3.5" /> : glyph}
-              </button>
-            ))}
-        </div>
+        <PcTerminalQuickKeys
+          disabled={!selectedActionable}
+          permissionMode={selectedWindow?.permission_mode?.mode ?? null}
+          onActivate={() => { if (selectedWindow) void activate(selectedWindow.id); }}
+          onEnter={() => void sendEnter()}
+          onKey={pressKey}
+          onPermissionManual={switchToManualMode}
+          onHistory={navigateHistory}
+          onScroll={scrollTerminal}
+        />
         <PcTerminalQuickCommands
           shellOs={selectedWindow?.shell_os}
           disabled={!selectedActionable}

@@ -104,6 +104,8 @@ public partial class D3PlannerBuildBlock : UserControl
         LblPassives.Text = T(I18nKeys.RosbotBridgeBuildPassives);
         BtnSwitchSkills.Content = T(I18nKeys.RosbotBridgeBuildSkillSwitch);
         BtnSwitchSkills.ToolTip = T(I18nKeys.RosbotBridgeBuildSkillSwitchTip);
+        BtnKanaiUpgrade.Content = T(I18nKeys.KanaiUpgradeOpen);
+        BtnKanaiUpgrade.ToolTip = T(I18nKeys.KanaiUpgradeOpenTip);
         ColFollowerSlot.Header = T(I18nKeys.RosbotBridgeBuildColSlot);
         ColFollowerItem.Header = T(I18nKeys.RosbotBridgeBuildColItem);
         ColFollowerAffixes.Header = T(I18nKeys.RosbotBridgeBuildColAffixes);
@@ -229,6 +231,8 @@ public partial class D3PlannerBuildBlock : UserControl
 
     private static string StatText(PlannerStat st) =>
         $"{D3PlannerService.StatName(st)} {st.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)}{(st.Percent ? PercentSuffix : "")}";
+
+    private void BtnKanaiUpgrade_Click(object sender, RoutedEventArgs e) => KanaiUpgradeWindow.ShowFor(Window.GetWindow(this));
 
     private void BtnOpenCache_Click(object sender, RoutedEventArgs e)
     {

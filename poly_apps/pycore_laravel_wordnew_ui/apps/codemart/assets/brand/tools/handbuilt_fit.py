@@ -5,12 +5,13 @@ import sys
 import time
 
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import least_squares, minimize
 
 from brand_common import source_gray
 import handbuilt_shapes as hs
 from geom import rasterize
 
+LM_STEP = 0.15
 TARGET = 1.0 - source_gray() / 255.0
 
 
@@ -34,27 +35,35 @@ def overlapping(all_els, window):
     return out
 
 
-def fit(free, all_els, margin=4, extra_shared=None, maxiter=4000):
+def fit(free, all_els, margin=4, maxiter=60, free_idx=None, polish=3):
     window = window_for(free, margin)
     ctx = overlapping(all_els, window)
     x0, y0, x1, y1 = window
     target = TARGET[y0:y1, x0:x1]
     sizes = [len(e.p) for e in free]
-    start = np.concatenate([e.p for e in free])
+    base = np.concatenate([e.p for e in free])
+    fixed = np.ones(len(base), bool)
+    if free_idx is not None:
+        fixed[:] = False
+        fixed[free_idx] = True
 
-    def apply(x):
+    def apply(z):
+        x = base.copy()
+        x[fixed] += z
         off = 0
         for e, n in zip(free, sizes):
             e.p = x[off:off + n]
             off += n
 
-    def loss(x):
-        apply(x)
-        return float(np.sum((rasterize(ctx, window, sigma=hs.SIGMA) - target) ** 2))
+    def residual(z):
+        apply(z)
+        return (rasterize(ctx, window, sigma=hs.SIGMA) - target).ravel()
 
-    res = minimize(loss, start, method="Powell", options={"xtol": 1e-3, "ftol": 1e-7, "maxiter": maxiter})
-    apply(res.x)
-    return res.fun
+    z = least_squares(residual, np.zeros(int(fixed.sum())), method="trf", diff_step=LM_STEP, max_nfev=maxiter, xtol=1e-4, ftol=1e-6).x
+    if polish:
+        z = minimize(lambda v: float(np.sum(residual(v) ** 2)), z, method="Powell", options={"xtol": 1e-3, "ftol": 1e-7, "maxiter": polish}).x
+    apply(z)
+    return float(np.sum(residual(z) ** 2))
 
 
 def total_loss(els, window):

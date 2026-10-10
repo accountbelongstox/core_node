@@ -29,6 +29,7 @@ from pycore.pyfoundations.service_contract import value as contract_value  # noq
 CONTRACT = contract_value("app_downloads")
 SERVER_SYNC = CONTRACT["server_sync"]
 LARAVEL_BACKEND_PORT = int(contract_value("ports.laravel_api_backend"))
+TAILNET_API_LABEL = str(contract_value("access.tailnet.api_label"))
 LARAVEL_CLI = CORE_NODE_ROOT / "ncore" / "foundation" / "common" / "laravel_signed_cli.js"
 SYNC_TIMEOUT_SECONDS = 300
 SYNC_MESSAGE_CHARS = 300
@@ -244,7 +245,8 @@ def lan_ipv4() -> str:
 
 
 def mesh_source_urls() -> list[str]:
-    """Origins this machine serves url_prefix on: its mesh (headscale/tailscale) host first, then its LAN address."""
+    """Origins this machine serves url_prefix on: its mesh (headscale/tailscale) API host (the Laravel origin that
+    serves the downloads), its mesh machine host, then its LAN address."""
     urls: list[str] = []
     try:
         from pycore.pyutils.common.tailnet_peers import current_tailnet_document
@@ -254,7 +256,8 @@ def mesh_source_urls() -> list[str]:
             peer for peer in peers
             if local in (str(peer.get("hostName") or "").lower(), str(peer.get("dnsName") or "").split(".")[0])
         ]
-        urls.extend(f"https://{peer['dnsName']}" for peer in mine[:1])
+        for peer in mine[:1]:
+            urls.extend([f"https://{TAILNET_API_LABEL}.{peer['dnsName']}", f"https://{peer['dnsName']}"])
     except Exception as error:  # noqa: BLE001 - mesh discovery is best effort
         log(f"mesh host discovery failed: {error}")
     lan = lan_ipv4()

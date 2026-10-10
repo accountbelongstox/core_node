@@ -7,6 +7,7 @@ export function useMobileFeedback(): CmFeedback {
   return useMemo<CmFeedback>(() => ({
     success: (text) => { notify.success(text); },
     error: (text) => { notify.error(text); },
+    info: (text) => { notify.info(text); },
     clear: () => undefined,
   }), []);
 }

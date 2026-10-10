@@ -1,17 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Landmark, WalletCards } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { cmApi } from '../../api/CmApi';
-import type { CmProjectDetail, CmWallet } from '../../api/CmApiTypes';
-import { cmErrorCode, cmErrorMessage } from '../../api/cmErrors';
-import { useCmIdempotencyKey } from '../../api/useCmIdempotencyKey';
+import type { CmProjectDetail } from '../../api/CmApiTypes';
+import { useCmProjectFunding } from '../../shared/useCmProjectFunding';
 import { CM_PROTECTED_ROUTE } from '../public-home/cmPublicRoutes';
 import { CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { useCmFormat } from './cmWorkspaceFormat';
-
-const APPROVED_PROPOSAL_STATUS = 'approved';
-const INSUFFICIENT_BALANCE = 'insufficient_balance';
 
 interface CmProjectFundPanelProps {
   project: CmProjectDetail;
@@ -22,50 +17,14 @@ interface CmProjectFundPanelProps {
 export const CmProjectFundPanel: React.FC<CmProjectFundPanelProps> = ({ project, onFunded }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const idempotency = useCmIdempotencyKey();
   const notice = useCmNotice();
-  const [fundingAmount, setFundingAmount] = useState<string | null>(null);
-  const [wallet, setWallet] = useState<CmWallet | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const funding = useCmProjectFunding(project, onFunded, notice);
+  const { fundingAmount, wallet, loading, busy, shortfall, needsTopUp } = funding;
   const [confirming, setConfirming] = useState(false);
-  const [needsTopUp, setNeedsTopUp] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.all([cmApi.getProjectAnalysis(project.id), cmApi.getWallet()]).then(([analysisResponse, walletResponse]) => {
-      if (cancelled) return;
-      const proposal = analysisResponse.success ? analysisResponse.data?.proposal ?? null : null;
-      const proposalAmount = proposal && proposal.status === APPROVED_PROPOSAL_STATUS && proposal.estimated_cost && Number(proposal.estimated_cost) > 0
-        ? proposal.estimated_cost
-        : null;
-      setFundingAmount(proposalAmount ?? project.budget);
-      if (walletResponse.success && walletResponse.data) setWallet(walletResponse.data);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [project.id, project.budget]);
-
-  const shortfall = wallet && fundingAmount !== null && Number(wallet.available_balance) < Number(fundingAmount);
 
   const fund = async (): Promise<void> => {
-    if (busy) return;
-    setBusy(true);
-    notice.clear();
-    setNeedsTopUp(false);
-    const response = await cmApi.fundProject(project.id, idempotency.current());
-    setBusy(false);
+    await funding.fund();
     setConfirming(false);
-    if (response.success && response.data) {
-      idempotency.reset();
-      notice.success(t('funding.funded', { amount: format.money(response.data.escrow.amount, response.data.escrow.currency ?? project.currency) }));
-      await onFunded();
-      return;
-    }
-    setNeedsTopUp(cmErrorCode(response) === INSUFFICIENT_BALANCE);
-    notice.error(cmErrorMessage(t, response, 'funding.failed'));
   };
 
   return (
@@ -83,7 +42,7 @@ export const CmProjectFundPanel: React.FC<CmProjectFundPanelProps> = ({ project,
           {shortfall && <CmNotice notice={{ tone: 'info', text: t('funding.topUpHint') }} />}
           <div className="cm-table-actions cm-section-card__actions">
             {!confirming ? (
-              <button type="button" className="cm-workspace-button is-primary" disabled={busy || Boolean(shortfall)} onClick={() => setConfirming(true)}>
+              <button type="button" className="cm-workspace-button is-primary" disabled={busy || shortfall} onClick={() => setConfirming(true)}>
                 {t('funding.fund')}
               </button>
             ) : (

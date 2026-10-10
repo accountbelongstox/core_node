@@ -1,15 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import { Apple, ArrowDownToLine, MonitorSmartphone, Smartphone } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import {
   CM_APP_FALLBACK_VERSION,
   CM_APP_MIN_OS_KEYS,
-  detectMobilePlatform,
   type CmAppPlatform,
 } from '../cmAppDownloads';
-import { cmPublicApi, type CmAppDownloadEntry } from '../api/CmPublicApi';
+import type { CmAppDownloadEntry } from '../api/CmPublicApi';
 import { CmPublicSection, CmPublicSplit } from '../components/public-home/CmPublicBlocks';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
+import { useCmAppDownloads } from '../shared/useCmAppDownloads';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 
 const APP_FEATURES = ['projects', 'tasks', 'wallet', 'notifications'];
@@ -57,24 +57,8 @@ const DownloadCard: React.FC<{ download: CmAppDownloadEntry; highlighted: boolea
  */
 const CmDownloadPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const detected = useMemo(detectMobilePlatform, []);
-  const [downloads, setDownloads] = useState<CmAppDownloadEntry[] | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void cmPublicApi.getAppDownloads().then((response) => {
-      if (active) setDownloads(response.success && response.data ? response.data : []);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
+  const { downloads, detected, highlighted, featured } = useCmAppDownloads();
   const platforms = downloads ?? [];
-  const highlighted = detected && platforms.some((entry) => entry.platform === detected)
-    ? detected
-    : platforms[0]?.platform ?? null;
-  const featured = highlighted ? platforms.find((entry) => entry.platform === highlighted) ?? null : null;
   const subtitle = detected ? t(`downloadPage.detected.${detected}`) : t('downloadPage.detected.unknown');
 
   return (
