@@ -1987,19 +1987,22 @@ const PcTerminalNodeView: React.FC<{
     sendDraft();
   }, [focusComposer, sendDraft, updateSelectedDraft]);
 
-  // Quick commands are library entries, never text: the dialog asks y/n, then pycore presses Ctrl+C, waits for the prompt and types.
+  // Quick commands are library entries, never text: pycore presses Ctrl+C (once on an idle prompt), waits for the prompt and types.
   const quickRun = useQuickCommandRun({
     errorTranslationKey,
-    onFinished: (request, success) => {
+    onFinished: (request, success, errorCode) => {
       if (success) frames.thaw(request.terminalNumber);
+      setActionNotice(success
+        ? { kind: 'success', translationKey: 'terminal.commands.quick.sent', translationValues: { command: request.line, number: request.terminalNumber } }
+        : { kind: 'error', translationKey: errorTranslationKey(errorCode) });
       void refresh(false);
     },
   });
-  const askQuickCommand = useCallback((windowInfo: TerminalWindowInfo, choice: QuickCommandChoice) => {
+  const runQuickCommand = useCallback((windowInfo: TerminalWindowInfo, choice: QuickCommandChoice) => {
     if (!windowInfo.online) return;
     selectTerminal(windowInfo.terminal_number);
-    quickRun.ask({ ...choice, windowId: windowInfo.id, terminalNumber: windowInfo.terminal_number });
-  }, [quickRun.ask, selectTerminal]);
+    void quickRun.run({ ...choice, windowId: windowInfo.id, terminalNumber: windowInfo.terminal_number });
+  }, [quickRun.run, selectTerminal]);
 
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
@@ -2317,8 +2320,9 @@ const PcTerminalNodeView: React.FC<{
           shellOs={selectedWindow?.shell_os}
           disabled={!selectedActionable}
           busy={actionWindowId === selectedWindow?.id || quickRun.activeTerminalNumber === selectedWindow?.terminal_number}
-          onRun={(choice) => { if (selectedWindow) askQuickCommand(selectedWindow, choice); }}
+          onRun={(choice) => { if (selectedWindow) runQuickCommand(selectedWindow, choice); }}
         />
+        {quickRun.logFor(selectedWindow?.terminal_number)}
         <PcTerminalChoicePicker
           disabled={!selectedActionable}
           busy={actionWindowId === selectedWindow?.id}
@@ -2677,7 +2681,7 @@ const PcTerminalNodeView: React.FC<{
                   shellOs={windowInfo.shell_os}
                   disabled={!snapshot?.supported || windowInfo.controllable === false}
                   busy={busy || quickRun.activeTerminalNumber === windowInfo.terminal_number}
-                  onRun={(choice) => askQuickCommand(windowInfo, choice)}
+                  onRun={(choice) => runQuickCommand(windowInfo, choice)}
                 />
               )}
             </div>
@@ -3283,7 +3287,6 @@ const PcTerminalNodeView: React.FC<{
         </Portal>
       )}
 
-      {quickRun.dialog}
 
       {logDialogOpen && selectedWindow && (
         <PcTerminalLogDialog

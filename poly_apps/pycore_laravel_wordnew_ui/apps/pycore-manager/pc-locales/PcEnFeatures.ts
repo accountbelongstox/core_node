@@ -420,6 +420,10 @@ terminal: {
         max: 'Limit: {{size}}',
         head: 'File header (hex): {{head}}',
       },
+      compression: {
+        badge: 'Compressed on upload: show original and current image',
+        detail: '{{name}} compressed on upload: original {{original}} → current {{current}}. The original was discarded; only the current image is used.',
+      },
       sentWithMissing: 'Sent, but {{count}} attachment(s) failed to upload and were left out; the AI was told they are missing.',
       agentMissingNote: '[{{count}} attached image(s) failed to upload and did not reach you; only the text below was sent.]',
       pull: {
@@ -435,7 +439,7 @@ terminal: {
       errors: {
         missing: 'No image was received.',
         tooLarge: 'The image is larger than {{max}} MiB.',
-        unsupportedType: 'Only PNG, JPG, GIF, WebP and BMP images and M4A, AMR, 3GP, OGG, WebM, WAV, MP3, AAC or FLAC recordings are supported.',
+        unsupportedType: 'Only PNG, JPG, GIF, WebP, BMP, TIFF and camera raw (DNG) images and M4A, AMR, 3GP, OGG, WebM, WAV, MP3, AAC or FLAC recordings are supported.',
         readFailed: 'The image could not be read.',
         writeFailed: 'The terminal host could not save the image.',
       },
@@ -651,18 +655,14 @@ terminal: {
       loadFailed: 'The command list could not be loaded.',
       forceSent: 'Stopped the running command (Ctrl+C) and sent the new command.',
       quick: {
-        title: 'Run quick command',
-        confirm: 'Run this command in terminal #{{number}} ({{shell}})? Ctrl+C is pressed {{count}} times first, so whatever is running there is stopped; then the command is typed. Press y to run, n to cancel.',
-        yes: 'Yes (y)',
-        no: 'No (n)',
-        hide: 'Hide',
         phase: {
           interrupting: 'Stopping the running program (Ctrl+C {{sent}}/{{count}})…',
           waiting: 'Waiting for the shell prompt…',
           typing: 'Typing the command…',
           done: 'Done.',
         },
-        done: 'The command was typed and submitted.',
+        done: 'Sent.',
+        sent: 'Sent to terminal #{{number}}: {{command}}',
         failed: 'The command did not run: {{reason}}',
         errors: {
           unknown: 'This command is not in the quick-command library.',

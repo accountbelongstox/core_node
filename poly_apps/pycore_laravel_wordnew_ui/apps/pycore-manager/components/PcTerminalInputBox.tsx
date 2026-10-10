@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Camera, ClipboardPaste, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Square, X } from 'lucide-react';
+import { Camera, ClipboardPaste, FileAudio, ImagePlus, Keyboard, Loader2, Mic, RefreshCw, Shrink, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../core/persistence';
 import { formatBytes } from '../../../core/utils/formatBytes';
@@ -77,6 +77,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const recorderInputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [compressionId, setCompressionId] = useState<string | null>(null);
   const [mode, setMode] = useState<ComposerMode>(readComposerMode);
   const [pullHint, setPullHint] = useState<PullHint>('');
   const [pulling, setPulling] = useState(false);
@@ -110,6 +111,15 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
     return lines;
   };
   const previewItem = imageItems.find((item) => item.id === previewId && item.previewUrl) ?? null;
+  const compressionItem = imageItems.find((item) => item.id === compressionId && item.compression) ?? null;
+  const compressionText = (item: PcTerminalImage): string => {
+    const info = item.compression!;
+    return t('terminal.images.compression.detail', {
+      name: item.file.name,
+      original: `${info.originalWidth}×${info.originalHeight} · ${formatBytes(info.originalBytes)}`,
+      current: `${info.width}×${info.height} · ${formatBytes(info.bytes)}`,
+    });
+  };
   const record = () => {
     if (recorder.recording) recorder.stop();
     else void recorder.start();
@@ -186,6 +196,17 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
                     className="block h-full w-full cursor-zoom-in"
                   >
                     <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
+                  </button>
+                )}
+                {item.compression && (
+                  <button
+                    type="button"
+                    onClick={() => setCompressionId(compressionId === item.id ? null : item.id)}
+                    title={compressionText(item)}
+                    aria-label={t('terminal.images.compression.badge')}
+                    className="absolute bottom-0.5 left-0.5 rounded-full bg-emerald-600/85 p-0.5 text-white hover:bg-emerald-600"
+                  >
+                    <Shrink className="h-3 w-3" />
                   </button>
                 )}
                 {item.status === 'uploading' && (
@@ -267,6 +288,11 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
             </li>
           ))}
         </ul>
+      )}
+      {compressionItem && (
+        <p className="mx-1.5 mt-1.5 select-text break-all rounded-lg bg-emerald-500/10 px-2 py-1 text-[11px] leading-snug text-emerald-700 dark:text-emerald-300">
+          {compressionText(compressionItem)}
+        </p>
       )}
       {failedItems.length > 0 && (
         <ul className="space-y-1 px-1.5 pt-1.5">

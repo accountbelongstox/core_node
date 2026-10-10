@@ -737,7 +737,7 @@ class TerminalService:
         clear_first: bool = False,
         interrupt_first: bool = False,
         activate_window: bool = True,
-        shell_prompt: bool = False,
+        shell_os: str = "",
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -775,13 +775,12 @@ class TerminalService:
         clipboard_restored = False
         try:
             activation = self._backend.activate(window_id) if activate_window else {"success": True}
-            action = (
-                self._backend.paste_and_submit(
-                    window_id, len(text), clear_first, interrupt_first, shell_prompt,
-                )
-                if activation.get("success")
-                else activation
-            )
+            if not activation.get("success"):
+                action = activation
+            elif shell_os:
+                action = self._backend.submit_shell_line(window_id, text, shell_os)
+            else:
+                action = self._backend.paste_and_submit(window_id, len(text), clear_first, interrupt_first)
             time.sleep(CLIPBOARD_RESTORE_DELAY_SECONDS)
         finally:
             clipboard_restored = clipboard_manager.restore_snapshot(clipboard_backup)
@@ -1045,14 +1044,7 @@ class TerminalService:
         if not saved["success"]:
             return saved
         window = self._backend.find_window(window_id) if window_id else None
-        return {
-            "success": True,
-            "path": saved["path"],
-            "display_path": format_attachment_reference(saved["path"], self._backend.platform_name, window),
-            "name": saved["name"],
-            "bytes": saved["bytes"],
-            "mime": saved["mime"],
-        }
+        return {**saved, "display_path": format_attachment_reference(saved["path"], self._backend.platform_name, window)}
 
     @serialized_method
     def press_enter(

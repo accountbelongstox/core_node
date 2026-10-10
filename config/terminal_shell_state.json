@@ -1,0 +1,30 @@
+{
+  "description": "Shell-state rule library: classifies the tail of exported terminal text as an idle shell prompt (a command can be typed now), a busy screen (a program, REPL, pager, agent or question holds the input) or unknown. Rules are ordered regular expressions matched against the last non-empty line; busy rules win over prompt rules. Add rules here to extend detection.",
+  "tail_lines": 6,
+  "busy": [
+    { "name": "python_repl", "pattern": "^(?:>>>|\\.\\.\\.)(?:\\s.*)?$" },
+    { "name": "powershell_continuation", "pattern": "^>>(?:\\s.*)?$" },
+    { "name": "node_repl", "pattern": "^>\\s*$" },
+    { "name": "ipython", "pattern": "^(?:In|Out)\\s*\\[\\d+\\]:" },
+    { "name": "pager_end", "pattern": "^\\(END\\)$|^--More--|^lines \\d+-\\d+|^:$|^Manual page " },
+    { "name": "batch_terminate", "pattern": "Terminate batch job \\(Y/N\\)\\?|终止批处理操作吗\\(Y/N\\)\\?" },
+    { "name": "yes_no_question", "pattern": "\\((?:y/n|Y/n|y/N|yes/no)\\)\\s*[:?]?\\s*$|\\[(?:Y/n|y/N|Y/N|y/n)\\]\\s*[:?]?\\s*$" },
+    { "name": "powershell_choice", "pattern": "^\\[Y\\] Yes .*\\(default is \"\\w\"\\):" },
+    { "name": "password", "pattern": "(?i)(?:password|passphrase|密码)[^:：]*[:：]\\s*$" },
+    { "name": "agent_exit_hint", "pattern": "(?i)press ctrl-?\\+?c again to exit" },
+    { "name": "editor_status", "pattern": "^(?:-- INSERT --|-- VISUAL --|\\^G Get Help|GNU nano )" },
+    { "name": "ssh_continue", "pattern": "(?i)are you sure you want to continue connecting" }
+  ],
+  "idle": [
+    { "name": "powershell", "os": "windows", "pattern": "^(?:\\([^)]*\\)\\s*)*PS(?:\\s+[\\w.-]+:)?\\s+[^>\\n]*>\\s?(?P<input>.*)$" },
+    { "name": "cmd", "os": "windows", "pattern": "^(?:\\([^)]*\\)\\s*)*[A-Za-z]:\\\\[^<>|\"*?\\n]*>(?P<input>.*)$" },
+    { "name": "kali_two_line", "os": "linux", "pattern": "^[└╰]─+(?:\\S*?)[$#]\\s?(?P<input>.*)$" },
+    { "name": "bash_user_host", "os": "linux", "pattern": "^(?:\\([^)]*\\)\\s*)*\\[?[\\w.-]+@[\\w.-]+(?::|\\s+)[^$#\\n]*\\]?[$#]\\s?(?P<input>.*)$" },
+    { "name": "bash_version", "os": "linux", "pattern": "^(?:ba|z|k|da)?sh(?:-[\\d.]+)?[$#]\\s?(?P<input>.*)$" },
+    { "name": "zsh_percent", "os": "linux", "pattern": "^(?:\\([^)]*\\)\\s*)*(?:[\\w.-]+@[\\w.-]+(?:\\s+[^%\\n]*)?|[~/][^%\\n]*)\\s?%\\s?(?P<input>.*)$" },
+    { "name": "fish", "os": "linux", "pattern": "^[\\w.-]+@[\\w.-]+\\s+[~/][^>\\n]*>\\s?(?P<input>.*)$" },
+    { "name": "path_dollar", "os": "linux", "pattern": "^(?:\\([^)]*\\)\\s*)*[~/][^$#\\n]*[$#]\\s?(?P<input>.*)$" },
+    { "name": "starship_arrow", "os": "any", "pattern": "^(?:[\\w./~-]+\\s+(?:on\\s+\\S+\\s+)?)?(?:❯|➜|λ)\\s?(?P<input>.*)$" },
+    { "name": "bare_root_or_user", "os": "any", "pattern": "^[$#]\\s?(?P<input>.*)$" }
+  ]
+}

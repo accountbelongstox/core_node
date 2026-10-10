@@ -59,6 +59,8 @@ MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_WHEEL = 0x0800
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_UNICODE = 0x0004
+TYPE_CHARACTER_INTERVAL_SECONDS = 0.004
 MAPVK_VK_TO_VSC = 0
 EXTENDED_VIRTUAL_KEYS = frozenset((0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E))
 VK_MENU = 0x12
@@ -582,6 +584,22 @@ class WindowOps:
         time.sleep(hold_seconds)
         return self._send_inputs(releases) == len(releases)
 
+    def type_native_text(self, text: str) -> bool:
+        """Type text as Unicode characters (KEYEVENTF_UNICODE): no clipboard, no paste, keyboard layout and IME bypassed."""
+        encoded = text.encode("utf-16-le")
+        for offset in range(0, len(encoded), 2):
+            unit = int.from_bytes(encoded[offset:offset + 2], "little")
+            inputs = (NativeInput * 2)()
+            for entry, flags in zip(inputs, (KEYEVENTF_UNICODE, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)):
+                entry.type = INPUT_KEYBOARD
+                entry.keyboard.virtual_key = 0
+                entry.keyboard.scan_code = unit
+                entry.keyboard.flags = flags
+            if self._send_inputs(inputs) != len(inputs):
+                return False
+            time.sleep(TYPE_CHARACTER_INTERVAL_SECONDS)
+        return True
+
     def _send_inputs(self, inputs: Any) -> int:
         """SendInput with pycore's marker, so the input idle watch never counts pycore's own input as user activity."""
         for entry in inputs:
@@ -823,6 +841,9 @@ def press_native_key(key: Union[str, int]) -> bool:
 
 def press_native_key_combo(keys: List[Union[str, int]], hold_seconds: float = 0.0) -> bool:
     return _window_ops.press_native_key_combo(keys, hold_seconds)
+
+def type_native_text(text: str) -> bool:
+    return _window_ops.type_native_text(text)
 
 def post_window_message(hwnd: int, message: int, wparam: int = 0, lparam: int = 0) -> bool:
     return bool(_window_ops.post_message(hwnd, message, wparam, lparam))

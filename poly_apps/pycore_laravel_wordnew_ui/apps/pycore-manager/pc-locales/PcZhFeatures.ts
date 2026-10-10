@@ -420,6 +420,10 @@ terminal: {
         max: '上限：{{size}}',
         head: '文件头（hex）：{{head}}',
       },
+      compression: {
+        badge: '上传时已压缩：查看原图与当前图',
+        detail: '{{name}} 上传时已压缩：原图 {{original}} → 当前图 {{current}}。原图已丢弃，只使用当前图。',
+      },
       sentWithMissing: '已发送，但有 {{count}} 个附件上传失败未附带；已告知 AI 这些图片缺失。',
       agentMissingNote: '[{{count}} attached image(s) failed to upload and did not reach you; only the text below was sent.]',
       pull: {
@@ -435,7 +439,7 @@ terminal: {
       errors: {
         missing: '没有收到图片。',
         tooLarge: '图片超过 {{max}} MiB。',
-        unsupportedType: '仅支持 PNG、JPG、GIF、WebP、BMP 图片，以及 M4A、AMR、3GP、OGG、WebM、WAV、MP3、AAC、FLAC 录音。',
+        unsupportedType: '仅支持 PNG、JPG、GIF、WebP、BMP、TIFF、相机 RAW（DNG）图片，以及 M4A、AMR、3GP、OGG、WebM、WAV、MP3、AAC、FLAC 录音。',
         readFailed: '无法读取该图片。',
         writeFailed: '终端所在主机无法保存该图片。',
       },
@@ -651,18 +655,14 @@ terminal: {
       loadFailed: '无法加载命令列表。',
       forceSent: '已用 Ctrl+C 结束正在运行的命令，并发送了新命令。',
       quick: {
-        title: '运行快捷命令',
-        confirm: '在终端 #{{number}}（{{shell}}）中运行这条命令？会先按 {{count}} 次 Ctrl+C 结束正在运行的程序，再输入命令。按 y 运行，按 n 取消。',
-        yes: '是 (y)',
-        no: '否 (n)',
-        hide: '隐藏',
         phase: {
           interrupting: '正在结束运行中的程序（Ctrl+C {{sent}}/{{count}}）…',
           waiting: '等待回到命令行提示符…',
           typing: '正在输入命令…',
           done: '完成。',
         },
-        done: '命令已输入并提交。',
+        done: '发送成功。',
+        sent: '已发送到终端 #{{number}}：{{command}}',
         failed: '命令没有运行：{{reason}}',
         errors: {
           unknown: '这条命令不在快捷命令库中。',

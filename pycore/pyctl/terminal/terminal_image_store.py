@@ -13,6 +13,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyctl.terminal.terminal_file_retention import prune_files
 from pycore.pyctl.terminal.terminal_image_archive import TerminalImageArchive
+from pycore.pyctl.terminal.terminal_image_compress import compress_upload, is_tiff_family
 from pycore.pyutils.common.relay_contract import relay_contract
 
 TERMINAL_IMAGE_DIR_NAME = "timg"
@@ -127,26 +128,35 @@ class TerminalImageStore:
         return {"success": True, "data": b"".join(chunks)}
 
     def save(self, data: bytes) -> Dict[str, Any]:
-        """Validate, write atomically under a short generated name, then prune."""
+        """Validate, compress an image on receipt (the original is dropped), write atomically under a short
+        generated name, then prune."""
         if len(data) > TERMINAL_IMAGE_MAX_BYTES:
             return {"success": False, "error_code": ERROR_IMAGE_TOO_LARGE, "max_bytes": TERMINAL_IMAGE_MAX_BYTES}
         image = detect_image_type(data)
-        detected = image or detect_audio_type(data)
+        is_image = image is not None or is_tiff_family(data)
+        detected = image or (None if is_image else detect_audio_type(data))
+        compressed: Dict[str, Any] = {}
+        if is_image:
+            compressed = compress_upload(data, image) or {}
+            detected = (compressed["extension"], compressed["mime"]) if compressed else None
         if detected is None:
             head = data[:HEAD_HEX_BYTES].hex()
             ColorPrint.yellow(f"[TerminalImageStore] upload rejected: unsupported type bytes={len(data)} head={head}")
             return {"success": False, "error_code": ERROR_IMAGE_UNSUPPORTED, "received_bytes": len(data), "head_hex": head}
+        if compressed:
+            data = compressed.pop("data")
+            del compressed["extension"], compressed["mime"]
         extension, mime = detected
         stamp = datetime.now(timezone.utc).strftime(NAME_TIME_FORMAT)
         name = f"{stamp}{secrets.token_hex(NAME_RANDOM_BYTES)}.{extension}"
-        path = (self.directory if image else self.voice_directory) / name
+        path = (self.directory if is_image else self.voice_directory) / name
         try:
             atomic_write_bytes(path, data)
         except OSError as exc:
             ColorPrint.yellow(f"[TerminalImageStore] write failed path={path}: {exc}")
             return {"success": False, "error_code": ERROR_IMAGE_WRITE_FAILED, "received_bytes": len(data), "error": str(exc)}
         self.prune()
-        return {"success": True, "path": str(path), "name": name, "bytes": len(data), "mime": mime}
+        return {**compressed, "success": True, "path": str(path), "name": name, "bytes": len(data), "mime": mime}
 
     def prune(self) -> None:
         prune_files(self.directory, TERMINAL_IMAGE_RETAIN_COUNT, TERMINAL_IMAGE_RETAIN_SECONDS, "TerminalImageStore")
