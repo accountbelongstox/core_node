@@ -29,6 +29,8 @@ public static class RosbotPluginConstants
     public const string BridgeDllName = "CoreNodeBridge.dll";
     public const string BridgeStateFileName = "state.json";
     public const string BridgeCommandFileName = "command.txt";
+    /// <summary>Plugin drops a command older than this unrun (same as CoreNodeBridge BridgeCommands.CommandMaxAgeSec).</summary>
+    public const int BridgeCommandMaxAgeSec = 60;
     public const string BridgeFilterFileName = "pickup_filter.txt";
     /// <summary>Items / affix attributes the plugin reads (same name as CoreNodeBridge ItemWatch.FileName; the plugin cannot reference the app).</summary>
     public const string BridgeItemWatchFileName = "item_watch.txt";

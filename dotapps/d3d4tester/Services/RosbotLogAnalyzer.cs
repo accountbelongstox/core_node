@@ -188,11 +188,4 @@ internal sealed class RosbotLogAnalyzerEngine
             ColorPrinter.Debug("[LogAnalyzer] State updated from line: " + line[..Math.Min(50, line.Length)] + "...");
         return updated;
     }
-
-    private static List<string> TakeLast(List<string> list, int n)
-    {
-        if (list.Count == 0) return new List<string>();
-        int take = Math.Min(n, list.Count);
-        return list.Skip(list.Count - take).ToList();
-    }
 }

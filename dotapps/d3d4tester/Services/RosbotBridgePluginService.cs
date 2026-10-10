@@ -153,8 +153,9 @@ public static class RosbotBridgePluginService
     }
 
     /// <summary>
-    /// Queue a command for the plugin (command.txt, consumed on ROSBOT's next pulse; the result appears as last_command in
-    /// state.json). Returns the command id, or null when ROSBOT's plugin folder is missing. Logged in the app log.
+    /// Queue a command for the plugin (command.txt, taken by the plugin's own timer once its worker is free; the result appears as
+    /// last_command in state.json). Returns the command id, or null when ROSBOT's plugin folder is missing or an earlier command
+    /// is still waiting in command.txt (never overwritten, so no command is lost). Logged in the app log.
     /// </summary>
     public static long? SendCommand(string action, string? target = null, bool? mode = null, bool? click = null, string? uiId = null, string? value = null) =>
         SendCommand(action, target, mode, click, uiId, value, rememberFollow: true);
@@ -163,6 +164,11 @@ public static class RosbotBridgePluginService
     private static long? SendCommand(string action, string? target, bool? mode, bool? click, string? uiId, string? value, bool rememberFollow)
     {
         if (InstalledDir is not { } dir || !Directory.Exists(dir)) return null;
+        if (CommandPending)
+        {
+            ColorPrinter.Yellow($"{LogTag} command {action} not sent: the previous command is not taken by the plugin yet");
+            return null;
+        }
         long id = DateTime.UtcNow.Ticks;
         var lines = new List<string> { $"{CommandKeyId}={id}", $"{CommandKeyAction}={action}" };
         if (!string.IsNullOrWhiteSpace(target)) lines.Add($"{CommandKeyTarget}={target.Trim()}");
