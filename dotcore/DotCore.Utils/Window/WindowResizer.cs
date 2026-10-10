@@ -159,6 +159,14 @@ public static class WindowResizer
         return (Math.Max(margin, Math.Min(left, maxLeft)), Math.Max(margin, Math.Min(top, maxTop)));
     }
 
+    /// <summary>Outer window rectangle (left, top, width, height) in screen px, or null for an invalid window.</summary>
+    public static (int Left, int Top, int Width, int Height)? GetWindowBounds(IntPtr hwnd) =>
+        WindowFinderNative.IsWindow(hwnd) && WindowFinderNative.GetWindowRect(hwnd, out var r) ? (r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top) : null;
+
+    /// <summary>Put the outer window back to a rectangle from <see cref="GetWindowBounds"/>.</summary>
+    public static bool SetWindowBounds(IntPtr hwnd, (int Left, int Top, int Width, int Height) bounds) =>
+        WindowFinderNative.IsWindow(hwnd) && MoveWindow(hwnd, bounds.Left, bounds.Top, bounds.Width, bounds.Height, true);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool MoveWindow(IntPtr hWnd, int x, int y, int nWidth, int nHeight, [MarshalAs(UnmanagedType.Bool)] bool bRepaint);
