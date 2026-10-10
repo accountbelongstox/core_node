@@ -277,7 +277,8 @@ const MISSING_PATH_RE = /does not exist|not found|no such file/i;
 export class CapBlobStore {
   private readonly dir: string;
   private readonly directory: CapDirectory;
-  private nativeNames: Promise<Set<string>> | null = null;
+  /** Native existence index per folder, shared by every store of that folder (a write through one is seen by all). */
+  private static readonly nativeIndexes = new Map<string, Promise<Set<string>>>();
   private folderUri: Promise<string> | null = null;
 
   /** `directory` null: `dir` is an absolute path (e.g. a folder on an SD-card volume). */
@@ -303,6 +304,10 @@ export class CapBlobStore {
     return this.folderUri;
   }
 
+  private get folderKey(): string {
+    return `${this.directory ?? ''}|${this.dir}`;
+  }
+
   /**
    * One directory listing shared by all native existence checks; misses never
    * reach a throwing plugin call. A missing folder is an empty index; a listing
@@ -310,8 +315,10 @@ export class CapBlobStore {
    * later call retries instead of treating every file as absent.
    */
   private nativeIndex(): Promise<Set<string>> {
-    if (!this.nativeNames) {
-      this.nativeNames = (async () => {
+    const indexes = CapBlobStore.nativeIndexes;
+    let index = indexes.get(this.folderKey);
+    if (!index) {
+      index = (async () => {
         const listing: any = await Filesystem.readdir({ path: this.dir, directory: this.directory ?? undefined })
           .catch((error: unknown) => {
             if (MISSING_PATH_RE.test(String((error as Error)?.message ?? error))) return { files: [] };
@@ -322,11 +329,12 @@ export class CapBlobStore {
           .filter((entry) => typeof entry === 'string' || entry.type === 'file')
           .map((entry) => (typeof entry === 'string' ? entry : entry.name)));
       })().catch((error) => {
-        this.nativeNames = null;
+        indexes.delete(this.folderKey);
         throw error;
       });
+      indexes.set(this.folderKey, index);
     }
-    return this.nativeNames;
+    return index;
   }
 
   private async trackNative(name: string, present: boolean): Promise<void> {
@@ -785,7 +793,7 @@ export class CapBlobStore {
       }
       return;
     }
-    this.nativeNames = null;
+    CapBlobStore.nativeIndexes.delete(this.folderKey);
     await capFs.rmdir(this.dir, this.directory);
   }
 }
