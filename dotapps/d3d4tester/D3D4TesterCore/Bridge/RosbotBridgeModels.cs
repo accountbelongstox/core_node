@@ -87,6 +87,15 @@ public sealed record RosbotBridgeState(
     [JsonPropertyName("standby_state")] public string StandbyState { get; init; } = "";
     [JsonPropertyName("standby_since_utc")] public DateTime StandbySinceUtc { get; init; }
     [JsonPropertyName("last_event_utc")] public DateTime LastEventUtc { get; init; }
+    /// <summary>Plugin hold (ROSBOT's bot thread kept in the plugin, API live): off / requested / holding / unsupported (older plugin: "").</summary>
+    [JsonPropertyName("hold_state")] public string HoldState { get; init; } = "";
+    [JsonPropertyName("hold_since_utc")] public DateTime HoldSinceUtc { get; init; }
+    /// <summary>ROSBOT pulsed the plugin within the last seconds and is not held: it bots (null = older plugin).</summary>
+    [JsonPropertyName("botting")] public bool? Botting { get; init; }
+    public const string HoldStateOff = "off";
+    public const string HoldStateRequested = "requested";
+    public const string HoldStateHolding = "holding";
+    public const string HoldStateUnsupported = "unsupported";
     [JsonPropertyName("players")] public IReadOnlyList<RosbotBridgeEntity> Players { get; init; } = Array.Empty<RosbotBridgeEntity>();
     [JsonPropertyName("ui_vendor_open")] public bool UiVendorOpen { get; init; }
     [JsonPropertyName("ui_salvage_open")] public bool UiSalvageOpen { get; init; }

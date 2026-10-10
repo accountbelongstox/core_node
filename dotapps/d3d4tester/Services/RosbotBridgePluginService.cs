@@ -34,6 +34,7 @@ public static class RosbotBridgePluginService
     private const string LogTag = "[RosbotBridge]";
     private const double CommandPollSec = 0.5;
     private const double CommandFreeWaitSec = 15.0;
+    private const double HoldConfirmSec = 6.0;
     /// <summary>Time for ROSBOT to stop its current action after the pause key before a command is written.</summary>
     public const int TakeControlSettleMs = 1500;
     private const string LeaseReturnToTown = "return to town";
@@ -82,7 +83,12 @@ public static class RosbotBridgePluginService
     private static void ReleasePluginControlOnResume()
     {
         var bridge = GameInterfaceData.Instance.GetStateSnapshot().RosbotBridge;
-        if (bridge is { StandbyEnabled: true })
+        if (bridge is { HoldState: RosbotBridgeState.HoldStateHolding or RosbotBridgeState.HoldStateRequested })
+        {
+            ColorPrinter.Blue($"{LogTag} resumed -> plugin hold off (ROSBOT continues, town standby off)");
+            _ = SendWhenFreeAsync(RosbotPluginConstants.BridgeActionHold, RosbotPluginConstants.BridgeHoldOff, rememberFollow: false);
+        }
+        else if (bridge is { StandbyEnabled: true })
         {
             ColorPrinter.Blue($"{LogTag} resumed -> town standby off");
             _ = SendWhenFreeAsync(RosbotPluginConstants.BridgeActionStandby, RosbotPluginConstants.BridgeStandbyOff, rememberFollow: false);
@@ -95,14 +101,46 @@ public static class RosbotBridgePluginService
     }
 
     /// <summary>
-    /// Take control for the app / panel: monitoring flow halted and a botting ROSBOT paused with its own pause key (never stopped, so the
-    /// game is not left; checked again when control is already taken, a restarted ROSBOT bots unpaused), then a short settle when a key
-    /// was sent so ROSBOT ends its current action.
+    /// Take control for the app / panel, never stopping ROSBOT or leaving the game. Preferred: the plugin holds ROSBOT (its bot thread kept
+    /// in the plugin: no task runs, plugin data and commands stay live) when the plugin is live and ROSBOT bots; confirmed within
+    /// HoldConfirmSec. Otherwise (older plugin, ROSBOT not pulsing, hold unsupported) ROSBOT's own pause key, which also stops the
+    /// plugin's data until resume; checked again when control is already taken (a restarted ROSBOT bots unpaused), then a short settle.
     /// </summary>
     public static async Task TakeControlAsync()
     {
+        if (RosbotFlowRunner.HeldByPlugin) return;
+        if (await TryPluginHoldAsync().ConfigureAwait(false))
+        {
+            RosbotFlowRunner.PauseHeldByPlugin();
+            return;
+        }
         if (await RosbotTaskProcessor.Instance.RequestPauseFlow().ConfigureAwait(false))
             await Task.Delay(TakeControlSettleMs).ConfigureAwait(false);
+    }
+
+    /// <summary>Ask the plugin to hold ROSBOT and wait until it reports holding; false when not possible or not confirmed.</summary>
+    private static async Task<bool> TryPluginHoldAsync()
+    {
+        var snapshot = GameInterfaceData.Instance.GetStateSnapshot();
+        if (snapshot.RosbotFlowPaused || !snapshot.RosbotBridgeFresh
+            || snapshot.RosbotBridge is not { InGame: true, Botting: true, HoldState: not RosbotBridgeState.HoldStateUnsupported })
+            return false;
+        if (await SendWhenFreeAsync(RosbotPluginConstants.BridgeActionHold, RosbotPluginConstants.BridgeHoldOn, rememberFollow: false).ConfigureAwait(false) == null)
+            return false;
+        var deadline = DateTime.UtcNow.AddSeconds(HoldConfirmSec);
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(CommandPollSec)).ConfigureAwait(false);
+            var s = GameInterfaceData.Instance.GetStateSnapshot();
+            if (s.RosbotBridgeFresh && s.RosbotBridge?.HoldState == RosbotBridgeState.HoldStateHolding)
+            {
+                ColorPrinter.Blue($"{LogTag} ROSBOT held by the plugin (no pause key, live data)");
+                return true;
+            }
+        }
+        ColorPrinter.Yellow($"{LogTag} plugin hold not confirmed in {HoldConfirmSec}s -> ROSBOT pause key instead");
+        _ = SendWhenFreeAsync(RosbotPluginConstants.BridgeActionHold, RosbotPluginConstants.BridgeHoldOff, rememberFollow: false);
+        return false;
     }
 
     /// <summary>
