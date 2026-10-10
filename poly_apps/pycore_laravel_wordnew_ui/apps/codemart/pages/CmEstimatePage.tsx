@@ -235,6 +235,12 @@ export const CmEstimatePage: React.FC = () => {
                     })).join(t('estimate.teamSeparator'))}
                   </strong>
                 </div>
+                {currency && (
+                  <div className="cm-estimate-result__row">
+                    <span>{t('estimate.currencyLabel')}</span>
+                    <strong>{t(`estimate.currencyNames.${currency}`, { defaultValue: currency })}</strong>
+                  </div>
+                )}
                 {Number.isFinite(result.platform_commission_rate) && (
                   <div className="cm-estimate-result__row">
                     <span>{t('estimate.commission')}</span>

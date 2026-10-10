@@ -7,6 +7,8 @@ import { CM_LANGUAGES } from '../cm-locales';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmAvatarCard } from '../components/workspace/CmAvatarCard';
+import { CmEmailChangeCard } from '../components/workspace/CmEmailChangeCard';
 import { CmPasswordChangeCard } from '../components/workspace/CmPasswordChangeCard';
 
 const AUTO_THEME = 'auto';
@@ -63,6 +65,8 @@ export const CmSettingsPage: React.FC = () => {
             </select>
           </label>
         </section>
+        <CmAvatarCard />
+        <CmEmailChangeCard />
         <CmPasswordChangeCard />
         <section className="cm-section-card">
           <h2><UserRound aria-hidden="true" /> {t('settings.accountTitle')}</h2>
