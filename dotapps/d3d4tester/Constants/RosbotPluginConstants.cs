@@ -51,6 +51,8 @@ public static class RosbotPluginConstants
     public const string BridgeActionFollow = "follow";
     /// <summary>Plugin command: wait for and click UI elements in order (value = ids / paths separated by BridgeUiSequenceSeparator).</summary>
     public const string BridgeActionUiSequence = "ui_sequence";
+    /// <summary>Plugin command: hero level and which planned skills / runes / passives are active (same name as CoreNodeBridge SkillCheck.Action).</summary>
+    public const string BridgeActionSkillsCheck = "skills_check";
     public const string BridgeUiSequenceSeparator = "|";
     /// <summary>Plugin command: town standby on / off (TownStandby; value BridgeStandbyOn / BridgeStandbyOff).</summary>
     public const string BridgeActionStandby = "standby";

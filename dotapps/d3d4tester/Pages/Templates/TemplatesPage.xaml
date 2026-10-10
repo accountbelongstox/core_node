@@ -1,0 +1,56 @@
+<UserControl x:Class="DotApps.d3d4tester.Pages.Templates.TemplatesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Development section: every template image under Templates/ with thumbnail, size, status (used by a feature / registered
+       only / icon library / unused), purpose and the code that uses it; double-click opens the image -->
+  <UserControl.Resources>
+    <ResourceDictionary Source="/d3d4tester;component/Assets/Styles/CompactPage.xaml"/>
+  </UserControl.Resources>
+  <Grid Margin="0,6,0,0">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+    <DockPanel Margin="0,0,0,6">
+      <Button x:Name="BtnOpenDir" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,0" Click="BtnOpenDir_Click"/>
+      <Button x:Name="BtnReload" DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,0" Click="BtnReload_Click"/>
+      <ComboBox x:Name="CmbStatus" DockPanel.Dock="Right" Width="150" Margin="6,0,0,0" SelectionChanged="Filter_Changed"/>
+      <ComboBox x:Name="CmbGroup" DockPanel.Dock="Right" Width="200" Margin="6,0,0,0" SelectionChanged="Filter_Changed"/>
+      <TextBox x:Name="TxtFilter" TextChanged="Filter_Changed" VerticalAlignment="Center"/>
+    </DockPanel>
+    <TextBlock x:Name="TxtSummary" Grid.Row="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+    <DataGrid x:Name="GridTemplates" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+              IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" HeadersVisibility="Column"
+              EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+              MouseDoubleClick="GridTemplates_MouseDoubleClick">
+      <DataGrid.Columns>
+        <DataGridTemplateColumn x:Name="ColPreview" Width="76">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <Image Source="{Binding Thumbnail}" MaxWidth="72" MaxHeight="48" Stretch="Uniform" Margin="2"/>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTextColumn x:Name="ColName" Binding="{Binding RelativePath}" Width="2*" MinWidth="160"/>
+        <DataGridTextColumn x:Name="ColSize" Binding="{Binding SizeText}" Width="90"/>
+        <DataGridTextColumn x:Name="ColStatus" Binding="{Binding StatusText}" Width="110"/>
+        <DataGridTextColumn x:Name="ColPurpose" Binding="{Binding PurposeText}" Width="3*" MinWidth="200">
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock">
+              <Setter Property="TextWrapping" Value="Wrap"/>
+            </Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
+        <DataGridTextColumn x:Name="ColUsedBy" Binding="{Binding UsedBy}" Width="2*" MinWidth="140">
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock">
+              <Setter Property="TextWrapping" Value="Wrap"/>
+              <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}"/>
+            </Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
+      </DataGrid.Columns>
+    </DataGrid>
+  </Grid>
+</UserControl>
