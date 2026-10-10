@@ -388,7 +388,9 @@
       "Bash(time bun node_modules/typescript/bin/tsc --noEmit)",
       "Bash(node *)",
       "Bash(WORDNEW_UI_ROOT=\"D:/programing/core_node/poly_apps/pycore_laravel_wordnew_ui\" bun run \"D:/.tmp/claude/D--programing-core-node/5ed6cd49-f3e9-41b0-99be-3b0b6b853a5b/scratchpad/clip_drill.ts\" 2>&1 | tail -15)",
-      "Bash(bun *)"
+      "Bash(bun *)",
+      "WebFetch(domain:d4.blizzard.cn)",
+      "WebFetch(domain:news.17173.com)"
     ],
     "deny": [],
     "ask": []
