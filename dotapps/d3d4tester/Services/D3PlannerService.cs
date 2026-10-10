@@ -35,7 +35,9 @@ public sealed record PlannerAlignment(IReadOnlyList<PlannerItem> Unaligned, IRea
 /// lives in <see cref="CacheDir"/>: dotapps/d3d4tester/PlannerData in the source tree, so it is versioned and travels with the code
 /// (the user data folder only without a source tree). At startup the list is loaded, every cached raw build is parsed again from disk
 /// (no network; a profiles/&lt;id&gt;.json added by hand or by another machine joins the list), and builds from the old user-folder cache are
-/// moved in once. LoadAsync(url) adds a build (or refreshes the one with the same id) and writes the bridge plugin's item watch (GBIDs, item ids and checkable affix attributes of every
+/// moved in once. The fixed URL list PlannerData/build_urls.json (embedded too) travels with the code: at startup every listed build
+/// not cached yet is downloaded, every build that loads (UI or list) is written back to it and a removed build leaves it.
+/// LoadAsync(url) adds a build (or refreshes the one with the same id) and writes the bridge plugin's item watch (GBIDs, item ids and checkable affix attributes of every
 /// gear set of every build). Every CheckEveryTicks seconds (TickDriver) it reads the plugin state: a ground item of any build not seen
 /// before raises a "dropped" alert, a new pickup of one a "picked up" alert (Monitor log, Alert event for the tray, optional push).
 /// The selected build / gear set drive the Build tab: Status() pairs its planned items with the best carried (else ground) copy.
@@ -49,6 +51,9 @@ public static class D3PlannerService
     private const string ProfileSearchPattern = "*" + MaxrollD3PlannerClient.ProfileFileExtension;
     private const string LegacyBuildFileName = "build.json";
     private const string BuildsFileName = "builds.json";
+    /// <summary>Build URLs fixed with the code (PlannerData/build_urls.json, also embedded for runs without the source tree).</summary>
+    private const string BuildUrlsFileName = "build_urls.json";
+    private const string BuildUrlsResourceName = "d3d4tester.build_urls.json";
     private const int CheckEveryTicks = 2;
     private const string WatchGbid = "g|{0}";
     private const string WatchName = "n|{0}";
@@ -63,6 +68,7 @@ public static class D3PlannerService
 
     private static readonly object Lock = new();
     private static readonly SemaphoreSlim SaveGate = new(1, 1);
+    private static readonly object UrlsLock = new();
     private static readonly HashSet<string> SeenGround = new(StringComparer.Ordinal);
     private static List<PlannerBuild> _builds = new();
     private static RosbotBridgeState? _state;
@@ -166,9 +172,11 @@ public static class D3PlannerService
                 _builds = builds;
                 _watchWritten = false;
             }
+            int downloaded = await LoadListedBuildsAsync().ConfigureAwait(false);
             await SaveAsync().ConfigureAwait(false);
+            SyncBuildUrls();
             await EnsureIconsAsync(_builds).ConfigureAwait(false);
-            MonitorLog.Info($"{LogTag} planner cache {CacheDir}: {_builds.Count} build(s), {parsed.Count} parsed from cached raw data");
+            MonitorLog.Info($"{LogTag} planner cache {CacheDir}: {_builds.Count} build(s), {parsed.Count} parsed from cached raw data, {downloaded} downloaded from the URL list");
             BuildChanged?.Invoke();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -190,6 +198,93 @@ public static class D3PlannerService
             {
                 ColorPrinter.Yellow($"{LogTag} {cls} icons not cached: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Every URL of the fixed list (source file + embedded copy) whose build is not in the list yet is downloaded and added (selection
+    /// unchanged); unreadable ones are logged and stay listed for the next start. Returns the number added.
+    /// </summary>
+    private static async Task<int> LoadListedBuildsAsync()
+    {
+        int added = 0;
+        foreach (string url in ReadBuildUrls())
+        {
+            if (MaxrollD3PlannerClient.ParseId(url) is not { } id || _builds.Any(b => b.Id == id)) continue;
+            try
+            {
+                var build = await MaxrollD3PlannerClient.LoadAsync(url, CacheDir).ConfigureAwait(false);
+                lock (Lock)
+                {
+                    if (_builds.Any(b => b.Id == build.Id)) continue;
+                    _builds = _builds.Append(build).ToList();
+                    _watchWritten = false;
+                }
+                added++;
+                MonitorLog.Info($"{LogTag} build {build.Id} '{build.Name}' ({build.Class}) added from the URL list");
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or ArgumentException or InvalidOperationException or System.Net.Http.HttpRequestException or TaskCanceledException)
+            {
+                ColorPrinter.Yellow($"{LogTag} listed build {url} not loaded: {ex.Message}");
+            }
+        }
+        return added;
+    }
+
+    /// <summary>URLs of the fixed list, one per build id: the source / cache file, or the embedded copy while that file does not exist yet.</summary>
+    private static List<string> ReadBuildUrls()
+    {
+        var urls = new List<string>();
+        void Add(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return;
+            try
+            {
+                foreach (string url in JsonSerializer.Deserialize<List<string>>(json) ?? new())
+                    if (MaxrollD3PlannerClient.ParseId(url) is { } id && !urls.Any(u => MaxrollD3PlannerClient.ParseId(u) == id))
+                        urls.Add(MaxrollD3PlannerClient.PlannerUrl(id));
+            }
+            catch (JsonException ex)
+            {
+                ColorPrinter.Yellow($"{LogTag} build URL list not readable: {ex.Message}");
+            }
+        }
+        string path = Path.Combine(CacheDir, BuildUrlsFileName);
+        lock (UrlsLock)
+        {
+            if (File.Exists(path))
+            {
+                Add(File.ReadAllText(path));
+                return urls;
+            }
+        }
+        using var stream = typeof(D3PlannerService).Assembly.GetManifestResourceStream(BuildUrlsResourceName);
+        if (stream != null) Add(new StreamReader(stream).ReadToEnd());
+        return urls;
+    }
+
+    /// <summary>Write the fixed URL list: listed URLs plus every build in the list (so each readable build travels with the code), minus removed ids.</summary>
+    private static void SyncBuildUrls(long? removedId = null)
+    {
+        var urls = ReadBuildUrls();
+        foreach (var build in _builds)
+            if (!urls.Any(u => MaxrollD3PlannerClient.ParseId(u) == build.Id)) urls.Add(MaxrollD3PlannerClient.PlannerUrl(build.Id));
+        if (removedId is { } id) urls.RemoveAll(u => MaxrollD3PlannerClient.ParseId(u) == id);
+        string path = Path.Combine(CacheDir, BuildUrlsFileName);
+        string json = JsonSerializer.Serialize(urls, JsonOptions) + Environment.NewLine;
+        try
+        {
+            lock (UrlsLock)
+            {
+                if (File.Exists(path) && File.ReadAllText(path) == json) return;
+                Directory.CreateDirectory(CacheDir);
+                File.WriteAllText(path, json);
+            }
+            MonitorLog.Info($"{LogTag} build URL list {path}: {urls.Count} URL(s)");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ColorPrinter.Yellow($"{LogTag} build URL list {path} not written: {ex.Message}");
         }
     }
 
@@ -220,6 +315,7 @@ public static class D3PlannerService
             _watchWritten = false;
         }
         await SaveAsync().ConfigureAwait(false);
+        SyncBuildUrls();
         await EnsureIconsAsync(new[] { build }).ConfigureAwait(false);
         ConfigBinding.SetValue(ConfigKeys.D3PlannerUrl, url.Trim());
         ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, index);
@@ -238,11 +334,15 @@ public static class D3PlannerService
         BuildChanged?.Invoke();
     }
 
-    /// <summary>Drop a build from the list (and from the item watch).</summary>
+    /// <summary>
+    /// Drop a build from the list, the item watch, the fixed URL list and the cache (its raw answer), so it does not come back at the
+    /// next start.
+    /// </summary>
     public static void RemoveBuild(int index)
     {
         if (index < 0 || index >= _builds.Count) return;
         string name = _builds[index].Name;
+        long id = _builds[index].Id;
         lock (Lock)
         {
             var builds = _builds.ToList();
@@ -251,6 +351,15 @@ public static class D3PlannerService
             SeenGround.Clear();
         }
         _ = SaveAsync();
+        SyncBuildUrls(removedId: id);
+        try
+        {
+            File.Delete(MaxrollD3PlannerClient.ProfilePath(CacheDir, id));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ColorPrinter.Yellow($"{LogTag} cached build {id} not deleted: {ex.Message}");
+        }
         ConfigBinding.SetValue(ConfigKeys.D3PlannerBuildIndex, Math.Max(0, Math.Min(index, _builds.Count - 1)));
         if (Build is { } b) ConfigBinding.SetValue(ConfigKeys.D3PlannerProfileIndex, b.ActiveProfile);
         MonitorLog.Info($"{LogTag} build '{name}' removed, {_builds.Count} left");
