@@ -236,6 +236,11 @@ export class CapResourceAssetCache {
     this.resolved.clear();
   }
 
+  /** The local URL this cache already resolved for `url` (no lookup, no fetch). */
+  peek(url: string): string | undefined {
+    return this.resolved.get(url);
+  }
+
   resolveSync(url: string | null | undefined): string | undefined {
     if (!url) return undefined;
     const localUrl = this.resolved.get(url);

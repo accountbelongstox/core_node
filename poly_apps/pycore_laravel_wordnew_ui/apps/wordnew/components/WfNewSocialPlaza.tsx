@@ -15,6 +15,7 @@ import {
   type WfNewPostFilter,
 } from '../api';
 import { StateMessage } from '@/shared/ui/StateMessage';
+import { WfNewCachedImage } from './WfNewCachedImage';
 
 interface WfNewSocialPlazaProps {
   activeTheme: ElementTheme;
@@ -124,7 +125,7 @@ export const WfNewSocialPlaza: React.FC<WfNewSocialPlazaProps> = ({
             <div className={`grid gap-1.5 ${post.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'}`}>
               {post.images.map(img => (
                 <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-white/5">
-                  <img src={mediaUrl(img.url)} alt={img.caption || ''} className="w-full h-full object-cover" loading="lazy" />
+                  <WfNewCachedImage src={mediaUrl(img.url)} alt={img.caption || ''} className="w-full h-full object-cover" loading="lazy" />
                 </div>
               ))}
             </div>

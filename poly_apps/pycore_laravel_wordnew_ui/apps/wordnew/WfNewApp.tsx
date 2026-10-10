@@ -35,7 +35,7 @@ import { WordNewDownloadPage } from './components/download/WordNewDownloadPage';
 import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDailyReadingSection';
 
 import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
-import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
+import { setStaticCachePaused } from './runtime-store/WfNewStaticCache';
 
 import { wordNewCustomWords, useWordNewCustomWords } from './services/WordNewCustomWords';
 import { useWfNewAppState } from './hooks/useWfNewAppState';
@@ -151,12 +151,12 @@ export const WfNewApp: React.FC = () => {
   } = appState;
 
   // Route-scoped network gate: while WfNewApp is mounted (the /wordnew route
-  // is active) background audio caching runs; on unmount it PAUSES with its
+  // is active) background static file caching runs; on unmount it PAUSES with its
   // queue/state preserved, so wordnew network activity never continues under
   // another end's route. Resuming picks the queue up where it left off.
   useEffect(() => {
-    setAudioCachePaused(false);
-    return () => setAudioCachePaused(true);
+    setStaticCachePaused(false);
+    return () => setStaticCachePaused(true);
   }, []);
 
   // R9: unfinished orchestration tasks of this device resume at start, whether or not their page is

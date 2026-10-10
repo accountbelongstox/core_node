@@ -9,6 +9,7 @@ import {
   type LibraryCoverView,
 } from '../../../../shared/library-cover/LibraryCoverTaskModel';
 import type { AdminTrans } from './adminKit';
+import { WfNewCachedImage } from '../WfNewCachedImage';
 
 const COVER_BADGE_CLS = 'absolute top-2 right-2 max-w-[70%] truncate text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border';
 const CARD_STAGGER_SECONDS = 0.02;
@@ -74,7 +75,7 @@ export const WfNewAdminLibraryCard: React.FC<WfNewAdminLibraryCardProps> = ({
     >
       <div className="relative">
         {coverUrl ? (
-          <img src={coverUrl} alt={lib.name} loading="lazy" onError={() => onCoverError(coverUrl)} className="h-28 w-full object-cover" />
+          <WfNewCachedImage src={coverUrl} alt={lib.name} loading="lazy" onError={() => onCoverError(coverUrl)} className="h-28 w-full object-cover" />
         ) : (
           <div className="h-28 w-full bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/20 flex items-center justify-center">
             <LibraryBig className="w-8 h-8 text-white/25" />

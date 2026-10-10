@@ -18,6 +18,7 @@ import { pickSentenceAudioUrl, readySentenceVariants } from '../../utils/WordNew
 import { buildWordCell } from '../../utils/WordNewLibraryWordCell';
 import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
 import { InvalidWordChip, WordPhoneticsLine, WordTranslationsLine, joinTranslations } from './WordDetailParts';
+import { WfNewCachedImage } from '../WfNewCachedImage';
 
 export interface WordNewLibraryWordRowProps {
   word: WfNewLibraryWord;
@@ -168,7 +169,7 @@ export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
           {effImages.length > 0 ? (
             <div className="flex flex-wrap gap-2 pt-0.5">
               {effImages.map((src, i) => (
-                <img
+                <WfNewCachedImage
                   key={`${w.index}-img-${i}`}
                   src={src}
                   alt={w.word}

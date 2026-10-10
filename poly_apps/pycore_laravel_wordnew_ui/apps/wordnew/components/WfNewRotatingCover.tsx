@@ -11,6 +11,7 @@ import {
   resolveCoverUrls,
   type CoverCarouselMode,
 } from '../constants/coverPlayback';
+import { WfNewCachedImage } from './WfNewCachedImage';
 
 interface WfNewRotatingCoverProps {
   imageUrl?: string;
@@ -87,7 +88,7 @@ export const WfNewRotatingCover: React.FC<WfNewRotatingCoverProps> = ({
 
   return (
     <div className={className} style={{ overflow: 'hidden' }}>
-      <img
+      <WfNewCachedImage
         key={`${urls[index]}-${index}`}
         src={urls[index]}
         alt={alt}

@@ -497,7 +497,7 @@ export const jaLocaleA: Record<string, string> = {
     'cache.wordGroupsGroups': 'キャッシュ済みの単語グループ',
     'cache.wordGroupsWithWords': '単語がキャッシュ済みのグループ',
     'cache.totalWords': 'キャッシュ済みの総単語数',
-    'cache.audio': 'キャッシュ済みの音声クリップ',
+    'cache.staticFiles': 'キャッシュ済みの静的ファイル（音声・画像）',
     'cache.refresh': '更新',
     'cache.clearBtn': 'キャッシュを消去',
     'cache.clearing': '消去中…',

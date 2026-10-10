@@ -497,7 +497,7 @@ export const koLocaleA: Record<string, string> = {
     'cache.wordGroupsGroups': '캐시된 단어 그룹',
     'cache.wordGroupsWithWords': '단어가 캐시된 그룹',
     'cache.totalWords': '캐시된 전체 단어 수',
-    'cache.audio': '캐시된 오디오 클립',
+    'cache.staticFiles': '캐시된 정적 파일(오디오, 이미지)',
     'cache.refresh': '새로고침',
     'cache.clearBtn': '캐시 지우기',
     'cache.clearing': '지우는 중…',
