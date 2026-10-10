@@ -2,6 +2,7 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 
@@ -9,7 +10,6 @@ class CodeMartV1FileUploadService
 {
     private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
     private const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-    private const IMAGE_MAX_SIZE = 5 * 1024 * 1024; // 5MB for images
     private const UPLOAD_DISK = 'public';
     private const KYC_UPLOAD_PATH = 'codemart/kyc';
     private const PROFILE_UPLOAD_PATH = 'codemart/profiles';
@@ -200,16 +200,18 @@ class CodeMartV1FileUploadService
         }
 
         $extension = strtolower($file->getClientOriginalExtension());
-        if (!in_array($extension, ['jpg', 'jpeg', 'png'])) {
+        $allowedTypes = CodeMartV1PolicyService::list('allowed_image_types');
+        if (!in_array($extension, $allowedTypes, true)) {
             return false;
         }
 
-        if ($file->getSize() > self::IMAGE_MAX_SIZE) {
+        if ($file->getSize() > CodeMartV1PolicyService::int('max_kyc_image_size_kb') * 1024) {
             return false;
         }
 
         $mimeType = $file->getMimeType();
-        if (!in_array($mimeType, ['image/jpeg', 'image/png'])) {
+        $allowedMimes = array_map(static fn (string $type): string => $type === 'png' ? 'image/png' : 'image/jpeg', $allowedTypes);
+        if (!in_array($mimeType, $allowedMimes, true)) {
             return false;
         }
 

@@ -10,6 +10,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TestimonialModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Services\UserConfig\UserConfigService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -114,7 +115,7 @@ class CodeMartV1PublicHomeService
                 return [
                     'total_amount' => number_format($totalAmount, 2, '.', ''),
                     'total_amount_source' => $amountSource,
-                    'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
+                    'currency' => CodeMartV1PolicyService::currency(),
                     'project_count' => $projectCount,
                     'developer_count' => $developerCount,
                     'active_task_count' => $activeTaskCount,
@@ -180,7 +181,7 @@ class CodeMartV1PublicHomeService
                     'title' => $task->title,
                     'skills' => array_values($skills),
                     'budget_range' => self::budgetRange($task->budget_allocation),
-                    'currency' => $project?->currency ?? CodeMartV1Constants::DEFAULT_CURRENCY,
+                    'currency' => $project?->currency ?? CodeMartV1PolicyService::currency(),
                     'category' => $project?->complexity,
                     'budget_type' => $project?->budget_type,
                     'priority' => $task->priority,
@@ -242,7 +243,7 @@ class CodeMartV1PublicHomeService
             $version = trim((string) ($entry['version'] ?? ''));
             $url = trim((string) ($entry['url'] ?? ''));
             $minOs = trim((string) ($entry['min_os'] ?? ''));
-            if (!in_array($platform, ['android', 'ios'], true) || $url === '') {
+            if (!in_array($platform, [CodeMartV1Constants::APP_PLATFORM_ANDROID, CodeMartV1Constants::APP_PLATFORM_IOS], true) || $url === '') {
                 continue;
             }
             if (!str_starts_with($url, 'https://') && !str_starts_with($url, 'http://') && !str_starts_with($url, '/')) {
@@ -252,7 +253,7 @@ class CodeMartV1PublicHomeService
                 'platform' => $platform,
                 'version' => $version,
                 'url' => $url,
-                'min_os' => $minOs !== '' ? $minOs : CodeMartV1Constants::APP_DEFAULT_MIN_OS[$platform],
+                'min_os' => $minOs !== '' ? $minOs : CodeMartV1PolicyService::minOsFor($platform),
             ];
         }
 

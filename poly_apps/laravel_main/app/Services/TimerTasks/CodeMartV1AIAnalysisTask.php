@@ -7,6 +7,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1AIAnalysisModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectProposalModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
 use App\Services\UserConfig\UserConfigService;
 
@@ -155,6 +156,8 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
                 $locked->saveRecord();
 
                 $project->analysis_status = CodeMartV1Constants::PROJECT_ANALYSIS_COMPLETED;
+                // The estimate (and the funding amount taken from it) is expressed in the AI estimate currency.
+                $project->currency = $recommendations['currency'];
                 $project->saveRecord();
                 CodeMartV1ProjectProposalModel::syncFromAnalysis($locked, CodeMartV1Constants::PROPOSAL_STATUS_PENDING);
 
@@ -285,10 +288,13 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
 
         $complexity = count($keywords) + strlen($project->description) / 1000;
 
-        $team = $complexity > 5 ? ['1x Senior', '2x Mid-level'] : ['1x Mid-level', '1x Junior'];
+        $team = $complexity > CodeMartV1PolicyService::float('ai_estimate_senior_team_threshold')
+            ? ['1x Senior', '2x Mid-level']
+            : ['1x Mid-level', '1x Junior'];
 
-        $hours = round($complexity * 50);
-        $cost = $hours * 80;
+        $hours = round($complexity * CodeMartV1PolicyService::int('ai_estimate_hours_per_complexity'));
+        $cost = $hours * CodeMartV1PolicyService::float('ai_estimate_hourly_rate');
+        $currency = CodeMartV1PolicyService::aiEstimateCurrency();
 
         return [
             'languages' => array_values(array_unique($languages)),
@@ -298,7 +304,8 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
             'hours' => $hours,
             'cost' => $cost,
             'complexity' => round($complexity, 2),
-            'proposal' => CodeMartV1AIAnalysisModel::proposalText($keywords, $team, (int) $hours, $cost, $project->currency),
+            'currency' => $currency,
+            'proposal' => CodeMartV1AIAnalysisModel::proposalText($keywords, $team, (int) $hours, $cost, $currency),
         ];
     }
 }

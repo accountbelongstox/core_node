@@ -92,6 +92,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for(ApiComputeCatalog::THROTTLE_ROUTE_TABLE, static function (Request $request): Limit {
             return Limit::perMinute(ApiComputeCatalog::THROTTLE_ROUTE_TABLE_PER_MINUTE)->by((string) $request->ip());
         });
+        \App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1RateLimiters::register();
         RateLimiter::for('dashboard-auth', static function (Request $request): Limit {
             return Limit::perMinute(10)->by((string) $request->ip());
         });

@@ -37,6 +37,7 @@ Route::prefix('codemart/v1')->name('codemart.')->where(array_fill_keys($codeMart
         Route::post('/public/estimate', [CodeMartV1PublicHomeCtl::class, 'estimate'])->name('public.estimate');
         Route::get('/public/estimate-options', [CodeMartV1PublicHomeCtl::class, 'estimateOptions'])->name('public.estimate-options');
         Route::get('/public/showcase', [CodeMartV1PublicHomeCtl::class, 'showcase'])->name('public.showcase');
+        Route::get('/public/policy', [CodeMartV1PublicHomeCtl::class, 'policy'])->name('public.policy');
         Route::get('/public/app-downloads', [CodeMartV1PublicHomeCtl::class, 'appDownloads'])->name('public.app-downloads');
     });
     Route::post('/public/contact', [CodeMartV1PublicHomeCtl::class, 'contact'])
@@ -64,6 +65,15 @@ Route::prefix('codemart/v1')->name('codemart.')->where(array_fill_keys($codeMart
         // Profile
         Route::get('/profile', [CodeMartV1ProfileCtl::class, 'show'])->name('profile.show');
         Route::put('/profile', [CodeMartV1ProfileCtl::class, 'update'])->name('profile.update');
+        Route::post('/profile/avatar', [CodeMartV1ProfileCtl::class, 'uploadAvatar'])
+            ->middleware(CodeMartV1Constants::THROTTLE_AVATAR)
+            ->name('profile.avatar');
+        Route::post('/profile/email-change', [CodeMartV1ProfileCtl::class, 'requestEmailChange'])
+            ->middleware(CodeMartV1Constants::THROTTLE_EMAIL_CHANGE)
+            ->name('profile.email-change');
+        Route::post('/profile/email-change/confirm', [CodeMartV1ProfileCtl::class, 'confirmEmailChange'])
+            ->middleware(CodeMartV1Constants::THROTTLE_EMAIL_CHANGE)
+            ->name('profile.email-change-confirm');
         Route::post('/roles/request', [CodeMartV1ProfileCtl::class, 'requestRole'])->name('roles.request');
 
         // Testimonials (clients with a completed project; moderated)
@@ -99,6 +109,7 @@ Route::prefix('codemart/v1')->name('codemart.')->where(array_fill_keys($codeMart
             Route::get('/reviewer-applications', [CodeMartV1AdminCtl::class, 'reviewerApplications'])->name('reviewer-applications');
             Route::post('/reviewer-applications/{applicationId}/revoke', [CodeMartV1AdminCtl::class, 'revokeReviewer'])->name('reviewer-revoke');
             Route::get('/policy', [CodeMartV1AdminCtl::class, 'policy'])->name('policy');
+            Route::put('/policy', [CodeMartV1AdminCtl::class, 'updatePolicy'])->name('policy-update');
             Route::get('/activity', [CodeMartV1AdminCtl::class, 'activity'])->name('activity');
             Route::get('/contact-messages', [CodeMartV1AdminCtl::class, 'contactMessages'])->name('contact-messages');
             Route::post('/contact-messages/{messageId}/handle', [CodeMartV1AdminCtl::class, 'handleContactMessage'])->name('contact-message-handle');
@@ -120,6 +131,7 @@ Route::prefix('codemart/v1')->name('codemart.')->where(array_fill_keys($codeMart
             Route::get('/escrows', [CodeMartV1AdminFinanceCtl::class, 'escrows'])->name('escrows');
             Route::post('/escrows/{escrowId}/refund', [CodeMartV1AdminFinanceCtl::class, 'refundEscrow'])->name('escrow-refund');
             Route::get('/projects', [CodeMartV1AdminCtl::class, 'projects'])->name('projects');
+            Route::get('/tasks', [CodeMartV1AdminCtl::class, 'tasks'])->name('tasks');
         });
 
         // Project API routes

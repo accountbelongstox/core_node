@@ -9,6 +9,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ContactMessageModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperProfileModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1KycVerificationModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1MilestoneModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ReviewerApplicationModel;
@@ -361,7 +362,7 @@ class CodeMartV1AdminService
                 'balance' => $wallet ? (string) $wallet->balance : '0.00',
                 'available_balance' => $wallet ? (string) $wallet->available_balance : '0.00',
                 'frozen_balance' => $wallet ? (string) $wallet->frozen_balance : '0.00',
-                'currency' => $wallet?->currency ?? CodeMartV1Constants::DEFAULT_CURRENCY,
+                'currency' => $wallet?->currency ?? CodeMartV1PolicyService::currency(),
             ],
             'projects' => $projects,
             'tasks' => $tasks,
@@ -851,6 +852,57 @@ class CodeMartV1AdminService
         return $result;
     }
 
+    /** Read-only task list across all projects (administrator oversight). */
+    public function tasksPage(array $filters, int $page, int $pageSize): array
+    {
+        $status = (string) ($filters['status'] ?? '');
+        $search = (string) ($filters['search'] ?? '');
+        $projectId = (int) ($filters['project_id'] ?? 0);
+
+        $query = $projectId > 0 ? CodeMartV1TaskModel::forProjectQuery($projectId) : CodeMartV1TaskModel::query();
+        if ($status !== '') {
+            $query->where('status', $status);
+        }
+        self::applySearch($query, $search, ['title']);
+        $query->orderByDesc('id');
+
+        $result = self::paginate($query, $page, $pageSize, 'items', static fn ($task) => $task);
+        $milestoneIds = array_values(array_unique(array_map(static fn ($task): int => (int) $task->milestone_id, $result['items'])));
+        $milestones = $milestoneIds === []
+            ? collect()
+            : CodeMartV1MilestoneModel::query()->whereIn('id', $milestoneIds)->get(['id', 'project_id'])->keyBy('id');
+        $projectIds = $milestones->pluck('project_id')->unique()->values()->all();
+        $projects = $projectIds === []
+            ? collect()
+            : CodeMartV1ProjectModel::query()->whereIn('id', $projectIds)->get(['id', 'title', 'currency'])->keyBy('id');
+        $assignees = self::userSummaries(array_map(static fn ($task): int => (int) $task->assigned_to, $result['items']));
+
+        $result['items'] = array_map(
+            static function (CodeMartV1TaskModel $task) use ($milestones, $projects, $assignees): array {
+                $projectId = (int) ($milestones->get((int) $task->milestone_id)?->project_id ?? 0);
+                $project = $projects->get($projectId);
+
+                return [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'status' => $task->status,
+                    'priority' => $task->priority,
+                    'milestone_id' => $task->milestone_id,
+                    'project_id' => $projectId > 0 ? $projectId : null,
+                    'project_title' => $project?->title,
+                    'assignee' => $assignees[(int) $task->assigned_to] ?? null,
+                    'budget_allocation' => $task->budget_allocation !== null ? (string) $task->budget_allocation : null,
+                    'currency' => $project?->currency,
+                    'due_date' => self::iso($task->due_date),
+                    'created_at' => self::iso($task->created_at),
+                ];
+            },
+            $result['items']
+        );
+
+        return $result;
+    }
+
     private static function adminProjectTargets(string $fromStatus): array
     {
         return array_values(array_intersect(
@@ -1144,36 +1196,66 @@ class CodeMartV1AdminService
 
     public function policy(): array
     {
+        $v = CodeMartV1PolicyService::all();
+
         return [
-            'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
+            'currency' => $v['default_currency'],
             'deposit_amounts' => [
                 CodeMartV1Constants::ROLE_CLIENT => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_CLIENT),
                 CodeMartV1Constants::ROLE_DEVELOPER => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_DEVELOPER),
                 CodeMartV1Constants::ROLE_ARCHITECT => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT),
                 CodeMartV1Constants::ROLE_REVIEWER => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_REVIEWER),
             ],
-            'architect_additional_deposit' => CodeMartV1Constants::DEPOSIT_ARCHITECT_ADDITIONAL,
-            'platform_commission_rate' => CodeMartV1Constants::PLATFORM_COMMISSION_RATE,
+            'architect_additional_deposit' => $v['deposit_architect_additional'],
+            'platform_commission_rate' => $v['platform_commission_rate'],
             'wallet_top_up' => [
-                'min_amount' => CodeMartV1Constants::DEPOSIT_MIN_AMOUNT,
-                'max_amount' => CodeMartV1Constants::WALLET_TOP_UP_MAX_AMOUNT,
+                'min_amount' => $v['deposit_min_amount'],
+                'max_amount' => $v['wallet_top_up_max_amount'],
             ],
             'architect_thresholds' => [
-                'min_projects' => CodeMartV1Constants::ARCHITECT_MIN_PROJECTS,
-                'min_code_score' => CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE,
-                'min_satisfaction' => CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION,
+                'min_projects' => $v['architect_min_projects'],
+                'min_code_score' => $v['architect_min_code_score'],
+                'min_satisfaction' => $v['architect_min_satisfaction'],
             ],
             'reviewer_thresholds' => [
-                'test_snippets' => CodeMartV1Constants::REVIEWER_TEST_SNIPPETS,
-                'min_similarity' => CodeMartV1Constants::REVIEWER_MIN_SIMILARITY,
-                'retry_days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS,
+                'test_snippets' => count(CodeMartV1PolicyService::reviewerExam()),
+                'min_similarity' => $v['reviewer_min_similarity'],
+                'retry_days' => $v['reviewer_retry_days'],
             ],
             'role_status_transitions' => CodeMartV1Constants::ROLE_STATUS_TRANSITIONS,
             'role_status_reason_required' => CodeMartV1Constants::ROLE_STATUS_REASON_REQUIRED,
             'admin_project_target_statuses' => CodeMartV1Constants::ADMIN_PROJECT_TARGET_STATUSES,
-            'max_kyc_image_size_kb' => CodeMartV1Constants::MAX_KYC_IMAGE_SIZE,
-            'max_attachment_size_kb' => CodeMartV1Constants::MAX_ATTACHMENT_SIZE,
-        ];
+            'max_kyc_image_size_kb' => $v['max_kyc_image_size_kb'],
+            'max_attachment_size_kb' => $v['max_attachment_size_kb'],
+        ] + CodeMartV1PolicyService::adminView();
+    }
+
+    /**
+     * Persist policy changes (key => value, null restores the default) and
+     * record the changed keys in the activity log.
+     */
+    public function updatePolicy(int $adminId, array $settings): array
+    {
+        $result = CodeMartV1PolicyService::update($settings);
+        if (!$result['ok']) {
+            return $result;
+        }
+
+        CodeMartV1DomainEventService::emit(
+            $adminId,
+            CodeMartV1Constants::RESOURCE_POLICY,
+            0,
+            'admin_policy_updated',
+            null,
+            null,
+            [],
+            null,
+            null,
+            null,
+            ['keys' => array_keys($settings)]
+        );
+
+        return $result;
     }
 
     private static function serializeActivity(CodeMartV1ActivityModel $row, array $actors): array

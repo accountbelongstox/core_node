@@ -1,6 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Http\Controllers\Controller;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use App\Traits\ApiResponse;
@@ -79,6 +80,7 @@ class CodeMartV1ProjectCtl extends Controller
             'revision' => (int) ($analysis->revision ?? 1),
             'estimated_hours' => $analysis->estimated_hours,
             'estimated_cost' => $analysis->estimated_cost,
+            'currency' => CodeMartV1PolicyService::aiEstimateCurrency(),
             'complexity_score' => $analysis->complexity_score,
             'completed_at' => $analysis->completed_at,
             'accepted_at' => $analysis->accepted_at,
@@ -160,9 +162,9 @@ class CodeMartV1ProjectCtl extends Controller
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'complexity' => 'required|in:' . implode(',', CodeMartV1Constants::COMPLEXITIES),
-            'budget' => 'required|numeric|min:' . CodeMartV1Constants::PROJECT_MIN_BUDGET,
+            'budget' => 'required|numeric|min:' . CodeMartV1PolicyService::int('project_min_budget'),
             'budget_type' => 'required|in:' . implode(',', CodeMartV1Constants::BUDGET_TYPES),
-            'currency' => 'required|string|size:3',
+            'currency' => 'nullable|string|in:' . implode(',', CodeMartV1PolicyService::list('supported_currencies')),
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after:start_date',
             'skills' => 'nullable|array',
@@ -183,7 +185,7 @@ class CodeMartV1ProjectCtl extends Controller
                 'complexity' => $request->complexity,
                 'budget' => $request->budget,
                 'budget_type' => $request->budget_type,
-                'currency' => $request->currency,
+                'currency' => $request->input('currency') ?: CodeMartV1PolicyService::currency(),
                 'start_date' => $request->start_date,
                 'end_date' => $request->end_date,
                 'skills' => $request->skills ?? [],
@@ -260,7 +262,7 @@ class CodeMartV1ProjectCtl extends Controller
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
             'complexity' => 'sometimes|in:' . implode(',', CodeMartV1Constants::COMPLEXITIES),
-            'budget' => 'sometimes|numeric|min:' . CodeMartV1Constants::PROJECT_MIN_BUDGET,
+            'budget' => 'sometimes|numeric|min:' . CodeMartV1PolicyService::int('project_min_budget'),
             'start_date' => 'sometimes|nullable|date',
             'end_date' => 'sometimes|nullable|date',
             'skills' => 'sometimes|nullable|array',
@@ -657,7 +659,7 @@ class CodeMartV1ProjectCtl extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|max:' . CodeMartV1Constants::MAX_ATTACHMENT_SIZE,
+            'file' => 'required|file|max:' . CodeMartV1PolicyService::int('max_attachment_size_kb'),
         ]);
 
         if ($validator->fails()) {

@@ -6,6 +6,7 @@ use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ClientProfileModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperProfileModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1AccountService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1AdminService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1RoleRequestService;
 use App\Helpers\AuthHelper;
@@ -111,6 +112,84 @@ class CodeMartV1ProfileCtl extends Controller
         );
     }
 
+    public function uploadAvatar(Request $request, CodeMartV1AccountService $accountService): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), ['avatar' => 'required|file']);
+        if ($validator->fails()) {
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
+        }
+
+        $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);
+        if (!$userModel) {
+            return $this->notFound(__('codemart.messages.user_not_found'));
+        }
+
+        $result = $accountService->updateAvatar($userModel, $request->file('avatar'));
+        if (CodeMartV1AdminService::isFailure($result)) {
+            return $this->errorWithCode($result['error_code'], $result['message'], $result['http_status']);
+        }
+
+        return $this->success($result, __('codemart.messages.avatar_updated'));
+    }
+
+    public function requestEmailChange(Request $request, CodeMartV1AccountService $accountService): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'new_email' => 'required|email|max:255',
+            'password' => 'required|string',
+        ]);
+        if ($validator->fails()) {
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
+        }
+
+        $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);
+        if (!$userModel) {
+            return $this->notFound(__('codemart.messages.user_not_found'));
+        }
+
+        $result = $accountService->requestEmailChange($userModel, (string) $request->input('new_email'), (string) $request->input('password'));
+        if (CodeMartV1AdminService::isFailure($result)) {
+            return $this->errorWithCode($result['error_code'], $result['message'], $result['http_status']);
+        }
+
+        return $this->success($result, __('codemart.messages.email_change_requested'));
+    }
+
+    public function confirmEmailChange(Request $request, CodeMartV1AccountService $accountService): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), ['token' => 'required|string|max:255']);
+        if ($validator->fails()) {
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
+        }
+
+        $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);
+        if (!$userModel) {
+            return $this->notFound(__('codemart.messages.user_not_found'));
+        }
+
+        $result = $accountService->confirmEmailChange($userModel, (string) $request->input('token'));
+        if (CodeMartV1AdminService::isFailure($result)) {
+            return $this->errorWithCode($result['error_code'], $result['message'], $result['http_status']);
+        }
+
+        return $this->success($result, __('codemart.messages.email_changed'));
+    }
+
     /**
      * Existing accounts request an additional self-service role with the same
      * activation policy as registration.
@@ -154,6 +233,7 @@ class CodeMartV1ProfileCtl extends Controller
                 'email' => $userModel->email,
                 'name' => $userModel->name,
                 'nickname' => $userModel->nickname,
+                'avatar_url' => CodeMartV1AccountService::avatarUrl($userModel->avatar),
             ],
             'roles' => $userModel->roleStatusMap(),
             'developer' => $developerProfile ? [

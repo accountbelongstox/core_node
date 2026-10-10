@@ -105,6 +105,12 @@ TASK_COMMAND_TIMEOUT_SECONDS = 60
 TASK_DESCRIPTION = "PyCore RPC Server - elevated auto-start at logon"
 TASK_UNCHANGED = "unchanged"
 TASK_REGISTERED = "registered"
+# The logon trigger re-fires on this interval (IgnoreNew drops it while the runner lives), so a crash
+# that takes down the whole runner -> pyservice -> worker chain is recovered without a new logon.
+TASK_REPETITION_MINUTES = 5
+TASK_REPETITION_INTERVAL = f"PT{TASK_REPETITION_MINUTES}M"
+TASK_RESTART_COUNT = 999
+TASK_RESTART_INTERVAL_MINUTES = 1
 
 
 def _ps_single_quote(value: str) -> str:
@@ -338,16 +344,22 @@ class WindowsStartupManager:
             "-and ([string]$t.Principal.LogonType -eq 'Interactive') "
             "-and ([string]$t.Settings.MultipleInstances -eq 'IgnoreNew') "
             "-and ([string]$t.Settings.ExecutionTimeLimit -eq 'PT0S') "
+            f"-and ([int]$t.Settings.RestartCount -eq {TASK_RESTART_COUNT}) "
             "-and (@($t.Triggers).Count -eq 1) "
-            "-and (@($t.Triggers)[0].CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger')); "
+            "-and (@($t.Triggers)[0].CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger') "
+            f"-and ([string]@($t.Triggers)[0].Repetition.Interval -eq '{TASK_REPETITION_INTERVAL}')); "
             f"if ($same) {{ Write-Output '{TASK_UNCHANGED}'; return }}; "
             f"$action = New-ScheduledTaskAction -Execute {execute} "
             f"-Argument {argument} "
             f"-WorkingDirectory {workdir}; "
             f"$trigger = New-ScheduledTaskTrigger -AtLogOn -User {user}; "
+            "$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) "
+            f"-RepetitionInterval (New-TimeSpan -Minutes {TASK_REPETITION_MINUTES})).Repetition; "
             f"$principal = New-ScheduledTaskPrincipal -UserId {user} -LogonType Interactive -RunLevel Highest; "
             "$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries "
-            "-ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew; "
+            "-ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew "
+            f"-RestartCount {TASK_RESTART_COUNT} "
+            f"-RestartInterval (New-TimeSpan -Minutes {TASK_RESTART_INTERVAL_MINUTES}); "
             f"Register-ScheduledTask -TaskName {name} "
             f"-Description {_ps_single_quote(TASK_DESCRIPTION)} -Action $action -Trigger $trigger "
             "-Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null"
