@@ -2279,6 +2279,30 @@
     "message": "MCP Chrome をバックグラウンドサービスとしてインストールしますか（ログオン時に起動、ホットリロード）？",
     "description": "start.ps1 prompt asking whether to install the background logon task"
   },
+  "startSourcesUnchanged": {
+    "message": "前回のビルド以降ソースに変更がないため、依存関係のインストールとコンパイルをスキップしました。",
+    "description": "start.ps1 notice that the build inputs match the last successful build"
+  },
+  "startServiceEnsured": {
+    "message": "バックグラウンドサービス $TASK$ はホットリロードで実行中です。ビルドは不要です。",
+    "description": "start.ps1 -Ensure notice that the background logon task is already running",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceStartedNow": {
+    "message": "バックグラウンドサービス $TASK$ が停止していたため起動しました（ホットリロードが変更されたソースを再ビルドします）。",
+    "description": "start.ps1 -Ensure notice that the stopped background logon task was started",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
   "startServiceInstalled": {
     "message": "バックグラウンドサービス $TASK$ はインストール済みです。このビルド中は一時停止し、完了後に整合します。",
     "description": "start.ps1 notice that the background logon task already exists",

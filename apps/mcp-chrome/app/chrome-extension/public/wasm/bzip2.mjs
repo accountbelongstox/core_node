@@ -1017,7 +1017,7 @@ if (Module['locateFile']) {
   }
 } else {
   // Use bundler-friendly `new URL(..., import.meta.url)` pattern; works in browsers too.
-  wasmBinaryFile = new URL('bzip2.wasm', import.meta.url).toString();
+  wasmBinaryFile = new URL(/* @vite-ignore */ 'bzip2.wasm', import.meta.url).toString();
 }
 
 function getBinary(file) {

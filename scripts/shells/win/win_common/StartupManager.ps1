@@ -339,6 +339,21 @@ function Stop-UserLogonTask {
     }
 }
 
+# Start an installed logon task that is not running; returns $true when it had to be started.
+function Start-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName
+    )
+
+    $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ((-not $existingTask) -or ($existingTask.State -eq "Running")) {
+        return $false
+    }
+    Start-ScheduledTask -TaskName $TaskName
+    return $true
+}
+
 function Unregister-UserLogonTask {
     param(
         [Parameter(Mandatory=$true)]

@@ -376,6 +376,7 @@
         "extension_dir": "build_extension",
         "firefox_extension_dir": "build_extension_firefox",
         "build_stamp_file": "build-stamp.json",
+        "source_stamp_file": "source-stamp.json",
         "downloads_dir_name": "Downloads",
         "native_reconnect_page": "native-reconnect.html",
         "extension_reload_page": "extension-reload.html",

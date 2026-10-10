@@ -39,7 +39,7 @@ export type {
   ProcessorType,
   Task,
   TaskResult,
-  TaskStatus,
+  QueueTaskStatus,
   WorkerCapability,
   WorkerInfo,
   WorkerRegistration,

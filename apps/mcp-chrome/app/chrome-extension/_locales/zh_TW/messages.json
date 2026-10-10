@@ -2426,6 +2426,30 @@
     "message": "是否將 MCP Chrome 安裝為背景服務（登入時自動啟動，熱重載）？",
     "description": "start.ps1 prompt asking whether to install the background logon task"
   },
+  "startSourcesUnchanged": {
+    "message": "自上次編譯以來原始碼未變更；略過相依套件安裝與編譯。",
+    "description": "start.ps1 notice that the build inputs match the last successful build"
+  },
+  "startServiceEnsured": {
+    "message": "背景服務 $TASK$ 正在執行（熱重載）；無需編譯。",
+    "description": "start.ps1 -Ensure notice that the background logon task is already running",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceStartedNow": {
+    "message": "背景服務 $TASK$ 未執行，已啟動（熱重載會重新編譯變更的原始碼）。",
+    "description": "start.ps1 -Ensure notice that the stopped background logon task was started",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
   "startServiceInstalled": {
     "message": "背景服務 $TASK$ 已安裝；本次編譯期間暫停，編譯後自動對齊。",
     "description": "start.ps1 notice that the background logon task already exists",
