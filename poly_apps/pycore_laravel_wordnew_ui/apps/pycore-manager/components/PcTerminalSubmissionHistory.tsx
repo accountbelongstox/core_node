@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clock3, Copy, Loader2, Pencil, ScrollText, Send } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Clock3, Copy, Loader2, Pencil, ScrollText, Send, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
-import type { TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
+import type { TerminalLogDeleteTarget, TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
 import { LOG_SOURCES, PcTerminalLogSourceBadge, terminalLogSource } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 
@@ -35,17 +35,20 @@ interface PcTerminalSubmissionHistoryProps {
   onReuse: (text: string) => void;
   /** Place the text in the composer and send it with the regular send. */
   onResend: (text: string) => void;
+  /** Deletes history entries everywhere they are stored; resolves to the deleted ids. */
+  onDelete: (terminalNumber: number, target: TerminalLogDeleteTarget) => Promise<string[]>;
 }
 
 /** Submission history: every row shows a short content snippet and expands on its own. */
 export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryProps> = ({
-  windowInfo, overlay, formatDate, errorTranslationKey, onOpenLogs, onReuse, onResend,
+  windowInfo, overlay, formatDate, errorTranslationKey, onOpenLogs, onReuse, onResend, onDelete,
 }) => {
   const { t } = useTranslation('pc');
   const terminalApi = usePcTerminalApi();
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [contents, setContents] = useState<Record<string, LogContentState>>({});
   const [copiedId, setCopiedId] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const requestedRef = useRef<Set<string>>(new Set());
   const terminalNumber = windowInfo?.terminal_number ?? 0;
   const allLogs = windowInfo?.logs ?? [];
@@ -96,6 +99,23 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
     if (await copyTextToSystemClipboard(text)) setCopiedId(id);
   };
 
+  // Deleted entries also leave the fetched-content cache, so nothing of them stays in memory.
+  const remove = async (target: TerminalLogDeleteTarget) => {
+    if (!terminalNumber || deleting) return;
+    setDeleting(true);
+    try {
+      const deletedIds = await onDelete(terminalNumber, target);
+      if (!deletedIds.length) return;
+      for (const id of deletedIds) requestedRef.current.delete(id);
+      setContents((current) => Object.fromEntries(
+        Object.entries(current).filter(([id]) => !deletedIds.includes(id)),
+      ));
+      setExpandedIds((current) => new Set([...current].filter((id) => !deletedIds.includes(id))));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-3 border-t border-slate-500/10 pt-4">
       <div className="flex items-center justify-between gap-3">
@@ -115,6 +135,16 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
           >
             <ScrollText className="h-3 w-3" />
             {t('terminal.logs.open')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void remove({ all: true, source: selectedSource })}
+            disabled={!logs.length || deleting}
+            title={t('terminal.logs.deleteAll', { source: t(`terminal.logSource.${selectedSource}`) })}
+            className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            {t('terminal.logs.deleteAllShort')}
           </button>
         </div>
       </div>
@@ -218,6 +248,15 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
                       >
                         <Send className="h-3 w-3" />
                         {t('terminal.logs.reuseAndSend')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void remove({ logIds: [entry.id] })}
+                        disabled={deleting}
+                        className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        {t('terminal.logs.delete')}
                       </button>
                     </div>
                   </div>
