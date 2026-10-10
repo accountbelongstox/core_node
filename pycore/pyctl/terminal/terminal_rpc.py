@@ -65,10 +65,8 @@ def run_terminal_action(
         "request_id": request_id,
         "success": success,
     }
-    if log_result:
+    if log_result or not success:
         payload["result"] = result
-    elif not success:
-        payload["error_code"] = result.get("error_code")
     log_method("rpc.completed", **payload)
     return result
 

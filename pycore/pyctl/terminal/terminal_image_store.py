@@ -26,6 +26,7 @@ VOICE_PRUNE_CALLBACK_NAME = "terminal_voice_prune"
 READ_CHUNK_BYTES = 1024 * 1024
 NAME_TIME_FORMAT = "%y%m%d%H%M%S"
 NAME_RANDOM_BYTES = 2
+HEAD_HEX_BYTES = 16
 
 ERROR_IMAGE_MISSING = "terminal_image_missing"
 ERROR_IMAGE_TOO_LARGE = "terminal_image_too_large"
@@ -100,16 +101,22 @@ class TerminalImageStore:
                 chunk = stream.read(READ_CHUNK_BYTES)
             except OSError as exc:
                 ColorPrint.yellow(f"[TerminalImageStore] read upload failed after {total} bytes: {exc}")
-                return {"success": False, "error_code": ERROR_IMAGE_READ_FAILED}
+                return {"success": False, "error_code": ERROR_IMAGE_READ_FAILED, "received_bytes": total, "error": str(exc)}
             if not chunk:
                 break
             chunks.append(chunk)
             total += len(chunk)
         if total > TERMINAL_IMAGE_MAX_BYTES:
             ColorPrint.yellow(f"[TerminalImageStore] upload rejected: over {TERMINAL_IMAGE_MAX_BYTES} bytes")
-            return {"success": False, "error_code": ERROR_IMAGE_TOO_LARGE, "max_bytes": TERMINAL_IMAGE_MAX_BYTES}
+            return {
+                "success": False,
+                "error_code": ERROR_IMAGE_TOO_LARGE,
+                "max_bytes": TERMINAL_IMAGE_MAX_BYTES,
+                "received_bytes": total,
+            }
         if total == 0:
-            return {"success": False, "error_code": ERROR_IMAGE_MISSING}
+            ColorPrint.yellow("[TerminalImageStore] upload rejected: empty body")
+            return {"success": False, "error_code": ERROR_IMAGE_MISSING, "received_bytes": 0}
         return {"success": True, "data": b"".join(chunks)}
 
     def save(self, data: bytes) -> Dict[str, Any]:
@@ -119,8 +126,9 @@ class TerminalImageStore:
         image = detect_image_type(data)
         detected = image or detect_audio_type(data)
         if detected is None:
-            ColorPrint.yellow(f"[TerminalImageStore] upload rejected: unsupported type bytes={len(data)} head={data[:16].hex()}")
-            return {"success": False, "error_code": ERROR_IMAGE_UNSUPPORTED}
+            head = data[:HEAD_HEX_BYTES].hex()
+            ColorPrint.yellow(f"[TerminalImageStore] upload rejected: unsupported type bytes={len(data)} head={head}")
+            return {"success": False, "error_code": ERROR_IMAGE_UNSUPPORTED, "received_bytes": len(data), "head_hex": head}
         extension, mime = detected
         stamp = datetime.now(timezone.utc).strftime(NAME_TIME_FORMAT)
         name = f"{stamp}{secrets.token_hex(NAME_RANDOM_BYTES)}.{extension}"
@@ -129,7 +137,7 @@ class TerminalImageStore:
             atomic_write_bytes(path, data)
         except OSError as exc:
             ColorPrint.yellow(f"[TerminalImageStore] write failed path={path}: {exc}")
-            return {"success": False, "error_code": ERROR_IMAGE_WRITE_FAILED}
+            return {"success": False, "error_code": ERROR_IMAGE_WRITE_FAILED, "received_bytes": len(data), "error": str(exc)}
         self.prune()
         return {"success": True, "path": str(path), "name": name, "bytes": len(data), "mime": mime}
 

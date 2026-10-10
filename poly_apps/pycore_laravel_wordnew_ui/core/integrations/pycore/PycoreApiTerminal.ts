@@ -369,6 +369,10 @@ export interface TerminalImageUploadResult {
   mime?: string;
   /** Set with `terminal_image_too_large`. */
   max_bytes?: number;
+  /** Failure details: bytes pycore read, first bytes (hex) of an unsupported file, OS error text. */
+  received_bytes?: number;
+  head_hex?: string;
+  error?: string;
 }
 
 /** Desktop-icon launcher modes pycore can run: [1] plain claudeteam grid, [2] grid only, [4] grid + module. */
