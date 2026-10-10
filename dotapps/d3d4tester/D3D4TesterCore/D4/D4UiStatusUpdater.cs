@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/controller/d4func/ui_status_updater.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/ui_status_updater.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.D4;
@@ -35,7 +35,7 @@ public sealed record D4StatusSnapshot(
 
 /// <summary>
 /// Collects the D4 status from D4InterfaceData at the end of each farming tick and raises <see cref="StatusUpdated"/>
-/// (Python ui_update_callback). 1:1 Python pyapps/d3-check/controller/d4func/ui_status_updater.py.
+/// (Python ui_update_callback). 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/d4func/ui_status_updater.py.
 /// Fixes Python bug: the debug summary read team_info['members'], the detector writes team_members.
 /// </summary>
 public sealed class D4UiStatusUpdater

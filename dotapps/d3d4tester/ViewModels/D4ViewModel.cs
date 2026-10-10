@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/panels/d4_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/d4_panel.py
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows;
@@ -48,7 +48,7 @@ public sealed class D4StatusTileViewModel : BaseViewModel
 /// <summary>
 /// D4 EXP farming view model: start (team check off the UI thread, abort only when HasTeam == false) / stop (pipeline reset),
 /// config persistence and the live status grid fed by <see cref="D4UiStatusUpdater.StatusUpdated"/>.
-/// 1:1 Python pyapps/d3-check/ui/panels/d4_panel.py (_start_exp_farming, _stop_exp_farming, _update_status_from_data, _translate_status_value).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/ui/panels/d4_panel.py (_start_exp_farming, _stop_exp_farming, _update_status_from_data, _translate_status_value).
 /// Fixes Python bug: Stop cleared debug_window_open/paused while the debug window stayed open; those flags now survive the reset.
 /// </summary>
 public sealed class D4ViewModel : BaseViewModel

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/panels/coordinate_calibration_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/coordinate_calibration_panel.py
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -19,7 +19,7 @@ namespace DotApps.d3d4tester.Services;
 
 /// <summary>
 /// Calibration tab YOLO state: client type, current project (CONFIG is source of truth), loaded-project cache, client window lookup and record config path.
-/// 1:1 Python pyapps/d3-check/ui/panels/coordinate_calibration_panel.py (_get_yolo_current_project, _add_project_to_cache, _get_standard_project_paths,
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/ui/panels/coordinate_calibration_panel.py (_get_yolo_current_project, _add_project_to_cache, _get_standard_project_paths,
 /// _on_client_type_change, _get_current_client_window_hwnd).
 /// Fixes Python bug: a project opened via Load (non-standard path, kept in the cache) was rejected by is_valid_project_path and never became current.
 /// </summary>

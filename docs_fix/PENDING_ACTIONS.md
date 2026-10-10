@@ -56,10 +56,10 @@ pycore UI/tool domains (`pycore/pyutils/` unless noted; importers only inside th
 - native_ui: `step1_config/config.py`, `step4_startup/startup_window.py`, `step5_main_ui/tkinter/{styled_widgets,theme_system}.py`, `step7_managers/{file_monitor,shutdown_manager}.py`, `step8_utils/{resize_handles,image_converter,embedded_images}.py`, `step9_frontend/port_killer.py`, `step0_i18n/translations/translations_en_bak.json`, `重构.txt`, `_prompts/`, `_analysis/`.
 - translator: `romanization.py`, `phonetic.py`, `__main__.py`.
 - window: `unified_detector.py`, `integrated_analyzer.py`, `ui_analyzer.py`.
-- image_tools: `icon_analyzer.py`, `image_enhancer.py`, `png_matcher.py`, `image_processor.py`, `image_split.py`, `image_transform.py`, `dataset_generator.py`, `image_comparator.py`, plus `pyapps/d3-check/providor/common_imports.py`.
+- image_tools: `icon_analyzer.py`, `image_enhancer.py`, `png_matcher.py`, `image_processor.py`, `image_split.py`, `image_transform.py`, `dataset_generator.py`, `image_comparator.py`, plus `dotapps/d3d4tester/reference/py_d3check/providor/common_imports.py`.
 - `ensure_library/{quick_test_ffmpeg,verify_pyside6_fix}.py`, `device/adb_exceptions.py`, `control/coordinate_mapper.py`, `clipboard/clipboard_sync.py`, `external_apis/movie_poster_client.py`, `hotkey/hotkey_listener.py`, `frontend_launcher/universal_launcher.py`, `voc_annotator/annotation_io.py`, `voc_annotator/backup_before_tk/`, `nodejs_bridge/`.
 - `pycore/pyctl/desktop/video_processor.py`, `pycore/pyctl/mcpctl/**` (imports the missing `pyapps.mcp`), `pycore/pyctl/pybrowserauto/**`.
-- `pyapps/d3-check/utils/_obsolete_*.py` (`_obsolete_diablo_button_clicker.py` does not parse).
+- `dotapps/d3d4tester/reference/py_d3check/utils/_obsolete_*.py` (`_obsolete_diablo_button_clicker.py` does not parse).
 
 UI (`poly_apps/pycore_laravel_wordnew_ui`, details in `DESIGN_UI.md` Open items):
 - `apps/pdd-manager` (and its entry in the `StandaloneApp.tsx` glob).

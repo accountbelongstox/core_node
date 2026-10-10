@@ -1,7 +1,7 @@
-// PY-REF: pyapps/d3-check/providor/constants/d4.py
-// PY-REF: pyapps/d3-check/d3utils/browser_login_ocr_flow.py
-// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_base.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_bn_block_state.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/d4.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/browser_login_ocr_flow.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/battlenet_operation_base.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_flow/flow_bn_block_state.py
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>

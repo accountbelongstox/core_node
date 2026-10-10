@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/yolo_record.py
-// PY-REF: pyapps/d3-check/ui/panels/coordinate_calibration_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_record.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/coordinate_calibration_panel.py
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -7,7 +7,7 @@ namespace DotCore.YoloRecord;
 
 /// <summary>
 /// GameAISDK record_cfg.json fields (Debug, FrameFPS, OutputAsVideo, LogTimestamp, FrameWidth, FrameHeight, RecordHttpPort).
-/// 1:1 Python pyapps/d3-check/d3utils/yolo_record.py DEFAULT_RECORD_CONFIG / load_record_config / save_record_config.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_record.py DEFAULT_RECORD_CONFIG / load_record_config / save_record_config.
 /// </summary>
 public sealed class YoloRecordConfig
 {

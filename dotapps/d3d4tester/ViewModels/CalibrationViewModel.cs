@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/panels/coordinate_calibration_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/coordinate_calibration_panel.py
 using DotApps.d3d4tester.ViewModels.Base;
 
 namespace DotApps.d3d4tester.ViewModels;

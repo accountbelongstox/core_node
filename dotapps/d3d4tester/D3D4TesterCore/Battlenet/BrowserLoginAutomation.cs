@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/browser_login_ocr_flow.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/browser_login_ocr_flow.py
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.UIInspect;

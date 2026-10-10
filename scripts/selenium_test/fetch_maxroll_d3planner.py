@@ -27,7 +27,7 @@ if _requests_mod is None:
     except ImportError:
         _requests_mod = None
 
-BASE_OUT_DIR = _REPO_ROOT / "pyapps" / "d3-check" / "images" / "maxroll_d3planner"
+BASE_OUT_DIR = _REPO_ROOT / "dotapps" / "d3d4tester" / "Templates" / "maxroll_d3planner"
 PLANNER_WAIT_TIMEOUT = 30
 EXPORT_CLICK_WAIT = 5
 DOWNLOAD_WAIT = 12

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/providor/i18n/i18n_auxiliary_panel_en.json
-// PY-REF: pyapps/d3-check/providor/i18n/i18n_skill_config_en.json
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/i18n/i18n_auxiliary_panel_en.json
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/i18n/i18n_skill_config_en.json
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>Main / Rosbot pages, shared components and the coordinate picker (Python ui.* keys).</summary>

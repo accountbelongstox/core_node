@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/d3_status_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3_status_provider.py
 using System.IO;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Flow;

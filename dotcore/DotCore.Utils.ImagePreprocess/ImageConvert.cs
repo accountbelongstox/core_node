@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/d3u_common/image_conversion.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/image_conversion.py
 using System.Drawing;
 using System.Drawing.Imaging;
 using DotCore.Foundations;
@@ -9,7 +9,7 @@ namespace DotCore.Utils.ImagePreprocess;
 
 /// <summary>
 /// Image format conversion between Bitmap (PIL counterpart, RGB), OpenCV Mat (BGR/BGRA/gray) and files.
-/// 1:1 Python pyapps/d3-check/d3utils/d3u_common/image_conversion.py. File IO decodes bytes, so non-ASCII paths work.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/image_conversion.py. File IO decodes bytes, so non-ASCII paths work.
 /// All returned Mats/Bitmaps are new objects owned by the caller.
 /// </summary>
 public static class ImageConvert

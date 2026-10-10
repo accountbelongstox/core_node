@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d4utils/d4_window_region_detector.py
-// PY-REF: pyapps/d3-check/controller/d4func/image_annotator.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_window_region_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/image_annotator.py
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
 using OpenCvSharp;
@@ -8,7 +8,7 @@ namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
 /// Scales the D4 standard regions/points to the actual window and draws coordinate annotations.
-/// 1:1 Python pyapps/d3-check/d4utils/d4_window_region_detector.py (detect_regions, update_interface_data, annotation)
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d4utils/d4_window_region_detector.py (detect_regions, update_interface_data, annotation)
 /// and controller/d4func/image_annotator.py (full annotation of all regions, points and the progress line).
 /// Fixes Python bug: image_annotator used its own ad-hoc scaling (+31 px fullscreen); it now uses the unified D4 scaler.
 /// </summary>

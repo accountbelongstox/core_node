@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/window_analyzer_singleton.py
-// PY-REF: pyapps/d3-check/utils/_obsolete_window_analyzer.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/window_analyzer_singleton.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/utils/_obsolete_window_analyzer.py
 using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -19,7 +19,7 @@ namespace DotCore.UIInspect;
 /// <summary>
 /// Analyzes a window with UI Automation: screenshot, annotated screenshot (snapshot ids), and JSON of all controls.
 /// Single instance via <see cref="Instance"/>. JSON schema matches Python so analysis files are interchangeable.
-/// 1:1 Python pycore/pyutils/window/analyzer.py (WindowAnalyzer) and pyapps/d3-check/d3utils/window_analyzer_singleton.py.
+/// 1:1 Python pycore/pyutils/window/analyzer.py (WindowAnalyzer) and dotapps/d3d4tester/reference/py_d3check/d3utils/window_analyzer_singleton.py.
 /// Fixes Python bug: value/help_text/patterns/is_visible/is_active/is_maximized/is_minimized were always null/empty/false.
 /// </summary>
 public sealed class WindowAnalyzer

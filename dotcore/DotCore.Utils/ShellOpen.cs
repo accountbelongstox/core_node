@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/utils/_obsolete_program_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/utils/_obsolete_program_manager.py
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d4utils/d4_team_health_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d4utils/d4_team_health_detector.py
 using DotCore.Foundations;
 using DotCore.Utils.ImageColor;
 using DotCore.Utils.ImagePreprocess;
@@ -9,7 +9,7 @@ namespace DotApps.d3d4tester.Core.D4;
 /// <summary>
 /// Team health bars in the "Team Count" region: row scan for group 1 (same map, red) left-to-right, else group 2
 /// (different map, dark) right-to-left; ±25 per channel, ≥20 pixels per row, then jump 40 rows.
-/// 1:1 Python pyapps/d3-check/d4utils/d4_team_health_detector.py (vectorized with per-row mask counts; same result).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d4utils/d4_team_health_detector.py (vectorized with per-row mask counts; same result).
 /// </summary>
 public sealed class D4TeamHealthDetector
 {

@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/share/game_interface_data.py
-// PY-REF: pyapps/d3-check/controller/d4func/map_name_utils.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/d4func/map_name_utils.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
@@ -8,7 +8,7 @@ using OpenCvSharp;
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>
-/// D4 shared interface data (singleton). 1:1 Python pyapps/d3-check/share/game_interface_data.py D4InterfaceData (+ InterfaceDataBase)
+/// D4 shared interface data (singleton). 1:1 Python dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py D4InterfaceData (+ InterfaceDataBase)
 /// and controller/d4func/map_name_utils.py (current map). Typed fields replace the overloaded detected_regions dict:
 /// region crops live in <see cref="RegionImages"/>, the map name in <see cref="CurrentMap"/>, the location in <see cref="SmallMap"/>.
 /// Fixes Python bug: small-map and window-region detection overwrote detected_regions, dropping region_images and map_name.

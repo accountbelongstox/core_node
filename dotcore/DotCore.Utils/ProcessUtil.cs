@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/process_helper.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/process_helper.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_manager.py
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -9,7 +9,7 @@ namespace DotCore.Utils;
 
 /// <summary>
 /// Process helpers: PID from window, exe path, exact exe-name lookup, kill by PID / exe / directory, waits.
-/// 1:1 Python pyapps/d3-check/d3utils/process_helper.py (get_pid_from_hwnd, kill_process_by_pid, kill_process_by_exe)
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/process_helper.py (get_pid_from_hwnd, kill_process_by_pid, kill_process_by_exe)
 /// plus the generic part of rosbot_manager.py find_process_by_exe_name / kill_if_running / wait_for_process.
 /// </summary>
 public static class ProcessUtil

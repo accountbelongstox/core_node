@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/screenshot_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/screenshot_provider.py
 using System.Drawing;
 using DotCore.Utils.ImagePreprocess;
 using OpenCvSharp;

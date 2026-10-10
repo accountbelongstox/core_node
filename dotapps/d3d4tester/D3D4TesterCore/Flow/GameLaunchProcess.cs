@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/controller/login_try_screenshot_controller.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/login_try_screenshot_controller.py
 using DotApps.d3d4tester.Core.Battlenet;
 using DotApps.d3d4tester.Core.D4;
 using DotCore.Foundations;

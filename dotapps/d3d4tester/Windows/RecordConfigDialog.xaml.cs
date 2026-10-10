@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/components/record_config_dialog.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/record_config_dialog.py
 using System.Windows;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
@@ -9,7 +9,7 @@ namespace DotApps.d3d4tester.Windows;
 
 /// <summary>
 /// Edit record_cfg.json (Debug, FrameFPS, OutputAsVideo, LogTimestamp, FrameWidth, FrameHeight, RecordHttpPort); save on button.
-/// 1:1 Python pyapps/d3-check/ui/components/record_config_dialog.py.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/ui/components/record_config_dialog.py.
 /// </summary>
 public partial class RecordConfigDialog : Window
 {

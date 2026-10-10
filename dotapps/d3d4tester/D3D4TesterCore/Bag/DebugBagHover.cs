@@ -1,6 +1,6 @@
-// PY-REF: pyapps/d3-check/d3utils/debug_bag_hover.py
-// PY-REF: pyapps/d3-check/providor/constants/common.py
-// PY-REF: pyapps/d3-check/share/bag_data_hub.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/debug_bag_hover.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/common.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/bag_data_hub.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
@@ -24,7 +24,7 @@ public static class BagPaths
 
 /// <summary>
 /// Debug tool: reuse (or collect) bag layout, hover each item slot, capture the search region natively, detect primal/ancient line, log results.
-/// 1:1 Python pyapps/d3-check/d3utils/debug_bag_hover.py (run_debug_bag_hover, _search_region_bounds, _draw_dots_on_matched, _save_region_temp_image).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/debug_bag_hover.py (run_debug_bag_hover, _search_region_bounds, _draw_dots_on_matched, _save_region_temp_image).
 /// </summary>
 public static class DebugBagHover
 {

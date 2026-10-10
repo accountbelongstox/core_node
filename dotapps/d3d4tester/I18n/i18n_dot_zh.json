@@ -1059,11 +1059,15 @@
       "slot_kanai_weapon": "魔盒武器",
       "slot_kanai_armor": "魔盒护甲",
       "slot_kanai_jewelry": "魔盒首饰",
-      "standby_start": "一键回城",
+      "standby_start": "暂停 · 城里待命",
       "standby_end": "结束待命 · 继续监控",
-      "standby_tip": "立即暂停监控和 ROSBOT（F6 暂停，不退出 ROSBOT、不小退游戏；已暂停时会再检查一次，新启动的 ROSBOT 也会被暂停），然后直接在游戏里按回城键，不判断位置。之后不再做任务，由这里的按钮通过插件操作角色；插件在线时死亡会点「城里复活」。「结束待命 · 继续监控」把控制交回 ROSBOT。",
-      "standby_sent": "已暂停 ROSBOT 并按下回城键（{0}）",
-      "standby_not_sent": "已暂停 ROSBOT，但回城键（{0}）没有发出：D3 窗口未找到或输入被占用",
+      "standby_tip": "随时可点（城里也可以）：立即暂停监控和 ROSBOT（F6 暂停，不退出 ROSBOT、不小退游戏；已暂停时会再检查一次，新启动的 ROSBOT 也会被暂停），并确保角色在城里：已在城里就不按键；在野外立即按回城键，插件在线时读条被打断会继续按，直到进城；死亡时点「城里复活」。之后不再做任务，由这里的按钮通过插件操作角色。「结束待命 · 继续监控」把控制交回 ROSBOT。",
+      "standby_result": {
+        "intown": "ROSBOT 已暂停，角色已在城里待命",
+        "reviving": "ROSBOT 已暂停，角色已死亡，插件会点「城里复活」",
+        "portalsent": "ROSBOT 已暂停，已按回城键（{0}），进城前会继续确保",
+        "portalnotsent": "ROSBOT 已暂停，但回城键（{0}）没有发出：D3 窗口未找到或输入被占用"
+      },
       "standby_since": "{0} 起",
       "standby_state": {
         "off": "未待命",

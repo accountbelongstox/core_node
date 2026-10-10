@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/controller/game_assistant_controller.py
-// PY-REF: pyapps/d3-check/ui/panels/log_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/game_assistant_controller.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/log_panel.py
 using System.Drawing;
 using System.IO;
 using DotApps.d3d4tester.Config;
@@ -20,7 +20,7 @@ namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
 /// Assistant hotkey flow: capture -> detect interface (left 30%) -> collect bag from the same image -> Kanai or blacksmith branch.
-/// Blacksmith and Kanai Cube flows are mutually exclusive. 1:1 Python pyapps/d3-check/controller/game_assistant_controller.py
+/// Blacksmith and Kanai Cube flows are mutually exclusive. 1:1 Python dotapps/d3d4tester/reference/py_d3check/controller/game_assistant_controller.py
 /// and ui/panels/log_panel.py debug_blacksmith / debug_kanai_upgrade.
 /// </summary>
 public sealed class GameAssistantController

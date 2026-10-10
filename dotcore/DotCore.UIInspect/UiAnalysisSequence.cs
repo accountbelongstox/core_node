@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/ui_analysis_operations.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/ui_analysis_operations.py
 using System.Drawing;
 using System.Text;
 using System.Text.Json;
@@ -10,7 +10,7 @@ namespace DotCore.UIInspect;
 /// <summary>
 /// Analysis-driven UI operations: load window analysis JSON, find live controls by selector, run actions
 /// (invoke/select/click) with pattern-first + mouse fallback, and run sequences with a per-step delay.
-/// 1:1 Python pyapps/d3-check/d3utils/ui_analysis_operations.py (generic parts; the ROSBOT resume sequence stays in the app).
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/ui_analysis_operations.py (generic parts; the ROSBOT resume sequence stays in the app).
 /// </summary>
 public static class UiAnalysisSequence
 {

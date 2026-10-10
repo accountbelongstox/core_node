@@ -1,11 +1,11 @@
-// PY-REF: pyapps/d3-check/d3utils/d3u_common/game_window_region.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/game_window_region.py
 using System.Drawing;
 using DotCore.ScreenCapture;
 
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// Fixed-ratio crops of the game window image (e.g. Smart Echo OCR area). 1:1 Python pyapps/d3-check/d3utils/d3u_common/game_window_region.py.
+/// Fixed-ratio crops of the game window image (e.g. Smart Echo OCR area). 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/d3u_common/game_window_region.py.
 /// </summary>
 public static class D3GameWindowRegion
 {

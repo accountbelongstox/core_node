@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/yolo_dataset_from_annotations.py
-// PY-REF: pyapps/d3-check/d3utils/yolo_train_flow.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_dataset_from_annotations.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/yolo_train_flow.py
 // PY-REF: pycore/pyutils/ultralytics/dataset.py
 using System.Text.Json;
 using DotCore.VocAnnotator;

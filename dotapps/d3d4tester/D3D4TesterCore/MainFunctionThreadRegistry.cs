@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/threads/main_function_thread.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/threads/main_function_thread.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>

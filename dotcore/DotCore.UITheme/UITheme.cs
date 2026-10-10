@@ -1,10 +1,10 @@
-// PY-REF: pyapps/d3-check/ui/theme/theme.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/theme/theme.py
 namespace DotCore.UITheme;
 
 /// <summary>
 /// Central theme facade. Provides semantic color, font, and size lookup by key.
 /// No WPF or WinForms types; apps apply these values to their UI framework (e.g. WPF resources).
-/// See pyapps/d3-check/docs/DOT_D3CHECK_UI_LIBRARY.md and ui/theme/theme.py.
+/// See dotapps/d3d4tester/reference/py_d3check/docs/DOT_D3CHECK_UI_LIBRARY.md and ui/theme/theme.py.
 /// </summary>
 public static class UITheme
 {

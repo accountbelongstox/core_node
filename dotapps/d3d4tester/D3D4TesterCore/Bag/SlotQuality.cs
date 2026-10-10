@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/slot_quality.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/slot_quality.py
 using OpenCvSharp;
 
 namespace DotApps.d3d4tester.Core.Bag;
@@ -12,7 +12,7 @@ public sealed record SlotLineDetection(
 
 /// <summary>
 /// Bag slot legendary tier (primal / ancient / normal) from the hover tooltip line left of the slot.
-/// 1:1 Python pyapps/d3-check/d3utils/slot_quality.py. All Mat inputs are BGR (8UC3, OpenCV order);
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/slot_quality.py. All Mat inputs are BGR (8UC3, OpenCV order);
 /// reference colors are RGB as in Python and pixels are compared as (R, G, B) = (Item2, Item1, Item0).
 /// </summary>
 public static class SlotQuality

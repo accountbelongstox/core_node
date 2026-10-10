@@ -1,8 +1,8 @@
-// PY-REF: pyapps/d3-check/d3utils/d3_status_provider.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_status_provider.py
-// PY-REF: pyapps/d3-check/d3utils/d3_manager.py
-// PY-REF: pyapps/d3-check/d3utils/log_monitor_api.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_task_registry.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3_status_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_status_provider.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/d3_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/log_monitor_api.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_task_registry.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>

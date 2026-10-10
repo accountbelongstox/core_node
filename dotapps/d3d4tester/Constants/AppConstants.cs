@@ -1,9 +1,9 @@
-// PY-REF: pyapps/d3-check/main.py
-// PY-REF: pyapps/d3-check/providor/constants/d3.py
-// PY-REF: pyapps/d3-check/controller/game_interface_controller.py
-// PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
-// PY-REF: pyapps/d3-check/share/values/skill_config_hotkeys.py
-// PY-REF: pyapps/d3-check/providor/constants/ui.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/main.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/d3.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/controller/game_interface_controller.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/auxiliary_options_block.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/values/skill_config_hotkeys.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/constants/ui.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>

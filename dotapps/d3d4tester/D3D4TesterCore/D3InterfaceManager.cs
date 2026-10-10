@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/d3utils/interface_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/interface_manager.py
 using DotApps.d3d4tester.Core.Bag;
 using DotCore.Foundations;
 using DotCore.Utils;
@@ -6,7 +6,7 @@ using DotCore.Utils;
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// Coordinates UI region and bag collectors over shared GameInterfaceData. 1:1 Python pyapps/d3-check/d3utils/interface_manager.py
+/// Coordinates UI region and bag collectors over shared GameInterfaceData. 1:1 Python dotapps/d3d4tester/reference/py_d3check/d3utils/interface_manager.py
 /// (collect_ui_info, collect_bag_info_quik, collect_bag_info_from_current_shared, get_window_offset, print_summary; *_anchor variants are unused and not ported).
 /// </summary>
 public sealed class D3InterfaceManager

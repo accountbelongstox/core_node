@@ -1059,11 +1059,15 @@
       "slot_kanai_weapon": "Cube weapon",
       "slot_kanai_armor": "Cube armor",
       "slot_kanai_jewelry": "Cube jewelry",
-      "standby_start": "Return to town",
+      "standby_start": "Pause · stay in town",
       "standby_end": "End standby · resume monitoring",
-      "standby_tip": "Pause monitoring and ROSBOT at once (F6 pause: ROSBOT keeps running, the game is not left; checked again when already paused, a newly started ROSBOT is paused too), then press the town portal key in the game right away, wherever the hero is. No more tasks; the buttons here drive the hero through the plugin; with the plugin live a dead hero revives in town. End standby hands control back to ROSBOT.",
-      "standby_sent": "ROSBOT paused and town portal key ({0}) pressed",
-      "standby_not_sent": "ROSBOT paused, but the town portal key ({0}) was not sent: D3 window not found or input busy",
+      "standby_tip": "Clickable anywhere, also in town: pause monitoring and ROSBOT at once (F6 pause: ROSBOT keeps running, the game is not left; checked again when already paused, a newly started ROSBOT is paused too) and make sure the hero is in town: in town no key is pressed; outside town the town portal key is pressed at once and, with the plugin live, again after an interrupted cast until the hero arrives; a dead hero revives in town. No more tasks; the buttons here drive the hero through the plugin. End standby hands control back to ROSBOT.",
+      "standby_result": {
+        "intown": "ROSBOT paused, the hero stands by in town",
+        "reviving": "ROSBOT paused, the hero is dead; the plugin revives in town",
+        "portalsent": "ROSBOT paused, town portal key ({0}) pressed; kept until the hero is in town",
+        "portalnotsent": "ROSBOT paused, but the town portal key ({0}) was not sent: D3 window not found or input busy"
+      },
       "standby_since": "since {0}",
       "standby_state": {
         "off": "Not standing by",

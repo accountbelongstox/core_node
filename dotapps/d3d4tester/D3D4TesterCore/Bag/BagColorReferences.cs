@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
 using System.Collections.Concurrent;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
@@ -8,7 +8,7 @@ namespace DotApps.d3d4tester.Core.Bag;
 
 /// <summary>
 /// BGR color references for bag separator / quality detection (hardcoded with optional image override, cached).
-/// 1:1 Python pyapps/d3-check/share/game_interface_data.py SEPARATOR_*, HARDCODED_INTERFERENCE_COLORS, _load_colors_from_image,
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py SEPARATOR_*, HARDCODED_INTERFERENCE_COLORS, _load_colors_from_image,
 /// get_interference_colors, get_yellow_quality_colors, QUALITY_COLOR_IMAGES, HARDCODED_COLOR_REFS, get_quality_color_set, get_color_references.
 /// </summary>
 public static class BagColorReferences

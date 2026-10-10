@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/collectors/collect_tools/bag_layout_detector.py
-// PY-REF: pyapps/d3-check/d3utils/slot_quality.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/collectors/collect_tools/bag_layout_detector.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/slot_quality.py
 namespace DotApps.d3d4tester.Core.Bag;
 
 /// <summary>Bag grid in game-window coordinates. 1:1 Python share.game_interface_data.BagCoordinates.</summary>

@@ -1,6 +1,6 @@
 # Bottom status bar: PY ↔ DOT 1:1 mapping
 
-Reference: **PY** `pyapps/d3-check/ui/components/bottom_bar.py`, `bottom_bar_status_block.py`, `status_row_config.py`. **DOT** `dotapps/d3d4tester/MainWindow.xaml` (bottom bar).
+Reference: **PY** `dotapps/d3d4tester/reference/py_d3check/ui/components/bottom_bar.py`, `bottom_bar_status_block.py`, `status_row_config.py`. **DOT** `dotapps/d3d4tester/MainWindow.xaml` (bottom bar).
 
 **Layout:** PY uses `pack(side=LEFT)` for row 1 and row 2 (left-aligned); row 3 has left_f (test_mode) and right_f (path icons + scan) with sticky="e". DOT matches: row 0 and row 1 are left-aligned StackPanels; row 2 is Grid with test_mode left, path icons + Scan right.
 

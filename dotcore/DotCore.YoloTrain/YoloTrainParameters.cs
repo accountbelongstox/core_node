@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/train.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/train.py
 // PY-REF: pycore/pyutils/ultralytics/training.py
 using System.Globalization;
 using System.Text.RegularExpressions;

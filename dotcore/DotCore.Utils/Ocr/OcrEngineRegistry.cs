@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/d3utils/cnocr_engine_registry.py
-// PY-REF: pyapps/d3-check/share/d4_ocr_config.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/cnocr_engine_registry.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/d4_ocr_config.py
 using DotCore.Foundations;
 
 namespace DotCore.Utils.Ocr;
@@ -8,7 +8,7 @@ namespace DotCore.Utils.Ocr;
 /// Keyed owner of the OCR engines (general, number, document, ...) plus the app's task -> model key map.
 /// Engines are created lazily per model key and cached; access is serialized.
 /// 1:1 Python pycore/pyutils/ocr_cluster/cnocr_engine_registry.py (CnOCREngines, _get_engine_for_model_key,
-/// _ensure_cnocr_loaded_and_engines_initialized) and pyapps/d3-check/d3utils/cnocr_engine_registry.py (get_cnocr_engine_*).
+/// _ensure_cnocr_loaded_and_engines_initialized) and dotapps/d3d4tester/reference/py_d3check/d3utils/cnocr_engine_registry.py (get_cnocr_engine_*).
 /// PaddleOCRSharp has one multilingual model, so en/cht/naive/document alias the general engine and number is the
 /// general engine filtered by cand alphabet (CnOCR profile names have no Paddle equivalent).
 /// </summary>

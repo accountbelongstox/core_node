@@ -1,11 +1,11 @@
-// PY-REF: pyapps/d3-check/share/asia_credentials.py
-// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
-// PY-REF: pyapps/d3-check/ui/diablo3_macro_ui.py
-// PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
-// PY-REF: pyapps/d3-check/d3utils/path_scanner.py
-// PY-REF: pyapps/d3-check/d3utils/event_center.py
-// PY-REF: pyapps/d3-check/ui/components/status_item.py
-// PY-REF: pyapps/d3-check/ui/components/status_row_config.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/asia_credentials.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/rosbot_extension_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/diablo3_macro_ui.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/timers/one_shot_tasks.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/path_scanner.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/event_center.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/status_item.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/status_row_config.py
 using System.IO;
 using System.Diagnostics;
 using System.Drawing;

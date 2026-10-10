@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py
 namespace DotCore.Common.Geometry;
 
 /// <summary>Window frame sizes in pixels (left/right border, title bar, bottom border) used by windowed-mode scaling.</summary>
@@ -10,7 +10,7 @@ public readonly record struct WindowBorders(int Left, int Right, int TitleBar, i
 
 /// <summary>
 /// Pure standard-to-actual coordinate scaler (no global state).
-/// 1:1 Python pyapps/d3-check/share/game_interface_data.py calculate_unified_scaled_coordinate and scale_standard_value_to_actual.
+/// 1:1 Python dotapps/d3d4tester/reference/py_d3check/share/game_interface_data.py calculate_unified_scaled_coordinate and scale_standard_value_to_actual.
 /// Windowed: (v - border) * scale + border with scale = (actual - frame) / standard. Fullscreen: v * actual / standard.
 /// </summary>
 public static class CoordinateScaler

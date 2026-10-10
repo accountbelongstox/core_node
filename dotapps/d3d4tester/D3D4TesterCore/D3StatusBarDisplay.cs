@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/components/bottom_bar_status_block.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/bottom_bar_status_block.py
 using DotCore.UITheme.StatusBar;
 
 namespace DotApps.d3d4tester.Core;

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/providor/i18n/i18n_log_panel_en.json
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/providor/i18n/i18n_log_panel_en.json
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>RunLog page keys (Python ui.log_panel.*, test buttons reuse auxiliary_panel/rosbot debug keys).</summary>

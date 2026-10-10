@@ -1,8 +1,8 @@
-// PY-REF: pyapps/d3-check/ui/diablo3_macro_ui.py
-// PY-REF: pyapps/d3-check/ui/components/system_tray.py
-// PY-REF: pyapps/d3-check/main.py
-// PY-REF: pyapps/d3-check/d3utils/rosbot_update_manager.py
-// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/diablo3_macro_ui.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/system_tray.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/main.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/d3utils/rosbot_update_manager.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/panels/rosbot_extension_panel.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>

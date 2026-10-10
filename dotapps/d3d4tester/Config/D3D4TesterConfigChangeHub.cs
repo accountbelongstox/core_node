@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/share/values/config_change_hub.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/values/config_change_hub.py
 using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Config;

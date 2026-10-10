@@ -1,5 +1,5 @@
-// PY-REF: pyapps/d3-check/share/ui_registry.py
-// PY-REF: pyapps/d3-check/ui/utils/app_root.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/share/ui_registry.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/utils/app_root.py
 using System.Windows;
 using DotApps.d3d4tester.Ctl;
 

@@ -1,4 +1,4 @@
-// PY-REF: pyapps/d3-check/ui/components/rosbot_update_info_panel.py
+// PY-REF: dotapps/d3d4tester/reference/py_d3check/ui/components/rosbot_update_info_panel.py
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
