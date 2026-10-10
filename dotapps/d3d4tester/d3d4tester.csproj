@@ -21,6 +21,7 @@
     <Content Include="Templates\**\*" Exclude="Templates\README.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets\app_icon.ico" />
     <EmbeddedResource Include="Config\default_config.json" LogicalName="d3d4tester.default_config.json" />
+    <EmbeddedResource Include="PlannerData\build_urls.json" LogicalName="d3d4tester.build_urls.json" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
