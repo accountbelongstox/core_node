@@ -1,4 +1,5 @@
 // PY-REF: none (DOT-only)
+using System.Collections.Concurrent;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.TemplateMatcher;
@@ -138,6 +139,15 @@ public static class D3SkillSwitcher
     public static string? DebugDir { get; set; }
 
     [ThreadStatic] private static Action<SkillSwitchStep>? _progress;
+    /// <summary>Planned skill keys of the running switch: tried first when telling whether the pane is open (order only, same result).</summary>
+    [ThreadStatic] private static string[]? _plannedSkillKeys;
+
+    /// <summary>
+    /// Templates and icons of the running switch, each loaded once with its resized copies; reloaded when the file's write time changes
+    /// (a learned game-art icon, re-cut icons). Replaced entries are disposed with the cache at the end of the run.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, (DateTime Stamp, ScaledTemplate? Template)> TemplateCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentBag<ScaledTemplate> RetiredTemplates = new();
 
     /// <summary>Report a step with an optional capture (click point circled, scaled down to ReportMaxWidth).</summary>
     private static void Report(SkillSwitchStage stage, bool? ok, string detail, Shot? shot = null, (int X, int Y)? mark = null)
@@ -160,6 +170,7 @@ public static class D3SkillSwitcher
         Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop, Action<SkillSwitchStep>? progress = null)
     {
         _progress = progress;
+        _plannedSkillKeys = profile.Skills.Select(s => s.Id).Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.Ordinal).ToArray();
         var hwnd = D3WindowFinder.FindWindows().FirstOrDefault()?.Hwnd ?? IntPtr.Zero;
         var restore = Expand(hwnd);
         try
@@ -177,6 +188,8 @@ public static class D3SkillSwitcher
                 Report(SkillSwitchStage.RestoreWindow, true, $"{bounds.Width}x{bounds.Height} at ({bounds.Left},{bounds.Top})");
             }
             _progress = null;
+            _plannedSkillKeys = null;
+            ClearTemplates();
         }
     }
 
@@ -271,8 +284,13 @@ public static class D3SkillSwitcher
         if (MatchTemplate(shot, TemplateGameMenuReturn, GameMenuThreshold) != null) return UiState.GameMenu;
         if (FindChooser(shot) != null) return UiState.SkillChooser;
         if (MatchTemplate(shot, TemplateAccept, AcceptThreshold) != null) return UiState.PassiveChooser;
-        var keys = SkillKeys(cls, cacheDir).ToList();
-        int icons = Enumerable.Range(0, SlotCount).Count(slot => BestIconAt(shot, PaneSlotIcon[slot], keys, key => D3SkillIcons.SkillIconPath(cacheDir, cls, key)).Score >= IconThreshold);
+        var all = SkillKeys(cls, cacheDir).ToList();
+        var planned = (_plannedSkillKeys ?? Array.Empty<string>()).Where(all.Contains).ToList();
+        var keys = planned.Concat(all.Except(planned)).ToList();
+        int icons = 0;
+        // stop once the pane is certain (PaneOpenMinIcons slots show a skill) or impossible (too few slots left)
+        for (int slot = 0; slot < SlotCount && icons < PaneOpenMinIcons && icons + SlotCount - slot >= PaneOpenMinIcons; slot++)
+            if (AnyIconAt(shot, PaneSlotIcon[slot], keys, key => D3SkillIcons.SkillIconPath(cacheDir, cls, key))) icons++;
         return icons >= PaneOpenMinIcons ? UiState.Pane : UiState.World;
     }
 
@@ -367,7 +385,7 @@ public static class D3SkillSwitcher
         return BestIconAt(shot, PaneSlotIcon[slot], new[] { skill }, key => D3SkillIcons.SkillIconPath(cacheDir, cls, key)).Score >= IconThreshold;
     }
 
-    /// <summary>Best of the icons in a small box around a reference client point: (key, score).</summary>
+    /// <summary>Best of the icons in a small box around a reference client point: (key, score); keys are matched in parallel, the first best key wins as in order.</summary>
     private static (string? Key, double Score) BestIconAt(Shot shot, (int X, int Y) refPoint, IEnumerable<string> keys, Func<string, string> iconPath)
     {
         var (cx, cy) = shot.ToImage(refPoint);
@@ -376,13 +394,29 @@ public static class D3SkillSwitcher
         if (box.Width <= 0 || box.Height <= 0) return (null, 0);
         using var area = new Mat(shot.Image, box);
         var widths = Widths(shot.ClientHeight, IconMinFrac, IconMaxFrac).Where(w => w <= box.Width).ToList();
+        var list = keys.ToList();
+        var scores = new double[list.Count];
+        Parallel.For(0, list.Count, i => scores[i] = MatchIcon(area, iconPath(list[i]), widths, list[i]).Score);
         (string? Key, double Score) best = (null, 0);
-        foreach (var key in keys)
-        {
-            var m = MatchIcon(area, iconPath(key), widths, key);
-            if (m.Score > best.Score) best = (key, m.Score);
-        }
+        for (int i = 0; i < list.Count; i++)
+            if (scores[i] > best.Score) best = (list[i], scores[i]);
         return best;
+    }
+
+    /// <summary>Some icon of the keys reaches IconThreshold in the box around a reference client point (same as BestIconAt's score test, stops at the first hit).</summary>
+    private static bool AnyIconAt(Shot shot, (int X, int Y) refPoint, IList<string> keys, Func<string, string> iconPath)
+    {
+        var (cx, cy) = shot.ToImage(refPoint);
+        int half = shot.Px(SlotProbeHalfPx);
+        var box = new Rect(cx - half, cy - half, half * 2, half * 2).Intersect(new Rect(0, 0, shot.Image.Cols, shot.Image.Rows));
+        if (box.Width <= 0 || box.Height <= 0 || keys.Count == 0) return false;
+        using var area = new Mat(shot.Image, box);
+        var widths = Widths(shot.ClientHeight, IconMinFrac, IconMaxFrac).Where(w => w <= box.Width).ToList();
+        var loop = Parallel.ForEach(Partitioner.Create(keys, true), (key, state) =>
+        {
+            if (!state.ShouldExitCurrentIteration && IconFound(area, iconPath(key), widths, key)) state.Stop();
+        });
+        return !loop.IsCompleted;
     }
 
     // ---------- skill chooser ----------
@@ -390,8 +424,7 @@ public static class D3SkillSwitcher
     /// <summary>Click the pane slot, find the planned skill page by page, click it, its rune and Accept (back to the pane).</summary>
     private static SkillSwitchOutcome SetSkill(int slot, PlannerSkill target, string cls, string cacheDir)
     {
-        using var icon = LoadImage(D3SkillIcons.SkillIconPath(cacheDir, cls, target.Id));
-        if (icon == null) return SkillSwitchOutcome.SkillNotInList;
+        if (Template(D3SkillIcons.SkillIconPath(cacheDir, cls, target.Id)) is not { } icon) return SkillSwitchOutcome.SkillNotInList;
         if (!ClickUntil(sh => sh.ToImage(PaneSlotClick[slot]), UiState.SkillChooser, $"slot {slot} box", cls, cacheDir, SkillSwitchStage.OpenChooser, UiState.Pane))
             return SkillSwitchOutcome.ChooserNotOpen;
         Shot? shot = null;
@@ -497,7 +530,7 @@ public static class D3SkillSwitcher
     /// Click the planned icon until the assigned box shows it: the first click uses the point already found; later attempts look again
     /// (a selected icon is framed and scores lower, so a failed re-find keeps the previous point). Every attempt is reported.
     /// </summary>
-    private static bool PickUntilAssigned((int X, int Y) firstPoint, Mat icon, PlannerSkill target)
+    private static bool PickUntilAssigned((int X, int Y) firstPoint, ScaledTemplate icon, PlannerSkill target)
     {
         var at = firstPoint;
         for (int attempt = 1; attempt <= Attempts; attempt++)
@@ -529,7 +562,7 @@ public static class D3SkillSwitcher
     }
 
     /// <summary>The chooser's assigned-skill box shows the planned icon.</summary>
-    private static bool AssignedShows(Shot shot, Chooser chooser, Mat icon, PlannerSkill target, out double score)
+    private static bool AssignedShows(Shot shot, Chooser chooser, ScaledTemplate icon, PlannerSkill target, out double score)
     {
         using var box = new Mat(shot.Image, Band(shot, chooser, AssignedTopFrac, AssignedBottomFrac));
         var check = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(box, icon, Widths(shot.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, target.Id);
@@ -555,7 +588,7 @@ public static class D3SkillSwitcher
     }
 
     /// <summary>The planned icon in the chooser's icon row; a gray-zone score counts when the OCR'd name under it matches. Click point or null.</summary>
-    private static (int X, int Y)? FindInRow(Shot shot, Chooser chooser, Mat icon, PlannerSkill target)
+    private static (int X, int Y)? FindInRow(Shot shot, Chooser chooser, ScaledTemplate icon, PlannerSkill target)
     {
         var row = new Rect(chooser.Left, chooser.RowY - (int)(shot.ClientHeight * RowAboveFrac), chooser.Right - chooser.Left,
             (int)(shot.ClientHeight * (RowAboveFrac + RowBelowFrac))).Intersect(new Rect(0, 0, shot.Image.Cols, shot.Image.Rows));
@@ -607,11 +640,10 @@ public static class D3SkillSwitcher
         int changed = 0;
         foreach (var (passive, slot) in missing.Zip(freeSlots))
         {
-            using var icon = LoadImage(Path(passive.Id));
-            if (icon == null) continue;
+            if (Template(Path(passive.Id)) == null) continue;
             for (int attempt = 1; attempt <= Attempts; attempt++)
             {
-                if (PlacePassive(passive, slot, icon, cls, cacheDir))
+                if (PlacePassive(passive, slot, cls, cacheDir))
                 {
                     changed++;
                     break;
@@ -624,12 +656,12 @@ public static class D3SkillSwitcher
     }
 
     /// <summary>Select the top slot, click the passive in the list (icon, else its OCR'd name), true when the top slot then shows it.</summary>
-    private static bool PlacePassive(PlannerNamed passive, int slot, Mat icon, string cls, string cacheDir)
+    private static bool PlacePassive(PlannerNamed passive, int slot, string cls, string cacheDir)
     {
         Mat? learned = null;
         try
         {
-            return PlacePassiveCore(passive, slot, icon, cls, cacheDir, ref learned);
+            return PlacePassiveCore(passive, slot, cls, cacheDir, ref learned);
         }
         finally
         {
@@ -637,7 +669,7 @@ public static class D3SkillSwitcher
         }
     }
 
-    private static bool PlacePassiveCore(PlannerNamed passive, int slot, Mat icon, string cls, string cacheDir, ref Mat? learned)
+    private static bool PlacePassiveCore(PlannerNamed passive, int slot, string cls, string cacheDir, ref Mat? learned)
     {
         string Path(string key) => D3SkillIcons.PassiveIconPath(cacheDir, cls, key);
         if (Capture() is not { } shot) return false;
@@ -870,8 +902,7 @@ public static class D3SkillSwitcher
     /// <summary>Template from Templates/skill_switch scaled with the client height; null below the threshold.</summary>
     private static TemplateMatchResult? MatchTemplate(Shot shot, string name, double threshold)
     {
-        using var template = LoadImage(Path.Combine(D3TemplatePaths.GetTemplateDir(), TemplateDir, name + D3TemplatePaths.TemplateExtension));
-        if (template == null) return null;
+        if (Template(Path.Combine(D3TemplatePaths.GetTemplateDir(), TemplateDir, name + D3TemplatePaths.TemplateExtension)) is not { } template) return null;
         var widths = Enumerable.Range(0, TemplateScaleSteps)
             .Select(i => (int)Math.Round(template.Cols * shot.Scale * (TemplateScaleMin + i * TemplateScaleStep))).ToList();
         var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(shot.Image, template, widths, threshold, name);
@@ -893,12 +924,42 @@ public static class D3SkillSwitcher
         TemplateMatchResult best = new() { Score = 0 };
         foreach (var path in new[] { iconPath, D3SkillIcons.GameVariantPath(iconPath) })
         {
-            using var icon = LoadImage(path);
-            if (icon == null) continue;
+            if (Template(path) is not { } icon) continue;
             var m = matcher.MatchMultiScale(area, icon, widths, IconThreshold, name);
             if (m.Score > best.Score) best = m;
         }
         return best;
+    }
+
+    /// <summary>The icon or its learned game-art variant reaches IconThreshold in an area (MatchIcon's score test, the variant only when needed).</summary>
+    private static bool IconFound(Mat area, string iconPath, IReadOnlyList<int> widths, string name)
+    {
+        var matcher = TemplateMatcherService.GetTemplateMatcher();
+        foreach (var path in new[] { iconPath, D3SkillIcons.GameVariantPath(iconPath) })
+            if (Template(path) is { } icon && matcher.MatchMultiScale(area, icon, widths, IconThreshold, name).Score >= IconThreshold) return true;
+        return false;
+    }
+
+    /// <summary>Cached template of an image file (null when missing or unreadable); reloaded when the file's write time changes.</summary>
+    private static ScaledTemplate? Template(string path)
+    {
+        var stamp = File.GetLastWriteTimeUtc(path);
+        if (TemplateCache.TryGetValue(path, out var hit) && hit.Stamp == stamp) return hit.Template;
+        ScaledTemplate? template;
+        using (var image = LoadImage(path)) template = image == null ? null : new ScaledTemplate(image);
+        TemplateCache.AddOrUpdate(path, (stamp, template), (_, old) =>
+        {
+            if (old.Template != null) RetiredTemplates.Add(old.Template);
+            return (stamp, template);
+        });
+        return template;
+    }
+
+    private static void ClearTemplates()
+    {
+        foreach (var entry in TemplateCache.Values) entry.Template?.Dispose();
+        TemplateCache.Clear();
+        while (RetiredTemplates.TryTake(out var retired)) retired.Dispose();
     }
 
     /// <summary>Square icon crop of the game screen around a point (LearnIconRefPx reference px), for learning game art.</summary>
