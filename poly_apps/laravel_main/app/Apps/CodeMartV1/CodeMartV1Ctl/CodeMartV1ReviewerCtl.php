@@ -2,6 +2,7 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
 use App\Http\Controllers\Controller;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
@@ -40,7 +41,8 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->applicationStarted($recentApplication, (array) json_decode((string) $recentApplication->test_cases, true));
         }
         if ($recentApplication) {
-            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_RETRY_TOO_SOON, __('codemart.messages.you_can_only_apply_once_every_7'), [
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_RETRY_TOO_SOON, __('codemart.messages.you_can_only_apply_once_every_n_days', ['days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS]), [
+                'retry_days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS,
                 'retry_at' => $recentApplication->created_at?->copy()->addDays(CodeMartV1Constants::REVIEWER_RETRY_DAYS)->toIso8601String(),
             ], 409);
         }
@@ -156,8 +158,7 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ROLE_REQUIRED, __('codemart.messages.only_active_reviewers_can_access_review_tasks'), null, 403);
         }
 
-        $page = max(1, (int) $request->get('page', 1));
-        $pageSize = max(1, min(CodeMartV1Constants::MAX_PAGE_SIZE, (int) $request->get('pageSize', CodeMartV1Constants::DEFAULT_PAGE_SIZE)));
+        [$page, $pageSize] = CodeMartV1Pagination::params($request);
         $result = CodeMartV1TaskSubmissionModel::pendingReviewPage((int) $user->id, $page, $pageSize);
         $total = (int) $result['total'];
 

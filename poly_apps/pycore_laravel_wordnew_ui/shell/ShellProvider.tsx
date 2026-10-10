@@ -8,7 +8,7 @@ import { setPycoreActive } from '../core/integrations/pycore/PycoreEventClient';
 import { StorageManager } from '../core/persistence';
 import { ShellContext } from './ShellContext';
 import { ShellStorageKeys as StorageKeys } from './ShellStorageKeys';
-import { EndId, END_THEME, END_USES_PYCORE, SHELL_LANGUAGES, ShellContextValue, ShellClipboardState, ThemeId } from './shellTypes';
+import { EndId, END_THEME, END_USES_PYCORE, SHELL_LANGUAGES, ShellContextValue, ShellClipboardState, ThemeId, isThemeId } from './shellTypes';
 import { CLOUD_CLIPBOARD } from '../core/contracts/CloudClipboardContract';
 
 const DEFAULT_LANGUAGE = 'en';
@@ -68,8 +68,7 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [themeOverride, setThemeOverrideState] = useState<ThemeId | null>(() => {
     const stored = StorageManager.getRaw(StorageKeys.THEME_OVERRIDE);
-    if (stored === 'nexus' || stored === 'pycore' || stored === 'iris') return stored;
-    return null;
+    return isThemeId(stored) ? stored : null;
   });
   const [chatOpen, setChatOpen] = useState(false);
   const [activeChatAdapterId, setActiveChatAdapterId] = useState<string>('pycore');

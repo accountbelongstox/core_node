@@ -20,6 +20,7 @@ import { ViewType } from './uiTypes';
 import { useTranslation } from 'react-i18next';
 import { isDebugAuthBypass, isRequireLoginView, setDebugAuthBypass } from './config/auth';
 import { htmlErrorManager, HtmlErrorEvent } from '@/core/integrations/laravel/transport/HtmlErrorEvents';
+import { getSharedBaseURL } from '@/core/integrations/laravel/transport/BaseAPI';
 import { apiManager, LARAVEL_MANAGER_SELECTION_SCOPE } from '@/core/integrations/laravel/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
 import GlobalLogPanel from '@/apps/laravel-manager/components/common/GlobalLogPanel';
@@ -120,14 +121,15 @@ const LmDashboardContent: React.FC = () => {
   // login modal never appears. When false, behavior is unchanged.
   useEffect(() => {
     let cancelled = false;
+    const probedEndpoint = getSharedBaseURL();
     api.authDebug
       .getDebugStatus()
       .then((status) => {
         if (cancelled || !status) return;
-        if (status.debug_mode === true) {
-          setDebugAuthBypass(true);
+        if (status.debug_mode === true && getSharedBaseURL() === probedEndpoint) {
+          setDebugAuthBypass(true, probedEndpoint);
           console.log('[Auth] Loopback debug bypass enabled:', status.reason, status.client_ip);
-          userModel.bootstrapLoopbackSession().then((ok) => {
+          userModel.bootstrapLoopbackSession(probedEndpoint ?? undefined).then((ok) => {
             if (ok) {
               console.log('[Auth] Loopback session bootstrapped from server profile');
             }

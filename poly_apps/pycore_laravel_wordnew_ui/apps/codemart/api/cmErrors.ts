@@ -12,12 +12,12 @@ export function cmErrorCode(response: APIResponse<unknown>): string | null {
  * Localized message for a failed CodeMart response: the `errors.<code>` key
  * when the server returned a known error_code, otherwise the caller fallback.
  */
-export function cmErrorMessage(t: CmTranslate, response: APIResponse<unknown>, fallbackKey: string): string {
+export function cmErrorMessage(t: CmTranslate, response: APIResponse<unknown>, fallbackKey: string, params?: Record<string, unknown>): string {
   const code = cmErrorCode(response);
   if (code) {
     const key = `errors.${code}`;
-    const translated = t(key);
+    const translated = t(key, params);
     if (translated && translated !== key) return translated;
   }
-  return t(fallbackKey);
+  return t(fallbackKey, params);
 }

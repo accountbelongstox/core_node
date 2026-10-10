@@ -651,6 +651,7 @@ server: {
         view_config: "View Config",
         test_config: "Test Config",
         reload: "Reload Nginx",
+        action_reload: "Reload",
         refresh: "Refresh",
         create: "Create Site",
         update: "Update Site",
@@ -823,7 +824,13 @@ server: {
         enabled_suffix: " (enabled)",
         proxy_enabled: "Enabled",
         proxy_configured: "Configured",
-        proxy_not_configured: "Not Configured"
+        proxy_not_configured: "Not Configured",
+        state_running: "Running",
+        state_stopped: "Stopped",
+        state_failed: "Failed",
+        state_inactive: "Inactive",
+        state_active: "Active",
+        state_unknown: "Unknown"
       },
       messages: {
         confirm_renew_certs: "Are you sure you want to renew all certificates?",
@@ -884,7 +891,11 @@ server: {
         cert_done: "Done: {domain}",
         cert_failed: "Failed: {domain}",
         cert_waiting: "Waiting for certbot…",
-        missing_app_type: "Missing app type — reload the app list"
+        missing_app_type: "Missing app type — reload the app list",
+        confirm_execute_script: "Run script \"{script}\"?",
+        confirm_execute_script_sudo: "Run script \"{script}\" with sudo privileges? It can change the server.",
+        confirm_app_action: "{action} application \"{app}\"?",
+        action_failed: "Action {action} failed — {error}"
       },
       octane: {
         restart_button: "Restart Octane",

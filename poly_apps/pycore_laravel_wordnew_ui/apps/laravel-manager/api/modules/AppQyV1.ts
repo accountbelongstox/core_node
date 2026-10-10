@@ -1,4 +1,5 @@
 import { LmBaseAPI } from '../LmBaseAPI';
+import { offerBlobFile } from '../../../../core/browser/FileDownload';
 import { apiCache } from '../../../../core/integrations/laravel/transport/APICache';
 import { APIResponse } from '../../types';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
@@ -613,14 +614,7 @@ export class AppQyV1API extends LmBaseAPI {
       || `vocabulary_export.${defaultExtension}`;
 
     const blob = await response.blob();
-    const objectUrl = window.URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    window.URL.revokeObjectURL(objectUrl);
+    offerBlobFile(filename, blob);
 
     return { ok: true, filename, htmlFallback };
   }

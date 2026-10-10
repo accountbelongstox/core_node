@@ -137,7 +137,7 @@ ${codeUpdatedFile}` : codeUpdateBadge;
           <div className={`hidden sm:flex px-2.5 ${chipClass}`}>
             <span className={`w-2 h-2 rounded-full shrink-0 ${isLoggedIn ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-slate-400'}`} />
             <span className={`text-xs ${isLoggedIn ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
-              {isLoggedIn ? t('header.system_online') : t('header.system_offline')}
+              {isLoggedIn ? t('header.signed_in') : t('header.signed_out')}
             </span>
           </div>
 

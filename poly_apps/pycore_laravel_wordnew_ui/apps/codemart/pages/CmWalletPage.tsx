@@ -18,6 +18,7 @@ import type {
 import { cmErrorCode, cmErrorMessage } from '../api/cmErrors';
 import { useCmIdempotencyKey } from '../api/useCmIdempotencyKey';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
@@ -37,7 +38,6 @@ const WITHDRAWAL_ACCOUNT_FIELDS: Record<string, readonly string[]> = {
 };
 const HTTP_CREATED = 201;
 const HTTP_NOT_FOUND = 404;
-const DEFAULT_CURRENCY = 'CNY';
 const TAB_QUERY_KEY = 'cm_wallet_tab';
 const LEDGER_KEY_PREFIX = 'wallet.ledger.';
 
@@ -189,6 +189,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
   const idempotency = useCmIdempotencyKey();
   const notice = useCmNotice();
   const { policyList } = useCmBootstrap();
+  const policyCurrency = useCmPolicy().currency;
   const depositMethods = policyList('deposit_payment_methods');
   const [info, setInfo] = useState<CmDepositInfo | null>(null);
   const [history, setHistory] = useState<CmDepositRecord[]>([]);
@@ -212,7 +213,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
       // Users with no CodeMart role (for example administrators) have no
       // deposit policy; show the top-up form with an empty role table.
       setInfo({
-        currency: DEFAULT_CURRENCY,
+        currency: policyCurrency,
         roles: [],
         role_type: '',
         required_deposit: '0.00',
@@ -227,7 +228,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
     }
     if (historyResponse.success) setHistory(parseDeposits(historyResponse.data));
     setLoading(false);
-  }, [t]);
+  }, [t, policyCurrency]);
 
   useEffect(() => {
     void load();

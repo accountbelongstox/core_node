@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '@/apps/laravel-manager/api';
 import { DataTable, Modal, StatsCard, StatsGrid, type DataTableColumn } from '../admin';
 import { useToast } from '../admin';
@@ -33,11 +33,13 @@ export function VoiceSubtitleManager() {
   const [current, setCurrent] = useState<any>(null);
   const [groups, setGroups] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<{ total: number; total_plays: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [processing, setProcessing] = useState(false);
+  const selectedGroupRef = useRef('');
+  const loadSeqRef = useRef(0);
   const toast = useToast();
   const { t } = useTranslation();
 
@@ -52,26 +54,44 @@ export function VoiceSubtitleManager() {
     loadData();
   }, []);
 
+  function queueRows(data: any): any[] {
+    if (Array.isArray(data)) return data;
+    return data?.queue || data?.items || [];
+  }
+
   async function loadData() {
+    const seq = ++loadSeqRef.current;
+    const group = selectedGroupRef.current;
     setLoading(true);
     try {
-      const [queueRes, currentRes, groupsRes, categoriesRes, statsRes] = await Promise.all([
+      const [queueRes, currentRes, groupsRes, categoriesRes, groupQueueRes] = await Promise.all([
         api.mcpV1.vsGetQueue({ page: 1, limit: 100 }),
         api.mcpV1.vsGetCurrent(),
         api.mcpV1.vsGetAllGroups(),
         api.mcpV1.vsGetCategories(),
-        api.mcpV1.vsGetStats()
+        group ? api.mcpV1.vsGetQueueByGroup(group) : Promise.resolve(null)
       ]);
+      if (seq !== loadSeqRef.current) return;
 
-      if (queueRes.success) setQueue(queueRes.data.queue || queueRes.data.items || []);
-      if (currentRes.success) setCurrent(currentRes.data.current ?? currentRes.data.item ?? null);
-      if (groupsRes.success) setGroups(groupsRes.data);
-      if (categoriesRes.success) setCategories(categoriesRes.data);
-      if (statsRes.success) setStats(statsRes.data);
+      const failed = [queueRes, currentRes, groupsRes, categoriesRes, groupQueueRes].find((res) => res && !res.success);
+      if (failed) toast.error(failed.error || t('uiAi.voice_subtitle.toast.load_failed'));
+
+      if (queueRes.success) {
+        const all = (queueRes.data as any)?.all_queue || queueRows(queueRes.data);
+        setStats({
+          total: (queueRes.data as any)?.total_length ?? all.length,
+          total_plays: all.reduce((sum: number, item: any) => sum + (Number(item?.play_count) || 0), 0)
+        });
+        if (!group) setQueue(queueRows(queueRes.data));
+      }
+      if (groupQueueRes?.success) setQueue(queueRows(groupQueueRes.data));
+      if (currentRes.success) setCurrent((currentRes.data as any)?.current ?? (currentRes.data as any)?.item ?? null);
+      if (groupsRes.success) setGroups((groupsRes.data as any)?.groups || []);
+      if (categoriesRes.success) setCategories((categoriesRes.data as any)?.categories || []);
     } catch (error: any) {
-      toast.error(error.message || t('common.network_error'));
+      if (seq === loadSeqRef.current) toast.error(error.message || t('common.network_error'));
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }
 
@@ -90,6 +110,8 @@ export function VoiceSubtitleManager() {
         setShowAddModal(false);
         resetForm();
         loadData();
+      } else {
+        toast.error(res.error || t('uiAi.voice_subtitle.toast.add_failed'));
       }
       // 202: the item joins the queue when its background task settles.
       if (taskId) void api.mcpV1.vsFollowTask(taskId).then(() => loadData());
@@ -103,9 +125,11 @@ export function VoiceSubtitleManager() {
   async function handlePlay() {
     setProcessing(true);
     try {
-      const res = await api.mcpV1.vsNext();
+      const res = await api.mcpV1.vsIncrementPlayCountAt();
       if (res.success) {
         loadData();
+      } else {
+        toast.error(res.error || t('uiAi.voice_subtitle.toast.play_failed'));
       }
     } catch (error: any) {
       toast.error(error.message || t('uiAi.voice_subtitle.toast.play_failed'));
@@ -120,6 +144,8 @@ export function VoiceSubtitleManager() {
       const res = await api.mcpV1.vsPrevious();
       if (res.success) {
         loadData();
+      } else {
+        toast.error(res.error || t('uiAi.voice_subtitle.toast.previous_failed'));
       }
     } catch (error: any) {
       toast.error(error.message || t('uiAi.voice_subtitle.toast.previous_failed'));
@@ -134,6 +160,8 @@ export function VoiceSubtitleManager() {
       const res = await api.mcpV1.vsNext();
       if (res.success) {
         loadData();
+      } else {
+        toast.error(res.error || t('uiAi.voice_subtitle.toast.next_failed'));
       }
     } catch (error: any) {
       toast.error(error.message || t('uiAi.voice_subtitle.toast.next_failed'));
@@ -149,6 +177,8 @@ export function VoiceSubtitleManager() {
       if (res.success) {
         toast.success(t('uiAi.voice_subtitle.toast.item_removed'));
         loadData();
+      } else {
+        toast.error(res.error || t('uiAi.voice_subtitle.toast.remove_failed'));
       }
     } catch (error: any) {
       toast.error(error.message || t('uiAi.voice_subtitle.toast.remove_failed'));
@@ -166,6 +196,8 @@ export function VoiceSubtitleManager() {
       if (res.success) {
         toast.success(t('uiAi.voice_subtitle.toast.queue_cleared'));
         loadData();
+      } else {
+        toast.error(res.error || t('uiAi.voice_subtitle.toast.clear_failed'));
       }
     } catch (error: any) {
       toast.error(error.message || t('uiAi.voice_subtitle.toast.clear_failed'));
@@ -174,21 +206,10 @@ export function VoiceSubtitleManager() {
     }
   }
 
-  async function handleFilterByGroup(group: string) {
+  function handleFilterByGroup(group: string) {
+    selectedGroupRef.current = group;
     setSelectedGroup(group);
-    setLoading(true);
-    try {
-      const res = group
-        ? await api.mcpV1.vsGetQueueByGroup(group)
-        : await api.mcpV1.vsGetQueue({ page: 1, limit: 100 });
-      if (res.success) {
-        setQueue(res.data.queue || res.data.items || (Array.isArray(res.data) ? res.data : []));
-      }
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
-    }
+    void loadData();
   }
 
   function resetForm() {

@@ -36,11 +36,9 @@ AUTO_PROFILE_SEPARATOR = ' / '
 # Launcher-started claudeteam sessions begin in Claude Code manual permission
 # mode (claudeteam defaults to auto); shift+tab cycles the mode in the session.
 CLAUDETEAM_PERMISSION_MODE = 'manual'
-CLAUDETEAM_PLAIN_COMMAND = 'claudeteam'
-CLAUDETEAM_COMMAND = f'{CLAUDETEAM_PLAIN_COMMAND} --permission-mode {CLAUDETEAM_PERMISSION_MODE}'
-GRID_STARTUP_COMMANDS: Tuple[str, ...] = (CLAUDETEAM_COMMAND,) * 8 + ('agyyolo', 'codexyolo', 'kimi1', 'kimi2')
-# Option [1]: every claudeteam cell runs plain `claudeteam` without parameters.
-_cross_device_mode = False
+CLAUDETEAM_COMMAND = f'claudeteam --permission-mode {CLAUDETEAM_PERMISSION_MODE}'
+CLAUDETEAM_GRID_CELLS = 10
+GRID_STARTUP_COMMANDS: Tuple[str, ...] = (CLAUDETEAM_COMMAND,) * CLAUDETEAM_GRID_CELLS + ('codexyolo', 'kimi1', 'kimi2')
 
 
 class GridI18nKeys:
@@ -159,19 +157,11 @@ def resolve_terminal_grid(term_config: dict, screen_manager) -> TerminalGrid:
     return TerminalGrid(profile.columns, profile.rows, profile.name, screen_rect)
 
 
-def enable_cross_device_mode() -> None:
-    global _cross_device_mode
-    _cross_device_mode = True
-
-
 def grid_startup_command(cell_index: int) -> Optional[str]:
     """Startup command for a 0-based grid cell, or None for a plain shell."""
-    if not 0 <= cell_index < len(GRID_STARTUP_COMMANDS):
-        return None
-    command = GRID_STARTUP_COMMANDS[cell_index]
-    if _cross_device_mode and command == CLAUDETEAM_COMMAND:
-        return CLAUDETEAM_PLAIN_COMMAND
-    return command
+    if 0 <= cell_index < len(GRID_STARTUP_COMMANDS):
+        return GRID_STARTUP_COMMANDS[cell_index]
+    return None
 
 
 def print_grid_startup_commands(project_root) -> None:

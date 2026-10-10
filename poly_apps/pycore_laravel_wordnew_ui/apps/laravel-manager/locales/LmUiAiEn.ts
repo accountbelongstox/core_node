@@ -228,6 +228,7 @@ export const lmEnUiAi = {
       refresh: "Refresh",
       clear_all: "Clear all",
       clear_all_title: "Delete every image in the shared history",
+      clear_all_confirm: "Delete all {{count}} images from the shared server-side history? This cannot be undone.",
       unavailable: "Image history unavailable.",
       unreachable: "Image history backend unreachable.",
       loading: "Loading history…",
@@ -491,7 +492,8 @@ export const lmEnUiAi = {
         item_removed: "Item removed from queue",
         remove_failed: "Failed to remove item",
         queue_cleared: "Queue cleared",
-        clear_failed: "Failed to clear queue"
+        clear_failed: "Failed to clear queue",
+        load_failed: "Failed to load the queue"
       }
     }
   }

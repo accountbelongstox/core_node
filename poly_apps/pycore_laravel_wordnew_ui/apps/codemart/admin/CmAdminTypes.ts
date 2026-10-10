@@ -1,5 +1,4 @@
 export const CM_ADMIN_PAGE_SIZE = 20;
-export const CM_ADMIN_FALLBACK_CURRENCY = 'CNY';
 
 export type CmAdminDisputeResolution = string;
 export type CmAdminKycDocument = string;

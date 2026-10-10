@@ -40,18 +40,20 @@ export function useApiResource<T = any>(
   const [loading, setLoading] = useState<boolean>(immediate);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
+  const seqRef = useRef(0);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
   const cbRef = useRef({ onSuccess, onError });
   cbRef.current = { onSuccess, onError };
 
   const refresh = useCallback(async (): Promise<T | null> => {
+    const seq = ++seqRef.current;
     if (mounted.current) { setLoading(true); setError(null); }
     try {
       const res: any = await fetcherRef.current();
       const ok = res && typeof res === 'object' && 'success' in res ? res.success : true;
       const payload = res && typeof res === 'object' && 'data' in res ? res.data : res;
-      if (!mounted.current) return null;
+      if (!mounted.current || seq !== seqRef.current) return null;
       if (ok === false) {
         const msg = (res && res.error) || i18n.t('uiCommon.requests.request_failed');
         setError(msg); cbRef.current.onError?.(msg); return null;
@@ -59,10 +61,10 @@ export function useApiResource<T = any>(
       setData(payload); cbRef.current.onSuccess?.(payload); return payload;
     } catch (e: any) {
       const msg = e?.message || i18n.t('common.network_error');
-      if (mounted.current) { setError(msg); cbRef.current.onError?.(msg); }
+      if (mounted.current && seq === seqRef.current) { setError(msg); cbRef.current.onError?.(msg); }
       return null;
     } finally {
-      if (mounted.current) setLoading(false);
+      if (mounted.current && seq === seqRef.current) setLoading(false);
     }
   }, []);
 
@@ -75,7 +77,7 @@ export function useApiResource<T = any>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  const reset = useCallback(() => { setData(initialData); setError(null); setLoading(false); }, []);
+  const reset = useCallback(() => { seqRef.current += 1; setData(initialData); setError(null); setLoading(false); }, []);
   return { data, loading, error, refresh, setData, reset };
 }
 

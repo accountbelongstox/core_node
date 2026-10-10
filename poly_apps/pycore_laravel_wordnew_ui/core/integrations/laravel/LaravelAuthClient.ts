@@ -12,6 +12,7 @@ import {
   setAuthToken,
   setAuthUser,
 } from '../../auth/AuthSession';
+import { clientKeyFailureCode } from './ClientKeyFailure';
 import { normalizeLaravelUser, type LaravelSessionUser } from '../../auth/LaravelUser';
 
 export const AUTH_INVALID_RESPONSE_CODE = 'AUTH_INVALID_RESPONSE';
@@ -98,9 +99,10 @@ export async function registerLaravel(baseUrl: string, registration: LaravelRegi
 
 /** Re-read the signed-in user; a refused token (401) ends that API's session. */
 export async function refreshLaravelSession(baseUrl: string): Promise<LaravelSessionUser | null> {
+  const sentAuth = getAuthHeader(baseUrl);
   const response = await clientFor(baseUrl).get(LARAVEL_API_ROUTE.auth.profile);
   if (response.status === 401) {
-    clearAuthSession(baseUrl);
+    if (!clientKeyFailureCode(response.debugInfo) && sentAuth === getAuthHeader(baseUrl)) clearAuthSession(baseUrl);
     return null;
   }
   const user = response.success ? normalizeLaravelUser(response.data) : null;

@@ -224,8 +224,8 @@ dbSync: {
       }
     },
 header: {
-      system_online: "System Online",
-      system_offline: "Offline Mode",
+      signed_in: "Signed in",
+      signed_out: "Signed out",
       code_last_updated: "Code updated",
       code_last_updated_unavailable: "Code time unavailable",
       code_updated_just_now: "just now",
@@ -435,6 +435,7 @@ vocabulary: {
       delete_library_confirm: "Delete library \"{name}\"? Words created by this upload are removed; built-in dictionary data is not affected.",
       delete_library_success: "Library \"{name}\" deleted",
       delete_library_failed: "Failed to delete library",
+      libraries_load_failed: "Failed to load libraries",
       login_required: "Please log in first — this action requires authentication.",
       cancel: "Cancel",
       translate_failed: "Translation failed",

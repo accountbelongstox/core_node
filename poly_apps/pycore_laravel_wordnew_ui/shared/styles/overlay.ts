@@ -37,6 +37,9 @@ export const OVERLAY_Z = {
  */
 export const OVERLAY_CONTAINER = 'fixed inset-0 flex items-center justify-center p-4';
 
+/** Keeps a tall modal card inside the visible viewport (phone keyboards, register forms) and scrollable. */
+export const OVERLAY_CARD_SCROLL = 'max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain';
+
 /**
  * Standard semi-transparent mask. The overlay floats ABOVE the page and only
  * lightly dims it — the original UI stays visible through the backdrop (with a

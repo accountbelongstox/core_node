@@ -38,7 +38,8 @@ import ArticleManagerTab from '../vocabulary/tabs/ArticleManagerTab';
 import EcdictLookupTab from '../vocabulary/EcdictLookupTab';
 import { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import { buildDictionaryColumns } from '../vocabulary/words/dictionaryColumns';
-import WordDetail from '../vocabulary/words/WordDetail';
+import WordDetail, { sentenceCacheKey } from '../vocabulary/words/WordDetail';
+import { playSharedAudio } from '../../utils/audioPlayback';
 import QueueItemDetailPanel from '../vocabulary/QueueItemDetailPanel';
 import { buildAssistQueueColumns, buildTtsQueueColumns } from '../vocabulary/queueDrillColumns';
 import type { AssistOverviewResponse } from '@/core/integrations/laravel';
@@ -53,6 +54,9 @@ import VocabSubTabBar, {
   VOCAB_TABS,
   type VocabTab,
 } from '../vocabulary/VocabSubTabBar';
+
+const LIBRARIES_PAGE_SIZE = 100;
+const LIBRARIES_MAX_PAGES = 50;
 
 const VocabularyLearning: React.FC = () => {
   const { lang } = useUnifiedApp();
@@ -95,6 +99,13 @@ const VocabularyLearning: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Only the newest library load may apply: language switches race.
   const librariesRequestRef = useRef(0);
+  const sentenceAudioInflightRef = useRef<Set<string>>(new Set());
+  const drillLiveRef = useRef<{
+    playWordAudio: (url: string, label?: string) => void;
+    playSentenceAudio: (sentence: any, language: string) => void;
+    sentenceAudioState: Record<string, { resolving: boolean; queued: boolean; url: string | null }>;
+    renderQueueItemDetail: (row: any) => React.ReactNode;
+  } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -134,7 +145,6 @@ const VocabularyLearning: React.FC = () => {
   // above the router, so the live queue view survives leaving and returning to
   // this page and a full reload re-polls. `loadingQueueStats` is page-local UI.
   const [loadingQueueStats, setLoadingQueueStats] = useState(false);
-  const [autoRefreshQueue, setAutoRefreshQueue] = useState(false);
   const [assistOverview, setAssistOverview] = useState<AssistOverviewResponse | null>(null);
   const [loadingAssistOverview, setLoadingAssistOverview] = useState(false);
   // Floating Recent-Logs dock (bottom-left). Collapsed by default.
@@ -215,6 +225,11 @@ const VocabularyLearning: React.FC = () => {
     reattach: fetchQueueStats,
   });
   const queueStats = queueTask.data;
+  const autoRefreshQueue = queueTask.running;
+  const setAutoRefreshQueue = (on: boolean) => {
+    if (on && !queueTask.running) queueTask.begin();
+    else if (!on && queueTask.running) queueTask.end();
+  };
 
   useEffect(() => {
     loadLanguages();
@@ -232,16 +247,6 @@ const VocabularyLearning: React.FC = () => {
       setVocabularyWords(selectedTask.words);
     }
   }, [selectedTask]);
-
-  // Auto-refresh toggle drives the persistent poll loop on/off.
-  useEffect(() => {
-    if (autoRefreshQueue) {
-      if (!queueTask.running) queueTask.begin();
-    } else if (queueTask.running) {
-      queueTask.end();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefreshQueue]);
 
   useEffect(() => {
     if (tts.data?.audio_url && audioRef.current) {
@@ -290,25 +295,29 @@ const VocabularyLearning: React.FC = () => {
     const request = ++librariesRequestRef.current;
     setLoadingLibraries(true);
     try {
-      const response = await api.appQyV1.getLibraries({
-        language: selectedLanguage,
-        page: 1,
-        per_page: 20
-      });
-      if (request !== librariesRequestRef.current) return;
-
-      if (response.success && response.data) {
+      const list: any[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore && page <= LIBRARIES_MAX_PAGES) {
+        const response = await api.appQyV1.getLibraries({
+          language: selectedLanguage,
+          page,
+          per_page: LIBRARIES_PAGE_SIZE
+        });
+        if (request !== librariesRequestRef.current) return;
+        if (!response.success || !response.data) throw new Error(response.error || t.libraries_load_failed);
         const librariesData = response.data.libraries || response.data || [];
-        const list = Array.isArray(librariesData) ? librariesData : [];
-        setLibraries(list);
-        libraryCoverTaskModel.track(list);
-      } else {
-        setLibraries([]);
+        if (Array.isArray(librariesData)) list.push(...librariesData);
+        hasMore = !!response.data.pagination?.has_more;
+        page += 1;
       }
+      setLibraries(list);
+      libraryCoverTaskModel.track(list);
     } catch (error: any) {
       if (request !== librariesRequestRef.current) return;
       console.error('Failed to load libraries:', error);
       logError('vocab', `Failed to load libraries: ${error?.message || 'unknown error'}`);
+      toast.error(error?.message || t.libraries_load_failed);
       setLibraries([]);
     } finally {
       if (request === librariesRequestRef.current) setLoadingLibraries(false);
@@ -656,16 +665,10 @@ const VocabularyLearning: React.FC = () => {
    *  served cross-origin (:13054); absolute URLs (e.g. resolved sentence audio,
    *  cached urls) pass through mediaUrl unchanged. Covers every caller. */
   const playWordAudio = (url: string, label?: string) => {
-    try {
-      const a = new Audio(mediaUrl(url));
-      a.play().catch((e) => {
-        logError('vocab', `Audio play failed${label ? ` for "${label}"` : ''}: ${e?.message || e}`);
-        toast.error(tr('vocabulary.audio_play_failed'));
-      });
-    } catch (e: any) {
-      logError('vocab', `Audio play error: ${e?.message || e}`);
+    playSharedAudio(mediaUrl(url)).catch((e) => {
+      logError('vocab', `Audio play failed${label ? ` for "${label}"` : ''}: ${e?.message || e}`);
       toast.error(tr('vocabulary.audio_play_failed'));
-    }
+    });
   };
 
   /**
@@ -687,11 +690,12 @@ const VocabularyLearning: React.FC = () => {
     }
     const key = sentenceAudioKey(text, language);
     const cached = sentenceAudioState[key];
-    if (cached?.resolving) return;
+    if (sentenceAudioInflightRef.current.has(key)) return;
     if (cached?.url) {
       playWordAudio(cached.url, text);
       return;
     }
+    sentenceAudioInflightRef.current.add(key);
     setSentenceAudioState((prev) => ({ ...prev, [key]: { resolving: true, queued: false, url: null } }));
     try {
       const response = await api.appQyV1.getSentenceAudio({ text, language });
@@ -715,6 +719,8 @@ const VocabularyLearning: React.FC = () => {
       setSentenceAudioState((prev) => ({ ...prev, [key]: { resolving: false, queued: false, url: null } }));
       toast.error(e?.message || tr('uiVocab.main.sentence_audio_resolve_error'));
       logError('vocab', `Sentence audio resolve failed: ${e?.message || e}`);
+    } finally {
+      sentenceAudioInflightRef.current.delete(key);
     }
   };
 
@@ -725,16 +731,17 @@ const VocabularyLearning: React.FC = () => {
    */
   const loadWordSentences = (content: string, language?: string) => {
     if (!content) return;
-    const cached = sentenceCache[content];
-    if (cached && (cached.loading || cached.sentences.length > 0 || cached.error)) return;
     const lng = language || drillLanguage();
-    setSentenceCache((prev) => ({ ...prev, [content]: { loading: true, error: null, sentences: [] } }));
+    const cacheKey = sentenceCacheKey(content, lng);
+    const cached = sentenceCache[cacheKey];
+    if (cached && (cached.loading || cached.sentences.length > 0)) return;
+    setSentenceCache((prev) => ({ ...prev, [cacheKey]: { loading: true, error: null, sentences: [] } }));
     api.books
       .getWordSentences({ word: content, language: lng, limit: 10 })
       .then((r: any) => {
         if (r.success && r.data) {
           const sentences = Array.isArray(r.data.sentences) ? r.data.sentences : [];
-          setSentenceCache((prev) => ({ ...prev, [content]: { loading: false, error: null, sentences } }));
+          setSentenceCache((prev) => ({ ...prev, [cacheKey]: { loading: false, error: null, sentences } }));
         } else {
           throw new Error(r.error || tr('uiVocab.main.sentences_load_failed'));
         }
@@ -743,7 +750,7 @@ const VocabularyLearning: React.FC = () => {
         logError('vocab', `Load example sentences for "${content}" failed: ${e?.message || e}`);
         setSentenceCache((prev) => ({
           ...prev,
-          [content]: { loading: false, error: e?.message || tr('uiVocab.main.sentences_load_failed'), sentences: [] },
+          [cacheKey]: { loading: false, error: e?.message || tr('uiVocab.main.sentences_load_failed'), sentences: [] },
         }));
       });
   };
@@ -894,9 +901,9 @@ const VocabularyLearning: React.FC = () => {
   );
 
   const queueDrillDeps = {
-    playWordAudio,
-    playSentenceAudio,
-    sentenceAudioState,
+    playWordAudio: (url: string, label?: string) => drillLiveRef.current?.playWordAudio(url, label),
+    playSentenceAudio: (sentence: any, language: string) => drillLiveRef.current?.playSentenceAudio(sentence, language),
+    get sentenceAudioState() { return drillLiveRef.current?.sentenceAudioState ?? {}; },
     sentenceAudioKey,
     labels: t.queue_drill,
   };
@@ -911,6 +918,8 @@ const VocabularyLearning: React.FC = () => {
       labels={t.queue_drill}
     />
   );
+
+  drillLiveRef.current = { playWordAudio, playSentenceAudio, sentenceAudioState, renderQueueItemDetail };
 
   /** TTS queue items by status or type (GET /tts/queue/items). */
   const openTtsQueueDrill = (
@@ -929,7 +938,7 @@ const VocabularyLearning: React.FC = () => {
       subtitle: t.queue_drill.tts_subtitle,
       fetchPage,
       columns,
-      renderDetail: renderQueueItemDetail,
+      renderDetail: (r: any) => drillLiveRef.current?.renderQueueItemDetail(r),
       wide: true,
       reloadKey: `tts:${JSON.stringify(params)}`,
     });
@@ -955,7 +964,7 @@ const VocabularyLearning: React.FC = () => {
         : t.queue_drill.worker_subtitle,
       fetchPage,
       columns,
-      renderDetail: renderQueueItemDetail,
+      renderDetail: (r: any) => drillLiveRef.current?.renderQueueItemDetail(r),
       wide: true,
       reloadKey: `assist:${category}:${status ?? 'all'}`,
     });

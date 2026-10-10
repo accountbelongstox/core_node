@@ -1,5 +1,6 @@
 import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
+import { commonMessage } from '../../../../core/integrations/laravel/ClientKeyFailure';
 import type { FrankenPhpSiteRequest, NginxSite } from '../../uiTypes';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
@@ -174,9 +175,9 @@ export class ServerManagerV1API extends LmBaseAPI {
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const payload = await response.json();
-        throw new Error(payload.message || payload.error || 'Download failed');
+        throw new Error(payload.message || payload.error || commonMessage('download_failed'));
       }
-      throw new Error(`Download failed (${response.status})`);
+      throw new Error(commonMessage('download_failed_status', { status: response.status }));
     }
 
     return response.blob();

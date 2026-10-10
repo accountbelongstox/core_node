@@ -9,6 +9,7 @@ export const LaravelManagerStorageKeys = {
   THEME: `${PREFIX}theme`,
   USER: `${PREFIX}user`,
   USER_PREFERENCES: `${PREFIX}user_preferences`,
+  NOTIFICATIONS: `${PREFIX}notifications`,
   SERVER_MANAGER_ACTIVE_TAB: `${PREFIX}servermanager_active_tab`,
   SERVER_MANAGER_NGINX_SITES: `${PREFIX}servermanager_nginx_sites`,
   SERVER_MANAGER_SSL_CERTS: `${PREFIX}servermanager_ssl_certs`,

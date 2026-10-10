@@ -6,6 +6,7 @@ import { cmApi } from '../api/CmApi';
 import type { CmProjectDetail } from '../api/CmApiTypes';
 import { cmErrorCode, cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CmMilestoneCard } from '../components/workspace/CmMilestoneCard';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmProjectAnalysisPanel } from '../components/workspace/CmProjectAnalysisPanel';
@@ -22,7 +23,6 @@ const OWNER_ROLE = 'owner';
 const FUNDING_PENDING_STATUS = 'funding_pending';
 const SCOPE_EDITABLE_STATUSES = new Set(['draft', 'proposal_review']);
 const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
-const MIN_BUDGET = 100;
 const NOT_FOUND_STATUS = 404;
 const FORBIDDEN_STATUS = 403;
 
@@ -32,6 +32,7 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const { policyList } = useCmBootstrap();
+  const { projectMinBudget } = useCmPolicy();
   const scopeEditable = SCOPE_EDITABLE_STATUSES.has(project.status);
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description);
@@ -48,7 +49,7 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
   const [busy, setBusy] = useState(false);
 
   const invalid = !title.trim() || !description.trim()
-    || (scopeEditable && (!budget || Number(budget) < MIN_BUDGET))
+    || (scopeEditable && (!budget || Number(budget) < projectMinBudget))
     || (scopeEditable && startDate !== '' && endDate !== '' && endDate <= startDate);
 
   const save = async (event: React.FormEvent): Promise<void> => {
@@ -93,8 +94,8 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
         <>
           <label>
             <span>{t('projectCreate.budget')}</span>
-            <input type="number" min={MIN_BUDGET} step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} aria-invalid={!budget || Number(budget) < MIN_BUDGET} />
-            {(!budget || Number(budget) < MIN_BUDGET) && <small className="cm-field-error">{t('projectCreate.errors.budgetMin', { amount: MIN_BUDGET, currency: project.currency ?? '' })}</small>}
+            <input type="number" min={projectMinBudget} step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} aria-invalid={!budget || Number(budget) < projectMinBudget} />
+            {(!budget || Number(budget) < projectMinBudget) && <small className="cm-field-error">{t('projectCreate.errors.budgetMin', { amount: projectMinBudget, currency: project.currency ?? '' })}</small>}
           </label>
           <label>
             <span>{t('projectCreate.complexity')}</span>

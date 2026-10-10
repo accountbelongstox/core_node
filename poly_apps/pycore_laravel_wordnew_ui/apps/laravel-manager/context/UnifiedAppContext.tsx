@@ -130,6 +130,11 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     });
   }, [authNamespace, authHasToken]);
 
+  const authTokenlessUser = authSnapshot.loggedIn && !authHasToken;
+  useEffect(() => {
+    if (authTokenlessUser) setState(prev => ({ ...prev, preferences: userModel.getPreferences() }));
+  }, [authNamespace, authTokenlessUser]);
+
   // Auto-save state to storage
   useEffect(() => {
     saveStateToStorage(state);

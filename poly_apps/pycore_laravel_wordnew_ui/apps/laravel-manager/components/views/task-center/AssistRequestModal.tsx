@@ -257,7 +257,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                     onChange={(e) => {
                       const on = e.target.checked;
                       setInteractive(on);
-                      if (on) setPriority(FAST_PRIORITY);
+                      setPriority(on ? FAST_PRIORITY : GLOBAL_TASK_PRIORITIES.default);
                     }}
                     className="rounded"
                   />

@@ -126,7 +126,7 @@ return [
         'no_administrator_confirmed_architect_deposit_found' => '未找到经管理员确认的架构师保证金',
         'confirmed_deposits_do_not_cover_the_architect' => '已确认的保证金不足以满足架构师要求',
         'you_are_already_a_reviewer' => '你已经是评审员',
-        'you_can_only_apply_once_every_7' => '每 7 天只能申请一次',
+        'you_can_only_apply_once_every_n_days' => '每 :days 天只能申请一次',
         'application_not_found_or_already_processed' => '申请不存在或已处理',
         'only_active_reviewers_can_access_review_tasks' => '只有活跃的评审员可以访问评审任务',
         'only_active_reviewers_can_submit_reviews' => '只有活跃的评审员可以提交评审',

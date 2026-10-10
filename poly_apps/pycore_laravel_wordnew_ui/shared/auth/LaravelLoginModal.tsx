@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Lock, User, ArrowRight, Loader2, AlertTriangle, Mail, UserPlus, Key } from "lucide-react";
 import Portal from '../ui/Portal';
-import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP, OVERLAY_BACKDROP_STRONG } from '../styles/overlay';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP, OVERLAY_BACKDROP_STRONG, OVERLAY_CARD_SCROLL } from '../styles/overlay';
 import {
   listLaravelInviteCodes,
   loginLaravel,
@@ -15,6 +15,14 @@ import { LARAVEL_AUTH_NS, laravelAuthErrorText, useTranslation } from './laravel
 const INVITE_CODE_PREVIEW_COUNT = 3;
 const INVITE_CODE_MASK_THRESHOLD = 8;
 const INVITE_CODE_MASK_EDGE = 4;
+const EMPTY_FORM = {
+  username: '',
+  password: '',
+  confirmPassword: '',
+  email: '',
+  nickname: '',
+  registrationCode: ''
+};
 
 export interface LaravelLoginModalProps {
   isOpen: boolean;
@@ -41,14 +49,7 @@ export const LaravelLoginModal: React.FC<LaravelLoginModalProps> = ({ isOpen, on
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    confirmPassword: '',
-    email: '',
-    nickname: '',
-    registrationCode: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [localError, setLocalError] = useState<string | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
   const [availableCodes, setAvailableCodes] = useState<LaravelPublicInviteCode[]>([]);
@@ -68,6 +69,15 @@ export const LaravelLoginModal: React.FC<LaravelLoginModalProps> = ({ isOpen, on
         });
     }
   }, [isRegisterMode, isOpen, baseUrl]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setFormData(EMPTY_FORM);
+    setLocalError(null);
+    setUserError(null);
+    setIsRegisterMode(false);
+    setLoading(false);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -115,14 +125,7 @@ export const LaravelLoginModal: React.FC<LaravelLoginModalProps> = ({ isOpen, on
       } else {
         user = await loginLaravel(baseUrl, { username: formData.username, password: formData.password });
       }
-      setFormData({
-        username: '',
-        password: '',
-        confirmPassword: '',
-        email: '',
-        nickname: '',
-        registrationCode: ''
-      });
+      setFormData(EMPTY_FORM);
       onSuccess(user);
     } catch (submitError) {
       const authError = submitError as Error & { errorCode?: string };
@@ -159,7 +162,7 @@ export const LaravelLoginModal: React.FC<LaravelLoginModalProps> = ({ isOpen, on
         aria-hidden
       />
 
-      <div className="relative w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-[float_6s_ease-in-out_infinite]">
+      <div className={`relative w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl ${OVERLAY_CARD_SCROLL} animate-[float_6s_ease-in-out_infinite]`}>
 
         <div className="h-1 w-full bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-75"></div>
 

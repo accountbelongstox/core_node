@@ -15,7 +15,7 @@ from pycore.pyutils.launcher.background_runner import launch_pycore_module
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.desktop_integration import ensure_desktop_shortcut, show_admin_permission_warning
 from pycore.pyutils.launcher.grid_profile import (
-    GridI18nKeys, enable_cross_device_mode, print_grid_startup_commands, resolve_terminal_grid)
+    GridI18nKeys, print_grid_startup_commands, resolve_terminal_grid)
 from pycore.pyutils.launcher.launcher_text import launcher_text
 from pycore.pyutils.launcher.menu import InteractiveMenu
 from pycore.pyutils.launcher.screen_manager import create_screen_manager
@@ -127,7 +127,6 @@ def _apply_option(option: str, config_manager: ConfigManager):
         ColorPrint.plain(launcher_text.get(LauncherI18nKeys.MODE_BOTH))
         return True, True
     if option == OPTION_CROSS_DEVICE:
-        enable_cross_device_mode()
         ColorPrint.plain(launcher_text.get(GridI18nKeys.MODE_CROSS_DEVICE))
         return True, False
     if option == OPTION_MENU:

@@ -39,6 +39,9 @@ const SystemPanel: React.FC<SystemPanelProps> = ({
 }) => {
   const t = TRANSLATIONS[lang].server;
   const { t: tu } = useTranslation();
+  const serviceStatusLabel = (status: string): string => (
+    status === 'running' ? t.nginx.running : status === 'stopped' ? t.nginx.stopped : status
+  );
 
   return (
     <div className="space-y-4">
@@ -110,6 +113,16 @@ const SystemPanel: React.FC<SystemPanelProps> = ({
         </div>
       )}
 
+      {systemServices.error && (
+        <AlertBox variant="error">{systemServices.error}</AlertBox>
+      )}
+      {systemStorage.error && (
+        <AlertBox variant="error">{systemStorage.error}</AlertBox>
+      )}
+      {systemProcesses.error && (
+        <AlertBox variant="error">{systemProcesses.error}</AlertBox>
+      )}
+
       {/* Services Summary */}
       {servicesSummary && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -144,18 +157,18 @@ const SystemPanel: React.FC<SystemPanelProps> = ({
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {systemServices.data.map((service, idx) => (
               <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
                       service.status === 'running' ? 'bg-green-500' :
                       service.status === 'stopped' ? 'bg-slate-400' :
                       'bg-red-500'
                     }`} />
-                    <span className="text-sm font-medium">{service.name}</span>
+                    <span className="text-sm font-medium break-all">{service.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge
-                      status={service.status}
+                      status={serviceStatusLabel(service.status)}
                       tone={service.status === 'running' ? 'success' : service.status === 'stopped' ? 'idle' : 'error'}
                       withDot={false}
                     />
@@ -193,8 +206,8 @@ const SystemPanel: React.FC<SystemPanelProps> = ({
           <div className="space-y-2">
             {systemStorage.data.map((storage, idx) => (
               <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-sm">{storage.filesystem}</span>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="font-medium text-sm break-all">{storage.filesystem}</span>
                   <span className="text-xs text-slate-500">{storage.use_percent}</span>
                 </div>
                 <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-1">
@@ -207,7 +220,7 @@ const SystemPanel: React.FC<SystemPanelProps> = ({
                   <span>{storage.used} / {storage.size}</span>
                   <span>{tu('uiServer.system_panel.available', { size: storage.available })}</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-1">{tu('uiServer.system_panel.mounted_on', { path: storage.mounted_on })}</p>
+                <p className="text-xs text-slate-400 mt-1 break-all">{tu('uiServer.system_panel.mounted_on', { path: storage.mounted_on })}</p>
               </div>
             ))}
           </div>

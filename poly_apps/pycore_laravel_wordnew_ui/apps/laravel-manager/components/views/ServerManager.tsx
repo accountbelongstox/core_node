@@ -37,7 +37,7 @@ import { apiManager } from '@/core/integrations/laravel/ApiManager';
 import { CenteredPage, CenteredTabBar, PageActionButton, PageHeader } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
-import { useToast, Modal, ConfirmModal } from '../admin';
+import { useToast, Modal } from '../admin';
 import { logInfo, logSuccess, logError } from '@/core/logstore/logStore';
 import {
   Network,
@@ -61,7 +61,7 @@ import {
 } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
 import { LoadingBlock, AlertBox, StatusBadge } from '../common';
-import { useClipboard } from '@/apps/laravel-manager/hooks';
+import { useClipboard, useConfirmAction } from '@/apps/laravel-manager/hooks';
 import NginxSiteModal from '../server-manager/NginxSiteModal';
 import GenerateCertModal from '../server-manager/modals/GenerateCertModal';
 import NginxPanel from '../server-manager/panels/NginxPanel';
@@ -154,6 +154,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     status: 'idle'
   });
   const nginxLogPreRef = useRef<HTMLPreElement | null>(null);
+  const nginxLogSeqRef = useRef(0);
+  const siteConfigSeqRef = useRef(0);
 
   // Nginx install / metrics / backups / main-config / batch state
   const [installBusy, setInstallBusy] = useState(false);
@@ -184,16 +186,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   const [batchBusy, setBatchBusy] = useState<NginxBatchAction | null>(null);
   const [renewingCert, setRenewingCert] = useState<string | null>(null);
 
-  // Shared confirm-modal state (replaces window.confirm for nginx operations)
-  const [confirmState, setConfirmState] = useState<{
-    open: boolean;
-    title: string;
-    message: string;
-    variant: 'danger' | 'warning' | 'info';
-    confirmText?: string;
-    action: (() => Promise<void>) | null;
-    loading: boolean;
-  }>({ open: false, title: '', message: '', variant: 'warning', action: null, loading: false });
+  const { requestConfirm, confirmDialog } = useConfirmAction();
 
   // SSL Certificates State
   const [sslCertificates, setSSLCertificates] = useState<AsyncState<SSLCertificate[]>>({
@@ -255,6 +248,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
 
   const t = TRANSLATIONS[lang].server;
   const messages = t.messages;
+  const nginxActionLabel = (action: NginxServiceAction): string => (action === 'reload' ? t.nginx.action_reload : t.nginx[action]);
+  const batchActionLabel = (action: NginxBatchAction): string => (action === 'test' ? t.nginx.batch_test : t.nginx[action]);
   const serviceSummary = (service: any): string => messages.service_summary
     .replace('{pid}', String(service.pid || messages.not_available))
     .replace('{memory}', String(service.memory || messages.not_available))
@@ -284,9 +279,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   };
 
   // Restart Octane with progress and auto-reconnect
-  const handleRestartOctane = async () => {
+  const runRestartOctane = async () => {
     const octane = t.octane;
-    if (!confirm(octane.confirm_restart)) return;
+    if (octaneRestarting) return;
 
     setOctaneRestarting(true);
     setRestartProgress(octane.initiating);
@@ -348,6 +343,17 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     }, OCTANE_RESTART_SETTLE_MS);
   };
 
+  const handleRestartOctane = () => {
+    if (octaneRestarting) return;
+    requestConfirm({
+      title: t.octane.restart_button,
+      message: t.octane.confirm_restart,
+      variant: 'danger',
+      confirmText: t.octane.restart_button,
+      action: runRestartOctane
+    });
+  };
+
   // Load Nginx Sites
   const loadNginxSites = async () => {
     setNginxSites(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -399,36 +405,6 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     }
   };
 
-  // Open the shared confirm modal for a destructive nginx operation
-  const requestConfirm = (opts: {
-    title: string;
-    message: string;
-    variant?: 'danger' | 'warning' | 'info';
-    confirmText?: string;
-    action: () => Promise<void>;
-  }) => {
-    setConfirmState({
-      open: true,
-      title: opts.title,
-      message: opts.message,
-      variant: opts.variant || 'warning',
-      confirmText: opts.confirmText,
-      action: opts.action,
-      loading: false
-    });
-  };
-
-  const handleConfirmAccept = async () => {
-    const action = confirmState.action;
-    if (!action) return;
-    setConfirmState(prev => ({ ...prev, loading: true }));
-    try {
-      await action();
-    } finally {
-      setConfirmState(prev => ({ ...prev, open: false, loading: false, action: null }));
-    }
-  };
-
   // Load Nginx runtime metrics (stub_status + process totals)
   const loadNginxMetrics = async () => {
     setNginxMetrics(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -452,22 +428,23 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   // Nginx service control (start / stop / restart / reload)
   const runNginxService = async (action: NginxServiceAction) => {
     setServiceBusy(action);
+    const actionLabel = nginxActionLabel(action);
     logInfo('nginx', `Running nginx ${action}…`);
     try {
       const response = await api.serverManagerV1.nginxService(action);
       const result = response.data as NginxServiceResult | undefined;
       if (response.success && result && result.success) {
         toast.success(result.executed_via
-          ? messages.nginx_action_ok_via.replace('{action}', action).replace('{via}', result.executed_via)
-          : messages.nginx_action_ok.replace('{action}', action));
+          ? messages.nginx_action_ok_via.replace('{action}', actionLabel).replace('{via}', result.executed_via)
+          : messages.nginx_action_ok.replace('{action}', actionLabel));
         logSuccess('nginx', `Nginx ${action} succeeded${result.executed_via ? ` via ${result.executed_via}` : ''}`);
       } else {
         const msg = result?.error || result?.output || response.error || messages.operation_failed;
-        toast.error(messages.nginx_action_failed.replace('{action}', action).replace('{error}', msg));
+        toast.error(messages.nginx_action_failed.replace('{action}', actionLabel).replace('{error}', msg));
         logError('nginx', `Nginx ${action} failed — ${msg}`);
       }
     } catch (error: any) {
-      toast.error(messages.nginx_action_failed.replace('{action}', action).replace('{error}', error.message));
+      toast.error(messages.nginx_action_failed.replace('{action}', actionLabel).replace('{error}', error.message));
       logError('nginx', `Nginx ${action} failed — ${error.message}`);
     } finally {
       setServiceBusy(null);
@@ -625,7 +602,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
       const result = response.data as NginxBatchResult | undefined;
       if (response.success && result) {
         const summary = t.nginx.batch_summary
-          .replace('{action}', action)
+          .replace('{action}', batchActionLabel(action))
           .replace('{ok}', String(result.succeeded))
           .replace('{fail}', String(result.failed));
         if (result.failed > 0) {
@@ -646,7 +623,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
-      toast.error(messages.batch_failed.replace('{action}', action).replace('{error}', error.message));
+      toast.error(messages.batch_failed.replace('{action}', batchActionLabel(action)).replace('{error}', error.message));
       logError('nginx', `Batch ${action} failed — ${error.message}`);
     } finally {
       setBatchBusy(null);
@@ -669,9 +646,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     lines: number = nginxLogLines,
     filter: string = nginxLogFilter
   ) => {
+    const seq = ++nginxLogSeqRef.current;
     setNginxLogs(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.serverManagerV1.getNginxLogs(type, lines, filter || undefined);
+      if (seq !== nginxLogSeqRef.current) return;
       if (response.success && response.data) {
         setNginxLogs({
           data: response.data as NginxLogsResponse,
@@ -683,6 +662,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         throw new Error(response.error || messages.failed_to_load_nginx_logs);
       }
     } catch (error: any) {
+      if (seq !== nginxLogSeqRef.current) return;
       setNginxLogs({
         data: null,
         loading: false,
@@ -759,6 +739,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           error: null,
           status: 'success'
         });
+      } else {
+        throw new Error(response.error || messages.failed_to_load);
       }
     } catch (error: any) {
       setSystemProcesses({
@@ -785,6 +767,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           error: null,
           status: 'success'
         });
+      } else {
+        throw new Error(response.error || messages.failed_to_load);
       }
     } catch (error: any) {
       setSystemStorage({
@@ -900,6 +884,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         if (data && data.summary) {
           setServicesSummary(data.summary);
         }
+      } else {
+        throw new Error(response.error || messages.failed_to_load);
       }
     } catch (error: any) {
       setSystemServices({
@@ -999,37 +985,41 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   };
 
   // Renew every near-expiry certificate (certbot self-gates), then refresh.
-  const handleRenewAllCerts = async () => {
+  const runRenewAllCerts = async () => {
     setRenewingAll(true);
     try {
       const response = await api.serverManagerV1.renewCertificates({ all: true });
       if (!response.success) {
-        throw new Error(response.error || t.messages.failed_to_renew_certs);
+        throw new Error(response.error || messages.failed_to_renew_certs);
       }
       await api.serverManagerV1.waitForFrankenPhpReload(response);
+      toast.success(response.data?.message || messages.cert_renewal_started);
       await loadSSLCertificates();
     } catch (error: any) {
-      alert(error.message || t.messages.failed_to_renew_certs);
+      toast.error(error.message || messages.failed_to_renew_certs);
     } finally {
       setRenewingAll(false);
     }
   };
 
+  const handleRenewAllCerts = () => {
+    if (renewingAll) return;
+    requestConfirm({
+      title: t.ssl.renew_all,
+      message: messages.confirm_renew_certs,
+      variant: 'warning',
+      confirmText: t.ssl.renew_all,
+      action: runRenewAllCerts
+    });
+  };
+
   // Idempotent per-certificate ensure (generate if missing, renew if present).
-  const handleEnsureCert = async (domain: string) => {
+  const handleEnsureCert = (domain: string) => {
+    if (ensuringDomain || certProgress) return;
     setEnsuringDomain(domain);
-    try {
-      const response = await api.serverManagerV1.ensureCertificate({ domain });
-      if (!response.success) {
-        throw new Error(response.error || messages.cert_ensure_failed);
-      }
-      await api.serverManagerV1.waitForFrankenPhpReload(response);
-      await loadSSLCertificates();
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
+    void startCertProgress(domain).finally(() => {
       setEnsuringDomain(null);
-    }
+    });
   };
 
   // Load Certbot Status
@@ -1073,11 +1063,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     return () => { if (certPollRef.current) clearInterval(certPollRef.current); };
   }, []);
 
-  const startCertProgress = async (domain: string) => {
+  const startCertProgress = async (domain: string, provider?: string, staging?: boolean) => {
     if (certProgress) return;
     setCertProgress({ requestId: '', domain, command: '', status: 'running', outputLines: [] });
     try {
-      const res = await api.serverManagerV1.ensureCertificate({ domain });
+      const res = await api.serverManagerV1.ensureCertificate({ domain, provider, staging });
       if (res.success && res.data?.request_id) {
         setCertProgress(p => p ? {
           ...p,
@@ -1143,33 +1133,31 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   };
 
   const handleGenerateCertificate = async (domain: string, provider?: string, staging?: boolean) => {
-    void startCertProgress(domain);
+    void startCertProgress(domain, provider, staging);
   };
 
-  const handleRenewAllCertificates = async () => {
-    if (!confirm(messages.confirm_renew_certs)) return;
-    try {
-      const response = await api.serverManagerV1.renewCertificates();
-      if (response.success) {
-        alert(response.data?.message || messages.cert_renewal_started);
-        await loadSSLCertificates();
-      }
-    } catch (error: any) {
-      alert(error.message || messages.failed_to_renew_certs);
-    }
-  };
-
-  const handleInstallCertbot = async () => {
-    if (!confirm(messages.confirm_install_certbot)) return;
+  const runInstallCertbot = async () => {
     try {
       const response = await api.serverManagerV1.installCertbot();
-      if (response.success) {
-        alert(response.data?.message || messages.certbot_installation_started);
-        await loadCertbotStatus();
+      if (!response.success) {
+        throw new Error(response.error || messages.failed_to_install_certbot);
       }
+      toast.success(response.data?.message || messages.certbot_installation_started);
+      await loadCertbotStatus();
     } catch (error: any) {
-      alert(error.message || messages.failed_to_install_certbot);
+      toast.error(error.message || messages.failed_to_install_certbot);
     }
+  };
+
+  const handleInstallCertbot = () => {
+    const installLabel = certbotStatus.data?.manager === 'acme.sh' ? t.ssl.acme_install : t.ssl.certbot_install;
+    requestConfirm({
+      title: installLabel,
+      message: messages.confirm_install_certbot,
+      variant: 'warning',
+      confirmText: installLabel,
+      action: runInstallCertbot
+    });
   };
 
   // Nginx Site Actions
@@ -1212,10 +1200,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   const handleViewConfig = async (siteName: string) => {
     // Open the modal immediately (selectedSite drives visibility) so a load
     // failure still shows the read-only fallback instead of nothing.
+    const seq = ++siteConfigSeqRef.current;
     setSelectedSite(nginxSites.data?.find(s => s.site_name === siteName) || null);
     setSiteConfig({ data: null, loading: true, error: null, status: 'loading' });
     try {
       const response = await api.serverManagerV1.getNginxSiteConfig(siteName);
+      if (seq !== siteConfigSeqRef.current) return;
       if (response.success && response.data) {
         setSiteConfig({
           data: response.data,
@@ -1227,6 +1217,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         throw new Error(response.error || messages.failed_to_load);
       }
     } catch (error: any) {
+      if (seq !== siteConfigSeqRef.current) return;
       setSiteConfig({
         data: null,
         loading: false,
@@ -1237,6 +1228,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   };
 
   const closeSiteConfigModal = () => {
+    siteConfigSeqRef.current += 1;
     setSelectedSite(null);
     setSiteConfig({ data: null, loading: false, error: null, status: 'idle' });
   };
@@ -1455,7 +1447,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
                   tone="blue"
                   icon={<RefreshCw className="w-4 h-4" />}
                   label={t.ssl.renew_all}
-                  onClick={handleRenewAllCertificates}
+                  onClick={handleRenewAllCerts}
                 />
                 <PageActionButton
                   iconOnly
@@ -1836,17 +1828,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
       </Modal>
 
       {/* Shared confirm modal for nginx operations (stop/restart/delete/restore) */}
-      <ConfirmModal
-        isOpen={confirmState.open}
-        onClose={() => setConfirmState(prev => ({ ...prev, open: false, action: null }))}
-        onConfirm={handleConfirmAccept}
-        title={confirmState.title}
-        message={confirmState.message}
-        confirmText={confirmState.confirmText}
-        cancelText={t.nginx.cancel}
-        variant={confirmState.variant}
-        loading={confirmState.loading}
-      />
+      {confirmDialog}
 
       {/* Delete Files (purge web root + config) */}
       <Modal
@@ -1941,6 +1923,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
   });
   const t = TRANSLATIONS[lang].server.executor;
   const messages = TRANSLATIONS[lang].server.messages;
+  const { requestConfirm, confirmDialog } = useConfirmAction();
 
   const loadScripts = async () => {
     setScripts(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -1971,7 +1954,8 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
     loadScripts();
   }, []);
 
-  const handleExecute = async (scriptId: number) => {
+  const runScript = async (scriptId: number) => {
+    if (execution.loading) return;
     setExecution(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.serverManagerV1.executeScript({ script_id: scriptId });
@@ -1995,9 +1979,30 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
     }
   };
 
+  const handleExecute = (script: PredefinedScript) => {
+    if (execution.loading) return;
+    requestConfirm({
+      title: t.execute,
+      message: (script.requires_sudo ? messages.confirm_execute_script_sudo : messages.confirm_execute_script).replace('{script}', script.name),
+      variant: script.requires_sudo ? 'danger' : 'warning',
+      confirmText: t.execute,
+      action: () => runScript(script.id)
+    });
+  };
+
   return (
     <div className="space-y-4">
+      {confirmDialog}
       {scripts.loading && (
+        <LoadingBlock />
+      )}
+      {scripts.error && (
+        <AlertBox variant="error">{scripts.error}</AlertBox>
+      )}
+      {execution.error && (
+        <AlertBox variant="error">{execution.error}</AlertBox>
+      )}
+      {execution.loading && (
         <LoadingBlock />
       )}
 
@@ -2005,14 +2010,15 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
         <div className="grid grid-cols-1 gap-4">
           {scripts.data.map(script => (
             <div key={script.id} className={`${commonClasses.card} p-4`}>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h3 className="font-semibold">{script.name}</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div className="min-w-0">
+                  <h3 className="font-semibold break-words">{script.name}</h3>
                   <p className="text-sm text-slate-500">{script.category}</p>
                 </div>
                 <button
-                  onClick={() => handleExecute(script.id)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm"
+                  onClick={() => handleExecute(script)}
+                  disabled={execution.loading}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm"
                 >
                   {t.execute}
                 </button>
@@ -2059,8 +2065,15 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     error: null,
     status: 'idle'
   });
+  const [busyAppKey, setBusyAppKey] = useState<string | null>(null);
   const t = TRANSLATIONS[lang].server.unified;
   const messages = TRANSLATIONS[lang].server.messages;
+  const toast = useToast();
+  const { requestConfirm, confirmDialog } = useConfirmAction();
+  const serviceStateLabel = (state: string): string => {
+    const label = (t as Record<string, string>)[`state_${state}`];
+    return label ? label : state;
+  };
 
   const loadApps = async () => {
     setApps(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -2074,6 +2087,8 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
           error: null,
           status: 'success'
         });
+      } else {
+        throw new Error(response.error || response.message || messages.failed_to_load);
       }
     } catch (error: any) {
       setApps({
@@ -2089,19 +2104,41 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     loadApps();
   }, []);
 
-  const handleDeploy = async (app: UnifiedApp, action: 'deploy' | 'start' | 'stop' | 'restart') => {
+  const runAppAction = async (app: UnifiedApp, action: 'deploy' | 'start' | 'stop' | 'restart') => {
+    const appKey = `${app.app_name}:${app.app_path}`;
+    const actionLabel = t[action];
+    if (busyAppKey !== null) return;
+    setBusyAppKey(appKey);
     try {
       const response = await api.serverManagerV1.deployApp({ app_name: app.app_name, action });
-      if (response.success) {
-        const actionMsg = messages.action_completed.replace('{action}', action);
-        alert(actionMsg);
-        if (selectedApp?.name === app.app_name && selectedApp?.type === app.type) {
-          loadAppStatus(app);
-        }
+      if (!response.success) {
+        throw new Error(response.error || response.message || messages.operation_failed);
       }
+      toast.success(messages.action_completed.replace('{action}', actionLabel));
+      if (selectedApp?.name === app.app_name && selectedApp?.type === app.type) {
+        loadAppStatus(app);
+      }
+      loadApps();
     } catch (error: any) {
-      alert(error.message || messages.operation_failed);
+      toast.error(messages.action_failed.replace('{action}', actionLabel).replace('{error}', error.message ? error.message : messages.operation_failed));
+    } finally {
+      setBusyAppKey(null);
     }
+  };
+
+  const handleDeploy = (app: UnifiedApp, action: 'deploy' | 'start' | 'stop' | 'restart') => {
+    if (busyAppKey !== null) return;
+    if (action === 'start') {
+      void runAppAction(app, action);
+      return;
+    }
+    requestConfirm({
+      title: t[action],
+      message: messages.confirm_app_action.replace('{action}', t[action]).replace('{app}', app.app_name),
+      variant: action === 'stop' ? 'danger' : 'warning',
+      confirmText: t[action],
+      action: () => runAppAction(app, action)
+    });
   };
 
   const loadAppStatus = async (app: UnifiedApp) => {
@@ -2126,6 +2163,8 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
           status: 'success'
         });
         setSelectedApp({ name: app.app_name, type: app.type });
+      } else {
+        throw new Error(response.error || response.message || messages.failed_to_load);
       }
     } catch (error: any) {
       setAppStatus({
@@ -2139,8 +2178,15 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       {apps.loading && (
         <LoadingBlock />
+      )}
+      {apps.error && (
+        <AlertBox variant="error">{apps.error}</AlertBox>
+      )}
+      {appStatus.error && (
+        <AlertBox variant="error">{appStatus.error}</AlertBox>
       )}
 
       {apps.data && (
@@ -2149,33 +2195,37 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
             // app_name alone is not unique: apps/ and pyapps/ can both contain
             // an app of the same name (e.g. okx_price_monitor), so key on path.
             <div key={`${app.app_name}:${app.app_path}`} className={`${commonClasses.card} p-4`}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-lg">{app.app_name}</h3>
-                  <p className="text-sm text-slate-500 font-mono">{app.app_path}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-lg break-words">{app.app_name}</h3>
+                  <p className="text-sm text-slate-500 font-mono break-all">{app.app_path}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => handleDeploy(app, 'deploy')}
-                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm"
+                    disabled={busyAppKey !== null}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded text-sm"
                   >
                     {t.deploy}
                   </button>
                   <button
                     onClick={() => handleDeploy(app, 'start')}
-                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+                    disabled={busyAppKey !== null}
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded text-sm"
                   >
                     {t.start}
                   </button>
                   <button
                     onClick={() => handleDeploy(app, 'stop')}
-                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
+                    disabled={busyAppKey !== null}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded text-sm"
                   >
                     {t.stop}
                   </button>
                   <button
                     onClick={() => handleDeploy(app, 'restart')}
-                    className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm"
+                    disabled={busyAppKey !== null}
+                    className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 text-white rounded text-sm"
                   >
                     {t.restart}
                   </button>
@@ -2199,7 +2249,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-600 dark:text-slate-400">{t.service_label}</span>
                         <StatusBadge
-                          status={app.service_status.installed ? app.service_status.status : t.not_installed}
+                          status={app.service_status.installed ? serviceStateLabel(app.service_status.status) : t.not_installed}
                           tone={
                             app.service_status.status === 'running' ? 'success' :
                             app.service_status.status === 'failed' ? 'error' : 'idle'
@@ -2274,7 +2324,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                 <div className="flex items-center gap-2">
                   <span className="text-slate-500">{t.status_label}</span>
                   <StatusBadge
-                    status={appStatus.data.service_status.installed ? appStatus.data.service_status.status : t.not_installed}
+                    status={appStatus.data.service_status.installed ? serviceStateLabel(appStatus.data.service_status.status) : t.not_installed}
                     tone={
                       appStatus.data.service_status.status === 'running' ? 'success' :
                       appStatus.data.service_status.status === 'failed' ? 'error' : 'idle'

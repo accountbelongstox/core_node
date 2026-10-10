@@ -18,6 +18,7 @@ import ToolWrapper from '@/shared/ui/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
 import { commonClasses } from '@/shared/styles/theme';
 import { api } from '@/apps/laravel-manager/api';
+import { offerBlobFile } from '@/core/browser/FileDownload';
 import {
   AI_BODY,
   AI_GRID_2,

@@ -57,8 +57,8 @@ export const REQUIRE_LOGIN_VIEWS: ViewType[] = [
  * available synchronously to AuthGuard without threading new props/context.
  */
 /** Set by app startup after probing GET /auth/debug-status (the bypass belongs to the probed Laravel API). */
-export function setDebugAuthBypass(enabled: boolean): void {
-  setAuthBypass(enabled === true);
+export function setDebugAuthBypass(enabled: boolean, endpoint?: string | null): void {
+  setAuthBypass(enabled === true, endpoint);
 }
 
 /** True when the loopback debug bypass is active for the active Laravel API (treat all users as authed). */

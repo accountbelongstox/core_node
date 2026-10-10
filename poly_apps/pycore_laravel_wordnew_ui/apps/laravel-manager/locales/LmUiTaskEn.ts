@@ -4,6 +4,7 @@ export const lmEnUiTask = {
     assist_dist: {
       title: 'Translation Assist Distribution',
       scanning: 'Scanning…',
+      scan_failed: 'Scan failed',
       scan_enqueue: 'Scan & enqueue',
       col_lang: 'Lang',
       col_prompt: 'Prompt',
@@ -207,6 +208,10 @@ export const lmEnUiTask = {
     },
     queue: {
       all_types: 'All types'
+    },
+    confirm_action: {
+      cancel_global_task: 'Cancel task {{id}}? Workers will stop picking it up.',
+      delete_assist_request: 'Delete assist request #{{id}}?'
     },
     shared: {
       dismiss_notice: 'Dismiss notice',

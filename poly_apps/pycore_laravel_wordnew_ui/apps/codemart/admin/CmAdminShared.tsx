@@ -5,6 +5,7 @@ import { useTranslation } from '../../../core/i18n/UiI18n';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { useCmPolicy } from '../contexts/useCmPolicy';
 import { CM_ADMIN_ROUTE, cmAdminUserPath, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
 import { CmNotice, type CmNoticeState } from '../components/workspace/CmStateViews';
 import {
@@ -17,7 +18,6 @@ import {
 } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedList, type CmPagedSlice } from '../components/workspace/useCmPagedList';
 import {
-  CM_ADMIN_FALLBACK_CURRENCY,
   type CmAdminActivityRow,
   type CmAdminPage,
   type CmAdminQuery,
@@ -65,9 +65,8 @@ function extractAdminPage<T>(data: CmAdminPage<T>): CmPagedSlice<T> {
 /** Locale-aware money, number and date formatting for the console. */
 export function useCmAdminFormat() {
   const { i18n } = useTranslation('cm');
-  const { bootstrap } = useCmBootstrap();
   const language = i18n.language || 'en';
-  const defaultCurrency = bootstrap?.vocabulary.policy.currency || CM_ADMIN_FALLBACK_CURRENCY;
+  const defaultCurrency = useCmPolicy().currency;
 
   return useMemo(() => {
     const money = (amount: string | number, currency?: string | null): string => cmFormatMoney(amount, currency || defaultCurrency, language);

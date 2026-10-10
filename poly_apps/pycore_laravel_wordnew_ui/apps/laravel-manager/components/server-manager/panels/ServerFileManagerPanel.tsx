@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronUp,
   Download,
@@ -67,6 +67,9 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
   const [fileEncoding, setFileEncoding] = useState<'utf-8' | 'base64'>('utf-8');
   const [isBinaryFile, setIsBinaryFile] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const openSeqRef = useRef(0);
+  const loadSeqRef = useRef(0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [elevatedToken, setElevatedToken] = useState<string | null>(() => loadStoredElevatedToken());
   const [authOpen, setAuthOpen] = useState(false);
@@ -99,10 +102,12 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
   }), [t]);
 
   const loadDirectory = useCallback(async (path?: string) => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setError(null);
     try {
       const response = await api.serverManagerV1.browseFiles(path ? { path } : undefined);
+      if (seq !== loadSeqRef.current) return;
       if (!response.success || !response.data) {
         throw new Error(response.error || i18n.t('uiServer.file_manager.browse_failed'));
       }
@@ -124,10 +129,11 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
         setAllowedPaths(data.allowed_paths);
       }
     } catch (e: any) {
+      if (seq !== loadSeqRef.current) return;
       setError(e.message);
       setItems([]);
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -150,13 +156,17 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
   }, [currentPath]);
 
   const openFile = async (file: BrowseItem) => {
+    const seq = ++openSeqRef.current;
     setSelectedFile(file);
     setPreview(null);
     setPreviewError(null);
     setPreviewLoading(true);
     setIsEditing(false);
+    setIsTruncated(false);
+    setSaveStatus('idle');
     try {
       const response = await api.serverManagerV1.previewFile(file.path, { forEdit: true, maxLines: 10000 });
+      if (seq !== openSeqRef.current) return;
       if (!response.success || !response.data) {
         throw new Error(response.error || i18n.t('uiServer.file_manager.load_failed'));
       }
@@ -171,19 +181,23 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
       setFileEncoding(binary ? 'base64' : 'utf-8');
       setPreview(data);
       setEditedContent(data.content || '');
+      setIsTruncated(Boolean(data.truncated));
       if (data.truncated) {
         setPreviewError(i18n.t('uiServer.file_manager.truncated_notice'));
       }
     } catch (e: any) {
+      if (seq !== openSeqRef.current) return;
       setPreviewError(e.message);
       setPreview(null);
     } finally {
-      setPreviewLoading(false);
+      if (seq === openSeqRef.current) setPreviewLoading(false);
     }
   };
 
   const handleItemClick = (item: BrowseItem) => {
     if (item.type === 'directory' || item.is_directory) {
+      openSeqRef.current += 1;
+      setPreviewLoading(false);
       loadDirectory(item.path);
       setSelectedFile(null);
       setPreview(null);
@@ -210,7 +224,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
   };
 
   const performSave = async (token?: string | null) => {
-    if (!selectedFile) return;
+    if (!selectedFile || isTruncated || previewLoading) return;
     setSaveStatus('saving');
     setError(null);
     try {
@@ -417,7 +431,8 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
                   <>
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 flex items-center gap-1"
+                      disabled={isTruncated || previewLoading || !preview}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 flex items-center gap-1 disabled:opacity-50"
                     >
                       <Edit className="w-3.5 h-3.5" />
                       {labels.edit}

@@ -224,8 +224,8 @@ dbSync: {
       }
     },
 header: {
-      system_online: "系统在线",
-      system_offline: "离线模式",
+      signed_in: "已登录",
+      signed_out: "未登录",
       code_last_updated: "代码更新",
       code_last_updated_unavailable: "代码时间不可用",
       code_updated_just_now: "刚刚",
@@ -435,6 +435,7 @@ vocabulary: {
       delete_library_confirm: "确定删除词库 \"{name}\"？该上传创建的单词将被删除；内置词典数据不受影响。",
       delete_library_success: "词库 \"{name}\" 已删除",
       delete_library_failed: "删除词库失败",
+      libraries_load_failed: "加载词库失败",
       login_required: "请先登录——此操作需要身份验证。",
       cancel: "取消",
       translate_failed: "翻译失败",
