@@ -410,7 +410,9 @@
       "PowerShell(Get-Content D:\\\\www\\\\core_node\\\\logs\\\\pycore_console.jsonl -Tail 30000 | Select-String -Pattern '-> \\(5\\\\d\\\\d|ERR\\)' | Select-Object -Last 12 | ForEach-Object { $o = $_.Line | ConvertFrom-Json; \\([DateTimeOffset]::FromUnixTimeMilliseconds\\($o.ts\\).LocalDateTime.ToString\\('HH:mm:ss'\\)\\) + ' ' + $o.message.Substring\\(0,[Math]::Min\\(300,$o.message.Length\\)\\) })",
       "PowerShell(foreach \\($f in @\\(\"scripts\\\\shells\\\\win\\\\win_common\\\\DiskReadinessCommon.ps1\",\"scripts\\\\shells\\\\win\\\\menu_itemshells\\\\NtfsLinuxRepairManager.ps1\",\"scripts\\\\shells\\\\win\\\\menu_itemshells\\\\ManagementAndBackupManager.ps1\"\\)\\) { $p = Resolve-Path $f; $e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile\\($p, [ref]$null, [ref]$e\\); \"{0}: {1} errors\" -f $f, $e.Count })",
       "PowerShell($p = Resolve-Path \"scripts\\\\shells\\\\win\\\\win_common\\\\DiskReadinessCommon.ps1\"; $e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile\\($p, [ref]$null, [ref]$e\\); \"errors: {0}\" -f $e.Count; $e | ForEach-Object { $_.Message })",
-      "PowerShell(Select-String *)"
+      "PowerShell(Select-String *)",
+      "Bash(S=\"E:/_win10_dev/work/claude/D--programing-core-node/536e95c4-05aa-4b8d-ae96-c93099e31f50/scratchpad\"; cd \"$S/drive\"; rm -f *.png; dotnet run -v q -- \"$S/drive\" \"D:/programing/core_node/dotapps/d3d4tester/PlannerData\" front snap back 2>&1 | grep -v \"warning\\\\|^+\" | tail -1)",
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' run9.log)"
     ],
     "deny": [],
     "ask": []

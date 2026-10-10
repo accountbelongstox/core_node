@@ -20,6 +20,7 @@ const STATUS_STYLES: Record<TerminalLogEntry['status'], string> = {
   sent: 'text-emerald-500',
   failed: 'text-rose-500',
   pending: 'text-amber-500',
+  draft: 'text-sky-500',
 };
 
 export function terminalLogSource(entry: TerminalLogEntry): TerminalLogSource {

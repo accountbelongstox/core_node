@@ -74,7 +74,7 @@ export const PcTerminalLauncherBar: React.FC<PcTerminalLauncherBarProps> = ({ er
         disabled={Boolean(busy)}
         title={t('terminal.launcher.modeHint')}
         aria-label={t('terminal.launcher.modeHint')}
-        className="w-0 min-w-[4.5rem] max-w-[9rem] flex-1 truncate rounded-lg border border-slate-500/20 bg-transparent px-1 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+        className="w-0 min-w-[4rem] max-w-[8rem] flex-1 truncate rounded-md border border-slate-500/20 bg-transparent px-0.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300"
       >
         {LAUNCHER_MODES.map((value) => (
           <option key={value} value={value}>{t(`terminal.launcher.modes.${value}`)}</option>
@@ -88,9 +88,9 @@ export const PcTerminalLauncherBar: React.FC<PcTerminalLauncherBarProps> = ({ er
           disabled={Boolean(busy)}
           title={`${t(`terminal.launcher.actions.${id}`)} · ${t(`terminal.launcher.hints.${id}`)}`}
           aria-label={t(`terminal.launcher.actions.${id}`)}
-          className={`inline-flex shrink-0 items-center rounded-lg p-1.5 disabled:opacity-50 ${tone}`}
+          className={`inline-flex shrink-0 items-center rounded-md p-1 disabled:opacity-50 ${tone}`}
         >
-          {busy === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
+          {busy === id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
         </button>
       ))}
     </div>

@@ -426,6 +426,8 @@ terminal: {
     draftSaving: 'Saving this terminal draft as text…',
     draftSaved: 'This terminal draft is saved.',
     draftSaveFailed: 'This terminal draft could not be saved.',
+    draftToHistory: 'Save draft to history without sending',
+    draftToHistorySaved: 'The draft was saved to the history without sending.',
     previousCommand: 'Previous command',
     nextCommand: 'Next command',
     historyNavigatedUp: 'The terminal was activated and moved to the previous command.',
@@ -730,6 +732,7 @@ terminal: {
       pending: 'Pending',
       sent: 'Sent',
       failed: 'Failed',
+      draft: 'Draft',
     },
     logSource: {
       input: 'Paste',

@@ -115,6 +115,8 @@ public static class D3SkillSwitcher
     private const int OcrMaxSide = 960;
     private const int OcrTileOverlap = 40;
     private const double IconLeftHeights = 2.2;
+    /// <summary>Passive list icon size in reference client px (learned crops).</summary>
+    private const int LearnIconRefPx = 34;
     private const double NameMinSimilarity = 0.5;
     private const string TemplateDir = "skill_switch";
     private const string TemplatePagePrev = "skill_page_prev";
@@ -365,9 +367,7 @@ public static class D3SkillSwitcher
         (string? Key, double Score) best = (null, 0);
         foreach (var key in keys)
         {
-            using var icon = LoadImage(iconPath(key));
-            if (icon == null) continue;
-            var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(area, icon, widths, IconThreshold, key);
+            var m = MatchIcon(area, iconPath(key), widths, key);
             if (m.Score > best.Score) best = (key, m.Score);
         }
         return best;
@@ -614,6 +614,19 @@ public static class D3SkillSwitcher
     /// <summary>Select the top slot, click the passive in the list (icon, else its OCR'd name), true when the top slot then shows it.</summary>
     private static bool PlacePassive(PlannerNamed passive, int slot, Mat icon, string cls, string cacheDir)
     {
+        Mat? learned = null;
+        try
+        {
+            return PlacePassiveCore(passive, slot, icon, cls, cacheDir, ref learned);
+        }
+        finally
+        {
+            learned?.Dispose();
+        }
+    }
+
+    private static bool PlacePassiveCore(PlannerNamed passive, int slot, Mat icon, string cls, string cacheDir, ref Mat? learned)
+    {
         string Path(string key) => D3SkillIcons.PassiveIconPath(cacheDir, cls, key);
         if (Capture() is not { } shot) return false;
         using (shot.Image)
@@ -629,7 +642,7 @@ public static class D3SkillSwitcher
             var (gr, gb) = now.ToImage((PassiveGrid.Right, PassiveGrid.Bottom));
             var grid = new Rect(gl, gt, gr - gl, gb - gt).Intersect(new Rect(0, 0, now.Image.Cols, now.Image.Rows));
             using var area = new Mat(now.Image, grid);
-            var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(area, icon, Widths(now.ClientHeight, IconMinFrac, IconMaxFrac), IconThreshold, passive.Id);
+            var m = MatchIcon(area, Path(passive.Id), Widths(now.ClientHeight, IconMinFrac, IconMaxFrac), passive.Id);
             (int X, int Y)? at = m.Success ? (grid.X + m.CenterX, grid.Y + m.CenterY) : null;
             string how = $"icon {m.Score:F2}";
             if (at == null)
@@ -642,6 +655,8 @@ public static class D3SkillSwitcher
                 {
                     at = hit.Word.IconLeft;
                     how = $"name '{hit.Word.Text}' by {hit.How}, icon {m.Score:F2}";
+                    learned?.Dispose();
+                    learned = CropIcon(now, hit.Word.IconLeft);
                 }
                 else how = $"icon {m.Score:F2}, OCR [{string.Join(" | ", words.Select(w => w.Text))}]";
             }
@@ -662,6 +677,8 @@ public static class D3SkillSwitcher
         using (after.Image)
         {
             bool placed = BestIconAt(after, PassiveTopSlots[slot], new[] { passive.Id }, Path).Score >= IconThreshold;
+            if (!placed && learned != null) placed = MatchAt(after, PassiveTopSlots[slot], learned) >= IconThreshold;
+            if (placed && learned != null) LearnIcon(Path(passive.Id), learned);
             Report(SkillSwitchStage.PlacePassive, placed, $"{passive.NameZh} on top slot {slot}: {(placed ? "yes" : "no")}", after);
             if (placed) ColorPrinter.Green($"{LogTag} passive slot {slot} -> {passive.NameEn}");
             return placed;
@@ -830,8 +847,54 @@ public static class D3SkillSwitcher
 
     private static IEnumerable<string> SkillKeys(string cls, string cacheDir) => IconKeys(Path.GetDirectoryName(D3SkillIcons.SkillIconPath(cacheDir, cls, "_"))!);
 
+    /// <summary>Icon keys of a folder (learned game-art variants key.game.png are not keys of their own).</summary>
     private static IEnumerable<string> IconKeys(string dir) =>
-        Directory.Exists(dir) ? Directory.GetFiles(dir, "*.png").Select(f => Path.GetFileNameWithoutExtension(f)!) : Enumerable.Empty<string>();
+        Directory.Exists(dir)
+            ? Directory.GetFiles(dir, "*.png").Select(f => Path.GetFileNameWithoutExtension(f)!).Where(k => !k.EndsWith(D3SkillIcons.GameVariantSuffix, StringComparison.Ordinal))
+            : Enumerable.Empty<string>();
+
+    /// <summary>Best match of an icon and its learned game-art variant (when cached) in an area.</summary>
+    private static TemplateMatchResult MatchIcon(Mat area, string iconPath, IReadOnlyList<int> widths, string name)
+    {
+        var matcher = TemplateMatcherService.GetTemplateMatcher();
+        TemplateMatchResult best = new() { Score = 0 };
+        foreach (var path in new[] { iconPath, D3SkillIcons.GameVariantPath(iconPath) })
+        {
+            using var icon = LoadImage(path);
+            if (icon == null) continue;
+            var m = matcher.MatchMultiScale(area, icon, widths, IconThreshold, name);
+            if (m.Score > best.Score) best = m;
+        }
+        return best;
+    }
+
+    /// <summary>Square icon crop of the game screen around a point (LearnIconRefPx reference px), for learning game art.</summary>
+    private static Mat? CropIcon(Shot shot, (int X, int Y) center)
+    {
+        int half = shot.Px(LearnIconRefPx) / 2;
+        var box = new Rect(center.X - half, center.Y - half, half * 2, half * 2).Intersect(new Rect(0, 0, shot.Image.Cols, shot.Image.Rows));
+        return box.Width < half || box.Height < half ? null : new Mat(shot.Image, box).Clone();
+    }
+
+    /// <summary>Score of a game-art crop around a reference point.</summary>
+    private static double MatchAt(Shot shot, (int X, int Y) refPoint, Mat template)
+    {
+        var (cx, cy) = shot.ToImage(refPoint);
+        int half = shot.Px(SlotProbeHalfPx);
+        var box = new Rect(cx - half, cy - half, half * 2, half * 2).Intersect(new Rect(0, 0, shot.Image.Cols, shot.Image.Rows));
+        if (box.Width <= 0 || box.Height <= 0) return 0;
+        using var area = new Mat(shot.Image, box);
+        var widths = Widths(shot.ClientHeight, IconMinFrac, IconMaxFrac).Where(w => w <= box.Width).ToList();
+        return TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(area, template, widths, IconThreshold).Score;
+    }
+
+    /// <summary>Keep a confirmed game-art icon next to the maxroll icon (planner cache, versioned with the code); never overwrites.</summary>
+    private static void LearnIcon(string iconPath, Mat learned)
+    {
+        string path = D3SkillIcons.GameVariantPath(iconPath);
+        if (File.Exists(path)) return;
+        if (Cv2.ImWrite(path, learned)) ColorPrinter.Green($"{LogTag} learned game icon {path}");
+    }
 
     private static Mat? LoadImage(string path)
     {
