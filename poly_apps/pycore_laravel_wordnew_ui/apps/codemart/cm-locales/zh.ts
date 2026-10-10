@@ -404,6 +404,32 @@ export const cmZh: CmTranslationDict = {
         body: '为交付物打分并给出评审建议。',
       },
       wallet: {
+    paymentCreate: {
+      toggle: '发起付款',
+      lead: '直接向另一位 CodeMart 用户付款。钱包付款立即到账；其他方式只记录为待处理，直到支付网关结算。',
+      payee: '收款用户编号',
+      payeeInvalid: '请输入收款用户的数字编号。',
+      project: '项目编号',
+      description: '备注',
+      submit: '发送付款',
+      sentWallet: '付款 #{{id}} 已从你的钱包发出。',
+      sentPending: '付款 #{{id}} 已记录，结算前保持待处理。',
+      replayed: '付款 #{{id}} 已创建过，没有重复付款。',
+      gatewayHint: '该方式不会自动结算，付款会保持待处理。',
+      failed: '付款创建失败。',
+    },
+    paymentDetail: {
+      open: '详情',
+      title: '付款 #{{id}}',
+      payer: '付款人',
+      payee: '收款人',
+      loadFailed: '无法加载这笔付款。',
+    },
+    depositStatus: {
+      check: '查看状态',
+      result: '保证金 #{{id}} 当前状态：{{status}}。',
+      failed: '无法获取保证金状态。',
+    },
         title: '钱包',
         body: '余额、保证金、付款、发票、退款和提现。',
       },
@@ -603,6 +629,11 @@ export const cmZh: CmTranslationDict = {
     createFailed: '项目创建失败。',
     noCapability: '需要已激活的客户角色才能创建项目，请在“认证”页申请。',
     errors: {
+    email_taken: '该邮箱已被使用。',
+    email_unchanged: '新邮箱与当前邮箱相同。',
+    invalid_password: '密码不正确。',
+    invalid_email_change_token: '更换邮箱的链接无效或已过期。',
+    avatar_invalid: '头像必须是大小不超过限制的 JPG 或 PNG 图片。',
       titleRequired: '请输入项目名称。',
       titleTooLong: '最多 {{max}} 个字符。',
       descriptionRequired: '请填写需求描述。',
@@ -612,6 +643,20 @@ export const cmZh: CmTranslationDict = {
     },
   },
   tasks: {
+    scope: {
+      label: '任务列表',
+      mine: '分配给我',
+      visible: '全部可见任务',
+    },
+    filters: {
+      search: '搜索',
+      searchPlaceholder: '标题或描述',
+      status: '状态',
+      allStatuses: '全部状态',
+      apply: '应用筛选',
+      emptyTitle: '没有符合条件的任务',
+      emptyBody: '请修改搜索词或状态筛选。',
+    },
     eyebrow: '任务',
     description: '你在任务市场接下的任务：开始工作、提交交付物并跟进评审。',
     findWork: '去接单',
@@ -665,10 +710,10 @@ export const cmZh: CmTranslationDict = {
     startReview: '评审此交付物',
     formTitle: '你的评审',
     applyTitle: '评审员资格测试',
-    applyBody: '为三段示例代码评分。你的评分与参考评审足够接近时，评审员角色即被激活。',
+    applyBody: '为 {{count}} 段示例代码评分。你的评分与参考评审的相似度达到 {{score}}% 时，评审员角色即被激活。',
     applySteps: {
       start: '开始资格测试',
-      rate: '为三段代码评分',
+      rate: '为 {{count}} 段代码评分',
       result: '立即获得结果',
     },
     apply: '开始资格测试',
@@ -768,6 +813,8 @@ export const cmZh: CmTranslationDict = {
     depositCreated: '保证金付款已创建，请完成支付以便确认。',
     depositFailed: '保证金付款创建失败。',
     methods: {
+      wallet: '钱包',
+      credit_card: '信用卡',
       alipay: '支付宝',
       wechat: '微信支付',
       bankTransfer: '银行转账',
@@ -1178,6 +1225,30 @@ export const cmZh: CmTranslationDict = {
     testimonialOneLanguage: '至少填写一种语言。',
   },
   settings: {
+    avatar: {
+      title: '头像',
+      lead: '上传不超过 {{size}} MB 的 JPG 或 PNG 图片，系统会自动缩放，并在账号出现的地方显示。',
+      alt: '你的头像',
+      choose: '选择图片',
+      upload: '上传头像',
+      uploading: '上传中...',
+      updated: '头像已更新。',
+      failed: '头像上传失败。',
+      wrongType: '请选择 JPG 或 PNG 图片。',
+      tooLarge: '图片必须小于 {{size}} MB。',
+    },
+    email: {
+      title: '邮箱地址',
+      lead: '当前邮箱是 {{email}}。更换后需要在新邮箱中确认才会生效。',
+      newEmail: '新邮箱地址',
+      password: '当前密码',
+      submit: '发送确认链接',
+      requested: '确认链接已发送到 {{email}}，{{hours}} 小时内有效。',
+      pending: '正在等待确认 {{email}}。',
+      changed: '你的邮箱已更换为 {{email}}。',
+      failed: '无法发起更换邮箱。',
+      confirmFailed: '无法确认更换邮箱。',
+    },
     eyebrow: '设置',
     description: '本设备上码市工作台的语言与外观。',
     languageTitle: '语言',
@@ -1208,6 +1279,319 @@ export const cmZh: CmTranslationDict = {
   },
   admin: {
     badge: '管理后台',
+    searchTasks: '搜索任务',
+    noTasks: '没有符合筛选条件的任务。',
+    tasks: {
+      projectId: '项目编号',
+      project: '项目',
+      assignee: '承接人',
+      priority: '优先级',
+      due: '截止',
+      unassigned: '未分配',
+    },
+    policyEditor: {
+      groupsLabel: '规则分组',
+      saved: '平台规则已保存，新的请求立即使用新值。',
+      saveFailed: '平台规则保存失败。',
+      customized: '已自定义',
+      default: '默认值',
+      reset: '恢复默认',
+      pending: '有 {{count}} 项未保存的修改',
+      noChanges: '没有未保存的修改。',
+      discard: '放弃修改',
+      save: '保存修改',
+      unsaved: '有未保存的修改',
+      currencyFormat: '请使用三位字母的币种代码，例如 CNY、USD 或 EUR。',
+      removeRow: '删除',
+      range: {
+        min: '最小值',
+        max: '最大值',
+        default: '默认值',
+      },
+      keys: {
+        android: '安卓',
+        ios: 'iOS',
+      },
+      options: {
+        allowed_image_types: {
+          jpg: 'JPG',
+          jpeg: 'JPEG',
+          png: 'PNG',
+        },
+      },
+      downloads: {
+        empty: '尚未发布安装包，下载页会显示暂无可用安装包。',
+        platform: '平台',
+        version: '版本',
+        url: '下载地址',
+        minOs: '最低系统版本',
+        minOsDefault: '使用默认值',
+        add: '添加安装包',
+      },
+      exam: {
+        question: '第 {{number}} 题',
+        code: '代码片段',
+        add: '添加题目',
+      },
+      groups: {
+        finance: {
+          title: '资金',
+          lead: '佣金、保证金、金额限制、币种和支付方式。',
+        },
+        projects: {
+          title: '项目',
+          lead: '新建项目的规则。',
+        },
+        roles: {
+          title: '角色',
+          lead: '开发者成为架构师前需要满足的条件。',
+        },
+        reviews: {
+          title: '评审',
+          lead: '评审意见、资格考试和建议阈值。',
+        },
+        accounts: {
+          title: '账号',
+          lead: '账号密码规则。',
+        },
+        limits: {
+          title: '限制',
+          lead: '上传大小、分页和请求频率限制。',
+        },
+        estimate: {
+    currencyLabel: '币种',
+    currencyNames: {
+      CNY: '人民币（RMB）',
+      USD: '美元',
+      EUR: '欧元',
+    },
+          title: '估价',
+          lead: '公开估价和 AI 需求分析的币种与公式。',
+        },
+        downloads: {
+          title: '应用下载',
+          lead: '下载页的安装包和默认最低系统版本。',
+        },
+      },
+      fields: {
+        platform_commission_rate: {
+          label: '平台佣金率',
+          hint: '平台从每笔放款中留存的比例，用小数表示（0.15 即 15%）。',
+        },
+        deposit_client: {
+          label: '客户保证金',
+          hint: '客户激活角色需要缴纳的保证金，0 表示无需缴纳。',
+        },
+        deposit_developer: {
+          label: '开发者保证金',
+          hint: '开发者接任务前需要缴纳的保证金。',
+        },
+        deposit_architect_additional: {
+          label: '架构师追加保证金',
+          hint: '架构师角色在开发者保证金之上需追加的金额。',
+        },
+        deposit_min_amount: {
+          label: '最低保证金或充值金额',
+          hint: '钱包充值或分笔缴纳保证金时接受的最小金额。',
+        },
+        wallet_top_up_max_amount: {
+          label: '钱包单次充值上限',
+          hint: '单次钱包充值接受的最大金额。',
+        },
+        withdrawal_min_amount: {
+          label: '最低提现金额',
+          hint: '用户可以提现的最小金额。',
+        },
+        default_currency: {
+          label: '默认币种',
+          hint: '钱包、保证金、托管资金和付款使用的币种。',
+        },
+        supported_currencies: {
+          label: '支持的币种',
+          hint: '三位字母代码，用逗号分隔。默认币种和 AI 估价币种必须在其中。',
+        },
+        payment_methods: {
+          label: '支付方式',
+          hint: '直接付款可选的支付方式。只有钱包会立即到账，其他方式保持待处理，直到网关结算。',
+        },
+        deposit_payment_methods: {
+          label: '保证金与充值支付方式',
+          hint: '缴纳保证金和钱包充值可选的方式，每笔都由管理员确认。',
+        },
+        withdrawal_methods: {
+          label: '提现方式',
+          hint: '用户申请提现时可选的方式。',
+        },
+        project_min_budget: {
+          label: '项目最低预算',
+          hint: '客户为项目设置预算时允许的最低金额。',
+        },
+        architect_min_projects: {
+          label: '架构师：完成项目数',
+          hint: '开发者申请成为架构师前需要完成的项目数。',
+        },
+        architect_min_code_score: {
+          label: '架构师：代码评分',
+          hint: '架构师申请人需要达到的平均代码评分（0 到 100）。',
+        },
+        architect_min_satisfaction: {
+          label: '架构师：客户满意度',
+          hint: '架构师申请人需要达到的平均客户评分（0 到 5）。',
+        },
+        review_comment_min_length: {
+          label: '评审意见最少字数',
+          hint: '评审意见以及资格考试每条意见至少需要的字数。',
+        },
+        reviewer_retry_days: {
+          label: '评审资格重考间隔',
+          hint: '用户重新参加评审资格考试前需要等待的天数。',
+        },
+        reviewer_min_similarity: {
+          label: '评审资格考试及格分',
+          hint: '申请人的评分与参考评分的相似度（1 到 100）达到该值才算通过。',
+        },
+        review_recommend_approve_min: {
+          label: '建议通过的评分下限',
+          hint: '评审员平均评分达到该值时建议通过。',
+        },
+        review_recommend_revision_min: {
+          label: '建议修改的评分下限',
+          hint: '平均评分达到该值时建议修改，低于该值建议拒绝。',
+        },
+        reviewer_exam: {
+          label: '评审资格考试题目',
+          hint: '考试使用的代码片段及其参考评分。参考评分不会发送给用户。',
+        },
+        password_min_length: {
+          label: '密码最小长度',
+          hint: '注册新账号时密码的最小长度。',
+        },
+        max_attachment_size_kb: {
+          label: '附件大小上限（KB）',
+          hint: '单个项目附件或任务交付文件的最大体积。',
+        },
+        max_kyc_image_size_kb: {
+          label: '实名认证图片大小上限（KB）',
+          hint: '身份证件图片和头像的最大体积。',
+        },
+        allowed_image_types: {
+          label: '允许的图片类型',
+          hint: '实名认证证件图片接受的格式。',
+        },
+        default_page_size: {
+          label: '默认分页大小',
+          hint: '请求未指定分页大小时每页的条数。',
+        },
+        max_page_size: {
+          label: '分页大小上限',
+          hint: '请求允许使用的最大分页大小。',
+        },
+        testimonial_max_quote_length: {
+          label: '客户评价最大字数',
+          hint: '一条客户评价允许的最大字数。',
+        },
+        throttle_public: {
+          label: '公开接口每分钟请求数',
+          hint: '每个 IP 访问公开页面和估价的次数上限。',
+        },
+        throttle_register: {
+          label: '每分钟注册次数',
+          hint: '每个 IP 注册新账号的次数上限。',
+        },
+        throttle_contact: {
+          label: '每分钟留言次数',
+          hint: '每个 IP 提交联系留言的次数上限。',
+        },
+        throttle_email_resend: {
+          label: '每 10 分钟验证邮件次数',
+          hint: '每个用户重发验证邮件的次数上限。',
+        },
+        throttle_email_change: {
+          label: '每 10 分钟更换邮箱次数',
+          hint: '每个用户更换邮箱请求和确认的次数上限。',
+        },
+        throttle_avatar: {
+          label: '每 10 分钟头像上传次数',
+          hint: '每个用户上传头像的次数上限。',
+        },
+        ai_estimate_currency: {
+          label: 'AI 估价币种',
+          hint: '公开估价和所有 AI 需求分析费用使用的币种。采纳方案后的注资也以该币种计。',
+        },
+        ai_estimate_hourly_rate: {
+          label: 'AI 分析每小时费率',
+          hint: '估算工时乘以该费率即为 AI 分析的费用。',
+        },
+        ai_estimate_hours_per_complexity: {
+          label: 'AI 分析每个复杂度点的工时',
+          hint: '每个复杂度点折算的预计工时。',
+        },
+        ai_estimate_senior_team_threshold: {
+          label: 'AI 分析高级团队阈值',
+          hint: '复杂度高于该值时建议由高级开发者带队的团队。',
+        },
+        estimate_hourly_rates: {
+          label: '估价每小时费率',
+          hint: '各复杂度等级的每小时费率，以估价币种计。',
+        },
+        estimate_base_hours: {
+          label: '估价基础工时',
+          hint: '各复杂度等级的基础工时，未计入平台与功能系数。',
+        },
+        estimate_platform_factor: {
+          label: '平台系数',
+          hint: '每增加一个目标平台增加的工时比例。',
+        },
+        estimate_feature_factor: {
+          label: '功能系数',
+          hint: '每增加一个主要功能增加的工时比例。',
+        },
+        estimate_range_low: {
+          label: '工时下限系数',
+          hint: '估价区间下限，相对计算工时的倍数。',
+        },
+        estimate_range_high: {
+          label: '工时上限系数',
+          hint: '估价区间上限，相对计算工时的倍数。',
+        },
+        estimate_hourly_rate_low: {
+          label: '小时费率下限系数',
+          hint: '报价小时费率区间下限，相对等级费率的倍数。',
+        },
+        estimate_hourly_rate_high: {
+          label: '小时费率上限系数',
+          hint: '报价小时费率区间上限，相对等级费率的倍数。',
+        },
+        estimate_week_hours_fast: {
+          label: '每周工时（快）',
+          hint: '计算最短工期时使用的团队每周工时。',
+        },
+        estimate_week_hours_slow: {
+          label: '每周工时（慢）',
+          hint: '计算最长工期时使用的团队每周工时。',
+        },
+        estimate_platforms_range: {
+          label: '平台数范围',
+          hint: '估价表单中目标平台数的最小值、最大值和默认值。',
+        },
+        estimate_features_range: {
+          label: '功能数范围',
+          hint: '估价表单中主要功能数的最小值、最大值和默认值。',
+        },
+        estimate_team: {
+          label: '建议团队',
+          hint: '各复杂度等级建议配置的团队成员。',
+        },
+        app_downloads: {
+          label: '已发布的应用安装包',
+          hint: '下载页列出的安装包。最低系统版本留空时使用下方的默认值。',
+        },
+        app_default_min_os: {
+          label: '默认最低系统版本',
+          hint: '安装包没有单独设置最低系统版本时显示该值。',
+        },
+      },
+    },
     consoleTitle: '码市管理控制台',
     forbidden: '需要管理员权限',
     forbiddenBody: '该控制台仅对平台管理员开放。',
@@ -1216,6 +1600,8 @@ export const cmZh: CmTranslationDict = {
     accessUnavailableBody: '账户状态加载失败，请稍后重试。',
     backToWorkspace: '返回工作台',
     nav: {
+      tasks: '任务',
+      policy: '平台规则',
       overview: '概览',
       users: '用户',
       kyc: '实名认证',
@@ -1283,6 +1669,8 @@ export const cmZh: CmTranslationDict = {
       },
     },
     policy: {
+      editable: '以下数值来自可编辑的平台规则。',
+      editLink: '编辑平台规则',
       title: '平台策略',
       readOnly: '以下为平台配置的只读数值。',
       deposits: '保证金与佣金',
@@ -1690,6 +2078,7 @@ export const cmZh: CmTranslationDict = {
       allActions: '全部动作',
       filtered: '当前显示的是筛选后的记录。',
       resources: {
+        policy: '平台规则',
         project: '项目',
         milestone: '里程碑',
         task: '任务',
@@ -1711,6 +2100,10 @@ export const cmZh: CmTranslationDict = {
         contact_message: '联系留言',
       },
       actions: {
+        admin_policy_updated: '平台规则已更新',
+        email_change_requested: '已发起更换邮箱',
+        email_changed: '邮箱已更换',
+        avatar_updated: '头像已更新',
         created: '已创建',
         updated: '已更新',
         published: '已发布',
@@ -1782,6 +2175,8 @@ export const cmZh: CmTranslationDict = {
     paymentNumber: '支付 #{{id}}',
     noProjectsAtAll: '还没有创建任何项目。',
     purpose: {
+      tasks: '所有项目的全部任务，含所属项目、承接人和状态。',
+      policy: '编辑平台的业务规则，修改后新的请求立即按新值执行。',
       overview: '先处理等待管理员决定的事项，再查看平台总量和平台执行的策略。',
       users: '查找账户并打开详情，查看其角色、实名认证、保证金、钱包和操作记录，或调整角色状态。',
       userDetail: '该账户的全部记录。角色变更立即生效、写入日志并通知用户。',

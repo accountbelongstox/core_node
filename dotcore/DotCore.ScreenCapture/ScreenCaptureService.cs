@@ -197,8 +197,9 @@ public sealed class ScreenCaptureService
 
     /// <summary>
     /// Idempotent: make hwnd the foreground window only when it is not already (no-op, no settle wait otherwise). Windows refuses
-    /// SetForegroundWindow from a process that did not get the last input; a synthetic Alt tap counts as input and lifts that lock,
-    /// so each retry taps Alt, raises and foregrounds the window. True when it is the foreground window afterwards.
+    /// SetForegroundWindow from a process that did not get the last input; attaching this thread's input to the current foreground
+    /// window's thread lifts that lock without any keystroke (a synthetic Alt would reach games: D3 toggles its item labels on Alt).
+    /// Retries while another program keeps taking the foreground. True when it is the foreground window afterwards.
     /// </summary>
     public static bool EnsureForeground(IntPtr hwnd)
     {
@@ -207,10 +208,18 @@ public sealed class ScreenCaptureService
         if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
         for (int i = 0; i < ForegroundRetries; i++)
         {
-            NativeMethods.keybd_event(NativeMethods.VK_MENU, 0, 0, UIntPtr.Zero);
-            NativeMethods.keybd_event(NativeMethods.VK_MENU, 0, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
-            NativeMethods.BringWindowToTop(hwnd);
-            NativeMethods.SetForegroundWindow(hwnd);
+            uint self = NativeMethods.GetCurrentThreadId();
+            uint foreground = NativeMethods.GetWindowThreadProcessId(NativeMethods.GetForegroundWindow(), IntPtr.Zero);
+            bool attached = foreground != 0 && foreground != self && NativeMethods.AttachThreadInput(self, foreground, true);
+            try
+            {
+                NativeMethods.BringWindowToTop(hwnd);
+                NativeMethods.SetForegroundWindow(hwnd);
+            }
+            finally
+            {
+                if (attached) NativeMethods.AttachThreadInput(self, foreground, false);
+            }
             Thread.Sleep(ForegroundRetryMs);
             if (NativeMethods.GetForegroundWindow() == hwnd) return true;
         }

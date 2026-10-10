@@ -402,6 +402,32 @@ export const cmEn = {
         body: 'Score submissions and recommend a decision.',
       },
       wallet: {
+    paymentCreate: {
+      toggle: 'Send a payment',
+      lead: 'Pay another CodeMart user directly. A wallet payment moves the money at once; other methods are recorded as pending until a payment gateway settles them.',
+      payee: 'Recipient user ID',
+      payeeInvalid: 'Enter the numeric user ID of the recipient.',
+      project: 'Project ID',
+      description: 'Note',
+      submit: 'Send payment',
+      sentWallet: 'Payment #{{id}} was sent from your wallet.',
+      sentPending: 'Payment #{{id}} was recorded and is pending until it is settled.',
+      replayed: 'Payment #{{id}} had already been created; no second payment was made.',
+      gatewayHint: 'This method is not settled automatically: the payment stays pending.',
+      failed: 'The payment could not be created.',
+    },
+    paymentDetail: {
+      open: 'Details',
+      title: 'Payment #{{id}}',
+      payer: 'Paid by',
+      payee: 'Paid to',
+      loadFailed: 'The payment could not be loaded.',
+    },
+    depositStatus: {
+      check: 'Check status',
+      result: 'Deposit #{{id}} is {{status}}.',
+      failed: 'The deposit status could not be loaded.',
+    },
         title: 'Wallet',
         body: 'Balance, deposits, payments, invoices, refunds, and withdrawals.',
       },
@@ -601,6 +627,11 @@ export const cmEn = {
     createFailed: 'The project could not be created.',
     noCapability: 'An active client role is required to create projects. Request it on the Verification page.',
     errors: {
+    email_taken: 'This email address is already in use.',
+    email_unchanged: 'The new address is the same as the current one.',
+    invalid_password: 'The password is incorrect.',
+    invalid_email_change_token: 'The email change link is invalid or has expired.',
+    avatar_invalid: 'The picture must be a JPG or PNG image within the size limit.',
       titleRequired: 'Enter a project title.',
       titleTooLong: 'Use at most {{max}} characters.',
       descriptionRequired: 'Describe the requirement.',
@@ -610,6 +641,20 @@ export const cmEn = {
     },
   },
   tasks: {
+    scope: {
+      label: 'Task list',
+      mine: 'Assigned to me',
+      visible: 'All visible tasks',
+    },
+    filters: {
+      search: 'Search',
+      searchPlaceholder: 'Title or description',
+      status: 'Status',
+      allStatuses: 'All statuses',
+      apply: 'Apply filters',
+      emptyTitle: 'No tasks match',
+      emptyBody: 'Change the search or the status filter.',
+    },
     eyebrow: 'Tasks',
     description: 'Tasks you accepted from the marketplace: start work, submit deliverables, and follow the review.',
     findWork: 'Find work',
@@ -663,10 +708,10 @@ export const cmEn = {
     startReview: 'Review this submission',
     formTitle: 'Your review',
     applyTitle: 'Reviewer qualification',
-    applyBody: 'Rate three sample code snippets. When your ratings are close enough to the reference review, the reviewer role is activated.',
+    applyBody: 'Rate {{count}} sample code snippets. When your ratings reach a similarity of {{score}}% with the reference review, the reviewer role is activated.',
     applySteps: {
       start: 'Start the qualification',
-      rate: 'Rate three code snippets',
+      rate: 'Rate {{count}} code snippets',
       result: 'Get the result immediately',
     },
     apply: 'Start qualification',
@@ -766,6 +811,8 @@ export const cmEn = {
     depositCreated: 'Deposit payment created. Complete the payment so it can be confirmed.',
     depositFailed: 'The deposit payment could not be created.',
     methods: {
+      wallet: 'Wallet',
+      credit_card: 'Credit card',
       alipay: 'Alipay',
       wechat: 'WeChat Pay',
       bankTransfer: 'Bank transfer',
@@ -1176,6 +1223,30 @@ export const cmEn = {
     testimonialOneLanguage: 'Fill in at least one language.',
   },
   settings: {
+    avatar: {
+      title: 'Profile picture',
+      lead: 'Upload a JPG or PNG image up to {{size}} MB. It is resized and shown wherever your account appears.',
+      alt: 'Your profile picture',
+      choose: 'Choose an image',
+      upload: 'Upload picture',
+      uploading: 'Uploading...',
+      updated: 'Profile picture updated.',
+      failed: 'The picture could not be uploaded.',
+      wrongType: 'Choose a JPG or PNG image.',
+      tooLarge: 'The image must be smaller than {{size}} MB.',
+    },
+    email: {
+      title: 'Email address',
+      lead: 'Your current email is {{email}}. A change takes effect after you confirm it from the new address.',
+      newEmail: 'New email address',
+      password: 'Current password',
+      submit: 'Send confirmation link',
+      requested: 'A confirmation link was sent to {{email}}. It is valid for {{hours}} hours.',
+      pending: 'Waiting for confirmation of {{email}}.',
+      changed: 'Your email address is now {{email}}.',
+      failed: 'The email change could not be requested.',
+      confirmFailed: 'The email change could not be confirmed.',
+    },
     eyebrow: 'Settings',
     description: 'Language and appearance of the CodeMart workspace on this device.',
     languageTitle: 'Language',
@@ -1206,6 +1277,319 @@ export const cmEn = {
   },
   admin: {
     badge: 'Administration',
+    searchTasks: 'Search tasks',
+    noTasks: 'No tasks match these filters.',
+    tasks: {
+      projectId: 'Project ID',
+      project: 'Project',
+      assignee: 'Assignee',
+      priority: 'Priority',
+      due: 'Due',
+      unassigned: 'Unassigned',
+    },
+    policyEditor: {
+      groupsLabel: 'Rule groups',
+      saved: 'Platform rules saved. New requests use the values now.',
+      saveFailed: 'The platform rules could not be saved.',
+      customized: 'Customized',
+      default: 'Default',
+      reset: 'Restore default',
+      pending: '{{count}} unsaved change(s)',
+      noChanges: 'No unsaved changes.',
+      discard: 'Discard changes',
+      save: 'Save changes',
+      unsaved: 'Unsaved changes',
+      currencyFormat: 'Use three-letter currency codes such as CNY, USD or EUR.',
+      removeRow: 'Remove',
+      range: {
+        min: 'Minimum',
+        max: 'Maximum',
+        default: 'Default',
+      },
+      keys: {
+        android: 'Android',
+        ios: 'iOS',
+      },
+      options: {
+        allowed_image_types: {
+          jpg: 'JPG',
+          jpeg: 'JPEG',
+          png: 'PNG',
+        },
+      },
+      downloads: {
+        empty: 'No packages are published. The download page shows that nothing is available yet.',
+        platform: 'Platform',
+        version: 'Version',
+        url: 'Download URL',
+        minOs: 'Minimum OS version',
+        minOsDefault: 'Use the default',
+        add: 'Add package',
+      },
+      exam: {
+        question: 'Question {{number}}',
+        code: 'Code snippet',
+        add: 'Add question',
+      },
+      groups: {
+        finance: {
+          title: 'Money',
+          lead: 'Commission, deposits, limits, currencies and payment methods.',
+        },
+        projects: {
+          title: 'Projects',
+          lead: 'Rules for new projects.',
+        },
+        roles: {
+          title: 'Roles',
+          lead: 'What a developer needs before becoming an architect.',
+        },
+        reviews: {
+          title: 'Reviews',
+          lead: 'Reviewer comments, the qualification exam and recommendation thresholds.',
+        },
+        accounts: {
+          title: 'Accounts',
+          lead: 'Rules for account passwords.',
+        },
+        limits: {
+          title: 'Limits',
+          lead: 'Upload sizes, paging and request rate limits.',
+        },
+        estimate: {
+    currencyLabel: 'Currency',
+    currencyNames: {
+      CNY: 'Chinese yuan (RMB)',
+      USD: 'US dollar',
+      EUR: 'Euro',
+    },
+          title: 'Estimates',
+          lead: 'Currency and formula of the public estimate and the AI analysis.',
+        },
+        downloads: {
+          title: 'App downloads',
+          lead: 'Packages on the download page and default minimum OS versions.',
+        },
+      },
+      fields: {
+        platform_commission_rate: {
+          label: 'Platform commission rate',
+          hint: 'Share of each released task payment kept by the platform, as a fraction (0.15 = 15%).',
+        },
+        deposit_client: {
+          label: 'Client deposit',
+          hint: 'Deposit a client pays to activate the role. 0 means no deposit.',
+        },
+        deposit_developer: {
+          label: 'Developer deposit',
+          hint: 'Deposit a developer pays before accepting tasks.',
+        },
+        deposit_architect_additional: {
+          label: 'Architect additional deposit',
+          hint: 'Added on top of the developer deposit for the architect role.',
+        },
+        deposit_min_amount: {
+          label: 'Minimum deposit or top-up',
+          hint: 'Smallest amount accepted for a wallet top-up or a partial deposit.',
+        },
+        wallet_top_up_max_amount: {
+          label: 'Maximum wallet top-up',
+          hint: 'Largest amount accepted in a single wallet top-up.',
+        },
+        withdrawal_min_amount: {
+          label: 'Minimum withdrawal',
+          hint: 'Smallest amount a user can withdraw.',
+        },
+        default_currency: {
+          label: 'Default currency',
+          hint: 'Currency of wallets, deposits, escrow and payments.',
+        },
+        supported_currencies: {
+          label: 'Supported currencies',
+          hint: 'Three-letter codes separated by commas. The default and AI estimate currencies must be listed.',
+        },
+        payment_methods: {
+          label: 'Payment methods',
+          hint: 'Methods offered for direct payments. Only the wallet settles immediately; the others stay pending until a gateway settles them.',
+        },
+        deposit_payment_methods: {
+          label: 'Deposit and top-up methods',
+          hint: 'Methods offered for deposits and wallet top-ups. An administrator confirms each one.',
+        },
+        withdrawal_methods: {
+          label: 'Withdrawal methods',
+          hint: 'Methods a user can choose when requesting a withdrawal.',
+        },
+        project_min_budget: {
+          label: 'Minimum project budget',
+          hint: 'Lowest budget a client can set on a project.',
+        },
+        architect_min_projects: {
+          label: 'Architect: completed projects',
+          hint: 'Completed projects a developer needs before applying as an architect.',
+        },
+        architect_min_code_score: {
+          label: 'Architect: code score',
+          hint: 'Minimum average code score (0 to 100) for architect applicants.',
+        },
+        architect_min_satisfaction: {
+          label: 'Architect: client satisfaction',
+          hint: 'Minimum average client rating (0 to 5) for architect applicants.',
+        },
+        review_comment_min_length: {
+          label: 'Review comment length',
+          hint: 'Minimum characters in a reviewer comment and in every qualification exam comment.',
+        },
+        reviewer_retry_days: {
+          label: 'Reviewer retry wait',
+          hint: 'Days a user must wait before retaking the reviewer qualification exam.',
+        },
+        reviewer_min_similarity: {
+          label: 'Reviewer exam pass score',
+          hint: 'Similarity (1 to 100) between the applicant ratings and the reference ratings needed to pass.',
+        },
+        review_recommend_approve_min: {
+          label: 'Approve recommendation threshold',
+          hint: 'Mean reviewer rating at or above which approval is recommended.',
+        },
+        review_recommend_revision_min: {
+          label: 'Revision recommendation threshold',
+          hint: 'Mean rating at or above which a revision is recommended; lower ratings recommend rejection.',
+        },
+        reviewer_exam: {
+          label: 'Reviewer exam questions',
+          hint: 'Code snippets and the reference ratings they are graded against. Reference ratings never leave the server.',
+        },
+        password_min_length: {
+          label: 'Password minimum length',
+          hint: 'Minimum length of a new account password at registration.',
+        },
+        max_attachment_size_kb: {
+          label: 'Attachment size limit (KB)',
+          hint: 'Largest project attachment or task upload.',
+        },
+        max_kyc_image_size_kb: {
+          label: 'Verification image limit (KB)',
+          hint: 'Largest identity document image and profile picture.',
+        },
+        allowed_image_types: {
+          label: 'Allowed image types',
+          hint: 'Image formats accepted for identity documents.',
+        },
+        default_page_size: {
+          label: 'Default page size',
+          hint: 'Rows per page when a request does not set a size.',
+        },
+        max_page_size: {
+          label: 'Maximum page size',
+          hint: 'Largest page size a request may ask for.',
+        },
+        testimonial_max_quote_length: {
+          label: 'Testimonial length',
+          hint: 'Maximum characters in a customer testimonial.',
+        },
+        throttle_public: {
+          label: 'Public requests per minute',
+          hint: 'Limit per IP for public pages and estimates.',
+        },
+        throttle_register: {
+          label: 'Registrations per minute',
+          hint: 'Limit per IP for new registrations.',
+        },
+        throttle_contact: {
+          label: 'Contact messages per minute',
+          hint: 'Limit per IP for contact form messages.',
+        },
+        throttle_email_resend: {
+          label: 'Verification emails per 10 minutes',
+          hint: 'Limit per user for resending the verification email.',
+        },
+        throttle_email_change: {
+          label: 'Email change requests per 10 minutes',
+          hint: 'Limit per user for email change requests and confirmations.',
+        },
+        throttle_avatar: {
+          label: 'Avatar uploads per 10 minutes',
+          hint: 'Limit per user for profile picture uploads.',
+        },
+        ai_estimate_currency: {
+          label: 'AI estimate currency',
+          hint: 'Currency of the public estimate and of every AI analysis cost. A funded proposal is held in this currency.',
+        },
+        ai_estimate_hourly_rate: {
+          label: 'AI analysis hourly rate',
+          hint: 'Rate multiplied by the estimated hours to get the AI analysis cost.',
+        },
+        ai_estimate_hours_per_complexity: {
+          label: 'AI analysis hours per complexity point',
+          hint: 'Estimated hours added for each point of detected complexity.',
+        },
+        ai_estimate_senior_team_threshold: {
+          label: 'AI analysis senior team threshold',
+          hint: 'Complexity above which a senior-led team is suggested.',
+        },
+        estimate_hourly_rates: {
+          label: 'Estimate hourly rates',
+          hint: 'Hourly rate per complexity tier in the estimate currency.',
+        },
+        estimate_base_hours: {
+          label: 'Estimate base hours',
+          hint: 'Base effort in hours per complexity tier, before platform and feature factors.',
+        },
+        estimate_platform_factor: {
+          label: 'Platform factor',
+          hint: 'Effort added for every extra target platform, as a fraction of the base.',
+        },
+        estimate_feature_factor: {
+          label: 'Feature factor',
+          hint: 'Effort added for every extra major feature, as a fraction of the base.',
+        },
+        estimate_range_low: {
+          label: 'Effort low factor',
+          hint: 'Lower bound of the estimate range, as a multiple of the computed effort.',
+        },
+        estimate_range_high: {
+          label: 'Effort high factor',
+          hint: 'Upper bound of the estimate range, as a multiple of the computed effort.',
+        },
+        estimate_hourly_rate_low: {
+          label: 'Hourly rate low factor',
+          hint: 'Lower bound of the quoted hourly rate band, as a multiple of the tier rate.',
+        },
+        estimate_hourly_rate_high: {
+          label: 'Hourly rate high factor',
+          hint: 'Upper bound of the quoted hourly rate band, as a multiple of the tier rate.',
+        },
+        estimate_week_hours_fast: {
+          label: 'Hours per week (fast)',
+          hint: 'Team hours per week used for the shortest duration.',
+        },
+        estimate_week_hours_slow: {
+          label: 'Hours per week (slow)',
+          hint: 'Team hours per week used for the longest duration.',
+        },
+        estimate_platforms_range: {
+          label: 'Platform range',
+          hint: 'Minimum, maximum and default number of target platforms in the estimate form.',
+        },
+        estimate_features_range: {
+          label: 'Feature range',
+          hint: 'Minimum, maximum and default number of major features in the estimate form.',
+        },
+        estimate_team: {
+          label: 'Suggested team',
+          hint: 'Team members suggested for each complexity tier.',
+        },
+        app_downloads: {
+          label: 'Published app packages',
+          hint: 'Packages listed on the download page. A blank minimum OS uses the default below.',
+        },
+        app_default_min_os: {
+          label: 'Default minimum OS versions',
+          hint: 'Shown for a package that does not set its own minimum OS version.',
+        },
+      },
+    },
     consoleTitle: 'CodeMart administration console',
     forbidden: 'Administrator access required',
     forbiddenBody: 'This console is restricted to platform administrators.',
@@ -1214,6 +1598,8 @@ export const cmEn = {
     accessUnavailableBody: 'The account status could not be loaded. Try again in a moment.',
     backToWorkspace: 'Back to workspace',
     nav: {
+      tasks: 'Tasks',
+      policy: 'Platform rules',
       overview: 'Overview',
       users: 'Users',
       kyc: 'Identity verification',
@@ -1281,6 +1667,8 @@ export const cmEn = {
       },
     },
     policy: {
+      editable: 'These values come from the editable platform rules.',
+      editLink: 'Edit platform rules',
       title: 'Platform policy',
       readOnly: 'Read-only values set by the platform.',
       deposits: 'Deposits and commission',
@@ -1688,6 +2076,7 @@ export const cmEn = {
       allActions: 'All actions',
       filtered: 'Showing filtered activity.',
       resources: {
+        policy: 'Platform rules',
         project: 'Project',
         milestone: 'Milestone',
         task: 'Task',
@@ -1709,6 +2098,10 @@ export const cmEn = {
         contact_message: 'Contact message',
       },
       actions: {
+        admin_policy_updated: 'Platform rules updated',
+        email_change_requested: 'Email change requested',
+        email_changed: 'Email changed',
+        avatar_updated: 'Avatar updated',
         created: 'Created',
         updated: 'Updated',
         published: 'Published',
@@ -1780,6 +2173,8 @@ export const cmEn = {
     paymentNumber: 'Payment #{{id}}',
     noProjectsAtAll: 'No projects have been created yet.',
     purpose: {
+      tasks: 'Every task across all projects, with its project, assignee and status.',
+      policy: 'Edit the business rules of the platform. Changes apply to new requests immediately.',
       overview: 'Work through the queues that wait for an administrator decision, then check platform totals and the platform policy.',
       users: 'Find an account and open it to review its roles, identity verification, deposits, wallet and activity, or to change a role status.',
       userDetail: 'Everything recorded for this account. Role changes take effect immediately, are logged and notify the user.',
