@@ -8,6 +8,7 @@ import { Outlet } from 'react-router-dom';
 import { ShellControls } from './ShellControls';
 import { ShellAiChatPanel } from './ShellAiChatPanel';
 import { ShellAppUpdateBanner } from './ShellAppPackages';
+import { ShellShareInbox } from './ShellShareInbox';
 import { SHELL_DOCK_GUTTER_CSS_VAR, shellDockRightGutterPx } from './shellChrome';
 
 export const ShellLayout: React.FC = () => {
@@ -20,6 +21,7 @@ export const ShellLayout: React.FC = () => {
       <ShellControls />
       <ShellAiChatPanel />
       <ShellAppUpdateBanner />
+      <ShellShareInbox />
     </div>
   );
 };

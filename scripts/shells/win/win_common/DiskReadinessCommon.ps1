@@ -872,7 +872,8 @@ function Restore-ShrinkRewriteLeftovers {
             Move-Item -LiteralPath $file.FullName -Destination $targetPath
             $restored++
         }
-        Write-ColorMessage -Message ("Interrupted rewrite {0}: restored {1} files to {2}; {3} already exist there and stay in {0}" -f $rewriteDir.FullName, $restored, $originalPath, $kept) -Type "Warning"
+        & $env:ComSpec /c rd /s /q $rewriteDir.FullName | Out-Host
+        Write-ColorMessage -Message ("Interrupted rewrite {0}: restored {1} files to {2}; deleted {3} leftover copies already present there" -f $rewriteDir.FullName, $restored, $originalPath, $kept) -Type "Warning"
     }
 }
 
