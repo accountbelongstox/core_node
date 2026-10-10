@@ -4,7 +4,6 @@ import { defineMobileLocale } from './defineMobileLocale';
 export const cmMobileWpB = defineMobileLocale(
   {
     work: {
-      removeFile: 'Remove file',
       openLink: 'Open',
       chooseFiles: 'Choose files',
       resubmit: 'Resubmit',
@@ -43,7 +42,6 @@ export const cmMobileWpB = defineMobileLocale(
   },
   {
     work: {
-      removeFile: '移除文件',
       openLink: '打开',
       chooseFiles: '选择文件',
       resubmit: '重新提交',
