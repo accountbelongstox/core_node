@@ -3,7 +3,13 @@ import { UI_SUPPORTED_LANGUAGES } from '../core/i18n/UiI18n';
 
 export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordnew' | 'vortex' | 'codemart';
 
-export type ThemeId = 'nexus' | 'pycore' | 'iris';
+export const THEME_IDS = ['nexus', 'pycore', 'iris'] as const;
+
+export type ThemeId = typeof THEME_IDS[number];
+
+export function isThemeId(value: unknown): value is ThemeId {
+  return typeof value === 'string' && (THEME_IDS as readonly string[]).includes(value);
+}
 
 export type ShellClipboardTab = 'clipboard' | 'prompts';
 export interface ShellClipboardState {

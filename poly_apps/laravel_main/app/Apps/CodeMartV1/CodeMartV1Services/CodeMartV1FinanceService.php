@@ -7,6 +7,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1EscrowModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PaymentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WalletModel;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use Illuminate\Http\Request;
 
 /**
@@ -39,11 +40,7 @@ class CodeMartV1FinanceService
 
     public static function pageParams(Request $request): array
     {
-        $page = max(1, (int) $request->query('page', 1));
-        $size = $request->query('page_size', $request->query('pageSize', CodeMartV1Constants::DEFAULT_PAGE_SIZE));
-        $pageSize = min(CodeMartV1Constants::MAX_PAGE_SIZE, max(1, (int) $size));
-
-        return [$page, $pageSize];
+        return CodeMartV1Pagination::params($request);
     }
 
     /** Standard list envelope from a BuildsModelPagination result. */

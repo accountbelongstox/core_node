@@ -3,6 +3,7 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Controllers;
 
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Pagination;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1NotificationModel;
 use App\Helpers\AuthHelper;
 use App\Http\Controllers\Controller;
@@ -21,11 +22,7 @@ class CodeMartV1NotificationCtl extends Controller
             return $this->unauthorized();
         }
 
-        $page = max(1, (int) $request->query('page', 1));
-        $pageSize = min(
-            CodeMartV1Constants::MAX_PAGE_SIZE,
-            max(1, (int) $request->query('page_size', CodeMartV1Constants::DEFAULT_PAGE_SIZE))
-        );
+        [$page, $pageSize] = CodeMartV1Pagination::params($request);
 
         $result = CodeMartV1NotificationModel::pageForUser((int) $user->id, $page, $pageSize);
 
