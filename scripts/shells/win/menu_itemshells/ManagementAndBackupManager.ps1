@@ -136,7 +136,7 @@ function Show-SystemToolsMenu {
             } },
         @{ Text = "Repair disk (chkdsk /f)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT } },
         @{ Text = "Disk optimize (defrag HDD / TRIM SSD)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:DISK_OPTIMIZE_SCRIPT } },
-        @{ Text = "NTFS repair / shrink after Linux (one-click, idempotent)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:NTFS_LINUX_REPAIR_SCRIPT } },
+        @{ Text = "NTFS repair after Linux (one-click, idempotent)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:NTFS_LINUX_REPAIR_SCRIPT } },
         @{ Text = "File recovery (winfr / DMDE)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:FILE_RECOVERY_SCRIPT } },
         @{ Text = "Repair Chrome crash (PUP + compat shim / 0xC0000409)"; Action = { Invoke-ChromeRepair } },
         @{ Text = "Linux dual boot readiness (Fast Startup)"; Action = { Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT } },

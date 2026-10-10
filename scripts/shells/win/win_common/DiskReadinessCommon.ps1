@@ -24,8 +24,13 @@ $script:DISK_SHRINK_EVENT_MARKER = "The last unmovable file appears to be:"
 $script:DISK_USN_MAX_SIZE = "0x2000000"
 $script:DISK_USN_ALLOCATION_DELTA = "0x800000"
 $script:DISK_SHRINK_DEFRAG_ARGUMENTS = @("/X", "/U", "/V")
-$script:DISK_SHRINK_DEFAULT_MB = 512000
 $script:DISK_SHRINK_MAX_PASSES = 20
+$script:DISK_SHRINK_RESOLVED = "resolved"
+$script:DISK_SHRINK_RESTART = "restart"
+$script:DISK_SHRINK_UNRESOLVED = "unresolved"
+$script:DISK_EXTEND_DIR = '$Extend'
+$script:DISK_PAGE_FILE_NAMES = @("pagefile.sys", "swapfile.sys")
+$script:DISK_DISKMGMT_MSC = Join-Path $script:DISK_SYSTEM32_DIR "diskmgmt.msc"
 $script:DISK_VSSADMIN_EXE = Join-Path $script:DISK_SYSTEM32_DIR "vssadmin.exe"
 $script:DISK_ROBOCOPY_EXE = Join-Path $script:DISK_SYSTEM32_DIR "robocopy.exe"
 $script:DISK_SHRINK_ROBOCOPY_ARGUMENTS = @("/E", "/MOVE", "/COPY:DAT", "/DCOPY:DAT", "/XJ", "/R:1", "/W:1", "/NFL", "/NDL", "/NP")
@@ -415,11 +420,13 @@ function Invoke-NtfsLinuxRepair {
     Write-ColorMessage -Message "[3/4] USN change journal" -Type "Info"
     Enable-NtfsUsnJournal -Drive $drive
 
-    Write-ColorMessage -Message ("[4/4] defrag {0} {1} (consolidate free space for shrinking)" -f $drive, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
-    Invoke-ShrinkDefrag -Drive $drive
+    Write-ColorMessage -Message "[4/4] Clear shrink blockers (Linux-written files, then defrag)" -Type "Info"
+    Invoke-ShrinkBlockerCleanup -Drive $drive
+    Enable-NtfsUsnJournal -Drive $drive
 
     Show-NtfsVolumeSummary -Drive $drive
-    Write-ColorMessage -Message "Done. Use the Shrink item of this menu to free unallocated space." -Type "Success"
+    Write-ColorMessage -Message "Done. Shrink the volume in Disk Management (Shrink Volume)." -Type "Success"
+    Start-Process -FilePath $script:DISK_DISKMGMT_MSC
 }
 
 function Enable-NtfsUsnJournal {
@@ -458,70 +465,12 @@ function Get-ShrinkableMB {
     return [math]::Floor(($partition.Size - $supported.SizeMin) / 1MB)
 }
 
-function Read-ShrinkTargetMB {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-    $reply = ([string](Read-Host ("Shrink {0} by how many MB? [{1}]" -f $Drive, $script:DISK_SHRINK_DEFAULT_MB))).Trim()
-
-    if ($reply -eq "") {
-        return [long]$script:DISK_SHRINK_DEFAULT_MB
-    }
-    if ($reply -notmatch '^\d+$' -or [long]$reply -le 0) {
-        Write-ColorMessage -Message ("Invalid size: {0}" -f $reply) -Type "Error"
-        return 0
-    }
-    return [long]$reply
-}
-
-function Get-DriveShadowCopies {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-    $volumePath = (Get-Volume -DriveLetter $Drive.TrimEnd(':')).Path
-
-    @(Get-CimInstance Win32_ShadowCopy -ErrorAction SilentlyContinue | Where-Object { $_.VolumeName -eq $volumePath })
-}
-
 function Get-DrivePageFileSettings {
     param(
         [Parameter(Mandatory = $true)] [string]$Drive
     )
 
     @(Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { (Split-Path $_.Name -Qualifier) -eq $Drive })
-}
-
-function Clear-ShrinkBlockers {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Drive
-    )
-    $shadowCopies = @(Get-DriveShadowCopies -Drive $Drive)
-    $pageFileSettings = @(Get-DrivePageFileSettings -Drive $Drive)
-    $pageFileInUse = @(Get-CimInstance Win32_PageFileUsage | Where-Object { (Split-Path $_.Name -Qualifier) -eq $Drive }).Count -gt 0
-    $restartNeeded = $false
-
-    if ($shadowCopies.Count -gt 0) {
-        Write-ColorMessage -Message ("{0} has {1} shadow copies (restore points) in System Volume Information; they cannot be moved." -f $Drive, $shadowCopies.Count) -Type "Warning"
-        if (Read-YesNoDefaultNo -Message ("Delete all shadow copies of {0}?" -f $Drive)) {
-            & $script:DISK_VSSADMIN_EXE delete shadows ("/for={0}" -f $Drive) /all /quiet | Out-Host
-        }
-    }
-    if (Test-NtfsUsnJournalActive -Drive $Drive) {
-        Write-ColorMessage -Message ("The USN change journal of {0} may sit near the end of the volume; it is recreated after the shrink." -f $Drive) -Type "Info"
-        if (Read-YesNoDefaultNo -Message ("Delete the USN journal of {0} for the shrink?" -f $Drive)) {
-            & $script:DISK_FSUTIL_EXE usn deletejournal /d $Drive | Out-Host
-        }
-    }
-    if ($pageFileInUse) {
-        Write-ColorMessage -Message ("{0} holds an active page file, which cannot be moved while Windows runs." -f $Drive) -Type "Warning"
-        if (($pageFileSettings.Count -gt 0) -and (Read-YesNoDefaultNo -Message ("Remove the page file from {0} (takes effect after a restart)?" -f $Drive))) {
-            $pageFileSettings | Remove-CimInstance
-            $restartNeeded = $true
-        } elseif ($pageFileSettings.Count -eq 0) {
-            Write-ColorMessage -Message "The page file is system managed; move it in SystemPropertiesPerformance.exe > Advanced > Virtual memory." -Type "Warning"
-        }
-    }
-    return $restartNeeded
 }
 
 function Invoke-NtfsPathRewrite {
@@ -561,103 +510,91 @@ function Resolve-ShrinkBlocker {
     $blockerParts = $Blocker -split '::', 2
     $segments = @($blockerParts[0].TrimStart('\') -split '\\')
     $stream = if ($blockerParts.Count -gt 1) { $blockerParts[1] } else { "" }
-    $rewritePath = Join-Path ('{0}\' -f $Drive) $segments[0]
+    $topName = $segments[0]
+    $rewritePath = Join-Path ('{0}\' -f $Drive) $topName
+    $pageFileSettings = @()
 
-    if ($segments[0] -eq $script:DISK_RECYCLE_BIN_DIR) {
+    if ($topName -eq $script:DISK_RECYCLE_BIN_DIR) {
         if (-not (Read-YesNoDefaultNo -Message ("The Recycle Bin of {0} blocks the shrink. Empty it?" -f $Drive))) {
-            return $false
+            return $script:DISK_SHRINK_UNRESOLVED
         }
         Clear-RecycleBin -DriveLetter $Drive.TrimEnd(':') -Force
-        return $true
+        return $script:DISK_SHRINK_RESOLVED
     }
-    if ($segments[0].StartsWith('$') -or ($segments[0] -eq $script:DISK_SYSTEM_VOLUME_INFO_DIR)) {
-        Write-ColorMessage -Message "NTFS metadata or System Volume Information cannot be moved while Windows runs." -Type "Warning"
-        return $false
+    if ($topName -eq $script:DISK_SYSTEM_VOLUME_INFO_DIR) {
+        if (-not (Read-YesNoDefaultNo -Message ("Shadow copies (restore points) of {0} block the shrink. Delete them?" -f $Drive))) {
+            return $script:DISK_SHRINK_UNRESOLVED
+        }
+        & $script:DISK_VSSADMIN_EXE delete shadows ("/for={0}" -f $Drive) /all /quiet | Out-Host
+        return $script:DISK_SHRINK_RESOLVED
+    }
+    if ($topName -eq $script:DISK_EXTEND_DIR) {
+        & $script:DISK_FSUTIL_EXE usn deletejournal /d $Drive | Out-Host
+        return $script:DISK_SHRINK_RESOLVED
+    }
+    if ($script:DISK_PAGE_FILE_NAMES -contains $topName) {
+        $pageFileSettings = @(Get-DrivePageFileSettings -Drive $Drive)
+        if ($pageFileSettings.Count -eq 0) {
+            Write-ColorMessage -Message "The page file is system managed; move it in SystemPropertiesPerformance.exe > Advanced > Virtual memory." -Type "Warning"
+            return $script:DISK_SHRINK_UNRESOLVED
+        }
+        if (-not (Read-YesNoDefaultNo -Message ("The page file of {0} blocks the shrink. Remove it (takes effect after a restart)?" -f $Drive))) {
+            return $script:DISK_SHRINK_UNRESOLVED
+        }
+        $pageFileSettings | Remove-CimInstance
+        return $script:DISK_SHRINK_RESTART
+    }
+    if ($topName.StartsWith('$')) {
+        Write-ColorMessage -Message "NTFS metadata cannot be moved while Windows runs." -Type "Warning"
+        return $script:DISK_SHRINK_UNRESOLVED
     }
     if ($stream -ne $script:DISK_SECURITY_DESCRIPTOR_STREAM) {
-        return $false
+        return $script:DISK_SHRINK_UNRESOLVED
     }
-    Write-ColorMessage -Message "Files written by a Linux NTFS driver keep their own security descriptor, which Windows cannot move." -Type "Warning"
-    Write-ColorMessage -Message ("Rewriting {0} through Windows (robocopy move, inherited permissions) makes it movable." -f $rewritePath) -Type "Info"
-    if (-not (Read-YesNoDefaultNo -Message ("Rewrite {0}?" -f $rewritePath))) {
-        return $false
+    Write-ColorMessage -Message ("Linux-written files keep their own security descriptor, which Windows cannot move; rewriting {0} through Windows." -f $rewritePath) -Type "Warning"
+    if (Invoke-NtfsPathRewrite -Path $rewritePath) {
+        return $script:DISK_SHRINK_RESOLVED
     }
-    return (Invoke-NtfsPathRewrite -Path $rewritePath)
+    return $script:DISK_SHRINK_UNRESOLVED
 }
 
-function Invoke-NtfsVolumeShrink {
+function Invoke-ShrinkBlockerCleanup {
     param(
-        [Parameter(Mandatory = $true)] [PSCustomObject]$DriveInfo
+        [Parameter(Mandatory = $true)] [string]$Drive
     )
-    $drive = $DriveInfo.Drive
-    $driveLetter = $drive.TrimEnd(':')
-    $targetMB = Read-ShrinkTargetMB -Drive $drive
+    $freeMB = [math]::Floor((Get-Volume -DriveLetter $Drive.TrimEnd(':')).SizeRemaining / 1MB)
     $shrinkableMB = 0
     $previousMB = -1
     $pass = 0
-    $restartNeeded = $false
     $blocker = $null
     $previousBlocker = $null
-    $resolved = $false
+    $status = $script:DISK_SHRINK_UNRESOLVED
     $stalled = $false
-    $shrinkMB = 0
-    $partition = $null
 
-    if ($targetMB -le 0) {
-        return
-    }
-    if ($DriveInfo.Scheduled -or $DriveInfo.Dirty) {
-        Write-ColorMessage -Message ("{0} needs a file system repair first; run the Repair item of this menu." -f $drive) -Type "Error"
-        return
-    }
-
-    Write-ColorMessage -Message ("Querying the shrinkable size of {0} (can take minutes)..." -f $drive) -Type "Info"
-    $shrinkableMB = Get-ShrinkableMB -Drive $drive
-    Write-ColorMessage -Message ("{0} can shrink by {1} MB, target {2} MB" -f $drive, $shrinkableMB, $targetMB) -Type "Info"
-    if ($shrinkableMB -lt $targetMB) {
-        $restartNeeded = Clear-ShrinkBlockers -Drive $drive
-    }
-    while (($shrinkableMB -lt $targetMB) -and (-not $stalled) -and ($pass -lt $script:DISK_SHRINK_MAX_PASSES)) {
+    Write-ColorMessage -Message ("Querying the shrinkable size of {0} (can take minutes)..." -f $Drive) -Type "Info"
+    $shrinkableMB = Get-ShrinkableMB -Drive $Drive
+    Write-ColorMessage -Message ("{0} can shrink by {1} of {2} MB free" -f $Drive, $shrinkableMB, $freeMB) -Type "Info"
+    while ((-not $stalled) -and ($pass -lt $script:DISK_SHRINK_MAX_PASSES)) {
         $pass++
         $previousMB = $shrinkableMB
-        $blocker = Get-LastUnmovableFile -Drive $drive
+        $blocker = Get-LastUnmovableFile -Drive $Drive
         Write-ColorMessage -Message ("[pass {0}/{1}] shrink blocker: {2}" -f $pass, $script:DISK_SHRINK_MAX_PASSES, $blocker) -Type "Info"
-        $resolved = ($null -ne $blocker) -and ($blocker -ne $previousBlocker) -and (Resolve-ShrinkBlocker -Drive $drive -Blocker $blocker)
-        if (-not $resolved) {
-            Write-ColorMessage -Message ("defrag {0} {1}" -f $drive, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
-            Invoke-ShrinkDefrag -Drive $drive
+        $status = $script:DISK_SHRINK_UNRESOLVED
+        if (($null -ne $blocker) -and ($blocker -ne $previousBlocker)) {
+            $status = Resolve-ShrinkBlocker -Drive $Drive -Blocker $blocker
         }
-        $previousBlocker = $blocker
-        $shrinkableMB = Get-ShrinkableMB -Drive $drive
-        $stalled = (-not $resolved) -and ($shrinkableMB -le $previousMB)
-        Write-ColorMessage -Message ("{0} can shrink by {1} MB" -f $drive, $shrinkableMB) -Type "Info"
-    }
-
-    $shrinkMB = [math]::Min($targetMB, $shrinkableMB)
-    if ($shrinkMB -lt $targetMB) {
-        $blocker = Get-LastUnmovableFile -Drive $drive
-        Write-ColorMessage -Message ("Only {0} of {1} MB can be freed now." -f $shrinkableMB, $targetMB) -Type "Warning"
-        if ($null -ne $blocker) {
-            Write-ColorMessage -Message ("Last shrink blocker: {0}" -f $blocker) -Type "Warning"
-        }
-        if ($restartNeeded) {
-            Write-ColorMessage -Message "Restart Windows and run this item again to reach the target." -Type "Warning"
-        }
-        if (($shrinkMB -le 0) -or (-not (Read-YesNoDefaultNo -Message ("Shrink {0} by {1} MB now?" -f $drive, $shrinkMB)))) {
-            Enable-NtfsUsnJournal -Drive $drive
+        if ($status -eq $script:DISK_SHRINK_RESTART) {
+            Write-ColorMessage -Message "Restart Windows, then run this item again to continue." -Type "Warning"
             return
         }
+        if ($status -eq $script:DISK_SHRINK_UNRESOLVED) {
+            Write-ColorMessage -Message ("defrag {0} {1}" -f $Drive, ($script:DISK_SHRINK_DEFRAG_ARGUMENTS -join " ")) -Type "Info"
+            Invoke-ShrinkDefrag -Drive $Drive
+        }
+        $previousBlocker = $blocker
+        $shrinkableMB = Get-ShrinkableMB -Drive $Drive
+        $stalled = ($status -eq $script:DISK_SHRINK_UNRESOLVED) -and ($shrinkableMB -le $previousMB)
+        Write-ColorMessage -Message ("{0} can shrink by {1} of {2} MB free" -f $Drive, $shrinkableMB, $freeMB) -Type "Info"
     }
-
-    $partition = Get-Partition -DriveLetter $driveLetter
-    Write-ColorMessage -Message ("Shrinking {0} by {1} MB..." -f $drive, $shrinkMB) -Type "Info"
-    try {
-        Resize-Partition -DriveLetter $driveLetter -Size ($partition.Size - ($shrinkMB * 1MB)) -ErrorAction Stop
-        Write-ColorMessage -Message ("{0} shrunk by {1} MB; the space is unallocated." -f $drive, $shrinkMB) -Type "Success"
-    } catch {
-        Write-ColorMessage -Message ("Shrink failed: {0}" -f $_.Exception.Message) -Type "Error"
-    }
-    Enable-NtfsUsnJournal -Drive $drive
-    Show-NtfsVolumeSummary -Drive $drive
 }
 #endregion
