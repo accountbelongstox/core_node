@@ -18,7 +18,7 @@ namespace CoreNodeBridge;
 /// Every ScanIntervalMs it scans the world (ground items for the pickup record); every WriteIntervalMs it writes state.json next to
 /// this DLL (atomic replace):
 /// current map, town / rift flags, player stats, ground items (with pickup-filter matches), NPCs, monsters (hit points, ROSBOT's
-/// attack-target mark), ROSBOT's target settings, monster counts, carried
+/// attack-target mark), ROSBOT's target settings, the active skills' readiness, monster counts, carried
 /// items, the live pickup / stash record, follow / town standby / combat assist state and the last command result. Commands and the pickup filter:
 /// see BridgeCommands; item
 /// GameBalanceIds and the affixes of watched build items: see ItemWatch.
@@ -48,6 +48,7 @@ public sealed class CoreNodeBridge : IPlugin
     private ItemWatch _watch;
     private FollowMode _follow;
     private CombatAssist _assist;
+    private readonly CombatProbe _probe = new();
     private TownHold _townHold;
     private TownStandby _standby;
     private PulseHold _hold;
@@ -188,6 +189,7 @@ public sealed class CoreNodeBridge : IPlugin
         if (_follow.Enabled && _assist.Enabled && _hold.State == PulseHold.StateOff) _hold.Set(true);
         _follow.Tick();
         TickAssist();
+        _probe.Tick();
         if ((now - _lastScanUtc).TotalMilliseconds >= ScanIntervalMs)
         {
             _lastScanUtc = now;
@@ -394,6 +396,11 @@ public sealed class CoreNodeBridge : IPlugin
             WriteEntities(json, "ground_items", _ground);
             WriteEntities(json, "npcs", WorldScanner.Npcs(actors));
             WriteEntities(json, "monsters", _monsters);
+            json.BeginArray("skills");
+            foreach (var k in _probe.Skills)
+                json.BeginObject().Prop("power", k.Power).Prop("name", k.Name).Prop("ready", k.Ready).Prop("on_cooldown", k.OnCooldown)
+                    .Prop("cooldown_ms", k.CooldownMs).Prop("resource_ok", k.ResourceOk).Prop("charges", k.Charges).Prop("channel", k.Channel).EndObject();
+            json.EndArray();
             json.BeginObject("ros_settings")
                 .Prop("scan_range", CombatAssist.RosSetting(() => RosSettings.ScanRange))
                 .Prop("density_limit", CombatAssist.RosSetting(() => RosSettings.DensityLimit))

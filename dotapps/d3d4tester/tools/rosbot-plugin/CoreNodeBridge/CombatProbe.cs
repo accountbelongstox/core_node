@@ -121,7 +121,7 @@ internal sealed class CombatProbe
     {
         var sb = new StringBuilder();
         int count = 0;
-        foreach (var type in Types(typeof(Context).Assembly))
+        foreach (var type in ScriptProbe.Types(typeof(Context).Assembly))
         {
             foreach (var method in WorldScanner.Safe(() => type.GetMethods(AllMembers), Array.Empty<MethodInfo>()))
             {
@@ -131,8 +131,8 @@ internal sealed class CombatProbe
                 sb.Append("0x").Append(method.MetadataToken.ToString("X8")).Append(method.IsStatic ? " static " : " instance ")
                     .Append(method.IsPublic ? "public " : method.IsAssembly ? "internal " : "private ")
                     .Append(method.ReturnType.Name).Append(" (")
-                    .Append(string.Join(", ", ps.Select(p => p.ParameterType.IsEnum && IsPowerEnum(p.ParameterType) ? "Power:" + Printable(p.ParameterType.Name) : p.ParameterType.Name)))
-                    .Append(") in 0x").Append(type.MetadataToken.ToString("X8")).Append(' ').Append(Printable(type.FullName)).Append('\n');
+                    .Append(string.Join(", ", ps.Select(p => p.ParameterType.IsEnum && IsPowerEnum(p.ParameterType) ? "Power:" + ScriptProbe.Printable(p.ParameterType.Name) : p.ParameterType.Name)))
+                    .Append(") in 0x").Append(type.MetadataToken.ToString("X8")).Append(' ').Append(ScriptProbe.Printable(type.FullName)).Append('\n');
             }
         }
         File.WriteAllText(Path.Combine(dir, PowerApiFileName), sb.Length == 0 ? "no method with a power parameter\n" : sb.ToString(), new UTF8Encoding(false));
@@ -157,19 +157,4 @@ internal sealed class CombatProbe
     private static double Hp(IActor monster) => WorldScanner.Safe(() => monster.CommData, null) is { } acd ? WorldScanner.HpPct(acd) : -1;
 
     private static string Pct(double hp) => hp < 0 ? "?" : $"{hp * 100:0.0}%";
-
-    private static IEnumerable<Type> Types(Assembly assembly)
-    {
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            return ex.Types.Where(t => t != null);
-        }
-    }
-
-    private static string Printable(string text) =>
-        string.Concat((text ?? "").Select(ch => ch is >= ' ' and <= '~' ? ch.ToString() : $"\\u{(int)ch:x4}"));
 }

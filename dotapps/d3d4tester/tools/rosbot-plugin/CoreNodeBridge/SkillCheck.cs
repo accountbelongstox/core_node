@@ -95,7 +95,8 @@ internal static class SkillCheck
         return hit.Name == null ? null : hit.Id;
     }
 
-    private static (string Name, int Id)[] Powers()
+    /// <summary>ROSBOT's PowerId names and values (cached; shared with CombatProbe).</summary>
+    internal static (string Name, int Id)[] Powers()
     {
         if (_powers != null) return _powers;
         _powers = WorldScanner.Safe(() => Enum.GetValues(typeof(PowerId)).Cast<object>()

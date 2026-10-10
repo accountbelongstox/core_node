@@ -98,6 +98,7 @@
       <TabItem x:Name="TabMonsters">
         <DockPanel Margin="4">
           <TextBlock x:Name="TxtMonsterInfo" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <TextBlock x:Name="TxtSkills" DockPanel.Dock="Top" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4"/>
           <ListBox x:Name="LstMonsters" MinHeight="60"/>
         </DockPanel>
       </TabItem>
@@ -135,7 +136,9 @@
           <WrapPanel Margin="0,0,0,6">
             <TextBox x:Name="TxtUiId" Width="200" Margin="0,0,6,0" VerticalAlignment="Center"/>
             <Button x:Name="BtnClickUi" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0" Click="BtnClickUi_Click"/>
-            <Button x:Name="BtnScriptScope" Style="{StaticResource SubtleButtonStyle}" Click="BtnScriptScope_Click"/>
+            <Button x:Name="BtnScriptScope" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnScriptScope_Click"/>
+            <Button x:Name="BtnPowerApi" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,6,0" Click="BtnPowerApi_Click"/>
+            <Button x:Name="BtnAttackTest" Style="{StaticResource SubtleButtonStyle}" Click="BtnAttackTest_Click"/>
           </WrapPanel>
           <TextBlock x:Name="LblTests" Style="{StaticResource FieldLabelTextStyle}" Margin="0,0,0,2"/>
           <WrapPanel Margin="0,0,0,6">

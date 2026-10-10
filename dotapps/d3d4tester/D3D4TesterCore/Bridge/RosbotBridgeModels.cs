@@ -93,6 +93,8 @@ public sealed record RosbotBridgeState(
     /// <summary>ROSBOT's target settings (scan_range, density_limit, elite / goblin / normal / minion / warden weight); -1 = unreadable.</summary>
     [JsonPropertyName("ros_settings")] public IReadOnlyDictionary<string, int>? RosSettings { get; init; }
     [JsonPropertyName("monsters")] public IReadOnlyList<RosbotBridgeEntity> Monsters { get; init; } = Array.Empty<RosbotBridgeEntity>();
+    /// <summary>The hero's active skills with ROSBOT's readiness reads (cooldown, resource, charges).</summary>
+    [JsonPropertyName("skills")] public IReadOnlyList<RosbotBridgeSkill> Skills { get; init; } = Array.Empty<RosbotBridgeSkill>();
     /// <summary>Town standby (app "return to town and stand by"): on, state (reviving / needs_town / in_town) and since when.</summary>
     [JsonPropertyName("standby_enabled")] public bool StandbyEnabled { get; init; }
     [JsonPropertyName("standby_state")] public string StandbyState { get; init; } = "";
@@ -157,6 +159,17 @@ public sealed record RosbotBridgeEntity(
     [JsonPropertyName("hp_pct")] public double HpPct { get; init; } = -1;
     [JsonPropertyName("ros_target")] public bool RosTarget { get; init; }
 }
+
+/// <summary>One active skill: ROSBOT PowerId value and name, ready (off cooldown, resource and charges), cooldown left, charges, channelled.</summary>
+public sealed record RosbotBridgeSkill(
+    [property: JsonPropertyName("power")] int Power,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("ready")] bool Ready,
+    [property: JsonPropertyName("on_cooldown")] bool OnCooldown,
+    [property: JsonPropertyName("cooldown_ms")] int CooldownMs,
+    [property: JsonPropertyName("resource_ok")] bool ResourceOk,
+    [property: JsonPropertyName("charges")] int Charges,
+    [property: JsonPropertyName("channel")] bool Channel);
 
 /// <summary>Live pickup (item vanished next to the hero) or stash event.</summary>
 public sealed record RosbotBridgePickup(

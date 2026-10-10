@@ -69,6 +69,9 @@ public static class RosbotPluginConstants
     public const string BridgeAssistOff = "off";
     /// <summary>Plugin research command: list ROSBOT's IronPython engine / scope (read only) into script_scope.txt next to the plugin.</summary>
     public const string BridgeActionScriptScope = "script_scope";
+    /// <summary>Plugin research commands: Interact with the nearest monster and report its hit points (attack_test), list ROSBOT methods taking a power into power_api.txt.</summary>
+    public const string BridgeActionAttackTest = "attack_test";
+    public const string BridgeActionPowerApi = "power_api";
     /// <summary>ros_settings keys shown on the monsters tab (plugin CoreNodeBridge.WriteStateLocked).</summary>
     public const string BridgeRosScanRange = "scan_range";
     public const string BridgeRosEliteWeight = "elite_weight";

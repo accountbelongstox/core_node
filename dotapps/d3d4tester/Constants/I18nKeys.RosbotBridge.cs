@@ -102,6 +102,14 @@ public static partial class I18nKeys
     public const string RosbotBridgeCombatTarget = "ui.rosbot_bridge.combat_target";
     public const string RosbotBridgeTabMonsters = "ui.rosbot_bridge.tab_monsters";
     public const string RosbotBridgeScriptScope = "ui.rosbot_bridge.script_scope";
+    public const string RosbotBridgeAttackTest = "ui.rosbot_bridge.attack_test";
+    public const string RosbotBridgeAttackTestTip = "ui.rosbot_bridge.attack_test_tip";
+    public const string RosbotBridgePowerApi = "ui.rosbot_bridge.power_api";
+    public const string RosbotBridgePowerApiTip = "ui.rosbot_bridge.power_api_tip";
+    public const string RosbotBridgeSkillsLine = "ui.rosbot_bridge.skills_line";
+    public const string RosbotBridgeSkillReady = "ui.rosbot_bridge.skill_ready";
+    public const string RosbotBridgeSkillCooldown = "ui.rosbot_bridge.skill_cooldown";
+    public const string RosbotBridgeSkillNoResource = "ui.rosbot_bridge.skill_no_resource";
     public const string RosbotBridgeDebugFull = "ui.rosbot_bridge.debug_full";
     public const string RosbotBridgeDebugFullTip = "ui.rosbot_bridge.debug_full_tip";
     public const string RosbotBridgeScriptScopeTip = "ui.rosbot_bridge.script_scope_tip";
