@@ -41,7 +41,7 @@ public static class D3SkillSwitchService
     public static bool PluginAvailable => GameInterfaceData.Instance.GetStateSnapshot().RosbotBridgeFresh;
 
     /// <summary>Run the switch for the selected gear set; null when another run is going or no gear set is selected.</summary>
-    public static async Task<SkillSwitchResult?> RunAsync(SkillSwitchMethod method, Action<SkillSwitchStep>? progress = null)
+    public static async Task<SkillSwitchResult?> RunAsync(SkillSwitchMethod method, bool reuseCache, Action<SkillSwitchStep>? progress = null)
     {
         if (D3PlannerService.Build is not { } build || D3PlannerService.Profile is not { } profile) return null;
         if (Interlocked.Exchange(ref _running, 1) == 1) return null;
@@ -59,9 +59,9 @@ public static class D3SkillSwitchService
             }
             try
             {
-                MonitorLog.Info($"{LogTag} {build.Name} / {profile.Name}: {method}");
+                MonitorLog.Info($"{LogTag} {build.Name} / {profile.Name}: {method}, reuse cache {reuseCache}");
                 var result = await Task.Run(() => D3SkillSwitcher.Run(profile, build.Class, cacheDir, method,
-                    method == SkillSwitchMethod.Plugin ? () => PluginCheck(build.Class, profile) : null, () => false, progress)).ConfigureAwait(false);
+                    method == SkillSwitchMethod.Plugin ? () => PluginCheck(build.Class, profile) : null, () => false, progress, reuseCache)).ConfigureAwait(false);
                 MonitorLog.Info($"{LogTag} {result.Outcome}: {result.Detail} (switch {result.Elapsed.TotalSeconds:F1} s)");
                 return result;
             }

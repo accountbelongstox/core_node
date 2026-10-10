@@ -187,7 +187,7 @@ public partial class D3PlannerBuildBlock : UserControl
         progress.Show();
         try
         {
-            var result = await D3SkillSwitchService.RunAsync(dialog.Method, progress.Add);
+            var result = await D3SkillSwitchService.RunAsync(dialog.Method, dialog.ReuseCache, progress.Add);
             TxtSwitchStatus.Text = result == null
                 ? T(I18nKeys.RosbotBridgeBuildSkillSwitchBusy)
                 : string.Format(CultureInfo.InvariantCulture, T(I18nKeys.RosbotBridgeBuildSkillSwitchOutcomePrefix + result.Outcome.ToString().ToLowerInvariant()),

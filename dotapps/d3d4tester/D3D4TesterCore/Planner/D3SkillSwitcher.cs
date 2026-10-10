@@ -98,6 +98,7 @@ public static class D3SkillSwitcher
     private const double IconThreshold = 0.75;
     private const double IconGrayZone = 0.60;
     private const int PaneOpenMinIcons = 3;
+    private const int PassiveChooserMinIcons = 2;
     private const int SizeStepDivisor = 300;
     private const int AfterKeyMs = 900;
     private const int AfterClickMs = 800;
@@ -213,18 +214,23 @@ public static class D3SkillSwitcher
     }
 
     public static SkillSwitchResult Run(PlannerProfile profile, string cls, string cacheDir, SkillSwitchMethod method,
-        Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop, Action<SkillSwitchStep>? progress = null)
+        Func<SkillCheckResult?>? pluginCheck, Func<bool> shouldStop, Action<SkillSwitchStep>? progress = null, bool reuseCache = false)
     {
         var watch = Stopwatch.StartNew();
         _progress = progress;
         _plannedSkillKeys = profile.Skills.Select(s => s.Id).Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.Ordinal).ToArray();
         _fullSearch = false;
-        _layout = D3UiLayout.Shared;
-        // rune / skill icon positions learned before the layout was shared (button places are calibrated per dialog now)
-        if (Path.Combine(cacheDir, LegacyLayoutFileName) is var legacy && File.Exists(legacy)
-            && _layout.Import(LayoutCache.Load(legacy, UiFrame), k => !k.StartsWith(D3UiLayout.TemplatePrefix, StringComparison.Ordinal)) is > 0 and var imported)
-            ColorPrinter.Gray($"{LogTag} {imported} learned position(s) imported from {legacy}");
-        ColorPrinter.Gray($"{LogTag} layout: {_layout.Count} calibrated / learned position(s)");
+        // without the cache everything is recognized in full every time (the original path, kept as the redundant fallback)
+        _layout = reuseCache ? D3UiLayout.Shared : null;
+        if (_layout != null)
+        {
+            // rune / skill icon positions learned before the layout was shared (button places are calibrated per dialog now)
+            if (Path.Combine(cacheDir, LegacyLayoutFileName) is var legacy && File.Exists(legacy)
+                && _layout.Import(LayoutCache.Load(legacy, UiFrame), k => !k.StartsWith(D3UiLayout.TemplatePrefix, StringComparison.Ordinal)) is > 0 and var imported)
+                ColorPrinter.Gray($"{LogTag} {imported} learned position(s) imported from {legacy}");
+            ColorPrinter.Gray($"{LogTag} layout cache on: {_layout.Count} calibrated / learned position(s)");
+        }
+        else ColorPrinter.Gray($"{LogTag} layout cache off: full recognition");
         var hwnd = D3WindowFinder.FindWindows().FirstOrDefault()?.Hwnd ?? IntPtr.Zero;
         var restore = Expand(hwnd);
         SkillSwitchResult result;
@@ -353,7 +359,22 @@ public static class D3SkillSwitcher
         // stop once the pane is certain (PaneOpenMinIcons slots show a skill) or impossible (too few slots left)
         for (int slot = 0; slot < SlotCount && icons < PaneOpenMinIcons && icons + SlotCount - slot >= PaneOpenMinIcons; slot++)
             if (AnyIconAt(shot, PaneSlotIcon[slot], keys, key => D3SkillIcons.SkillIconPath(cacheDir, cls, key))) icons++;
-        return icons >= PaneOpenMinIcons ? UiState.Pane : UiState.World;
+        if (icons >= PaneOpenMinIcons) return UiState.Pane;
+        return PassiveChooserShown(shot, cls, cacheDir) ? UiState.PassiveChooser : UiState.World;
+    }
+
+    /// <summary>
+    /// Second sign of the passive chooser when its Accept button is not matched (greyed while nothing changed, or covered): class
+    /// passive icons in at least PassiveChooserMinIcons of its four top slots.
+    /// </summary>
+    private static bool PassiveChooserShown(Shot shot, string cls, string cacheDir)
+    {
+        var keys = IconKeys(Path.GetDirectoryName(D3SkillIcons.PassiveIconPath(cacheDir, cls, "_"))!).ToList();
+        if (keys.Count == 0) return false;
+        int icons = 0;
+        for (int slot = 0; slot < PassiveTopSlots.Length && icons < PassiveChooserMinIcons && icons + PassiveTopSlots.Length - slot >= PassiveChooserMinIcons; slot++)
+            if (AnyIconAt(shot, PassiveTopSlots[slot], keys, key => D3SkillIcons.PassiveIconPath(cacheDir, cls, key))) icons++;
+        return icons >= PassiveChooserMinIcons;
     }
 
     /// <summary>
@@ -369,7 +390,7 @@ public static class D3SkillSwitcher
     /// </summary>
     private static bool FallBackToFullSearch(string why)
     {
-        if (_fullSearch) return false;
+        if (_layout == null || _fullSearch) return false;
         _fullSearch = true;
         ColorPrinter.Yellow($"{LogTag} {why} with the calibrated layout: searching whole captures for the rest of the run");
         Report(SkillSwitchStage.Screen, null, $"{why} with the calibrated layout: whole-capture search, retry");
@@ -719,7 +740,7 @@ public static class D3SkillSwitcher
         try { Task.WaitAll(LearnTasks.ToArray()); }
         catch (AggregateException ex) { ColorPrinter.Yellow($"{LogTag} skill icon learning: {ex.InnerException?.Message}"); }
         LearnTasks.Clear();
-        D3UiLayout.Save();
+        if (_layout != null) D3UiLayout.Save();
         _layout = null;
     }
 
@@ -1125,7 +1146,14 @@ public static class D3SkillSwitcher
         if (Template(Path.Combine(D3TemplatePaths.GetTemplateDir(), TemplateDir, name + D3TemplatePaths.TemplateExtension)) is not { } template) return null;
         var widths = Enumerable.Range(0, TemplateScaleSteps)
             .Select(i => (int)Math.Round(template.Cols * shot.Scale * (TemplateScaleMin + i * TemplateScaleStep))).ToList();
-        return D3UiLayout.Locate(shot.Image, shot.Area, template, widths, threshold, D3UiLayout.TemplateKey(name, dialog), _fullSearch);
+        if (_layout == null)
+        {
+            var m = TemplateMatcherService.GetTemplateMatcher().MatchMultiScale(shot.Image, template, widths, threshold, name);
+            return m.Success ? m : null;
+        }
+        // the game menu's Return button sits at more than one place (menu variants): its absence is never decided by the cache alone
+        return D3UiLayout.Locate(shot.Image, shot.Area, template, widths, threshold, D3UiLayout.TemplateKey(name, dialog),
+            _fullSearch || dialog == DialogGameMenu);
     }
 
     private static IEnumerable<string> SkillKeys(string cls, string cacheDir) => IconKeys(Path.GetDirectoryName(D3SkillIcons.SkillIconPath(cacheDir, cls, "_"))!);

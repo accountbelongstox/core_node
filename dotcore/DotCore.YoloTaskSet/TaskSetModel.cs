@@ -37,8 +37,52 @@ public sealed class TaskResource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<ResourceBox>? Boxes { get; set; }
 
+    /// <summary>Variants only: size of the image / video frame the variant was cut from (0 = unknown); source-relative sizing and placement.</summary>
+    [JsonPropertyName("source_width")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int SourceWidth { get; set; }
+
+    [JsonPropertyName("source_height")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int SourceHeight { get; set; }
+
     [JsonIgnore]
     public double EffectivePixelScale => PixelScale > 0 && double.IsFinite(PixelScale) ? Math.Clamp(PixelScale, 0.1, 10) : 1.0;
+
+    [JsonIgnore]
+    public bool HasSourceSize => SourceWidth > 0 && SourceHeight > 0;
+}
+
+/// <summary>
+/// Recorded segment shared with the task set in place ({segment}/frames + their JSON / VOC annotations, nothing copied).
+/// Annotated frames serve as backgrounds whose boxes are real positives (difficult boxes masked out) and / or are written
+/// as real labeled images; both uses split by the same frame blocks so a block never feeds train and val.
+/// </summary>
+public sealed class SegmentSource
+{
+    /// <summary>Absolute, or relative to the YOLO data root.</summary>
+    [JsonPropertyName("segment_dir")] public string SegmentDir { get; set; } = "";
+
+    [JsonPropertyName("backgrounds")] public bool Backgrounds { get; set; } = true;
+
+    [JsonPropertyName("real_images")] public bool RealImages { get; set; } = true;
+
+    /// <summary>Every n-th annotated frame is used (consecutive recorded frames are near duplicates).</summary>
+    [JsonPropertyName("frame_step")] public int FrameStep { get; set; } = 1;
+
+    [JsonIgnore] public int EffectiveFrameStep => Math.Clamp(FrameStep, 1, 1000);
+}
+
+/// <summary>Where the objects of a target are pasted.</summary>
+public static class TargetPlacement
+{
+    /// <summary>Random position (default).</summary>
+    public const string Anywhere = "anywhere";
+
+    /// <summary>The position the variant was cut from, scaled to the background (fixed UI panels, buttons, text areas).</summary>
+    public const string Source = "source";
+
+    public static readonly IReadOnlyList<string> All = new[] { Anywhere, Source };
 }
 
 /// <summary>Axis-aligned rectangle in a resource's native pixels.</summary>
@@ -216,6 +260,9 @@ public sealed class SynthesisSettings
     public const string HoldoutSplitVal = "val";
     public const string HoldoutSplitTest = "test";
     public static readonly IReadOnlyList<string> HoldoutSplits = new[] { HoldoutSplitVal, HoldoutSplitTest };
+    public const string RelativeSizingRange = "range";
+    public const string RelativeSizingSource = "source";
+    public static readonly IReadOnlyList<string> RelativeSizings = new[] { RelativeSizingRange, RelativeSizingSource };
 
     [JsonPropertyName("images_per_target")] public int ImagesPerTarget { get; set; } = 200;
     [JsonPropertyName("val_percent")] public int ValPercent { get; set; } = 20;
@@ -265,7 +312,17 @@ public sealed class SynthesisSettings
 
     [JsonPropertyName("holdout_split")] public string HoldoutSplit { get; set; } = HoldoutSplitVal;
 
+    /// <summary>
+    /// Relative mode: "range" = object size from relative_min..relative_max; "source" = the size the variant had in its source frame,
+    /// scaled by background / source short side (fallback range when the source size is unknown).
+    /// </summary>
+    [JsonPropertyName("relative_sizing")] public string RelativeSizing { get; set; } = RelativeSizingRange;
+
+    /// <summary>Consecutive segment frames per split group (real images and segment backgrounds).</summary>
+    [JsonPropertyName("segment_block_frames")] public int SegmentBlockFrames { get; set; } = 30;
+
     [JsonIgnore] public bool IsNative => ScaleMode == ScaleModeNative;
+    [JsonIgnore] public bool SizesFromSource => !IsNative && RelativeSizing == RelativeSizingSource;
     [JsonIgnore] public bool UsesDpiSteps => IsNative && DpiSteps.Count > 0;
     [JsonIgnore] public bool IsPng => OutputFormat == OutputFormatPng;
     [JsonIgnore] public string OutputExtension => "." + OutputFormat;
@@ -310,6 +367,8 @@ public sealed class SynthesisSettings
         s.ContaminationThreshold = Math.Clamp(s.ContaminationThreshold, 0.5, 1);
         s.ContaminationVideoFrames = Math.Clamp(s.ContaminationVideoFrames, 0, 1000);
         s.HoldoutSplit = HoldoutSplits.Contains(s.HoldoutSplit) ? s.HoldoutSplit : HoldoutSplitVal;
+        s.RelativeSizing = RelativeSizings.Contains(s.RelativeSizing) ? s.RelativeSizing : RelativeSizingRange;
+        s.SegmentBlockFrames = Math.Clamp(s.SegmentBlockFrames, 1, 100_000);
         return s;
     }
 }
@@ -323,6 +382,14 @@ public sealed class TaskTarget
     [JsonPropertyName("scenes")] public List<TaskResource> Scenes { get; set; } = new();
     [JsonPropertyName("augmentation")] public AugmentationOverride? Augmentation { get; set; }
     [JsonPropertyName("images_per_target")] public int? ImagesPerTarget { get; set; }
+
+    /// <summary>TargetPlacement value; unknown = anywhere.</summary>
+    [JsonPropertyName("placement")] public string Placement { get; set; } = TargetPlacement.Anywhere;
+
+    /// <summary>Source placement: random offset as a fraction of the image size.</summary>
+    [JsonPropertyName("placement_jitter")] public double PlacementJitter { get; set; } = 0.01;
+
+    [JsonIgnore] public bool PlacesAtSource => Placement == TargetPlacement.Source;
 }
 
 /// <summary>Task set (任务集): targets, common resources, global augmentation and synthesis settings.</summary>
@@ -342,6 +409,8 @@ public sealed class TaskSet
     [JsonPropertyName("distractors")] public List<TaskResource> Distractors { get; set; } = new();
 
     [JsonPropertyName("holdout_sources")] public List<HoldoutSource> HoldoutSources { get; set; } = new();
+
+    [JsonPropertyName("segment_sources")] public List<SegmentSource> SegmentSources { get; set; } = new();
 
     [JsonPropertyName("inference_roi_hint")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -380,6 +449,10 @@ public enum TaskSetIssueCode
     InvalidRegion,
     /// <summary>Subject: variant file; an opaque variant is pasted with its source background square.</summary>
     VariantWithoutAlpha,
+    /// <summary>Subject: segment dir; missing or without annotated frames.</summary>
+    SegmentUnreadable,
+    /// <summary>Subject: target name; source placement without a variant whose source position and size are known (pasted anywhere).</summary>
+    PlacementSourceUnknown,
 }
 
 /// <summary>Validation issues plus the structured contamination hits behind the BackgroundContainsTarget issues.</summary>
@@ -413,7 +486,8 @@ public sealed record SynthesisResult(
     IReadOnlyList<TaskSetIssue> Warnings,
     SynthesisInferenceInfo Inference,
     int HoldoutImages,
-    int FailedJobs);
+    int FailedJobs,
+    int RealImages = 0);
 
 /// <summary>Planned dataset size (no rendering): advisor input. MaxImageSide is an upper bound without taskSetDir.</summary>
 public sealed record TaskSetEstimate(
@@ -426,7 +500,9 @@ public sealed record TaskSetEstimate(
     int ImageHeight,
     int MaxImageSide,
     int MaxObjectSide,
-    string ScaleMode);
+    string ScaleMode,
+    int RealTrainImages = 0,
+    int RealValImages = 0);
 
 /// <summary>A variant found in a background by template matching (rect in the resource's native pixels; Frame = cached frame file for videos).</summary>
 public sealed record ContaminationHit(
