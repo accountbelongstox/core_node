@@ -122,6 +122,10 @@ export function publishShareTargets(targets: ShareTarget[]): Promise<void> {
   return capShareReceiver.publishShareTargets(targets);
 }
 
+export function reportShareTargetUsed(id: string): Promise<void> {
+  return capShareReceiver.reportShareTargetUsed(id);
+}
+
 registerLocalDataGroup({
   id: 'shared.share_inbox',
   appId: 'shared',

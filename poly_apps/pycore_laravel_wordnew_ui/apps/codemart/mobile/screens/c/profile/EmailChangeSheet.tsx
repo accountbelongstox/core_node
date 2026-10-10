@@ -2,7 +2,6 @@ import React from 'react';
 import { useTranslation } from '../../../../../../core/i18n/UiI18n';
 import { useCmEmailChange } from '../../../../shared/useCmProfile';
 import { MobileButton, MobileField, MobileSheet } from '../../../ui';
-import { MobilePasswordInput } from '../parts/MobilePasswordInput';
 import { useInlineFeedback } from '../parts/useInlineFeedback';
 
 interface EmailChangeSheetProps {

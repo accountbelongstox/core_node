@@ -31,9 +31,6 @@
 .cmmc-copy { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; max-width: 100%; padding: 0; border: 0; background: none; color: var(--cmm-text); text-align: right; cursor: pointer; overflow-wrap: anywhere; }
 .cmmc-copy svg { width: 14px; height: 14px; flex: none; color: var(--cmm-primary); }
 
-.cmmc-password { position: relative; display: block; }
-.cmmc-password .cmm-input { padding-right: 46px; }
-.cmmc-password .cmm-icon-btn { position: absolute; top: 3px; right: 3px; }
 
 /* ---- Wallet ---- */
 .cmmc-balance { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 18px; background: linear-gradient(135deg, var(--cmm-primary), var(--cmm-violet)); color: #fff; box-shadow: var(--cmm-shadow); }

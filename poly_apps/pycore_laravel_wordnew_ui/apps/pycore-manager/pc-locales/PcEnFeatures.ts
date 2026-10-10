@@ -411,7 +411,7 @@ terminal: {
       loading: 'Loading terminals…',
       noTerminals: 'No terminal found on this machine.',
       nodeUnreachable: 'Unreachable',
-      lastUsed: 'Last used',
+      lastUsed: 'Recently opened, drafted or operated',
       terminalOffline: 'offline',
       pickTerminal: 'Pick a terminal',
       confirm: 'Add to #{{number}}',

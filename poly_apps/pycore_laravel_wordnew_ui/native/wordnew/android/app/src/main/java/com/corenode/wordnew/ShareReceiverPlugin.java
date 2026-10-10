@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.provider.OpenableColumns;
 import android.webkit.MimeTypeMap;
 
+import androidx.core.app.Person;
 import androidx.core.content.IntentCompat;
 import androidx.core.content.pm.ShortcutInfoCompat;
 import androidx.core.content.pm.ShortcutManagerCompat;
@@ -93,6 +94,7 @@ public class ShareReceiverPlugin extends Plugin {
         final String intentMime = intent.getType();
         intent.setAction(Intent.ACTION_MAIN);
         if (uris.isEmpty() && text == null) return;
+        reportTargetUsed(targetId);
         worker.execute(() -> {
             try {
                 ingest(uris, text, targetId, intentMime);
@@ -125,6 +127,23 @@ public class ShareReceiverPlugin extends Plugin {
         });
     }
 
+    /** Usage signal for the share sheet ranking: a shortcut reported as used is offered earlier next time. */
+    @PluginMethod
+    public void reportShareTargetUsed(PluginCall call) {
+        call.resolve(new JSObject().put("reported", reportTargetUsed(call.getString("id", ""))));
+    }
+
+    private boolean reportTargetUsed(String id) {
+        if (id == null || id.trim().isEmpty()) return false;
+        try {
+            ShortcutManagerCompat.reportShortcutUsed(getContext(), id.trim());
+            return true;
+        } catch (Exception error) {
+            Logger.error(getLogTag(), "Share target usage report failed", error);
+            return false;
+        }
+    }
+
     @PluginMethod
     public void publishShareTargets(PluginCall call) {
         JSArray targets = call.getArray("targets");
@@ -154,6 +173,7 @@ public class ShareReceiverPlugin extends Plugin {
                     .setIcon(icon)
                     .setIntent(new Intent(launch))
                     .setCategories(categories)
+                    .setPerson(new Person.Builder().setName(label).setKey(id).build())
                     .setLongLived(true)
                     .setRank(shortcuts.size())
                     .build());

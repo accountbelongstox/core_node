@@ -45,7 +45,7 @@ interface PcTerminalInputBoxProps {
   actions?: React.ReactNode;
   /** Start of the toolbar row, before the voice controls. */
   leading?: React.ReactNode;
-  /** Centered in the toolbar row, between the voice controls and the actions. */
+  /** Pinned to the end of the single toolbar row. */
   sendButton?: React.ReactNode;
   session?: PcTerminalInputSession;
   /** Live screenshot of the selected terminal window, null when it could not be captured. */
@@ -96,6 +96,8 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
   const ocrCopiedTimer = useRef<number | undefined>(undefined);
   const cameraSupported = CAMERA_BUTTON_VISIBLE && isNativeAppShell() && !isDesktopAppShell();
   const isMobile = useIsMobile();
+  /** Phones pick photos from the live gallery: the clipboard pull would only duplicate the image button there. */
+  const galleryDevice = isMobile || isNativeAppShell();
   const toggleMode = () => {
     const next: ComposerMode = mode === 'voice' ? 'text' : 'voice';
     setMode(next);
@@ -152,7 +154,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
       images.addFiles(read.images.filter(isTerminalAttachmentFile));
       return;
     }
-    if (isMobile || isNativeAppShell()) pickerRef.current?.click();
+    if (galleryDevice) pickerRef.current?.click();
     else showPullHint(read.status === 'ok' ? 'pull.empty' : `pull.${read.status}`);
   };
   const pullLiveScreenshot = async () => {
@@ -473,8 +475,8 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
         placeholder={t(mode === 'voice' ? 'terminal.voice.textPlaceholder' : 'terminal.inputPlaceholder')}
         className="block w-full resize-y bg-transparent px-3 pb-1 pt-1 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
       />
-      <div className="flex flex-wrap items-center gap-1.5 px-1.5 pb-1.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div className="flex items-center gap-1.5 px-1.5 pb-1.5">
+        <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {leading}
           {mode === 'voice' && (
             <>
@@ -507,9 +509,6 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
               )}
             </>
           )}
-        </div>
-        <div className="ml-auto flex shrink-0 items-center [&>button]:h-9 [&>button]:w-12">{sendButton}</div>
-        <div className="flex min-w-0 flex-auto flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={toggleMode}
@@ -553,16 +552,18 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
               {shooting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => { void pullImages(); }}
-            disabled={!hasWindow || pulling}
-            title={t('terminal.images.pull.action')}
-            aria-label={t('terminal.images.pull.action')}
-            className={iconButton}
-          >
-            {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardPaste className="h-4 w-4" />}
-          </button>
+          {!galleryDevice && (
+            <button
+              type="button"
+              onClick={() => { void pullImages(); }}
+              disabled={!hasWindow || pulling}
+              title={t('terminal.images.pull.action')}
+              aria-label={t('terminal.images.pull.action')}
+              className={iconButton}
+            >
+              {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardPaste className="h-4 w-4" />}
+            </button>
+          )}
           {pullScreenshot && (
             <button
               type="button"
@@ -609,6 +610,7 @@ export const PcTerminalInputBox: React.FC<PcTerminalInputBoxProps> = ({
           />
           {actions}
         </div>
+        <div className="flex shrink-0 items-center [&>button]:h-9 [&>button]:w-11">{sendButton}</div>
       </div>
       <PcImageLightbox
         open={Boolean(previewItem)}
