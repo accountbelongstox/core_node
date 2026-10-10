@@ -38,6 +38,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
 
     private const REQUIRED_TABLES = [
         'codemart_v1_email_verifications',
+        'codemart_v1_email_changes',
         'codemart_v1_phone_verifications',
         'codemart_v1_kyc_verifications',
         'codemart_v1_user_roles',
@@ -278,6 +279,22 @@ class CodeMartV1Initializer implements AppInitializerInterface
     public static function contractTableStructures(): array
     {
         return [
+            'codemart_v1_email_changes' => [
+                'columns' => [
+                    'id' => ['type' => 'bigIncrements'],
+                    'user_id' => ['type' => 'bigInteger', 'nullable' => false],
+                    'new_email' => ['type' => 'string', 'nullable' => false],
+                    'token_hash' => ['type' => 'string', 'nullable' => false],
+                    'expires_at' => ['type' => 'timestamp', 'nullable' => false],
+                    'confirmed_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['user_id']],
+                    ['columns' => ['token_hash']],
+                ],
+            ],
             'codemart_v1_notifications' => [
                 'columns' => [
                     'id' => ['type' => 'bigIncrements'],

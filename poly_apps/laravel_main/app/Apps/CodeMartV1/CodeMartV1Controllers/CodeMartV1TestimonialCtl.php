@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Controllers;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1AdminService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1TestimonialService;
@@ -28,7 +29,7 @@ class CodeMartV1TestimonialCtl extends Controller
             return $this->unauthorized();
         }
 
-        $maxLength = CodeMartV1Constants::TESTIMONIAL_MAX_QUOTE_LENGTH;
+        $maxLength = CodeMartV1PolicyService::int('testimonial_max_quote_length');
         $validator = Validator::make($request->all(), [
             'quote' => 'required_without:quotes|nullable|string|min:10|max:' . $maxLength,
             'quotes' => 'required_without:quote|nullable|array',

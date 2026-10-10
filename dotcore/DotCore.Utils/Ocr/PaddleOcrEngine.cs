@@ -9,7 +9,8 @@ namespace DotCore.Utils.Ocr;
 
 /// <summary>
 /// OCR engine using PaddleOCRSharp (open-source PaddleOCR .NET wrapper).
-/// Same contract as IOcrEngine. Windows x64 (Paddle.Runtime.win_x64).
+/// Same contract as IOcrEngine. Windows x64 (Paddle.Runtime.win_x64). Model: the global choice of <see cref="OcrModelCatalog"/>
+/// (bundled PP-OCRv5 mobile, or a downloaded det / rec pair with the bundled angle classifier and keys).
 /// Ref: https://www.nuget.org/packages/PaddleOCRSharp
 /// </summary>
 [SupportedOSPlatform("windows")]
@@ -38,9 +39,11 @@ public sealed class PaddleOcrEngine : IOcrEngine
         try
         {
             var config = OCRModelConfig.Default;
+            if (OcrModelCatalog.SelectedModelDirs() is { } dirs)
+                config = new OCRModelConfig { det_infer = dirs.Det, rec_infer = dirs.Rec, cls_infer = config.cls_infer, keys = config.keys };
             _engine = new PaddleOCREngine(config);
             _initialized = true;
-            ColorPrinter.Green("[PaddleOcrEngine] Initialized (PaddleOCRSharp)");
+            ColorPrinter.Green($"[PaddleOcrEngine] Initialized (PaddleOCRSharp, model {OcrModelCatalog.SelectedId})");
             return true;
         }
         catch (Exception ex)

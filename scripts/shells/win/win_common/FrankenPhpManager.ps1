@@ -47,7 +47,9 @@ $script:FrankenPhpReleaseUrl = 'https://github.com/php/frankenphp/releases/downl
 $script:FrankenPhpLaravelDirectory = Join-Path (Join-Path $script:FrankenPhpRepositoryRoot 'poly_apps') 'laravel_main'
 $script:FrankenPhpLaravelPublicDirectory = Join-Path $script:FrankenPhpLaravelDirectory 'public'
 $script:FrankenPhpLaravelStorageDirectory = Join-Path $script:FrankenPhpLaravelDirectory 'storage'
-$script:FrankenPhpLaravelConfigDirectory = Join-Path $script:FrankenPhpLaravelStorageDirectory 'frankenphp'
+# Windows-only subdirectory: a dual-boot Debian rewrites storage/frankenphp/{Caddyfile,routes} with
+# Linux paths, which made the WinSW service crash-loop (mirrors ServerManagerV1FrankenPhpCaddyfileBuilder).
+$script:FrankenPhpLaravelConfigDirectory = Join-Path (Join-Path $script:FrankenPhpLaravelStorageDirectory 'frankenphp') 'windows'
 $script:FrankenPhpLaravelRoutesDirectory = Join-Path $script:FrankenPhpLaravelConfigDirectory 'routes'
 $script:FrankenPhpCaddyfilePath = Join-Path $script:FrankenPhpLaravelConfigDirectory 'Caddyfile'
 $script:FrankenPhpLaravelDataDirectory = Join-Path (Join-Path $script:FrankenPhpWebRoot 'wwwroot') 'laravel_db'

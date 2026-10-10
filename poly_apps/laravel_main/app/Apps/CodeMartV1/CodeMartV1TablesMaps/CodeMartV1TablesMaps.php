@@ -5,6 +5,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1TablesMaps;
 class CodeMartV1TablesMaps
 {
     public const EMAIL_VERIFICATIONS_TABLE = 'codemart_v1_email_verifications';
+    public const EMAIL_CHANGES_TABLE = 'codemart_v1_email_changes';
     public const PHONE_VERIFICATIONS_TABLE = 'codemart_v1_phone_verifications';
     public const KYC_VERIFICATIONS_TABLE = 'codemart_v1_kyc_verifications';
     public const USER_ROLES_TABLE = 'codemart_v1_user_roles';

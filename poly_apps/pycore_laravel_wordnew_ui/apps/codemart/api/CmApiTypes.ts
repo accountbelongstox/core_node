@@ -51,6 +51,7 @@ export interface CmBootstrapUser {
   email: string | null;
   name: string | null;
   nickname: string | null;
+  avatar_url?: string | null;
   rolelevel: number;
   rolename: string | null;
 }
@@ -87,6 +88,8 @@ export interface CmCounters {
 
 export type CmPolicyListKey =
   | 'supported_currencies'
+  | 'payment_methods'
+  | 'allowed_image_types'
   | 'deposit_payment_methods'
   | 'withdrawal_methods'
   | 'payment_types'
@@ -109,6 +112,16 @@ export type CmBootstrapPolicy = {
   project_min_budget?: number;
   review_comment_min_length?: number;
   reviewer_retry_days?: number;
+  reviewer_pass_score?: number;
+  reviewer_exam_count?: number;
+  password_min_length?: number;
+  ai_estimate_currency?: string;
+  testimonial_max_quote_length?: number;
+  wallet_top_up_min_amount?: number;
+  wallet_top_up_max_amount?: number;
+  max_attachment_size_kb?: number;
+  max_kyc_image_size_kb?: number;
+  app_default_min_os?: Record<string, string>;
   [key: string]: unknown;
 } & Partial<Record<CmPolicyListKey, string[]>>;
 
@@ -168,8 +181,31 @@ export interface CmProfileResponse extends CmProfileData {
     email: string | null;
     name: string | null;
     nickname: string | null;
+    avatar_url?: string | null;
   };
   roles: Record<string, string>;
+}
+
+export interface CmAvatarResult {
+  avatar: string;
+  avatar_url: string | null;
+}
+
+export interface CmEmailChangeRequestResult {
+  pending_email: string;
+  expires_in_hours: number;
+}
+
+export interface CmEmailChangeConfirmResult {
+  email: string;
+}
+
+export interface CmPublicPolicy {
+  currency: string;
+  ai_estimate_currency: string;
+  password_min_length: number;
+  platform_commission_rate: number;
+  project_min_budget: number;
 }
 
 export interface CmProject {
@@ -670,6 +706,7 @@ export interface CmAiAnalysis {
   team_composition: unknown;
   estimated_hours: number | null;
   estimated_cost: string | number | null;
+  currency?: string | null;
   complexity_score: number | null;
   proposal: string | null;
   completed_at: string | null;
@@ -742,7 +779,47 @@ export interface CmPayment {
   project_id?: number | null;
   payer_id?: number;
   payee_id?: number;
+  business_ref?: string | null;
   created_at?: string | null;
+}
+
+export interface CmPaymentCounterparty {
+  id: number;
+  username?: string | null;
+  name?: string | null;
+  nickname?: string | null;
+}
+
+export interface CmPaymentDetail extends CmPayment {
+  payer?: CmPaymentCounterparty | null;
+  payee?: CmPaymentCounterparty | null;
+  milestone_id?: number | null;
+  updated_at?: string | null;
+  invoice?: { id: number; invoice_number: string; total_amount?: string | null } | null;
+}
+
+export interface CmPaymentCreatePayload {
+  payee_id: number;
+  amount: number;
+  type: string;
+  payment_method: string;
+  project_id?: number;
+  description?: string;
+}
+
+export interface CmPaymentCreateResult extends CmPayment {
+  idempotent_replay?: boolean;
+}
+
+export interface CmDepositStatus {
+  deposit_id: number;
+  role_type: string;
+  amount: string;
+  payment_method: string;
+  payment_url: string | null;
+  status: string;
+  paid_at: string | null;
+  admin_notes: string | null;
 }
 
 export interface CmDepositRecord {

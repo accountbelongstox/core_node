@@ -23,6 +23,7 @@ import {
   type CmAdminQuery,
   type CmAdminRefundRow,
   type CmAdminReviewerApplicationRow,
+  type CmAdminTaskRow,
   type CmAdminTestimonialRow,
   type CmAdminUserDetail,
   type CmAdminUserRow,
@@ -73,6 +74,14 @@ export class CmAdminApi extends BaseAPI {
 
   policy(): Promise<APIResponse<CmAdminPolicy>> {
     return this.get<CmAdminPolicy>('admin/policy');
+  }
+
+  updatePolicy(settings: Record<string, unknown>): Promise<APIResponse<CmAdminPolicy>> {
+    return this.put<CmAdminPolicy>('admin/policy', { settings });
+  }
+
+  tasks(query: CmAdminQuery): CmAdminListResponse<CmAdminTaskRow> {
+    return this.list<CmAdminTaskRow>('admin/tasks', query);
   }
 
   users(query: CmAdminQuery): CmAdminListResponse<CmAdminUserRow> {

@@ -80,7 +80,7 @@ class CodeMartV1AIAnalysisModel extends CodeMartV1Model
             'team' => implode(__('codemart.proposal.list_separator'), array_map([self::class, 'teamMemberLabel'], $team)),
             'hours' => $hours,
             'cost' => number_format((float) $cost, 2, '.', ','),
-            'currency' => $currency ?: \App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants::DEFAULT_CURRENCY,
+            'currency' => $currency ?: \App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService::aiEstimateCurrency(),
         ]);
     }
 

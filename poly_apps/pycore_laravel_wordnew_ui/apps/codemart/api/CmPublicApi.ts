@@ -6,11 +6,12 @@ import {
 import { cmHandleUnauthorized } from '../auth/cmAuthSession';
 import { CM_ACCOUNT_ROUTE } from '../auth/CmAuthApi';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
-import type { CmEstimateInput, CmEstimateResult, CmPublicHomeData, CmPublicTestimonialData } from './CmApiTypes';
+import type { CmEstimateInput, CmEstimateResult, CmPublicHomeData, CmPublicPolicy, CmPublicTestimonialData } from './CmApiTypes';
 
 const PUBLIC_HOME_CACHE_TTL_MS = 60_000;
 const ESTIMATE_OPTIONS_CACHE_TTL_MS = 300_000;
 const SHOWCASE_CACHE_TTL_MS = 30_000;
+const PUBLIC_POLICY_CACHE_TTL_MS = 60_000;
 const CM_PUBLIC_LOCALES = ['en', 'zh'] as const;
 
 export type CmPublicLocale = typeof CM_PUBLIC_LOCALES[number];
@@ -289,6 +290,10 @@ export class CmPublicApi extends BaseAPI {
     }
     const data = normalizeHome(response.data);
     return { data, errorCode: data ? null : 'public_home_unavailable' };
+  }
+
+  async getPublicPolicy(): Promise<APIResponse<CmPublicPolicy>> {
+    return this.get<CmPublicPolicy>('public/policy', undefined, true, PUBLIC_POLICY_CACHE_TTL_MS, false);
   }
 
   async getEstimateOptions(): Promise<APIResponse<CmEstimateOptions>> {

@@ -1,6 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
@@ -46,7 +47,7 @@ class CodeMartV1RegistrationCtl extends Controller
         $validator = Validator::make($request->all(), [
             'username' => 'required|string|unique:users|min:3|max:50',
             'email' => 'required|email|unique:users',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => 'required|string|min:' . CodeMartV1PolicyService::int('password_min_length') . '|confirmed',
             'role_type' => 'required|in:' . implode(',', CodeMartV1RoleRequestService::SELF_SERVICE_ROLES),
             'real_name' => 'required|string|max:100',
             'registration_code' => 'nullable|string|max:255',

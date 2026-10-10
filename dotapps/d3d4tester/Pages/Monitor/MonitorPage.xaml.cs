@@ -176,6 +176,8 @@ public partial class MonitorPage : UserControl
         LblPortalKeys.Text = T(I18nKeys.MonitorPortalKeys);
 
         TabRosbotKey.Header = T(I18nKeys.MonitorRosbotKeyTab);
+        TabOcrModel.Header = T(I18nKeys.OcrModelTab);
+        if (OcrModel.IsLoaded) OcrModel.RefreshI18n();
         LblRosbotKeys.Text = T(I18nKeys.MonitorRosbotKeyKeys);
         BtnRosbotKeyActive.Content = T(I18nKeys.MonitorRosbotKeySetActive);
         BtnRosbotKeyRemove.Content = T(I18nKeys.MonitorRosbotKeyRemove);

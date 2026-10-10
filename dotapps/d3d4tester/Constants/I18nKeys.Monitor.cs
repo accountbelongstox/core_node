@@ -158,6 +158,17 @@ public static partial class I18nKeys
     public const string MonitorRosbotKeyOpenDir = "ui.monitor.rosbot_key.open_dir";
     public const string MonitorRosbotKeyAddFailed = "ui.monitor.rosbot_key.add_failed";
     public const string MonitorRosbotKeyHint = "ui.monitor.rosbot_key.hint";
+    public const string OcrModelTab = "ui.ocr_model.tab";
+    public const string OcrModelLabel = "ui.ocr_model.label";
+    public const string OcrModelBundledSuffix = "ui.ocr_model.bundled_suffix";
+    public const string OcrModelDownload = "ui.ocr_model.download";
+    public const string OcrModelLoad = "ui.ocr_model.load";
+    public const string OcrModelOpenDir = "ui.ocr_model.open_dir";
+    public const string OcrModelActive = "ui.ocr_model.active";
+    public const string OcrModelInstalled = "ui.ocr_model.installed";
+    public const string OcrModelNotInstalled = "ui.ocr_model.not_installed";
+    public const string OcrModelDownloadFailed = "ui.ocr_model.download_failed";
+    public const string OcrModelHint = "ui.ocr_model.hint";
     public const string MonitorRosbotKeyRestartAsk = "ui.monitor.rosbot_key.restart_ask";
     public const string MonitorRosbotKeyLastApply = "ui.monitor.rosbot_key.last_apply";
     public const string MonitorRosbotKeyResultUnchanged = "ui.monitor.rosbot_key.result_unchanged";

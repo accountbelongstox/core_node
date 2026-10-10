@@ -230,16 +230,7 @@ public sealed class TemplateMatcherHelper
     private static TemplateMatchConfig? GetConfig(string clientType, string name)
     {
         if (clientType == AppConstants.ClientTypeD4Game)
-        {
-            return name == D4Constants.SmallMapTemplateName
-                ? new TemplateMatchConfig
-                {
-                    Path = Path.Combine(D3TemplatePaths.GetTemplateDir(), D4Constants.SmallMapTemplateSubDir, D4Constants.SmallMapTemplateFile),
-                    Threshold = D4Constants.SmallMapThreshold,
-                    MatchMethod = D4Constants.SmallMapMatchMethod,
-                }
-                : null;
-        }
+            return D4SmallMapDetector.Instance.GetTemplateConfig(name);
         if (clientType == AppConstants.ClientTypeD3Game)
             return D3TemplateConfig.GetConfig(name);
         foreach (var t in BattlenetTemplates)

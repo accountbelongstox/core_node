@@ -8,6 +8,8 @@ import type { APIResponse } from '../../../core/integrations/laravel/transport/T
 import { setAuthToken } from '../../../core/auth/AuthSession';
 import type {
   CmArchitectEligibility,
+  CmAiAnalysis,
+  CmAvatarResult,
   CmArchitectTasks,
   CmAttachment,
   CmBootstrap,
@@ -15,6 +17,9 @@ import type {
   CmDepositCreateResult,
   CmDepositInfo,
   CmDepositRecord,
+  CmDepositStatus,
+  CmEmailChangeConfirmResult,
+  CmEmailChangeRequestResult,
   CmEmailResendResult,
   CmFundResult,
   CmInvoice,
@@ -24,6 +29,9 @@ import type {
   CmPage,
   CmPagination,
   CmPayment,
+  CmPaymentCreatePayload,
+  CmPaymentCreateResult,
+  CmPaymentDetail,
   CmProfileResponse,
   CmProject,
   CmProjectAnalysis,
@@ -110,6 +118,20 @@ export class CmApi extends BaseAPI {
 
   async updateProfile(payload: Record<string, unknown>): Promise<APIResponse<CmProfileResponse>> {
     return this.put<CmProfileResponse>('profile', payload);
+  }
+
+  async uploadAvatar(file: File, onProgress: (percentage: number) => void = () => {}): Promise<APIResponse<CmAvatarResult>> {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return this.uploadWithProgress<CmAvatarResult>('profile/avatar', formData, onProgress);
+  }
+
+  async requestEmailChange(newEmail: string, password: string): Promise<APIResponse<CmEmailChangeRequestResult>> {
+    return this.post<CmEmailChangeRequestResult>('profile/email-change', { new_email: newEmail, password });
+  }
+
+  async confirmEmailChange(token: string): Promise<APIResponse<CmEmailChangeConfirmResult>> {
+    return this.post<CmEmailChangeConfirmResult>('profile/email-change/confirm', { token });
   }
 
   async requestRole(roleType: string): Promise<APIResponse<CmRoleRequestResult>> {
@@ -229,6 +251,10 @@ export class CmApi extends BaseAPI {
     return this.post(`ai-analysis/projects/${projectId}/analyze`, {});
   }
 
+  async getAnalysisResult(analysisId: number): Promise<APIResponse<CmAiAnalysis>> {
+    return this.get<CmAiAnalysis>(`ai-analysis/${analysisId}`);
+  }
+
   async acceptAnalysis(analysisId: number, idempotencyKey: string): Promise<APIResponse<{ project_status: string; funding_amount: string }>> {
     return this.postIdempotent(`ai-analysis/${analysisId}/accept`, {}, idempotencyKey);
   }
@@ -243,6 +269,14 @@ export class CmApi extends BaseAPI {
 
   async acceptTask(taskId: number): Promise<APIResponse<unknown>> {
     return this.post<unknown>(`marketplace/tasks/${taskId}/accept`, {});
+  }
+
+  async getTasks(params: { page: number; status?: string; search?: string; project_id?: number }): Promise<APIResponse<CmListPage<CmTask>>> {
+    const query: Record<string, string | number> = { page: params.page };
+    if (params.status) query.status = params.status;
+    if (params.search) query.search = params.search;
+    if (params.project_id) query.project_id = params.project_id;
+    return this.get('tasks', query);
   }
 
   async getMyTasks(page = 1): Promise<APIResponse<{ my_tasks: CmTask[]; pagination: CmPagination }>> {
@@ -271,6 +305,18 @@ export class CmApi extends BaseAPI {
 
   async getDepositBankInfo(depositId: number): Promise<APIResponse<CmDepositBankInfo>> {
     return this.get<CmDepositBankInfo>(`deposits/${depositId}/bank-info`);
+  }
+
+  async getDepositStatus(depositId: number): Promise<APIResponse<CmDepositStatus>> {
+    return this.get<CmDepositStatus>(`deposits/${depositId}/status`);
+  }
+
+  async createPayment(payload: CmPaymentCreatePayload, idempotencyKey: string): Promise<APIResponse<CmPaymentCreateResult>> {
+    return this.postIdempotent<CmPaymentCreateResult>('payments', payload, idempotencyKey);
+  }
+
+  async getPayment(paymentId: number): Promise<APIResponse<CmPaymentDetail>> {
+    return this.get<CmPaymentDetail>(`payments/${paymentId}`);
   }
 
   async getPayments(page = 1): Promise<APIResponse<CmListPage<CmPayment>>> {

@@ -1,5 +1,18 @@
 {
   "ui": {
+    "ocr_model": {
+      "tab": "OCR 模型",
+      "label": "OCR 模型（所有 dot 程序共用）",
+      "bundled_suffix": "（内置，快速）",
+      "download": "下载",
+      "load": "加载",
+      "open_dir": "打开模型目录",
+      "active": "本机所有 dot 程序正在使用。",
+      "installed": "已下载，未使用：请点“加载”。",
+      "not_installed": "未下载（约 {0:0} MB，来自 PaddlePaddle 官方）。",
+      "download_failed": "下载失败：{0}",
+      "hint": "在 CPU 上运行。PP-OCRv5 mobile 为内置，速度快；PP-OCRv5 server 识别游戏里的小字（技能、符文名）更准确，但每次识别需要数秒。“加载”后立即重新加载 OCR，选择对所有 dot 程序生效。"
+    },
     "startup": {
       "shortcut_path": "启动项快捷方式：{0}",
       "shortcut_path_missing": "启动项快捷方式（未创建）：{0}"

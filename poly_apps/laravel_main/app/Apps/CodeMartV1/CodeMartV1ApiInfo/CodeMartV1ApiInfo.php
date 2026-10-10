@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1ApiInfo;
 
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 
 class CodeMartV1ApiInfo
@@ -35,7 +36,7 @@ class CodeMartV1ApiInfo
                 'authentication' => false,
                 'parameters' => [
                     'email' => 'string|required|email|unique:users',
-                    'password' => 'string|required|min:8',
+                    'password' => 'string|required|min:' . CodeMartV1PolicyService::int('password_min_length'),
                     'name' => 'string|required',
                     'user_type' => 'string|required|in:developer,client',
                     'phone' => 'string|nullable',
@@ -122,7 +123,7 @@ class CodeMartV1ApiInfo
                     'title' => 'string|required|max:255',
                     'description' => 'string|required',
                     'complexity' => 'string|required|in:simple,medium,complex,very_complex',
-                    'budget' => 'numeric|required|min:' . CodeMartV1Constants::PROJECT_MIN_BUDGET,
+                    'budget' => 'numeric|required|min:' . CodeMartV1PolicyService::int('project_min_budget'),
                     'budget_type' => 'string|required|in:fixed,hourly',
                     'currency' => 'string|required|size:3',
                     'start_date' => 'date|nullable',
@@ -155,7 +156,7 @@ class CodeMartV1ApiInfo
                     'description' => 'string|sometimes',
                     'status' => 'string|sometimes|in:draft,open,in_progress,paused,completed,cancelled,archived',
                     'complexity' => 'string|sometimes|in:simple,medium,complex,very_complex',
-                    'budget' => 'numeric|sometimes|min:' . CodeMartV1Constants::PROJECT_MIN_BUDGET,
+                    'budget' => 'numeric|sometimes|min:' . CodeMartV1PolicyService::int('project_min_budget'),
                 ],
                 'response' => 'Updated project object',
                 'feature' => 'Update Project',

@@ -331,6 +331,11 @@
         </Grid>
       </TabItem>
 
+      <!-- Global CPU OCR model (shared by every dot app) -->
+      <TabItem x:Name="TabOcrModel">
+        <comp:OcrModelBlock x:Name="OcrModel"/>
+      </TabItem>
+
       <TabItem x:Name="NavGroupDevelopment" Style="{StaticResource SideNavGroupHeaderStyle}"/>
       <!-- Decompile tools (ILSpy, de4dot-cex, autoit-ripper, UPX) and their log -->
       <TabItem x:Name="TabDecompile">

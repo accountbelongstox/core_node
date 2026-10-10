@@ -11,6 +11,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectAttachmentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectProposalModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1EscrowService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1PolicyService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
@@ -90,6 +91,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             'team_composition' => $this->decodeList($analysis->team_composition),
             'estimated_hours' => $analysis->estimated_hours,
             'estimated_cost' => $analysis->estimated_cost,
+            'currency' => CodeMartV1PolicyService::aiEstimateCurrency(),
             'complexity_score' => $analysis->complexity_score,
             'proposal' => $analysis->proposal,
             'revision_notes' => $analysis->revision_notes,
