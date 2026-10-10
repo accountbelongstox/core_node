@@ -159,6 +159,53 @@ public static class WindowResizer
         return (Math.Max(margin, Math.Min(left, maxLeft)), Math.Max(margin, Math.Min(top, maxTop)));
     }
 
+    /// <summary>
+    /// Resize hwnd to a client of at most maxClientWidth x maxClientHeight that fits the work area (taskbar excluded) of the monitor the
+    /// window is on, keeping the aspect ratio; the window stays where it is when it fits, else it is moved inside that work area.
+    /// The client size set, or null when the window or its monitor is not available.
+    /// </summary>
+    public static (int Width, int Height)? FitClientToMonitor(IntPtr hwnd, int maxClientWidth, int maxClientHeight)
+    {
+        if (!WindowFinderNative.IsWindow(hwnd) || !WindowFinderNative.GetWindowRect(hwnd, out var wr) || !WindowInputNative.GetClientRect(hwnd, out var cr))
+            return null;
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        IntPtr monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return null;
+        int frameW = (wr.Right - wr.Left) - (cr.Right - cr.Left), frameH = (wr.Bottom - wr.Top) - (cr.Bottom - cr.Top);
+        int workW = info.Work.Right - info.Work.Left, workH = info.Work.Bottom - info.Work.Top;
+        double k = Math.Min(1.0, Math.Min((workW - frameW) / (double)maxClientWidth, (workH - frameH) / (double)maxClientHeight));
+        int clientW = (int)(maxClientWidth * k), clientH = (int)(maxClientHeight * k);
+        int outerW = clientW + frameW, outerH = clientH + frameH;
+        int left = Math.Clamp(wr.Left, info.Work.Left, Math.Max(info.Work.Left, info.Work.Right - outerW));
+        int top = Math.Clamp(wr.Top, info.Work.Top, Math.Max(info.Work.Top, info.Work.Bottom - outerH));
+        if (!MoveWindow(hwnd, left, top, outerW, outerH, true)) return null;
+        ColorPrinter.Blue($"{LogTag} client {cr.Right - cr.Left}x{cr.Bottom - cr.Top} -> {clientW}x{clientH} at ({left},{top}) in work area {workW}x{workH}");
+        return (clientW, clientH);
+    }
+
+    private const uint MonitorDefaultToNearest = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorRect
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public MonitorRect Monitor;
+        public MonitorRect Work;
+        public uint Flags;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+
     /// <summary>Outer window rectangle (left, top, width, height) in screen px, or null for an invalid window.</summary>
     public static (int Left, int Top, int Width, int Height)? GetWindowBounds(IntPtr hwnd) =>
         WindowFinderNative.IsWindow(hwnd) && WindowFinderNative.GetWindowRect(hwnd, out var r) ? (r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top) : null;
