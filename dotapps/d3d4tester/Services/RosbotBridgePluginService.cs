@@ -329,8 +329,9 @@ public static class RosbotBridgePluginService
         if (click != null) lines.Add($"{CommandKeyClick}={click.Value}");
         if (!string.IsNullOrWhiteSpace(uiId)) lines.Add($"{CommandKeyUiId}={uiId.Trim()}");
         if (!string.IsNullOrWhiteSpace(value)) lines.Add($"{CommandKeyValue}={value.Trim()}");
+        lines.Add($"{CommandKeyAssist}={AssistEnabled}");
         if (!WriteAtomic(Path.Combine(dir, RosbotPluginConstants.BridgeCommandFileName), lines)) return null;
-        ColorPrinter.Blue($"{LogTag} command {id} {action} target='{target}' mode={mode} click={click} ui={uiId}");
+        ColorPrinter.Blue($"{LogTag} command {id} {action} target='{target}' mode={mode} click={click} ui={uiId} assist={AssistEnabled}");
         if (rememberFollow && action == RosbotPluginConstants.BridgeActionFollow)
         {
             ConfigBinding.SetValue(ConfigKeys.BridgeFollowCommandValue, value?.Trim() ?? "");
@@ -392,13 +393,8 @@ public static class RosbotBridgePluginService
         return value.Length > 0 && value != RosbotPluginConstants.BridgeFollowOff;
     }
 
-    /// <summary>True when a follow value asks for follow only and fight (assist flag set).</summary>
-    public static bool FollowAssist(string value)
-    {
-        var parts = value.Split(RosbotPluginConstants.BridgeFollowValueSeparator);
-        return parts.Length > RosbotPluginConstants.BridgeFollowAssistIndex
-               && parts[RosbotPluginConstants.BridgeFollowAssistIndex].Trim() == RosbotPluginConstants.BridgeFollowFlagOn;
-    }
+    /// <summary>Shared combat assist setting (ConfigKeys.BridgeAssist), sent with every command.</summary>
+    public static bool AssistEnabled => ConfigBinding.GetValue(ConfigKeys.BridgeAssist, ConfigKeys.BridgeAssistDefault);
 
     /// <summary>Write the pickup filter for the plugin (pickup_filter.txt: auto line + one name fragment per line).</summary>
     public static bool SavePickupFilter(bool autoAtRiftEnd, IEnumerable<string> patterns)
@@ -450,6 +446,7 @@ public static class RosbotBridgePluginService
     private const string CommandKeyClick = "click";
     private const string CommandKeyUiId = "ui_id";
     private const string CommandKeyValue = "value";
+    private const string CommandKeyAssist = "assist";
     private const string FilterKeyAuto = "auto";
     private const string TempSuffix = ".tmp";
 
